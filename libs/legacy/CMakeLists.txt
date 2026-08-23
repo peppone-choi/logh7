@@ -102,10 +102,27 @@ set_target_properties(
 
 add_test(NAME LegacyDataProvider COMMAND LegacyDataProviderTest)
 
+if(NOT MSVC)
+  message(FATAL_ERROR "LegacyDataProviderProductionSurface requires the active MSVC toolchain")
+endif()
+
+get_filename_component(logh7_msvc_tool_directory "${CMAKE_CXX_COMPILER}" DIRECTORY)
+find_program(
+  LOGH7_DUMPBIN_EXECUTABLE
+  NAMES dumpbin.exe
+  HINTS "${logh7_msvc_tool_directory}"
+  NO_DEFAULT_PATH
+  NO_CACHE
+)
+if(NOT LOGH7_DUMPBIN_EXECUTABLE)
+  message(FATAL_ERROR "Unable to resolve dumpbin.exe beside the active MSVC compiler")
+endif()
+
 add_test(
   NAME LegacyDataProviderProductionSurface
   COMMAND
     "${CMAKE_COMMAND}"
     "-DARCHIVE=$<TARGET_FILE:logh7_legacy>"
+    "-DDUMPBIN=${LOGH7_DUMPBIN_EXECUTABLE}"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/production_symbol_audit.cmake"
 )
