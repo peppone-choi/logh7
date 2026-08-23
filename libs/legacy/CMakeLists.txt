@@ -2,6 +2,8 @@ add_library(
   logh7_legacy
   STATIC
   src/legacy_data_provider.cpp
+  src/tga_decoder.cpp
+  src/wic_image_decoder.cpp
 )
 
 target_compile_definitions(
@@ -30,7 +32,67 @@ target_compile_options(
     /WX
 )
 
-target_link_libraries(logh7_legacy PRIVATE bcrypt)
+target_link_libraries(
+  logh7_legacy
+  PRIVATE
+    bcrypt
+    ole32
+    shlwapi
+    windowscodecs
+)
+
+add_executable(
+  LegacyImageDecodeTest
+  tests/image_decode_test.cpp
+)
+
+add_executable(
+  LegacyImageProbe
+  tools/legacy_image_probe.cpp
+)
+
+target_compile_definitions(
+  LegacyImageDecodeTest
+  PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    _WIN32_WINNT=0x0A00
+)
+
+target_compile_definitions(
+  LegacyImageProbe
+  PRIVATE
+    UNICODE
+    _UNICODE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    _WIN32_WINNT=0x0A00
+)
+
+target_compile_options(
+  LegacyImageDecodeTest
+  PRIVATE
+    /EHsc
+    /permissive-
+    /utf-8
+    /W4
+    /WX
+)
+
+target_compile_options(
+  LegacyImageProbe
+  PRIVATE
+    /EHsc
+    /permissive-
+    /utf-8
+    /W4
+    /WX
+)
+
+target_link_libraries(LegacyImageDecodeTest PRIVATE logh7_legacy)
+target_link_libraries(LegacyImageProbe PRIVATE logh7_legacy)
 
 add_executable(
   LegacyDataProviderTest
@@ -95,12 +157,14 @@ target_compile_options(
 target_link_libraries(LegacyDataProviderProbe PRIVATE logh7_legacy)
 
 set_target_properties(
-  LegacyDataProviderTest LegacyDataProviderProbe
+  LegacyDataProviderTest LegacyDataProviderProbe LegacyImageDecodeTest LegacyImageProbe
   PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
 add_test(NAME LegacyDataProvider COMMAND LegacyDataProviderTest)
+add_test(NAME LegacyImageDecode COMMAND LegacyImageDecodeTest)
+add_test(NAME LegacyImageDecodeMalformed COMMAND LegacyImageDecodeTest --malformed-only)
 
 if(NOT MSVC)
   message(FATAL_ERROR "LegacyDataProviderProductionSurface requires the active MSVC toolchain")
