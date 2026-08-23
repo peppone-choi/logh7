@@ -1,3 +1,5 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <shellapi.h>
 
@@ -5,16 +7,17 @@
 #include <charconv>
 #include <cwctype>
 #include <filesystem>
-#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
 constexpr wchar_t kWindowClassName[] = L"LOGH7_GREENFIELD_CLIENT";
 constexpr wchar_t kVersion[] = L"Logh7Client 0.1.0\n";
 constexpr UINT_PTR kSmokeTimerId = 1;
+constexpr std::size_t kMaximumServerUrlLength = 256;
 
 struct ClientOptions {
     std::wstring profile = L"default";
@@ -83,13 +86,6 @@ bool IsUuid(const std::wstring_view value) {
     return true;
 }
 
-bool IsHttpUrl(const std::wstring_view value) {
-    constexpr std::wstring_view http = L"http://";
-    constexpr std::wstring_view https = L"https://";
-    return (value.starts_with(http) && value.size() > http.size()) ||
-           (value.starts_with(https) && value.size() > https.size());
-}
-
 std::optional<unsigned> ParseUnsigned(const std::wstring_view value) {
     if (value.empty()) {
         return std::nullopt;
@@ -110,6 +106,96 @@ std::optional<unsigned> ParseUnsigned(const std::wstring_view value) {
         return std::nullopt;
     }
     return parsed;
+}
+
+bool IsAsciiLetterOrDigit(const wchar_t character) {
+    return (character >= L'a' && character <= L'z') ||
+           (character >= L'A' && character <= L'Z') ||
+           (character >= L'0' && character <= L'9');
+}
+
+bool IsValidHostName(const std::wstring_view host) {
+    if (host.empty() || host.size() > 253 || host.front() == L'.' || host.back() == L'.') {
+        return false;
+    }
+
+    std::size_t labelStart = 0;
+    while (labelStart < host.size()) {
+        const std::size_t labelEnd = host.find(L'.', labelStart);
+        const std::size_t end = labelEnd == std::wstring_view::npos ? host.size() : labelEnd;
+        const std::wstring_view label = host.substr(labelStart, end - labelStart);
+        if (label.empty() || label.size() > 63 || label.front() == L'-' || label.back() == L'-') {
+            return false;
+        }
+        for (const wchar_t character : label) {
+            if (!IsAsciiLetterOrDigit(character) && character != L'-') {
+                return false;
+            }
+        }
+        labelStart = end + 1;
+    }
+    return true;
+}
+
+bool IsValidIpv6Literal(const std::wstring_view host) {
+    const std::wstring addressText(host);
+    IN6_ADDR address{};
+    return InetPtonW(AF_INET6, addressText.c_str(), &address) == 1;
+}
+
+bool IsValidPort(const std::wstring_view port) {
+    const std::optional<unsigned> value = ParseUnsigned(port);
+    return value.has_value() && value.value() > 0 && value.value() <= 65535;
+}
+
+bool IsServerUrl(const std::wstring_view value) {
+    constexpr std::wstring_view http = L"http://";
+    constexpr std::wstring_view https = L"https://";
+    if (value.empty() || value.size() > kMaximumServerUrlLength) {
+        return false;
+    }
+    if (std::ranges::any_of(value, [](const wchar_t character) {
+            return character <= L' ' || character == L'\\';
+        })) {
+        return false;
+    }
+
+    std::size_t authorityStart = 0;
+    if (value.starts_with(http)) {
+        authorityStart = http.size();
+    } else if (value.starts_with(https)) {
+        authorityStart = https.size();
+    } else {
+        return false;
+    }
+
+    const std::size_t authorityEnd = value.find_first_of(L"/?#", authorityStart);
+    const std::wstring_view authority = value.substr(
+        authorityStart,
+        authorityEnd == std::wstring_view::npos ? value.size() - authorityStart : authorityEnd - authorityStart);
+    if (authority.empty() || authority.find(L'@') != std::wstring_view::npos) {
+        return false;
+    }
+
+    if (authority.front() == L'[') {
+        const std::size_t closingBracket = authority.find(L']');
+        if (closingBracket == std::wstring_view::npos ||
+            !IsValidIpv6Literal(authority.substr(1, closingBracket - 1))) {
+            return false;
+        }
+        const std::wstring_view suffix = authority.substr(closingBracket + 1);
+        return suffix.empty() || (suffix.front() == L':' && IsValidPort(suffix.substr(1)));
+    }
+
+    const std::size_t colon = authority.rfind(L':');
+    std::wstring_view host = authority;
+    if (colon != std::wstring_view::npos) {
+        if (authority.find(L':') != colon || !IsValidPort(authority.substr(colon + 1))) {
+            return false;
+        }
+        host = authority.substr(0, colon);
+    }
+    return IsValidHostName(host);
 }
 
 std::optional<SIZE> ParseResolution(const std::wstring_view value) {
@@ -160,8 +246,8 @@ ParseResult ParseCommandLine() {
             }
             result.options.profile = value;
         } else if (option == L"--server") {
-            if (!IsHttpUrl(value)) {
-                result.error = L"--server requires an http or https URL";
+            if (!IsServerUrl(value)) {
+                result.error = L"--server requires a well-formed http or https URL with a host (maximum 256 characters)";
                 releaseArguments();
                 return result;
             }
@@ -217,46 +303,66 @@ void DrawTextLine(
     DrawTextW(deviceContext, text.c_str(), static_cast<int>(text.size()), &bounds, format | DT_NOPREFIX);
 }
 
+std::vector<std::wstring> WrapTextToWidth(
+    const HDC deviceContext,
+    const std::wstring_view text,
+    const int maximumWidth) {
+    std::vector<std::wstring> lines;
+    std::size_t offset = 0;
+    while (offset < text.size()) {
+        std::size_t low = 1;
+        std::size_t high = text.size() - offset;
+        std::size_t fit = 1;
+        while (low <= high) {
+            const std::size_t candidate = low + ((high - low) / 2);
+            SIZE measured{};
+            if (GetTextExtentPoint32W(
+                    deviceContext,
+                    text.data() + offset,
+                    static_cast<int>(candidate),
+                    &measured) != FALSE &&
+                measured.cx <= maximumWidth) {
+                fit = candidate;
+                low = candidate + 1;
+            } else {
+                high = candidate - 1;
+            }
+        }
+
+        if (offset + fit < text.size()) {
+            const std::size_t minimumBreak = fit / 2;
+            for (std::size_t candidate = fit; candidate > minimumBreak; --candidate) {
+                const wchar_t character = text[offset + candidate - 1];
+                if (character == L'/' || character == L'?' || character == L'&' ||
+                    character == L'=' || character == L'.' || character == L'-' || character == L'_') {
+                    fit = candidate;
+                    break;
+                }
+            }
+        }
+
+        lines.emplace_back(text.substr(offset, fit));
+        offset += fit;
+    }
+    if (lines.empty()) {
+        lines.emplace_back();
+    }
+    return lines;
+}
+
 void PaintClient(const HWND window, const HDC deviceContext, const ClientOptions& options) {
     RECT client{};
     GetClientRect(window, &client);
     const int width = client.right - client.left;
     const int height = client.bottom - client.top;
     const UINT dpi = GetDpiForWindow(window);
-    const int scale = std::max(1, static_cast<int>(dpi) / 96);
-    const int margin = 24 * scale;
-    const int headerBottom = 96 * scale;
-    const int footerTop = height - (44 * scale);
+    const int margin = MulDiv(24, static_cast<int>(dpi), 96);
+    const int footerTop = height - MulDiv(44, static_cast<int>(dpi), 96);
 
     const HBRUSH background = CreateSolidBrush(RGB(5, 13, 17));
     FillRect(deviceContext, &client, background);
     DeleteObject(background);
 
-    const HPEN framePen = CreatePen(PS_SOLID, std::max(1, scale), RGB(43, 102, 98));
-    const HPEN gridPen = CreatePen(PS_SOLID, 1, RGB(19, 49, 52));
-    const HGDIOBJ originalPen = SelectObject(deviceContext, framePen);
-
-    MoveToEx(deviceContext, margin, headerBottom, nullptr);
-    LineTo(deviceContext, width - margin, headerBottom);
-    MoveToEx(deviceContext, margin, footerTop, nullptr);
-    LineTo(deviceContext, width - margin, footerTop);
-
-    SelectObject(deviceContext, gridPen);
-    const int gridStep = 64 * scale;
-    for (int x = margin; x <= width - margin; x += gridStep) {
-        MoveToEx(deviceContext, x, headerBottom, nullptr);
-        LineTo(deviceContext, x, footerTop);
-    }
-    for (int y = headerBottom; y <= footerTop; y += gridStep) {
-        MoveToEx(deviceContext, margin, y, nullptr);
-        LineTo(deviceContext, width - margin, y);
-    }
-
-    SelectObject(deviceContext, originalPen);
-    DeleteObject(framePen);
-    DeleteObject(gridPen);
-
-    SetBkMode(deviceContext, TRANSPARENT);
     const HFONT headingFont = CreateFontW(
         -MulDiv(18, static_cast<int>(dpi), 96),
         0,
@@ -287,9 +393,50 @@ void PaintClient(const HWND window, const HDC deviceContext, const ClientOptions
         CLEARTYPE_QUALITY,
         FIXED_PITCH | FF_MODERN,
         L"Consolas");
+    const HGDIOBJ originalFont = SelectObject(deviceContext, detailFont);
+    const std::wstring serverText = L"SERVER   " + options.server;
+    const std::vector<std::wstring> serverLines = WrapTextToWidth(
+        deviceContext,
+        serverText,
+        width - (2 * margin) - MulDiv(4, static_cast<int>(dpi), 96));
+    const int serverTop = MulDiv(50, static_cast<int>(dpi), 96);
+    const int serverLineHeight = MulDiv(22, static_cast<int>(dpi), 96);
+    const int headerBottom = std::max(
+        MulDiv(96, static_cast<int>(dpi), 96),
+        serverTop + (static_cast<int>(serverLines.size()) * serverLineHeight) +
+            MulDiv(12, static_cast<int>(dpi), 96));
 
-    const HGDIOBJ originalFont = SelectObject(deviceContext, headingFont);
-    RECT profileBounds{margin, 16 * scale, width - margin, 46 * scale};
+    const HPEN framePen = CreatePen(PS_SOLID, std::max(1, MulDiv(1, static_cast<int>(dpi), 96)), RGB(43, 102, 98));
+    const HPEN gridPen = CreatePen(PS_SOLID, 1, RGB(19, 49, 52));
+    const HGDIOBJ originalPen = SelectObject(deviceContext, framePen);
+
+    MoveToEx(deviceContext, margin, headerBottom, nullptr);
+    LineTo(deviceContext, width - margin, headerBottom);
+    MoveToEx(deviceContext, margin, footerTop, nullptr);
+    LineTo(deviceContext, width - margin, footerTop);
+
+    SelectObject(deviceContext, gridPen);
+    const int gridStep = MulDiv(64, static_cast<int>(dpi), 96);
+    for (int x = margin; x <= width - margin; x += gridStep) {
+        MoveToEx(deviceContext, x, headerBottom, nullptr);
+        LineTo(deviceContext, x, footerTop);
+    }
+    for (int y = headerBottom; y <= footerTop; y += gridStep) {
+        MoveToEx(deviceContext, margin, y, nullptr);
+        LineTo(deviceContext, width - margin, y);
+    }
+
+    SelectObject(deviceContext, originalPen);
+    DeleteObject(framePen);
+    DeleteObject(gridPen);
+
+    SetBkMode(deviceContext, TRANSPARENT);
+    SelectObject(deviceContext, headingFont);
+    RECT profileBounds{
+        margin,
+        MulDiv(16, static_cast<int>(dpi), 96),
+        width - margin,
+        MulDiv(46, static_cast<int>(dpi), 96)};
     DrawTextLine(
         deviceContext,
         L"PROFILE  " + options.profile,
@@ -298,16 +445,23 @@ void PaintClient(const HWND window, const HDC deviceContext, const ClientOptions
         DT_LEFT | DT_SINGLELINE | DT_VCENTER);
 
     SelectObject(deviceContext, detailFont);
-    RECT serverBounds{margin, 50 * scale, width - margin, 80 * scale};
-    DrawTextLine(
-        deviceContext,
-        L"SERVER   " + options.server,
-        serverBounds,
-        RGB(102, 183, 173),
-        DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+    for (std::size_t index = 0; index < serverLines.size(); ++index) {
+        const int top = serverTop + (static_cast<int>(index) * serverLineHeight);
+        RECT serverBounds{margin, top, width - margin, top + serverLineHeight};
+        DrawTextLine(
+            deviceContext,
+            serverLines[index],
+            serverBounds,
+            RGB(102, 183, 173),
+            DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+    }
 
     const std::wstring session = options.sessionId.value_or(L"UNASSIGNED");
-    RECT sessionBounds{margin, footerTop + (8 * scale), width / 2, height - (8 * scale)};
+    RECT sessionBounds{
+        margin,
+        footerTop + MulDiv(8, static_cast<int>(dpi), 96),
+        width / 2,
+        height - MulDiv(8, static_cast<int>(dpi), 96)};
     DrawTextLine(
         deviceContext,
         L"SESSION  " + session,
@@ -315,7 +469,11 @@ void PaintClient(const HWND window, const HDC deviceContext, const ClientOptions
         RGB(102, 183, 173),
         DT_LEFT | DT_SINGLELINE | DT_VCENTER);
 
-    RECT diagnosticBounds{width / 2, footerTop + (8 * scale), width - margin, height - (8 * scale)};
+    RECT diagnosticBounds{
+        width / 2,
+        footerTop + MulDiv(8, static_cast<int>(dpi), 96),
+        width - margin,
+        height - MulDiv(8, static_cast<int>(dpi), 96)};
     DrawTextLine(
         deviceContext,
         L"DIAGNOSTIC BOOTSTRAP / NO FIDELITY CLAIM",

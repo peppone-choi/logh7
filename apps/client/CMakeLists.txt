@@ -20,7 +20,7 @@ target_compile_options(
     /WX
 )
 
-target_link_libraries(Logh7Client PRIVATE user32 gdi32 shell32)
+target_link_libraries(Logh7Client PRIVATE user32 gdi32 shell32 ws2_32)
 target_link_options(Logh7Client PRIVATE /Brepro)
 
 set_target_properties(
