@@ -250,6 +250,50 @@ void TestReparseRoot(TestContext& context) {
     }
 }
 
+void TestNestedReparseCandidatesAreNotTraversed(TestContext& context) {
+    const auto manifest = FixtureManifest();
+    TempTree external;
+    PopulatePayload(external.root());
+
+    TempTree direct;
+    const auto directLink = direct.root() / L"payload-link";
+    context.Expect(
+        CreateDirectoryLink(directLink, external.root()),
+        "test environment can create a direct-child directory reparse point");
+    context.ExpectError(
+        LegacyDataProvider::OpenForTest(direct.root(), manifest),
+        LegacyDataErrorCode::PayloadNotFound,
+        "direct-child reparse payload candidate is not traversed");
+
+    TempTree grandchild;
+    const auto wrapper = grandchild.root() / L"wrapper";
+    std::filesystem::create_directories(wrapper);
+    const auto grandchildLink = wrapper / L"payload-link";
+    context.Expect(
+        CreateDirectoryLink(grandchildLink, external.root()),
+        "test environment can create a grandchild directory reparse point");
+    context.ExpectError(
+        LegacyDataProvider::OpenForTest(grandchild.root(), manifest),
+        LegacyDataErrorCode::PayloadNotFound,
+        "grandchild reparse payload candidate is not traversed");
+}
+
+void TestReparseParentCannotEscapePayloadRoot(TestContext& context) {
+    const auto manifest = FixtureManifest();
+    TempTree external;
+    PopulatePayload(external.root());
+
+    TempTree candidate;
+    const auto dataLink = candidate.root() / L"data";
+    context.Expect(
+        CreateDirectoryLink(dataLink, external.root() / L"data"),
+        "test environment can create an in-candidate directory reparse point");
+    context.ExpectError(
+        LegacyDataProvider::OpenForTest(candidate.root(), manifest),
+        LegacyDataErrorCode::AssetOutsideRoot,
+        "final-handle containment rejects a parent-directory reparse escape");
+}
+
 }
 
 int main() {
@@ -258,6 +302,8 @@ int main() {
     TestCandidateCardinality(context);
     TestCorruptAssets(context);
     TestReparseRoot(context);
+    TestNestedReparseCandidatesAreNotTraversed(context);
+    TestReparseParentCannotEscapePayloadRoot(context);
 
     if (context.failures != 0) {
         std::cerr << context.failures << " LegacyDataProvider assertion(s) failed\n";

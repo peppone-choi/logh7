@@ -7,7 +7,6 @@ add_library(
 target_compile_definitions(
   logh7_legacy
   PRIVATE
-    LOGH7_TESTING
     UNICODE
     _UNICODE
     WIN32_LEAN_AND_MEAN
@@ -36,6 +35,7 @@ target_link_libraries(logh7_legacy PRIVATE bcrypt)
 add_executable(
   LegacyDataProviderTest
   tests/legacy_data_provider_test.cpp
+  src/legacy_data_provider.cpp
 )
 
 target_compile_definitions(
@@ -59,7 +59,13 @@ target_compile_options(
     /WX
 )
 
-target_link_libraries(LegacyDataProviderTest PRIVATE logh7_legacy)
+target_include_directories(
+  LegacyDataProviderTest
+  PRIVATE
+    include
+)
+
+target_link_libraries(LegacyDataProviderTest PRIVATE bcrypt)
 
 add_executable(
   LegacyDataProviderProbe
@@ -95,3 +101,11 @@ set_target_properties(
 )
 
 add_test(NAME LegacyDataProvider COMMAND LegacyDataProviderTest)
+
+add_test(
+  NAME LegacyDataProviderProductionSurface
+  COMMAND
+    "${CMAKE_COMMAND}"
+    "-DARCHIVE=$<TARGET_FILE:logh7_legacy>"
+    -P "${CMAKE_CURRENT_SOURCE_DIR}/tests/production_symbol_audit.cmake"
+)
