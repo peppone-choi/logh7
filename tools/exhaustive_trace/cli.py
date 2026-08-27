@@ -5,11 +5,19 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import shutil
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Callable, Sequence, TypeVar
 
 from .coverage import audit_graph, coverage_json, load_coverage_json
+from .domains import (
+    build_domain_packages,
+    domain_package_files,
+    load_domain_config,
+    load_domain_packages,
+)
 from .graph import build_graph, graph_jsonl, load_graph_jsonl
 from .inventories import load_inventory_bundle
 from .io import canonical_json
@@ -20,6 +28,7 @@ DEFAULT_SOURCE_MANIFEST = (
     PROJECT_ROOT / "docs" / "reverse-engineering" / "exhaustive-trace" / "source-manifest.json"
 )
 DEFAULT_INVENTORIES = PROJECT_ROOT / "evidence" / "exhaustive-trace" / "inventories"
+DEFAULT_DOMAINS = PROJECT_ROOT / "docs" / "reverse-engineering" / "exhaustive-trace" / "domains.json"
 
 
 def _sha256(data: bytes) -> str:
@@ -54,6 +63,56 @@ def _write_atomic(
     finally:
         if temporary.exists():
             temporary.unlink()
+
+
+def _is_link_or_reparse(path: Path) -> bool:
+    try:
+        stat = path.lstat()
+    except OSError:
+        return False
+    return path.is_symlink() or bool(getattr(stat, "st_file_attributes", 0) & 0x400)
+
+
+def _write_directory_transactional(
+    path: Path,
+    files: dict[str, bytes],
+    *,
+    verify: Callable[[Path], Verified],
+) -> Verified:
+    output = Path(os.path.abspath(path))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    for component in (*reversed(output.parents), output):
+        if component == Path(component.anchor):
+            continue
+        if component.exists() and _is_link_or_reparse(component):
+            raise ValueError(f"domain output contains a link or reparse point: {component}")
+    if output.exists() and not output.is_dir():
+        raise ValueError(f"domain output is not a directory: {output}")
+    staging = Path(tempfile.mkdtemp(prefix=f".{output.name}.", suffix=".staging", dir=output.parent))
+    backup: Path | None = None
+    try:
+        for name, data in sorted(files.items()):
+            target = staging / name
+            with target.open("wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+        verified = verify(staging)
+        if output.exists():
+            backup = output.parent / f".{output.name}.{uuid.uuid4().hex}.backup"
+            os.replace(output, backup)
+        try:
+            os.replace(staging, output)
+        except BaseException:
+            if backup is not None and backup.exists() and not output.exists():
+                os.replace(backup, output)
+            raise
+        if backup is not None and backup.exists():
+            shutil.rmtree(backup)
+        return verified
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
 
 
 def _build_graph(args: argparse.Namespace) -> int:
@@ -117,6 +176,44 @@ def _audit(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
+def _package_domains(args: argparse.Namespace) -> int:
+    bundle = load_inventory_bundle(args.inventories, source_manifest=args.source_manifest)
+    graph = load_graph_jsonl(args.graph, bundle=bundle)
+    coverage = load_coverage_json(args.coverage, graph=graph, bundle=bundle)
+    config = load_domain_config(args.domains, project_root=PROJECT_ROOT)
+    package_set = build_domain_packages(graph, coverage, config)
+    files = {
+        name: value if isinstance(value, bytes) else value.encode("utf-8")
+        for name, value in domain_package_files(package_set).items()
+    }
+    output = Path(args.output)
+    verified = _write_directory_transactional(
+        output,
+        files,
+        verify=lambda directory: load_domain_packages(
+            directory, graph=graph, coverage=coverage, config=config
+        ),
+    )
+    print(
+        canonical_json(
+            {
+                "command": "package-domains",
+                "coverageGateStatus": verified.coverage_gate_status,
+                "domainCount": len(verified.packages),
+                "domainConfigSha256": config.config_sha256,
+                "output": str(Path(os.path.abspath(output))),
+                "packageSetSha256": verified.package_set_sha256,
+                "sourceRowCount": verified.conservation["sourceRowCount"],
+                "topologicalOrder": list(config.topological_order),
+                "unresolvedRoutingCount": verified.conservation["unresolvedRoutingCount"],
+                "status": "PASS",
+            }
+        ),
+        end="",
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -131,6 +228,14 @@ def build_parser() -> argparse.ArgumentParser:
     audit.add_argument("--graph", required=True, type=Path)
     audit.add_argument("--output", required=True, type=Path)
     audit.set_defaults(handler=_audit)
+    package = subcommands.add_parser("package-domains", help="build all sixteen domain packages")
+    package.add_argument("--inventories", type=Path, default=DEFAULT_INVENTORIES)
+    package.add_argument("--source-manifest", type=Path, default=DEFAULT_SOURCE_MANIFEST)
+    package.add_argument("--graph", required=True, type=Path)
+    package.add_argument("--coverage", required=True, type=Path)
+    package.add_argument("--domains", type=Path, default=DEFAULT_DOMAINS)
+    package.add_argument("--output", required=True, type=Path)
+    package.set_defaults(handler=_package_domains)
     return parser
 
 

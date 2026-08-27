@@ -239,7 +239,10 @@ class ModelTests(unittest.TestCase):
     def test_domains_define_exactly_d01_through_d16(self):
         root = Path(__file__).resolve().parents[3]
         path = root / "docs/reverse-engineering/exhaustive-trace/domains.json"
-        domains = json.loads(path.read_text(encoding="utf-8"))
+        configuration = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual("DOMAIN_CONFIGURATION", configuration["recordType"])
+        self.assertEqual(1, configuration["schemaVersion"])
+        domains = configuration["domains"]
 
         self.assertEqual([f"D{index:02d}" for index in range(1, 17)], [row["id"] for row in domains])
         self.assertEqual(
@@ -263,6 +266,11 @@ class ModelTests(unittest.TestCase):
             ],
             [row["slug"] for row in domains],
         )
+        self.assertEqual(
+            ["docs/superpowers/plans/2026-08-27-original-world-topology-full-trace.md"],
+            next(row for row in domains if row["id"] == "D04")["planRefs"],
+        )
+        self.assertTrue(all("hardDependencies" in row for row in domains))
 
 
 if __name__ == "__main__":

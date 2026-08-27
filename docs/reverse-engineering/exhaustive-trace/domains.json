@@ -1,18 +1,1 @@
-[
-  {"id":"D01","slug":"launcher-update-config-data-root"},
-  {"id":"D02","slug":"account-auth-lobby-session-character"},
-  {"id":"D03","slug":"faction-calendar-rank-office-authority"},
-  {"id":"D04","slug":"world-topology-systems-planets-fortresses-grids"},
-  {"id":"D05","slug":"fleets-units-ships-troops-fighters-arms"},
-  {"id":"D06","slug":"strategy-navigation-warp-search-encounter-fog"},
-  {"id":"D07","slug":"bases-institutions-spots-rooms-facilities"},
-  {"id":"D08","slug":"commands-orders-suggestions-mail-messenger"},
-  {"id":"D09","slug":"grid-spot-unicast-tactical-communication"},
-  {"id":"D10","slug":"economy-production-construction-repair-supply-cargo"},
-  {"id":"D11","slug":"tactical-entry-field-deployment-combat-retreat"},
-  {"id":"D12","slug":"politics-personnel-diplomacy-governance"},
-  {"id":"D13","slug":"growth-rewards-ranking-victory-session-end"},
-  {"id":"D14","slug":"offline-ai-timeout-disconnect-reconnect-replay"},
-  {"id":"D15","slug":"sound-cursor-localization-hud-information"},
-  {"id":"D16","slug":"administration-moderation-publication-backup-operations"}
-]
+{"domains":[{"hardDependencies":[],"id":"D01","planRefs":[],"slug":"launcher-update-config-data-root"},{"hardDependencies":["D01"],"id":"D02","planRefs":[],"slug":"account-auth-lobby-session-character"},{"hardDependencies":["D02"],"id":"D03","planRefs":[],"slug":"faction-calendar-rank-office-authority"},{"hardDependencies":["D01","D02","D03"],"id":"D04","planRefs":["docs/superpowers/plans/2026-08-27-original-world-topology-full-trace.md"],"slug":"world-topology-systems-planets-fortresses-grids"},{"hardDependencies":["D02","D03","D04"],"id":"D05","planRefs":[],"slug":"fleets-units-ships-troops-fighters-arms"},{"hardDependencies":["D04","D05","D07"],"id":"D06","planRefs":[],"slug":"strategy-navigation-warp-search-encounter-fog"},{"hardDependencies":["D04"],"id":"D07","planRefs":[],"slug":"bases-institutions-spots-rooms-facilities"},{"hardDependencies":["D02","D03"],"id":"D08","planRefs":[],"slug":"commands-orders-suggestions-mail-messenger"},{"hardDependencies":["D02","D04","D07"],"id":"D09","planRefs":[],"slug":"grid-spot-unicast-tactical-communication"},{"hardDependencies":["D04","D05","D07"],"id":"D10","planRefs":[],"slug":"economy-production-construction-repair-supply-cargo"},{"hardDependencies":["D04","D05","D06","D07","D10"],"id":"D11","planRefs":[],"slug":"tactical-entry-field-deployment-combat-retreat"},{"hardDependencies":["D02","D03","D07","D08"],"id":"D12","planRefs":[],"slug":"politics-personnel-diplomacy-governance"},{"hardDependencies":["D02","D03","D05","D10","D11","D12"],"id":"D13","planRefs":[],"slug":"growth-rewards-ranking-victory-session-end"},{"hardDependencies":["D01","D02"],"id":"D14","planRefs":[],"slug":"offline-ai-timeout-disconnect-reconnect-replay"},{"hardDependencies":["D01"],"id":"D15","planRefs":[],"slug":"sound-cursor-localization-hud-information"},{"hardDependencies":["D01","D02"],"id":"D16","planRefs":[],"slug":"administration-moderation-publication-backup-operations"}],"recordType":"DOMAIN_CONFIGURATION","schemaVersion":1}

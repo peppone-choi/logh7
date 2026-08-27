@@ -1,0 +1,77 @@
+{
+  "task": "foundation-task11-sixteen-domain-routing",
+  "date": "2026-08-28",
+  "status": "PASS_ROUTING_CURRENT_COVERAGE_STRUCTURAL_FATAL",
+  "runtimeActions": {
+    "vm": 0,
+    "originalExecutable": 0,
+    "debuggerAttach": 0,
+    "processMemoryRead": 0,
+    "physicalInput": 0,
+    "serverProtocolDatabaseMutation": 0
+  },
+  "tests": {
+    "focusedDomainsPassed": 14,
+    "fullSuitePassed": 230,
+    "fullSuiteFailed": 0,
+    "fullSuiteCommand": "python -m unittest discover -s tests/tools/exhaustive_trace -p test_*.py"
+  },
+  "bindings": {
+    "domainConfigSha256": "A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379",
+    "topologyPlanSha256": "06801FD8671A8DA5F3E9FD61C55BB33377369F29377A0EC15921D45F246F4D25",
+    "routingPolicySha256": "126841E77AD381935BFBED25B7F84CA6E65E3E8CCA1CBDAD45BCEE590CBE3732",
+    "routeSurfaceSha256": "5B5F2C2BAE79333945417F0F8B9FD50933B7920DA30A0C84ADC5D21036D95D0B",
+    "packageSetSha256": "948D5B84EBB6B3B1472CF83C9E675F5E04008BFF140F326C5C486B8306E182DA",
+    "directoryHashSurfaceSha256": "C51061E80CE18F9C5659CA1E354F7102E86CFB9F05070A72B25A0C7867330E81"
+  },
+  "conservation": {
+    "domainFileCount": 16,
+    "totalBytes": 44707134,
+    "sourceRowCount": 15999,
+    "primaryAssignmentCount": 15999,
+    "uniquePrimaryRowCount": 15999,
+    "unassignedRowCount": 0,
+    "duplicatePrimaryRowCount": 0,
+    "crossDomainUnresolvedCount": 15317,
+    "secondaryAssignmentCount": 4282,
+    "crossDomainDependencyCount": 3132,
+    "d04PrimaryCount": 75,
+    "d04SecondaryCount": 1342
+  },
+  "primaryCountByDomain": {
+    "D01": 11499,
+    "D02": 473,
+    "D03": 43,
+    "D04": 75,
+    "D05": 1441,
+    "D06": 31,
+    "D07": 88,
+    "D08": 58,
+    "D09": 12,
+    "D10": 60,
+    "D11": 89,
+    "D12": 2,
+    "D13": 14,
+    "D14": 130,
+    "D15": 1180,
+    "D16": 804
+  },
+  "coverageGate": {
+    "status": "STRUCTURAL_FATAL",
+    "fatalStructuralCount": 1,
+    "globalFatal": "FEATURE_REACHABILITY_LEDGER_ABSENT"
+  },
+  "reproducibility": {
+    "checkedVsRunAByteIdentical": true,
+    "runAVsRunBByteIdentical": true,
+    "strictLoadPassed": true,
+    "canonicalUtf8LfPassed": true,
+    "hardDependencyDagPassed": true,
+    "reparseRejectionPassed": true
+  },
+  "independentReview": {
+    "initialVerdict": "REJECT",
+    "finalVerdict": "APPROVE",
+    "validatorWrites": 0
+  }
+}
