@@ -1,0 +1,53 @@
+{
+  "caseId": "20260827-original-game-exhaustive-trace-task1-contracts",
+  "status": "PASS",
+  "testCommand": "PYTHONDONTWRITEBYTECODE=1 python -m unittest discover -s tests/tools/exhaustive_trace -p test_*.py -v",
+  "testsRun": 14,
+  "testsPassed": 14,
+  "testsFailed": 0,
+  "publicContractProbe": "TASK1_PUBLIC_CONTRACT_PASS",
+  "domainCount": 16,
+  "inventoryKinds": 6,
+  "reachabilityStates": 4,
+  "evidenceStates": 9,
+  "verdicts": 5,
+  "recoveryDispositions": 8,
+  "implementationTargets": 8,
+  "independentReviews": [
+    {
+      "review": "task1_spec_audit",
+      "result": "OK",
+      "writes": 0
+    },
+    {
+      "review": "task1_code_review",
+      "result": "OK",
+      "writes": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "tools/exhaustive_trace/__init__.py",
+      "sha256": "9C59976D7239A42756953B3EF70BA0F0D30F459CAAF34275898E510C461D9C3C"
+    },
+    {
+      "path": "tools/exhaustive_trace/io.py",
+      "sha256": "711D9F0F457EEA2DB714A8DA33C0671F200EC38739B1F59A8E306FBBF72FDA56"
+    },
+    {
+      "path": "tools/exhaustive_trace/model.py",
+      "sha256": "068DC11B16FAEA8F49104D404132DEDEE6F6A7D555093CB1027D9378FAB04F08"
+    },
+    {
+      "path": "tests/tools/exhaustive_trace/test_model.py",
+      "sha256": "A3DEA4D97FB6AA8096684F56C27A6BB192D5B2A1A31E60DCC73EAC51A97E66DA"
+    },
+    {
+      "path": "docs/reverse-engineering/exhaustive-trace/domains.json",
+      "sha256": "C434BD8DE135D4FB0E1EB4AA57C7413A1FE03C01A49663AD884C7F2FD6544FAE"
+    }
+  ],
+  "runtimeMutations": 0,
+  "serverProtocolDatabaseMutations": 0,
+  "vmActions": 0
+}

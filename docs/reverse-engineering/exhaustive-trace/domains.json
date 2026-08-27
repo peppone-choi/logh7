@@ -1,0 +1,18 @@
+[
+  {"id":"D01","slug":"launcher-update-config-data-root"},
+  {"id":"D02","slug":"account-auth-lobby-session-character"},
+  {"id":"D03","slug":"faction-calendar-rank-office-authority"},
+  {"id":"D04","slug":"world-topology-systems-planets-fortresses-grids"},
+  {"id":"D05","slug":"fleets-units-ships-troops-fighters-arms"},
+  {"id":"D06","slug":"strategy-navigation-warp-search-encounter-fog"},
+  {"id":"D07","slug":"bases-institutions-spots-rooms-facilities"},
+  {"id":"D08","slug":"commands-orders-suggestions-mail-messenger"},
+  {"id":"D09","slug":"grid-spot-unicast-tactical-communication"},
+  {"id":"D10","slug":"economy-production-construction-repair-supply-cargo"},
+  {"id":"D11","slug":"tactical-entry-field-deployment-combat-retreat"},
+  {"id":"D12","slug":"politics-personnel-diplomacy-governance"},
+  {"id":"D13","slug":"growth-rewards-ranking-victory-session-end"},
+  {"id":"D14","slug":"offline-ai-timeout-disconnect-reconnect-replay"},
+  {"id":"D15","slug":"sound-cursor-localization-hud-information"},
+  {"id":"D16","slug":"administration-moderation-publication-backup-operations"}
+]

@@ -84,7 +84,7 @@ evidence/exhaustive-trace/
 - Consumes: approved exhaustive-trace spec.
 - Produces: `InventoryRow`, `TraceNode`, `TraceEdge`, deterministic serialization, and domain IDs `D01` through `D16`.
 
-- [ ] **Step 1: Write the failing model tests**
+- [x] **Step 1: Write the failing model tests**
 
 ```python
 import unittest
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
-- [ ] **Step 2: Run the tests and confirm failure**
+- [x] **Step 2: Run the tests and confirm failure**
 
 Run:
 
@@ -128,7 +128,7 @@ python -m unittest tests.tools.exhaustive_trace.test_model -v
 
 Expected: import failure because `tools.exhaustive_trace.model` does not exist.
 
-- [ ] **Step 3: Implement the immutable model**
+- [x] **Step 3: Implement the immutable model**
 
 Define string enums for six inventories, four reachability values, nine evidence states, and five verdicts. `InventoryRow.__post_init__` must reject unknown provenance and initialize every evidence state to `False` without deriving one state from another.
 
@@ -141,7 +141,7 @@ ALLOWED_PROVENANCE = frozenset({
 
 Also define `RecoveryDisposition` with the eight values from spec section 7.1 and an `ImplementationTarget` enum containing `CONTRACT`, `SERVER`, `LEGACY_GATEWAY`, `NEW_CLIENT`, `DATABASE`, `CONTENT_ADMIN`, `QA`, and `INDEPENDENT_REVIEW`.
 
-- [ ] **Step 4: Define all domains in `domains.json`**
+- [x] **Step 4: Define all domains in `domains.json`**
 
 Use IDs and slugs:
 
@@ -166,11 +166,11 @@ Use IDs and slugs:
 ]
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Expected: all model tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add tools/exhaustive_trace tests/tools/exhaustive_trace/test_model.py docs/reverse-engineering/exhaustive-trace/domains.json
