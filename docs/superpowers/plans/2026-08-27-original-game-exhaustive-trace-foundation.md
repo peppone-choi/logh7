@@ -488,14 +488,23 @@ git commit -m "docs: enumerate authority and persistence paths"
 **Files:**
 - Create: `tools/exhaustive_trace/inventories.py`
 - Create: `tools/exhaustive_trace/graph.py`
+- Create: `tools/exhaustive_trace/cli.py`
 - Create: `tests/tools/exhaustive_trace/test_graph.py`
+- Create: `tests/tools/exhaustive_trace/test_graph_cli.py`
 - Create: `evidence/exhaustive-trace/graph.jsonl`
+- Create: `docs/handoffs/2026-08-28-original-game-exhaustive-trace-task9-graph.md`
+- Create: `work/20260828-original-game-exhaustive-trace-task9-graph/report/task9-graph-report.md`
+- Create: `work/20260828-original-game-exhaustive-trace-task9-graph/repro/task9-verification.json`
+- Modify: `.gitattributes`
+- Modify: `tools/exhaustive_trace/__init__.py`
+- Modify: `tools/exhaustive_trace/model.py`
+- Modify: `docs/superpowers/specs/2026-08-27-original-game-exhaustive-trace-design.md`
 
 **Interfaces:**
 - Consumes: all six validated inventory JSONL files.
 - Produces: `build_graph(rows) -> TraceGraph`, typed edges, and deterministic `graph.jsonl`.
 
-- [ ] **Step 1: Write failing graph tests**
+- [x] **Step 1: Write failing graph tests**
 
 ```python
 def test_name_match_does_not_become_identity(self):
@@ -508,15 +517,15 @@ def test_unknown_edge_type_is_rejected(self):
         TraceEdge("a", "CONNECTED_SOMEHOW", "b", ("E-1",))
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: graph module missing.
 
-- [ ] **Step 3: Implement typed joins**
+- [x] **Step 3: Implement typed joins**
 
 Allow only the edge types from the spec. Each edge requires at least one evidence reference and a provenance/confidence disposition.
 
-- [ ] **Step 4: Build twice and compare hashes**
+- [x] **Step 4: Build twice and compare hashes**
 
 ```powershell
 python -m tools.exhaustive_trace.cli build-graph --inventories evidence/exhaustive-trace/inventories --output evidence/exhaustive-trace/graph.jsonl
@@ -527,10 +536,10 @@ Get-FileHash evidence/exhaustive-trace/graph.jsonl -Algorithm SHA256
 
 Expected: identical hashes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
-git add tools/exhaustive_trace/inventories.py tools/exhaustive_trace/graph.py tests/tools/exhaustive_trace/test_graph.py evidence/exhaustive-trace/graph.jsonl
+git add -- .gitattributes tools/exhaustive_trace/__init__.py tools/exhaustive_trace/model.py tools/exhaustive_trace/inventories.py tools/exhaustive_trace/graph.py tools/exhaustive_trace/cli.py tests/tools/exhaustive_trace/test_graph.py tests/tools/exhaustive_trace/test_graph_cli.py evidence/exhaustive-trace/graph.jsonl docs/superpowers/specs/2026-08-27-original-game-exhaustive-trace-design.md docs/superpowers/plans/2026-08-27-original-game-exhaustive-trace-foundation.md docs/handoffs/2026-08-28-original-game-exhaustive-trace-task9-graph.md work/20260828-original-game-exhaustive-trace-task9-graph/report/task9-graph-report.md work/20260828-original-game-exhaustive-trace-task9-graph/repro/task9-verification.json
 git commit -m "feat: build exhaustive trace evidence graph"
 ```
 

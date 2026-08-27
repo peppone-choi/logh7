@@ -2,6 +2,7 @@
 
 from .io import canonical_json, sha256_file
 from .model import (
+    ALLOWED_TRACE_RELATIONS,
     ALLOWED_PROVENANCE,
     EvidenceState,
     ImplementationTarget,
@@ -16,6 +17,7 @@ from .model import (
 
 __all__ = [
     "ALLOWED_PROVENANCE",
+    "ALLOWED_TRACE_RELATIONS",
     "EvidenceState",
     "ImplementationTarget",
     "InventoryKind",

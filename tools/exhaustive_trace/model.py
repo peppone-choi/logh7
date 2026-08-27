@@ -5,7 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Mapping
+from typing import Any, Mapping
+
+
+def freeze_json(value: Any) -> Any:
+    """Return an immutable, detached representation of a JSON-shaped value."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: freeze_json(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(freeze_json(item) for item in value)
+    return value
 
 
 class StringEnum(str, Enum):
@@ -82,6 +91,18 @@ ALLOWED_PROVENANCE = frozenset(
     }
 )
 
+ALLOWED_TRACE_RELATIONS = frozenset(
+    {
+        "SERIALIZES", "PARSES", "DISPATCHES", "COPIES_TO", "READS", "WRITES",
+        "IDENTIFIES", "PARENT_OF", "OWNED_BY", "LOCATED_IN", "VISIBLE_TO",
+        "ENABLES", "TRIGGERS", "VALIDATES", "ACCEPTS", "REJECTS", "MUTATES",
+        "EMITS", "APPLIES", "LOADS", "SUBMITS", "PRESENTS", "PERSISTS",
+        "REPLAYS", "RESTORES", "CALLS", "BUILDS", "CONSTRUCTS", "MENTIONS",
+        "REQUEST_SIBLING", "RESPONSE_SIBLING", "NOTIFY_SIBLING", "OBLIGATION_FOR",
+        "NAME_MATCH", "CATALOG_PARENT",
+    }
+)
+
 
 def _require_text(field_name: str, value: str) -> None:
     if not isinstance(value, str) or not value.strip():
@@ -122,6 +143,11 @@ class TraceNode:
     kind: str
     label: str
     evidence: tuple[str, ...]
+    provenance: str = "UNKNOWN"
+    confidence: str = "UNKNOWN"
+    disposition: str = "UNRESOLVED"
+    source_refs: tuple[str, ...] = ()
+    attributes: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _require_text("key", self.key)
@@ -133,6 +159,18 @@ class TraceNode:
         if not evidence or any(not isinstance(item, str) or not item.strip() for item in evidence):
             raise ValueError("evidence must contain non-empty references")
         object.__setattr__(self, "evidence", evidence)
+        if self.provenance not in ALLOWED_PROVENANCE:
+            raise ValueError(f"unsupported provenance: {self.provenance}")
+        _require_text("confidence", self.confidence)
+        _require_text("disposition", self.disposition)
+        if not isinstance(self.source_refs, (list, tuple)) or any(
+            not isinstance(item, str) or not item.strip() for item in self.source_refs
+        ):
+            raise ValueError("source_refs must contain text references")
+        object.__setattr__(self, "source_refs", tuple(self.source_refs))
+        if not isinstance(self.attributes, Mapping):
+            raise ValueError("attributes must be a mapping")
+        object.__setattr__(self, "attributes", freeze_json(self.attributes))
 
 
 @dataclass(frozen=True)
@@ -141,10 +179,19 @@ class TraceEdge:
     relation: str
     target: str
     evidence: tuple[str, ...]
+    provenance: str = "UNKNOWN"
+    confidence: str = "UNKNOWN"
+    disposition: str = "UNRESOLVED"
+    edge_class: str = "SEMANTIC"
+    join_basis: str = "UNRESOLVED_REFERENCE"
+    source_refs: tuple[str, ...] = ()
+    candidate_id: str = ""
 
     def __post_init__(self) -> None:
         _require_text("source", self.source)
         _require_text("relation", self.relation)
+        if self.relation not in ALLOWED_TRACE_RELATIONS:
+            raise ValueError(f"unsupported trace relation: {self.relation}")
         _require_text("target", self.target)
         if not isinstance(self.evidence, (list, tuple)):
             raise ValueError("evidence must contain non-empty references")
@@ -152,3 +199,19 @@ class TraceEdge:
         if not evidence or any(not isinstance(item, str) or not item.strip() for item in evidence):
             raise ValueError("evidence must contain non-empty references")
         object.__setattr__(self, "evidence", evidence)
+        if self.provenance not in ALLOWED_PROVENANCE:
+            raise ValueError(f"unsupported provenance: {self.provenance}")
+        if self.confidence not in {"HIGH", "MEDIUM", "LOW", "UNKNOWN"}:
+            raise ValueError(f"unsupported trace confidence: {self.confidence}")
+        if self.disposition not in {"PROVEN", "CANDIDATE", "UNRESOLVED", "SOURCE_CONFLICT"}:
+            raise ValueError(f"unsupported trace disposition: {self.disposition}")
+        if self.edge_class not in {"SEMANTIC", "STRUCTURAL", "CANDIDATE"}:
+            raise ValueError(f"unsupported trace edge class: {self.edge_class}")
+        _require_text("join_basis", self.join_basis)
+        if not isinstance(self.source_refs, (list, tuple)) or any(
+            not isinstance(item, str) or not item.strip() for item in self.source_refs
+        ):
+            raise ValueError("source_refs must contain text references")
+        object.__setattr__(self, "source_refs", tuple(self.source_refs))
+        if self.candidate_id and (not isinstance(self.candidate_id, str) or not self.candidate_id.strip()):
+            raise ValueError("candidate_id must be text when supplied")

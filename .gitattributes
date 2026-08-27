@@ -1,4 +1,5 @@
 * text=auto
+.gitattributes text eol=lf
 *.md text eol=lf
 *.json text eol=lf
 *.yaml text eol=lf
@@ -29,3 +30,11 @@ evidence/exhaustive-trace/inventories/functions.jsonl text eol=lf
 tools/exhaustive_trace/import_authority.py text eol=lf
 tests/tools/exhaustive_trace/test_authority_importer.py text eol=lf
 evidence/exhaustive-trace/inventories/authority.jsonl text eol=lf
+tools/exhaustive_trace/cli.py text eol=lf
+tools/exhaustive_trace/graph.py text eol=lf
+tools/exhaustive_trace/inventories.py text eol=lf
+tools/exhaustive_trace/model.py text eol=lf
+tools/exhaustive_trace/__init__.py text eol=lf
+tests/tools/exhaustive_trace/test_graph.py text eol=lf
+tests/tools/exhaustive_trace/test_graph_cli.py text eol=lf
+evidence/exhaustive-trace/graph.jsonl text eol=lf

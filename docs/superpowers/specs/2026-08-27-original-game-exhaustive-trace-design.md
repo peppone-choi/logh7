@@ -73,6 +73,27 @@ All inventories join into one evidence graph. Nodes are functions, messages, fie
 - `EMITS`, `APPLIES`, `LOADS`, `SUBMITS`, `PRESENTS`;
 - `PERSISTS`, `REPLAYS`, `RESTORES`.
 
+The graph also uses an explicitly structural vocabulary where the six closed inventories expose a
+relationship that is not one of the semantic gameplay transitions above:
+
+- `CALLS`, `BUILDS`, `CONSTRUCTS`, `MENTIONS`;
+- `REQUEST_SIBLING`, `RESPONSE_SIBLING`, `NOTIFY_SIBLING`;
+- `OBLIGATION_FOR`, `CATALOG_PARENT`.
+
+Exact normalized name equality is recorded only as candidate relation `NAME_MATCH`. It is always
+`CANDIDATE`, `INFERRED`, and `LOW` confidence, and it never implies `IDENTIFIES`. Structural edges do
+not promote inventory evidence states. Exact address/name index collisions become explicit
+`SOURCE_CONFLICT` nodes and edges; nearest-address or first-seen selection is forbidden. Every
+reference-bearing join candidate must be classified as normalized, unresolved, or source-conflict,
+so `unaccountedJoinCandidates` is derived rather than asserted.
+
+The join denominator is enumerated independently from the six input schemas before edge building.
+Reciprocal caller records and protocol ownership records corroborate an existing edge through
+additional `sourceRefs`; upstream classification references bind to the preserved function node;
+resource loader-function references produce candidate `LOADS` edges. Join-candidate conservation
+and edge population are separate counts. Loading a canonical graph requires the validated live
+inventory bundle, exact audit contract, and deeply immutable conservation maps.
+
 Name equality, array adjacency, source-file proximity, and project-generated IDs are not identity edges without a proven consumer.
 
 ## 5. Required vertical traces
