@@ -235,4 +235,3 @@ The exhaustive reverse-engineering milestone is complete only when:
 8. the final replacement feature matrix contains zero unimplemented, stubbed, skipped, or provenance-free rows.
 
 This milestone does not by itself claim the game is fully implemented or playable. Complete product status additionally requires the two-client authoritative gameplay and deployment criteria in the project goal.
-
