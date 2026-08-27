@@ -161,6 +161,33 @@ Reachability is separately `SHIPPED_REACHABLE`, `SHIPPED_DORMANT`, `MANUAL_ONLY`
 
 A later state never implies an earlier one. For example, player-visible pixels do not prove authority or persistence.
 
+### 7.1 Recovery and authoring disposition
+
+Every rule, field, content row, and entity population also receives exactly one recovery disposition:
+
+- `RECOVERED_ORIGINAL` — original value and semantics are supported by sufficient original evidence;
+- `RECOVERABLE_STATIC` — the value or rule can be extracted from shipped files or executable consumers;
+- `RECOVERABLE_LIVE` — populated original runtime evidence is required;
+- `SOURCE_CONFLICT` — original sources disagree and require adjudication;
+- `ORIGINAL_SERVER_LOST` — the client proves a server-owned value exists, but no original populated source is available;
+- `ORIGINAL_UNIMPLEMENTED` — official material or shipped dormant surfaces describe behavior that the original service did not complete;
+- `AUTHORING_REQUIRED` — the project must create an editable replacement value, roster, rule, scenario, or mapping;
+- `RIGHTS_REVIEW_REQUIRED` — intended content exists but cannot be selected for distribution before a rights/source decision.
+
+`ORIGINAL_SERVER_LOST` and `ORIGINAL_UNIMPLEMENTED` never become `RECOVERED_ORIGINAL` merely because a plausible replacement was authored.
+
+### 7.2 Character-roster boundary
+
+The original-character roster is a required adjudication track, not an assumed recovered table. Current legacy candidate material contains 99 named rows and 97 rows with statistics, but it combines manual, IV EX, partial official-site, and community sources. Only 12 official VII name-to-face-number facts are currently documented in the local evidence, only 2 surviving official portraits are pixel-matched to decoded atlas slots, and most decoded O-group portrait slots have no proven name.
+
+The project must therefore publish three separate datasets:
+
+1. `originalConfirmedCharacters` — only names, fields, statistics, roles, and portraits supported by original VII evidence;
+2. `canonCandidateCharacters` — franchise/manual/adjacent-game candidates that may help authoring but are not original-VII facts;
+3. `authoredPlayableCharacters` — the complete editable roster used by the finished game, with every non-recovered field marked `NEW_DESIGN` or `AUTHORED_PLACEHOLDER`.
+
+No automatic visual guess may bind a portrait to a character in the confirmed dataset. Japanese-web research, official/manual evidence, client/runtime extraction, and user adjudication are attempted in that order before authoring closes a roster gap.
+
 ## 8. Enumeration and orphan gates
 
 Automated checks fail when any of the following occurs:
@@ -217,11 +244,28 @@ The campaign produces:
 - original behavior contracts and explicit Unknowns;
 - `NEW_DESIGN` decisions for dormant/manual-only/server-lost behavior;
 - implementation issues whose acceptance criteria name the exact missing trace boundary;
+- a recovery/authoring ledger listing every value and rule that cannot be recovered and must be created;
+- separate confirmed, candidate, and authored datasets for incomplete populations such as the original-character roster;
 - per-unit reports and handoffs.
 
 Raw captures remain hash-bound evidence. Reports and implementation contracts must be reproducible without trusting analyst prose.
 
-## 12. Completion criteria
+## 12. Mandatory implementation closure
+
+The trace campaign is an input to implementation, not a substitute for it. Every gameplay feature row must generate an implementation package covering every applicable target:
+
+1. versioned command/event/snapshot contract;
+2. authoritative server validation, accepted/rejected result, mutation, event and notification;
+3. original-client compatibility parser/serializer and projection;
+4. new-client input, HUD/scene state, rendering/audio and localization;
+5. PostgreSQL schema, persistence, replay and reconnect projection;
+6. editable content and administrator exposure where the rule or data is authored;
+7. unit, codec, integration, both-faction, permission-denial, persistence and player-visible QA;
+8. independent review and evidence-linked handoff.
+
+An item may omit a target only with an explicit `NOT_APPLICABLE` reason. `ENUMERATED`, `STATIC_MAPPED`, or a completed reverse-engineering report never satisfies implementation completion.
+
+## 13. Completion criteria
 
 The exhaustive reverse-engineering milestone is complete only when:
 
