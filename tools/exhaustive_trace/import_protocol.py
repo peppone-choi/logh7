@@ -16,6 +16,7 @@ from .io import sha256_file
 from .source_manifest import SourceManifest
 from .model import (
     EvidenceState,
+    ImplementationTarget,
     InventoryKind,
     InventoryRow,
     Reachability,
@@ -1199,6 +1200,16 @@ def protocol_row_to_dict(value: ProtocolInventoryRow) -> dict[str, Any]:
         ],
         "evidence": list(value.evidence),
         "recoveryDisposition": value.recovery_disposition.value,
+        "implementationDisposition": {
+            target.value: {
+                "status": "REQUIRED",
+                "reason": (
+                    f"{target.value} must implement protocol row {value.row.key}"
+                ),
+                "evidence": [f"goal:implementation-layer:{target.value}"],
+            }
+            for target in ImplementationTarget
+        },
     }
 
 

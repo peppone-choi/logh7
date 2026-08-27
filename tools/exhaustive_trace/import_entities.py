@@ -58,6 +58,24 @@ class ImplementationStatus(EntityStringEnum):
     UNKNOWN = "UNKNOWN"
 
 
+FIELD_RECOVERY_BY_STATUS = {
+    EntityFieldStatus.PROVEN: RecoveryDisposition.RECOVERED_ORIGINAL,
+    EntityFieldStatus.CANDIDATE: RecoveryDisposition.RECOVERABLE_STATIC,
+    EntityFieldStatus.SOURCE_CONFLICT: RecoveryDisposition.SOURCE_CONFLICT,
+    EntityFieldStatus.UNKNOWN: RecoveryDisposition.RECOVERABLE_LIVE,
+}
+
+CATALOG_RECOVERY_BY_STATUS = {
+    "ORIGINAL_OBSERVED": RecoveryDisposition.RECOVERED_ORIGINAL,
+    "ORIGINAL_MANUAL": RecoveryDisposition.RECOVERED_ORIGINAL,
+    "LEGACY_CANDIDATE": RecoveryDisposition.RECOVERABLE_STATIC,
+    "NEW_DESIGN": RecoveryDisposition.AUTHORING_REQUIRED,
+    "AUTHORED_PLACEHOLDER": RecoveryDisposition.AUTHORING_REQUIRED,
+    "SOURCE_CONFLICT": RecoveryDisposition.SOURCE_CONFLICT,
+    "UNKNOWN": RecoveryDisposition.RECOVERABLE_LIVE,
+}
+
+
 ENTITY_TYPES = frozenset(
     {
         "ACCOUNT",
@@ -655,6 +673,17 @@ def _representation_section(name: str, value: object) -> EntitySection:
 def _field(value: object, *, stride: int | None) -> Mapping[str, Any]:
     item = _mapping("field", value)
     status = EntityFieldStatus(_text("field.status", item.get("status")))
+    recovery = FIELD_RECOVERY_BY_STATUS[status]
+    supplied_recovery = item.get("recoveryDisposition")
+    if supplied_recovery is not None:
+        try:
+            supplied_recovery = RecoveryDisposition(
+                _text("field.recoveryDisposition", supplied_recovery)
+            )
+        except ValueError as error:
+            raise ValueError("field recovery disposition is invalid") from error
+        if supplied_recovery is not recovery:
+            raise ValueError("field recovery disposition differs from status mapping")
     key = _text("field.key", item.get("key"))
     ordinal = _positive_int("field.ordinal", item.get("ordinal"), allow_zero=True)
     name = _text("field.name", item.get("name"))
@@ -700,6 +729,7 @@ def _field(value: object, *, stride: int | None) -> Mapping[str, Any]:
         "name": name,
         "semanticNameStatus": semantic_status,
         "status": status,
+        "recoveryDisposition": recovery,
         "offsetBytes": offset,
         "widthBits": width,
         "scalarKind": scalar_kind,
@@ -791,15 +821,7 @@ def _catalog_cardinality(value: object) -> tuple[Mapping[str, Any], ...]:
         raise ValueError("catalogCardinality must be a list")
     result: list[Mapping[str, Any]] = []
     seen: set[str] = set()
-    allowed_status = {
-        "ORIGINAL_OBSERVED",
-        "ORIGINAL_MANUAL",
-        "LEGACY_CANDIDATE",
-        "NEW_DESIGN",
-        "AUTHORED_PLACEHOLDER",
-        "SOURCE_CONFLICT",
-        "UNKNOWN",
-    }
+    allowed_status = frozenset(CATALOG_RECOVERY_BY_STATUS)
     for index, item_value in enumerate(value):
         item = _mapping(f"catalogCardinality[{index}]", item_value)
         source_id = _text("catalogCardinality.sourceId", item.get("sourceId"))
@@ -809,6 +831,22 @@ def _catalog_cardinality(value: object) -> tuple[Mapping[str, Any], ...]:
         status = _text("catalogCardinality.status", item.get("status"))
         if status not in allowed_status:
             raise ValueError("unsupported catalog cardinality status")
+        recovery = CATALOG_RECOVERY_BY_STATUS[status]
+        supplied_recovery = item.get("recoveryDisposition")
+        if supplied_recovery is not None:
+            try:
+                supplied_recovery = RecoveryDisposition(
+                    _text(
+                        "catalogCardinality.recoveryDisposition",
+                        supplied_recovery,
+                    )
+                )
+            except ValueError as error:
+                raise ValueError("catalog recovery disposition is invalid") from error
+            if supplied_recovery is not recovery:
+                raise ValueError(
+                    "catalog recovery disposition differs from status mapping"
+                )
         count = item.get("count")
         if count is not None:
             count = _positive_int("catalogCardinality.count", count, allow_zero=True)
@@ -852,6 +890,7 @@ def _catalog_cardinality(value: object) -> tuple[Mapping[str, Any], ...]:
                 {
                     "sourceId": source_id,
                     "status": status,
+                    "recoveryDisposition": recovery,
                     "count": count,
                     "membershipStatus": membership,
                     "members": tuple(members),

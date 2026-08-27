@@ -13,6 +13,7 @@ from typing import Any, Iterable, Mapping
 
 from tools.exhaustive_trace.model import (
     EvidenceState,
+    ImplementationTarget,
     InventoryKind,
     InventoryRow,
     Reachability,
@@ -712,6 +713,14 @@ def ui_row_to_dict(item: UiInventoryRow) -> dict[str, Any]:
         "reachability": item.row.reachability.value,
         "reachabilityEvidence": list(item.reachability_evidence),
         "recoveryDisposition": item.recovery_disposition.value,
+        "implementationDisposition": {
+            target.value: {
+                "status": "REQUIRED",
+                "reason": f"{target.value} must implement UI row {item.row.key}",
+                "evidence": [f"goal:implementation-layer:{target.value}"],
+            }
+            for target in ImplementationTarget
+        },
         "states": {state.value: item.row.states[state] for state in EvidenceState},
         "builder": {"status": item.builder.status.value, **_json_value(item.builder.values)},
         "label": {"status": item.label.status.value, **_json_value(item.label.values)},

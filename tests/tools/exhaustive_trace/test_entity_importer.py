@@ -259,6 +259,103 @@ class EntityImporterTests(unittest.TestCase):
                         complete_export(recordSchemaCandidates=[candidate])
                     )
 
+    def test_nested_recovery_dispositions_follow_closed_mappings(self) -> None:
+        candidate = complete_record_candidate(
+            catalogCardinality=[
+                {
+                    "sourceId": "manual-empty-population",
+                    "status": "ORIGINAL_MANUAL",
+                    "count": 0,
+                    "membershipStatus": "COMPLETE",
+                    "members": [],
+                    "evidence": ["manual:page-bound-empty-population"],
+                },
+                {
+                    "sourceId": "legacy-candidate-population",
+                    "status": "LEGACY_CANDIDATE",
+                    "count": 80,
+                    "membershipStatus": "SOURCE_CONFLICT",
+                    "evidence": ["legacy-ledger:systems:80"],
+                },
+                {
+                    "sourceId": "authored-population",
+                    "status": "AUTHORED_PLACEHOLDER",
+                    "count": 85,
+                    "membershipStatus": "PROVISIONAL",
+                    "evidence": ["new-design:systems:85"],
+                },
+                {
+                    "sourceId": "new-design-population",
+                    "status": "NEW_DESIGN",
+                    "count": 85,
+                    "membershipStatus": "PROVISIONAL",
+                    "evidence": ["new-design:systems:85"],
+                },
+                {
+                    "sourceId": "unknown-population",
+                    "status": "UNKNOWN",
+                    "count": None,
+                    "membershipStatus": "UNKNOWN",
+                    "evidence": ["gap:systems"],
+                },
+            ]
+        )
+        candidate["layout"]["fields"][0].update(
+            status="CANDIDATE",
+            semanticNameStatus="CANDIDATE",
+        )
+
+        normalized = normalize_entity_inventory(
+            build_entity_inventory(
+                complete_export(recordSchemaCandidates=[candidate])
+            )
+        )[0]
+
+        self.assertEqual(
+            normalized["layout"]["fields"][0]["recoveryDisposition"],
+            "RECOVERABLE_STATIC",
+        )
+        self.assertEqual(
+            {
+                claim["status"]: claim["recoveryDisposition"]
+                for claim in normalized["catalogCardinality"]
+            },
+            {
+                "ORIGINAL_MANUAL": "RECOVERED_ORIGINAL",
+                "LEGACY_CANDIDATE": "RECOVERABLE_STATIC",
+                "AUTHORED_PLACEHOLDER": "AUTHORING_REQUIRED",
+                "NEW_DESIGN": "AUTHORING_REQUIRED",
+                "UNKNOWN": "RECOVERABLE_LIVE",
+            },
+        )
+
+    def test_nested_recovery_disposition_mismatch_is_rejected(self) -> None:
+        candidate = complete_record_candidate()
+        candidate["layout"]["fields"][0]["recoveryDisposition"] = (
+            "AUTHORING_REQUIRED"
+        )
+        with self.assertRaisesRegex(ValueError, "field recovery disposition"):
+            build_entity_inventory(
+                complete_export(recordSchemaCandidates=[candidate])
+            )
+
+        candidate = complete_entity_candidate(
+            catalogCardinality=[
+                {
+                    "sourceId": "legacy-candidate-population",
+                    "status": "LEGACY_CANDIDATE",
+                    "count": 80,
+                    "membershipStatus": "SOURCE_CONFLICT",
+                    "recoveryDisposition": "AUTHORING_REQUIRED",
+                    "evidence": ["legacy-ledger:systems:80"],
+                }
+            ]
+        )
+        with self.assertRaisesRegex(ValueError, "catalog recovery disposition"):
+            build_entity_inventory(
+                complete_export(entityTypeCandidates=[candidate])
+            )
+
     def test_unknown_field_cannot_claim_semantics_or_layout(self) -> None:
         candidate = complete_record_candidate()
         field = candidate["layout"]["fields"][0]

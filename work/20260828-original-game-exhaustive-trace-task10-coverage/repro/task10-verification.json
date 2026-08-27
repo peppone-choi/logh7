@@ -1,0 +1,61 @@
+{
+  "task": "foundation-task10-orphan-and-vertical-trace-coverage-gates",
+  "date": "2026-08-28",
+  "status": "PASS_MACHINERY_CURRENT_COVERAGE_FAIL",
+  "runtimeActions": {
+    "vm": 0,
+    "originalExecutable": 0,
+    "debuggerAttach": 0,
+    "processMemoryRead": 0,
+    "physicalInput": 0,
+    "serverProtocolDatabaseMutation": 0
+  },
+  "tests": {
+    "focusedCoveragePassed": 16,
+    "fullSuitePassed": 214,
+    "fullSuiteFailed": 0,
+    "command": "python -m unittest discover -s tests/tools/exhaustive_trace -p test_*.py"
+  },
+  "inventories": {
+    "rowCount": 15999,
+    "protocolRows": 547,
+    "uiRows": 422,
+    "entityRows": 237,
+    "resourceRows": 2194,
+    "functionRows": 11497,
+    "authorityRows": 1102,
+    "protocolSha256": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
+    "uiSha256": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
+    "entitiesSha256": "8098D33494FB90911140DB3C98F3F1911A72C112C3CD2956E17EBDC1D2FD41BF"
+  },
+  "graph": {
+    "fileSha256": "6B520907EB7C22CB65FE4DA305D59F9C07F6357FDF5E0A249C8572CFE795F3C9",
+    "graphSurfaceSha256": "65B553753259DF830C5C2B86098CED589574A3C6E47868F3DE8613159B8BC6D0",
+    "nodeCount": 35685,
+    "edgeCount": 92053,
+    "dualRegenerationByteIdentical": true
+  },
+  "coverage": {
+    "fileSha256": "EAEECB3D6261AE1EBC9EAF9BF002527DE30BC0B3901083E3F75776A0600F24A4",
+    "coverageSurfaceSha256": "665FF9C360D48073A1907B2C8371F2535194FB270FB845CB610DAB89836B33D0",
+    "rowResultsSha256": "D5824A25FB5314C09B221A2CDCEE6707425AFE5E6776AD89B2BF377447C69FFD",
+    "fatalSurfaceSha256": "3D583550B5A68DDDABFD26FA13E58FCD2E825BF38D4B5B0E23B5CE36757A2C74",
+    "sourceRowCount": 15999,
+    "missingRowCount": 0,
+    "extraRowCount": 0,
+    "duplicateRowCount": 0,
+    "evidenceGapCount": 25609,
+    "missingBoundaryCount": 153601,
+    "fatalStructuralCount": 1,
+    "globalFatal": "FEATURE_REACHABILITY_LEDGER_ABSENT",
+    "rowVerdict": "UNKNOWN",
+    "dualRegenerationByteIdentical": true,
+    "cliExitCode": 1
+  },
+  "independentReview": {
+    "initialVerdict": "REJECT",
+    "finalVerdict": "APPROVE",
+    "validatorWrites": 0,
+    "blockingSyntheticsClosed": 8
+  }
+}

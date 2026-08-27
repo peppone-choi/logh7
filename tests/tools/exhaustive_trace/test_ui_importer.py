@@ -15,6 +15,18 @@ from tools.exhaustive_trace.import_ui import (
 from tools.exhaustive_trace.model import EvidenceState, Reachability
 
 
+IMPLEMENTATION_TARGETS = {
+    "CONTRACT",
+    "SERVER",
+    "LEGACY_GATEWAY",
+    "NEW_CLIENT",
+    "DATABASE",
+    "CONTENT_ADMIN",
+    "QA",
+    "INDEPENDENT_REVIEW",
+}
+
+
 def complete_ui_export(**overrides: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "schemaVersion": 1,
@@ -112,6 +124,24 @@ def widget_candidate(**overrides: object) -> dict[str, object]:
 
 
 class UiInventoryTests(unittest.TestCase):
+    def test_normalized_ui_row_requires_every_implementation_target(self) -> None:
+        normalized = normalize_ui_inventory(
+            build_ui_inventory(
+                complete_ui_export(widgetConstructions=[widget_candidate()])
+            )
+        )[0]
+
+        dispositions = normalized["implementationDisposition"]
+        self.assertEqual(set(dispositions), IMPLEMENTATION_TARGETS)
+        for target in IMPLEMENTATION_TARGETS:
+            with self.subTest(target=target):
+                self.assertEqual(dispositions[target]["status"], "REQUIRED")
+                self.assertTrue(dispositions[target]["reason"])
+                self.assertEqual(
+                    dispositions[target]["evidence"],
+                    [f"goal:implementation-layer:{target}"],
+                )
+
     def test_root_mode_and_manager_construction_become_rows(self) -> None:
         raw = complete_ui_export(
             rootModes=[

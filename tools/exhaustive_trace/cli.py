@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Sequence, TypeVar
 
+from .coverage import audit_graph, coverage_json, load_coverage_json
 from .graph import build_graph, graph_jsonl, load_graph_jsonl
 from .inventories import load_inventory_bundle
 from .io import canonical_json
@@ -18,6 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SOURCE_MANIFEST = (
     PROJECT_ROOT / "docs" / "reverse-engineering" / "exhaustive-trace" / "source-manifest.json"
 )
+DEFAULT_INVENTORIES = PROJECT_ROOT / "evidence" / "exhaustive-trace" / "inventories"
 
 
 def _sha256(data: bytes) -> str:
@@ -85,6 +87,36 @@ def _build_graph(args: argparse.Namespace) -> int:
     return 0
 
 
+def _audit(args: argparse.Namespace) -> int:
+    bundle = load_inventory_bundle(args.inventories, source_manifest=args.source_manifest)
+    graph = load_graph_jsonl(args.graph, bundle=bundle)
+    report = audit_graph(graph, bundle=bundle)
+    data = coverage_json(report, graph=graph, bundle=bundle).encode("utf-8")
+    output = Path(args.output)
+    verified = _write_atomic(
+        output,
+        data,
+        verify=lambda temporary: load_coverage_json(temporary, graph=graph, bundle=bundle),
+    )
+    failed = bool(verified.fatals)
+    print(
+        canonical_json(
+            {
+                "command": "audit",
+                "coverageSurfaceSha256": verified.coverage_surface_sha256,
+                "evidenceGapCount": verified.conservation["evidenceGapCount"],
+                "fatalStructuralCount": verified.conservation["fatalStructuralCount"],
+                "fileSha256": _sha256(data),
+                "output": str(Path(os.path.abspath(output))),
+                "sourceRowCount": verified.conservation["sourceRowCount"],
+                "status": "FAIL" if failed else "PASS",
+            }
+        ),
+        end="",
+    )
+    return 1 if failed else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -93,6 +125,12 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--source-manifest", type=Path, default=DEFAULT_SOURCE_MANIFEST)
     build.add_argument("--output", required=True, type=Path)
     build.set_defaults(handler=_build_graph)
+    audit = subcommands.add_parser("audit", help="audit orphan and vertical-trace coverage")
+    audit.add_argument("--inventories", type=Path, default=DEFAULT_INVENTORIES)
+    audit.add_argument("--source-manifest", type=Path, default=DEFAULT_SOURCE_MANIFEST)
+    audit.add_argument("--graph", required=True, type=Path)
+    audit.add_argument("--output", required=True, type=Path)
+    audit.set_defaults(handler=_audit)
     return parser
 
 

@@ -25,6 +25,16 @@ from tools.exhaustive_trace.import_protocol import (
 
 FIXTURE_SHA = "A" * 64
 REPOSITORY_SHA = "B" * 64
+IMPLEMENTATION_TARGETS = {
+    "CONTRACT",
+    "SERVER",
+    "LEGACY_GATEWAY",
+    "NEW_CLIENT",
+    "DATABASE",
+    "CONTENT_ADMIN",
+    "QA",
+    "INDEPENDENT_REVIEW",
+}
 
 
 def complete_export(**overrides: object) -> dict[str, object]:
@@ -144,6 +154,20 @@ def complete_row(**overrides: object) -> dict[str, object]:
 
 
 class ProtocolRowContractTests(unittest.TestCase):
+    def test_normalized_protocol_row_requires_every_implementation_target(self) -> None:
+        normalized = protocol_row_to_dict(normalize_protocol_row(complete_row()))
+
+        dispositions = normalized["implementationDisposition"]
+        self.assertEqual(set(dispositions), IMPLEMENTATION_TARGETS)
+        for target in IMPLEMENTATION_TARGETS:
+            with self.subTest(target=target):
+                self.assertEqual(dispositions[target]["status"], "REQUIRED")
+                self.assertTrue(dispositions[target]["reason"])
+                self.assertEqual(
+                    dispositions[target]["evidence"],
+                    [f"goal:implementation-layer:{target}"],
+                )
+
     def test_protocol_row_needs_direction(self) -> None:
         raw = complete_row()
         del raw["direction"]

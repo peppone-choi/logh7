@@ -257,6 +257,19 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(6, len(inventory_nodes))
         self.assertEqual({row["key"] for row in bundle.rows}, {node.key for node in inventory_nodes})
         self.assertEqual(0, graph.conservation["unrepresentedSourceRows"])
+        self.assertEqual(tuple(bundle.rows), graph.source_rows)
+
+    def test_graph_loader_restores_immutable_source_rows_from_bound_bundle(self) -> None:
+        bundle = self.load()
+        graph = build_graph(bundle.rows)
+        path = self.root / "graph.jsonl"
+        path.write_text(graph_jsonl(graph, bundle), encoding="utf-8", newline="\n")
+
+        loaded = load_graph_jsonl(path, bundle=bundle)
+
+        self.assertEqual(tuple(bundle.rows), loaded.source_rows)
+        with self.assertRaises(TypeError):
+            loaded.source_rows[0]["name"] = "mutated"
 
     def test_name_match_is_candidate_only_and_never_identity(self) -> None:
         graph = build_graph(self.load().rows)

@@ -11,6 +11,9 @@
 *.sql text eol=lf
 tools/exhaustive_trace/build_pe_imports.py text eol=lf
 tools/ghidra/ExportExhaustiveProtocol.java text eol=lf
+tools/exhaustive_trace/import_protocol.py text eol=lf
+tests/tools/exhaustive_trace/test_importers.py text eol=lf
+evidence/exhaustive-trace/inventories/protocol.jsonl text eol=lf
 tools/ghidra/ExportExhaustiveUi.java text eol=lf
 tools/exhaustive_trace/import_ui.py text eol=lf
 tests/tools/exhaustive_trace/test_ui_importer.py text eol=lf
@@ -38,3 +41,7 @@ tools/exhaustive_trace/__init__.py text eol=lf
 tests/tools/exhaustive_trace/test_graph.py text eol=lf
 tests/tools/exhaustive_trace/test_graph_cli.py text eol=lf
 evidence/exhaustive-trace/graph.jsonl text eol=lf
+tools/exhaustive_trace/coverage.py text eol=lf
+tests/tools/exhaustive_trace/test_coverage.py text eol=lf
+tests/tools/exhaustive_trace/test_cli.py text eol=lf
+evidence/exhaustive-trace/coverage.json text eol=lf

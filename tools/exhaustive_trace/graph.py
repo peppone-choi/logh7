@@ -185,6 +185,7 @@ class TraceGraph:
     edges: tuple[TraceEdge, ...]
     expected_source_keys: tuple[str, ...] = ()
     expected_join_references: tuple[str, ...] = ()
+    source_rows: tuple[Mapping[str, Any], ...] = ()
     conservation: Mapping[str, Any] = field(init=False)
     nodes_sha256: str = field(init=False)
     edges_sha256: str = field(init=False)
@@ -193,8 +194,10 @@ class TraceGraph:
     def __post_init__(self) -> None:
         nodes = tuple(sorted(tuple(self.nodes), key=lambda item: (item.key.casefold(), item.key)))
         edges = tuple(sorted(tuple(self.edges), key=lambda item: _edge_record(item)["edgeId"]))
+        source_rows = tuple(freeze_json(_plain(row)) for row in self.source_rows)
         object.__setattr__(self, "nodes", nodes)
         object.__setattr__(self, "edges", edges)
+        object.__setattr__(self, "source_rows", source_rows)
         keys: dict[str, str] = {}
         exact_keys: set[str] = set()
         for node in nodes:
@@ -1050,6 +1053,7 @@ class _GraphBuilder:
             tuple(self.edges),
             tuple(row["key"] for row in self.rows),
             _enumerate_join_references(self.rows),
+            tuple(self.rows),
         )
 
 
@@ -1195,6 +1199,7 @@ def load_graph_jsonl(path: str | Path, *, bundle: InventoryBundle) -> TraceGraph
         tuple(edges),
         expected_keys,
         _enumerate_join_references(bundle.rows),
+        tuple(bundle.rows),
     )
     if manifest.get("nodesSha256") != graph.nodes_sha256:
         raise ValueError("graph nodes hash mismatch")
