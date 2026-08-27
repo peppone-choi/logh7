@@ -39,6 +39,16 @@ class CliAuditTests(unittest.TestCase):
         }
         self.assertEqual(set(), required - lines)
 
+    def test_task12_artifacts_have_explicit_lf_attributes(self) -> None:
+        project = Path(__file__).resolve().parents[3]
+        lines = set((project / ".gitattributes").read_text(encoding="utf-8").splitlines())
+        required = {
+            "tools/exhaustive_trace/work_packages.py text eol=lf",
+            "tests/tools/exhaustive_trace/test_work_packages.py text eol=lf",
+            "evidence/exhaustive-trace/domain-plan-inputs.json text eol=lf",
+        }
+        self.assertEqual(set(), required - lines)
+
     def test_audit_atomically_publishes_honest_failing_report(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

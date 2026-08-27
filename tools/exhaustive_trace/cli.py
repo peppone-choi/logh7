@@ -21,6 +21,12 @@ from .domains import (
 from .graph import build_graph, graph_jsonl, load_graph_jsonl
 from .inventories import load_inventory_bundle
 from .io import canonical_json
+from .work_packages import (
+    build_work_packages,
+    inferred_move_grid_candidate,
+    load_work_packages_json,
+    work_packages_json,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -214,6 +220,46 @@ def _package_domains(args: argparse.Namespace) -> int:
     return 0
 
 
+def _build_work_packages(args: argparse.Namespace) -> int:
+    bundle = load_inventory_bundle(args.inventories, source_manifest=args.source_manifest)
+    graph = load_graph_jsonl(args.graph, bundle=bundle)
+    coverage = load_coverage_json(args.coverage, graph=graph, bundle=bundle)
+    config = load_domain_config(args.domains, project_root=PROJECT_ROOT)
+    packages = load_domain_packages(
+        args.domain_packages, graph=graph, coverage=coverage, config=config
+    )
+    candidates = inferred_move_grid_candidate(packages)
+    plan = build_work_packages(packages, candidate_features=candidates)
+    data = work_packages_json(plan).encode("utf-8")
+    output = Path(args.output)
+    verified = _write_atomic(
+        output,
+        data,
+        verify=lambda temporary: load_work_packages_json(
+            temporary, packages=packages, candidate_features=candidates
+        ),
+    )
+    print(
+        canonical_json(
+            {
+                "command": "build-work-packages",
+                "candidateGameplayFeatureCount": verified.conservation["candidateGameplayFeatureCount"],
+                "confirmedGameplayFeatureCount": verified.conservation["confirmedGameplayFeatureCount"],
+                "coverageGateStatus": verified.coverage_gate_status,
+                "featureLedgerStatus": verified.feature_ledger_status,
+                "fileSha256": _sha256(data),
+                "output": str(Path(os.path.abspath(output))),
+                "planSurfaceSha256": verified.plan_surface_sha256,
+                "recoveryUnitCount": verified.conservation["recoveryUnitCount"],
+                "status": "PASS",
+                "uncoveredOpenRowCount": verified.conservation["uncoveredOpenRowCount"],
+            }
+        ),
+        end="",
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subcommands = parser.add_subparsers(dest="command", required=True)
@@ -236,6 +282,17 @@ def build_parser() -> argparse.ArgumentParser:
     package.add_argument("--domains", type=Path, default=DEFAULT_DOMAINS)
     package.add_argument("--output", required=True, type=Path)
     package.set_defaults(handler=_package_domains)
+    work = subcommands.add_parser(
+        "build-work-packages", help="build recovery and implementation planning units"
+    )
+    work.add_argument("--inventories", type=Path, default=DEFAULT_INVENTORIES)
+    work.add_argument("--source-manifest", type=Path, default=DEFAULT_SOURCE_MANIFEST)
+    work.add_argument("--graph", required=True, type=Path)
+    work.add_argument("--coverage", required=True, type=Path)
+    work.add_argument("--domains", type=Path, default=DEFAULT_DOMAINS)
+    work.add_argument("--domain-packages", required=True, type=Path)
+    work.add_argument("--output", required=True, type=Path)
+    work.set_defaults(handler=_build_work_packages)
     return parser
 
 

@@ -48,3 +48,6 @@ evidence/exhaustive-trace/coverage.json text eol=lf
 tools/exhaustive_trace/domains.py text eol=lf
 tests/tools/exhaustive_trace/test_domains.py text eol=lf
 tests/tools/exhaustive_trace/test_model.py text eol=lf
+tools/exhaustive_trace/work_packages.py text eol=lf
+tests/tools/exhaustive_trace/test_work_packages.py text eol=lf
+evidence/exhaustive-trace/domain-plan-inputs.json text eol=lf
