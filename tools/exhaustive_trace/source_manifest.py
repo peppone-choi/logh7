@@ -113,6 +113,18 @@ def sha256_tree(path: str | Path) -> str:
     return digest.hexdigest().upper()
 
 
+def ghidra_program_database_sha256(path: str | Path) -> str:
+    """Hash the semantic program DB while excluding volatile project indexes."""
+
+    repository = Path(path)
+    databases = sorted(repository.rglob("db.*.gbf"))
+    if len(databases) != 1:
+        raise ValueError(
+            f"Ghidra repository must contain exactly one current program database: {databases}"
+        )
+    return sha256_file(databases[0])
+
+
 def _verify_tree_manifest(root: Path, manifest: Path, prefix: str) -> int:
     prefix = prefix.replace("\\", "/")
     if prefix and not prefix.endswith("/"):
@@ -417,7 +429,14 @@ class SourceManifest:
         expected_repository_hash = _require_sha256(
             "ghidra.repositorySha256", ghidra.get("repositorySha256")
         )
-        actual_repository_hash = sha256_tree(repository)
+        repository_algorithm = ghidra.get(
+            "repositoryHashAlgorithm",
+            "sorted(relative-posix-path NUL byte-length NUL uppercase-file-sha256 LF)",
+        )
+        if repository_algorithm == "program-database-sha256":
+            actual_repository_hash = ghidra_program_database_sha256(repository)
+        else:
+            actual_repository_hash = sha256_tree(repository)
         if actual_repository_hash != expected_repository_hash:
             raise ValueError(
                 "Ghidra repository hash mismatch: "

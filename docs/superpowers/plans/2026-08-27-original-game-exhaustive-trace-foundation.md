@@ -236,13 +236,18 @@ git commit -m "docs: freeze exhaustive trace sources"
 - Create: `tools/exhaustive_trace/import_protocol.py`
 - Create: `tests/tools/exhaustive_trace/test_importers.py`
 - Create: `evidence/exhaustive-trace/raw/protocol-ghidra.json`
+- Create: `evidence/exhaustive-trace/raw/protocol-evidence-manifest.json`
 - Create: `evidence/exhaustive-trace/inventories/protocol.jsonl`
+- Create: `evidence/exhaustive-trace/inventories/protocol-reconciliation.json`
+- Modify: `tools/exhaustive_trace/source_manifest.py`
+- Modify: `tests/tools/exhaustive_trace/test_source_manifest.py`
+- Modify: `docs/reverse-engineering/exhaustive-trace/source-manifest.json`
 
 **Interfaces:**
 - Consumes: dispatcher, serializer/parser strings, message size tables, protocol-name tables.
 - Produces: one `InventoryRow` for every message code plus typed `SERIALIZES`, `PARSES`, and `DISPATCHES` facts.
 
-- [ ] **Step 1: Write protocol importer tests**
+- [x] **Step 1: Write protocol importer tests**
 
 Require unique normalized keys, explicit direction, body-size status, request/response/notify sibling disposition, and at least one evidence reference.
 
@@ -252,15 +257,15 @@ def test_protocol_row_needs_direction(self):
         normalize_protocol_row({"code":"0x031D","name":"ResponseStaticInformationBase"})
 ```
 
-- [ ] **Step 2: Run importer tests and confirm failure**
+- [x] **Step 2: Run importer tests and confirm failure**
 
 Expected: missing importer module or normalization function.
 
-- [ ] **Step 3: Implement the read-only Ghidra exporter**
+- [x] **Step 3: Implement the read-only Ghidra exporter**
 
 Export address, function, opcode/code family, referenced class/name string, body-size evidence, direction evidence, caller/callee addresses, and destination global/cache. Do not assign a semantic field name from address proximity.
 
-- [ ] **Step 4: Run Ghidra headless**
+- [x] **Step 4: Run Ghidra headless**
 
 ```powershell
 & 'C:\Users\user\AppData\Local\Programs\Ghidra\ghidra_12.1.2_PUBLIC\support\analyzeHeadless.bat' `
@@ -274,19 +279,19 @@ Export address, function, opcode/code family, referenced class/name string, body
 
 Expected: exporter success marker and output-file existence.
 
-- [ ] **Step 5: Normalize and test**
+- [x] **Step 5: Normalize and test**
 
 ```powershell
-python -m tools.exhaustive_trace.import_protocol --input evidence/exhaustive-trace/raw/protocol-ghidra.json --output evidence/exhaustive-trace/inventories/protocol.jsonl
+python -m tools.exhaustive_trace.import_protocol --input evidence/exhaustive-trace/raw/protocol-ghidra.json --output evidence/exhaustive-trace/inventories/protocol.jsonl --reconciliation evidence/exhaustive-trace/inventories/protocol-reconciliation.json --evidence-manifest evidence/exhaustive-trace/raw/protocol-evidence-manifest.json --source-manifest docs/reverse-engineering/exhaustive-trace/source-manifest.json
 python -m unittest tests.tools.exhaustive_trace.test_importers -v
 ```
 
 Expected: every row has a disposition; unknown layouts remain `UNKNOWN` rather than absent.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
-git add tools/ghidra/ExportExhaustiveProtocol.java tools/exhaustive_trace/import_protocol.py tests/tools/exhaustive_trace/test_importers.py evidence/exhaustive-trace/raw/protocol-ghidra.json evidence/exhaustive-trace/inventories/protocol.jsonl
+git add tools/ghidra/ExportExhaustiveProtocol.java tools/exhaustive_trace/import_protocol.py tools/exhaustive_trace/source_manifest.py tests/tools/exhaustive_trace/test_importers.py tests/tools/exhaustive_trace/test_source_manifest.py docs/reverse-engineering/exhaustive-trace/source-manifest.json evidence/exhaustive-trace/raw/protocol-ghidra.json evidence/exhaustive-trace/raw/protocol-evidence-manifest.json evidence/exhaustive-trace/inventories/protocol.jsonl evidence/exhaustive-trace/inventories/protocol-reconciliation.json
 git commit -m "docs: enumerate original protocol surface"
 ```
 

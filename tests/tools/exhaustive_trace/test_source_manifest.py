@@ -11,6 +11,7 @@ from tools.exhaustive_trace.source_manifest import (
     SourceManifest,
     classify_import_groups,
     sha256_tree,
+    ghidra_program_database_sha256,
     validate_import_gate,
 )
 
@@ -19,6 +20,30 @@ GROUP_NAMES = (
     "direct3d8", "directinput8", "directsound", "winsock", "filesystem",
     "registry", "timing", "process_thread",
 )
+
+
+class GhidraProgramDatabaseHashTests(unittest.TestCase):
+    def test_volatile_repository_indexes_do_not_change_program_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "idata" / "00" / "~00000000.db" / "db.1.gbf"
+            database.parent.mkdir(parents=True)
+            database.write_bytes(b"semantic-program")
+            index = root / "idata" / "~index.dat"
+            index.write_bytes(b"first")
+            first = ghidra_program_database_sha256(root)
+            index.write_bytes(b"changed-on-read")
+            self.assertEqual(ghidra_program_database_sha256(root), first)
+
+    def test_multiple_program_databases_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "idata" / "00" / "~00000000.db" / "db.1.gbf"
+            database.parent.mkdir(parents=True)
+            database.write_bytes(b"one")
+            (database.parent / "db.2.gbf").write_bytes(b"two")
+            with self.assertRaisesRegex(ValueError, "exactly one"):
+                ghidra_program_database_sha256(root)
 
 
 def import_payload(client: Path, bound_files: dict[str, Path]) -> dict[str, object]:
