@@ -308,23 +308,23 @@ git commit -m "docs: enumerate original protocol surface"
 - Consumes: root-mode builders, manager constructors, descriptor/message tables, event predicates, enable/visibility writers.
 - Produces: UI rows keyed as `UI:MODE:{mode}:MANAGER:{manager}:CATEGORY:{category}:INDEX:{index}`.
 
-- [ ] **Step 1: Add failing UI tests**
+- [x] **Step 1: Add failing UI tests**
 
 Require builder ownership, label evidence, event/handler disposition, enable state owner, child manager relation, and reachability classification. A row with a label but no handler must be `SHIPPED_DORMANT` or `UNKNOWN`.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: UI importer missing.
 
-- [ ] **Step 3: Implement exporter and importer**
+- [x] **Step 3: Implement exporter and importer**
 
 Export all root modes and manager/widget construction sites, including disabled rows. Normalize runtime addresses only as evidence, never stable IDs.
 
-- [ ] **Step 4: Generate and verify UI inventory**
+- [x] **Step 4: Generate and verify UI inventory**
 
 Expected: every constructed widget has a handler/dormant/unknown disposition; visible labels are bound to consuming branches.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/ghidra/ExportExhaustiveUi.java tools/exhaustive_trace/import_ui.py tests/tools/exhaustive_trace/test_importers.py evidence/exhaustive-trace/raw/ui-ghidra.json evidence/exhaustive-trace/inventories/ui.jsonl
