@@ -449,36 +449,37 @@ git commit -m "docs: enumerate original client functions"
 - Create: `tools/exhaustive_trace/import_authority.py`
 - Create: `evidence/exhaustive-trace/raw/authority-source.json`
 - Create: `evidence/exhaustive-trace/inventories/authority.jsonl`
-- Modify: `tests/tools/exhaustive_trace/test_importers.py`
+- Create: `evidence/exhaustive-trace/inventories/authority-reconciliation.json`
+- Create: `tests/tools/exhaustive_trace/test_authority_importer.py`
 
 **Interfaces:**
 - Consumes: greenfield server/contract/database source plus compatibility behavior as separately labeled candidate input.
 - Produces: command handler, validation, mutation, event, fanout, persistence, replay, reconnect, and admin-operation rows.
 
-- [ ] **Step 1: Add failing authority tests**
+- [x] **Step 1: Add failing authority tests**
 
 Require every accepted command path to identify validation, mutation/event disposition, response/notify disposition, persistence/replay disposition, and idempotency disposition. A stub or empty response remains an orphan.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: authority importer missing.
 
-- [ ] **Step 3: Implement source scanner**
+- [x] **Step 3: Implement source scanner**
 
 Scan `apps/server`, `contracts`, and `db` using deterministic file and syntax patterns. Hash every source file. Import revival behavior only when `--legacy-candidate-root E:\logh7-revival` is explicitly passed; label every such row `LEGACY_CANDIDATE`.
 
-- [ ] **Step 4: Generate inventory without legacy candidate input**
+- [x] **Step 4: Generate inventory without legacy candidate input**
 
 ```powershell
-python -m tools.exhaustive_trace.import_authority --server apps/server --contracts contracts --db db --output evidence/exhaustive-trace/inventories/authority.jsonl
+python -m tools.exhaustive_trace.import_authority --server apps/server --contracts contracts --db db --protocol-inventory evidence/exhaustive-trace/inventories/protocol.jsonl --entity-inventory evidence/exhaustive-trace/inventories/entities.jsonl --ui-inventory evidence/exhaustive-trace/inventories/ui.jsonl --raw-output evidence/exhaustive-trace/raw/authority-source.json --output evidence/exhaustive-trace/inventories/authority.jsonl --reconciliation evidence/exhaustive-trace/inventories/authority-reconciliation.json
 ```
 
 Expected: current missing handlers and persistence paths appear as unresolved rows rather than being filled from revival.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
-git add tools/exhaustive_trace/import_authority.py tests/tools/exhaustive_trace/test_importers.py evidence/exhaustive-trace/raw/authority-source.json evidence/exhaustive-trace/inventories/authority.jsonl
+git add tools/exhaustive_trace/import_authority.py tests/tools/exhaustive_trace/test_authority_importer.py evidence/exhaustive-trace/raw/authority-source.json evidence/exhaustive-trace/inventories/authority.jsonl evidence/exhaustive-trace/inventories/authority-reconciliation.json docs/superpowers/plans/2026-08-27-original-game-exhaustive-trace-foundation.md
 git commit -m "docs: enumerate authority and persistence paths"
 ```
 

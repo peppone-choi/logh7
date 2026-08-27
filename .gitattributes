@@ -26,3 +26,6 @@ tools/ghidra/ExportExhaustiveFunctions.java text eol=lf
 tools/exhaustive_trace/import_functions.py text eol=lf
 tests/tools/exhaustive_trace/test_function_importer.py text eol=lf
 evidence/exhaustive-trace/inventories/functions.jsonl text eol=lf
+tools/exhaustive_trace/import_authority.py text eol=lf
+tests/tools/exhaustive_trace/test_authority_importer.py text eol=lf
+evidence/exhaustive-trace/inventories/authority.jsonl text eol=lf
