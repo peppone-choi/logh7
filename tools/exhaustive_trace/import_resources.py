@@ -1,0 +1,1101 @@
+"""Fail-closed normalization for original resource files and loader candidates."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path, PurePosixPath
+from types import MappingProxyType
+from typing import Any, Mapping
+
+from .io import canonical_json, sha256_file
+from .model import (
+    EvidenceState,
+    ImplementationTarget,
+    InventoryKind,
+    InventoryRow,
+    Reachability,
+    RecoveryDisposition,
+    StringEnum,
+)
+from .source_manifest import CLIENT_SHA256, SourceManifest
+
+
+class ResourceRowKind(StringEnum):
+    TREE_FILE = "TREE_FILE"
+    EXTERNAL_DEPENDENCY = "EXTERNAL_DEPENDENCY"
+    MANUAL_REQUIREMENT = "MANUAL_REQUIREMENT"
+
+
+class ResourceSectionStatus(StringEnum):
+    PROVEN = "PROVEN"
+    CANDIDATE = "CANDIDATE"
+    STATIC_MAPPED = "STATIC_MAPPED"
+    RUNTIME_OBSERVED = "RUNTIME_OBSERVED"
+    UNKNOWN = "UNKNOWN"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class UsageDisposition(StringEnum):
+    ENUMERATED_ONLY = "ENUMERATED_ONLY"
+    ORPHAN = "ORPHAN"
+    DORMANT_CANDIDATE = "DORMANT_CANDIDATE"
+    INTEGRATED = "INTEGRATED"
+
+
+class ImplementationStatus(StringEnum):
+    REQUIRED = "REQUIRED"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+    UNKNOWN = "UNKNOWN"
+
+
+RESOURCE_CATEGORIES = frozenset(
+    {
+        "MODEL",
+        "TEXTURE",
+        "PORTRAIT",
+        "BACKGROUND",
+        "SPOT_BACKGROUND",
+        "FONT",
+        "MESSAGE",
+        "SOUND",
+        "MAP",
+        "CURSOR",
+        "CONFIGURATION",
+        "EXECUTABLE",
+        "DOCUMENTATION",
+        "DATABASE",
+        "OTHER",
+        "UNKNOWN",
+    }
+)
+
+CANDIDATE_COLLECTIONS = (
+    "literalPathCandidates",
+    "pathFormatterCandidates",
+    "loaderCandidates",
+    "decodeTransformCandidates",
+    "runtimeKeyCandidates",
+    "cacheRegistryCandidates",
+    "ownerCandidates",
+    "renderSubmissionCandidates",
+    "audioSubmissionCandidates",
+    "uiSubmissionCandidates",
+    "presentationReceiptCandidates",
+    "externalDependencyCandidates",
+    "manualResourceCandidates",
+)
+
+TOP_LEVEL_FIELDS = frozenset(
+    {
+        "schemaVersion",
+        "source",
+        "exporter",
+        "surfaceSha256",
+        "successMarker",
+        "audit",
+        "conservation",
+        *CANDIDATE_COLLECTIONS,
+    }
+)
+
+SHA256_PATTERN = re.compile(r"^[0-9A-Fa-f]{64}$")
+FUNCTION_PATTERN = re.compile(r"^(?:FUN_)?[0-9A-Fa-f]{8}$")
+RUNTIME_POINTER_PATTERN = re.compile(r"^0x[0-9A-Fa-f]{8}$")
+EXPECTED_LANGUAGE = "x86:LE:32:default"
+EXPECTED_COMPILER = "windows"
+EXPECTED_IMAGE_BASE = "00400000"
+
+
+def _mapping(name: str, value: object) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{name} must be an object")
+    return value
+
+
+def _text(name: str, value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be non-empty text")
+    return value.strip()
+
+
+def _optional_text(name: str, value: object) -> str | None:
+    if value is None:
+        return None
+    return _text(name, value)
+
+
+def _sha256(name: str, value: object) -> str:
+    result = _text(name, value).upper()
+    if not SHA256_PATTERN.fullmatch(result):
+        raise ValueError(f"{name} must be a SHA-256")
+    return result
+
+
+def _text_list(name: str, value: object, *, allow_empty: bool = True) -> tuple[str, ...]:
+    if not isinstance(value, list) or any(
+        not isinstance(item, str) or not item.strip() for item in value
+    ):
+        raise ValueError(f"{name} must be a text list")
+    if not allow_empty and not value:
+        raise ValueError(f"{name} must not be empty")
+    return tuple(item.strip() for item in value)
+
+
+def _evidence(name: str, value: object) -> tuple[str, ...]:
+    return _text_list(name, value, allow_empty=False)
+
+
+def _safe_resource_path(value: object) -> str:
+    path = _text("resource path", value)
+    if "\\" in path or "\x00" in path or path.startswith(("/", "./")):
+        raise ValueError(f"unsafe resource path: {path}")
+    pure = PurePosixPath(path)
+    if pure.is_absolute() or any(part in {"", ".", ".."} for part in pure.parts):
+        raise ValueError(f"unsafe resource path: {path}")
+    return pure.as_posix()
+
+
+@dataclass(frozen=True)
+class TreeManifestEntry:
+    relative_path: str
+    content_sha256: str
+    byte_size: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "relative_path", _safe_resource_path(self.relative_path))
+        object.__setattr__(self, "content_sha256", _sha256("contentSha256", self.content_sha256))
+        if not isinstance(self.byte_size, int) or isinstance(self.byte_size, bool) or self.byte_size < 0:
+            raise ValueError("byteSize must be a non-negative integer")
+
+
+@dataclass(frozen=True)
+class ResourceSection:
+    status: ResourceSectionStatus
+    values: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "values", MappingProxyType(dict(self.values)))
+
+
+@dataclass(frozen=True)
+class ResourceImplementationSection:
+    status: ImplementationStatus
+    values: Mapping[str, Any]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "values", MappingProxyType(dict(self.values)))
+
+
+@dataclass(frozen=True)
+class ResourceInventoryRow:
+    row: InventoryRow
+    row_kind: ResourceRowKind
+    source: Mapping[str, Any]
+    format: ResourceSection
+    category: ResourceSection
+    path_resolution: ResourceSection
+    loader: ResourceSection
+    runtime_key: ResourceSection
+    owner: ResourceSection
+    decode_transform: ResourceSection
+    cache_registry: ResourceSection
+    submissions: Mapping[str, ResourceSection]
+    presentation: ResourceSection
+    usage_disposition: UsageDisposition
+    distribution_disposition: str
+    implementation_disposition: Mapping[str, ResourceImplementationSection]
+    recovery_disposition: RecoveryDisposition
+    first_missing_boundary: str
+    reachability_evidence: tuple[str, ...]
+    evidence: tuple[str, ...]
+    source_candidate_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "source", MappingProxyType(dict(self.source)))
+        object.__setattr__(self, "submissions", MappingProxyType(dict(self.submissions)))
+        object.__setattr__(
+            self,
+            "implementation_disposition",
+            MappingProxyType(dict(self.implementation_disposition)),
+        )
+
+
+@dataclass(frozen=True)
+class ResourcesEvidenceManifest:
+    path: Path
+    raw_path: Path
+    raw_sha256: str
+    exporter_path: Path
+    exporter_sha256: str
+    repository_sha256: str
+    source_manifest_path: Path
+    source_manifest_sha256: str
+    tree_manifest_path: Path
+    tree_manifest_sha256: str
+    pe_imports_path: Path
+    pe_imports_sha256: str
+
+
+def _unknown_section(**empty_values: object) -> ResourceSection:
+    return ResourceSection(
+        ResourceSectionStatus.UNKNOWN,
+        {**empty_values, "evidence": ("resource-surface:unjoined",)},
+    )
+
+
+def _required_implementation() -> Mapping[str, ResourceImplementationSection]:
+    return {
+        target.value: ResourceImplementationSection(
+            ImplementationStatus.REQUIRED,
+            {
+                "reason": None,
+                "evidence": (f"goal:implementation-layer:{target.value}",),
+            },
+        )
+        for target in ImplementationTarget
+    }
+
+
+def _category_for_path(path: str) -> str:
+    lower = path.casefold()
+    if lower.startswith("data/image/spot/"):
+        return "SPOT_BACKGROUND"
+    if lower.startswith("data/image/face/"):
+        return "PORTRAIT"
+    if "/cursor" in lower:
+        return "CURSOR"
+    if lower.startswith(("data/image/strategy/", "data/image/map_obj/", "data/model/strategy/", "data/model/space/")):
+        return "MAP"
+    if lower.startswith("data/image/"):
+        return "TEXTURE"
+    if lower.startswith("data/model/"):
+        return "MODEL"
+    if lower.startswith("data/msgdat/"):
+        return "MESSAGE"
+    if lower.startswith("data/sound/"):
+        return "SOUND"
+    extension = PurePosixPath(lower).suffix
+    if extension == ".ini":
+        return "CONFIGURATION"
+    if extension == ".exe":
+        return "EXECUTABLE"
+    if extension in {".pdf", ".txt", ".url"}:
+        return "DOCUMENTATION"
+    if extension == ".db":
+        return "DATABASE"
+    return "OTHER"
+
+
+def _format_for_path(path: str) -> str:
+    extension = PurePosixPath(path).suffix.lower().lstrip(".")
+    return extension.upper() if extension else "UNKNOWN"
+
+
+def _validate_export(
+    raw: Mapping[str, Any],
+    *,
+    expected_exporter_sha256: str | None = None,
+    expected_repository_sha256: str | None = None,
+    expected_source_manifest_sha256: str | None = None,
+    expected_tree_manifest_sha256: str | None = None,
+    expected_pe_imports_sha256: str | None = None,
+) -> None:
+    unknown = set(raw) - TOP_LEVEL_FIELDS
+    missing = TOP_LEVEL_FIELDS - set(raw)
+    if unknown or missing:
+        raise ValueError(
+            f"resources export top-level fields differ: unknown={sorted(unknown)} missing={sorted(missing)}"
+        )
+    if raw.get("schemaVersion") != 1:
+        raise ValueError("unsupported resources export schemaVersion")
+    if raw.get("successMarker") != "EXPORT_EXHAUSTIVE_RESOURCES_OK":
+        raise ValueError("resources export success marker is missing")
+    source = _mapping("source", raw.get("source"))
+    if source.get("program") != "g7mtclient.exe":
+        raise ValueError("resources source program mismatch")
+    if _sha256("source.executableSha256", source.get("executableSha256")) != CLIENT_SHA256:
+        raise ValueError("resources source executable hash mismatch")
+    if source.get("language") != EXPECTED_LANGUAGE or source.get("compiler") != EXPECTED_COMPILER:
+        raise ValueError("resources source language/compiler mismatch")
+    if source.get("imageBase") != EXPECTED_IMAGE_BASE:
+        raise ValueError("resources source image base mismatch")
+    source_manifest_sha = _sha256(
+        "source.sourceManifestSha256", source.get("sourceManifestSha256")
+    )
+    tree_manifest_sha = _sha256(
+        "source.treeManifestSha256", source.get("treeManifestSha256")
+    )
+    pe_imports_sha = _sha256("source.peImportsSha256", source.get("peImportsSha256"))
+    if expected_source_manifest_sha256 and source_manifest_sha != expected_source_manifest_sha256.upper():
+        raise ValueError("resources source manifest hash mismatch")
+    if expected_tree_manifest_sha256 and tree_manifest_sha != expected_tree_manifest_sha256.upper():
+        raise ValueError("resources tree manifest hash mismatch")
+    if expected_pe_imports_sha256 and pe_imports_sha != expected_pe_imports_sha256.upper():
+        raise ValueError("resources PE imports hash mismatch")
+    exporter = _mapping("exporter", raw.get("exporter"))
+    if exporter.get("class") != "ExportExhaustiveResources":
+        raise ValueError("resources exporter class mismatch")
+    exporter_sha = _sha256("exporter.sha256", exporter.get("sha256"))
+    repository_sha = _sha256(
+        "exporter.ghidraRepositorySha256", exporter.get("ghidraRepositorySha256")
+    )
+    if expected_exporter_sha256 and exporter_sha != expected_exporter_sha256.upper():
+        raise ValueError("resources exporter hash mismatch")
+    if expected_repository_sha256 and repository_sha != expected_repository_sha256.upper():
+        raise ValueError("resources repository hash mismatch")
+    _sha256("surfaceSha256", raw.get("surfaceSha256"))
+    audit = _mapping("audit", raw.get("audit"))
+    if (
+        audit.get("scope") != "COMPILED_RESOURCE_ANCHORS"
+        or audit.get("filePresenceIsIntegration") is not False
+        or audit.get("stringPresenceIsLoaderProof") is not False
+        or audit.get("staticSubmissionIsPlayerVisible") is not False
+    ):
+        raise ValueError("resources audit overstates its bounded scope")
+    _text_list("audit.limitations", audit.get("limitations"), allow_empty=False)
+    conservation = _mapping("conservation", raw.get("conservation"))
+    if not isinstance(conservation.get("treeFiles"), int) or conservation["treeFiles"] <= 0:
+        raise ValueError("conservation.treeFiles must be positive")
+    seen: set[str] = set()
+    for collection in CANDIDATE_COLLECTIONS:
+        items = raw.get(collection)
+        if not isinstance(items, list):
+            raise ValueError(f"{collection} must be a list")
+        for index, value in enumerate(items):
+            item = _mapping(f"{collection}[{index}]", value)
+            candidate_id = _text(f"{collection}.candidateId", item.get("candidateId"))
+            if candidate_id in seen:
+                raise ValueError(f"duplicate resources candidateId: {candidate_id}")
+            seen.add(candidate_id)
+
+
+def _candidate_indexes(
+    raw: Mapping[str, Any], entries: Mapping[str, TreeManifestEntry]
+) -> tuple[dict[str, Mapping[str, Any]], dict[str, list[tuple[str, Mapping[str, Any]]]]]:
+    by_id: dict[str, Mapping[str, Any]] = {}
+    by_path: dict[str, list[tuple[str, Mapping[str, Any]]]] = {
+        path: [] for path in entries
+    }
+    for collection in CANDIDATE_COLLECTIONS:
+        for value in raw[collection]:
+            item = _mapping(collection, value)
+            candidate_id = _text("candidateId", item.get("candidateId"))
+            by_id[candidate_id] = item
+            paths: list[str] = []
+            if item.get("resourcePath") is not None:
+                paths.append(_safe_resource_path(item.get("resourcePath")))
+            if item.get("matchedPaths") is not None:
+                matched = item.get("matchedPaths")
+                if not isinstance(matched, list):
+                    raise ValueError("matchedPaths must be a list")
+                paths.extend(_safe_resource_path(path) for path in matched)
+            for path in dict.fromkeys(paths):
+                if path not in entries:
+                    raise ValueError(f"candidate references unknown resource path: {path}")
+                by_path[path].append((collection, item))
+    return by_id, by_path
+
+
+def _section_from_candidates(
+    items: list[Mapping[str, Any]],
+    *,
+    value_fields: tuple[str, ...],
+    section_name: str,
+) -> ResourceSection:
+    if not items:
+        return _unknown_section(**{field: () for field in value_fields})
+    status_aliases = {
+        "EXACT_PATH_MATCH": "CANDIDATE",
+        "UNRESOLVED": "CANDIDATE",
+        "PLAYER_VISIBLE": "RUNTIME_OBSERVED",
+        "PLAYER_AUDIBLE": "RUNTIME_OBSERVED",
+        "VISIBLE_AND_AUDIBLE": "RUNTIME_OBSERVED",
+    }
+    statuses = [
+        status_aliases.get(
+            _text(f"{section_name}.status", item.get("status")),
+            _text(f"{section_name}.status", item.get("status")),
+        )
+        for item in items
+    ]
+    allowed = {status.value for status in ResourceSectionStatus}
+    if any(status not in allowed for status in statuses):
+        raise ValueError(f"unsupported {section_name} status")
+    for item, status in zip(items, statuses):
+        claimed = [field for field in value_fields if item.get(field) not in (None, [], "UNKNOWN")]
+        if status == "UNKNOWN" and claimed:
+            raise ValueError(f"unknown {section_name} cannot claim values")
+    priority = {
+        "UNKNOWN": 0,
+        "CANDIDATE": 1,
+        "STATIC_MAPPED": 2,
+        "PROVEN": 3,
+        "RUNTIME_OBSERVED": 4,
+        "NOT_APPLICABLE": 0,
+    }
+    status = max(statuses, key=priority.__getitem__)
+    values: dict[str, Any] = {}
+    for field in value_fields:
+        merged: list[str] = []
+        for item in items:
+            value = item.get(field)
+            if isinstance(value, list):
+                merged.extend(str(entry) for entry in value)
+            elif value not in (None, "UNKNOWN"):
+                merged.append(str(value))
+        values[field] = tuple(dict.fromkeys(merged))
+    evidence = tuple(
+        dict.fromkeys(
+            evidence
+            for item in items
+            for evidence in _evidence(f"{section_name}.evidence", item.get("evidence"))
+        )
+    )
+    values["candidateIds"] = tuple(_text("candidateId", item.get("candidateId")) for item in items)
+    values["evidence"] = evidence
+    return ResourceSection(ResourceSectionStatus(status), values)
+
+
+def build_resource_inventory(
+    raw: Mapping[str, Any],
+    tree_entries: list[TreeManifestEntry],
+    *,
+    root_id: str,
+    expected_exporter_sha256: str | None = None,
+    expected_repository_sha256: str | None = None,
+    expected_source_manifest_sha256: str | None = None,
+    expected_tree_manifest_sha256: str | None = None,
+    expected_pe_imports_sha256: str | None = None,
+) -> list[ResourceInventoryRow]:
+    _validate_export(
+        raw,
+        expected_exporter_sha256=expected_exporter_sha256,
+        expected_repository_sha256=expected_repository_sha256,
+        expected_source_manifest_sha256=expected_source_manifest_sha256,
+        expected_tree_manifest_sha256=expected_tree_manifest_sha256,
+        expected_pe_imports_sha256=expected_pe_imports_sha256,
+    )
+    root_id = _text("rootId", root_id)
+    entries: dict[str, TreeManifestEntry] = {}
+    casefold_paths: set[str] = set()
+    for entry in tree_entries:
+        if not isinstance(entry, TreeManifestEntry):
+            raise ValueError("tree entries must be TreeManifestEntry values")
+        folded = entry.relative_path.casefold()
+        if folded in casefold_paths:
+            raise ValueError("resource paths must be case-insensitive unique")
+        casefold_paths.add(folded)
+        entries[entry.relative_path] = entry
+    if len(entries) != len(tree_entries):
+        raise ValueError("duplicate resource path")
+    if raw["conservation"]["treeFiles"] != len(tree_entries):
+        raise ValueError("raw/tree resource count differs")
+    by_id, by_path = _candidate_indexes(raw, entries)
+    path_candidate_ids = {
+        _text("path candidateId", item.get("candidateId"))
+        for collection in ("literalPathCandidates", "pathFormatterCandidates")
+        for item in raw[collection]
+    }
+    for item in raw["loaderCandidates"]:
+        item = _mapping("loader candidate", item)
+        status = _text("loader.status", item.get("status"))
+        refs = _text_list("loader.pathCandidateIds", item.get("pathCandidateIds", []))
+        unknown_refs = set(refs) - path_candidate_ids
+        if unknown_refs:
+            raise ValueError(f"loader path candidate is dangling: {sorted(unknown_refs)}")
+        claimed = any(item.get(field) not in (None, [], "UNKNOWN") for field in ("functions", "api", "acceptedFormats"))
+        if status == "UNKNOWN" and claimed:
+            raise ValueError("unknown loader cannot claim values")
+        if status == "PROVEN" and (
+            not refs
+            or not _text_list("loader.functions", item.get("functions", []), allow_empty=False)
+            or _optional_text("loader.api", item.get("api")) is None
+        ):
+            raise ValueError("proven loader requires path, function, and API")
+    for item in raw["ownerCandidates"]:
+        item = _mapping("owner candidate", item)
+        keys = _text_list("owner.ownerKeys", item.get("ownerKeys", []))
+        if any(RUNTIME_POINTER_PATTERN.fullmatch(key) for key in keys):
+            raise ValueError("runtime pointer cannot be a stable resource owner")
+        if item.get("status") == "PROVEN":
+            functions = item.get("functions")
+            if (
+                _optional_text("owner.ownerKind", item.get("ownerKind")) is None
+                or not keys
+                or not isinstance(functions, list)
+                or not functions
+                or any(not isinstance(function, str) or not function.strip() for function in functions)
+                or _optional_text("owner.joinKind", item.get("joinKind")) is None
+            ):
+                raise ValueError("proven owner requires kind, key, function, and join")
+    for item in raw["runtimeKeyCandidates"]:
+        item = _mapping("runtime key candidate", item)
+        if item.get("status") == "PROVEN" and any(
+            _optional_text(f"runtime key.{field}", item.get(field)) is None
+            for field in ("namespace", "value", "derivationFunction")
+        ):
+            raise ValueError("proven runtime key requires namespace, value, and derivation")
+    candidate_submission_ids = {
+        _text("submission.candidateId", item.get("candidateId"))
+        for collection in (
+            "renderSubmissionCandidates",
+            "audioSubmissionCandidates",
+            "uiSubmissionCandidates",
+        )
+        for item in raw[collection]
+    }
+    rows: list[ResourceInventoryRow] = []
+    for path in sorted(entries, key=str.casefold):
+        entry = entries[path]
+        attached = by_path[path]
+        attached_ids = [
+            _text("candidateId", item.get("candidateId")) for _, item in attached
+        ]
+        path_items = [
+            item
+            for collection, item in attached
+            if collection in {"literalPathCandidates", "pathFormatterCandidates"}
+        ]
+        loader_items = [item for collection, item in attached if collection == "loaderCandidates"]
+        runtime_items = [item for collection, item in attached if collection == "runtimeKeyCandidates"]
+        owner_items = [item for collection, item in attached if collection == "ownerCandidates"]
+        transform_items = [
+            item for collection, item in attached if collection == "decodeTransformCandidates"
+        ]
+        cache_items = [item for collection, item in attached if collection == "cacheRegistryCandidates"]
+        submission_items = {
+            "render": [item for collection, item in attached if collection == "renderSubmissionCandidates"],
+            "audio": [item for collection, item in attached if collection == "audioSubmissionCandidates"],
+            "ui": [item for collection, item in attached if collection == "uiSubmissionCandidates"],
+        }
+        receipt_items = [
+            item for collection, item in attached if collection == "presentationReceiptCandidates"
+        ]
+        path_resolution = _section_from_candidates(
+            path_items,
+            value_fields=("address", "value", "template", "function", "argumentDomain", "matchedPaths"),
+            section_name="path resolution",
+        )
+        if path_items and path_resolution.status is ResourceSectionStatus.UNKNOWN:
+            path_resolution = ResourceSection(ResourceSectionStatus.CANDIDATE, path_resolution.values)
+        loader_section = _section_from_candidates(
+            loader_items,
+            value_fields=("functions", "api", "acceptedFormats", "pathCandidateIds"),
+            section_name="loader",
+        )
+        runtime_section = _section_from_candidates(
+            runtime_items,
+            value_fields=("namespace", "value", "derivationFunction"),
+            section_name="runtime key",
+        )
+        owner_section = _section_from_candidates(
+            owner_items,
+            value_fields=("ownerKind", "ownerKeys", "functions", "joinKind"),
+            section_name="owner",
+        )
+        transform_section = _section_from_candidates(
+            transform_items,
+            value_fields=("stages", "reason"),
+            section_name="decode transform",
+        )
+        cache_section = _section_from_candidates(
+            cache_items,
+            value_fields=("registryKey", "runtimeKeyRefs", "insertFunctions", "readFunctions", "evictFunctions"),
+            section_name="cache registry",
+        )
+        submissions = {
+            kind: _section_from_candidates(
+                items,
+                value_fields=("function", "sink", "runtimeReceiptRefs"),
+                section_name=f"{kind} submission",
+            )
+            for kind, items in submission_items.items()
+        }
+        presentation = _section_from_candidates(
+            receipt_items,
+            value_fields=("runId", "sourceSha256", "runtimeKey", "ownerKey", "submissionCandidateId"),
+            section_name="presentation receipt",
+        )
+        loader_proven = loader_section.status is ResourceSectionStatus.PROVEN
+        owner_proven = owner_section.status is ResourceSectionStatus.PROVEN
+        runtime_submission_items = [
+            item
+            for items in submission_items.values()
+            for item in items
+            if item.get("status") == "RUNTIME_OBSERVED"
+        ]
+        valid_receipt = False
+        for receipt_item in receipt_items:
+            if receipt_item.get("status") not in {
+                "PLAYER_VISIBLE",
+                "PLAYER_AUDIBLE",
+                "VISIBLE_AND_AUDIBLE",
+            }:
+                continue
+            receipt_source = _sha256("receipt sourceSha256", receipt_item.get("sourceSha256"))
+            if receipt_source != entry.content_sha256:
+                raise ValueError("presentation receipt source hash differs")
+            submission_id = _text(
+                "receipt.submissionCandidateId", receipt_item.get("submissionCandidateId")
+            )
+            if submission_id not in candidate_submission_ids:
+                raise ValueError("presentation receipt submission is dangling")
+            runtime_key = _text("receipt.runtimeKey", receipt_item.get("runtimeKey"))
+            owner_key = _text("receipt.ownerKey", receipt_item.get("ownerKey"))
+            if runtime_key not in {
+                str(item.get("value")) for item in runtime_items if item.get("status") == "PROVEN"
+            }:
+                raise ValueError("presentation receipt runtime key differs")
+            if owner_key not in {
+                str(key)
+                for item in owner_items
+                if item.get("status") == "PROVEN"
+                for key in item.get("ownerKeys", [])
+            }:
+                raise ValueError("presentation receipt owner differs")
+            run_id = _text("receipt.runId", receipt_item.get("runId"))
+            matching_submission = next(
+                (item for item in runtime_submission_items if item.get("candidateId") == submission_id),
+                None,
+            )
+            if matching_submission is None or run_id not in matching_submission.get("runtimeReceiptRefs", []):
+                raise ValueError("presentation receipt run differs from submission")
+            valid_receipt = True
+        if not loader_proven:
+            usage = UsageDisposition.ENUMERATED_ONLY
+            first_missing = "LOADER_JOIN"
+        elif not owner_proven:
+            usage = UsageDisposition.ORPHAN
+            first_missing = "RUNTIME_OWNER"
+        elif valid_receipt:
+            usage = UsageDisposition.INTEGRATED
+            first_missing = "NONE"
+        else:
+            usage = UsageDisposition.DORMANT_CANDIDATE
+            first_missing = "RUNTIME_SUBMISSION_RECEIPT"
+        reachability = (
+            Reachability.SHIPPED_REACHABLE
+            if usage is UsageDisposition.INTEGRATED
+            else Reachability.UNKNOWN
+        )
+        states = {state: False for state in EvidenceState}
+        states[EvidenceState.ENUMERATED] = True
+        if loader_proven and owner_proven:
+            states[EvidenceState.STATIC_MAPPED] = True
+        if usage is UsageDisposition.INTEGRATED:
+            states[EvidenceState.RUNTIME_OBSERVED] = True
+            states[EvidenceState.PLAYER_VISIBLE] = True
+        row = InventoryRow(
+            key=f"RESOURCE:FILE:{root_id}:{path}",
+            inventory=InventoryKind.RESOURCE,
+            name=PurePosixPath(path).name,
+            provenance="ORIGINAL_OBSERVED",
+            reachability=reachability,
+            states=states,
+        )
+        category = ResourceSection(
+            ResourceSectionStatus.CANDIDATE,
+            {
+                "value": _category_for_path(path),
+                "evidence": (f"path-rule:{path}",),
+            },
+        )
+        format_section = ResourceSection(
+            ResourceSectionStatus.CANDIDATE,
+            {
+                "extension": PurePosixPath(path).suffix.lower(),
+                "detectedFormat": _format_for_path(path),
+                "detector": "EXTENSION_ONLY",
+                "evidence": (f"manifest-path:{path}",),
+            },
+        )
+        file_candidate_id = f"TREE_FILE:{root_id}:{path}"
+        rows.append(
+            ResourceInventoryRow(
+                row=row,
+                row_kind=ResourceRowKind.TREE_FILE,
+                source={
+                    "status": "PROVEN",
+                    "kind": "ORIGINAL_PAYLOAD_FILE",
+                    "rootId": root_id,
+                    "relativePosixPath": path,
+                    "contentSha256": entry.content_sha256,
+                    "byteSize": entry.byte_size,
+                    "evidence": (f"tree-manifest:{path}",),
+                },
+                format=format_section,
+                category=category,
+                path_resolution=path_resolution,
+                loader=loader_section,
+                runtime_key=runtime_section,
+                owner=owner_section,
+                decode_transform=transform_section,
+                cache_registry=cache_section,
+                submissions=submissions,
+                presentation=presentation,
+                usage_disposition=usage,
+                distribution_disposition="USER_OWNED_LOCAL_ONLY",
+                implementation_disposition=_required_implementation(),
+                recovery_disposition=RecoveryDisposition.RECOVERABLE_STATIC,
+                first_missing_boundary=first_missing,
+                reachability_evidence=(f"resource-disposition:{usage.value}",),
+                evidence=(f"tree-manifest:{path}:{entry.content_sha256}",),
+                source_candidate_ids=tuple(dict.fromkeys([file_candidate_id, *attached_ids])),
+            )
+        )
+    for value in raw["externalDependencyCandidates"]:
+        item = _mapping("external dependency", value)
+        candidate_id = _text("external dependency candidateId", item.get("candidateId"))
+        status = _text("external dependency status", item.get("status"))
+        if status not in {"CANDIDATE", "UNKNOWN"}:
+            raise ValueError("external dependency cannot claim runtime proof")
+        dependency_kind = _text("external dependency kind", item.get("dependencyKind"))
+        name = _text("external dependency name", item.get("name"))
+        category_value = _text("external dependency category", item.get("category"))
+        if category_value not in RESOURCE_CATEGORIES:
+            raise ValueError("unsupported external dependency category")
+        evidence = _evidence("external dependency evidence", item.get("evidence"))
+        states = {state: False for state in EvidenceState}
+        states[EvidenceState.ENUMERATED] = True
+        rows.append(
+            ResourceInventoryRow(
+                row=InventoryRow(
+                    key=f"RESOURCE:EXTERNAL:{candidate_id}",
+                    inventory=InventoryKind.RESOURCE,
+                    name=name,
+                    provenance="ORIGINAL_OBSERVED",
+                    reachability=Reachability.UNKNOWN,
+                    states=states,
+                ),
+                row_kind=ResourceRowKind.EXTERNAL_DEPENDENCY,
+                source={
+                    "status": "PROVEN",
+                    "kind": "PE_IMPORT",
+                    "dependencyKind": dependency_kind,
+                    "evidence": evidence,
+                },
+                format=ResourceSection(
+                    ResourceSectionStatus.NOT_APPLICABLE,
+                    {"evidence": evidence},
+                ),
+                category=ResourceSection(
+                    ResourceSectionStatus.CANDIDATE,
+                    {"value": category_value, "evidence": evidence},
+                ),
+                path_resolution=ResourceSection(
+                    ResourceSectionStatus.NOT_APPLICABLE,
+                    {"evidence": evidence},
+                ),
+                loader=ResourceSection(
+                    ResourceSectionStatus.CANDIDATE,
+                    {"api": (name,), "candidateIds": (candidate_id,), "evidence": evidence},
+                ),
+                runtime_key=_unknown_section(namespace=(), value=(), derivationFunction=()),
+                owner=_unknown_section(ownerKind=(), ownerKeys=(), functions=(), joinKind=()),
+                decode_transform=_unknown_section(stages=(), reason=()),
+                cache_registry=_unknown_section(
+                    registryKey=(), runtimeKeyRefs=(), insertFunctions=(), readFunctions=(), evictFunctions=()
+                ),
+                submissions={
+                    kind: _unknown_section(function=(), sink=(), runtimeReceiptRefs=())
+                    for kind in ("render", "audio", "ui")
+                },
+                presentation=_unknown_section(
+                    runId=(), sourceSha256=(), runtimeKey=(), ownerKey=(), submissionCandidateId=()
+                ),
+                usage_disposition=UsageDisposition.ENUMERATED_ONLY,
+                distribution_disposition="OS_PROVIDED_EXTERNAL_DEPENDENCY",
+                implementation_disposition=_required_implementation(),
+                recovery_disposition=RecoveryDisposition.RECOVERABLE_STATIC,
+                first_missing_boundary="RUNTIME_FONT_SELECTION",
+                reachability_evidence=("resource-disposition:ENUMERATED_ONLY",),
+                evidence=evidence,
+                source_candidate_ids=(candidate_id,),
+            )
+        )
+    return rows
+
+
+def _json_value(value: Any) -> Any:
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Mapping):
+        return {key: _json_value(item) for key, item in sorted(value.items())}
+    if isinstance(value, tuple):
+        return [_json_value(item) for item in value]
+    return value
+
+
+def resource_row_to_dict(item: ResourceInventoryRow) -> dict[str, Any]:
+    return {
+        "schemaVersion": 1,
+        "key": item.row.key,
+        "inventory": item.row.inventory.value,
+        "rowKind": item.row_kind.value,
+        "name": item.row.name,
+        "provenance": item.row.provenance,
+        "reachability": item.row.reachability.value,
+        "reachabilityEvidence": list(item.reachability_evidence),
+        "recoveryDisposition": item.recovery_disposition.value,
+        "distributionDisposition": item.distribution_disposition,
+        "usageDisposition": item.usage_disposition.value,
+        "states": {state.value: item.row.states[state] for state in EvidenceState},
+        "source": _json_value(item.source),
+        "format": {"status": item.format.status.value, **_json_value(item.format.values)},
+        "category": {"status": item.category.status.value, **_json_value(item.category.values)},
+        "pathResolution": {
+            "status": item.path_resolution.status.value,
+            **_json_value(item.path_resolution.values),
+        },
+        "loader": {"status": item.loader.status.value, **_json_value(item.loader.values)},
+        "runtimeKey": {
+            "status": item.runtime_key.status.value,
+            **_json_value(item.runtime_key.values),
+        },
+        "owner": {"status": item.owner.status.value, **_json_value(item.owner.values)},
+        "decodeTransform": {
+            "status": item.decode_transform.status.value,
+            **_json_value(item.decode_transform.values),
+        },
+        "cacheRegistry": {
+            "status": item.cache_registry.status.value,
+            **_json_value(item.cache_registry.values),
+        },
+        "submissions": {
+            name: {"status": section.status.value, **_json_value(section.values)}
+            for name, section in sorted(item.submissions.items())
+        },
+        "presentation": {
+            "status": item.presentation.status.value,
+            **_json_value(item.presentation.values),
+        },
+        "implementationDisposition": {
+            name: {"status": section.status.value, **_json_value(section.values)}
+            for name, section in sorted(item.implementation_disposition.items())
+        },
+        "firstMissingBoundary": item.first_missing_boundary,
+        "evidence": list(item.evidence),
+        "sourceCandidateIds": list(item.source_candidate_ids),
+    }
+
+
+def normalize_resource_inventory(rows: list[ResourceInventoryRow]) -> list[dict[str, Any]]:
+    return [resource_row_to_dict(row) for row in sorted(rows, key=lambda item: item.row.key.casefold())]
+
+
+def build_resource_reconciliation(
+    raw: Mapping[str, Any],
+    rows: list[ResourceInventoryRow],
+    tree_entries: list[TreeManifestEntry],
+) -> dict[str, Any]:
+    file_ids = {
+        candidate_id
+        for row in rows
+        for candidate_id in row.source_candidate_ids
+        if candidate_id.startswith("TREE_FILE:")
+    }
+    if len(file_ids) != len(tree_entries):
+        raise ValueError("tree candidate conservation differs")
+    represented = {candidate_id for row in rows for candidate_id in row.source_candidate_ids}
+    candidates: dict[str, Mapping[str, Any] | None] = {
+        candidate_id: None for candidate_id in file_ids
+    }
+    for collection in CANDIDATE_COLLECTIONS:
+        for value in raw[collection]:
+            item = _mapping(collection, value)
+            candidates[_text("candidateId", item.get("candidateId"))] = item
+    records: list[dict[str, Any]] = []
+    normalized_count = unresolved_count = excluded_count = 0
+    for candidate_id, item in candidates.items():
+        if candidate_id in represented:
+            status = "NORMALIZED"
+            first_missing = None
+            normalized_count += 1
+        elif item is not None and item.get("status") == "EXCLUDED":
+            status = "EXCLUDED"
+            first_missing = _text("excluded reason", item.get("reason"))
+            excluded_count += 1
+        else:
+            status = "UNRESOLVED"
+            first_missing = (
+                str(item.get("firstMissingBoundary"))
+                if item is not None and item.get("firstMissingBoundary")
+                else "RESOURCE_PATH_JOIN"
+            )
+            unresolved_count += 1
+        records.append(
+            {
+                "candidateId": candidate_id,
+                "status": status,
+                "firstMissingBoundary": first_missing,
+            }
+        )
+    candidate_count = len(candidates)
+    accounted = normalized_count + unresolved_count + excluded_count
+    return {
+        "schemaVersion": 1,
+        "candidateCount": candidate_count,
+        "normalizedCount": normalized_count,
+        "unresolvedCount": unresolved_count,
+        "excludedCount": excluded_count,
+        "unaccountedCount": candidate_count - accounted,
+        "records": sorted(records, key=lambda item: item["candidateId"]),
+    }
+
+
+def load_resources_evidence_manifest(path: str | Path) -> ResourcesEvidenceManifest:
+    manifest_path = Path(path).resolve()
+    payload = _mapping(
+        "resources evidence manifest",
+        json.loads(manifest_path.read_text(encoding="utf-8")),
+    )
+    if payload.get("schemaVersion") != 1:
+        raise ValueError("unsupported resources evidence manifest schemaVersion")
+    if _sha256("clientSha256", payload.get("clientSha256")) != CLIENT_SHA256:
+        raise ValueError("resources evidence manifest binds a different client")
+
+    def bound_file(label: str) -> tuple[Path, str]:
+        record = _mapping(label, payload.get(label))
+        file_path = Path(_text(f"{label}.path", record.get("path")))
+        if not file_path.is_absolute():
+            file_path = Path.cwd() / file_path
+        file_path = file_path.resolve()
+        expected = _sha256(f"{label}.sha256", record.get("sha256"))
+        if not file_path.is_file() or sha256_file(file_path) != expected:
+            raise ValueError(f"{label} hash mismatch or file missing")
+        return file_path, expected
+
+    raw_path, raw_sha = bound_file("raw")
+    exporter_path, exporter_sha = bound_file("exporter")
+    source_manifest_path, source_manifest_sha = bound_file("sourceManifest")
+    tree_manifest_path, tree_manifest_sha = bound_file("treeManifest")
+    pe_imports_path, pe_imports_sha = bound_file("peImports")
+    return ResourcesEvidenceManifest(
+        path=manifest_path,
+        raw_path=raw_path,
+        raw_sha256=raw_sha,
+        exporter_path=exporter_path,
+        exporter_sha256=exporter_sha,
+        repository_sha256=_sha256(
+            "ghidraRepositorySha256", payload.get("ghidraRepositorySha256")
+        ),
+        source_manifest_path=source_manifest_path,
+        source_manifest_sha256=source_manifest_sha,
+        tree_manifest_path=tree_manifest_path,
+        tree_manifest_sha256=tree_manifest_sha,
+        pe_imports_path=pe_imports_path,
+        pe_imports_sha256=pe_imports_sha,
+    )
+
+
+def _tree_entries_from_source_manifest(
+    source_manifest_path: Path,
+    expected_tree_manifest_path: Path,
+) -> tuple[str, list[TreeManifestEntry]]:
+    payload = json.loads(source_manifest_path.read_text(encoding="utf-8"))
+    roots = payload.get("resourceRoots")
+    if not isinstance(roots, list) or len(roots) != 1:
+        raise ValueError("Task 6 requires exactly one original resource root")
+    root = _mapping("resource root", roots[0])
+    root_id = _text("resource root id", root.get("id"))
+    root_path = Path(_text("resource root path", root.get("path"))).resolve()
+    prefix = _text("resource root prefix", root.get("pathPrefix")).replace("\\", "/")
+    if not prefix.endswith("/"):
+        prefix += "/"
+    tree_record = _mapping("treeManifest", root.get("treeManifest"))
+    manifest_path = Path(_text("tree manifest path", tree_record.get("path"))).resolve()
+    if manifest_path != expected_tree_manifest_path:
+        raise ValueError("source and evidence manifests bind different tree manifests")
+    entries: list[TreeManifestEntry] = []
+    for line_number, line in enumerate(manifest_path.read_text(encoding="utf-8").splitlines(), 1):
+        if len(line) < 67 or line[64:66] != " *":
+            raise ValueError(f"invalid tree manifest line {line_number}")
+        digest = _sha256(f"tree line {line_number}", line[:64])
+        full_path = line[66:].replace("\\", "/")
+        if not full_path.startswith(prefix):
+            raise ValueError("tree manifest path is outside resource prefix")
+        relative = _safe_resource_path(full_path[len(prefix) :])
+        target = root_path / Path(relative)
+        if not target.is_file():
+            raise ValueError(f"resource file missing: {target}")
+        entries.append(TreeManifestEntry(relative, digest, target.stat().st_size))
+    return root_id, entries
+
+
+def _write_jsonl(path: Path, items: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = "".join(
+        json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+        for item in items
+    )
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--reconciliation", type=Path, required=True)
+    parser.add_argument("--evidence-manifest", type=Path, required=True)
+    parser.add_argument("--source-manifest", type=Path, required=True)
+    args = parser.parse_args(argv)
+    evidence = load_resources_evidence_manifest(args.evidence_manifest)
+    if args.input.resolve() != evidence.raw_path:
+        raise ValueError("--input differs from hash-bound resources raw path")
+    if args.source_manifest.resolve() != evidence.source_manifest_path:
+        raise ValueError("--source-manifest differs from evidence binding")
+    source_manifest = SourceManifest.load(args.source_manifest)
+    root_id, entries = _tree_entries_from_source_manifest(
+        evidence.source_manifest_path, evidence.tree_manifest_path
+    )
+    payload = json.loads(args.source_manifest.read_text(encoding="utf-8"))
+    repository_sha = _sha256(
+        "source repository hash", _mapping("ghidra", payload.get("ghidra")).get("repositorySha256")
+    )
+    if repository_sha != evidence.repository_sha256:
+        raise ValueError("resources and source manifests bind different Ghidra databases")
+    raw = json.loads(args.input.read_text(encoding="utf-8"))
+    rows = build_resource_inventory(
+        raw,
+        entries,
+        root_id=root_id,
+        expected_exporter_sha256=evidence.exporter_sha256,
+        expected_repository_sha256=repository_sha,
+        expected_source_manifest_sha256=evidence.source_manifest_sha256,
+        expected_tree_manifest_sha256=evidence.tree_manifest_sha256,
+        expected_pe_imports_sha256=evidence.pe_imports_sha256,
+    )
+    normalized = normalize_resource_inventory(rows)
+    reconciliation = build_resource_reconciliation(raw, rows, entries)
+    if reconciliation["unaccountedCount"] != 0:
+        raise ValueError("resource reconciliation left unaccounted candidates")
+    _write_jsonl(args.output, normalized)
+    args.reconciliation.parent.mkdir(parents=True, exist_ok=True)
+    args.reconciliation.write_text(
+        json.dumps(reconciliation, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    print(
+        canonical_json(
+            {
+                "status": "PASS",
+                "rowCount": len(rows),
+                "candidateCount": reconciliation["candidateCount"],
+                "unresolvedCount": reconciliation["unresolvedCount"],
+                "unaccountedCount": reconciliation["unaccountedCount"],
+                "verifiedSourcePathCount": len(source_manifest.verified_paths),
+            }
+        ),
+        end="",
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

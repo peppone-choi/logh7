@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "clientSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+  "ghidraRepositorySha256": "888F81BFEAB5B878723345CE7B049E709A4E3DE438F72005E1F68F9A100000AF",
+  "raw": {
+    "path": "evidence/exhaustive-trace/raw/resources-ghidra.json",
+    "sha256": "CA05628995627EA0F21B400367CDFD5745A765987775579E2DF8D2195C593AC7"
+  },
+  "exporter": {
+    "path": "tools/ghidra/ExportExhaustiveResources.java",
+    "sha256": "8C4BAC42E713AB6B4D892F883583757130E3F9A0C1FDAFDCDA75F3CFEC121C07"
+  },
+  "sourceManifest": {
+    "path": "docs/reverse-engineering/exhaustive-trace/source-manifest.json",
+    "sha256": "A6C4A96639117C5F2F7F036E389963269E95141B607808ADFACDA9750C3A05F3"
+  },
+  "treeManifest": {
+    "path": "evidence/oracle-installshield-manual-fallback-20260824/MANIFEST.sha256",
+    "sha256": "B8487B3967F486DA9559EF30CE244EAF7F5886F3EB9CB1980A4A049BF0A63B71"
+  },
+  "peImports": {
+    "path": "evidence/exhaustive-trace/raw/pe-imports.json",
+    "sha256": "E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE"
+  }
+}

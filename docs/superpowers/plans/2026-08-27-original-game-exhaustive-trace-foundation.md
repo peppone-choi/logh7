@@ -384,23 +384,23 @@ git commit -m "docs: enumerate original entities and records"
 - Consumes: hash-bound resource tree, path formatters, loader callsites, draw/audio consumers.
 - Produces: resource rows with source hash, loader, runtime key, owner, submission, and visible/audible evidence status.
 
-- [ ] **Step 1: Add failing resource tests**
+- [x] **Step 1: Add failing resource tests**
 
 Ensure a file with no loader is `ENUMERATED` only; a loader with no owner is an orphan; a loader/owner with no draw/play receipt is not integrated.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: resource importer missing.
 
-- [ ] **Step 3: Export path and loader references**
+- [x] **Step 3: Export path and loader references**
 
 Cover images, models, portraits, spot backgrounds, fonts, messages, sounds, maps, cursors, and configuration. Record dynamic formatters and enumerated literal paths.
 
-- [ ] **Step 4: Generate and verify inventory**
+- [x] **Step 4: Generate and verify inventory**
 
 Expected: all original files have a disposition; unused resources remain visible as orphans/dormant candidates.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/ghidra/ExportExhaustiveResources.java tools/exhaustive_trace/import_resources.py tests/tools/exhaustive_trace/test_importers.py evidence/exhaustive-trace/raw/resources-ghidra.json evidence/exhaustive-trace/inventories/resources.jsonl

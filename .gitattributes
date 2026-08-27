@@ -18,3 +18,7 @@ tools/ghidra/ExportExhaustiveRecords.java text eol=lf
 tools/exhaustive_trace/import_entities.py text eol=lf
 tests/tools/exhaustive_trace/test_entity_importer.py text eol=lf
 evidence/exhaustive-trace/inventories/entities.jsonl text eol=lf
+tools/ghidra/ExportExhaustiveResources.java text eol=lf
+tools/exhaustive_trace/import_resources.py text eol=lf
+tests/tools/exhaustive_trace/test_resource_importer.py text eol=lf
+evidence/exhaustive-trace/inventories/resources.jsonl text eol=lf
