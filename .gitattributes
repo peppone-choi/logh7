@@ -8,3 +8,4 @@
 *.h text eol=lf
 *.ps1 text eol=lf
 *.sql text eol=lf
+tools/exhaustive_trace/build_pe_imports.py text eol=lf

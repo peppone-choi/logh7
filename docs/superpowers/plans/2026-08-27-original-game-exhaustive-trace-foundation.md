@@ -182,6 +182,7 @@ git commit -m "feat: define exhaustive trace contracts"
 **Files:**
 - Create: `docs/reverse-engineering/exhaustive-trace/source-manifest.json`
 - Create: `tools/exhaustive_trace/source_manifest.py`
+- Create: `tools/exhaustive_trace/build_pe_imports.py`
 - Create: `tests/tools/exhaustive_trace/test_source_manifest.py`
 - Create: `evidence/exhaustive-trace/raw/pe-imports.json`
 
@@ -189,7 +190,7 @@ git commit -m "feat: define exhaustive trace contracts"
 - Consumes: fixed client/message hashes, Ghidra project, original resource roots, official/manual inputs.
 - Produces: `SourceManifest.load(path)`, verified hashes, tool paths, PE architecture/import classification, and provenance authority per source.
 
-- [ ] **Step 1: Write failing hash and import-gate tests**
+- [x] **Step 1: Write failing hash and import-gate tests**
 
 Test that a changed client hash is rejected and that the manifest cannot validate until `pe-imports.json` contains PE type, x86 architecture, imported DLL groups, and quality.
 
@@ -200,19 +201,19 @@ def test_import_gate_requires_quality(self):
         validate_import_gate(payload)
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: import failure for `source_manifest`.
 
-- [ ] **Step 3: Implement manifest validation**
+- [x] **Step 3: Implement manifest validation**
 
 Accept import quality only from `readable`, `packed`, `parse_failed`, or `dynamic_only`. Record Direct3D 8, DirectInput 8, DirectSound, Winsock, filesystem, registry, timing, and process/thread import groups without inferring gameplay semantics.
 
-- [ ] **Step 4: Generate `pe-imports.json` from the hash-bound Ghidra program**
+- [x] **Step 4: Generate `pe-imports.json` from the hash-bound Ghidra program**
 
 Use a read-only Ghidra exporter or existing hash-bound import evidence. The JSON must include the exporter/source hash and cannot cite only an analyst report.
 
-- [ ] **Step 5: Run tests and manifest verification**
+- [x] **Step 5: Run tests and manifest verification**
 
 ```powershell
 python -m unittest tests.tools.exhaustive_trace.test_source_manifest -v
@@ -221,10 +222,10 @@ python -m tools.exhaustive_trace.source_manifest docs/reverse-engineering/exhaus
 
 Expected: both exit `0`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
-git add docs/reverse-engineering/exhaustive-trace/source-manifest.json tools/exhaustive_trace/source_manifest.py tests/tools/exhaustive_trace/test_source_manifest.py evidence/exhaustive-trace/raw/pe-imports.json
+git add docs/reverse-engineering/exhaustive-trace/source-manifest.json tools/exhaustive_trace/source_manifest.py tools/exhaustive_trace/build_pe_imports.py tests/tools/exhaustive_trace/test_source_manifest.py evidence/exhaustive-trace/raw/pe-imports.json
 git commit -m "docs: freeze exhaustive trace sources"
 ```
 

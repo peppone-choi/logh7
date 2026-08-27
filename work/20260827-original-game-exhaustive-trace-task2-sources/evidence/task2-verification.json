@@ -1,0 +1,41 @@
+{
+  "caseId": "20260827-original-game-exhaustive-trace-task2-sources",
+  "status": "PASS",
+  "focusedTests": {"run": 13, "passed": 13, "failed": 0},
+  "aggregateTests": {"run": 27, "passed": 27, "failed": 0},
+  "manifestCli": {"status": "PASS", "verifiedPathCount": 21},
+  "clientSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+  "messageDataSha256": "5B3FAFBA7DD7230CDEB5F2FF9ACF9BBBE20FD95ADE25C425BC0D11AE645C383C",
+  "pe": {
+    "format": "PE32",
+    "architecture": "x86",
+    "descriptorCount": 19,
+    "importCount": 452,
+    "quality": "readable",
+    "deterministicSha256": "E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE",
+    "groups": {
+      "direct3d8": 1,
+      "directinput8": 1,
+      "directsound": 1,
+      "winsock": 18,
+      "filesystem": 23,
+      "registry": 12,
+      "timing": 13,
+      "process_thread": 35
+    }
+  },
+  "independentReviews": [
+    {"review": "task2_code_review", "result": "OK", "writes": 0},
+    {"review": "task2_evidence_review", "result": "OK", "writes": 0}
+  ],
+  "artifacts": [
+    {"path": "tools/exhaustive_trace/source_manifest.py", "sha256": "B47F008044DE96F05E6EF03BDE6F9A506FE699768A00CC6F25C42571FDD963A9"},
+    {"path": "tools/exhaustive_trace/build_pe_imports.py", "sha256": "F6B0F0D83477E0826300E42938B73731C45740EBEB82D97685334B6856292BDA"},
+    {"path": "tests/tools/exhaustive_trace/test_source_manifest.py", "sha256": "8D0748AF9B7A562A3E0CF058F89E7A835EAB396AB75E7BD97CFDC8FA8181952E"},
+    {"path": "docs/reverse-engineering/exhaustive-trace/source-manifest.json", "sha256": "FD523D1F47105AB1C2268B68CC1D339ED261A03423CE0CE2A2F225D047FB2341"},
+    {"path": "evidence/exhaustive-trace/raw/pe-imports.json", "sha256": "E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE"}
+  ],
+  "runtimeMutations": 0,
+  "serverProtocolDatabaseMutations": 0,
+  "vmActions": 0
+}
