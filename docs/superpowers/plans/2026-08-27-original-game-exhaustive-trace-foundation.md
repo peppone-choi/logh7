@@ -420,23 +420,23 @@ git commit -m "docs: enumerate original resources and loaders"
 - Consumes: imports, RTTI, vtables, strings, dispatchers, UI and record exporters.
 - Produces: function rows grouped as plumbing/library or individually tracked gameplay/state-bearing functions.
 
-- [ ] **Step 1: Add failing function tests**
+- [x] **Step 1: Add failing function tests**
 
 Require individually tracked functions to carry address, proposed name, caller/callee disposition, input/output disposition, side-effect list, evidence, and confidence. Grouped functions require a deterministic grouping rule and member addresses.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: function importer missing.
 
-- [ ] **Step 3: Export and classify candidates mechanically**
+- [x] **Step 3: Export and classify candidates mechanically**
 
 Mark functions as gameplay/state-bearing when referenced by a protocol, UI, entity field, resource loader, persistent state, or named game-state string. Do not classify from size alone.
 
-- [ ] **Step 4: Generate and verify inventory**
+- [x] **Step 4: Generate and verify inventory**
 
 Expected: every function belongs to an explicit group or individual row; no address silently disappears.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/ghidra/ExportExhaustiveFunctions.java tools/exhaustive_trace/import_functions.py tests/tools/exhaustive_trace/test_importers.py evidence/exhaustive-trace/raw/functions-ghidra.json evidence/exhaustive-trace/inventories/functions.jsonl
