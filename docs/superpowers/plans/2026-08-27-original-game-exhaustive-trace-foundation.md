@@ -344,27 +344,27 @@ git commit -m "docs: enumerate original UI and input surface"
 - Consumes: parser/cache strides, caps, ID comparisons, parent/owner/location readers, manual/source catalogs.
 - Produces: entity types, record fields, ID namespaces, lifecycle operations, and typed identity/parent edges.
 
-- [ ] **Step 1: Add failing entity tests**
+- [x] **Step 1: Add failing entity tests**
 
 Reject state-bearing entities without ID-namespace disposition, parent disposition, location disposition, creation/update/terminal disposition, or provenance.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: entity importer missing.
 
-- [ ] **Step 3: Export record access patterns**
+- [x] **Step 3: Export record access patterns**
 
 For every parser and registry export stride, cap, read/write offsets, equality comparisons, downstream consumers, and labels. Preserve unresolved scalars as `fieldNN`.
 
-- [ ] **Step 4: Merge original/manual catalogs by evidence edges**
+- [x] **Step 4: Merge original/manual catalogs by evidence edges**
 
 Use source hashes and name/ordinal facts as `NAME_MATCH` or `CATALOG_PARENT`, never `IDENTIFIES`, unless the client compares the value.
 
-- [ ] **Step 5: Generate and verify inventory**
+- [x] **Step 5: Generate and verify inventory**
 
 Expected: systems/planets/fortresses/special bodies/spots retain the current cardinality and membership distinctions; every other entity type has an explicit first missing boundary.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add tools/ghidra/ExportExhaustiveRecords.java tools/exhaustive_trace/import_entities.py tests/tools/exhaustive_trace/test_importers.py evidence/exhaustive-trace/raw/records-ghidra.json evidence/exhaustive-trace/inventories/entities.jsonl
