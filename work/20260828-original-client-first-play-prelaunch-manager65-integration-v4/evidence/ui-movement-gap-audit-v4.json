@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 3,
+  "audit": "FIRST_PLAY_UI_AND_MOVEMENT_GAP_AUDIT_MANAGER65_INTEGRATED_V4",
+  "resolvedStaticGaps": [
+    "MANAGER65_LIVE_COLLECTOR_NOT_HARDENED"
+  ],
+  "preservedRuntimeBoundaries": ["FRESH_MANAGER65_SNAPSHOT_MISSING"],
+  "introducedRuntimeBoundaries": ["MANAGER65_ACTION_0X2B_HIT_REGION_INDEPENDENT_BINDING_MISSING"],
+  "uiBindings": [
+    {
+      "binding": "manager67 current pointer/count/card widget/gate/rect",
+      "status": "OFFLINE_COLLECTOR_PASS_LIVE_SNAPSHOT_MISSING",
+      "firstMissingBoundary": "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+      "evidenceSource": "priorV3Contract"
+    },
+    {
+      "binding": "bound authority-card page-selected widget/gate/rect",
+      "status": "STATIC_OWNER_OFFLINE_RESOLVER_PASS_LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+      "evidenceSource": "priorV3Contract",
+      "semantic": "AUTHORITY_CARD_WITH_WARP_ACTION_NOT_PROVEN_CAPTAIN_PORTRAIT"
+    },
+    {
+      "binding": "manager65 warp action 0x2B widget/gates/rect snapshot",
+      "status": "HARDENED_COLLECTOR_RESOLVER_PASS_LIVE_SNAPSHOT_MISSING",
+      "firstMissingBoundary": "FRESH_MANAGER65_SNAPSHOT_MISSING",
+      "evidenceSource": "manager65StaticOwnerLedger",
+      "semantic": "CURRENT_AUTHORITY_CARD_ACTION_WIDGET_FOR_COMMAND_0X2B_WARP_NAVIGATION"
+    },
+    {
+      "binding": "manager65 action 0x2B independent hit region",
+      "status": "OFFLINE_RESOLVER_PASS_LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "MANAGER65_ACTION_0X2B_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+      "evidenceSource": "manager65StaticOwnerLedger"
+    },
+    {
+      "binding": "destination-grid hit region",
+      "status": "LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "FRESH_DESTINATION_PROJECTION_SNAPSHOT_MISSING",
+      "evidenceSource": "priorV3Contract"
+    },
+    {
+      "binding": "confirm widget hit region",
+      "status": "LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+      "evidenceSource": "priorV3Contract"
+    }
+  ],
+  "movementReceiptAudit": {
+    "status": "MISSING_UNCHANGED",
+    "movementAddressIntersectionCount": 0,
+    "informationBreakpointsReusable": false
+  },
+  "activationGate": {
+    "stageNames": ["WARP", "DESTINATION", "CONFIRM"],
+    "maximumPhysicalActivations": 3,
+    "currentAuthorityActivationBudget": 1,
+    "status": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH"
+  },
+  "sources": {
+    "priorV3Contract": {
+      "path": "work/20260828-original-client-first-play-prelaunch-manager67-integration/evidence/prelaunch-manager67-integration.json",
+      "sha256": "12D3CA4D39BF746EAF08EC5ACE936C4D4CD368F1E7AA62B907CB82297F2DA0DE"
+    },
+    "manager65ArtifactLedger": {
+      "path": "work/20260828-original-client-manager65-live-collector-hardening/evidence/artifact-ledger.json",
+      "sha256": "F26DFC2E9E9AA7252323171595E3C2E4073286862372D05A7097A70C9656E897"
+    },
+    "manager65StaticOwnerLedger": {
+      "path": "work/20260828-original-client-manager65-live-collector-hardening/evidence/static-owner-ledger.json",
+      "sha256": "B0EAA1C0F3A165F1D1D12883EE83C5BC5CACEB5C7A4CE0C789F11ADAB32DFADA"
+    }
+  },
+  "runtimeObserved": "UNSEEN",
+  "fixtureCoordinateReusable": false,
+  "liveOperations": 0,
+  "gameInputs": 0,
+  "permitIssued": false
+}
