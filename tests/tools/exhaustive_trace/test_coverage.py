@@ -170,6 +170,40 @@ class CoverageTests(unittest.TestCase):
         self.assertIn("AUTHORITY_EVENT", boundaries[authority["key"]])
         self.assertIn("PERSISTENCE", boundaries[authority["key"]])
 
+    def test_reason_bound_resource_loader_not_applicable_closes_only_loader_gap(self) -> None:
+        resource = source_row("RESOURCE:FILE:official-site.url", inventory="RESOURCE")
+        resource.update(
+            loader={
+                "status": "NOT_APPLICABLE",
+                "reason": "Windows shell Internet Shortcut; not a game runtime resource",
+                "evidence": ["unit:internet-shortcut-content"],
+            },
+            owner={"status": "UNKNOWN", "functions": [], "ownerKeys": [], "evidence": ["fixture:owner"]},
+            usageDisposition="ENUMERATED_ONLY",
+        )
+
+        report = self.report(resource)
+        row = report.rows[0]
+
+        self.assertNotIn("RESOURCE_LOADER", row.all_missing_boundaries)
+        self.assertIn("RESOURCE_OWNER", row.all_missing_boundaries)
+
+    def test_not_applicable_without_evidence_is_a_structural_fatal(self) -> None:
+        resource = source_row("RESOURCE:FILE:official-site.url", inventory="RESOURCE")
+        resource.update(
+            loader={
+                "status": "NOT_APPLICABLE",
+                "reason": "Windows shell Internet Shortcut",
+                "evidence": [],
+            },
+            owner={"status": "UNKNOWN", "functions": [], "ownerKeys": [], "evidence": ["fixture:owner"]},
+            usageDisposition="ENUMERATED_ONLY",
+        )
+
+        report = self.report(resource)
+
+        self.assertIn("RESOURCE_LOADER", {fatal.rule_id for fatal in report.rows[0].fatals})
+
     def test_fields_and_populations_require_their_own_recovery_disposition(self) -> None:
         row = source_row("ENTITY:FEATURE:CATALOG", inventory="ENTITY")
         row.update(

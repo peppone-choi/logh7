@@ -9,15 +9,15 @@
     "independentReview": "UNSEEN"
   },
   "tests": {
-    "discovered": 265,
-    "passed": 265,
+    "discovered": 272,
+    "passed": 272,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
     "expectedFailures": 0,
     "unexpectedSuccesses": 0,
-    "stdout": "{\"command\":\"audit\",\"coverageSurfaceSha256\":\"BDF2F380E0EA529C63E10297BCA9C189F0E8181AD878B6951B5E68AD89B2EE14\",\"evidenceGapCount\":17,\"fatalStructuralCount\":14,\"fileSha256\":\"71CEAD978EE0FC4B67591CB8BDE6978F29F18D6901961534A81002BB10501EE6\",\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmp7gz9plox\\\\coverage.json\",\"sourceRowCount\":6,\"status\":\"FAIL\"}\r\n{\"command\":\"package-domains\",\"coverageGateStatus\":\"STRUCTURAL_FATAL\",\"domainConfigSha256\":\"A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379\",\"domainCount\":16,\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmpoz2__f3j\\\\domains\",\"packageSetSha256\":\"C2EEC10CEF124D821F43C2BAC7B014989B931C452D4C6E4520B07245D15C994D\",\"sourceRowCount\":6,\"status\":\"PASS\",\"topologicalOrder\":[\"D01\",\"D02\",\"D03\",\"D04\",\"D05\",\"D07\",\"D06\",\"D08\",\"D09\",\"D10\",\"D11\",\"D12\",\"D13\",\"D14\",\"D15\",\"D16\"],\"unresolvedRoutingCount\":6}\r\n{\"command\":\"build-graph\",\"edgeCount\":13,\"fileSha256\":\"2F0D1E0BD56304CEDF8202B305A24F69F828BD136BD20DE67B49A7BC47B5F29F\",\"graphSurfaceSha256\":\"21196F5EA21820ABB4F2406140D6710EBBB2DA67444F76ED08F39DC830E7EF38\",\"nodeCount\":12,\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmpivnsja2j\\\\output\\\\graph.jsonl\",\"sourceRowNodes\":6,\"status\":\"PASS\"}\r\n",
-    "stderr": ".........................................................................................................................................................................................................................................................................\r\n----------------------------------------------------------------------\r\nRan 265 tests in 48.840s\r\n\r\nOK\r\n"
+    "stdout": "{\"command\":\"audit\",\"coverageSurfaceSha256\":\"BDF2F380E0EA529C63E10297BCA9C189F0E8181AD878B6951B5E68AD89B2EE14\",\"evidenceGapCount\":17,\"fatalStructuralCount\":14,\"fileSha256\":\"71CEAD978EE0FC4B67591CB8BDE6978F29F18D6901961534A81002BB10501EE6\",\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmp7g38_87j\\\\coverage.json\",\"sourceRowCount\":6,\"status\":\"FAIL\"}\r\n{\"command\":\"package-domains\",\"coverageGateStatus\":\"STRUCTURAL_FATAL\",\"domainConfigSha256\":\"A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379\",\"domainCount\":16,\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmp1yvtsuh8\\\\domains\",\"packageSetSha256\":\"C2EEC10CEF124D821F43C2BAC7B014989B931C452D4C6E4520B07245D15C994D\",\"sourceRowCount\":6,\"status\":\"PASS\",\"topologicalOrder\":[\"D01\",\"D02\",\"D03\",\"D04\",\"D05\",\"D07\",\"D06\",\"D08\",\"D09\",\"D10\",\"D11\",\"D12\",\"D13\",\"D14\",\"D15\",\"D16\"],\"unresolvedRoutingCount\":6}\r\n{\"command\":\"build-graph\",\"edgeCount\":13,\"fileSha256\":\"2F0D1E0BD56304CEDF8202B305A24F69F828BD136BD20DE67B49A7BC47B5F29F\",\"graphSurfaceSha256\":\"21196F5EA21820ABB4F2406140D6710EBBB2DA67444F76ED08F39DC830E7EF38\",\"nodeCount\":12,\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmph6js_oh5\\\\output\\\\graph.jsonl\",\"sourceRowNodes\":6,\"status\":\"PASS\"}\r\n",
+    "stderr": "................................................................................................................................................................................................................................................................................\r\n----------------------------------------------------------------------\r\nRan 272 tests in 49.029s\r\n\r\nOK\r\n"
   },
   "sourceManifest": {
     "sha256": "A6C4A96639117C5F2F7F036E389963269E95141B607808ADFACDA9750C3A05F3",
@@ -49,10 +49,10 @@
       "bytes": 2127607
     },
     "inventories/resources.jsonl": {
-      "checked": "42DD5300048848DA2D43D80C036B85AA0AED9F4D0EC23740B630A28044FEF405",
-      "runA": "42DD5300048848DA2D43D80C036B85AA0AED9F4D0EC23740B630A28044FEF405",
-      "runB": "42DD5300048848DA2D43D80C036B85AA0AED9F4D0EC23740B630A28044FEF405",
-      "bytes": 8495729
+      "checked": "4CCF362E0C7E49EB7CCF58F312E98741A50DBC964AD7DC8F08C515738D53FC68",
+      "runA": "4CCF362E0C7E49EB7CCF58F312E98741A50DBC964AD7DC8F08C515738D53FC68",
+      "runB": "4CCF362E0C7E49EB7CCF58F312E98741A50DBC964AD7DC8F08C515738D53FC68",
+      "bytes": 8497103
     },
     "inventories/ui.jsonl": {
       "checked": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
@@ -97,124 +97,124 @@
       "bytes": 219092
     },
     "graph.jsonl": {
-      "checked": "CA9955E4FE095B4A9B88049E3BB26F846471A36D6F31EB1440F1E83C742B85EA",
-      "runA": "CA9955E4FE095B4A9B88049E3BB26F846471A36D6F31EB1440F1E83C742B85EA",
-      "runB": "CA9955E4FE095B4A9B88049E3BB26F846471A36D6F31EB1440F1E83C742B85EA",
-      "bytes": 102935897
+      "checked": "0354056E4E336454B4F8AC98AAD6FF1F9652B01517EC97BE792108E7FDCBCEED",
+      "runA": "0354056E4E336454B4F8AC98AAD6FF1F9652B01517EC97BE792108E7FDCBCEED",
+      "runB": "0354056E4E336454B4F8AC98AAD6FF1F9652B01517EC97BE792108E7FDCBCEED",
+      "bytes": 102935899
     },
     "coverage.json": {
-      "checked": "7901AE67470CBEC1482A502218DC186FAF7ECFA464427A3B12F794B46322CC71",
-      "runA": "7901AE67470CBEC1482A502218DC186FAF7ECFA464427A3B12F794B46322CC71",
-      "runB": "7901AE67470CBEC1482A502218DC186FAF7ECFA464427A3B12F794B46322CC71",
-      "bytes": 38641608
+      "checked": "C38AB74F12CC12F5A3761B7B8CF194D6593C2DE00F09497A4BFA2DAFD658F4B6",
+      "runA": "C38AB74F12CC12F5A3761B7B8CF194D6593C2DE00F09497A4BFA2DAFD658F4B6",
+      "runB": "C38AB74F12CC12F5A3761B7B8CF194D6593C2DE00F09497A4BFA2DAFD658F4B6",
+      "bytes": 38641401
     },
     "domains/D01.json": {
-      "checked": "20F1EE11902903C0DDBD63452E74C57CCD80306983B49B5575511F5C2E3AF0DA",
-      "runA": "20F1EE11902903C0DDBD63452E74C57CCD80306983B49B5575511F5C2E3AF0DA",
-      "runB": "20F1EE11902903C0DDBD63452E74C57CCD80306983B49B5575511F5C2E3AF0DA",
-      "bytes": 14062359
+      "checked": "1DEFED9135E587E398BA95AC0943AAD2024E8BFB2B8C08925F99608D28301C66",
+      "runA": "1DEFED9135E587E398BA95AC0943AAD2024E8BFB2B8C08925F99608D28301C66",
+      "runB": "1DEFED9135E587E398BA95AC0943AAD2024E8BFB2B8C08925F99608D28301C66",
+      "bytes": 14062340
     },
     "domains/D02.json": {
-      "checked": "3D0CBA7201A4B34D4E1ED0AF5DB40EB42AABEFE41E8A8D6AC2051F3FFCE8A3AD",
-      "runA": "3D0CBA7201A4B34D4E1ED0AF5DB40EB42AABEFE41E8A8D6AC2051F3FFCE8A3AD",
-      "runB": "3D0CBA7201A4B34D4E1ED0AF5DB40EB42AABEFE41E8A8D6AC2051F3FFCE8A3AD",
+      "checked": "E48BDC58C8B7A82E81045B853BD6AC39265B83D5EC59891C7EA56EC4A0643ABB",
+      "runA": "E48BDC58C8B7A82E81045B853BD6AC39265B83D5EC59891C7EA56EC4A0643ABB",
+      "runB": "E48BDC58C8B7A82E81045B853BD6AC39265B83D5EC59891C7EA56EC4A0643ABB",
       "bytes": 2236092
     },
     "domains/D03.json": {
-      "checked": "FE9AD3532557906921B31E0E1B9D41D31B58F6A1D713753262BA47D7A652018F",
-      "runA": "FE9AD3532557906921B31E0E1B9D41D31B58F6A1D713753262BA47D7A652018F",
-      "runB": "FE9AD3532557906921B31E0E1B9D41D31B58F6A1D713753262BA47D7A652018F",
+      "checked": "492D0E5E34B87F6BD3EDD1226B7B48EE5EB9B1FD4FE8F2BC473B8217579E682E",
+      "runA": "492D0E5E34B87F6BD3EDD1226B7B48EE5EB9B1FD4FE8F2BC473B8217579E682E",
+      "runB": "492D0E5E34B87F6BD3EDD1226B7B48EE5EB9B1FD4FE8F2BC473B8217579E682E",
       "bytes": 1706335
     },
     "domains/D04.json": {
-      "checked": "1FA3A595A05EA4DEFE6E3D152498F0E9A756DBD57FB1E72B5B84C9870FD90197",
-      "runA": "1FA3A595A05EA4DEFE6E3D152498F0E9A756DBD57FB1E72B5B84C9870FD90197",
-      "runB": "1FA3A595A05EA4DEFE6E3D152498F0E9A756DBD57FB1E72B5B84C9870FD90197",
+      "checked": "81F4EF0797621AD519FB80E40E37AC677FA7BCD46C15BA828D3EFB30865AB228",
+      "runA": "81F4EF0797621AD519FB80E40E37AC677FA7BCD46C15BA828D3EFB30865AB228",
+      "runB": "81F4EF0797621AD519FB80E40E37AC677FA7BCD46C15BA828D3EFB30865AB228",
       "bytes": 1853271
     },
     "domains/D05.json": {
-      "checked": "3CF5C09DB8E8536DAA7FE6AECFD0A2460FB4BF3CAC8230A18C9B3436476D46C9",
-      "runA": "3CF5C09DB8E8536DAA7FE6AECFD0A2460FB4BF3CAC8230A18C9B3436476D46C9",
-      "runB": "3CF5C09DB8E8536DAA7FE6AECFD0A2460FB4BF3CAC8230A18C9B3436476D46C9",
+      "checked": "DA29BE681D94415E2324378E5266024F81515B139D84E4A641B7398F7F100308",
+      "runA": "DA29BE681D94415E2324378E5266024F81515B139D84E4A641B7398F7F100308",
+      "runB": "DA29BE681D94415E2324378E5266024F81515B139D84E4A641B7398F7F100308",
       "bytes": 3434584
     },
     "domains/D06.json": {
-      "checked": "6093D1D51F2B89CEE9294E2CCCB03983A11A54977CAA705900856DE8998F624D",
-      "runA": "6093D1D51F2B89CEE9294E2CCCB03983A11A54977CAA705900856DE8998F624D",
-      "runB": "6093D1D51F2B89CEE9294E2CCCB03983A11A54977CAA705900856DE8998F624D",
+      "checked": "36D0BF1C07ED1D8B7069031F27EEB1906DB32A7025B8D00A101DE3407B67133B",
+      "runA": "36D0BF1C07ED1D8B7069031F27EEB1906DB32A7025B8D00A101DE3407B67133B",
+      "runB": "36D0BF1C07ED1D8B7069031F27EEB1906DB32A7025B8D00A101DE3407B67133B",
       "bytes": 1696150
     },
     "domains/D07.json": {
-      "checked": "E64CDD6D2164C95DDCF58F66F285CC85E50F543B0C9C8E53BD5F3AC772736466",
-      "runA": "E64CDD6D2164C95DDCF58F66F285CC85E50F543B0C9C8E53BD5F3AC772736466",
-      "runB": "E64CDD6D2164C95DDCF58F66F285CC85E50F543B0C9C8E53BD5F3AC772736466",
+      "checked": "5BA96CDCCB02BE953D4658B87D8C70A4A2C516432C2A617E3914F171729A26E8",
+      "runA": "5BA96CDCCB02BE953D4658B87D8C70A4A2C516432C2A617E3914F171729A26E8",
+      "runB": "5BA96CDCCB02BE953D4658B87D8C70A4A2C516432C2A617E3914F171729A26E8",
       "bytes": 1820537
     },
     "domains/D08.json": {
-      "checked": "C18929F40A4AD48D7EC08D7A4E29338F420D9CF0535B0E2E85DB8213F44EDBB7",
-      "runA": "C18929F40A4AD48D7EC08D7A4E29338F420D9CF0535B0E2E85DB8213F44EDBB7",
-      "runB": "C18929F40A4AD48D7EC08D7A4E29338F420D9CF0535B0E2E85DB8213F44EDBB7",
+      "checked": "5EEDD89A674DC6B696D99F7B1E021D8CD84F31481F35B4EB8EE5AE3B19F042CE",
+      "runA": "5EEDD89A674DC6B696D99F7B1E021D8CD84F31481F35B4EB8EE5AE3B19F042CE",
+      "runB": "5EEDD89A674DC6B696D99F7B1E021D8CD84F31481F35B4EB8EE5AE3B19F042CE",
       "bytes": 1718231
     },
     "domains/D09.json": {
-      "checked": "FBCBCD98AF73A32BCD484927CDE6EBEED22282E27ADD1BD9CECA1B2DF1ABB7BD",
-      "runA": "FBCBCD98AF73A32BCD484927CDE6EBEED22282E27ADD1BD9CECA1B2DF1ABB7BD",
-      "runB": "FBCBCD98AF73A32BCD484927CDE6EBEED22282E27ADD1BD9CECA1B2DF1ABB7BD",
+      "checked": "BA6B7FA345D0A3FE29E97699BC61D6867EBEEA1D43B1982B39536942BA52967B",
+      "runA": "BA6B7FA345D0A3FE29E97699BC61D6867EBEEA1D43B1982B39536942BA52967B",
+      "runB": "BA6B7FA345D0A3FE29E97699BC61D6867EBEEA1D43B1982B39536942BA52967B",
       "bytes": 1678927
     },
     "domains/D10.json": {
-      "checked": "CA697BB3FE37584F2C9141DD0650C4278D17D45A71BACFF3F3D298A11C56A3A3",
-      "runA": "CA697BB3FE37584F2C9141DD0650C4278D17D45A71BACFF3F3D298A11C56A3A3",
-      "runB": "CA697BB3FE37584F2C9141DD0650C4278D17D45A71BACFF3F3D298A11C56A3A3",
+      "checked": "0229DBD90650A7D7F7A0C85A222E116BA6FA5D0409C17A4734701C12BA33B10C",
+      "runA": "0229DBD90650A7D7F7A0C85A222E116BA6FA5D0409C17A4734701C12BA33B10C",
+      "runB": "0229DBD90650A7D7F7A0C85A222E116BA6FA5D0409C17A4734701C12BA33B10C",
       "bytes": 1719006
     },
     "domains/D11.json": {
-      "checked": "4DC1DBDF0AE2F0DE3220C88A5B8CB796DCF9EA86D3F9EA33C2EBA67263A06566",
-      "runA": "4DC1DBDF0AE2F0DE3220C88A5B8CB796DCF9EA86D3F9EA33C2EBA67263A06566",
-      "runB": "4DC1DBDF0AE2F0DE3220C88A5B8CB796DCF9EA86D3F9EA33C2EBA67263A06566",
+      "checked": "D1C110401012A9C5AE76A1B367317C717544FD63C0D3E793F662A52F0633C8B5",
+      "runA": "D1C110401012A9C5AE76A1B367317C717544FD63C0D3E793F662A52F0633C8B5",
+      "runB": "D1C110401012A9C5AE76A1B367317C717544FD63C0D3E793F662A52F0633C8B5",
       "bytes": 1911238
     },
     "domains/D12.json": {
-      "checked": "6AA2F73AB99B87D75A9A44F0BEA8FDE52649B023E8CCE8E68612BE5B8303D9F6",
-      "runA": "6AA2F73AB99B87D75A9A44F0BEA8FDE52649B023E8CCE8E68612BE5B8303D9F6",
-      "runB": "6AA2F73AB99B87D75A9A44F0BEA8FDE52649B023E8CCE8E68612BE5B8303D9F6",
+      "checked": "87B80AB2A58705F72F212F139833A3E971DB14FD42DC9323B47E2D482F66118A",
+      "runA": "87B80AB2A58705F72F212F139833A3E971DB14FD42DC9323B47E2D482F66118A",
+      "runB": "87B80AB2A58705F72F212F139833A3E971DB14FD42DC9323B47E2D482F66118A",
       "bytes": 1671381
     },
     "domains/D13.json": {
-      "checked": "3F4C6E49880974F79F0CE43A80D78773F3A6EEB1DBDF82E6E9A80A2F42D7B35A",
-      "runA": "3F4C6E49880974F79F0CE43A80D78773F3A6EEB1DBDF82E6E9A80A2F42D7B35A",
-      "runB": "3F4C6E49880974F79F0CE43A80D78773F3A6EEB1DBDF82E6E9A80A2F42D7B35A",
+      "checked": "A3CBE9DED814E65B5414B4D951A075D235BB51DC8BEB1A4CFD23515824B1563D",
+      "runA": "A3CBE9DED814E65B5414B4D951A075D235BB51DC8BEB1A4CFD23515824B1563D",
+      "runB": "A3CBE9DED814E65B5414B4D951A075D235BB51DC8BEB1A4CFD23515824B1563D",
       "bytes": 1681565
     },
     "domains/D14.json": {
-      "checked": "7C83A5BEEBC422BC1FD48C5524A36324B47740850413575C1E3A4532FF3D24F9",
-      "runA": "7C83A5BEEBC422BC1FD48C5524A36324B47740850413575C1E3A4532FF3D24F9",
-      "runB": "7C83A5BEEBC422BC1FD48C5524A36324B47740850413575C1E3A4532FF3D24F9",
+      "checked": "27685F6085E58F76E0E1F2C8220B03A95B251686461D7FD5972DAD63AC01DFFA",
+      "runA": "27685F6085E58F76E0E1F2C8220B03A95B251686461D7FD5972DAD63AC01DFFA",
+      "runB": "27685F6085E58F76E0E1F2C8220B03A95B251686461D7FD5972DAD63AC01DFFA",
       "bytes": 1771109
     },
     "domains/D15.json": {
-      "checked": "C898E699D357675ACE28F3E1B435F9C231F14EE648AEBBED297710B367B001E0",
-      "runA": "C898E699D357675ACE28F3E1B435F9C231F14EE648AEBBED297710B367B001E0",
-      "runB": "C898E699D357675ACE28F3E1B435F9C231F14EE648AEBBED297710B367B001E0",
+      "checked": "B072F6B507759F119AE352086F0C5F236B97A96260BD02B2EAFA70ED2D556817",
+      "runA": "B072F6B507759F119AE352086F0C5F236B97A96260BD02B2EAFA70ED2D556817",
+      "runB": "B072F6B507759F119AE352086F0C5F236B97A96260BD02B2EAFA70ED2D556817",
       "bytes": 3106592
     },
     "domains/D16.json": {
-      "checked": "5086147C7CE88E837BA84A8EB67B6BC592316D37807F5F5E8B01724C8CAC1DE7",
-      "runA": "5086147C7CE88E837BA84A8EB67B6BC592316D37807F5F5E8B01724C8CAC1DE7",
-      "runB": "5086147C7CE88E837BA84A8EB67B6BC592316D37807F5F5E8B01724C8CAC1DE7",
+      "checked": "60DA402B262C32930F4EE5F28DA68AB9C778A83729EB78575C1A937B8A3B4461",
+      "runA": "60DA402B262C32930F4EE5F28DA68AB9C778A83729EB78575C1A937B8A3B4461",
+      "runB": "60DA402B262C32930F4EE5F28DA68AB9C778A83729EB78575C1A937B8A3B4461",
       "bytes": 2639757
     },
     "domain-plan-inputs.json": {
-      "checked": "D1472C3B570CB9307C296A423764F79DBCE62A5E5C99C3B232368484FDC22DF4",
-      "runA": "D1472C3B570CB9307C296A423764F79DBCE62A5E5C99C3B232368484FDC22DF4",
-      "runB": "D1472C3B570CB9307C296A423764F79DBCE62A5E5C99C3B232368484FDC22DF4",
-      "bytes": 81454264
+      "checked": "77E67DC8340D9F32808C05309FA4641BD45DD389248B4298BFCAE7DFC85DEF72",
+      "runA": "77E67DC8340D9F32808C05309FA4641BD45DD389248B4298BFCAE7DFC85DEF72",
+      "runB": "77E67DC8340D9F32808C05309FA4641BD45DD389248B4298BFCAE7DFC85DEF72",
+      "bytes": 81454269
     },
     "recovery.json": {
-      "checked": "7EE58EC93524CA0B1E5FE5D795F13FB4265ABC6DC69DE4EBCA0C32D38270124C",
-      "runA": "7EE58EC93524CA0B1E5FE5D795F13FB4265ABC6DC69DE4EBCA0C32D38270124C",
-      "runB": "7EE58EC93524CA0B1E5FE5D795F13FB4265ABC6DC69DE4EBCA0C32D38270124C",
-      "bytes": 32962026
+      "checked": "0DECFFF0DD9F5056EE7A294CBEBF6C8AE8E0767F97896318DE1A53B2004E82F4",
+      "runA": "0DECFFF0DD9F5056EE7A294CBEBF6C8AE8E0767F97896318DE1A53B2004E82F4",
+      "runB": "0DECFFF0DD9F5056EE7A294CBEBF6C8AE8E0767F97896318DE1A53B2004E82F4",
+      "bytes": 32961560
     }
   },
   "conservation": {
@@ -235,8 +235,8 @@
     "coverageFatalIds": [
       "FEATURE_REACHABILITY_LEDGER_ABSENT"
     ],
-    "evidenceGapCount": 25609,
-    "missingBoundaryOccurrenceCount": 153601,
+    "evidenceGapCount": 25608,
+    "missingBoundaryOccurrenceCount": 153600,
     "closedVerticalTraceCount": 0,
     "unknownVerdictRowCount": 15999,
     "routingUnresolvedRowCount": 15317,
@@ -399,9 +399,9 @@
     }
   },
   "firstUnit": {
-    "unitId": "RECOVERY:D01:RESOURCE_LOADER:1DFEC1FA0ADCE4B0",
+    "unitId": "RECOVERY:D01:RESOURCE_LOADER:C7063B6F6EE54AC7",
     "domain": "D01",
-    "pathKey": "RESOURCE:FILE:original-installshield-payload:_____p_y_`__vii_____t_c_g.url",
+    "pathKey": "RESOURCE:FILE:original-installshield-payload:bootfirst.exe",
     "firstMissingBoundary": "RESOURCE_LOADER",
     "recoveryDisposition": "RECOVERABLE_STATIC",
     "dependsOnUnitIds": [],
@@ -470,9 +470,9 @@
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "3C8F38EDC1366B2B34B470B155BB23ACFD4F327753B3D64E48495572FB6BAB1E",
-      "stderrSha256": "E522768B0BC4143F23C7E0911EFE0E0756D44F11845377D74F41193DE00EA8EB",
-      "durationMs": 49009.0
+      "stdoutSha256": "7FB1B19C1EB5C35B7A2C7C311D026D2E3D3FE5DF968509A78EE660AD60A0183F",
+      "stderrSha256": "85FC22E99B418380D00DB1F08EBDC8E30014100090D6C65A564B9F39DE8FB1D5",
+      "durationMs": 49205.0
     },
     {
       "label": "strict-unittest-result",
@@ -482,15 +482,15 @@
         "-m",
         "tools.exhaustive_trace.foundation_verification",
         "--parse-unittest-json",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\unittest-result.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\unittest-result.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "31FF66DA64C43EBCC39162217D2ADA08DAEAC0A6F6DDE1C0C8E4F110B7237545",
+      "stdoutSha256": "F356CE20D526E774874E83FB800A0056B439B46C50B33562D65C1598AD73D654",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 91.0
+      "durationMs": 92.0
     },
     {
       "label": "source-manifest-gate",
@@ -507,7 +507,7 @@
       ],
       "stdoutSha256": "BC3F2C51D6C36CA450334C23F073D90CADC7C53DB22C8DF0EFEE0AC8C50BF764",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2066.0
+      "durationMs": 2184.0
     },
     {
       "label": "run-a-protocol",
@@ -519,9 +519,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\protocol.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\protocol.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\protocol-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\protocol-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-evidence-manifest.json",
         "--source-manifest",
@@ -533,7 +533,7 @@
       ],
       "stdoutSha256": "BCE7EC95970004BEF6ADC9FF61D8CCAFB92E2CA852ADBA0C5D5DBEC0082E6661",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2370.0
+      "durationMs": 2248.0
     },
     {
       "label": "run-a-ui",
@@ -545,9 +545,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\ui.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\ui.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\ui-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\ui-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-evidence-manifest.json",
         "--source-manifest",
@@ -559,7 +559,7 @@
       ],
       "stdoutSha256": "09BE088147D854A920A2D6ACC20C529247524843E5046D5D3E26803C813792D4",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2233.0
+      "durationMs": 2135.0
     },
     {
       "label": "run-a-entities",
@@ -571,9 +571,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\entities.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\entities.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\entities-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\entities-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-evidence-manifest.json",
         "--source-manifest",
@@ -585,7 +585,7 @@
       ],
       "stdoutSha256": "2B7E3972FD9C373D4B05CBE47B91221014F0FC7919CEF6C4F9F841DE4243C3E9",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2217.0
+      "durationMs": 2257.0
     },
     {
       "label": "run-a-resources",
@@ -597,13 +597,15 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\resources.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\resources.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\resources-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\resources-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-evidence-manifest.json",
         "--source-manifest",
-        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--adjudications",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\adjudications\\resources.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
@@ -611,7 +613,7 @@
       ],
       "stdoutSha256": "A53B4F318485097198AAC2E7F466F22BA4B4C157D1A8B2D60E90CF80CD76364B",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2966.0
+      "durationMs": 3027.0
     },
     {
       "label": "run-a-functions",
@@ -623,9 +625,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\functions.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\functions.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\functions-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\functions-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-evidence-manifest.json",
         "--source-manifest",
@@ -637,7 +639,7 @@
       ],
       "stdoutSha256": "70C8D15EF257DE72E962DE2E7BC4275548FF38E881466E65FC21BF3CE2E3791B",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 119164.0
+      "durationMs": 118884.0
     },
     {
       "label": "run-a-authority",
@@ -653,17 +655,17 @@
         "--db",
         "E:\\logh7-greenfield\\db",
         "--protocol-inventory",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\protocol.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\protocol.jsonl",
         "--entity-inventory",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\entities.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\entities.jsonl",
         "--ui-inventory",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\ui.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\ui.jsonl",
         "--raw-output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\raw\\authority-source.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\raw\\authority-source.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\authority.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\authority.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories\\authority-reconciliation.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories\\authority-reconciliation.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
@@ -671,7 +673,7 @@
       ],
       "stdoutSha256": "4ECD07DB99CF312B34A501CBAB0E2DC5AC4FDDF8ACDFA6138FA3C4D9AE44AE50",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 1888.0
+      "durationMs": 1802.0
     },
     {
       "label": "run-a-graph",
@@ -682,19 +684,19 @@
         "tools.exhaustive_trace.cli",
         "build-graph",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\graph.jsonl"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\graph.jsonl"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "24A52C54C808C748A689E52F1F074B0E347F3010D43C33CA0C20C43FFFA1ED07",
+      "stdoutSha256": "C7DD1932579DBE78CB47FFBBB220DF61E47CB4AB4D0DD551026BA910C19299D3",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 126029.0
+      "durationMs": 122130.0
     },
     {
       "label": "run-a-coverage-expected-fatal",
@@ -705,21 +707,21 @@
         "tools.exhaustive_trace.cli",
         "audit",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\graph.jsonl",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\coverage.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\coverage.json"
       ],
       "exitCode": 1,
       "expectedExitCodes": [
         1
       ],
-      "stdoutSha256": "5B11816BA84B7D359A0A4ADC32467FBB870D50A52D2FA250E5FF8332CD4EB14B",
+      "stdoutSha256": "2782F69C13A9C380477C6FB554742913429E1033A4F13BD535557A007DBB3A2B",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 129498.0
+      "durationMs": 126761.0
     },
     {
       "label": "run-a-domains",
@@ -730,25 +732,25 @@
         "tools.exhaustive_trace.cli",
         "package-domains",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\graph.jsonl",
         "--coverage",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\coverage.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\coverage.json",
         "--domains",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\domains"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\domains"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "F3C475EDE5C162EC958AB82A8E5C2DFE84E1EE9EB396D1BC01C4C96F139DEB59",
+      "stdoutSha256": "5CD080B43CD3BB84ACAE225260CD8C93B3AE3E54DA3C78E727E0B69EE1FBAA50",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 105825.0
+      "durationMs": 103104.0
     },
     {
       "label": "run-a-work-packages",
@@ -759,27 +761,27 @@
         "tools.exhaustive_trace.cli",
         "build-work-packages",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\graph.jsonl",
         "--coverage",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\coverage.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\coverage.json",
         "--domains",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
         "--domain-packages",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\domains",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\domains",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\domain-plan-inputs.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\domain-plan-inputs.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "D3E61835625B18181A658D420F18CAD4D1B46BEC224C3441729A90E007894A7A",
+      "stdoutSha256": "EA20AA6E15C25A6739D55570D66CAB0D4227557963EC20EF37326EF21AA12F79",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 144012.0
+      "durationMs": 139675.0
     },
     {
       "label": "run-a-recovery",
@@ -789,29 +791,29 @@
         "-m",
         "tools.exhaustive_trace.recovery",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\inventories",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\graph.jsonl",
         "--coverage",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\coverage.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\coverage.json",
         "--sources",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--domain-config",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
         "--domain-packages",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\domains",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\domains",
         "--character-boundary",
         "E:\\logh7-greenfield\\docs\\new-design\\2026-08-27-original-character-roster-recovery-boundary.md",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-a\\recovery.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-a\\recovery.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "39FC5CF6806507B7A689D9ECFC2375F72CDBA094B91FC3574E9E771894685008",
+      "stdoutSha256": "85E5A6B18D9D32CE17DD5BB18F0B25D042FE3E52316F39E6AA77CA3587A0F9E9",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 112757.0
+      "durationMs": 109626.0
     },
     {
       "label": "run-b-protocol",
@@ -823,9 +825,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\protocol.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\protocol.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\protocol-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\protocol-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-evidence-manifest.json",
         "--source-manifest",
@@ -837,7 +839,7 @@
       ],
       "stdoutSha256": "BCE7EC95970004BEF6ADC9FF61D8CCAFB92E2CA852ADBA0C5D5DBEC0082E6661",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2554.0
+      "durationMs": 2356.0
     },
     {
       "label": "run-b-ui",
@@ -849,9 +851,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\ui.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\ui.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\ui-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\ui-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-evidence-manifest.json",
         "--source-manifest",
@@ -863,7 +865,7 @@
       ],
       "stdoutSha256": "09BE088147D854A920A2D6ACC20C529247524843E5046D5D3E26803C813792D4",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2147.0
+      "durationMs": 2200.0
     },
     {
       "label": "run-b-entities",
@@ -875,9 +877,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\entities.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\entities.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\entities-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\entities-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-evidence-manifest.json",
         "--source-manifest",
@@ -889,7 +891,7 @@
       ],
       "stdoutSha256": "2B7E3972FD9C373D4B05CBE47B91221014F0FC7919CEF6C4F9F841DE4243C3E9",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2250.0
+      "durationMs": 2297.0
     },
     {
       "label": "run-b-resources",
@@ -901,13 +903,15 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\resources.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\resources.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\resources-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\resources-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-evidence-manifest.json",
         "--source-manifest",
-        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--adjudications",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\adjudications\\resources.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
@@ -915,7 +919,7 @@
       ],
       "stdoutSha256": "A53B4F318485097198AAC2E7F466F22BA4B4C157D1A8B2D60E90CF80CD76364B",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 2965.0
+      "durationMs": 2897.0
     },
     {
       "label": "run-b-functions",
@@ -927,9 +931,9 @@
         "--input",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-ghidra.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\functions.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\functions.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\functions-reconciliation.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\functions-reconciliation.json",
         "--evidence-manifest",
         "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-evidence-manifest.json",
         "--source-manifest",
@@ -941,7 +945,7 @@
       ],
       "stdoutSha256": "70C8D15EF257DE72E962DE2E7BC4275548FF38E881466E65FC21BF3CE2E3791B",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 118054.0
+      "durationMs": 115252.0
     },
     {
       "label": "run-b-authority",
@@ -957,17 +961,17 @@
         "--db",
         "E:\\logh7-greenfield\\db",
         "--protocol-inventory",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\protocol.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\protocol.jsonl",
         "--entity-inventory",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\entities.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\entities.jsonl",
         "--ui-inventory",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\ui.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\ui.jsonl",
         "--raw-output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\raw\\authority-source.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\raw\\authority-source.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\authority.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\authority.jsonl",
         "--reconciliation",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories\\authority-reconciliation.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories\\authority-reconciliation.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
@@ -975,7 +979,7 @@
       ],
       "stdoutSha256": "4ECD07DB99CF312B34A501CBAB0E2DC5AC4FDDF8ACDFA6138FA3C4D9AE44AE50",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 1848.0
+      "durationMs": 1791.0
     },
     {
       "label": "run-b-graph",
@@ -986,19 +990,19 @@
         "tools.exhaustive_trace.cli",
         "build-graph",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\graph.jsonl"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\graph.jsonl"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "5789C69E0A4CFED4217028F7A6757F2F597BB2A430281D4BA4DBDDC31EC116FF",
+      "stdoutSha256": "EAE11E763CD3DADC5D6B8B0753B2D978E19C4000428EEE3CDC9C08C7D387391C",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 125320.0
+      "durationMs": 122070.0
     },
     {
       "label": "run-b-coverage-expected-fatal",
@@ -1009,21 +1013,21 @@
         "tools.exhaustive_trace.cli",
         "audit",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\graph.jsonl",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\coverage.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\coverage.json"
       ],
       "exitCode": 1,
       "expectedExitCodes": [
         1
       ],
-      "stdoutSha256": "CB4DE977E2FCE5E1D62068B0BEC8EF4C43A5A8D277E11F32900C61330DAF41B5",
+      "stdoutSha256": "D8CB38EDB8D33294A9980BD1209672C87BD564A32EADE165E16782B4329AEE5F",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 130383.0
+      "durationMs": 126558.0
     },
     {
       "label": "run-b-domains",
@@ -1034,25 +1038,25 @@
         "tools.exhaustive_trace.cli",
         "package-domains",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\graph.jsonl",
         "--coverage",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\coverage.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\coverage.json",
         "--domains",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\domains"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\domains"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "F5B73DCC15B4CC5D174C5BCC708C18C5A61DE52B622FEC94CCDC991759D6CCB7",
+      "stdoutSha256": "7DDF63662C847E69DE8010943A47DEAC811707C23EAAC44580B4F97554B35AC1",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 106150.0
+      "durationMs": 102359.0
     },
     {
       "label": "run-b-work-packages",
@@ -1063,27 +1067,27 @@
         "tools.exhaustive_trace.cli",
         "build-work-packages",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories",
         "--source-manifest",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\graph.jsonl",
         "--coverage",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\coverage.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\coverage.json",
         "--domains",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
         "--domain-packages",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\domains",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\domains",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\domain-plan-inputs.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\domain-plan-inputs.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "BCDAB18A0DB3CCF82C473C7C334F349E5DC9E63FE731E439C06189D4F04D7A49",
+      "stdoutSha256": "998380F648E928BDD0C495AAFECDE687910E4BF76B013C46EF50D7E1C3E71AD6",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 144005.0
+      "durationMs": 139294.0
     },
     {
       "label": "run-b-recovery",
@@ -1093,29 +1097,29 @@
         "-m",
         "tools.exhaustive_trace.recovery",
         "--inventories",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\inventories",
         "--graph",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\graph.jsonl",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\graph.jsonl",
         "--coverage",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\coverage.json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\coverage.json",
         "--sources",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
         "--domain-config",
         "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
         "--domain-packages",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\domains",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\domains",
         "--character-boundary",
         "E:\\logh7-greenfield\\docs\\new-design\\2026-08-27-original-character-roster-recovery-boundary.md",
         "--output",
-        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-a36f5f19213a4a06b7ae9370c998d23a\\run-b\\recovery.json"
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-fe7bb44756ee417ab5126c6fa2910b3e\\run-b\\recovery.json"
       ],
       "exitCode": 0,
       "expectedExitCodes": [
         0
       ],
-      "stdoutSha256": "9D1D56A37BB72F241F38B4B7CBCBFC31E9803A01AAE1EE266BA1BFC42F9E99CD",
+      "stdoutSha256": "50958ECB7FA1D7B957B03A877DCC97BFF9967F8E0644C1BB56382C10E1212F0F",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 113189.0
+      "durationMs": 109864.0
     },
     {
       "label": "receipt-target-policy-final",
@@ -1139,32 +1143,33 @@
       ],
       "stdoutSha256": "B25B211FE063756E0C8B677845ECE3FA4C0C3D774941D9BC8FFDB2A445271FAF",
       "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
-      "durationMs": 94.0
+      "durationMs": 85.0
     }
   ],
   "protectedInputsBefore": {
     "docs/new-design/2026-08-27-original-character-roster-recovery-boundary.md": "2D0D43C390322BF7693C4F01379F3CDC0A32D5C66D6AE805FA70DAFC7DC6C825",
     "docs/reverse-engineering/exhaustive-trace/domains.json": "A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379",
     "docs/reverse-engineering/exhaustive-trace/source-manifest.json": "A6C4A96639117C5F2F7F036E389963269E95141B607808ADFACDA9750C3A05F3",
-    "evidence/exhaustive-trace/coverage.json": "7901AE67470CBEC1482A502218DC186FAF7ECFA464427A3B12F794B46322CC71",
-    "evidence/exhaustive-trace/domain-plan-inputs.json": "D1472C3B570CB9307C296A423764F79DBCE62A5E5C99C3B232368484FDC22DF4",
-    "evidence/exhaustive-trace/domains/D01.json": "20F1EE11902903C0DDBD63452E74C57CCD80306983B49B5575511F5C2E3AF0DA",
-    "evidence/exhaustive-trace/domains/D02.json": "3D0CBA7201A4B34D4E1ED0AF5DB40EB42AABEFE41E8A8D6AC2051F3FFCE8A3AD",
-    "evidence/exhaustive-trace/domains/D03.json": "FE9AD3532557906921B31E0E1B9D41D31B58F6A1D713753262BA47D7A652018F",
-    "evidence/exhaustive-trace/domains/D04.json": "1FA3A595A05EA4DEFE6E3D152498F0E9A756DBD57FB1E72B5B84C9870FD90197",
-    "evidence/exhaustive-trace/domains/D05.json": "3CF5C09DB8E8536DAA7FE6AECFD0A2460FB4BF3CAC8230A18C9B3436476D46C9",
-    "evidence/exhaustive-trace/domains/D06.json": "6093D1D51F2B89CEE9294E2CCCB03983A11A54977CAA705900856DE8998F624D",
-    "evidence/exhaustive-trace/domains/D07.json": "E64CDD6D2164C95DDCF58F66F285CC85E50F543B0C9C8E53BD5F3AC772736466",
-    "evidence/exhaustive-trace/domains/D08.json": "C18929F40A4AD48D7EC08D7A4E29338F420D9CF0535B0E2E85DB8213F44EDBB7",
-    "evidence/exhaustive-trace/domains/D09.json": "FBCBCD98AF73A32BCD484927CDE6EBEED22282E27ADD1BD9CECA1B2DF1ABB7BD",
-    "evidence/exhaustive-trace/domains/D10.json": "CA697BB3FE37584F2C9141DD0650C4278D17D45A71BACFF3F3D298A11C56A3A3",
-    "evidence/exhaustive-trace/domains/D11.json": "4DC1DBDF0AE2F0DE3220C88A5B8CB796DCF9EA86D3F9EA33C2EBA67263A06566",
-    "evidence/exhaustive-trace/domains/D12.json": "6AA2F73AB99B87D75A9A44F0BEA8FDE52649B023E8CCE8E68612BE5B8303D9F6",
-    "evidence/exhaustive-trace/domains/D13.json": "3F4C6E49880974F79F0CE43A80D78773F3A6EEB1DBDF82E6E9A80A2F42D7B35A",
-    "evidence/exhaustive-trace/domains/D14.json": "7C83A5BEEBC422BC1FD48C5524A36324B47740850413575C1E3A4532FF3D24F9",
-    "evidence/exhaustive-trace/domains/D15.json": "C898E699D357675ACE28F3E1B435F9C231F14EE648AEBBED297710B367B001E0",
-    "evidence/exhaustive-trace/domains/D16.json": "5086147C7CE88E837BA84A8EB67B6BC592316D37807F5F5E8B01724C8CAC1DE7",
-    "evidence/exhaustive-trace/graph.jsonl": "CA9955E4FE095B4A9B88049E3BB26F846471A36D6F31EB1440F1E83C742B85EA",
+    "evidence/exhaustive-trace/adjudications/resources.json": "254C21ED3C7D83E2C9FADCEF3F2B6F70C476D43DB65A511ABE351F32617D75B8",
+    "evidence/exhaustive-trace/coverage.json": "C38AB74F12CC12F5A3761B7B8CF194D6593C2DE00F09497A4BFA2DAFD658F4B6",
+    "evidence/exhaustive-trace/domain-plan-inputs.json": "77E67DC8340D9F32808C05309FA4641BD45DD389248B4298BFCAE7DFC85DEF72",
+    "evidence/exhaustive-trace/domains/D01.json": "1DEFED9135E587E398BA95AC0943AAD2024E8BFB2B8C08925F99608D28301C66",
+    "evidence/exhaustive-trace/domains/D02.json": "E48BDC58C8B7A82E81045B853BD6AC39265B83D5EC59891C7EA56EC4A0643ABB",
+    "evidence/exhaustive-trace/domains/D03.json": "492D0E5E34B87F6BD3EDD1226B7B48EE5EB9B1FD4FE8F2BC473B8217579E682E",
+    "evidence/exhaustive-trace/domains/D04.json": "81F4EF0797621AD519FB80E40E37AC677FA7BCD46C15BA828D3EFB30865AB228",
+    "evidence/exhaustive-trace/domains/D05.json": "DA29BE681D94415E2324378E5266024F81515B139D84E4A641B7398F7F100308",
+    "evidence/exhaustive-trace/domains/D06.json": "36D0BF1C07ED1D8B7069031F27EEB1906DB32A7025B8D00A101DE3407B67133B",
+    "evidence/exhaustive-trace/domains/D07.json": "5BA96CDCCB02BE953D4658B87D8C70A4A2C516432C2A617E3914F171729A26E8",
+    "evidence/exhaustive-trace/domains/D08.json": "5EEDD89A674DC6B696D99F7B1E021D8CD84F31481F35B4EB8EE5AE3B19F042CE",
+    "evidence/exhaustive-trace/domains/D09.json": "BA6B7FA345D0A3FE29E97699BC61D6867EBEEA1D43B1982B39536942BA52967B",
+    "evidence/exhaustive-trace/domains/D10.json": "0229DBD90650A7D7F7A0C85A222E116BA6FA5D0409C17A4734701C12BA33B10C",
+    "evidence/exhaustive-trace/domains/D11.json": "D1C110401012A9C5AE76A1B367317C717544FD63C0D3E793F662A52F0633C8B5",
+    "evidence/exhaustive-trace/domains/D12.json": "87B80AB2A58705F72F212F139833A3E971DB14FD42DC9323B47E2D482F66118A",
+    "evidence/exhaustive-trace/domains/D13.json": "A3CBE9DED814E65B5414B4D951A075D235BB51DC8BEB1A4CFD23515824B1563D",
+    "evidence/exhaustive-trace/domains/D14.json": "27685F6085E58F76E0E1F2C8220B03A95B251686461D7FD5972DAD63AC01DFFA",
+    "evidence/exhaustive-trace/domains/D15.json": "B072F6B507759F119AE352086F0C5F236B97A96260BD02B2EAFA70ED2D556817",
+    "evidence/exhaustive-trace/domains/D16.json": "60DA402B262C32930F4EE5F28DA68AB9C778A83729EB78575C1A937B8A3B4461",
+    "evidence/exhaustive-trace/graph.jsonl": "0354056E4E336454B4F8AC98AAD6FF1F9652B01517EC97BE792108E7FDCBCEED",
     "evidence/exhaustive-trace/inventories/authority-reconciliation.json": "0CADDAA2E6AC49725E486503342F747BE798C44A06675591629F356748B03883",
     "evidence/exhaustive-trace/inventories/authority.jsonl": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
     "evidence/exhaustive-trace/inventories/entities-reconciliation.json": "A97131D798CB442569A98D09763A8ED0F926D2546091E3BAE118881449699590",
@@ -1174,7 +1179,7 @@
     "evidence/exhaustive-trace/inventories/protocol-reconciliation.json": "50F8CF377D6CDBFAA3C433616A56E0268379FFE7B7F6722CED2C6912B676336C",
     "evidence/exhaustive-trace/inventories/protocol.jsonl": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
     "evidence/exhaustive-trace/inventories/resources-reconciliation.json": "733EEA67581052C4CB8B1FCDB92F615D1C38151B1206C628BF759A1ECC25DD24",
-    "evidence/exhaustive-trace/inventories/resources.jsonl": "42DD5300048848DA2D43D80C036B85AA0AED9F4D0EC23740B630A28044FEF405",
+    "evidence/exhaustive-trace/inventories/resources.jsonl": "4CCF362E0C7E49EB7CCF58F312E98741A50DBC964AD7DC8F08C515738D53FC68",
     "evidence/exhaustive-trace/inventories/ui-reconciliation.json": "9642B8D2B48D1078941F411DDD23C92DDD05B9493A0FA427D61D7606F93FBC7D",
     "evidence/exhaustive-trace/inventories/ui.jsonl": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
     "evidence/exhaustive-trace/raw/authority-source.json": "3B4412EDA0F87DCAA34D58E76F252AB5A62571710D8408FE6A85FC3909A512B5",
@@ -1190,10 +1195,10 @@
     "evidence/exhaustive-trace/raw/resources-ghidra.json": "CA05628995627EA0F21B400367CDFD5745A765987775579E2DF8D2195C593AC7",
     "evidence/exhaustive-trace/raw/ui-evidence-manifest.json": "C9CC02DD7CE806AC21CA493660B913C647C562AADA524C1028356F21684CBBDB",
     "evidence/exhaustive-trace/raw/ui-ghidra.json": "A1B96D615294A6285F4F7E6FDC807218CD9729179BBE8D8FD39255E5F9DCD6F0",
-    "evidence/exhaustive-trace/recovery.json": "7EE58EC93524CA0B1E5FE5D795F13FB4265ABC6DC69DE4EBCA0C32D38270124C",
+    "evidence/exhaustive-trace/recovery.json": "0DECFFF0DD9F5056EE7A294CBEBF6C8AE8E0767F97896318DE1A53B2004E82F4",
     "tests/tools/exhaustive_trace/test_authority_importer.py": "94335A69759BFAA6417D7FCBA8E562627A3EEDBD1F2C04B05E7790B2C1B97165",
     "tests/tools/exhaustive_trace/test_cli.py": "1C0E965735EBE0D50916119FBFD101DAB8DE8714F9380C803EB9A26EFFC6FD28",
-    "tests/tools/exhaustive_trace/test_coverage.py": "AFEEC631E9840318B2B809AFEDE263D33792C6577564A47C8F64A5AB1FE7CCA7",
+    "tests/tools/exhaustive_trace/test_coverage.py": "C3E4C2599AED370FAC26B5A33ACDC7FB4555F2128DFC0D71593BADC4251E3822",
     "tests/tools/exhaustive_trace/test_domains.py": "9A2D22566023D5C886C763E3A407F20A634BCF51373337C08160C7E37020F766",
     "tests/tools/exhaustive_trace/test_entity_importer.py": "4E8B264A3A313E3A06AAF85269C767CCD544CAB2539502084DA2B2427F39AC37",
     "tests/tools/exhaustive_trace/test_foundation_verification.py": "357BEAEBACD7E8E7AEABB5C496B516D9D6D2668246D7A52E9AFC3FE1FB2F4326",
@@ -1203,14 +1208,14 @@
     "tests/tools/exhaustive_trace/test_importers.py": "CC095E156D26F03735993AA30CF4272EDF1A3CDEB11B072E075B95A05A0C8D1B",
     "tests/tools/exhaustive_trace/test_model.py": "5AFD2F18BFCA479443A12D2F5B6D855EA988408B97E0FD100870E045DE1C9EB4",
     "tests/tools/exhaustive_trace/test_recovery.py": "C8DD2390D159B592B1A1DEA074AAF671405C142C00FF566A84345D2D4B15FF9A",
-    "tests/tools/exhaustive_trace/test_resource_importer.py": "A40B69C519FB3ED9E9319C1FE920680D000E21668AF99FF6434094BD636C9ABC",
+    "tests/tools/exhaustive_trace/test_resource_importer.py": "D771B8E12F85FECE118E1D7ADE810CFEC3E2E070D50E95D1C89D05495210C2B7",
     "tests/tools/exhaustive_trace/test_source_manifest.py": "4688E3B0A36CA11D7B8F61E9D9B89D3B89E23CBC098D57A75EFA30B9FF0AF635",
     "tests/tools/exhaustive_trace/test_ui_importer.py": "F3ADD79DB290DC9972052FBCA399399EB5C87DA16229038C3B3CC573651D4438",
     "tests/tools/exhaustive_trace/test_work_packages.py": "41316A8F1797D1EEA8F1F73BE35B368989DDA35D899CC9F09A15EAD42A8BC936",
     "tools/exhaustive_trace/__init__.py": "C88370333C919F0281B25BDACC6F5D9030BDF9FECFA2601846BA871848EC1DDF",
     "tools/exhaustive_trace/build_pe_imports.py": "F6B0F0D83477E0826300E42938B73731C45740EBEB82D97685334B6856292BDA",
     "tools/exhaustive_trace/cli.py": "09A8E5BABF4B1B121BBDC99338DC2A8AED91B57AF06EA5E199180D958B5F223F",
-    "tools/exhaustive_trace/coverage.py": "E89722A66DA4DC7F98D04306B1268844233070630517A2D0377DB69308F15294",
+    "tools/exhaustive_trace/coverage.py": "0E6909796EA37C21D57E6BE2280C2AC6185E86CF92F653BA1E4FB9BF959EDF6A",
     "tools/exhaustive_trace/domains.py": "73291E991AFF66ADF0BBBB00444718B3ACD0C8C281D6AC8A7660D7A0318D9671",
     "tools/exhaustive_trace/foundation_verification.py": "88704881AEFEE6448FE648FCF9A5E32541593911377856ACBA31041C2DF500CA",
     "tools/exhaustive_trace/graph.py": "2F703BBB77B09D889EF584B5CFB1F39BEA207ABA6BDA09BCB66A64734AEE3D10",
@@ -1218,7 +1223,7 @@
     "tools/exhaustive_trace/import_entities.py": "14B80C6868E894886E99295D65152F15863AD581BCEF1906CB56EF5C6359EC80",
     "tools/exhaustive_trace/import_functions.py": "1E76E8F8605B1565B78099C6D0723052F26F7272C357C38C24DF931AFC16F2E1",
     "tools/exhaustive_trace/import_protocol.py": "F82E11F09088B862844DA3F1B3DFDEB4309D0A83AD8138B7EB43635987BBADF2",
-    "tools/exhaustive_trace/import_resources.py": "5BE63FC0B254C2EA3141F8CACE504069263138F1D51AF8582CE25F56D5DECF2E",
+    "tools/exhaustive_trace/import_resources.py": "6A49D33E7EA49F9B58AAB0BC1511B1978C41F3810D432EDCC5739788AAF76F24",
     "tools/exhaustive_trace/import_ui.py": "CBB7F4F06477C5B5203A4504BAEB48AC13FEEA415AF466121AFA0BF22CE60483",
     "tools/exhaustive_trace/inventories.py": "123BFF66869DE9A4549C22EFB78C125EABA4B3C7FEA66DD804AE7F89565F2364",
     "tools/exhaustive_trace/io.py": "711D9F0F457EEA2DB714A8DA33C0671F200EC38739B1F59A8E306FBBF72FDA56",
@@ -1226,31 +1231,32 @@
     "tools/exhaustive_trace/recovery.py": "6CED6C0B70370CE58B17A528ADABFDB2C9985E8F99A9B465AEFFFF9F7D6D9DDD",
     "tools/exhaustive_trace/source_manifest.py": "B14730C306C8B1C24C90DB47179DDF573AFC6B94B1702138A2252BBB0697144A",
     "tools/exhaustive_trace/work_packages.py": "56FFF04E669B2E1214A04CDCE9977494F0C27406DD9AE6FD851947FA47C5EB0C",
-    "work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1": "EF1E220CCAEB3D9DDEFB26C310A41357C3469D807326ED5F3AB5A77A15B7D10A"
+    "work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1": "124CB6330D3539F28172437FC344BA7BC4EA3348ABE606194785825FDB98944D"
   },
   "protectedInputsAfter": {
     "docs/new-design/2026-08-27-original-character-roster-recovery-boundary.md": "2D0D43C390322BF7693C4F01379F3CDC0A32D5C66D6AE805FA70DAFC7DC6C825",
     "docs/reverse-engineering/exhaustive-trace/domains.json": "A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379",
     "docs/reverse-engineering/exhaustive-trace/source-manifest.json": "A6C4A96639117C5F2F7F036E389963269E95141B607808ADFACDA9750C3A05F3",
-    "evidence/exhaustive-trace/coverage.json": "7901AE67470CBEC1482A502218DC186FAF7ECFA464427A3B12F794B46322CC71",
-    "evidence/exhaustive-trace/domain-plan-inputs.json": "D1472C3B570CB9307C296A423764F79DBCE62A5E5C99C3B232368484FDC22DF4",
-    "evidence/exhaustive-trace/domains/D01.json": "20F1EE11902903C0DDBD63452E74C57CCD80306983B49B5575511F5C2E3AF0DA",
-    "evidence/exhaustive-trace/domains/D02.json": "3D0CBA7201A4B34D4E1ED0AF5DB40EB42AABEFE41E8A8D6AC2051F3FFCE8A3AD",
-    "evidence/exhaustive-trace/domains/D03.json": "FE9AD3532557906921B31E0E1B9D41D31B58F6A1D713753262BA47D7A652018F",
-    "evidence/exhaustive-trace/domains/D04.json": "1FA3A595A05EA4DEFE6E3D152498F0E9A756DBD57FB1E72B5B84C9870FD90197",
-    "evidence/exhaustive-trace/domains/D05.json": "3CF5C09DB8E8536DAA7FE6AECFD0A2460FB4BF3CAC8230A18C9B3436476D46C9",
-    "evidence/exhaustive-trace/domains/D06.json": "6093D1D51F2B89CEE9294E2CCCB03983A11A54977CAA705900856DE8998F624D",
-    "evidence/exhaustive-trace/domains/D07.json": "E64CDD6D2164C95DDCF58F66F285CC85E50F543B0C9C8E53BD5F3AC772736466",
-    "evidence/exhaustive-trace/domains/D08.json": "C18929F40A4AD48D7EC08D7A4E29338F420D9CF0535B0E2E85DB8213F44EDBB7",
-    "evidence/exhaustive-trace/domains/D09.json": "FBCBCD98AF73A32BCD484927CDE6EBEED22282E27ADD1BD9CECA1B2DF1ABB7BD",
-    "evidence/exhaustive-trace/domains/D10.json": "CA697BB3FE37584F2C9141DD0650C4278D17D45A71BACFF3F3D298A11C56A3A3",
-    "evidence/exhaustive-trace/domains/D11.json": "4DC1DBDF0AE2F0DE3220C88A5B8CB796DCF9EA86D3F9EA33C2EBA67263A06566",
-    "evidence/exhaustive-trace/domains/D12.json": "6AA2F73AB99B87D75A9A44F0BEA8FDE52649B023E8CCE8E68612BE5B8303D9F6",
-    "evidence/exhaustive-trace/domains/D13.json": "3F4C6E49880974F79F0CE43A80D78773F3A6EEB1DBDF82E6E9A80A2F42D7B35A",
-    "evidence/exhaustive-trace/domains/D14.json": "7C83A5BEEBC422BC1FD48C5524A36324B47740850413575C1E3A4532FF3D24F9",
-    "evidence/exhaustive-trace/domains/D15.json": "C898E699D357675ACE28F3E1B435F9C231F14EE648AEBBED297710B367B001E0",
-    "evidence/exhaustive-trace/domains/D16.json": "5086147C7CE88E837BA84A8EB67B6BC592316D37807F5F5E8B01724C8CAC1DE7",
-    "evidence/exhaustive-trace/graph.jsonl": "CA9955E4FE095B4A9B88049E3BB26F846471A36D6F31EB1440F1E83C742B85EA",
+    "evidence/exhaustive-trace/adjudications/resources.json": "254C21ED3C7D83E2C9FADCEF3F2B6F70C476D43DB65A511ABE351F32617D75B8",
+    "evidence/exhaustive-trace/coverage.json": "C38AB74F12CC12F5A3761B7B8CF194D6593C2DE00F09497A4BFA2DAFD658F4B6",
+    "evidence/exhaustive-trace/domain-plan-inputs.json": "77E67DC8340D9F32808C05309FA4641BD45DD389248B4298BFCAE7DFC85DEF72",
+    "evidence/exhaustive-trace/domains/D01.json": "1DEFED9135E587E398BA95AC0943AAD2024E8BFB2B8C08925F99608D28301C66",
+    "evidence/exhaustive-trace/domains/D02.json": "E48BDC58C8B7A82E81045B853BD6AC39265B83D5EC59891C7EA56EC4A0643ABB",
+    "evidence/exhaustive-trace/domains/D03.json": "492D0E5E34B87F6BD3EDD1226B7B48EE5EB9B1FD4FE8F2BC473B8217579E682E",
+    "evidence/exhaustive-trace/domains/D04.json": "81F4EF0797621AD519FB80E40E37AC677FA7BCD46C15BA828D3EFB30865AB228",
+    "evidence/exhaustive-trace/domains/D05.json": "DA29BE681D94415E2324378E5266024F81515B139D84E4A641B7398F7F100308",
+    "evidence/exhaustive-trace/domains/D06.json": "36D0BF1C07ED1D8B7069031F27EEB1906DB32A7025B8D00A101DE3407B67133B",
+    "evidence/exhaustive-trace/domains/D07.json": "5BA96CDCCB02BE953D4658B87D8C70A4A2C516432C2A617E3914F171729A26E8",
+    "evidence/exhaustive-trace/domains/D08.json": "5EEDD89A674DC6B696D99F7B1E021D8CD84F31481F35B4EB8EE5AE3B19F042CE",
+    "evidence/exhaustive-trace/domains/D09.json": "BA6B7FA345D0A3FE29E97699BC61D6867EBEEA1D43B1982B39536942BA52967B",
+    "evidence/exhaustive-trace/domains/D10.json": "0229DBD90650A7D7F7A0C85A222E116BA6FA5D0409C17A4734701C12BA33B10C",
+    "evidence/exhaustive-trace/domains/D11.json": "D1C110401012A9C5AE76A1B367317C717544FD63C0D3E793F662A52F0633C8B5",
+    "evidence/exhaustive-trace/domains/D12.json": "87B80AB2A58705F72F212F139833A3E971DB14FD42DC9323B47E2D482F66118A",
+    "evidence/exhaustive-trace/domains/D13.json": "A3CBE9DED814E65B5414B4D951A075D235BB51DC8BEB1A4CFD23515824B1563D",
+    "evidence/exhaustive-trace/domains/D14.json": "27685F6085E58F76E0E1F2C8220B03A95B251686461D7FD5972DAD63AC01DFFA",
+    "evidence/exhaustive-trace/domains/D15.json": "B072F6B507759F119AE352086F0C5F236B97A96260BD02B2EAFA70ED2D556817",
+    "evidence/exhaustive-trace/domains/D16.json": "60DA402B262C32930F4EE5F28DA68AB9C778A83729EB78575C1A937B8A3B4461",
+    "evidence/exhaustive-trace/graph.jsonl": "0354056E4E336454B4F8AC98AAD6FF1F9652B01517EC97BE792108E7FDCBCEED",
     "evidence/exhaustive-trace/inventories/authority-reconciliation.json": "0CADDAA2E6AC49725E486503342F747BE798C44A06675591629F356748B03883",
     "evidence/exhaustive-trace/inventories/authority.jsonl": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
     "evidence/exhaustive-trace/inventories/entities-reconciliation.json": "A97131D798CB442569A98D09763A8ED0F926D2546091E3BAE118881449699590",
@@ -1260,7 +1266,7 @@
     "evidence/exhaustive-trace/inventories/protocol-reconciliation.json": "50F8CF377D6CDBFAA3C433616A56E0268379FFE7B7F6722CED2C6912B676336C",
     "evidence/exhaustive-trace/inventories/protocol.jsonl": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
     "evidence/exhaustive-trace/inventories/resources-reconciliation.json": "733EEA67581052C4CB8B1FCDB92F615D1C38151B1206C628BF759A1ECC25DD24",
-    "evidence/exhaustive-trace/inventories/resources.jsonl": "42DD5300048848DA2D43D80C036B85AA0AED9F4D0EC23740B630A28044FEF405",
+    "evidence/exhaustive-trace/inventories/resources.jsonl": "4CCF362E0C7E49EB7CCF58F312E98741A50DBC964AD7DC8F08C515738D53FC68",
     "evidence/exhaustive-trace/inventories/ui-reconciliation.json": "9642B8D2B48D1078941F411DDD23C92DDD05B9493A0FA427D61D7606F93FBC7D",
     "evidence/exhaustive-trace/inventories/ui.jsonl": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
     "evidence/exhaustive-trace/raw/authority-source.json": "3B4412EDA0F87DCAA34D58E76F252AB5A62571710D8408FE6A85FC3909A512B5",
@@ -1276,10 +1282,10 @@
     "evidence/exhaustive-trace/raw/resources-ghidra.json": "CA05628995627EA0F21B400367CDFD5745A765987775579E2DF8D2195C593AC7",
     "evidence/exhaustive-trace/raw/ui-evidence-manifest.json": "C9CC02DD7CE806AC21CA493660B913C647C562AADA524C1028356F21684CBBDB",
     "evidence/exhaustive-trace/raw/ui-ghidra.json": "A1B96D615294A6285F4F7E6FDC807218CD9729179BBE8D8FD39255E5F9DCD6F0",
-    "evidence/exhaustive-trace/recovery.json": "7EE58EC93524CA0B1E5FE5D795F13FB4265ABC6DC69DE4EBCA0C32D38270124C",
+    "evidence/exhaustive-trace/recovery.json": "0DECFFF0DD9F5056EE7A294CBEBF6C8AE8E0767F97896318DE1A53B2004E82F4",
     "tests/tools/exhaustive_trace/test_authority_importer.py": "94335A69759BFAA6417D7FCBA8E562627A3EEDBD1F2C04B05E7790B2C1B97165",
     "tests/tools/exhaustive_trace/test_cli.py": "1C0E965735EBE0D50916119FBFD101DAB8DE8714F9380C803EB9A26EFFC6FD28",
-    "tests/tools/exhaustive_trace/test_coverage.py": "AFEEC631E9840318B2B809AFEDE263D33792C6577564A47C8F64A5AB1FE7CCA7",
+    "tests/tools/exhaustive_trace/test_coverage.py": "C3E4C2599AED370FAC26B5A33ACDC7FB4555F2128DFC0D71593BADC4251E3822",
     "tests/tools/exhaustive_trace/test_domains.py": "9A2D22566023D5C886C763E3A407F20A634BCF51373337C08160C7E37020F766",
     "tests/tools/exhaustive_trace/test_entity_importer.py": "4E8B264A3A313E3A06AAF85269C767CCD544CAB2539502084DA2B2427F39AC37",
     "tests/tools/exhaustive_trace/test_foundation_verification.py": "357BEAEBACD7E8E7AEABB5C496B516D9D6D2668246D7A52E9AFC3FE1FB2F4326",
@@ -1289,14 +1295,14 @@
     "tests/tools/exhaustive_trace/test_importers.py": "CC095E156D26F03735993AA30CF4272EDF1A3CDEB11B072E075B95A05A0C8D1B",
     "tests/tools/exhaustive_trace/test_model.py": "5AFD2F18BFCA479443A12D2F5B6D855EA988408B97E0FD100870E045DE1C9EB4",
     "tests/tools/exhaustive_trace/test_recovery.py": "C8DD2390D159B592B1A1DEA074AAF671405C142C00FF566A84345D2D4B15FF9A",
-    "tests/tools/exhaustive_trace/test_resource_importer.py": "A40B69C519FB3ED9E9319C1FE920680D000E21668AF99FF6434094BD636C9ABC",
+    "tests/tools/exhaustive_trace/test_resource_importer.py": "D771B8E12F85FECE118E1D7ADE810CFEC3E2E070D50E95D1C89D05495210C2B7",
     "tests/tools/exhaustive_trace/test_source_manifest.py": "4688E3B0A36CA11D7B8F61E9D9B89D3B89E23CBC098D57A75EFA30B9FF0AF635",
     "tests/tools/exhaustive_trace/test_ui_importer.py": "F3ADD79DB290DC9972052FBCA399399EB5C87DA16229038C3B3CC573651D4438",
     "tests/tools/exhaustive_trace/test_work_packages.py": "41316A8F1797D1EEA8F1F73BE35B368989DDA35D899CC9F09A15EAD42A8BC936",
     "tools/exhaustive_trace/__init__.py": "C88370333C919F0281B25BDACC6F5D9030BDF9FECFA2601846BA871848EC1DDF",
     "tools/exhaustive_trace/build_pe_imports.py": "F6B0F0D83477E0826300E42938B73731C45740EBEB82D97685334B6856292BDA",
     "tools/exhaustive_trace/cli.py": "09A8E5BABF4B1B121BBDC99338DC2A8AED91B57AF06EA5E199180D958B5F223F",
-    "tools/exhaustive_trace/coverage.py": "E89722A66DA4DC7F98D04306B1268844233070630517A2D0377DB69308F15294",
+    "tools/exhaustive_trace/coverage.py": "0E6909796EA37C21D57E6BE2280C2AC6185E86CF92F653BA1E4FB9BF959EDF6A",
     "tools/exhaustive_trace/domains.py": "73291E991AFF66ADF0BBBB00444718B3ACD0C8C281D6AC8A7660D7A0318D9671",
     "tools/exhaustive_trace/foundation_verification.py": "88704881AEFEE6448FE648FCF9A5E32541593911377856ACBA31041C2DF500CA",
     "tools/exhaustive_trace/graph.py": "2F703BBB77B09D889EF584B5CFB1F39BEA207ABA6BDA09BCB66A64734AEE3D10",
@@ -1304,7 +1310,7 @@
     "tools/exhaustive_trace/import_entities.py": "14B80C6868E894886E99295D65152F15863AD581BCEF1906CB56EF5C6359EC80",
     "tools/exhaustive_trace/import_functions.py": "1E76E8F8605B1565B78099C6D0723052F26F7272C357C38C24DF931AFC16F2E1",
     "tools/exhaustive_trace/import_protocol.py": "F82E11F09088B862844DA3F1B3DFDEB4309D0A83AD8138B7EB43635987BBADF2",
-    "tools/exhaustive_trace/import_resources.py": "5BE63FC0B254C2EA3141F8CACE504069263138F1D51AF8582CE25F56D5DECF2E",
+    "tools/exhaustive_trace/import_resources.py": "6A49D33E7EA49F9B58AAB0BC1511B1978C41F3810D432EDCC5739788AAF76F24",
     "tools/exhaustive_trace/import_ui.py": "CBB7F4F06477C5B5203A4504BAEB48AC13FEEA415AF466121AFA0BF22CE60483",
     "tools/exhaustive_trace/inventories.py": "123BFF66869DE9A4549C22EFB78C125EABA4B3C7FEA66DD804AE7F89565F2364",
     "tools/exhaustive_trace/io.py": "711D9F0F457EEA2DB714A8DA33C0671F200EC38739B1F59A8E306FBBF72FDA56",
@@ -1312,7 +1318,7 @@
     "tools/exhaustive_trace/recovery.py": "6CED6C0B70370CE58B17A528ADABFDB2C9985E8F99A9B465AEFFFF9F7D6D9DDD",
     "tools/exhaustive_trace/source_manifest.py": "B14730C306C8B1C24C90DB47179DDF573AFC6B94B1702138A2252BBB0697144A",
     "tools/exhaustive_trace/work_packages.py": "56FFF04E669B2E1214A04CDCE9977494F0C27406DD9AE6FD851947FA47C5EB0C",
-    "work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1": "EF1E220CCAEB3D9DDEFB26C310A41357C3469D807326ED5F3AB5A77A15B7D10A"
+    "work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1": "124CB6330D3539F28172437FC344BA7BC4EA3348ABE606194785825FDB98944D"
   },
   "sourceTreesBefore": {
     "server": "01BA4719C80B6FE911B091A7C05124B64EEECE964E09C058EF8F9805DACA546B",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -240,6 +241,40 @@ class ResourcesEvidenceManifest:
     pe_imports_sha256: str
 
 
+def load_resource_adjudications(
+    path: Path,
+    *,
+    expected_root_id: str,
+    expected_source_manifest_sha256: str,
+    expected_tree_manifest_sha256: str,
+) -> dict[str, Mapping[str, Any]]:
+    payload = _mapping("resource adjudications", json.loads(path.read_text(encoding="utf-8")))
+    if payload.get("schemaVersion") != 1:
+        raise ValueError("unsupported resource adjudications schemaVersion")
+    source = _mapping("resource adjudications source", payload.get("source"))
+    if source.get("rootId") != _text("expected rootId", expected_root_id):
+        raise ValueError("resource adjudications rootId differs")
+    if _sha256("sourceManifestSha256", source.get("sourceManifestSha256")) != _sha256(
+        "expected sourceManifestSha256", expected_source_manifest_sha256
+    ):
+        raise ValueError("resource adjudications source manifest differs")
+    if _sha256("treeManifestSha256", source.get("treeManifestSha256")) != _sha256(
+        "expected treeManifestSha256", expected_tree_manifest_sha256
+    ):
+        raise ValueError("resource adjudications tree manifest differs")
+    items = payload.get("adjudications")
+    if not isinstance(items, list):
+        raise ValueError("resource adjudications must be an array")
+    result: dict[str, Mapping[str, Any]] = {}
+    for value in items:
+        item = _mapping("resource adjudication", value)
+        relative_path = _safe_resource_path(item.get("relativePosixPath"))
+        if relative_path in result:
+            raise ValueError(f"duplicate resource adjudication path: {relative_path}")
+        result[relative_path] = item
+    return result
+
+
 def _unknown_section(**empty_values: object) -> ResourceSection:
     return ResourceSection(
         ResourceSectionStatus.UNKNOWN,
@@ -465,6 +500,7 @@ def build_resource_inventory(
     tree_entries: list[TreeManifestEntry],
     *,
     root_id: str,
+    adjudications: Mapping[str, Mapping[str, Any]] | None = None,
     expected_exporter_sha256: str | None = None,
     expected_repository_sha256: str | None = None,
     expected_source_manifest_sha256: str | None = None,
@@ -492,6 +528,12 @@ def build_resource_inventory(
         entries[entry.relative_path] = entry
     if len(entries) != len(tree_entries):
         raise ValueError("duplicate resource path")
+    adjudications = adjudications or {}
+    unknown_adjudication_paths = set(adjudications) - set(entries)
+    if unknown_adjudication_paths:
+        raise ValueError(
+            f"resource adjudication path is absent from tree manifest: {sorted(unknown_adjudication_paths)}"
+        )
     if raw["conservation"]["treeFiles"] != len(tree_entries):
         raise ValueError("raw/tree resource count differs")
     by_id, by_path = _candidate_indexes(raw, entries)
@@ -587,6 +629,89 @@ def build_resource_inventory(
             value_fields=("functions", "api", "acceptedFormats", "pathCandidateIds"),
             section_name="loader",
         )
+        adjudication = adjudications.get(path)
+        if adjudication is not None:
+            adjudication = _mapping("resource adjudication", adjudication)
+            allowed_adjudication_fields = {
+                "schemaVersion",
+                "relativePosixPath",
+                "kind",
+                "contentSha256",
+                "contentBytesHex",
+                "byteSize",
+                "originalName",
+                "originalNameEncoding",
+                "originalNameBytesHex",
+                "targetUrl",
+                "loader",
+                "evidence",
+            }
+            unknown_adjudication_fields = set(adjudication) - allowed_adjudication_fields
+            if unknown_adjudication_fields:
+                raise ValueError(
+                    f"unknown resource adjudication fields: {sorted(unknown_adjudication_fields)}"
+                )
+            if loader_items:
+                raise ValueError("resource NOT_APPLICABLE adjudication conflicts with loader candidates")
+            if adjudication.get("schemaVersion") != 1:
+                raise ValueError("unsupported resource adjudication schemaVersion")
+            if _sha256("adjudication.contentSha256", adjudication.get("contentSha256")) != entry.content_sha256:
+                raise ValueError("resource adjudication contentSha256 differs from tree manifest")
+            if adjudication.get("byteSize") != entry.byte_size:
+                raise ValueError("resource adjudication byteSize differs from tree manifest")
+            if adjudication.get("kind") != "WINDOWS_INTERNET_SHORTCUT":
+                raise ValueError("unsupported resource adjudication kind")
+            try:
+                content_bytes = bytes.fromhex(
+                    _text("adjudication.contentBytesHex", adjudication.get("contentBytesHex"))
+                )
+            except ValueError as error:
+                raise ValueError("resource adjudication contentBytesHex is invalid") from error
+            if len(content_bytes) != entry.byte_size:
+                raise ValueError("resource adjudication content bytes differ from byteSize")
+            if hashlib.sha256(content_bytes).hexdigest().upper() != entry.content_sha256:
+                raise ValueError("resource adjudication content bytes differ from contentSha256")
+            try:
+                shortcut_text = content_bytes.decode("ascii")
+            except UnicodeDecodeError as error:
+                raise ValueError("Internet Shortcut content must be ASCII") from error
+            prefix = "[InternetShortcut]\r\nURL="
+            suffix = "\r\n"
+            if not shortcut_text.startswith(prefix) or not shortcut_text.endswith(suffix):
+                raise ValueError("Internet Shortcut content signature differs")
+            content_url = shortcut_text[len(prefix) : -len(suffix)]
+            target_url = _text("adjudication.targetUrl", adjudication.get("targetUrl"))
+            if target_url != content_url:
+                raise ValueError("resource adjudication targetUrl differs from shortcut content")
+            original_name = _text("adjudication.originalName", adjudication.get("originalName"))
+            if adjudication.get("originalNameEncoding") != "CP932":
+                raise ValueError("resource adjudication originalNameEncoding must be CP932")
+            try:
+                original_name_bytes = bytes.fromhex(
+                    _text(
+                        "adjudication.originalNameBytesHex",
+                        adjudication.get("originalNameBytesHex"),
+                    )
+                )
+                decoded_original_name = original_name_bytes.decode("cp932")
+            except (ValueError, UnicodeDecodeError) as error:
+                raise ValueError("resource adjudication originalNameBytesHex is invalid CP932") from error
+            if decoded_original_name != original_name:
+                raise ValueError("resource adjudication originalName differs from CP932 bytes")
+            loader_adjudication = _mapping("adjudication.loader", adjudication.get("loader"))
+            unknown_loader_fields = set(loader_adjudication) - {"status", "reason", "evidence"}
+            if unknown_loader_fields:
+                raise ValueError(
+                    f"unknown resource loader adjudication fields: {sorted(unknown_loader_fields)}"
+                )
+            if loader_adjudication.get("status") != "NOT_APPLICABLE":
+                raise ValueError("Internet Shortcut loader adjudication must be NOT_APPLICABLE")
+            loader_reason = _text("adjudication.loader.reason", loader_adjudication.get("reason"))
+            loader_evidence = _evidence("adjudication.loader.evidence", loader_adjudication.get("evidence"))
+            loader_section = ResourceSection(
+                ResourceSectionStatus.NOT_APPLICABLE,
+                {"reason": loader_reason, "evidence": loader_evidence},
+            )
         runtime_section = _section_from_candidates(
             runtime_items,
             value_fields=("namespace", "value", "derivationFunction"),
@@ -621,6 +746,7 @@ def build_resource_inventory(
             section_name="presentation receipt",
         )
         loader_proven = loader_section.status is ResourceSectionStatus.PROVEN
+        loader_not_applicable = loader_section.status is ResourceSectionStatus.NOT_APPLICABLE
         owner_proven = owner_section.status is ResourceSectionStatus.PROVEN
         runtime_submission_items = [
             item
@@ -665,7 +791,10 @@ def build_resource_inventory(
             if matching_submission is None or run_id not in matching_submission.get("runtimeReceiptRefs", []):
                 raise ValueError("presentation receipt run differs from submission")
             valid_receipt = True
-        if not loader_proven:
+        if loader_not_applicable:
+            usage = UsageDisposition.ENUMERATED_ONLY
+            first_missing = "RUNTIME_OWNER"
+        elif not loader_proven:
             usage = UsageDisposition.ENUMERATED_ONLY
             first_missing = "LOADER_JOIN"
         elif not owner_proven:
@@ -705,28 +834,51 @@ def build_resource_inventory(
             },
         )
         format_section = ResourceSection(
-            ResourceSectionStatus.CANDIDATE,
+            ResourceSectionStatus.PROVEN if adjudication is not None else ResourceSectionStatus.CANDIDATE,
             {
                 "extension": PurePosixPath(path).suffix.lower(),
-                "detectedFormat": _format_for_path(path),
-                "detector": "EXTENSION_ONLY",
-                "evidence": (f"manifest-path:{path}",),
+                "detectedFormat": (
+                    "WINDOWS_INTERNET_SHORTCUT"
+                    if adjudication is not None
+                    else _format_for_path(path)
+                ),
+                "detector": "CONTENT_SIGNATURE" if adjudication is not None else "EXTENSION_ONLY",
+                "evidence": (
+                    _evidence("adjudication.evidence", adjudication.get("evidence"))
+                    if adjudication is not None
+                    else (f"manifest-path:{path}",)
+                ),
             },
         )
+        source = {
+            "status": "PROVEN",
+            "kind": "ORIGINAL_PAYLOAD_FILE",
+            "rootId": root_id,
+            "relativePosixPath": path,
+            "contentSha256": entry.content_sha256,
+            "byteSize": entry.byte_size,
+            "evidence": (f"tree-manifest:{path}",),
+        }
+        if adjudication is not None:
+            source.update(
+                originalName=_text("adjudication.originalName", adjudication.get("originalName")),
+                originalNameEncoding=_text(
+                    "adjudication.originalNameEncoding", adjudication.get("originalNameEncoding")
+                ),
+                originalNameBytesHex=_text(
+                    "adjudication.originalNameBytesHex", adjudication.get("originalNameBytesHex")
+                ),
+                targetUrl=_text("adjudication.targetUrl", adjudication.get("targetUrl")),
+                adjudicationEvidence=_evidence(
+                    "adjudication.evidence", adjudication.get("evidence")
+                ),
+            )
         file_candidate_id = f"TREE_FILE:{root_id}:{path}"
         rows.append(
             ResourceInventoryRow(
                 row=row,
                 row_kind=ResourceRowKind.TREE_FILE,
-                source={
-                    "status": "PROVEN",
-                    "kind": "ORIGINAL_PAYLOAD_FILE",
-                    "rootId": root_id,
-                    "relativePosixPath": path,
-                    "contentSha256": entry.content_sha256,
-                    "byteSize": entry.byte_size,
-                    "evidence": (f"tree-manifest:{path}",),
-                },
+                source=source,
                 format=format_section,
                 category=category,
                 path_resolution=path_resolution,
@@ -1042,6 +1194,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reconciliation", type=Path, required=True)
     parser.add_argument("--evidence-manifest", type=Path, required=True)
     parser.add_argument("--source-manifest", type=Path, required=True)
+    parser.add_argument("--adjudications", type=Path)
     args = parser.parse_args(argv)
     evidence = load_resources_evidence_manifest(args.evidence_manifest)
     if args.input.resolve() != evidence.raw_path:
@@ -1051,6 +1204,16 @@ def main(argv: list[str] | None = None) -> int:
     source_manifest = SourceManifest.load(args.source_manifest)
     root_id, entries = _tree_entries_from_source_manifest(
         evidence.source_manifest_path, evidence.tree_manifest_path
+    )
+    adjudications = (
+        load_resource_adjudications(
+            args.adjudications,
+            expected_root_id=root_id,
+            expected_source_manifest_sha256=evidence.source_manifest_sha256,
+            expected_tree_manifest_sha256=evidence.tree_manifest_sha256,
+        )
+        if args.adjudications is not None
+        else {}
     )
     payload = json.loads(args.source_manifest.read_text(encoding="utf-8"))
     repository_sha = _sha256(
@@ -1063,6 +1226,7 @@ def main(argv: list[str] | None = None) -> int:
         raw,
         entries,
         root_id=root_id,
+        adjudications=adjudications,
         expected_exporter_sha256=evidence.exporter_sha256,
         expected_repository_sha256=repository_sha,
         expected_source_manifest_sha256=evidence.source_manifest_sha256,

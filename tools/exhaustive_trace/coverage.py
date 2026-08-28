@@ -370,6 +370,14 @@ def _is_not_applicable(section: Any) -> bool:
     )
 
 
+def _has_evidence(section: Any) -> bool:
+    evidence = section.get("evidence") if isinstance(section, Mapping) else None
+    return bool(
+        isinstance(evidence, (list, tuple))
+        and any(isinstance(item, str) and item.strip() for item in evidence)
+    )
+
+
 def _is_not_applicable_status(section: Any) -> bool:
     status = _status(section)
     return bool(status and status.startswith("NOT_APPLICABLE"))
@@ -601,6 +609,15 @@ def _audit_row(row: Mapping[str, Any], *, known_source_ids: frozenset[str]) -> C
         loader = row.get("loader")
         if not isinstance(loader, Mapping) or _status(loader) is None:
             fatal("RESOURCE_LOADER", "loader", "resource lacks loader disposition")
+        elif _is_not_applicable(loader) and _has_evidence(loader):
+            pass
+        elif _is_not_applicable_status(loader):
+            fatal(
+                "RESOURCE_LOADER",
+                "loader",
+                "NOT_APPLICABLE resource loader requires reason and evidence",
+                loader.get("evidence"),
+            )
         elif not _is_proven(loader, functions=True):
             gap("RESOURCE_LOADER", "RESOURCE_LOADER", "resource loader/runtime binding is not proven", loader.get("evidence"), "UNKNOWN" if _status(loader) == "UNKNOWN" else "PARTIAL")
         owner = row.get("owner")

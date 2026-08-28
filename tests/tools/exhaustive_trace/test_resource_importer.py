@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import copy
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from tools.exhaustive_trace.import_resources import (
     TreeManifestEntry,
     build_resource_inventory,
     build_resource_reconciliation,
+    load_resource_adjudications,
     normalize_resource_inventory,
 )
 
@@ -170,6 +173,193 @@ class ResourceImporterTests(unittest.TestCase):
             self.assertTrue(row.row.states[next(iter(row.row.states))])
             self.assertEqual(sum(row.row.states.values()), 1)
             self.assertEqual(row.first_missing_boundary, "LOADER_JOIN")
+
+    def test_hash_bound_internet_shortcut_adjudication_closes_loader_as_not_applicable(self) -> None:
+        path = "official-site.url"
+        entry = TreeManifestEntry(
+            relative_path=path,
+            content_sha256="4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+            byte_size=50,
+        )
+        adjudication = {
+            path: {
+                "schemaVersion": 1,
+                "kind": "WINDOWS_INTERNET_SHORTCUT",
+                "contentSha256": "4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+                "contentBytesHex": "5B496E7465726E657453686F72746375745D0D0A55524C3D687474703A2F2F7777772E67696E656964656E2E636F6D2F0D0A",
+                "byteSize": 50,
+                "originalName": "銀河英雄伝説VII公式サイト.url",
+                "originalNameEncoding": "CP932",
+                "originalNameBytesHex": "8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C",
+                "targetUrl": "http://www.gineiden.com/",
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "Windows shell Internet Shortcut; not a game runtime resource",
+                    "evidence": ["unit:internet-shortcut-content"],
+                },
+                "evidence": ["unit:internet-shortcut-content", "original-iso:data1.hdr"],
+            }
+        }
+
+        row = build_resource_inventory(
+            complete_raw(conservation={"treeFiles": 1}),
+            [entry],
+            root_id="original",
+            adjudications=adjudication,
+        )[0]
+
+        self.assertEqual(row.loader.status.value, "NOT_APPLICABLE")
+        self.assertEqual(row.loader.values["reason"], adjudication[path]["loader"]["reason"])
+        self.assertEqual(row.first_missing_boundary, "RUNTIME_OWNER")
+        self.assertEqual(row.format.status.value, "PROVEN")
+        self.assertEqual(row.format.values["detectedFormat"], "WINDOWS_INTERNET_SHORTCUT")
+        self.assertEqual(row.source["originalName"], "銀河英雄伝説VII公式サイト.url")
+        self.assertEqual(row.source["targetUrl"], "http://www.gineiden.com/")
+
+    def test_adjudication_file_is_bound_to_source_and_tree_manifests(self) -> None:
+        payload = {
+            "schemaVersion": 1,
+            "source": {
+                "rootId": "original",
+                "sourceManifestSha256": "1" * 64,
+                "treeManifestSha256": "2" * 64,
+            },
+            "adjudications": [
+                {
+                    "relativePosixPath": "official-site.url",
+                    "schemaVersion": 1,
+                    "kind": "WINDOWS_INTERNET_SHORTCUT",
+                    "contentSha256": "D" * 64,
+                    "contentBytesHex": "5B496E7465726E657453686F72746375745D0D0A55524C3D687474703A2F2F7777772E67696E656964656E2E636F6D2F0D0A",
+                    "byteSize": 50,
+                    "originalName": "銀河英雄伝説VII公式サイト.url",
+                    "originalNameEncoding": "CP932",
+                    "originalNameBytesHex": "8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C",
+                    "targetUrl": "http://www.gineiden.com/",
+                    "loader": {
+                        "status": "NOT_APPLICABLE",
+                        "reason": "Windows shell Internet Shortcut; not a game runtime resource",
+                        "evidence": ["unit:internet-shortcut-content"],
+                    },
+                    "evidence": ["unit:internet-shortcut-content", "original-iso:data1.hdr"],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "resource-adjudications.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_resource_adjudications(
+                path,
+                expected_root_id="original",
+                expected_source_manifest_sha256="1" * 64,
+                expected_tree_manifest_sha256="2" * 64,
+            )
+
+        self.assertEqual(set(loaded), {"official-site.url"})
+        self.assertEqual(loaded["official-site.url"]["kind"], "WINDOWS_INTERNET_SHORTCUT")
+
+    def test_not_applicable_adjudication_cannot_override_a_loader_candidate(self) -> None:
+        path = "official-site.url"
+        adjudication = {
+            path: {
+                "schemaVersion": 1,
+                "kind": "WINDOWS_INTERNET_SHORTCUT",
+                "contentSha256": "D" * 64,
+                "contentBytesHex": "5B496E7465726E657453686F72746375745D0D0A55524C3D687474703A2F2F7777772E67696E656964656E2E636F6D2F0D0A",
+                "byteSize": 50,
+                "originalName": "銀河英雄伝説VII公式サイト.url",
+                "originalNameEncoding": "CP932",
+                "originalNameBytesHex": "8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C",
+                "targetUrl": "http://www.gineiden.com/",
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "Windows shell Internet Shortcut; not a game runtime resource",
+                    "evidence": ["unit:internet-shortcut-content"],
+                },
+                "evidence": ["unit:internet-shortcut-content"],
+            }
+        }
+        raw = complete_raw(
+            conservation={"treeFiles": 1},
+            literalPathCandidates=[literal("PATH:00700000", path)],
+            loaderCandidates=[loader(path, "PATH:00700000")],
+        )
+
+        with self.assertRaisesRegex(ValueError, "conflicts with loader candidates"):
+            build_resource_inventory(
+                raw,
+                [tree_entry(path, marker="D", size=50)],
+                root_id="original",
+                adjudications=adjudication,
+            )
+
+    def test_internet_shortcut_adjudication_rejects_url_that_differs_from_content(self) -> None:
+        path = "official-site.url"
+        adjudication = {
+            path: {
+                "schemaVersion": 1,
+                "kind": "WINDOWS_INTERNET_SHORTCUT",
+                "contentSha256": "4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+                "contentBytesHex": "5B496E7465726E657453686F72746375745D0D0A55524C3D687474703A2F2F7777772E67696E656964656E2E636F6D2F0D0A",
+                "byteSize": 50,
+                "originalName": "銀河英雄伝説VII公式サイト.url",
+                "originalNameEncoding": "CP932",
+                "originalNameBytesHex": "8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C",
+                "targetUrl": "https://wrong.example/",
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "Windows shell Internet Shortcut; not a game runtime resource",
+                    "evidence": ["unit:internet-shortcut-content"],
+                },
+                "evidence": ["unit:internet-shortcut-content"],
+            }
+        }
+
+        with self.assertRaisesRegex(ValueError, "targetUrl differs from shortcut content"):
+            build_resource_inventory(
+                complete_raw(conservation={"treeFiles": 1}),
+                [
+                    TreeManifestEntry(
+                        relative_path=path,
+                        content_sha256="4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+                        byte_size=50,
+                    )
+                ],
+                root_id="original",
+                adjudications=adjudication,
+            )
+
+    def test_resource_adjudication_rejects_unknown_fields(self) -> None:
+        path = "official-site.url"
+        adjudication = {
+            path: {
+                "schemaVersion": 1,
+                "kind": "WINDOWS_INTERNET_SHORTCUT",
+                "contentSha256": "D" * 64,
+                "contentBytesHex": "5B496E7465726E657453686F72746375745D0D0A55524C3D687474703A2F2F7777772E67696E656964656E2E636F6D2F0D0A",
+                "byteSize": 50,
+                "originalName": "銀河英雄伝説VII公式サイト.url",
+                "originalNameEncoding": "CP932",
+                "originalNameBytesHex": "8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C",
+                "targetUrl": "http://www.gineiden.com/",
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "Windows shell Internet Shortcut; not a game runtime resource",
+                    "evidence": ["unit:internet-shortcut-content"],
+                },
+                "evidence": ["unit:internet-shortcut-content"],
+                "unsupportedClaim": "must not be ignored",
+            }
+        }
+
+        with self.assertRaisesRegex(ValueError, "unknown resource adjudication fields"):
+            build_resource_inventory(
+                complete_raw(conservation={"treeFiles": 1}),
+                [tree_entry(path, marker="D", size=50)],
+                root_id="original",
+                adjudications=adjudication,
+            )
 
     def test_tree_paths_are_safe_and_casefold_unique(self) -> None:
         for path in ("../escape.tga", "/absolute.tga", "data\\bad.tga", "./dot.tga"):

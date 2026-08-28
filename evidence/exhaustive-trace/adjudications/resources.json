@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "rootId": "original-installshield-payload",
+    "sourceManifestSha256": "A6C4A96639117C5F2F7F036E389963269E95141B607808ADFACDA9750C3A05F3",
+    "treeManifestSha256": "B8487B3967F486DA9559EF30CE244EAF7F5886F3EB9CB1980A4A049BF0A63B71"
+  },
+  "adjudications": [
+    {
+      "relativePosixPath": "_____p_y_`__vii_____t_c_g.url",
+      "schemaVersion": 1,
+      "kind": "WINDOWS_INTERNET_SHORTCUT",
+      "contentSha256": "4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+      "contentBytesHex": "5B496E7465726E657453686F72746375745D0D0A55524C3D687474703A2F2F7777772E67696E656964656E2E636F6D2F0D0A",
+      "byteSize": 50,
+      "originalName": "銀河英雄伝説VII公式サイト.url",
+      "originalNameEncoding": "CP932",
+      "originalNameBytesHex": "8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C",
+      "targetUrl": "http://www.gineiden.com/",
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client scope: this hash-bound file is a Windows shell Internet Shortcut installed for user navigation, not a G7MTClient runtime resource format; exact filename, URL, and .url references are absent from the hash-bound client surfaces.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:1DFEC1FA0ADCE4B0",
+          "original-payload-sha256:4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+          "resources-ghidra-sha256:CA05628995627EA0F21B400367CDFD5745A765987775579E2DF8D2195C593AC7",
+          "functions-ghidra-sha256:11B52C0D538773B24BEAC68F946EFD663BA96E5931BFBA5BD715600E269807E5",
+          "pe-imports-sha256:E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE"
+        ]
+      },
+      "evidence": [
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "tree-manifest:LOGH7/_____p_y_`__vii_____t_c_g.url",
+        "content-signature:[InternetShortcut]+URL",
+        "installshield-original-name-cp932:8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C"
+      ]
+    }
+  ]
+}

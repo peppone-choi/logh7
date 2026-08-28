@@ -152,6 +152,7 @@ $checkedDomains = Join-Path $projectRoot "evidence\exhaustive-trace\domains"
 $sourceManifest = Join-Path $projectRoot "docs\reverse-engineering\exhaustive-trace\source-manifest.json"
 $domainConfig = Join-Path $projectRoot "docs\reverse-engineering\exhaustive-trace\domains.json"
 $characterBoundary = Join-Path $projectRoot "docs\new-design\2026-08-27-original-character-roster-recovery-boundary.md"
+$resourceAdjudications = Join-Path $projectRoot "evidence\exhaustive-trace\adjudications\resources.json"
 $expectedInventoryNames = @("authority.jsonl", "entities.jsonl", "functions.jsonl", "protocol.jsonl", "resources.jsonl", "ui.jsonl")
 $expectedReconciliationNames = @("authority-reconciliation.json", "entities-reconciliation.json", "functions-reconciliation.json", "protocol-reconciliation.json", "resources-reconciliation.json", "ui-reconciliation.json")
 $expectedDomainNames = 1..16 | ForEach-Object { "D{0:D2}.json" -f $_ }
@@ -182,14 +183,18 @@ function Build-FoundationChain([string]$Run) {
         @{ name="functions"; module="import_functions"; input="functions-ghidra.json"; evidence="functions-evidence-manifest.json"; output="functions.jsonl"; reconciliation="functions-reconciliation.json" }
     )
     foreach ($entry in $imports) {
-        Invoke-Python -Label "$([IO.Path]::GetFileName($Run))-$($entry.name)" -Arguments @(
+        $importArguments = @(
             "-B", "-m", "tools.exhaustive_trace.$($entry.module)",
             "--input", (Join-Path $raw $entry.input),
             "--output", (Join-Path $inventories $entry.output),
             "--reconciliation", (Join-Path $reconciliations $entry.reconciliation),
             "--evidence-manifest", (Join-Path $raw $entry.evidence),
             "--source-manifest", $sourceManifest
-        ) | Out-Null
+        )
+        if ($entry.name -eq "resources") {
+            $importArguments += @("--adjudications", $resourceAdjudications)
+        }
+        Invoke-Python -Label "$([IO.Path]::GetFileName($Run))-$($entry.name)" -Arguments $importArguments | Out-Null
     }
     Invoke-Python -Label "$([IO.Path]::GetFileName($Run))-authority" -Arguments @(
         "-B", "-m", "tools.exhaustive_trace.import_authority",
@@ -287,7 +292,7 @@ function Assert-AssignmentConservation([string]$Run) {
 }
 
 $protectedFiles = [Collections.Generic.List[string]]::new()
-foreach ($path in @($sourceManifest, $domainConfig, $characterBoundary, $MyInvocation.MyCommand.Path)) { $protectedFiles.Add($path) }
+foreach ($path in @($sourceManifest, $domainConfig, $characterBoundary, $resourceAdjudications, $MyInvocation.MyCommand.Path)) { $protectedFiles.Add($path) }
 foreach ($path in Get-ChildItem -LiteralPath $raw -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in Get-ChildItem -LiteralPath $checkedInventories -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in Get-ChildItem -LiteralPath $checkedDomains -File) { $protectedFiles.Add($path.FullName) }
@@ -367,7 +372,7 @@ try {
         }
     }
     $firstUnit = $workPackages.recoveryUnits[0]
-    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:1DFEC1FA0ADCE4B0" $firstUnit.unitId "first unit"
+    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:C7063B6F6EE54AC7" $firstUnit.unitId "first unit"
     Assert-Equal 0 $workPackages.conservation.uncoveredOpenRowCount "uncovered recovery rows"
     Assert-Equal 0 $workPackages.conservation.confirmedGameplayFeatureCount "confirmed gameplay features"
     Assert-Equal 0 $workPackages.conservation.maxLiveInputCount "live input count"
