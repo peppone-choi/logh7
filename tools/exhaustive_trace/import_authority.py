@@ -164,12 +164,25 @@ def _scan_root(label: str, root: Path, provenance: str) -> tuple[dict[str, Any],
 
 
 def _surface_payload(raw: Mapping[str, Any]) -> dict[str, Any]:
+    upstream = {
+        name: {
+            "sha256": item["sha256"],
+            "rowCount": item["rowCount"],
+        }
+        for name, item in raw["upstream"].items()
+    }
+    source_roots = [
+        {key: value for key, value in item.items() if key != "declaredPath"}
+        for item in raw["sourceRoots"]
+    ]
     return {
-        name: raw[name]
-        for name in (
-            "upstream", "sourceRoots", "sourceFileCandidates", "traceMarkerCandidates",
-            "requirementCandidates", "conservation", "audit",
-        )
+        "upstream": upstream,
+        "sourceRoots": source_roots,
+        "sourceFileCandidates": raw["sourceFileCandidates"],
+        "traceMarkerCandidates": raw["traceMarkerCandidates"],
+        "requirementCandidates": raw["requirementCandidates"],
+        "conservation": raw["conservation"],
+        "audit": raw["audit"],
     }
 
 

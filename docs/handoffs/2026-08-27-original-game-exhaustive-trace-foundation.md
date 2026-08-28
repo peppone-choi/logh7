@@ -1,0 +1,24 @@
+# Handoff - original game exhaustive trace foundation baseline
+
+- bounded status: `PASS_REPRODUCIBLE_BASELINE_WITH_ACKNOWLEDGED_FATAL`
+- overall goal: `INCOMPLETE`
+- aggregate receipt: `work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-verification.json`, SHA-256 `D2F4EC9D8A5AFE25387E44039DD0C150D06DAA92D39902C85ADA62B8DC6ECFFE`
+- verifier: `work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1`
+- verification: 265/265 tests with failures/errors/skips/expected-failures/unexpected-successes 0; source manifest 21 paths; two complete isolated regeneration chains; 32 canonical artifacts byte-identical to checked baseline; exact 6 inventories, 6 reconciliation sidecars, and 16 domains
+- inventories: 547 protocol + 422 UI + 237 entity + 2,194 resource + 11,497 function + 1,102 authority = 15,999
+- graph: 35,685 nodes; 92,053 edges; graph structural orphans 0; unresolved-reference nodes 6,378
+- assignment: 15,999 unique primary rows; unassigned 0; duplicate primary 0
+- coverage: 15,999 `UNKNOWN`; closed traces 0; gaps 25,609; missing-boundary occurrences 153,601; fatal 1 exactly `FEATURE_REACHABILITY_LEDGER_ABSENT`
+- recovery: 16,269 subjects; actionable 16,267; recovered 2; authoring packages 60; unaccounted 0
+- dispositions: RECOVERABLE_STATIC 15,085; RECOVERABLE_LIVE 17; ORIGINAL_SERVER_LOST 1,105; AUTHORING_REQUIRED 60; RECOVERED_ORIGINAL 2; all other buckets 0
+- feature state: confirmed 0; MOVE_GRID candidate 1 with 8 planning units; `INFERRED`, `UNADJUDICATED`, `coveragePromotion=false`
+- implementation state: confirmed implementation units 0; candidate target-bearing implementation-planning units 7; live-action units 0
+- reproducibility repair: authority semantic surface now excludes staging paths while retaining hash/tree identity and raw path validation; focused authority tests 36/36
+- first unit: `RECOVERY:D01:RESOURCE_LOADER:1DFEC1FA0ADCE4B0`, path ``RESOURCE:FILE:original-installshield-payload:_____p_y_`__vii_____t_c_g.url``, `NOT_STARTED`, `NOT_AUTHORIZED_BY_BASELINE`
+- runtime actions: VM 0; original EXE 0; debugger attach 0; memory read/write 0; physical input 0; server/protocol/database mutations 0; VM lifecycle 0
+- independent review: sealed aggregate receipt retains pre-review `UNSEEN`; separate metrics, safety, and one-run full-execution reviews are `APPROVE`; preserved execution receipt SHA `EE453CCE7AE62407256AA4A83A896BDCB479A9EC5D39FE899B2AD14175CEAB02`; review index `work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-independent-review.json`
+- report: `work/20260827-original-game-exhaustive-trace-foundation/report/foundation-report.md`
+- summary: `docs/reverse-engineering/exhaustive-trace/inventory-summary.md`
+- next start: only after user direction, begin the exact dependency-ordered unit or explicitly re-prioritize with a recorded ruling; baseline publication itself authorizes neither
+- forbidden promotion: do not call the foundation, original client, MOVE_GRID, gameplay, authority, persistence, both factions, roster, world content, Gate-A, Gate-B, or final game complete
+- forbidden retry: no automatic next unit, VM/live action, permit reuse, auto-click/retry, hash-chasing rerun, checked-artifact overwrite-before-compare, unresolved-row erasure, fatal masking, candidate promotion, auto-authoring, or retrospective receipt edit

@@ -123,16 +123,19 @@ def write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
 
 def refresh_surface(raw: dict[str, object]) -> None:
     surface = {
-        name: raw[name]
-        for name in (
-            "upstream",
-            "sourceRoots",
-            "sourceFileCandidates",
-            "traceMarkerCandidates",
-            "requirementCandidates",
-            "conservation",
-            "audit",
-        )
+        "upstream": {
+            name: {"sha256": item["sha256"], "rowCount": item["rowCount"]}
+            for name, item in raw["upstream"].items()
+        },
+        "sourceRoots": [
+            {key: value for key, value in item.items() if key != "declaredPath"}
+            for item in raw["sourceRoots"]
+        ],
+        "sourceFileCandidates": raw["sourceFileCandidates"],
+        "traceMarkerCandidates": raw["traceMarkerCandidates"],
+        "requirementCandidates": raw["requirementCandidates"],
+        "conservation": raw["conservation"],
+        "audit": raw["audit"],
     }
     payload = json.dumps(
         surface, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -696,6 +699,48 @@ class AuthorityImporterTests(unittest.TestCase):
         reconciliation_a.pop("sourceSurfaceSha256")
         reconciliation_b.pop("sourceSurfaceSha256")
         self.assertEqual(reconciliation_a, reconciliation_b)
+
+    def test_semantic_surface_and_reconciliation_ignore_staging_paths(self) -> None:
+        alternate = self.root / "alternate"
+        alternate_server = alternate / "apps" / "server"
+        alternate_contracts = alternate / "contracts"
+        alternate_database = alternate / "db"
+        alternate_server.mkdir(parents=True)
+        alternate_contracts.mkdir()
+        (alternate_database / "migrations").mkdir(parents=True)
+        (alternate_database / "seeds").mkdir()
+        alternate_protocol = alternate / "protocol.jsonl"
+        alternate_entities = alternate / "entities.jsonl"
+        alternate_ui = alternate / "ui.jsonl"
+        alternate_protocol.write_bytes(self.protocol.read_bytes())
+        alternate_entities.write_bytes(self.entities.read_bytes())
+        alternate_ui.write_bytes(self.ui.read_bytes())
+
+        raw_a = self.build_raw()
+        raw_b = build_authority_source(
+            server_root=alternate_server,
+            contracts_root=alternate_contracts,
+            database_root=alternate_database,
+            protocol_inventory=alternate_protocol,
+            entity_inventory=alternate_entities,
+            ui_inventory=alternate_ui,
+        )
+        self.assertNotEqual(
+            raw_a["upstream"]["protocol"]["path"],
+            raw_b["upstream"]["protocol"]["path"],
+        )
+        self.assertNotEqual(
+            raw_a["sourceRoots"][0]["declaredPath"],
+            raw_b["sourceRoots"][0]["declaredPath"],
+        )
+        self.assertEqual(raw_a["surfaceSha256"], raw_b["surfaceSha256"])
+        rows_a = build_authority_inventory(raw_a)
+        rows_b = build_authority_inventory(raw_b)
+        self.assertEqual(rows_a, rows_b)
+        self.assertEqual(
+            build_authority_reconciliation(raw_a, rows_a),
+            build_authority_reconciliation(raw_b, rows_b),
+        )
 
 
 if __name__ == "__main__":
