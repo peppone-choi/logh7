@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import tempfile
 import unittest
@@ -798,7 +799,7 @@ class ResourceImporterTests(unittest.TestCase):
             receipt_payload["analysis"]["headerHex"] = analysis["headerHex"]
             receipt.write_text(json.dumps(receipt_payload), encoding="utf-8")
             payload["adjudications"][0]["analysis"]["receiptSha256"] = (
-                __import__("hashlib").sha256(receipt.read_bytes()).hexdigest().upper()
+                hashlib.sha256(receipt.read_bytes()).hexdigest().upper()
             )
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "PDF operation manual referenced evidence hash mismatch"):
@@ -807,6 +808,209 @@ class ResourceImporterTests(unittest.TestCase):
                     expected_root_id="original",
                     expected_source_manifest_sha256="1" * 64,
                     expected_tree_manifest_sha256="2" * 64,
+                )
+
+    def test_hash_bound_cp932_terms_document_closes_loader_without_state_promotion(self) -> None:
+        path = "doc/terms.txt"
+        source_sha = "A" * 64
+        analysis = {
+            "status": "PROVEN",
+            "format": "CP932_TEXT",
+            "role": "ORIGINAL_SERVICE_TERMS",
+            "encoding": "CP932",
+            "title": "銀河英雄伝説Ⅶ利用規約",
+            "characterCount": 4371,
+            "lineEnding": "CRLF",
+            "receiptPath": "evidence/exhaustive-trace/adjudications/fixture.json",
+            "receiptSha256": "B" * 64,
+            "evidence": ["terms-analysis:fixture"],
+        }
+        duplicate = {
+            "status": "PROVEN",
+            "path": "evidence/installshield-extract/support/license.txt",
+            "contentSha256": source_sha,
+            "byteSize": 8376,
+            "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
+            "evidence": ["installshield-support:license.txt"],
+        }
+        adjudication = {
+            path: {
+                "schemaVersion": 1,
+                "kind": "CP932_TERMS_DOCUMENT",
+                "contentSha256": source_sha,
+                "byteSize": 8376,
+                "analysis": analysis,
+                "duplicateSource": duplicate,
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "Original installer legal document, not a G7MTClient runtime asset",
+                    "evidence": ["terms-analysis:fixture"],
+                },
+                "evidence": ["tree-manifest:doc/terms.txt", "terms-analysis:fixture"],
+            }
+        }
+
+        row = build_resource_inventory(
+            complete_raw(conservation={"treeFiles": 1}),
+            [TreeManifestEntry(path, source_sha, 8376)],
+            root_id="original",
+            adjudications=adjudication,
+        )[0]
+        normalized = normalize_resource_inventory([row])[0]
+
+        self.assertEqual(row.loader.status.value, "NOT_APPLICABLE")
+        self.assertEqual(row.format.status.value, "PROVEN")
+        self.assertEqual(row.format.values["detectedFormat"], "CP932_TEXT")
+        self.assertEqual(row.format.values["detector"], "HASH_BOUND_TEXT_ANALYSIS")
+        self.assertEqual(normalized["source"]["documentRole"], "ORIGINAL_SERVICE_TERMS")
+        self.assertEqual(normalized["source"]["textAnalysis"]["title"], "銀河英雄伝説Ⅶ利用規約")
+        self.assertEqual(normalized["source"]["duplicateSource"], duplicate)
+        self.assertEqual(row.first_missing_boundary, "RUNTIME_OWNER")
+        self.assertEqual(sum(row.row.states.values()), 1)
+
+    def test_cp932_terms_receipt_rejects_source_analysis_or_duplicate_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inspector = root / "inspect.py"
+            inspector.write_text("print('inspect')\n", encoding="utf-8")
+            duplicate_file = root / "license.txt"
+            duplicate_file.write_bytes(b"terms")
+            source_sha = hashlib.sha256(duplicate_file.read_bytes()).hexdigest().upper()
+            inspector_sha = hashlib.sha256(inspector.read_bytes()).hexdigest().upper()
+            analysis = {
+                "format": "CP932_TEXT",
+                "role": "ORIGINAL_SERVICE_TERMS",
+                "encoding": "CP932",
+                "title": "銀河英雄伝説Ⅶ利用規約",
+                "characterCount": 4371,
+                "lineEnding": "CRLF",
+            }
+            duplicate = {
+                "status": "PROVEN",
+                "path": str(duplicate_file),
+                "contentSha256": source_sha,
+                "byteSize": 5,
+                "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
+                "evidence": ["installshield-support:license.txt"],
+            }
+            receipt = root / "terms-static.json"
+            receipt_payload = {
+                "schemaVersion": 1,
+                "status": "PROVEN_STATIC",
+                "source": {"sha256": source_sha, "byteSize": 5},
+                "analysis": analysis,
+                "duplicateSource": duplicate,
+                "staticTools": {
+                    "inspector": {"path": str(inspector), "sha256": inspector_sha},
+                    "duplicate": {"path": str(duplicate_file), "sha256": source_sha},
+                },
+            }
+            receipt.write_text(json.dumps(receipt_payload), encoding="utf-8")
+            receipt_sha = hashlib.sha256(receipt.read_bytes()).hexdigest().upper()
+            payload = {
+                "schemaVersion": 1,
+                "source": {
+                    "rootId": "original",
+                    "sourceManifestSha256": "1" * 64,
+                    "treeManifestSha256": "2" * 64,
+                },
+                "adjudications": [{
+                    "relativePosixPath": "doc/terms.txt",
+                    "schemaVersion": 1,
+                    "kind": "CP932_TERMS_DOCUMENT",
+                    "contentSha256": source_sha,
+                    "byteSize": 5,
+                    "analysis": {
+                        "status": "PROVEN",
+                        **analysis,
+                        "receiptPath": str(receipt),
+                        "receiptSha256": receipt_sha,
+                        "evidence": ["terms-analysis:fixture"],
+                    },
+                    "duplicateSource": duplicate,
+                    "loader": {
+                        "status": "NOT_APPLICABLE",
+                        "reason": "Original installer legal document",
+                        "evidence": ["terms-analysis:fixture"],
+                    },
+                    "evidence": ["terms-analysis:fixture"],
+                }],
+            }
+            adjudications_path = root / "resources.json"
+            adjudications_path.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = load_resource_adjudications(
+                adjudications_path,
+                expected_root_id="original",
+                expected_source_manifest_sha256="1" * 64,
+                expected_tree_manifest_sha256="2" * 64,
+            )
+            self.assertEqual(loaded["doc/terms.txt"]["kind"], "CP932_TERMS_DOCUMENT")
+
+            for field, value, message in (
+                ("title", "Different title", "CP932 terms receipt analysis differs"),
+                ("encoding", "UTF-8", "CP932 terms receipt analysis differs"),
+                ("characterCount", 4370, "CP932 terms receipt analysis differs"),
+            ):
+                broken = copy.deepcopy(payload)
+                broken["adjudications"][0]["analysis"][field] = value
+                adjudications_path.write_text(json.dumps(broken), encoding="utf-8")
+                with self.subTest(field=field), self.assertRaisesRegex(ValueError, message):
+                    load_resource_adjudications(
+                        adjudications_path,
+                        expected_root_id="original",
+                        expected_source_manifest_sha256="1" * 64,
+                        expected_tree_manifest_sha256="2" * 64,
+                    )
+
+            broken = copy.deepcopy(payload)
+            broken["adjudications"][0]["duplicateSource"]["byteSize"] = 6
+            adjudications_path.write_text(json.dumps(broken), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "CP932 terms receipt duplicate source differs"):
+                load_resource_adjudications(
+                    adjudications_path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
+    def test_cp932_terms_adjudication_schema_is_closed(self) -> None:
+        path = "doc/terms.txt"
+        base = {
+            "schemaVersion": 1,
+            "kind": "CP932_TERMS_DOCUMENT",
+            "contentSha256": "A" * 64,
+            "byteSize": 7,
+            "analysis": {
+                "status": "PROVEN", "format": "CP932_TEXT",
+                "role": "ORIGINAL_SERVICE_TERMS", "encoding": "CP932",
+                "title": "銀河英雄伝説Ⅶ利用規約", "characterCount": 4371,
+                "lineEnding": "CRLF", "receiptPath": "fixture.json",
+                "receiptSha256": "B" * 64, "evidence": ["fixture"],
+            },
+            "duplicateSource": {
+                "status": "PROVEN", "path": "license.txt",
+                "contentSha256": "A" * 64, "byteSize": 7,
+                "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
+                "evidence": ["fixture"],
+            },
+            "loader": {"status": "NOT_APPLICABLE", "reason": "legal document", "evidence": ["fixture"]},
+            "evidence": ["fixture"],
+        }
+        for section, field in (("top", "invented"), ("analysis", "bom"), ("duplicateSource", "alias")):
+            broken = copy.deepcopy(base)
+            if section == "top":
+                broken[field] = True
+                expected = "unknown resource adjudication fields"
+            else:
+                broken[section][field] = True
+                expected = "fields differ"
+            with self.subTest(section=section), self.assertRaisesRegex(ValueError, expected):
+                build_resource_inventory(
+                    complete_raw(conservation={"treeFiles": 1}),
+                    [TreeManifestEntry(path, "A" * 64, 7)],
+                    root_id="original",
+                    adjudications={path: broken},
                 )
 
     def test_tree_paths_are_safe_and_casefold_unique(self) -> None:

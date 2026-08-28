@@ -373,6 +373,78 @@ def load_resource_adjudications(
                 bound_tool_count += 1
             if bound_tool_count == 0:
                 raise ValueError("PDF operation manual analysis receipt lacks bound static evidence")
+        elif item.get("kind") == "CP932_TERMS_DOCUMENT":
+            analysis = _mapping("CP932 terms analysis", item.get("analysis"))
+            receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
+            if not receipt_path.is_absolute():
+                receipt_path = Path.cwd() / receipt_path
+            receipt_path = receipt_path.resolve()
+            receipt_sha = _sha256("analysis.receiptSha256", analysis.get("receiptSha256"))
+            if not receipt_path.is_file() or sha256_file(receipt_path) != receipt_sha:
+                raise ValueError("CP932 terms analysis receipt hash mismatch")
+            receipt = _mapping(
+                "CP932 terms analysis receipt",
+                json.loads(receipt_path.read_text(encoding="utf-8")),
+            )
+            if receipt.get("schemaVersion") != 1 or receipt.get("status") != "PROVEN_STATIC":
+                raise ValueError("CP932 terms analysis receipt contract differs")
+            receipt_source = _mapping("CP932 terms receipt source", receipt.get("source"))
+            if (
+                _sha256("receipt.source.sha256", receipt_source.get("sha256"))
+                != _sha256("adjudication.contentSha256", item.get("contentSha256"))
+                or receipt_source.get("byteSize") != item.get("byteSize")
+            ):
+                raise ValueError("CP932 terms receipt source differs")
+            receipt_analysis = _mapping("CP932 terms receipt analysis", receipt.get("analysis"))
+            item_analysis = {
+                key: value
+                for key, value in analysis.items()
+                if key not in {"status", "receiptPath", "receiptSha256", "evidence"}
+            }
+            if receipt_analysis != item_analysis:
+                raise ValueError("CP932 terms receipt analysis differs")
+            receipt_duplicate = _mapping(
+                "CP932 terms receipt duplicateSource", receipt.get("duplicateSource")
+            )
+            item_duplicate = _mapping(
+                "CP932 terms adjudication duplicateSource", item.get("duplicateSource")
+            )
+            if receipt_duplicate != item_duplicate:
+                raise ValueError("CP932 terms receipt duplicate source differs")
+            duplicate_path = Path(_text("duplicateSource.path", item_duplicate.get("path")))
+            if not duplicate_path.is_absolute():
+                duplicate_path = Path.cwd() / duplicate_path
+            duplicate_path = duplicate_path.resolve()
+            duplicate_sha = _sha256(
+                "duplicateSource.contentSha256", item_duplicate.get("contentSha256")
+            )
+            if (
+                not duplicate_path.is_file()
+                or sha256_file(duplicate_path) != duplicate_sha
+                or duplicate_path.stat().st_size != item_duplicate.get("byteSize")
+            ):
+                raise ValueError("CP932 terms duplicate source file differs")
+            if (
+                duplicate_sha != _sha256("adjudication.contentSha256", item.get("contentSha256"))
+                or item_duplicate.get("byteSize") != item.get("byteSize")
+            ):
+                raise ValueError("CP932 terms duplicate is not byte-identical to source")
+            static_tools = _mapping("CP932 terms receipt staticTools", receipt.get("staticTools"))
+            bound_tool_count = 0
+            for label, record_value in static_tools.items():
+                if not isinstance(record_value, Mapping):
+                    continue
+                record = _mapping(f"staticTools.{label}", record_value)
+                referenced_path = Path(_text(f"staticTools.{label}.path", record.get("path")))
+                if not referenced_path.is_absolute():
+                    referenced_path = Path.cwd() / referenced_path
+                referenced_path = referenced_path.resolve()
+                expected_sha = _sha256(f"staticTools.{label}.sha256", record.get("sha256"))
+                if not referenced_path.is_file() or sha256_file(referenced_path) != expected_sha:
+                    raise ValueError("CP932 terms referenced evidence hash mismatch")
+                bound_tool_count += 1
+            if bound_tool_count == 0:
+                raise ValueError("CP932 terms analysis receipt lacks bound static evidence")
         result[relative_path] = item
     return result
 
@@ -736,6 +808,8 @@ def build_resource_inventory(
         adjudication_evidence: tuple[str, ...] = ()
         pe_analysis: Mapping[str, Any] | None = None
         pdf_analysis: Mapping[str, Any] | None = None
+        terms_analysis: Mapping[str, Any] | None = None
+        duplicate_source: dict[str, Any] | None = None
         process_launch: dict[str, Any] | None = None
         external_document_open: dict[str, Any] | None = None
         if adjudication is not None:
@@ -757,6 +831,7 @@ def build_resource_inventory(
                 },
                 "PE_EXECUTABLE_BOOTSTRAP": {"analysis", "processLaunch"},
                 "PDF_OPERATION_MANUAL": {"analysis", "externalDocumentOpen"},
+                "CP932_TERMS_DOCUMENT": {"analysis", "duplicateSource"},
             }
             if adjudication_kind not in kind_fields:
                 raise ValueError("unsupported resource adjudication kind")
@@ -875,7 +950,7 @@ def build_resource_inventory(
                     ),
                     "evidence": process_evidence,
                 }
-            else:
+            elif adjudication_kind == "PDF_OPERATION_MANUAL":
                 pdf_analysis = _mapping("adjudication.analysis", adjudication.get("analysis"))
                 expected_pdf_fields = {
                     "status", "format", "role", "headerHex", "pdfVersion", "pageCount",
@@ -962,6 +1037,62 @@ def build_resource_inventory(
                             "externalDocumentOpen.evidence", external.get("evidence")
                         ),
                     }
+            else:
+                terms_analysis = _mapping("adjudication.analysis", adjudication.get("analysis"))
+                expected_terms_fields = {
+                    "status", "format", "role", "encoding", "title", "characterCount",
+                    "lineEnding", "receiptPath", "receiptSha256", "evidence",
+                }
+                if set(terms_analysis) != expected_terms_fields:
+                    raise ValueError("CP932 terms analysis fields differ")
+                if terms_analysis.get("status") != "PROVEN":
+                    raise ValueError("CP932 terms analysis must be PROVEN")
+                if (
+                    terms_analysis.get("format") != "CP932_TEXT"
+                    or terms_analysis.get("encoding") != "CP932"
+                    or terms_analysis.get("lineEnding") != "CRLF"
+                ):
+                    raise ValueError("CP932 terms format differs")
+                if (
+                    terms_analysis.get("role") != "ORIGINAL_SERVICE_TERMS"
+                    or terms_analysis.get("title") != "銀河英雄伝説Ⅶ利用規約"
+                ):
+                    raise ValueError("CP932 terms identity differs")
+                if (
+                    not isinstance(terms_analysis.get("characterCount"), int)
+                    or terms_analysis["characterCount"] <= 0
+                ):
+                    raise ValueError("CP932 terms characterCount is invalid")
+                _text("analysis.receiptPath", terms_analysis.get("receiptPath"))
+                _sha256("analysis.receiptSha256", terms_analysis.get("receiptSha256"))
+                _evidence("analysis.evidence", terms_analysis.get("evidence"))
+                duplicate = _mapping(
+                    "adjudication.duplicateSource", adjudication.get("duplicateSource")
+                )
+                expected_duplicate_fields = {
+                    "status", "path", "contentSha256", "byteSize", "relation", "evidence",
+                }
+                if set(duplicate) != expected_duplicate_fields:
+                    raise ValueError("CP932 terms duplicateSource fields differ")
+                duplicate_sha = _sha256(
+                    "duplicateSource.contentSha256", duplicate.get("contentSha256")
+                )
+                if (
+                    duplicate.get("status") != "PROVEN"
+                    or duplicate.get("relation")
+                    != "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY"
+                    or duplicate_sha != entry.content_sha256
+                    or duplicate.get("byteSize") != entry.byte_size
+                ):
+                    raise ValueError("CP932 terms duplicate source differs")
+                duplicate_source = {
+                    "status": "PROVEN",
+                    "path": _text("duplicateSource.path", duplicate.get("path")),
+                    "contentSha256": duplicate_sha,
+                    "byteSize": int(duplicate["byteSize"]),
+                    "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
+                    "evidence": _evidence("duplicateSource.evidence", duplicate.get("evidence")),
+                }
             loader_adjudication = _mapping("adjudication.loader", adjudication.get("loader"))
             unknown_loader_fields = set(loader_adjudication) - {"status", "reason", "evidence"}
             if unknown_loader_fields:
@@ -1108,6 +1239,8 @@ def build_resource_inventory(
                     if pdf_analysis is not None
                     else str(pe_analysis.get("format"))
                     if pe_analysis is not None
+                    else str(terms_analysis.get("format"))
+                    if terms_analysis is not None
                     else _format_for_path(path)
                 ),
                 "detector": (
@@ -1117,6 +1250,8 @@ def build_resource_inventory(
                     if pdf_analysis is not None
                     else "HASH_BOUND_STATIC_ANALYSIS"
                     if pe_analysis is not None
+                    else "HASH_BOUND_TEXT_ANALYSIS"
+                    if terms_analysis is not None
                     else "EXTENSION_ONLY"
                 ),
                 "evidence": (
@@ -1186,6 +1321,23 @@ def build_resource_inventory(
                 },
                 processLaunch=process_launch,
                 adjudicationEvidence=adjudication_evidence,
+            )
+        elif terms_analysis is not None and duplicate_source is not None:
+            source.update(
+                documentRole=_text("analysis.role", terms_analysis.get("role")),
+                textAnalysis={
+                    key: value
+                    for key, value in terms_analysis.items()
+                    if key not in {"role", "receiptPath", "evidence"}
+                },
+                duplicateSource=duplicate_source,
+                adjudicationEvidence=adjudication_evidence,
+            )
+            source["textAnalysis"]["receiptPath"] = _text(
+                "analysis.receiptPath", terms_analysis.get("receiptPath")
+            )
+            source["textAnalysis"]["evidence"] = _evidence(
+                "analysis.evidence", terms_analysis.get("evidence")
             )
         file_candidate_id = f"TREE_FILE:{root_id}:{path}"
         rows.append(

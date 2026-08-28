@@ -156,6 +156,61 @@
         "installshield-shell-target:<TARGETDIR>\\doc\\銀英伝７マニュアル.pdf",
         "inspector-sha256:4F55234F6BDF22A2AA24C99818CD0D064E35E9F878560B37420EA4879C3EC1CC"
       ]
+    },
+    {
+      "relativePosixPath": "doc/___p_`vii___p_k__.txt",
+      "schemaVersion": 1,
+      "kind": "CP932_TERMS_DOCUMENT",
+      "contentSha256": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+      "byteSize": 8376,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "CP932_TEXT",
+        "role": "ORIGINAL_SERVICE_TERMS",
+        "encoding": "CP932",
+        "title": "銀河英雄伝説Ⅶ利用規約",
+        "characterCount": 4371,
+        "lineEnding": "CRLF",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/terms-of-service-static-analysis.json",
+        "receiptSha256": "34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+        "evidence": [
+          "terms-static-analysis-sha256:34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+          "strict-cp932-roundtrip:PASS",
+          "title:銀河英雄伝説Ⅶ利用規約",
+          "line-ending:130-CRLF-no-lone-newlines"
+        ]
+      },
+      "duplicateSource": {
+        "status": "PROVEN",
+        "path": "evidence/installshield-extract/_support_language_independent_os_independent_files/license.txt",
+        "contentSha256": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+        "byteSize": 8376,
+        "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
+        "evidence": [
+          "installshield-extract:_support_language_independent_os_independent_files/license.txt",
+          "sha256:BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound CP932 file is the original online-service terms duplicated as InstallShield support license.txt, not a G7MTClient data, render, audio, map, or gameplay resource. Hash-bound client, launcher, updater, and Ghidra byte surfaces contain no exact target reference; installer license.txt and SdLicense2 string co-presence does not prove an opener callflow.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B",
+          "terms-static-analysis-sha256:34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+          "installshield-data1-original-name:銀英伝VII利用規約.txt@0x00031737",
+          "setup-inx:license.txt@0x00005C16",
+          "setup-inx:SdLicense2@0x0001D5BE",
+          "installer-callflow:UNRESOLVED",
+          "g7mtclient:no-exact-target-reference-on-hash-bound-static-surfaces"
+        ]
+      },
+      "evidence": [
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "tree-manifest:LOGH7/doc/___p_`vii___p_k__.txt",
+        "installshield-original-name-cp932:8BE289709360564949979897708B4B96F12E747874",
+        "support-license-byte-identical-sha256:BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+        "inspector-sha256:ECC8D8B70463E4895BB66B13ECAA004BFBCD91421C093CC207C543227E42CD33"
+      ]
     }
   ]
 }

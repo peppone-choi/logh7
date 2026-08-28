@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "recordType": "INDEPENDENT_READ_ONLY_REVIEW",
+  "unitId": "RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B",
+  "verdict": "APPROVE",
+  "blockingFindings": [],
+  "authorReceipt": {
+    "path": "work/20260829-original-terms-resource-loader/evidence/foundation-verification.json",
+    "sha256": "CAB09AAB2674B9ADD16A5799FF8803D840DD73DD62DAD7CB38BD116E75413C3A",
+    "testsDiscovered": 288,
+    "testsPassed": 288,
+    "deterministicArtifactCount": 32,
+    "protectedInputCount": 99,
+    "protectedMismatchCount": 0
+  },
+  "checks": {
+    "termsSourceAndDuplicate": "PASS",
+    "strictCp932RoundTrip": "PASS",
+    "originalCdFilenameSurface": "PASS",
+    "setupInxStringSurfaces": "PASS",
+    "installerCallflowRemainsUnresolved": "PASS",
+    "hashBoundStaticReferenceAbsence": "PASS",
+    "closedImporterSchema": "PASS",
+    "receiptAndDuplicateBinding": "PASS",
+    "noEvidenceStatePromotion": "PASS",
+    "checkedRunARunBCurrentIdentity": "PASS",
+    "protectedInputsBeforeAfterCurrentIdentity": "PASS",
+    "sourceTreesBeforeAfterIdentity": "PASS"
+  },
+  "conservation": {
+    "sourceRows": 15999,
+    "graphNodes": 35686,
+    "graphEdges": 92055,
+    "evidenceGaps": 25605,
+    "missingBoundaryOccurrences": 153597,
+    "fatalStructuralIds": [
+      "FEATURE_REACHABILITY_LEDGER_ABSENT"
+    ]
+  },
+  "targetRow": {
+    "key": "RESOURCE:FILE:original-installshield-payload:doc/___p_`vii___p_k__.txt",
+    "loader": "NOT_APPLICABLE",
+    "trueStates": [
+      "ENUMERATED"
+    ],
+    "coverageFirstMissingBoundary": "RESOURCE_OWNER",
+    "nextSameRowUnit": "RECOVERY:D01:RESOURCE_OWNER:2676D028DBA8EC74"
+  },
+  "nextGlobalUnit": "RECOVERY:D01:RESOURCE_LOADER:E346F47C94A6E543",
+  "reviewMode": {
+    "repositoryWrites": 0,
+    "vmActions": 0,
+    "processActions": 0,
+    "serverProtocolDatabaseActions": 0
+  }
+}

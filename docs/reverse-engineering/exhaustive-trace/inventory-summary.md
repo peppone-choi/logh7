@@ -27,12 +27,12 @@ Every source row has one unique primary domain assignment. Unassigned rows: 0. D
 - Graph: 35,686 nodes and 92,055 edges.
 - Graph structural-orphan count: 0, defined by unrepresented source rows + dangling edges + unaccounted joins. This is distinct from unresolved-reference nodes (6,378).
 - Coverage verdicts: 15,999 `UNKNOWN`; closed vertical traces: 0.
-- Evidence gaps: 25,606. Expanded missing-boundary occurrences: 153,598. These are different denominators.
+- Evidence gaps: 25,605. Expanded missing-boundary occurrences: 153,597. These are different denominators.
 - Coverage structural fatal count: 1, exactly `FEATURE_REACHABILITY_LEDGER_ABSENT`.
 - Routing-unresolved rows: 15,317. This is not the recovery-actionable count.
 - Confirmed gameplay features: 0. `FEATURE:MOVE_GRID` remains one `INFERRED`, `UNADJUDICATED`, candidate package with `coveragePromotion=false` and eight candidate units.
 
-The graph file is 102,938,427 bytes, SHA-256 `0F1617D1D8C40C854F9A825CED4B69CA1D4FC47CCB316C6075A612D7A46C5F10`, graph surface `28C275C99FEBDB9F993729FEE1A2BCA34B8A7797038A6C61AE758A2A9A325918`. Coverage is 38,640,987 bytes, SHA-256 `FDF8C398BFD8A93EC88DA4C0033EC31F4277AED182FAD24E6FA662697E6D0F3D`, surface `D0A93944721FEF320B197ECACBA62AEF734CC013416D491AE482024EBEDAFB31`.
+The graph file is 102,938,429 bytes, SHA-256 `50682824F296403492991128EEBD6752934D03E351DFBFAE968D05A3138DC892`, graph surface `F55F91F0944E15377B20E8A270EFFB6EDAB233B111F6471D05931153709D5408`. Coverage is 38,640,780 bytes, SHA-256 `780A14C8BED51B254A3CEDA1E017617AA1E493DA62718FCE3C9B1923FA6FF34D`, surface `ADC3C3E528A54DF85D9727860B1E853C28D84D3BDB6E7E31026E379303BB3B6A`.
 
 ## Recovery and authoring
 
@@ -78,14 +78,16 @@ The candidate package has eight units total: one reverse-contract unit and seven
 
 ## First deterministic unit
 
-- Unit: `RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B`
-- Path: ``RESOURCE:FILE:original-installshield-payload:doc/___p_`vii___p_k__.txt``
+- Unit: `RECOVERY:D01:RESOURCE_LOADER:E346F47C94A6E543`
+- Path: `RESOURCE:FILE:original-installshield-payload:exe/g7mtclient.exe`
 - Boundary: `RESOURCE_LOADER`
 - Disposition: `RECOVERABLE_STATIC`
 - State: `NOT_STARTED`
 - Authorization: `NOT_AUTHORIZED_BY_BASELINE`
 
 This is the mechanical first unit from domain dependency order and deterministic tie-breaking. It is not a recommendation, original-feature proof, or permission to start automatically.
+
+The preceding TXT terms unit `RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B` is closed only for the G7MTClient `RESOURCE_LOADER` boundary as `NOT_APPLICABLE`; its next same-row boundary is `RECOVERY:D01:RESOURCE_OWNER:2676D028DBA8EC74`. No evidence-state boolean was promoted.
 
 ## Unproved completion claims
 
