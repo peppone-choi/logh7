@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "provenance": "SYNTHETIC_FIXTURE",
+  "captureStartedAtUtc": "2026-08-29T00:00:00.0000000Z",
+  "observedAtUtc": "2026-08-29T00:00:00.1000000Z",
+  "captureCompletedAtUtc": "2026-08-29T00:00:00.2000000Z",
+  "process": {
+    "pid": 3448,
+    "startTimeUtc": "2026-08-25T15:47:31.9489446Z",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "moduleBase": "0x00400000",
+    "hwnd": "0x001A0490",
+    "hwndOwnerPid": 3448,
+    "clientWidth": 1024,
+    "clientHeight": 822
+  },
+  "uiRoot": {
+    "pointer": "0x055529F0",
+    "builderMode": 2,
+    "handlerState": 1,
+    "registryPointer": "0x09255020"
+  },
+  "strategyOwner": {
+    "pointer": "0x00C9E638",
+    "firstManagerPointer": "0x0D6B4930",
+    "firstManagerId": 106,
+    "firstManagerRegistryPointer": "0x09255020",
+    "registrySlot106Pointer": "0x0D6B4930",
+    "manager65ControllerPointer": "0x00C9E768",
+    "manager65Pointer": "0x0BE60E40",
+    "manager65Id": 101,
+    "manager65Active": 0,
+    "manager65InputGate": 0,
+    "manager65Page": 1,
+    "manager65BoundCardId": -1,
+    "registrySlot101Pointer": "0x0BE60E40",
+    "manager67ControllerPointer": "0x00C9EAC4",
+    "manager67Pointer": "0x0D56CD50",
+    "manager67Id": 103,
+    "manager67Active": 0,
+    "manager67InputGate": 0,
+    "manager67Page": 1,
+    "registrySlot103Pointer": "0x0D56CD50"
+  },
+  "snapshotStable": true,
+  "originalRuntimeObserved": false,
+  "permitIssued": false,
+  "operations": {
+    "memoryReads": "READ_ONLY",
+    "memoryReadCount": 34,
+    "writes": 0,
+    "gameInputs": 0,
+    "breakpointsInstalled": 0
+  }
+}

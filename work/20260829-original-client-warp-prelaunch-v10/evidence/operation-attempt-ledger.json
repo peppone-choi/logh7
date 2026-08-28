@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "counterSemantics": {
+    "guestWorkloadAttempt": "one requested guest-side observation, collector execution, diagnostic execution, or guest-file snapshot action; transport copy subcalls are not counted separately",
+    "guestTransportCallCount": "NOT_INSTRUMENTED_BEFORE_THIS_LEDGER",
+    "capture": "owned-HWND visual capture only"
+  },
+  "attempts": [
+    {"ordinal":1,"operation":"LIST_PROCESSES_IN_GUEST","outcome":"PASS","processMemoryReads":0},
+    {"ordinal":2,"operation":"FRESH_IDENTITY_A","outcome":"PASS","processMemoryReads":0},
+    {"ordinal":3,"operation":"GUEST_PORT_47900_BINDING","outcome":"PASS","processMemoryReads":0},
+    {"ordinal":4,"operation":"TRACE2_GUEST_FILE_SNAPSHOT","outcome":"PASS","processMemoryReads":0},
+    {"ordinal":5,"operation":"MANAGER67_READONLY_CAPTURE","outcome":"INELIGIBLE_RECEIPT_PUBLISHED","processMemoryReads":236},
+    {"ordinal":6,"operation":"MANAGER65_READONLY_CAPTURE","outcome":"INELIGIBLE_RECEIPT_PUBLISHED","processMemoryReads":56},
+    {"ordinal":7,"operation":"ROOT_ROLE_CAPTURE_STALE_MAINWINDOW_GATE","outcome":"STOPPED_BEFORE_OPENPROCESS","processMemoryReads":0},
+    {"ordinal":8,"operation":"ROOT_ROLE_DIAGNOSTIC_STALE_MAINWINDOW_GATE","outcome":"STOPPED_BEFORE_OPENPROCESS","processMemoryReads":0},
+    {"ordinal":9,"operation":"FRESH_IDENTITY_SESSION0_B","outcome":"WRONG_GUEST_SESSION_ENVELOPE","processMemoryReads":0},
+    {"ordinal":10,"operation":"INTERACTIVE_IDENTITY_DIRECT_LAUNCH","outcome":"VMRUN_FAILED_BEFORE_HELPER_START","processMemoryReads":0},
+    {"ordinal":11,"operation":"INTERACTIVE_IDENTITY_DIAGNOSTIC_LAUNCH","outcome":"VMRUN_FAILED_BEFORE_HELPER_START","processMemoryReads":0},
+    {"ordinal":12,"operation":"ROOT_ROLE_CAPTURE_WIN32_HWND_GATE","outcome":"STOPPED_BEFORE_OPENPROCESS","processMemoryReads":0},
+    {"ordinal":13,"operation":"FRESH_IDENTITY_ACTIVEWINDOW_SESSION0_D","outcome":"WRONG_GUEST_SESSION_ENVELOPE","processMemoryReads":0}
+  ],
+  "aggregate": {
+    "hostObservations": 2,
+    "guestWorkloadAttempts": 13,
+    "guestTransportCalls": "NOT_INSTRUMENTED_BEFORE_THIS_LEDGER",
+    "readOnlyProcessMemoryReads": 292,
+    "processMemoryWrites": 0,
+    "debuggerAttachCount": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "ownedHwndCaptures": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "physicalActivations": 0,
+    "permitIssuance": 0,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  },
+  "claimCeiling": "EARLY_ATTEMPTS_LACK_EXACT_VMWARE_TRANSPORT_CALL_INSTRUMENTATION_BUT_ALL_STATE_CHANGING_COUNTERS_ARE_ZERO"
+}

@@ -1,0 +1,65 @@
+{
+    "schemaVersion":  1,
+    "provenance":  "LIVE_READONLY",
+    "observedAtUtc":  "2026-08-28T17:29:36.4627964Z",
+    "desktop":  {
+                    "guestUser":  "logh7-oracle",
+                    "computerName":  "LOGH7-ORACLE-HD",
+                    "sessionId":  0,
+                    "interactive":  true,
+                    "foregroundHwnd":  "0x0000000000000000"
+                },
+    "processes":  [
+                      {
+                          "role":  "CLIENT",
+                          "name":  "G7MTClient",
+                          "pid":  3448,
+                          "startTimeUtc":  "2026-08-25T15:47:31.9489446Z",
+                          "executablePath":  "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+                          "executableSha256":  "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+                          "responding":  true,
+                          "moduleBase":  "0x00400000",
+                          "moduleSize":  49643520,
+                          "mainWindowHandle":  "0x0000000000000000"
+                      },
+                      {
+                          "role":  "DEBUGGER",
+                          "name":  "x32dbg",
+                          "pid":  6548,
+                          "startTimeUtc":  "2026-08-27T03:40:33.7883244Z",
+                          "executablePath":  "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+                          "executableSha256":  "42CF419B3549332AF44A8500E99085A0C590547CAE6950623FE592EA885711C6",
+                          "responding":  true,
+                          "moduleBase":  "0x00A00000",
+                          "moduleSize":  65536,
+                          "mainWindowHandle":  "0x0000000000000000"
+                      }
+                  ],
+    "windows":  [
+
+                ],
+    "network":  {
+                    "targetPid":  3448,
+                    "serverPort":  47900,
+                    "connections":  [
+                                        {
+                                            "protocol":  "TCP",
+                                            "localEndpoint":  "202.8.80.179:49722",
+                                            "remoteEndpoint":  "202.8.80.179:47900",
+                                            "state":  "ESTABLISHED",
+                                            "pid":  3448
+                                        }
+                                    ]
+                },
+    "operations":  {
+                       "guestOperations":  1,
+                       "processMemoryReads":  0,
+                       "processMemoryWrites":  0,
+                       "debuggerCommands":  0,
+                       "breakpointsInstalled":  0,
+                       "gameInputs":  0,
+                       "automaticInputs":  0,
+                       "captures":  0,
+                       "permitIssued":  false
+                   }
+}

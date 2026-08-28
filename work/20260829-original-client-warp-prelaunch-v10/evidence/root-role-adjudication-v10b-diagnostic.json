@@ -1,0 +1,8 @@
+﻿{
+    "status":  "FAIL",
+    "exceptionType":  "System.Management.Automation.RuntimeException",
+    "message":  "HWND is not a live window.",
+    "scriptName":  "C:\\LOGH7_ORACLE\\collect-root-role-adjudication-v10.ps1",
+    "scriptLineNumber":  58,
+    "positionMessage":  "At C:\\LOGH7_ORACLE\\collect-root-role-adjudication-v10.ps1:58 char:47\r\n+ ... tRoleNative]::IsWindow($hwnd)) { throw \u0027HWND is not a live window.\u0027 }\r\n+                                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+}

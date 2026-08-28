@@ -1,0 +1,4 @@
+{"ts":"2026-08-29T00:00:02.000Z","event":"frame-received","connectionId":3,"codeHex":"0x0030","length":42,"bodyBytes":40}
+{"ts":"2026-08-29T00:00:02.010Z","event":"0030-decoded","connectionId":3,"id":1688,"innerCodeHex":"0x0f08","innerLen":28,"checksumMismatch":false}
+{"ts":"2026-08-29T00:00:02.020Z","event":"world-response-sent","connectionId":3,"kind":"admission","codes":["0x0f09"],"reqCode":"0x0f08","responseCount":1}
+{"schemaVersion":1,"runId":"fixture-run","eventId":"fixture-event","source":"server","stage":"world-response-sent","connectionId":3,"processId":8668,"wallTimeUtc":"2026-08-29T00:00:02.021Z","outcome":"ok"}

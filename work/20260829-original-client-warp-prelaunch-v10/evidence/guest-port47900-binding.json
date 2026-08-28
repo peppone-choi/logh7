@@ -1,0 +1,71 @@
+{
+    "schemaVersion":  1,
+    "provenance":  "LIVE_READONLY",
+    "observedAtUtc":  "2026-08-28T17:09:20.1581528Z",
+    "computerName":  "LOGH7-ORACLE-HD",
+    "port":  47900,
+    "rows":  [
+                 {
+                     "protocol":  "TCP",
+                     "localEndpoint":  "127.0.0.1:47900",
+                     "remoteEndpoint":  "0.0.0.0:0",
+                     "state":  "LISTENING",
+                     "pid":  3232
+                 },
+                 {
+                     "protocol":  "TCP",
+                     "localEndpoint":  "202.8.80.179:47900",
+                     "remoteEndpoint":  "0.0.0.0:0",
+                     "state":  "LISTENING",
+                     "pid":  8668
+                 },
+                 {
+                     "protocol":  "TCP",
+                     "localEndpoint":  "202.8.80.179:47900",
+                     "remoteEndpoint":  "202.8.80.179:49722",
+                     "state":  "ESTABLISHED",
+                     "pid":  8668
+                 },
+                 {
+                     "protocol":  "TCP",
+                     "localEndpoint":  "202.8.80.179:49722",
+                     "remoteEndpoint":  "202.8.80.179:47900",
+                     "state":  "ESTABLISHED",
+                     "pid":  3448
+                 }
+             ],
+    "processes":  [
+                      {
+                          "pid":  3232,
+                          "name":  "svchost",
+                          "path":  null,
+                          "sha256":  null,
+                          "startTimeUtc":  null,
+                          "commandLine":  null
+                      },
+                      {
+                          "pid":  3448,
+                          "name":  "G7MTClient",
+                          "path":  "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+                          "sha256":  "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+                          "startTimeUtc":  "2026-08-25T15:47:31.9489446Z",
+                          "commandLine":  "\"C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe\" "
+                      },
+                      {
+                          "pid":  8668,
+                          "name":  "node",
+                          "path":  "\\\\vmware-host\\shared folders\\hostnode\\node.exe",
+                          "sha256":  "0B0BE4B64648E4F01803B9582AAFCE9D0F648B1115083ABBDD55351CAE38BDE1",
+                          "startTimeUtc":  "2026-08-25T15:46:01.3589492Z",
+                          "commandLine":  "\"\\\\vmware-host\\shared folders\\hostnode\\node.exe\" .\\.omo\\tmp\\vm-oracle-20260825t111834\\launch-unit5-fullserver.mjs .\\accounts.json .\\fixture.sqlite .\\trace2.jsonl "
+                      }
+                  ],
+    "operations":  {
+                       "guestOperations":  1,
+                       "processMemoryReads":  0,
+                       "processMemoryWrites":  0,
+                       "debuggerCommands":  0,
+                       "gameInputs":  0,
+                       "permitIssued":  false
+                   }
+}

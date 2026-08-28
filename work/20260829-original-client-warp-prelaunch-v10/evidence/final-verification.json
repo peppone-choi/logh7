@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "verdict": "PRELAUNCH_V10_BLOCKED_BEFORE_ATTACH_OR_INPUT",
+  "artifactLedgerSha256": "B8BC60F3B16F3558D15AF92681B368493244CCD571F5A88958515A5C9B0D188D",
+  "artifactCount": 17,
+  "testReceipts": [
+    {
+      "path": "tests/test-evaluate-fresh-run-identity.ps1",
+      "receipt": {
+        "result": "PASS",
+        "cases": 20,
+        "assertions": 30,
+        "mutations": 19
+      }
+    },
+    {
+      "path": "tests/test-netstat-port47900-parser.ps1",
+      "receipt": {
+        "result": "PASS",
+        "cases": 1,
+        "assertions": 13
+      }
+    },
+    {
+      "path": "tests/test-evaluate-heartbeat-binding.ps1",
+      "receipt": {
+        "result": "PASS",
+        "cases": 10,
+        "assertions": 20,
+        "mutations": 9
+      }
+    },
+    {
+      "path": "tests/test-ps51-collector-compatibility.ps1",
+      "receipt": {
+        "result": "PASS",
+        "cases": 2,
+        "assertions": 5
+      }
+    },
+    {
+      "path": "tests/test-evaluate-root-role-adjudication.ps1",
+      "receipt": {
+        "status": "PASS",
+        "cases": 27,
+        "assertions": 87,
+        "mutations": 23
+      }
+    },
+    {
+      "path": "tests/test-root-role-collector-contract.ps1",
+      "receipt": {
+        "status": "PASS",
+        "assertions": 23
+      }
+    }
+  ],
+  "assertions": 92,
+  "operationCounters": {
+    "hostObservations": 2,
+    "guestWorkloadAttempts": 13,
+    "guestTransportCalls": "NOT_INSTRUMENTED_BEFORE_THIS_LEDGER",
+    "readOnlyProcessMemoryReads": 292,
+    "processMemoryWrites": 0,
+    "debuggerAttachCount": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "ownedHwndCaptures": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "physicalActivations": 0,
+    "permitIssuance": 0,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  }
+}

@@ -1,0 +1,204 @@
+{
+    "schemaVersion":  1,
+    "provenance":  "LIVE_READONLY",
+    "observedAtUtc":  "2026-08-28T17:04:07.1655894Z",
+    "desktop":  {
+                    "guestUser":  "logh7-oracle",
+                    "computerName":  "LOGH7-ORACLE-HD",
+                    "sessionId":  1,
+                    "interactive":  true,
+                    "foregroundHwnd":  "0x00000000009B0526"
+                },
+    "processes":  [
+                      {
+                          "role":  "CLIENT",
+                          "name":  "G7MTClient",
+                          "pid":  3448,
+                          "startTimeUtc":  "2026-08-25T15:47:31.9489446Z",
+                          "executablePath":  "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+                          "executableSha256":  "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+                          "responding":  true,
+                          "moduleBase":  "0x00400000",
+                          "moduleSize":  49643520,
+                          "mainWindowHandle":  "0x00000000001A0490"
+                      },
+                      {
+                          "role":  "DEBUGGER",
+                          "name":  "x32dbg",
+                          "pid":  6548,
+                          "startTimeUtc":  "2026-08-27T03:40:33.7883244Z",
+                          "executablePath":  "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+                          "executableSha256":  "42CF419B3549332AF44A8500E99085A0C590547CAE6950623FE592EA885711C6",
+                          "responding":  true,
+                          "moduleBase":  "0x00A00000",
+                          "moduleSize":  65536,
+                          "mainWindowHandle":  "0x0000000000030666"
+                      }
+                  ],
+    "windows":  [
+                    {
+                        "hwnd":  "0x00000000001A0490",
+                        "ownerPid":  3448,
+                        "foreground":  false,
+                        "visible":  true,
+                        "title":  "銀河英雄伝説Ⅶ",
+                        "class":  "Afx:400000:0:0:6:0",
+                        "windowRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  1024,
+                                           "bottom":  822
+                                       },
+                        "clientRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  1024,
+                                           "bottom":  822
+                                       }
+                    },
+                    {
+                        "hwnd":  "0x000000000001066C",
+                        "ownerPid":  6548,
+                        "foreground":  false,
+                        "visible":  false,
+                        "title":  "x32dbg",
+                        "class":  "Qt5QWindowIcon",
+                        "windowRect":  {
+                                           "left":  399,
+                                           "top":  321,
+                                           "right":  625,
+                                           "bottom":  430
+                                       },
+                        "clientRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  220,
+                                           "bottom":  80
+                                       }
+                    },
+                    {
+                        "hwnd":  "0x0000000000030666",
+                        "ownerPid":  6548,
+                        "foreground":  false,
+                        "visible":  true,
+                        "title":  "x32dbg",
+                        "class":  "Qt5QWindowIcon",
+                        "windowRect":  {
+                                           "left":  70,
+                                           "top":  56,
+                                           "right":  954,
+                                           "bottom":  695
+                                       },
+                        "clientRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  868,
+                                           "bottom":  600
+                                       }
+                    },
+                    {
+                        "hwnd":  "0x0000000000270410",
+                        "ownerPid":  3448,
+                        "foreground":  false,
+                        "visible":  false,
+                        "title":  "MSCTFIME UI",
+                        "class":  "MSCTFIME UI",
+                        "windowRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       },
+                        "clientRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       }
+                    },
+                    {
+                        "hwnd":  "0x00000000003104AA",
+                        "ownerPid":  3448,
+                        "foreground":  false,
+                        "visible":  false,
+                        "title":  "Default IME",
+                        "class":  "IME",
+                        "windowRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       },
+                        "clientRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       }
+                    },
+                    {
+                        "hwnd":  "0x000000000001067E",
+                        "ownerPid":  6548,
+                        "foreground":  false,
+                        "visible":  false,
+                        "title":  "MSCTFIME UI",
+                        "class":  "MSCTFIME UI",
+                        "windowRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       },
+                        "clientRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       }
+                    },
+                    {
+                        "hwnd":  "0x000000000002066A",
+                        "ownerPid":  6548,
+                        "foreground":  false,
+                        "visible":  false,
+                        "title":  "Default IME",
+                        "class":  "IME",
+                        "windowRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       },
+                        "clientRect":  {
+                                           "left":  0,
+                                           "top":  0,
+                                           "right":  0,
+                                           "bottom":  0
+                                       }
+                    }
+                ],
+    "network":  {
+                    "targetPid":  3448,
+                    "serverPort":  47900,
+                    "connections":  [
+                                        {
+                                            "protocol":  "TCP",
+                                            "localEndpoint":  "202.8.80.179:49722",
+                                            "remoteEndpoint":  "202.8.80.179:47900",
+                                            "state":  "ESTABLISHED",
+                                            "pid":  3448
+                                        }
+                                    ]
+                },
+    "operations":  {
+                       "guestOperations":  1,
+                       "processMemoryReads":  0,
+                       "processMemoryWrites":  0,
+                       "debuggerCommands":  0,
+                       "breakpointsInstalled":  0,
+                       "gameInputs":  0,
+                       "automaticInputs":  0,
+                       "captures":  0,
+                       "permitIssued":  false
+                   }
+}

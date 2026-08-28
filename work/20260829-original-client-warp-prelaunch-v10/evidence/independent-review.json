@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "reviewer": "prelaunch_v7_delta",
+  "reviewMode": "INDEPENDENT_READ_ONLY",
+  "verdict": "APPROVE",
+  "unitVerdict": "PRELAUNCH_V10_BLOCKED_BEFORE_ATTACH_OR_INPUT",
+  "freshVerification": {
+    "status": "PASS",
+    "repositoryWriteCount": 0,
+    "artifactHashMatches": "17/17",
+    "aggregateAssertions": 92,
+    "artifactLedgerSha256": "B8BC60F3B16F3558D15AF92681B368493244CCD571F5A88958515A5C9B0D188D",
+    "verifyScriptSha256": "62CD0745F8BA5A611AF5C6A88A5D66E03B29CF7C3BCFB37732BB46D2843556D7",
+    "storedFinalVerificationSha256": "41B6845EAE91E5F9103DDF1D3D1EB751AA48C428274D4C09FE408D218923F4AC"
+  },
+  "adjudications": [
+    "SYNTHETIC_AND_LIVE_UNREVIEWED_INPUTS_CANNOT_SET_WARP_OR_LAUNCH_ELIGIBLE",
+    "MANAGER65_IS_CURRENT_WARP_STAGE_AND_MANAGER67_IS_DORMANT_STRUCTURAL_PRIOR_STAGE_DATA",
+    "BOTH_ACTIVE_IS_MUTUALLY_EXCLUSIVE_STAGE_STATE_INCOHERENT",
+    "NESTED_STATIC_SOURCE_HASHES_RECOMPUTED_AND_MATCH",
+    "GUEST_TRANSPORT_CALL_COUNT_REMAINS_EXPLICITLY_NOT_INSTRUMENTED",
+    "ROOT_ROLE_LIVE_CAPTURE_DID_NOT_PASS_FRESH_HWND_GATE"
+  ],
+  "operationCounters": {
+    "readOnlyProcessMemoryReads": 292,
+    "processMemoryWrites": 0,
+    "debuggerAttachCount": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "ownedHwndCaptures": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "physicalActivations": 0,
+    "permitIssuance": 0,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  },
+  "validatorEdits": 0,
+  "validatorVmProcessActions": 0,
+  "transcription": "Single-writer Codex transcribed the independent validator result without changing its verdict."
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "provenance": "SYNTHETIC_FIXTURE",
+  "observedAtUtc": "2026-08-29T00:00:00.0000000Z",
+  "desktop": {"guestUser":"logh7-oracle","computerName":"LOGH7-ORACLE-HD","sessionId":1,"interactive":true,"foregroundHwnd":"0x00000000009B0526"},
+  "processes": [
+    {"role":"CLIENT","name":"G7MTClient","pid":3448,"startTimeUtc":"2026-08-25T15:47:31.9489446Z","executablePath":"C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe","executableSha256":"BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16","responding":true,"moduleBase":"0x00400000","moduleSize":6291456,"mainWindowHandle":"0x00000000001A0490"},
+    {"role":"DEBUGGER","name":"x32dbg","pid":6548,"startTimeUtc":"2026-08-27T02:20:00.0000000Z","executablePath":"C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe","executableSha256":"42CF419B3549332AF44A8500E99085A0C590547CAE6950623FE592EA885711C6","responding":true,"moduleBase":"0x00400000","moduleSize":1048576,"mainWindowHandle":"0x00000000002B03E2"}
+  ],
+  "windows": [
+    {"hwnd":"0x00000000001A0490","ownerPid":3448,"foreground":false,"visible":true,"title":"銀河英雄伝説VII","class":"G7MTClient","windowRect":{"left":0,"top":0,"right":1024,"bottom":822},"clientRect":{"left":0,"top":0,"right":1024,"bottom":822}},
+    {"hwnd":"0x00000000002B03E2","ownerPid":6548,"foreground":false,"visible":true,"title":"x32dbg","class":"Qt5152QWindowIcon","windowRect":{"left":10,"top":10,"right":900,"bottom":700},"clientRect":{"left":0,"top":0,"right":890,"bottom":690}}
+  ],
+  "network": {"targetPid":3448,"serverPort":47900,"connections":[{"protocol":"TCP","localEndpoint":"192.168.203.129:52000","remoteEndpoint":"192.168.203.1:47900","state":"ESTABLISHED","pid":3448}]},
+  "operations": {"guestOperations":1,"processMemoryReads":0,"processMemoryWrites":0,"debuggerCommands":0,"breakpointsInstalled":0,"gameInputs":0,"automaticInputs":0,"captures":0,"permitIssued":false}
+}
