@@ -361,6 +361,158 @@ class ResourceImporterTests(unittest.TestCase):
                 adjudications=adjudication,
             )
 
+    def test_hash_bound_pe_bootstrap_adjudication_preserves_process_launch_not_asset_load(self) -> None:
+        source_path = "bootfirst.exe"
+        target_path = "gin7updateclient.exe"
+        source_sha = "A" * 64
+        target_sha = "B" * 64
+        adjudication = {
+            source_path: {
+                "schemaVersion": 1,
+                "kind": "PE_EXECUTABLE_BOOTSTRAP",
+                "contentSha256": source_sha,
+                "byteSize": 40960,
+                "analysis": {
+                    "status": "PROVEN",
+                    "format": "PE32_X86_GUI_EXECUTABLE",
+                    "machine": "0x014C",
+                    "subsystem": 2,
+                    "entryPointRva": "0x00001150",
+                    "role": "UPDATE_CLIENT_BOOTSTRAP",
+                    "receiptPath": "evidence/exhaustive-trace/adjudications/fixture.json",
+                    "receiptSha256": "C" * 64,
+                    "evidence": ["ghidra:bootfirst-flow"],
+                },
+                "processLaunch": {
+                    "status": "PROVEN",
+                    "api": "KERNEL32.dll::CreateProcessA",
+                    "function": "FUN_00401000",
+                    "callsite": "0x004010B1",
+                    "targetRelativePosixPath": target_path,
+                    "targetSha256": target_sha,
+                    "executableStringVa": "0x004060A4",
+                    "waitCallsite": "0x004010BE",
+                    "exitCodeCallsite": "0x004010D2",
+                    "evidence": ["ghidra:bootfirst-flow:00401000"],
+                },
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "OS-loaded updater bootstrap process; not a G7MTClient asset format",
+                    "evidence": ["ghidra:bootfirst-flow:00401000"],
+                },
+                "evidence": ["tree-manifest:bootfirst.exe", "ghidra:bootfirst-flow"],
+            }
+        }
+
+        rows = build_resource_inventory(
+            complete_raw(conservation={"treeFiles": 2}),
+            [
+                TreeManifestEntry(source_path, source_sha, 40960),
+                TreeManifestEntry(target_path, target_sha, 1060864),
+            ],
+            root_id="original",
+            adjudications=adjudication,
+        )
+        row = next(item for item in rows if item.row.name == source_path)
+        normalized = normalize_resource_inventory([row])[0]
+
+        self.assertEqual(row.loader.status.value, "NOT_APPLICABLE")
+        self.assertEqual(row.format.status.value, "PROVEN")
+        self.assertEqual(row.format.values["detectedFormat"], "PE32_X86_GUI_EXECUTABLE")
+        self.assertEqual(normalized["source"]["staticRole"], "UPDATE_CLIENT_BOOTSTRAP")
+        self.assertEqual(
+            normalized["source"]["processLaunch"]["targetRowKey"],
+            "RESOURCE:FILE:original:gin7updateclient.exe",
+        )
+        self.assertEqual(row.first_missing_boundary, "RUNTIME_OWNER")
+        self.assertEqual(sum(row.row.states.values()), 1)
+
+    def test_pe_bootstrap_adjudication_file_rejects_static_receipt_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            receipt = root / "bootfirst-static.json"
+            receipt.write_text("{}\n", encoding="utf-8")
+            payload = {
+                "schemaVersion": 1,
+                "source": {
+                    "rootId": "original",
+                    "sourceManifestSha256": "1" * 64,
+                    "treeManifestSha256": "2" * 64,
+                },
+                "adjudications": [
+                    {
+                        "relativePosixPath": "bootfirst.exe",
+                        "schemaVersion": 1,
+                        "kind": "PE_EXECUTABLE_BOOTSTRAP",
+                        "analysis": {
+                            "receiptPath": str(receipt),
+                            "receiptSha256": "F" * 64,
+                        },
+                    }
+                ],
+            }
+            path = root / "resources.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "analysis receipt hash mismatch"):
+                load_resource_adjudications(
+                    path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
+    def test_pe_bootstrap_receipt_rejects_referenced_evidence_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            exporter = root / "Export.java"
+            exporter.write_text("final bytes\n", encoding="utf-8")
+            receipt = root / "bootfirst-static.json"
+            receipt_payload = {
+                "schemaVersion": 1,
+                "status": "PROVEN_STATIC",
+                "source": {"sha256": "A" * 64, "byteSize": 40960},
+                "staticTools": {
+                    "ghidraExporter": {
+                        "path": str(exporter),
+                        "sha256": "F" * 64,
+                    }
+                },
+            }
+            receipt.write_text(json.dumps(receipt_payload), encoding="utf-8")
+            receipt_sha = __import__("hashlib").sha256(receipt.read_bytes()).hexdigest().upper()
+            payload = {
+                "schemaVersion": 1,
+                "source": {
+                    "rootId": "original",
+                    "sourceManifestSha256": "1" * 64,
+                    "treeManifestSha256": "2" * 64,
+                },
+                "adjudications": [
+                    {
+                        "relativePosixPath": "bootfirst.exe",
+                        "schemaVersion": 1,
+                        "kind": "PE_EXECUTABLE_BOOTSTRAP",
+                        "contentSha256": "A" * 64,
+                        "byteSize": 40960,
+                        "analysis": {
+                            "receiptPath": str(receipt),
+                            "receiptSha256": receipt_sha,
+                        },
+                    }
+                ],
+            }
+            path = root / "resources.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "referenced evidence hash mismatch"):
+                load_resource_adjudications(
+                    path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
     def test_tree_paths_are_safe_and_casefold_unique(self) -> None:
         for path in ("../escape.tga", "/absolute.tga", "data\\bad.tga", "./dot.tga"):
             with self.subTest(path=path), self.assertRaisesRegex(ValueError, "resource path"):

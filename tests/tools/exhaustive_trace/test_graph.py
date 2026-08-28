@@ -418,6 +418,31 @@ class GraphTests(unittest.TestCase):
         )
         self.assertEqual(0, graph.conservation["unaccountedJoinCandidates"])
 
+    def test_process_bootstrap_emits_launch_edge_without_asset_load_edge(self) -> None:
+        rows = [row for group in fixture_rows().values() for row in group]
+        source = next(row for row in rows if row["inventory"] == "RESOURCE")
+        source["source"] = {
+            "processLaunch": {
+                "status": "PROVEN",
+                "targetRowKey": "RESOURCE:TREE:gin7updateclient.exe",
+                "api": "KERNEL32.dll::CreateProcessA",
+                "function": "FUN_00401000",
+                "callsite": "0x004010B1",
+                "evidence": ["fixture:process-launch"],
+            }
+        }
+        target = envelope(
+            "RESOURCE", "RESOURCE:TREE:gin7updateclient.exe", "gin7updateclient.exe"
+        )
+        target.update(rowKind="TREE_FILE")
+        rows.append(target)
+
+        graph = build_graph(rows)
+        triples = {(edge.source, edge.relation, edge.target) for edge in graph.edges}
+
+        self.assertIn((source["key"], "LAUNCHES_PROCESS", target["key"]), triples)
+        self.assertNotIn((source["key"], "LOADS", target["key"]), triples)
+
     def test_trace_graph_rejects_dangling_edges_and_candidate_identity(self) -> None:
         node = TraceNode(
             "A", "INVENTORY_ROW", "a", ("E-A",), provenance="ORIGINAL_OBSERVED",

@@ -271,6 +271,46 @@ def load_resource_adjudications(
         relative_path = _safe_resource_path(item.get("relativePosixPath"))
         if relative_path in result:
             raise ValueError(f"duplicate resource adjudication path: {relative_path}")
+        if item.get("kind") == "PE_EXECUTABLE_BOOTSTRAP":
+            analysis = _mapping("PE bootstrap analysis", item.get("analysis"))
+            receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
+            if not receipt_path.is_absolute():
+                receipt_path = Path.cwd() / receipt_path
+            receipt_path = receipt_path.resolve()
+            receipt_sha = _sha256("analysis.receiptSha256", analysis.get("receiptSha256"))
+            if not receipt_path.is_file() or sha256_file(receipt_path) != receipt_sha:
+                raise ValueError("PE bootstrap analysis receipt hash mismatch")
+            receipt = _mapping(
+                "PE bootstrap analysis receipt",
+                json.loads(receipt_path.read_text(encoding="utf-8")),
+            )
+            if receipt.get("schemaVersion") != 1 or receipt.get("status") != "PROVEN_STATIC":
+                raise ValueError("PE bootstrap analysis receipt contract differs")
+            receipt_source = _mapping("PE bootstrap receipt source", receipt.get("source"))
+            if (
+                _sha256("receipt.source.sha256", receipt_source.get("sha256"))
+                != _sha256("adjudication.contentSha256", item.get("contentSha256"))
+                or receipt_source.get("byteSize") != item.get("byteSize")
+            ):
+                raise ValueError("PE bootstrap analysis receipt source differs")
+            static_tools = _mapping("PE bootstrap receipt staticTools", receipt.get("staticTools"))
+            bound_tool_count = 0
+            for label, record_value in static_tools.items():
+                if not isinstance(record_value, Mapping):
+                    continue
+                record = _mapping(f"staticTools.{label}", record_value)
+                referenced_path = Path(_text(f"staticTools.{label}.path", record.get("path")))
+                if not referenced_path.is_absolute():
+                    referenced_path = Path.cwd() / referenced_path
+                referenced_path = referenced_path.resolve()
+                expected_sha = _sha256(
+                    f"staticTools.{label}.sha256", record.get("sha256")
+                )
+                if not referenced_path.is_file() or sha256_file(referenced_path) != expected_sha:
+                    raise ValueError("PE bootstrap referenced evidence hash mismatch")
+                bound_tool_count += 1
+            if bound_tool_count == 0:
+                raise ValueError("PE bootstrap analysis receipt lacks bound static evidence")
         result[relative_path] = item
     return result
 
@@ -630,22 +670,32 @@ def build_resource_inventory(
             section_name="loader",
         )
         adjudication = adjudications.get(path)
+        adjudication_kind: str | None = None
+        adjudication_evidence: tuple[str, ...] = ()
+        pe_analysis: Mapping[str, Any] | None = None
+        process_launch: dict[str, Any] | None = None
         if adjudication is not None:
             adjudication = _mapping("resource adjudication", adjudication)
-            allowed_adjudication_fields = {
+            adjudication_kind = _text("adjudication.kind", adjudication.get("kind"))
+            common_adjudication_fields = {
                 "schemaVersion",
                 "relativePosixPath",
                 "kind",
                 "contentSha256",
-                "contentBytesHex",
                 "byteSize",
-                "originalName",
-                "originalNameEncoding",
-                "originalNameBytesHex",
-                "targetUrl",
                 "loader",
                 "evidence",
             }
+            kind_fields = {
+                "WINDOWS_INTERNET_SHORTCUT": {
+                    "contentBytesHex", "originalName", "originalNameEncoding",
+                    "originalNameBytesHex", "targetUrl",
+                },
+                "PE_EXECUTABLE_BOOTSTRAP": {"analysis", "processLaunch"},
+            }
+            if adjudication_kind not in kind_fields:
+                raise ValueError("unsupported resource adjudication kind")
+            allowed_adjudication_fields = common_adjudication_fields | kind_fields[adjudication_kind]
             unknown_adjudication_fields = set(adjudication) - allowed_adjudication_fields
             if unknown_adjudication_fields:
                 raise ValueError(
@@ -659,45 +709,107 @@ def build_resource_inventory(
                 raise ValueError("resource adjudication contentSha256 differs from tree manifest")
             if adjudication.get("byteSize") != entry.byte_size:
                 raise ValueError("resource adjudication byteSize differs from tree manifest")
-            if adjudication.get("kind") != "WINDOWS_INTERNET_SHORTCUT":
-                raise ValueError("unsupported resource adjudication kind")
-            try:
-                content_bytes = bytes.fromhex(
-                    _text("adjudication.contentBytesHex", adjudication.get("contentBytesHex"))
-                )
-            except ValueError as error:
-                raise ValueError("resource adjudication contentBytesHex is invalid") from error
-            if len(content_bytes) != entry.byte_size:
-                raise ValueError("resource adjudication content bytes differ from byteSize")
-            if hashlib.sha256(content_bytes).hexdigest().upper() != entry.content_sha256:
-                raise ValueError("resource adjudication content bytes differ from contentSha256")
-            try:
-                shortcut_text = content_bytes.decode("ascii")
-            except UnicodeDecodeError as error:
-                raise ValueError("Internet Shortcut content must be ASCII") from error
-            prefix = "[InternetShortcut]\r\nURL="
-            suffix = "\r\n"
-            if not shortcut_text.startswith(prefix) or not shortcut_text.endswith(suffix):
-                raise ValueError("Internet Shortcut content signature differs")
-            content_url = shortcut_text[len(prefix) : -len(suffix)]
-            target_url = _text("adjudication.targetUrl", adjudication.get("targetUrl"))
-            if target_url != content_url:
-                raise ValueError("resource adjudication targetUrl differs from shortcut content")
-            original_name = _text("adjudication.originalName", adjudication.get("originalName"))
-            if adjudication.get("originalNameEncoding") != "CP932":
-                raise ValueError("resource adjudication originalNameEncoding must be CP932")
-            try:
-                original_name_bytes = bytes.fromhex(
-                    _text(
-                        "adjudication.originalNameBytesHex",
-                        adjudication.get("originalNameBytesHex"),
+            adjudication_evidence = _evidence(
+                "adjudication.evidence", adjudication.get("evidence")
+            )
+            if adjudication_kind == "WINDOWS_INTERNET_SHORTCUT":
+                try:
+                    content_bytes = bytes.fromhex(
+                        _text("adjudication.contentBytesHex", adjudication.get("contentBytesHex"))
                     )
-                )
-                decoded_original_name = original_name_bytes.decode("cp932")
-            except (ValueError, UnicodeDecodeError) as error:
-                raise ValueError("resource adjudication originalNameBytesHex is invalid CP932") from error
-            if decoded_original_name != original_name:
-                raise ValueError("resource adjudication originalName differs from CP932 bytes")
+                except ValueError as error:
+                    raise ValueError("resource adjudication contentBytesHex is invalid") from error
+                if len(content_bytes) != entry.byte_size:
+                    raise ValueError("resource adjudication content bytes differ from byteSize")
+                if hashlib.sha256(content_bytes).hexdigest().upper() != entry.content_sha256:
+                    raise ValueError("resource adjudication content bytes differ from contentSha256")
+                try:
+                    shortcut_text = content_bytes.decode("ascii")
+                except UnicodeDecodeError as error:
+                    raise ValueError("Internet Shortcut content must be ASCII") from error
+                prefix = "[InternetShortcut]\r\nURL="
+                suffix = "\r\n"
+                if not shortcut_text.startswith(prefix) or not shortcut_text.endswith(suffix):
+                    raise ValueError("Internet Shortcut content signature differs")
+                content_url = shortcut_text[len(prefix) : -len(suffix)]
+                target_url = _text("adjudication.targetUrl", adjudication.get("targetUrl"))
+                if target_url != content_url:
+                    raise ValueError("resource adjudication targetUrl differs from shortcut content")
+                original_name = _text("adjudication.originalName", adjudication.get("originalName"))
+                if adjudication.get("originalNameEncoding") != "CP932":
+                    raise ValueError("resource adjudication originalNameEncoding must be CP932")
+                try:
+                    original_name_bytes = bytes.fromhex(
+                        _text(
+                            "adjudication.originalNameBytesHex",
+                            adjudication.get("originalNameBytesHex"),
+                        )
+                    )
+                    decoded_original_name = original_name_bytes.decode("cp932")
+                except (ValueError, UnicodeDecodeError) as error:
+                    raise ValueError("resource adjudication originalNameBytesHex is invalid CP932") from error
+                if decoded_original_name != original_name:
+                    raise ValueError("resource adjudication originalName differs from CP932 bytes")
+            else:
+                pe_analysis = _mapping("adjudication.analysis", adjudication.get("analysis"))
+                if set(pe_analysis) != {
+                    "status", "format", "machine", "subsystem", "entryPointRva",
+                    "role", "receiptPath", "receiptSha256", "evidence",
+                }:
+                    raise ValueError("PE bootstrap analysis fields differ")
+                if pe_analysis.get("status") != "PROVEN":
+                    raise ValueError("PE bootstrap analysis must be PROVEN")
+                if pe_analysis.get("format") != "PE32_X86_GUI_EXECUTABLE":
+                    raise ValueError("unsupported PE bootstrap format")
+                if pe_analysis.get("machine") != "0x014C" or pe_analysis.get("subsystem") != 2:
+                    raise ValueError("PE bootstrap architecture differs")
+                if not RUNTIME_POINTER_PATTERN.fullmatch(
+                    _text("analysis.entryPointRva", pe_analysis.get("entryPointRva"))
+                ):
+                    raise ValueError("PE bootstrap entryPointRva is invalid")
+                _sha256("analysis.receiptSha256", pe_analysis.get("receiptSha256"))
+                _evidence("analysis.evidence", pe_analysis.get("evidence"))
+                process = _mapping("adjudication.processLaunch", adjudication.get("processLaunch"))
+                if set(process) != {
+                    "status", "api", "function", "callsite", "targetRelativePosixPath",
+                    "targetSha256", "executableStringVa", "waitCallsite",
+                    "exitCodeCallsite", "evidence",
+                }:
+                    raise ValueError("PE bootstrap processLaunch fields differ")
+                if process.get("status") != "PROVEN":
+                    raise ValueError("PE bootstrap processLaunch must be PROVEN")
+                function = _text("processLaunch.function", process.get("function"))
+                if not FUNCTION_PATTERN.fullmatch(function):
+                    raise ValueError("PE bootstrap processLaunch function is invalid")
+                for field in ("callsite", "executableStringVa", "waitCallsite", "exitCodeCallsite"):
+                    if not RUNTIME_POINTER_PATTERN.fullmatch(
+                        _text(f"processLaunch.{field}", process.get(field))
+                    ):
+                        raise ValueError(f"PE bootstrap {field} is invalid")
+                target_path = _safe_resource_path(process.get("targetRelativePosixPath"))
+                if target_path == path or target_path not in entries:
+                    raise ValueError("PE bootstrap processLaunch target is missing or self-referential")
+                target_sha = _sha256("processLaunch.targetSha256", process.get("targetSha256"))
+                if target_sha != entries[target_path].content_sha256:
+                    raise ValueError("PE bootstrap processLaunch targetSha256 differs")
+                process_evidence = _evidence("processLaunch.evidence", process.get("evidence"))
+                process_launch = {
+                    "status": "PROVEN",
+                    "api": _text("processLaunch.api", process.get("api")),
+                    "function": function,
+                    "callsite": _text("processLaunch.callsite", process.get("callsite")),
+                    "targetRelativePosixPath": target_path,
+                    "targetSha256": target_sha,
+                    "targetRowKey": f"RESOURCE:FILE:{root_id}:{target_path}",
+                    "executableStringVa": _text(
+                        "processLaunch.executableStringVa", process.get("executableStringVa")
+                    ),
+                    "waitCallsite": _text("processLaunch.waitCallsite", process.get("waitCallsite")),
+                    "exitCodeCallsite": _text(
+                        "processLaunch.exitCodeCallsite", process.get("exitCodeCallsite")
+                    ),
+                    "evidence": process_evidence,
+                }
             loader_adjudication = _mapping("adjudication.loader", adjudication.get("loader"))
             unknown_loader_fields = set(loader_adjudication) - {"status", "reason", "evidence"}
             if unknown_loader_fields:
@@ -705,7 +817,7 @@ def build_resource_inventory(
                     f"unknown resource loader adjudication fields: {sorted(unknown_loader_fields)}"
                 )
             if loader_adjudication.get("status") != "NOT_APPLICABLE":
-                raise ValueError("Internet Shortcut loader adjudication must be NOT_APPLICABLE")
+                raise ValueError("resource loader adjudication must be NOT_APPLICABLE")
             loader_reason = _text("adjudication.loader.reason", loader_adjudication.get("reason"))
             loader_evidence = _evidence("adjudication.loader.evidence", loader_adjudication.get("evidence"))
             loader_section = ResourceSection(
@@ -839,12 +951,20 @@ def build_resource_inventory(
                 "extension": PurePosixPath(path).suffix.lower(),
                 "detectedFormat": (
                     "WINDOWS_INTERNET_SHORTCUT"
-                    if adjudication is not None
+                    if adjudication_kind == "WINDOWS_INTERNET_SHORTCUT"
+                    else str(pe_analysis.get("format"))
+                    if pe_analysis is not None
                     else _format_for_path(path)
                 ),
-                "detector": "CONTENT_SIGNATURE" if adjudication is not None else "EXTENSION_ONLY",
+                "detector": (
+                    "CONTENT_SIGNATURE"
+                    if adjudication_kind == "WINDOWS_INTERNET_SHORTCUT"
+                    else "HASH_BOUND_STATIC_ANALYSIS"
+                    if pe_analysis is not None
+                    else "EXTENSION_ONLY"
+                ),
                 "evidence": (
-                    _evidence("adjudication.evidence", adjudication.get("evidence"))
+                    adjudication_evidence
                     if adjudication is not None
                     else (f"manifest-path:{path}",)
                 ),
@@ -859,7 +979,7 @@ def build_resource_inventory(
             "byteSize": entry.byte_size,
             "evidence": (f"tree-manifest:{path}",),
         }
-        if adjudication is not None:
+        if adjudication_kind == "WINDOWS_INTERNET_SHORTCUT":
             source.update(
                 originalName=_text("adjudication.originalName", adjudication.get("originalName")),
                 originalNameEncoding=_text(
@@ -872,6 +992,22 @@ def build_resource_inventory(
                 adjudicationEvidence=_evidence(
                     "adjudication.evidence", adjudication.get("evidence")
                 ),
+            )
+        elif pe_analysis is not None and process_launch is not None:
+            source.update(
+                staticRole=_text("analysis.role", pe_analysis.get("role")),
+                peAnalysis={
+                    "status": "PROVEN",
+                    "format": str(pe_analysis["format"]),
+                    "machine": str(pe_analysis["machine"]),
+                    "subsystem": int(pe_analysis["subsystem"]),
+                    "entryPointRva": str(pe_analysis["entryPointRva"]),
+                    "receiptSha256": str(pe_analysis["receiptSha256"]),
+                    "receiptPath": _text("analysis.receiptPath", pe_analysis.get("receiptPath")),
+                    "evidence": _evidence("analysis.evidence", pe_analysis.get("evidence")),
+                },
+                processLaunch=process_launch,
+                adjudicationEvidence=adjudication_evidence,
             )
         file_candidate_id = f"TREE_FILE:{root_id}:{path}"
         rows.append(

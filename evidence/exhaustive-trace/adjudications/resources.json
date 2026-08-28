@@ -34,6 +34,60 @@
         "content-signature:[InternetShortcut]+URL",
         "installshield-original-name-cp932:8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C"
       ]
+    },
+    {
+      "relativePosixPath": "bootfirst.exe",
+      "schemaVersion": 1,
+      "kind": "PE_EXECUTABLE_BOOTSTRAP",
+      "contentSha256": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+      "byteSize": 40960,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PE32_X86_GUI_EXECUTABLE",
+        "machine": "0x014C",
+        "subsystem": 2,
+        "entryPointRva": "0x00001150",
+        "role": "UPDATE_CLIENT_BOOTSTRAP",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/bootfirst-static-analysis.json",
+        "receiptSha256": "CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+        "evidence": [
+          "bootfirst-static-analysis-sha256:CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+          "ghidra-output-sha256:BF48F72407EEAD223A4017AC991ECAE01C3AB9E4F8F44F5ED00F61315FD92A06"
+        ]
+      },
+      "processLaunch": {
+        "status": "PROVEN",
+        "api": "KERNEL32.dll::CreateProcessA",
+        "function": "FUN_00401000",
+        "callsite": "0x004010B1",
+        "targetRelativePosixPath": "gin7updateclient.exe",
+        "targetSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+        "executableStringVa": "0x004060A4",
+        "waitCallsite": "0x004010BE",
+        "exitCodeCallsite": "0x004010D2",
+        "evidence": [
+          "bootfirst:FUN_00401000",
+          "bootfirst:CreateProcessA:0x004010B1",
+          "bootfirst:string:.\\Gin7UpdateClient.exe@0x004060A4",
+          "target-resource-sha256:EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PE is an OS-loaded updater bootstrap process, not a G7MTClient data/render/audio resource format. Its proven static behavior launches and waits for Gin7UpdateClient.exe.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:C7063B6F6EE54AC7",
+          "bootfirst-static-analysis-sha256:CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+          "bootfirst:CreateProcessA:0x004010B1",
+          "bootfirst:no-g7mtclient-resource-load-path"
+        ]
+      },
+      "evidence": [
+        "tree-manifest:LOGH7/bootfirst.exe",
+        "original-payload-sha256:23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+        "version-info:アップデートクライアント 起動プログラム",
+        "ghidra-exporter-sha256:DB99864A5AF34DD888092F42E73094BDF8E664C4E68261F68E31E50AEAC54DD5"
+      ]
     }
   ]
 }

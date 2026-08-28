@@ -153,6 +153,9 @@ $sourceManifest = Join-Path $projectRoot "docs\reverse-engineering\exhaustive-tr
 $domainConfig = Join-Path $projectRoot "docs\reverse-engineering\exhaustive-trace\domains.json"
 $characterBoundary = Join-Path $projectRoot "docs\new-design\2026-08-27-original-character-roster-recovery-boundary.md"
 $resourceAdjudications = Join-Path $projectRoot "evidence\exhaustive-trace\adjudications\resources.json"
+$resourceAdjudicationDirectory = Join-Path $projectRoot "evidence\exhaustive-trace\adjudications"
+$bootFirstExporter = Join-Path $projectRoot "work\20260828-bootfirst-resource-loader\ExportBootFirstFlow.java"
+$bootFirstFlow = Join-Path $projectRoot "work\20260828-bootfirst-resource-loader\evidence\bootfirst-flow.txt"
 $expectedInventoryNames = @("authority.jsonl", "entities.jsonl", "functions.jsonl", "protocol.jsonl", "resources.jsonl", "ui.jsonl")
 $expectedReconciliationNames = @("authority-reconciliation.json", "entities-reconciliation.json", "functions-reconciliation.json", "protocol-reconciliation.json", "resources-reconciliation.json", "ui-reconciliation.json")
 $expectedDomainNames = 1..16 | ForEach-Object { "D{0:D2}.json" -f $_ }
@@ -293,6 +296,8 @@ function Assert-AssignmentConservation([string]$Run) {
 
 $protectedFiles = [Collections.Generic.List[string]]::new()
 foreach ($path in @($sourceManifest, $domainConfig, $characterBoundary, $resourceAdjudications, $MyInvocation.MyCommand.Path)) { $protectedFiles.Add($path) }
+foreach ($path in Get-ChildItem -LiteralPath $resourceAdjudicationDirectory -File) { $protectedFiles.Add($path.FullName) }
+foreach ($path in @($bootFirstExporter, $bootFirstFlow)) { $protectedFiles.Add($path) }
 foreach ($path in Get-ChildItem -LiteralPath $raw -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in Get-ChildItem -LiteralPath $checkedInventories -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in Get-ChildItem -LiteralPath $checkedDomains -File) { $protectedFiles.Add($path.FullName) }
@@ -372,7 +377,7 @@ try {
         }
     }
     $firstUnit = $workPackages.recoveryUnits[0]
-    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:C7063B6F6EE54AC7" $firstUnit.unitId "first unit"
+    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:E8B07A6802B17EEF" $firstUnit.unitId "first unit"
     Assert-Equal 0 $workPackages.conservation.uncoveredOpenRowCount "uncovered recovery rows"
     Assert-Equal 0 $workPackages.conservation.confirmedGameplayFeatureCount "confirmed gameplay features"
     Assert-Equal 0 $workPackages.conservation.maxLiveInputCount "live input count"

@@ -135,6 +135,8 @@ def _enumerate_join_references(rows: Sequence[Mapping[str, Any]]) -> tuple[str, 
                 f"inventory:{key}/loader/functions/{index}"
                 for index, _ in enumerate((row.get("loader") or {}).get("functions", []))
             )
+            if (row.get("source") or {}).get("processLaunch"):
+                refs.add(f"inventory:{key}/source/processLaunch")
         elif row["inventory"] == "AUTHORITY":
             refs.add(f"inventory:{key}/sourceKey")
     return tuple(sorted(refs))
@@ -980,6 +982,20 @@ class _GraphBuilder:
                     source_refs=(ref,),
                     candidate_id=f"RESOURCE_LOADER:{row['key']}:{index}:{token}",
                 )
+            process_launch = (row.get("source") or {}).get("processLaunch")
+            if not process_launch:
+                continue
+            ref = f"inventory:{row['key']}/source/processLaunch"
+            target = process_launch.get("targetRowKey")
+            if process_launch.get("status") != "PROVEN" or target not in self.row_by_key:
+                raise ValueError(f"proven process launch target is unresolved: {row['key']}")
+            process_evidence = process_launch.get("evidence", row["evidence"])
+            self.add_edge(
+                row["key"], "LAUNCHES_PROCESS", target, process_evidence,
+                provenance=row["provenance"], confidence="HIGH", disposition="PROVEN",
+                edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
+                source_refs=(ref,), candidate_id=f"PROCESS_LAUNCH:{row['key']}:{target}",
+            )
 
     def authority_edges(self) -> None:
         for row in self.rows:
