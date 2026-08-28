@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "caseId": "20260828-original-client-destination-confirm-collector",
+  "result": "STATIC_STAGE_STATE_COLLECTORS_PARTIAL",
+  "target": {
+    "name": "G7MTClient.exe",
+    "format": "PE32_X86",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16"
+  },
+  "destination": {
+    "flowFactory": "FUN_00581C80",
+    "flowObject": "SelectGrid",
+    "controllerBase": "0x009D2A30",
+    "modeField": "0x009D2A34",
+    "requiredMode": "0x00000101",
+    "resultStateField": "0x009D2A3C",
+    "selectedGridField": "0x009D2A40",
+    "requestedChoiceField": "0x009D2A44",
+    "gridXField": "0x009D2A48",
+    "gridYField": "0x009D2A4C",
+    "modeSetter": "FUN_004D5030",
+    "resultConsumer": "FUN_00570A10",
+    "callback": "0x00573CD0 -> FUN_004B49D0 -> local kind 0x52",
+    "collectorStatus": "STATE_COLLECTOR_IMPLEMENTED",
+    "activationRectangle": "UNBOUND"
+  },
+  "confirm": {
+    "flowObject": "TextDialog",
+    "constructor": "FUN_00572170(4,0,3)",
+    "runtimeManagerLookup": "FUN_004FDDE0(this=0x00C9E638,index=3,builder=4)",
+    "managerBaseDerivation": "0x00C9E638 + 3*0x0DE4 + 0x1948",
+    "managerBase": "0x00CA292C",
+    "confirmWidgetPointerField": "manager+0x24",
+    "cancelWidgetPointerField": "manager+0x28",
+    "layoutField": "manager+0x37C",
+    "requiredLayout": 4,
+    "terminalStateField": "manager+0xDE0",
+    "waitingStates": [1, 2],
+    "confirmTerminalState": 3,
+    "cancelTerminalState": 4,
+    "terminalWriter": "FUN_0056F960",
+    "collectorStatus": "STATE_AND_WIDGET_IDENTITY_COLLECTOR_IMPLEMENTED",
+    "clientCoordinateFrame": "UNBOUND"
+  },
+  "implementation": {
+    "destinationCollectorSha256": "14E488099F5FADEC4852A9E84BB2C5F2A2E0CFCD83DCFC9F8D0F73164B5E4EF1",
+    "confirmCollectorSha256": "72D30F7B580F899D431C96218B4D9B94C59FEFD447DA6252259074B25BEE0B2A",
+    "exporterSha256": "62616D8660FF0679BF4DCFA812A04C2236F58A351FEB9D324E0889851832963D",
+    "staticExportSha256": "2335E2DEC7A16F338B3673A29C95A75F536D8930F8DE2588734CE465EAF91DDD",
+    "destinationTestSha256": "613571BAF2DF7125C19C236C9CFE230F2B732C73C48383FED6373ABBB3A58556",
+    "confirmTestSha256": "85B1C84FFDE3FF9CC10851070716BE7C65F5A82AF12F621616268B38188A5378",
+    "identityFixtureSha256": "70441EEC961F34B5B152A5575C1BBF7231AC7C2538DC85AC348393A0BE3D41AD",
+    "destinationFixtureSha256": "BC45D60F569A07DF6269C9E25581E84B3421600D41F565B13A2509E22F04E4A7",
+    "confirmFixtureSha256": "AE5642111C7BAF944DBDEA27FFDEC090D5C12245881EC95009F2F3F850E7306B"
+  },
+  "status": {
+    "staticOwners": "PASS",
+    "destinationStageStateCollector": "PASS_OFFLINE",
+    "confirmStageStateCollector": "PASS_OFFLINE",
+    "destinationFreshBindingCollector": "PARTIAL_RECT_UNBOUND",
+    "confirmFreshBindingCollector": "PARTIAL_COORDINATE_FRAME_UNBOUND",
+    "runtimeObserved": "UNSEEN",
+    "playerVisible": "UNSEEN",
+    "permitIssued": false,
+    "liveOperations": 0
+  },
+  "firstMissingBoundary": "DESTINATION_GRID_WORLD_TO_CLIENT_HIT_REGION_OWNER"
+}
