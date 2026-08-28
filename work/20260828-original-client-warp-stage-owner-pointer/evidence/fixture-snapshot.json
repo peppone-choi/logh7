@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "provenance": "SYNTHETIC_FIXTURE",
+  "process": {
+    "pid": 4242,
+    "startTimeUtc": "2026-08-28T00:00:00.0000000Z",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "moduleBase": "0x00400000",
+    "hwnd": "0x00123456",
+    "hwndOwnerPid": 4242,
+    "clientWidth": 1024,
+    "clientHeight": 822,
+    "secondHwndOwnerPid": 4242,
+    "secondClientWidth": 1024,
+    "secondClientHeight": 822
+  },
+  "stageOwner": {
+    "activePointerField": "0x00C9E2F8",
+    "pointer": "0x05000000",
+    "vtable": "0x006702B8",
+    "commandId": 43,
+    "cardId": 7,
+    "currentAuthorityCardId": 7,
+    "childVector": {
+      "begin": "0x06000000",
+      "end": "0x06000018",
+      "capacity": "0x06000018"
+    },
+    "childCount": 6,
+    "children": [
+      {
+        "index": 0,
+        "pointer": "0x07000000",
+        "vtable": "0x00670228"
+      },
+      {
+        "index": 1,
+        "pointer": "0x07000100",
+        "vtable": "0x00676B30"
+      },
+      {
+        "index": 2,
+        "pointer": "0x07000200",
+        "vtable": "0x00675780"
+      },
+      {
+        "index": 3,
+        "pointer": "0x07000300",
+        "vtable": "0x00676AEC"
+      },
+      {
+        "index": 4,
+        "pointer": "0x07000400",
+        "vtable": "0x00676AA8"
+      },
+      {
+        "index": 5,
+        "pointer": "0x07000500",
+        "vtable": "0x006702C0"
+      }
+    ]
+  },
+  "textDialog": {
+    "childIndex": 2,
+    "pointer": "0x07000200",
+    "vtable": "0x00675780",
+    "builder": 4,
+    "variant": 0,
+    "managerIndex": 3,
+    "commandId": 43,
+    "commandArg": 0,
+    "managerPointer": "0x00CA292C"
+  },
+  "manager": {
+    "base": "0x00CA292C",
+    "uiContextPointer": "0x08000000",
+    "layout": 4,
+    "terminalState": 1
+  },
+  "snapshotStable": true,
+  "windowSurfaceStable": true,
+  "stateEligible": true,
+  "blockers": [],
+  "runtimeBindingStatus": "OFFLINE_FIXTURE_ONLY",
+  "fixtureCoordinateReusable": false,
+  "permitIssued": false,
+  "operations": {
+    "memoryReads": "READ_ONLY",
+    "memoryReadCount": 64,
+    "writes": 0,
+    "gameInputs": 0,
+    "breakpointsInstalled": 0
+  }
+}
