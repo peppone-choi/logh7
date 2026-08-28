@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "file": "G7MTClient.exe",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "imageBase": "0x00400000"
+  },
+  "sources": [
+    {
+      "path": "work/20260827-original-client-manager65-readonly-collector/evidence/manager65-widget-memory-layout.txt",
+      "sha256": "0E57E4329EB616D309F99577D870887DDCE194EB6A3DFC85205D7151899A360C"
+    },
+    {
+      "path": "work/20260827-original-client-manager65-readonly-collector/src/collect-manager65-action2b-snapshot.ps1",
+      "sha256": "0244BF801F9CD687E6FE7AE39C702408FDD9A114E7B7185795F9D721EA0C6B0B",
+      "disposition": "SUPERSEDED_WRONG_ROOT_AND_LIVE_HARDENING_INCOMPLETE"
+    },
+    {
+      "path": "work/20260827-original-client-manager65-readonly-collector/evidence/final-verification.json",
+      "sha256": "DBB8CBD223D02C8BF569CCE26352875A49BD3C15CCD0F8A82DE0906C5B5A1DBD",
+      "disposition": "HISTORICAL_OFFLINE_RECEIPT_NOT_LIVE_READY"
+    },
+    {
+      "path": "work/20260828-manager67-current-card-hit-surface/evidence/static-owner-ledger.json",
+      "sha256": "130639BB43C2D19A719476773A55F07BFEF3AED5244F5FCCA7A32352CDB51F47"
+    }
+  ],
+  "correction": {
+    "rejectedHistoricalModel": "strategyRoot=U32(moduleBase+0x1E15E2C)",
+    "strategyRoot": "moduleBase+0x89E638",
+    "registryHost": "U32(moduleBase+0x1E15E2C)",
+    "registry": "U32(registryHost+0x0C)",
+    "manager65RegistrySlot": "U32(registry+0x198)"
+  },
+  "facts": {
+    "manager65Controller": "strategyRoot+0x130",
+    "managerPointer": "U32(controller+0x00)",
+    "actionWidget": "U32(controller+0x30+4*index)",
+    "page": "I32(controller+0x34C), range 1..5",
+    "actionCount": "I32(controller+0x350), range 1..24",
+    "selectedActionIndex": "I32(controller+0x354), stable pre-click value -1",
+    "boundCardId": "I32(controller+0x358)==I32(strategyRoot+0x488)",
+    "recordActionCount": "U8(recordRoot+cardId*0x46+0x1E)",
+    "commandId": "U16(recordRoot+cardId*0x46+0x20+2*index)",
+    "semantic": "CURRENT_AUTHORITY_CARD_ACTION_WIDGET_FOR_COMMAND_0X2B_WARP_NAVIGATION",
+    "coordinateFrame": "LOGICAL_TO_CLIENT_TRUNCATE_SCALE"
+  },
+  "hardening": {
+    "canonicalHashInternallyEnforced": true,
+    "moduleBaseBound": true,
+    "fullDoubleCapture": true,
+    "widgetActiveVisibleGates": true,
+    "postCaptureHwndSurfaceRecheck": true,
+    "recursiveContextOrigin": true,
+    "recordCountCrosscheck": true,
+    "nullSemanticPointersRejectedBeforeDerivation": true,
+    "offlineResolutionProvenanceWhitelist": ["SYNTHETIC_FIXTURE"],
+    "liveSelfClaimPromotable": false
+  },
+  "status": {
+    "staticOwner": "PASS",
+    "offlineCollectorResolver": "PASS",
+    "liveSnapshot": "UNSEEN",
+    "independentLiveHitRegion": "UNBOUND",
+    "playerVisible": "UNSEEN",
+    "permitIssued": false,
+    "gameInputs": 0
+  }
+}

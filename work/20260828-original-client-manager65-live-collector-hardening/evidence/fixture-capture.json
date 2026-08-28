@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 2,
+  "provenance": "SYNTHETIC_FIXTURE",
+  "process": {
+    "pid": 4242,
+    "startTimeUtc": "2026-08-28T00:00:00.0000000Z",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "moduleBase": "0x00400000",
+    "hwnd": "0x00123456",
+    "hwndOwnerPid": 4242,
+    "clientWidth": 800,
+    "clientHeight": 600,
+    "secondHwndOwnerPid": 4242,
+    "secondClientWidth": 800,
+    "secondClientHeight": 600
+  },
+  "root": {
+    "pointer": "0x00C9E638",
+    "builderMode": 2,
+    "handlerState": 1,
+    "strategyMode": 2
+  },
+  "manager65": {
+    "controllerPointer": "0x00C9E768",
+    "managerPointer": "0x07000000",
+    "managerId": 101,
+    "managerInputGate": 1,
+    "page": 2,
+    "cardId": 7,
+    "actionCount": 3,
+    "recordActionCount": 3,
+    "recordActionCountMatches": true,
+    "selectedIndex": -1,
+    "registryHostPointer": "0x01000000",
+    "registryPointer": "0x06000000",
+    "registrySlotPointer": "0x07000000",
+    "registrySlotMatches": true,
+    "currentCharacterOwnerPointer": "0x08000000",
+    "contextChain": [
+      {
+        "pointer": "0x07000000",
+        "id": 101,
+        "active": 1,
+        "parentId": -1,
+        "localX": 650,
+        "localY": 580,
+        "registry": "0x05000000"
+      }
+    ],
+    "actions": [
+      {
+        "index": 0,
+        "commandId": 16,
+        "widgetPointer": "0x07100000",
+        "initialized": 1,
+        "localSelector": 0,
+        "localGate": 0,
+        "hitTestEnabled": 1,
+        "activeVisible": 1,
+        "renderVisible": 1,
+        "width": 120,
+        "height": 24,
+        "eligible": true,
+        "logicalRect": {
+          "left": 700,
+          "top": 600,
+          "right": 820,
+          "bottom": 624
+        }
+      },
+      {
+        "index": 1,
+        "commandId": 43,
+        "widgetPointer": "0x07100F18",
+        "initialized": 1,
+        "localSelector": 0,
+        "localGate": 0,
+        "hitTestEnabled": 1,
+        "activeVisible": 1,
+        "renderVisible": 1,
+        "width": 120,
+        "height": 24,
+        "eligible": true,
+        "logicalRect": {
+          "left": 700,
+          "top": 630,
+          "right": 820,
+          "bottom": 654
+        }
+      },
+      {
+        "index": 2,
+        "commandId": 82,
+        "widgetPointer": "0x07101E30",
+        "initialized": 1,
+        "localSelector": 0,
+        "localGate": 0,
+        "hitTestEnabled": 1,
+        "activeVisible": 1,
+        "renderVisible": 1,
+        "width": 120,
+        "height": 24,
+        "eligible": true,
+        "logicalRect": {
+          "left": 700,
+          "top": 660,
+          "right": 820,
+          "bottom": 684
+        }
+      }
+    ]
+  },
+  "coordinateFrame": {
+    "type": "LOGICAL_TO_CLIENT_TRUNCATE_SCALE",
+    "logicalOrigin": {
+      "x": 650,
+      "y": 580
+    },
+    "scaleX": 1.25,
+    "scaleY": 1.5,
+    "logicalWidth": 1000,
+    "logicalHeight": 900,
+    "engineClientRect": {
+      "left": 0,
+      "top": 0,
+      "right": 800,
+      "bottom": 600
+    }
+  },
+  "action0x2B": {
+    "semantic": "CURRENT_AUTHORITY_CARD_ACTION_WIDGET_FOR_COMMAND_0X2B_WARP_NAVIGATION",
+    "match": {
+      "index": 1,
+      "commandId": 43,
+      "widgetPointer": "0x07100F18",
+      "initialized": 1,
+      "localSelector": 0,
+      "localGate": 0,
+      "hitTestEnabled": 1,
+      "activeVisible": 1,
+      "renderVisible": 1,
+      "width": 120,
+      "height": 24,
+      "eligible": true,
+      "logicalRect": {
+        "left": 700,
+        "top": 630,
+        "right": 820,
+        "bottom": 654
+      }
+    }
+  },
+  "snapshotStable": true,
+  "windowSurfaceStable": true,
+  "stateEligible": true,
+  "blockers": [],
+  "originalRuntimeObserved": false,
+  "permitIssued": false,
+  "operations": {
+    "memoryReads": "READ_ONLY",
+    "memoryReadCount": 142,
+    "writes": 0,
+    "gameInputs": 0,
+    "breakpointsInstalled": 0
+  }
+}
