@@ -88,6 +88,74 @@
         "version-info:アップデートクライアント 起動プログラム",
         "ghidra-exporter-sha256:DB99864A5AF34DD888092F42E73094BDF8E664C4E68261F68E31E50AEAC54DD5"
       ]
+    },
+    {
+      "relativePosixPath": "doc/___p_`_v_}_j___a__.pdf",
+      "schemaVersion": 1,
+      "kind": "PDF_OPERATION_MANUAL",
+      "contentSha256": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+      "byteSize": 5374309,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PDF_1_4",
+        "role": "ORIGINAL_OPERATION_MANUAL",
+        "headerHex": "255044462D312E340D25E2E3CFD30D0A",
+        "pdfVersion": "1.4",
+        "pageCount": 69,
+        "encrypted": true,
+        "emptyPasswordAccess": true,
+        "title": "銀河英雄伝説Ⅶ　操作説明書",
+        "author": "BOTHTEC",
+        "creator": "Word 用 Acrobat PDFMaker 5.0",
+        "producer": "Acrobat Distiller 5.0.5 (Windows)",
+        "creationDate": "D:20040411114123+09'00'",
+        "modificationDate": "D:20040411125421+09'00'",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/cd-manual-v1-static-analysis.json",
+        "receiptSha256": "16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+        "evidence": [
+          "cd-manual-static-analysis-sha256:16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+          "pdf-header:%PDF-1.4",
+          "pdf-metadata-title:銀河英雄伝説Ⅶ　操作説明書",
+          "pdf-page-count:69"
+        ]
+      },
+      "externalDocumentOpen": {
+        "status": "PROVEN",
+        "openerKey": "ORIGINAL_CD_ARTIFACT:G7START.EXE",
+        "openerName": "G7Start.exe",
+        "openerSha256": "1023C4A045F184BF76CA84AB603E0C03DB989799F02B701BF8DD89B21EA78F93",
+        "openerByteSize": 434176,
+        "api": "SHELL32.dll::ShellExecuteA",
+        "commandId": 1001,
+        "handler": "FUN_00403860",
+        "callsite": "0x004038E6",
+        "verb": "open",
+        "targetOriginalName": "銀英伝７マニュアル.pdf",
+        "targetSha256": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+        "evidence": [
+          "original-cd:G7Start.exe:message-map-command:1001",
+          "original-cd:G7Start.exe:FUN_00403860",
+          "original-cd:G7Start.exe:ShellExecuteA:0x004038E6",
+          "original-cd:G7Start.exe:manual-name@0x00427900"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PDF is the standalone original operation manual. G7Start.exe delegates it to the OS default PDF viewer with ShellExecuteA; G7MTClient.exe does not parse it as a data, render, audio, or map resource.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:E8B07A6802B17EEF",
+          "cd-manual-static-analysis-sha256:16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+          "original-cd:G7Start.exe:ShellExecuteA:0x004038E6",
+          "g7mtclient:no-pdf-or-shell-open-reference-in-hash-bound-static-surfaces"
+        ]
+      },
+      "evidence": [
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "tree-manifest:LOGH7/doc/___p_`_v_}_j___a__.pdf",
+        "original-joliet-name:銀英伝７マニュアル.pdf",
+        "installshield-shell-target:<TARGETDIR>\\doc\\銀英伝７マニュアル.pdf",
+        "inspector-sha256:4F55234F6BDF22A2AA24C99818CD0D064E35E9F878560B37420EA4879C3EC1CC"
+      ]
     }
   ]
 }

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "unitId": "RECOVERY:D01:RESOURCE_LOADER:E8B07A6802B17EEF",
+  "verdict": "APPROVE",
+  "reviewMode": "READ_ONLY_FRESH_POST_SEAL",
+  "repositoryWriteCount": 0,
+  "vmLiveActionCount": 0,
+  "verifierRetryCount": 0,
+  "independentReceipt": {
+    "path": "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-pdf-postseal-review-f21545a72dfc49b79cd86ca160658aaa.json",
+    "sha256": "A5986499541DDEF97C1923EDE0F0C23539E76126406F98A49E2D226BAEE6F088",
+    "exitCode": 0,
+    "targetPolicy": "FRESH_SYSTEM_TEMP_CHILD"
+  },
+  "repositoryReceipt": {
+    "path": "work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-verification.json",
+    "sha256": "187F17E7978F9ACF24BC1F73AE13F1C499977C54074F2E12D74E43F6BCDA6235"
+  },
+  "assertions": {
+    "tests": {
+      "discovered": 280,
+      "passed": 280,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expectedFailures": 0,
+      "unexpectedSuccesses": 0
+    },
+    "deterministicArtifactCount": 32,
+    "artifactMismatchCount": 0,
+    "protectedFileCount": 95,
+    "protectedMismatchCount": 0,
+    "sourceRowCount": 15999,
+    "graphNodeCount": 35686,
+    "graphEdgeCount": 92055,
+    "fatalStructuralCount": 1,
+    "fatalRuleId": "FEATURE_REACHABILITY_LEDGER_ABSENT",
+    "evidenceGapCount": 25606,
+    "oldUnitCount": 0,
+    "targetNextUnitId": "RECOVERY:D01:RESOURCE_OWNER:0F8AD043BA655644",
+    "globalNextUnitId": "RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B",
+    "pdfOpenDocumentEdgeCount": 1,
+    "pdfLoadsEdgeCount": 0,
+    "runtimeOrPlayerStatePromotions": 0
+  },
+  "reviewedBindings": {
+    "pdfSha256": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+    "originalCdIsoSha256": "375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+    "g7StartSha256": "1023C4A045F184BF76CA84AB603E0C03DB989799F02B701BF8DD89B21EA78F93",
+    "g7mtClientSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "bootFirstSha256": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+    "gin7UpdateClientSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+    "inspectorSha256": "4F55234F6BDF22A2AA24C99818CD0D064E35E9F878560B37420EA4879C3EC1CC",
+    "staticReceiptSha256": "16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+    "adjudicationsSha256": "023FE64A893BD5F51D025220953D81DEAD013357B6B7E41D4C425E2BEB4DBBA7",
+    "resourceInventorySha256": "A1DDAAF70CE5BDED0B8D6E82A1147EE27A6EBF33BD3B5BDFB1C1E980524E2FE7",
+    "graphSha256": "05771703EEB797301C46C412476267CD6A6C7492B960E211EF04392AAFC7092F",
+    "coverageSha256": "2D1EF1E97072E0A9DDBD1E802975955DC10E9BFF696D26A6E0632AA1D51D7AE7",
+    "workPackagesSha256": "28BB966D276DC342A473D24AB682E3D4E322805E932B2FA5B62FF9A4DEB4951F",
+    "recoverySha256": "F43295C69F2A4A85E006F8D9CB396045DFEEB2B4AB2661996904C86CCD0FAE77"
+  }
+}

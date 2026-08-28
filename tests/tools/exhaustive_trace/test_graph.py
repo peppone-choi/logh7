@@ -443,6 +443,40 @@ class GraphTests(unittest.TestCase):
         self.assertIn((source["key"], "LAUNCHES_PROCESS", target["key"]), triples)
         self.assertNotIn((source["key"], "LOADS", target["key"]), triples)
 
+    def test_external_manual_opener_emits_document_edge_without_asset_load_edge(self) -> None:
+        rows = [row for group in fixture_rows().values() for row in group]
+        manual = next(row for row in rows if row["inventory"] == "RESOURCE")
+        manual["source"] = {
+            "externalDocumentOpen": {
+                "status": "PROVEN",
+                "openerKey": "ORIGINAL_CD_ARTIFACT:G7START.EXE",
+                "openerName": "G7Start.exe",
+                "openerSha256": "1023C4A045F184BF76CA84AB603E0C03DB989799F02B701BF8DD89B21EA78F93",
+                "openerByteSize": 434176,
+                "api": "SHELL32.dll::ShellExecuteA",
+                "commandId": 1001,
+                "handler": "FUN_00403860",
+                "callsite": "0x004038E6",
+                "verb": "open",
+                "targetOriginalName": "銀英伝７マニュアル.pdf",
+                "targetSha256": "A" * 64,
+                "evidence": ["fixture:g7start-document-open"],
+            }
+        }
+
+        graph = build_graph(rows)
+        triples = {(edge.source, edge.relation, edge.target) for edge in graph.edges}
+
+        self.assertIsNotNone(graph.node("ORIGINAL_CD_ARTIFACT:G7START.EXE"))
+        self.assertIn(
+            ("ORIGINAL_CD_ARTIFACT:G7START.EXE", "OPENS_DOCUMENT", manual["key"]),
+            triples,
+        )
+        self.assertNotIn(
+            ("ORIGINAL_CD_ARTIFACT:G7START.EXE", "LOADS", manual["key"]),
+            triples,
+        )
+
     def test_trace_graph_rejects_dangling_edges_and_candidate_identity(self) -> None:
         node = TraceNode(
             "A", "INVENTORY_ROW", "a", ("E-A",), provenance="ORIGINAL_OBSERVED",

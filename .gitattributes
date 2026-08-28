@@ -63,3 +63,6 @@ tools/exhaustive_trace/foundation_verification.py text eol=lf
 tests/tools/exhaustive_trace/test_foundation_verification.py text eol=lf
 work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-independent-verification.json text eol=lf
 work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-independent-review.json text eol=lf
+work/20260828-bootfirst-resource-loader/ExportBootFirstFlow.java text eol=lf
+work/20260828-bootfirst-resource-loader/evidence/bootfirst-flow.txt text eol=lf
+work/20260828-cd-manual-resource-loader/InspectCdManual.py text eol=lf

@@ -18,7 +18,7 @@ NODE_KINDS = frozenset(
     {
         "INVENTORY_ROW", "FIELD", "STATE_LOCATION", "AUTHORITY_COMPONENT", "EVENT",
         "DATABASE_TABLE", "VISIBLE_SURFACE", "NAME_TOKEN", "UNRESOLVED_REFERENCE",
-        "STRING_LITERAL", "FUNCTION_MEMBER",
+        "STRING_LITERAL", "FUNCTION_MEMBER", "EXTERNAL_ARTIFACT",
     }
 )
 STRICT_EDGE_JOIN_BASIS = frozenset(
@@ -137,6 +137,8 @@ def _enumerate_join_references(rows: Sequence[Mapping[str, Any]]) -> tuple[str, 
             )
             if (row.get("source") or {}).get("processLaunch"):
                 refs.add(f"inventory:{key}/source/processLaunch")
+            if (row.get("source") or {}).get("externalDocumentOpen"):
+                refs.add(f"inventory:{key}/source/externalDocumentOpen")
         elif row["inventory"] == "AUTHORITY":
             refs.add(f"inventory:{key}/sourceKey")
     return tuple(sorted(refs))
@@ -983,19 +985,40 @@ class _GraphBuilder:
                     candidate_id=f"RESOURCE_LOADER:{row['key']}:{index}:{token}",
                 )
             process_launch = (row.get("source") or {}).get("processLaunch")
-            if not process_launch:
-                continue
-            ref = f"inventory:{row['key']}/source/processLaunch"
-            target = process_launch.get("targetRowKey")
-            if process_launch.get("status") != "PROVEN" or target not in self.row_by_key:
-                raise ValueError(f"proven process launch target is unresolved: {row['key']}")
-            process_evidence = process_launch.get("evidence", row["evidence"])
-            self.add_edge(
-                row["key"], "LAUNCHES_PROCESS", target, process_evidence,
-                provenance=row["provenance"], confidence="HIGH", disposition="PROVEN",
-                edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
-                source_refs=(ref,), candidate_id=f"PROCESS_LAUNCH:{row['key']}:{target}",
-            )
+            if process_launch:
+                ref = f"inventory:{row['key']}/source/processLaunch"
+                target = process_launch.get("targetRowKey")
+                if process_launch.get("status") != "PROVEN" or target not in self.row_by_key:
+                    raise ValueError(f"proven process launch target is unresolved: {row['key']}")
+                process_evidence = process_launch.get("evidence", row["evidence"])
+                self.add_edge(
+                    row["key"], "LAUNCHES_PROCESS", target, process_evidence,
+                    provenance=row["provenance"], confidence="HIGH", disposition="PROVEN",
+                    edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
+                    source_refs=(ref,), candidate_id=f"PROCESS_LAUNCH:{row['key']}:{target}",
+                )
+            document_open = (row.get("source") or {}).get("externalDocumentOpen")
+            if document_open:
+                ref = f"inventory:{row['key']}/source/externalDocumentOpen"
+                if document_open.get("status") != "PROVEN":
+                    raise ValueError(f"external document opener is not proven: {row['key']}")
+                opener_key = str(document_open.get("openerKey", ""))
+                opener_evidence = document_open.get("evidence", row["evidence"])
+                self.add_node(
+                    opener_key, "EXTERNAL_ARTIFACT", str(document_open.get("openerName")),
+                    opener_evidence, provenance="ORIGINAL_OBSERVED", confidence="HIGH",
+                    disposition="PROVEN", source_refs=(ref,), attributes={
+                        "sha256": document_open.get("openerSha256"),
+                        "byteSize": document_open.get("openerByteSize"),
+                    },
+                )
+                self.add_edge(
+                    opener_key, "OPENS_DOCUMENT", row["key"], opener_evidence,
+                    provenance="ORIGINAL_OBSERVED", confidence="HIGH", disposition="PROVEN",
+                    edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
+                    source_refs=(ref,),
+                    candidate_id=f"DOCUMENT_OPEN:{opener_key}:{row['key']}",
+                )
 
     def authority_edges(self) -> None:
         for row in self.rows:

@@ -311,6 +311,68 @@ def load_resource_adjudications(
                 bound_tool_count += 1
             if bound_tool_count == 0:
                 raise ValueError("PE bootstrap analysis receipt lacks bound static evidence")
+        elif item.get("kind") == "PDF_OPERATION_MANUAL":
+            analysis = _mapping("PDF operation manual analysis", item.get("analysis"))
+            receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
+            if not receipt_path.is_absolute():
+                receipt_path = Path.cwd() / receipt_path
+            receipt_path = receipt_path.resolve()
+            receipt_sha = _sha256("analysis.receiptSha256", analysis.get("receiptSha256"))
+            if not receipt_path.is_file() or sha256_file(receipt_path) != receipt_sha:
+                raise ValueError("PDF operation manual analysis receipt hash mismatch")
+            receipt = _mapping(
+                "PDF operation manual analysis receipt",
+                json.loads(receipt_path.read_text(encoding="utf-8")),
+            )
+            if receipt.get("schemaVersion") != 1 or receipt.get("status") != "PROVEN_STATIC":
+                raise ValueError("PDF operation manual analysis receipt contract differs")
+            receipt_source = _mapping("PDF operation manual receipt source", receipt.get("source"))
+            if (
+                _sha256("receipt.source.sha256", receipt_source.get("sha256"))
+                != _sha256("adjudication.contentSha256", item.get("contentSha256"))
+                or receipt_source.get("byteSize") != item.get("byteSize")
+            ):
+                raise ValueError("PDF operation manual receipt source differs")
+            receipt_analysis = _mapping(
+                "PDF operation manual receipt analysis", receipt.get("analysis")
+            )
+            item_analysis = {
+                key: value
+                for key, value in analysis.items()
+                if key not in {"status", "receiptPath", "receiptSha256", "evidence"}
+            }
+            if receipt_analysis != item_analysis:
+                raise ValueError("PDF operation manual receipt analysis differs")
+            if receipt_analysis.get("headerHex") != "255044462D312E340D25E2E3CFD30D0A":
+                raise ValueError("PDF operation manual header differs")
+            receipt_external = receipt.get("externalDocumentOpen")
+            item_external = item.get("externalDocumentOpen")
+            if receipt_external is not None or item_external is not None:
+                if (
+                    _mapping("PDF operation manual receipt externalDocumentOpen", receipt_external)
+                    != _mapping("PDF operation manual adjudication externalDocumentOpen", item_external)
+                ):
+                    raise ValueError(
+                        "PDF operation manual receipt external document open differs"
+                    )
+            static_tools = _mapping(
+                "PDF operation manual receipt staticTools", receipt.get("staticTools")
+            )
+            bound_tool_count = 0
+            for label, record_value in static_tools.items():
+                if not isinstance(record_value, Mapping):
+                    continue
+                record = _mapping(f"staticTools.{label}", record_value)
+                referenced_path = Path(_text(f"staticTools.{label}.path", record.get("path")))
+                if not referenced_path.is_absolute():
+                    referenced_path = Path.cwd() / referenced_path
+                referenced_path = referenced_path.resolve()
+                expected_sha = _sha256(f"staticTools.{label}.sha256", record.get("sha256"))
+                if not referenced_path.is_file() or sha256_file(referenced_path) != expected_sha:
+                    raise ValueError("PDF operation manual referenced evidence hash mismatch")
+                bound_tool_count += 1
+            if bound_tool_count == 0:
+                raise ValueError("PDF operation manual analysis receipt lacks bound static evidence")
         result[relative_path] = item
     return result
 
@@ -673,7 +735,9 @@ def build_resource_inventory(
         adjudication_kind: str | None = None
         adjudication_evidence: tuple[str, ...] = ()
         pe_analysis: Mapping[str, Any] | None = None
+        pdf_analysis: Mapping[str, Any] | None = None
         process_launch: dict[str, Any] | None = None
+        external_document_open: dict[str, Any] | None = None
         if adjudication is not None:
             adjudication = _mapping("resource adjudication", adjudication)
             adjudication_kind = _text("adjudication.kind", adjudication.get("kind"))
@@ -692,6 +756,7 @@ def build_resource_inventory(
                     "originalNameBytesHex", "targetUrl",
                 },
                 "PE_EXECUTABLE_BOOTSTRAP": {"analysis", "processLaunch"},
+                "PDF_OPERATION_MANUAL": {"analysis", "externalDocumentOpen"},
             }
             if adjudication_kind not in kind_fields:
                 raise ValueError("unsupported resource adjudication kind")
@@ -750,7 +815,7 @@ def build_resource_inventory(
                     raise ValueError("resource adjudication originalNameBytesHex is invalid CP932") from error
                 if decoded_original_name != original_name:
                     raise ValueError("resource adjudication originalName differs from CP932 bytes")
-            else:
+            elif adjudication_kind == "PE_EXECUTABLE_BOOTSTRAP":
                 pe_analysis = _mapping("adjudication.analysis", adjudication.get("analysis"))
                 if set(pe_analysis) != {
                     "status", "format", "machine", "subsystem", "entryPointRva",
@@ -810,6 +875,93 @@ def build_resource_inventory(
                     ),
                     "evidence": process_evidence,
                 }
+            else:
+                pdf_analysis = _mapping("adjudication.analysis", adjudication.get("analysis"))
+                expected_pdf_fields = {
+                    "status", "format", "role", "headerHex", "pdfVersion", "pageCount",
+                    "encrypted", "emptyPasswordAccess", "title", "author", "creator",
+                    "producer", "creationDate", "modificationDate", "receiptPath",
+                    "receiptSha256", "evidence",
+                }
+                if set(pdf_analysis) != expected_pdf_fields:
+                    raise ValueError("PDF operation manual analysis fields differ")
+                if pdf_analysis.get("status") != "PROVEN":
+                    raise ValueError("PDF operation manual analysis must be PROVEN")
+                if (
+                    pdf_analysis.get("format") != "PDF_1_4"
+                    or pdf_analysis.get("pdfVersion") != "1.4"
+                    or pdf_analysis.get("headerHex") != "255044462D312E340D25E2E3CFD30D0A"
+                ):
+                    raise ValueError("PDF operation manual format differs")
+                if (
+                    pdf_analysis.get("role") != "ORIGINAL_OPERATION_MANUAL"
+                    or pdf_analysis.get("title") != "銀河英雄伝説Ⅶ　操作説明書"
+                    or pdf_analysis.get("author") != "BOTHTEC"
+                ):
+                    raise ValueError("PDF operation manual identity differs")
+                if not isinstance(pdf_analysis.get("pageCount"), int) or pdf_analysis["pageCount"] <= 0:
+                    raise ValueError("PDF operation manual pageCount is invalid")
+                if pdf_analysis.get("encrypted") is not True or pdf_analysis.get("emptyPasswordAccess") is not True:
+                    raise ValueError("PDF operation manual access contract differs")
+                for field in (
+                    "creator", "producer", "creationDate", "modificationDate", "receiptPath"
+                ):
+                    _text(f"analysis.{field}", pdf_analysis.get(field))
+                _sha256("analysis.receiptSha256", pdf_analysis.get("receiptSha256"))
+                _evidence("analysis.evidence", pdf_analysis.get("evidence"))
+                external_value = adjudication.get("externalDocumentOpen")
+                if external_value is not None:
+                    external = _mapping("adjudication.externalDocumentOpen", external_value)
+                    expected_external_fields = {
+                        "status", "openerKey", "openerName", "openerSha256", "openerByteSize",
+                        "api", "commandId", "handler", "callsite", "verb",
+                        "targetOriginalName", "targetSha256", "evidence",
+                    }
+                    if set(external) != expected_external_fields:
+                        raise ValueError("PDF externalDocumentOpen fields differ")
+                    if external.get("status") != "PROVEN":
+                        raise ValueError("PDF externalDocumentOpen must be PROVEN")
+                    opener_key = _text("externalDocumentOpen.openerKey", external.get("openerKey"))
+                    if not opener_key.startswith("ORIGINAL_CD_ARTIFACT:"):
+                        raise ValueError("PDF externalDocumentOpen openerKey differs")
+                    opener_sha = _sha256(
+                        "externalDocumentOpen.openerSha256", external.get("openerSha256")
+                    )
+                    if not isinstance(external.get("openerByteSize"), int) or external["openerByteSize"] <= 0:
+                        raise ValueError("PDF externalDocumentOpen openerByteSize is invalid")
+                    if external.get("commandId") != 1001 or external.get("verb") != "open":
+                        raise ValueError("PDF externalDocumentOpen command contract differs")
+                    handler = _text("externalDocumentOpen.handler", external.get("handler"))
+                    callsite = _text("externalDocumentOpen.callsite", external.get("callsite"))
+                    if not FUNCTION_PATTERN.fullmatch(handler) or not RUNTIME_POINTER_PATTERN.fullmatch(callsite):
+                        raise ValueError("PDF externalDocumentOpen code anchor differs")
+                    target_sha = _sha256(
+                        "externalDocumentOpen.targetSha256", external.get("targetSha256")
+                    )
+                    if target_sha != entry.content_sha256:
+                        raise ValueError("PDF externalDocumentOpen targetSha256 differs")
+                    external_document_open = {
+                        "status": "PROVEN",
+                        "openerKey": opener_key,
+                        "openerName": _text(
+                            "externalDocumentOpen.openerName", external.get("openerName")
+                        ),
+                        "openerSha256": opener_sha,
+                        "openerByteSize": int(external["openerByteSize"]),
+                        "api": _text("externalDocumentOpen.api", external.get("api")),
+                        "commandId": 1001,
+                        "handler": handler,
+                        "callsite": callsite,
+                        "verb": "open",
+                        "targetOriginalName": _text(
+                            "externalDocumentOpen.targetOriginalName",
+                            external.get("targetOriginalName"),
+                        ),
+                        "targetSha256": target_sha,
+                        "evidence": _evidence(
+                            "externalDocumentOpen.evidence", external.get("evidence")
+                        ),
+                    }
             loader_adjudication = _mapping("adjudication.loader", adjudication.get("loader"))
             unknown_loader_fields = set(loader_adjudication) - {"status", "reason", "evidence"}
             if unknown_loader_fields:
@@ -952,6 +1104,8 @@ def build_resource_inventory(
                 "detectedFormat": (
                     "WINDOWS_INTERNET_SHORTCUT"
                     if adjudication_kind == "WINDOWS_INTERNET_SHORTCUT"
+                    else str(pdf_analysis.get("format"))
+                    if pdf_analysis is not None
                     else str(pe_analysis.get("format"))
                     if pe_analysis is not None
                     else _format_for_path(path)
@@ -959,6 +1113,8 @@ def build_resource_inventory(
                 "detector": (
                     "CONTENT_SIGNATURE"
                     if adjudication_kind == "WINDOWS_INTERNET_SHORTCUT"
+                    else "HASH_BOUND_PDF_ANALYSIS"
+                    if pdf_analysis is not None
                     else "HASH_BOUND_STATIC_ANALYSIS"
                     if pe_analysis is not None
                     else "EXTENSION_ONLY"
@@ -992,6 +1148,28 @@ def build_resource_inventory(
                 adjudicationEvidence=_evidence(
                     "adjudication.evidence", adjudication.get("evidence")
                 ),
+            )
+        elif pdf_analysis is not None:
+            source.update(
+                documentRole=_text("analysis.role", pdf_analysis.get("role")),
+                originalName=(
+                    external_document_open["targetOriginalName"]
+                    if external_document_open is not None
+                    else None
+                ),
+                pdfAnalysis={
+                    key: value
+                    for key, value in pdf_analysis.items()
+                    if key not in {"role", "receiptPath", "evidence"}
+                },
+                externalDocumentOpen=external_document_open,
+                adjudicationEvidence=adjudication_evidence,
+            )
+            source["pdfAnalysis"]["receiptPath"] = _text(
+                "analysis.receiptPath", pdf_analysis.get("receiptPath")
+            )
+            source["pdfAnalysis"]["evidence"] = _evidence(
+                "analysis.evidence", pdf_analysis.get("evidence")
             )
         elif pe_analysis is not None and process_launch is not None:
             source.update(

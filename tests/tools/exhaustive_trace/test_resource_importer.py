@@ -513,6 +513,302 @@ class ResourceImporterTests(unittest.TestCase):
                     expected_tree_manifest_sha256="2" * 64,
                 )
 
+    def test_hash_bound_pdf_operation_manual_closes_loader_without_state_promotion(self) -> None:
+        path = "doc/manual.pdf"
+        source_sha = "A" * 64
+        analysis = {
+            "status": "PROVEN",
+            "format": "PDF_1_4",
+            "role": "ORIGINAL_OPERATION_MANUAL",
+            "headerHex": "255044462D312E340D25E2E3CFD30D0A",
+            "pdfVersion": "1.4",
+            "pageCount": 69,
+            "encrypted": True,
+            "emptyPasswordAccess": True,
+            "title": "銀河英雄伝説Ⅶ　操作説明書",
+            "author": "BOTHTEC",
+            "creator": "Word 用 Acrobat PDFMaker 5.0",
+            "producer": "Acrobat Distiller 5.0.5 (Windows)",
+            "creationDate": "D:20040411114123+09'00'",
+            "modificationDate": "D:20040411125421+09'00'",
+            "receiptPath": "evidence/exhaustive-trace/adjudications/fixture.json",
+            "receiptSha256": "C" * 64,
+            "evidence": ["pdf-analysis:fixture"],
+        }
+        adjudication = {
+            path: {
+                "schemaVersion": 1,
+                "kind": "PDF_OPERATION_MANUAL",
+                "contentSha256": source_sha,
+                "byteSize": 5374309,
+                "analysis": analysis,
+                "externalDocumentOpen": {
+                    "status": "PROVEN",
+                    "openerKey": "ORIGINAL_CD_ARTIFACT:G7START.EXE",
+                    "openerName": "G7Start.exe",
+                    "openerSha256": "B" * 64,
+                    "openerByteSize": 434176,
+                    "api": "SHELL32.dll::ShellExecuteA",
+                    "commandId": 1001,
+                    "handler": "FUN_00403860",
+                    "callsite": "0x004038E6",
+                    "verb": "open",
+                    "targetOriginalName": "銀英伝７マニュアル.pdf",
+                    "targetSha256": source_sha,
+                    "evidence": ["g7start:ShellExecuteA:0x004038E6"],
+                },
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "Standalone original operation manual, not a G7MTClient asset format",
+                    "evidence": ["pdf-analysis:fixture"],
+                },
+                "evidence": ["tree-manifest:doc/manual.pdf", "pdf-analysis:fixture"],
+            }
+        }
+
+        row = build_resource_inventory(
+            complete_raw(conservation={"treeFiles": 1}),
+            [TreeManifestEntry(path, source_sha, 5374309)],
+            root_id="original",
+            adjudications=adjudication,
+        )[0]
+        normalized = normalize_resource_inventory([row])[0]
+
+        self.assertEqual(row.loader.status.value, "NOT_APPLICABLE")
+        self.assertEqual(row.format.status.value, "PROVEN")
+        self.assertEqual(row.format.values["detectedFormat"], "PDF_1_4")
+        self.assertEqual(row.format.values["detector"], "HASH_BOUND_PDF_ANALYSIS")
+        self.assertEqual(normalized["source"]["documentRole"], "ORIGINAL_OPERATION_MANUAL")
+        self.assertEqual(normalized["source"]["originalName"], "銀英伝７マニュアル.pdf")
+        self.assertEqual(normalized["source"]["pdfAnalysis"]["pageCount"], 69)
+        self.assertEqual(
+            normalized["source"]["externalDocumentOpen"]["openerKey"],
+            "ORIGINAL_CD_ARTIFACT:G7START.EXE",
+        )
+        self.assertEqual(row.first_missing_boundary, "RUNTIME_OWNER")
+        self.assertEqual(sum(row.row.states.values()), 1)
+
+    def test_pdf_operation_manual_receipt_rejects_source_or_analysis_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            extractor = root / "inspect.py"
+            extractor.write_text("print('inspect')\n", encoding="utf-8")
+            extractor_sha = __import__("hashlib").sha256(extractor.read_bytes()).hexdigest().upper()
+            receipt = root / "manual-static.json"
+            receipt_analysis = {
+                "format": "PDF_1_4",
+                "role": "ORIGINAL_OPERATION_MANUAL",
+                "headerHex": "255044462D312E340D25E2E3CFD30D0A",
+                "pdfVersion": "1.4",
+                "pageCount": 69,
+                "encrypted": True,
+                "emptyPasswordAccess": True,
+                "title": "銀河英雄伝説Ⅶ　操作説明書",
+                "author": "BOTHTEC",
+                "creator": "Word 用 Acrobat PDFMaker 5.0",
+                "producer": "Acrobat Distiller 5.0.5 (Windows)",
+                "creationDate": "D:20040411114123+09'00'",
+                "modificationDate": "D:20040411125421+09'00'",
+            }
+            receipt.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "status": "PROVEN_STATIC",
+                        "source": {"sha256": "B" * 64, "byteSize": 5374309},
+                        "analysis": receipt_analysis,
+                        "staticTools": {
+                            "extractor": {"path": str(extractor), "sha256": extractor_sha}
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            receipt_sha = __import__("hashlib").sha256(receipt.read_bytes()).hexdigest().upper()
+            payload_analysis = {
+                "status": "PROVEN",
+                **receipt_analysis,
+                "receiptPath": str(receipt),
+                "receiptSha256": receipt_sha,
+                "evidence": ["pdf-analysis:fixture"],
+            }
+            payload = {
+                "schemaVersion": 1,
+                "source": {
+                    "rootId": "original",
+                    "sourceManifestSha256": "1" * 64,
+                    "treeManifestSha256": "2" * 64,
+                },
+                "adjudications": [
+                    {
+                        "relativePosixPath": "doc/manual.pdf",
+                        "schemaVersion": 1,
+                        "kind": "PDF_OPERATION_MANUAL",
+                        "contentSha256": "A" * 64,
+                        "byteSize": 5374309,
+                        "analysis": payload_analysis,
+                        "loader": {
+                            "status": "NOT_APPLICABLE",
+                            "reason": "Standalone operation manual",
+                            "evidence": ["pdf-analysis:fixture"],
+                        },
+                        "evidence": ["pdf-analysis:fixture"],
+                    }
+                ],
+            }
+            path = root / "resources.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "PDF operation manual receipt source differs"):
+                load_resource_adjudications(
+                    path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
+            payload["adjudications"][0]["contentSha256"] = "B" * 64
+            payload["adjudications"][0]["analysis"]["title"] = "Different title"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "PDF operation manual receipt analysis differs"):
+                load_resource_adjudications(
+                    path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
+            external = {
+                "status": "PROVEN",
+                "openerKey": "ORIGINAL_CD_ARTIFACT:G7START.EXE",
+                "openerName": "G7Start.exe",
+                "openerSha256": "C" * 64,
+                "openerByteSize": 434176,
+                "api": "SHELL32.dll::ShellExecuteA",
+                "commandId": 1001,
+                "handler": "FUN_00403860",
+                "callsite": "0x004038E6",
+                "verb": "open",
+                "targetOriginalName": "銀英伝７マニュアル.pdf",
+                "targetSha256": "B" * 64,
+                "evidence": ["g7start:ShellExecuteA:0x004038E6"],
+            }
+            receipt_payload = json.loads(receipt.read_text(encoding="utf-8"))
+            receipt_payload["source"]["sha256"] = "B" * 64
+            receipt_payload["analysis"]["title"] = "銀河英雄伝説Ⅶ　操作説明書"
+            receipt_payload["externalDocumentOpen"] = external
+            receipt.write_text(json.dumps(receipt_payload), encoding="utf-8")
+            payload["adjudications"][0]["analysis"]["title"] = "銀河英雄伝説Ⅶ　操作説明書"
+            payload["adjudications"][0]["analysis"]["receiptSha256"] = (
+                __import__("hashlib").sha256(receipt.read_bytes()).hexdigest().upper()
+            )
+            payload["adjudications"][0]["externalDocumentOpen"] = copy.deepcopy(external)
+            payload["adjudications"][0]["externalDocumentOpen"]["callsite"] = "0x004038E7"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(
+                ValueError, "PDF operation manual receipt external document open differs"
+            ):
+                load_resource_adjudications(
+                    path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
+    def test_pdf_operation_manual_receipt_rejects_header_or_referenced_evidence_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            extractor = root / "inspect.py"
+            extractor.write_text("print('inspect')\n", encoding="utf-8")
+            receipt = root / "manual-static.json"
+            analysis = {
+                "format": "PDF_1_4",
+                "role": "ORIGINAL_OPERATION_MANUAL",
+                "headerHex": "255044462D312E350D25E2E3CFD30D0A",
+                "pdfVersion": "1.4",
+                "pageCount": 69,
+                "encrypted": True,
+                "emptyPasswordAccess": True,
+                "title": "銀河英雄伝説Ⅶ　操作説明書",
+                "author": "BOTHTEC",
+                "creator": "Word 用 Acrobat PDFMaker 5.0",
+                "producer": "Acrobat Distiller 5.0.5 (Windows)",
+                "creationDate": "D:20040411114123+09'00'",
+                "modificationDate": "D:20040411125421+09'00'",
+            }
+            receipt.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "status": "PROVEN_STATIC",
+                        "source": {"sha256": "A" * 64, "byteSize": 5374309},
+                        "analysis": analysis,
+                        "staticTools": {
+                            "extractor": {"path": str(extractor), "sha256": "F" * 64}
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            receipt_sha = __import__("hashlib").sha256(receipt.read_bytes()).hexdigest().upper()
+            payload = {
+                "schemaVersion": 1,
+                "source": {
+                    "rootId": "original",
+                    "sourceManifestSha256": "1" * 64,
+                    "treeManifestSha256": "2" * 64,
+                },
+                "adjudications": [
+                    {
+                        "relativePosixPath": "doc/manual.pdf",
+                        "schemaVersion": 1,
+                        "kind": "PDF_OPERATION_MANUAL",
+                        "contentSha256": "A" * 64,
+                        "byteSize": 5374309,
+                        "analysis": {
+                            "status": "PROVEN",
+                            **analysis,
+                            "receiptPath": str(receipt),
+                            "receiptSha256": receipt_sha,
+                            "evidence": ["pdf-analysis:fixture"],
+                        },
+                        "loader": {
+                            "status": "NOT_APPLICABLE",
+                            "reason": "Standalone operation manual",
+                            "evidence": ["pdf-analysis:fixture"],
+                        },
+                        "evidence": ["pdf-analysis:fixture"],
+                    }
+                ],
+            }
+            path = root / "resources.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "PDF operation manual header differs"):
+                load_resource_adjudications(
+                    path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
+            analysis["headerHex"] = "255044462D312E340D25E2E3CFD30D0A"
+            payload["adjudications"][0]["analysis"]["headerHex"] = analysis["headerHex"]
+            receipt_payload = json.loads(receipt.read_text(encoding="utf-8"))
+            receipt_payload["analysis"]["headerHex"] = analysis["headerHex"]
+            receipt.write_text(json.dumps(receipt_payload), encoding="utf-8")
+            payload["adjudications"][0]["analysis"]["receiptSha256"] = (
+                __import__("hashlib").sha256(receipt.read_bytes()).hexdigest().upper()
+            )
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "PDF operation manual referenced evidence hash mismatch"):
+                load_resource_adjudications(
+                    path,
+                    expected_root_id="original",
+                    expected_source_manifest_sha256="1" * 64,
+                    expected_tree_manifest_sha256="2" * 64,
+                )
+
     def test_tree_paths_are_safe_and_casefold_unique(self) -> None:
         for path in ("../escape.tga", "/absolute.tga", "data\\bad.tga", "./dot.tga"):
             with self.subTest(path=path), self.assertRaisesRegex(ValueError, "resource path"):

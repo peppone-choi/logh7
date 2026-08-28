@@ -156,6 +156,12 @@ $resourceAdjudications = Join-Path $projectRoot "evidence\exhaustive-trace\adjud
 $resourceAdjudicationDirectory = Join-Path $projectRoot "evidence\exhaustive-trace\adjudications"
 $bootFirstExporter = Join-Path $projectRoot "work\20260828-bootfirst-resource-loader\ExportBootFirstFlow.java"
 $bootFirstFlow = Join-Path $projectRoot "work\20260828-bootfirst-resource-loader\evidence\bootfirst-flow.txt"
+$cdManualInspector = Join-Path $projectRoot "work\20260828-cd-manual-resource-loader\InspectCdManual.py"
+$cdManualPdf = Join-Path $projectRoot 'evidence\installshield-extract\____________s___\____\doc\___p_`_v_}_j___a__.pdf'
+$originalCdIso = "E:\logh7-vm-media\LOGH7-original-cd.iso"
+$originalClientExe = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\exe\g7mtclient.exe"
+$bootFirstExe = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\bootfirst.exe"
+$updateClientExe = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\gin7updateclient.exe"
 $expectedInventoryNames = @("authority.jsonl", "entities.jsonl", "functions.jsonl", "protocol.jsonl", "resources.jsonl", "ui.jsonl")
 $expectedReconciliationNames = @("authority-reconciliation.json", "entities-reconciliation.json", "functions-reconciliation.json", "protocol-reconciliation.json", "resources-reconciliation.json", "ui-reconciliation.json")
 $expectedDomainNames = 1..16 | ForEach-Object { "D{0:D2}.json" -f $_ }
@@ -298,6 +304,10 @@ $protectedFiles = [Collections.Generic.List[string]]::new()
 foreach ($path in @($sourceManifest, $domainConfig, $characterBoundary, $resourceAdjudications, $MyInvocation.MyCommand.Path)) { $protectedFiles.Add($path) }
 foreach ($path in Get-ChildItem -LiteralPath $resourceAdjudicationDirectory -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in @($bootFirstExporter, $bootFirstFlow)) { $protectedFiles.Add($path) }
+foreach ($path in @(
+    $cdManualInspector, $cdManualPdf, $originalCdIso,
+    $originalClientExe, $bootFirstExe, $updateClientExe
+)) { $protectedFiles.Add($path) }
 foreach ($path in Get-ChildItem -LiteralPath $raw -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in Get-ChildItem -LiteralPath $checkedInventories -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in Get-ChildItem -LiteralPath $checkedDomains -File) { $protectedFiles.Add($path.FullName) }
@@ -377,7 +387,7 @@ try {
         }
     }
     $firstUnit = $workPackages.recoveryUnits[0]
-    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:E8B07A6802B17EEF" $firstUnit.unitId "first unit"
+    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B" $firstUnit.unitId "first unit"
     Assert-Equal 0 $workPackages.conservation.uncoveredOpenRowCount "uncovered recovery rows"
     Assert-Equal 0 $workPackages.conservation.confirmedGameplayFeatureCount "confirmed gameplay features"
     Assert-Equal 0 $workPackages.conservation.maxLiveInputCount "live input count"

@@ -1,0 +1,153 @@
+{
+  "analysis": {
+    "author": "BOTHTEC",
+    "creationDate": "D:20040411114123+09'00'",
+    "creator": "Word 用 Acrobat PDFMaker 5.0",
+    "emptyPasswordAccess": true,
+    "encrypted": true,
+    "format": "PDF_1_4",
+    "headerHex": "255044462D312E340D25E2E3CFD30D0A",
+    "modificationDate": "D:20040411125421+09'00'",
+    "pageCount": 69,
+    "pdfVersion": "1.4",
+    "producer": "Acrobat Distiller 5.0.5 (Windows)",
+    "role": "ORIGINAL_OPERATION_MANUAL",
+    "title": "銀河英雄伝説Ⅶ　操作説明書"
+  },
+  "documentStructure": {
+    "actionCounts": {
+      "/GoTo": 97,
+      "/URI": 1
+    },
+    "annotationCounts": {
+      "/Link": 98
+    },
+    "attachmentCount": 0,
+    "externalUris": [
+      {
+        "page": 8,
+        "uri": "http://www.gineiden.com/"
+      }
+    ],
+    "formFieldCount": 0,
+    "hasCatalogAdditionalActions": false,
+    "hasCatalogJavaScript": false,
+    "launchActionCount": 0,
+    "openActionType": "/GoTo",
+    "outlineItemCount": 72
+  },
+  "externalDocumentOpen": {
+    "api": "SHELL32.dll::ShellExecuteA",
+    "callsite": "0x004038E6",
+    "commandId": 1001,
+    "evidence": [
+      "original-cd:G7Start.exe:message-map-command:1001",
+      "original-cd:G7Start.exe:FUN_00403860",
+      "original-cd:G7Start.exe:ShellExecuteA:0x004038E6",
+      "original-cd:G7Start.exe:manual-name@0x00427900"
+    ],
+    "handler": "FUN_00403860",
+    "openerByteSize": 434176,
+    "openerKey": "ORIGINAL_CD_ARTIFACT:G7START.EXE",
+    "openerName": "G7Start.exe",
+    "openerSha256": "1023C4A045F184BF76CA84AB603E0C03DB989799F02B701BF8DD89B21EA78F93",
+    "status": "PROVEN",
+    "targetOriginalName": "銀英伝７マニュアル.pdf",
+    "targetSha256": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+    "verb": "open"
+  },
+  "installationEvidence": {
+    "filenameTableIsoOffset": "0x00089F4D",
+    "originalName": "銀英伝７マニュアル.pdf",
+    "shellLabel": "PDFマニュアル",
+    "shellLabelIsoOffset": "0x0005A6EA",
+    "shellTarget": "<TARGETDIR>\\doc\\銀英伝７マニュアル.pdf",
+    "shellTargetIsoOffset": "0x0005A6F8",
+    "status": "PROVEN_STATIC"
+  },
+  "originalCd": {
+    "g7StartExtent": "0x0954A800",
+    "sha256": "375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+    "sourceId": "original-cd-iso"
+  },
+  "schemaVersion": 1,
+  "source": {
+    "byteSize": 5374309,
+    "relativePosixPath": "doc/___p_`_v_}_j___a__.pdf",
+    "sha256": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399"
+  },
+  "staticReferenceAbsence": {
+    "inputs": [
+      {
+        "byteSize": 3956736,
+        "hitCounts": {
+          "acrobatAscii": 0,
+          "docPathAscii": 0,
+          "originalNameCp932": 0,
+          "originalNameUtf16Le": 0,
+          "pdfExtensionLower": 0,
+          "pdfExtensionUpper": 0,
+          "shellExecuteAscii": 0,
+          "winExecAscii": 0
+        },
+        "name": "G7MTClient.exe",
+        "path": "evidence/installshield-extract/____________s___/____/exe/g7mtclient.exe",
+        "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16"
+      },
+      {
+        "byteSize": 40960,
+        "hitCounts": {
+          "acrobatAscii": 0,
+          "docPathAscii": 0,
+          "originalNameCp932": 0,
+          "originalNameUtf16Le": 0,
+          "pdfExtensionLower": 0,
+          "pdfExtensionUpper": 0,
+          "shellExecuteAscii": 0,
+          "winExecAscii": 0
+        },
+        "name": "BootFirst.exe",
+        "path": "evidence/installshield-extract/____________s___/____/bootfirst.exe",
+        "sha256": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096"
+      },
+      {
+        "byteSize": 1060864,
+        "hitCounts": {
+          "acrobatAscii": 0,
+          "docPathAscii": 0,
+          "originalNameCp932": 0,
+          "originalNameUtf16Le": 0,
+          "pdfExtensionLower": 0,
+          "pdfExtensionUpper": 0,
+          "shellExecuteAscii": 0,
+          "winExecAscii": 0
+        },
+        "name": "Gin7UpdateClient.exe",
+        "path": "evidence/installshield-extract/____________s___/____/gin7updateclient.exe",
+        "sha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+      }
+    ],
+    "needleHex": {
+      "acrobatAscii": "4163726F",
+      "docPathAscii": "646F635C",
+      "originalNameCp932": "8BE2897093608256837D836A83858341838B2E706466",
+      "originalNameUtf16Le": "8092F1821D4F17FFDE30CB30E530A230EB302E00700064006600",
+      "pdfExtensionLower": "2E706466",
+      "pdfExtensionUpper": "2E504446",
+      "shellExecuteAscii": "5368656C6C45786563757465",
+      "winExecAscii": "57696E45786563"
+    },
+    "status": "PROVEN_ON_HASH_BOUND_BYTE_SURFACES"
+  },
+  "staticTools": {
+    "inspectorScript": {
+      "path": "work/20260828-cd-manual-resource-loader/InspectCdManual.py",
+      "sha256": "4F55234F6BDF22A2AA24C99818CD0D064E35E9F878560B37420EA4879C3EC1CC"
+    }
+  },
+  "status": "PROVEN_STATIC",
+  "toolEnvironment": {
+    "pypdfVersion": "6.10.0",
+    "pythonImplementation": "CPython"
+  }
+}
