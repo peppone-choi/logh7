@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "contract": "ORIGINAL_CLIENT_ACTIVATION_BUDGET_STAGE_POLICY",
+  "state": "OFFLINE_POLICY_RESOLVED_STAGE_LOCAL_ONE_ACTIVATION_ONLY",
+  "currentAuthority": {
+    "authorityId": "CURRENT_THREAD_ORACLE_ONE_RUN_ONE_ACTIVATION_V1",
+    "source": "USER_MESSAGES_CURRENT_THREAD_HASH_BOUND",
+    "scope": "ONE_LIVE_ORACLE_ONE_PHYSICAL_ACTIVATION_READ_ONLY_CAPTURE",
+    "maxLiveRuns": 1,
+    "liveRunsConsumed": 0,
+    "liveRunsRemaining": 1,
+    "reauthorizedAfterPriorConsumption": true,
+    "reauthorizationMessageId": "msg_01a04341-060c-7501-8694-90a25198f52e",
+    "reauthorizationTimestampUtc": "2026-08-27T12:45:29.996Z",
+    "activationBudget": 1,
+    "noPerStepApproval": true,
+    "isPermit": false,
+    "doesNotBypassPrelaunchGates": true,
+    "broadApprovalInstrumentationExtension": true,
+    "broadApprovalOverridesActivationOrForbiddenCaps": false,
+    "allowedBreakpointSets": ["BP01-BP14", "MVB01-MVB09"]
+  },
+  "historicalAuthority": {
+    "authorityId": "E-AUTH-001",
+    "launchPermitId": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "oracleRunId": "oracle-run-v3-20260827-d89449bc2c3c4b70a9854833b2214012",
+    "liveRunsGranted": 1,
+    "liveRunsConsumed": 1,
+    "liveRunsRemaining": 0
+  },
+  "priorPermit": {
+    "id": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "state": "CONSUMED_NO_RETRY",
+    "reusable": false,
+    "gameActivationsObserved": 0,
+    "attemptConsumptionControlsReuse": true
+  },
+  "transaction": {
+    "provenance": "OFFLINE_TECHNICAL_REQUIREMENT_NOT_USER_AUTHORITY",
+    "physicalActivationCount": 3,
+    "automaticInputBudget": 0,
+    "retryBudget": 0,
+    "sameRunRequired": true,
+    "stages": [
+      {"name": "WARP", "ordinal": 1, "physicalActivations": 1, "requiredPredecessors": [], "createdAfterStage": null},
+      {"name": "DESTINATION", "ordinal": 2, "physicalActivations": 1, "requiredPredecessors": ["WARP=1"], "createdAfterStage": "WARP"},
+      {"name": "CONFIRM", "ordinal": 3, "physicalActivations": 1, "requiredPredecessors": ["WARP=1", "DESTINATION=1"], "createdAfterStage": "DESTINATION"}
+    ]
+  },
+  "ruling": {
+    "policyMismatchResolved": true,
+    "retiredBlocker": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "resolution": "SCOPE_SPLIT_NO_AUTHORITY_EXPANSION",
+    "replacementFullTransactionBlocker": "FULL_MOVEMENT_TRANSACTION_AUTHORITY_INSUFFICIENT_TWO_ADDITIONAL_PHYSICAL_ACTIVATIONS_REQUIRED",
+    "doesNotExpandAuthority": true
+  },
+  "stagePolicy": {
+    "currentStage": "WARP",
+    "authorizedPrefixLength": 1,
+    "allocation": {"WARP": 1, "DESTINATION": 0, "CONFIRM": 0},
+    "allocationSum": 1,
+    "currentStageBudgetCompatible": true,
+    "scopedTerminalState": "WARP_STAGE_ENTERED_THEN_STOP_AND_HANDOFF",
+    "fullTransactionAuthoritySufficient": false,
+    "fullTransactionLaunchEligible": false,
+    "additionalPhysicalActivationsRequired": 2,
+    "futureStageAuthorityStatus": "MISSING",
+    "automaticPermitChaining": false,
+    "stagePermitReusable": false,
+    "stopAfterAuthorizedStage": true,
+    "prepositionedDestinationOrConfirmStateBound": false,
+    "successSequence": ["WARP_INPUT", "DESTINATION_STAGE_CREATED", "OWNED_HWND_CAPTURE", "STOP_AND_HANDOFF"],
+    "claimsAllowed": ["WARP_INPUT_CONSUMED", "DESTINATION_STAGE_CREATED", "WARP_STAGE_OWNER_BOUND", "OWNED_HWND_POST_WARP"],
+    "claimsForbidden": ["DESTINATION_INPUT", "CONFIRM_INPUT", "MVB01_ACCEPTED_HIT", "OUTBOUND_0X0B01", "INBOUND_0X0B07", "QUEUE_COMPLETION", "FULL_MOVEMENT", "AUTHORITY_PROVEN", "PERSISTENCE_PROVEN", "PLAYER_VISIBLE_MOVEMENT"]
+  },
+  "permitPolicy": {
+    "newPermitRequired": true,
+    "currentPermitIssued": false,
+    "newPermitIdMustDifferFromPrior": true,
+    "freshOracleRunIdRequired": true,
+    "allScopedPrelaunchGatesAndIndependentReviewRequired": true
+  },
+  "boundArtifacts": {
+    "currentAuthorityRecord": {"path": "work/20260829-original-client-activation-budget-stage-contract-v1/evidence/current-thread-authority-record.json", "sha256": "72668E9B5F7EFDAD00C9E8100927889ABE8D751510B0ECCC7B4915C7C4297D93"},
+    "authorityMessageChronology": {"path": "work/20260829-original-client-activation-budget-stage-contract-v1/evidence/authority-message-chronology.json", "sha256": "899D0FA447146EE7580406D561887AA749ABDD8CD4543641FB01991702213757"},
+    "historicalAuthorityRecord": {"path": "work/20260827-mode2-information-menu-row2-live-oracle-run-v3/evidence/E-AUTH-001.md", "sha256": "284FE30A5239C50660B2153658931BBAF776BD84AAB7CF6E74E9992CB5ED3C37"},
+    "historicalLaunchPermit": {"path": "work/20260827-mode2-information-menu-row2-live-oracle-run-v3/evidence/launch-permit.json", "sha256": "B0D9E4AF0EFF6300611A304A0DC6A2D40036CB72252ACA38F32E1DE7FCF05A36"},
+    "historicalPermitConsumption": {"path": "work/20260827-mode2-information-menu-row2-live-oracle-run-v3/evidence/permit-consumption.json", "sha256": "6DEB344D029C4315865AE44495F0B8A73AF6E5A4BA55D9649154FDC1B2C5B570"},
+    "stageGateContract": {"path": "work/20260827-original-client-first-play-stage-gate/evidence/first-play-stage-gate-contract.json", "sha256": "1A7A9AF14EEC47D1C51AD34A3DF3294C2846A8E6526954B4743A26355D79FCFF"},
+    "stageGateEvaluator": {"path": "work/20260827-original-client-first-play-stage-gate/src/evaluate-first-play-stage.ps1", "sha256": "7F977C6756842FCE934EC617F54905553F7EDA949E4083521A342E620CB1AAD4"},
+    "stageGateFinalVerification": {"path": "work/20260827-original-client-first-play-stage-gate/evidence/final-verification.json", "sha256": "057FEBB59166C2EB87D731ABB699F061B352A697B9F98F2D767C7675191CB893"},
+    "prelaunchV8Contract": {"path": "work/20260829-original-client-movement-breakpoint-receipt-v2/evidence/prelaunch-v8-movement-receipt-v2.json", "sha256": "1B235C8448467A5CBDD75F2247FA182A743CAA6151F96051A301567E4177E54E"},
+    "prelaunchV8Verifier": {"path": "work/20260829-original-client-movement-breakpoint-receipt-v2/src/verify-prelaunch-v8-movement-receipt-v2.ps1", "sha256": "3D32EA6095B4E4654606ABFE76019EA0E280AEC49E9ADEE71E9F95EE1393002D"},
+    "prelaunchV8FinalVerification": {"path": "work/20260829-original-client-movement-breakpoint-receipt-v2/evidence/final-verification.json", "sha256": "3D08AACA7624B938F375381AD7878A106E0A225CA88C30F772B2288BACF714CA"}
+  },
+  "operations": {
+    "liveOperations": 0,
+    "guestOperations": 0,
+    "debuggerAttach": 0,
+    "breakpointsInstalled": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "physicalInputs": 0,
+    "captures": 0,
+    "automaticInputs": 0,
+    "retries": 0,
+    "vmLifecycleChanges": 0,
+    "serverProtocolDbChanges": 0
+  },
+  "review": {"status": "NOT_REVIEWED", "reviewer": null, "artifactPath": null, "artifactSha256": null},
+  "permitIssued": false
+}

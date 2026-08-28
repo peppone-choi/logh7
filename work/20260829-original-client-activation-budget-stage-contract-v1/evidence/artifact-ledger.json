@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "ledger": "ORIGINAL_CLIENT_ACTIVATION_BUDGET_STAGE_POLICY_ARTIFACT_LEDGER",
+  "artifacts": [
+    {"path": "scope.md", "sha256": "2D2803781CEE9D5081C1E92D368343BDA195B721505885876DE493530EB53506"},
+    {"path": "evidence/current-thread-authority-record.json", "sha256": "72668E9B5F7EFDAD00C9E8100927889ABE8D751510B0ECCC7B4915C7C4297D93"},
+    {"path": "evidence/authority-message-chronology.json", "sha256": "899D0FA447146EE7580406D561887AA749ABDD8CD4543641FB01991702213757"},
+    {"path": "evidence/activation-budget-stage-policy.json", "sha256": "23203A865F85C27E6D7E282A01455183F9C2D67651A770F6AAEBB133431D53D2"},
+    {"path": "src/verify-activation-budget-stage-policy.ps1", "sha256": "FCDE7E4104D6260239B92E24AA74BF9036EC4A5FF159E7536AE43A1A44E20298"},
+    {"path": "tests/test-activation-budget-stage-policy.ps1", "sha256": "274CC307B6D44FF38B9139923C1DDF36F89883EEB0B66AD31AD5FAAC39E36D4C"},
+    {"path": "evidence/stage-mvb-timing-adjudication.json", "sha256": "15D5B1D077E475AE460ECFC523E3AE1C4E81BE65840E86BEDC5427E6B91C2270"},
+    {"path": "evidence/prelaunch-v9-stage-policy.json", "sha256": "2DFA847B8AD49DB1B9B3513ABC7D0A113E1E6BEC2B77DD5CE49FCABEC128E211"},
+    {"path": "src/verify-prelaunch-v9-stage-policy.ps1", "sha256": "D8E6C9361EA54B735E482D8AB579DEACD4E81ABE96D9EB96E8E065B88F2D26E4"},
+    {"path": "tests/test-prelaunch-v9-stage-policy.ps1", "sha256": "7BB9261E766C16B55839BC3A1300FB07F2BA0D841D4CE0F6212DEC07130666B6"},
+    {"path": "verify.ps1", "sha256": "190335A27C26C823559773A75591A2489FFBC54292905D8911AE3782101CA76A"}
+  ]
+}

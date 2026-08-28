@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "authorityId": "CURRENT_THREAD_ORACLE_ONE_RUN_ONE_ACTIVATION_V1",
+  "sourceType": "USER_MESSAGES_CURRENT_THREAD_HASH_BOUND",
+  "sourceChronology": {
+    "path": "work/20260829-original-client-activation-budget-stage-contract-v1/evidence/authority-message-chronology.json",
+    "sha256": "899D0FA447146EE7580406D561887AA749ABDD8CD4543641FB01991702213757",
+    "postConsumptionReauthorizationMessageId": "msg_01a04341-060c-7501-8694-90a25198f52e",
+    "postConsumptionReauthorizationTimestampUtc": "2026-08-27T12:45:29.996Z"
+  },
+  "rawGrantExcerpts": [
+    "VM 계정은 너가 관리하고 있잖아. 그리고 oracle-win11-hd-re.vmx의 G7MTClient.exe를 대상으로 1회의 live oracle 실행을 승인한다. VMware guest operation, fresh PID/HWND 조회, x32dbg attach, BP01–BP14 설치, read-only process-memory capture, 1회의 물리 activation 입력, owned-HWND 캡처를 허용한다. 메모리 쓰기, 바이너리 패치, 자동 클릭·자동 재시도, VM lifecycle 변경, server/protocol/DB 변경은 금지한다. Codex를 single writer로 지정하며 별도 read-only validator의 독립 검토를 허용한다. 각 단계별 추가 승인은 요구하지 않는다.",
+    "승인.",
+    "그리고 전체 권한 부여. 앞으로 권한을 물어보지 않아도 돼."
+  ],
+  "adjudication": {
+    "maxLiveRuns": 1,
+    "liveRunsConsumed": 0,
+    "liveRunsRemaining": 1,
+    "maxPhysicalActivations": 1,
+    "noPerStepApproval": true,
+    "singleWriter": "Codex",
+    "independentReadOnlyValidatorAllowed": true,
+    "isPermit": false,
+    "doesNotBypassPrelaunchGates": true,
+    "broadLaterApprovalOverridesExplicitCaps": false,
+    "broadLaterApprovalExtendsReadOnlyInstrumentation": true,
+    "broadLaterApprovalDoesNotOverrideExplicitActivationOrForbiddenCaps": true,
+    "reauthorizedAfterPriorConsumption": true,
+    "allowedBreakpointSets": ["BP01-BP14", "MVB01-MVB09"],
+    "reason": "Later general approval removes repeated permission prompts but does not explicitly replace the earlier one-run, one-activation cap or enumerated prohibitions."
+  },
+  "allowed": [
+    "VMware guest operation within the approved oracle VM",
+    "fresh PID and HWND discovery",
+    "x32dbg attach after prelaunch approval",
+    "BP01-BP14 or MVB01-MVB09 hardware breakpoint installation after prelaunch approval",
+    "read-only process-memory capture",
+    "one manual physical activation",
+    "owned-HWND capture"
+  ],
+  "forbidden": [
+    "second physical activation",
+    "process-memory write",
+    "binary patch",
+    "automatic click",
+    "automatic retry",
+    "VM lifecycle change",
+    "server protocol or database change",
+    "permit reuse"
+  ],
+  "permitIssued": false,
+  "liveOperations": 0
+}

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "verification": "ORIGINAL_CLIENT_ACTIVATION_BUDGET_STAGE_POLICY_FINAL_VERIFICATION",
+  "result": "PASS",
+  "status": "OFFLINE_ACTIVATION_POLICY_AND_PRELAUNCH_V9_PASS_RUNTIME_UNSEEN",
+  "command": "pwsh -NoProfile -File work/20260829-original-client-activation-budget-stage-contract-v1/verify.ps1",
+  "tests": {
+    "activationPolicy": {"cases": 55, "assertions": 69, "mutations": 54, "result": "PASS"},
+    "prelaunchV9": {"cases": 38, "assertions": 52, "mutations": 37, "result": "PASS"},
+    "boundPrelaunchV8": {"cases": 20, "assertions": 30, "mutations": 19, "result": "PASS"},
+    "boundStageGate": {"cases": 9, "assertions": 19, "result": "PASS"}
+  },
+  "artifactLedger": {
+    "artifactsVerified": 11,
+    "sha256": "F4D5A04ED91CB13407BC9836172DC642E22F4CC0493FB985B5B24C6196B6CA94"
+  },
+  "independentReview": {
+    "verdict": "APPROVE",
+    "path": "work/20260829-original-client-activation-budget-stage-contract-v1/evidence/independent-review.json",
+    "sha256": "31FA451A9A6E353A8D5633AD373E3D034590008F78428C480AD24B8B5B236876",
+    "validatorWrites": 0
+  },
+  "resolved": {
+    "retiredPolicyBlocker": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "currentLiveRunsRemaining": 1,
+    "currentPhysicalActivationBudget": 1,
+    "authorizedPrefix": ["WARP"],
+    "fullTransactionPhysicalActivations": 3,
+    "additionalPhysicalActivationsRequired": 2,
+    "postWarpMvb01AcceptedHitsExpected": 0,
+    "postWarpReceiptPhaseExpected": 0,
+    "postWarpActiveSetExpected": ["MVB01", "MVB06", "MVB08", "MVB09"],
+    "stageMvbTimingStatus": "STATIC_EXPECTED_NOT_RUNTIME_OBSERVED",
+    "stopAndHandoffRequired": true
+  },
+  "remaining": {
+    "scopedPrelaunchBlockers": 8,
+    "postActivationRequiredEvidence": 7,
+    "deferredFullTransactionBoundaries": 4,
+    "firstMissingBoundary": "FRESH_RUN_IDENTITY_MISSING",
+    "firstAuthorityBoundary": "FULL_MOVEMENT_TRANSACTION_AUTHORITY_INSUFFICIENT_TWO_ADDITIONAL_PHYSICAL_ACTIVATIONS_REQUIRED",
+    "runtimeObserved": false,
+    "launchEligible": false,
+    "permitEligible": false,
+    "permitIssued": false
+  },
+  "operations": {
+    "liveOperations": 0,
+    "guestOperations": 0,
+    "debuggerCommands": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "physicalInputs": 0,
+    "captures": 0,
+    "automaticInputs": 0,
+    "retries": 0,
+    "vmLifecycleChanges": 0,
+    "serverProtocolDbChanges": 0,
+    "permitsIssued": 0
+  },
+  "claimCeiling": "OFFLINE_POLICY_AND_STATIC_TIMING_ONLY_NO_RUNTIME_OR_PLAYABILITY_PROMOTION"
+}

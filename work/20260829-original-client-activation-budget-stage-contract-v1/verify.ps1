@@ -1,0 +1,19 @@
+$ErrorActionPreference='Stop'
+$unit=$PSScriptRoot
+$policyTests=& (Join-Path $unit 'tests/test-activation-budget-stage-policy.ps1')|ConvertFrom-Json
+if($policyTests.result-ne'PASS'-or$policyTests.cases-ne55-or$policyTests.assertions-ne69-or$policyTests.mutations-ne54){throw 'activation policy tests failed or drifted'}
+$v9Tests=& (Join-Path $unit 'tests/test-prelaunch-v9-stage-policy.ps1')|ConvertFrom-Json
+if($v9Tests.result-ne'PASS'-or$v9Tests.cases-ne38-or$v9Tests.assertions-ne52-or$v9Tests.mutations-ne37){throw 'prelaunch v9 tests failed or drifted'}
+$v8Tests=& (Join-Path $unit '..\20260829-original-client-movement-breakpoint-receipt-v2\tests\test-prelaunch-v8-movement-receipt-v2.ps1')|ConvertFrom-Json
+if($v8Tests.result-ne'PASS'-or$v8Tests.cases-ne20-or$v8Tests.assertions-ne30-or$v8Tests.mutations-ne19){throw 'bound prelaunch v8 tests failed or drifted'}
+$stageTests=& (Join-Path $unit '..\20260827-original-client-first-play-stage-gate\tests\test-evaluate-first-play-stage.ps1')|ConvertFrom-Json
+if($stageTests.result-ne'PASS'-or$stageTests.cases-ne9-or$stageTests.assertions-ne19){throw 'bound stage-gate tests failed or drifted'}
+$policy=& (Join-Path $unit 'src/verify-activation-budget-stage-policy.ps1') -PolicyPath (Join-Path $unit 'evidence/activation-budget-stage-policy.json')|ConvertFrom-Json
+$v9=& (Join-Path $unit 'src/verify-prelaunch-v9-stage-policy.ps1') -ContractPath (Join-Path $unit 'evidence/prelaunch-v9-stage-policy.json')|ConvertFrom-Json
+if($policy.result-ne'PASS'-or$policy.currentAuthorityBudget-ne1-or$policy.currentLiveRunsRemaining-ne1-or$policy.transactionPhysicalActivations-ne3-or$policy.additionalPhysicalActivationsRequired-ne2-or$policy.permitIssued){throw 'activation policy semantic verification failed'}
+if($v9.result-ne'PASS'-or$v9.currentStage-ne'WARP'-or$v9.expectedPostWarpMvb01AcceptedHits-ne0-or$v9.stageMvbTimingStatus-ne'STATIC_EXPECTED_NOT_RUNTIME_OBSERVED'-or$v9.launchEligible-or$v9.permitEligible-or$v9.permitIssued){throw 'prelaunch v9 semantic verification failed'}
+$ledgerPath=Join-Path $unit 'evidence/artifact-ledger.json';$ledger=Get-Content -LiteralPath $ledgerPath -Raw -Encoding UTF8|ConvertFrom-Json;$hashMap=[ordered]@{}
+foreach($artifact in $ledger.artifacts){$path=Join-Path $unit ([string]$artifact.path);if(-not(Test-Path -LiteralPath $path)){throw "missing artifact $($artifact.path)"};$actual=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash;if($actual-ne([string]$artifact.sha256).ToUpperInvariant()){throw "artifact hash mismatch $($artifact.path)"};$hashMap[$artifact.path]=$actual}
+$scripts=@(Get-Content -LiteralPath (Join-Path $unit 'src/verify-activation-budget-stage-policy.ps1') -Raw -Encoding UTF8;Get-Content -LiteralPath (Join-Path $unit 'src/verify-prelaunch-v9-stage-policy.ps1') -Raw -Encoding UTF8)-join"`n"
+$forbidden=@('WriteProcessMemory','SendInput','SetCursorPos','PostMessage','mouse_event','keybd_event','VirtualAllocEx','CreateRemoteThread','Invoke-VMScript','Start-VM','Stop-VM','vmrun');$hits=@($forbidden|Where-Object{$scripts.Contains($_)});if($hits.Count){throw "forbidden executable capability: $($hits-join', ')"}
+[ordered]@{result='PASS';activationPolicyTests=$policyTests;prelaunchV9Tests=$v9Tests;boundPrelaunchV8Tests=$v8Tests;boundStageGateTests=$stageTests;policy=$policy;prelaunchV9=$v9;artifactHashesVerified=@($ledger.artifacts).Count;artifactLedgerSha256=(Get-FileHash -LiteralPath $ledgerPath -Algorithm SHA256).Hash;artifactHashMap=$hashMap;currentAuthorityBudget=1;currentLiveRunsRemaining=1;fullTransactionPhysicalActivations=3;authorizedPrefix=@('WARP');additionalPhysicalActivationsRequired=2;postWarpMvb01AcceptedHits=0;stageMvbTimingStatus='STATIC_EXPECTED_NOT_RUNTIME_OBSERVED';forbiddenCapabilityHits=0;liveOperations=0;debuggerCommands=0;processMemoryReads=0;physicalInputs=0;captures=0;permitIssued=$false;status='OFFLINE_ACTIVATION_POLICY_AND_PRELAUNCH_V9_PASS_RUNTIME_UNSEEN'}|ConvertTo-Json -Depth 20
