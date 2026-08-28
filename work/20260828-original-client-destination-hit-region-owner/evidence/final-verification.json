@@ -1,0 +1,41 @@
+{
+  "result": "PASS",
+  "boundedStatus": "PARTIAL_LIVE_SNAPSHOT_UNSEEN",
+  "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+  "collector": {
+    "cases": 10,
+    "assertions": 46,
+    "doubleCaptureReads": 144,
+    "status": "PASS_OFFLINE_FIXTURE"
+  },
+  "resolver": {
+    "cases": 7,
+    "assertions": 34,
+    "fixturePixels": 25,
+    "safePoint": "52,47",
+    "status": "PASS_OFFLINE_FIXTURE",
+    "liveSelfClaim": "REJECTED"
+  },
+  "staticMarkersChecked": 12,
+  "nativeImports": [
+    "CloseHandle",
+    "GetClientRect",
+    "GetWindowThreadProcessId",
+    "IsWindow",
+    "OpenProcess",
+    "ReadProcessMemory"
+  ],
+  "forbiddenCapabilityHits": 0,
+  "runtimeObserved": "UNSEEN",
+  "playerVisible": "UNSEEN",
+  "liveOperations": 0,
+  "gameInputs": 0,
+  "permitIssued": false,
+  "firstMissingBoundary": "FRESH_DESTINATION_PROJECTION_SNAPSHOT",
+  "nextOfflineUnit": "TEXTDIALOG_COORDINATE_FRAME_COLLECTOR_CORRECTION",
+  "hashes": {
+    "ledger": "C1A1FD91FFEB18D8ABB94C839096D887648ECC5D3BF8B024F4B0F118A075E2E2",
+    "fixtureSnapshot": "BD48C02740FB84BD9F310A8A886CB327B452034478A5C70CCA2211A3A8725826",
+    "fixtureHitRegion": "F3028F032A17E4963169B0AFEBE8E3EB46924A538740F1FAE8BB893BBA47F299"
+  }
+}

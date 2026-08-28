@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "caseId": "20260828-original-client-destination-hit-region-owner",
+  "result": "STATIC_HIT_REGION_OWNER_AND_OFFLINE_RESOLVER_PASS",
+  "boundedStatus": "PARTIAL_LIVE_SNAPSHOT_UNSEEN",
+  "target": {
+    "name": "G7MTClient.exe",
+    "format": "PE32_X86",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16"
+  },
+  "owner": {
+    "integratedOwner": "FUN_004D6B70",
+    "renderOwner": "FUN_004D6480",
+    "mouseSource": "FUN_00500B70 GetCursorPos -> ScreenToClient -> FUN_00500580 -> 0x022143DC/E0",
+    "leftPressEdge": "0x022142DB bit 0x40",
+    "rightPressEdge": "0x022142DC bit 0x40",
+    "screenToWorld": "FUN_004B25A0 -> FUN_004B22D0 -> FUN_004B24F0",
+    "worldToGrid": "FUN_004D3580",
+    "targetValidator": "FUN_004D6310",
+    "gridToWorld": "FUN_004D3540",
+    "worldToScreen": "FUN_004D2FE0"
+  },
+  "controller": {
+    "base": "0x009D2A30",
+    "mode": "+0x04",
+    "state": "+0x0C",
+    "selectedGrid": "+0x10",
+    "requestedChoice": "+0x14",
+    "selectedX": "+0x18",
+    "selectedY": "+0x1C",
+    "filter": "+0x20",
+    "hoverX": "+0x24",
+    "hoverY": "+0x28",
+    "hoverWorld": "+0x2C/+0x30/+0x34"
+  },
+  "projectionState": {
+    "view": "0x009D1368",
+    "projection": "0x009D13A8",
+    "world": "0x009D13E8",
+    "d3dViewport": "0x009D1428",
+    "mouseGateRect": "*(0x007C1B4C)+0x2A5FC",
+    "gridXFormula": "ftol(worldX + 50.0)",
+    "gridYFormula": "ftol(25.0 - worldZ)",
+    "cellCenterFormula": "world=(gridX-49.5,0,24.5-gridY)"
+  },
+  "implementation": {
+    "collector": "src/collect-destination-projection-snapshot.ps1",
+    "collectorReads": 144,
+    "collectorCapturePolicy": "two complete controller/validator/viewport/matrix surfaces must match",
+    "resolver": "src/resolve-destination-hit-region.ps1",
+    "resolverPolicy": "enumerate strict-interior client pixels, replay inverse transform and FUN_004D3580 quantization, require FUN_004D6310 validity and a 3x3 same-grid safe point; reject self-claimed LIVE_READONLY until independent binding"
+  },
+  "status": {
+    "staticOwner": "PASS",
+    "offlineCollector": "PASS_FIXTURE_ONLY",
+    "offlineResolver": "PASS_FIXTURE_ONLY",
+    "runtimeObserved": "UNSEEN",
+    "playerVisible": "UNSEEN",
+    "permitIssued": false,
+    "liveOperations": 0,
+    "gameInputs": 0
+  },
+  "hashes": {
+    "exporter": "2EAE9AA7F891971B8F69BB4FA0D2B8AF57A75EE2BBA0C5BAC0600EA6BB39FEB8",
+    "staticExport": "893AA3DA90FE3CA3F87675113260D7B46330EA8C057F20947F76C40A553879AD",
+    "collector": "CBBADDF0DF7734D5563E699A8FAFFDFE3A65072A0B565F4743ED23916BB584D0",
+    "resolver": "EDC6BBFEAF98B4FE3E9EEB1A86A8C7EAB5F721EAE69A15DD30BB4DF314A2E270",
+    "collectorTest": "8E7437147FE726CF4D53931128C96A32C5EFCF505452959756289FF31D4492AC",
+    "resolverTest": "9B1840FA5439DDA46E9BF782745862515D49D9B3D0AB1CD6896FAA08F4078ED6",
+    "identityFixture": "0F94810F18CB01614B35BF603F624118303057E2D63FCDA7F0153EBD99AB9C6D",
+    "projectionMemoryFixture": "3390B7399D4ACC6E08049F9E9291809347707E1E69B559254F7F626F1039475B",
+    "resolverFixture": "ABA9872E03EA00E356D01F263269E39639AF717724E6C156B32B33254F49A126",
+    "fixtureSnapshot": "BD48C02740FB84BD9F310A8A886CB327B452034478A5C70CCA2211A3A8725826",
+    "fixtureHitRegion": "F3028F032A17E4963169B0AFEBE8E3EB46924A538740F1FAE8BB893BBA47F299"
+  },
+  "firstMissingBoundary": "FRESH_DESTINATION_PROJECTION_SNAPSHOT",
+  "nextOfflineUnit": "TEXTDIALOG_COORDINATE_FRAME_COLLECTOR_CORRECTION"
+}

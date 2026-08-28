@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "status": "BOUND_OFFLINE_FIXTURE",
+  "bindingEligible": true,
+  "target": {
+    "gridX": 50,
+    "gridY": 25
+  },
+  "blockers": [],
+  "projectedCellCenter": {
+    "x": 52.5,
+    "y": 47.5,
+    "depth": 0.0
+  },
+  "region": {
+    "pixelCount": 25,
+    "scanlineSpans": [
+      {
+        "y": 46,
+        "left": 50,
+        "rightExclusive": 55
+      },
+      {
+        "y": 47,
+        "left": 50,
+        "rightExclusive": 55
+      },
+      {
+        "y": 48,
+        "left": 50,
+        "rightExclusive": 55
+      },
+      {
+        "y": 49,
+        "left": 50,
+        "rightExclusive": 55
+      },
+      {
+        "y": 50,
+        "left": 50,
+        "rightExclusive": 55
+      }
+    ],
+    "boundingRectangle": {
+      "left": 50,
+      "top": 46,
+      "rightExclusive": 55,
+      "bottomExclusive": 51
+    }
+  },
+  "safePoint": {
+    "x": 52,
+    "y": 47,
+    "sameGridChebyshevMargin": 1,
+    "replayedGridX": 50,
+    "replayedGridY": 25
+  },
+  "provenance": {
+    "sourceMode": "OFFLINE_FIXTURE",
+    "claimedOriginalRuntimeObserved": false,
+    "originalRuntimeObserved": false,
+    "playerVisible": false
+  },
+  "operations": {
+    "writes": 0,
+    "gameInputs": 0,
+    "liveOperations": 0
+  },
+  "permitIssued": false
+}
