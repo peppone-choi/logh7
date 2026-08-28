@@ -1,0 +1,7 @@
+sha256	path	role
+A54B813AB4D8DF9BD5F1F2894E990253EB0D53D2057BB7FD145EFDECB7459F82	work/20260828-original-client-first-play-prelaunch-integration/src/verify-first-play-prelaunch-integration.ps1	semantic and hash verifier
+9C65E46B6AF1E77D023BDBE37623A75D075CB4F2267F5AC57356877494EA6B9D	work/20260828-original-client-first-play-prelaunch-integration/tests/test-first-play-prelaunch-integration.ps1	mutation tests
+5DE8873D2C9372CF9F7068AA9A8FD97D48032DFBA84A2ACC36DE57877057FEAE	work/20260828-original-client-first-play-prelaunch-integration/evidence/first-play-prelaunch-integration.json	v2 prelaunch contract
+26ADFA4E61B385776A0D703D370968662B44E6229314026551B5406344E6B313	work/20260828-original-client-first-play-prelaunch-integration/evidence/ui-movement-gap-audit.json	hash-bound UI movement and stage audit
+D36600C2023857AB81832B573D85D17C928F6B3DB9186171D0531E4A1D0D26A5	work/20260828-original-client-first-play-prelaunch-integration/verify.ps1	aggregate verifier
+51CE7E62CAEB4ADAF28D81824ED84D93342E9D8DB8E43DC889ACF2FFB61D0D49	work/20260828-original-client-first-play-prelaunch-integration/report/original-client-first-play-prelaunch-integration.md	report

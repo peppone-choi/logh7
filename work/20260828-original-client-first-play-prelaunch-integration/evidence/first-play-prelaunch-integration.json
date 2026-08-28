@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 2,
+  "contract": "ORIGINAL_CLIENT_FIRST_SERVER_BACKED_PLAY_PRELAUNCH_V2",
+  "state": "OFFLINE_PRELAUNCH_AUDIT_PASS_READY_FALSE",
+  "oracleRunId": null,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "currentAuthority": {
+    "source": "USER_APPROVED_CURRENT_THREAD",
+    "scope": "ONE_LIVE_ORACLE_ONE_PHYSICAL_ACTIVATION_READ_ONLY_CAPTURE",
+    "activationBudget": 1,
+    "doesNotBypassPrelaunchGates": true
+  },
+  "priorPermit": {
+    "id": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "state": "CONSUMED_NO_RETRY",
+    "reusable": false
+  },
+  "staticPreparation": {
+    "manager67Route": {
+      "status": "STATIC_OWNER_PASS_COLLECTOR_MISSING",
+      "runtimeObserved": "UNSEEN"
+    },
+    "selectedCaptainCard": {
+      "status": "STATIC_ROUTE_PARTIAL_EXACT_WIDGET_COLLECTOR_MISSING",
+      "runtimeObserved": "UNSEEN"
+    },
+    "manager65Collector": {
+      "status": "OFFLINE_PASS_NOT_LIVE_HARDENED",
+      "runtimeObserved": "UNSEEN",
+      "deficiencies": [
+        "CANONICAL_HASH_NOT_INTERNALLY_ENFORCED",
+        "MODULE_BASE_NOT_BOUND",
+        "DOUBLE_CAPTURE_MISSING",
+        "WIDGET_ACTIVE_VISIBLE_GATE_MISSING",
+        "POST_CAPTURE_HWND_SURFACE_RECHECK_MISSING"
+      ]
+    },
+    "destinationProjection": {
+      "status": "STATIC_OFFLINE_RESOLVER_PASS",
+      "runtimeObserved": "UNSEEN",
+      "fixtureCoordinateReusable": false
+    },
+    "textDialog": {
+      "status": "STATIC_OFFLINE_RESOLVER_PASS",
+      "runtimeObserved": "UNSEEN",
+      "fixtureCoordinateReusable": false
+    },
+    "moveGridWire": {
+      "status": "STATIC_WIRE_BINDING_PASS",
+      "runtimeObserved": "UNSEEN"
+    },
+    "movementInstrumentation": {
+      "status": "STATIC_ADDRESSES_PARTIAL_RECEIPT_SCHEMA_MISSING",
+      "runtimeObserved": "UNSEEN",
+      "missingBindings": [
+        "MOVEMENT_HANDLER_CONSUMPTION_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_PAYLOAD_BUILDER_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_EXPECTED_0B07_ASSIGNMENT_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_OUTBOUND_0B01_ASSIGNMENT_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_TRANSPORT_SEND_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_INBOUND_0B07_DISPATCH_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_OWNED_HWND_DELTA_RECEIPT_BINDING_MISSING"
+      ]
+    }
+  },
+  "requiredSameRunComposition": [
+    "fresh G7MTClient PID/startTime/hash/moduleBase/HWND/owner/client surface",
+    "fresh listener and heartbeat",
+    "fresh x32dbg PID/startTime/HWND/owner and exact foreground",
+    "fresh manager67 current pointer/count/card widget/gate/rect snapshot",
+    "fresh selected captain-card exact widget/gate/rect snapshot",
+    "hardened manager65 action-0x2B snapshot",
+    "WARP stage-owner pointer bound to the scoped TextDialog manager",
+    "fresh destination projection snapshot and independently resolved hit region",
+    "fresh TextDialog snapshot and independently resolved confirm region",
+    "movement-specific breakpoint/receipt schema installed without writes",
+    "one physical activation sequence followed by outbound/inbound/pixel receipts"
+  ],
+  "blockers": [
+    "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "MANAGER67_CURRENT_CARD_COLLECTOR_MISSING",
+    "SELECTED_CAPTAIN_CARD_WIDGET_COLLECTOR_MISSING",
+    "MANAGER65_LIVE_COLLECTOR_NOT_HARDENED",
+    "WARP_STAGE_OWNER_POINTER_UNBOUND",
+    "MOVEMENT_SPECIFIC_BREAKPOINT_RECEIPT_SCHEMA_MISSING",
+    "FRESH_RUN_IDENTITY_MISSING",
+    "FRESH_MANAGER65_SNAPSHOT_MISSING",
+    "FRESH_DESTINATION_PROJECTION_SNAPSHOT_MISSING",
+    "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+    "FOREGROUND_PROBE_NOT_RUN",
+    "INDEPENDENT_LIVE_PRELAUNCH_REVIEW_MISSING"
+  ],
+  "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+  "firstTechnicalBoundary": "MANAGER67_CURRENT_CARD_COLLECTOR_MISSING",
+  "boundArtifacts": {
+    "gapAudit": {
+      "path": "work/20260828-original-client-first-play-prelaunch-integration/evidence/ui-movement-gap-audit.json",
+      "sha256": "26ADFA4E61B385776A0D703D370968662B44E6229314026551B5406344E6B313"
+    },
+    "v1Contract": {
+      "path": "work/20260827-original-client-first-play-prepermit-contract/evidence/first-play-prepermit-contract.json",
+      "sha256": "66ABE74EF005D73354D4FFA28B7993732E5C887EF92AB168DB817E5676257463"
+    },
+    "manager65Verification": {
+      "path": "work/20260827-original-client-manager65-readonly-collector/evidence/final-verification.json",
+      "sha256": "DBB8CBD223D02C8BF569CCE26352875A49BD3C15CCD0F8A82DE0906C5B5A1DBD"
+    },
+    "manager65Collector": {
+      "path": "work/20260827-original-client-manager65-readonly-collector/src/collect-manager65-action2b-snapshot.ps1",
+      "sha256": "0244BF801F9CD687E6FE7AE39C702408FDD9A114E7B7185795F9D721EA0C6B0B"
+    },
+    "stageVerification": {
+      "path": "work/20260828-original-client-destination-confirm-collector/evidence/final-verification.json",
+      "sha256": "17AF17ED2E6A8821F83AE76E213AF1A77867CD26C4159B4BAB52B849256ADFBA"
+    },
+    "destinationHitVerification": {
+      "path": "work/20260828-original-client-destination-hit-region-owner/evidence/final-verification.json",
+      "sha256": "9C5C2918EB6010393126650B738A7830FF50EC2E0EE812E0C03EF61C63DE910A"
+    },
+    "textDialogVerification": {
+      "path": "work/20260828-original-client-textdialog-coordinate-correction/evidence/final-verification.json",
+      "sha256": "6FBD209DFC4E8E636AA4383B919973B60C77AF7D62307F94F9450235C8308650"
+    },
+    "foregroundBundle": {
+      "path": "work/20260827-x32dbg-foreground-prepermit-bundle-integration/evidence/canonical-prepermit-bundle.json",
+      "sha256": "A144A1CC53AA28CB078CADDF1FE2228CA2FD5620EE211FC75C95C0E91AD525F9"
+    },
+    "priorPermitConsumption": {
+      "path": "work/20260827-mode2-information-menu-row2-live-oracle-run-v3/evidence/permit-consumption.json",
+      "sha256": "6DEB344D029C4315865AE44495F0B8A73AF6E5A4BA55D9649154FDC1B2C5B570"
+    },
+    "moveGridLedger": {
+      "path": "work/20260827-original-client-movegrid-serializer-owner/evidence/movegrid-serializer-owner-ledger.json",
+      "sha256": "ADC03E13E3A4C7F58D8973F67146B0ABDB749B57F3AAF03F94B4A15BE05E0971"
+    }
+  },
+  "forbidden": [
+    "reuse prior permit/run/PID/HWND/pointer/coordinate",
+    "automatic click or retry",
+    "input before all same-run gates and independent review pass",
+    "process-memory write or binary/resource patch",
+    "VM lifecycle or server/protocol/database change",
+    "fixture or self-claimed live evidence promotion"
+  ],
+  "operationCounters": {
+    "guestOperations": 0,
+    "debuggerAttach": 0,
+    "breakpointsInstalled": 0,
+    "processMemoryReads": 0,
+    "physicalInputs": 0,
+    "captures": 0,
+    "memoryWrites": 0
+  }
+}

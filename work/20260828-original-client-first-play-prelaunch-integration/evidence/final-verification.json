@@ -1,0 +1,23 @@
+{
+  "result": "PASS",
+  "tests": { "result": "PASS", "cases": 16, "assertions": 25 },
+  "contract": {
+    "state": "OFFLINE_PRELAUNCH_AUDIT_PASS_READY_FALSE",
+    "permitEligible": false,
+    "launchEligible": false,
+    "blockerCount": 12,
+    "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "firstTechnicalBoundary": "MANAGER67_CURRENT_CARD_COLLECTOR_MISSING",
+    "priorPermitState": "CONSUMED_NO_RETRY",
+    "artifactCount": 10
+  },
+  "ownedScriptCount": 3,
+  "productionCommandCount": 14,
+  "productionWriteCapabilityHits": [],
+  "testTemporaryWriteCommands": ["New-Item", "Remove-Item", "Set-Content"],
+  "forbiddenCapabilityHits": 0,
+  "validatorWrites": 0,
+  "liveOperations": 0,
+  "gameInputs": 0,
+  "permitIssued": false
+}
