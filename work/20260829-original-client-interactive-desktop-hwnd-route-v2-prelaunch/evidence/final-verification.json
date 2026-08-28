@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "verdict": "CORRECTED_ROUTE_V2_OFFLINE_PREPARED_NO_EXECUTION_AUTHORITY",
+  "evaluatorCases": 57,
+  "evaluatorAssertions": 123,
+  "collectorContractAssertions": 30,
+  "parsedPowerShellFiles": 5,
+  "syntheticEvaluationSha256": "F2C977D6C777418268A3C4F40E8CEAC314BF8F3F6905354F82429EEB241B6028",
+  "vmGuestOperations": 0,
+  "helperLaunchCalls": 0,
+  "gameInputs": 0,
+  "physicalActivations": 0,
+  "executionAuthorized": false,
+  "parserArtifacts": [
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route-v2-prelaunch\\verify.ps1",
+      "sha256": "180470DD6A878559C62E67C353632C3AE955F6B152B2309548B976BCC5BB80BC"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route-v2-prelaunch\\src\\collect-corrected-route-preflight.ps1",
+      "sha256": "8FD844B5B8FFB239DD4DFF97D9488514F4CF0F7E2D2E8970A1DFCA0ABDF8890F"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route-v2-prelaunch\\src\\evaluate-corrected-route-prelaunch.ps1",
+      "sha256": "B5DBA640F37307F8BB4E2CF4BDD1C45BB824322AC756F4BB7BC2A95D37D8FD73"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route-v2-prelaunch\\tests\\test-corrected-route-preflight-collector-contract.ps1",
+      "sha256": "503997DED37C42CB4F7E583F02ED4B28E2B5432FF648D439D273BF4EDBDAA3A1"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route-v2-prelaunch\\tests\\test-evaluate-corrected-route-prelaunch.ps1",
+      "sha256": "06C7DE32A0F3DD8313ADA66D33312A601F06B481C014F056280FAC845CF64526"
+    }
+  ]
+}
