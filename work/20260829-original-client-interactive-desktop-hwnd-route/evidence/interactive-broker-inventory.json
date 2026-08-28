@@ -1,0 +1,273 @@
+{
+    "schemaVersion":  1,
+    "provenance":  "LIVE_READONLY_BROKER_INVENTORY",
+    "observedAtUtc":  "2026-08-28T17:52:41.9030143Z",
+    "caller":  {
+                   "name":  "LOGH7-ORACLE-HD\\logh7-oracle",
+                   "sid":  "S-1-5-21-556201276-3002815643-375215121-1000",
+                   "ownerSid":  "S-1-5-32-544",
+                   "sessionId":  0,
+                   "isSystem":  false,
+                   "authenticationType":  "NTLM"
+               },
+    "privileges":  [
+                       "\"SeIncreaseQuotaPrivilege\",\"プロセスのメモリ クォータの増加\",\"無効\"",
+                       "\"SeSecurityPrivilege\",\"監査とセキュリティ ログの管理\",\"無効\"",
+                       "\"SeTakeOwnershipPrivilege\",\"ファイルとその他のオブジェクトの所有権の取得\",\"無効\"",
+                       "\"SeLoadDriverPrivilege\",\"デバイス ドライバーのロードとアンロード\",\"無効\"",
+                       "\"SeSystemProfilePrivilege\",\"システム パフォーマンスのプロファイル\",\"無効\"",
+                       "\"SeSystemtimePrivilege\",\"システム時刻の変更\",\"無効\"",
+                       "\"SeProfileSingleProcessPrivilege\",\"単一プロセスのプロファイル\",\"無効\"",
+                       "\"SeIncreaseBasePriorityPrivilege\",\"スケジューリング優先順位の繰り上げ\",\"無効\"",
+                       "\"SeCreatePagefilePrivilege\",\"ページ ファイルの作成\",\"無効\"",
+                       "\"SeBackupPrivilege\",\"ファイルとディレクトリのバックアップ\",\"無効\"",
+                       "\"SeRestorePrivilege\",\"ファイルとディレクトリの復元\",\"無効\"",
+                       "\"SeShutdownPrivilege\",\"システムのシャットダウン\",\"無効\"",
+                       "\"SeDebugPrivilege\",\"プログラムのデバッグ\",\"有効\"",
+                       "\"SeSystemEnvironmentPrivilege\",\"ファームウェア環境値の修正\",\"無効\"",
+                       "\"SeChangeNotifyPrivilege\",\"走査チェックのバイパス\",\"有効\"",
+                       "\"SeRemoteShutdownPrivilege\",\"リモート コンピューターからの強制シャットダウン\",\"無効\"",
+                       "\"SeUndockPrivilege\",\"ドッキング ステーションからコンピューターを削除\",\"無効\"",
+                       "\"SeManageVolumePrivilege\",\"ボリュームの保守タスクを実行\",\"無効\"",
+                       "\"SeImpersonatePrivilege\",\"認証後にクライアントを偽装\",\"有効\"",
+                       "\"SeCreateGlobalPrivilege\",\"グローバル オブジェクトの作成\",\"有効\"",
+                       "\"SeIncreaseWorkingSetPrivilege\",\"プロセス ワーキング セットの増加\",\"無効\"",
+                       "\"SeTimeZonePrivilege\",\"タイム ゾーンの変更\",\"無効\"",
+                       "\"SeCreateSymbolicLinkPrivilege\",\"シンボリック リンクの作成\",\"無効\"",
+                       "\"SeDelegateSessionUserImpersonatePrivilege\",\"同じセッションで別のユーザーの偽装トークンを取得します\",\"無効\""
+                   ],
+    "processes":  [
+                      {
+                          "name":  "vmtoolsd",
+                          "pid":  3336,
+                          "sessionId":  0,
+                          "path":  "C:\\Program Files\\VMware\\VMware Tools\\vmtoolsd.exe",
+                          "startTimeUtc":  "2026-08-25T02:11:10.5430333Z"
+                      },
+                      {
+                          "name":  "vmtoolsd",
+                          "pid":  6688,
+                          "sessionId":  1,
+                          "path":  "C:\\Program Files\\VMware\\VMware Tools\\vmtoolsd.exe",
+                          "startTimeUtc":  "2026-08-25T02:16:40.4706175Z"
+                      },
+                      {
+                          "name":  "VGAuthService",
+                          "pid":  3344,
+                          "sessionId":  0,
+                          "path":  "C:\\Program Files\\VMware\\VMware Tools\\VMware VGAuth\\VGAuthService.exe",
+                          "startTimeUtc":  "2026-08-25T02:11:10.5582180Z"
+                      },
+                      {
+                          "name":  "explorer",
+                          "pid":  604,
+                          "sessionId":  1,
+                          "path":  "C:\\WINDOWS\\Explorer.EXE",
+                          "startTimeUtc":  "2026-08-25T02:16:34.4122405Z"
+                      },
+                      {
+                          "name":  "G7MTClient",
+                          "pid":  3448,
+                          "sessionId":  1,
+                          "path":  "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+                          "startTimeUtc":  "2026-08-25T15:47:31.9489446Z"
+                      },
+                      {
+                          "name":  "x32dbg",
+                          "pid":  6548,
+                          "sessionId":  1,
+                          "path":  "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+                          "startTimeUtc":  "2026-08-27T03:40:33.7883244Z"
+                      },
+                      {
+                          "name":  "taskhostw",
+                          "pid":  3140,
+                          "sessionId":  1,
+                          "path":  "C:\\WINDOWS\\system32\\taskhostw.exe",
+                          "startTimeUtc":  "2026-08-25T02:16:34.1630631Z"
+                      },
+                      {
+                          "name":  "taskhostw",
+                          "pid":  4952,
+                          "sessionId":  1,
+                          "path":  "C:\\WINDOWS\\system32\\taskhostw.exe",
+                          "startTimeUtc":  "2026-08-25T18:46:21.6280365Z"
+                      }
+                  ],
+    "scheduledTaskCandidates":  [
+                                    {
+                                        "taskPath":  "\\",
+                                        "taskName":  "OneDrive Reporting Task-S-1-5-21-556201276-3002815643-375215121-1000",
+                                        "state":  "Ready",
+                                        "principal":  {
+                                                          "userId":  "logh7-oracle",
+                                                          "logonType":  "Interactive",
+                                                          "runLevel":  "Limited"
+                                                      },
+                                        "actions":  [
+                                                        {
+                                                            "execute":  "%localappdata%\\Microsoft\\OneDrive\\OneDriveStandaloneUpdater.exe",
+                                                            "arguments":  "/reporting",
+                                                            "workingDirectory":  null
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "taskPath":  "\\",
+                                        "taskName":  "OneDrive Standalone Update Task-S-1-5-21-556201276-3002815643-375215121-1000",
+                                        "state":  "Ready",
+                                        "principal":  {
+                                                          "userId":  "logh7-oracle",
+                                                          "logonType":  "Interactive",
+                                                          "runLevel":  "Limited"
+                                                      },
+                                        "actions":  [
+                                                        {
+                                                            "execute":  "%localappdata%\\Microsoft\\OneDrive\\OneDriveStandaloneUpdater.exe",
+                                                            "arguments":  null,
+                                                            "workingDirectory":  null
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "taskPath":  "\\",
+                                        "taskName":  "OneDrive Startup Task-S-1-5-21-556201276-3002815643-375215121-1000",
+                                        "state":  "Ready",
+                                        "principal":  {
+                                                          "userId":  "logh7-oracle",
+                                                          "logonType":  "Interactive",
+                                                          "runLevel":  "Limited"
+                                                      },
+                                        "actions":  [
+                                                        {
+                                                            "execute":  "C:\\Users\\logh7-oracle\\AppData\\Local\\Microsoft\\OneDrive\\25.087.0506.0001\\OneDriveLauncher.exe",
+                                                            "arguments":  "/startInstances",
+                                                            "workingDirectory":  null
+                                                        }
+                                                    ]
+                                    },
+                                    {
+                                        "taskPath":  "\\Microsoft\\Windows\\Task Manager\\",
+                                        "taskName":  "Interactive",
+                                        "state":  "Ready",
+                                        "principal":  {
+                                                          "userId":  null,
+                                                          "logonType":  "Group",
+                                                          "runLevel":  "Limited"
+                                                      },
+                                        "actions":  [
+                                                        {
+                                                            "execute":  null,
+                                                            "arguments":  null,
+                                                            "workingDirectory":  null
+                                                        }
+                                                    ]
+                                    }
+                                ],
+    "serviceCandidates":  [
+                              {
+                                  "name":  "DispBrokerDesktopSvc",
+                                  "displayName":  "ポリシー サービスの表示",
+                                  "state":  "Running",
+                                  "startMode":  "Auto",
+                                  "startName":  "NT AUTHORITY\\LocalService",
+                                  "pathName":  "C:\\WINDOWS\\system32\\svchost.exe -k LocalService -p"
+                              },
+                              {
+                                  "name":  "SessionEnv",
+                                  "displayName":  "Remote Desktop Configuration",
+                                  "state":  "Stopped",
+                                  "startMode":  "Manual",
+                                  "startName":  "localSystem",
+                                  "pathName":  "C:\\WINDOWS\\System32\\svchost.exe -k netsvcs -p"
+                              },
+                              {
+                                  "name":  "TermService",
+                                  "displayName":  "Remote Desktop Services",
+                                  "state":  "Stopped",
+                                  "startMode":  "Manual",
+                                  "startName":  "NT Authority\\NetworkService",
+                                  "pathName":  "C:\\WINDOWS\\System32\\svchost.exe -k NetworkService"
+                              },
+                              {
+                                  "name":  "UmRdpService",
+                                  "displayName":  "Remote Desktop Services UserMode Port Redirector",
+                                  "state":  "Stopped",
+                                  "startMode":  "Manual",
+                                  "startName":  "localSystem",
+                                  "pathName":  "C:\\WINDOWS\\System32\\svchost.exe -k LocalSystemNetworkRestricted -p"
+                              },
+                              {
+                                  "name":  "VGAuthService",
+                                  "displayName":  "VMware Alias Manager and Ticket Service",
+                                  "state":  "Running",
+                                  "startMode":  "Auto",
+                                  "startName":  "LocalSystem",
+                                  "pathName":  "\"C:\\Program Files\\VMware\\VMware Tools\\VMware VGAuth\\VGAuthService.exe\""
+                              },
+                              {
+                                  "name":  "VM3DService",
+                                  "displayName":  "VMware SVGA Helper Service",
+                                  "state":  "Running",
+                                  "startMode":  "Auto",
+                                  "startName":  "LocalSystem",
+                                  "pathName":  "\"C:\\Program Files\\VMware\\VMware Tools\\vm3dservice.exe\""
+                              },
+                              {
+                                  "name":  "VMTools",
+                                  "displayName":  "VMware Tools",
+                                  "state":  "Running",
+                                  "startMode":  "Auto",
+                                  "startName":  "LocalSystem",
+                                  "pathName":  "\"C:\\Program Files\\VMware\\VMware Tools\\vmtoolsd.exe\""
+                              },
+                              {
+                                  "name":  "vmvss",
+                                  "displayName":  "VMware Snapshot Provider",
+                                  "state":  "Stopped",
+                                  "startMode":  "Manual",
+                                  "startName":  "LocalSystem",
+                                  "pathName":  "C:\\WINDOWS\\system32\\dllhost.exe /Processid:{22E3AE7A-15F0-4AEF-A5AF-65BC5F5E588F}"
+                              }
+                          ],
+    "existingHelperCandidates":  [
+                                     {
+                                         "path":  "C:\\LOGH7_ORACLE\\collect-interactive-broker-inventory.ps1",
+                                         "length":  3588,
+                                         "lastWriteTimeUtc":  "2026-08-28T17:52:27.0668788Z",
+                                         "sha256":  "C532E59F62D3C696A1B5B7A9AE8B40E153F8DE961F00BE1013F3BDE4FFBB8F56"
+                                     },
+                                     {
+                                         "path":  "C:\\LOGH7_ORACLE\\collect-session-route-diagnostic.ps1",
+                                         "length":  3839,
+                                         "lastWriteTimeUtc":  "2026-08-28T17:49:56.9874929Z",
+                                         "sha256":  "7C3D1FA04C79170BEF4095D32349FB0CD989C87401147DB886F4DD042380021D"
+                                     },
+                                     {
+                                         "path":  "C:\\LOGH7_ORACLE\\session-route-diagnostic.json",
+                                         "length":  4995,
+                                         "lastWriteTimeUtc":  "2026-08-28T17:50:07.0482461Z",
+                                         "sha256":  "8E3643216119B047A5103F1DA7D669D1F39E9E128FB343EB2CBFB942A47F1744"
+                                     }
+                                 ],
+    "operations":  {
+                       "guestObservationHelpers":  1,
+                       "processesCreated":  0,
+                       "scheduledTaskChanges":  0,
+                       "serviceChanges":  0,
+                       "processMemoryReads":  0,
+                       "processMemoryWrites":  0,
+                       "foregroundChanges":  0,
+                       "debuggerAttach":  0,
+                       "debuggerCommands":  0,
+                       "breakpointsInstalled":  0,
+                       "captures":  0,
+                       "gameInputs":  0,
+                       "automaticInputs":  0,
+                       "permitIssued":  false,
+                       "vmLifecycleChanges":  0,
+                       "serverChanges":  0,
+                       "protocolChanges":  0,
+                       "databaseChanges":  0
+                   }
+}

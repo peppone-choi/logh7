@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "runId": "fixture-interactive-canary-001",
+  "provenance": "SYNTHETIC_FIXTURE",
+  "captureStartedAtUtc": "2026-08-29T00:00:00.0000000Z",
+  "captureCompletedAtUtc": "2026-08-29T00:00:00.2000000Z",
+  "helper": {
+    "scriptPath": "C:\\LOGH7_ORACLE\\interactive-session-canary.ps1",
+    "scriptSha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "pid": 9000,
+    "sessionId": 1,
+    "activeConsoleSessionId": 1,
+    "userName": "logh7-oracle",
+    "windowStation": "WinSta0",
+    "desktop": "Default"
+  },
+  "processes": [
+    {
+      "role": "CLIENT",
+      "name": "G7MTClient",
+      "pid": 3448,
+      "sessionId": 1,
+      "startTimeUtc": "2026-08-25T15:47:31.9489446Z",
+      "path": "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+      "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+      "moduleBase": "0x00400000",
+      "moduleSize": 49643520,
+      "mainWindowHandle": "0x00000000001A0490"
+    },
+    {
+      "role": "DEBUGGER",
+      "name": "x32dbg",
+      "pid": 6548,
+      "sessionId": 1,
+      "startTimeUtc": "2026-08-27T03:40:33.7883244Z",
+      "path": "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+      "sha256": "42CF419B3549332AF44A8500E99085A0C590547CAE6950623FE592EA885711C6",
+      "moduleBase": "0x00A00000",
+      "moduleSize": 65536,
+      "mainWindowHandle": "0x0000000000030666"
+    }
+  ],
+  "windows": [
+    {
+      "role": "CLIENT",
+      "hwnd": "0x00000000001A0490",
+      "ownerPid": 3448,
+      "visible": true,
+      "title": "G7MTClient",
+      "class": "G7MTClientWindow",
+      "windowRect": {"left":0,"top":0,"right":1032,"bottom":861},
+      "clientRect": {"left":0,"top":0,"right":1024,"bottom":822}
+    },
+    {
+      "role": "DEBUGGER",
+      "hwnd": "0x0000000000030666",
+      "ownerPid": 6548,
+      "visible": true,
+      "title": "x32dbg",
+      "class": "Qt5QWindowIcon",
+      "windowRect": {"left":10,"top":10,"right":1010,"bottom":760},
+      "clientRect": {"left":0,"top":0,"right":992,"bottom":711}
+    }
+  ],
+  "snapshots": [
+    {
+      "label": "A",
+      "capturedAtUtc": "2026-08-29T00:00:00.0250000Z",
+      "processes": [
+        {
+          "role": "CLIENT",
+          "name": "G7MTClient",
+          "pid": 3448,
+          "sessionId": 1,
+          "startTimeUtc": "2026-08-25T15:47:31.9489446Z",
+          "path": "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+          "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+          "moduleBase": "0x00400000",
+          "moduleSize": 49643520,
+          "mainWindowHandle": "0x00000000001A0490"
+        },
+        {
+          "role": "DEBUGGER",
+          "name": "x32dbg",
+          "pid": 6548,
+          "sessionId": 1,
+          "startTimeUtc": "2026-08-27T03:40:33.7883244Z",
+          "path": "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+          "sha256": "42CF419B3549332AF44A8500E99085A0C590547CAE6950623FE592EA885711C6",
+          "moduleBase": "0x00A00000",
+          "moduleSize": 65536,
+          "mainWindowHandle": "0x0000000000030666"
+        }
+      ],
+      "windows": [
+        {
+          "role": "CLIENT",
+          "hwnd": "0x00000000001A0490",
+          "ownerPid": 3448,
+          "visible": true,
+          "title": "G7MTClient",
+          "class": "G7MTClientWindow",
+          "windowRect": {"left":0,"top":0,"right":1032,"bottom":861},
+          "clientRect": {"left":0,"top":0,"right":1024,"bottom":822}
+        },
+        {
+          "role": "DEBUGGER",
+          "hwnd": "0x0000000000030666",
+          "ownerPid": 6548,
+          "visible": true,
+          "title": "x32dbg",
+          "class": "Qt5QWindowIcon",
+          "windowRect": {"left":10,"top":10,"right":1010,"bottom":760},
+          "clientRect": {"left":0,"top":0,"right":992,"bottom":711}
+        }
+      ]
+    },
+    {
+      "label": "B",
+      "capturedAtUtc": "2026-08-29T00:00:00.1750000Z",
+      "processes": [
+        {
+          "role": "CLIENT",
+          "name": "G7MTClient",
+          "pid": 3448,
+          "sessionId": 1,
+          "startTimeUtc": "2026-08-25T15:47:31.9489446Z",
+          "path": "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+          "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+          "moduleBase": "0x00400000",
+          "moduleSize": 49643520,
+          "mainWindowHandle": "0x00000000001A0490"
+        },
+        {
+          "role": "DEBUGGER",
+          "name": "x32dbg",
+          "pid": 6548,
+          "sessionId": 1,
+          "startTimeUtc": "2026-08-27T03:40:33.7883244Z",
+          "path": "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+          "sha256": "42CF419B3549332AF44A8500E99085A0C590547CAE6950623FE592EA885711C6",
+          "moduleBase": "0x00A00000",
+          "moduleSize": 65536,
+          "mainWindowHandle": "0x0000000000030666"
+        }
+      ],
+      "windows": [
+        {
+          "role": "CLIENT",
+          "hwnd": "0x00000000001A0490",
+          "ownerPid": 3448,
+          "visible": true,
+          "title": "G7MTClient",
+          "class": "G7MTClientWindow",
+          "windowRect": {"left":0,"top":0,"right":1032,"bottom":861},
+          "clientRect": {"left":0,"top":0,"right":1024,"bottom":822}
+        },
+        {
+          "role": "DEBUGGER",
+          "hwnd": "0x0000000000030666",
+          "ownerPid": 6548,
+          "visible": true,
+          "title": "x32dbg",
+          "class": "Qt5QWindowIcon",
+          "windowRect": {"left":10,"top":10,"right":1010,"bottom":760},
+          "clientRect": {"left":0,"top":0,"right":992,"bottom":711}
+        }
+      ]
+    }
+  ],
+  "snapshotStable": true,
+  "foreground": {
+    "beforeHwnd": "0x00000000001A0490",
+    "beforeOwnerPid": 3448,
+    "afterHwnd": "0x00000000001A0490",
+    "afterOwnerPid": 3448,
+    "unchanged": true
+  },
+  "operations": {
+    "helperProcessesCreated": 1,
+    "guestFileWrites": 3,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "foregroundChanges": 0,
+    "debuggerAttach": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "captures": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "permitIssued": false,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  }
+}

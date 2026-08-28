@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "verdict": "LIVE_HELPER_ROUTE_FAILED_BEFORE_STARTED_MARKER_NO_RETRY",
+  "evaluatorCases": 54,
+  "evaluatorAssertions": 153,
+  "contractAssertions": 55,
+  "parsedPowerShellFiles": 10,
+  "routeSha256": "3F43C24657BE76E5511DE7DB4A41F5716E90F3D2485242BE4A735BA654CA0424",
+  "collectorSha256": "7F10538C055255B1C83ED5E792844C39707317DA0452DC11F860A441259E7DEA",
+  "helperLaunchCalls": 1,
+  "helperProcessCreated": "UNKNOWN",
+  "helperReceiptCount": 0,
+  "physicalActivations": 0,
+  "targetAndGameStateChangingOperationCount": 0,
+  "ownedDiagnosticHelperTerminations": 1,
+  "guestSourceFileWritesKnown": 6,
+  "guestHelperReceiptWrites": "NOT_INSTRUMENTED_BEFORE_UNIT_LEDGER",
+  "fileExistsQueries": 1,
+  "visualCaptureCalls": 3,
+  "visualCaptureArtifacts": 2,
+  "parserArtifacts": [
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\verify.ps1",
+      "sha256": "634051B26C567E3113F81F7986272D8D1CEAEEE68BF064044522291E201E3862"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\evidence\\live-20260829T183100Z-v1-collector.ps1",
+      "sha256": "7F10538C055255B1C83ED5E792844C39707317DA0452DC11F860A441259E7DEA"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\src\\collect-interactive-broker-inventory.ps1",
+      "sha256": "C532E59F62D3C696A1B5B7A9AE8B40E153F8DE961F00BE1013F3BDE4FFBB8F56"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\src\\collect-interactive-session-canary.ps1",
+      "sha256": "D447C9FE904D2EA65191D3190C74756871CDC3D44C09EF671FEC76BE437752F1"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\src\\collect-owned-helper-processes.ps1",
+      "sha256": "28433BED1C4D1E49A4A2F6C2CE384EC9C432BB70722247BE157B02993DC52FFF"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\src\\collect-session-route-diagnostic.ps1",
+      "sha256": "7C3D1FA04C79170BEF4095D32349FB0CD989C87401147DB886F4DD042380021D"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\src\\collect-vmware-tools-log-inventory.ps1",
+      "sha256": "AAFF15C9562ED019449F9A5665E24BC4590E0F292E5399FADE7B6943E2306005"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\src\\evaluate-interactive-canary.ps1",
+      "sha256": "E7E6D3D9CAC2D8F91FD5FE8A77DE572821D43445B58F16C6C964FED5B7F9C69F"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\tests\\test-evaluate-interactive-canary.ps1",
+      "sha256": "2843FBAC02DD509BB94F8D6BE0C3F9653A20D6C1EC6A0A6B866314E4F65A4541"
+    },
+    {
+      "path": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\tests\\test-interactive-canary-contract.ps1",
+      "sha256": "DA2AC716E8FD326F2EC2FCA7715986837EA0BA412725C9B6CC928DAA5B99521D"
+    }
+  ]
+}

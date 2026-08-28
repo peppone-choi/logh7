@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "provenance": "HOST_VMRUN_INTERACTIVE_ROUTE",
+  "runId": "20260829T183100Z-v1",
+  "capturedAtUtc": "2026-08-28T18:25:42.2681761Z",
+  "vmxPath": "E:\\logh7-vms\\oracle-win11-hd-re\\oracle-win11-hd-re.vmx",
+  "collectorPath": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\src\\collect-interactive-session-canary.ps1",
+  "collectorSha256": "7F10538C055255B1C83ED5E792844C39707317DA0452DC11F860A441259E7DEA",
+  "guestScriptPath": "C:\\LOGH7_ORACLE\\interactive-canary-20260829T183100Z-v1.ps1",
+  "vmrunInteractive": true,
+  "vmrunActiveWindow": false,
+  "guestSourceCopies": 1,
+  "guestSourceCopyExitCode": 0,
+  "helperInvocationCount": 1,
+  "helperExitCode": -1,
+  "captureCopyCount": 3,
+  "sourceCopyOutput": [],
+  "helperOutput": [
+    "Error: A file was not found"
+  ],
+  "copies": [
+    {
+      "role": "started",
+      "guestPath": "C:\\LOGH7_ORACLE\\interactive-canary-20260829T183100Z-v1-started.json",
+      "hostPath": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\evidence\\live-20260829T183100Z-v1-started.json",
+      "exitCode": -1,
+      "output": [
+        "Error: A file was not found"
+      ],
+      "exists": false,
+      "sha256": null
+    },
+    {
+      "role": "receipt",
+      "guestPath": "C:\\LOGH7_ORACLE\\interactive-canary-20260829T183100Z-v1-receipt.json",
+      "hostPath": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\evidence\\live-20260829T183100Z-v1-raw-receipt.json",
+      "exitCode": -1,
+      "output": [
+        "Error: A file was not found"
+      ],
+      "exists": false,
+      "sha256": null
+    },
+    {
+      "role": "diagnostic",
+      "guestPath": "C:\\LOGH7_ORACLE\\interactive-canary-20260829T183100Z-v1-diagnostic.json",
+      "hostPath": "E:\\logh7-greenfield\\work\\20260829-original-client-interactive-desktop-hwnd-route\\evidence\\live-20260829T183100Z-v1-diagnostic.json",
+      "exitCode": -1,
+      "output": [
+        "Error: A file was not found"
+      ],
+      "exists": false,
+      "sha256": null
+    }
+  ],
+  "operations": {
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "foregroundChanges": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "debuggerAttach": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "permitIssued": false,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  }
+}

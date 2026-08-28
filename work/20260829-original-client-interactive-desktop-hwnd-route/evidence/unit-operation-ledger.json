@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "provenance": "RETROSPECTIVE_UNIT_LEDGER_FROM_TOOL_RECEIPTS_AND_TRANSCRIPT",
+  "unit": "ORIGINAL_CLIENT_INTERACTIVE_DESKTOP_HWND_ROUTE",
+  "vmrunCommandCounts": {
+    "copyFileFromHostToGuest": 6,
+    "runProgramInGuest": 7,
+    "copyFileFromGuestToHost": 8,
+    "captureScreen": 2,
+    "fileExistsInGuest": 1,
+    "killProcessInGuest": 1,
+    "listProcessesInGuest": 2
+  },
+  "passiveVncCaptureCalls": 1,
+  "visualCaptureArtifacts": 2,
+  "guestSourceFileWritesKnown": 6,
+  "guestHelperReceiptWrites": "NOT_INSTRUMENTED_BEFORE_UNIT_LEDGER",
+  "guestHelperProcessCreationCount": "NOT_INSTRUMENTED_BEFORE_UNIT_LEDGER",
+  "ownedDiagnosticHelperTermination": {
+    "count": 1,
+    "pid": 5272,
+    "sessionId": 0,
+    "target": "collect-vmware-tools-log-inventory.ps1",
+    "gameProcess": false
+  },
+  "interactiveCanaryAttempt": {
+    "runId": "20260829T183100Z-v1",
+    "guestSourceCopies": 1,
+    "helperLaunchCalls": 1,
+    "vmrunHostExitCode": -1,
+    "vmrunOutput": ["Error: A file was not found"],
+    "helperProcessCreated": "UNKNOWN",
+    "startedReceiptCount": 0,
+    "rawReceiptCount": 0,
+    "diagnosticReceiptCount": 0,
+    "receiptCopyBackCalls": 3,
+    "sourceExistsQueries": 1,
+    "sourceEvidenceRecoveryCopyBackCalls": 1,
+    "preservedCollectorSha256": "7F10538C055255B1C83ED5E792844C39707317DA0452DC11F860A441259E7DEA"
+  },
+  "targetAndGameOperations": {
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "foregroundChanges": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "debuggerAttach": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "permitIssued": false,
+    "physicalActivations": 0,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  },
+  "limitations": [
+    "The exact number of guest receipt writes and diagnostic helper processes created before this ledger was not instrumented and is not guessed.",
+    "The fileExistsInGuest result is preserved in the tool transcript, not retroactively inserted into the earlier vmrun route artifact.",
+    "helperExitCode in the raw route artifact is interpreted here as vmrunHostExitCode; no guest helper exit was observed."
+  ]
+}

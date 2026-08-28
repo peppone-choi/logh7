@@ -1,0 +1,102 @@
+{
+    "schemaVersion":  1,
+    "provenance":  "LIVE_READONLY_SESSION_DIAGNOSTIC",
+    "observedAtUtc":  "2026-08-28T17:50:06.8446448Z",
+    "currentProcess":  {
+                           "pid":  9304,
+                           "sessionId":  0,
+                           "userName":  "logh7-oracle",
+                           "userInteractive":  true,
+                           "windowStation":  "WinSta0",
+                           "desktop":  "Default"
+                       },
+    "activeConsoleSessionId":  1,
+    "computerSystemUserName":  "LOGH7-ORACLE-HD\\logh7-oracle",
+    "quser":  [
+                  "                                                      アイドル",
+                  "",
+                  " ユーザー名            セッション名       ID  状態    時間       ログオン時刻",
+                  "",
+                  " logh7-oracle          console             1  Active      none   2026/08/25 11:16"
+              ],
+    "qwinsta":  [
+                    " セッション名               ユーザー名               ID  状態    種類        デバイス ",
+                    "\u003eservices                                            0  Disc                        ",
+                    " console                   logh7-oracle              1  Active                      "
+                ],
+    "processes":  [
+                      {
+                          "name":  "explorer",
+                          "pid":  604,
+                          "sessionId":  1,
+                          "userName":  null,
+                          "startTimeUtc":  "2026-08-25T02:16:34.4122405Z",
+                          "path":  "C:\\WINDOWS\\Explorer.EXE",
+                          "mainWindowHandle":  "0x0000000000000000",
+                          "responding":  true
+                      },
+                      {
+                          "name":  "G7MTClient",
+                          "pid":  3448,
+                          "sessionId":  1,
+                          "userName":  null,
+                          "startTimeUtc":  "2026-08-25T15:47:31.9489446Z",
+                          "path":  "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+                          "mainWindowHandle":  "0x0000000000000000",
+                          "responding":  true
+                      },
+                      {
+                          "name":  "x32dbg",
+                          "pid":  6548,
+                          "sessionId":  1,
+                          "userName":  null,
+                          "startTimeUtc":  "2026-08-27T03:40:33.7883244Z",
+                          "path":  "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+                          "mainWindowHandle":  "0x0000000000000000",
+                          "responding":  true
+                      },
+                      {
+                          "name":  "dwm",
+                          "pid":  128,
+                          "sessionId":  1,
+                          "userName":  null,
+                          "startTimeUtc":  "2026-08-25T18:50:38.3417940Z",
+                          "path":  "C:\\WINDOWS\\system32\\dwm.exe",
+                          "mainWindowHandle":  "0x0000000000000000",
+                          "responding":  true
+                      },
+                      {
+                          "name":  "winlogon",
+                          "pid":  744,
+                          "sessionId":  1,
+                          "userName":  null,
+                          "startTimeUtc":  "2026-08-25T02:10:57.1595669Z",
+                          "path":  "C:\\WINDOWS\\system32\\winlogon.exe",
+                          "mainWindowHandle":  "0x0000000000000000",
+                          "responding":  true
+                      }
+                  ],
+    "vmwareTools":  {
+                        "serviceStatus":  "Running",
+                        "serviceStartType":  "Automatic",
+                        "path":  "\"C:\\Program Files\\VMware\\VMware Tools\\vmtoolsd.exe\"",
+                        "fileVersion":  "12.5.3.52671"
+                    },
+    "operations":  {
+                       "guestObservationHelpers":  1,
+                       "processMemoryReads":  0,
+                       "processMemoryWrites":  0,
+                       "foregroundChanges":  0,
+                       "debuggerAttach":  0,
+                       "debuggerCommands":  0,
+                       "breakpointsInstalled":  0,
+                       "captures":  0,
+                       "gameInputs":  0,
+                       "automaticInputs":  0,
+                       "permitIssued":  false,
+                       "vmLifecycleChanges":  0,
+                       "serverChanges":  0,
+                       "protocolChanges":  0,
+                       "databaseChanges":  0
+                   }
+}
