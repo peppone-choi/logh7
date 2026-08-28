@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "result": "PASS",
+  "runtimeStatus": "SYNTHETIC_DRY_RUN_ONLY",
+  "phaseCount": 10,
+  "transitionCount": 9,
+  "peakActiveSlots": 4,
+  "traceSha256": "FE3E9046EA15DE5E64F1E7CF1159E3D6F3B72CC94C14AB1200E87B2F7243D8CA",
+  "nextBoundary": "MOVEMENT_RECEIPT_TEMPORAL_THREAD_CORRELATION_SCHEMA_MISSING",
+  "liveOperations": 0,
+  "permitIssued": false
+}

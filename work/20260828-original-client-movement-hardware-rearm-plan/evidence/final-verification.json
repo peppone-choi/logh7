@@ -1,0 +1,42 @@
+{
+  "result": "PASS",
+  "status": "OFFLINE_HARDWARE_REARM_PLAN_PASS_RECEIPT_SCHEMA_GAP_RUNTIME_UNSEEN",
+  "hardwareRearmTests": {"result":"PASS","cases":39,"assertions":59,"mutations":38},
+  "prelaunchV7Tests": {"result":"PASS","cases":21,"assertions":33,"mutations":20},
+  "schedule": {
+    "anchorCount": 9,
+    "phaseCount": 10,
+    "transitionCount": 9,
+    "peakActiveSlots": 4,
+    "traceSha256": "FE3E9046EA15DE5E64F1E7CF1159E3D6F3B72CC94C14AB1200E87B2F7243D8CA",
+    "runtimeNoMissProof": "MISSING"
+  },
+  "prelaunchV7": {
+    "state": "OFFLINE_PRELAUNCH_HARDWARE_REARM_PLAN_INTEGRATED_RECEIPT_V2_MISSING_READY_FALSE",
+    "blockerCount": 12,
+    "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "firstTechnicalBoundary": "MOVEMENT_RECEIPT_TEMPORAL_THREAD_CORRELATION_SCHEMA_MISSING",
+    "receiptV2Status": "MISSING",
+    "receiptV2MissingFieldCount": 8,
+    "freshTraceCompared": true,
+    "priorV6SealBound": true
+  },
+  "installedX32dbg": {
+    "commit": "9c8ca1cae0b6d56cc44f31fddcb10e3b02ffbb87",
+    "commitHashFileSha256": "80A7077840C2DD987861A857DB19C06279408E0344B0AD13538217075A0E2C67",
+    "x32dbgExeSha256": "822028F0755DBA773E445EAF57FDB3DBA84C9550AC7BDAD2AFA449912B5FBA41"
+  },
+  "artifactHashesVerified": 10,
+  "artifactLedgerSha256": "1CBE49CF3ED2131387716B0645FFCEFA18018878C207EE0618861CF605C469CD",
+  "independentReview": "APPROVE",
+  "validatorWrites": 0,
+  "forbiddenCapabilityHits": 0,
+  "liveOperations": 0,
+  "debuggerCommands": 0,
+  "breakpointsInstalled": 0,
+  "processMemoryReads": 0,
+  "processMemoryWrites": 0,
+  "captures": 0,
+  "gameInputs": 0,
+  "permitIssued": false
+}
