@@ -4,7 +4,7 @@
   "ghidraRepositorySha256": "888F81BFEAB5B878723345CE7B049E709A4E3DE438F72005E1F68F9A100000AF",
   "raw": {
     "path": "evidence/exhaustive-trace/raw/functions-ghidra.json",
-    "sha256": "11B52C0D538773B24BEAC68F946EFD663BA96E5931BFBA5BD715600E269807E5"
+    "sha256": "9CA2DF2D5E43CAEEE47324D776B5A359B09E060358DA964D7901B69C5D9EC6A1"
   },
   "exporter": {
     "path": "tools/ghidra/ExportExhaustiveFunctions.java",
@@ -12,7 +12,7 @@
   },
   "sourceManifest": {
     "path": "docs/reverse-engineering/exhaustive-trace/source-manifest.json",
-    "sha256": "A6C4A96639117C5F2F7F036E389963269E95141B607808ADFACDA9750C3A05F3"
+    "sha256": "128798534AEDBA4600EECDEFE5A8892030F36D6697901F36143CDECDBCC6B699"
   },
   "peImports": {
     "path": "evidence/exhaustive-trace/raw/pe-imports.json",
@@ -32,6 +32,6 @@
   },
   "resourcesRaw": {
     "path": "evidence/exhaustive-trace/raw/resources-ghidra.json",
-    "sha256": "CA05628995627EA0F21B400367CDFD5745A765987775579E2DF8D2195C593AC7"
+    "sha256": "F6AEF134697B8418526FE315A046EF3D42432B95AAAFF9BDF8C90032CD57D0B2"
   }
 }

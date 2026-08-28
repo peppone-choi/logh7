@@ -1,5 +1,9 @@
 # Handoff - original game exhaustive trace foundation baseline
 
+> Historical Task 14 handoff. Current state is in
+> `docs/handoffs/2026-08-29-exhaustive-trace-foundation-reseal.md`.
+> The old independent approval is scoped to the old receipt and does not approve the reseal.
+
 - bounded status: `PASS_REPRODUCIBLE_BASELINE_WITH_ACKNOWLEDGED_FATAL`
 - overall goal: `INCOMPLETE`
 - aggregate receipt: `work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-verification.json`, SHA-256 `D2F4EC9D8A5AFE25387E44039DD0C150D06DAA92D39902C85ADA62B8DC6ECFFE`

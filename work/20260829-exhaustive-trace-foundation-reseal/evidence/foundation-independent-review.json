@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "recordType": "EXHAUSTIVE_TRACE_FOUNDATION_RESEAL_INDEPENDENT_REVIEW",
+  "reviewedAt": "2026-08-29",
+  "verdict": "APPROVE",
+  "scope": "Current-state foundation reproducibility reseal only",
+  "authorReceipt": {
+    "path": "work/20260829-exhaustive-trace-foundation-reseal/evidence/foundation-verification.json",
+    "sha256": "2ECF55C94C0D1FBF1D43BD9B9F021B9F76C6122CA7A72386BEDB715E539E9864",
+    "bytes": 76528,
+    "embeddedIndependentReview": "UNSEEN"
+  },
+  "independentExecutionReceipt": {
+    "path": "work/20260829-exhaustive-trace-foundation-reseal/evidence/foundation-independent-verification.json",
+    "sha256": "A629DC9BB0758312B563C523A73660EC4E179CF979646A9FD20CE8B91BCB7FA1",
+    "bytes": 76624,
+    "receiptTargetPolicy": "FRESH_SYSTEM_TEMP_CHILD",
+    "verifierExecutions": 1,
+    "verifierExit": 0
+  },
+  "checks": {
+    "sourceManifestSha256": "128798534AEDBA4600EECDEFE5A8892030F36D6697901F36143CDECDBCC6B699",
+    "sourceManifestVerifiedPathCount": 22,
+    "testsDiscovered": 285,
+    "testsPassed": 285,
+    "testFailuresErrorsSkipsExpectedFailuresUnexpectedSuccesses": 0,
+    "deterministicArtifactCount": 32,
+    "authorIndependentArtifactFieldMismatchCount": 0,
+    "currentCheckedArtifactMismatchCount": 0,
+    "inventorySourceKeyCount": 15999,
+    "uniquePrimaryAssignmentCount": 15999,
+    "duplicateMissingExtraPrimaryKeys": 0,
+    "coverageFatalCount": 1,
+    "coverageFatalId": "FEATURE_REACHABILITY_LEDGER_ABSENT",
+    "evidenceGapCount": 25606,
+    "missingBoundaryOccurrenceCount": 153598,
+    "closedVerticalTraceCount": 0,
+    "unknownVerdictRowCount": 15999,
+    "confirmedGameplayFeatureCount": 0,
+    "protectedFileCount": 95,
+    "protectedPrePostMismatchCount": 0,
+    "protectedCurrentMismatchCount": 0,
+    "sourceTreePrePostMismatchCount": 0,
+    "freshPublicationNoReplace": true,
+    "firstUnit": "RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B",
+    "firstUnitExecutionStatus": "NOT_STARTED",
+    "firstUnitAuthorization": "NOT_AUTHORIZED_BY_BASELINE"
+  },
+  "ghidraDatabaseReview": {
+    "authoritativePath": "work/ghidra-exhaustive-protocol/ProtocolTrace.rep/idata/00/~00000000.db/db.1.gbf",
+    "authoritativeSha256": "888F81BFEAB5B878723345CE7B049E709A4E3DE438F72005E1F68F9A100000AF",
+    "preservedNonAuthoritativePath": "work/ghidra-exhaustive-protocol/ProtocolTrace.rep/idata/00/~00000000.db/db.2.gbf",
+    "preservedNonAuthoritativeSha256": "1BA96D6327A0AB082D88285C1C48D48ED0586330CA7137875ABE3E7C0E6F3740",
+    "databaseBytesEach": 54591488,
+    "differingByteOffsetsHex": [
+      "0x08",
+      "0x09",
+      "0x0A",
+      "0x0B",
+      "0x0C",
+      "0x0D",
+      "0x0E",
+      "0x0F"
+    ],
+    "deletedRenamedOrRewritten": false
+  },
+  "reviewLanes": [
+    {
+      "lane": "source-manifest-code-and-path-safety",
+      "reviewer": "/root/source_manifest_code_review",
+      "verdict": "APPROVE",
+      "repositoryWrites": 0
+    },
+    {
+      "lane": "metrics-artifact-and-document-binding",
+      "reviewer": "/root/reseal_metrics_review",
+      "verdict": "APPROVE",
+      "repositoryWrites": 0
+    },
+    {
+      "lane": "independent-full-execution-and-safety",
+      "reviewer": "/root/foundation_reseal_review",
+      "verdict": "APPROVE",
+      "repositoryWrites": 0
+    }
+  ],
+  "runtimeActions": {
+    "vm": 0,
+    "originalExecutable": 0,
+    "ghidra": 0,
+    "debuggerAttach": 0,
+    "processMemoryReadWrite": 0,
+    "physicalInput": 0,
+    "automaticRetry": 0,
+    "serverProtocolDatabaseMutation": 0,
+    "vmLifecycle": 0
+  },
+  "limits": {
+    "overallGoal": "INCOMPLETE",
+    "coverageGate": "STRUCTURAL_FATAL",
+    "featureLedger": "ABSENT",
+    "approvalDoesNotProve": [
+      "original-client playability",
+      "player-visible gameplay",
+      "authority",
+      "persistence",
+      "both factions",
+      "complete content",
+      "clean-room implementation",
+      "final game completion"
+    ]
+  }
+}

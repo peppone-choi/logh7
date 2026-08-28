@@ -4,7 +4,9 @@
 
 The bounded foundation baseline is `PASS_REPRODUCIBLE_BASELINE_WITH_ACKNOWLEDGED_FATAL`. The overall game-reimplementation goal is `INCOMPLETE`.
 
-This summary is bound to `work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-verification.json`, SHA-256 `D2F4EC9D8A5AFE25387E44039DD0C150D06DAA92D39902C85ADA62B8DC6ECFFE`. That sealed pre-review receipt honestly records independent review as `UNSEEN`. A later separate full execution and two read-only scoped reviews returned `APPROVE`; the preserved independent execution receipt is SHA-256 `EE453CCE7AE62407256AA4A83A896BDCB479A9EC5D39FE899B2AD14175CEAB02`, indexed by `work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-independent-review.json`.
+This current summary is bound to `work/20260829-exhaustive-trace-foundation-reseal/evidence/foundation-verification.json`, SHA-256 `2ECF55C94C0D1FBF1D43BD9B9F021B9F76C6122CA7A72386BEDB715E539E9864`. The immutable author receipt records 285/285 tests, two fresh complete regeneration roots, and independent review as `UNSEEN`. A later separate final-state full execution and two read-only review lanes returned `APPROVE`: independent receipt SHA-256 `A629DC9BB0758312B563C523A73660EC4E179CF979646A9FD20CE8B91BCB7FA1`, review index SHA-256 `8312104E52CABF205C42DDB62D74E3F4AA1C7A820E220273EF6DB1517DF483A4`. The older Task 14 receipt and review remain immutable historical evidence and do not approve this reseal.
+
+The reseal explicitly binds `work/ghidra-exhaustive-protocol/ProtocolTrace.rep/idata/00/~00000000.db/db.1.gbf` at SHA-256 `888F81BFEAB5B878723345CE7B049E709A4E3DE438F72005E1F68F9A100000AF`. A later `db.2.gbf` revision is preserved but excluded from authority; it was created by a non-read-only diagnostic run and is not silently selected or deleted.
 
 ## Six inventories
 
@@ -22,15 +24,15 @@ Every source row has one unique primary domain assignment. Unassigned rows: 0. D
 
 ## Graph and coverage
 
-- Graph: 35,685 nodes and 92,053 edges.
+- Graph: 35,686 nodes and 92,055 edges.
 - Graph structural-orphan count: 0, defined by unrepresented source rows + dangling edges + unaccounted joins. This is distinct from unresolved-reference nodes (6,378).
 - Coverage verdicts: 15,999 `UNKNOWN`; closed vertical traces: 0.
-- Evidence gaps: 25,609. Expanded missing-boundary occurrences: 153,601. These are different denominators.
+- Evidence gaps: 25,606. Expanded missing-boundary occurrences: 153,598. These are different denominators.
 - Coverage structural fatal count: 1, exactly `FEATURE_REACHABILITY_LEDGER_ABSENT`.
 - Routing-unresolved rows: 15,317. This is not the recovery-actionable count.
 - Confirmed gameplay features: 0. `FEATURE:MOVE_GRID` remains one `INFERRED`, `UNADJUDICATED`, candidate package with `coveragePromotion=false` and eight candidate units.
 
-The graph file is 102,935,897 bytes, SHA-256 `CA9955E4FE095B4A9B88049E3BB26F846471A36D6F31EB1440F1E83C742B85EA`, graph surface `65B553753259DF830C5C2B86098CED589574A3C6E47868F3DE8613159B8BC6D0`. Coverage is 38,641,608 bytes, SHA-256 `7901AE67470CBEC1482A502218DC186FAF7ECFA464427A3B12F794B46322CC71`, surface `E2DCDAA88A069457ACEFBC43339AD1E54AF943C3E43A63ADE3ED3FBD0C090557`.
+The graph file is 102,938,427 bytes, SHA-256 `0F1617D1D8C40C854F9A825CED4B69CA1D4FC47CCB316C6075A612D7A46C5F10`, graph surface `28C275C99FEBDB9F993729FEE1A2BCA34B8A7797038A6C61AE758A2A9A325918`. Coverage is 38,640,987 bytes, SHA-256 `FDF8C398BFD8A93EC88DA4C0033EC31F4277AED182FAD24E6FA662697E6D0F3D`, surface `D0A93944721FEF320B197ECACBA62AEF734CC013416D491AE482024EBEDAFB31`.
 
 ## Recovery and authoring
 
@@ -76,8 +78,8 @@ The candidate package has eight units total: one reverse-contract unit and seven
 
 ## First deterministic unit
 
-- Unit: `RECOVERY:D01:RESOURCE_LOADER:1DFEC1FA0ADCE4B0`
-- Path: ``RESOURCE:FILE:original-installshield-payload:_____p_y_`__vii_____t_c_g.url``
+- Unit: `RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B`
+- Path: ``RESOURCE:FILE:original-installshield-payload:doc/___p_`vii___p_k__.txt``
 - Boundary: `RESOURCE_LOADER`
 - Disposition: `RECOVERABLE_STATIC`
 - State: `NOT_STARTED`

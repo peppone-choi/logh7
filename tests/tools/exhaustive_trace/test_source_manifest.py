@@ -45,6 +45,41 @@ class GhidraProgramDatabaseHashTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "exactly one"):
                 ghidra_program_database_sha256(root)
 
+    def test_bound_program_database_path_ignores_unbound_repository_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            database = root / "idata" / "00" / "~00000000.db" / "db.1.gbf"
+            database.parent.mkdir(parents=True)
+            database.write_bytes(b"bound-program")
+            (database.parent / "db.2.gbf").write_bytes(b"later-unbound-version")
+
+            self.assertEqual(
+                ghidra_program_database_sha256(
+                    root,
+                    "idata/00/~00000000.db/db.1.gbf",
+                ),
+                sha256_file(database),
+            )
+
+    def test_bound_program_database_path_must_stay_inside_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            outside = root.parent / "outside.gbf"
+            with self.assertRaisesRegex(ValueError, "safe relative path"):
+                ghidra_program_database_sha256(root, str(outside))
+
+    def test_bound_program_database_must_exist_and_use_gbf_database_name(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            root.mkdir(exist_ok=True)
+            with self.assertRaisesRegex(ValueError, "is missing"):
+                ghidra_program_database_sha256(root, "idata/db.1.gbf")
+            wrong = root / "idata" / "program.bin"
+            wrong.parent.mkdir(parents=True)
+            wrong.write_bytes(b"not-a-ghidra-database")
+            with self.assertRaisesRegex(ValueError, "invalid name"):
+                ghidra_program_database_sha256(root, "idata/program.bin")
+
 
 def import_payload(client: Path, bound_files: dict[str, Path]) -> dict[str, object]:
     imports = [
@@ -368,6 +403,40 @@ class SourceManifestTests(unittest.TestCase):
             (repository / "db.bin").unlink()
             repository.rmdir()
             with self.assertRaisesRegex(ValueError, "repository is missing"):
+                self._load_fixture(root, manifest, frozen)
+
+    def test_manifest_binds_exact_ghidra_program_database_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manifest, frozen, _ = build_fixture(root)
+            repository = root / "ghidra" / "Fixture.rep"
+            database = repository / "idata" / "00" / "~00000000.db" / "db.1.gbf"
+            database.parent.mkdir(parents=True)
+            database.write_bytes(b"bound-program")
+            (database.parent / "db.2.gbf").write_bytes(b"later-unbound-version")
+
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["ghidra"].update(
+                {
+                    "repositoryHashAlgorithm": "program-database-sha256",
+                    "programDatabasePath": "idata/00/~00000000.db/db.1.gbf",
+                    "repositorySha256": sha256_file(database),
+                }
+            )
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            loaded = self._load_fixture(root, manifest, frozen)
+            self.assertIn(database.resolve(), loaded.verified_paths)
+
+    def test_program_database_algorithm_requires_explicit_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manifest, frozen, _ = build_fixture(root)
+            payload = json.loads(manifest.read_text(encoding="utf-8"))
+            payload["ghidra"]["repositoryHashAlgorithm"] = "program-database-sha256"
+            manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "programDatabasePath"):
                 self._load_fixture(root, manifest, frozen)
 
     def test_raw_parser_must_match_manifest_tool(self) -> None:

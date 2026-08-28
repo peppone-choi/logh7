@@ -113,10 +113,26 @@ def sha256_tree(path: str | Path) -> str:
     return digest.hexdigest().upper()
 
 
-def ghidra_program_database_sha256(path: str | Path) -> str:
-    """Hash the semantic program DB while excluding volatile project indexes."""
+def ghidra_program_database_sha256(
+    path: str | Path,
+    database_relative_path: str | Path | None = None,
+) -> str:
+    """Hash one bound semantic program DB while excluding volatile project indexes."""
 
-    repository = Path(path)
+    repository = Path(path).resolve()
+    if database_relative_path is not None:
+        relative = Path(database_relative_path)
+        if relative.is_absolute() or ".." in relative.parts:
+            raise ValueError("Ghidra program database must use a safe relative path")
+        database = (repository / relative).resolve()
+        if not database.is_relative_to(repository):
+            raise ValueError("Ghidra program database must use a safe relative path")
+        if not database.is_file():
+            raise ValueError(f"bound Ghidra program database is missing: {database}")
+        if not database.name.startswith("db.") or database.suffix != ".gbf":
+            raise ValueError(f"bound Ghidra program database has an invalid name: {database}")
+        return sha256_file(database)
+
     databases = sorted(repository.rglob("db.*.gbf"))
     if len(databases) != 1:
         raise ValueError(
@@ -434,7 +450,13 @@ class SourceManifest:
             "sorted(relative-posix-path NUL byte-length NUL uppercase-file-sha256 LF)",
         )
         if repository_algorithm == "program-database-sha256":
-            actual_repository_hash = ghidra_program_database_sha256(repository)
+            program_database_path = _require_text(
+                "ghidra.programDatabasePath", ghidra.get("programDatabasePath")
+            )
+            actual_repository_hash = ghidra_program_database_sha256(
+                repository, program_database_path
+            )
+            verified.append((repository / program_database_path).resolve())
         else:
             actual_repository_hash = sha256_tree(repository)
         if actual_repository_hash != expected_repository_hash:

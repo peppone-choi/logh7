@@ -1,5 +1,10 @@
 # Original game exhaustive trace foundation baseline report
 
+> Historical baseline. The current reseal is documented in
+> `work/20260829-exhaustive-trace-foundation-reseal/report/foundation-reseal-report.md`.
+> Its receipt and independent-review state supersede this report for current-state claims;
+> this file and its sealed receipts remain unchanged historical evidence.
+
 ## Outcome
 
 Foundation Tasks 1-14 now produce a reproducible closed-world enumeration and planning baseline. The bounded result is `PASS_REPRODUCIBLE_BASELINE_WITH_ACKNOWLEDGED_FATAL`; the overall game goal remains `INCOMPLETE`.

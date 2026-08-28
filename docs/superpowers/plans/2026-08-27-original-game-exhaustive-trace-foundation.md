@@ -554,21 +554,21 @@ git commit -m "feat: build exhaustive trace evidence graph"
 - Consumes: typed graph.
 - Produces: `audit_graph(graph) -> CoverageReport`, per-row first missing boundary, and fatal structural errors.
 
-- [ ] **Step 1: Write failing coverage tests**
+- [x] **Step 1: Write failing coverage tests**
 
 Test protocol rows without direction, UI controls without handler/dormant status, entities without ID/parent disposition, writers without sources, assets without loaders, mutations without event/persistence disposition, and manual features absent from reachability ledger.
 
 Also reject any rule, field, content row, or entity population without one `RecoveryDisposition`, and reject gameplay-feature rows without a disposition for every `ImplementationTarget`.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: coverage module missing.
 
-- [ ] **Step 3: Implement fail-closed audits**
+- [x] **Step 3: Implement fail-closed audits**
 
 Structural omissions exit nonzero. Evidence gaps are emitted with `PARTIAL`, `UNSEEN`, `BLOCKED`, or `UNKNOWN` and an exact `firstMissingBoundary`; they do not make generation fail unless the row lacks a disposition.
 
-- [ ] **Step 4: Generate coverage report**
+- [x] **Step 4: Generate coverage report**
 
 ```powershell
 python -m tools.exhaustive_trace.cli audit --graph evidence/exhaustive-trace/graph.jsonl --output evidence/exhaustive-trace/coverage.json
@@ -576,7 +576,7 @@ python -m tools.exhaustive_trace.cli audit --graph evidence/exhaustive-trace/gra
 
 Expected: exit `0` only when every row has a disposition; unresolved gameplay remains listed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/exhaustive_trace/coverage.py tests/tools/exhaustive_trace/test_coverage.py evidence/exhaustive-trace/coverage.json
@@ -594,19 +594,19 @@ git commit -m "test: enforce exhaustive trace coverage gates"
 - Consumes: domains configuration, graph, coverage report.
 - Produces: one deterministic work package per domain and a cross-domain dependency list.
 
-- [ ] **Step 1: Write failing routing tests**
+- [x] **Step 1: Write failing routing tests**
 
 Require every row to have at least one primary domain, allow explicit secondary domains, and reject circular hard dependencies. Assert `D04` contains topology rows and references `docs/superpowers/plans/2026-08-27-original-world-topology-full-trace.md`.
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: domains module missing.
 
-- [ ] **Step 3: Implement deterministic routing**
+- [x] **Step 3: Implement deterministic routing**
 
 Route by typed entity/message/UI/resource relationships, not filenames alone. Ambiguous rows go to a named `crossDomainUnresolved` list with candidate domains and evidence.
 
-- [ ] **Step 4: Generate all packages and verify coverage**
+- [x] **Step 4: Generate all packages and verify coverage**
 
 ```powershell
 python -m tools.exhaustive_trace.cli package-domains --graph evidence/exhaustive-trace/graph.jsonl --coverage evidence/exhaustive-trace/coverage.json --domains docs/reverse-engineering/exhaustive-trace/domains.json --output evidence/exhaustive-trace/domains
@@ -615,7 +615,7 @@ python -m unittest tests.tools.exhaustive_trace.test_domains -v
 
 Expected: 16 files; zero unassigned rows; ambiguous rows explicitly preserved.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/exhaustive_trace/domains.py tests/tools/exhaustive_trace/test_domains.py evidence/exhaustive-trace/domains
@@ -633,7 +633,7 @@ git commit -m "docs: package exhaustive trace domains"
 - Consumes: 16 domain packages.
 - Produces: ordered domain units containing exact inventory keys, missing boundaries, static exporter requirements, offline replay inputs, faction/role matrix, live-slice requirements, and complete implementation closure.
 
-- [ ] **Step 1: Write failing package tests**
+- [x] **Step 1: Write failing package tests**
 
 Require every unit to have one question, input evidence, expected output, verifier command, mutation scope, live-input count, independent-review requirement, forbidden retry, recovery disposition, and implementation-target matrix. Reject a unit combining unrelated first-missing boundaries.
 
@@ -648,11 +648,11 @@ expected = [
 self.assertEqual(expected, [unit.kind for unit in package.units])
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: work-package module missing.
 
-- [ ] **Step 3: Implement unit splitting**
+- [x] **Step 3: Implement unit splitting**
 
 Split on domain, feature/entity vertical path, and first missing boundary. A live slice may contain one semantic player action at most; bootstrap-only slices use zero actions. For every gameplay feature, emit separate but linked units for contract, authoritative server, legacy gateway, new client, database/replay, content/admin, QA, and independent review. Emit `NOT_APPLICABLE` only with a non-empty reason.
 
@@ -676,11 +676,11 @@ The generated JSON for `FEATURE:MOVE_GRID` must have this shape:
 }
 ```
 
-- [ ] **Step 4: Generate and verify plan inputs**
+- [x] **Step 4: Generate and verify plan inputs**
 
 Expected: every unresolved graph row appears in at least one recovery unit; every gameplay feature appears in all applicable implementation units; no unit silently requests server/protocol/DB mutation.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```powershell
 git add tools/exhaustive_trace/work_packages.py tests/tools/exhaustive_trace/test_work_packages.py evidence/exhaustive-trace/domain-plan-inputs.json
@@ -699,7 +699,7 @@ git commit -m "docs: generate exhaustive trace work packages"
 - Consumes: graph, coverage report, source manifest, and domain packages.
 - Produces: one adjudicated recovery row for every unresolved value/rule/population and explicit authoring packages.
 
-- [ ] **Step 1: Write failing recovery tests**
+- [x] **Step 1: Write failing recovery tests**
 
 Require exactly one recovery disposition, evidence and falsifier for recoverable claims, research history for source conflicts/lost data, and editable schema/approval owner for authored data. Reject any `AUTHORING_REQUIRED` row presented as original evidence.
 
@@ -714,19 +714,19 @@ def test_authored_value_cannot_be_original(self):
         row.validate()
 ```
 
-- [ ] **Step 2: Run tests and confirm failure**
+- [x] **Step 2: Run tests and confirm failure**
 
 Expected: recovery module missing.
 
-- [ ] **Step 3: Implement recovery adjudication**
+- [x] **Step 3: Implement recovery adjudication**
 
 Classify static-extractable, live-required, conflicting, server-lost, originally unimplemented, authoring-required, and rights-review rows. Preserve research order as general web, Japanese web, user adjudication, then authored replacement.
 
-- [ ] **Step 4: Create the character-roster boundary**
+- [x] **Step 4: Create the character-roster boundary**
 
 Record the current local candidate facts without promotion: 99 mixed-source named rows, 97 with candidate statistics, 12 official name-to-face-number facts, 2 pixel-confirmed official portrait mappings, and an unresolved majority of O-group portrait slots. Define separate outputs `originalConfirmedCharacters`, `canonCandidateCharacters`, and `authoredPlayableCharacters`.
 
-- [ ] **Step 5: Generate and verify the ledger**
+- [x] **Step 5: Generate and verify the ledger**
 
 ```powershell
 python -m tools.exhaustive_trace.recovery --graph evidence/exhaustive-trace/graph.jsonl --coverage evidence/exhaustive-trace/coverage.json --sources docs/reverse-engineering/exhaustive-trace/source-manifest.json --output evidence/exhaustive-trace/recovery.json
@@ -735,7 +735,7 @@ python -m unittest tests.tools.exhaustive_trace.test_recovery -v
 
 Expected: every unresolved value/rule/population has exactly one disposition and implementation/authoring owner.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add tools/exhaustive_trace/recovery.py tests/tools/exhaustive_trace/test_recovery.py evidence/exhaustive-trace/recovery.json docs/new-design/2026-08-27-original-character-roster-recovery-boundary.md
@@ -743,6 +743,15 @@ git commit -m "docs: adjudicate recovery and authoring gaps"
 ```
 
 ### Task 14: Publish the baseline report and handoff
+
+**Current-state reconciliation (2026-08-29):** Tasks 10-14 were implemented and
+committed in `caf4c4f`, `4988307`, `4fbc5d6`, `9071a2e`, and `d120af6`; the unchecked
+boxes below were stale plan state. A later provenance reseal is recorded at
+`work/20260829-exhaustive-trace-foundation-reseal/evidence/foundation-verification.json`.
+It passes 285/285 tests and two fresh-root regeneration while retaining the explicit
+`FEATURE_REACHABILITY_LEDGER_ABSENT` fatal and author-receipt
+`independentReview=UNSEEN`. A later separate final-state execution and two read-only
+review lanes returned `APPROVE` for this bounded reseal only.
 
 **Files:**
 - Create: `docs/reverse-engineering/exhaustive-trace/inventory-summary.md`
@@ -754,11 +763,11 @@ git commit -m "docs: adjudicate recovery and authoring gaps"
 - Consumes: all foundation tests, recovery/authoring ledger, implementation packages, and generated artifacts.
 - Produces: hash-bound baseline, exact gap counts, first domain start, and forbidden retry list.
 
-- [ ] **Step 1: Write the aggregate verifier**
+- [x] **Step 1: Write the aggregate verifier**
 
 Run every Python test, regenerate inventories/graph/coverage/domain packages into a temporary directory, compare deterministic hashes, require six inventories and sixteen domains, and reject unassigned rows.
 
-- [ ] **Step 2: Run the aggregate verifier**
+- [x] **Step 2: Run the aggregate verifier**
 
 ```powershell
 pwsh -NoProfile -File work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1
@@ -766,18 +775,18 @@ pwsh -NoProfile -File work/20260827-original-game-exhaustive-trace-foundation/ev
 
 Expected: exit `0`; unresolved gameplay rows remain visible in the report and do not masquerade as completed traces.
 
-- [ ] **Step 3: Write the report and handoff**
+- [x] **Step 3: Write the report and handoff**
 
 Report inventory counts, graph node/edge counts, structural-orphan count, evidence-gap count, recovery-disposition counts, authoring-required counts, each domain's reverse-engineering and implementation unit counts, live-slice count, and the exact first unit selected by dependency order. Record independent review as `UNSEEN` unless separately performed.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add docs/reverse-engineering/exhaustive-trace/inventory-summary.md work/20260827-original-game-exhaustive-trace-foundation docs/handoffs/2026-08-27-original-game-exhaustive-trace-foundation.md
 git commit -m "docs: publish exhaustive trace foundation baseline"
 ```
 
-- [ ] **Step 5: Stop and report**
+- [x] **Step 5: Stop and report**
 
 Do not automatically start the first generated domain unit. Report the foundation status and handoff path, then wait for user direction as required by the project goal.
 

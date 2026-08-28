@@ -9,6 +9,7 @@
         "imageBase": "0x00400000",
         "language": "x86:LE:32:default",
         "programExecutableSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "programDatabasePath": "idata/00/~00000000.db/db.1.gbf",
         "programName": "g7mtclient.exe",
         "projectDir": "E:\\logh7-greenfield\\work\\ghidra-exhaustive-protocol",
         "projectName": "ProtocolTrace",
