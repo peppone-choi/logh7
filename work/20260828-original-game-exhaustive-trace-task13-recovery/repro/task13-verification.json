@@ -1,0 +1,73 @@
+{
+  "artifact": {
+    "bytes": 32962026,
+    "characterBoundaryDocumentSha256": "2D0D43C390322BF7693C4F01379F3CDC0A32D5C66D6AE805FA70DAFC7DC6C825",
+    "characterBoundarySurfaceSha256": "6FEDEF4815322DADA6AD4D13EBAADEB6D34271F89189D19DC7BA980957E3C31A",
+    "fileSha256": "8841E034F51D526E21E612D0C4D32B2FD88F2913DB3D1D1A7473A68363C324B7",
+    "ledgerSurfaceSha256": "56AF329E2B8FBF1CD8026014B56B8DDBF335A4C4A9609277478E8B798C010FEF",
+    "path": "evidence/exhaustive-trace/recovery.json"
+  },
+  "characterBoundary": {
+    "candidateStatisticRows": 97,
+    "decodedOGroupSlots": 513,
+    "legacyNamedRows": 99,
+    "officialNameFaceFacts": 12,
+    "stalePlanConfirmedPortraitMappings": 2,
+    "strictConfirmedPortraitMappings": 1,
+    "survivingOfficialPortraitReferences": 2,
+    "usableOGroupSlots": 397
+  },
+  "conservation": {
+    "actionableSubjectCount": 16267,
+    "authoringPackageCount": 60,
+    "countsByDisposition": {
+      "AUTHORING_REQUIRED": 60,
+      "ORIGINAL_SERVER_LOST": 1105,
+      "ORIGINAL_UNIMPLEMENTED": 0,
+      "RECOVERABLE_LIVE": 17,
+      "RECOVERABLE_STATIC": 15085,
+      "RECOVERED_ORIGINAL": 2,
+      "RIGHTS_REVIEW_REQUIRED": 0,
+      "SOURCE_CONFLICT": 0
+    },
+    "coverageFatalCount": 1,
+    "coverageGapAttachedReferenceCount": 25609,
+    "coverageGapReferenceCount": 25609,
+    "entityFieldSubjectCount": 230,
+    "entityPopulationSubjectCount": 37,
+    "inventoryRowSubjectCount": 15999,
+    "mandatoryDatasetSubjectCount": 3,
+    "recoveredSubjectCount": 2,
+    "totalSubjectCount": 16269,
+    "unaccountedRecoverySubjectCount": 0,
+    "uniqueSubjectCount": 16269
+  },
+  "determinism": {
+    "checkedSha256": "8841E034F51D526E21E612D0C4D32B2FD88F2913DB3D1D1A7473A68363C324B7",
+    "runASha256": "8841E034F51D526E21E612D0C4D32B2FD88F2913DB3D1D1A7473A68363C324B7",
+    "status": "BYTE_IDENTICAL"
+  },
+  "independentReview": {
+    "initialVerdict": "REJECT",
+    "resolvedFindings": [
+      "generic research history incorrectly implied original evidence was found",
+      "authoring schema permitted nested false ORIGINAL provenance",
+      "character boundary and corrected portrait counts were not hash-bound"
+    ],
+    "validatorWrites": 0,
+    "verdict": "APPROVE"
+  },
+  "status": {
+    "boundedUnit": "PASS",
+    "coverageGate": "STRUCTURAL_FATAL",
+    "featureLedger": "ABSENT",
+    "overallGoal": "INCOMPLETE"
+  },
+  "tests": {
+    "compile": "PASS",
+    "focused": "15/15 PASS",
+    "fullExhaustiveTrace": "260/260 PASS",
+    "gitDiffCheck": "PASS",
+    "lfPolicy": "PASS"
+  }
+}

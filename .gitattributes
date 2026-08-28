@@ -51,3 +51,6 @@ tests/tools/exhaustive_trace/test_model.py text eol=lf
 tools/exhaustive_trace/work_packages.py text eol=lf
 tests/tools/exhaustive_trace/test_work_packages.py text eol=lf
 evidence/exhaustive-trace/domain-plan-inputs.json text eol=lf
+tools/exhaustive_trace/recovery.py text eol=lf
+tests/tools/exhaustive_trace/test_recovery.py text eol=lf
+evidence/exhaustive-trace/recovery.json text eol=lf

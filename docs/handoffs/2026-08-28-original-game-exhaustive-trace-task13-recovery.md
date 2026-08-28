@@ -1,0 +1,23 @@
+# Handoff - exhaustive trace foundation Task 13 recovery and authoring ledger
+
+- bounded-unit status: `PASS` for deterministic recovery adjudication and authoring-boundary construction
+- overall goal: `INCOMPLETE`; complete original-client playability and clean-room implementation remain unproved
+- artifact: `evidence/exhaustive-trace/recovery.json`, 32,962,026 bytes, SHA-256 `8841E034F51D526E21E612D0C4D32B2FD88F2913DB3D1D1A7473A68363C324B7`
+- ledger surface: `56AF329E2B8FBF1CD8026014B56B8DDBF335A4C4A9609277478E8B798C010FEF`
+- character boundary: document SHA `2D0D43C390322BF7693C4F01379F3CDC0A32D5C66D6AE805FA70DAFC7DC6C825`; structured surface `6FEDEF4815322DADA6AD4D13EBAADEB6D34271F89189D19DC7BA980957E3C31A`
+- conservation: 15,999 inventory rows + 230 entity fields + 37 entity populations + 3 required datasets = 16,269 unique subjects; actionable 16,267; recovered 2; unaccounted 0
+- dispositions: RECOVERABLE_STATIC 15,085; RECOVERABLE_LIVE 17; ORIGINAL_SERVER_LOST 1,105; AUTHORING_REQUIRED 60; RECOVERED_ORIGINAL 2; SOURCE_CONFLICT 0; ORIGINAL_UNIMPLEMENTED 0; RIGHTS_REVIEW_REQUIRED 0
+- coverage carry-forward: 25,609 gaps attached without double-counting; one `STRUCTURAL_FATAL`, exactly `FEATURE_REACHABILITY_LEDGER_ABSENT`
+- authoring boundary: closed field-level schema; `ORIGINAL` requires confirmed-fact and evidence references; new values remain `NEW_DESIGN` or `AUTHORED_PLACEHOLDER` with approval ownership
+- character boundary: 99 named candidates; 97 candidate stats; 12 official name-face facts; 2 surviving official portrait references; strict mappings 1; stale plan claim 2 retained as conflict; O-group decoded 513 and usable 397
+- research: bounded general/Japanese web stages found partial contemporary original-character evidence; authenticated full roster/server source remains unproved; original/manual/runtime import is blocked; user adjudication and authoring are not attempted
+- determinism: checked and run-a outputs byte-identical at `8841E034F51D526E21E612D0C4D32B2FD88F2913DB3D1D1A7473A68363C324B7`
+- verification: focused 15/15 PASS; full exhaustive-trace 260/260 PASS; compile, LF, and diff check PASS
+- independent review: initial three findings converted to RED tests and fixed; final read-only verdict `APPROVE`; validator writes 0
+- report: `work/20260828-original-game-exhaustive-trace-task13-recovery/report/task13-recovery-report.md`
+- receipt: `work/20260828-original-game-exhaustive-trace-task13-recovery/repro/task13-verification.json`
+- safety: runtime actions 0; no VM, original EXE, process memory, server, protocol, database, port, physical input, retry, or lifecycle mutation
+- decision_delta: foundation advances through Task 13; no recovery disposition is promoted to original fact, gameplay, persistence, both factions, rights clearance, Gate-A, Gate-B, or overall completion
+- next start: continue the remaining foundation plan while consuming this ledger as a fail-closed input; close feature reachability and player-visible authority separately
+- forbidden promotion: do not treat the 99/97 candidate roster, 513/397 O-group counts, web evidence, deterministic JSON, tests, or review approval as a complete original roster or playable game
+- forbidden retry: do not launch the VM or mutate the original EXE/server/protocol/database from this handoff; any future live oracle slice must use a fresh bounded permit and receipt
