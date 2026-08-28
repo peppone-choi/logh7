@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 2,
+  "audit": "FIRST_PLAY_UI_AND_MOVEMENT_GAP_AUDIT_MANAGER67_INTEGRATED",
+  "resolvedStaticGaps": [
+    "MANAGER67_CURRENT_CARD_COLLECTOR_MISSING",
+    "SELECTED_CAPTAIN_CARD_WIDGET_COLLECTOR_MISSING"
+  ],
+  "introducedRuntimeBoundaries": [
+    "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+    "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING"
+  ],
+  "uiBindings": [
+    {
+      "binding": "manager67 current pointer/count/card widget/gate/rect",
+      "status": "OFFLINE_COLLECTOR_PASS_LIVE_SNAPSHOT_MISSING",
+      "firstMissingBoundary": "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+      "evidenceSource": "manager67Verification"
+    },
+    {
+      "binding": "bound authority-card page-selected widget/gate/rect",
+      "status": "STATIC_OWNER_OFFLINE_RESOLVER_PASS_LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+      "evidenceSource": "manager67Verification",
+      "semantic": "AUTHORITY_CARD_WITH_WARP_ACTION_NOT_PROVEN_CAPTAIN_PORTRAIT"
+    },
+    {
+      "binding": "warp action 0x2B widget/gate/rect",
+      "status": "OFFLINE_COLLECTOR_EXISTS_NOT_LIVE_HARDENED",
+      "firstMissingBoundary": "MANAGER65_LIVE_COLLECTOR_NOT_HARDENED",
+      "evidenceSource": "priorV2GapAudit"
+    },
+    {
+      "binding": "destination-grid hit region",
+      "status": "LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "FRESH_DESTINATION_PROJECTION_SNAPSHOT_MISSING",
+      "evidenceSource": "priorV2GapAudit"
+    },
+    {
+      "binding": "confirm widget hit region",
+      "status": "LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+      "evidenceSource": "priorV2GapAudit"
+    }
+  ],
+  "movementReceiptAudit": {
+    "status": "MISSING_UNCHANGED",
+    "movementAddressIntersectionCount": 0,
+    "informationBreakpointsReusable": false
+  },
+  "activationGate": {
+    "stageNames": ["WARP", "DESTINATION", "CONFIRM"],
+    "maximumPhysicalActivations": 3,
+    "currentAuthorityActivationBudget": 1,
+    "status": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH"
+  },
+  "sources": {
+    "priorV2GapAudit": {
+      "path": "work/20260828-original-client-first-play-prelaunch-integration/evidence/ui-movement-gap-audit.json",
+      "sha256": "26ADFA4E61B385776A0D703D370968662B44E6229314026551B5406344E6B313"
+    },
+    "manager67Verification": {
+      "path": "work/20260828-manager67-current-card-hit-surface/evidence/verification.json",
+      "sha256": "628AF51614931DEDFFCCB1B5BA71A94864F437609E6948A1B28B8D8AA77FA9D2"
+    },
+    "manager67ArtifactLedger": {
+      "path": "work/20260828-manager67-current-card-hit-surface/evidence/artifact-ledger.json",
+      "sha256": "1205449A4E247323D59CB73C975F0EE6865AC5865C8F9FBA54BA54F1FEE62AF3"
+    }
+  },
+  "runtimeObserved": "UNSEEN",
+  "fixtureCoordinateReusable": false,
+  "liveOperations": 0,
+  "gameInputs": 0,
+  "permitIssued": false
+}
