@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "receiptType": "ORIGINAL_CLIENT_MOVEMENT_BREAKPOINT_RECEIPT",
+  "state": "EMPTY_TEMPLATE_NOT_LIVE",
+  "sourceMode": "NOT_RUN",
+  "runtimeBindingStatus": "UNSEEN",
+  "run": {"oracleRunId":null,"authorizedScopeId":null,"singleWriter":null,"preparedAtUtc":null,"capturedAtUtc":null,"maxIdentityAgeSeconds":60,"movementCommandOrdinal":null},
+  "client": {"pid":null,"processStartTimeUtc":null,"executablePath":null,"executableSha256":null,"moduleBase":null,"moduleSize":null,"hwnd":null,"hwndOwnerPid":null,"clientWidth":null,"clientHeight":null},
+  "debugger": {"pid":null,"processStartTimeUtc":null,"executablePath":null,"executableSha256":null,"hwnd":null,"hwndOwnerPid":null,"attachedClientPid":null,"foregroundHwnd":null},
+  "priorPermit": {"id":"permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once","state":"CONSUMED_NO_RETRY","reusable":false},
+  "instrumentationPlan": {"mechanism":"NOT_RUN","totalDefinitions":9,"maxConcurrentHardwareBreakpoints":4,"rearmRequired":true,"rearmPlanStatus":"UNPROVEN","softwareInt3Allowed":false,"processMemoryWritesAllowed":false},
+  "breakpoints": [
+    {"id":"MVB01_HANDLER_CALLBACK","order":1,"staticVa":"0x005737D0","rva":"0x001737D0","runtimeAddress":null,"role":"WARP_SEND_CALLBACK_ENTRY","instruction":"PUSH -0x1","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB02_PAYLOAD_READY","order":2,"staticVa":"0x004B490E","rva":"0x000B490E","runtimeAddress":null,"role":"MOVEGRID_QUEUE_ENQUEUE_CALL","instruction":"CALL 0x004B78A0","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB03_EXPECTED_SET","order":3,"staticVa":"0x004B7EDE","rva":"0x000B7EDE","runtimeAddress":null,"role":"EXPECTED_NOTIFY_OPCODE_ASSIGNMENT","instruction":"MOV EBX,0x0B07","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB04_COMMAND_SET","order":4,"staticVa":"0x004B7EE3","rva":"0x000B7EE3","runtimeAddress":null,"role":"OUTBOUND_COMMAND_OPCODE_ASSIGNMENT","instruction":"MOV ESI,0x0B01","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB05_TRANSPORT_SEND","order":5,"staticVa":"0x004B85B6","rva":"0x000B85B6","runtimeAddress":null,"role":"TRANSPORT_VTABLE_SEND_CALL","instruction":"CALL dword ptr [EDX+0x18]","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB06_NOTIFY_DISPATCH","order":6,"staticVa":"0x004BCF4F","rva":"0x000BCF4F","runtimeAddress":null,"role":"NOTIFY_MOVED_GRID_DISPATCH","instruction":"PUSH 0x0076FC14","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB07_NOTIFY_APPLIED","order":7,"staticVa":"0x004BCF7E","rva":"0x000BCF7E","runtimeAddress":null,"role":"NOTIFY_MOVED_GRID_APPLY_RETURNED","instruction":"JMP 0x004BDD33","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB08_EXPECTED_OPCODE_COMPARE","order":8,"staticVa":"0x004BDD91","rva":"0x000BDD91","runtimeAddress":null,"role":"INBOUND_OPCODE_VS_QUEUE_EXPECTED_COMPARE","instruction":"CMP EBX,dword ptr [ESI+EDI*0x4+0x357EC8]","installed":false,"softwarePatchBytesWritten":0},
+    {"id":"MVB09_QUEUE_DECREMENTED","order":9,"staticVa":"0x004BDDE2","rva":"0x000BDDE2","runtimeAddress":null,"role":"MATCHED_QUEUE_COUNT_STORE_COMPLETED","instruction":"JLE 0x004BDE69","installed":false,"softwarePatchBytesWritten":0}
+  ],
+  "hits": [],
+  "correlation": {"localQueueKind":null,"outboundOpcode":null,"expectedOpcode":null,"inboundNotifyOpcode":null,"movementCommandOrdinal":null,"queueSlot":null,"payloadSha256":null,"stateBeforeSha256":null,"stateAfterSha256":null,"wireCorrelationId":null,"correlationBasis":null,"outboundBeforeInbound":null},
+  "ownedHwnd": {"beforeHwnd":null,"afterHwnd":null,"ownerPid":null,"beforePixelSha256":null,"afterPixelSha256":null,"captureMethod":"NOT_RUN","ownershipStable":null},
+  "operations": {"guestOperations":0,"debuggerAttach":0,"breakpointsInstalled":0,"debuggerCommands":0,"processMemoryReads":0,"processMemoryWrites":0,"physicalActivations":0,"automaticInputs":0,"binaryPatches":0,"vmLifecycleChanges":0,"serverProtocolDbChanges":0},
+  "review": {"status":"NOT_REVIEWED","reviewer":null,"artifactPath":null,"artifactSha256":null},
+  "evaluation": {"schemaValid":true,"staticAnchorsBound":true,"orderedCorrelationValid":false,"ownedHwndTransitionValid":false,"liveReceiptEligible":false,"blockers":["FRESH_RUN_IDENTITY_MISSING","FRESH_MOVEMENT_BREAKPOINT_INSTALL_RECEIPT_MISSING","FRESH_MOVEMENT_BREAKPOINT_HITS_MISSING","OWNED_HWND_TRANSITION_MISSING","INDEPENDENT_LIVE_REVIEW_MISSING"]},
+  "permitIssued": false
+}

@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "ledger": "ORIGINAL_CLIENT_MOVEMENT_BREAKPOINT_STATIC_LEDGER",
+  "provenance": "ORIGINAL_OBSERVED_STATIC",
+  "target": {
+    "file": "G7MTClient.exe",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "preferredImageBase": "0x00400000"
+  },
+  "anchors": [
+    {
+      "id": "MVB01_HANDLER_CALLBACK",
+      "order": 1,
+      "staticVa": "0x005737D0",
+      "rva": "0x001737D0",
+      "role": "WARP_SEND_CALLBACK_ENTRY",
+      "instruction": "PUSH -0x1",
+      "capture": ["ECX SendWarp child", "[ECX] vtable moduleBase+0x276AEC", "byte[ECX+0x28] selector 1", "[ESP+0x04] context arg", "fresh active-flow child[3] equality", "context authority-card equality"]
+    },
+    {
+      "id": "MVB02_PAYLOAD_READY",
+      "order": 2,
+      "staticVa": "0x004B490E",
+      "rva": "0x000B490E",
+      "role": "MOVEGRID_QUEUE_ENQUEUE_CALL",
+      "instruction": "CALL 0x004B78A0",
+      "capture": ["ECX queue owner", "[ESP+0x00] local flag 1", "[ESP+0x04] local kind 0x3B", "[ESP+0x08] payload pointer", "exact 0x24 payload bytes and SHA-256"]
+    },
+    {
+      "id": "MVB03_EXPECTED_SET",
+      "order": 3,
+      "staticVa": "0x004B7EDE",
+      "rva": "0x000B7EDE",
+      "role": "EXPECTED_NOTIFY_OPCODE_ASSIGNMENT",
+      "instruction": "MOV EBX,0x0B07",
+      "capture": ["instruction immediate 0x0B07", "MVB04 entry EBX proves prior assignment executed"]
+    },
+    {
+      "id": "MVB04_COMMAND_SET",
+      "order": 4,
+      "staticVa": "0x004B7EE3",
+      "rva": "0x000B7EE3",
+      "role": "OUTBOUND_COMMAND_OPCODE_ASSIGNMENT",
+      "instruction": "MOV ESI,0x0B01",
+      "capture": ["EBX expected opcode 0x0B07", "instruction immediate 0x0B01", "MVB05 entry ESI proves prior assignment executed"]
+    },
+    {
+      "id": "MVB05_TRANSPORT_SEND",
+      "order": 5,
+      "staticVa": "0x004B85B6",
+      "rva": "0x000B85B6",
+      "role": "TRANSPORT_VTABLE_SEND_CALL",
+      "instruction": "CALL dword ptr [EDX+0x18]",
+      "capture": ["ECX transport object", "EDX transport vtable", "[EDX+0x18] send target", "EAX transport/session argument", "ESI outbound opcode 0x0B01", "[ESP+0x00] EAX transport/session argument", "[ESP+0x04] opcode 0x0B01", "[ESP+0x08] payload pointer", "payload bytes and SHA-256"]
+    },
+    {
+      "id": "MVB06_NOTIFY_DISPATCH",
+      "order": 6,
+      "staticVa": "0x004BCF4F",
+      "rva": "0x000BCF4F",
+      "role": "NOTIFY_MOVED_GRID_DISPATCH",
+      "instruction": "PUSH 0x0076FC14",
+      "capture": ["EBX inbound packet pointer", "[EBX+0x04] correlation scalar", "bounded packet bytes and SHA-256", "pre-state client+0x437714 length 0x244", "NotifyMovedGrid OK branch identity"]
+    },
+    {
+      "id": "MVB07_NOTIFY_APPLIED",
+      "order": 7,
+      "staticVa": "0x004BCF7E",
+      "rva": "0x000BCF7E",
+      "role": "NOTIFY_MOVED_GRID_APPLY_RETURNED",
+      "instruction": "JMP 0x004BDD33",
+      "capture": ["same inbound packet/correlation ordinal", "FUN_004BEE20 returned", "post-state client+0x437714 length 0x244 and SHA-256"]
+    },
+    {
+      "id": "MVB08_EXPECTED_OPCODE_COMPARE",
+      "order": 8,
+      "staticVa": "0x004BDD91",
+      "rva": "0x000BDD91",
+      "role": "INBOUND_OPCODE_VS_QUEUE_EXPECTED_COMPARE",
+      "instruction": "CMP EBX,dword ptr [ESI+EDI*0x4+0x357EC8]",
+      "capture": ["EBX inbound opcode low16", "EAX queue index", "EDI queue index times 3", "queued expected opcode", "same movementCommandOrdinal and queueSlot"]
+    },
+    {
+      "id": "MVB09_QUEUE_DECREMENTED",
+      "order": 9,
+      "staticVa": "0x004BDDE2",
+      "rva": "0x000BDDE2",
+      "role": "MATCHED_QUEUE_COUNT_STORE_COMPLETED",
+      "instruction": "JLE 0x004BDE69",
+      "capture": ["client+0x357EC0 post-decrement queue count", "ECX decremented count", "same movementCommandOrdinal and queueSlot"]
+    }
+  ],
+  "correlationContract": {
+    "localQueueKind": "0x3B",
+    "outboundOpcode": "0x0B01",
+    "expectedOpcode": "0x0B07",
+    "inboundNotifyOpcode": "0x0B07",
+    "wireCorrelationId": "ABSENT_OR_UNPROVEN",
+    "correlationBasis": "SINGLE_OUTSTANDING_QUEUE_ENTRY",
+    "requiredKeys": ["oracleRunId", "clientIdentity", "movementCommandOrdinal", "payloadSha256", "queueSlot", "orderedHitSequence", "ownedHwndBeforeAfter"]
+  },
+  "sources": {
+    "gapAudit": {"path":"work/20260828-original-client-first-play-prelaunch-integration/evidence/ui-movement-gap-audit.json","sha256":"26ADFA4E61B385776A0D703D370968662B44E6229314026551B5406344E6B313"},
+    "serializerEvidence": {"path":"work/20260827-original-client-movegrid-serializer-owner/evidence/movegrid-serializer-owner.txt","sha256":"290E20648C740CD3F3572A414B8A53F72A10E2D77C352EC9B588FD77B8D485E0"},
+    "serializerReport": {"path":"work/20260827-original-client-movegrid-serializer-owner/report/original-client-movegrid-serializer-owner-report.md","sha256":"BA1A8FD7C15939A7C92B2C06BE10EDF7C94C454EFEA40B252F4ABB7FD4334BA8"},
+    "warpWidgetLedger": {"path":"work/20260827-original-client-warp-widget-chain-owner/evidence/warp-widget-chain-owner-ledger.json","sha256":"BE9A6227E017799E5EA243B9748CDC8627110903F940F7E3D92A08D9887E772C"},
+    "inboundDispatchEvidence": {"path":"work/20260827-original-client-static-base-id-join-contract/evidence/static-base-join-contract-v3.txt","sha256":"3CFAC9971227C880383796F614B5035D907B14CF4E2CB5E5AA0AB0185337E690"}
+  },
+  "status": {
+    "staticAnchors": "PASS",
+    "primaryAnchorCount": 7,
+    "completionAnchorCount": 2,
+    "hardwareBreakpointRearmPlan": "UNPROVEN",
+    "softwareInt3UnderNoMemoryWriteRule": "FORBIDDEN_UNLESS_SEPARATELY_RESOLVED",
+    "breakpointsInstalled": "UNSEEN",
+    "liveReceipt": "MISSING",
+    "runtimeObserved": "UNSEEN",
+    "playerVisible": "UNSEEN"
+  }
+}
