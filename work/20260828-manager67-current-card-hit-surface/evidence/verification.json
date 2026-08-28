@@ -1,0 +1,44 @@
+{
+  "result": "PASS",
+  "collectorTests": {
+    "result": "PASS",
+    "cases": 36,
+    "assertions": 59
+  },
+  "resolverTests": {
+    "result": "PASS",
+    "cases": 6,
+    "assertions": 19
+  },
+  "sourceHashesVerified": 4,
+  "canonicalExecutableVerified": true,
+  "pageTablesVerified": 2,
+  "staticMarkersVerified": 12,
+  "publishedFixtureArtifactsReproduced": 2,
+  "artifactHashesVerified": 10,
+  "artifactLedgerSha256": "1205449A4E247323D59CB73C975F0EE6865AC5865C8F9FBA54BA54F1FEE62AF3",
+  "artifactHashMap": {
+    "src/collect-manager67-current-card.ps1": "7D953A45691C464FB60800AB470D0D9BCFECD5648BA201D88247CE140C8DAFBC",
+    "src/resolve-manager67-current-card.ps1": "C576E8B0E5D66D4100199AB2461C2DBCF7B4CF9757A63281935EBFF3FFBD4A2D",
+    "tests/fixture-identity.json": "03DF81D7D17030D7B511EAC71D247FC6FD33D242FCAFCB672FFB76492C009763",
+    "tests/fixture-ready.json": "2A35CA20F50D469115AE447D87DA5DA1B9C2CB8CE2548EE9425208295E530420",
+    "tests/test-collect-manager67-current-card.ps1": "8D8711DD19094BD7A0336CE196FC3CD87C7FFA03E83B15F534A9158AB43C4092",
+    "tests/test-resolve-manager67-current-card.ps1": "B659F6F872705852F1EE1B733289DF8953A98D5EE292904F44570E7960AC63D5",
+    "evidence/static-owner-ledger.json": "130639BB43C2D19A719476773A55F07BFEF3AED5244F5FCCA7A32352CDB51F47",
+    "evidence/fixture-capture.json": "5AD4456BC7355A0E8D12970E9228B9C7DA06036FA51688CEFD1C656EB437FA13",
+    "evidence/fixture-resolution.json": "BFC3A72F8B65CFF4FDBB56187D2D649C3D15A7B058E7C3EF48409C43F7859F9F",
+    "verify.ps1": "A0C9FEC8140C9B30DE1D368AF3CA1EB0BA95F414248FCEBFA4B40C48DB860483"
+  },
+  "nativeReadOnlyApis": [
+    "CloseHandle",
+    "GetClientRect",
+    "GetWindowThreadProcessId",
+    "IsWindow",
+    "OpenProcess",
+    "ReadProcessMemory"
+  ],
+  "forbiddenCapabilityHits": 0,
+  "liveOperations": 0,
+  "gameInputs": 0,
+  "permitIssued": false
+}

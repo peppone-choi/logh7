@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "file": "G7MTClient.exe",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "imageBase": "0x00400000"
+  },
+  "sources": [
+    {
+      "path": "work/20260827-original-client-manager65-readonly-collector/evidence/manager65-widget-memory-layout.txt",
+      "sha256": "0E57E4329EB616D309F99577D870887DDCE194EB6A3DFC85205D7151899A360C"
+    },
+    {
+      "path": "work/20260827-original-client-visible-warp-command-entry-owner/evidence/visible-warp-command-entry-owner.txt",
+      "sha256": "4A31AA77BC734CD3E111F096CF05C0443A92585218426A69FFDA57BF53262D54"
+    },
+    {
+      "path": "work/20260827-original-client-hud-resource-af-label-owner/evidence/hud-resource-af-label-owner-v2.txt",
+      "sha256": "2E18BD9192F6A2ABD3C686B9309921BB31D2F22F20B00AFDDF0C0F4A324AF511"
+    },
+    {
+      "path": "work/20260827-original-client-hud-auth-message-owner/evidence/hud-auth-message-owner-v4.txt",
+      "sha256": "96AEC0C93D8440CB563F662CE2AAEB7671438CF0E24BD9A5D81CEBE8450DD5D5"
+    }
+  ],
+  "facts": {
+    "strategyRoot": "moduleBase+0x89E638",
+    "manager65BoundAuthorityCardId": "I32(strategyRoot+0x488)",
+    "manager67Controller": "strategyRoot+0x48C",
+    "manager67Page": "I32(controller+0x61C)",
+    "manager67Count": "I32(controller+0x620)",
+    "manager67PendingHitIndex": "I32(controller+0x624)",
+    "manager67CurrentRecord": "U32(controller+0x628)",
+    "reversedCardId": "U16(currentRecord+0x26C+(count-index)*8)",
+    "surfaceC": "U32(controller+0x88+4*index)",
+    "surfaceD": "U32(controller+0xC8+4*index)",
+    "page2ActiveSurface": "C",
+    "page3ActiveSurface": "D",
+    "semantic": "AUTHORITY_CARD_WITH_WARP_ACTION_NOT_PROVEN_CAPTAIN_PORTRAIT"
+  },
+  "pageTable": {
+    "baseVa": "0x0066F130",
+    "stride": "0x208",
+    "page2": {
+      "va": "0x0066F540..0x0066F747",
+      "fileOffset": "0x0026F540",
+      "sha256": "263578B327E595418FC9D8BAC385F00D5573AF308D80700C7979D4E5194D5157",
+      "prefix32": "000000000100000000000000110000000000000021000000FFFFFFFF00000000",
+      "remainingBytes": "0x1E8_ZERO"
+    },
+    "page3": {
+      "va": "0x0066F748..0x0066F94F",
+      "fileOffset": "0x0026F748",
+      "sha256": "A4A62F0CC4AE9F8E112518BA7B0CDE651B5593A2564B73F743D7B9DCA61DBE53",
+      "prefix32": "000000000100000000000000110000000000000031000000FFFFFFFF00000000",
+      "remainingBytes": "0x1E8_ZERO"
+    }
+  },
+  "evidenceStatus": {
+    "staticSelectedAuthorityCardWidgetOwner": "PASS",
+    "liveTarget": "UNBOUND",
+    "originalRuntimeObserved": false,
+    "playerVisible": "UNSEEN",
+    "permitIssued": false,
+    "gameInputs": 0
+  }
+}
