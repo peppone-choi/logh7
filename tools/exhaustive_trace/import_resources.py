@@ -445,6 +445,89 @@ def load_resource_adjudications(
                 bound_tool_count += 1
             if bound_tool_count == 0:
                 raise ValueError("CP932 terms analysis receipt lacks bound static evidence")
+        elif item.get("kind") == "EXTERNAL_PE_INI_CONFIGURATION":
+            analysis = _mapping("external PE INI analysis", item.get("analysis"))
+            receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
+            if not receipt_path.is_absolute():
+                receipt_path = Path.cwd() / receipt_path
+            receipt_path = receipt_path.resolve()
+            receipt_sha = _sha256("analysis.receiptSha256", analysis.get("receiptSha256"))
+            if not receipt_path.is_file() or sha256_file(receipt_path) != receipt_sha:
+                raise ValueError("external PE INI analysis receipt hash mismatch")
+            receipt = _mapping(
+                "external PE INI analysis receipt",
+                json.loads(receipt_path.read_text(encoding="utf-8")),
+            )
+            if set(receipt) != {
+                "schemaVersion", "status", "scope", "source", "analysis",
+                "externalConfigAccess", "installshieldEvidence",
+                "installedMutationObservation", "staticTools", "limitations",
+            }:
+                raise ValueError("external PE INI receipt fields differ")
+            if (
+                receipt.get("schemaVersion") != 1
+                or receipt.get("status") != "PROVEN_STATIC"
+                or receipt.get("scope") != "UPDATE_INI_RESOURCE_LOADER_BOUNDARY"
+            ):
+                raise ValueError("external PE INI receipt contract differs")
+            receipt_source = _mapping("external PE INI receipt source", receipt.get("source"))
+            if (
+                _sha256("receipt.source.sha256", receipt_source.get("sha256"))
+                != _sha256("adjudication.contentSha256", item.get("contentSha256"))
+                or receipt_source.get("byteSize") != item.get("byteSize")
+            ):
+                raise ValueError("external PE INI receipt source differs")
+            receipt_analysis = _mapping("external PE INI receipt analysis", receipt.get("analysis"))
+            item_analysis = {
+                key: value
+                for key, value in analysis.items()
+                if key not in {"status", "receiptPath", "receiptSha256", "evidence"}
+            }
+            if receipt_analysis != item_analysis:
+                raise ValueError("external PE INI receipt analysis differs")
+            receipt_access = _mapping(
+                "external PE INI receipt externalConfigAccess",
+                receipt.get("externalConfigAccess"),
+            )
+            if receipt_access != _mapping(
+                "external PE INI adjudication externalConfigAccess",
+                item.get("externalConfigAccess"),
+            ):
+                raise ValueError("external PE INI receipt config access differs")
+            receipt_mutation = _mapping(
+                "external PE INI receipt installedMutationObservation",
+                receipt.get("installedMutationObservation"),
+            )
+            item_mutation = _mapping(
+                "external PE INI adjudication installedMutationObservation",
+                item.get("installedMutationObservation"),
+            )
+            if receipt_mutation != item_mutation or receipt_mutation != {
+                "status": "INSTALLED_POST_SETUP_UPDATER_DIVERGENT",
+                "causality": "INFERRED",
+                "installedSha256": "F89660546D6D0C7D4A00EFDCAA73E5120916C730E07E6CCFE7D8FF111FD71A88",
+                "installedByteSize": 124,
+                "originalBytesPreserved": False,
+            }:
+                raise ValueError("external PE INI installed mutation observation differs")
+            static_tools = _mapping("external PE INI receipt staticTools", receipt.get("staticTools"))
+            mandatory_tools = {
+                "inspectorScript", "updateIni", "updater", "updaterPeImports",
+                "updaterStaticAnalysis", "originalCdIso", "treeManifest",
+                "installedTreeCsv",
+            }
+            if set(static_tools) != mandatory_tools:
+                raise ValueError("external PE INI mandatory static tools differ")
+            for label, record_value in static_tools.items():
+                record = _mapping(f"staticTools.{label}", record_value)
+                if set(record) != {"path", "sha256"}:
+                    raise ValueError("external PE INI static tool fields differ")
+                referenced_path = Path(_text(f"staticTools.{label}.path", record.get("path")))
+                if not referenced_path.is_absolute():
+                    referenced_path = Path.cwd() / referenced_path
+                expected_sha = _sha256(f"staticTools.{label}.sha256", record.get("sha256"))
+                if not referenced_path.resolve().is_file() or sha256_file(referenced_path.resolve()) != expected_sha:
+                    raise ValueError("external PE INI referenced evidence hash mismatch")
         elif item.get("kind") == "PE_GAME_UPDATER_EXECUTABLE":
             analysis = _mapping("game updater analysis", item.get("analysis"))
             receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
@@ -990,11 +1073,14 @@ def build_resource_inventory(
         terms_analysis: Mapping[str, Any] | None = None
         primary_client_analysis: Mapping[str, Any] | None = None
         game_updater_analysis: Mapping[str, Any] | None = None
+        ini_analysis: Mapping[str, Any] | None = None
+        external_config_access: dict[str, Any] | None = None
         duplicate_source: dict[str, Any] | None = None
         process_image: dict[str, Any] | None = None
         inbound_launch: dict[str, Any] | None = None
         process_launch: dict[str, Any] | None = None
         external_document_open: dict[str, Any] | None = None
+        installed_mutation_observation: dict[str, Any] | None = None
         if adjudication is not None:
             adjudication = _mapping("resource adjudication", adjudication)
             adjudication_kind = _text("adjudication.kind", adjudication.get("kind"))
@@ -1021,6 +1107,9 @@ def build_resource_inventory(
                 "PE_GAME_UPDATER_EXECUTABLE": {
                     "analysis", "processImage", "processLaunch",
                 },
+                "EXTERNAL_PE_INI_CONFIGURATION": {
+                    "analysis", "externalConfigAccess", "installedMutationObservation",
+                },
             }
             if adjudication_kind not in kind_fields:
                 raise ValueError("unsupported resource adjudication kind")
@@ -1031,7 +1120,7 @@ def build_resource_inventory(
                     f"unknown resource adjudication fields: {sorted(unknown_adjudication_fields)}"
                 )
             if loader_items:
-                raise ValueError("resource NOT_APPLICABLE adjudication conflicts with loader candidates")
+                raise ValueError("resource adjudication conflicts with loader candidates")
             if adjudication.get("schemaVersion") != 1:
                 raise ValueError("unsupported resource adjudication schemaVersion")
             if _sha256("adjudication.contentSha256", adjudication.get("contentSha256")) != entry.content_sha256:
@@ -1282,6 +1371,151 @@ def build_resource_inventory(
                     "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
                     "evidence": _evidence("duplicateSource.evidence", duplicate.get("evidence")),
                 }
+            elif adjudication_kind == "EXTERNAL_PE_INI_CONFIGURATION":
+                ini_analysis = _mapping("adjudication.analysis", adjudication.get("analysis"))
+                expected_ini_fields = {
+                    "status", "format", "encoding", "role", "section", "byteSize",
+                    "lineCount", "crlfCount", "trailingCrlf", "orderedEntries",
+                    "receiptPath", "receiptSha256", "evidence",
+                }
+                if set(ini_analysis) != expected_ini_fields:
+                    raise ValueError("external PE INI analysis fields differ")
+                if (
+                    ini_analysis.get("status") != "PROVEN"
+                    or ini_analysis.get("format") != "ASCII_INI"
+                    or ini_analysis.get("encoding") != "ASCII"
+                    or ini_analysis.get("role") != "ORIGINAL_UPDATE_CLIENT_CONFIGURATION"
+                    or ini_analysis.get("section") != "UPDATE"
+                    or ini_analysis.get("byteSize") != entry.byte_size
+                    or ini_analysis.get("lineCount") != 7
+                    or ini_analysis.get("crlfCount") != 7
+                    or ini_analysis.get("trailingCrlf") is not True
+                ):
+                    raise ValueError("external PE INI analysis contract differs")
+                expected_entries = [
+                    {"key": "VERSION", "value": "131"},
+                    {"key": "BASE_DIR", "value": ".\\"},
+                    {"key": "TEMP_DIR", "value": ""},
+                    {"key": "STARTUP_APPNAME", "value": ""},
+                    {"key": "WORK_DIR", "value": ""},
+                    {"key": "LAST_ERROR", "value": "0x00000003"},
+                ]
+                if ini_analysis.get("orderedEntries") != expected_entries:
+                    raise ValueError("external PE INI ordered entries differ")
+                _text("analysis.receiptPath", ini_analysis.get("receiptPath"))
+                _sha256("analysis.receiptSha256", ini_analysis.get("receiptSha256"))
+                _evidence("analysis.evidence", ini_analysis.get("evidence"))
+
+                access = _mapping(
+                    "adjudication.externalConfigAccess", adjudication.get("externalConfigAccess")
+                )
+                expected_access_fields = {
+                    "status", "consumerRowKey", "consumerRelativePosixPath",
+                    "consumerSha256", "targetRelativePosixPath", "targetSha256",
+                    "pathResolution", "section", "readAccesses", "writeAccesses",
+                    "runtimeObservationStatus", "evidence",
+                }
+                if set(access) != expected_access_fields:
+                    raise ValueError("external PE INI config access fields differ")
+                consumer_path = _safe_resource_path(access.get("consumerRelativePosixPath"))
+                if consumer_path == path or consumer_path not in entries:
+                    raise ValueError("external PE INI consumer is missing or self-referential")
+                consumer_sha = _sha256("externalConfigAccess.consumerSha256", access.get("consumerSha256"))
+                consumer_key = _text("externalConfigAccess.consumerRowKey", access.get("consumerRowKey"))
+                if (
+                    access.get("status") != "PROVEN_STATIC"
+                    or consumer_sha != entries[consumer_path].content_sha256
+                    or consumer_key != f"RESOURCE:FILE:{root_id}:{consumer_path}"
+                    or _safe_resource_path(access.get("targetRelativePosixPath")) != path
+                    or _sha256("externalConfigAccess.targetSha256", access.get("targetSha256")) != entry.content_sha256
+                    or access.get("section") != "UPDATE"
+                    or access.get("runtimeObservationStatus") != "UNSEEN"
+                ):
+                    raise ValueError("external PE INI config access identity differs")
+                access_path_resolution = _mapping(
+                    "externalConfigAccess.pathResolution", access.get("pathResolution")
+                )
+                if set(access_path_resolution) != {
+                    "status", "resourceType", "resourceId", "language", "template",
+                    "moduleDirectoryFunctionVa", "formatFunctionVa", "formatCallsiteVa",
+                    "destinationFieldOffset", "result",
+                } or access_path_resolution != {
+                    "status": "PROVEN_STATIC", "resourceType": "RT_STRING",
+                    "resourceId": 3, "language": 1041, "template": "%supdate.ini",
+                    "moduleDirectoryFunctionVa": "0x00404A80",
+                    "formatFunctionVa": "0x00433E1C", "formatCallsiteVa": "0x00404BA9",
+                    "destinationFieldOffset": "0xD8", "result": "<module-directory>update.ini",
+                }:
+                    raise ValueError("external PE INI path resolution differs")
+                normalized_accesses: dict[str, list[dict[str, Any]]] = {}
+                seen_ids: set[str] = set()
+                seen_callsites: dict[str, tuple[str, str]] = {}
+                for field, operation in (("readAccesses", "READ"), ("writeAccesses", "WRITE")):
+                    values = access.get(field)
+                    if not isinstance(values, list) or not values:
+                        raise ValueError(f"external PE INI {field} must not be empty")
+                    normalized_accesses[field] = []
+                    for value in values:
+                        descriptor = _mapping(f"externalConfigAccess.{field}", value)
+                        if set(descriptor) != {
+                            "accessId", "operation", "api", "consumerFunctionVa",
+                            "callsiteVa", "pathArgumentProvenance", "sectionArgument",
+                            "keyArgument", "keyResolution", "status", "evidence",
+                        }:
+                            raise ValueError("external PE INI access fields differ")
+                        access_id = _text("externalConfigAccess.accessId", descriptor.get("accessId"))
+                        api = _text("externalConfigAccess.api", descriptor.get("api"))
+                        callsite = _text("externalConfigAccess.callsiteVa", descriptor.get("callsiteVa"))
+                        if access_id in seen_ids:
+                            raise ValueError("duplicate external PE INI accessId")
+                        seen_ids.add(access_id)
+                        signature = (operation, api)
+                        if callsite in seen_callsites and seen_callsites[callsite] != signature:
+                            raise ValueError("conflicting external PE INI callsite")
+                        seen_callsites[callsite] = signature
+                        if (
+                            descriptor.get("operation") != operation
+                            or descriptor.get("status") != "PROVEN_STATIC"
+                            or descriptor.get("pathArgumentProvenance") != "APP_PLUS_0xD8"
+                            or descriptor.get("sectionArgument") != "UPDATE"
+                            or descriptor.get("keyResolution") not in {"EXACT_LITERAL", "VARIABLE"}
+                            or not RUNTIME_POINTER_PATTERN.fullmatch(callsite)
+                            or not RUNTIME_POINTER_PATTERN.fullmatch(_text(
+                                "externalConfigAccess.consumerFunctionVa",
+                                descriptor.get("consumerFunctionVa"),
+                            ))
+                        ):
+                            raise ValueError("external PE INI access contract differs")
+                        normalized_accesses[field].append({
+                            **descriptor,
+                            "evidence": _evidence(
+                                "externalConfigAccess.access.evidence", descriptor.get("evidence")
+                            ),
+                        })
+                external_config_access = {
+                    **access,
+                    "consumerRowKey": consumer_key,
+                    "consumerRelativePosixPath": consumer_path,
+                    "consumerSha256": consumer_sha,
+                    "targetRelativePosixPath": path,
+                    "targetSha256": entry.content_sha256,
+                    "readAccesses": normalized_accesses["readAccesses"],
+                    "writeAccesses": normalized_accesses["writeAccesses"],
+                    "evidence": _evidence("externalConfigAccess.evidence", access.get("evidence")),
+                }
+                mutation = _mapping(
+                    "adjudication.installedMutationObservation",
+                    adjudication.get("installedMutationObservation"),
+                )
+                installed_mutation_observation = {
+                    "status": "INSTALLED_POST_SETUP_UPDATER_DIVERGENT",
+                    "causality": "INFERRED",
+                    "installedSha256": "F89660546D6D0C7D4A00EFDCAA73E5120916C730E07E6CCFE7D8FF111FD71A88",
+                    "installedByteSize": 124,
+                    "originalBytesPreserved": False,
+                }
+                if set(mutation) != set(installed_mutation_observation) or mutation != installed_mutation_observation:
+                    raise ValueError("external PE INI installed mutation observation differs")
             elif adjudication_kind == "PE_GAME_UPDATER_EXECUTABLE":
                 game_updater_analysis = _mapping(
                     "adjudication.analysis", adjudication.get("analysis")
@@ -1487,19 +1721,57 @@ def build_resource_inventory(
                     "evidence": _evidence("inboundLaunch.evidence", inbound.get("evidence")),
                 }
             loader_adjudication = _mapping("adjudication.loader", adjudication.get("loader"))
-            unknown_loader_fields = set(loader_adjudication) - {"status", "reason", "evidence"}
-            if unknown_loader_fields:
-                raise ValueError(
-                    f"unknown resource loader adjudication fields: {sorted(unknown_loader_fields)}"
+            if adjudication_kind == "EXTERNAL_PE_INI_CONFIGURATION":
+                if set(loader_adjudication) != {
+                    "status", "kind", "consumerRowKey", "acceptedFormats",
+                    "operations", "apis", "reason", "evidence",
+                }:
+                    raise ValueError("external PE INI loader fields differ")
+                if (
+                    loader_adjudication.get("status") != "PROVEN"
+                    or loader_adjudication.get("kind") != "EXTERNAL_PE_CONFIG_ACCESS"
+                    or loader_adjudication.get("consumerRowKey") != external_config_access["consumerRowKey"]
+                    or loader_adjudication.get("acceptedFormats") != ["ASCII_INI"]
+                    or loader_adjudication.get("operations") != ["READ", "WRITE"]
+                    or "functions" in loader_adjudication
+                ):
+                    raise ValueError("external PE INI loader contract differs")
+                access_apis = sorted({
+                    str(access["api"])
+                    for field in ("readAccesses", "writeAccesses")
+                    for access in external_config_access[field]
+                })
+                loader_apis = sorted(
+                    _text_list("loader.apis", loader_adjudication.get("apis"), allow_empty=False)
                 )
-            if loader_adjudication.get("status") != "NOT_APPLICABLE":
-                raise ValueError("resource loader adjudication must be NOT_APPLICABLE")
-            loader_reason = _text("adjudication.loader.reason", loader_adjudication.get("reason"))
-            loader_evidence = _evidence("adjudication.loader.evidence", loader_adjudication.get("evidence"))
-            loader_section = ResourceSection(
-                ResourceSectionStatus.NOT_APPLICABLE,
-                {"reason": loader_reason, "evidence": loader_evidence},
-            )
+                if loader_apis != access_apis:
+                    raise ValueError("external PE INI loader APIs differ from access descriptors")
+                loader_section = ResourceSection(
+                    ResourceSectionStatus.PROVEN,
+                    {
+                        "kind": "EXTERNAL_PE_CONFIG_ACCESS",
+                        "consumerRowKey": external_config_access["consumerRowKey"],
+                        "acceptedFormats": tuple(loader_adjudication["acceptedFormats"]),
+                        "operations": tuple(loader_adjudication["operations"]),
+                        "api": tuple(loader_apis),
+                        "reason": _text("adjudication.loader.reason", loader_adjudication.get("reason")),
+                        "evidence": _evidence("adjudication.loader.evidence", loader_adjudication.get("evidence")),
+                    },
+                )
+            else:
+                unknown_loader_fields = set(loader_adjudication) - {"status", "reason", "evidence"}
+                if unknown_loader_fields:
+                    raise ValueError(
+                        f"unknown resource loader adjudication fields: {sorted(unknown_loader_fields)}"
+                    )
+                if loader_adjudication.get("status") != "NOT_APPLICABLE":
+                    raise ValueError("resource loader adjudication must be NOT_APPLICABLE")
+                loader_reason = _text("adjudication.loader.reason", loader_adjudication.get("reason"))
+                loader_evidence = _evidence("adjudication.loader.evidence", loader_adjudication.get("evidence"))
+                loader_section = ResourceSection(
+                    ResourceSectionStatus.NOT_APPLICABLE,
+                    {"reason": loader_reason, "evidence": loader_evidence},
+                )
         runtime_section = _section_from_candidates(
             runtime_items,
             value_fields=("namespace", "value", "derivationFunction"),
@@ -1636,6 +1908,8 @@ def build_resource_inventory(
                     if terms_analysis is not None
                     else str(primary_client_analysis.get("format"))
                     if primary_client_analysis is not None
+                    else str(ini_analysis.get("format"))
+                    if ini_analysis is not None
                     else _format_for_path(path)
                 ),
                 "detector": (
@@ -1649,6 +1923,8 @@ def build_resource_inventory(
                     if terms_analysis is not None
                     else "HASH_BOUND_STATIC_ANALYSIS"
                     if primary_client_analysis is not None
+                    else "HASH_BOUND_TEXT_AND_CALLFLOW_ANALYSIS"
+                    if ini_analysis is not None
                     else "EXTENSION_ONLY"
                 ),
                 "evidence": (
@@ -1779,6 +2055,26 @@ def build_resource_inventory(
             )
             source["peAnalysis"]["evidence"] = _evidence(
                 "analysis.evidence", primary_client_analysis.get("evidence")
+            )
+        elif (
+            ini_analysis is not None
+            and external_config_access is not None
+            and installed_mutation_observation is not None
+        ):
+            source.update(
+                configurationRole=_text("analysis.role", ini_analysis.get("role")),
+                iniAnalysis={
+                    key: value
+                    for key, value in ini_analysis.items()
+                    if key not in {"role", "receiptSha256", "evidence"}
+                },
+                externalConfigAccess=external_config_access,
+                installedMutationObservation=installed_mutation_observation,
+                adjudicationEvidence=adjudication_evidence,
+            )
+            source["iniAnalysis"]["receiptSha256"] = str(ini_analysis["receiptSha256"])
+            source["iniAnalysis"]["evidence"] = _evidence(
+                "analysis.evidence", ini_analysis.get("evidence")
             )
         file_candidate_id = f"TREE_FILE:{root_id}:{path}"
         rows.append(

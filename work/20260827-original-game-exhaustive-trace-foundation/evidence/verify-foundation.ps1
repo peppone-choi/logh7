@@ -153,6 +153,7 @@ $sourceManifest = Join-Path $projectRoot "docs\reverse-engineering\exhaustive-tr
 $domainConfig = Join-Path $projectRoot "docs\reverse-engineering\exhaustive-trace\domains.json"
 $characterBoundary = Join-Path $projectRoot "docs\new-design\2026-08-27-original-character-roster-recovery-boundary.md"
 $resourceAdjudications = Join-Path $projectRoot "evidence\exhaustive-trace\adjudications\resources.json"
+$gitAttributes = Join-Path $projectRoot ".gitattributes"
 $resourceAdjudicationDirectory = Join-Path $projectRoot "evidence\exhaustive-trace\adjudications"
 $bootFirstExporter = Join-Path $projectRoot "work\20260828-bootfirst-resource-loader\ExportBootFirstFlow.java"
 $bootFirstFlow = Join-Path $projectRoot "work\20260828-bootfirst-resource-loader\evidence\bootfirst-flow.txt"
@@ -164,6 +165,9 @@ $termsSupportLicense = Join-Path $projectRoot "evidence\installshield-extract\_s
 $g7mtClientInspector = Join-Path $projectRoot "work\20260829-g7mtclient-resource-loader\InspectG7MTClient.py"
 $gin7UpdateClientInspector = Join-Path $projectRoot "work\20260829-gin7updateclient-resource-loader\InspectGin7UpdateClient.py"
 $gin7UpdateClientImports = Join-Path $projectRoot "work\20260829-gin7updateclient-resource-loader\evidence\gin7updateclient-imports.json"
+$updateIniInspector = Join-Path $projectRoot "work\20260829-update-ini-resource-loader\InspectUpdateIni.py"
+$updateIni = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\update.ini"
+$installedTreeCsv = "E:\logh7-vms\oracle-win11-hd\captures\oracle-original-install-debug-20260824\guest-installed-tree.csv"
 $originalCdIso = "E:\logh7-vm-media\LOGH7-original-cd.iso"
 $originalClientExe = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\exe\g7mtclient.exe"
 $bootFirstExe = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\bootfirst.exe"
@@ -307,12 +311,13 @@ function Assert-AssignmentConservation([string]$Run) {
 }
 
 $protectedFiles = [Collections.Generic.List[string]]::new()
-foreach ($path in @($sourceManifest, $domainConfig, $characterBoundary, $resourceAdjudications, $MyInvocation.MyCommand.Path)) { $protectedFiles.Add($path) }
+foreach ($path in @($sourceManifest, $domainConfig, $characterBoundary, $resourceAdjudications, $gitAttributes, $MyInvocation.MyCommand.Path)) { $protectedFiles.Add($path) }
 foreach ($path in Get-ChildItem -LiteralPath $resourceAdjudicationDirectory -File) { $protectedFiles.Add($path.FullName) }
 foreach ($path in @($bootFirstExporter, $bootFirstFlow)) { $protectedFiles.Add($path) }
 foreach ($path in @(
     $cdManualInspector, $cdManualPdf, $termsInspector, $termsDocument, $termsSupportLicense,
     $g7mtClientInspector, $gin7UpdateClientInspector, $gin7UpdateClientImports,
+    $updateIniInspector, $updateIni, $installedTreeCsv,
     $originalCdIso,
     $originalClientExe, $bootFirstExe, $updateClientExe
 )) { $protectedFiles.Add($path) }
@@ -395,7 +400,7 @@ try {
         }
     }
     $firstUnit = $workPackages.recoveryUnits[0]
-    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:CF0262816AEED6F7" $firstUnit.unitId "first unit"
+    Assert-Equal "RECOVERY:D01:RESOURCE_OWNER:9D646F35949A6258" $firstUnit.unitId "first unit"
     Assert-Equal 0 $workPackages.conservation.uncoveredOpenRowCount "uncovered recovery rows"
     Assert-Equal 0 $workPackages.conservation.confirmedGameplayFeatureCount "confirmed gameplay features"
     Assert-Equal 0 $workPackages.conservation.maxLiveInputCount "live input count"

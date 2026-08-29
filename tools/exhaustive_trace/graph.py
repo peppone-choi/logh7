@@ -141,6 +141,12 @@ def _enumerate_join_references(rows: Sequence[Mapping[str, Any]]) -> tuple[str, 
                 refs.add(f"inventory:{key}/source/externalDocumentOpen")
             if (row.get("source") or {}).get("inboundLaunch"):
                 refs.add(f"inventory:{key}/source/inboundLaunch")
+            config_access = (row.get("source") or {}).get("externalConfigAccess") or {}
+            for field in ("readAccesses", "writeAccesses"):
+                refs.update(
+                    f"inventory:{key}/source/externalConfigAccess/{field}/{index}"
+                    for index, _ in enumerate(config_access.get(field, []))
+                )
         elif row["inventory"] == "AUTHORITY":
             refs.add(f"inventory:{key}/sourceKey")
     return tuple(sorted(refs))
@@ -1070,6 +1076,46 @@ class _GraphBuilder:
                     source_refs=(ref,),
                     candidate_id=f"DOCUMENT_OPEN:{opener_key}:{row['key']}",
                 )
+            config_access = (row.get("source") or {}).get("externalConfigAccess")
+            if config_access:
+                consumer = config_access.get("consumerRowKey")
+                if (
+                    config_access.get("status") != "PROVEN_STATIC"
+                    or consumer not in self.row_by_key
+                    or config_access.get("targetRelativePosixPath")
+                    != (row.get("source") or {}).get("relativePosixPath")
+                    or config_access.get("targetSha256")
+                    != (row.get("source") or {}).get("contentSha256")
+                ):
+                    raise ValueError(f"external config access identity is unresolved: {row['key']}")
+                for field, relation, operation in (
+                    ("readAccesses", "READS", "READ"),
+                    ("writeAccesses", "WRITES", "WRITE"),
+                ):
+                    accesses = config_access.get(field, [])
+                    if not accesses:
+                        raise ValueError(f"external config access lacks {operation}: {row['key']}")
+                    refs: list[str] = []
+                    config_evidence: set[str] = set(config_access.get("evidence", []))
+                    seen_ids: set[str] = set()
+                    for index, access in enumerate(accesses):
+                        if access.get("operation") != operation or access.get("status") != "PROVEN_STATIC":
+                            raise ValueError(f"external config access operation differs: {row['key']}")
+                        access_id = str(access.get("accessId", ""))
+                        if not access_id or access_id in seen_ids:
+                            raise ValueError(f"duplicate external config access id: {row['key']}")
+                        seen_ids.add(access_id)
+                        refs.append(
+                            f"inventory:{row['key']}/source/externalConfigAccess/{field}/{index}"
+                        )
+                        config_evidence.update(access.get("evidence", []))
+                    self.add_edge(
+                        consumer, relation, row["key"], config_evidence,
+                        provenance="ORIGINAL_OBSERVED", confidence="HIGH",
+                        disposition="PROVEN", edge_class="SEMANTIC",
+                        join_basis="DIRECT_TYPED_REFERENCE", source_refs=refs,
+                        candidate_id=f"EXTERNAL_CONFIG_ACCESS:{operation}:{consumer}:{row['key']}",
+                    )
         for (source, target), claim in sorted(process_claims.items()):
             refs = claim["sourceRefs"]
             self.add_edge(

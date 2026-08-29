@@ -188,6 +188,26 @@ class CoverageTests(unittest.TestCase):
         self.assertNotIn("RESOURCE_LOADER", row.all_missing_boundaries)
         self.assertIn("RESOURCE_OWNER", row.all_missing_boundaries)
 
+    def test_external_pe_config_access_closes_loader_without_fake_function(self) -> None:
+        resource = source_row("RESOURCE:FILE:update.ini", inventory="RESOURCE")
+        resource.update(
+            loader={
+                "status": "PROVEN", "kind": "EXTERNAL_PE_CONFIG_ACCESS",
+                "consumerRowKey": "RESOURCE:FILE:gin7updateclient.exe",
+                "operations": ["READ", "WRITE"],
+                "api": ["GetPrivateProfileStringA", "WritePrivateProfileStringA"],
+                "evidence": ["fixture:external-config-access"],
+            },
+            owner={"status": "UNKNOWN", "functions": [], "ownerKeys": [],
+                   "evidence": ["fixture:owner"]},
+            usageDisposition="ORPHAN",
+        )
+
+        row = self.report(resource).rows[0]
+
+        self.assertNotIn("RESOURCE_LOADER", row.all_missing_boundaries)
+        self.assertIn("RESOURCE_OWNER", row.all_missing_boundaries)
+
     def test_not_applicable_without_evidence_is_a_structural_fatal(self) -> None:
         resource = source_row("RESOURCE:FILE:official-site.url", inventory="RESOURCE")
         resource.update(

@@ -618,7 +618,17 @@ def _audit_row(row: Mapping[str, Any], *, known_source_ids: frozenset[str]) -> C
                 "NOT_APPLICABLE resource loader requires reason and evidence",
                 loader.get("evidence"),
             )
-        elif not _is_proven(loader, functions=True):
+        elif not (
+            _is_proven(loader, functions=True)
+            or (
+                _is_proven(loader)
+                and loader.get("kind") == "EXTERNAL_PE_CONFIG_ACCESS"
+                and isinstance(loader.get("consumerRowKey"), str)
+                and loader.get("consumerRowKey")
+                and set(loader.get("operations", [])) == {"READ", "WRITE"}
+                and bool(loader.get("api"))
+            )
+        ):
             gap("RESOURCE_LOADER", "RESOURCE_LOADER", "resource loader/runtime binding is not proven", loader.get("evidence"), "UNKNOWN" if _status(loader) == "UNKNOWN" else "PARTIAL")
         owner = row.get("owner")
         if not isinstance(owner, Mapping) or _status(owner) is None:

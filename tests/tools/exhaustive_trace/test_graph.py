@@ -582,6 +582,44 @@ class GraphTests(unittest.TestCase):
             triples,
         )
 
+    def test_external_config_access_emits_read_write_edges_without_function_load(self) -> None:
+        rows = [row for group in fixture_rows().values() for row in group]
+        config = next(row for row in rows if row["inventory"] == "RESOURCE")
+        updater = envelope(
+            "RESOURCE", "RESOURCE:FILE:original:gin7updateclient.exe", "gin7updateclient.exe"
+        )
+        updater.update(rowKind="TREE_FILE")
+        config["source"] = {
+            "relativePosixPath": "update.ini", "contentSha256": "A" * 64,
+            "externalConfigAccess": {
+                "status": "PROVEN_STATIC", "consumerRowKey": updater["key"],
+                "targetRelativePosixPath": "update.ini", "targetSha256": "A" * 64,
+                "readAccesses": [{"accessId": "READ:1", "operation": "READ",
+                                  "status": "PROVEN_STATIC", "evidence": ["fixture:read"]}],
+                "writeAccesses": [{"accessId": "WRITE:1", "operation": "WRITE",
+                                   "status": "PROVEN_STATIC", "evidence": ["fixture:write"]}],
+                "evidence": ["fixture:config"],
+            },
+        }
+        rows.append(updater)
+
+        graph = build_graph(rows)
+        triples = {(edge.source, edge.relation, edge.target) for edge in graph.edges}
+        self.assertIn((updater["key"], "READS", config["key"]), triples)
+        self.assertIn((updater["key"], "WRITES", config["key"]), triples)
+        self.assertNotIn((updater["key"], "LOADS", config["key"]), triples)
+        refs = {
+            ref for edge in graph.edges
+            if edge.source == updater["key"] and edge.target == config["key"]
+            for ref in edge.source_refs
+        }
+        self.assertIn(
+            f"inventory:{config['key']}/source/externalConfigAccess/readAccesses/0", refs
+        )
+        self.assertIn(
+            f"inventory:{config['key']}/source/externalConfigAccess/writeAccesses/0", refs
+        )
+
     def test_trace_graph_rejects_dangling_edges_and_candidate_identity(self) -> None:
         node = TraceNode(
             "A", "INVENTORY_ROW", "a", ("E-A",), provenance="ORIGINAL_OBSERVED",

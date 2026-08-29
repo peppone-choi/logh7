@@ -1566,6 +1566,72 @@ class ResourceImporterTests(unittest.TestCase):
             [json.dumps(item, sort_keys=True) for item in b],
         )
 
+    def test_external_pe_ini_adjudication_closes_loader_without_state_promotion(self) -> None:
+        root = Path(__file__).resolve().parents[3]
+        payload = json.loads(
+            (root / "evidence/exhaustive-trace/adjudications/resources.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        item = next(
+            value for value in payload["adjudications"]
+            if value["relativePosixPath"] == "update.ini"
+        )
+        rows = build_resource_inventory(
+            complete_raw(conservation={"treeFiles": 2}),
+            [
+                TreeManifestEntry("update.ini", "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C", 124),
+                TreeManifestEntry("gin7updateclient.exe", "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D", 1060864),
+            ],
+            root_id="original-installshield-payload",
+            adjudications={"update.ini": item},
+        )
+        row = next(value for value in rows if value.row.name == "update.ini")
+        normalized = normalize_resource_inventory([row])[0]
+
+        self.assertEqual("PROVEN", row.loader.status.value)
+        self.assertEqual("ORPHAN", row.usage_disposition.value)
+        self.assertEqual("RUNTIME_OWNER", row.first_missing_boundary)
+        self.assertEqual(1, sum(row.row.states.values()))
+        self.assertNotIn("functions", normalized["loader"])
+        self.assertEqual(
+            "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+            normalized["source"]["externalConfigAccess"]["consumerRowKey"],
+        )
+
+    def test_external_pe_ini_schema_rejects_loader_functions_and_candidate_conflict(self) -> None:
+        root = Path(__file__).resolve().parents[3]
+        payload = json.loads(
+            (root / "evidence/exhaustive-trace/adjudications/resources.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        item = next(
+            value for value in payload["adjudications"]
+            if value["relativePosixPath"] == "update.ini"
+        )
+        entries = [
+            TreeManifestEntry("update.ini", "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C", 124),
+            TreeManifestEntry("gin7updateclient.exe", "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D", 1060864),
+        ]
+        broken = copy.deepcopy(item)
+        broken["loader"]["functions"] = ["FUN_00404DC0"]
+        with self.assertRaisesRegex(ValueError, "loader fields differ"):
+            build_resource_inventory(
+                complete_raw(conservation={"treeFiles": 2}), entries,
+                root_id="original-installshield-payload", adjudications={"update.ini": broken},
+            )
+        with self.assertRaisesRegex(ValueError, "conflicts with loader candidates"):
+            build_resource_inventory(
+                complete_raw(
+                    conservation={"treeFiles": 2},
+                    loaderCandidates=[loader("update.ini", "PATH:00700000")],
+                    literalPathCandidates=[literal("PATH:00700000", "update.ini")],
+                ),
+                entries, root_id="original-installshield-payload",
+                adjudications={"update.ini": item},
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

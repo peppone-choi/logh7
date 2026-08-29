@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "status": "PROVEN_STATIC",
+  "scope": "UPDATE_INI_RESOURCE_LOADER_BOUNDARY",
+  "source": {
+    "path": "E:\\logh7-greenfield\\evidence\\installshield-extract\\____________s___\\____\\update.ini",
+    "sha256": "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C",
+    "byteSize": 124
+  },
+  "analysis": {
+    "format": "ASCII_INI",
+    "encoding": "ASCII",
+    "role": "ORIGINAL_UPDATE_CLIENT_CONFIGURATION",
+    "section": "UPDATE",
+    "byteSize": 124,
+    "lineCount": 7,
+    "crlfCount": 7,
+    "trailingCrlf": true,
+    "orderedEntries": [
+      {
+        "key": "VERSION",
+        "value": "131"
+      },
+      {
+        "key": "BASE_DIR",
+        "value": ".\\"
+      },
+      {
+        "key": "TEMP_DIR",
+        "value": ""
+      },
+      {
+        "key": "STARTUP_APPNAME",
+        "value": ""
+      },
+      {
+        "key": "WORK_DIR",
+        "value": ""
+      },
+      {
+        "key": "LAST_ERROR",
+        "value": "0x00000003"
+      }
+    ]
+  },
+  "externalConfigAccess": {
+    "status": "PROVEN_STATIC",
+    "consumerRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+    "consumerRelativePosixPath": "gin7updateclient.exe",
+    "consumerSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+    "targetRelativePosixPath": "update.ini",
+    "targetSha256": "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C",
+    "pathResolution": {
+      "status": "PROVEN_STATIC",
+      "resourceType": "RT_STRING",
+      "resourceId": 3,
+      "language": 1041,
+      "template": "%supdate.ini",
+      "moduleDirectoryFunctionVa": "0x00404A80",
+      "formatFunctionVa": "0x00433E1C",
+      "formatCallsiteVa": "0x00404BA9",
+      "destinationFieldOffset": "0xD8",
+      "result": "<module-directory>update.ini"
+    },
+    "section": "UPDATE",
+    "readAccesses": [
+      {
+        "accessId": "READ:VERSION:00404E13",
+        "operation": "READ",
+        "api": "KERNEL32.dll::GetPrivateProfileIntA",
+        "consumerFunctionVa": "0x00404DC0",
+        "callsiteVa": "0x00404E13",
+        "pathArgumentProvenance": "APP_PLUS_0xD8",
+        "sectionArgument": "UPDATE",
+        "status": "PROVEN_STATIC",
+        "keyArgument": "VERSION",
+        "keyResolution": "EXACT_LITERAL",
+        "evidence": [
+          "updater:profile-int-read:0x00404E13"
+        ]
+      },
+      {
+        "accessId": "READ:STRING-KEYS:00404FF7",
+        "operation": "READ",
+        "api": "KERNEL32.dll::GetPrivateProfileStringA",
+        "consumerFunctionVa": "0x00404FD0",
+        "callsiteVa": "0x00404FF7",
+        "pathArgumentProvenance": "APP_PLUS_0xD8",
+        "sectionArgument": "UPDATE",
+        "status": "PROVEN_STATIC",
+        "keyArgument": "SERVER_ADDRESS|SERVER_PORT|PROXY_ADDRESS|PROXY_PORT|BASE_DIR|TEMP_DIR|STARTUP_APPNAME|WORK_DIR",
+        "keyResolution": "VARIABLE",
+        "evidence": [
+          "updater:profile-string-read-helper:0x00404FF7"
+        ]
+      }
+    ],
+    "writeAccesses": [
+      {
+        "accessId": "WRITE:VERSION:0040508F",
+        "operation": "WRITE",
+        "api": "KERNEL32.dll::WritePrivateProfileStringA",
+        "consumerFunctionVa": "0x00405060",
+        "callsiteVa": "0x0040508F",
+        "pathArgumentProvenance": "APP_PLUS_0xD8",
+        "sectionArgument": "UPDATE",
+        "status": "PROVEN_STATIC",
+        "keyArgument": "VERSION",
+        "keyResolution": "EXACT_LITERAL",
+        "evidence": [
+          "updater:version-write:0x0040508F"
+        ]
+      },
+      {
+        "accessId": "WRITE:LAST_ERROR:00406F24",
+        "operation": "WRITE",
+        "api": "KERNEL32.dll::WritePrivateProfileStringA",
+        "consumerFunctionVa": "0x00406ED0",
+        "callsiteVa": "0x00406F24",
+        "pathArgumentProvenance": "APP_PLUS_0xD8",
+        "sectionArgument": "UPDATE",
+        "status": "PROVEN_STATIC",
+        "keyArgument": "LAST_ERROR",
+        "keyResolution": "EXACT_LITERAL",
+        "evidence": [
+          "updater:last-error-write:0x00406F24"
+        ]
+      }
+    ],
+    "runtimeObservationStatus": "UNSEEN",
+    "evidence": [
+      "updater:module-directory-path-flow:0x00404A80-0x00404BB7",
+      "updater:profile-api-dataflow:PROVEN_STATIC"
+    ]
+  },
+  "installshieldEvidence": {
+    "originalCdIsoSha256": "375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+    "data1HdrFilenameOffset": "0x000316EB",
+    "treeManifestPath": "E:\\logh7-greenfield\\evidence\\oracle-installshield-manual-fallback-20260824\\MANIFEST.sha256",
+    "treeManifestSha256": "B8487B3967F486DA9559EF30CE244EAF7F5886F3EB9CB1980A4A049BF0A63B71"
+  },
+  "installedMutationObservation": {
+    "status": "INSTALLED_POST_SETUP_UPDATER_DIVERGENT",
+    "causality": "INFERRED",
+    "installedSha256": "F89660546D6D0C7D4A00EFDCAA73E5120916C730E07E6CCFE7D8FF111FD71A88",
+    "installedByteSize": 124,
+    "originalBytesPreserved": false
+  },
+  "staticTools": {
+    "inspectorScript": {
+      "path": "E:\\logh7-greenfield\\work\\20260829-update-ini-resource-loader\\InspectUpdateIni.py",
+      "sha256": "D454BA10F3FDA5D5F9380F5FA0294B85A260537AE741AE35752A520B1A5B29C9"
+    },
+    "updateIni": {
+      "path": "E:\\logh7-greenfield\\evidence\\installshield-extract\\____________s___\\____\\update.ini",
+      "sha256": "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C"
+    },
+    "updater": {
+      "path": "E:\\logh7-greenfield\\evidence\\installshield-extract\\____________s___\\____\\gin7updateclient.exe",
+      "sha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+    },
+    "updaterPeImports": {
+      "path": "E:\\logh7-greenfield\\work\\20260829-gin7updateclient-resource-loader\\evidence\\gin7updateclient-imports.json",
+      "sha256": "DE1B18BD8DDA518C4452B9898C7B9CCDEBD6136E2A00C71D334DCFFCE39E0391"
+    },
+    "updaterStaticAnalysis": {
+      "path": "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\adjudications\\gin7updateclient-static-analysis.json",
+      "sha256": "4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517"
+    },
+    "originalCdIso": {
+      "path": "E:\\logh7-vm-media\\LOGH7-original-cd.iso",
+      "sha256": "375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22"
+    },
+    "treeManifest": {
+      "path": "E:\\logh7-greenfield\\evidence\\oracle-installshield-manual-fallback-20260824\\MANIFEST.sha256",
+      "sha256": "B8487B3967F486DA9559EF30CE244EAF7F5886F3EB9CB1980A4A049BF0A63B71"
+    },
+    "installedTreeCsv": {
+      "path": "E:\\logh7-vms\\oracle-win11-hd\\captures\\oracle-original-install-debug-20260824\\guest-installed-tree.csv",
+      "sha256": "F851C4418BEF2D277BA6CD811EA2E0E74EBF5188B5B7B10E9E94CF28C27BB5CE"
+    }
+  },
+  "limitations": {
+    "actualRuntimeReadWrite": "UNSEEN",
+    "installedBytes": "NOT_PRESERVED",
+    "installedDivergenceCause": "INFERRED",
+    "networkSuccess": "UNSEEN",
+    "playability": "NOT_CLAIMED"
+  }
+}
