@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "receiptType": "WARP_EXTERNAL_LIVE_BINDING_SUBJECT_V1_OFFLINE_EVALUATION",
+  "sourceContractSha256": "603C2C75F82E116D02D8DBE236FAA72A4BB506E008E8A6B87684E09657B91E69",
+  "schemaSha256": "81AEE0E7AFDB2E2D5A2B0A2FEC86E6973493C4DDE93695DEC5F90BF54752C9D4",
+  "status": "OFFLINE_WARP_EXTERNAL_LIVE_BINDING_SUBJECT_V1_PASS_NOT_CREATED_NOT_ELIGIBLE",
+  "contractPass": true,
+  "testOnlyVectorValid": true,
+  "testOnlyGeometryStatus": "PASS_TEST_ONLY_NONPROMOTABLE",
+  "liveSubjectLifecycle": "NOT_CREATED",
+  "chainLifecycle": {
+    "h1Identity": "NOT_CREATED",
+    "h2Capture": "NOT_CREATED",
+    "h3Evaluation": "NOT_CREATED",
+    "h4HitRegionSubject": "NOT_CREATED",
+    "h5IndependentReview": "NOT_CREATED",
+    "h6Bundle": "NOT_CREATED"
+  },
+  "structuralBlockers": [],
+  "readinessBlockers": [
+    "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION",
+    "H1_IDENTITY_NOT_CREATED",
+    "H2_CAPTURE_NOT_CREATED",
+    "H3_EVALUATION_NOT_CREATED",
+    "H4_HIT_REGION_SUBJECT_NOT_CREATED",
+    "H5_INDEPENDENT_REVIEW_NOT_CREATED",
+    "H6_BUNDLE_NOT_CREATED",
+    "NEW_WARP_STAGE_PERMIT_NOT_ISSUED"
+  ],
+  "authority": {
+    "stage": "WARP",
+    "max": 1,
+    "consumed": 0,
+    "remaining": 1,
+    "isPermit": false
+  },
+  "liveSubjectEligible": false,
+  "warpPrelaunchEligible": false,
+  "activationEligible": false,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "activationPoint": null,
+  "automaticActivationPoint": null,
+  "permit": null,
+  "bindingDigest": null,
+  "originalRuntimeObserved": false,
+  "independentLiveBinding": false,
+  "livePromotionAllowed": false,
+  "claimCeiling": "CONTRACT_AND_TEST_ONLY_GEOMETRY_NO_LIVE_BINDING",
+  "operationsPerformedByEvaluator": {
+    "fileReads": 4,
+    "liveRuns": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "physicalInputs": 0,
+    "automaticInputs": 0,
+    "debuggerOperations": 0,
+    "vmOperations": 0,
+    "serverProtocolDbChanges": 0,
+    "permitIssuance": 0
+  }
+}

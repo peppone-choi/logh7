@@ -78,3 +78,6 @@ work/20260829-original-client-manager65-corrected-collector-v3/tests/test_manage
 work/20260829-original-client-warp-stage-gate-v2/.gitignore text eol=lf
 work/20260829-original-client-warp-stage-gate-v2/src/evaluate_warp_stage_gate_v2.py text eol=lf
 work/20260829-original-client-warp-stage-gate-v2/tests/test_warp_stage_gate_v2.py text eol=lf
+work/20260829-original-client-warp-external-binding-subject-v1/.gitignore text eol=lf
+work/20260829-original-client-warp-external-binding-subject-v1/src/evaluate_warp_external_binding_subject_v1.py text eol=lf
+work/20260829-original-client-warp-external-binding-subject-v1/tests/test_warp_external_binding_subject_v1.py text eol=lf

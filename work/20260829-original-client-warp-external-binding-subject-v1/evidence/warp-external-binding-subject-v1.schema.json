@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:logh7:oracle:warp-external-live-binding-subject:v1:offline-contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion","receiptType","evidenceClass","authorityEnvelope","liveSubject","futureChainContract","testOnlyVector","blockers","claimCeiling","operations"],
+  "properties": {
+    "schemaVersion": {"const":1},
+    "receiptType": {"const":"WARP_EXTERNAL_LIVE_BINDING_SUBJECT_V1_OFFLINE_CONTRACT"},
+    "evidenceClass": {"const":"OFFLINE_CONTRACT_ONLY"},
+    "authorityEnvelope": {
+      "type":"object","additionalProperties":false,
+      "required":["authorizationId","oneRunApproved","maxPhysicalActivations","physicalActivationsConsumed","physicalActivationsRemaining","automaticInputBudget","retryBudget","issuedForStage","reusableAfterFailure","isPermit"],
+      "properties": {
+        "authorizationId":{"const":"CURRENT_THREAD_ORACLE_ONE_RUN_ONE_ACTIVATION_V1"},
+        "oneRunApproved":{"const":true},"maxPhysicalActivations":{"const":1},"physicalActivationsConsumed":{"const":0},"physicalActivationsRemaining":{"const":1},
+        "automaticInputBudget":{"const":0},"retryBudget":{"const":0},"issuedForStage":{"const":"WARP_ONLY"},"reusableAfterFailure":{"const":false},"isPermit":{"const":false}
+      }
+    },
+    "liveSubject": {
+      "type":"object","additionalProperties":false,
+      "required":["oracleRunId","lifecycle","chain","bindingDigest","fullClientRect","replaySafeManualPoint","activationCell"],
+      "properties": {
+        "oracleRunId":{"type":"null"},"lifecycle":{"const":"NOT_CREATED"},
+        "chain": {
+          "type":"object","additionalProperties":false,
+          "required":["h1Identity","h2Capture","h3Evaluation","h4HitRegionSubject","h5IndependentReview","h6Bundle"],
+          "properties": {
+            "h1Identity":{"$ref":"#/$defs/notCreatedStep"},"h2Capture":{"$ref":"#/$defs/notCreatedStep"},"h3Evaluation":{"$ref":"#/$defs/notCreatedStep"},
+            "h4HitRegionSubject":{"$ref":"#/$defs/notCreatedStep"},"h5IndependentReview":{"$ref":"#/$defs/notCreatedStep"},"h6Bundle":{"$ref":"#/$defs/notCreatedStep"}
+          }
+        },
+        "bindingDigest":{"type":"null"},"fullClientRect":{"type":"null"},"replaySafeManualPoint":{"type":"null"},"activationCell":{"type":"null"}
+      }
+    },
+    "futureChainContract": {
+      "type":"object","additionalProperties":false,
+      "required":["order","steps","h4IndependentlyRecomputed","h4PointSource","h4ScaleSource","h5ReviewerMustDifferFromSingleWriter","h6MayIssuePermit","h6MayPerformInput"],
+      "properties": {
+        "order":{"const":["H1_IDENTITY","H2_CAPTURE","H3_EVALUATION","H4_HIT_REGION_SUBJECT","H5_INDEPENDENT_REVIEW","H6_BUNDLE"]},
+        "steps": {
+          "type":"object","additionalProperties":false,
+          "required":["H1_IDENTITY","H2_CAPTURE","H3_EVALUATION","H4_HIT_REGION_SUBJECT","H5_INDEPENDENT_REVIEW","H6_BUNDLE"],
+          "properties": {
+            "H1_IDENTITY":{"$ref":"#/$defs/futureStep"},"H2_CAPTURE":{"$ref":"#/$defs/futureStep"},"H3_EVALUATION":{"$ref":"#/$defs/futureStep"},
+            "H4_HIT_REGION_SUBJECT":{"$ref":"#/$defs/futureStep"},"H5_INDEPENDENT_REVIEW":{"$ref":"#/$defs/futureStep"},"H6_BUNDLE":{"$ref":"#/$defs/futureStep"}
+          }
+        },
+        "h4IndependentlyRecomputed":{"const":true},"h4PointSource":{"const":"RAW_H2_CAPTURE_NOT_H3_EVALUATION"},
+        "h4ScaleSource":{"const":"H2_RAW_IEEE754_BINARY32_BITS"},
+        "h5ReviewerMustDifferFromSingleWriter":{"const":true},"h6MayIssuePermit":{"const":false},"h6MayPerformInput":{"const":false}
+      }
+    },
+    "testOnlyVector": {
+      "type":"object","additionalProperties":false,
+      "required":["schemaVersion","receiptType","evidenceClass","vectorId","source","fullClientRect","logicalRect","scale","scaleProvenance","candidateClientRect","manualPoint","threeByThreeRect","forwardLogical","activationCell","promotable","liveEligible","activationEligible","permitEligible"],
+      "properties": {
+        "schemaVersion":{"const":1},"receiptType":{"const":"WARP_BINDING_GEOMETRY_TEST_VECTOR_V1"},"evidenceClass":{"const":"TEST_ONLY_NONPROMOTABLE"},"vectorId":{"const":"MANAGER65_V3_CANONICAL_GEOMETRY_TEST_ONLY"},
+        "source": {
+          "type":"object","additionalProperties":false,
+          "required":["capturePath","captureSha256","expectedCaptureSha256","evaluationPath","evaluationSha256","expectedEvaluationSha256"],
+          "properties": {
+            "capturePath":{"const":"work/20260829-original-client-manager65-corrected-collector-v3/evidence/fixture-capture.json"},
+            "captureSha256":{"$ref":"#/$defs/sha256"},"expectedCaptureSha256":{"$ref":"#/$defs/sha256"},
+            "evaluationPath":{"const":"work/20260829-original-client-manager65-corrected-collector-v3/evidence/fixture-evaluation.json"},
+            "evaluationSha256":{"$ref":"#/$defs/sha256"},"expectedEvaluationSha256":{"$ref":"#/$defs/sha256"}
+          }
+        },
+        "fullClientRect":{"$ref":"#/$defs/rect"},"logicalRect":{"$ref":"#/$defs/rect"},
+        "scale":{"type":"object","additionalProperties":false,"required":["xBits","yBits","xDecimalMirror","yDecimalMirror","precision"],"properties":{"xBits":{"type":"string","pattern":"^[A-F0-9]{8}$"},"yBits":{"type":"string","pattern":"^[A-F0-9]{8}$"},"xDecimalMirror":{"type":"number"},"yDecimalMirror":{"type":"number"},"precision":{"const":"IEEE754_FLOAT32_BITS_TEST_ONLY"}}},
+        "scaleProvenance":{"const":"TEST_ONLY_BITS_DERIVED_FROM_SYNTHETIC_DECIMAL_NOT_LIVE_CAPTURE"},
+        "candidateClientRect":{"$ref":"#/$defs/rect"},"manualPoint":{"$ref":"#/$defs/point"},"threeByThreeRect":{"$ref":"#/$defs/rect"},"forwardLogical":{"$ref":"#/$defs/point"},"activationCell":{"$ref":"#/$defs/rect"},
+        "promotable":{"const":false},"liveEligible":{"const":false},"activationEligible":{"const":false},"permitEligible":{"const":false}
+      }
+    },
+    "blockers": {"type":"array","prefixItems":[{"const":"FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION"}],"items":{"type":"string"},"minItems":8,"maxItems":8,"uniqueItems":true},
+    "claimCeiling": {
+      "type":"object","additionalProperties":false,
+      "required":["liveSubjectEligible","warpPrelaunchEligible","activationEligible","launchEligible","permitEligible","permitIssued","originalRuntimeObserved","independentLiveBinding","livePromotionAllowed","activationPoint","automaticActivationPoint","permit","bindingDigest"],
+      "properties": {
+        "liveSubjectEligible":{"const":false},"warpPrelaunchEligible":{"const":false},"activationEligible":{"const":false},"launchEligible":{"const":false},"permitEligible":{"const":false},"permitIssued":{"const":false},"originalRuntimeObserved":{"const":false},"independentLiveBinding":{"const":false},"livePromotionAllowed":{"const":false},
+        "activationPoint":{"type":"null"},"automaticActivationPoint":{"type":"null"},"permit":{"type":"null"},"bindingDigest":{"type":"null"}
+      }
+    },
+    "operations": {
+      "type":"object","additionalProperties":false,
+      "required":["liveRuns","processMemoryReads","processMemoryWrites","physicalInputs","automaticInputs","retries","binaryPatches","debuggerAttach","debuggerCommands","breakpointsInstalled","ownedHwndCaptures","vmLifecycleChanges","serverChanges","protocolChanges","databaseChanges","permitIssuance"],
+      "properties": {
+        "liveRuns":{"const":0},"processMemoryReads":{"const":0},"processMemoryWrites":{"const":0},"physicalInputs":{"const":0},"automaticInputs":{"const":0},"retries":{"const":0},"binaryPatches":{"const":0},"debuggerAttach":{"const":0},"debuggerCommands":{"const":0},"breakpointsInstalled":{"const":0},"ownedHwndCaptures":{"const":0},"vmLifecycleChanges":{"const":0},"serverChanges":{"const":0},"protocolChanges":{"const":0},"databaseChanges":{"const":0},"permitIssuance":{"const":0}
+      }
+    }
+  },
+  "$defs": {
+    "sha256":{"type":"string","pattern":"^[A-Fa-f0-9]{64}$"},
+    "notCreatedStep":{"type":"object","additionalProperties":false,"required":["lifecycle","receipt","sourcePath","sourceSha256","expectedSha256","observedAtUtc"],"properties":{"lifecycle":{"const":"NOT_CREATED"},"receipt":{"type":"null"},"sourcePath":{"type":"null"},"sourceSha256":{"type":"null"},"expectedSha256":{"type":"null"},"observedAtUtc":{"type":"null"}}},
+    "futureStep":{"type":"object","additionalProperties":false,"required":["dependsOn","receiptType","requiresExpectedSha256","sameOracleRunRequired"],"properties":{"dependsOn":{"type":"array","items":{"type":"string"},"uniqueItems":true},"receiptType":{"type":"string","minLength":1},"requiresExpectedSha256":{"const":true},"sameOracleRunRequired":{"const":true}}},
+    "rect":{"type":"object","additionalProperties":false,"required":["left","top","right","bottom"],"properties":{"left":{"type":"integer"},"top":{"type":"integer"},"right":{"type":"integer"},"bottom":{"type":"integer"}}},
+    "point":{"type":"object","additionalProperties":false,"required":["x","y"],"properties":{"x":{"type":"integer"},"y":{"type":"integer"}}}
+  }
+}
