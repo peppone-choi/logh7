@@ -1,0 +1,1370 @@
+{
+  "schemaVersion": 1,
+  "recordType": "EXHAUSTIVE_TRACE_FOUNDATION_VERIFICATION",
+  "status": {
+    "boundedFoundation": "PASS_REPRODUCIBLE_BASELINE_WITH_ACKNOWLEDGED_FATAL",
+    "overallGoal": "INCOMPLETE",
+    "coverageGate": "STRUCTURAL_FATAL",
+    "featureLedger": "ABSENT",
+    "independentReview": "UNSEEN"
+  },
+  "tests": {
+    "discovered": 292,
+    "passed": 292,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "expectedFailures": 0,
+    "unexpectedSuccesses": 0,
+    "stdout": "{\"command\":\"audit\",\"coverageSurfaceSha256\":\"5273433D48CE4645EB83F337A4F5B41307C433136333421413F95DE238735CB4\",\"evidenceGapCount\":17,\"fatalStructuralCount\":14,\"fileSha256\":\"642DDF5E3049BFD42807A98A78592C6AAA4864364EE691FA744EEC88CC0AC37C\",\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmpscrxbtnh\\\\coverage.json\",\"sourceRowCount\":6,\"status\":\"FAIL\"}\r\n{\"command\":\"package-domains\",\"coverageGateStatus\":\"STRUCTURAL_FATAL\",\"domainConfigSha256\":\"A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379\",\"domainCount\":16,\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmpa5yx4pn9\\\\domains\",\"packageSetSha256\":\"85249DBB76A6C8907DDC7A063E663A3844278D6BD0EFEAE8FE6713FBE7EDAF27\",\"sourceRowCount\":6,\"status\":\"PASS\",\"topologicalOrder\":[\"D01\",\"D02\",\"D03\",\"D04\",\"D05\",\"D07\",\"D06\",\"D08\",\"D09\",\"D10\",\"D11\",\"D12\",\"D13\",\"D14\",\"D15\",\"D16\"],\"unresolvedRoutingCount\":6}\r\n{\"command\":\"build-graph\",\"edgeCount\":13,\"fileSha256\":\"F9D7C31C5099B11979688FA3268BB603B6D0389A69C1826E6938D80E935DEA3A\",\"graphSurfaceSha256\":\"21196F5EA21820ABB4F2406140D6710EBBB2DA67444F76ED08F39DC830E7EF38\",\"nodeCount\":12,\"output\":\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\tmpnn8aht6r\\\\output\\\\graph.jsonl\",\"sourceRowNodes\":6,\"status\":\"PASS\"}\r\n",
+    "stderr": "....................................................................................................................................................................................................................................................................................................\r\n----------------------------------------------------------------------\r\nRan 292 tests in 46.775s\r\n\r\nOK\r\n"
+  },
+  "sourceManifest": {
+    "sha256": "128798534AEDBA4600EECDEFE5A8892030F36D6697901F36143CDECDBCC6B699",
+    "gateExit": 0
+  },
+  "deterministicArtifacts": {
+    "inventories/authority.jsonl": {
+      "checked": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
+      "runA": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
+      "runB": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
+      "bytes": 5103529
+    },
+    "inventories/entities.jsonl": {
+      "checked": "8098D33494FB90911140DB3C98F3F1911A72C112C3CD2956E17EBDC1D2FD41BF",
+      "runA": "8098D33494FB90911140DB3C98F3F1911A72C112C3CD2956E17EBDC1D2FD41BF",
+      "runB": "8098D33494FB90911140DB3C98F3F1911A72C112C3CD2956E17EBDC1D2FD41BF",
+      "bytes": 1075151
+    },
+    "inventories/functions.jsonl": {
+      "checked": "C2E00EF626EB6D2D72068EC6325A0E8EE192E38FBFF74B00EAF20D089CF96C8A",
+      "runA": "C2E00EF626EB6D2D72068EC6325A0E8EE192E38FBFF74B00EAF20D089CF96C8A",
+      "runB": "C2E00EF626EB6D2D72068EC6325A0E8EE192E38FBFF74B00EAF20D089CF96C8A",
+      "bytes": 57405915
+    },
+    "inventories/protocol.jsonl": {
+      "checked": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
+      "runA": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
+      "runB": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
+      "bytes": 2127607
+    },
+    "inventories/resources.jsonl": {
+      "checked": "1BD459CD1E7B4BAA0362D5CBB9AF2C8A5B8BAD85D07963B908612000B6F7165B",
+      "runA": "1BD459CD1E7B4BAA0362D5CBB9AF2C8A5B8BAD85D07963B908612000B6F7165B",
+      "runB": "1BD459CD1E7B4BAA0362D5CBB9AF2C8A5B8BAD85D07963B908612000B6F7165B",
+      "bytes": 8508255
+    },
+    "inventories/ui.jsonl": {
+      "checked": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
+      "runA": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
+      "runB": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
+      "bytes": 1400198
+    },
+    "reconciliations/authority-reconciliation.json": {
+      "checked": "0CADDAA2E6AC49725E486503342F747BE798C44A06675591629F356748B03883",
+      "runA": "0CADDAA2E6AC49725E486503342F747BE798C44A06675591629F356748B03883",
+      "runB": "0CADDAA2E6AC49725E486503342F747BE798C44A06675591629F356748B03883",
+      "bytes": 242676
+    },
+    "reconciliations/entities-reconciliation.json": {
+      "checked": "A97131D798CB442569A98D09763A8ED0F926D2546091E3BAE118881449699590",
+      "runA": "A97131D798CB442569A98D09763A8ED0F926D2546091E3BAE118881449699590",
+      "runB": "A97131D798CB442569A98D09763A8ED0F926D2546091E3BAE118881449699590",
+      "bytes": 711078
+    },
+    "reconciliations/functions-reconciliation.json": {
+      "checked": "BC89C232F5CDE0BABC956CBAF4865AD9B580576A2C3BA2FB94B77C62A163F925",
+      "runA": "BC89C232F5CDE0BABC956CBAF4865AD9B580576A2C3BA2FB94B77C62A163F925",
+      "runB": "BC89C232F5CDE0BABC956CBAF4865AD9B580576A2C3BA2FB94B77C62A163F925",
+      "bytes": 2629958
+    },
+    "reconciliations/protocol-reconciliation.json": {
+      "checked": "50F8CF377D6CDBFAA3C433616A56E0268379FFE7B7F6722CED2C6912B676336C",
+      "runA": "50F8CF377D6CDBFAA3C433616A56E0268379FFE7B7F6722CED2C6912B676336C",
+      "runB": "50F8CF377D6CDBFAA3C433616A56E0268379FFE7B7F6722CED2C6912B676336C",
+      "bytes": 356461
+    },
+    "reconciliations/resources-reconciliation.json": {
+      "checked": "733EEA67581052C4CB8B1FCDB92F615D1C38151B1206C628BF759A1ECC25DD24",
+      "runA": "733EEA67581052C4CB8B1FCDB92F615D1C38151B1206C628BF759A1ECC25DD24",
+      "runB": "733EEA67581052C4CB8B1FCDB92F615D1C38151B1206C628BF759A1ECC25DD24",
+      "bytes": 667642
+    },
+    "reconciliations/ui-reconciliation.json": {
+      "checked": "9642B8D2B48D1078941F411DDD23C92DDD05B9493A0FA427D61D7606F93FBC7D",
+      "runA": "9642B8D2B48D1078941F411DDD23C92DDD05B9493A0FA427D61D7606F93FBC7D",
+      "runB": "9642B8D2B48D1078941F411DDD23C92DDD05B9493A0FA427D61D7606F93FBC7D",
+      "bytes": 219092
+    },
+    "graph.jsonl": {
+      "checked": "1A79D1F7EBC148B7ED1CCFBE44EB7859E0DBB7B5F8A41FCDBCFFFF2F33EABCB7",
+      "runA": "1A79D1F7EBC148B7ED1CCFBE44EB7859E0DBB7B5F8A41FCDBCFFFF2F33EABCB7",
+      "runB": "1A79D1F7EBC148B7ED1CCFBE44EB7859E0DBB7B5F8A41FCDBCFFFF2F33EABCB7",
+      "bytes": 102939440
+    },
+    "coverage.json": {
+      "checked": "C16E3F01B2AD844567A4E2B796D766BD8C1A913220C5EA23868CBA2488C42A2D",
+      "runA": "C16E3F01B2AD844567A4E2B796D766BD8C1A913220C5EA23868CBA2488C42A2D",
+      "runB": "C16E3F01B2AD844567A4E2B796D766BD8C1A913220C5EA23868CBA2488C42A2D",
+      "bytes": 38640573
+    },
+    "domains/D01.json": {
+      "checked": "674304216A66C0173147FCE93F5861876E67A9B27A9C44F2DBCDBDEAAC3C7DF6",
+      "runA": "674304216A66C0173147FCE93F5861876E67A9B27A9C44F2DBCDBDEAAC3C7DF6",
+      "runB": "674304216A66C0173147FCE93F5861876E67A9B27A9C44F2DBCDBDEAAC3C7DF6",
+      "bytes": 14062264
+    },
+    "domains/D02.json": {
+      "checked": "D295DB1546437333B0B64227FADA24FDB2C27CAEB4B9455AA886594FADA64F79",
+      "runA": "D295DB1546437333B0B64227FADA24FDB2C27CAEB4B9455AA886594FADA64F79",
+      "runB": "D295DB1546437333B0B64227FADA24FDB2C27CAEB4B9455AA886594FADA64F79",
+      "bytes": 2236092
+    },
+    "domains/D03.json": {
+      "checked": "793F031F14E2E32E7F8EC7F354BE97D9CFF02B5179CE273D9784560A79778CF4",
+      "runA": "793F031F14E2E32E7F8EC7F354BE97D9CFF02B5179CE273D9784560A79778CF4",
+      "runB": "793F031F14E2E32E7F8EC7F354BE97D9CFF02B5179CE273D9784560A79778CF4",
+      "bytes": 1706335
+    },
+    "domains/D04.json": {
+      "checked": "C07250A3CD9D931665252C62AA418B5274F68DC6D999BE68DB09D6553195C470",
+      "runA": "C07250A3CD9D931665252C62AA418B5274F68DC6D999BE68DB09D6553195C470",
+      "runB": "C07250A3CD9D931665252C62AA418B5274F68DC6D999BE68DB09D6553195C470",
+      "bytes": 1853271
+    },
+    "domains/D05.json": {
+      "checked": "7BB51CD2C5F5FEA816C5F54DE013AB40AA111FB666AE68D3D95A985C4B56E789",
+      "runA": "7BB51CD2C5F5FEA816C5F54DE013AB40AA111FB666AE68D3D95A985C4B56E789",
+      "runB": "7BB51CD2C5F5FEA816C5F54DE013AB40AA111FB666AE68D3D95A985C4B56E789",
+      "bytes": 3434584
+    },
+    "domains/D06.json": {
+      "checked": "8673A35050BB21A05189EC7C8B2E0B4B996EDFF6F8A44DF3B512AA88A5EED2C5",
+      "runA": "8673A35050BB21A05189EC7C8B2E0B4B996EDFF6F8A44DF3B512AA88A5EED2C5",
+      "runB": "8673A35050BB21A05189EC7C8B2E0B4B996EDFF6F8A44DF3B512AA88A5EED2C5",
+      "bytes": 1696150
+    },
+    "domains/D07.json": {
+      "checked": "09B5B796573D61A5B9F90DF1C697CFB4C9EB0280A3907BFF073777A3FDF0C959",
+      "runA": "09B5B796573D61A5B9F90DF1C697CFB4C9EB0280A3907BFF073777A3FDF0C959",
+      "runB": "09B5B796573D61A5B9F90DF1C697CFB4C9EB0280A3907BFF073777A3FDF0C959",
+      "bytes": 1820537
+    },
+    "domains/D08.json": {
+      "checked": "F4B3E2DFA90E2E65BA6D5C4466F284D048112AAD0788C89C63895008B51B1FBA",
+      "runA": "F4B3E2DFA90E2E65BA6D5C4466F284D048112AAD0788C89C63895008B51B1FBA",
+      "runB": "F4B3E2DFA90E2E65BA6D5C4466F284D048112AAD0788C89C63895008B51B1FBA",
+      "bytes": 1718231
+    },
+    "domains/D09.json": {
+      "checked": "E90C66BF693EB49FB55F48ED51854FDFC73ADD7A614AC31FD61D73833B673B66",
+      "runA": "E90C66BF693EB49FB55F48ED51854FDFC73ADD7A614AC31FD61D73833B673B66",
+      "runB": "E90C66BF693EB49FB55F48ED51854FDFC73ADD7A614AC31FD61D73833B673B66",
+      "bytes": 1678927
+    },
+    "domains/D10.json": {
+      "checked": "EEDD899555A63EA464B35B0E6F9B8D4FD0A0A4FC754F47FB37483B087324EA24",
+      "runA": "EEDD899555A63EA464B35B0E6F9B8D4FD0A0A4FC754F47FB37483B087324EA24",
+      "runB": "EEDD899555A63EA464B35B0E6F9B8D4FD0A0A4FC754F47FB37483B087324EA24",
+      "bytes": 1719006
+    },
+    "domains/D11.json": {
+      "checked": "E161173C1ABC04970A90E23CBF96394F8A37B9CDA2BF6F8D6650DB341EC42DCE",
+      "runA": "E161173C1ABC04970A90E23CBF96394F8A37B9CDA2BF6F8D6650DB341EC42DCE",
+      "runB": "E161173C1ABC04970A90E23CBF96394F8A37B9CDA2BF6F8D6650DB341EC42DCE",
+      "bytes": 1911238
+    },
+    "domains/D12.json": {
+      "checked": "F6C3C3C533A78B3829288FCA4A900A5B6FBABF26EA900F07DAB23617D56D2B0F",
+      "runA": "F6C3C3C533A78B3829288FCA4A900A5B6FBABF26EA900F07DAB23617D56D2B0F",
+      "runB": "F6C3C3C533A78B3829288FCA4A900A5B6FBABF26EA900F07DAB23617D56D2B0F",
+      "bytes": 1671381
+    },
+    "domains/D13.json": {
+      "checked": "C14063FCBC22869E04F2194967CE32636D2332D1AE4D239D03E3C407C9F88252",
+      "runA": "C14063FCBC22869E04F2194967CE32636D2332D1AE4D239D03E3C407C9F88252",
+      "runB": "C14063FCBC22869E04F2194967CE32636D2332D1AE4D239D03E3C407C9F88252",
+      "bytes": 1681565
+    },
+    "domains/D14.json": {
+      "checked": "7143FFD38018005CDC409C9217906B7DE7B7A46E7F56F7DBD94D66CDBDADD9C2",
+      "runA": "7143FFD38018005CDC409C9217906B7DE7B7A46E7F56F7DBD94D66CDBDADD9C2",
+      "runB": "7143FFD38018005CDC409C9217906B7DE7B7A46E7F56F7DBD94D66CDBDADD9C2",
+      "bytes": 1771109
+    },
+    "domains/D15.json": {
+      "checked": "2CC46C89A51C8C2C1FCFE7780D1EB82EDB59084776B96CE933263A6EB8806493",
+      "runA": "2CC46C89A51C8C2C1FCFE7780D1EB82EDB59084776B96CE933263A6EB8806493",
+      "runB": "2CC46C89A51C8C2C1FCFE7780D1EB82EDB59084776B96CE933263A6EB8806493",
+      "bytes": 3106592
+    },
+    "domains/D16.json": {
+      "checked": "18B6A54B54441F98BC0DBD741EE277006D7E5EEEF88141C28801D625E67CA5BF",
+      "runA": "18B6A54B54441F98BC0DBD741EE277006D7E5EEEF88141C28801D625E67CA5BF",
+      "runB": "18B6A54B54441F98BC0DBD741EE277006D7E5EEEF88141C28801D625E67CA5BF",
+      "bytes": 2639757
+    },
+    "domain-plan-inputs.json": {
+      "checked": "B1D0ADA9280071692CD59AED00E610F1E37FC51FA5F609CF39ABF6D1A7ACCE05",
+      "runA": "B1D0ADA9280071692CD59AED00E610F1E37FC51FA5F609CF39ABF6D1A7ACCE05",
+      "runB": "B1D0ADA9280071692CD59AED00E610F1E37FC51FA5F609CF39ABF6D1A7ACCE05",
+      "bytes": 81454213
+    },
+    "recovery.json": {
+      "checked": "7AA1C191123ECE238EB9984A40D4212F636A5238D8CF7F23F82F40476F5A4056",
+      "runA": "7AA1C191123ECE238EB9984A40D4212F636A5238D8CF7F23F82F40476F5A4056",
+      "runB": "7AA1C191123ECE238EB9984A40D4212F636A5238D8CF7F23F82F40476F5A4056",
+      "bytes": 32959730
+    }
+  },
+  "conservation": {
+    "inventoryRows": {
+      "protocol": 547,
+      "ui": 422,
+      "entities": 237,
+      "resources": 2194,
+      "functions": 11497,
+      "authority": 1102
+    },
+    "sourceRowCount": 15999,
+    "graphNodeCount": 35686,
+    "graphEdgeCount": 92056,
+    "graphStructuralOrphanCount": 0,
+    "graphUnresolvedReferenceNodeCount": 6378,
+    "coverageFatalCount": 1,
+    "coverageFatalIds": [
+      "FEATURE_REACHABILITY_LEDGER_ABSENT"
+    ],
+    "evidenceGapCount": 25604,
+    "missingBoundaryOccurrenceCount": 153596,
+    "closedVerticalTraceCount": 0,
+    "unknownVerdictRowCount": 15999,
+    "routingUnresolvedRowCount": 15317,
+    "domainAssignments": {
+      "sourceKeyCount": 15999,
+      "primaryKeyCount": 15999,
+      "unassigned": 0,
+      "duplicatePrimary": 0
+    },
+    "deterministicArtifactCount": 32,
+    "recoverySubjects": 16269,
+    "recoveryActionableSubjects": 16267,
+    "recoveryDispositionCounts": {
+      "AUTHORING_REQUIRED": 60,
+      "ORIGINAL_SERVER_LOST": 1105,
+      "ORIGINAL_UNIMPLEMENTED": 0,
+      "RECOVERABLE_LIVE": 17,
+      "RECOVERABLE_STATIC": 15085,
+      "RECOVERED_ORIGINAL": 2,
+      "RIGHTS_REVIEW_REQUIRED": 0,
+      "SOURCE_CONFLICT": 0
+    },
+    "authoringPackageCount": 60,
+    "confirmedGameplayFeatureCount": 0,
+    "candidateGameplayFeatureCount": 1,
+    "candidateFeatureUnitCount": 8,
+    "liveActionUnitCount": 0,
+    "recoverableLiveSubjectCount": 17,
+    "automaticRetryUnitCount": 0,
+    "runtimeMutationUnitCount": 0
+  },
+  "perDomainUnits": {
+    "D01": {
+      "recoveryReverseUnits": 11499,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 11499,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D02": {
+      "recoveryReverseUnits": 473,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 473,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D03": {
+      "recoveryReverseUnits": 43,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 43,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D04": {
+      "recoveryReverseUnits": 75,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 75,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D05": {
+      "recoveryReverseUnits": 1441,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 1441,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D06": {
+      "recoveryReverseUnits": 31,
+      "candidateFeatureReverseUnits": 1,
+      "totalReverseEngineeringUnits": 32,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 7,
+      "liveActionUnits": 0
+    },
+    "D07": {
+      "recoveryReverseUnits": 88,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 88,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D08": {
+      "recoveryReverseUnits": 58,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 58,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D09": {
+      "recoveryReverseUnits": 12,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 12,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D10": {
+      "recoveryReverseUnits": 60,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 60,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D11": {
+      "recoveryReverseUnits": 89,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 89,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D12": {
+      "recoveryReverseUnits": 2,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 2,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D13": {
+      "recoveryReverseUnits": 14,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 14,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D14": {
+      "recoveryReverseUnits": 130,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 130,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D15": {
+      "recoveryReverseUnits": 1180,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 1180,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    },
+    "D16": {
+      "recoveryReverseUnits": 804,
+      "candidateFeatureReverseUnits": 0,
+      "totalReverseEngineeringUnits": 804,
+      "confirmedImplementationUnits": 0,
+      "candidateTargetBearingImplementationUnits": 0,
+      "liveActionUnits": 0
+    }
+  },
+  "firstUnit": {
+    "unitId": "RECOVERY:D01:RESOURCE_LOADER:627680C75CFF6DA7",
+    "domain": "D01",
+    "pathKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+    "firstMissingBoundary": "RESOURCE_LOADER",
+    "recoveryDisposition": "RECOVERABLE_STATIC",
+    "dependsOnUnitIds": [],
+    "executionStatus": "NOT_STARTED",
+    "authorization": "NOT_AUTHORIZED_BY_BASELINE"
+  },
+  "knownLimitations": [
+    {
+      "id": "AUTHORITY_RAW_PATH_SENSITIVE",
+      "checkedPath": "evidence/exhaustive-trace/raw/authority-source.json",
+      "disposition": "EXCLUDED_FROM_BYTE_IDENTITY",
+      "reason": "the raw receipt intentionally retains validated absolute transport paths, while its semantic surface excludes those paths so normalized authority inventory, reconciliation, and every downstream artifact remain byte-identical across staging roots"
+    }
+  ],
+  "safety": {
+    "vmActions": 0,
+    "originalExecutableActions": 0,
+    "debuggerAttach": 0,
+    "processMemoryRead": 0,
+    "processMemoryWrite": 0,
+    "physicalInput": 0,
+    "automaticRetries": 0,
+    "serverProtocolDatabaseMutations": 0,
+    "vmLifecycleMutations": 0,
+    "checkedArtifactMutations": 0
+  },
+  "commands": [
+    {
+      "label": "receipt-target-policy-preflight",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.foundation_verification",
+        "--project-root",
+        "E:\\logh7-greenfield",
+        "--default-receipt",
+        "E:\\logh7-greenfield\\work\\20260827-original-game-exhaustive-trace-foundation\\evidence\\foundation-verification.json",
+        "--receipt",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-g7mt-author-20260829-01.json",
+        "--temp-root",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "363634779C84B25743883186229B78F9BD6B9C2DDB6563ACA41AB393516A8815",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 110.0
+    },
+    {
+      "label": "full-exhaustive-trace-tests",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests/tools/exhaustive_trace",
+        "-p",
+        "test_*.py"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "49B513C8CCD9C1B433E39CEC064AE5B1DBECE76DC280437F566DCAA410CAEB9F",
+      "stderrSha256": "123D7940A867E275EF6F05E5D3B756ED69663D8FD91F20CB21658839BADD3B8B",
+      "durationMs": 46987.0
+    },
+    {
+      "label": "strict-unittest-result",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.foundation_verification",
+        "--parse-unittest-json",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\unittest-result.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "1EF3548384954211FA56A281CDDADF5E3E47E09D5359989B6164E80CA671EE11",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 99.0
+    },
+    {
+      "label": "source-manifest-gate",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.source_manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "04258B99E7D36FB8739EBF187970DE752910015862A17B44829F60B8AD9A8A3D",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 2073.0
+    },
+    {
+      "label": "run-a-protocol",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_protocol",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\protocol.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\protocol-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "6BEBB48DF7C1F4A2DE7B8A45E7C6D56593F3FDCCA0F14277DAC37B8580967A53",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 2439.0
+    },
+    {
+      "label": "run-a-ui",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_ui",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\ui.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\ui-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "E4E765E00C592948987101DB063071F3C5692360096E728D212D5714ABD12E21",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 2201.0
+    },
+    {
+      "label": "run-a-entities",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_entities",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\entities.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\entities-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "E817F92BE4E66D6F01E37D7A2609AA83D870A38DCE88AEE9F914F1113BBBC8E3",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 2371.0
+    },
+    {
+      "label": "run-a-resources",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_resources",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\resources.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\resources-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--adjudications",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\adjudications\\resources.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "1D33C0551541305B2322F32903235A5A326297C4DC59647C88EEAAF113A2C7AD",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 3320.0
+    },
+    {
+      "label": "run-a-functions",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_functions",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\functions.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\functions-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "1E177B3155F33D651FECA1A55A8EDEEA7681EA21D19E750B5334CDE6861C4E75",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 116032.0
+    },
+    {
+      "label": "run-a-authority",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_authority",
+        "--server",
+        "E:\\logh7-greenfield\\apps\\server",
+        "--contracts",
+        "E:\\logh7-greenfield\\contracts",
+        "--db",
+        "E:\\logh7-greenfield\\db",
+        "--protocol-inventory",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\protocol.jsonl",
+        "--entity-inventory",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\entities.jsonl",
+        "--ui-inventory",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\ui.jsonl",
+        "--raw-output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\raw\\authority-source.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\authority.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories\\authority-reconciliation.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "4ECD07DB99CF312B34A501CBAB0E2DC5AC4FDDF8ACDFA6138FA3C4D9AE44AE50",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 1769.0
+    },
+    {
+      "label": "run-a-graph",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "build-graph",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\graph.jsonl"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "671B63EB364F9A7C915DAB23CD4D7C7C21F120E1421FFF9C74DF3A5A60B56229",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 122356.0
+    },
+    {
+      "label": "run-a-coverage-expected-fatal",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "audit",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\graph.jsonl",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\coverage.json"
+      ],
+      "exitCode": 1,
+      "expectedExitCodes": [
+        1
+      ],
+      "stdoutSha256": "811E6B9799CC09D98734C8A583026C13B87A10A133F1F026C87809467B2DCC60",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 126906.0
+    },
+    {
+      "label": "run-a-domains",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "package-domains",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\graph.jsonl",
+        "--coverage",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\coverage.json",
+        "--domains",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\domains"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "08AC970D61689D45D8EEB91E9762115631A875AA9C6F84DB3A48B245BA6EDF91",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 102817.0
+    },
+    {
+      "label": "run-a-work-packages",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "build-work-packages",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\graph.jsonl",
+        "--coverage",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\coverage.json",
+        "--domains",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
+        "--domain-packages",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\domains",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\domain-plan-inputs.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "A5072C99B10EA897C1BAE5FB9AA9941C5664059D3D4B09A6B6BA297AE52E07B3",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 140179.0
+    },
+    {
+      "label": "run-a-recovery",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.recovery",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\inventories",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\graph.jsonl",
+        "--coverage",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\coverage.json",
+        "--sources",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--domain-config",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
+        "--domain-packages",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\domains",
+        "--character-boundary",
+        "E:\\logh7-greenfield\\docs\\new-design\\2026-08-27-original-character-roster-recovery-boundary.md",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-a\\recovery.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "1677C88A1C47D7C35033F5610E1FEEC2ABAD77AED5003B7270AFCB86910E7957",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 110718.0
+    },
+    {
+      "label": "run-b-protocol",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_protocol",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\protocol.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\protocol-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\protocol-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "6BEBB48DF7C1F4A2DE7B8A45E7C6D56593F3FDCCA0F14277DAC37B8580967A53",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 2247.0
+    },
+    {
+      "label": "run-b-ui",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_ui",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\ui.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\ui-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\ui-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "E4E765E00C592948987101DB063071F3C5692360096E728D212D5714ABD12E21",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 2167.0
+    },
+    {
+      "label": "run-b-entities",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_entities",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\entities.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\entities-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\records-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "E817F92BE4E66D6F01E37D7A2609AA83D870A38DCE88AEE9F914F1113BBBC8E3",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 2261.0
+    },
+    {
+      "label": "run-b-resources",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_resources",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\resources.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\resources-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\resources-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--adjudications",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\adjudications\\resources.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "1D33C0551541305B2322F32903235A5A326297C4DC59647C88EEAAF113A2C7AD",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 3181.0
+    },
+    {
+      "label": "run-b-functions",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_functions",
+        "--input",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-ghidra.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\functions.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\functions-reconciliation.json",
+        "--evidence-manifest",
+        "E:\\logh7-greenfield\\evidence\\exhaustive-trace\\raw\\functions-evidence-manifest.json",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "1E177B3155F33D651FECA1A55A8EDEEA7681EA21D19E750B5334CDE6861C4E75",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 115138.0
+    },
+    {
+      "label": "run-b-authority",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.import_authority",
+        "--server",
+        "E:\\logh7-greenfield\\apps\\server",
+        "--contracts",
+        "E:\\logh7-greenfield\\contracts",
+        "--db",
+        "E:\\logh7-greenfield\\db",
+        "--protocol-inventory",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\protocol.jsonl",
+        "--entity-inventory",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\entities.jsonl",
+        "--ui-inventory",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\ui.jsonl",
+        "--raw-output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\raw\\authority-source.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\authority.jsonl",
+        "--reconciliation",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories\\authority-reconciliation.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "4ECD07DB99CF312B34A501CBAB0E2DC5AC4FDDF8ACDFA6138FA3C4D9AE44AE50",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 1737.0
+    },
+    {
+      "label": "run-b-graph",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "build-graph",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\graph.jsonl"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "86D373B795B1F95D868991E0559C6F699110768399A8B71D03D3CC65BA32A57C",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 122326.0
+    },
+    {
+      "label": "run-b-coverage-expected-fatal",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "audit",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\graph.jsonl",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\coverage.json"
+      ],
+      "exitCode": 1,
+      "expectedExitCodes": [
+        1
+      ],
+      "stdoutSha256": "730618CF015E480276BB9D18D8D35FEA85AD0CECE79CB0D720001E098475D226",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 126412.0
+    },
+    {
+      "label": "run-b-domains",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "package-domains",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\graph.jsonl",
+        "--coverage",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\coverage.json",
+        "--domains",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\domains"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "21D20A55CBBCAA343E2F9C848DB5BFEC969FACE73B6F49B814CEEA5F388582E0",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 102902.0
+    },
+    {
+      "label": "run-b-work-packages",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.cli",
+        "build-work-packages",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories",
+        "--source-manifest",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\graph.jsonl",
+        "--coverage",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\coverage.json",
+        "--domains",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
+        "--domain-packages",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\domains",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\domain-plan-inputs.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "8204EBCFCE855ADB284C97B129DE0A23E80220D3A7327ECAB9BE434F0B0F36D5",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 144004.0
+    },
+    {
+      "label": "run-b-recovery",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.recovery",
+        "--inventories",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\inventories",
+        "--graph",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\graph.jsonl",
+        "--coverage",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\coverage.json",
+        "--sources",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\source-manifest.json",
+        "--domain-config",
+        "E:\\logh7-greenfield\\docs\\reverse-engineering\\exhaustive-trace\\domains.json",
+        "--domain-packages",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\domains",
+        "--character-boundary",
+        "E:\\logh7-greenfield\\docs\\new-design\\2026-08-27-original-character-roster-recovery-boundary.md",
+        "--output",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-foundation-8484754a8a704a5eb48beb83fbf4dbe7\\run-b\\recovery.json"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "254A2C220AF3CDE0058C5DB79F90ABE22B71FD487643ABD5A2CEF05CC0767622",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 110287.0
+    },
+    {
+      "label": "receipt-target-policy-final",
+      "argv": [
+        "C:\\Users\\user\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "tools.exhaustive_trace.foundation_verification",
+        "--project-root",
+        "E:\\logh7-greenfield",
+        "--default-receipt",
+        "E:\\logh7-greenfield\\work\\20260827-original-game-exhaustive-trace-foundation\\evidence\\foundation-verification.json",
+        "--receipt",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-g7mt-author-20260829-01.json",
+        "--temp-root",
+        "C:\\Users\\user\\AppData\\Local\\Temp\\"
+      ],
+      "exitCode": 0,
+      "expectedExitCodes": [
+        0
+      ],
+      "stdoutSha256": "363634779C84B25743883186229B78F9BD6B9C2DDB6563ACA41AB393516A8815",
+      "stderrSha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+      "durationMs": 84.0
+    }
+  ],
+  "protectedInputsBefore": {
+    "docs/new-design/2026-08-27-original-character-roster-recovery-boundary.md": "2D0D43C390322BF7693C4F01379F3CDC0A32D5C66D6AE805FA70DAFC7DC6C825",
+    "docs/reverse-engineering/exhaustive-trace/domains.json": "A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379",
+    "docs/reverse-engineering/exhaustive-trace/source-manifest.json": "128798534AEDBA4600EECDEFE5A8892030F36D6697901F36143CDECDBCC6B699",
+    "evidence/exhaustive-trace/adjudications/bootfirst-static-analysis.json": "CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+    "evidence/exhaustive-trace/adjudications/cd-manual-v1-static-analysis.json": "16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+    "evidence/exhaustive-trace/adjudications/g7mtclient-static-analysis.json": "0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+    "evidence/exhaustive-trace/adjudications/resources.json": "AE0C1ABF4DFA27B3A192A48DB9A90A2E0AEB608F1E87AD77689ABF955F4189BF",
+    "evidence/exhaustive-trace/adjudications/terms-of-service-static-analysis.json": "34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+    "evidence/exhaustive-trace/coverage.json": "C16E3F01B2AD844567A4E2B796D766BD8C1A913220C5EA23868CBA2488C42A2D",
+    "evidence/exhaustive-trace/domain-plan-inputs.json": "B1D0ADA9280071692CD59AED00E610F1E37FC51FA5F609CF39ABF6D1A7ACCE05",
+    "evidence/exhaustive-trace/domains/D01.json": "674304216A66C0173147FCE93F5861876E67A9B27A9C44F2DBCDBDEAAC3C7DF6",
+    "evidence/exhaustive-trace/domains/D02.json": "D295DB1546437333B0B64227FADA24FDB2C27CAEB4B9455AA886594FADA64F79",
+    "evidence/exhaustive-trace/domains/D03.json": "793F031F14E2E32E7F8EC7F354BE97D9CFF02B5179CE273D9784560A79778CF4",
+    "evidence/exhaustive-trace/domains/D04.json": "C07250A3CD9D931665252C62AA418B5274F68DC6D999BE68DB09D6553195C470",
+    "evidence/exhaustive-trace/domains/D05.json": "7BB51CD2C5F5FEA816C5F54DE013AB40AA111FB666AE68D3D95A985C4B56E789",
+    "evidence/exhaustive-trace/domains/D06.json": "8673A35050BB21A05189EC7C8B2E0B4B996EDFF6F8A44DF3B512AA88A5EED2C5",
+    "evidence/exhaustive-trace/domains/D07.json": "09B5B796573D61A5B9F90DF1C697CFB4C9EB0280A3907BFF073777A3FDF0C959",
+    "evidence/exhaustive-trace/domains/D08.json": "F4B3E2DFA90E2E65BA6D5C4466F284D048112AAD0788C89C63895008B51B1FBA",
+    "evidence/exhaustive-trace/domains/D09.json": "E90C66BF693EB49FB55F48ED51854FDFC73ADD7A614AC31FD61D73833B673B66",
+    "evidence/exhaustive-trace/domains/D10.json": "EEDD899555A63EA464B35B0E6F9B8D4FD0A0A4FC754F47FB37483B087324EA24",
+    "evidence/exhaustive-trace/domains/D11.json": "E161173C1ABC04970A90E23CBF96394F8A37B9CDA2BF6F8D6650DB341EC42DCE",
+    "evidence/exhaustive-trace/domains/D12.json": "F6C3C3C533A78B3829288FCA4A900A5B6FBABF26EA900F07DAB23617D56D2B0F",
+    "evidence/exhaustive-trace/domains/D13.json": "C14063FCBC22869E04F2194967CE32636D2332D1AE4D239D03E3C407C9F88252",
+    "evidence/exhaustive-trace/domains/D14.json": "7143FFD38018005CDC409C9217906B7DE7B7A46E7F56F7DBD94D66CDBDADD9C2",
+    "evidence/exhaustive-trace/domains/D15.json": "2CC46C89A51C8C2C1FCFE7780D1EB82EDB59084776B96CE933263A6EB8806493",
+    "evidence/exhaustive-trace/domains/D16.json": "18B6A54B54441F98BC0DBD741EE277006D7E5EEEF88141C28801D625E67CA5BF",
+    "evidence/exhaustive-trace/graph.jsonl": "1A79D1F7EBC148B7ED1CCFBE44EB7859E0DBB7B5F8A41FCDBCFFFF2F33EABCB7",
+    "evidence/exhaustive-trace/inventories/authority-reconciliation.json": "0CADDAA2E6AC49725E486503342F747BE798C44A06675591629F356748B03883",
+    "evidence/exhaustive-trace/inventories/authority.jsonl": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
+    "evidence/exhaustive-trace/inventories/entities-reconciliation.json": "A97131D798CB442569A98D09763A8ED0F926D2546091E3BAE118881449699590",
+    "evidence/exhaustive-trace/inventories/entities.jsonl": "8098D33494FB90911140DB3C98F3F1911A72C112C3CD2956E17EBDC1D2FD41BF",
+    "evidence/exhaustive-trace/inventories/functions-reconciliation.json": "BC89C232F5CDE0BABC956CBAF4865AD9B580576A2C3BA2FB94B77C62A163F925",
+    "evidence/exhaustive-trace/inventories/functions.jsonl": "C2E00EF626EB6D2D72068EC6325A0E8EE192E38FBFF74B00EAF20D089CF96C8A",
+    "evidence/exhaustive-trace/inventories/protocol-reconciliation.json": "50F8CF377D6CDBFAA3C433616A56E0268379FFE7B7F6722CED2C6912B676336C",
+    "evidence/exhaustive-trace/inventories/protocol.jsonl": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
+    "evidence/exhaustive-trace/inventories/resources-reconciliation.json": "733EEA67581052C4CB8B1FCDB92F615D1C38151B1206C628BF759A1ECC25DD24",
+    "evidence/exhaustive-trace/inventories/resources.jsonl": "1BD459CD1E7B4BAA0362D5CBB9AF2C8A5B8BAD85D07963B908612000B6F7165B",
+    "evidence/exhaustive-trace/inventories/ui-reconciliation.json": "9642B8D2B48D1078941F411DDD23C92DDD05B9493A0FA427D61D7606F93FBC7D",
+    "evidence/exhaustive-trace/inventories/ui.jsonl": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
+    "evidence/exhaustive-trace/raw/authority-source.json": "3B4412EDA0F87DCAA34D58E76F252AB5A62571710D8408FE6A85FC3909A512B5",
+    "evidence/exhaustive-trace/raw/entity-catalog-candidates.json": "E2C82441A07E15AF68605B43E255252CF94937F3F6368743EDB7FC2F4AC2B903",
+    "evidence/exhaustive-trace/raw/functions-evidence-manifest.json": "AC4BFE5AAEF89126B756E336546FD350762A7C363C901187D0B2D6C722C16CE6",
+    "evidence/exhaustive-trace/raw/functions-ghidra.json": "9CA2DF2D5E43CAEEE47324D776B5A359B09E060358DA964D7901B69C5D9EC6A1",
+    "evidence/exhaustive-trace/raw/pe-imports.json": "E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE",
+    "evidence/exhaustive-trace/raw/protocol-evidence-manifest.json": "52B2E991179E7622EC3B0132AEB871833761B9C9BF91391DD982AD14641E8A41",
+    "evidence/exhaustive-trace/raw/protocol-ghidra.json": "00E568BC71A37907D9F6CB5981511E46F921529D28F0339A44968F68A1F2F30E",
+    "evidence/exhaustive-trace/raw/records-evidence-manifest.json": "1E888ED3D62E55A60DBDFA2119140F74E3E176DDBEB4CE0063FD0D8F4B7F1FD8",
+    "evidence/exhaustive-trace/raw/records-ghidra.json": "5C4136A1C789EA594A9C1F8BF7439AFBEF37DB689CFEBBF0B0E021C254F209C0",
+    "evidence/exhaustive-trace/raw/resources-evidence-manifest.json": "65DB4BF143DB64363CE0583E76A7F08315699DC20DA97BCFF4A464E59A45B4F3",
+    "evidence/exhaustive-trace/raw/resources-ghidra.json": "F6AEF134697B8418526FE315A046EF3D42432B95AAAFF9BDF8C90032CD57D0B2",
+    "evidence/exhaustive-trace/raw/ui-evidence-manifest.json": "C9CC02DD7CE806AC21CA493660B913C647C562AADA524C1028356F21684CBBDB",
+    "evidence/exhaustive-trace/raw/ui-ghidra.json": "A1B96D615294A6285F4F7E6FDC807218CD9729179BBE8D8FD39255E5F9DCD6F0",
+    "evidence/exhaustive-trace/recovery.json": "7AA1C191123ECE238EB9984A40D4212F636A5238D8CF7F23F82F40476F5A4056",
+    "evidence/installshield-extract/____________s___/____/bootfirst.exe": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+    "evidence/installshield-extract/____________s___/____/doc/___p_`_v_}_j___a__.pdf": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+    "evidence/installshield-extract/____________s___/____/doc/___p_`vii___p_k__.txt": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+    "evidence/installshield-extract/____________s___/____/exe/g7mtclient.exe": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "evidence/installshield-extract/____________s___/____/gin7updateclient.exe": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+    "evidence/installshield-extract/_support_language_independent_os_independent_files/license.txt": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+    "tests/tools/exhaustive_trace/test_authority_importer.py": "94335A69759BFAA6417D7FCBA8E562627A3EEDBD1F2C04B05E7790B2C1B97165",
+    "tests/tools/exhaustive_trace/test_cli.py": "1C0E965735EBE0D50916119FBFD101DAB8DE8714F9380C803EB9A26EFFC6FD28",
+    "tests/tools/exhaustive_trace/test_coverage.py": "C3E4C2599AED370FAC26B5A33ACDC7FB4555F2128DFC0D71593BADC4251E3822",
+    "tests/tools/exhaustive_trace/test_domains.py": "9A2D22566023D5C886C763E3A407F20A634BCF51373337C08160C7E37020F766",
+    "tests/tools/exhaustive_trace/test_entity_importer.py": "4E8B264A3A313E3A06AAF85269C767CCD544CAB2539502084DA2B2427F39AC37",
+    "tests/tools/exhaustive_trace/test_foundation_verification.py": "357BEAEBACD7E8E7AEABB5C496B516D9D6D2668246D7A52E9AFC3FE1FB2F4326",
+    "tests/tools/exhaustive_trace/test_function_importer.py": "A7AA1EACDFA290165DBD9A414141A55F2C3D52327A67F1EDC85B0D01984294E8",
+    "tests/tools/exhaustive_trace/test_graph_cli.py": "6C45AF049DD21FA2C249ADEAFB6B4EB89D9B1246931AF0F024B6CDA93878D331",
+    "tests/tools/exhaustive_trace/test_graph.py": "34CA8B348958DE456D4243C01B232814BE6F88B49DCFA65027AFCA9CAB9A7A9A",
+    "tests/tools/exhaustive_trace/test_importers.py": "CC095E156D26F03735993AA30CF4272EDF1A3CDEB11B072E075B95A05A0C8D1B",
+    "tests/tools/exhaustive_trace/test_model.py": "5AFD2F18BFCA479443A12D2F5B6D855EA988408B97E0FD100870E045DE1C9EB4",
+    "tests/tools/exhaustive_trace/test_recovery.py": "C8DD2390D159B592B1A1DEA074AAF671405C142C00FF566A84345D2D4B15FF9A",
+    "tests/tools/exhaustive_trace/test_resource_importer.py": "172CFC76F0B011C764545E7AF125701B518F1EFB97DD14D77B8E200E3B82EE1F",
+    "tests/tools/exhaustive_trace/test_source_manifest.py": "2BF7D4A1980A2455927C8A81D983327E3842E934733F411152EF9E0FEF6FE6F4",
+    "tests/tools/exhaustive_trace/test_ui_importer.py": "F3ADD79DB290DC9972052FBCA399399EB5C87DA16229038C3B3CC573651D4438",
+    "tests/tools/exhaustive_trace/test_work_packages.py": "41316A8F1797D1EEA8F1F73BE35B368989DDA35D899CC9F09A15EAD42A8BC936",
+    "tools/exhaustive_trace/__init__.py": "C88370333C919F0281B25BDACC6F5D9030BDF9FECFA2601846BA871848EC1DDF",
+    "tools/exhaustive_trace/build_pe_imports.py": "F6B0F0D83477E0826300E42938B73731C45740EBEB82D97685334B6856292BDA",
+    "tools/exhaustive_trace/cli.py": "09A8E5BABF4B1B121BBDC99338DC2A8AED91B57AF06EA5E199180D958B5F223F",
+    "tools/exhaustive_trace/coverage.py": "0E6909796EA37C21D57E6BE2280C2AC6185E86CF92F653BA1E4FB9BF959EDF6A",
+    "tools/exhaustive_trace/domains.py": "73291E991AFF66ADF0BBBB00444718B3ACD0C8C281D6AC8A7660D7A0318D9671",
+    "tools/exhaustive_trace/foundation_verification.py": "88704881AEFEE6448FE648FCF9A5E32541593911377856ACBA31041C2DF500CA",
+    "tools/exhaustive_trace/graph.py": "48E5BD916EE9EF4016E2FF1280417B446F77939955DCD47A0F71A9B829BE0155",
+    "tools/exhaustive_trace/import_authority.py": "7C3B5DD11C5EF80BE4E512FF6C41D4E9312F632F5E1E726AB50E307E33C000A7",
+    "tools/exhaustive_trace/import_entities.py": "14B80C6868E894886E99295D65152F15863AD581BCEF1906CB56EF5C6359EC80",
+    "tools/exhaustive_trace/import_functions.py": "1E76E8F8605B1565B78099C6D0723052F26F7272C357C38C24DF931AFC16F2E1",
+    "tools/exhaustive_trace/import_protocol.py": "F82E11F09088B862844DA3F1B3DFDEB4309D0A83AD8138B7EB43635987BBADF2",
+    "tools/exhaustive_trace/import_resources.py": "4D232A2C992E44ED0D064478D6D15CE6F8BFBBA8B0978A8B6A52CACFF4D74558",
+    "tools/exhaustive_trace/import_ui.py": "CBB7F4F06477C5B5203A4504BAEB48AC13FEEA415AF466121AFA0BF22CE60483",
+    "tools/exhaustive_trace/inventories.py": "123BFF66869DE9A4549C22EFB78C125EABA4B3C7FEA66DD804AE7F89565F2364",
+    "tools/exhaustive_trace/io.py": "711D9F0F457EEA2DB714A8DA33C0671F200EC38739B1F59A8E306FBBF72FDA56",
+    "tools/exhaustive_trace/model.py": "D2237ED4D30F60D8986515929502F37C3385D9E32FA9FA8A57BF81BE55BD96D8",
+    "tools/exhaustive_trace/recovery.py": "6CED6C0B70370CE58B17A528ADABFDB2C9985E8F99A9B465AEFFFF9F7D6D9DDD",
+    "tools/exhaustive_trace/source_manifest.py": "CE466130E8EF24ABE6D6AD7FE2DDA8B4084B3A423B10EDD10F15F8F22C806075",
+    "tools/exhaustive_trace/work_packages.py": "56FFF04E669B2E1214A04CDCE9977494F0C27406DD9AE6FD851947FA47C5EB0C",
+    "work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1": "2C3490092F4C97B69BF159DD986C85DCF350A5F99681A2EA923C3257A1D5AB30",
+    "work/20260828-bootfirst-resource-loader/evidence/bootfirst-flow.txt": "BF48F72407EEAD223A4017AC991ECAE01C3AB9E4F8F44F5ED00F61315FD92A06",
+    "work/20260828-bootfirst-resource-loader/ExportBootFirstFlow.java": "DB99864A5AF34DD888092F42E73094BDF8E664C4E68261F68E31E50AEAC54DD5",
+    "work/20260828-cd-manual-resource-loader/InspectCdManual.py": "4F55234F6BDF22A2AA24C99818CD0D064E35E9F878560B37420EA4879C3EC1CC",
+    "work/20260829-g7mtclient-resource-loader/InspectG7MTClient.py": "E26FD5E829A42E5731C1ABD4A1046CDEFBA1288821D5CC30733F1B57F122C691",
+    "work/20260829-original-terms-resource-loader/InspectTermsDocument.py": "ECC8D8B70463E4895BB66B13ECAA004BFBCD91421C093CC207C543227E42CD33",
+    "../logh7-vm-media/LOGH7-original-cd.iso": "375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22"
+  },
+  "protectedInputsAfter": {
+    "docs/new-design/2026-08-27-original-character-roster-recovery-boundary.md": "2D0D43C390322BF7693C4F01379F3CDC0A32D5C66D6AE805FA70DAFC7DC6C825",
+    "docs/reverse-engineering/exhaustive-trace/domains.json": "A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379",
+    "docs/reverse-engineering/exhaustive-trace/source-manifest.json": "128798534AEDBA4600EECDEFE5A8892030F36D6697901F36143CDECDBCC6B699",
+    "evidence/exhaustive-trace/adjudications/bootfirst-static-analysis.json": "CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+    "evidence/exhaustive-trace/adjudications/cd-manual-v1-static-analysis.json": "16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+    "evidence/exhaustive-trace/adjudications/g7mtclient-static-analysis.json": "0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+    "evidence/exhaustive-trace/adjudications/resources.json": "AE0C1ABF4DFA27B3A192A48DB9A90A2E0AEB608F1E87AD77689ABF955F4189BF",
+    "evidence/exhaustive-trace/adjudications/terms-of-service-static-analysis.json": "34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+    "evidence/exhaustive-trace/coverage.json": "C16E3F01B2AD844567A4E2B796D766BD8C1A913220C5EA23868CBA2488C42A2D",
+    "evidence/exhaustive-trace/domain-plan-inputs.json": "B1D0ADA9280071692CD59AED00E610F1E37FC51FA5F609CF39ABF6D1A7ACCE05",
+    "evidence/exhaustive-trace/domains/D01.json": "674304216A66C0173147FCE93F5861876E67A9B27A9C44F2DBCDBDEAAC3C7DF6",
+    "evidence/exhaustive-trace/domains/D02.json": "D295DB1546437333B0B64227FADA24FDB2C27CAEB4B9455AA886594FADA64F79",
+    "evidence/exhaustive-trace/domains/D03.json": "793F031F14E2E32E7F8EC7F354BE97D9CFF02B5179CE273D9784560A79778CF4",
+    "evidence/exhaustive-trace/domains/D04.json": "C07250A3CD9D931665252C62AA418B5274F68DC6D999BE68DB09D6553195C470",
+    "evidence/exhaustive-trace/domains/D05.json": "7BB51CD2C5F5FEA816C5F54DE013AB40AA111FB666AE68D3D95A985C4B56E789",
+    "evidence/exhaustive-trace/domains/D06.json": "8673A35050BB21A05189EC7C8B2E0B4B996EDFF6F8A44DF3B512AA88A5EED2C5",
+    "evidence/exhaustive-trace/domains/D07.json": "09B5B796573D61A5B9F90DF1C697CFB4C9EB0280A3907BFF073777A3FDF0C959",
+    "evidence/exhaustive-trace/domains/D08.json": "F4B3E2DFA90E2E65BA6D5C4466F284D048112AAD0788C89C63895008B51B1FBA",
+    "evidence/exhaustive-trace/domains/D09.json": "E90C66BF693EB49FB55F48ED51854FDFC73ADD7A614AC31FD61D73833B673B66",
+    "evidence/exhaustive-trace/domains/D10.json": "EEDD899555A63EA464B35B0E6F9B8D4FD0A0A4FC754F47FB37483B087324EA24",
+    "evidence/exhaustive-trace/domains/D11.json": "E161173C1ABC04970A90E23CBF96394F8A37B9CDA2BF6F8D6650DB341EC42DCE",
+    "evidence/exhaustive-trace/domains/D12.json": "F6C3C3C533A78B3829288FCA4A900A5B6FBABF26EA900F07DAB23617D56D2B0F",
+    "evidence/exhaustive-trace/domains/D13.json": "C14063FCBC22869E04F2194967CE32636D2332D1AE4D239D03E3C407C9F88252",
+    "evidence/exhaustive-trace/domains/D14.json": "7143FFD38018005CDC409C9217906B7DE7B7A46E7F56F7DBD94D66CDBDADD9C2",
+    "evidence/exhaustive-trace/domains/D15.json": "2CC46C89A51C8C2C1FCFE7780D1EB82EDB59084776B96CE933263A6EB8806493",
+    "evidence/exhaustive-trace/domains/D16.json": "18B6A54B54441F98BC0DBD741EE277006D7E5EEEF88141C28801D625E67CA5BF",
+    "evidence/exhaustive-trace/graph.jsonl": "1A79D1F7EBC148B7ED1CCFBE44EB7859E0DBB7B5F8A41FCDBCFFFF2F33EABCB7",
+    "evidence/exhaustive-trace/inventories/authority-reconciliation.json": "0CADDAA2E6AC49725E486503342F747BE798C44A06675591629F356748B03883",
+    "evidence/exhaustive-trace/inventories/authority.jsonl": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
+    "evidence/exhaustive-trace/inventories/entities-reconciliation.json": "A97131D798CB442569A98D09763A8ED0F926D2546091E3BAE118881449699590",
+    "evidence/exhaustive-trace/inventories/entities.jsonl": "8098D33494FB90911140DB3C98F3F1911A72C112C3CD2956E17EBDC1D2FD41BF",
+    "evidence/exhaustive-trace/inventories/functions-reconciliation.json": "BC89C232F5CDE0BABC956CBAF4865AD9B580576A2C3BA2FB94B77C62A163F925",
+    "evidence/exhaustive-trace/inventories/functions.jsonl": "C2E00EF626EB6D2D72068EC6325A0E8EE192E38FBFF74B00EAF20D089CF96C8A",
+    "evidence/exhaustive-trace/inventories/protocol-reconciliation.json": "50F8CF377D6CDBFAA3C433616A56E0268379FFE7B7F6722CED2C6912B676336C",
+    "evidence/exhaustive-trace/inventories/protocol.jsonl": "D0DDF8161FBEB51E2D21F8FD908467E143C320FC04DDBA1CBDE955D7A05C8099",
+    "evidence/exhaustive-trace/inventories/resources-reconciliation.json": "733EEA67581052C4CB8B1FCDB92F615D1C38151B1206C628BF759A1ECC25DD24",
+    "evidence/exhaustive-trace/inventories/resources.jsonl": "1BD459CD1E7B4BAA0362D5CBB9AF2C8A5B8BAD85D07963B908612000B6F7165B",
+    "evidence/exhaustive-trace/inventories/ui-reconciliation.json": "9642B8D2B48D1078941F411DDD23C92DDD05B9493A0FA427D61D7606F93FBC7D",
+    "evidence/exhaustive-trace/inventories/ui.jsonl": "ABEF095BC686F8F40E203E1068839BA3D3F38E3B969E1DBBDB4AAD6D79572D1E",
+    "evidence/exhaustive-trace/raw/authority-source.json": "3B4412EDA0F87DCAA34D58E76F252AB5A62571710D8408FE6A85FC3909A512B5",
+    "evidence/exhaustive-trace/raw/entity-catalog-candidates.json": "E2C82441A07E15AF68605B43E255252CF94937F3F6368743EDB7FC2F4AC2B903",
+    "evidence/exhaustive-trace/raw/functions-evidence-manifest.json": "AC4BFE5AAEF89126B756E336546FD350762A7C363C901187D0B2D6C722C16CE6",
+    "evidence/exhaustive-trace/raw/functions-ghidra.json": "9CA2DF2D5E43CAEEE47324D776B5A359B09E060358DA964D7901B69C5D9EC6A1",
+    "evidence/exhaustive-trace/raw/pe-imports.json": "E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE",
+    "evidence/exhaustive-trace/raw/protocol-evidence-manifest.json": "52B2E991179E7622EC3B0132AEB871833761B9C9BF91391DD982AD14641E8A41",
+    "evidence/exhaustive-trace/raw/protocol-ghidra.json": "00E568BC71A37907D9F6CB5981511E46F921529D28F0339A44968F68A1F2F30E",
+    "evidence/exhaustive-trace/raw/records-evidence-manifest.json": "1E888ED3D62E55A60DBDFA2119140F74E3E176DDBEB4CE0063FD0D8F4B7F1FD8",
+    "evidence/exhaustive-trace/raw/records-ghidra.json": "5C4136A1C789EA594A9C1F8BF7439AFBEF37DB689CFEBBF0B0E021C254F209C0",
+    "evidence/exhaustive-trace/raw/resources-evidence-manifest.json": "65DB4BF143DB64363CE0583E76A7F08315699DC20DA97BCFF4A464E59A45B4F3",
+    "evidence/exhaustive-trace/raw/resources-ghidra.json": "F6AEF134697B8418526FE315A046EF3D42432B95AAAFF9BDF8C90032CD57D0B2",
+    "evidence/exhaustive-trace/raw/ui-evidence-manifest.json": "C9CC02DD7CE806AC21CA493660B913C647C562AADA524C1028356F21684CBBDB",
+    "evidence/exhaustive-trace/raw/ui-ghidra.json": "A1B96D615294A6285F4F7E6FDC807218CD9729179BBE8D8FD39255E5F9DCD6F0",
+    "evidence/exhaustive-trace/recovery.json": "7AA1C191123ECE238EB9984A40D4212F636A5238D8CF7F23F82F40476F5A4056",
+    "evidence/installshield-extract/____________s___/____/bootfirst.exe": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+    "evidence/installshield-extract/____________s___/____/doc/___p_`_v_}_j___a__.pdf": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+    "evidence/installshield-extract/____________s___/____/doc/___p_`vii___p_k__.txt": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+    "evidence/installshield-extract/____________s___/____/exe/g7mtclient.exe": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "evidence/installshield-extract/____________s___/____/gin7updateclient.exe": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+    "evidence/installshield-extract/_support_language_independent_os_independent_files/license.txt": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+    "tests/tools/exhaustive_trace/test_authority_importer.py": "94335A69759BFAA6417D7FCBA8E562627A3EEDBD1F2C04B05E7790B2C1B97165",
+    "tests/tools/exhaustive_trace/test_cli.py": "1C0E965735EBE0D50916119FBFD101DAB8DE8714F9380C803EB9A26EFFC6FD28",
+    "tests/tools/exhaustive_trace/test_coverage.py": "C3E4C2599AED370FAC26B5A33ACDC7FB4555F2128DFC0D71593BADC4251E3822",
+    "tests/tools/exhaustive_trace/test_domains.py": "9A2D22566023D5C886C763E3A407F20A634BCF51373337C08160C7E37020F766",
+    "tests/tools/exhaustive_trace/test_entity_importer.py": "4E8B264A3A313E3A06AAF85269C767CCD544CAB2539502084DA2B2427F39AC37",
+    "tests/tools/exhaustive_trace/test_foundation_verification.py": "357BEAEBACD7E8E7AEABB5C496B516D9D6D2668246D7A52E9AFC3FE1FB2F4326",
+    "tests/tools/exhaustive_trace/test_function_importer.py": "A7AA1EACDFA290165DBD9A414141A55F2C3D52327A67F1EDC85B0D01984294E8",
+    "tests/tools/exhaustive_trace/test_graph_cli.py": "6C45AF049DD21FA2C249ADEAFB6B4EB89D9B1246931AF0F024B6CDA93878D331",
+    "tests/tools/exhaustive_trace/test_graph.py": "34CA8B348958DE456D4243C01B232814BE6F88B49DCFA65027AFCA9CAB9A7A9A",
+    "tests/tools/exhaustive_trace/test_importers.py": "CC095E156D26F03735993AA30CF4272EDF1A3CDEB11B072E075B95A05A0C8D1B",
+    "tests/tools/exhaustive_trace/test_model.py": "5AFD2F18BFCA479443A12D2F5B6D855EA988408B97E0FD100870E045DE1C9EB4",
+    "tests/tools/exhaustive_trace/test_recovery.py": "C8DD2390D159B592B1A1DEA074AAF671405C142C00FF566A84345D2D4B15FF9A",
+    "tests/tools/exhaustive_trace/test_resource_importer.py": "172CFC76F0B011C764545E7AF125701B518F1EFB97DD14D77B8E200E3B82EE1F",
+    "tests/tools/exhaustive_trace/test_source_manifest.py": "2BF7D4A1980A2455927C8A81D983327E3842E934733F411152EF9E0FEF6FE6F4",
+    "tests/tools/exhaustive_trace/test_ui_importer.py": "F3ADD79DB290DC9972052FBCA399399EB5C87DA16229038C3B3CC573651D4438",
+    "tests/tools/exhaustive_trace/test_work_packages.py": "41316A8F1797D1EEA8F1F73BE35B368989DDA35D899CC9F09A15EAD42A8BC936",
+    "tools/exhaustive_trace/__init__.py": "C88370333C919F0281B25BDACC6F5D9030BDF9FECFA2601846BA871848EC1DDF",
+    "tools/exhaustive_trace/build_pe_imports.py": "F6B0F0D83477E0826300E42938B73731C45740EBEB82D97685334B6856292BDA",
+    "tools/exhaustive_trace/cli.py": "09A8E5BABF4B1B121BBDC99338DC2A8AED91B57AF06EA5E199180D958B5F223F",
+    "tools/exhaustive_trace/coverage.py": "0E6909796EA37C21D57E6BE2280C2AC6185E86CF92F653BA1E4FB9BF959EDF6A",
+    "tools/exhaustive_trace/domains.py": "73291E991AFF66ADF0BBBB00444718B3ACD0C8C281D6AC8A7660D7A0318D9671",
+    "tools/exhaustive_trace/foundation_verification.py": "88704881AEFEE6448FE648FCF9A5E32541593911377856ACBA31041C2DF500CA",
+    "tools/exhaustive_trace/graph.py": "48E5BD916EE9EF4016E2FF1280417B446F77939955DCD47A0F71A9B829BE0155",
+    "tools/exhaustive_trace/import_authority.py": "7C3B5DD11C5EF80BE4E512FF6C41D4E9312F632F5E1E726AB50E307E33C000A7",
+    "tools/exhaustive_trace/import_entities.py": "14B80C6868E894886E99295D65152F15863AD581BCEF1906CB56EF5C6359EC80",
+    "tools/exhaustive_trace/import_functions.py": "1E76E8F8605B1565B78099C6D0723052F26F7272C357C38C24DF931AFC16F2E1",
+    "tools/exhaustive_trace/import_protocol.py": "F82E11F09088B862844DA3F1B3DFDEB4309D0A83AD8138B7EB43635987BBADF2",
+    "tools/exhaustive_trace/import_resources.py": "4D232A2C992E44ED0D064478D6D15CE6F8BFBBA8B0978A8B6A52CACFF4D74558",
+    "tools/exhaustive_trace/import_ui.py": "CBB7F4F06477C5B5203A4504BAEB48AC13FEEA415AF466121AFA0BF22CE60483",
+    "tools/exhaustive_trace/inventories.py": "123BFF66869DE9A4549C22EFB78C125EABA4B3C7FEA66DD804AE7F89565F2364",
+    "tools/exhaustive_trace/io.py": "711D9F0F457EEA2DB714A8DA33C0671F200EC38739B1F59A8E306FBBF72FDA56",
+    "tools/exhaustive_trace/model.py": "D2237ED4D30F60D8986515929502F37C3385D9E32FA9FA8A57BF81BE55BD96D8",
+    "tools/exhaustive_trace/recovery.py": "6CED6C0B70370CE58B17A528ADABFDB2C9985E8F99A9B465AEFFFF9F7D6D9DDD",
+    "tools/exhaustive_trace/source_manifest.py": "CE466130E8EF24ABE6D6AD7FE2DDA8B4084B3A423B10EDD10F15F8F22C806075",
+    "tools/exhaustive_trace/work_packages.py": "56FFF04E669B2E1214A04CDCE9977494F0C27406DD9AE6FD851947FA47C5EB0C",
+    "work/20260827-original-game-exhaustive-trace-foundation/evidence/verify-foundation.ps1": "2C3490092F4C97B69BF159DD986C85DCF350A5F99681A2EA923C3257A1D5AB30",
+    "work/20260828-bootfirst-resource-loader/evidence/bootfirst-flow.txt": "BF48F72407EEAD223A4017AC991ECAE01C3AB9E4F8F44F5ED00F61315FD92A06",
+    "work/20260828-bootfirst-resource-loader/ExportBootFirstFlow.java": "DB99864A5AF34DD888092F42E73094BDF8E664C4E68261F68E31E50AEAC54DD5",
+    "work/20260828-cd-manual-resource-loader/InspectCdManual.py": "4F55234F6BDF22A2AA24C99818CD0D064E35E9F878560B37420EA4879C3EC1CC",
+    "work/20260829-g7mtclient-resource-loader/InspectG7MTClient.py": "E26FD5E829A42E5731C1ABD4A1046CDEFBA1288821D5CC30733F1B57F122C691",
+    "work/20260829-original-terms-resource-loader/InspectTermsDocument.py": "ECC8D8B70463E4895BB66B13ECAA004BFBCD91421C093CC207C543227E42CD33",
+    "../logh7-vm-media/LOGH7-original-cd.iso": "375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22"
+  },
+  "sourceTreesBefore": {
+    "server": "01BA4719C80B6FE911B091A7C05124B64EEECE964E09C058EF8F9805DACA546B",
+    "contracts": "01BA4719C80B6FE911B091A7C05124B64EEECE964E09C058EF8F9805DACA546B",
+    "database": "0D0160BA2F6B0EF158CEBF3F216EB9E607D4B3E852339C2473284A36A56E2CA1"
+  },
+  "sourceTreesAfter": {
+    "server": "01BA4719C80B6FE911B091A7C05124B64EEECE964E09C058EF8F9805DACA546B",
+    "contracts": "01BA4719C80B6FE911B091A7C05124B64EEECE964E09C058EF8F9805DACA546B",
+    "database": "0D0160BA2F6B0EF158CEBF3F216EB9E607D4B3E852339C2473284A36A56E2CA1"
+  },
+  "receiptTargetPolicy": {
+    "path": "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-g7mt-author-20260829-01.json",
+    "mode": "FRESH_SYSTEM_TEMP_CHILD",
+    "publication": "PYTHON_ATOMIC_NO_REPLACE_FOR_FRESH_OR_OS_REPLACE_FOR_DEFAULT"
+  }
+}

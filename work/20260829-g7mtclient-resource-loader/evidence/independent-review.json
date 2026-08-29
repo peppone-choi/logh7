@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "recordType": "INDEPENDENT_READ_ONLY_REVIEW",
+  "unitId": "RECOVERY:D01:RESOURCE_LOADER:E346F47C94A6E543",
+  "verdict": "APPROVE",
+  "blockingFindings": [],
+  "authorReceipt": {
+    "path": "work/20260829-g7mtclient-resource-loader/evidence/foundation-verification.json",
+    "sha256": "D02F1A4461916455BA1ADD2206F2C4DDFAEFACE376BC60AAAB53D670DE9296CE",
+    "testsDiscovered": 292,
+    "testsPassed": 292,
+    "deterministicArtifactCount": 32,
+    "protectedInputCount": 101,
+    "protectedMismatchCount": 0
+  },
+  "checks": {
+    "clientPeIdentity": "PASS",
+    "importsAndDynamicResolutionLimitation": "PASS",
+    "versionIdentity": "PASS",
+    "boundedPackingAssessment": "PASS",
+    "updaterDefaultLaunchCallflow": "PASS",
+    "configurationAndGateLimitsPreserved": "PASS",
+    "g7StartLaunchRemainsUnresolved": "PASS",
+    "processImageVsRuntimeAssetScope": "PASS",
+    "closedImporterSchema": "PASS",
+    "receiptAndStaticToolBinding": "PASS",
+    "loaderCandidateConflict": "PASS",
+    "graphDirectionAndCardinality": "PASS",
+    "noEvidenceStatePromotion": "PASS",
+    "checkedRunARunBCurrentIdentity": "PASS",
+    "protectedInputsBeforeAfterCurrentIdentity": "PASS",
+    "sourceTreesBeforeAfterIdentity": "PASS"
+  },
+  "conservation": {
+    "sourceRows": 15999,
+    "graphNodes": 35686,
+    "graphEdges": 92056,
+    "evidenceGaps": 25604,
+    "missingBoundaryOccurrences": 153596,
+    "fatalStructuralIds": [
+      "FEATURE_REACHABILITY_LEDGER_ABSENT"
+    ]
+  },
+  "targetRow": {
+    "key": "RESOURCE:FILE:original-installshield-payload:exe/g7mtclient.exe",
+    "loader": "NOT_APPLICABLE",
+    "trueStates": [
+      "ENUMERATED"
+    ],
+    "coverageFirstMissingBoundary": "RESOURCE_OWNER",
+    "nextSameRowUnit": "RECOVERY:D01:RESOURCE_OWNER:C03D5586366AB472"
+  },
+  "launchEdge": {
+    "source": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+    "relation": "LAUNCHES_PROCESS",
+    "target": "RESOURCE:FILE:original-installshield-payload:exe/g7mtclient.exe",
+    "count": 1,
+    "reverseCount": 0,
+    "assetLoadCount": 0,
+    "runtimeObservation": "UNSEEN"
+  },
+  "nextGlobalUnit": "RECOVERY:D01:RESOURCE_LOADER:627680C75CFF6DA7",
+  "reviewMode": {
+    "repositoryWrites": 0,
+    "executableRuns": 0,
+    "vmActions": 0,
+    "ghidraRuns": 0,
+    "serverProtocolDatabaseActions": 0
+  }
+}

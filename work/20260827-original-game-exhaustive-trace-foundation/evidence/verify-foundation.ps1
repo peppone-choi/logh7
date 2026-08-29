@@ -161,6 +161,7 @@ $cdManualPdf = Join-Path $projectRoot 'evidence\installshield-extract\__________
 $termsInspector = Join-Path $projectRoot "work\20260829-original-terms-resource-loader\InspectTermsDocument.py"
 $termsDocument = Join-Path $projectRoot 'evidence\installshield-extract\____________s___\____\doc\___p_`vii___p_k__.txt'
 $termsSupportLicense = Join-Path $projectRoot "evidence\installshield-extract\_support_language_independent_os_independent_files\license.txt"
+$g7mtClientInspector = Join-Path $projectRoot "work\20260829-g7mtclient-resource-loader\InspectG7MTClient.py"
 $originalCdIso = "E:\logh7-vm-media\LOGH7-original-cd.iso"
 $originalClientExe = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\exe\g7mtclient.exe"
 $bootFirstExe = Join-Path $projectRoot "evidence\installshield-extract\____________s___\____\bootfirst.exe"
@@ -309,6 +310,7 @@ foreach ($path in Get-ChildItem -LiteralPath $resourceAdjudicationDirectory -Fil
 foreach ($path in @($bootFirstExporter, $bootFirstFlow)) { $protectedFiles.Add($path) }
 foreach ($path in @(
     $cdManualInspector, $cdManualPdf, $termsInspector, $termsDocument, $termsSupportLicense,
+    $g7mtClientInspector,
     $originalCdIso,
     $originalClientExe, $bootFirstExe, $updateClientExe
 )) { $protectedFiles.Add($path) }
@@ -391,7 +393,7 @@ try {
         }
     }
     $firstUnit = $workPackages.recoveryUnits[0]
-    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:E346F47C94A6E543" $firstUnit.unitId "first unit"
+    Assert-Equal "RECOVERY:D01:RESOURCE_LOADER:627680C75CFF6DA7" $firstUnit.unitId "first unit"
     Assert-Equal 0 $workPackages.conservation.uncoveredOpenRowCount "uncovered recovery rows"
     Assert-Equal 0 $workPackages.conservation.confirmedGameplayFeatureCount "confirmed gameplay features"
     Assert-Equal 0 $workPackages.conservation.maxLiveInputCount "live input count"

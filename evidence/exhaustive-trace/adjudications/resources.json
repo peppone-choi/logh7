@@ -211,6 +211,89 @@
         "support-license-byte-identical-sha256:BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
         "inspector-sha256:ECC8D8B70463E4895BB66B13ECAA004BFBCD91421C093CC207C543227E42CD33"
       ]
+    },
+    {
+      "relativePosixPath": "exe/g7mtclient.exe",
+      "schemaVersion": 1,
+      "kind": "PE_PRIMARY_GAME_CLIENT_EXECUTABLE",
+      "contentSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+      "byteSize": 3956736,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PE32_X86_GUI_EXECUTABLE",
+        "machine": "0x014C",
+        "subsystem": 2,
+        "imageBase": "0x00400000",
+        "entryPointRva": "0x00201FBC",
+        "role": "ORIGINAL_PRIMARY_GAME_CLIENT",
+        "sectionCount": 5,
+        "importDescriptorCount": 19,
+        "importCount": 452,
+        "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+        "packingAssessment": "NOT_PACKED_BY_STATIC_INDICATORS",
+        "originalFilename": "G7MTClient.EXE",
+        "fileVersion": "1, 0, 0, 1",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/g7mtclient-static-analysis.json",
+        "receiptSha256": "0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+        "evidence": [
+          "g7mtclient-static-analysis-sha256:0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+          "pe-imports-sha256:E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE",
+          "version-original-filename:G7MTClient.EXE",
+          "version-file-version:1, 0, 0, 1"
+        ]
+      },
+      "processImage": {
+        "status": "PROVEN_STATIC_FORMAT",
+        "osLoader": "WINDOWS_PE_LOADER",
+        "target": "SELF_PROCESS_IMAGE",
+        "runtimeObservationStatus": "NOT_CLAIMED",
+        "evidence": [
+          "pe32-machine:0x014C",
+          "pe32-subsystem:WINDOWS_GUI",
+          "original-client-runtime-execution:NOT_CLAIMED_BY_STATIC_FORMAT"
+        ]
+      },
+      "inboundLaunch": {
+        "status": "PROVEN_STATIC_DEFAULT",
+        "launcherRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+        "launcherRelativePosixPath": "gin7updateclient.exe",
+        "launcherSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+        "api": "KERNEL32.dll::CreateProcessA",
+        "callsite": "0x004072C2",
+        "triggerCallsite": "0x004068A1",
+        "targetCommand": ".\\exe\\G7MTClient.exe",
+        "targetRelativePosixPath": "exe/g7mtclient.exe",
+        "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "g7StartLaunchStatus": "UNRESOLVED",
+        "evidence": [
+          "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",
+          "updater-default:WORK_DIR=.\\exe\\@0x0044A514",
+          "updater-trigger-call:0x004068A1",
+          "updater-CreateProcessA:0x004072C2",
+          "updater-config-override:POSSIBLE",
+          "updater-launch-gate-semantics:UNRESOLVED",
+          "runtime-launch-observation:UNSEEN"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PE is the primary G7MTClient process image loaded by the Windows PE loader and started by the updater's default CreateProcessA path. It is the consumer of game resources, not itself a model, image, audio, map, string, or data asset consumed by a G7MT runtime resource loader. Internal resource-loader functions and embedded PE resources remain separate evidence surfaces; actual launch, reachability, playability, and runtime state are not claimed.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:E346F47C94A6E543",
+          "g7mtclient-static-analysis-sha256:0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+          "os-loader:WINDOWS_PE_LOADER",
+          "updater-default-launch:PROVEN_STATIC_DEFAULT",
+          "runtime-launch:UNSEEN",
+          "original-client-playability:NOT_CLAIMED"
+        ]
+      },
+      "evidence": [
+        "tree-manifest:LOGH7/exe/g7mtclient.exe",
+        "original-payload-sha256:BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "installshield-filename:G7MTClient.exe@data1.hdr+0x00031764",
+        "inspector-sha256:E26FD5E829A42E5731C1ABD4A1046CDEFBA1288821D5CC30733F1B57F122C691"
+      ]
     }
   ]
 }

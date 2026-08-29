@@ -1,0 +1,239 @@
+{
+  "analysis": {
+    "entryPointRva": "0x00201FBC",
+    "fileVersion": "1, 0, 0, 1",
+    "format": "PE32_X86_GUI_EXECUTABLE",
+    "imageBase": "0x00400000",
+    "importCount": 452,
+    "importDescriptorCount": 19,
+    "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+    "machine": "0x014C",
+    "originalFilename": "G7MTClient.EXE",
+    "packingAssessment": "NOT_PACKED_BY_STATIC_INDICATORS",
+    "role": "ORIGINAL_PRIMARY_GAME_CLIENT",
+    "sectionCount": 5,
+    "subsystem": 2
+  },
+  "inboundLaunch": {
+    "api": "KERNEL32.dll::CreateProcessA",
+    "callsite": "0x004072C2",
+    "evidence": [
+      "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",
+      "updater-default:WORK_DIR=.\\exe\\@0x0044A514",
+      "updater-trigger-call:0x004068A1",
+      "updater-CreateProcessA:0x004072C2",
+      "updater-config-override:POSSIBLE",
+      "updater-launch-gate-semantics:UNRESOLVED",
+      "runtime-launch-observation:UNSEEN"
+    ],
+    "g7StartLaunchStatus": "UNRESOLVED",
+    "launcherRelativePosixPath": "gin7updateclient.exe",
+    "launcherRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+    "launcherSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+    "status": "PROVEN_STATIC_DEFAULT",
+    "targetCommand": ".\\exe\\G7MTClient.exe",
+    "targetRelativePosixPath": "exe/g7mtclient.exe",
+    "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "triggerCallsite": "0x004068A1"
+  },
+  "installshieldEvidence": {
+    "data1HdrRelativeOffset": "0x00031764",
+    "data1HdrSha256": "A0BE81CB1DB8AE3240837580168FC01862BF979A10D50EE5DE333D7D261A4576",
+    "exactName": "G7MTClient.exe",
+    "isoAbsoluteOffset": "0x00089F64",
+    "status": "PROVEN_EXACT_FILENAME"
+  },
+  "launchLimitations": {
+    "defaultConfigurationMayBeOverridden": true,
+    "g7StartExactStringPresent": true,
+    "g7StartProcessApiConsumption": "UNRESOLVED",
+    "playability": "NOT_CLAIMED",
+    "runtimeLaunch": "UNSEEN",
+    "updaterGateSemantics": "UNRESOLVED"
+  },
+  "peTriage": {
+    "authenticode": false,
+    "clrDirectory": false,
+    "delayImports": 0,
+    "dynamicResolutionSurface": [
+      "KERNEL32.DLL::LoadLibraryA",
+      "KERNEL32.DLL::GetProcAddress"
+    ],
+    "entryInstructions": [
+      {
+        "address": "0x00601FBC",
+        "bytes": "55",
+        "mnemonic": "push",
+        "operands": "ebp"
+      },
+      {
+        "address": "0x00601FBD",
+        "bytes": "8BEC",
+        "mnemonic": "mov",
+        "operands": "ebp, esp"
+      },
+      {
+        "address": "0x00601FBF",
+        "bytes": "6AFF",
+        "mnemonic": "push",
+        "operands": "-1"
+      },
+      {
+        "address": "0x00601FC1",
+        "bytes": "68600D6800",
+        "mnemonic": "push",
+        "operands": "0x680d60"
+      },
+      {
+        "address": "0x00601FC6",
+        "bytes": "68ACA76000",
+        "mnemonic": "push",
+        "operands": "0x60a7ac"
+      },
+      {
+        "address": "0x00601FCB",
+        "bytes": "64A100000000",
+        "mnemonic": "mov",
+        "operands": "eax, dword ptr fs:[0]"
+      },
+      {
+        "address": "0x00601FD1",
+        "bytes": "50",
+        "mnemonic": "push",
+        "operands": "eax"
+      },
+      {
+        "address": "0x00601FD2",
+        "bytes": "64892500000000",
+        "mnemonic": "mov",
+        "operands": "dword ptr fs:[0], esp"
+      }
+    ],
+    "entryPointVa": "0x00601FBC",
+    "exports": 0,
+    "imphash": "290a564af0a445e83f77513b19347afe",
+    "manifest": false,
+    "outboundProcessApiDirectImportCount": 0,
+    "overlayBytes": 0,
+    "sections": [
+      {
+        "characteristics": "0x60000020",
+        "entropy": 6.67615,
+        "name": ".text",
+        "rawOffset": "0x00001000",
+        "rawSize": 2531328,
+        "sha256": "779E46643FADD53B0C24BF14374C693513F8825DF160F1F11340F009384B1B7B",
+        "virtualAddress": "0x00001000",
+        "virtualSize": 2530517
+      },
+      {
+        "characteristics": "0x40000040",
+        "entropy": 7.008353,
+        "name": ".rdata",
+        "rawOffset": "0x0026B000",
+        "rawSize": 995328,
+        "sha256": "877045FCBDEC1EBC8DF1BB37EFBB3C1A37DC5FD7BBAD5E137DFA24E27D5F03C1",
+        "virtualAddress": "0x0026B000",
+        "virtualSize": 992744
+      },
+      {
+        "characteristics": "0xC0000040",
+        "entropy": 4.425898,
+        "name": ".data",
+        "rawOffset": "0x0035E000",
+        "rawSize": 405504,
+        "sha256": "83E92B5E11FB907DDDD11794558579564AA8FC6C3BA7C3FAE96F985EF9BF7F7B",
+        "virtualAddress": "0x0035E000",
+        "virtualSize": 46092200
+      },
+      {
+        "characteristics": "0xC0000040",
+        "entropy": 2.503352,
+        "name": ".data1",
+        "rawOffset": "0x003C1000",
+        "rawSize": 4096,
+        "sha256": "69BF9D691822A3CD2E2B7C4169A6A94FDABDD5E5BED6710989F67BB9542335AB",
+        "virtualAddress": "0x02F53000",
+        "virtualSize": 2272
+      },
+      {
+        "characteristics": "0x40000040",
+        "entropy": 4.95943,
+        "name": ".rsrc",
+        "rawOffset": "0x003C2000",
+        "rawSize": 16384,
+        "sha256": "78D2898E85A0E380059D9096022641AB1469802BF9872BC9989ACFB1E2905205",
+        "virtualAddress": "0x02F54000",
+        "virtualSize": 15408
+      }
+    ],
+    "sizeOfImage": 49643520,
+    "timestampUtc": "2004-04-10T07:14:00Z",
+    "tlsDirectory": false,
+    "versionStrings": {
+      "Comments": "",
+      "CompanyName": "",
+      "FileDescription": "G7MTClient MFC ｱﾌﾟﾘｹｰｼｮﾝ",
+      "FileVersion": "1, 0, 0, 1",
+      "InternalName": "G7MTClient",
+      "LegalCopyright": "Copyright (C) 2003",
+      "LegalTrademarks": "",
+      "OriginalFilename": "G7MTClient.EXE",
+      "PrivateBuild": "",
+      "ProductName": "G7MTClient ｱﾌﾟﾘｹｰｼｮﾝ",
+      "ProductVersion": "1, 0, 0, 1",
+      "SpecialBuild": ""
+    }
+  },
+  "processImage": {
+    "evidence": [
+      "pe32-machine:0x014C",
+      "pe32-subsystem:WINDOWS_GUI",
+      "original-client-runtime-execution:NOT_CLAIMED_BY_STATIC_FORMAT"
+    ],
+    "osLoader": "WINDOWS_PE_LOADER",
+    "runtimeObservationStatus": "NOT_CLAIMED",
+    "status": "PROVEN_STATIC_FORMAT",
+    "target": "SELF_PROCESS_IMAGE"
+  },
+  "schemaVersion": 1,
+  "scope": "G7MTCLIENT_RESOURCE_LOADER_BOUNDARY",
+  "source": {
+    "byteSize": 3956736,
+    "relativePosixPath": "exe/g7mtclient.exe",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16"
+  },
+  "staticTools": {
+    "bootfirst": {
+      "path": "evidence/installshield-extract/____________s___/____/bootfirst.exe",
+      "sha256": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096"
+    },
+    "client": {
+      "path": "evidence/installshield-extract/____________s___/____/exe/g7mtclient.exe",
+      "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16"
+    },
+    "inspectorScript": {
+      "path": "work/20260829-g7mtclient-resource-loader/InspectG7MTClient.py",
+      "sha256": "E26FD5E829A42E5731C1ABD4A1046CDEFBA1288821D5CC30733F1B57F122C691"
+    },
+    "originalCdIso": {
+      "path": "E:\\logh7-vm-media\\LOGH7-original-cd.iso",
+      "sha256": "375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22"
+    },
+    "peImports": {
+      "path": "evidence/exhaustive-trace/raw/pe-imports.json",
+      "sha256": "E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE"
+    },
+    "updater": {
+      "path": "evidence/installshield-extract/____________s___/____/gin7updateclient.exe",
+      "sha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+    }
+  },
+  "status": "PROVEN_STATIC",
+  "toolEnvironment": {
+    "capstone": "5.0.7",
+    "pefile": "2024.8.26",
+    "pycdlib": "1.20.0",
+    "python": "3.11.0"
+  }
+}

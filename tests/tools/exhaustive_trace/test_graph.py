@@ -443,6 +443,38 @@ class GraphTests(unittest.TestCase):
         self.assertIn((source["key"], "LAUNCHES_PROCESS", target["key"]), triples)
         self.assertNotIn((source["key"], "LOADS", target["key"]), triples)
 
+    def test_inbound_launch_emits_launcher_to_target_edge_once(self) -> None:
+        rows = [row for group in fixture_rows().values() for row in group]
+        target = next(row for row in rows if row["inventory"] == "RESOURCE")
+        launcher = envelope(
+            "RESOURCE", "RESOURCE:TREE:gin7updateclient.exe", "gin7updateclient.exe"
+        )
+        launcher.update(rowKind="TREE_FILE")
+        target["source"] = {
+            "inboundLaunch": {
+                "status": "PROVEN_STATIC_DEFAULT",
+                "launcherRowKey": launcher["key"],
+                "launcherRelativePosixPath": "gin7updateclient.exe",
+                "launcherSha256": "B" * 64,
+                "api": "KERNEL32.dll::CreateProcessA",
+                "callsite": "0x004072C2",
+                "triggerCallsite": "0x004068A1",
+                "targetCommand": ".\\exe\\G7MTClient.exe",
+                "targetRelativePosixPath": "exe/g7mtclient.exe",
+                "targetSha256": "A" * 64,
+                "g7StartLaunchStatus": "UNRESOLVED",
+                "evidence": ["fixture:inbound-launch"],
+            }
+        }
+        rows.append(launcher)
+
+        graph = build_graph(rows)
+        triples = [(edge.source, edge.relation, edge.target) for edge in graph.edges]
+
+        self.assertEqual(1, triples.count((launcher["key"], "LAUNCHES_PROCESS", target["key"])))
+        self.assertNotIn((target["key"], "LAUNCHES_PROCESS", launcher["key"]), triples)
+        self.assertNotIn((launcher["key"], "LOADS", target["key"]), triples)
+
     def test_external_manual_opener_emits_document_edge_without_asset_load_edge(self) -> None:
         rows = [row for group in fixture_rows().values() for row in group]
         manual = next(row for row in rows if row["inventory"] == "RESOURCE")

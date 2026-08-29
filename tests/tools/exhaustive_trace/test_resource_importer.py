@@ -1013,6 +1013,232 @@ class ResourceImporterTests(unittest.TestCase):
                     adjudications={path: broken},
                 )
 
+    def test_primary_game_client_pe_closes_loader_and_preserves_inbound_launch(self) -> None:
+        path = "exe/g7mtclient.exe"
+        launcher_path = "gin7updateclient.exe"
+        source_sha = "A" * 64
+        launcher_sha = "B" * 64
+        analysis = {
+            "status": "PROVEN",
+            "format": "PE32_X86_GUI_EXECUTABLE",
+            "machine": "0x014C",
+            "subsystem": 2,
+            "imageBase": "0x00400000",
+            "entryPointRva": "0x00201FBC",
+            "role": "ORIGINAL_PRIMARY_GAME_CLIENT",
+            "sectionCount": 5,
+            "importDescriptorCount": 19,
+            "importCount": 452,
+            "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+            "packingAssessment": "NOT_PACKED_BY_STATIC_INDICATORS",
+            "originalFilename": "G7MTClient.EXE",
+            "fileVersion": "1, 0, 0, 1",
+            "receiptPath": "evidence/exhaustive-trace/adjudications/fixture.json",
+            "receiptSha256": "C" * 64,
+            "evidence": ["g7mt-static:fixture"],
+        }
+        process_image = {
+            "status": "PROVEN_STATIC_FORMAT",
+            "osLoader": "WINDOWS_PE_LOADER",
+            "target": "SELF_PROCESS_IMAGE",
+            "runtimeObservationStatus": "NOT_CLAIMED",
+            "evidence": ["pe-format:fixture"],
+        }
+        inbound_launch = {
+            "status": "PROVEN_STATIC_DEFAULT",
+            "launcherRowKey": f"RESOURCE:FILE:original:{launcher_path}",
+            "launcherRelativePosixPath": launcher_path,
+            "launcherSha256": launcher_sha,
+            "api": "KERNEL32.dll::CreateProcessA",
+            "callsite": "0x004072C2",
+            "triggerCallsite": "0x004068A1",
+            "targetCommand": ".\\exe\\G7MTClient.exe",
+            "targetRelativePosixPath": path,
+            "targetSha256": source_sha,
+            "g7StartLaunchStatus": "UNRESOLVED",
+            "evidence": ["updater:default-launch:fixture"],
+        }
+        adjudication = {
+            path: {
+                "schemaVersion": 1,
+                "kind": "PE_PRIMARY_GAME_CLIENT_EXECUTABLE",
+                "contentSha256": source_sha,
+                "byteSize": 3956736,
+                "analysis": analysis,
+                "processImage": process_image,
+                "inboundLaunch": inbound_launch,
+                "loader": {
+                    "status": "NOT_APPLICABLE",
+                    "reason": "OS-loaded primary game process image, not a runtime asset",
+                    "evidence": ["g7mt-static:fixture"],
+                },
+                "evidence": ["tree-manifest:exe/g7mtclient.exe", "g7mt-static:fixture"],
+            }
+        }
+
+        row = build_resource_inventory(
+            complete_raw(conservation={"treeFiles": 2}),
+            [
+                TreeManifestEntry(path, source_sha, 3956736),
+                TreeManifestEntry(launcher_path, launcher_sha, 1060864),
+            ],
+            root_id="original",
+            adjudications=adjudication,
+        )[0]
+        normalized = normalize_resource_inventory([row])[0]
+
+        self.assertEqual(row.loader.status.value, "NOT_APPLICABLE")
+        self.assertEqual(row.format.status.value, "PROVEN")
+        self.assertEqual(row.format.values["detectedFormat"], "PE32_X86_GUI_EXECUTABLE")
+        self.assertEqual(normalized["source"]["staticRole"], "ORIGINAL_PRIMARY_GAME_CLIENT")
+        self.assertEqual(normalized["source"]["processImage"], process_image)
+        self.assertEqual(normalized["source"]["inboundLaunch"], inbound_launch)
+        self.assertNotIn("processLaunch", normalized["source"])
+        self.assertEqual(row.first_missing_boundary, "RUNTIME_OWNER")
+        self.assertEqual(sum(row.row.states.values()), 1)
+
+    def test_primary_game_client_receipt_rejects_analysis_or_launch_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inspector = root / "inspect.py"
+            inspector.write_text("print('inspect')\n", encoding="utf-8")
+            inspector_sha = hashlib.sha256(inspector.read_bytes()).hexdigest().upper()
+            analysis = {
+                "format": "PE32_X86_GUI_EXECUTABLE", "machine": "0x014C", "subsystem": 2,
+                "imageBase": "0x00400000", "entryPointRva": "0x00201FBC",
+                "role": "ORIGINAL_PRIMARY_GAME_CLIENT", "sectionCount": 5,
+                "importDescriptorCount": 19, "importCount": 452,
+                "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+                "packingAssessment": "NOT_PACKED_BY_STATIC_INDICATORS",
+                "originalFilename": "G7MTClient.EXE", "fileVersion": "1, 0, 0, 1",
+            }
+            process_image = {
+                "status": "PROVEN_STATIC_FORMAT", "osLoader": "WINDOWS_PE_LOADER",
+                "target": "SELF_PROCESS_IMAGE", "runtimeObservationStatus": "NOT_CLAIMED",
+                "evidence": ["pe-format:fixture"],
+            }
+            inbound = {
+                "status": "PROVEN_STATIC_DEFAULT",
+                "launcherRowKey": "RESOURCE:FILE:original:gin7updateclient.exe",
+                "launcherRelativePosixPath": "gin7updateclient.exe", "launcherSha256": "B" * 64,
+                "api": "KERNEL32.dll::CreateProcessA", "callsite": "0x004072C2",
+                "triggerCallsite": "0x004068A1", "targetCommand": ".\\exe\\G7MTClient.exe",
+                "targetRelativePosixPath": "exe/g7mtclient.exe", "targetSha256": "A" * 64,
+                "g7StartLaunchStatus": "UNRESOLVED", "evidence": ["updater:fixture"],
+            }
+            receipt = root / "g7mt-static.json"
+            receipt_payload = {
+                "schemaVersion": 1, "status": "PROVEN_STATIC",
+                "source": {"sha256": "A" * 64, "byteSize": 3956736},
+                "analysis": analysis, "processImage": process_image, "inboundLaunch": inbound,
+                "staticTools": {"inspector": {"path": str(inspector), "sha256": inspector_sha}},
+            }
+            receipt.write_text(json.dumps(receipt_payload), encoding="utf-8")
+            payload = {
+                "schemaVersion": 1,
+                "source": {"rootId": "original", "sourceManifestSha256": "1" * 64,
+                           "treeManifestSha256": "2" * 64},
+                "adjudications": [{
+                    "relativePosixPath": "exe/g7mtclient.exe", "schemaVersion": 1,
+                    "kind": "PE_PRIMARY_GAME_CLIENT_EXECUTABLE",
+                    "contentSha256": "A" * 64, "byteSize": 3956736,
+                    "analysis": {"status": "PROVEN", **analysis,
+                                 "receiptPath": str(receipt),
+                                 "receiptSha256": hashlib.sha256(receipt.read_bytes()).hexdigest().upper(),
+                                 "evidence": ["g7mt-static:fixture"]},
+                    "processImage": process_image, "inboundLaunch": inbound,
+                    "loader": {"status": "NOT_APPLICABLE", "reason": "process image",
+                               "evidence": ["g7mt-static:fixture"]},
+                    "evidence": ["g7mt-static:fixture"],
+                }],
+            }
+            adjudications_path = root / "resources.json"
+            adjudications_path.write_text(json.dumps(payload), encoding="utf-8")
+            loaded = load_resource_adjudications(
+                adjudications_path, expected_root_id="original",
+                expected_source_manifest_sha256="1" * 64,
+                expected_tree_manifest_sha256="2" * 64,
+            )
+            self.assertEqual(loaded["exe/g7mtclient.exe"]["kind"],
+                             "PE_PRIMARY_GAME_CLIENT_EXECUTABLE")
+
+            for section, field, value, message in (
+                ("analysis", "entryPointRva", "0x00201FBD",
+                 "primary game client receipt analysis differs"),
+                ("processImage", "target", "OTHER_PROCESS_IMAGE",
+                 "primary game client receipt process image differs"),
+                ("inboundLaunch", "callsite", "0x004072C3",
+                 "primary game client receipt inbound launch differs"),
+            ):
+                broken = copy.deepcopy(payload)
+                broken["adjudications"][0][section][field] = value
+                adjudications_path.write_text(json.dumps(broken), encoding="utf-8")
+                with self.subTest(section=section), self.assertRaisesRegex(ValueError, message):
+                    load_resource_adjudications(
+                        adjudications_path, expected_root_id="original",
+                        expected_source_manifest_sha256="1" * 64,
+                        expected_tree_manifest_sha256="2" * 64,
+                    )
+
+    def test_primary_game_client_schema_rejects_process_launch_and_unknown_fields(self) -> None:
+        path = "exe/g7mtclient.exe"
+        launcher = "gin7updateclient.exe"
+        base = {
+            "schemaVersion": 1, "kind": "PE_PRIMARY_GAME_CLIENT_EXECUTABLE",
+            "contentSha256": "A" * 64, "byteSize": 3956736,
+            "analysis": {
+                "status": "PROVEN", "format": "PE32_X86_GUI_EXECUTABLE",
+                "machine": "0x014C", "subsystem": 2, "imageBase": "0x00400000",
+                "entryPointRva": "0x00201FBC", "role": "ORIGINAL_PRIMARY_GAME_CLIENT",
+                "sectionCount": 5, "importDescriptorCount": 19, "importCount": 452,
+                "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+                "packingAssessment": "NOT_PACKED_BY_STATIC_INDICATORS",
+                "originalFilename": "G7MTClient.EXE", "fileVersion": "1, 0, 0, 1",
+                "receiptPath": "fixture.json", "receiptSha256": "C" * 64,
+                "evidence": ["fixture"],
+            },
+            "processImage": {"status": "PROVEN_STATIC_FORMAT", "osLoader": "WINDOWS_PE_LOADER",
+                             "target": "SELF_PROCESS_IMAGE", "runtimeObservationStatus": "NOT_CLAIMED",
+                             "evidence": ["fixture"]},
+            "inboundLaunch": {"status": "PROVEN_STATIC_DEFAULT",
+                              "launcherRowKey": f"RESOURCE:FILE:original:{launcher}",
+                              "launcherRelativePosixPath": launcher, "launcherSha256": "B" * 64,
+                              "api": "KERNEL32.dll::CreateProcessA", "callsite": "0x004072C2",
+                              "triggerCallsite": "0x004068A1", "targetCommand": ".\\exe\\G7MTClient.exe",
+                              "targetRelativePosixPath": path, "targetSha256": "A" * 64,
+                              "g7StartLaunchStatus": "UNRESOLVED", "evidence": ["fixture"]},
+            "loader": {"status": "NOT_APPLICABLE", "reason": "process image", "evidence": ["fixture"]},
+            "evidence": ["fixture"],
+        }
+        for section, field in (("top", "processLaunch"), ("analysis", "invented"),
+                               ("processImage", "invented"), ("inboundLaunch", "invented")):
+            broken = copy.deepcopy(base)
+            if section == "top":
+                broken[field] = {}
+                expected = "unknown resource adjudication fields"
+            else:
+                broken[section][field] = True
+                expected = "fields differ"
+            with self.subTest(section=section), self.assertRaisesRegex(ValueError, expected):
+                build_resource_inventory(
+                    complete_raw(conservation={"treeFiles": 2}),
+                    [TreeManifestEntry(path, "A" * 64, 3956736),
+                     TreeManifestEntry(launcher, "B" * 64, 1060864)],
+                    root_id="original", adjudications={path: broken},
+                )
+
+        with self.assertRaisesRegex(ValueError, "conflicts with loader candidates"):
+            build_resource_inventory(
+                complete_raw(
+                    conservation={"treeFiles": 2},
+                    loaderCandidates=[loader(path, "PATH:00700000")],
+                    literalPathCandidates=[literal("PATH:00700000", path)],
+                ),
+                [TreeManifestEntry(path, "A" * 64, 3956736),
+                 TreeManifestEntry(launcher, "B" * 64, 1060864)],
+                root_id="original", adjudications={path: base},
+            )
+
     def test_tree_paths_are_safe_and_casefold_unique(self) -> None:
         for path in ("../escape.tga", "/absolute.tga", "data\\bad.tga", "./dot.tga"):
             with self.subTest(path=path), self.assertRaisesRegex(ValueError, "resource path"):

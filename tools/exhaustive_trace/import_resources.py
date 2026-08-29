@@ -445,6 +445,72 @@ def load_resource_adjudications(
                 bound_tool_count += 1
             if bound_tool_count == 0:
                 raise ValueError("CP932 terms analysis receipt lacks bound static evidence")
+        elif item.get("kind") == "PE_PRIMARY_GAME_CLIENT_EXECUTABLE":
+            analysis = _mapping("primary game client analysis", item.get("analysis"))
+            receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
+            if not receipt_path.is_absolute():
+                receipt_path = Path.cwd() / receipt_path
+            receipt_path = receipt_path.resolve()
+            receipt_sha = _sha256("analysis.receiptSha256", analysis.get("receiptSha256"))
+            if not receipt_path.is_file() or sha256_file(receipt_path) != receipt_sha:
+                raise ValueError("primary game client analysis receipt hash mismatch")
+            receipt = _mapping(
+                "primary game client analysis receipt",
+                json.loads(receipt_path.read_text(encoding="utf-8")),
+            )
+            if receipt.get("schemaVersion") != 1 or receipt.get("status") != "PROVEN_STATIC":
+                raise ValueError("primary game client analysis receipt contract differs")
+            receipt_source = _mapping("primary game client receipt source", receipt.get("source"))
+            if (
+                _sha256("receipt.source.sha256", receipt_source.get("sha256"))
+                != _sha256("adjudication.contentSha256", item.get("contentSha256"))
+                or receipt_source.get("byteSize") != item.get("byteSize")
+            ):
+                raise ValueError("primary game client receipt source differs")
+            receipt_analysis = _mapping(
+                "primary game client receipt analysis", receipt.get("analysis")
+            )
+            item_analysis = {
+                key: value
+                for key, value in analysis.items()
+                if key not in {"status", "receiptPath", "receiptSha256", "evidence"}
+            }
+            if receipt_analysis != item_analysis:
+                raise ValueError("primary game client receipt analysis differs")
+            receipt_process_image = _mapping(
+                "primary game client receipt processImage", receipt.get("processImage")
+            )
+            item_process_image = _mapping(
+                "primary game client adjudication processImage", item.get("processImage")
+            )
+            if receipt_process_image != item_process_image:
+                raise ValueError("primary game client receipt process image differs")
+            receipt_inbound = _mapping(
+                "primary game client receipt inboundLaunch", receipt.get("inboundLaunch")
+            )
+            item_inbound = _mapping(
+                "primary game client adjudication inboundLaunch", item.get("inboundLaunch")
+            )
+            if receipt_inbound != item_inbound:
+                raise ValueError("primary game client receipt inbound launch differs")
+            static_tools = _mapping(
+                "primary game client receipt staticTools", receipt.get("staticTools")
+            )
+            bound_tool_count = 0
+            for label, record_value in static_tools.items():
+                if not isinstance(record_value, Mapping):
+                    continue
+                record = _mapping(f"staticTools.{label}", record_value)
+                referenced_path = Path(_text(f"staticTools.{label}.path", record.get("path")))
+                if not referenced_path.is_absolute():
+                    referenced_path = Path.cwd() / referenced_path
+                referenced_path = referenced_path.resolve()
+                expected_sha = _sha256(f"staticTools.{label}.sha256", record.get("sha256"))
+                if not referenced_path.is_file() or sha256_file(referenced_path) != expected_sha:
+                    raise ValueError("primary game client referenced evidence hash mismatch")
+                bound_tool_count += 1
+            if bound_tool_count == 0:
+                raise ValueError("primary game client analysis receipt lacks bound static evidence")
         result[relative_path] = item
     return result
 
@@ -809,7 +875,10 @@ def build_resource_inventory(
         pe_analysis: Mapping[str, Any] | None = None
         pdf_analysis: Mapping[str, Any] | None = None
         terms_analysis: Mapping[str, Any] | None = None
+        primary_client_analysis: Mapping[str, Any] | None = None
         duplicate_source: dict[str, Any] | None = None
+        process_image: dict[str, Any] | None = None
+        inbound_launch: dict[str, Any] | None = None
         process_launch: dict[str, Any] | None = None
         external_document_open: dict[str, Any] | None = None
         if adjudication is not None:
@@ -832,6 +901,9 @@ def build_resource_inventory(
                 "PE_EXECUTABLE_BOOTSTRAP": {"analysis", "processLaunch"},
                 "PDF_OPERATION_MANUAL": {"analysis", "externalDocumentOpen"},
                 "CP932_TERMS_DOCUMENT": {"analysis", "duplicateSource"},
+                "PE_PRIMARY_GAME_CLIENT_EXECUTABLE": {
+                    "analysis", "processImage", "inboundLaunch",
+                },
             }
             if adjudication_kind not in kind_fields:
                 raise ValueError("unsupported resource adjudication kind")
@@ -1037,7 +1109,7 @@ def build_resource_inventory(
                             "externalDocumentOpen.evidence", external.get("evidence")
                         ),
                     }
-            else:
+            elif adjudication_kind == "CP932_TERMS_DOCUMENT":
                 terms_analysis = _mapping("adjudication.analysis", adjudication.get("analysis"))
                 expected_terms_fields = {
                     "status", "format", "role", "encoding", "title", "characterCount",
@@ -1092,6 +1164,107 @@ def build_resource_inventory(
                     "byteSize": int(duplicate["byteSize"]),
                     "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
                     "evidence": _evidence("duplicateSource.evidence", duplicate.get("evidence")),
+                }
+            else:
+                primary_client_analysis = _mapping(
+                    "adjudication.analysis", adjudication.get("analysis")
+                )
+                expected_primary_fields = {
+                    "status", "format", "machine", "subsystem", "imageBase",
+                    "entryPointRva", "role", "sectionCount", "importDescriptorCount",
+                    "importCount", "importQuality", "packingAssessment",
+                    "originalFilename", "fileVersion", "receiptPath", "receiptSha256",
+                    "evidence",
+                }
+                if set(primary_client_analysis) != expected_primary_fields:
+                    raise ValueError("primary game client analysis fields differ")
+                if primary_client_analysis.get("status") != "PROVEN":
+                    raise ValueError("primary game client analysis must be PROVEN")
+                exact_primary = {
+                    "format": "PE32_X86_GUI_EXECUTABLE",
+                    "machine": "0x014C",
+                    "subsystem": 2,
+                    "imageBase": "0x00400000",
+                    "entryPointRva": "0x00201FBC",
+                    "role": "ORIGINAL_PRIMARY_GAME_CLIENT",
+                    "sectionCount": 5,
+                    "importDescriptorCount": 19,
+                    "importCount": 452,
+                    "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+                    "packingAssessment": "NOT_PACKED_BY_STATIC_INDICATORS",
+                    "originalFilename": "G7MTClient.EXE",
+                    "fileVersion": "1, 0, 0, 1",
+                }
+                for field, expected in exact_primary.items():
+                    if primary_client_analysis.get(field) != expected:
+                        raise ValueError(f"primary game client {field} differs")
+                _text("analysis.receiptPath", primary_client_analysis.get("receiptPath"))
+                _sha256("analysis.receiptSha256", primary_client_analysis.get("receiptSha256"))
+                _evidence("analysis.evidence", primary_client_analysis.get("evidence"))
+
+                process = _mapping("adjudication.processImage", adjudication.get("processImage"))
+                if set(process) != {
+                    "status", "osLoader", "target", "runtimeObservationStatus", "evidence",
+                }:
+                    raise ValueError("primary game client processImage fields differ")
+                if (
+                    process.get("status") != "PROVEN_STATIC_FORMAT"
+                    or process.get("osLoader") != "WINDOWS_PE_LOADER"
+                    or process.get("target") != "SELF_PROCESS_IMAGE"
+                    or process.get("runtimeObservationStatus") != "NOT_CLAIMED"
+                ):
+                    raise ValueError("primary game client process image contract differs")
+                process_image = {
+                    "status": "PROVEN_STATIC_FORMAT",
+                    "osLoader": "WINDOWS_PE_LOADER",
+                    "target": "SELF_PROCESS_IMAGE",
+                    "runtimeObservationStatus": "NOT_CLAIMED",
+                    "evidence": _evidence("processImage.evidence", process.get("evidence")),
+                }
+
+                inbound = _mapping("adjudication.inboundLaunch", adjudication.get("inboundLaunch"))
+                expected_inbound_fields = {
+                    "status", "launcherRowKey", "launcherRelativePosixPath", "launcherSha256",
+                    "api", "callsite", "triggerCallsite", "targetCommand",
+                    "targetRelativePosixPath", "targetSha256", "g7StartLaunchStatus", "evidence",
+                }
+                if set(inbound) != expected_inbound_fields:
+                    raise ValueError("primary game client inboundLaunch fields differ")
+                launcher_path = _safe_resource_path(inbound.get("launcherRelativePosixPath"))
+                if launcher_path == path or launcher_path not in entries:
+                    raise ValueError("primary game client inbound launcher is missing or self-referential")
+                launcher_sha = _sha256("inboundLaunch.launcherSha256", inbound.get("launcherSha256"))
+                if launcher_sha != entries[launcher_path].content_sha256:
+                    raise ValueError("primary game client inbound launcher SHA-256 differs")
+                launcher_row_key = _text("inboundLaunch.launcherRowKey", inbound.get("launcherRowKey"))
+                if launcher_row_key != f"RESOURCE:FILE:{root_id}:{launcher_path}":
+                    raise ValueError("primary game client inbound launcher row key differs")
+                target_path = _safe_resource_path(inbound.get("targetRelativePosixPath"))
+                target_sha = _sha256("inboundLaunch.targetSha256", inbound.get("targetSha256"))
+                if target_path != path or target_sha != entry.content_sha256:
+                    raise ValueError("primary game client inbound launch target differs")
+                if (
+                    inbound.get("status") != "PROVEN_STATIC_DEFAULT"
+                    or inbound.get("api") != "KERNEL32.dll::CreateProcessA"
+                    or inbound.get("callsite") != "0x004072C2"
+                    or inbound.get("triggerCallsite") != "0x004068A1"
+                    or inbound.get("targetCommand") != ".\\exe\\G7MTClient.exe"
+                    or inbound.get("g7StartLaunchStatus") != "UNRESOLVED"
+                ):
+                    raise ValueError("primary game client inbound launch contract differs")
+                inbound_launch = {
+                    "status": "PROVEN_STATIC_DEFAULT",
+                    "launcherRowKey": launcher_row_key,
+                    "launcherRelativePosixPath": launcher_path,
+                    "launcherSha256": launcher_sha,
+                    "api": "KERNEL32.dll::CreateProcessA",
+                    "callsite": "0x004072C2",
+                    "triggerCallsite": "0x004068A1",
+                    "targetCommand": ".\\exe\\G7MTClient.exe",
+                    "targetRelativePosixPath": target_path,
+                    "targetSha256": target_sha,
+                    "g7StartLaunchStatus": "UNRESOLVED",
+                    "evidence": _evidence("inboundLaunch.evidence", inbound.get("evidence")),
                 }
             loader_adjudication = _mapping("adjudication.loader", adjudication.get("loader"))
             unknown_loader_fields = set(loader_adjudication) - {"status", "reason", "evidence"}
@@ -1241,6 +1414,8 @@ def build_resource_inventory(
                     if pe_analysis is not None
                     else str(terms_analysis.get("format"))
                     if terms_analysis is not None
+                    else str(primary_client_analysis.get("format"))
+                    if primary_client_analysis is not None
                     else _format_for_path(path)
                 ),
                 "detector": (
@@ -1252,6 +1427,8 @@ def build_resource_inventory(
                     if pe_analysis is not None
                     else "HASH_BOUND_TEXT_ANALYSIS"
                     if terms_analysis is not None
+                    else "HASH_BOUND_STATIC_ANALYSIS"
+                    if primary_client_analysis is not None
                     else "EXTENSION_ONLY"
                 ),
                 "evidence": (
@@ -1338,6 +1515,28 @@ def build_resource_inventory(
             )
             source["textAnalysis"]["evidence"] = _evidence(
                 "analysis.evidence", terms_analysis.get("evidence")
+            )
+        elif (
+            primary_client_analysis is not None
+            and process_image is not None
+            and inbound_launch is not None
+        ):
+            source.update(
+                staticRole=_text("analysis.role", primary_client_analysis.get("role")),
+                peAnalysis={
+                    key: value
+                    for key, value in primary_client_analysis.items()
+                    if key not in {"role", "receiptPath", "evidence"}
+                },
+                processImage=process_image,
+                inboundLaunch=inbound_launch,
+                adjudicationEvidence=adjudication_evidence,
+            )
+            source["peAnalysis"]["receiptPath"] = _text(
+                "analysis.receiptPath", primary_client_analysis.get("receiptPath")
+            )
+            source["peAnalysis"]["evidence"] = _evidence(
+                "analysis.evidence", primary_client_analysis.get("evidence")
             )
         file_candidate_id = f"TREE_FILE:{root_id}:{path}"
         rows.append(

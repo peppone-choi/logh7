@@ -139,6 +139,8 @@ def _enumerate_join_references(rows: Sequence[Mapping[str, Any]]) -> tuple[str, 
                 refs.add(f"inventory:{key}/source/processLaunch")
             if (row.get("source") or {}).get("externalDocumentOpen"):
                 refs.add(f"inventory:{key}/source/externalDocumentOpen")
+            if (row.get("source") or {}).get("inboundLaunch"):
+                refs.add(f"inventory:{key}/source/inboundLaunch")
         elif row["inventory"] == "AUTHORITY":
             refs.add(f"inventory:{key}/sourceKey")
     return tuple(sorted(refs))
@@ -996,6 +998,23 @@ class _GraphBuilder:
                     provenance=row["provenance"], confidence="HIGH", disposition="PROVEN",
                     edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
                     source_refs=(ref,), candidate_id=f"PROCESS_LAUNCH:{row['key']}:{target}",
+                )
+            inbound_launch = (row.get("source") or {}).get("inboundLaunch")
+            if inbound_launch:
+                ref = f"inventory:{row['key']}/source/inboundLaunch"
+                launcher = inbound_launch.get("launcherRowKey")
+                if (
+                    inbound_launch.get("status") != "PROVEN_STATIC_DEFAULT"
+                    or launcher not in self.row_by_key
+                ):
+                    raise ValueError(f"proven inbound launch source is unresolved: {row['key']}")
+                launch_evidence = inbound_launch.get("evidence", row["evidence"])
+                self.add_edge(
+                    launcher, "LAUNCHES_PROCESS", row["key"], launch_evidence,
+                    provenance=row["provenance"], confidence="HIGH", disposition="PROVEN",
+                    edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
+                    source_refs=(ref,),
+                    candidate_id=f"INBOUND_PROCESS_LAUNCH:{launcher}:{row['key']}",
                 )
             document_open = (row.get("source") or {}).get("externalDocumentOpen")
             if document_open:
