@@ -445,6 +445,119 @@ def load_resource_adjudications(
                 bound_tool_count += 1
             if bound_tool_count == 0:
                 raise ValueError("CP932 terms analysis receipt lacks bound static evidence")
+        elif item.get("kind") == "PE_GAME_UPDATER_EXECUTABLE":
+            analysis = _mapping("game updater analysis", item.get("analysis"))
+            receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
+            if not receipt_path.is_absolute():
+                receipt_path = Path.cwd() / receipt_path
+            receipt_path = receipt_path.resolve()
+            receipt_sha = _sha256("analysis.receiptSha256", analysis.get("receiptSha256"))
+            if not receipt_path.is_file() or sha256_file(receipt_path) != receipt_sha:
+                raise ValueError("game updater analysis receipt hash mismatch")
+            receipt = _mapping(
+                "game updater analysis receipt",
+                json.loads(receipt_path.read_text(encoding="utf-8")),
+            )
+            if set(receipt) != {
+                "schemaVersion", "status", "scope", "source", "analysis",
+                "processImage", "processLaunch", "peTriage", "installshieldEvidence",
+                "launchLimitations", "staticTools", "toolEnvironment",
+            }:
+                raise ValueError("game updater receipt fields differ")
+            if receipt.get("schemaVersion") != 1 or receipt.get("status") != "PROVEN_STATIC":
+                raise ValueError("game updater analysis receipt contract differs")
+            if receipt.get("scope") != "GIN7UPDATECLIENT_RESOURCE_LOADER_BOUNDARY":
+                raise ValueError("game updater receipt scope differs")
+            receipt_source = _mapping("game updater receipt source", receipt.get("source"))
+            if (
+                _sha256("receipt.source.sha256", receipt_source.get("sha256"))
+                != _sha256("adjudication.contentSha256", item.get("contentSha256"))
+                or receipt_source.get("byteSize") != item.get("byteSize")
+            ):
+                raise ValueError("game updater analysis receipt source differs")
+            receipt_analysis = _mapping("game updater receipt analysis", receipt.get("analysis"))
+            item_analysis = {
+                key: value
+                for key, value in analysis.items()
+                if key not in {"status", "receiptPath", "receiptSha256", "evidence"}
+            }
+            if receipt_analysis != item_analysis:
+                raise ValueError("game updater receipt analysis differs")
+            for field, label in (
+                ("processImage", "process image"),
+                ("processLaunch", "process launch"),
+            ):
+                if _mapping(f"game updater receipt {label}", receipt.get(field)) != _mapping(
+                    f"game updater adjudication {label}", item.get(field)
+                ):
+                    raise ValueError(f"game updater receipt {label} differs")
+            static_tools = _mapping("game updater receipt staticTools", receipt.get("staticTools"))
+            mandatory_tools = {
+                "inspectorScript", "updater", "targetClient", "originalCdIso",
+                "updaterPeImports", "bootfirstStaticAnalysis", "g7mtclientStaticAnalysis",
+            }
+            if set(static_tools) != mandatory_tools:
+                raise ValueError("game updater mandatory static tools differ")
+            for label, record_value in static_tools.items():
+                record = _mapping(f"staticTools.{label}", record_value)
+                if set(record) != {"path", "sha256"}:
+                    raise ValueError("game updater static tool fields differ")
+                referenced_path = Path(_text(f"staticTools.{label}.path", record.get("path")))
+                if not referenced_path.is_absolute():
+                    referenced_path = Path.cwd() / referenced_path
+                referenced_path = referenced_path.resolve()
+                expected_sha = _sha256(f"staticTools.{label}.sha256", record.get("sha256"))
+                if not referenced_path.is_file() or sha256_file(referenced_path) != expected_sha:
+                    raise ValueError("game updater referenced evidence hash mismatch")
+            imports_record = _mapping("updater imports tool", static_tools["updaterPeImports"])
+            imports_path = Path(_text("updater imports path", imports_record.get("path")))
+            if not imports_path.is_absolute():
+                imports_path = Path.cwd() / imports_path
+            imports_receipt = _mapping(
+                "updater imports receipt",
+                json.loads(imports_path.resolve().read_text(encoding="utf-8")),
+            )
+            imports_source = _mapping("updater imports source", imports_receipt.get("source"))
+            if (
+                imports_receipt.get("status") != "PROVEN_STATIC"
+                or imports_receipt.get("quality")
+                != "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION"
+                or imports_receipt.get("descriptorCount") != 11
+                or imports_receipt.get("importCount") != 347
+                or imports_source.get("sha256") != item.get("contentSha256")
+                or imports_source.get("byteSize") != item.get("byteSize")
+                or imports_receipt.get("dynamicResolutionSurface")
+                != ["KERNEL32.DLL::LoadLibraryA", "KERNEL32.DLL::GetProcAddress"]
+            ):
+                raise ValueError("game updater imports receipt differs")
+            pe_triage = _mapping("game updater peTriage", receipt.get("peTriage"))
+            capabilities = _mapping(
+                "game updater directImportCapabilities",
+                pe_triage.get("directImportCapabilities"),
+            )
+            if (
+                pe_triage.get("exports") != 0
+                or pe_triage.get("overlayBytes") != 0
+                or pe_triage.get("authenticode") is not False
+                or capabilities.get("createProcessA") != "0x004402AC"
+                or capabilities.get("winsockImports") != 21
+                or capabilities.get("registryImports") != 5
+                or capabilities.get("fileMutationSurface") is not True
+            ):
+                raise ValueError("game updater PE triage anchors differ")
+            limitations = _mapping(
+                "game updater launchLimitations", receipt.get("launchLimitations")
+            )
+            if limitations != {
+                "defaultConfigurationMayBeOverridden": True,
+                "downloadedPayloadIdentity": "UNRESOLVED",
+                "gateSemantics": "UNRESOLVED",
+                "networkSuccess": "UNSEEN",
+                "playability": "NOT_CLAIMED",
+                "remoteVersionComparison": "UNRESOLVED",
+                "runtimeLaunch": "UNSEEN",
+            }:
+                raise ValueError("game updater launch limitations differ")
         elif item.get("kind") == "PE_PRIMARY_GAME_CLIENT_EXECUTABLE":
             analysis = _mapping("primary game client analysis", item.get("analysis"))
             receipt_path = Path(_text("analysis.receiptPath", analysis.get("receiptPath")))
@@ -876,6 +989,7 @@ def build_resource_inventory(
         pdf_analysis: Mapping[str, Any] | None = None
         terms_analysis: Mapping[str, Any] | None = None
         primary_client_analysis: Mapping[str, Any] | None = None
+        game_updater_analysis: Mapping[str, Any] | None = None
         duplicate_source: dict[str, Any] | None = None
         process_image: dict[str, Any] | None = None
         inbound_launch: dict[str, Any] | None = None
@@ -903,6 +1017,9 @@ def build_resource_inventory(
                 "CP932_TERMS_DOCUMENT": {"analysis", "duplicateSource"},
                 "PE_PRIMARY_GAME_CLIENT_EXECUTABLE": {
                     "analysis", "processImage", "inboundLaunch",
+                },
+                "PE_GAME_UPDATER_EXECUTABLE": {
+                    "analysis", "processImage", "processLaunch",
                 },
             }
             if adjudication_kind not in kind_fields:
@@ -1165,6 +1282,99 @@ def build_resource_inventory(
                     "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
                     "evidence": _evidence("duplicateSource.evidence", duplicate.get("evidence")),
                 }
+            elif adjudication_kind == "PE_GAME_UPDATER_EXECUTABLE":
+                game_updater_analysis = _mapping(
+                    "adjudication.analysis", adjudication.get("analysis")
+                )
+                expected_updater_fields = {
+                    "status", "format", "machine", "subsystem", "imageBase",
+                    "entryPointRva", "role", "sectionCount", "importDescriptorCount",
+                    "importCount", "importQuality", "packingAssessment",
+                    "originalFilename", "fileVersion", "receiptPath", "receiptSha256",
+                    "evidence",
+                }
+                if set(game_updater_analysis) != expected_updater_fields:
+                    raise ValueError("game updater analysis fields differ")
+                exact_updater = {
+                    "status": "PROVEN",
+                    "format": "PE32_X86_GUI_EXECUTABLE",
+                    "machine": "0x014C",
+                    "subsystem": 2,
+                    "imageBase": "0x00400000",
+                    "entryPointRva": "0x00009A2E",
+                    "role": "ORIGINAL_GAME_UPDATE_CLIENT",
+                    "sectionCount": 4,
+                    "importDescriptorCount": 11,
+                    "importCount": 347,
+                    "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+                    "packingAssessment": "NO_KNOWN_PACKER_SIGNATURE_STATIC_ONLY",
+                    "originalFilename": "",
+                    "fileVersion": "1, 0, 0, 0",
+                }
+                for field, expected in exact_updater.items():
+                    if game_updater_analysis.get(field) != expected:
+                        raise ValueError(f"game updater {field} differs")
+                _text("analysis.receiptPath", game_updater_analysis.get("receiptPath"))
+                _sha256("analysis.receiptSha256", game_updater_analysis.get("receiptSha256"))
+                _evidence("analysis.evidence", game_updater_analysis.get("evidence"))
+
+                process = _mapping("adjudication.processImage", adjudication.get("processImage"))
+                if set(process) != {
+                    "status", "osLoader", "target", "runtimeObservationStatus", "evidence",
+                }:
+                    raise ValueError("game updater processImage fields differ")
+                if (
+                    process.get("status") != "PROVEN_STATIC_FORMAT"
+                    or process.get("osLoader") != "WINDOWS_PE_LOADER"
+                    or process.get("target") != "SELF_PROCESS_IMAGE"
+                    or process.get("runtimeObservationStatus") != "NOT_CLAIMED"
+                ):
+                    raise ValueError("game updater process image contract differs")
+                process_image = {
+                    "status": "PROVEN_STATIC_FORMAT",
+                    "osLoader": "WINDOWS_PE_LOADER",
+                    "target": "SELF_PROCESS_IMAGE",
+                    "runtimeObservationStatus": "NOT_CLAIMED",
+                    "evidence": _evidence("processImage.evidence", process.get("evidence")),
+                }
+
+                launch = _mapping("adjudication.processLaunch", adjudication.get("processLaunch"))
+                expected_launch_fields = {
+                    "status", "api", "function", "callsite", "triggerCallsite",
+                    "targetCommand", "workingDirectory", "targetRelativePosixPath",
+                    "targetSha256", "configOverrideStatus", "gateSemantics",
+                    "runtimeObservationStatus", "evidence",
+                }
+                if set(launch) != expected_launch_fields:
+                    raise ValueError("game updater processLaunch fields differ")
+                target_path = _safe_resource_path(launch.get("targetRelativePosixPath"))
+                if target_path == path or target_path not in entries:
+                    raise ValueError("game updater processLaunch target is missing or self-referential")
+                target_sha = _sha256("processLaunch.targetSha256", launch.get("targetSha256"))
+                if target_sha != entries[target_path].content_sha256:
+                    raise ValueError("game updater processLaunch targetSha256 differs")
+                exact_launch = {
+                    "status": "PROVEN_STATIC_DEFAULT",
+                    "api": "KERNEL32.dll::CreateProcessA",
+                    "function": "FUN_00407260",
+                    "callsite": "0x004072C2",
+                    "triggerCallsite": "0x004068A1",
+                    "targetCommand": ".\\exe\\G7MTClient.exe",
+                    "workingDirectory": ".\\exe\\",
+                    "configOverrideStatus": "POSSIBLE",
+                    "gateSemantics": "UNRESOLVED",
+                    "runtimeObservationStatus": "UNSEEN",
+                }
+                for field, expected in exact_launch.items():
+                    if launch.get(field) != expected:
+                        raise ValueError(f"game updater processLaunch {field} differs")
+                process_launch = {
+                    **exact_launch,
+                    "targetRelativePosixPath": target_path,
+                    "targetSha256": target_sha,
+                    "targetRowKey": f"RESOURCE:FILE:{root_id}:{target_path}",
+                    "evidence": _evidence("processLaunch.evidence", launch.get("evidence")),
+                }
             else:
                 primary_client_analysis = _mapping(
                     "adjudication.analysis", adjudication.get("analysis")
@@ -1226,7 +1436,9 @@ def build_resource_inventory(
                 expected_inbound_fields = {
                     "status", "launcherRowKey", "launcherRelativePosixPath", "launcherSha256",
                     "api", "callsite", "triggerCallsite", "targetCommand",
-                    "targetRelativePosixPath", "targetSha256", "g7StartLaunchStatus", "evidence",
+                    "workingDirectory", "targetRelativePosixPath", "targetSha256",
+                    "configOverrideStatus", "gateSemantics", "runtimeObservationStatus",
+                    "g7StartLaunchStatus", "evidence",
                 }
                 if set(inbound) != expected_inbound_fields:
                     raise ValueError("primary game client inboundLaunch fields differ")
@@ -1249,6 +1461,10 @@ def build_resource_inventory(
                     or inbound.get("callsite") != "0x004072C2"
                     or inbound.get("triggerCallsite") != "0x004068A1"
                     or inbound.get("targetCommand") != ".\\exe\\G7MTClient.exe"
+                    or inbound.get("workingDirectory") != ".\\exe\\"
+                    or inbound.get("configOverrideStatus") != "POSSIBLE"
+                    or inbound.get("gateSemantics") != "UNRESOLVED"
+                    or inbound.get("runtimeObservationStatus") != "UNSEEN"
                     or inbound.get("g7StartLaunchStatus") != "UNRESOLVED"
                 ):
                     raise ValueError("primary game client inbound launch contract differs")
@@ -1261,8 +1477,12 @@ def build_resource_inventory(
                     "callsite": "0x004072C2",
                     "triggerCallsite": "0x004068A1",
                     "targetCommand": ".\\exe\\G7MTClient.exe",
+                    "workingDirectory": ".\\exe\\",
                     "targetRelativePosixPath": target_path,
                     "targetSha256": target_sha,
+                    "configOverrideStatus": "POSSIBLE",
+                    "gateSemantics": "UNRESOLVED",
+                    "runtimeObservationStatus": "UNSEEN",
                     "g7StartLaunchStatus": "UNRESOLVED",
                     "evidence": _evidence("inboundLaunch.evidence", inbound.get("evidence")),
                 }
@@ -1498,6 +1718,28 @@ def build_resource_inventory(
                 },
                 processLaunch=process_launch,
                 adjudicationEvidence=adjudication_evidence,
+            )
+        elif (
+            game_updater_analysis is not None
+            and process_image is not None
+            and process_launch is not None
+        ):
+            source.update(
+                staticRole=_text("analysis.role", game_updater_analysis.get("role")),
+                peAnalysis={
+                    key: value
+                    for key, value in game_updater_analysis.items()
+                    if key not in {"role", "receiptPath", "evidence"}
+                },
+                processImage=process_image,
+                processLaunch=process_launch,
+                adjudicationEvidence=adjudication_evidence,
+            )
+            source["peAnalysis"]["receiptPath"] = _text(
+                "analysis.receiptPath", game_updater_analysis.get("receiptPath")
+            )
+            source["peAnalysis"]["evidence"] = _evidence(
+                "analysis.evidence", game_updater_analysis.get("evidence")
             )
         elif terms_analysis is not None and duplicate_source is not None:
             source.update(

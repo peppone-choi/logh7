@@ -1053,8 +1053,12 @@ class ResourceImporterTests(unittest.TestCase):
             "callsite": "0x004072C2",
             "triggerCallsite": "0x004068A1",
             "targetCommand": ".\\exe\\G7MTClient.exe",
+            "workingDirectory": ".\\exe\\",
             "targetRelativePosixPath": path,
             "targetSha256": source_sha,
+            "configOverrideStatus": "POSSIBLE",
+            "gateSemantics": "UNRESOLVED",
+            "runtimeObservationStatus": "UNSEEN",
             "g7StartLaunchStatus": "UNRESOLVED",
             "evidence": ["updater:default-launch:fixture"],
         }
@@ -1123,6 +1127,8 @@ class ResourceImporterTests(unittest.TestCase):
                 "launcherRelativePosixPath": "gin7updateclient.exe", "launcherSha256": "B" * 64,
                 "api": "KERNEL32.dll::CreateProcessA", "callsite": "0x004072C2",
                 "triggerCallsite": "0x004068A1", "targetCommand": ".\\exe\\G7MTClient.exe",
+                "workingDirectory": ".\\exe\\", "configOverrideStatus": "POSSIBLE",
+                "gateSemantics": "UNRESOLVED", "runtimeObservationStatus": "UNSEEN",
                 "targetRelativePosixPath": "exe/g7mtclient.exe", "targetSha256": "A" * 64,
                 "g7StartLaunchStatus": "UNRESOLVED", "evidence": ["updater:fixture"],
             }
@@ -1205,6 +1211,8 @@ class ResourceImporterTests(unittest.TestCase):
                               "launcherRelativePosixPath": launcher, "launcherSha256": "B" * 64,
                               "api": "KERNEL32.dll::CreateProcessA", "callsite": "0x004072C2",
                               "triggerCallsite": "0x004068A1", "targetCommand": ".\\exe\\G7MTClient.exe",
+                              "workingDirectory": ".\\exe\\", "configOverrideStatus": "POSSIBLE",
+                              "gateSemantics": "UNRESOLVED", "runtimeObservationStatus": "UNSEEN",
                               "targetRelativePosixPath": path, "targetSha256": "A" * 64,
                               "g7StartLaunchStatus": "UNRESOLVED", "evidence": ["fixture"]},
             "loader": {"status": "NOT_APPLICABLE", "reason": "process image", "evidence": ["fixture"]},
@@ -1238,6 +1246,66 @@ class ResourceImporterTests(unittest.TestCase):
                  TreeManifestEntry(launcher, "B" * 64, 1060864)],
                 root_id="original", adjudications={path: base},
             )
+
+    def test_game_updater_pe_closes_loader_and_preserves_default_launch(self) -> None:
+        path = "gin7updateclient.exe"
+        target_path = "exe/g7mtclient.exe"
+        source_sha = "A" * 64
+        target_sha = "B" * 64
+        analysis = {
+            "status": "PROVEN", "format": "PE32_X86_GUI_EXECUTABLE",
+            "machine": "0x014C", "subsystem": 2, "imageBase": "0x00400000",
+            "entryPointRva": "0x00009A2E", "role": "ORIGINAL_GAME_UPDATE_CLIENT",
+            "sectionCount": 4, "importDescriptorCount": 11, "importCount": 347,
+            "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+            "packingAssessment": "NO_KNOWN_PACKER_SIGNATURE_STATIC_ONLY",
+            "originalFilename": "", "fileVersion": "1, 0, 0, 0",
+            "receiptPath": "fixture.json", "receiptSha256": "C" * 64,
+            "evidence": ["updater-static:fixture"],
+        }
+        process_image = {
+            "status": "PROVEN_STATIC_FORMAT", "osLoader": "WINDOWS_PE_LOADER",
+            "target": "SELF_PROCESS_IMAGE", "runtimeObservationStatus": "NOT_CLAIMED",
+            "evidence": ["pe-format:fixture"],
+        }
+        process_launch = {
+            "status": "PROVEN_STATIC_DEFAULT", "api": "KERNEL32.dll::CreateProcessA",
+            "function": "FUN_00407260", "callsite": "0x004072C2",
+            "triggerCallsite": "0x004068A1", "targetCommand": ".\\exe\\G7MTClient.exe",
+            "workingDirectory": ".\\exe\\", "targetRelativePosixPath": target_path,
+            "targetSha256": target_sha, "configOverrideStatus": "POSSIBLE",
+            "gateSemantics": "UNRESOLVED", "runtimeObservationStatus": "UNSEEN",
+            "evidence": ["updater-default-launch:fixture"],
+        }
+        adjudication = {path: {
+            "schemaVersion": 1, "kind": "PE_GAME_UPDATER_EXECUTABLE",
+            "contentSha256": source_sha, "byteSize": 1060864,
+            "analysis": analysis, "processImage": process_image,
+            "processLaunch": process_launch,
+            "loader": {"status": "NOT_APPLICABLE", "reason": "updater process image",
+                       "evidence": ["updater-static:fixture"]},
+            "evidence": ["updater-static:fixture"],
+        }}
+
+        rows = build_resource_inventory(
+            complete_raw(conservation={"treeFiles": 2}),
+            [TreeManifestEntry(path, source_sha, 1060864),
+             TreeManifestEntry(target_path, target_sha, 3956736)],
+            root_id="original", adjudications=adjudication,
+        )
+        row = next(item for item in rows if item.row.key.endswith(":" + path))
+        normalized = normalize_resource_inventory([row])[0]
+
+        self.assertEqual(row.loader.status.value, "NOT_APPLICABLE")
+        self.assertEqual(row.format.status.value, "PROVEN")
+        self.assertEqual(normalized["source"]["staticRole"], "ORIGINAL_GAME_UPDATE_CLIENT")
+        self.assertEqual(normalized["source"]["processImage"], process_image)
+        self.assertEqual(normalized["source"]["processLaunch"]["status"],
+                         "PROVEN_STATIC_DEFAULT")
+        self.assertEqual(normalized["source"]["processLaunch"]["targetRowKey"],
+                         f"RESOURCE:FILE:original:{target_path}")
+        self.assertEqual(row.first_missing_boundary, "RUNTIME_OWNER")
+        self.assertEqual(sum(row.row.states.values()), 1)
 
     def test_tree_paths_are_safe_and_casefold_unique(self) -> None:
         for path in ("../escape.tga", "/absolute.tga", "data\\bad.tga", "./dot.tga"):

@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "status": "APPROVE",
+  "reviewScope": "GIN7UPDATECLIENT_RESOURCE_LOADER_FINAL_STATE",
+  "reviewMode": "INDEPENDENT_READ_ONLY",
+  "blockingFindings": [],
+  "source": {
+    "relativePosixPath": "gin7updateclient.exe",
+    "byteSize": 1060864,
+    "sha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+  },
+  "staticReceipt": {
+    "path": "evidence/exhaustive-trace/adjudications/gin7updateclient-static-analysis.json",
+    "sha256": "4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517",
+    "analysisEquality": true,
+    "processImageEquality": true,
+    "processLaunchEquality": true,
+    "mandatoryToolCount": 7,
+    "mandatoryToolHashMismatchCount": 0
+  },
+  "peTriage": {
+    "format": "PE32_X86_GUI_EXECUTABLE",
+    "machine": "0x014C",
+    "subsystem": 2,
+    "imageBase": "0x00400000",
+    "entryPointRva": "0x00009A2E",
+    "sectionNames": [".text", ".rdata", ".data", ".rsrc"],
+    "importDescriptorCount": 11,
+    "importCount": 347,
+    "createProcessAIatVa": "0x004402AC",
+    "loadLibraryACount": 1,
+    "getProcAddressCount": 1,
+    "fileVersion": "1, 0, 0, 0",
+    "originalFilename": ""
+  },
+  "installshieldEvidence": {
+    "data1HdrSha256": "A0BE81CB1DB8AE3240837580168FC01862BF979A10D50EE5DE333D7D261A4576",
+    "exactName": "Gin7UpdateClient.exe",
+    "occurrenceCount": 1,
+    "data1HdrRelativeOffset": "0x000316F6",
+    "isoAbsoluteOffset": "0x00089EF6"
+  },
+  "normalizedRow": {
+    "key": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+    "loaderStatus": "NOT_APPLICABLE",
+    "usageDisposition": "ENUMERATED_ONLY",
+    "firstMissingBoundary": "RUNTIME_OWNER",
+    "trueStates": ["ENUMERATED"]
+  },
+  "graph": {
+    "source": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+    "relation": "LAUNCHES_PROCESS",
+    "target": "RESOURCE:FILE:original-installshield-payload:exe/g7mtclient.exe",
+    "matchingEdgeCount": 1,
+    "joinBasis": "CORROBORATED_TYPED_REFERENCE",
+    "sourceRefCount": 2,
+    "evidenceUnionDifferenceCount": 0,
+    "reverseEdgeCount": 0,
+    "relatedLoadEdgeCount": 0
+  },
+  "authorReceipt": {
+    "path": "work/20260829-gin7updateclient-resource-loader/evidence/foundation-verification.json",
+    "sha256": "04FE7ABB5047051DB3A3A5B9BC527A5FEE7191ECC22578365C18852C230610CE",
+    "testsDiscovered": 295,
+    "testsPassed": 295,
+    "testFailures": 0,
+    "testErrors": 0,
+    "testSkips": 0,
+    "deterministicArtifactCount": 32,
+    "deterministicArtifactMismatchCount": 0,
+    "protectedInputCount": 104,
+    "protectedInputMismatchCount": 0,
+    "sourceTreesUnchanged": true,
+    "firstUnitId": "RECOVERY:D01:RESOURCE_LOADER:CF0262816AEED6F7"
+  },
+  "aggregate": {
+    "sourceRowCount": 15999,
+    "graphNodeCount": 35686,
+    "graphEdgeCount": 92056,
+    "evidenceGapCount": 25603,
+    "missingBoundaryOccurrenceCount": 153595,
+    "fatalStructuralCount": 1,
+    "fatalStructuralIds": ["FEATURE_REACHABILITY_LEDGER_ABSENT"],
+    "closedVerticalTraceCount": 0,
+    "unknownVerdictRowCount": 15999
+  },
+  "focusedVerification": {
+    "argv": [
+      "python",
+      "-B",
+      "-m",
+      "unittest",
+      "tests.tools.exhaustive_trace.test_resource_importer",
+      "tests.tools.exhaustive_trace.test_graph"
+    ],
+    "testsRun": 62,
+    "status": "PASS"
+  },
+  "safety": {
+    "repositoryWritesByReviewer": 0,
+    "originalExecutableRuns": 0,
+    "vmOperations": 0,
+    "ghidraRuns": 0,
+    "debuggerOperations": 0,
+    "fullVerifierRunsByReviewer": 0
+  },
+  "notes": [
+    "One initial read-only inline report hit a CP949 UnicodeEncodeError while printing Japanese ProductName; the same calculation was re-rendered with ensure_ascii and no state changed.",
+    "Static updater capability and default launch evidence do not prove runtime network success, update application, client launch, or playability."
+  ]
+}

@@ -284,8 +284,12 @@ def main() -> int:
         "callsite": "0x004072C2",
         "triggerCallsite": "0x004068A1",
         "targetCommand": ".\\exe\\G7MTClient.exe",
+        "workingDirectory": ".\\exe\\",
         "targetRelativePosixPath": "exe/g7mtclient.exe",
         "targetSha256": EXPECTED["client"][1],
+        "configOverrideStatus": "POSSIBLE",
+        "gateSemantics": "UNRESOLVED",
+        "runtimeObservationStatus": "UNSEEN",
         "g7StartLaunchStatus": "UNRESOLVED",
         "evidence": [
             "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",

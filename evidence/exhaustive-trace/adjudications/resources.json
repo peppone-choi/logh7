@@ -213,6 +213,86 @@
       ]
     },
     {
+      "relativePosixPath": "gin7updateclient.exe",
+      "schemaVersion": 1,
+      "kind": "PE_GAME_UPDATER_EXECUTABLE",
+      "contentSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+      "byteSize": 1060864,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PE32_X86_GUI_EXECUTABLE",
+        "machine": "0x014C",
+        "subsystem": 2,
+        "imageBase": "0x00400000",
+        "entryPointRva": "0x00009A2E",
+        "role": "ORIGINAL_GAME_UPDATE_CLIENT",
+        "sectionCount": 4,
+        "importDescriptorCount": 11,
+        "importCount": 347,
+        "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+        "packingAssessment": "NO_KNOWN_PACKER_SIGNATURE_STATIC_ONLY",
+        "originalFilename": "",
+        "fileVersion": "1, 0, 0, 0",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/gin7updateclient-static-analysis.json",
+        "receiptSha256": "4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517",
+        "evidence": [
+          "gin7updateclient-static-analysis-sha256:4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517",
+          "updater-pe-imports:11-descriptors:347-imports"
+        ]
+      },
+      "processImage": {
+        "status": "PROVEN_STATIC_FORMAT",
+        "osLoader": "WINDOWS_PE_LOADER",
+        "target": "SELF_PROCESS_IMAGE",
+        "runtimeObservationStatus": "NOT_CLAIMED",
+        "evidence": [
+          "pe32-machine:0x014C",
+          "pe32-subsystem:WINDOWS_GUI",
+          "runtime-execution:NOT_CLAIMED_BY_STATIC_FORMAT"
+        ]
+      },
+      "processLaunch": {
+        "status": "PROVEN_STATIC_DEFAULT",
+        "api": "KERNEL32.dll::CreateProcessA",
+        "function": "FUN_00407260",
+        "callsite": "0x004072C2",
+        "triggerCallsite": "0x004068A1",
+        "targetCommand": ".\\exe\\G7MTClient.exe",
+        "workingDirectory": ".\\exe\\",
+        "targetRelativePosixPath": "exe/g7mtclient.exe",
+        "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "configOverrideStatus": "POSSIBLE",
+        "gateSemantics": "UNRESOLVED",
+        "runtimeObservationStatus": "UNSEEN",
+        "evidence": [
+          "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",
+          "updater-default:WORK_DIR=.\\exe\\@0x0044A514",
+          "updater-trigger-call:0x004068A1",
+          "updater-CreateProcessA:0x004072C2",
+          "updater-config-override:POSSIBLE",
+          "runtime-launch:UNSEEN"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PE is the original update client process image. Its network and filesystem surfaces perform update work and its default CreateProcessA path starts G7MTClient.exe; neither behavior makes the updater executable itself a model, image, audio, map, string, or data asset consumed by a G7MT runtime resource loader. Actual network success, downloaded payload identity, precise remote-version comparison, runtime launch, and playability remain unresolved or unseen.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:627680C75CFF6DA7",
+          "gin7updateclient-static-analysis-sha256:4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517",
+          "os-loader:WINDOWS_PE_LOADER",
+          "updater-role:ORIGINAL_GAME_UPDATE_CLIENT",
+          "runtime-network-and-launch:UNSEEN"
+        ]
+      },
+      "evidence": [
+        "tree-manifest:LOGH7/Gin7UpdateClient.exe",
+        "original-payload-sha256:EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "installshield-filename:Gin7UpdateClient.exe@data1.hdr+0x000316F6",
+        "inspector-sha256:0417B5094BFA4FB2571E8A3F9373EDA39398630B543AB072272144BAAEDC163A"
+      ]
+    },
+    {
       "relativePosixPath": "exe/g7mtclient.exe",
       "schemaVersion": 1,
       "kind": "PE_PRIMARY_GAME_CLIENT_EXECUTABLE",
@@ -234,9 +314,9 @@
         "originalFilename": "G7MTClient.EXE",
         "fileVersion": "1, 0, 0, 1",
         "receiptPath": "evidence/exhaustive-trace/adjudications/g7mtclient-static-analysis.json",
-        "receiptSha256": "0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+        "receiptSha256": "27AFC24D084FF56CED23D974B974114EE37531EC7BC6D44228C3B1E7F5782001",
         "evidence": [
-          "g7mtclient-static-analysis-sha256:0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+          "g7mtclient-static-analysis-sha256:27AFC24D084FF56CED23D974B974114EE37531EC7BC6D44228C3B1E7F5782001",
           "pe-imports-sha256:E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE",
           "version-original-filename:G7MTClient.EXE",
           "version-file-version:1, 0, 0, 1"
@@ -262,8 +342,12 @@
         "callsite": "0x004072C2",
         "triggerCallsite": "0x004068A1",
         "targetCommand": ".\\exe\\G7MTClient.exe",
+        "workingDirectory": ".\\exe\\",
         "targetRelativePosixPath": "exe/g7mtclient.exe",
         "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "configOverrideStatus": "POSSIBLE",
+        "gateSemantics": "UNRESOLVED",
+        "runtimeObservationStatus": "UNSEEN",
         "g7StartLaunchStatus": "UNRESOLVED",
         "evidence": [
           "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",
@@ -280,7 +364,7 @@
         "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PE is the primary G7MTClient process image loaded by the Windows PE loader and started by the updater's default CreateProcessA path. It is the consumer of game resources, not itself a model, image, audio, map, string, or data asset consumed by a G7MT runtime resource loader. Internal resource-loader functions and embedded PE resources remain separate evidence surfaces; actual launch, reachability, playability, and runtime state are not claimed.",
         "evidence": [
           "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:E346F47C94A6E543",
-          "g7mtclient-static-analysis-sha256:0E880071B5D92F93DF63F63FE6C6AF4B05996B8A1C535824AC595BA9D9529DD9",
+          "g7mtclient-static-analysis-sha256:27AFC24D084FF56CED23D974B974114EE37531EC7BC6D44228C3B1E7F5782001",
           "os-loader:WINDOWS_PE_LOADER",
           "updater-default-launch:PROVEN_STATIC_DEFAULT",
           "runtime-launch:UNSEEN",
@@ -292,7 +376,7 @@
         "original-payload-sha256:BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
         "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
         "installshield-filename:G7MTClient.exe@data1.hdr+0x00031764",
-        "inspector-sha256:E26FD5E829A42E5731C1ABD4A1046CDEFBA1288821D5CC30733F1B57F122C691"
+        "inspector-sha256:2E25F7DEB51F7EDC6EA6B546220F9ADD1F14952D56A24F15C3C37265B2F0103C"
       ]
     }
   ]

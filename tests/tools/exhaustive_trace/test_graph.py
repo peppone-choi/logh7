@@ -475,6 +475,79 @@ class GraphTests(unittest.TestCase):
         self.assertNotIn((target["key"], "LAUNCHES_PROCESS", launcher["key"]), triples)
         self.assertNotIn((launcher["key"], "LOADS", target["key"]), triples)
 
+    def test_matching_source_and_inbound_launch_claims_merge_deterministically(self) -> None:
+        rows = [row for group in fixture_rows().values() for row in group]
+        target = next(row for row in rows if row["inventory"] == "RESOURCE")
+        launcher = envelope(
+            "RESOURCE", "RESOURCE:TREE:gin7updateclient.exe", "gin7updateclient.exe"
+        )
+        launcher.update(rowKind="TREE_FILE")
+        signature = {
+            "status": "PROVEN_STATIC_DEFAULT", "api": "KERNEL32.dll::CreateProcessA",
+            "callsite": "0x004072C2", "triggerCallsite": "0x004068A1",
+            "targetCommand": ".\\exe\\G7MTClient.exe", "workingDirectory": ".\\exe\\",
+            "targetRelativePosixPath": "exe/g7mtclient.exe", "targetSha256": "A" * 64,
+            "configOverrideStatus": "POSSIBLE", "gateSemantics": "UNRESOLVED",
+            "runtimeObservationStatus": "UNSEEN",
+        }
+        launcher["source"] = {
+            "processLaunch": {
+                **signature, "targetRowKey": target["key"],
+                "evidence": ["fixture:source-launch"],
+            }
+        }
+        target["source"] = {
+            "inboundLaunch": {
+                **signature, "launcherRowKey": launcher["key"],
+                "launcherRelativePosixPath": "gin7updateclient.exe",
+                "launcherSha256": "B" * 64, "g7StartLaunchStatus": "UNRESOLVED",
+                "evidence": ["fixture:inbound-launch"],
+            }
+        }
+        rows.append(launcher)
+
+        graph = build_graph(rows)
+        reverse_graph = build_graph(list(reversed(rows)))
+        matches = [edge for edge in graph.edges if edge.source == launcher["key"]
+                   and edge.relation == "LAUNCHES_PROCESS" and edge.target == target["key"]]
+
+        self.assertEqual(1, len(matches))
+        self.assertEqual("CORROBORATED_TYPED_REFERENCE", matches[0].join_basis)
+        self.assertEqual(
+            {f"inventory:{launcher['key']}/source/processLaunch",
+             f"inventory:{target['key']}/source/inboundLaunch"},
+            set(matches[0].source_refs),
+        )
+        self.assertEqual(graph.edges_sha256, reverse_graph.edges_sha256)
+
+    def test_conflicting_dual_process_launch_claims_fail_closed(self) -> None:
+        rows = [row for group in fixture_rows().values() for row in group]
+        target = next(row for row in rows if row["inventory"] == "RESOURCE")
+        launcher = envelope(
+            "RESOURCE", "RESOURCE:TREE:gin7updateclient.exe", "gin7updateclient.exe"
+        )
+        launcher.update(rowKind="TREE_FILE")
+        common = {
+            "status": "PROVEN_STATIC_DEFAULT", "api": "KERNEL32.dll::CreateProcessA",
+            "callsite": "0x004072C2", "triggerCallsite": "0x004068A1",
+            "targetCommand": ".\\exe\\G7MTClient.exe", "workingDirectory": ".\\exe\\",
+            "targetRelativePosixPath": "exe/g7mtclient.exe", "targetSha256": "A" * 64,
+            "configOverrideStatus": "POSSIBLE", "gateSemantics": "UNRESOLVED",
+            "runtimeObservationStatus": "UNSEEN",
+        }
+        launcher["source"] = {"processLaunch": {
+            **common, "targetRowKey": target["key"], "evidence": ["fixture:source-launch"],
+        }}
+        target["source"] = {"inboundLaunch": {
+            **common, "callsite": "0x004072C3", "launcherRowKey": launcher["key"],
+            "launcherRelativePosixPath": "gin7updateclient.exe", "launcherSha256": "B" * 64,
+            "g7StartLaunchStatus": "UNRESOLVED", "evidence": ["fixture:inbound-launch"],
+        }}
+        rows.append(launcher)
+
+        with self.assertRaisesRegex(ValueError, "conflicting process launch claims"):
+            build_graph(rows)
+
     def test_external_manual_opener_emits_document_edge_without_asset_load_edge(self) -> None:
         rows = [row for group in fixture_rows().values() for row in group]
         manual = next(row for row in rows if row["inventory"] == "RESOURCE")

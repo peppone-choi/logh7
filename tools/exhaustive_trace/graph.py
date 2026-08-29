@@ -957,6 +957,43 @@ class _GraphBuilder:
                 )
 
     def resource_edges(self) -> None:
+        process_claims: dict[tuple[str, str], dict[str, Any]] = {}
+
+        def register_process_claim(
+            source: str,
+            target: str,
+            claim: Mapping[str, Any],
+            evidence: Iterable[str],
+            source_ref: str,
+        ) -> None:
+            signature = {
+                field: claim.get(field)
+                for field in (
+                    "status", "api", "callsite", "triggerCallsite", "targetCommand",
+                    "workingDirectory", "targetRelativePosixPath", "targetSha256",
+                    "configOverrideStatus", "gateSemantics", "runtimeObservationStatus",
+                )
+            }
+            key = (source, target)
+            prior = process_claims.get(key)
+            if prior is None:
+                process_claims[key] = {
+                    "signature": signature,
+                    "evidence": set(evidence),
+                    "sourceRefs": {source_ref},
+                }
+                return
+            if prior["signature"] != signature:
+                raise ValueError(
+                    f"conflicting process launch claims: {source} -> {target}"
+                )
+            if source_ref in prior["sourceRefs"]:
+                raise ValueError(
+                    f"duplicate process launch claim source ref: {source_ref}"
+                )
+            prior["evidence"].update(evidence)
+            prior["sourceRefs"].add(source_ref)
+
         for row in self.rows:
             if row["inventory"] != "RESOURCE":
                 continue
@@ -990,31 +1027,26 @@ class _GraphBuilder:
             if process_launch:
                 ref = f"inventory:{row['key']}/source/processLaunch"
                 target = process_launch.get("targetRowKey")
-                if process_launch.get("status") != "PROVEN" or target not in self.row_by_key:
+                if (
+                    process_launch.get("status") not in {"PROVEN", "PROVEN_STATIC_DEFAULT"}
+                    or target not in self.row_by_key
+                ):
                     raise ValueError(f"proven process launch target is unresolved: {row['key']}")
                 process_evidence = process_launch.get("evidence", row["evidence"])
-                self.add_edge(
-                    row["key"], "LAUNCHES_PROCESS", target, process_evidence,
-                    provenance=row["provenance"], confidence="HIGH", disposition="PROVEN",
-                    edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
-                    source_refs=(ref,), candidate_id=f"PROCESS_LAUNCH:{row['key']}:{target}",
+                register_process_claim(
+                    row["key"], target, process_launch, process_evidence, ref
                 )
             inbound_launch = (row.get("source") or {}).get("inboundLaunch")
             if inbound_launch:
                 ref = f"inventory:{row['key']}/source/inboundLaunch"
                 launcher = inbound_launch.get("launcherRowKey")
-                if (
-                    inbound_launch.get("status") != "PROVEN_STATIC_DEFAULT"
-                    or launcher not in self.row_by_key
-                ):
+                if inbound_launch.get("status") not in {
+                    "PROVEN", "PROVEN_STATIC_DEFAULT"
+                } or launcher not in self.row_by_key:
                     raise ValueError(f"proven inbound launch source is unresolved: {row['key']}")
                 launch_evidence = inbound_launch.get("evidence", row["evidence"])
-                self.add_edge(
-                    launcher, "LAUNCHES_PROCESS", row["key"], launch_evidence,
-                    provenance=row["provenance"], confidence="HIGH", disposition="PROVEN",
-                    edge_class="SEMANTIC", join_basis="DIRECT_TYPED_REFERENCE",
-                    source_refs=(ref,),
-                    candidate_id=f"INBOUND_PROCESS_LAUNCH:{launcher}:{row['key']}",
+                register_process_claim(
+                    launcher, row["key"], inbound_launch, launch_evidence, ref
                 )
             document_open = (row.get("source") or {}).get("externalDocumentOpen")
             if document_open:
@@ -1038,6 +1070,19 @@ class _GraphBuilder:
                     source_refs=(ref,),
                     candidate_id=f"DOCUMENT_OPEN:{opener_key}:{row['key']}",
                 )
+        for (source, target), claim in sorted(process_claims.items()):
+            refs = claim["sourceRefs"]
+            self.add_edge(
+                source, "LAUNCHES_PROCESS", target, claim["evidence"],
+                provenance="ORIGINAL_OBSERVED", confidence="HIGH", disposition="PROVEN",
+                edge_class="SEMANTIC",
+                join_basis=(
+                    "CORROBORATED_TYPED_REFERENCE"
+                    if len(refs) > 1 else "DIRECT_TYPED_REFERENCE"
+                ),
+                source_refs=refs,
+                candidate_id=f"PROCESS_LAUNCH:{source}:{target}",
+            )
 
     def authority_edges(self) -> None:
         for row in self.rows:

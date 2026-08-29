@@ -17,6 +17,7 @@
   "inboundLaunch": {
     "api": "KERNEL32.dll::CreateProcessA",
     "callsite": "0x004072C2",
+    "configOverrideStatus": "POSSIBLE",
     "evidence": [
       "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",
       "updater-default:WORK_DIR=.\\exe\\@0x0044A514",
@@ -27,14 +28,17 @@
       "runtime-launch-observation:UNSEEN"
     ],
     "g7StartLaunchStatus": "UNRESOLVED",
+    "gateSemantics": "UNRESOLVED",
     "launcherRelativePosixPath": "gin7updateclient.exe",
     "launcherRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
     "launcherSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+    "runtimeObservationStatus": "UNSEEN",
     "status": "PROVEN_STATIC_DEFAULT",
     "targetCommand": ".\\exe\\G7MTClient.exe",
     "targetRelativePosixPath": "exe/g7mtclient.exe",
     "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
-    "triggerCallsite": "0x004068A1"
+    "triggerCallsite": "0x004068A1",
+    "workingDirectory": ".\\exe\\"
   },
   "installshieldEvidence": {
     "data1HdrRelativeOffset": "0x00031764",
@@ -214,7 +218,7 @@
     },
     "inspectorScript": {
       "path": "work/20260829-g7mtclient-resource-loader/InspectG7MTClient.py",
-      "sha256": "E26FD5E829A42E5731C1ABD4A1046CDEFBA1288821D5CC30733F1B57F122C691"
+      "sha256": "2E25F7DEB51F7EDC6EA6B546220F9ADD1F14952D56A24F15C3C37265B2F0103C"
     },
     "originalCdIso": {
       "path": "E:\\logh7-vm-media\\LOGH7-original-cd.iso",
