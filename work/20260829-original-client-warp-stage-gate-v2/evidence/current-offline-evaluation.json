@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 2,
+  "receiptType": "ORIGINAL_CLIENT_WARP_STAGE_GATE_V2_EVALUATION",
+  "sourceGateInputSha256": "0C3E1DCB2FC293DF67AF85F6F5CE5547CC3F926D389FE5A4DD9853D62E17D9CC",
+  "expectedHashManifestSha256": "BCD7B21070C7EE3C10CA187F194E3FC8C7F803B0911EC45DF70B11DA37A2B891",
+  "oracleRunId": "SYNTHETIC-RUN-V3",
+  "stage": "WARP",
+  "status": "OFFLINE_WARP_GATE_V2_AUDIT_PASS_READY_FALSE",
+  "auditPass": true,
+  "authorityStatus": "WARP_ONLY_ONE_ACTIVATION_PRESERVED",
+  "stageLocalMaxPhysicalActivations": 1,
+  "physicalActivationsBefore": 0,
+  "physicalActivationsRemaining": 1,
+  "stages": {
+    "warp": {
+      "lifecycle": "NOT_CREATED",
+      "consumed": 0
+    },
+    "destination": {
+      "lifecycle": "NOT_CREATED",
+      "consumed": 0
+    },
+    "confirm": {
+      "lifecycle": "NOT_CREATED",
+      "consumed": 0
+    }
+  },
+  "warpPreparation": {
+    "source": "MANAGER65_V3_SYNTHETIC_OFFLINE_CANDIDATE",
+    "offlineCandidatePresent": true,
+    "liveBindingLifecycle": "NOT_CREATED",
+    "commandId": 43,
+    "bindingSourceSha256": null
+  },
+  "structuralBlockers": [],
+  "readinessBlockers": [
+    "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION",
+    "FRESH_RUN_IDENTITY_RECOLLECTION_REQUIRED",
+    "FRESH_LISTENER_HEARTBEAT_FOREGROUND_REQUIRED",
+    "FRESH_CORRECTED_MANAGER65_V3_LIVE_CAPTURE_REQUIRED",
+    "INDEPENDENT_MANAGER65_HIT_REGION_BINDING_REQUIRED",
+    "MANAGER67_PRIOR_STAGE_HIT_REGION_RECEIPT_REQUIRED",
+    "FRESH_MOVEMENT_BREAKPOINT_INSTALLATION_AND_INITIAL_DR_SNAPSHOT_MISSING",
+    "DEBUGGER_BUILD_RECONCILIATION_REQUIRED",
+    "INDEPENDENT_LIVE_PRELAUNCH_REVIEW_REQUIRED",
+    "NEW_WARP_STAGE_PERMIT_NOT_ISSUED"
+  ],
+  "deferredFullTransactionBlocker": "FULL_MOVEMENT_TRANSACTION_AUTHORITY_INSUFFICIENT_TWO_ADDITIONAL_PHYSICAL_ACTIVATIONS_REQUIRED",
+  "activationEligible": false,
+  "warpPrelaunchEligible": false,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "permit": null,
+  "activationPoint": null,
+  "automaticActivationPoint": null,
+  "originalRuntimeObserved": false,
+  "independentLiveBinding": false,
+  "livePromotionAllowed": false,
+  "futureStageDisposition": "DESTINATION_AND_CONFIRM_NOT_CREATED_NOT_AUTHORIZED",
+  "postWarpRequiredEvidence": [
+    "WARP_INPUT_CONSUMED_EXACTLY_ONCE",
+    "DESTINATION_STAGE_CREATED",
+    "OWNED_HWND_POST_WARP_CAPTURE",
+    "MVB01_ACCEPTED_HIT_COUNT_ZERO",
+    "INITIAL_DR_ACTIVE_SET_UNCHANGED",
+    "STOP_AND_HANDOFF_NO_FURTHER_INPUT"
+  ],
+  "operationsPerformedByEvaluator": {
+    "fileReads": 15,
+    "liveRuns": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "physicalInputs": 0,
+    "automaticInputs": 0,
+    "debuggerOperations": 0,
+    "vmOperations": 0,
+    "serverProtocolDbChanges": 0,
+    "permitIssuance": 0
+  }
+}

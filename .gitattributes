@@ -75,3 +75,6 @@ work/20260829-update-ini-resource-loader/InspectUpdateIni.py text eol=lf
 work/20260829-original-client-manager65-corrected-collector-v3/.gitignore text eol=lf
 work/20260829-original-client-manager65-corrected-collector-v3/src/evaluate_manager65_capture_v3.py text eol=lf
 work/20260829-original-client-manager65-corrected-collector-v3/tests/test_manager65_v3.py text eol=lf
+work/20260829-original-client-warp-stage-gate-v2/.gitignore text eol=lf
+work/20260829-original-client-warp-stage-gate-v2/src/evaluate_warp_stage_gate_v2.py text eol=lf
+work/20260829-original-client-warp-stage-gate-v2/tests/test_warp_stage_gate_v2.py text eol=lf

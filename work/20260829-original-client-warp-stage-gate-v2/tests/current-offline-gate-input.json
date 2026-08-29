@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 2,
+  "receiptType": "ORIGINAL_CLIENT_WARP_STAGE_GATE_V2_INPUT",
+  "evidenceClass": "SYNTHETIC_FIXTURE_OFFLINE_ONLY",
+  "oracleRunId": "SYNTHETIC-RUN-V3",
+  "authorityEnvelope": {
+    "authorizationId": "CURRENT_THREAD_ORACLE_ONE_RUN_ONE_ACTIVATION_V1",
+    "authoritySourceSha256": "72668E9B5F7EFDAD00C9E8100927889ABE8D751510B0ECCC7B4915C7C4297D93",
+    "oneRunApproved": true,
+    "maxPhysicalActivations": 1,
+    "physicalActivationsConsumed": 0,
+    "physicalActivationsRemaining": 1,
+    "automaticInputBudget": 0,
+    "retryBudget": 0,
+    "issuedForStage": "WARP_ONLY",
+    "reusableAfterFailure": false
+  },
+  "sources": {
+    "managerArtifactLedger": {"path":"work/20260829-original-client-manager65-corrected-collector-v3/evidence/artifact-ledger.json","sha256":"304D49A3D65D49AE9706B04952E6BEAB537539157B7A7006493D1736187D2907"},
+    "managerCollector": {"path":"work/20260829-original-client-manager65-corrected-collector-v3/src/collect-manager65-action2b-v3.ps1","sha256":"DBC416FFC27DFD247BCDDD7077F335ADFD494BB8FB858D4BDBE41E71E45EAEA4"},
+    "managerEvaluator": {"path":"work/20260829-original-client-manager65-corrected-collector-v3/src/evaluate_manager65_capture_v3.py","sha256":"882030EDCDE1280C4EF1210DA204157B5E29A66CEC4C11E8BC9DA62FACA7BB09"},
+    "managerCapture": {"path":"work/20260829-original-client-manager65-corrected-collector-v3/evidence/fixture-capture.json","sha256":"1863BBC8DD91547208A8877A5BE34EC199CBAC1C0F25F389CB306648306CB255"},
+    "managerEvaluation": {"path":"work/20260829-original-client-manager65-corrected-collector-v3/evidence/fixture-evaluation.json","sha256":"93AEDD157883657072A13CE2EC40554DD376444BDA8A4F28C4ACB720F5E1DB06"},
+    "managerReview": {"path":"work/20260829-original-client-manager65-corrected-collector-v3/evidence/independent-review.json","sha256":"8269D98DB4BE2911BC5B6AA3ACFE1110AF0EC3FA22C75A926ECADA288839899B"},
+    "managerFinalVerification": {"path":"work/20260829-original-client-manager65-corrected-collector-v3/evidence/final-verification.json","sha256":"17181F751DF7DD608081E3E9304F0D0D168743C294C5DEB6E0F45B4ABD4D4909"},
+    "prelaunchRootRole": {"path":"work/20260829-original-client-warp-prelaunch-v10/evidence/root-role-static-adjudication.json","sha256":"1753317B9EBC597A353AFCFD203742F06DA2BE617BAF543AD50DA6DBD4B4858A"},
+    "prelaunchReview": {"path":"work/20260829-original-client-warp-prelaunch-v10/evidence/independent-review.json","sha256":"F5E92E5EFE9D05520046ED41583D353122799292F7F93C3F8A52EEF4BAC107DF"},
+    "prelaunchFinalVerification": {"path":"work/20260829-original-client-warp-prelaunch-v10/evidence/final-verification.json","sha256":"41B6845EAE91E5F9103DDF1D3D1EB751AA48C428274D4C09FE408D218923F4AC"},
+    "prelaunchOperationLedger": {"path":"work/20260829-original-client-warp-prelaunch-v10/evidence/operation-attempt-ledger.json","sha256":"A6B30A4B19994D102ACDA1A5849CD1D6A7E4EA0106AD07E5F1ADBA3A3574C59F"},
+    "activationPolicy": {"path":"work/20260829-original-client-activation-budget-stage-contract-v1/evidence/activation-budget-stage-policy.json","sha256":"23203A865F85C27E6D7E282A01455183F9C2D67651A770F6AAEBB133431D53D2"},
+    "authorityRecord": {"path":"work/20260829-original-client-activation-budget-stage-contract-v1/evidence/current-thread-authority-record.json","sha256":"72668E9B5F7EFDAD00C9E8100927889ABE8D751510B0ECCC7B4915C7C4297D93"}
+  },
+  "stages": {
+    "warp": {"lifecycle":"NOT_CREATED","consumed":0},
+    "destination": {"lifecycle":"NOT_CREATED","consumed":0},
+    "confirm": {"lifecycle":"NOT_CREATED","consumed":0}
+  },
+  "operations": {
+    "liveRuns":0,"processMemoryReads":0,"processMemoryWrites":0,"physicalInputs":0,"automaticInputs":0,"retries":0,"binaryPatches":0,"debuggerAttach":0,"debuggerCommands":0,"breakpointsInstalled":0,"ownedHwndCaptures":0,"vmLifecycleChanges":0,"serverChanges":0,"protocolChanges":0,"databaseChanges":0,"permitIssuance":0
+  },
+  "claimCeiling": {
+    "originalRuntimeObserved":false,"freshIdentityBound":false,"independentLiveBinding":false,"livePromotionAllowed":false,"warpPrelaunchEligible":false,"activationEligible":false,"launchEligible":false,"permitEligible":false,"permitIssued":false,"activationPoint":null,"automaticActivationPoint":null,"permit":null
+  }
+}
