@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "recordType": "INDEPENDENT_READ_ONLY_REVIEW",
+  "reviewer": "g7mt_independent_review",
+  "singleWriter": "Codex/root",
+  "verdict": "APPROVE",
+  "reviewRound": 2,
+  "scope": "BOUNDED_OFFLINE_MANAGER65_CORRECTED_COLLECTOR_V3_ONLY",
+  "reruns": [
+    {
+      "command": "pwsh -NoProfile -File work/20260829-original-client-manager65-corrected-collector-v3/verify.ps1",
+      "exitCode": 0,
+      "tests": 7,
+      "mutations": 62
+    },
+    {
+      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File work/20260829-original-client-manager65-corrected-collector-v3/verify.ps1",
+      "exitCode": 0,
+      "tests": 7,
+      "mutations": 62
+    }
+  ],
+  "hashes": {
+    "collector": "DBC416FFC27DFD247BCDDD7077F335ADFD494BB8FB858D4BDBE41E71E45EAEA4",
+    "evaluator": "882030EDCDE1280C4EF1210DA204157B5E29A66CEC4C11E8BC9DA62FACA7BB09",
+    "tests": "96761051FE340CF40AC6FDEFFF986B541A7E08D646FC897885DBFCCE697A843B",
+    "fixtureMemory": "480E2C11365DF0A90078053DCADBA7B9ECB67B43204F329F22D279ABD1C3BF2B",
+    "fixtureIdentity": "4B640FA52D2F59022EE0EF01C42302F0AB21B0954C523A53070A30A63823CCA5",
+    "staticSourceLedger": "A29B248491ABB021FB0550A0A9E325244598A404B5F9680EE48B021EFB7023B2",
+    "verifier": "A8A91737597CFF6C958A133BACF5FC75D84D54FFED1E992CECFD7F00E12E95B7",
+    "publishedCapture": "1863BBC8DD91547208A8877A5BE34EC199CBAC1C0F25F389CB306648306CB255"
+  },
+  "findingsClosed": [
+    "WINDOWS_POWERSHELL_5_1_COMPATIBILITY",
+    "EXTERNAL_IDENTITY_RECEIPT_SHA256_EXACT_BINDING",
+    "EXISTING_OUTPUT_ATOMIC_REPLACEMENT"
+  ],
+  "confirmed": {
+    "legacyStrategyOwnerModeGatesRemoved": true,
+    "uiRootAndStrategyOwnerSeparated": true,
+    "engineViewportInsideOwnedHwndNotForcedEqual": true,
+    "manager67DormantRequired": true,
+    "liveSelfPromotionRejected": true,
+    "interactiveHwndBlockerPreserved": true,
+    "targetMutationCapabilityCount": 0,
+    "validatorWrites": 0
+  },
+  "claimBoundary": "OFFLINE_CONTRACT_APPROVED_RUNTIME_UNSEEN"
+}

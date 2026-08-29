@@ -72,3 +72,6 @@ work/20260829-original-terms-resource-loader/InspectTermsDocument.py text eol=lf
 work/20260829-g7mtclient-resource-loader/InspectG7MTClient.py text eol=lf
 work/20260829-gin7updateclient-resource-loader/InspectGin7UpdateClient.py text eol=lf
 work/20260829-update-ini-resource-loader/InspectUpdateIni.py text eol=lf
+work/20260829-original-client-manager65-corrected-collector-v3/.gitignore text eol=lf
+work/20260829-original-client-manager65-corrected-collector-v3/src/evaluate_manager65_capture_v3.py text eol=lf
+work/20260829-original-client-manager65-corrected-collector-v3/tests/test_manager65_v3.py text eol=lf
