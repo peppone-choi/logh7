@@ -1,0 +1,907 @@
+{
+ "schema": "logh7-client-request-kind-table/1",
+ "source": {
+  "function": "FUN_004B78A0 (request sender): kind index 1..0x80 -> jump table 0x4B864C; each case sets esi = request type, ebx = expected response type (ebx = -1 default = none)",
+  "binary": "G7MTClient.item1.exe"
+ },
+ "note": "Complete client request-kind inventory (128 kinds). Kind 0x6D is used by the CommandCardAppointment send helper FUN_004B53A0.",
+ "count": 128,
+ "kinds": [
+  {
+   "kind": 1,
+   "case": "0x004B78E5",
+   "request": "0x0200",
+   "expectedResponse": "0x0201",
+   "expectedName": "SSLoginOK"
+  },
+  {
+   "kind": 2,
+   "case": "0x004B7920",
+   "request": "0x7000",
+   "expectedResponse": "0x7001",
+   "expectedName": null
+  },
+  {
+   "kind": 3,
+   "case": "0x004B7914",
+   "request": "0x0205",
+   "expectedResponse": "0x0206",
+   "expectedName": "SSGameLoginOK"
+  },
+  {
+   "kind": 4,
+   "case": "0x004B79D1",
+   "request": "0x0203",
+   "expectedResponse": "0x0204",
+   "expectedName": "SSCharacterIDResponce"
+  },
+  {
+   "kind": 5,
+   "case": "0x004B792C",
+   "request": "0x2000",
+   "expectedResponse": "0x2001",
+   "expectedName": "LobbyLoginOK"
+  },
+  {
+   "kind": 6,
+   "case": "0x004B7938",
+   "request": "0x2003",
+   "expectedResponse": "0x2004",
+   "expectedName": "LobbyResponseInformationCharacterCharge"
+  },
+  {
+   "kind": 7,
+   "case": "0x004B7944",
+   "request": "0x2005",
+   "expectedResponse": "0x2006",
+   "expectedName": "LobbyResponseInformationSession"
+  },
+  {
+   "kind": 8,
+   "case": "0x004B7950",
+   "request": "0x2009",
+   "expectedResponse": "0x200A",
+   "expectedName": "LobbySessionLoginOK"
+  },
+  {
+   "kind": 9,
+   "case": "0x004B795C",
+   "request": "0x1000",
+   "expectedResponse": "0x1001",
+   "expectedName": null
+  },
+  {
+   "kind": 10,
+   "case": "0x004B7968",
+   "request": "0x1001",
+   "expectedResponse": "0x1003",
+   "expectedName": "ResponseUnChargeCharacter"
+  },
+  {
+   "kind": 11,
+   "case": "0x004B7977",
+   "request": "0x1004",
+   "expectedResponse": "0x1005",
+   "expectedName": "ResponseCharacterEntryState"
+  },
+  {
+   "kind": 12,
+   "case": "0x004B7D96",
+   "request": "0x1006",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 13,
+   "case": "0x004B7DAE",
+   "request": "0x1007",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 14,
+   "case": "0x004B7DC6",
+   "request": "0x1008",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 15,
+   "case": "0x004B7986",
+   "request": "0x032C",
+   "expectedResponse": "0x032D",
+   "expectedName": "ResponseGridInformationOutfit"
+  },
+  {
+   "kind": 16,
+   "case": "0x004B7995",
+   "request": "0x032E",
+   "expectedResponse": "0x032F",
+   "expectedName": "ResponseInformationOutfitParty"
+  },
+  {
+   "kind": 17,
+   "case": "0x004B79A4",
+   "request": "0x0330",
+   "expectedResponse": "0x0331",
+   "expectedName": "ResponseOutfitInformationUnit"
+  },
+  {
+   "kind": 18,
+   "case": "0x004B79B3",
+   "request": "0x0328",
+   "expectedResponse": "0x0329",
+   "expectedName": "ResponseInformationPackage"
+  },
+  {
+   "kind": 19,
+   "case": "0x004B79EE",
+   "request": "0x0F00",
+   "expectedResponse": "0x0F01",
+   "expectedName": null
+  },
+  {
+   "kind": 20,
+   "case": "0x004B7A0B",
+   "request": "0x0F02",
+   "expectedResponse": "0x0F03",
+   "expectedName": null
+  },
+  {
+   "kind": 21,
+   "case": "0x004B7A8E",
+   "request": "0x0322",
+   "expectedResponse": "0x0323",
+   "expectedName": "ResponseInformationCharacter OK chr=%d"
+  },
+  {
+   "kind": 22,
+   "case": "0x004B7AB5",
+   "request": "0x034E",
+   "expectedResponse": "0x034F",
+   "expectedName": "ResponseCardCharacter"
+  },
+  {
+   "kind": 23,
+   "case": "0x004B79C2",
+   "request": "0x0326",
+   "expectedResponse": "0x0327",
+   "expectedName": "ResponseInformationWarehouse"
+  },
+  {
+   "kind": 24,
+   "case": "0x004B7AD2",
+   "request": "0x032A",
+   "expectedResponse": "0x032B",
+   "expectedName": "ResponseInformationOutfit"
+  },
+  {
+   "kind": 25,
+   "case": "0x004B7CBF",
+   "request": "0x0336",
+   "expectedResponse": "0x0337",
+   "expectedName": "ResponseTacticsCharacter"
+  },
+  {
+   "kind": 26,
+   "case": "0x004B7B9D",
+   "request": "0x0304",
+   "expectedResponse": "0x0305",
+   "expectedName": "ResponseStaticInformationCard"
+  },
+  {
+   "kind": 27,
+   "case": "0x004B7BBA",
+   "request": "0x0306",
+   "expectedResponse": "0x0307",
+   "expectedName": "ResponseStaticInformationCardCommand"
+  },
+  {
+   "kind": 28,
+   "case": "0x004B7BD7",
+   "request": "0x0314",
+   "expectedResponse": "0x0315",
+   "expectedName": "ResponseStaticInformationGrid"
+  },
+  {
+   "kind": 29,
+   "case": "0x004B7BF4",
+   "request": "0x0312",
+   "expectedResponse": "0x0313",
+   "expectedName": "ResponseStaticInformationGridType"
+  },
+  {
+   "kind": 30,
+   "case": "0x004B7B80",
+   "request": "0x031C",
+   "expectedResponse": "0x031D",
+   "expectedName": "ResponseStaticInformationBase"
+  },
+  {
+   "kind": 31,
+   "case": "0x004B7B46",
+   "request": "0x0310",
+   "expectedResponse": "0x0311",
+   "expectedName": "ResponseStaticInformationArms"
+  },
+  {
+   "kind": 32,
+   "case": "0x004B7B63",
+   "request": "0x030E",
+   "expectedResponse": "0x030F",
+   "expectedName": "ResponseStaticInformationFighters"
+  },
+  {
+   "kind": 33,
+   "case": "0x004B7AEF",
+   "request": "0x031E",
+   "expectedResponse": "0x031F",
+   "expectedName": "ResponseInformationBase"
+  },
+  {
+   "kind": 34,
+   "case": "0x004B7B0C",
+   "request": "0x0320",
+   "expectedResponse": "0x0321",
+   "expectedName": "ResponseInformationInstitution"
+  },
+  {
+   "kind": 35,
+   "case": "0x004B7C11",
+   "request": "0x0344",
+   "expectedResponse": "0x0345",
+   "expectedName": "ResponseTacticsInformationBase"
+  },
+  {
+   "kind": 36,
+   "case": "0x004B7C2E",
+   "request": "0x0346",
+   "expectedResponse": "0x0347",
+   "expectedName": "InformationObstacle"
+  },
+  {
+   "kind": 37,
+   "case": "0x004B7C4B",
+   "request": "0x033E",
+   "expectedResponse": "0x033F",
+   "expectedName": "ResponseTacticsInformationCorps"
+  },
+  {
+   "kind": 38,
+   "case": "0x004B7C68",
+   "request": "0x0308",
+   "expectedResponse": "0x0309",
+   "expectedName": "ResponseStaticInformationPowerDistribution"
+  },
+  {
+   "kind": 39,
+   "case": "0x004B7C85",
+   "request": "0x0340",
+   "expectedResponse": "0x0341",
+   "expectedName": "ResponseTacticsInformationFillShield"
+  },
+  {
+   "kind": 40,
+   "case": "0x004B7D33",
+   "request": "0x030A",
+   "expectedResponse": "0x030B",
+   "expectedName": "ResponseStaticInformationUnitShip"
+  },
+  {
+   "kind": 41,
+   "case": "0x004B7D50",
+   "request": "0x030C",
+   "expectedResponse": "0x030D",
+   "expectedName": "ResponseStaticInformationUnitTroop"
+  },
+  {
+   "kind": 42,
+   "case": "0x004B84FF",
+   "request": null,
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 43,
+   "case": "0x004B7CA2",
+   "request": "0x033A",
+   "expectedResponse": "0x033B",
+   "expectedName": null
+  },
+  {
+   "kind": 44,
+   "case": "0x004B7CDC",
+   "request": "0x0324",
+   "expectedResponse": "0x0325",
+   "expectedName": "ResponseInformationUnit"
+  },
+  {
+   "kind": 45,
+   "case": "0x004B7B29",
+   "request": "0x0316",
+   "expectedResponse": "0x0317",
+   "expectedName": "ResponseInformationGrid"
+  },
+  {
+   "kind": 46,
+   "case": "0x004B7CF9",
+   "request": "0x0348",
+   "expectedResponse": "0x0349",
+   "expectedName": "ResponsePositionUnit"
+  },
+  {
+   "kind": 47,
+   "case": "0x004B7D16",
+   "request": "0x034A",
+   "expectedResponse": "0x034B",
+   "expectedName": "ResponsePositionBase"
+  },
+  {
+   "kind": 48,
+   "case": "0x004B7D6D",
+   "request": "0x0300",
+   "expectedResponse": "0x0301",
+   "expectedName": null
+  },
+  {
+   "kind": 49,
+   "case": "0x004B7DDE",
+   "request": "0x0400",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 50,
+   "case": "0x004B7DF6",
+   "request": "0x0401",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 51,
+   "case": "0x004B7E0E",
+   "request": "0x0402",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 52,
+   "case": "0x004B7E26",
+   "request": "0x0405",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 53,
+   "case": "0x004B7E3E",
+   "request": "0x0406",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 54,
+   "case": "0x004B7E56",
+   "request": null,
+   "expectedResponse": "0x040C",
+   "expectedName": "CommandControl"
+  },
+  {
+   "kind": 55,
+   "case": "0x004B7E70",
+   "request": "0x0411",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 56,
+   "case": "0x004B7E88",
+   "request": "0x040F",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 57,
+   "case": "0x004B7EB8",
+   "request": "0x0410",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 58,
+   "case": "0x004B7EA0",
+   "request": "0x0412",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 59,
+   "case": "0x004B7ED0",
+   "request": "0x0B01",
+   "expectedResponse": "0x0B07",
+   "expectedName": "NotifyMovedGrid"
+  },
+  {
+   "kind": 60,
+   "case": "0x004B7EED",
+   "request": "0x0B00",
+   "expectedResponse": "0x0B0B",
+   "expectedName": "NotifyMovedBase"
+  },
+  {
+   "kind": 61,
+   "case": "0x004B7F0A",
+   "request": null,
+   "expectedResponse": "0x0E00",
+   "expectedName": null
+  },
+  {
+   "kind": 62,
+   "case": "0x004B811E",
+   "request": "0x0903",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 63,
+   "case": "0x004B8136",
+   "request": "0x0906",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 64,
+   "case": "0x004B814E",
+   "request": "0x0B04",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 65,
+   "case": "0x004B8166",
+   "request": "0x0B05",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 66,
+   "case": "0x004B817E",
+   "request": "0x0B06",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 67,
+   "case": "0x004B7A28",
+   "request": "0x0F04",
+   "expectedResponse": "0x0F05",
+   "expectedName": "ResponseInformationMailAddress"
+  },
+  {
+   "kind": 68,
+   "case": "0x004B7A45",
+   "request": "0x0F06",
+   "expectedResponse": "0x0F07",
+   "expectedName": "ResponseInformationMessengerStatus"
+  },
+  {
+   "kind": 69,
+   "case": "0x004B7A62",
+   "request": "0x0F08",
+   "expectedResponse": "0x0F09",
+   "expectedName": "TransactionInformationMailEnd"
+  },
+  {
+   "kind": 70,
+   "case": "0x004B7A7F",
+   "request": "0x1200",
+   "expectedResponse": "0x1201",
+   "expectedName": "TransactionSimpleDataEnd"
+  },
+  {
+   "kind": 71,
+   "case": "0x004B8423",
+   "request": "0x0F0B",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 72,
+   "case": "0x004B843B",
+   "request": "0x0F0C",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 73,
+   "case": "0x004B8453",
+   "request": "0x0F0D",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 74,
+   "case": "0x004B846B",
+   "request": "0x0F0E",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 75,
+   "case": "0x004B8483",
+   "request": "0x0F0F",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 76,
+   "case": "0x004B849B",
+   "request": "0x0F10",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 77,
+   "case": "0x004B84AF",
+   "request": "0x0F11",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 78,
+   "case": "0x004B84C3",
+   "request": "0x0F12",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 79,
+   "case": "0x004B84D7",
+   "request": "0x0F13",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 80,
+   "case": "0x004B84EB",
+   "request": "0x0F14",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 81,
+   "case": "0x004B8106",
+   "request": "0x0B03",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 82,
+   "case": "0x004B8196",
+   "request": "0x0B02",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 83,
+   "case": "0x004B7F24",
+   "request": "0x040A",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 84,
+   "case": "0x004B7F3C",
+   "request": "0x0403",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 85,
+   "case": "0x004B7F54",
+   "request": "0x0404",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 86,
+   "case": "0x004B7F6C",
+   "request": "0x0407",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 87,
+   "case": "0x004B7F84",
+   "request": "0x040E",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 88,
+   "case": "0x004B7F9C",
+   "request": "0x0409",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 89,
+   "case": "0x004B7FB4",
+   "request": "0x0413",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 90,
+   "case": "0x004B7FCC",
+   "request": "0x0414",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 91,
+   "case": "0x004B7FE4",
+   "request": "0x0419",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 92,
+   "case": "0x004B7FFC",
+   "request": "0x041B",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 93,
+   "case": "0x004B8014",
+   "request": "0x041C",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 94,
+   "case": "0x004B802C",
+   "request": "0x041D",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 95,
+   "case": "0x004B8044",
+   "request": "0x041E",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 96,
+   "case": "0x004B805C",
+   "request": "0x041F",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 97,
+   "case": "0x004B8074",
+   "request": "0x0422",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 98,
+   "case": "0x004B808C",
+   "request": "0x040D",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 99,
+   "case": "0x004B81CB",
+   "request": "0x0C00",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 100,
+   "case": "0x004B81E3",
+   "request": "0x0C01",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 101,
+   "case": "0x004B81FB",
+   "request": "0x0C02",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 102,
+   "case": "0x004B8213",
+   "request": "0x0C05",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 103,
+   "case": "0x004B822B",
+   "request": "0x0C08",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 104,
+   "case": "0x004B8243",
+   "request": "0x0C0C",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 105,
+   "case": "0x004B825B",
+   "request": "0x0C0B",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 106,
+   "case": "0x004B8273",
+   "request": "0x0704",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 107,
+   "case": "0x004B828B",
+   "request": "0x0705",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 108,
+   "case": "0x004B82A3",
+   "request": "0x0706",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 109,
+   "case": "0x004B82BB",
+   "request": "0x0707",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 110,
+   "case": "0x004B82D3",
+   "request": "0x0708",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 111,
+   "case": "0x004B82EB",
+   "request": "0x0709",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 112,
+   "case": "0x004B8303",
+   "request": "0x0900",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 113,
+   "case": "0x004B831B",
+   "request": "0x0901",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 114,
+   "case": "0x004B8333",
+   "request": "0x0902",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 115,
+   "case": "0x004B834B",
+   "request": "0x0F16",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 116,
+   "case": "0x004B8363",
+   "request": "0x0F17",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 117,
+   "case": "0x004B837B",
+   "request": "0x0F18",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 118,
+   "case": "0x004B8393",
+   "request": "0x0F19",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 119,
+   "case": "0x004B83AB",
+   "request": "0x0F1A",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 120,
+   "case": "0x004B83C3",
+   "request": "0x0F1B",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 121,
+   "case": "0x004B83F3",
+   "request": "0x0F1C",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 122,
+   "case": "0x004B83DB",
+   "request": "0x0F1D",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 123,
+   "case": "0x004B840B",
+   "request": "0x0F1E",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 124,
+   "case": "0x004B80A4",
+   "request": "0x040B",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 125,
+   "case": "0x004B80BC",
+   "request": "0x041A",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 126,
+   "case": "0x004B80D4",
+   "request": "0x0420",
+   "expectedResponse": null,
+   "expectedName": null
+  },
+  {
+   "kind": 127,
+   "case": "0x004B80EC",
+   "request": null,
+   "expectedResponse": "0x0421",
+   "expectedName": "CommandMission"
+  },
+  {
+   "kind": 128,
+   "case": "0x004B81AE",
+   "request": "0x0408",
+   "expectedResponse": "0x0430",
+   "expectedName": null
+  }
+ ]
+}

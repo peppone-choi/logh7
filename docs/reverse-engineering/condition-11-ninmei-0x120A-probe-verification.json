@@ -1,0 +1,35 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "feature": "任命 selector 0x12 answered with one 0x120A discovery record: the client still reports 実行不可「選択可能な項目が存在しません。」 => 0x120A is not (alone) the 任命 candidate list, or records are filtered",
+  "verdict": "OBSERVED_0X120A_PROBE_NOT_SELECTABLE",
+  "runId": "20260903T005117Z-natural-l1-relogin-v1",
+  "method": "authority build extracmd5 (LOGH7_NINMEI_PROBE=1: selector 0x12 -> BEGIN echo + 0x120A [count=1][pad3][296-byte token record] + END); LOGH7_EXTRA_CARD_COMMANDS=5; one click on 任命; natural exit.",
+  "conclusion": "Hypothesis 'selector s <-> notify 0x11F8+s' is not confirmed for 0x12 by this probe. The decision code that emits (97,8) 選択可能な項目が存在しません。 (message emitter FUN_0053C020 near 0x53B7D5) must be read to learn which list/count it tests.",
+  "checks": {
+    "server_zip_pinned_and_verified": true,
+    "login_natural_one_submission": true,
+    "ninmei_0x1200_selector_0x12_answered_with_0x120A_probe_record": true,
+    "client_still_shows_no_selectable_items": true,
+    "client_exited_via_game_end_dialog": true,
+    "run_cleanly_stopped_and_cleaned": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "BB593E7508C17001144CC978D9F6002D9B8E9BD399D230343292911578FC58A3",
+    "fresh-run-prep.json": "E44A2CCE005A4C15DEB8C7B60E770DDEBA292D742AB12A02B24983CA68A73E2D",
+    "host-summary.json": "4C03D4F2FEF7FC956E7D5E399A07E21CE6CCF6D0CAABB836F0E102FEAE85F40E",
+    "cred-j.json": "DE7FCDA6925AAD49CDE5FD44981FDF72EFBAD22E362B8BF67FAFD324BAFBC52A",
+    "vnc-s0-lobby.png": "F4013CBBF83A8AB537CCF5B2396CD5D61601EBADBFB6A064D60794BA9C30C247",
+    "vnc-s1-roster.png": "4F87C7BB53CC149D79F9BB8358EE07F2CEFD6171DA552358F1610D33D21C6FD5",
+    "vnc-s2-strategy.png": "66511EC0E0D19A5093A0E65B6CFF528069940DAAA14976F5B038FE6A97C0B706",
+    "vnc-s3-cardtab.png": "F31995547E08D8FB00A4383F1BC59412782135B40A5B1A54BC630AD58298BFDB",
+    "vnc-s4-card.png": "5D3B9054AF055208C920B0CC5259DD2BC64864C93E0C3EC98A08CDE4EB0AD64E",
+    "vnc-s5-ninmei.png": "057C1584C38A1A82948C538B19E076BA148A7A72138DBC69320708D90F710DAD",
+    "vnc-s10-exitdlg.png": "F317EAC4A04B4BC814E7432DE25A40594FB3F71F937DC0B77B2FBDB6BD38929E",
+    "wire-after-ninmei.json": "8DFCCE5C1B769A402FE75F5D3556EA802D6E539240C15CB6FAE53E663A57AC72",
+    "census-after-exit.json": "67AF3420C5A5F6460BDB7F20EB950967B406D64BD3ECE26734CE2B2734DDD082",
+    "clean-stop.json": "D094E13A681578F096BC5670F3499F2FF0D4A10BA53BF8DC4CDC94051C13A08F",
+    "cleanup.json": "ED5E7995C8E9BE0E92E9CD95C5A69C55FA4627BD8DA71A298575B4C10A29D170",
+    "verify-after-stop.json": "F4E7D4C34F893A6E0828D426993E9431C6FBEAF6E9BE15AF1F4B5F67369E6A39"
+  }
+}

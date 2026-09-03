@@ -1,0 +1,48 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "feature": "read-only RPM after the 任命 0x1200/0x12 exchange: BEGIN echo (selector 0x0012) stored, 0x120A count stays 0 => the 300-byte notify was dropped by the client's fixed-size check (0x120A expects 0x73A4 = 4 + 100 x 296 bytes)",
+  "verdict": "OBSERVED_FIXED_SIZE_NOTIFY_DROP",
+  "runId": "20260903T005816Z-natural-l1-relogin-v1",
+  "method": "extracmd5 build (LOGH7_NINMEI_PROBE=1, 300-byte 0x120A); after the 任命 click: guest-rpm-manager-arm.ps1 dumps of [0x7ccffc] (world base), world+0x585340 (0x400 B) and world+0x487440 (0x60 B); natural exit.",
+  "findings": {
+    "worldBase": "0x08af0020",
+    "beginEcho": "02 00 00 00 12 00 7b 00 00 00 00 00 00 00 00 00 00 30 fb 30 00 00 00 00 00 00 f3 30 00 00 00 00",
+    "flags_0x487470": "01 00 00",
+    "count_0x585354": 0,
+    "sizeTable": "0x4BA23C: 0x1201=1, 0x1202=57604, 0x1203=8804, 0x1204=7204, 0x1205=804, 0x1206=1604, 0x1207=4804, 0x1208=3604, 0x1209=43, 0x120A=29604, 0x120B=15604, 0x120C=8644, 0x120D=12004, 0x120E=29244, 0x120F=29604; 0x1200=36"
+  },
+  "conclusion": "Every 0x120x list notify must be sent at its fixed size (capacity x record); the authority codec now emits the full 29,604-byte 0x120A block for the 任命 probe.",
+  "checks": {
+    "server_zip_pinned_and_verified": true,
+    "login_natural_one_submission": true,
+    "probe_readOnly_VM_READ_only": true,
+    "authority_served_0x120A_probe_300_bytes": true,
+    "world_base_read_from_0x7ccffc": true,
+    "begin_echo_landed_with_selector_0x0012": true,
+    "end_flag_processed": true,
+    "list_0x120A_count_zero_record_not_stored": true,
+    "client_exited_via_game_end_dialog": true,
+    "run_cleanly_stopped_and_cleaned": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "B5112BA4EF113F792148BE81E14363928E67B0670F3A095DC71F5C02965857A6",
+    "fresh-run-prep.json": "872BB2070CD8A5B98B651312200C706CCF667F910C4634357896B7AF3F688781",
+    "host-summary.json": "FEE8E3982831342EB3F2570D9B674335795578B47CED417183351A6452968381",
+    "cred-k.json": "54EC53C1368EBBECB9A92F344C6A3D378C820DC3AA510C0ABE4CEACE3E1C2194",
+    "vnc-s4-card.png": "C48CD2E016329AC00BE5A04518FD6563EF74608A745721D18889A971AF77DBB9",
+    "vnc-s5-ninmei.png": "08FC3C337AD6DC5AD7EE1480BB17470C7A3179F1CD2F742696DBF9603F5DB881",
+    "vnc-s10-exitdlg.png": "5A6426C64FD74BDC4B6BCFE09B3880DF7EFE4A7460D9AE41D61054B5E47CB97E",
+    "wire-after-ninmei.json": "5BEF380F7E096E793C4ECB0E6EA7AC5F74BCAF2161CC8C28D4174FBD15718AF6",
+    "rpm-worldptr-after-ninmei.json": "B9E2D3A92929B6CDCAD41D62D8CC3818C2668856FF6E31A9AD33D4B2A4A77E78",
+    "rpm-list-after-ninmei.json": "5704EB1A69E1D383FF438C89DD80711FE9A85D8FF3F1AC18D4644C458C841552",
+    "rpm-flags-after-ninmei.json": "1B1BBD6FDE4354C54D3699ADEBD019186012E31C503E79D7CCEAC48F22439EBD",
+    "rpm-dump-worldptr-after-ninmei.bin": "8C195A42C91A8555C1064D30611BEE5BC6BD2B21F7F41387C9DDC029B7201685",
+    "rpm-dump-list-after-ninmei.bin": "5F70BF18A086007016E948B04AED3B82103A36BEA41755B6CDDFAF10ACE3C6EF",
+    "rpm-dump-flags-after-ninmei.bin": "E36F58B2B1DD84F3F8E712E3AFC20A2C1CFC7EA64FF577EF233C85719F559810",
+    "census-after-exit.json": "A9B0071FC4C55DCEB7BB170AB82A9CB94510FE8C2CF24800E99CCFF62726F5FC",
+    "clean-stop.json": "388AD908529E38433D4F390A8938829E3FD586414E5911EF25F0F6AA9C52B328",
+    "cleanup.json": "521588F94A7900B9C4C019FA1AB1A004379587F296A43C6D63B67FB5A488796A",
+    "verify-after-stop.json": "77BC506932ABA00886C14EE27FA09657FEA478ADE44F2B189376E8094B8105D4"
+  }
+}

@@ -1,0 +1,363 @@
+{
+ "schema": "logh7-authority-request-coverage/1",
+ "method": "for each client request type (client-request-response-type-table.json) grep the authority scratch sources (server-scratch/apps/server/Logh7.Server) for the literal type constant; a hit means the authority has code naming that request/response type (static, not a live proof).",
+ "count": 43,
+ "handled": 24,
+ "rows": [
+  {
+   "request": "0x0203",
+   "expectedResponse": "0x0204",
+   "responseName": "SSCharacterIDResponce",
+   "authoritySourceFiles": [
+    "OriginalSessionServerCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0300",
+   "expectedResponse": "0x0301",
+   "responseName": null,
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0304",
+   "expectedResponse": "0x0305",
+   "responseName": "ResponseStaticInformationCard",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0306",
+   "expectedResponse": "0x0307",
+   "responseName": "ResponseStaticInformationCardCommand",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0308",
+   "expectedResponse": "0x0309",
+   "responseName": "ResponseStaticInformationPowerDistribution",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x030A",
+   "expectedResponse": "0x030B",
+   "responseName": "ResponseStaticInformationUnitShip",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x030C",
+   "expectedResponse": "0x030D",
+   "responseName": "ResponseStaticInformationUnitTroop",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x030E",
+   "expectedResponse": "0x030F",
+   "responseName": "ResponseStaticInformationFighters",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0310",
+   "expectedResponse": "0x0311",
+   "responseName": "ResponseStaticInformationArms",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0312",
+   "expectedResponse": "0x0313",
+   "responseName": "ResponseStaticInformationGridType",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0314",
+   "expectedResponse": "0x0315",
+   "responseName": "ResponseStaticInformationGrid",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0316",
+   "expectedResponse": "0x0317",
+   "responseName": "ResponseInformationGrid",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x031C",
+   "expectedResponse": "0x031D",
+   "responseName": "ResponseStaticInformationBase",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x031E",
+   "expectedResponse": "0x031F",
+   "responseName": "ResponseInformationBase",
+   "authoritySourceFiles": [
+    "OriginalSystemSceneCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0320",
+   "expectedResponse": "0x0321",
+   "responseName": "ResponseInformationInstitution",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0322",
+   "expectedResponse": "0x0323",
+   "responseName": "ResponseInformationCharacter OK chr=%d",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0324",
+   "expectedResponse": "0x0325",
+   "responseName": "ResponseInformationUnit",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0326",
+   "expectedResponse": "0x0327",
+   "responseName": "ResponseInformationWarehouse",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0328",
+   "expectedResponse": "0x0329",
+   "responseName": "ResponseInformationPackage",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x032A",
+   "expectedResponse": "0x032B",
+   "responseName": "ResponseInformationOutfit",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x032C",
+   "expectedResponse": "0x032D",
+   "responseName": "ResponseGridInformationOutfit",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x032E",
+   "expectedResponse": "0x032F",
+   "responseName": "ResponseInformationOutfitParty",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0330",
+   "expectedResponse": "0x0331",
+   "responseName": "ResponseOutfitInformationUnit",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0336",
+   "expectedResponse": "0x0337",
+   "responseName": "ResponseTacticsCharacter",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x033A",
+   "expectedResponse": "0x033B",
+   "responseName": null,
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x033E",
+   "expectedResponse": "0x033F",
+   "responseName": "ResponseTacticsInformationCorps",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0340",
+   "expectedResponse": "0x0341",
+   "responseName": "ResponseTacticsInformationFillShield",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0344",
+   "expectedResponse": "0x0345",
+   "responseName": "ResponseTacticsInformationBase",
+   "authoritySourceFiles": [
+    "OriginalSystemSceneCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0346",
+   "expectedResponse": "0x0347",
+   "responseName": "InformationObstacle",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0348",
+   "expectedResponse": "0x0349",
+   "responseName": "ResponsePositionUnit",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x034A",
+   "expectedResponse": "0x034B",
+   "responseName": "ResponsePositionBase",
+   "authoritySourceFiles": [
+    "OriginalSystemSceneCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x034E",
+   "expectedResponse": "0x034F",
+   "responseName": "ResponseCardCharacter",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0408",
+   "expectedResponse": "0x0430",
+   "responseName": null,
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0B00",
+   "expectedResponse": "0x0B0B",
+   "responseName": "NotifyMovedBase",
+   "authoritySourceFiles": [],
+   "handledByAuthority": false
+  },
+  {
+   "request": "0x0B01",
+   "expectedResponse": "0x0B07",
+   "responseName": "NotifyMovedGrid",
+   "authoritySourceFiles": [
+    "OriginalMoveGridAuthority.cs",
+    "OriginalMoveGridCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0F00",
+   "expectedResponse": "0x0F01",
+   "responseName": null,
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0F02",
+   "expectedResponse": "0x0F03",
+   "responseName": null,
+   "authoritySourceFiles": [
+    "NaturalAuthoritySession.cs",
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0F04",
+   "expectedResponse": "0x0F05",
+   "responseName": "ResponseInformationMailAddress",
+   "authoritySourceFiles": [
+    "NaturalAuthoritySession.cs",
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0F06",
+   "expectedResponse": "0x0F07",
+   "responseName": "ResponseInformationMessengerStatus",
+   "authoritySourceFiles": [
+    "NaturalAuthoritySession.cs",
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x0F08",
+   "expectedResponse": "0x0F09",
+   "responseName": "TransactionInformationMailEnd",
+   "authoritySourceFiles": [
+    "NaturalAuthoritySession.cs",
+    "OriginalMailListCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x1001",
+   "expectedResponse": "0x1003",
+   "responseName": "ResponseUnChargeCharacter",
+   "authoritySourceFiles": [
+    "OriginalWorldBootstrapCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x1004",
+   "expectedResponse": "0x1005",
+   "responseName": "ResponseCharacterEntryState",
+   "authoritySourceFiles": [
+    "OriginalCharacterEntryStateCodec.cs"
+   ],
+   "handledByAuthority": true
+  },
+  {
+   "request": "0x1200",
+   "expectedResponse": "0x1201",
+   "responseName": "TransactionSimpleDataEnd",
+   "authoritySourceFiles": [
+    "OriginalSimpleCharacterRosterCodec.cs",
+    "OriginalSimpleRankCodec.cs"
+   ],
+   "handledByAuthority": true
+  }
+ ]
+}

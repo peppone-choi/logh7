@@ -1,0 +1,129 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 8,
+  "text": "함대 선택 → 이동 → WARP → 목적지 → 확정 → 서버 권위 변경 → 화면 갱신 → DB 저장 → 재접속 복원의 첫 완전한 수직 경로",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "runId": "20260902T210224Z-natural-l1-relogin-v1",
+  "verticalPath": "unit 2 (ダスティ・アッテンボロー) at cell 101 → 職務権限カード tab → card 39 → ワープ航行 → grid chooser → destination cell 102 (guest SetCursorPos+mouse_event; VNC pointer does NOT register on the 3D grid hit-test) → 確認 dialog → 決定 → client sends 0x0B01 → authority Success (move-grid-unit=2;source-cell=101;destination-cell=102;authority-version=25) → screen 'グリッド選択完了' → PostgreSQL current_cell_id=102, authority_version 5→25, move command 0→1, domain_event 24→25 → client ゲーム終了 → authority RESTART on the same DB → relogin → cell 102 restored (DB identical; strategy camera recentred on cell 102).",
+  "authorityWire0x0B01": {
+    "timestampUtc": "2026-09-02T21:11:13.9360707+00:00",
+    "eventName": "frame-processed",
+    "connectionId": 3,
+    "outerControl": 48,
+    "payloadLength": 48,
+    "stateBefore": "SessionServerReady",
+    "stateAfter": "SessionServerReady",
+    "status": "Success",
+    "errorCode": null,
+    "observedApplicationType": 2817,
+    "originalLoginInputShape": null,
+    "rejectedApplicationPayloadHex": null,
+    "responseMetadata": "move-grid-unit=2;source-cell=101;destination-cell=102;authority-version=25;design=new",
+    "responseOuterControl": 48,
+    "responsePayloadLength": 48,
+    "responsesBeforePrimaryPayloadLengths": null,
+    "additionalResponsePayloadLengths": [
+      64
+    ]
+  },
+  "snapshots": {
+    "A0_baseline": {
+      "gridUnit": {
+        "account_id": "78e4e356-ba44-4bb2-ada6-c5179e1bf34e",
+        "unit_id": 2,
+        "character_id": 2,
+        "authority_card_id": 39,
+        "current_cell_id": 101,
+        "authority_version": 5,
+        "updated_at": "2026-09-02T17:39:31.699964+09:00"
+      },
+      "moveCommandCount": 0,
+      "domainEventCount": 24,
+      "accountVersion": 24
+    },
+    "M_afterMove": {
+      "gridUnit": {
+        "account_id": "78e4e356-ba44-4bb2-ada6-c5179e1bf34e",
+        "unit_id": 2,
+        "character_id": 2,
+        "authority_card_id": 39,
+        "current_cell_id": 102,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T06:11:13.907013+09:00"
+      },
+      "moveCommandCount": 1,
+      "domainEventCount": 25,
+      "accountVersion": 25
+    },
+    "R_afterRestart": {
+      "gridUnit": {
+        "account_id": "78e4e356-ba44-4bb2-ada6-c5179e1bf34e",
+        "unit_id": 2,
+        "character_id": 2,
+        "authority_card_id": 39,
+        "current_cell_id": 102,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T06:11:13.907013+09:00"
+      },
+      "moveCommandCount": 1,
+      "domainEventCount": 25,
+      "accountVersion": 25
+    },
+    "S_afterRelogin": {
+      "gridUnit": {
+        "account_id": "78e4e356-ba44-4bb2-ada6-c5179e1bf34e",
+        "unit_id": 2,
+        "character_id": 2,
+        "authority_card_id": 39,
+        "current_cell_id": 102,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T06:11:13.907013+09:00"
+      },
+      "moveCommandCount": 1,
+      "domainEventCount": 25,
+      "accountVersion": 25
+    }
+  },
+  "inputDiscipline": "each UI action was one click after a captured precondition; the destination click needed guest mouse_event (VNC click on the 3D grid did not register — recorded as a harness finding), no blind retries, no PID/HWND reuse (relaunch used new pid/hwnd with relaunch-prep.json + server-wire-2.jsonl guards)",
+  "checks": {
+    "baseline_unitAtCell101_noMoves": true,
+    "login_reachedStrategy": true,
+    "fleetSelect_cardTab_card_warpCommand_captured": true,
+    "destinationChosen_oneGuestClick_noRetry": true,
+    "confirmDialogShown_beforeDecision": true,
+    "decision_oneGuestClick_noRetry": true,
+    "authorityAccepted_0x0B01_101_to_102": true,
+    "screenUpdated_gridSelectionComplete": true,
+    "dbSaved_cell102_version25_oneMove_eventAppended": true,
+    "clientExited_thenAuthorityRestartedOnSameDb": true,
+    "moveSurvivedRestart_R_equals_M": true,
+    "reloginAfterRestart_oneSubmission": true,
+    "restoredAfterRelogin_S_equals_M": true,
+    "restoredPositionVisible_cameraCentredOnCell102": true,
+    "normalShutdown_and_cleanup": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "B42FB6C763D190AE1DAF0E4D7373E9CCBB29A1D67AB2573E968289EA7097C7F4",
+    "fresh-run-prep.json": "709CC94FE0C0CF2C0BF2949CF4EE6B86675915FACD19D40E0D69663C75B5D6A3",
+    "relaunch-prep.json": "70FDEB0440C02886C623A4949FA766688A7F3FAA62FD26B1DD52319290433700",
+    "db-a0.json": "2B86E10FC425CE341DE7E0D886EDCE7F2C454A0F3250A5C3059396334EC54640",
+    "db-m.json": "C3C890FBF8CEFFE4D723489A1D490E7B61A4BD9B9B1A47D618EE7A5779E84E27",
+    "db-r.json": "9AE75927FF6103BF1D943A47B333194CE336067B738EC7E09641D3AAA6578F23",
+    "db-s.json": "A4DE58D002C55887353A96EA8FADCA6F97384009B1FFB5BC6EA5CE38025B6E38",
+    "cred-c.json": "7DC010173B2C7C0E39524A3FB1CE0A4B26DF8E98C8ACFE40916D65D75F6BC8F8",
+    "cred-e.json": "DC0D16706A602EF34091A9853B4D9B204A653164441A5B3D7C323AB799D23814",
+    "click-dest.json": "46CF08AF9218DDA514B2C5209750CA18A73B65FC42A4443884ABB05B356C4511",
+    "click-kettei.json": "5C172050B98286ACD38A3B8BE3C7884187C908220BCEC916D08849878ADFE2FC",
+    "clean-stop.json": "4DB11FA80492517F3A51F9850724DABE938EC5680BDA36E53E27AC0929A4B2AE",
+    "cleanup.json": "ADB778E4DE8E135BDFB43F773613D51AD381D8E0D924E752232D7656ACDFF084",
+    "server-wire.jsonl": "C85DDF007E729372B9F0B7B4E483F34B7CF752C29030774C9E05853CAC1F4529",
+    "server-wire-2.jsonl": "1D3739890D69ADA53A3FBBABFA94AEC85F396833645F2A4898432E16A34B95A5",
+    "vnc-e-strategy.png": "E1D7274803023688A391C540A5534F9E3523689A553DE75025FBD9FE4D3F5C90",
+    "vnc-w1-cardtab.png": "BFB20727C07A9D0FE106C9AC555F5B4442B04BE0961F506F407F84C7E4355D7E",
+    "vnc-w2-card.png": "7BBA7123039D885053DB9B9D7C0266DC04CFB8AEAA980C41F510E620B924AFF8",
+    "vnc-w3-warpmode.png": "277A45B38D44938FB7853E2F8EB35A6EDB656DBB58C02273F49F6FBE2B3ED976",
+    "vnc-w7-after-guestclick.png": "22D1FC90E38355036073585A9074676F41488C8BD282B3C03A5B0D17CE701936",
+    "vnc-w8-after-warp.png": "0820F4C8848BB7B887358B3D40D4413A8F017AF38E257A6369EC979ABE22BC2C",
+    "vnc-x-strategy-restored.png": "6B0D6E35F998D0F177FCE80F678AF423917918E430510AD60C7E3AA770F3827C"
+  }
+}

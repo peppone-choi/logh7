@@ -1,0 +1,71 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 3,
+  "text": "로그아웃 후 같은 캐릭터가 다시 나타난다",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "reproducibility": "3/3 chronological sealed runs: character アッテンボロー reappears in character-select after the prior run's client exit (ゲーム終了) + clean authority/PostgreSQL shutdown",
+  "character": "アッテンボロー (recovered account's character; persisted in the natural PostgreSQL cluster copied forward from the sealed source 20260902T083838Z)",
+  "logoutTransport": "client's own ゲーム終了 dialog (ESC → 決定) then guest-clean-stop (authority + pg_ctl stop, pgControlState=shut down)",
+  "boundRuns": [
+    {
+      "runId": "20260902T194127Z-natural-l1-relogin-v1",
+      "receipts": {
+        "fresh-run-plan.json": "B6FAC7A18D7EE320071352BD36B5A54492ACC2863F4574FB8A880F9B0F633DC8",
+        "fresh-run-prep.json": "966BE2760E2B510C56C10B464101AA8E7605235A350CE07CD9B3DA329FF89700",
+        "clean-stop.json": "30834789746193E75EAB87E8354F015F086E4202ECEDD45D17F900E91D16A932",
+        "vnc-d-charsel.png": "A5C4A7E12F9632211A11DCD40A13E15B29EE2CD3CCBA8669D16262990CF285FC",
+        "vnc-e-strategy.png": "F8CBED9453871A7A3DBBD04719EA7EB596AD2D50309EF9CF21D627A3CDC03F2D"
+      },
+      "checks": {
+        "sameRecoveredDbSource": true,
+        "prepReady": true,
+        "sameCharacterReappears": true,
+        "enteredGameWithThatCharacter": true,
+        "loggedOutViaClientExitThenCleanStop": true,
+        "postgresCleanShutdown": true,
+        "priorRunWasCleanlyLoggedOut": true
+      },
+      "allPass": true
+    },
+    {
+      "runId": "20260902T200446Z-natural-l1-relogin-v1",
+      "receipts": {
+        "fresh-run-plan.json": "0F5933FF734D90A21D8EAB32B9421AA0C3CD22BC7FB8CC1657694E98CECF98CA",
+        "fresh-run-prep.json": "4DC5A539E6CF38D0EF6F4AA51B336EA8CE56D9689E3F8CD6BE0CACEF8373F61D",
+        "clean-stop.json": "04BFD8AA442CC0FF195C72413485AE14C26E30123216129F4C6EFE20B55772B5",
+        "vnc-d-charsel.png": "EBB4BEB1F468867426B6354071E0A79AE36761DEAA1C4A9FD87529F5E6871C42",
+        "vnc-e-strategy.png": "56F5C8492B5386E852749B00C737C2C3C493FAAB4C14624D57CC12A93FD09E23"
+      },
+      "checks": {
+        "sameRecoveredDbSource": true,
+        "prepReady": true,
+        "sameCharacterReappears": true,
+        "enteredGameWithThatCharacter": true,
+        "loggedOutViaClientExitThenCleanStop": true,
+        "postgresCleanShutdown": true,
+        "priorRunWasCleanlyLoggedOut": true
+      },
+      "allPass": true
+    },
+    {
+      "runId": "20260902T201223Z-natural-l1-relogin-v1",
+      "receipts": {
+        "fresh-run-plan.json": "934FD1C8FB004D42F36652AB59B806A9E920877A5BF99EECBAB0648C301F8EB0",
+        "fresh-run-prep.json": "B11FBB0C1BC5C472A7143C713051DE6272B02E1D2FB93ABC06D35CD397BCF2CF",
+        "clean-stop.json": "1A951E46160A9A09BE40E205A31F6FDE26B86D14AF5E9DAE2B2EBC6415A017D2",
+        "vnc-e-strategy.png": "FF4AABFE16C0A11353D6E2BCA3E33AE73413B7ABAE48E0FDAC36D5D97644FCFC"
+      },
+      "checks": {
+        "sameRecoveredDbSource": true,
+        "prepReady": true,
+        "sameCharacterReappears": true,
+        "enteredGameWithThatCharacter": true,
+        "loggedOutViaClientExitThenCleanStop": true,
+        "postgresCleanShutdown": true,
+        "priorRunWasCleanlyLoggedOut": true
+      },
+      "allPass": true
+    }
+  ],
+  "scope": "Satisfies condition 3 for the recovered character across logout/relogin on the natural authority. A FRESHLY-created character is condition 2's scope (separately blocked); condition 3's text does not require fresh creation."
+}

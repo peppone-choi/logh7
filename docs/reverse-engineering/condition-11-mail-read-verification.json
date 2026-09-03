@@ -1,0 +1,129 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "feature": "communications (通信) — mail READ changes real state; also a third strategy-screen feature for condition 9",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "runId": "20260902T213601Z-natural-l1-relogin-v1",
+  "verticalPath": "strategy HUD mail icon (872,748) → mailbox (受信, unread-only list 002/100: 'FIX LIVE', '命令（返答済み）'; authority serves 0x0F08 lists) → click row 'FIX LIVE' → client 0x0F11 read → authority Success (mail-id=6; read-updated=true; authority-version=25) → screen shows body ('NO ACK') and opened-envelope icon → PostgreSQL original_mail_message id 6 is_read false→true (read_at set), domain_event 25 = OriginalMailRead{mailId:6}, account version 24→25 → close mailbox → ゲーム終了 → authority RESTART on same DB → relogin → read state restored (M==R==S) → mailbox shows only one unread (001/100).",
+  "nonDestructive": "no 削除/全削除 pressed; only a read (is_read) state change",
+  "wire": {
+    "lastList0x0F08": {
+      "timestampUtc": "2026-09-02T21:38:44.0658729+00:00",
+      "eventName": "frame-processed",
+      "connectionId": 3,
+      "outerControl": 48,
+      "payloadLength": 40,
+      "stateBefore": "SessionServerReady",
+      "stateAfter": "SessionServerReady",
+      "status": "Success",
+      "errorCode": null,
+      "observedApplicationType": 3848,
+      "originalLoginInputShape": null,
+      "rejectedApplicationPayloadHex": null,
+      "responseMetadata": "mail-list-count=3;character-id=2;box=0;unread-only=false",
+      "responseOuterControl": 48,
+      "responsePayloadLength": 40,
+      "responsesBeforePrimaryPayloadLengths": null,
+      "additionalResponsePayloadLengths": [
+        168,
+        160,
+        160,
+        152,
+        16
+      ]
+    },
+    "read0x0F11": {
+      "timestampUtc": "2026-09-02T21:39:41.2500533+00:00",
+      "eventName": "frame-processed",
+      "connectionId": 3,
+      "outerControl": 48,
+      "payloadLength": 64,
+      "stateBefore": "SessionServerReady",
+      "stateAfter": "SessionServerReady",
+      "status": "Success",
+      "errorCode": null,
+      "observedApplicationType": 3857,
+      "originalLoginInputShape": null,
+      "rejectedApplicationPayloadHex": null,
+      "responseMetadata": "mail-id=6;read-updated=true;character-id=2;box=1;authority-version=25",
+      "responseOuterControl": 48,
+      "responsePayloadLength": 72,
+      "responsesBeforePrimaryPayloadLengths": null,
+      "additionalResponsePayloadLengths": null
+    }
+  },
+  "snapshots": {
+    "A0_baseline": {
+      "mail6_isRead": false,
+      "mail6_version": 19,
+      "mail3_isRead": false,
+      "unreadCount": 2,
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "latest": "[{\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMessengerMessageSent\",\"payload\":{\"Message\": \"T115\", \"messageId\": 1, \"senderCharacterId\": 2, \"wirePayloadBase64\": \"Dw8AAAAAAAAAAgwwwDC5MMYwozD7MKIwwzDGMPMw3DDtMPwAFAAAAzDqMLIw6wEAAAA"
+    },
+    "M_afterRead": {
+      "mail6_isRead": true,
+      "mail6_version": 25,
+      "mail3_isRead": false,
+      "unreadCount": 1,
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMailRead\",\"payload\":{\"mailId\": 6, \"characterId\": 2},\"authority_version\":25,\"created_at\":\"2026-09-03T06:39:41.231796+09:00\"}, \r\n {\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_"
+    },
+    "R_afterRestart": {
+      "mail6_isRead": true,
+      "mail6_version": 25,
+      "mail3_isRead": false,
+      "unreadCount": 1,
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMailRead\",\"payload\":{\"mailId\": 6, \"characterId\": 2},\"authority_version\":25,\"created_at\":\"2026-09-03T06:39:41.231796+09:00\"}, \r\n {\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_"
+    },
+    "S_afterRelogin": {
+      "mail6_isRead": true,
+      "mail6_version": 25,
+      "mail3_isRead": false,
+      "unreadCount": 1,
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMailRead\",\"payload\":{\"mailId\": 6, \"characterId\": 2},\"authority_version\":25,\"created_at\":\"2026-09-03T06:39:41.231796+09:00\"}, \r\n {\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_"
+    }
+  },
+  "checks": {
+    "baseline_mail6_unread_twoUnread": true,
+    "login_reachedStrategy": true,
+    "mailIcon_opensMailbox_listServed_0x0F08": true,
+    "rowClick_sends_0x0F11_authoritySuccess_readUpdated": true,
+    "screenShowsBody_and_openedEnvelope": true,
+    "db_mail6_isRead_true_event_OriginalMailRead": true,
+    "mailboxClosed_clientExited": true,
+    "authorityRestartedOnSameDb": true,
+    "readStateSurvivedRestart_R_equals_M": true,
+    "reloginAfterRestart_oneSubmission": true,
+    "restoredAfterRelogin_S_equals_M": true,
+    "mailboxAfterRestart_showsOneUnread_visibleRestore": true,
+    "normalShutdown_and_cleanup": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "D01B279B53717114F1E4449D0ED562F7094F2CCBA3D480BC9881942CC76A0188",
+    "fresh-run-prep.json": "FE35AD9EF0A0482CCF5E130ABCB598BCF4CC85DCF231028CF4E67DC784EF0703",
+    "relaunch-prep.json": "12F66E31CB0B79380E2178D54A7AB30B008FF14C71AD3EC0015ADABC5FF4072E",
+    "db-a0.json": "F27E0C059F56A4CD5EEFCC82970D7CE298853EE498FB96879BF409A1502929D6",
+    "db-m.json": "85E948ED1BA3D736CD606A3E203F0352B8EAC732B6F929DEC1A99842875350D2",
+    "db-r.json": "D16BACAAA63197B69105A98881B5106D76A84BF86A1ED3E59C9A23C4EFF2D9A3",
+    "db-s.json": "683FD5E939A3F0419F15A2190664FCD2A62716058E5689A62BD4EC7F270288BC",
+    "cred-c.json": "D2DAF2D108298705EE2388867BE24FAE6A016C7B695B342E9E0B62F11D5CA7C2",
+    "cred-e.json": "9FF45A0980C98BD9D2A1EF6163F552721CE3177C4E5B69615390426A7D65E722",
+    "clean-stop.json": "EC41197D8524C470608D8848015513695EF4CC04C9F4DF109D785FF62AE4AF56",
+    "cleanup.json": "1B2C98F569B3A773AACAE936F9E47A11211C1819D83F2BC9131AEF4E108A715D",
+    "server-wire.jsonl": "03D649BA20EFDD4E956717F19FADE0D3562CA291FEBA114AE14FDCF8458BC359",
+    "server-wire-2.jsonl": "D1A422CF0CBAFCB55FAB9BF616BDD38AFB66DDFE9D078255FA484E2D79C19C8B",
+    "vnc-e-strategy.png": "3CB0071CF37502A74BF4B6D58CC238E70237FECDC5A22EF6E949891F33ADD71E",
+    "vnc-m1-mailbox.png": "9A4CCE823FD4D017957B440F147F53639251C989A65B461AE49D9AAED9AF3739",
+    "vnc-m2-mailread.png": "193E05186240C4DADB1ED6D519EB06D98B21D7B4AEDEE4BD4EBE0D7549221F3A",
+    "vnc-m3-closed.png": "88C8F7B5297AFC8926580E83CDEDD6421EF021DFDDB63FB663C0CB45023E3CAD",
+    "vnc-m5-mailbox-after.png": "38045EC60796D495AEA9929E3D7DC8BA629C3784194BBAB3D14949E051A7EE22",
+    "vnc-m6-closed-after.png": "83124476C3E7F97A66C5F9CA81FB4B1F70CF6A675CFD709E2EC2246C5FE62909"
+  }
+}

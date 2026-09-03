@@ -1,0 +1,1023 @@
+{
+  "schema": "logh7-strategy-command-ledger/1",
+  "source": "constmsg.dat group 18 (97 command names, index = command id used by FUN_00571870 / card table 0x6756B0)",
+  "summary": {
+    "total": 97,
+    "implemented": [
+      0,
+      1,
+      2,
+      5,
+      6,
+      43
+    ],
+    "cardPanelDefined": 17
+  },
+  "commands": [
+    {
+      "id": 0,
+      "name": "昇進",
+      "panel": "card",
+      "targetKind": "RANK",
+      "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+      "request": "0x0704",
+      "receipt": "condition-9-promotion-verification.json",
+      "probeNote": null,
+      "clientName": "CommandRankUp"
+    },
+    {
+      "id": 1,
+      "name": "抜擢",
+      "panel": "card",
+      "targetKind": "RANK",
+      "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+      "request": "0x0705",
+      "receipt": "condition-9-special-promotion-verification.json",
+      "probeNote": "opens the rank ladder dialog (0x1200 selector 0x11 reuse) | live sweep 20260903T054448Z-natural-l1-relogin-v1: ladder (0x1200 selector 0x0011) -> 決定 -> person picker 0x1200 selector 0x0015; roster fallback gives 選択可能な項目が存在しません (実行不可). Next: serve a character list (0x1202) for selector 0x0015, then capture 0x0705 via LOGH7_COMMAND_ECHO | 20260903T061617Z extracmd30 LIST_KIND_PROBE 15:1202: picker populated (state +0x234 == 3), 0x0705 captured via echo; confirm text placeholders empty (same cosmetic gap as 任命)",
+      "clientName": "CommandSpeciallyRankUp",
+      "listSelector": "0x0015",
+      "payloadLayout": "[u16 0x0705][u32 time][u32 characterId(actor)][u32 pcp][u32 mcp][u32 targetCharacterId][u8 targetRank(current rank of target, ladder row)][u32 achievement][u32 moveSpot][u8 moveCount][u16 tail] = 34 bytes; capture run 20260903T061617Z: 0705 00000000 00000002 00000000 00000000 00000002 14 00000000 00000000 00 0000",
+      "flow": "card 抜擢(722,310) -> ladder 0x1200 sel 0x0011 (row 290,214) -> 決定(726,608) -> person picker state 3 (0x1200 sel 0x0015 -> 0x1202 list) -> row(290,214) [0x0322 info x2] -> 決定(726,608) -> confirm 「をに抜擢します。コマンドポイント320MCP消費…」 決定(565,516)/取消し(638,516) -> 0x0705"
+    },
+    {
+      "id": 2,
+      "name": "降等",
+      "panel": "card (via ExtraCardCommands 2)",
+      "targetKind": null,
+      "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+      "request": "0x0706",
+      "receipt": "condition-9-demotion-verification.json",
+      "probeNote": " | 20260903T065309Z (extracmd32): handler accepted the payload but the promotion table CHECK rejected the demotion insert and the session closed; extracmd33 adds character_rank_down_command (migration 0013) + visible soft reject",
+      "clientName": "CommandRankDown",
+      "payloadLayout": "[u16 0x0706][u32 time][u32 actor][u32 pcp][u32 mcp][u8 targetRank][u32 targetCharacterId][u32 achievement][u32 moveSpot][u8 moveCount+u32[]][u32 tail] = 36 B; capture run 20260903T063644Z: 0706 00000000 00000002 00000000 00000000 14 00000002 00000000 00000000 00 00000000",
+      "flow": "card 降等(722,310) -> ladder 0x1200 sel 0x0011 row(290,214) -> 決定(726,608) -> person picker state 3 (0x1200 sel 0x0015 -> 0x1202) 「左欄より降等させたい人物を選択してください」 row(290,214) -> 決定 -> confirm 決定(565,516) -> 0x0706",
+      "listSelector": "0x0015"
+    },
+    {
+      "id": 3,
+      "name": "叙爵",
+      "panel": "card (via ExtraCardCommands 3)",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": " | 20260903T063644Z-natural-l1-relogin-v1: silent (no request, no dialog)"
+    },
+    {
+      "id": 4,
+      "name": "叙勲",
+      "panel": "card",
+      "targetKind": "CARD",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "sends 0x0F08 (TransactionInformationMailBegin with a category) — category undecoded | live sweep 20260903T054448Z-natural-l1-relogin-v1: silent (no request, no dialog) while aboard ship holding card 39 — client-side precondition unmet | CORRECTION 20260903T072035Z: the 0x0F08 once attributed to 叙勲 is the client's periodic mailbox unread poll (box=1, unread-only) — 叙勲 sends nothing (silent)"
+    },
+    {
+      "id": 5,
+      "name": "任命",
+      "panel": "card",
+      "targetKind": "CARD",
+      "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+      "request": "0x0707",
+      "receipt": "condition-11-appointment-verification.json",
+      "probeNote": null,
+      "clientName": "CommandCardAppointment"
+    },
+    {
+      "id": 6,
+      "name": "罷免",
+      "panel": "card (via ExtraCardCommands 6)",
+      "targetKind": null,
+      "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+      "request": "0x0708",
+      "receipt": "condition-9-dismissal-verification.json",
+      "probeNote": " | 20260903T063644Z sweep: post list works; selector 0x0005 unresolved (probably 0x1202 holder list) | IMPLEMENTED 20260903T080842Z (extracmd37): real DismissCardAsync (migration 0014 original_card_dismissal_command) removes original_character_card + emits CharacterCardDismissed; 任命 then 罷免 -> characterCard emptied, survives restart+relogin, 18/18. NOTE card geometry: with 2 extras (1,6) 罷免 is at (822,310), with 3 extras it is (923,310).",
+      "clientName": "CommandCardDismisal",
+      "listSelector": "0x0012 then 0x0005 (holder list, 0x1202 works)",
+      "flow": "任命 first (card 40 -> 2) -> card 罷免(923,310) -> post row -> 決定 -> holder picker (0x1200 sel 0x0005 -> 0x1202) row -> 決定 -> confirm 決定(565,516) -> 0x0708",
+      "payloadLayout": "[u16 0x0708][u32 time][u32 actor][u32 pcp][u32 mcp][u32 targetCharacterId][u32 cardId][u32 0][u8 0] = 27 B; capture run 20260903T065309Z: 0708 00000000 00000002 00000000 00000000 00000002 00000028 00000000 00 (dismiss holder 2 from card 40)"
+    },
+    {
+      "id": 7,
+      "name": "辞任",
+      "panel": "card (via ExtraCardCommands 7)",
+      "targetKind": null,
+      "status": "PAYLOAD_CAPTURED",
+      "request": "0x0709",
+      "receipt": null,
+      "probeNote": " | implementing needs the character's current card as authority state (world entry serves the constant AuthorityCardId 39) | 20260903 analysis: 辞任 always sends cardId=39 (the player's OWN authored card 艦隊司令官, served as the constant AuthorityCardId at world entry), NOT an appointed post. There is no picker — it resigns the player from their base command card. A positive verification is blocked on a design decision: what a player with no post should become (the original game strips the command). Distinct from 罷免 (0x0708, VERIFIED), which removes ANOTHER post's holder from original_character_card. Not implementable as a clean inverse without that decision.",
+      "clientName": "CommandCardResignation",
+      "payloadLayout": "[u16 0x0709][u32 time][u32 actor][u32 pcp][u32 mcp][u32 cardId][u32 0][u8 0] = 27 B; capture run 20260903T063644Z: 0709 00000000 00000002 00000000 00000000 00000027 00000000 00 (card 39)",
+      "flow": "card 辞任(923,310) -> confirm 「を辞任します。コマンドポイント80MCP消費…」 決定(565,516)/取消し(638,515) -> 0x0709 (no list request)",
+      "blocker": "DESIGN_DECISION"
+    },
+    {
+      "id": 8,
+      "name": "封土授与",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 9,
+      "name": "封土直轄",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 10,
+      "name": "夜会",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 11,
+      "name": "狩猟",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 12,
+      "name": "会談",
+      "panel": "card",
+      "targetKind": "STRATEGY",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: silent (no request, no dialog) — needs another character on the same spot"
+    },
+    {
+      "id": 13,
+      "name": "談話",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 14,
+      "name": "演説",
+      "panel": "card",
+      "targetKind": "BASE",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: silent — targetKind BASE, character is 艦内 (aboard ship)"
+    },
+    {
+      "id": 15,
+      "name": "国家目標",
+      "panel": "card",
+      "targetKind": "CARD",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: silent (311 px change only, tooltip-level)"
+    },
+    {
+      "id": 16,
+      "name": "納入率変更",
+      "panel": "card",
+      "targetKind": "UNIT",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: silent — targetKind UNIT"
+    },
+    {
+      "id": 17,
+      "name": "関税率変更",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 18,
+      "name": "分配",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 19,
+      "name": "処断",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 20,
+      "name": "外交",
+      "panel": "card",
+      "targetKind": "RANK",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "silent no-op, renders DISABLED after reopen | live sweep 20260903T054448Z-natural-l1-relogin-v1: silent (previously observed DISABLED after reopen)"
+    },
+    {
+      "id": 21,
+      "name": "統治目標",
+      "panel": "card",
+      "targetKind": "RANK",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: silent"
+    },
+    {
+      "id": 22,
+      "name": "作戦計画",
+      "panel": "card (via ExtraCardCommands 22)",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": "0x0900",
+      "receipt": null,
+      "probeNote": " | 20260903T063644Z sweep: selector 0x0021 after choosing 防衛作戦 ; panel state 18 read live while 実行不可 was shown (beyond the 18-entry on-enter table -> default path); list kind still unknown | CORRECTION 20260903T072035Z: no 0x0F08 follows the target-system 決定; the earlier one was the periodic unread poll. Step 3 is client-local",
+      "clientName": "CommandMakePlan",
+      "listSelector": "0x0021",
+      "flow": "card 作戦計画(722,337) -> local plan-type list 防衛作戦/占領作戦 + slider 「あなたは」 (no request) -> row -> 決定 -> 0x1200 selector 0x0021 (target list; roster fallback -> 実行不可). Kind = panel state read live (see probeNote)",
+      "panelState": 18,
+      "listKind": "0x1205 NotifySimpleInformationGrid (confirmed live 20260903T071237Z; panel state 18 = target star-system picker 「左欄より作戦対象となる星系を選択してください」; grid 102 renders アイゼンヘルツ, grid 101 renders NO DATA)"
+    },
+    {
+      "id": 23,
+      "name": "作戦撤回",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 24,
+      "name": "発令",
+      "panel": "card",
+      "targetKind": "BASE",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: opens list request 0x1200 selector 0x000B; roster fallback -> 選択可能な項目が存在しません (実行不可). Kind unknown (try 0x1202 character list) | 20260903T061617Z: panel state 15 (0x1206 Strategy list) — 0x1202 served for selector 0x000B still rejected; needs a 0x1206 encoder (8-byte cells, store FUN_004C20E0) | 20260903T071237Z (extracmd34, LIST_KIND_PROBE 0B:1206): picker populated with the served records, rows render 「NO DATANO DATA 占領作戦」 (two unresolved name placeholders + plan type from the record) and the prompt 「左欄より実行する作戦計画を選択してください」 => 発令 executes an existing 作戦計画; plans must be created by 作戦計画 (0x0900) first | step 2 after choosing a plan: 0x1200 selector 0x000C with panel state 6 (unit-category sub-menu, same as 部隊解散) => the order recipient is a unit under command (0x1207 Unit list); needs served units (world context) | 20260903T072741Z (extracmd36, post mask 0x3F + 0x1207 unit list served): still 実行不可 because the context slot 0xC9E638+0x484 stays -1 for BASE-target commands launched from the card (set only for card-target commands, e.g. 任命 -> 2) => needs the base context (character docked at a base, 碇泊)",
+      "listSelector": "0x000B",
+      "panelState": 15,
+      "listKind": "0x1206 NotifySimpleInformationStrategy (confirmed live 20260903T071237Z)"
+    },
+    {
+      "id": 25,
+      "name": "部隊結成",
+      "panel": "card (via ExtraCardCommands 25)",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": " | 20260903T063644Z-natural-l1-relogin-v1: visible rejection 実行不可「選択可能な拠点が存在しません。選択可能な拠点のある星系グリッドにワープしてください。」(no request) — needs a base in the current grid (world context)"
+    },
+    {
+      "id": 26,
+      "name": "部隊解散",
+      "panel": "card",
+      "targetKind": "BASE",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: opens list request 0x1200 selector 0x001E; roster fallback -> 選択可能な項目が存在しません (実行不可). Kind unknown (unit list 0x1203/0x1207 or characters) | 20260903T061617Z: panel state 6 — 0x1202 served for selector 0x001E rejected | 20260903T072741Z (extracmd36, post mask 0x3F + 0x1207 unit list served): still 実行不可 because the context slot 0xC9E638+0x484 stays -1 for BASE-target commands launched from the card (set only for card-target commands, e.g. 任命 -> 2) => needs the base context (character docked at a base, 碇泊)",
+      "listSelector": "0x001E",
+      "panelState": 6,
+      "listKind": "unknown (state 6 sub-menu FUN_0057BFF0; probably 0x1207 Unit)"
+    },
+    {
+      "id": 27,
+      "name": "講義",
+      "panel": "card",
+      "targetKind": "CARD",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "silent | live sweep 20260903T054448Z-natural-l1-relogin-v1: silent"
+    },
+    {
+      "id": 28,
+      "name": "輸送計画",
+      "panel": "card",
+      "targetKind": "CARD",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "silent | live sweep 20260903T054448Z-natural-l1-relogin-v1: silent"
+    },
+    {
+      "id": 29,
+      "name": "輸送中止",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 30,
+      "name": "税率変更",
+      "panel": "card",
+      "targetKind": "(none)",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "silent no-op, renders DISABLED after reopen | live sweep 20260903T054448Z-natural-l1-relogin-v1: silent (previously DISABLED after reopen)"
+    },
+    {
+      "id": 31,
+      "name": "施設建設",
+      "panel": "card",
+      "targetKind": "CASTPLANET",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "silent no-op, renders DISABLED after reopen | live sweep 20260903T054448Z-natural-l1-relogin-v1: silent — targetKind CASTPLANET, aboard ship"
+    },
+    {
+      "id": 32,
+      "name": "施設休止",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 33,
+      "name": "施設再稼動",
+      "panel": "card",
+      "targetKind": "BASE",
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "live sweep 20260903T054448Z-natural-l1-relogin-v1: silent — targetKind BASE"
+    },
+    {
+      "id": 34,
+      "name": "施設破棄",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 35,
+      "name": "艦艇建造",
+      "panel": "card (via ExtraCardCommands 35)",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": " | 20260903T063644Z: silent (no request, no dialog) — needs a shipyard/base context"
+    },
+    {
+      "id": 36,
+      "name": "募兵",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 37,
+      "name": "予算配分",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 38,
+      "name": "調査",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 39,
+      "name": "航路貿易",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 40,
+      "name": "船団貿易",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 41,
+      "name": "エンジン建設",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 42,
+      "name": "メッセージ変更",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 43,
+      "name": "ワープ航行",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+      "request": "0x0B0x (strategic warp)",
+      "receipt": "docs/reverse-engineering (WARP 101->102 vertical)",
+      "probeNote": null
+    },
+    {
+      "id": 44,
+      "name": "燃料補給",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 45,
+      "name": "寄港",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 46,
+      "name": "軍記維持",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 47,
+      "name": "航宙訓練",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 48,
+      "name": "陸戦訓練",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 49,
+      "name": "空戦訓練",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 50,
+      "name": "陸戦戦術訓練",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 51,
+      "name": "空戦戦術訓練",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 52,
+      "name": "警戒出動",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 53,
+      "name": "武力鎮圧",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 54,
+      "name": "分列行進",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 55,
+      "name": "特別警備",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 56,
+      "name": "徴発",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 57,
+      "name": "陸戦隊出撃",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 58,
+      "name": "陸戦隊撤収",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 59,
+      "name": "戦略索敵",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 60,
+      "name": "出港",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 61,
+      "name": "完全修理",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 62,
+      "name": "完全補給",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": "crashes client at 0x571A1D when served on the card (unit-panel command)"
+    },
+    {
+      "id": 63,
+      "name": "再編成",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 64,
+      "name": "補充",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 65,
+      "name": "搬出入",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 66,
+      "name": "解役",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 67,
+      "name": "割当",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 68,
+      "name": "一斉捜索",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 69,
+      "name": "逮捕許可",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 70,
+      "name": "執行命令",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 71,
+      "name": "逮捕命令",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 72,
+      "name": "査閲",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 73,
+      "name": "襲撃",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 74,
+      "name": "監視",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 75,
+      "name": "潜入工作",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 76,
+      "name": "脱出工作",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 77,
+      "name": "情報工作",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 78,
+      "name": "破壊工作",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 79,
+      "name": "煽動工作",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 80,
+      "name": "侵入工作",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 81,
+      "name": "帰還工作",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 82,
+      "name": "遠距離移動",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 83,
+      "name": "近距離移動",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 84,
+      "name": "退役",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 85,
+      "name": "志願",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 86,
+      "name": "亡命",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 87,
+      "name": "会見",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 88,
+      "name": "叛意",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 89,
+      "name": "謀議",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 90,
+      "name": "説得",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 91,
+      "name": "叛乱",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 92,
+      "name": "参加",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 93,
+      "name": "受講",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 94,
+      "name": "兵棋講習",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 95,
+      "name": "資金投入",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    },
+    {
+      "id": 96,
+      "name": "旗艦購入",
+      "panel": "unit-or-other",
+      "targetKind": null,
+      "status": "NOT_STARTED",
+      "request": null,
+      "receipt": null,
+      "probeNote": null
+    }
+  ],
+  "notes": [
+    "2026-09-03: dispatcher branch analysis (FUN_004BA2B0 0x4BC785..) — 0x0704 CommandRankUp, 0x0706 CommandRankDown, 0x0707 CommandCardAppointment, 0x0709 CommandCardResignation, 0x070A NotifyCardLoss, 0x0900 CommandMakePlan; 0x0705/0x0708 inferred by position.",
+    "2026-09-03 card-command echo sweep (20260903T054448Z-natural-l1-relogin-v1, extracmd29, LOGH7_COMMAND_ECHO=1, ExtraCardCommands 1,4,12,14,15,16,20,21,24,26,27,28,30,31,33): 12 of 15 extra commands are silent client-side (no request); 抜擢/発令/部隊解散 open list pickers with selectors 0x0015/0x000B/0x001E that reject the 0x120F roster fallback. No command body was captured yet because every picker was empty.",
+    "2026-09-03: 0x0F08 TransactionInformationMailBegin rows at random times are the client's periodic mailbox unread poll (character, box=1, unread-only=true), not command traffic.",
+    "2026-09-03: BASE-target card commands (発令, 部隊解散, 演説, 施設*, 部隊結成) require the character to be docked at a base; the authority does not model docking yet (0x0323 fields +0x18/+0x1C/+0x20 and 0x0325 ResponseInformationUnit are the next targets)."
+  ]
+}

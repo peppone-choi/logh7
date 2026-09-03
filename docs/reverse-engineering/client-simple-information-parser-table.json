@@ -1,0 +1,98 @@
+{
+  "schema": "logh7/client-simple-information-parser-table/v1",
+  "source": "G7MTClient.item1.exe .rdata 0x6748BC, 13 rows x 20 bytes {outA, outB, binParser, textParser, common=0x4A9CF0}; row names from the \"[Input_...::input_from_stream] information_size[%d] is over than N\" strings at 0x78Bxxx",
+  "note": "row k -> notify type 0x1208 + (6 - k); all bodies big-endian (2026-09-03)",
+  "rows": [
+    {
+      "row": 0,
+      "binParser": "0x00563C20",
+      "type": "0x120E",
+      "name": "NotifySimpleInformationOrderSuggestCharacter",
+      "wireLayout": null
+    },
+    {
+      "row": 1,
+      "binParser": "0x00563430",
+      "type": "0x120D",
+      "name": "NotifySimpleInformationCardAvailableBaseSeat",
+      "wireLayout": null
+    },
+    {
+      "row": 2,
+      "binParser": "0x00562890",
+      "type": "0x120C",
+      "name": "NotifySimpleInformationCardAvailableOutfitSeat",
+      "wireLayout": null
+    },
+    {
+      "row": 3,
+      "binParser": "0x00561C80",
+      "type": "0x120B",
+      "name": "NotifySimpleInformationCompletenessSupplyOutfit",
+      "wireLayout": null
+    },
+    {
+      "row": 4,
+      "binParser": "0x0055FF30",
+      "type": "0x120A",
+      "name": "NotifySimpleInformationRankingCharacter",
+      "wireLayout": "u8 count(<=100) + character-shaped records (u16,u16,u16,u32, u8 n(<=13)+u16[], u16,u16, u8 n2(<=16)+u16[], u8 flag(<=1)+nested ...)"
+    },
+    {
+      "row": 5,
+      "binParser": "0x0055FAF0",
+      "type": "0x1209",
+      "name": "NotifySimpleInformationRank",
+      "wireLayout": "rank ladder (43-byte fixed frame, served by OriginalSimpleRankCodec)"
+    },
+    {
+      "row": 6,
+      "binParser": "0x0055F670",
+      "type": "0x1208",
+      "name": "NotifySimpleInformationCard",
+      "wireLayout": "u16 count + {u16 cardId, u32 holder, u8 flag} (7 B packed); store FUN_004C2150 cap 300 @world+0x584510, 12-byte cells"
+    },
+    {
+      "row": 7,
+      "binParser": "0x0055F1F0",
+      "type": "0x1207",
+      "name": "NotifySimpleInformationUnit",
+      "wireLayout": "u16 count(<=600) + {u32 id, u8(0..2), u16} (7 B); world store FUN_004C2250 cap 2000 @world+0x58068C, 8-byte cells"
+    },
+    {
+      "row": 8,
+      "binParser": "0x0055ED10",
+      "type": "0x1206",
+      "name": "NotifySimpleInformationStrategy",
+      "wireLayout": "u8 count(<=200) + {u32 id, u16, u8(0..2), u8(0..2)} (8 B); world store FUN_004C20D0 cap 100 @world+0x580368, 8-byte cells"
+    },
+    {
+      "row": 9,
+      "binParser": "0x0055E940",
+      "type": "0x1205",
+      "name": "NotifySimpleInformationGrid",
+      "wireLayout": null
+    },
+    {
+      "row": 10,
+      "binParser": "0x0055E200",
+      "type": "0x1204",
+      "name": "NotifySimpleInformationBase",
+      "wireLayout": null
+    },
+    {
+      "row": 11,
+      "binParser": "0x0055D6C0",
+      "type": "0x1203",
+      "name": "NotifySimpleInformationOutfit",
+      "wireLayout": null
+    },
+    {
+      "row": 12,
+      "binParser": "0x0055BA80",
+      "type": "0x1202",
+      "name": "NotifySimpleInformationCharacter",
+      "wireLayout": "u8 count + {u32 id, u8 nameLen, UTF-16BE name(<=13 incl. terminator), u16, u16, u8 n2(<=16)+u16[n2], u8 flagA(<=1)[nested], u8 n3(<=4)[nested], u32, u32}; cap 200, cell stride 0x120 @world+0x4C83A0"
+    }
+  ]
+}

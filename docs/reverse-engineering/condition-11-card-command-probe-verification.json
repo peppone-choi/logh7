@@ -1,0 +1,52 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "feature": "card command probe: served command ids 62 完全補給 / 61 完全修理 render on the authority card; selecting 完全補給 crashes the unmodified client before any request (also condition 16)",
+  "verdict": "OBSERVED_COMMAND_RENDERED_CLIENT_CRASH_ON_SELECT",
+  "runId": "20260903T000748Z-natural-l1-relogin-v1",
+  "method": "authority built with LOGH7_EXTRA_CARD_COMMANDS=62,61 (OriginalWorldBootstrapCodec: EncodeStaticCards/EncodeStaticCardCommands append the ids after [0, 0x2B]); proven one-click chain ゲーム開始 → character → 職務権限カード → card → 完全補給 (923,283); authority wire receipt (frame-processed/connection-closed), guest census, WER Report.wer signature (read-only).",
+  "findings": {
+    "commandButtons": "昇進 (722,283), ワープ航行 (822,283), 完全補給 (923,283), 完全修理 (722,310) — names resolved by the client from constmsg group 18 by command id",
+    "wireAfterClick": "keepalive 768 at 00:10:26.08 then connection-closed at 00:10:27.94; no application frame for the command",
+    "werSignature": {
+      "module": "G7MTClient.item114.exe",
+      "exception": "c0000005",
+      "faultOffset": "0x00171a1d",
+      "va": "0x00571A1D",
+      "eventTimeUtc": "2026-09-03T00:10:26.541603+00:00"
+    }
+  },
+  "conclusion": "The client accepts extra command ids and renders them, so condition 16's dead-menu inventory can be driven from constmsg group 18. Selecting 完全補給 dereferences data the minimal authored world does not provide and crashes at 0x571A1D; the static next unit is to decode that dereference (which served table/record it expects) and serve it, then re-probe to observe the request type.",
+  "checks": {
+    "server_zip_pinned_and_verified": true,
+    "login_natural_one_submission": true,
+    "strategy_entered_and_card_opened_via_proven_clicks": true,
+    "card_renders_four_commands_incl_62_61": true,
+    "hokyu_click_no_application_frame_then_connection_closed": true,
+    "client_process_gone_after_click": true,
+    "wer_appcrash_item114_c0000005_offset_00171a1d": true,
+    "wer_event_time_matches_click_window": true,
+    "run_cleanly_stopped_and_cleaned": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "3D12643F050BE62FAF89DB2EFF66DBB5C13DB8BEE6F7F96699EDF61016AFD3E8",
+    "fresh-run-prep.json": "690D81FFB2918672297B89C7C3B7F373A2ABEFDEE2EAFA497AF84B3B06049E10",
+    "host-summary.json": "D949C35C38791E5C725528FB5C2DFBA963F0DA4D640A2C3DBC481DF8AAEB0F7F",
+    "cred-f.json": "8BD7A0BCC94113F1746201989EFCF62404D914898F48CDECBFFE19D36D0E9239",
+    "vnc-s0-lobby.png": "C3A9612BC0225841FA50FA509B215646C69439F8FEEEEA435917CBA234F9034B",
+    "vnc-s1-roster.png": "D83D5AF7858A97ABE2867C8372FB43ADC7FB28FC36F19679BC49D49CCFF60864",
+    "vnc-s2-strategy.png": "34DAF40DF56CA0E0E565BF4173C15CD1C8C3A170B88219890559B8E84B6AA7F5",
+    "vnc-s3-cardtab.png": "4452F70C47CAD101732F2B93573E7928DBB13FF92CE571F50F8D5008DC59B9FF",
+    "vnc-s4-card.png": "6783B1B869B5213CEB6D099CF965CB5876CB0E981F04FFCC3D4B20F86611CAE1",
+    "vnc-s5-kanzen-hokyu.png": "136A438DB5DA2011193D90364A348D4085D3553048D648EB25387E3660B14934",
+    "wire-after-hokyu.json": "3C4E5DA057582E3AADFD62F9A2A7BE14A9D96C56A393769419FE0B8AAEFDE9C9",
+    "census-after-hokyu.json": "3EA21E776088BCB5594BD0E5922CB72CA095822E5C72BED8367DC81A0988AD0B",
+    "census-crash.json": "703885098AEDB5DDC3574F724651956B2927DC9F2E64B6E8849A69AB6ABA5D39",
+    "wer.json": "CCD042F091A2740E83752C3B7BC398EE4B364D32FD8957D3B16E65705B19F2EA",
+    "server.stdout": "E9FDC79E65EC3E780D249E6F9D7D8A7052F3171FA0AACF600AA83241A530D96D",
+    "server.stderr": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+    "clean-stop.json": "FE34E8E495262DD27054E288C635E7A69C79D238CFDE6E148A3CED7447E381BF",
+    "cleanup.json": "CFB3E8B0B09F9CF17BF3CB1D7CA7096FDBED62A87597C7898CAC015CBAA0FB7B",
+    "verify-after-stop.json": "4E2844A851BD7A7AE9A1D4F13006183C0CBDE7B5C63D147D5FA426BE3D7A83E2"
+  }
+}

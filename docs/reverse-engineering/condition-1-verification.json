@@ -1,0 +1,101 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 1,
+  "text": "깨끗한 실행 경계에서 원본 클라이언트가 자연스럽게 로그인한다",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "reproducibility": "3/3 independent sealed runs pass every check",
+  "authority": "natural PostgreSQL (recovered cluster copied forward, source untouched) + Logh7.Server serve-original on 202.8.80.179:47900",
+  "clientBinary": "G7MTClient.item114.exe sha256 F93592F369F131617B216FD10E66988C144AC56698859817F8FEB034EA95528F (hash-fixed, unmodified; Install mode = original install dir)",
+  "loginTransport": "physical VNC wake (shift) + one guest user32 SendInput credential submission; no synthetic retries, no blind clicks",
+  "boundRuns": [
+    {
+      "runId": "20260902T194127Z-natural-l1-relogin-v1",
+      "clientMode": "Install",
+      "clientPid": 4204,
+      "authorityPid": 3932,
+      "postLoginEvidence": [
+        "vnc-c-lobby.png",
+        "vnc-e-strategy.png"
+      ],
+      "receipts": {
+        "fresh-run-plan.json": "B6FAC7A18D7EE320071352BD36B5A54492ACC2863F4574FB8A880F9B0F633DC8",
+        "fresh-run-prep.json": "966BE2760E2B510C56C10B464101AA8E7605235A350CE07CD9B3DA329FF89700",
+        "cred-c.json": "8E7866A5728F765B82AF6E498FD29D1641F1F4600962BBE15A11A518AD46CC94",
+        "vnc-c-lobby.png": "87FC10CF4FB2FF999E1DFF13F28392746A980D61FC2CFC12105C01CAB82DE088",
+        "vnc-e-strategy.png": "F8CBED9453871A7A3DBBD04719EA7EB596AD2D50309EF9CF21D627A3CDC03F2D"
+      },
+      "checks": {
+        "cleanBoundary_forbiddenProcessesEmpty": true,
+        "cleanBoundary_noPriorAuthorityListener": true,
+        "cleanBoundary_noPriorPostgresListener": true,
+        "interactiveConsoleSession": true,
+        "originalClientHashFixed": true,
+        "prepReady": true,
+        "naturalLogin_oneSubmission": true,
+        "naturalLogin_noRetries_noClicks": true,
+        "secretsNotRecorded": true,
+        "postLoginScreenCaptured": true
+      },
+      "allPass": true
+    },
+    {
+      "runId": "20260902T200446Z-natural-l1-relogin-v1",
+      "clientMode": "Copy",
+      "clientPid": 952,
+      "authorityPid": 4924,
+      "postLoginEvidence": [
+        "vnc-c-lobby.png",
+        "vnc-e-strategy.png"
+      ],
+      "receipts": {
+        "fresh-run-plan.json": "0F5933FF734D90A21D8EAB32B9421AA0C3CD22BC7FB8CC1657694E98CECF98CA",
+        "fresh-run-prep.json": "4DC5A539E6CF38D0EF6F4AA51B336EA8CE56D9689E3F8CD6BE0CACEF8373F61D",
+        "cred-c.json": "B5CBA0C81DD726122234DF10404EA7C8A29A9B48D7C17DCC106AEC61B81480CE",
+        "vnc-c-lobby.png": "A5033A42CC21FAFFA85398F978791D56F3A08F60590EDEFBD99752F333A25C2B",
+        "vnc-e-strategy.png": "56F5C8492B5386E852749B00C737C2C3C493FAAB4C14624D57CC12A93FD09E23"
+      },
+      "checks": {
+        "cleanBoundary_forbiddenProcessesEmpty": true,
+        "cleanBoundary_noPriorAuthorityListener": true,
+        "cleanBoundary_noPriorPostgresListener": true,
+        "interactiveConsoleSession": true,
+        "originalClientHashFixed": true,
+        "prepReady": true,
+        "naturalLogin_oneSubmission": true,
+        "naturalLogin_noRetries_noClicks": true,
+        "secretsNotRecorded": true,
+        "postLoginScreenCaptured": true
+      },
+      "allPass": true
+    },
+    {
+      "runId": "20260902T201223Z-natural-l1-relogin-v1",
+      "clientMode": "Install",
+      "clientPid": 5368,
+      "authorityPid": 1072,
+      "postLoginEvidence": [
+        "vnc-e-strategy.png"
+      ],
+      "receipts": {
+        "fresh-run-plan.json": "934FD1C8FB004D42F36652AB59B806A9E920877A5BF99EECBAB0648C301F8EB0",
+        "fresh-run-prep.json": "B11FBB0C1BC5C472A7143C713051DE6272B02E1D2FB93ABC06D35CD397BCF2CF",
+        "cred-c.json": "8A2C4F2BC5B4EF3FBDBD569BA50BCD103D1319D49A1E731E7A7B1B54D7416413",
+        "vnc-e-strategy.png": "FF4AABFE16C0A11353D6E2BCA3E33AE73413B7ABAE48E0FDAC36D5D97644FCFC"
+      },
+      "checks": {
+        "cleanBoundary_forbiddenProcessesEmpty": true,
+        "cleanBoundary_noPriorAuthorityListener": true,
+        "cleanBoundary_noPriorPostgresListener": true,
+        "interactiveConsoleSession": true,
+        "originalClientHashFixed": true,
+        "prepReady": true,
+        "naturalLogin_oneSubmission": true,
+        "naturalLogin_noRetries_noClicks": true,
+        "secretsNotRecorded": true,
+        "postLoginScreenCaptured": true
+      },
+      "allPass": true
+    }
+  ],
+  "notes": "Condition 1 does not require a freshly created account; it requires a clean execution boundary and a natural login of the unmodified original client, which these runs satisfy. Fresh-account creation is condition 2 (separately blocked)."
+}

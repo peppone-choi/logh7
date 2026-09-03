@@ -1,0 +1,47 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "feature": "任命 (card command 5) simple-information selector identified on the wire: 0x1200 selector 0x0012 (promotion uses 0x0011); 叙勲 silent in this run",
+  "verdict": "OBSERVED_NINMEI_SELECTOR_0X0012",
+  "runId": "20260903T003951Z-natural-l1-relogin-v1",
+  "method": "server build extracmd4 (ResponseMetadata carries the simple-information selector; requestPayloadHex logged only for SessionServerReady frames — encrypted outer body, no credentials); LOGH7_EXTRA_CARD_COMMANDS=5,4; one click per command; natural exit via ゲーム終了.",
+  "findings": {
+    "ninmei": "0x1200 selector 0x0012 -> authority answers the account-owned character roster (empty for this purpose) -> client 実行不可「選択可能な項目が存在しません。」",
+    "jokun": "no request this run (the 0x0F08 seen in run 002753Z 12 s after the 叙勲 click is therefore unattributed)",
+    "requestPayloadHex": "outer body is Blowfish-encrypted; the next build should log the session-decoded payload for world-state frames instead"
+  },
+  "conclusion": "The 任命 dialog is driven by 0x1200 selector 0x12; serving an appointable-post list for that selector (through the matching 0x120x notify list) is the authority-side unit that turns 任命 into a real personnel action.",
+  "checks": {
+    "server_zip_pinned_and_verified": true,
+    "login_natural_one_submission": true,
+    "card_renders_four_commands": true,
+    "ninmei_0x1200_selector_0x0012_recorded_on_wire": true,
+    "ninmei_visible_reason_dialog": true,
+    "request_hex_field_present_world_state_only": true,
+    "jokun_silent_this_run": true,
+    "client_exited_via_game_end_dialog": true,
+    "run_cleanly_stopped_and_cleaned": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "60FC8D0BADF2408465E7EF8F9788EF3B952628C39288F9754CE8BA4B131603C8",
+    "fresh-run-prep.json": "991A7A7128251DDDD1C5E7F4F83AB3546D1A8E0ED8D603A1249768515405D06F",
+    "host-summary.json": "CB70012E611F1FEFCA120219477C9D6F362D5C845584C5DAD4435740C1D80562",
+    "cred-i.json": "6B51804DED30C55D2A8B048873B35FBCE7989E72BEC9F263FE2255C5400794AC",
+    "vnc-s0-lobby.png": "AB100FD28445516782DF1D6F09B37E686CE30258BB9B34180ADC90997394FC48",
+    "vnc-s1-roster.png": "606E0C80AEB8EE98E2EDB636C65979BB5DB69B047DDE42BD129947DABA70042A",
+    "vnc-s2-strategy.png": "D98C204753B343D66C202B507BC77CCF9A396CC6E719F8EDE520ABC287169DCB",
+    "vnc-s3-cardtab.png": "3957A5B6D70903440B037423E93272125BBA5E50F15925B33179B6A3BC5FB797",
+    "vnc-s4-card.png": "AB39989575C2527A557BDB4FC9A3CACB8BB288A3AC7D980594324DD59FCE5A04",
+    "vnc-s5-ninmei.png": "BA389E069DB3C845F07F5824327854340008537B16B338417647E88F293BDDFA",
+    "vnc-s6-after-kettei.png": "F7049EDA009B2185CAD2AFA64D0B604566557DC4F9D233422C3167133C36249E",
+    "vnc-s7-jokun.png": "3AF662B977703F3E5996C48F02E8C29C9D555034F13A8E621E00938660930D0B",
+    "vnc-s10-exitdlg.png": "C33798327BBF65948789BCAD41089733CD1EB2B3958FB92C4629957E5995BF6E",
+    "vnc-s11-after-exit.png": "361E740F8A3AD64A4E8ACB36737831ABB80EC59750197955ADFCE69DE897D42E",
+    "wire-after-ninmei.json": "2D5BC442214B908EDD8FE82282CDBBF7D851A4867921333EB10B3E18222E6FAF",
+    "wire-after-jokun.json": "27F308B530874A68C38A800D9A94CF7D13A2CB673F6920C4CA1AE4270841E0C8",
+    "census-after-exit.json": "4D46C467EE94C20D9C245D7FEC2BC635540BCD1FFF9068187152D918DD79B7A8",
+    "clean-stop.json": "4B83F8F553DEC46966CDD718A0C9420B3C31A57F08E2646C431B246806DA747E",
+    "cleanup.json": "9DD6EB46BAFC8FD0688C1F2F7B411A5FD91288AC890514A63F15BB6FBF381905",
+    "verify-after-stop.json": "1260C89F6665E9B897D73168CF106FBED3F4383F2FE97A7CF2C81B74EA8E8F6D"
+  }
+}

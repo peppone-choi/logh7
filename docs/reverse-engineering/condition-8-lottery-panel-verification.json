@@ -1,0 +1,59 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 8,
+  "feature": "original character lottery (オリジナルキャラクター抽選) UI path",
+  "verdict": "OBSERVED_PANEL_INERT",
+  "runId": "20260902T222326Z-natural-l1-relogin-v1",
+  "sequence": "login → lobby → オリジナルキャラクター抽選 (122,307) → session picker (LOGH7-1/LOGH7-2) → LOGH7-1 (640,270) → 「オリジナルキャラクターを選ぶ」 screen with the authored catalog (キャゼルヌ, シェーンコップ, アッテンボロー, ユリアン・ミンツ, ヤン・ウェンリー; 所属 帝国/同盟; 第一〜第五候補; 中止/決定) → candidate row (405,416): VNC click inert, guest SetCursorPos+mouse_event inert, Down key inert → no 0x1004/0x1006 on the wire → ESC opens ゲーム終了 over the panel, 決定 ignored → client stopped via guest-stop-own-client",
+  "meaning": "The authority-side lottery path is complete (catalog served, entry+award implemented: 0x1006 charge → original_character_lottery_entry + OriginalCharacterLotteryEntered → random award creates the character), and the client renders the catalog, but the lobby-side lottery panel does not consume mouse (either transport) or keyboard input in this session — the same inert family as the faction 次へ (condition 2) and 環境設定 戻る (condition 7). Condition 8 therefore stays unverified; the blocker is the client-side lobby panel gate, not the server.",
+  "placeholderFinding": "every catalog row shows 階級 「皇帝」 (emperor) — a wrong temporary rank label (conditions 6/16)",
+  "baseline": {
+    "characters": [
+      {
+        "character_id": 2,
+        "slot": 0,
+        "rank": 20,
+        "authority_version": 5
+      }
+    ],
+    "lotteryEntries": [
+      {
+        "entry_id": 1,
+        "status": "awarded",
+        "authority_version": 3
+      }
+    ]
+  },
+  "checks": {
+    "baseline_oneCharacter_emptySlot_noPendingEntry": true,
+    "login_lobby": true,
+    "lotteryButton_opensSessionPicker": true,
+    "sessionCard_opensCandidateScreen_catalogServed": true,
+    "candidateRow_VNC_click_inert": true,
+    "candidateRow_guestMouseEvent_inert": true,
+    "candidateList_keyboardDown_inert": true,
+    "noLotteryRequestOnWire_0x1004_0x1006": true,
+    "escExitDialog_kettei_inert_clientStayedAlive": true,
+    "authorityPostgres_cleanlyStopped_ownClientStopped_noLeftovers": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "D3ADD09BC8928C7E3DA0A2EF674A5A619A2847379705440FE9C98509BC73C504",
+    "fresh-run-prep.json": "4CC798F1CE4DCAC45E3942CA7FDEE1A78D28A6494B28F07D205091ED631BED01",
+    "db-a0.json": "CA50808C619304C6A476B52ECAFC5EC14F811457796630433B5A8F6B44590DB1",
+    "cred-c.json": "E41BAE612FCD5EDE97E359552EDAD9D760C9F1082E90947B4BAA5BF1F80B12D3",
+    "click-candidate.json": "6AAF90859EE37BF6DF35DBFE81CCAA6265C0AFF8C64D0D09BC4F95A98F812776",
+    "clean-stop.json": "C69C2AC854DBB4320647A3B6CEE8904B07CEE6C08191B8CAF2B3B34B03E296A2",
+    "stop-own-client.json": "7C57C071BF27C56875D2FF000CEE15754FBB7AC025D4889848F3E124148A226D",
+    "cleanup.json": "508CCFB019CFA6120182FA6742ADF16A4B48FBE8D6192FA0C9A1939CD9F8BF79",
+    "verify-after-stop.json": "3A608800DDFB21F86A08F17D6876CCD937C797DF8A5C934BFE9AE8A409E88C67",
+    "server-wire.jsonl": "839EE8CDCEF83628C25C78855DB8B0101FB933158F1AEB39384953F1B7D7F602",
+    "vnc-l1-lobby.png": "4C036E445BD0447736271D8C6ABE16481369BA0E8638D32BEE1B1014BB591469",
+    "vnc-l2-lottery.png": "9ACDA921477AD12BDF2DD073C28C93A4D3D2A73CD1D614352563CE7B3C1A0701",
+    "vnc-l3-session-picked.png": "BA311258B9644D3F742388C6B70B9ECD83F693BF3E85C917227CB2EAB750F103",
+    "vnc-l4-candidate.png": "EE4D43AEFFC8C450963BFC373B3900DD24E41362C71866EEB1A48847F9641942",
+    "vnc-l5-after-guest-candidate.png": "F5270C8220054CEC0920C657D135A0E7EDB690716574BB8F461A966FF650AD7E",
+    "vnc-l6-after-keydown.png": "3845A61C3CEC2BB4EEE668D1302C4B781087295891FDBA1ACD8DCC4D125D473D",
+    "vnc-l7-after-esc.png": "326ED5345634A5724747681DE8D05C1B65E0F3DED149ABAB3C1EF8AD7A4246A8",
+    "vnc-l8-after-kettei.png": "A6E4A8CB797D9BBACAC319D0313ED8FBF8751119ED84AA7801FE572D0BECD42F"
+  }
+}
