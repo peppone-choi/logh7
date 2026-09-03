@@ -1114,3 +1114,29 @@ Authority changes (extracmd39):
 
 Result: 辞任 at (722,310) -> confirm 決定(565,516) -> `0x0709 card-resignation-accepted;from=39;to=0` -> DB card_id 0
 -> authority restart -> relogin -> the client renders 「皇宮 ： 個人」 with an empty command grid (`vnc-r4-4-card.png`).
+
+## 2026-09-03 command slot MEASURED for both target kinds (run 20260903T093348Z, extracmd39)
+
+An earlier section in this handoff asserted "BASE-target commands reach state 6 with the slot still -1" while only ever
+having measured the slot with the card panel merely OPEN. That reasoning was unsound even though the conclusion happened
+to hold. Both kinds are now measured directly, with the command's own sub-panel open:
+
+| command      | id   | target | 0xC9E638+0x484 (slot) | panelState |
+|--------------|------|--------|-----------------------|------------|
+| 任命          | 5    | CARD   | **2**                 | 12         |
+| 部隊解散      | 26   | BASE   | **-1**                | 6          |
+
+Card 39's static command block (world+0x3416D8+0x5214+39*196) is `27 00 04 00` then four 8-byte entries
+`00 00|FF FF 1F|00 00|3F`, `2B 00|...|3F`, `05 00|...|3F`, `1A 00|...|3F` — i.e. the 部隊解散 entry AND its post mask
+0x3F are served correctly. The empty sub-menu is therefore **not** a mask problem: with slot = -1, FUN_004FDF20 computes
+`block + (-1)*8 + 4` and reads bytes before the entry array (the u16 cardId / u8 count / pad), yielding mask 0.
+
+Open question for the base-context work: **why does the CARD-target path set the slot while the BASE-target path leaves
+it -1?** No absolute write to 0xC9EABC exists in .text (only reads), so the write goes through a register-based setter.
+Next step: hardware breakpoint on 0xC9EABC (guest-hwbp-manager-probe.ps1) while opening 任命, to catch the setter, then
+check why the BASE path does not reach it (hypothesis: BASE-target commands are meant to be launched from a base panel
+reached by 碇泊/docking, not from the card panel).
+
+Harness note: `ExtraCardCommandIds()` ALWAYS prepends id 5 (任命), so the served command list is
+`[0, 0x2B, 5, ...env ids]`. Card button index = position in that list (row-major, 3 per row), so
+`LOGH7_EXTRA_CARD_COMMANDS='26'` puts 部隊解散 at index 3 = (722,310), NOT (923,283) which is 任命.
