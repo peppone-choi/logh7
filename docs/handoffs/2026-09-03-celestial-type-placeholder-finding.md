@@ -1140,3 +1140,29 @@ reached by 碇泊/docking, not from the card panel).
 Harness note: `ExtraCardCommandIds()` ALWAYS prepends id 5 (任命), so the served command list is
 `[0, 0x2B, 5, ...env ids]`. Card button index = position in that list (row-major, 3 per row), so
 `LOGH7_EXTRA_CARD_COMMANDS='26'` puts 部隊解散 at index 3 = (722,310), NOT (923,283) which is 任命.
+
+## 2026-09-03 HWBP dead end: Wow64SetThreadContext does not apply debug registers (runs 103508Z / 110044Z)
+
+Goal was to find what writes the command slot 0xC9EABC (set to 2 on the CARD path, left -1 on the BASE path).
+No absolute write to that address exists in .text and none of the seven methods invoked with ecx=0xC9E638 touch
++0x484, so a hardware DATA-WRITE watchpoint was the plan. Built `guest-hwbp-write-probe.ps1` (DR0 + DR7
+R/W0=01 LEN0=4, hit tested via DR6 bit B0, read-only, same attach/detach shape as the manager probe).
+
+**Result: 0 hits, and the instrumentation says why.** After arming 14 threads (Wow64SetThreadContext returned
+true for each), reading the context back gives `dr0 = 0x00000000, dr7 = 0x00000000`. The debug registers are
+never actually applied to a WOW64 thread through the 32-bit context path, so the watchpoint never existed.
+Exception samples during the window are 8x 0xC0000005 (first-chance access violations the client handles with
+its own SEH) plus the initial 0x80000003 attach breakpoint — no single-step, as expected with DR7 = 0.
+
+Consequences:
+- To set debug registers on a WOW64 thread from a 64-bit debugger, the **64-bit CONTEXT** must be used
+  (Get/SetThreadContext with CONTEXT_AMD64|CONTEXT_DEBUG_REGISTERS, Dr0@0x48 Dr7@0x70, 1232 bytes, 16-byte
+  aligned), not Wow64Get/SetThreadContext. That is the fix if this path is resumed.
+- **No previously bound evidence is affected**: every condition-2 receipt is RPM/read based
+  (subPanelCell, inputOwner, armByte05 ...); `guest-hwbp-manager-probe.ps1` was never the basis of a bound
+  verification. Its execution breakpoints were presumably equally inert, which is worth knowing before trusting it.
+- Separately fixed in both probes: `continue` inside do{}while() exits the loop in PowerShell, which made
+  DisarmAllThreads stop at the first foreign thread. Harmless while DR7 never applies, but it would leave a stray
+  DR7 (and kill the client) the moment the 64-bit path works.
+
+The slot writer therefore remains unidentified, and the BASE-target sub-menu question is still open.
