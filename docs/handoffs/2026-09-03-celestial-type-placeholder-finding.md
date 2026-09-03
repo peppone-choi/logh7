@@ -1166,3 +1166,32 @@ Consequences:
   DR7 (and kill the client) the moment the 64-bit path works.
 
 The slot writer therefore remains unidentified, and the BASE-target sub-menu question is still open.
+
+## 2026-09-03 HWBP part 2: the 64-bit CONTEXT path WORKS, but the writer is still not captured
+
+Following the earlier finding that `Wow64SetThreadContext` silently drops debug registers, the probe was converted
+to the **64-bit CONTEXT** path (`GetThreadContext`/`SetThreadContext` on a 16-byte aligned 1232-byte buffer;
+ContextFlags@0x30 = CONTEXT_AMD64|CONTROL|INTEGER|DEBUG_REGISTERS, Dr0@0x48, Dr6@0x68, Dr7@0x70, Rip@0xF8).
+
+**That fix is confirmed working** (run 20260903T131036Z): read-back now returns
+`dr0 = 0x0000000000C9EABC, dr7 = 0x00000000000D0001` on every armed thread, where the 32-bit path had returned zeros.
+
+**But the write is still never captured**, and the remaining measurements point at the method, not the address:
+- Run 20260903T131702Z read the slot immediately before arming: **slot = -1, card = 39**. So a 任命 click had to
+  write it (the CARD path sets it to 2). The click was sent, yet `totalHits = 0`.
+- After any HWBP attach, subsequent guest RPM steps fail with `GUEST_EXIT_CODE=1` even though the client process is
+  still alive, and `disarmed` stays 0 even after the thread enumeration was rewritten to be array-based.
+- Exception traffic during the window is dominated by first-chance 0xC0000005 that the client handles in its own SEH.
+
+**Working hypothesis (not yet proven): the client cannot process input while the debugger is attached.** The target
+is frozen between WaitForDebugEvent and ContinueDebugEvent, and with a first-chance AV storm the client is stopped
+and resumed constantly, so the VNC click never reaches the command panel and no slot write ever happens. That would
+explain hits = 0 together with a demonstrably armed watchpoint.
+
+To settle it, the click must come from INSIDE the same guest process that owns the debug loop (e.g. fold
+guest-click-point.ps1's SendInput into the probe and fire it a few seconds after arming), so the click is not
+competing with a frozen target over VIX. Until then the slot writer at 0xC9EABC remains unidentified and the
+BASE-target sub-menu question is still open.
+
+Cost note: this path needs a fresh run per attempt and has now consumed four; the host C: drive also filled to 0 MB
+mid-way (cleaned to ~8 GB by clearing uv/npm/Temp caches only).

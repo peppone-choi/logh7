@@ -31,6 +31,8 @@ public static class Dbg{
  [DllImport("kernel32.dll",SetLastError=true)] public static extern IntPtr OpenThread(int access,bool inherit,int tid);
  [DllImport("kernel32.dll",SetLastError=true)] public static extern bool CloseHandle(IntPtr h);
  [DllImport("kernel32.dll",SetLastError=true)] public static extern bool Wow64GetThreadContext(IntPtr h,byte[] ctx);
+ [DllImport("kernel32.dll",SetLastError=true)] public static extern bool GetThreadContext(IntPtr h,IntPtr ctx);
+ [DllImport("kernel32.dll",SetLastError=true)] public static extern bool SetThreadContext(IntPtr h,IntPtr ctx);
  [DllImport("kernel32.dll",SetLastError=true)] public static extern bool Wow64SetThreadContext(IntPtr h,byte[] ctx);
  [DllImport("kernel32.dll",SetLastError=true)] public static extern uint SuspendThread(IntPtr h);
  [DllImport("kernel32.dll",SetLastError=true)] public static extern uint ResumeThread(IntPtr h);
@@ -53,6 +55,18 @@ function NewCtx { $b = New-Object byte[] $CTXSZ; [BitConverter]::GetBytes([uint3
 function GetU32([byte[]]$b,[int]$o){ return [BitConverter]::ToUInt32($b,$o) }
 function SetU32([byte[]]$b,[int]$o,[uint32]$v){ [BitConverter]::GetBytes([uint32]$v).CopyTo($b,$o) }
 
+# x64 CONTEXT (1232 bytes, MUST be 16-byte aligned): ContextFlags@0x30, Dr0@0x48, Dr6@0x68, Dr7@0x70, Rip@0xF8.
+# CONTEXT_AMD64 0x00100000 | CONTROL | INTEGER | DEBUG_REGISTERS = 0x00100013. The debug registers of a WOW64
+# thread live in the 64-bit context; Wow64SetThreadContext accepts them and silently drops them (measured).
+$CTX64SZ = 1232; $CF64 = 0x00100013
+$C64_FLAGS = 0x30; $C64_DR0 = 0x48; $C64_DR6 = 0x68; $C64_DR7 = 0x70; $C64_RIP = 0xF8
+$script:ctx64raw = [Runtime.InteropServices.Marshal]::AllocHGlobal($CTX64SZ + 16)
+$script:ctx64 = [IntPtr](([int64]$script:ctx64raw + 15) -band -16)
+function Ctx64Init { for ($i=0; $i -lt $CTX64SZ; $i+=4) { [Runtime.InteropServices.Marshal]::WriteInt32($script:ctx64, $i, 0) }; [Runtime.InteropServices.Marshal]::WriteInt32($script:ctx64, $C64_FLAGS, $CF64) }
+function Ctx64GetU64([int]$o){ return [uint64][Runtime.InteropServices.Marshal]::ReadInt64($script:ctx64, $o) }
+function Ctx64SetU64([int]$o,[uint64]$v){ [Runtime.InteropServices.Marshal]::WriteInt64($script:ctx64, $o, [int64]$v) }
+function Ctx64Flags { [Runtime.InteropServices.Marshal]::WriteInt32($script:ctx64, $C64_FLAGS, $CF64) }
+
 # DR7: L0(bit0)=1 enable, R/W0(bits16-17)=01 data-write, LEN0(bits18-19)=11 four bytes -> 0x000D0001
 $DR7_WRITE4 = 0x000D0001
 $armed = @{}
@@ -63,12 +77,13 @@ function ArmThread([int]$tid) {
     try {
         $sc = [Dbg]::SuspendThread($ht)
         try {
-            $c = NewCtx
-            if ([Dbg]::Wow64GetThreadContext($ht, $c)) {
-                SetU32 $c 0x04 $WatchVa
-                SetU32 $c 0x14 0
-                SetU32 $c 0x18 $DR7_WRITE4
-                if ([Dbg]::Wow64SetThreadContext($ht, $c)) { $armed[$tid] = $true }
+            Ctx64Init
+            if ([Dbg]::GetThreadContext($ht, $script:ctx64)) {
+                Ctx64SetU64 $C64_DR0 ([uint64]$WatchVa)
+                Ctx64SetU64 $C64_DR6 0
+                Ctx64SetU64 $C64_DR7 ([uint64]$DR7_WRITE4)
+                Ctx64Flags
+                if ([Dbg]::SetThreadContext($ht, $script:ctx64)) { $armed[$tid] = $true }
             }
         } finally { if ($sc -ne [uint32]::MaxValue) { [void][Dbg]::ResumeThread($ht) } }
     } finally { [void][Dbg]::CloseHandle($ht) }
@@ -88,8 +103,10 @@ try {
     $snap = [Dbg]::CreateToolhelp32Snapshot([Dbg]::TH32CS_SNAPTHREAD, 0)
     if ($snap -ne [IntPtr](-1)) {
         $te = New-Object Dbg+THREADENTRY32; $te.dwSize = [Runtime.InteropServices.Marshal]::SizeOf($te)
-        if ([Dbg]::Thread32First($snap, [ref]$te)) {
-            do { if ($te.th32OwnerProcessID -eq $ExpectedPid) { ArmThread ([int]$te.th32ThreadID) } } while ([Dbg]::Thread32Next($snap, [ref]$te))
+        $more = [Dbg]::Thread32First($snap, [ref]$te)
+        while ($more) {
+            if ($te.th32OwnerProcessID -eq $ExpectedPid) { ArmThread ([int]$te.th32ThreadID) }
+            $more = [Dbg]::Thread32Next($snap, [ref]$te)
         }
         [void][Dbg]::CloseHandle($snap)
     }
@@ -100,7 +117,7 @@ try {
         if ($vn -ge 3) { break }
         $hv = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_QUERY, $false, [int]$t)
         if ($hv -ne [IntPtr]::Zero) {
-            try { $cv = NewCtx; if ([Dbg]::Wow64GetThreadContext($hv, $cv)) { $result.dr7Verify += [ordered]@{ tid=[int]$t; dr0=('0x{0:X8}' -f (GetU32 $cv 0x04)); dr7=('0x{0:X8}' -f (GetU32 $cv 0x18)) }; $vn++ } }
+            try { Ctx64Init; if ([Dbg]::GetThreadContext($hv, $script:ctx64)) { $result.dr7Verify += [ordered]@{ tid=[int]$t; dr0=('0x{0:X16}' -f (Ctx64GetU64 $C64_DR0)); dr7=('0x{0:X16}' -f (Ctx64GetU64 $C64_DR7)) }; $vn++ } }
             finally { [void][Dbg]::CloseHandle($hv) }
         }
     }
@@ -125,13 +142,16 @@ try {
                 $ht = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_QUERY, $false, $tid)
                 if ($ht -ne [IntPtr]::Zero) {
                     try {
+                        Ctx64Init
                         $c = NewCtx
-                        if ([Dbg]::Wow64GetThreadContext($ht, $c)) {
-                            $dr6 = GetU32 $c 0x14
+                        if ([Dbg]::GetThreadContext($ht, $script:ctx64)) {
+                            $dr6 = [uint32]((Ctx64GetU64 $C64_DR6) -band 0xFFFFFFFF)
                             # B0 (bit0) set => our DR0 data watchpoint fired
                             if (($dr6 -band 0x1) -ne 0) {
                                 $result.totalHits++
-                                $eip = GetU32 $c 0xB8
+                                $eip = 0
+                                if ([Dbg]::Wow64GetThreadContext($ht, $c)) { $eip = GetU32 $c 0xB8 }
+                                if ($eip -eq 0) { $eip = [uint32]((Ctx64GetU64 $C64_RIP) -band 0xFFFFFFFF) }
                                 $key = ('0x{0:X8}' -f $eip)
                                 if (-not $seen.ContainsKey($key)) {
                                     $vb = RB $WatchVa 4
@@ -147,8 +167,9 @@ try {
                                     }
                                 }
                                 $seen[$key].hitCount++
-                                SetU32 $c 0x14 0     # clear DR6 status
-                                [void][Dbg]::Wow64SetThreadContext($ht, $c)
+                                Ctx64SetU64 $C64_DR6 0     # clear DR6 status
+                                Ctx64Flags
+                                [void][Dbg]::SetThreadContext($ht, $script:ctx64)
                             }
                         }
                     } finally { [void][Dbg]::CloseHandle($ht) }
@@ -158,36 +179,48 @@ try {
         }
         [void][Dbg]::ContinueDebugEvent($ExpectedPid, $tid, $cont)
     }
-    function DisarmAllThreads {
-        $done = $true; $cleared = 0; $failed = @()
+    # Collect thread ids into an array FIRST (a do{}while() walk with any early-exit inside is what silently
+    # skipped threads before), then clear DR7/DR0/DR6 on each while suspended. A stray DR7 kills the client on
+    # its next watchpoint hit, so this must never partially run.
+    function ListProcThreads {
+        $ids = New-Object System.Collections.ArrayList
         $snap = [Dbg]::CreateToolhelp32Snapshot([Dbg]::TH32CS_SNAPTHREAD, 0)
-        if ($snap -eq [IntPtr](-1)) { return @{ done = $false; cleared = 0; failed = @('snapshot') } }
+        if ($snap -eq [IntPtr](-1)) { return $ids }
         try {
-            $te = New-Object Dbg+THREADENTRY32; $te.dwSize = [Runtime.InteropServices.Marshal]::SizeOf($te)
-            if ([Dbg]::Thread32First($snap, [ref]$te)) {
-                # NOTE: `continue` inside do{}while() EXITS the loop in PowerShell (it does not jump to the
-                # condition), which would silently leave DR7 armed on every later thread and kill the client on
-                # its next watchpoint hit. Use nested ifs instead of continue.
-                do {
-                    if ($te.th32OwnerProcessID -eq $ExpectedPid) {
-                        $tid = [int]$te.th32ThreadID
-                        $ht = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_SUSPEND, $false, $tid)
-                        if ($ht -eq [IntPtr]::Zero) { $done = $false; $failed += $tid }
-                        else {
-                            try {
-                                $sc = [Dbg]::SuspendThread($ht)
-                                try {
-                                    $c = NewCtx; $ok = $false
-                                    if ([Dbg]::Wow64GetThreadContext($ht, $c)) { SetU32 $c 0x18 0; SetU32 $c 0x04 0; SetU32 $c 0x14 0; $ok = [Dbg]::Wow64SetThreadContext($ht, $c) }
-                                    $v = NewCtx
-                                    if ($ok -and [Dbg]::Wow64GetThreadContext($ht, $v) -and (GetU32 $v 0x18) -eq 0) { $cleared++ } else { $done = $false; $failed += $tid }
-                                } finally { if ($sc -ne [uint32]::MaxValue) { [void][Dbg]::ResumeThread($ht) } }
-                            } finally { [void][Dbg]::CloseHandle($ht) }
-                        }
-                    }
-                } while ([Dbg]::Thread32Next($snap, [ref]$te))
+            $te = New-Object Dbg+THREADENTRY32
+            $te.dwSize = [Runtime.InteropServices.Marshal]::SizeOf($te)
+            $more = [Dbg]::Thread32First($snap, [ref]$te)
+            while ($more) {
+                if ($te.th32OwnerProcessID -eq $ExpectedPid) { [void]$ids.Add([int]$te.th32ThreadID) }
+                $more = [Dbg]::Thread32Next($snap, [ref]$te)
             }
         } finally { [void][Dbg]::CloseHandle($snap) }
+        return $ids
+    }
+    function DisarmAllThreads {
+        $done = $true; $cleared = 0; $failed = @()
+        $ids = @(ListProcThreads)
+        if ($ids.Count -eq 0) { return @{ done = $false; cleared = 0; failed = @('no-threads') } }
+        foreach ($tid in $ids) {
+            $ht = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_SUSPEND, $false, [int]$tid)
+            if ($ht -eq [IntPtr]::Zero) { $done = $false; $failed += $tid }
+            else {
+                try {
+                    $sc = [Dbg]::SuspendThread($ht)
+                    try {
+                        $ok = $false
+                        Ctx64Init
+                        if ([Dbg]::GetThreadContext($ht, $script:ctx64)) {
+                            Ctx64SetU64 $C64_DR7 0; Ctx64SetU64 $C64_DR0 0; Ctx64SetU64 $C64_DR6 0; Ctx64Flags
+                            $ok = [Dbg]::SetThreadContext($ht, $script:ctx64)
+                        }
+                        Ctx64Init
+                        if ($ok -and [Dbg]::GetThreadContext($ht, $script:ctx64) -and (Ctx64GetU64 $C64_DR7) -eq 0) { $cleared++ }
+                        else { $done = $false; $failed += $tid }
+                    } finally { if ($sc -ne [uint32]::MaxValue) { [void][Dbg]::ResumeThread($ht) } }
+                } finally { [void][Dbg]::CloseHandle($ht) }
+            }
+        }
         return @{ done = $done; cleared = $cleared; failed = $failed }
     }
     $result.disarmed = 0; $result.disarmFailed = @()
@@ -204,6 +237,7 @@ try {
 finally {
     if ($attached) { [void][Dbg]::DebugActiveProcessStop($ExpectedPid) }
     [void][Dbg]::CloseHandle($hProc)
+    if ($script:ctx64raw -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::FreeHGlobal($script:ctx64raw) }
 }
 $parent = Split-Path -Parent $ReceiptPath; if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
 [IO.File]::WriteAllText($ReceiptPath, (($result | ConvertTo-Json -Depth 7) -replace "`r`n", "`n") + "`n", [Text.UTF8Encoding]::new($false))
