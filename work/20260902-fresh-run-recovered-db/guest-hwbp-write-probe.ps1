@@ -3,21 +3,23 @@ param(
     [Parameter(Mandatory=$true)][int]$ExpectedPid,
     [Parameter(Mandatory=$true)][string]$Label,
     [Parameter(Mandatory=$true)][string]$ReceiptPath,
-    [uint32]$BpVa = 0x005015F0,   # FUN_005015F0 entry (shared per-manager hit-test): this=ecx=manager, arg2=[esp+8]=ctx
-    [int]$MaxHits = 600,
-    [int]$MaxSeconds = 8,
-    [int[]]$FactionRows = @(45, 46, 47, 80)
+    [Parameter(Mandatory=$true)][string]$WatchVaHex,   # data address to watch, e.g. "0x00C9EABC" (4-byte aligned)
+    [string]$RunId = '',                               # accepted and ignored; host-step passes it uniformly
+    [int]$MaxHits = 200,
+    [int]$MaxSeconds = 30
 )
-# READ-ONLY debug-attach probe. Sets a HARDWARE execution breakpoint (debug register DR0, no target memory
-# writes) on the shared hit-test FUN_005015F0 of the 32-bit (WOW64) client, and at each hit records the
-# manager `this` (Ecx) and the ctx widget-holder (stack arg2). For each distinct manager it reads, read-only,
-# manager+0x05 (the input-enable byte the gate FUN_005024A0 returns) and, from ctx, the widget count
-# (ctx+0x3F4) and each record's +0x15 constmsg row (records at ctx+0x4E8, 0x34 stride). The faction manager is
-# the one whose ctx records carry rows in {45,46,47,80}. Detaches without killing the client
-# (DebugSetProcessKillOnExit false). No WriteProcessMemory, no input, no allocation in the target.
+# READ-ONLY debug-attach probe. Sets a HARDWARE DATA-WRITE watchpoint (DR0 + DR7 R/W0=01 len=4) on $WatchVa in the
+# 32-bit (WOW64) client and records, for each distinct faulting EIP, the register file and the value now at $WatchVa.
+# A data breakpoint traps AFTER the storing instruction, so the recorded Eip is the instruction FOLLOWING the store;
+# disassemble backwards on the host to identify the writer. No WriteProcessMemory, no input, no allocation in the
+# target. Detaches without killing the client (DebugSetProcessKillOnExit false) and clears DR7 on every thread.
+# ASCII only: this file is read as CP949 by the guest PowerShell and non-ASCII would be mangled.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if (Test-Path -LiteralPath $ReceiptPath) { throw 'RECEIPT_EXISTS' }
+if ($WatchVaHex -notmatch '^0[xX][0-9A-Fa-f]{1,8}$') { throw 'WATCH_VA_INVALID' }
+$WatchVa = [uint32]('0x' + $WatchVaHex.Substring(2))
+if (($WatchVa % 4) -ne 0) { throw 'WATCH_VA_NOT_DWORD_ALIGNED' }
 if (-not ('Dbg' -as [type])) { Add-Type -TypeDefinition @'
 using System;using System.Collections.Generic;using System.Runtime.InteropServices;
 public static class Dbg{
@@ -44,27 +46,28 @@ public static class Dbg{
 }
 '@ }
 
-# WOW64_CONTEXT offsets (x86 CONTEXT): ContextFlags@0; Dr0@4 Dr1@8 Dr2@0xC Dr3@0x10 Dr6@0x14 Dr7@0x18;
-# Ecx@0xAC; Eip@0xB8; EFlags@0xC0; Esp@0xC4. Size 0x2CC. CONTEXT flags: i386|CONTROL|INTEGER|DEBUG = 0x10013.
+# WOW64_CONTEXT (x86): Dr0@4 Dr6@0x14 Dr7@0x18; Edi@0x9C Esi@0xA0 Ebx@0xA4 Edx@0xA8 Ecx@0xAC Eax@0xB0
+# Ebp@0xB4 Eip@0xB8 EFlags@0xC0 Esp@0xC4. Size 0x2CC. flags i386|CONTROL|INTEGER|DEBUG = 0x10013.
 $CTXSZ = 0x2CC; $CF = 0x00010013
 function NewCtx { $b = New-Object byte[] $CTXSZ; [BitConverter]::GetBytes([uint32]$CF).CopyTo($b,0); return $b }
 function GetU32([byte[]]$b,[int]$o){ return [BitConverter]::ToUInt32($b,$o) }
 function SetU32([byte[]]$b,[int]$o,[uint32]$v){ [BitConverter]::GetBytes([uint32]$v).CopyTo($b,$o) }
 
+# DR7: L0(bit0)=1 enable, R/W0(bits16-17)=01 data-write, LEN0(bits18-19)=11 four bytes -> 0x000D0001
+$DR7_WRITE4 = 0x000D0001
 $armed = @{}
 function ArmThread([int]$tid) {
     if ($armed.ContainsKey($tid)) { return }
     $ht = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_QUERY -bor [Dbg]::THREAD_SUSPEND, $false, $tid)
     if ($ht -eq [IntPtr]::Zero) { return }
     try {
-        # Context writes are only reliable on a suspended thread; suspend, write debug registers, resume.
         $sc = [Dbg]::SuspendThread($ht)
         try {
             $c = NewCtx
             if ([Dbg]::Wow64GetThreadContext($ht, $c)) {
-                SetU32 $c 0x04 $BpVa           # Dr0 = breakpoint address
-                SetU32 $c 0x14 0               # Dr6 = 0
-                SetU32 $c 0x18 0x00000001      # Dr7 = L0 (execute, len 1 byte)
+                SetU32 $c 0x04 $WatchVa
+                SetU32 $c 0x14 0
+                SetU32 $c 0x18 $DR7_WRITE4
                 if ([Dbg]::Wow64SetThreadContext($ht, $c)) { $armed[$tid] = $true }
             }
         } finally { if ($sc -ne [uint32]::MaxValue) { [void][Dbg]::ResumeThread($ht) } }
@@ -75,14 +78,13 @@ $hProc = [Dbg]::OpenProcess([Dbg]::PVM_READ -bor [Dbg]::PQUERY, $false, $Expecte
 if ($hProc -eq [IntPtr]::Zero) { throw "OPEN_PROCESS_FAILED:$([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
 function RB([uint32]$va,[int]$n){ $b=New-Object byte[] $n; $r=0; $ok=[Dbg]::ReadProcessMemory($hProc,[IntPtr]([int64]$va),$b,$n,[ref]$r); if($ok -and $r -eq $n){return $b} return $null }
 
-$result = [ordered]@{ status='PENDING'; label=$Label; pid=$ExpectedPid; bpVa=('0x{0:X8}' -f $BpVa); capturedAtUtc=[datetime]::UtcNow.ToString('o'); totalHits=0; distinctManagers=0; armedThreads=0; events=[ordered]@{ total=0; exception=0; singleStep=0; breakpoint=0; createThread=0; other=0 }; singleStepEipSamples=@(); managers=@() }
-$seen = @{}   # manager -> record object
+$result = [ordered]@{ status='PENDING'; label=$Label; pid=$ExpectedPid; watchVa=('0x{0:X8}' -f $WatchVa); dr7=('0x{0:X8}' -f $DR7_WRITE4); capturedAtUtc=[datetime]::UtcNow.ToString('o'); totalHits=0; distinctWriters=0; armedThreads=0; events=[ordered]@{ total=0; exception=0; singleStep=0; breakpoint=0; createThread=0; other=0 }; exCodeSamples=@(); dr7Verify=@(); writers=@() }
+$seen = @{}
 $attached = $false
 try {
     [void][Dbg]::DebugSetProcessKillOnExit($false)
     if (-not [Dbg]::DebugActiveProcess($ExpectedPid)) { throw "DEBUG_ATTACH_FAILED:$([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
     $attached = $true
-    # Arm all existing threads.
     $snap = [Dbg]::CreateToolhelp32Snapshot([Dbg]::TH32CS_SNAPTHREAD, 0)
     if ($snap -ne [IntPtr](-1)) {
         $te = New-Object Dbg+THREADENTRY32; $te.dwSize = [Runtime.InteropServices.Marshal]::SizeOf($te)
@@ -92,6 +94,16 @@ try {
         [void][Dbg]::CloseHandle($snap)
     }
     $result.armedThreads = $armed.Count
+    # read back DR7/DR0 from up to 3 armed threads to prove the watchpoint really took
+    $vn = 0
+    foreach ($t in @($armed.Keys)) {
+        if ($vn -ge 3) { break }
+        $hv = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_QUERY, $false, [int]$t)
+        if ($hv -ne [IntPtr]::Zero) {
+            try { $cv = NewCtx; if ([Dbg]::Wow64GetThreadContext($hv, $cv)) { $result.dr7Verify += [ordered]@{ tid=[int]$t; dr0=('0x{0:X8}' -f (GetU32 $cv 0x04)); dr7=('0x{0:X8}' -f (GetU32 $cv 0x18)) }; $vn++ } }
+            finally { [void][Dbg]::CloseHandle($hv) }
+        }
+    }
     $EXCEPTION=1; $CREATE_THREAD=2; $EXIT_THREAD=4
     $EX_SINGLE_STEP=0x80000004; $EX_BP=0x80000003
     $DBG_CONTINUE=0x00010002; $DBG_NOT_HANDLED=0x80010001
@@ -108,51 +120,44 @@ try {
         elseif ($code -eq $EXCEPTION) {
             $exCode = [BitConverter]::ToUInt32($ev,16)
             if ($exCode -eq $EX_SINGLE_STEP) { $result.events.singleStep++ } elseif ($exCode -eq $EX_BP) { $result.events.breakpoint++ }
+            if ($result.exCodeSamples.Count -lt 12) { $result.exCodeSamples += ('0x{0:X8}' -f $exCode) }
             if ($exCode -eq $EX_SINGLE_STEP -or $exCode -eq $EX_BP) {
                 $ht = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_QUERY, $false, $tid)
                 if ($ht -ne [IntPtr]::Zero) {
                     try {
                         $c = NewCtx
                         if ([Dbg]::Wow64GetThreadContext($ht, $c)) {
-                            $eip = GetU32 $c 0xB8
-                            if ($exCode -eq $EX_SINGLE_STEP -and $result.singleStepEipSamples.Count -lt 8) { $result.singleStepEipSamples += ('0x{0:X8}' -f $eip) }
-                            if ($eip -eq $BpVa) {
+                            $dr6 = GetU32 $c 0x14
+                            # B0 (bit0) set => our DR0 data watchpoint fired
+                            if (($dr6 -band 0x1) -ne 0) {
                                 $result.totalHits++
-                                $mgr = GetU32 $c 0xAC          # Ecx = manager this
-                                $esp = GetU32 $c 0xC4
-                                if (-not $seen.ContainsKey($mgr)) {
-                                    $ctxb = RB ([uint32]($esp + 8)) 4    # arg2 = ctx (widget holder)
-                                    $ctx = if ($ctxb) { [BitConverter]::ToUInt32($ctxb,0) } else { 0 }
-                                    $enable = $null; $eb = RB ([uint32]($mgr + 0x05)) 1; if ($eb) { $enable = $eb[0] }
-                                    $rows = @(); $count = $null; $factionHit = $false
-                                    if ($ctx -ge 0x10000) {
-                                        $cb = RB ([uint32]($ctx + 0x3F4)) 4
-                                        if ($cb) { $count = [BitConverter]::ToUInt32($cb,0) }
-                                        if ($count -ne $null -and $count -ge 1 -and $count -le 64) {
-                                            $n = [Math]::Min([int]$count, 24)
-                                            for ($i=0; $i -lt $n; $i++) {
-                                                $rec = RB ([uint32]($ctx + 0x4E8 + $i*0x34)) 0x34
-                                                if ($rec) { $r15=$rec[0x15]; $r08=$rec[0x08]; $rows += [ordered]@{ i=$i; row15=$r15; f08=$r08 }; if ($FactionRows -contains [int]$r15) { $factionHit = $true } }
-                                            }
-                                        }
+                                $eip = GetU32 $c 0xB8
+                                $key = ('0x{0:X8}' -f $eip)
+                                if (-not $seen.ContainsKey($key)) {
+                                    $vb = RB $WatchVa 4
+                                    $val = if ($vb) { ('0x{0:X8}' -f [BitConverter]::ToUInt32($vb,0)) } else { $null }
+                                    $seen[$key] = [ordered]@{
+                                        eipAfterStore = $key
+                                        valueAtWatch  = $val
+                                        eax=('0x{0:X8}' -f (GetU32 $c 0xB0)); ecx=('0x{0:X8}' -f (GetU32 $c 0xAC))
+                                        edx=('0x{0:X8}' -f (GetU32 $c 0xA8)); ebx=('0x{0:X8}' -f (GetU32 $c 0xA4))
+                                        esi=('0x{0:X8}' -f (GetU32 $c 0xA0)); edi=('0x{0:X8}' -f (GetU32 $c 0x9C))
+                                        ebp=('0x{0:X8}' -f (GetU32 $c 0xB4)); esp=('0x{0:X8}' -f (GetU32 $c 0xC4))
+                                        hitCount = 0
                                     }
-                                    $seen[$mgr] = [ordered]@{ manager=('0x{0:X8}' -f $mgr); enable05=$enable; ctx=('0x{0:X8}' -f $ctx); ctxWidgetCount=$count; factionRowsPresent=$factionHit; hitCount=0; widgets=$rows }
                                 }
-                                $seen[$mgr].hitCount++
-                                SetU32 $c 0x14 0                      # clear Dr6
-                                $ef = GetU32 $c 0xC0; SetU32 $c 0xC0 ($ef -bor 0x10000)   # set RF so BP does not re-trigger on this insn
+                                $seen[$key].hitCount++
+                                SetU32 $c 0x14 0     # clear DR6 status
                                 [void][Dbg]::Wow64SetThreadContext($ht, $c)
                             }
                         }
                     } finally { [void][Dbg]::CloseHandle($ht) }
                 }
-                if ($exCode -eq $EX_BP) { $cont = $DBG_CONTINUE } # swallow initial attach breakpoint
+                if ($exCode -eq $EX_BP) { $cont = $DBG_CONTINUE }
             } else { $cont = $DBG_NOT_HANDLED }
         }
         [void][Dbg]::ContinueDebugEvent($ExpectedPid, $tid, $cont)
     }
-    # Disarm EVERY thread of the process (fresh snapshot, not just the armed set) while SUSPENDED, so no
-    # thread keeps DR7 after detach (a stray DR7 kills the client on the next hit). Retry until all clear.
     function DisarmAllThreads {
         $done = $true; $cleared = 0; $failed = @()
         $snap = [Dbg]::CreateToolhelp32Snapshot([Dbg]::TH32CS_SNAPTHREAD, 0)
@@ -161,8 +166,8 @@ try {
             $te = New-Object Dbg+THREADENTRY32; $te.dwSize = [Runtime.InteropServices.Marshal]::SizeOf($te)
             if ([Dbg]::Thread32First($snap, [ref]$te)) {
                 # NOTE: `continue` inside do{}while() EXITS the loop in PowerShell (it does not jump to the
-                # condition), which silently left DR7 armed on every thread after the first non-matching one and
-                # kills the client on its next hit. Use nested ifs instead of continue.
+                # condition), which would silently leave DR7 armed on every later thread and kill the client on
+                # its next watchpoint hit. Use nested ifs instead of continue.
                 do {
                     if ($te.th32OwnerProcessID -eq $ExpectedPid) {
                         $tid = [int]$te.th32ThreadID
@@ -192,15 +197,15 @@ try {
         if ($d.done) { break }
         Start-Sleep -Milliseconds 150
     }
-    $result.managers = @($seen.Values)
-    $result.distinctManagers = $seen.Count
-    $result.status = 'HWBP_MANAGER_PROBE_CAPTURED'
-} catch { $result.status='HWBP_MANAGER_PROBE_FAILED'; $result.error=$_.Exception.Message }
+    $result.writers = @($seen.Values)
+    $result.distinctWriters = $seen.Count
+    $result.status = 'HWBP_WRITE_PROBE_CAPTURED'
+} catch { $result.status='HWBP_WRITE_PROBE_FAILED'; $result.error=$_.Exception.Message }
 finally {
     if ($attached) { [void][Dbg]::DebugActiveProcessStop($ExpectedPid) }
     [void][Dbg]::CloseHandle($hProc)
 }
 $parent = Split-Path -Parent $ReceiptPath; if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
 [IO.File]::WriteAllText($ReceiptPath, (($result | ConvertTo-Json -Depth 7) -replace "`r`n", "`n") + "`n", [Text.UTF8Encoding]::new($false))
-if ($result.status -ne 'HWBP_MANAGER_PROBE_CAPTURED') { exit 1 }
+if ($result.status -ne 'HWBP_WRITE_PROBE_CAPTURED') { exit 1 }
 exit 0
