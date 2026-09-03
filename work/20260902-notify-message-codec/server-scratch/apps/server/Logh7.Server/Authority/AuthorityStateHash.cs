@@ -107,6 +107,22 @@ public static class AuthorityStateHash
         return HashCanonicalJson(canonicalJson);
     }
 
+    public static string CharacterCardResigned(
+        Guid accountId,
+        long authorityVersion,
+        long characterId,
+        int sourceCardId,
+        string requestFingerprint)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(authorityVersion);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(characterId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceCardId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(requestFingerprint);
+        var canonicalJson = FormattableString.Invariant(
+            $"{{\"accountId\":\"{accountId:D}\",\"authorityVersion\":{authorityVersion},\"characterId\":{characterId},\"sourceCardId\":{sourceCardId},\"resultingCardId\":0,\"requestFingerprint\":\"{requestFingerprint}\"}}");
+        return HashCanonicalJson(canonicalJson);
+    }
+
     public static string CharacterDeleted(
         Guid accountId,
         long authorityVersion,

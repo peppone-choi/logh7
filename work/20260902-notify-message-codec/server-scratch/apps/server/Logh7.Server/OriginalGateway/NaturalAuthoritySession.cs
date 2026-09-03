@@ -63,6 +63,10 @@ public sealed class NaturalAuthoritySession
     private Guid _accountId;
     private string? _normalizedLogin;
     private OriginalCreateCharacterCommand? _createdCharacter;
+    // 2026-09-03: the character's CURRENT post card, loaded from original_character_card by
+    // RestorePersistedCharacterAsync (falling back to the authored AuthorityCardId when no appointment row exists).
+    // 辞任 (0x0709) writes card 0 = 個人 here, which the client renders as 「皇宮 ： 個人」 with no commands.
+    private ushort _worldCardId = OriginalAuthoredPlayableCatalog.AuthorityCardId;
     private uint _worldCharacterId;
     private uint _worldGridUnitId;
     private uint _worldGridCellId = OriginalAuthoredPlayableCatalog.CurrentGridCell;
@@ -479,7 +483,7 @@ public sealed class NaturalAuthoritySession
                         OriginalWorldEntryCodec.EncodeCharacter(
                             _worldCharacterId,
                             _worldGridUnitId,
-                            OriginalAuthoredPlayableCatalog.AuthorityCardId,
+                            EffectiveWorldCardId,
                             character)),
                     .. (OriginalSimpleRankCodec.InfoProbeEnabled
                         ? OriginalSimpleRankCodec.EncodeInfoProbeFrames().Select(frame => EncodeApplicationPush(frame)).ToArray()
@@ -515,7 +519,7 @@ public sealed class NaturalAuthoritySession
                 OriginalWorldEntryCodec.EncodeCharacter(
                     _worldCharacterId,
                     _worldGridUnitId,
-                    OriginalAuthoredPlayableCatalog.AuthorityCardId,
+                    EffectiveWorldCardId,
                     gridCharacter),
                 OriginalWorldEntryCodec.EncodeGridEnterBoundary(0x0b0a),
                 OriginalWorldBootstrapCodec.EncodeStaticGridTypes(),
@@ -819,7 +823,7 @@ public sealed class NaturalAuthoritySession
                     OriginalWorldEntryCodec.EncodeCharacter(
                         _worldCharacterId,
                         _worldGridUnitId,
-                        OriginalAuthoredPlayableCatalog.AuthorityCardId,
+                        EffectiveWorldCardId,
                         infoCharacter),
                     type,
                     includeLobbyPrefix: true) with
@@ -940,6 +944,60 @@ public sealed class NaturalAuthoritySession
             };
         }
 
+        // 辞任 CommandCardResignation (0x0709): the character resigns from the post they hold. Captured live
+        // 2026-09-03 (run 20260903T063644Z): [u16 type][u32 time][u32 actor][u32 pcp][u32 mcp][u32 cardId][u32 0][u8 0],
+        // 27 bytes, no picker — the client sends the card it currently displays. The resulting state is card 0 = 個人,
+        // the ORIGINAL's own "holds no post" value (constmsg group 3 row 0), proven to render as 「皇宮 ： 個人」 with an
+        // empty command grid (run 20260903T085429Z). Persistence: original_character_card.card_id = 0 +
+        // original_card_resignation_command + event CharacterCardResigned (migration 0015).
+        if (type == 0x0709 && _worldEntered)
+        {
+            var resignPayload = decoded.Payload ?? Array.Empty<byte>();
+            var resignRestoreError = await RestorePersistedCharacterAsync(cancellationToken);
+            if (resignRestoreError is not null)
+            {
+                return Invalid(resignRestoreError, type);
+            }
+
+            var decodedResign = OriginalCardResignationCodec.Decode(resignPayload);
+            if (!decodedResign.Success || decodedResign.Command is not { } resignCommand)
+            {
+                return Invalid(decodedResign.ErrorCode ?? "original.card-resignation.decode", type, Convert.ToHexString(resignPayload));
+            }
+
+            if (resignCommand.ActorId != _worldCharacterId || resignCommand.CardId == 0)
+            {
+                return Invalid($"original.card-resignation.identity;actor={resignCommand.ActorId};world={_worldCharacterId};card={resignCommand.CardId}", type, Convert.ToHexString(resignPayload));
+            }
+
+            var resignFingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes($"original-card-resignation/v1\n{_accountId:D}\n{resignCommand.ActorId}\n{resignCommand.CardId}\n{Convert.ToHexString(resignPayload)}"))).ToLowerInvariant();
+            CardResignationStoreResult resigned;
+            try
+            {
+                resigned = await _store.ResignCardAsync(
+                    _accountId,
+                    new CardResignationWrite(resignFingerprint, resignCommand.ActorId, checked((int)resignCommand.CardId)),
+                    OriginalAuthoredPlayableCatalog.AuthorityCardId,
+                    cancellationToken);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or Npgsql.PostgresException)
+            {
+                var resignReason = exception is Npgsql.PostgresException pg ? $"postgres-{pg.SqlState}" : exception.Message.ToLowerInvariant().Replace('_', '-');
+                return RejectCommandVisibly($"original.card-resignation.{resignReason}", type.GetValueOrDefault(), "辞任できません（現在の職務と一致しないか、既に処理済みです）");
+            }
+
+            _worldCardId = 0;
+            _receipt.Record("card-resignation", $"resigned;from={resignCommand.CardId};character={resignCommand.ActorId};version={resigned.AuthorityVersion};updated={resigned.Updated}", _accountId);
+            var resignAccepted = new byte[OriginalLoginCodec.MessageCodeSize + sizeof(ushort) + 160];
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt16BigEndian(resignAccepted.AsSpan(4), 0x0709);
+            resignPayload.AsSpan(2, Math.Min(resignPayload.Length - 2, 160)).CopyTo(resignAccepted.AsSpan(6));
+            return EncodeApplicationResponse(resignAccepted, type, includeLobbyPrefix: true) with
+            {
+                ResponseMetadata = $"card-resignation-accepted;from={resignCommand.CardId};to=0;character={resignCommand.ActorId};authorityVersion={resigned.AuthorityVersion};payloadHex={Convert.ToHexString(resignPayload)}"
+            };
+        }
+
         // PROBE (2026-09-03, LOGH7_COMMAND_ECHO=1): strategy command families the authority does not implement yet
         // (0x0700-0x070F card/personnel, 0x0900-0x090F, 0x0C00-0x0C0F unit maintenance, 0x0B00-0x0B0F strategic movement)
         // are recorded (payload hex) and echoed back as a 160-byte response of the same type so the client's command
@@ -948,7 +1006,7 @@ public sealed class NaturalAuthoritySession
         if (_worldEntered &&
             Environment.GetEnvironmentVariable("LOGH7_COMMAND_ECHO") == "1" &&
             type is (>= 0x0700 and <= 0x070F) or (>= 0x0900 and <= 0x090F) or (>= 0x0C00 and <= 0x0C0F) or (>= 0x0B00 and <= 0x0B0F) &&
-            type != 0x0704 && type != 0x0705 && type != 0x0706 && type != 0x0707 && type != 0x0708)
+            type != 0x0704 && type != 0x0705 && type != 0x0706 && type != 0x0707 && type != 0x0708 && type != 0x0709)
         {
             var echoPayload = decoded.Payload ?? Array.Empty<byte>();
             _receipt.Record("command-echo", $"type=0x{type:X4};payload={Convert.ToHexString(echoPayload)}", _accountId);
@@ -1044,7 +1102,7 @@ public sealed class NaturalAuthoritySession
                         OriginalWorldEntryCodec.EncodeCharacter(
                             _worldCharacterId,
                             _worldGridUnitId,
-                            OriginalAuthoredPlayableCatalog.AuthorityCardId,
+                            EffectiveWorldCardId,
                             _createdCharacter.Value))
                 ]
             };
@@ -1132,7 +1190,7 @@ public sealed class NaturalAuthoritySession
                         OriginalWorldEntryCodec.EncodeCharacter(
                             _worldCharacterId,
                             _worldGridUnitId,
-                            OriginalAuthoredPlayableCatalog.AuthorityCardId,
+                            EffectiveWorldCardId,
                             _createdCharacter.Value))
                 ]
             };
@@ -1214,7 +1272,7 @@ public sealed class NaturalAuthoritySession
                         OriginalWorldEntryCodec.EncodeCharacter(
                             _worldCharacterId,
                             _worldGridUnitId,
-                            OriginalAuthoredPlayableCatalog.AuthorityCardId,
+                            EffectiveWorldCardId,
                             _createdCharacter.Value))
                 ]
             };
@@ -2308,6 +2366,21 @@ public sealed class NaturalAuthoritySession
         return null;
     }
 
+    // LOGH7_WORLD_CARD_ID force-overrides the served card for probes; otherwise the persisted card is authoritative.
+    private ushort EffectiveWorldCardId =>
+        ushort.TryParse(Environment.GetEnvironmentVariable("LOGH7_WORLD_CARD_ID"), out var forced)
+            ? forced
+            : _worldCardId;
+
+    private async Task LoadPersistedCardAsync(CancellationToken cancellationToken)
+    {
+        var cards = await _store.ListCharacterCardsAsync(_accountId, cancellationToken);
+        var held = cards.FirstOrDefault(card => card.CharacterId == _worldCharacterId);
+        _worldCardId = held is not null
+            ? checked((ushort)held.CardId)
+            : OriginalAuthoredPlayableCatalog.AuthorityCardId;
+    }
+
     private async Task<string?> RestorePersistedCharacterAsync(
         CancellationToken cancellationToken)
     {
@@ -2333,7 +2406,8 @@ public sealed class NaturalAuthoritySession
             _worldCharacterId = checked((uint)selected.CharacterId);
             _worldGridUnitId = _worldCharacterId;
             _createdCharacter = RestoreCharacter(selected);
-            _receipt.Record($"character-context", $"restored-slot-{selected.Slot}", _accountId);
+            await LoadPersistedCardAsync(cancellationToken);
+            _receipt.Record($"character-context", $"restored-slot-{selected.Slot};card={_worldCardId}", _accountId);
             return null;
         }
 
@@ -2343,7 +2417,8 @@ public sealed class NaturalAuthoritySession
             _worldCharacterId = checked((uint)character.CharacterId);
             _worldGridUnitId = _worldCharacterId;
             _createdCharacter = RestoreCharacter(character);
-            _receipt.Record("character-context", "restored-slot-0", _accountId);
+            await LoadPersistedCardAsync(cancellationToken);
+            _receipt.Record("character-context", $"restored-slot-0;card={_worldCardId}", _accountId);
         }
 
         return null;

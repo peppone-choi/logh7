@@ -597,6 +597,169 @@ public sealed class PostgresAccountStore : IAccountStore
         return new CardDismissalStoreResult(write.TargetCharacterId, write.CardId, true, nextVersion);
     }
 
+    // 辞任 (0x0709): the character resigns from the post they currently hold. The resulting state is card 0 = 個人,
+    // the ORIGINAL's own "holds no post" value (constmsg group 3 row 0; the client renders 「皇宮 ： 個人」 with an
+    // empty command grid). defaultCardId is the authored card a character holds when no appointment row exists.
+    public async Task<CardResignationStoreResult> ResignCardAsync(
+        Guid accountId,
+        CardResignationWrite write,
+        int defaultCardId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(write);
+        if (write.RequestFingerprint.Length != 64 ||
+            write.RequestFingerprint.Any(character =>
+                character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f')) ||
+            write.CharacterId <= 0 ||
+            write.SourceCardId is <= 0 or > 65535)
+        {
+            throw new ArgumentException("CARD_RESIGNATION_WRITE", nameof(write));
+        }
+
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        long currentVersion;
+        await using (var account = new NpgsqlCommand(
+            "SELECT authority_version FROM account WHERE account_id = $1 FOR UPDATE",
+            connection,
+            transaction))
+        {
+            account.Parameters.AddWithValue(accountId);
+            currentVersion = (long)(await account.ExecuteScalarAsync(cancellationToken) ??
+                throw new InvalidOperationException("ACCOUNT_NOT_FOUND"));
+        }
+
+        await using (var replay = new NpgsqlCommand(
+            "SELECT character_id, source_card_id, authority_version FROM original_card_resignation_command WHERE account_id = $1 AND request_fingerprint = $2",
+            connection,
+            transaction))
+        {
+            replay.Parameters.AddWithValue(accountId);
+            replay.Parameters.AddWithValue(write.RequestFingerprint);
+            await using var reader = await replay.ExecuteReaderAsync(cancellationToken);
+            if (await reader.ReadAsync(cancellationToken))
+            {
+                if (reader.GetInt64(0) != write.CharacterId ||
+                    reader.GetInt32(1) != write.SourceCardId)
+                {
+                    throw new InvalidOperationException("CARD_RESIGNATION_REPLAY_MISMATCH");
+                }
+
+                var result = new CardResignationStoreResult(
+                    write.CharacterId,
+                    write.SourceCardId,
+                    false,
+                    reader.GetInt64(2));
+                await reader.DisposeAsync();
+                await transaction.CommitAsync(cancellationToken);
+                return result;
+            }
+        }
+
+        await using (var exists = new NpgsqlCommand(
+            "SELECT 1 FROM character WHERE account_id = $1 AND character_id = $2 FOR UPDATE",
+            connection,
+            transaction))
+        {
+            exists.Parameters.AddWithValue(accountId);
+            exists.Parameters.AddWithValue(write.CharacterId);
+            if (await exists.ExecuteScalarAsync(cancellationToken) is null)
+            {
+                throw new InvalidOperationException("CHARACTER_NOT_FOUND");
+            }
+        }
+
+        // The card the character actually holds right now: the appointment row when one exists, otherwise the
+        // authored default. It must match the post the client asked to resign from.
+        int heldCardId;
+        await using (var held = new NpgsqlCommand(
+            "SELECT card_id FROM original_character_card WHERE account_id = $1 AND character_id = $2 FOR UPDATE",
+            connection,
+            transaction))
+        {
+            held.Parameters.AddWithValue(accountId);
+            held.Parameters.AddWithValue(write.CharacterId);
+            heldCardId = await held.ExecuteScalarAsync(cancellationToken) is int value ? value : defaultCardId;
+        }
+
+        if (heldCardId == 0)
+        {
+            throw new InvalidOperationException("CARD_ALREADY_RESIGNED");
+        }
+
+        if (heldCardId != write.SourceCardId)
+        {
+            throw new InvalidOperationException("CARD_RESIGNATION_CARD_MISMATCH");
+        }
+
+        var nextVersion = checked(currentVersion + 1);
+        await using (var upsert = new NpgsqlCommand(
+            "INSERT INTO original_character_card(account_id, character_id, card_id, appointed_by_character_id, authority_version) VALUES ($1, $2, 0, $2, $3) ON CONFLICT (account_id, character_id) DO UPDATE SET card_id = 0, appointed_by_character_id = EXCLUDED.appointed_by_character_id, authority_version = EXCLUDED.authority_version, updated_at = transaction_timestamp()",
+            connection,
+            transaction))
+        {
+            upsert.Parameters.AddWithValue(accountId);
+            upsert.Parameters.AddWithValue(write.CharacterId);
+            upsert.Parameters.AddWithValue(nextVersion);
+            await upsert.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using (var insert = new NpgsqlCommand(
+            "INSERT INTO original_card_resignation_command(account_id, character_id, source_card_id, request_fingerprint, authority_version) VALUES ($1, $2, $3, $4, $5)",
+            connection,
+            transaction))
+        {
+            insert.Parameters.AddWithValue(accountId);
+            insert.Parameters.AddWithValue(write.CharacterId);
+            insert.Parameters.AddWithValue(write.SourceCardId);
+            insert.Parameters.AddWithValue(write.RequestFingerprint);
+            insert.Parameters.AddWithValue(nextVersion);
+            await insert.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        var eventPayload = JsonSerializer.Serialize(new
+        {
+            characterId = write.CharacterId,
+            sourceCardId = write.SourceCardId,
+            resultingCardId = 0,
+            requestFingerprint = write.RequestFingerprint
+        });
+        await using (var insertEvent = new NpgsqlCommand(
+            "INSERT INTO domain_event(account_id, aggregate_type, aggregate_id, event_type, payload, authority_version) VALUES ($1, 'character', $2, 'CharacterCardResigned', $3::jsonb, $4)",
+            connection,
+            transaction))
+        {
+            insertEvent.Parameters.AddWithValue(accountId);
+            insertEvent.Parameters.AddWithValue(write.CharacterId.ToString());
+            insertEvent.Parameters.AddWithValue(eventPayload);
+            insertEvent.Parameters.AddWithValue(nextVersion);
+            await insertEvent.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        var stateHash = AuthorityStateHash.CharacterCardResigned(
+            accountId,
+            nextVersion,
+            write.CharacterId,
+            write.SourceCardId,
+            write.RequestFingerprint);
+        await using (var updateAccount = new NpgsqlCommand(
+            "UPDATE account SET authority_version = $2, authority_state_hash = $3, updated_at = transaction_timestamp() WHERE account_id = $1",
+            connection,
+            transaction))
+        {
+            updateAccount.Parameters.AddWithValue(accountId);
+            updateAccount.Parameters.AddWithValue(nextVersion);
+            updateAccount.Parameters.AddWithValue(stateHash);
+            if (await updateAccount.ExecuteNonQueryAsync(cancellationToken) != 1)
+            {
+                throw new InvalidOperationException("ACCOUNT_VERSION_UPDATE_FAILED");
+            }
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return new CardResignationStoreResult(write.CharacterId, write.SourceCardId, true, nextVersion);
+    }
+
     public async Task<CharacterRankUpStoreResult> PromoteCharacterAsync(
         Guid accountId,
         CharacterRankUpWrite write,

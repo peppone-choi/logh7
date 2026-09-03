@@ -9,6 +9,7 @@
       2,
       5,
       6,
+      7,
       43
     ],
     "cardPanelDefined": 17
@@ -103,14 +104,13 @@
       "name": "辞任",
       "panel": "card (via ExtraCardCommands 7)",
       "targetKind": null,
-      "status": "PAYLOAD_CAPTURED",
+      "status": "PLAYER_VISIBLE_REPRODUCIBLE",
       "request": "0x0709",
-      "receipt": null,
-      "probeNote": " | implementing needs the character's current card as authority state (world entry serves the constant AuthorityCardId 39) | 20260903 analysis: 辞任 always sends cardId=39 (the player's OWN authored card 艦隊司令官, served as the constant AuthorityCardId at world entry), NOT an appointed post. There is no picker — it resigns the player from their base command card. A positive verification is blocked on a design decision: what a player with no post should become (the original game strips the command). Distinct from 罷免 (0x0708, VERIFIED), which removes ANOTHER post's holder from original_character_card. Not implementable as a clean inverse without that decision.",
+      "receipt": "condition-9-resignation-verification.json",
+      "probeNote": " | implementing needs the character's current card as authority state (world entry serves the constant AuthorityCardId 39) | 20260903 analysis: 辞任 always sends cardId=39 (the player's OWN authored card 艦隊司令官, served as the constant AuthorityCardId at world entry), NOT an appointed post. There is no picker — it resigns the player from their base command card. A positive verification is blocked on a design decision: what a player with no post should become (the original game strips the command). Distinct from 罷免 (0x0708, VERIFIED), which removes ANOTHER post's holder from original_character_card. Not implementable as a clean inverse without that decision. | CORRECTION 20260903T085429Z (extracmd38, LOGH7_WORLD_CARD_ID=0): the earlier 'undefined design' claim was WRONG. constmsg group 3 row 0 = 個人 and group 4 row 0 = 皇宮, and serving card 0 in the world-entry character record makes the unmodified client render 職務権限カード as 「皇宮 ： 個人」 with an empty command grid, no crash, HUD intact. Card 0 is the ORIGINAL's own first-class 'holds no post' state, so 辞任 has a defined target state and IS implementable: resign -> character card becomes 0. | IMPLEMENTED+VERIFIED 20260903T090158Z (extracmd39): migration 0015 widens original_character_card.card_id to allow 0 and adds original_card_resignation_command; ResignCardAsync sets the card to 0 and emits CharacterCardResigned; world entry now serves the PERSISTED card (LoadPersistedCardAsync -> EffectiveWorldCardId) instead of the constant AuthorityCardId. 辞任 at card (722,310) with one extra command -> confirm 決定(565,516) -> 0x0709 from=39 to=0 -> restart + relogin -> client renders 「皇宮 ： 個人」 with an empty command grid.",
       "clientName": "CommandCardResignation",
       "payloadLayout": "[u16 0x0709][u32 time][u32 actor][u32 pcp][u32 mcp][u32 cardId][u32 0][u8 0] = 27 B; capture run 20260903T063644Z: 0709 00000000 00000002 00000000 00000000 00000027 00000000 00 (card 39)",
-      "flow": "card 辞任(923,310) -> confirm 「を辞任します。コマンドポイント80MCP消費…」 決定(565,516)/取消し(638,515) -> 0x0709 (no list request)",
-      "blocker": "DESIGN_DECISION"
+      "flow": "card 辞任(923,310) -> confirm 「を辞任します。コマンドポイント80MCP消費…」 決定(565,516)/取消し(638,515) -> 0x0709 (no list request)"
     },
     {
       "id": 8,
@@ -1018,6 +1018,7 @@
     "2026-09-03: dispatcher branch analysis (FUN_004BA2B0 0x4BC785..) — 0x0704 CommandRankUp, 0x0706 CommandRankDown, 0x0707 CommandCardAppointment, 0x0709 CommandCardResignation, 0x070A NotifyCardLoss, 0x0900 CommandMakePlan; 0x0705/0x0708 inferred by position.",
     "2026-09-03 card-command echo sweep (20260903T054448Z-natural-l1-relogin-v1, extracmd29, LOGH7_COMMAND_ECHO=1, ExtraCardCommands 1,4,12,14,15,16,20,21,24,26,27,28,30,31,33): 12 of 15 extra commands are silent client-side (no request); 抜擢/発令/部隊解散 open list pickers with selectors 0x0015/0x000B/0x001E that reject the 0x120F roster fallback. No command body was captured yet because every picker was empty.",
     "2026-09-03: 0x0F08 TransactionInformationMailBegin rows at random times are the client's periodic mailbox unread poll (character, box=1, unread-only=true), not command traffic.",
-    "2026-09-03: BASE-target card commands (発令, 部隊解散, 演説, 施設*, 部隊結成) require the character to be docked at a base; the authority does not model docking yet (0x0323 fields +0x18/+0x1C/+0x20 and 0x0325 ResponseInformationUnit are the next targets)."
+    "2026-09-03: BASE-target card commands (発令, 部隊解散, 演説, 施設*, 部隊結成) require the character to be docked at a base; the authority does not model docking yet (0x0323 fields +0x18/+0x1C/+0x20 and 0x0325 ResponseInformationUnit are the next targets).",
+    "2026-09-03: card 0 is a first-class ORIGINAL state (個人, constmsg group 3 row 0) — proven live by serving it at world entry (run 20260903T085429Z). EncodeStaticCards already serves card 0 with zero commands, which matches 'no post => no strategy commands'."
   ]
 }

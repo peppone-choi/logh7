@@ -38,6 +38,7 @@ param(
     [string]$NinmeiChars = '',
     [string]$CommandEcho = '',
     [string]$ListKindProbe = '',
+    [string]$WorldCardId = '',
     [string]$DataRoot = '',
     [string]$InfoProbe = '',
     [string]$NinmeiCards = '',
@@ -182,6 +183,7 @@ try {
     if ($NinmeiChars -and $NinmeiChars -cnotmatch '^[0-9]{1,10}(,[0-9]{1,10})*$') { throw 'FRESH_RUN_NINMEI_CHARS_INVALID' }
     if ($NinmeiChars) { $env:LOGH7_NINMEI_CHARS = $NinmeiChars } else { $env:LOGH7_NINMEI_CHARS = $null }
     if ($CommandEcho -eq '1') { $env:LOGH7_COMMAND_ECHO = '1' } else { $env:LOGH7_COMMAND_ECHO = $null }
+    if ($WorldCardId -ne '') { if ($WorldCardId -notmatch '^[0-9]{1,5}$') { throw 'WORLD_CARD_ID_INVALID' }; $env:LOGH7_WORLD_CARD_ID = $WorldCardId } else { $env:LOGH7_WORLD_CARD_ID = $null }
     if ($ListKindProbe) { if ($ListKindProbe -notmatch '^[0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{4}(,[0-9A-Fa-f]{1,4}:[0-9A-Fa-f]{4})*$') { throw 'LIST_KIND_PROBE_INVALID' }; $env:LOGH7_LIST_KIND_PROBE = $ListKindProbe } else { $env:LOGH7_LIST_KIND_PROBE = $null }
     if ($ProvisionNewAccount) {
         # NEW_DESIGN: provision a fresh disposable account in this run's database (secret DPAPI-protected for the guest user).

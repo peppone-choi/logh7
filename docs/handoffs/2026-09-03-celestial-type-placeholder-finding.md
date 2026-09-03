@@ -1079,3 +1079,38 @@ dismissal, emits the event); store failures soft-reject via `RejectCommandVisibl
 抜擢(722,310) 罷免(822,310); with 3 extras (1,2,6) it is 抜擢/降等/罷免 and 罷免 sits at (923,310). Always confirm the button by screenshot.
 Remaining personnel command: 辞任 0x0709 (payload captured; needs the character's current card as authority state, not the constant
 AuthorityCardId served at world entry).
+
+## 2026-09-03 CORRECTION: card 0 = 個人 is a first-class ORIGINAL state (run 20260903T085429Z, extracmd38)
+
+An earlier entry in this handoff called 辞任 (0x0709) blocked on "an undefined design decision: what a player with no post
+should become". **That was wrong, and the client disproves it.** Evidence:
+- Static: constmsg **group 3 row 0 = 個人** (the card-id -> post-name table) and **group 4 row 0 = 皇宮**. `EncodeStaticCards`
+  already emits card 0 with `commandCount = 0`.
+- Live: `LOGH7_WORLD_CARD_ID=0` (new `OriginalAuthoredPlayableCatalog.WorldCardId`, env override of the world-entry character
+  record's card, default still AuthorityCardId 39) -> the unmodified client enters the world normally, renders 職務権限カード as
+  **「皇宮 ： 個人」** with 「個人」 in the info pane and an **empty command grid**, HUD and stats intact, no crash
+  (screenshot `vnc-s4-card.png`). "No post => no strategy commands" falls out of the original data, not from new design.
+
+**Consequence: 辞任 is implementable with a defined target state** — resigning sets the character's card to 0 (個人). What is
+still missing is not a design decision but a mechanism: world entry serves a constant card, so it must instead read the
+character's current card from `original_character_card` (falling back to 39). Note `original_character_card.card_id` has
+CHECK (card_id BETWEEN 1 AND 65535), which must be widened to allow 0.
+
+Harness: `host-run-fresh-run.ps1` / `guest-prepare-fresh-run.ps1` gained `-WorldCardId` (validated `^[0-9]{1,5}$`).
+
+## 2026-09-03 辞任 vertical VERIFIED — the personnel command family is complete (run 20260903T090158Z, extracmd39)
+
+辞任 (CommandCardResignation 0x0709) is PLAYER_VISIBLE_REPRODUCIBLE (condition-9-resignation-verification.json,
+bind-condition-9-resignation-verification.py). This closes the 0x0705-0x0709 personnel family: 抜擢, 降等, 任命, 罷免, 辞任.
+
+Authority changes (extracmd39):
+- **Migration 0015**: widen `original_character_card.card_id` CHECK to allow **0**, add `original_card_resignation_command`.
+- **`ResignCardAsync`**: verifies the card the character actually holds (appointment row, else the authored default 39)
+  matches the post the client asked to resign from, then sets the card to 0, records the resignation, emits
+  `CharacterCardResigned`, bumps the account version. Soft-rejects visibly (0x0500) on mismatch/replay.
+- **World entry now serves the PERSISTED card**: `LoadPersistedCardAsync` reads `original_character_card` during
+  `RestorePersistedCharacterAsync`, and the six world-entry `EncodeCharacter` sites use `EffectiveWorldCardId`
+  (`LOGH7_WORLD_CARD_ID` still force-overrides for probes). This was the real blocker — a mechanism, not a design call.
+
+Result: 辞任 at (722,310) -> confirm 決定(565,516) -> `0x0709 card-resignation-accepted;from=39;to=0` -> DB card_id 0
+-> authority restart -> relogin -> the client renders 「皇宮 ： 個人」 with an empty command grid (`vnc-r4-4-card.png`).

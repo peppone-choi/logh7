@@ -78,6 +78,17 @@ public readonly record struct CardDismissalStoreResult(
     bool Updated,
     long AuthorityVersion);
 
+public sealed record CardResignationWrite(
+    string RequestFingerprint,
+    long CharacterId,
+    int SourceCardId);
+
+public readonly record struct CardResignationStoreResult(
+    long CharacterId,
+    int SourceCardId,
+    bool Updated,
+    long AuthorityVersion);
+
 public sealed record CharacterDeleteWrite(
     string RequestFingerprint,
     long CharacterId,
@@ -287,6 +298,12 @@ public interface IAccountStore
     Task<CardDismissalStoreResult> DismissCardAsync(
         Guid accountId,
         CardDismissalWrite write,
+        CancellationToken cancellationToken);
+
+    Task<CardResignationStoreResult> ResignCardAsync(
+        Guid accountId,
+        CardResignationWrite write,
+        int defaultCardId,
         CancellationToken cancellationToken);
 
     Task<CharacterRankUpStoreResult> PromoteCharacterAsync(

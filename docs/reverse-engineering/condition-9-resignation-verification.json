@@ -1,0 +1,97 @@
+{
+  "schema": "logh7/condition-9-resignation-verification/v1",
+  "condition": 9,
+  "feature": "辞任 CommandCardResignation 0x0709 (character 2 resigns the authored card 39 艦隊司令官; resulting state = card 0 個人)",
+  "runId": "20260903T090158Z-natural-l1-relogin-v1",
+  "clientExe": null,
+  "authorityZipSha256": null,
+  "checks": {
+    "prepReady": true,
+    "oneCredentialSubmission": true,
+    "resignationAccepted": true,
+    "resignedFromAuthoredCard": true,
+    "noConnectionCloseAfterCommand": true,
+    "dbCardIsZero": true,
+    "domainEventCharacterCardResigned": true,
+    "relaunchReady": true,
+    "reloginOneCredentialSubmission": true,
+    "cardZeroAfterRestart": true,
+    "cardZeroAfterRelogin": true,
+    "accountVersionStable": true,
+    "clientCardPanelChanged": true,
+    "cleanStop": true,
+    "cleanup": true,
+    "noLeftoverProcesses": true
+  },
+  "passed": "16/16",
+  "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "resignationResponse": {
+    "t": "2026-09-03T09:04:29.7738929+00:00",
+    "ev": "frame-processed",
+    "outerControl": 48,
+    "payloadLength": 40,
+    "status": "Success",
+    "ObservedApplicationType": 1801,
+    "ResponseMetadata": "card-resignation-accepted;from=39;to=0;character=2;authorityVersion=25;payloadHex=070900000000000000020000000000000000000000270000000000",
+    "requestPayloadHex": "408A3447DDE115942103D484E113299812E16BCD4DDD3756CAB75F84DCAC257034A5DB1C9DA7B62E",
+    "ResponseOuterControl": 48,
+    "responsePayloadLength": 176,
+    "stateBefore": "SessionServerReady",
+    "stateAfter": "SessionServerReady"
+  },
+  "characterCard": {
+    "afterResign": [
+      {
+        "character_id": 2,
+        "card_id": 0,
+        "appointed_by_character_id": 2,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T18:04:29.750887+09:00"
+      }
+    ],
+    "afterRestart": [
+      {
+        "character_id": 2,
+        "card_id": 0,
+        "appointed_by_character_id": 2,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T18:04:29.750887+09:00"
+      }
+    ],
+    "afterRelogin": [
+      {
+        "character_id": 2,
+        "card_id": 0,
+        "appointed_by_character_id": 2,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T18:04:29.750887+09:00"
+      }
+    ]
+  },
+  "domainEvent": {
+    "event_id": 25,
+    "aggregate_type": "character",
+    "aggregate_id": "2",
+    "event_type": "CharacterCardResigned",
+    "payload": {
+      "characterId": 2,
+      "sourceCardId": 39,
+      "resultingCardId": 0,
+      "requestFingerprint": "2cf7151db0a7864187695e1a35014aca83908e12d7a97c05eddec862539d533c"
+    },
+    "authority_version": 25,
+    "created_at": "2026-09-03T18:04:29.750887+09:00"
+  },
+  "cardPanelChangedPixels": 11005,
+  "screenshots": {
+    "vnc-j1-1-jinin.png": "D8BED151077F6A8F033C90607D1C4808D92EA2028F96BCA06CDA7F3D4C90043D",
+    "vnc-j1-2-sent.png": "1827B71E7FE1ED2946C57A3147680D22058EBD6375C07B3E00C7F338ED9D8058",
+    "vnc-r4-0-lobby.png": "84CBC6F6680A222012C584F78FF7E1FAF92F9B9D18A60F44F6C95FFE9804B870",
+    "vnc-r4-1-roster.png": "97D35FBB62CF3D4FA4FB4F32C98BFDAD9C32BEBDACF6DF94E25FBCFEE971FA69",
+    "vnc-r4-2-strategy.png": "10B765089566C69B4F7204A4C7EEDA251C2E4B83B336011C15D1A01E226A6F11",
+    "vnc-r4-3-cardtab.png": "70C5C9B8FC25C472439E29F54A6B8653C4381CADB0CC80B7923D25ED1D439D10",
+    "vnc-r4-4-card.png": "057132C13696862606D7495406E55E469253B447315CEB5465AF647C9C606B67",
+    "vnc-s4-card.png": "3E9C3F9EB29D27190B37A8D4459F47E14CBD856DAF738FB1074C8859C6C527AB"
+  },
+  "originalNotNewDesign": "Card 0 = 個人 is the ORIGINAL's own 'holds no post' value (constmsg group 3 row 0; group 4 row 0 = 皇宮), and EncodeStaticCards already emits card 0 with zero commands. Independently proven in run 20260903T085429Z by serving card 0 at world entry via LOGH7_WORLD_CARD_ID: the client rendered 「皇宮 ： 個人」 with an empty command grid and no crash. The authority change is therefore a mechanism (world entry serves the PERSISTED card from original_character_card, falling back to the authored 39) plus migration 0015 (widen the card_id CHECK to allow 0, add original_card_resignation_command); the 80 MCP cost and wait time are not modelled."
+}
