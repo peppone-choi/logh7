@@ -1,0 +1,21 @@
+﻿[CmdletBinding()] param([Parameter(Mandatory=$true)][int]$ExpectedPid,[Parameter(Mandatory=$true)][string]$ReceiptPath)
+Set-StrictMode -Version Latest; $ErrorActionPreference='Continue'
+if (-not ('CensusNative' -as [type])) { Add-Type -TypeDefinition @"
+using System;using System.Runtime.InteropServices;using System.Text;
+public static class CensusNative{ public delegate bool EnumWindowsProc(IntPtr h,IntPtr p);[StructLayout(LayoutKind.Sequential)]public struct RECT{public int Left,Top,Right,Bottom;}
+ [DllImport("user32.dll")]public static extern bool EnumWindows(EnumWindowsProc c,IntPtr p);[DllImport("user32.dll")]public static extern uint GetWindowThreadProcessId(IntPtr h,out uint p);
+ [DllImport("user32.dll")]public static extern bool IsWindowVisible(IntPtr h);[DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out RECT r);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr h,StringBuilder s,int n);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetClassName(IntPtr h,StringBuilder s,int n);
+ [DllImport("user32.dll")]public static extern bool IsHungAppWindow(IntPtr h);}
+"@ }
+$rows=[Collections.Generic.List[object]]::new()
+$cb=[CensusNative+EnumWindowsProc]{param([IntPtr]$h,[IntPtr]$u);$o=[uint32]0;[void][CensusNative]::GetWindowThreadProcessId($h,[ref]$o);if([int]$o-eq$ExpectedPid){$rc=[CensusNative+RECT]::new();[void][CensusNative]::GetWindowRect($h,[ref]$rc);$t=[Text.StringBuilder]::new(256);[void][CensusNative]::GetWindowText($h,$t,256);$c=[Text.StringBuilder]::new(256);[void][CensusNative]::GetClassName($h,$c,256);$rows.Add([ordered]@{hwnd=('0x{0:X}'-f$h.ToInt64());visible=[CensusNative]::IsWindowVisible($h);hung=[CensusNative]::IsHungAppWindow($h);title=$t.ToString();class=$c.ToString();rect="$($rc.Left),$($rc.Top),$($rc.Right),$($rc.Bottom)"})};$true}
+[void][CensusNative]::EnumWindows($cb,[IntPtr]::Zero)
+$p=Get-Process -Id $ExpectedPid -ErrorAction SilentlyContinue
+$mods=@(); try { $mods=@($p.Modules | Select-Object -ExpandProperty ModuleName) } catch { $mods=@("MODULES_UNAVAILABLE: $($_.Exception.Message)") }
+$threads=@(); try { $threads=@($p.Threads | ForEach-Object { [ordered]@{ id=$_.Id; state=[string]$_.ThreadState; wait=$(if($_.ThreadState -eq 'Wait'){[string]$_.WaitReason}else{$null}); cpuMs=[int]$_.TotalProcessorTime.TotalMilliseconds } }) } catch {}
+$video=@(Get-CimInstance Win32_VideoController | ForEach-Object { [ordered]@{ name=$_.Name; driver=$_.DriverVersion; ram=$_.AdapterRAM; res="$($_.CurrentHorizontalResolution)x$($_.CurrentVerticalResolution)"; status=$_.Status } })
+$wer=@(Get-ChildItem 'C:\ProgramData\Microsoft\Windows\WER\ReportQueue','C:\ProgramData\Microsoft\Windows\WER\ReportArchive',"$env:LOCALAPPDATA\Microsoft\Windows\WER\ReportArchive","$env:LOCALAPPDATA\Microsoft\Windows\WER\ReportQueue" -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'G7MT' -and $_.LastWriteTimeUtc -gt [datetime]::UtcNow.AddMinutes(-15) } | ForEach-Object { $_.FullName })
+$evt=@(Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=[datetime]::Now.AddMinutes(-10)} -ErrorAction SilentlyContinue | Where-Object { $_.Message -match 'G7MT' } | Select-Object -First 5 | ForEach-Object { [ordered]@{ id=$_.Id; level=$_.LevelDisplayName; time=$_.TimeCreated.ToUniversalTime().ToString('o'); msg=$_.Message.Substring(0,[Math]::Min(300,$_.Message.Length)) } })
+$res=[ordered]@{ capturedAtUtc=[datetime]::UtcNow.ToString('o'); alive=($null -ne $p); responding=$(if($p){$p.Responding}else{$null}); cpuSeconds=$(if($p){[math]::Round($p.TotalProcessorTime.TotalSeconds,2)}else{$null}); threadCount=$(if($p){$p.Threads.Count}else{$null}); workingSetMB=$(if($p){[int]($p.WorkingSet64/1MB)}else{$null}); handleCount=$(if($p){$p.HandleCount}else{$null}); windows=@($rows); modules=@($mods); threads=@($threads); video=@($video); werRecent=@($wer); appEvents=@($evt); tcp=@(Get-NetTCPConnection -OwningProcess $ExpectedPid -ErrorAction SilentlyContinue | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)->$($_.RemoteAddress):$($_.RemotePort) $($_.State)" }) }
+[IO.File]::WriteAllText($ReceiptPath,($res|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false)); exit 0

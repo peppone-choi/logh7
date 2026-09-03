@@ -1,0 +1,32 @@
+{
+ "note": "application payload only (type + body); prepend the gateway message-code envelope",
+ "vectors": [
+  {
+   "name": "invalid-message-ascii",
+   "opcode": "0x0500",
+   "error": 1,
+   "text": "NG",
+   "hex": "050000010002004E0047"
+  },
+  {
+   "name": "invalid-message-japanese",
+   "opcode": "0x0500",
+   "error": 2,
+   "text": "移動できません",
+   "hex": "05000002000779FB52D53067304D307E305B3093"
+  },
+  {
+   "name": "invalid-message-korean",
+   "opcode": "0x0500",
+   "error": 2,
+   "text": "이동할 수 없습니다",
+   "hex": "05000002000AC774B3D9D5600020C2180020C5C6C2B5B2C8B2E4"
+  },
+  {
+   "name": "error-japanese",
+   "opcode": "0x0501",
+   "text": "エラー",
+   "hex": "0501030030A830E930FC"
+  }
+ ]
+}

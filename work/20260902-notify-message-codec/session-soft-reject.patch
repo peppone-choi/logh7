@@ -1,0 +1,61 @@
+--- E:/logh7-greenfield/.worktrees/natural-authority-d02/apps/server/Logh7.Server/OriginalGateway/NaturalAuthoritySession.cs	2026-09-02 17:06:35.419840400 +0900
++++ server-scratch/apps/server/Logh7.Server/OriginalGateway/NaturalAuthoritySession.cs	2026-09-02 22:18:31.226004300 +0900
+@@ -1726,9 +1726,9 @@
+         if (decision.Status != OriginalMoveGridAuthorityStatus.Allowed ||
+             decision.Notification is null)
+         {
+-            return Invalid(
+-                $"original.move-grid.{decision.ErrorCode ?? "authority-rejected"}",
+-                type);
++            // NEW_DESIGN soft rejection: keep the session open and tell the player why,
++            // using the original client's 0x0500 NotifyInvalidMessage (ORIGINAL_STATIC wire).
++            return RejectMoveGridVisibly(decision.ErrorCode ?? "authority-rejected", type);
+         }
+ 
+         var requestFingerprint = Convert.ToHexStringLower(SHA256.HashData(payload));
+@@ -1760,9 +1760,7 @@
+ 
+         if (stored.Status != OriginalMoveGridStoreStatus.Moved)
+         {
+-            return Invalid(
+-                $"original.move-grid.{stored.ErrorCode ?? "authority-conflict"}",
+-                type);
++            return RejectMoveGridVisibly(stored.ErrorCode ?? "authority-conflict", type);
+         }
+ 
+         var movedUnit = stored.Unit;
+@@ -2078,6 +2076,34 @@
+         OriginalLoginInputShape? originalLoginInputShape = null) =>
+         new(NaturalAuthoritySessionStatus.Success, outerControl, prefix, payload, observedType, null, originalLoginInputShape);
+ 
++
++    // AUTHORED_PLACEHOLDER texts (Japanese, CP932-compatible) until the original move-failure rows are identified.
++    private static readonly IReadOnlyDictionary<string, (ushort Code, string Text)> MoveGridRejectionMessages =
++        new Dictionary<string, (ushort, string)>(StringComparer.Ordinal)
++        {
++            ["MOVE_GRID_DESTINATION_NOT_LEGAL"] = (1, "指定グリッドにはワープできません"),
++            ["MOVE_GRID_SOURCE_STALE"] = (2, "現在位置が更新されました。もう一度選択してください"),
++            ["MOVE_GRID_CARD_NOT_AUTHORIZED"] = (3, "この職務権限カードではワープできません"),
++            ["MOVE_GRID_ACTION_NOT_AUTHORIZED"] = (4, "このコマンドは実行できません"),
++            ["MOVE_GRID_UNIT_NOT_OWNED"] = (5, "この部隊は指揮できません"),
++        };
++
++    private NaturalAuthoritySessionResult RejectMoveGridVisibly(string errorCode, ushort type)
++    {
++        var (code, text) = MoveGridRejectionMessages.TryGetValue(errorCode, out var known)
++            ? known
++            : ((ushort)0xFF, "コマンドは拒否されました");
++        _receipt.Record("move-grid", $"rejected-{errorCode}", _accountId);
++        var response = EncodeApplicationResponse(
++            OriginalNotifyMessageCodec.EncodeInvalidMessage(code, text),
++            type,
++            includeLobbyPrefix: true);
++        return response with
++        {
++            ResponseMetadata = FormattableString.Invariant($"move-grid-reject={errorCode};notify-invalid-message-error={code};design=new")
++        };
++    }
++
+     private NaturalAuthoritySessionResult Invalid(
+         string code,
+         ushort? observedApplicationType = null,
