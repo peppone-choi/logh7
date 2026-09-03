@@ -6,7 +6,11 @@ param(
     [Parameter(Mandatory=$true)][string]$WatchVaHex,   # data address to watch, e.g. "0x00C9EABC" (4-byte aligned)
     [string]$RunId = '',                               # accepted and ignored; host-step passes it uniformly
     [int]$MaxHits = 200,
-    [int]$MaxSeconds = 30
+    [int]$MaxSeconds = 30,
+    [int]$ClickX = -1,                                 # if >= 0, click here from INSIDE this process
+    [int]$ClickY = -1,
+    [int]$ClickAfterMs = 5000,                         # delay after arming before the click is fired
+    [string]$ClickHwnd = ''                            # optional: bring this HWND to the foreground first
 )
 # READ-ONLY debug-attach probe. Sets a HARDWARE DATA-WRITE watchpoint (DR0 + DR7 R/W0=01 len=4) on $WatchVa in the
 # 32-bit (WOW64) client and records, for each distinct faulting EIP, the register file and the value now at $WatchVa.
@@ -44,6 +48,9 @@ public static class Dbg{
  [StructLayout(LayoutKind.Sequential)] public struct THREADENTRY32{ public uint dwSize,cntUsage,th32ThreadID,th32OwnerProcessID; public int tpBasePri,tpDeltaPri; public uint dwFlags; }
  public const int THREAD_GET=0x0008, THREAD_SET=0x0010, THREAD_QUERY=0x0040, THREAD_SUSPEND=0x0002;
  public const int PVM_READ=0x0010, PQUERY=0x0400;
+ [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
+ [DllImport("user32.dll")] public static extern void mouse_event(uint flags,uint dx,uint dy,uint data,UIntPtr extra);
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
  public const uint TH32CS_SNAPTHREAD=0x00000004;
 }
 '@ }
@@ -70,6 +77,21 @@ function Ctx64Flags { [Runtime.InteropServices.Marshal]::WriteInt32($script:ctx6
 # DR7: L0(bit0)=1 enable, R/W0(bits16-17)=01 data-write, LEN0(bits18-19)=11 four bytes -> 0x000D0001
 $DR7_WRITE4 = 0x000D0001
 $armed = @{}
+$script:clickFired = $false
+# The click MUST come from inside this process: an external VIX click cannot reach a client that is frozen
+# between WaitForDebugEvent and ContinueDebugEvent, which is why earlier attempts saw zero writes.
+function FireClick {
+    if ($script:clickFired -or $ClickX -lt 0 -or $ClickY -lt 0) { return }
+    $script:clickFired = $true
+    try {
+        if ($ClickHwnd -ne '') { [void][Dbg]::SetForegroundWindow([IntPtr][Convert]::ToInt64($ClickHwnd,16)) }
+        [void][Dbg]::SetCursorPos($ClickX, $ClickY)
+        [Dbg]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 120
+        [Dbg]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+        $result.clickFiredAtUtc = [datetime]::UtcNow.ToString('o')
+    } catch { $result.clickError = $_.Exception.Message }
+}
 function ArmThread([int]$tid) {
     if ($armed.ContainsKey($tid)) { return }
     $ht = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_QUERY -bor [Dbg]::THREAD_SUSPEND, $false, $tid)
@@ -93,7 +115,7 @@ $hProc = [Dbg]::OpenProcess([Dbg]::PVM_READ -bor [Dbg]::PQUERY, $false, $Expecte
 if ($hProc -eq [IntPtr]::Zero) { throw "OPEN_PROCESS_FAILED:$([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
 function RB([uint32]$va,[int]$n){ $b=New-Object byte[] $n; $r=0; $ok=[Dbg]::ReadProcessMemory($hProc,[IntPtr]([int64]$va),$b,$n,[ref]$r); if($ok -and $r -eq $n){return $b} return $null }
 
-$result = [ordered]@{ status='PENDING'; label=$Label; pid=$ExpectedPid; watchVa=('0x{0:X8}' -f $WatchVa); dr7=('0x{0:X8}' -f $DR7_WRITE4); capturedAtUtc=[datetime]::UtcNow.ToString('o'); totalHits=0; distinctWriters=0; armedThreads=0; events=[ordered]@{ total=0; exception=0; singleStep=0; breakpoint=0; createThread=0; other=0 }; exCodeSamples=@(); dr7Verify=@(); writers=@() }
+$result = [ordered]@{ status='PENDING'; label=$Label; pid=$ExpectedPid; watchVa=('0x{0:X8}' -f $WatchVa); dr7=('0x{0:X8}' -f $DR7_WRITE4); capturedAtUtc=[datetime]::UtcNow.ToString('o'); totalHits=0; distinctWriters=0; armedThreads=0; events=[ordered]@{ total=0; exception=0; singleStep=0; breakpoint=0; createThread=0; other=0 }; exCodeSamples=@(); dr7Verify=@(); disarmCandidates=0; disarmed=0; disarmFailed=@(); clickPoint=("{0},{1}" -f $ClickX,$ClickY); clickFiredAtUtc=$null; clickError=$null; writers=@() }
 $seen = @{}
 $attached = $false
 try {
@@ -126,7 +148,9 @@ try {
     $DBG_CONTINUE=0x00010002; $DBG_NOT_HANDLED=0x80010001
     $ev = New-Object byte[] 4096
     $deadline = [datetime]::UtcNow.AddSeconds($MaxSeconds)
+    $clickAt = [datetime]::UtcNow.AddMilliseconds($ClickAfterMs)
     while ([datetime]::UtcNow -lt $deadline -and $result.totalHits -lt $MaxHits) {
+        if (-not $script:clickFired -and [datetime]::UtcNow -gt $clickAt) { FireClick }
         if (-not [Dbg]::WaitForDebugEvent($ev, 200)) { continue }
         $code = [BitConverter]::ToInt32($ev,0); $tid = [BitConverter]::ToInt32($ev,8)
         $cont = $DBG_CONTINUE
@@ -179,57 +203,50 @@ try {
         }
         [void][Dbg]::ContinueDebugEvent($ExpectedPid, $tid, $cont)
     }
-    # Collect thread ids into an array FIRST (a do{}while() walk with any early-exit inside is what silently
-    # skipped threads before), then clear DR7/DR0/DR6 on each while suspended. A stray DR7 kills the client on
-    # its next watchpoint hit, so this must never partially run.
-    function ListProcThreads {
-        $ids = New-Object System.Collections.ArrayList
-        $snap = [Dbg]::CreateToolhelp32Snapshot([Dbg]::TH32CS_SNAPTHREAD, 0)
-        if ($snap -eq [IntPtr](-1)) { return $ids }
-        try {
-            $te = New-Object Dbg+THREADENTRY32
-            $te.dwSize = [Runtime.InteropServices.Marshal]::SizeOf($te)
-            $more = [Dbg]::Thread32First($snap, [ref]$te)
-            while ($more) {
-                if ($te.th32OwnerProcessID -eq $ExpectedPid) { [void]$ids.Add([int]$te.th32ThreadID) }
-                $more = [Dbg]::Thread32Next($snap, [ref]$te)
+    # Disarm INLINE over the exact threads we armed (plus anything currently in the process), with no helper
+    # function, no do{}while() and no early exit -- previous versions silently cleared nothing (disarmed = 0) and
+    # the leftover DR7 killed the client on its next watchpoint hit.
+    $toClear = New-Object System.Collections.ArrayList
+    foreach ($k in @($armed.Keys)) { [void]$toClear.Add([int]$k) }
+    $snap2 = [Dbg]::CreateToolhelp32Snapshot([Dbg]::TH32CS_SNAPTHREAD, 0)
+    if ($snap2 -ne [IntPtr](-1)) {
+        $te2 = New-Object Dbg+THREADENTRY32
+        $te2.dwSize = [Runtime.InteropServices.Marshal]::SizeOf($te2)
+        $more2 = [Dbg]::Thread32First($snap2, [ref]$te2)
+        while ($more2) {
+            if ($te2.th32OwnerProcessID -eq $ExpectedPid) {
+                $tid2 = [int]$te2.th32ThreadID
+                if (-not $toClear.Contains($tid2)) { [void]$toClear.Add($tid2) }
             }
-        } finally { [void][Dbg]::CloseHandle($snap) }
-        return $ids
-    }
-    function DisarmAllThreads {
-        $done = $true; $cleared = 0; $failed = @()
-        $ids = @(ListProcThreads)
-        if ($ids.Count -eq 0) { return @{ done = $false; cleared = 0; failed = @('no-threads') } }
-        foreach ($tid in $ids) {
-            $ht = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_SUSPEND, $false, [int]$tid)
-            if ($ht -eq [IntPtr]::Zero) { $done = $false; $failed += $tid }
-            else {
-                try {
-                    $sc = [Dbg]::SuspendThread($ht)
-                    try {
-                        $ok = $false
-                        Ctx64Init
-                        if ([Dbg]::GetThreadContext($ht, $script:ctx64)) {
-                            Ctx64SetU64 $C64_DR7 0; Ctx64SetU64 $C64_DR0 0; Ctx64SetU64 $C64_DR6 0; Ctx64Flags
-                            $ok = [Dbg]::SetThreadContext($ht, $script:ctx64)
-                        }
-                        Ctx64Init
-                        if ($ok -and [Dbg]::GetThreadContext($ht, $script:ctx64) -and (Ctx64GetU64 $C64_DR7) -eq 0) { $cleared++ }
-                        else { $done = $false; $failed += $tid }
-                    } finally { if ($sc -ne [uint32]::MaxValue) { [void][Dbg]::ResumeThread($ht) } }
-                } finally { [void][Dbg]::CloseHandle($ht) }
-            }
+            $more2 = [Dbg]::Thread32Next($snap2, [ref]$te2)
         }
-        return @{ done = $done; cleared = $cleared; failed = $failed }
+        [void][Dbg]::CloseHandle($snap2)
     }
-    $result.disarmed = 0; $result.disarmFailed = @()
-    for ($attempt = 0; $attempt -lt 4; $attempt++) {
-        $d = DisarmAllThreads
-        $result.disarmed = $d.cleared; $result.disarmFailed = @($d.failed)
-        if ($d.done) { break }
-        Start-Sleep -Milliseconds 150
+    $result.disarmCandidates = $toClear.Count
+    $cleared = 0
+    $failedIds = New-Object System.Collections.ArrayList
+    foreach ($tid3 in @($toClear)) {
+        $ht3 = [Dbg]::OpenThread([Dbg]::THREAD_GET -bor [Dbg]::THREAD_SET -bor [Dbg]::THREAD_SUSPEND, $false, [int]$tid3)
+        if ($ht3 -eq [IntPtr]::Zero) { [void]$failedIds.Add([int]$tid3) }
+        else {
+            $sc3 = [Dbg]::SuspendThread($ht3)
+            Ctx64Init
+            if ([Dbg]::GetThreadContext($ht3, $script:ctx64)) {
+                Ctx64SetU64 $C64_DR7 0
+                Ctx64SetU64 $C64_DR0 0
+                Ctx64SetU64 $C64_DR6 0
+                Ctx64Flags
+                [void][Dbg]::SetThreadContext($ht3, $script:ctx64)
+            }
+            Ctx64Init
+            if ([Dbg]::GetThreadContext($ht3, $script:ctx64) -and (Ctx64GetU64 $C64_DR7) -eq 0) { $cleared++ }
+            else { [void]$failedIds.Add([int]$tid3) }
+            if ($sc3 -ne [uint32]::MaxValue) { [void][Dbg]::ResumeThread($ht3) }
+            [void][Dbg]::CloseHandle($ht3)
+        }
     }
+    $result.disarmed = $cleared
+    $result.disarmFailed = @($failedIds)
     $result.writers = @($seen.Values)
     $result.distinctWriters = $seen.Count
     $result.status = 'HWBP_WRITE_PROBE_CAPTURED'

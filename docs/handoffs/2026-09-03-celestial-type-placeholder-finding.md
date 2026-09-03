@@ -1195,3 +1195,35 @@ BASE-target sub-menu question is still open.
 
 Cost note: this path needs a fresh run per attempt and has now consumed four; the host C: drive also filled to 0 MB
 mid-way (cleaned to ~8 GB by clearing uv/npm/Temp caches only).
+
+## 2026-09-04 HWBP part 3: attaching a debugger reliably KILLS this client - path abandoned
+
+Three further attempts, each fixing a real defect found in the previous one, all ended the same way.
+
+| attempt | fix applied | watchpoint armed | hits | client after |
+|---------|-------------|------------------|------|--------------|
+| 131036Z | 64-bit CONTEXT for DR0/DR7 | yes (dr7 = 0x000D0001 read back) | 0 | guest RPM steps start failing |
+| 225555Z | click fired from INSIDE the debug loop (SetCursorPos + mouse_event) | yes | 0 | **dead** |
+| 230121Z | disarm rewritten inline over the armed set | yes | 0 | **dead** |
+
+The last run also explains the recurring `disarmed = 0`: by the time the loop ends, a fresh thread snapshot finds
+only ONE thread of the process (`disarmCandidates = 1`) and even that one fails to clear (`disarmFailed = 5260`) -
+the client is already collapsing before the probe detaches, so the stray-DR7 theory was a symptom, not the cause.
+
+What actually happens is narrower and more damning: the debug-event stream is dominated by first-chance
+**0xC0000005** access violations (19 in a 30 s window) that the client normally swallows with its own SEH. Under a
+debugger those exceptions are routed to us first, and no matter that they are passed back with DBG_EXCEPTION_NOT_HANDLED,
+the client does not survive the window. No EXCEPTION_SINGLE_STEP is ever delivered, so the watchpoint never fires
+even though DR0/DR7 verifiably hold the right values.
+
+A steady stream of self-inflicted access violations is a common anti-debugging shape, so the working conclusion is
+that **this client cannot be observed with an attached debugger at all**, and the technique - not the address, not
+the DR encoding, not the click transport - is what is wrong. Further HWBP attempts are not worth the cost: four
+runs were spent, each needs a fresh VM run, and the host C: drive filled to 0 MB twice during them.
+
+Everything learned here is still worth keeping: the 64-bit CONTEXT DR fix is real and now proven, and it is the
+right implementation if a debugger is ever usable against a different binary.
+
+**The slot writer at 0xC9EABC therefore stays unidentified.** The BASE-target sub-menu question should be attacked
+from the other side instead - reaching the base panel through 碇泊/docking, which is the entry point the original
+seems to intend - and that is pure RE plus world modelling, with no debugger involved.
