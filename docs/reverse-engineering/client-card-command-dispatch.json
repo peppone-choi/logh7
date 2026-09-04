@@ -1,0 +1,133 @@
+{
+  "schema": "logh7/client-card-command-dispatch/v1",
+  "source": "G7MTClient.item1.exe FUN_00571870: walks the 8-byte table at 0x6756B0..0x67573C {u32 commandId, u32 kindIndex}, 17 entries, and resolves kindIndex through the pointer table at 0x78BB30 to a TARGET_SELECT_* state-name string. The state-number -> name jump table is at 0x5710C8 (dispatched by `jmp [ecx*4+0x5710C8]` at 0x571015).",
+  "cardPanelCommands": [
+    {
+      "commandId": 0,
+      "name": "昇進",
+      "targetKind": "RANK",
+      "kindIndex": 0
+    },
+    {
+      "commandId": 1,
+      "name": "抜擢",
+      "targetKind": "RANK",
+      "kindIndex": 0
+    },
+    {
+      "commandId": 4,
+      "name": "叙勲",
+      "targetKind": "CARD",
+      "kindIndex": 5
+    },
+    {
+      "commandId": 5,
+      "name": "任命",
+      "targetKind": "CARD",
+      "kindIndex": 5
+    },
+    {
+      "commandId": 12,
+      "name": "会談",
+      "targetKind": "STRATEGY",
+      "kindIndex": 1
+    },
+    {
+      "commandId": 14,
+      "name": "演説",
+      "targetKind": "BASE",
+      "kindIndex": 3
+    },
+    {
+      "commandId": 15,
+      "name": "国家目標",
+      "targetKind": "CARD",
+      "kindIndex": 5
+    },
+    {
+      "commandId": 16,
+      "name": "納入率変更",
+      "targetKind": "UNIT",
+      "kindIndex": 4
+    },
+    {
+      "commandId": 20,
+      "name": "外交",
+      "targetKind": "RANK",
+      "kindIndex": 0
+    },
+    {
+      "commandId": 21,
+      "name": "統治目標",
+      "targetKind": "RANK",
+      "kindIndex": 0
+    },
+    {
+      "commandId": 24,
+      "name": "発令",
+      "targetKind": "BASE",
+      "kindIndex": 3
+    },
+    {
+      "commandId": 26,
+      "name": "部隊解散",
+      "targetKind": "BASE",
+      "kindIndex": 3
+    },
+    {
+      "commandId": 27,
+      "name": "講義",
+      "targetKind": "CARD",
+      "kindIndex": 5
+    },
+    {
+      "commandId": 28,
+      "name": "輸送計画",
+      "targetKind": "CARD",
+      "kindIndex": 5
+    },
+    {
+      "commandId": 30,
+      "name": "税率変更",
+      "targetKind": null,
+      "kindIndex": 6
+    },
+    {
+      "commandId": 31,
+      "name": "施設建設",
+      "targetKind": "CASTPLANET",
+      "kindIndex": 7
+    },
+    {
+      "commandId": 33,
+      "name": "施設再稼動",
+      "targetKind": "BASE",
+      "kindIndex": 3
+    }
+  ],
+  "targetSelectStates": {
+    "0": "TARGET_SELECT_UNKNOWN",
+    "1": "TARGET_SELECT_S_CHARACTER",
+    "3": "TARGET_SELECT_S_BASE",
+    "4": "TARGET_SELECT_S_OUTFIT",
+    "5": "TARGET_SELECT_S_SUPPLY_OUTFIT",
+    "6": "TARGET_SELECT_OUTFIT_TYPE",
+    "7": "TARGET_SELECT_S_UNIT",
+    "8": "TARGET_SELECT_S_RANK",
+    "9": "TARGET_SELECT_S_RANK",
+    "10": "TARGET_SELECT_S_CARD",
+    "11": "TARGET_SELECT_S_CARD_OUTFIT",
+    "12": "TARGET_SELECT_S_CARD_BASE",
+    "13": "TARGET_SELECT_S_STRATEGY",
+    "14": "TARGET_SELECT_CASTING",
+    "15": "TARGET_SELECT_CASTPLANET",
+    "16": "TARGET_SELECT_GRID",
+    "18": "TARGET_SELECT_OUTFIT_TYPE"
+  },
+  "findings": [
+    "Only these 17 command ids are defined for the card panel. 部隊結成 (25) and 艦艇建造 (35) are NOT in the table, so serving them through LOGH7_EXTRA_CARD_COMMANDS puts a button on the card that the dispatcher has no target kind for -- which is why they answer 「選択可能な拠点が存在しません」 / stay silent rather than opening a picker. Any future card-command work must pick ids from this table.",
+    "targetKind BASE is TARGET_SELECT_S_BASE = state 3, and there is a separate TARGET_SELECT_S_CARD_BASE = 12.",
+    "CAUTION: the value this task has been reading as 'panelState' (0x00CA3940+4) is NOT this TARGET_SELECT state. Measured 部隊解散 = 6 while its dispatch kind is BASE = 3, so the two numbering schemes differ; earlier notes that equated them (e.g. 'state 6 = post sub-menu', 'state 12 = TARGET_SELECT_S_CARD') are unsafe and must be re-derived before use."
+  ],
+  "openQuestion": "What TARGET_SELECT_S_BASE (state 3) enumerates as selectable 拠点. The authored base is served in the same grid cell as the character (both 101, verified in DB) and changing its class byte from 1 to 3 (the known planet family) did not help -- both still report 「選択可能な拠点が存在しません」. So the gate is neither position nor class."
+}

@@ -1227,3 +1227,33 @@ right implementation if a debugger is ever usable against a different binary.
 **The slot writer at 0xC9EABC therefore stays unidentified.** The BASE-target sub-menu question should be attacked
 from the other side instead - reaching the base panel through 碇泊/docking, which is the entry point the original
 seems to intend - and that is pure RE plus world modelling, with no debugger involved.
+
+## 2026-09-04 base path: the card-command dispatch table explains two of the three failures
+
+Static RE of the dispatcher (no debugger needed) - receipt `client-card-command-dispatch.json`.
+
+`FUN_00571870` walks an 8-byte table at **0x6756B0..0x67573C** (`{u32 commandId, u32 kindIndex}`, **17 entries**) and
+resolves kindIndex through the pointer table at 0x78BB30 into a `TARGET_SELECT_*` state-name. The 17 card-panel
+commands are 0 昇進, 1 抜擢, 4 叙勲, 5 任命, 12 会談, 14 演説, 15 国家目標, 16 納入率変更, 20 外交, 21 統治目標,
+24 発令, 26 部隊解散, 27 講義, 28 輸送計画, 30 税率変更, 31 施設建設, 33 施設再稼動.
+
+**部隊結成 (25) and 艦艇建造 (35) are not in that table.** Serving them via LOGH7_EXTRA_CARD_COMMANDS draws a button
+the dispatcher has no target kind for, so they can never open a picker. Their 「選択可能な拠点が存在しません」/silence
+was never a world-context problem, and the earlier ledger note blaming "needs a base in the current grid" was wrong.
+
+The state-number -> name jump table at **0x5710C8** decodes as: 1 S_CHARACTER, **3 S_BASE**, 4 S_OUTFIT,
+5 S_SUPPLY_OUTFIT, 6 OUTFIT_TYPE, 7 S_UNIT, 8/9 S_RANK, **10 S_CARD**, 11 S_CARD_OUTFIT, **12 S_CARD_BASE**,
+13 S_STRATEGY, 15 CASTPLANET, 16 GRID, 18 OUTFIT_TYPE.
+
+**Correction to earlier notes in this handoff**: the value read via RPM as `panelState` (0x00CA3940+4) is NOT this
+TARGET_SELECT state. 部隊解散 dispatches as BASE = 3 but measured 6. Statements like "state 6 = the post sub-menu"
+and "state 12 = TARGET_SELECT_S_CARD" conflated two numbering schemes and must be re-derived before reuse.
+
+Two hypotheses were tested and **both refuted** for the remaining BASE commands:
+- position: the character and the authored base share grid cell 101 (DB `current_cell_id = 101`), so "warp to a grid
+  with a base" was already satisfied;
+- class: serving the base with class 3 (the known planet family) instead of 1 changes the rendered scene but still
+  yields 「選択可能な拠点が存在しません」. `LOGH7_BASE_KLASS` was added (extracmd40) to sweep the byte.
+
+So for 演説/発令/部隊解散/施設再稼動 the open question is precisely **what TARGET_SELECT_S_BASE (state 3) enumerates**,
+and that is the next thing to read - a static question, no debugger and no world modelling required.

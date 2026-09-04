@@ -37,6 +37,7 @@ param(
     [string]$CommandEcho = '',
     [string]$ListKindProbe = '',
     [string]$WorldCardId = '',
+    [string]$BaseKlass = '',
     [string]$DataRoot = '',
     [string]$InfoProbe = '',
     [string]$NinmeiCards = '',
@@ -125,6 +126,7 @@ try {
     if ($CommandEcho) { $sourceArgs += ' -CommandEcho "' + $CommandEcho + '"' }
     if ($ListKindProbe) { $sourceArgs += ' -ListKindProbe "' + $ListKindProbe + '"' }
     if ($WorldCardId -ne '') { $sourceArgs += ' -WorldCardId "' + $WorldCardId + '"' }
+    if ($BaseKlass -ne '') { $sourceArgs += ' -BaseKlass "' + $BaseKlass + '"' }
     if ($DataRoot) { $sourceArgs += ' -DataRoot "' + $DataRoot + '"' }
     if ($InfoProbe) { $sourceArgs += ' -InfoProbe "' + $InfoProbe + '"' }
     if ($NinmeiCards) { $sourceArgs += ' -NinmeiCards "' + $NinmeiCards + '"' }

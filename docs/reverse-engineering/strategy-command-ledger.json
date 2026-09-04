@@ -298,7 +298,7 @@
       "status": "NOT_STARTED",
       "request": null,
       "receipt": null,
-      "probeNote": " | 20260903T063644Z-natural-l1-relogin-v1: visible rejection 実行不可「選択可能な拠点が存在しません。選択可能な拠点のある星系グリッドにワープしてください。」(no request) — needs a base in the current grid (world context)"
+      "probeNote": " | 20260903T063644Z-natural-l1-relogin-v1: visible rejection 実行不可「選択可能な拠点が存在しません。選択可能な拠点のある星系グリッドにワープしてください。」(no request) — needs a base in the current grid (world context) | 20260904 dispatch-table RE: command id 25 is NOT in the card-panel table at 0x6756B0 (17 ids only), so the card button has no target kind and can never open a picker. Not a world-context problem."
     },
     {
       "id": 26,
@@ -401,7 +401,7 @@
       "status": "NOT_STARTED",
       "request": null,
       "receipt": null,
-      "probeNote": " | 20260903T063644Z: silent (no request, no dialog) — needs a shipyard/base context"
+      "probeNote": " | 20260903T063644Z: silent (no request, no dialog) — needs a shipyard/base context | 20260904 dispatch-table RE: command id 35 is NOT in the card-panel table at 0x6756B0 (17 ids only), so the card button has no target kind and can never open a picker. Not a world-context problem."
     },
     {
       "id": 36,
@@ -1020,6 +1020,7 @@
     "2026-09-03: 0x0F08 TransactionInformationMailBegin rows at random times are the client's periodic mailbox unread poll (character, box=1, unread-only=true), not command traffic.",
     "2026-09-03: BASE-target card commands (発令, 部隊解散, 演説, 施設*, 部隊結成) require the character to be docked at a base; the authority does not model docking yet (0x0323 fields +0x18/+0x1C/+0x20 and 0x0325 ResponseInformationUnit are the next targets).",
     "2026-09-03: card 0 is a first-class ORIGINAL state (個人, constmsg group 3 row 0) — proven live by serving it at world entry (run 20260903T085429Z). EncodeStaticCards already serves card 0 with zero commands, which matches 'no post => no strategy commands'.",
-    "2026-09-03: ExtraCardCommandIds() always prepends id 5 (任命); card button index = position in [0, 0x2B, 5, ...env]."
+    "2026-09-03: ExtraCardCommandIds() always prepends id 5 (任命); card button index = position in [0, 0x2B, 5, ...env].",
+    "2026-09-04: card-panel dispatch table 0x6756B0 (17 entries) + TARGET_SELECT state table 0x5710C8 decoded -> docs/reverse-engineering/client-card-command-dispatch.json. 部隊結成/艦艇建造 are outside the table."
   ]
 }

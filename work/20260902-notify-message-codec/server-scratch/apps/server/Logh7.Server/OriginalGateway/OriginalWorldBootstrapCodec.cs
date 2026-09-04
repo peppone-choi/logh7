@@ -485,7 +485,12 @@ public static class OriginalWorldBootstrapCodec
         body.WritePstr16(OriginalAuthoredPlayableCatalog.BaseName, 13);
         // ORIGINAL_STATIC: FUN_004142E0 reads class as the byte immediately
         // after the compact name. The nonzero class is NEW DESIGN for Base 1.
-        body.WriteByte(OriginalAuthoredPlayableCatalog.BaseKlass);
+        // PROBE (2026-09-04): BASE-target commands (部隊結成/部隊解散/発令/演説) reject the authored base with
+        // 「選択可能な拠点が存在しません」 even though the character and the base share grid cell 101, so position is
+        // not the gate. The client's wording is 「惑星／要塞軌道上」, and klass 3 is the known planet family
+        // (render path FUN_004D3BD0 accepts klass 3, variants 0..6) while the authored base ships klass 1.
+        // LOGH7_BASE_KLASS sweeps the class byte to find which value the client accepts as a usable 拠点.
+        body.WriteByte(TryByteEnv("LOGH7_BASE_KLASS", OriginalAuthoredPlayableCatalog.BaseKlass));
         // ORIGINAL_STATIC: FUN_004142E0 reads f32/u32/u8/f32/f32 here.
         // FUN_00425C20 labels the matching slots revolution radius, cycle,
         // direction, initial angle, and radius. Float IEEE754 bits use network
