@@ -1281,3 +1281,26 @@ bases in the grid.
 駐留 -> 碇泊), so the ordering is: authority serves units (0x1207 is currently count = 0) -> a unit command docks the
 character at the authored base -> +0x320 becomes valid -> the four BASE card commands open. No debugger needed for
 any of it.
+
+### Unit record field map recovered, and the base field verified live (run 20260904T071118Z)
+
+`FUN_0042F930` (the `_INF:NotifyChangeFlagShip#` logger) prints the 0x58-byte unit record with field names, giving the
+full map: +0x00 id, +0x04 kind, +0x08 mode, +0x0A grid, +0x0C outfit, +0x10 boarding_ship, +0x14 troop count,
++0x18.. troop_units[n], **+0x40 base**, +0x44 morale_max, +0x48 rebellion, +0x49 damaged, +0x4A destroyed,
++0x4C supplies, +0x50 mobilization, +0x54 cruising. On the wire `base` is the u32 right after the troop array - the
+slot `EncodeUnit` had been writing as 0.
+
+Serving `base = BaseId` (LOGH7_UNIT_BASE, default now the authored base) **works and is visible**: the HUD's
+lower-right view button changes from 「星系内宇宙」 to **「惑星第1拠点」**. The field identification is therefore correct.
+
+It is not sufficient for the BASE commands: 部隊解散 still reports 「選択可能な項目が存在しません」, the HUD location
+still reads 艦内, and the new 惑星第1拠点 button is inert. **The unit's base field is not the BASE-command context
+field +0x320.** The unit now belongs to the base; the character has not entered it.
+
+Next: identify the object that owns +0x320 (the BASE handler reaches it as arg->+0x1c then +0x318+8) and what sets it.
+
+### Build environment moved off C:
+NuGet packages and the build temp now live on E: (`NUGET_PACKAGES=E:\logh7-build
+uget`, `TMP`/`TEMP=E:\logh7-build	emp`).
+Builds no longer consume the host C: drive - free space actually rose during the last build. Set these three variables
+in any PowerShell that runs `dotnet publish`; without them a restore can fail with "디스크 공간이 부족합니다".

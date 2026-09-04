@@ -13,6 +13,11 @@ public static class OriginalWorldEntryCodec
         return response;
     }
 
+    private static uint UnitBaseId() =>
+        uint.TryParse(Environment.GetEnvironmentVariable("LOGH7_UNIT_BASE"), out var id)
+            ? id
+            : OriginalAuthoredPlayableCatalog.BaseId;
+
     public static byte[] EncodeUnit(uint gridUnitId) =>
         EncodeUnit(gridUnitId, OriginalAuthoredPlayableCatalog.CurrentGridCell);
 
@@ -37,7 +42,18 @@ public static class OriginalWorldEntryCodec
         body.WriteUInt32(0);
         body.WriteUInt32(0);
         body.WriteByte(0);
-        body.WriteUInt32(0);
+        // 2026-09-04: this u32 (the one right after the troop-unit array) is the record's **base** field.
+        // FUN_0042F930, the `_INF:NotifyChangeFlagShip#` logger, labels the 0x58-byte record as
+        //   +0x00 id, +0x04 kind, +0x08 mode, +0x0A grid, +0x0C outfit, +0x10 boarding_ship,
+        //   +0x18.. troop_units[n], +0x40 base, +0x44 morale_max, +0x48 rebellion, +0x49 damaged,
+        //   +0x4A destroyed, +0x4C supplies, +0x50 mobilization, +0x54 cruising
+        // and the parser FUN_00419CA0 writes exactly this slot at record+0x40.
+        // Why it matters: BASE-target card commands (演説/発令/部隊解散/施設再稼動) do not enumerate bases at all --
+        // FUN_00571870's BASE handler reads a single context field (+0x320) and uses it as the target, so they fail
+        // with 「選択可能な項目が存在しません」 while the character is 艦内. Serving the unit as already at the
+        // authored base is the cheapest way to populate that, without needing the 碇泊 unit command.
+        // LOGH7_UNIT_BASE overrides; 0 keeps the previous (not-docked) behaviour.
+        body.WriteUInt32(UnitBaseId());
         body.WriteByte(0);
         body.WriteByte(0);
         body.WriteUInt16(0);
