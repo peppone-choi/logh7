@@ -1257,3 +1257,27 @@ Two hypotheses were tested and **both refuted** for the remaining BASE commands:
 
 So for 演説/発令/部隊解散/施設再稼動 the open question is precisely **what TARGET_SELECT_S_BASE (state 3) enumerates**,
 and that is the next thing to read - a static question, no debugger and no world modelling required.
+
+### TARGET_SELECT_S_BASE resolved: the BASE target is the character's CURRENT base, not a list
+
+Reading the dispatcher through to the target-kind jump table at **0x571D84** (`jmp [kindIndex*4+0x571D84]` at
+0x571A6A) gives the per-kind handlers: 0 RANK 0x571A71, 1/2 STRATEGY 0x571A81/0x571A8B, **3 BASE 0x571999**,
+4 UNIT 0x571A95, 5 CARD 0x571A9F, 6 none 0x571AAF, 7 CASTPLANET 0x571AC2.
+
+The BASE handler builds no list at all:
+
+    00571987  cmp   dword ptr [esi+edi*8], 3     ; requirement kind == BASE
+    0057198d  mov   ecx, [esp+0x20]              ; context object (arg -> +0x1c)
+    00571991  call  0x4B5B50                     ; lea eax,[ecx+0x318]
+    00571996  mov   eax, [eax+8]                 ; field +0x320
+    00571999  mov   [esp+0x3c], eax              ; that single value IS the target
+
+So 演説/発令/部隊解散/施設再稼動 answer 「選択可能な項目が存在しません」 because **+0x320 (the character's current
+base) is unset** - the character is 艦内, never docked. This retroactively explains both refuted experiments: the
+authored base sharing grid cell 101 and its class byte were never consulted, because the command never looks at
+bases in the grid.
+
+**This vindicates the docking route.** 碇泊 is a UNIT command (constmsg group 0 row 54; row 21 「出撃」 describes
+駐留 -> 碇泊), so the ordering is: authority serves units (0x1207 is currently count = 0) -> a unit command docks the
+character at the authored base -> +0x320 becomes valid -> the four BASE card commands open. No debugger needed for
+any of it.

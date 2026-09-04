@@ -129,5 +129,19 @@
     "targetKind BASE is TARGET_SELECT_S_BASE = state 3, and there is a separate TARGET_SELECT_S_CARD_BASE = 12.",
     "CAUTION: the value this task has been reading as 'panelState' (0x00CA3940+4) is NOT this TARGET_SELECT state. Measured 部隊解散 = 6 while its dispatch kind is BASE = 3, so the two numbering schemes differ; earlier notes that equated them (e.g. 'state 6 = post sub-menu', 'state 12 = TARGET_SELECT_S_CARD') are unsafe and must be re-derived before use."
   ],
-  "openQuestion": "What TARGET_SELECT_S_BASE (state 3) enumerates as selectable 拠点. The authored base is served in the same grid cell as the character (both 101, verified in DB) and changing its class byte from 1 to 3 (the known planet family) did not help -- both still report 「選択可能な拠点が存在しません」. So the gate is neither position nor class."
+  "openQuestion": "Confirmed resolved in principle: 演説/発令/部隊解散/施設再稼動 report no selectable target because context field +0x320 (current base) is unset - the character is 艦内 (aboard ship), never docked. Position and class of the authored base are irrelevant, which is exactly what the two refuted experiments showed. The remaining work is to make the character actually dock: 碇泊 is a UNIT command (constmsg group 0 row 54; 出撃 row 21 describes 駐留 -> 碇泊), so the authority must first serve units (0x1207 currently count=0) before docking is reachable.",
+  "targetKindHandlers": {
+    "table": "0x571D84 (jmp [kindIndex*4+0x571D84] at 0x571A6A), 8 entries",
+    "entries": {
+      "0 RANK": "0x00571A71",
+      "1 STRATEGY": "0x00571A81",
+      "2 STRATEGY": "0x00571A8B",
+      "3 BASE": "0x00571999",
+      "4 UNIT": "0x00571A95",
+      "5 CARD": "0x00571A9F",
+      "6 (none)": "0x00571AAF",
+      "7 CASTPLANET": "0x00571AC2"
+    }
+  },
+  "baseTargetResolution": "BASE does NOT enumerate a list. FUN_00571870 at 0x571987 tests the requirement entry's kind for 3, then does `call FUN_004B5B50` (which is just `lea eax,[ecx+0x318]`) and reads `[eax+8]`, i.e. field +0x320 of the context object reached through arg->+0x1c, and stores that single value as the target. So the BASE target is whatever base the character is CURRENTLY AT, not a choice among bases in the grid."
 }
