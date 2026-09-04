@@ -1304,3 +1304,22 @@ NuGet packages and the build temp now live on E: (`NUGET_PACKAGES=E:\logh7-build
 uget`, `TMP`/`TEMP=E:\logh7-build	emp`).
 Builds no longer consume the host C: drive - free space actually rose during the last build. Set these three variables
 in any PowerShell that runs `dotnet publish`; without them a restore can fail with "디스크 공간이 부족합니다".
+
+### +0x320 traced: the BASE target comes from TacticsInformationUnitShip, which the authority never serves
+
+Chain: `FUN_00571870` BASE branch takes `ecx = arg->+0x1c`, calls `FUN_004B5B50` (just `lea eax,[ecx+0x318]`) and
+reads `[eax+8]`, i.e. **+0x320**.
+
+The structure at +0x318 is identified: its ONLY writer is `FUN_004B5B60` (`rep movsd ecx=0x16`, i.e. 0x58 bytes into
++0x318), whose single caller at 0x4C3C80 lives in code whose failure string is **`TacticsInformationUnitShipが無い`**
+(0x771178). The `_INF:ResponseTacticsInformationUnitShip#` logger at 0x422630 confirms the record's fields:
+id, morale, confusion, character, {x,y,z}, direction, detachment_leader, {x,y,z}, detachment_direction, search.
+
+So the BASE-target commands read their target out of the **tactics unit-ship record** - not from a base list, and not
+from the unit's own `base` field (which we separately proved only changes the HUD view button). The authority serves
+no unit-ship information whatsoever: **0x030A RequestStaticInformationUnitShip / 0x030B Response... are unhandled**,
+and nothing ever populates the tactics record, so +0x320 stays unset and all four BASE commands report
+「選択可能な項目が存在しません」.
+
+Next concrete step: serve unit-ship information (start with 0x030A -> 0x030B; read the layout from
+`Input_ResponseStaticInformationUnitShip::input_from_stream`) and see whether the tactics record then materialises.

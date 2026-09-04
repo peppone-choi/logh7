@@ -129,7 +129,7 @@
     "targetKind BASE is TARGET_SELECT_S_BASE = state 3, and there is a separate TARGET_SELECT_S_CARD_BASE = 12.",
     "CAUTION: the value this task has been reading as 'panelState' (0x00CA3940+4) is NOT this TARGET_SELECT state. Measured 部隊解散 = 6 while its dispatch kind is BASE = 3, so the two numbering schemes differ; earlier notes that equated them (e.g. 'state 6 = post sub-menu', 'state 12 = TARGET_SELECT_S_CARD') are unsafe and must be re-derived before use."
   ],
-  "openQuestion": "Which object owns the +0x320 field that the BASE handler reads (reached as arg->+0x1c, then +0x318+8), and what sets it. The unit's own base field is now proven not to be it.",
+  "openQuestion": "Serve unit-ship information (0x030A -> 0x030B StaticInformationUnitShip, and whatever populates TacticsInformationUnitShip) so the tactics unit-ship record exists and +0x320 resolves. Field layout for 0x030B still needs reading from Input_ResponseStaticInformationUnitShip.",
   "targetKindHandlers": {
     "table": "0x571D84 (jmp [kindIndex*4+0x571D84] at 0x571A6A), 8 entries",
     "entries": {
@@ -166,5 +166,11 @@
     },
     "wirePosition": "base is the u32 immediately after the troop-unit array (authority previously wrote 0 there)."
   },
-  "unitBaseExperiment": "Run 20260904T071118Z served the unit with base = BaseId (1) instead of 0. CONFIRMED EFFECT: the HUD's lower-right view button changed from 「星系内宇宙」 to 「惑星第1拠点」, so the client does read this field and now places the unit at the authored base. NOT sufficient though: 部隊解散 still answers 「選択可能な項目が存在しません」, the HUD location still reads 艦内, and clicking the new 惑星第1拠点 button does nothing (365 changed pixels, cursor only). So the unit's base field is NOT the same thing as the BASE-command context field +0x320 -- the unit belongs to the base, but the character has not entered it."
+  "unitBaseExperiment": "Run 20260904T071118Z served the unit with base = BaseId (1) instead of 0. CONFIRMED EFFECT: the HUD's lower-right view button changed from 「星系内宇宙」 to 「惑星第1拠点」, so the client does read this field and now places the unit at the authored base. NOT sufficient though: 部隊解散 still answers 「選択可能な項目が存在しません」, the HUD location still reads 艦内, and clicking the new 惑星第1拠点 button does nothing (365 changed pixels, cursor only). So the unit's base field is NOT the same thing as the BASE-command context field +0x320 -- the unit belongs to the base, but the character has not entered it.",
+  "baseTargetContextTraced": {
+    "chain": "FUN_00571870 BASE branch: ecx = arg->+0x1c, call FUN_004B5B50 (`lea eax,[ecx+0x318]`), read [eax+8] = +0x320.",
+    "structureAt+0x318": "TacticsInformationUnitShip. Proven by the ONLY writer of that slot, FUN_004B5B60 (`rep movsd ecx=0x16` = 0x58 bytes into +0x318), whose single caller at 0x4C3C80 sits in code that errors with the string 'TacticsInformationUnitShipが無い' (0x771178).",
+    "fieldsOfThatStructure": "From the `_INF:ResponseTacticsInformationUnitShip# ` logger at 0x422630: id, morale, confusion, character, {x,y,z}, direction, detachment_leader, {x,y,z}, detachment_direction, search.",
+    "consequence": "The BASE-target commands read their target out of the TACTICS unit-ship record, not out of any base list and not out of the unit's own `base` field (which was separately proven to only move the HUD view button). The authority serves no unit-ship information at all: 0x030A RequestStaticInformationUnitShip / 0x030B ResponseStaticInformationUnitShip are unhandled, and nothing populates the tactics record. That is why +0x320 stays unset and 演説/発令/部隊解散/施設再稼動 all report 「選択可能な項目が存在しません」."
+  }
 }
