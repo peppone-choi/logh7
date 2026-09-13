@@ -241,6 +241,11 @@ public static class AuthorityStateHash
         return HashCanonicalJson(canonicalJson);
     }
 
+    public static string OriginalReturnBaseChanged(Guid accountId, long version,
+        long characterId, uint baseId, string fingerprint) =>
+        HashCanonicalJson(FormattableString.Invariant(
+            $"{{\"accountId\":\"{accountId:D}\",\"authorityVersion\":{version},\"characterId\":{characterId},\"returnBaseId\":{baseId},\"requestFingerprint\":\"{fingerprint}\"}}"));
+
     private static string HashCanonicalJson(string canonicalJson)
     {
         var jsonBytes = Encoding.UTF8.GetBytes(canonicalJson);

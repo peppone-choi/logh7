@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "evidenceStatus": "NEW_DESIGN",
+  "approval": "USER_APPROVED_2026-09-09",
+  "approvalNote": "The manual establishes only the 160-point complete-repair cost and the deficit-only substitution intent. Initial grant, regeneration amount, interval and cap are authored replacements, not recovered original values. Growth accumulation excludes substituted consumption per the manual; the growth threshold itself is unknown and unimplemented.",
+  "initialPolitical": 1600,
+  "initialMilitary": 1600,
+  "cap": 1600,
+  "regenerationAmount": 160,
+  "regenerationIntervalSeconds": 300,
+  "substitutionRatio": 2,
+  "deficitOnlySubstitution": true,
+  "excludeSubstituteFromGrowth": true,
+  "suspendRegenerationInTactics": true
+}

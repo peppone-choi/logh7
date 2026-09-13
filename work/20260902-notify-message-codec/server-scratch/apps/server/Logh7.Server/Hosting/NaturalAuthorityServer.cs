@@ -19,7 +19,8 @@ public sealed record NaturalAuthorityServerOptions(
     byte[]? ServerOutboundKey = null,
     IPAddress? SessionBindAddress = null,
     IPAddress? SessionAdvertiseAddress = null,
-    string? ServerNotice = null);
+    string? ServerNotice = null,
+    TimeSpan? BaseTravelDelay = null);
 
 public sealed class NaturalAuthorityServer : IAsyncDisposable
 {
@@ -32,7 +33,11 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
     private readonly OriginalLoginAuthority _loginAuthority;
     private readonly HandoffRegistry _handoffs;
     private readonly IAccountStore _store;
+    private readonly OriginalBattlefieldCatalog _battlefieldCatalog;
     private readonly MetadataOnlyGatewayReceipt _receipt;
+    // All login, lobby and world connections share one epoch.
+    private readonly OriginalGameClock _gameClock = new(TimeProvider.System);
+    private readonly OriginalTacticalBattleRegistry _battles = new();
     private readonly TcpListener _listener;
     private TcpListener? _sessionListener;
     private readonly CancellationTokenSource _stop = new();
@@ -42,6 +47,9 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
 
     private StreamWriter? _writer;
     private readonly List<Task> _acceptTasks = [];
+    private Task? _npcTask;
+    private Task? _baseTravelTask;
+    private readonly OriginalBaseTravelNotifications _baseTravelNotifications = new();
     private int _connectionOrdinal;
     private bool _stopped;
 
@@ -50,7 +58,8 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
         OriginalLoginAuthority loginAuthority,
         HandoffRegistry handoffs,
         IAccountStore store,
-        MetadataOnlyGatewayReceipt receipt)
+        MetadataOnlyGatewayReceipt receipt,
+        OriginalBattlefieldCatalog? battlefieldCatalog = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentOutOfRangeException.ThrowIfNegative(options.Port);
@@ -65,6 +74,8 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
         _loginAuthority = loginAuthority ?? throw new ArgumentNullException(nameof(loginAuthority));
         _handoffs = handoffs ?? throw new ArgumentNullException(nameof(handoffs));
         _store = store ?? throw new ArgumentNullException(nameof(store));
+        _battlefieldCatalog = battlefieldCatalog ?? OriginalBattlefieldCatalog.LoadConfigured(
+            Environment.GetEnvironmentVariable("LOGH7_BATTLEFIELD_CATALOG"));
         _receipt = receipt ?? throw new ArgumentNullException(nameof(receipt));
         _listener = new TcpListener(options.BindAddress, options.Port);
     }
@@ -84,6 +95,25 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
         {
             AutoFlush = true
         };
+        if (_store is IOriginalFleetUnitStoreProvider provider)
+        {
+            var grids = _battlefieldCatalog.AuthoredShips().Select(ship => ship.Grid)
+                .Concat(await provider.FleetUnits.ReadOccupiedGridsAsync(cancellationToken))
+                .Where(grid => grid != 0).Distinct().Order().ToArray();
+            foreach (var grid in grids)
+            {
+                using var lease = await _battles.LockAsync(grid,
+                    OriginalAuthoredPlayableCatalog.TacticalShipCapabilities.Number, cancellationToken);
+                await OriginalFleetRosterRestorer.RestoreAsync(provider.FleetUnits, _battles,
+                    _battlefieldCatalog, grid, OriginalAuthoredPlayableCatalog.TacticalArms,
+                    (fleet, unit, character) => string.IsNullOrEmpty(fleet?.Commander) ? null :
+                        OriginalWorldEntryCodec.EncodeCharacter(character, unit, 0,
+                            OriginalAuthoredNpcProfiles.FleetCommander(fleet, fleet.Commander)),
+                    cancellationToken);
+            }
+        }
+        // Persisted UTC deadlines survive the process-local game-clock epoch.
+        await ResolveDueBaseTravelAsync(cancellationToken);
         _listener.Start();
         var endpoint = (IPEndPoint)_listener.LocalEndpoint;
         IPEndPoint? sessionEndpoint = null;
@@ -106,6 +136,8 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
             sessionAdvertiseAddress = _options.SessionAdvertiseAddress?.ToString()
         }, cancellationToken);
         _acceptTasks.Add(AcceptLoopAsync(_listener, _stop.Token));
+        _npcTask = RunNpcLoopAsync(_stop.Token);
+        _baseTravelTask = RunBaseTravelLoopAsync(_stop.Token);
         if (_sessionListener is not null)
         {
             _acceptTasks.Add(AcceptLoopAsync(_sessionListener, _stop.Token));
@@ -124,6 +156,10 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
         _stop.Cancel();
         _listener.Stop();
         _sessionListener?.Stop();
+        if (_npcTask is not null)
+            await _npcTask.WaitAsync(cancellationToken);
+        if (_baseTravelTask is not null)
+            await _baseTravelTask.WaitAsync(cancellationToken);
         if (_acceptTasks.Count != 0)
         {
             await Task.WhenAll(_acceptTasks).WaitAsync(cancellationToken);
@@ -153,6 +189,78 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
         await StopAsync(CancellationToken.None);
         _stop.Dispose();
         _writeLock.Dispose();
+    }
+
+    private async Task ResolveDueBaseTravelAsync(CancellationToken cancellationToken)
+    {
+        if (_store is not IOriginalBaseTravelStore travel) return;
+        var now = _gameClock.Now;
+        foreach (var pending in await travel.ReadDueOriginalBaseTravelAsync(now, 128, cancellationToken))
+        {
+            var result = await travel.CompleteOriginalBaseTravelAsync(pending.AccountId,
+                pending.RequestFingerprint, now, cancellationToken, _battlefieldCatalog.HasFriendlyPublicPort);
+            _baseTravelNotifications.Publish(pending.AccountId,result);
+            if (result.Updated)
+                await WriteAsync(new
+                {
+                    timestampUtc = now, eventName = "base-travel-resolved", result.Outcome,
+                    unitId = result.Unit?.UnitId, result.AuthorityVersion,
+                }, cancellationToken);
+        }
+    }
+
+    private async Task RunBaseTravelLoopAsync(CancellationToken cancellationToken)
+    {
+        if (_store is not IOriginalBaseTravelStore) return;
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+                await ResolveDueBaseTravelAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            await WriteAsync(new
+            {
+                timestampUtc = DateTimeOffset.UtcNow, eventName = "base-travel-fault",
+                error = exception.GetType().Name,
+            }, CancellationToken.None);
+            // Do not silently advertise a functioning world with a dead scheduler.
+            _stop.Cancel();
+            _listener.Stop();
+            _sessionListener?.Stop();
+        }
+    }
+
+    private async Task RunNpcLoopAsync(CancellationToken cancellationToken)
+    {
+        // NEW DESIGN: four decisions/second, dated by the shared 24 Hz epoch.
+        // No user input, per-connection timer or direct cipher write drives AI.
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+                foreach (var decision in await _battles.AdvanceNpcsAsync(_gameClock.Tick, cancellationToken))
+                    await WriteAsync(new
+                    {
+                        timestampUtc = DateTimeOffset.UtcNow, eventName = "npc-ai",
+                        design = "authored-temporary-v1", decision
+                    }, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            await WriteAsync(new
+            {
+                timestampUtc = DateTimeOffset.UtcNow, eventName = "npc-ai-fault",
+                error = exception.GetType().Name
+            }, CancellationToken.None);
+            // Do not silently leave a live-looking server without its simulation.
+            _stop.Cancel();
+            _listener.Stop();
+            _sessionListener?.Stop();
+        }
     }
 
     private async Task AcceptLoopAsync(TcpListener listener, CancellationToken cancellationToken)
@@ -203,41 +311,27 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
                 _handoffs,
                 _store,
                 _receipt,
-                _options.ServerNotice);
+                _gameClock,
+                _options.ServerNotice, battles: _battles, battlefieldCatalog: _battlefieldCatalog,
+                baseTravelDelay: _options.BaseTravelDelay);
             await using var stream = client.GetStream();
             try
             {
-                while (!cancellationToken.IsCancellationRequested)
+                await OriginalConnectionPump.RunAsync(stream, session.PendingNotifications.Reader,
+                    async (body, cancellationToken) =>
                 {
-                    var prefix = new byte[sizeof(ushort)];
-                    if (!await ReadPrefixOrEofAsync(stream, prefix, cancellationToken))
-                    {
-                        break;
-                    }
-
-                    var bodyLength = BinaryPrimitives.ReadUInt16BigEndian(prefix);
-                    if (bodyLength < sizeof(ushort) ||
-                        bodyLength > OriginalClientTransportFrameParser.ConfirmedStaticMaximumBodyLength)
-                    {
-                        await WriteAsync(new
-                        {
-                            timestampUtc = DateTimeOffset.UtcNow,
-                            eventName = "frame-rejected",
-                            connectionId,
-                            bodyLength,
-                            errorCode = "original.transport.body-length"
-                        }, cancellationToken);
-                        break;
-                    }
-
-                    var body = new byte[bodyLength];
-                    await stream.ReadExactlyAsync(body, cancellationToken);
+                    var bodyLength = body.Length;
                     var control = BinaryPrimitives.ReadUInt16BigEndian(body);
                     var stateBefore = session.State;
                     var result = await session.ProcessAsync(
                         control,
                         body.AsMemory(sizeof(ushort)),
                         cancellationToken);
+                    if (session.BaseTravelNotificationOwner is { } notificationOwner)
+                        _baseTravelNotifications.Register(connectionId,notificationOwner,
+                            session.PendingNotifications.Writer,client.Close);
+                    else
+                        _baseTravelNotifications.Remove(connectionId);
                     await WriteAsync(new
                     {
                         timestampUtc = DateTimeOffset.UtcNow,
@@ -269,7 +363,7 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
                     }, cancellationToken);
                     if (result.Status != NaturalAuthoritySessionStatus.Success)
                     {
-                        break;
+                        return false;
                     }
 
                     var responseFrames = new List<byte[]>();
@@ -313,7 +407,40 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
                             await stream.FlushAsync(cancellationToken);
                         }
                     }
-                }
+                    return true;
+                }, async (notificationBatch, cancellationToken) =>
+                {
+                    // Cipher sequence allocation and all socket writes remain
+                    // serialized with ProcessAsync and its response batches.
+                    var pushes = notificationBatch.BaseTravel is { } travel
+                        ? await session.ProjectCompletedBaseTravelAsync(travel.Owner,travel.Completion,cancellationToken)
+                        : session.EncodeNotificationBatch(notificationBatch);
+                    foreach (var push in pushes)
+                    {
+                        var frame = OriginalClientTransportFrameWriter.Encode(
+                            push.TransportPrefix, push.OuterControl, push.Payload);
+                        await stream.WriteAsync(frame, cancellationToken);
+                    }
+                    await stream.FlushAsync(cancellationToken);
+                    await WriteAsync(new
+                    {
+                        timestampUtc = DateTimeOffset.UtcNow,
+                        eventName = pushes.Count == 0 ? "authority-notification-stale" : "authority-notification-sent",
+                        connectionId,
+                        frameCount = pushes.Count
+                    }, cancellationToken);
+                }, cancellationToken);
+            }
+            catch (OriginalFrameLengthException exception)
+            {
+                await WriteAsync(new
+                {
+                    timestampUtc = DateTimeOffset.UtcNow,
+                    eventName = "frame-rejected",
+                    connectionId,
+                    bodyLength = exception.BodyLength,
+                    errorCode = "original.transport.body-length"
+                }, cancellationToken);
             }
             catch (EndOfStreamException)
             {
@@ -324,8 +451,20 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
             catch (IOException) when (cancellationToken.IsCancellationRequested)
             {
             }
+            catch (IOException exception)
+            {
+                await WriteAsync(new
+                {
+                    timestampUtc = DateTimeOffset.UtcNow,
+                    eventName = "connection-io-failed",
+                    connectionId,
+                    errorCode = exception.Message
+                }, CancellationToken.None);
+            }
             finally
             {
+                _baseTravelNotifications.Remove(connectionId);
+                session.CloseNotifications();
                 CryptographicOperations.ZeroMemory(key);
                 await WriteAsync(new
                 {
@@ -351,25 +490,6 @@ public sealed class NaturalAuthorityServer : IAsyncDisposable
         {
             _writeLock.Release();
         }
-    }
-
-    private static async Task<bool> ReadPrefixOrEofAsync(
-        Stream stream,
-        Memory<byte> prefix,
-        CancellationToken cancellationToken)
-    {
-        var read = await stream.ReadAsync(prefix, cancellationToken);
-        if (read == 0)
-        {
-            return false;
-        }
-
-        if (read < prefix.Length)
-        {
-            await stream.ReadExactlyAsync(prefix[read..], cancellationToken);
-        }
-
-        return true;
     }
 
     private static uint ToOriginalIpv4Field(IPAddress address)

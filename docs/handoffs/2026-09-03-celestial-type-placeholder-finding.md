@@ -1323,3 +1323,2551 @@ and nothing ever populates the tactics record, so +0x320 stays unset and all fou
 
 Next concrete step: serve unit-ship information (start with 0x030A -> 0x030B; read the layout from
 `Input_ResponseStaticInformationUnitShip::input_from_stream`) and see whether the tactics record then materialises.
+
+## 2026-09-04 correction and expansion: strategic WARP, every command surface, and tactical combat
+
+The subsequent `0x030B/0x033B` work proved that the preceding `+0x320` interpretation was incomplete. `FUN_004C32A0`
+joins a `0x033B TacticsInformationUnitShip.id` to a `0x0325 InformationUnit.id` and copies the full 0x58-byte
+InformationUnit into scene `+0x318`; scene `+0x320` is therefore copied InformationUnit `+0x08 = grid`, not `base`.
+The authority now serves a compact non-empty `0x030B`, proactive and requested `0x033B`, and selector `0x001E ->
+0x1207`, but that was only the scene/context bootstrap and was not by itself a playable-game proof.
+
+The WARP paths are also two distinct protocols:
+
+- strategic grid movement: `0x0B01 CommandMoveGrid -> 0x0B07 NotifyMovedGrid`;
+- tactical ship transition: `0x0404 CommandWarpShip -> 0x0425 NotifyWarpedShip`.
+
+`Input_NotifyMovedGrid::input_from_stream` at `0x0044B460` proves the compact `0x0B07` body is
+`time:u32, id:u32, grid:u32, base:u32, mode:u16, count:u8, count*{unit:u32, cruising:4B}` (cap 70). The four-byte
+cruising scalar is the same representation that InformationUnit `+0x54` logs and renders as `float`. The previous
+authority sent zero in that pair and sent zero again in the follow-up `0x0325`; it moved the cell while erasing the
+cruise value. This is now corrected with an explicitly `NEW DESIGN` authored value: initial cruising `10.0`, one-hop
+cost `1.0`, destination value `9.0`. Both `0x0B07` and the post-move `0x0325` project the same `9.0`. These numbers are
+not recovered original balance constants and still need original-runtime validation.
+
+`0x0425 NotifyWarpedShip` does **not** carry cruising, morale, supplies, or coordinates. Its logger at `0x004A60A0`
+names only `time, grid, base, mode, unit[]`. Tactical coordinates instead live in `0x033B` and are commanded by
+`0x0400 MoveShip`.
+
+The command audit is no longer limited to the 17 card-dispatch entries. The generated coverage receipt is
+`work/20260904-warp-state-reverse/evidence/gameplay-command-coverage.json`:
+
+- 97 strategy commands from `strategy-command-ledger.json`; only 7 are currently `PLAYER_VISIBLE_REPRODUCIBLE`;
+- 31 tactical command types in `0x0400..0x0422`;
+- 29 tactical outcome/notification types in `0x0424..0x0442`;
+- every tactical row includes request kind, client expanded structure size, recovered compact layout where available,
+  implementation state, and a separate live state.
+
+Implemented and test-covered now:
+
+- `0x0400 MoveShip`: exact compact decoder, controlled-unit gate, session-authoritative x/y/z/direction, command echo,
+  and `0x033B` re-projection;
+- `0x0404 WarpShip`: exact compact decoder, controlled-unit gate, and `0x0425` projection;
+- `0x0405 AttackShip`, `0x0406 ShootShip`, `0x040A Stop`: exact compact decoders, ownership/target validation, and
+  original command relay.
+
+Current verification: `Logh7.Server.ProtocolTests` 33/33 pass. This is focused-test evidence only. All new tactical
+paths remain `UNSEEN` in the original runtime. Attack/shoot currently have `outcome=not-resolved`: no damage,
+destroyed state, retreat, ending/victory, persistence, or strategy-scene return has been implemented. Therefore the
+earlier `docs/handoffs/2026-09-04-unitship-playable-vertical.md` title must not be read as full game or tactical-combat
+completion.
+
+Controlling reverse evidence and next path:
+
+- `work/20260904-warp-state-reverse/evidence/E-002-warp-tactical-static.md`;
+- next: add a second opposing tactics unit and faction/character projection, then implement damage notification plus
+  InformationUnit damaged/destroyed state, retreat/ending/victory, persistence, and return to the strategy scene;
+- only after those paths pass tests should one natural-client run verify pre/during/post wire, UI, memory, and DB.
+
+## 2026-09-05: non-empty 0x033F restored tactical selection; natural-client 0x0400 MoveShip is live-verified
+
+The remaining selection failure was not in `0x030B` communication-range encoding. The live v8 run proved the static
+template contained `communication_range=100` while each tactical entity still had range 0. `FUN_004C32A0` only copies
+that static range after it joins the entity owner/character ID against the table at world `+0x4044B8`. The dispatcher
+writer proves that table is populated exclusively by `0x033F ResponseTacticsInformationCorps`; the authority had been
+serving an empty response.
+
+The broken Ghidra exception-function boundary was bypassed with an instruction-range export. The real binary parser
+starts at `0x00422D80`, rejects counts over 600, expands each record to `0x3C`, and consumes an exact 55-byte packed
+record. The adjacent logger at `0x00423560` names the fields:
+
+`id:u32, mission:u8, target_kind:u8, target:u32, command_range:f32, tactics_chief:u8, file:u8, power_move:u8,
+power_warp:u8, power_sensor:u8, power_beam:u8, power_gun:u8, power_shield:u8[6], fill_beam:u16, fill_gun:u16,
+fill_shield:u16[6], damaged_shield:u16[6]`.
+
+`OriginalSystemSceneCodec.EncodeTacticalCorps` now emits that shape. The record layout is `ORIGINAL_STATIC`; the two
+corps IDs and balanced nonzero power allocation are explicitly authored playable server data, not claimed original
+balance constants. Focused protocol tests are now 49/49.
+
+Natural-client run `20260904T203500Z-natural-l1-relogin-v1` is the first live tactical movement receipt:
+
+- server ZIP SHA-256 `DD4698B3474CBD723FB536AB42D2813F90D4FA2AD8E360D30B9DCE65C11DB24D`;
+- `tactical-pick-layers-v9.json`: player entity range 100, selection manager far 100 / near 67.525, player flags
+  `0x00010481` (`friendlySelectable=true`);
+- the player ship was clicked once; `sample-selection-v9.json` recorded candidate=1 and selection=1;
+- Move icon row 0 column 0 entered target mode. The input handler around `0x0050EAD7..0x0050EDE3` proves path kind 2
+  completes when the current position plus two endpoint clicks yields three path points; this was used instead of a
+  blind click loop;
+- `wire-after-move-confirm-v9.json` records processed application type 1024 (`0x0400`) and
+  `tactical-move-ship-accepted;unit=2;x=-9.926877;y=-3.9191113;z=0;direction=0`;
+- `corps-position-v9.json` reads the client pick registry after the response: player position changed from
+  `(-10,0,0)` to `(-9.926879,0,-3.919014)`. The client maps the server's tactical Y onto its rendered Z axis.
+
+This changes only `0x0400 MoveShip` from UNSEEN to live wire+memory+UI verified. Tactical combat remains PARTIAL:
+AttackShip/ShootShip target selection, `0x0426` damage, destruction, retreat/ending, victory/result, persistence, and
+return to strategy are still not live-closed. The current run remains active for that continuation.
+
+## 2026-09-05 — Flagship model selector, shifted creation fields, PostgreSQL roundtrip
+
+User asked why Brunhild always appears and where to check the flagship. Current evidence and next start:
+`work/20260904-warp-state-reverse/evidence/E-004-flagship-selection.md`.
+
+- The active run is `20260904T205700Z-natural-l1-relogin-v1` (v10 autoattack server). Guest PID 1112 is alive,
+  responding and rendering. A prior host PID lookup was wrong; no post-0x0426 crash is established.
+- `wire-after-autoattack-v10.json` proves 0x0405 accepted with enemy damage 25; full client damage/result closure remains open.
+- `flagship-model-memory.json` proves both active tactical units have staticIndex=0/modelFile=0. The server still
+  provides only one static ship template. `FUN_004F3D80` selects model_file from normalized template +0x20C;
+  `FUN_004F3F70` chooses the LOD table and loads it through `FUN_004F3A10`. Values 0/1 select GE/EM001.
+- `ship-model-catalog.json` contains 360 original LOD pointers, 348 distinct paths, 247 present files and 101 missing
+  table paths. Do not infer named-ship identity from constmsg row number: group 85 row 8 says Brunhild but is not model_file=8 evidence.
+- Original 0x1008 parser/logger proved the old field names were shifted: SpecialAbilityCount was called Title,
+  Title was called Rank, Rank was called FlagshipClass, and FlagshipType was called FlagshipModel. Corrected the DTO/parser.
+- Added migration 0016 and type/kind persistence through ordinary/lottery insert, event, list and session restore.
+  Existing rows without source values remain NULL in DB; current compatibility projection still uses zero.
+- 51 protocol tests pass. Separate actual PostgreSQL probe passed legacy migration, nonzero/full-u16 selection
+  create/read across reconnection, idempotent replay, event values and paired-null constraint. Cluster 55433 was stopped;
+  the live game DB was not modified. Receipt: `flagship-storage.json`. The changed server is not yet deployed.
+- Manual and static consumer say common Information icon -> third entry `旗艦情報`. Current tactical book icon
+  tooltip `情報` is observed, but the detail sheet did not open in the retained clicks. Do not claim live UI completion.
+
+Next: recover the original selected kind-to-template/model assignment (including lottery characters), replace the
+one-template bootstrap coherently, determine the tactical Information menu event gate, then deploy and validate
+different ships and relogin persistence. Continue remaining strategic/WARP and tactical damage/ending work;
+the full goal and entire-resource reverse-tracing requirement remain active.
+
+## 2026-09-05 — Actual flagship sheet, cease-fire live check, 0x040C connection-drop repair
+
+Read these bounded receipts next: `work/20260904-warp-state-reverse/evidence/E-004-flagship-selection.md`,
+`E-005-attack-submodes.md`, `E-006-control-power.md`. This section supersedes the earlier unverified Information-sheet status.
+
+- Correct tactical Information button: paper/document at `(752,744)`, NOT book `(802,746)`.
+  `0054E760(mode1) -> 00519C50(selector0)` enables manager 0x0B/category1/index7, attached manager0x16.
+  Click third menu row `(795,614)` for `旗艦情報`; the original three-tab sheet was live-opened.
+- Original static ship input skips the name buffer for an empty counted string; the sheet consumes it as a
+  NUL-terminated string. Sending an explicit terminating element fixed the garbage name in the live v11 sheet.
+  `20260904T215200Z-natural-l1-relogin-v1/flagship-v11.png`, SHA256 `A90B253153216EC37DE8244019F06D02643982DCF4733E31B93425CECB489161`.
+  It now stays blank, not correctly named: the one-template/model-0 bootstrap still needs original assignment data.
+- Original faction table: 0 Unified, 1 Neutral, 2 Empire, 3 Alliance, 4 Pirates. New authored lottery entries now
+  use Alliance 3 and authored opponents use 2/3. Existing power-2 rows are unchanged; do NOT blanket migrate 2 to 3.
+- `00522010` returns `NO TABLE` when the requested group is absent, `NO DATA` when its row is absent.
+  Missing tactical constmsg groups (including 0x7B) require the original data/version/loader join, not guessed labels.
+- Attack submenu indices 0x1E/1F/20 -> UI modes1/2/3 -> wire kinds1/2/0 through `004B4110`.
+  v10 ignored kind and would damage even on cease fire. Fixed kind validation and stop target resolution.
+- **Live cease fire passed** in v12: selected friendly, inspected `攻撃停止` tooltip, clicked once.
+  `wire-after-cease-fire.json`: kind0 accepted, enemy damage0/destroyed0, no extra damage pushes, session retained.
+  `memory-after-cease-fire.json`: UI mode3, selection1, entire enemy InformationUnit unchanged versus `power-before.json`.
+  This is not proof of cancelling a running continuous attack; timed attacks remain unimplemented.
+- v11 disconnected when closing the flagship sheet generated `0x040C CommandControl` over the SENSOR control.
+  `wire-after-disconnect.json` has the exact 31-byte request and unexpected-type rejection. Implemented decoder,
+  owned-unit/budget gates, per-session corps power state, expected command echo and refresh; bad input is now a
+  visible soft rejection. Condenser/recharge/speed/weapon effects/wait timing/relogin persistence remain incomplete.
+- v12 live tests verified two over-budget control requests are visibly rejected without disconnect. Initial
+  track click did nothing; knob drags unexpectedly changed displayed SENSOR 10->15->16 while authoritative
+  character memory stayed10. **Positive accepted control change is UNSEEN**, despite files named `power-accepted*`.
+  Rejected HUD value resynchronization also remains. Do not repeat those drags: trace the exact native widget
+  input handler (manager0x36/category1/index10, setup005123B0) before the next input.
+- The third command u32 is logged `id=`, sourced by `004B4A90` from the current actor and consumed by `004C1700`
+  as actor identity; it is NOT an order counter. New Control DTO uses ActorId and rejects a foreign actor.
+  That last hardening is source-only after v12 deployment. Older tactical DTO `Order` names need an audit.
+- Current source tests: **66 passed, zero skipped**. v12 was built before the final actor check, with 65 tests.
+  v12 ZIP `E:/logh7-build/logh7-server-v12-control.zip`, SHA256 `887C3164EDE988AC84FFDF8443CC9B060BB9E0F159E9A1A9F17DEC22700A7BAC`,
+  DLL `FD5E1A3EC3EC5C76FEA22180338ACCC63C51D0CBA500DD909C05BC37DC6B108E`.
+
+### Current live target / next start
+
+Active run **`20260904T220400Z-natural-l1-relogin-v1`**: guest client PID **2648**, HWND **`0x00000000031301FC`**,
+authority PID **5716**. Same VM `E:/logh7-vms/oracle-win11-hd-re/oracle-win11-hd-re.vmx`, client item116 SHA256
+`AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F`. These are GUEST PIDs, never inspect them on the host.
+v10 and v11 clients/authorities/PostgreSQL copies were cleanly stopped, with data/logs/screens preserved; no run deletion.
+New `host-step` names are single-use. Preserve existing receipts and inspect the current surface before input.
+
+Next bounded work: power widget input semantics + rejected-value resync; include actor hardening in next deploy;
+then timed attack/weapon/damage/destruction/ending/return and original flagship template assignment. WARP cruising,
+other commands, celestial/planet/orbit joins and complete resource-use tracing remain part of the active overall goal.
+
+## 2026-09-05 — Accepted control was queued in the far future; v13 executes and changes native sensor range
+
+Read the last two sections of `work/20260904-warp-state-reverse/evidence/E-006-control-power.md` next.
+This supersedes the preceding accepted-control UNSEEN status and incorrect SENSOR widget index.
+
+- SENSOR is manager0x36/category1/index6 (not10). Orientation3 is reverse-horizontal: right decreases.
+- v12 evidence-backed right drag accepted sensor5, but HUD5 did not mean execution: normalized character stayed10.
+  Input vtable0066D870/parser0049E820 and output vtable0066DAD4/writer00495AA0 agree on the 29-byte body.
+- Root cause: sender004B4370 does not initialize Time/Wait. Queue selector004B8B00 case040C uses their sum;
+  004B8950 only dispatches zero/due times. Same-run `control-queue-clock.json` proved deadline222547400 versus
+  clock3019. The last received-control scratch was still the initial enemy record, not the player's new command.
+- Added exact-payload `EncodeImmediateResponse` for the authority's immediate control policy: copy, clear both
+  scheduling fields, preserve the rest. Two new tests failed before the fix, then full protocol suite **68/68 passed**.
+  Other tactical command echoes are not silently normalized by this fix; audit them next.
+- v13 deployed and original-client state verified: SENSOR10->5, BEAM20->0, SENSOR5->30. Accepted control is now
+  present in both received scratch and normalized character, and the receive queue is empty.
+- Native player entity +0x958 sensor range changed **50->100**; enemy stayed70. HUD shows beam0/sensor30.
+  This is an ORIGINAL_CLIENT derived effect, not server visibility filtering or a distant-target detection test.
+  `sensor-thirty-state.json` SHA256 `B1955B564057E894CFA83A3D1818A06D41741A3AD2941FE0B851B98209FE7400`;
+  `sensor-thirty.png` SHA256 `59D450D8B8421127C852A5BD791876F0BC47B148D6F950FB58CD9BF5AC168B6B`.
+- v13 includes prior actor-ID hardening. ZIP `E:/logh7-build/logh7-server-v13-control-time.zip`, SHA256
+  `16A52BE307022CBC8384B35028FE21B5B8352B0ACF7B2671A69413B6286953D5`; DLL
+  `E23D41BC6A327B25DF911F1ECF514A21B455FA770B7356342D7DAB2F4574A092`.
+
+### Current live target / next bounded work
+
+Run **20260904T224600Z-natural-l1-relogin-v1**, guest client PID **7180**, HWND **0x00000000032003DC**,
+authority PID **8400**. Same oracle-win11-hd-re VM and item116 hash
+`AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F`. These are GUEST PIDs.
+Latest screen is tactical, BEAM0/SENSOR30; last selection count0. v12 client/authority/DB were cleanly stopped;
+its data, deployment and all receipts remain, no deletions. Revalidate target before the next input.
+
+Next: restore canonical HUD allocation after rejection; trace condenser/channel effects and audit all other
+command time/wait/actor fields before timed combat work. Full WARP/cruising, strategy commands, battle outcomes,
+original flagship kind/template/model assignment, missing tactical text, planet/orbit data joins, tactical map
+data ownership and **all installed resource use-site/selector tracing (WI-013)** remain active goal requirements.
+
+## 2026-09-05 — 0x0426 damage/destroy/morale corrected; actual first-hit projection verified on v14
+
+Read the final continuation sections of `work/20260904-warp-state-reverse/evidence/E-005-attack-submodes.md` next.
+
+- Original logger004A6400 definitively names 0x0426 fields: time, unit, arms, target_kind, target, damage,
+  destroy, direction_shield, damaged_shield, **morale**. Old DTO names and session assignments were wrong.
+- Receiver004C0DF0 sets native normal=Number-damage, remaining=Number-destroy, morale at entity+0x954.
+  Effects use004C7790 arms ranges0..7/8..11/12..15 -> kinds1/3/2 and the004B3460->004CAB80->004E4450 chain.
+- Shoot HUD indices21/22/23 set family0/1/2; this is not the actual weapon ID required by a hit notification.
+- v13 live single continuous-attack click: server damage25/destroy0, but native enemy75normal/75remaining/morale0.
+  Over six minutes without another input still showed the same state: periodic continuous fire is absent.
+- Fixed the notification builder and DTO names, shared equipped-weapon capabilities with the static codec,
+  resolved Shoot families through equipped arms, and stopped zeroing gun/missile fields in030B. Default hull
+  remains the existing authored beam-only model0; named/original ships were not invented.
+- Corrected terminal destroy from boolean1 to cumulative100 for the current authored100-unit/four-hit rule.
+  That combat rule is still a placeholder, NOT recovered original damage balance.
+- Three damage/count regressions, eight weapon-resolution cases and one static weapon wire regression all
+  failed before their fixes; full source protocol suite now **79 passed, zero skipped**.
+- v14 LIVE first-hit proof: received arms1/target-kind1/damage25/destroy0/morale100; native enemy
+  **normal75 / remaining100 / morale100**, player100/100/100, empty receive queue, connection3 retained.
+  `attack-first-native-state.json` SHA256 `088C5030C2A14531108C36C3436171126B643E5D4C34E914FDCF8ECE6090043E`;
+  `attack-first-wire.json` `583735D50BB8D2ADF3991A1E2E48045CA33F1DF4932989098E8CCE73A3D362FF`.
+  The screenshot is a tactical HUD receipt, not proof of visible enemy damage or a shot animation.
+
+### Current target and next executable boundary
+
+Active run **20260904T231600Z-natural-l1-relogin-v1**: guest client PID **7588**, HWND **0x0000000003160192**,
+authority PID **5260**. Same oracle-win11-hd-re VM and item116 SHA256
+`AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F`. One attack has occurred; enemy25/0,
+friendly selected, beam20/sensor10. v13 runtime was cleanly stopped; all data and evidence preserved, no deletions.
+v14 ZIP `E:/logh7-build/logh7-server-v14-attack-fields.zip`, SHA256
+`D6C0970BB058EA7ED117A577D59F5A5B91FD372FFED857108208251CBCD8A646`, DLL
+`60C3C10482BA9C4779839C8CF1F47049348A68D4E8529F4453BEAE58AA209B07`.
+
+Next, recover original0301 clock parser/synchronizer and power-table/charge consumers. Current0301 sends
+fixed bytes00000040 (byte meaning not yet verified); current beam/gun charge tables are placeholders, and
+NaturalAuthorityServer.HandleConnectionAsync only advances on complete inbound frames. Add a single-owner
+battle tick/push path after those semantics are grounded, not a guessed repeating25-damage timer. Also trace
+the result HUD and035A fields before promoting the current minimal ending summary to a tactical victory.
+No terminal battle/return or continuous-fire pass is claimed. All prior strategy/WARP/cruising, other commands,
+flagship assignment, celestial/map data and complete installed-resource tracing requirements remain open.
+
+## 2026-09-05 — original clock rollback fixed and live-verified on v15
+
+Details and hashes: `work/20260904-warp-state-reverse/evidence/E-007-original-game-clock.md`.
+
+- Original0301 parser004AA250 reads one network-order u32 tick.004C5A30 anchors the clock;004C5A70 advances it at24Hz.004B68F0 requests sync after strictly more than300ticks (~12.5s), storing its last tick at007CD000. Sender004B78A0 switches on requestKind-1: kind30→case2F→0300; field-update kinds2E/2F instead send0348/034A.
+- v14 always sent body00000040=64. A read-only120s sample directly captured clock4068→66 at a new response. This also explains the observed sync intervals growing by about12.5s after each reset.
+- v15 removes0300 from timeless bootstrap, writes supplied BEu32 time, and shares one monotonic24Hz clock across server connections. **NEW DESIGN:** process-local epoch, not proven original calendar or restart-persistent time.
+- Ten clock/wire regression assertions failed before the fix. Final suite **88 passed, zero skipped** after removing a separate mistaken test: HUD+252 divisor belongs to the static ship TotalPower, not the charge table. Existing correct030B TotalPower test remains. This test correction changed no deployed production code.
+- LIVE v15:275 read-only samples over70.1s; **6 new time responses, zero observed backwards samples**, tick11076→12752. Client anchor ticks11081/11383/11684/11985/12287/12587 exactly match server metadata. Connection3 remains SessionServerReady; sync interval approximately12.5s. Sample SHA256 `6A61C840285DF3AE795DF9FF608134F111C8E1158CFC056770BC4905A01425E1`; wire `F66F7E3EE0777D498069688E1F7185CD7D201AA85CE7F16B535B3A0387AD1AA6`.
+- Final screenshot `clock-verified-tactical-screen.png` SHA256 `BABAD27A05C0E656D00ED14B0089150589E2924310F7BCB2EAE1A2CF5CFEF5B1` shows the distinct tactical HUD. It is not evidence of timed firing or battle completion.
+
+### Current live target and next-start boundary
+
+Active run **20260904T234900Z-natural-l1-relogin-v1** in the same oracle-win11-hd-re VM:
+guest client **PID3248/HWND0x00000000037703FC**, authority **PID7068**. Original item116 hash unchanged:
+`AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F`.
+v15 ZIP `E:/logh7-build/logh7-server-v15-clock24.zip`, SHA256
+`D1BC50098A3C8AEC59251610B44E55A126CEC8007CCECAD272846CA20F7554C5`; DLL
+`E4D89EF63D7F431BE811B1E6F74D4511088954FC4C83CAD2E318F3AFDAF559B5`.
+v14 client/server/PostgreSQL copy stopped cleanly; no files deleted. No battle input has occurred in v15;
+friendly is not selected, baseline beam20/sensor10. Always refresh same-run guest identity and screen before input.
+
+Next: trace033F FillBeam/FillGun through normalized entities and the HUD/update consumers, then implement
+single-owner authoritative timed combat and stop cancellation without concurrent sequence/socket writers.
+004C5300 copies0309 power data to world+2BFE64; direct usage found so far is004C1700 shield recovery-time
+lookup, not established beam/gun cadence. Audit its template+286 index range0..8 against authored Shield100,
+and six-bit BeamAngle against authored180. Do not hide invalid stats by setting all table cells to100.
+Actual firing timing, command time/wait normalization, shot effects, destruction,035A result fields and return
+remain unverified or absent. All strategy/WARP/cruising, flagship assignment, celestial/map joins and complete
+2,295-resource tracing remain required; a stable clock or one tactical screen does not complete the goal.
+
+## 2026-09-05 — v17 valid weapon masks, no false campaign ending, native destruction verified
+
+Details and hashes: `work/20260904-warp-state-reverse/evidence/E-008-weapon-masks-and-ending-boundary.md`.
+
+- Original00411A60 logs six direction bits: beam/gun/missile angle bytes are masks, not degrees. Corrected authored180(B4) to its lower six bits52(34), renamed fields and reject high bits. Shield100 selected invalid column9 in004C1700; authored90 now selects valid8, capacity100 unchanged. These remain authored values, not recovered named-ship balance.
+- Original035A/00433250 carries character/session-ending data (id, power, camp, state, age, begin_session_age, flagship, evaluations and session statistics); it is NOT a tactical victory summary. Removed the fake035A after terminal casualties. Damage updates remain0426/0325/033B. Two red/green regression cycles; final95 tests pass, zero skipped.
+- LIVEv17: normalized Shield90/Capacity100/BeamMask34 verified. Four separately requested volley-kind1 commands caused native enemy normal75/50/25/0 and remaining100/100/100/0, morale100; friendly unchanged. Read-only sample captured0/0 -> destroyArmed1 -> removal from the active entity registry about1.52s later. `terminal-hit-lifecycle-sample.json` SHA256 `4E0FAB940E3843DAA35E9A864EBB38F43BEEDC0FAEE41486679385C8C2833DB8`.
+- Exactly four accepted commands, three damage pushes each, connection3 remainsSessionServerReady. `terminal-full-wire.json` SHA256 `FD12A1D500D78D8444D3FB99FEEB246B97C015557E2D275E8CE7BAA1999FEFBA`. No campaign-ending screen. `post-terminal-screen.png` SHA256 `9B4D0CE2D6AE7AE8A117C71661014FA14C491642687EF7A2380FC5A2F8C3949B` still shows TACTICAL HUD. Native removal is proven; a visible beam/enemy-model disappearance is not.
+
+### Current live target and next-start boundary (supersedes v15)
+
+Run **20260905T002630Z-natural-l1-relogin-v1**, guest client **PID6648/HWND0x0000000003920454**, authority **PID7132**, same oracle-win11-hd-re VM and item116 hash. ZIP `E:/logh7-build/logh7-server-v17-ending-boundary.zip` SHA256 `18DF4DB12DE24E504A04909119F3A8EA1FA2D109E2AD979A20CA5CA7A199B1AD`; DLL `E01AB93BADBE121FB3C0A30412D871B1CED2F0F162445D33A06E2C40B135B9AF`. v15 stopped cleanly; v16 prepared but stopped before credential/world entry, not live-validated. No files deleted.
+
+Enemy0x7F000001 is destroyed and absent from native active entities; friendly2 remains selected at100/100/100. **Do not attack the removed enemy again.** Next: proper tactical completion and strategy return. Original manual requires no enemies AND occupation of planet/fortress objectives when present. Original0F1F receiver004C1B20 maps first byte1 to transition2, otherwise0 and initiates world reload, but server scene/grid/objective state must agree. Do not call sending0 alone a complete encounter.
+
+Timed continuous fire remains absent: these were four inputs and the25-per-command/four-hit balance is an authored placeholder. FillBeamGun definition00424200 exists but0343 consumption is unproven. Full command/WARP/cruising, flagship assignment, celestial/map joins and2,295-resource tracing remain required.
+
+## 2026-09-05 — v18 NotifyTactics wire and grid corrected, live verified
+
+Details: `work/20260904-warp-state-reverse/evidence/E-009-notify-tactics-wire-and-return.md`.
+
+- **Correction to prior reverse claims:**0F1F is compact **state:u8 + grid:u32**, not two u32s or a battle id. Binary input0048CB80 reads one raw byte through00610420, then network-orderu32; logger0048CC40 explicitly names state/grid. Dispatcher copy is an eight-byte padded object, not the wire layout. Removed the misleading two-u32 fixture and unused TacticalBattleId constant.
+- LIVE pre-fixv17: notification decoded **state0/grid256**, SHA256 `A6F56B90EA64D5BC4810E98D67F5ED94CF45F417B6535C3DA42DC5089199D39B`. Source now sends state1/current grid101. Three exact-wire regressions failed before correction; full suite **97 passed, zero skipped**.
+- LIVEv18 natural login/entry: native **state1/grid101**, expanded0100000065000000, both units100/100/100. Receipt `tactics-wire-native.json` SHA256 `2F901F98E16F02C73805DF146D3725B7BD8E8F20404D9E0E056D85E5649D1730`. Original tactical HUD visible, screenshot `tactics-wire-screen.png` SHA256 `16E75D0DDFDB3A42D38AC2095A473DE293263653407F564B66BA8544460D17E8`; connection3 retained/no invalid or rejection. NO TABLE/NO DATA labels remain.
+
+### Current target (supersedes v17) and next executable return boundary
+
+Active **20260905T005710Z-natural-l1-relogin-v1**, client **PID2336/HWND0x0000000002AA03F6**, authority **PID9464**, same oracle-win11-hd-re VM/item116 hash. v18 ZIP `E:/logh7-build/logh7-server-v18-tactics-wire.zip` SHA256 `33D15C950BA5F29BA73BABBFAD934CD61D1F0579F0D671D9BA58B443116F4BBC`; DLL `16AE9982632522BC254ECF6ED0204C1E00C1F66733A0E338D66268DC15CDBB11`. v17 stopped cleanly without deleting any data. **No combat input yet in v18**, selection0, beam20/gun20/engine20/warp10/sensor10.
+
+Next: implement objective-aware encounter completion plus matching world reload. Server currently always emits0317tacticsState1 (including generic0316 responses) and unconditionally projects the enemy on every refresh. Current Base1 objective ownership is absent; do not treat unknown ownership as captured or remove objectives to obtain a pass. Coordinate surviving0325/character/033B/033F projections, inactive0317, correct0F1Fstate0/grid, and a complete0F02 refresh. Original035A is campaign ending, not this path. Also+357E8C drives loading/fade presentation in004EBE80/004F4280: do not equate it alone with actual scene mode. Continuous firing, persistence, balance, flagship assignment, strategy/WARP/cruising and complete installed-resource tracing all remain open.
+
+## 2026-09-05 — v19 original base ownership response and native join restored
+
+Details: `work/20260904-warp-state-reverse/evidence/E-010-base-ownership-projection.md`.
+
+- Original031F `InformationBase` supplies power/camp, consumed by004C32A0 when it imports0345 bases. Beforev19 the source had no031E handler and sent no031F. Livev18 had tacticalBaseCount1 but informationBaseCount0.
+- Recovered full031F compact record from00414C70/004161F0:82 fixed bytes plus actual arrays (outfit/transport<=30, budgeting<=6, budget<=5, commodity<=3), not expanded0x180-byte stride.031E is countu8<=4 +u32 ids. Implemented full codec, requested-id filtering and capacity checks; bootstrap now sends031F before0345.17 regression assertions failed before their respective fixes; **114 protocol tests pass**.
+- **Authored replacement data, not original geography:** catalog Base1/grid101 is explicitly power2(Empire),camp0; priceIndex1/supplies100/armor100, other economics0/empty. Common catalog owner does NOT change with caller faction. Missing BaseInformation remainsnull/unknown, not captured; actual base capture and persistent ownership changes remain absent.
+- LIVEv19 native031F: id1/power2/camp0/grid101/supplies100/armor100. Correct separate base registry: id1/kind0/**power2/camp0**, staticIndex0. `base-owner-registry.json` SHA256 `DDE6932ACA6DE16863D6F178AB4781A5C39F6C7443AD343D4F7E477F7ED7529C`. This proves owner data -> normalized base, not visible planet/fortress geometry. Tactical HUD and connection3 remain active, no invalid/error/rejection.
+- Probe correction: bases are **world+126718+174124**, ten slots of stride8CC (004C7EF0); ships are manager+4,600 slots of stride9EC. Earlier empty `baseEntities` from scanning ship slots was not evidence of base absence. Native base position is influenced by original orbital update; do not equate it to the server's spawn coordinate without tracing that update.
+
+### Current target and next-start boundary (supersedes v18)
+
+Active **20260905T011810Z-natural-l1-relogin-v1**, client **PID3964/HWND0x0000000003010438**, authority **PID2660**, same oracle-win11-hd-re VM/item116 hash. v19 ZIP `E:/logh7-build/logh7-server-v19-base-owner.zip` SHA256 `A8F15A3EF9DE61E892C6FD9B4B6395CCBDE0AF65DF7B836E36F41D3E6488390B`; DLL `7A8BEEB3641DFDD5BBBA3BE7596E52B24DD83183D11206FF9D63C576E54E9C00`. v18 stopped cleanly, no deletion. **No tactical input yet in v19**, two healthy ships, selection0, default power distribution.
+
+Next executable unit: use canonical base ownership in original no-hostiles/all-objectives condition; implement completion state, surviving projections and correct0F1Fstate0/grid with inactive0317 and full0F02 transaction. Do not hardcode victory after four hits or treat unowned/enemy/unknown bases as captured. Stop defeated-enemy respawn in world/character/corps/periodic-position projections; prove actual strategy HUD and retained connection. Base capture and persistence then remain required for hostile-objective encounters. All continuous-fire/charge, WARP/cruising, other strategy/tactical commands, flagship model assignment, celestial joins and complete2,295-resource tracing requirements remain active.
+
+## 2026-09-05 — v20 native tactical defeat to actual strategy HUD verified
+
+Details and immutable hashes: `work/20260904-warp-state-reverse/evidence/E-011-tactical-completion-and-return.md`.
+
+- Added session-owned encounter completion: no enemy survivors (template Number minus Destroyed) and known same-grid objectives matching power/camp. Null ownership data blocks completion; authored empty open-space data is distinct. Final defeated-unit damage frames precede once-only0317state0 /0F1Fstate0/grid101; subsequent unit/character/corps/position projections exclude the defeated enemy.0316 no longer reasserts active tactics after completion.
+- Sixteen genuine red regressions before implementation; fresh full suite **130 passed, zero failed/skipped** (`encounter-final-130-green.trx`). The immediate notification timing,25-per-hit and common Base1 Empire ownership remain authored replacement choices, not recovered original timing/balance/geography.
+- **LIVE bounded PASS:** four separate volley-kind1 commands reduced native normal75/50/25/0 and remaining100/100/100/0. Final command10:52:27.878328+09:00 recorded completed=True; client requested0F02 itself at10:52:33.6150522+09:00. Full refresh logged completed=True/enemy-present=False. No extra click, retry, memory write or fabricated035A.
+- Actual original **STRATEGY HUD** returned: bottom character/strategy minimap panel replaces tactical controls. Separate native dump confirms tacticalRegistryActive0/strategyRegistryActive1, NotifyTactics0/grid101, InformationUnit list only player2. Connection3 retained and later time syncs succeed. Input-free check over6min later retained the same mode and sole-player list. Latest image `runs/20260905T014150Z-natural-l1-relogin-v1/post-return-stable-screen.png`, SHA256 `253386B4FB9618DE1CBADC75AC806173A7505E2E2362655B4EF37AF3C6D24831`.
+- Evidence boundary:30s lifecycle sample captured notify0, terminal0/0, destroyArmed1 and enemy removal, but ended BEFORE strategy registry activation. Separate wire/state/screens prove final return; do not describe the sample as uninterrupted proof of the whole transition. Transient modal text remains unestablished with mismatched installed strings. Visible weapon effects and planet geometry are not proven by this result.
+
+### Current target (supersedes v19) and remaining executable units
+
+Active run **20260905T014150Z-natural-l1-relogin-v1**, guest client **PID2428/HWND0x00000000037D03DC**, authority **PID9444**, same oracle-win11-hd-re VM and item116 hash. v20 ZIP `E:/logh7-build/logh7-server-v20-tactical-return.zip`, SHA256 `5F8794E2A9CF9435E3D6D94A1D52936DF7AC9B2FF1F98E16312387D330B7D063`; DLL `69B499153D94A02D303901684C0D1CE5889706D8BBE7C54C7EBEBAE366953A67`. v19 client/server/PostgreSQL stopped cleanly without deletion.
+
+**Current mode STRATEGY, selection0, enemy removed.** Refresh same-run guest identity/screen before input. Do not send a fifth attack, repeat the sealed four-command sequence, or restart solely to improve evidence. Completion currently lives only in this session: shared/persistent outcomes, reconnect survival, later re-entry and hostile-objective capture remain unimplemented. Next combat unit is original charge/cadence tracing and single-owner timed firing/cancellation; four deliberate attacks do NOT establish continuous combat. Full WARP/cruising and remaining strategy/tactical commands, named flagship assignment, celestial/orbit/map data joins and complete2,295-resource use-site tracing remain in scope. This bounded return PASS does not complete the playable-game goal.
+
+## 2026-09-05 — charge definition versus real dispatch; authored cadence decision
+
+Details: `work/20260904-warp-state-reverse/evidence/E-012-fill-dispatch-and-cadence-design-boundary.md`.
+
+- **STATIC boundary now byte-verified:**0343 FillBeamGun has a parser/logger definition, but queue classifier004B8B00 selects default004B9D8C(returnAL0), and scene dispatcher004BA2B0 selects default004BDCEE. Both selector bytes are42. Neighbor033F/0341/0345 select real handlers. Eight branch/table regions match pristine client and item116. Reproduce with `scripts/verify-fill-dispatch.ps1`; no live0343 sent.
+- Compact FillBeamGun record is unitu32/beam_next_timeu32/fill_beamu16/gun_next_timeu32/fill_gunu16,16bytes after countu16<=600; expanded stride20. A serializer definition is not proof of a gameplay consumer.
+- Corps+9B0 copy includes fill fields+9CE/+9D0, but no proven downstream beam/gun timer. Fresh004B2740 is shield recovery/command progression/destruction, not a recovered beam/gun loop. Static beam/gun value tables cannot be reinterpreted as tick intervals without evidence. Do not repeat the same offset-only search or emit0343 hoping it starts continuous combat.
+- Current server has only frame-driven command handling; one continuous input causes one immediate authored hit and no scheduled progression. Recommended implementation keeps one session/socket/cipher-sequence owner and one pending complete-frame read while timer wakeups advance charge/shots. Numeric charge/output policy must be explicitly authored/replaceable while original-rate research remains open, not called original balance.
+
+**No new deployment or game input.** Latest target remains v20 from the preceding section; analysis filenames endingv21 are not serverv21. Exact live identity must be refreshed before input. Existing server/protocol approval remains; asking whether unrecovered cadence/power numeric rules may be authored is a distinct fidelity choice. Brainstorming skill requires this design approval before production timer implementation. Safe independent resource/data tracing remains possible, so do not mark the overall goal blocked. All original scope remains active.
+
+## 2026-09-05 — actual Base model_file/orbit join, schema corrections, sun layers
+
+Controlling evidence: `work/20260904-warp-state-reverse/evidence/E-013-base-model-orbit-and-sun-resource-joins.md`. This supersedes older model_file/class/radius/sun-boundary statements above.
+
+- Exact031D logger00414A30 proves **id/grid/model_file/kind/name/class_/orbit/diameter**. The <=13 parser check is nameCount, not class_; the last float is diameter, not radius. Model_file is present in Base, contrary to the prior orphan discussion. GridType klass and Base kind/class are not interchangeable.
+- Full Base join: raw031D model_file+6 ->004C4C50 ->normalized Base+248 at world+2EB800+index*250 ->native Base staticIndex+8BC ->004F3FF0 ->004F2920(mode1)/004F40A0 ->high00775108 and low00775310 model tables.260 slots extracted. Model0 is p000;110/111 bothy001;32 isNULL. Named map identity remains unknown.
+- Orbit is server-supplied Base data, calculated client-side. kind!=1 enables orbit; initialAngle is degrees, cycle is original ticks, x=sin(phase)*orbitRadius,z=cos(phase)*orbitRadius. Render radius=diameter/2. Current authored cycle1 always gives tick%1=0, so it is static. v19 native position0.008726535/0/0.9999619 exactly matches radius1/initial0.5degree; it is not serverBaseSpawn(0,30,0).
+- **LIVE input-free v20** at02:23:39Z confirms raw and normalized Base1 agree: grid101,model0,kind0,class1,orbit1/cycle1/direction0/initial0.5,diameter1. Receipt `static-base-model-orbit.json` SHA256 `AAF6AEF75C521C1F73FDB6424ED1AA8C916E5FA9FEFA7ADFEE4D75F542F1C349`. Client2428/authority9444 identity/listener verified; strategy registry1/tactics0. This is data-join proof, not a new visible planet.
+- **Sun correction:**004E2000 is generic space background only; adjacent004E2190 is the selected sun-layer loader.0347 circle.model_file ->normalized obstacle+8DE ->004BE520/004F2820/004E1F70 ->004E2190 binds fs### body,fs_glow###,space/s###,light/l### together. Calling fs### universally fortress art was unsupported. Slots7..9 areNULL despite wrapper<10. Current circles are empty; no live sun proof.
+- New sidecar `base-model-use-ledger-v22.json` binds exact selectors/loaders and verifies **85 present files /7 absent paths** against2295-file inventory. Missing:light/l000 plusy006..008 base/low.34 residual Planet rows remain unresolved; do not label middle LODs/p032/ds globally unused just because this route lacks them. Existing full graph is preserved, not falsely promoted.
+
+No server deploy or game input in this unit. Analysisv22 names are not a runtime version; **v20 remains current**. Next: typed031D field correction and strategy orbit-view Base draw/list gate, then data-driven grid/Base/model/orbit/obstacle catalog and missing-asset recovery. Do not merely enlarge the authored body or change class to claim the visibility issue fixed. Timed-fire numeric-rule approval remains pending; full strategy/WARP/cruising, other commands, combat/persistence, flagship and all-resource requirements remain active.
+
+## 2026-09-05 — lowest-button live proof; strategic preview is fixed, not Base data
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-014-strategy-orbit-preview-and-render-boundary.md.
+
+-One guarded click of the actual lowest minimap-right button(618,722) changed strategy mode1->4 and selected grid1/1.004D68D0 changed the first four model wrappers from hidden1 to0. Screen strategy-orbit-after.png shows four rings, but no identifiable planet bodies. **Planet visibility remains UNVERIFIED.**
+-The strategy preview is hardcoded:004D3BD0 preloads p000/p010/.../p070_low.mdx;004D68D0 shows the first four at fixed scale0.00625 and offsets/radii0.5/0.75/1/1.25. It does not read031D/031F/0345 Base data. Therefore E013's tactical Base orbit/diameter diagnosis must not be used as the explanation for missing planets in this strategic preview. Actual tactical Base and sun data paths remain distinct and data-driven.
+-Each wrapper has a nonzero node and one mesh. The first four remain hidden0/category10, mesh+18=0/flags0. This rules out absent wrappers/empty meshes, not all resource or renderer faults.
+-Strategy renderer004D8280 draws categories11/12/13, but common renderer004E8540 DOES invoke category10 before the strategy pass. Its gate0076E1C5 is live1. Reject the tempting but unsupported claim that category10 is globally missing/disabled. Next boundary is model-container membership, node transforms, camera/projection, submission/culling/material and overlay order; actual draws have not been instrumented.
+-Fresh receipts: strategy-orbit-draw-pass-flag.json SHA2569FCB2A2F8F05F46B2AF179E19DC7EB2C59725AC142774A4E9F9851E9F8048D35; strategy-orbit-mesh-state.json SHA256E21BF70614F9884E6C38089117CA851EDC4D2F1627EE275AE15A045D349CC2E2. See E014 for click/state/screenshot hashes. Final read-only probe hash0BF90E8BFCE88B4617FC78477E6C39E0DED01EB8A235ACAD8887A614CDAD6335.
+
+**Current target remains v20 run20260905T014150Z-natural-l1-relogin-v1, client2428/HWND0x00000000037D03DC, authority9444, STRATEGY orbit mode4/grid101.** One UI click, no attack/relaunch/server deploy/client-memory write in this unit. Do not repeat the click or re-run the sealed battle sequence. Analysisv23 is not a deployment. Full resource coverage, gameplay scope and pending authored-cadence fidelity choice are unchanged; no complete/blocked promotion.
+
+## 2026-09-05 — preview render membership and five-pixel scale
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-015-preview-model-membership-and-projected-size.md.
+
+- Fresh input-free renderer traversal found all8 preview wrappers in26 containers/14 total wrappers. The first4 have renderPrepared1, clipState1/flags0, one geometry group and nonzero draw buffers; local and world matrices match with nodeDirty0. Thus absent list membership or stale world transforms are no longer the next hypothesis. These are snapshot prerequisites/preparation state, not GPU draw-call capture.
+- The mesh-definition bounding boxes are[-5,5] on each axis. Original scale0.00625 gives world diameter0.0625. Recorded view/projection/clip matrices are mutually consistent(max error2.55e-6).
+- Offline1024x768 projection produces centers(553.210,388.120),(573.816,388.120),(594.422,388.120),(615.028,388.120), with bounding widths5.420/5.555/5.689/5.824px. This is tiny and overlaps the second blue marker/glow area in the prior screenshot. **Overlap is a candidate explanation, not verified final occlusion or planet visibility.**
+- Reproduce with scripts/project-strategy-preview-bounds.ps1 against strategy-orbit-projection-inputs.json(SHA2568A8CC8983905EE4C74EFD20D26E3BD25E2709AF4AB41DC4E6C317571DF368FFC). Membership receipt SHA256F8F798FC301348D34F518A8452ACD22F8ED4331F5D125F700A2F8632F8EB188F. Both are in the samev20 run directory.
+
+No input, memory write or deployment in this unit. Current target remainsv20 strategy mode4/grid101. Next discriminator: final mesh submission/material and marker draw ordering, or a separately guarded natural camera comparison. Do not change Base fields or inflate client models as an unexplained fix. Full goal scope and pending authored-cadence fidelity decision remain unchanged.
+
+## 2026-09-05 — one natural zoom reveals all four preview planets
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-016-natural-zoom-shows-four-preview-planets.md.
+
+**Bounded PLAYER_VISIBLE_PASS:** the existing four fixed strategic preview planets visibly render after one plus-button zoom. This supersedes E014/E015's inability to identify their pixels, not their finding that the preview is independent of actual Base data.
+
+- Guarded one-click input at341,645 on the minimap-left plus; no repeat. The200ms image was too early. Later state changed view matrix, retained projection/mode4, and kept every recorded model/static Base object unchanged.
+- Settled screenshot shows four small bodies near expected centers594/636/677/718 at y392, with approximately2px capture-origin offset. Calculated widths increased5.42–5.82px ->11.43–13.11px. Three bodies visibly overlap the blue marker yet remain distinguishable; do not retain complete occlusion/missing render-pass as established causes.
+- Screenshot strategy-zoom-settled.png SHA256285921EAC8A93883382F88CEAD98C6B5BF0A3E23969CC90C8C627195B45DEEFD; after-state SHA256139AF884687D158900B77364F96D27B8B4BE5FB3BA64FCCFA227C0D5D0F60726; click SHA2561CA90D7FB353D03F1AA3E33625E3464CDB611A3E787635AFD594F66FFAE6852D. Files remain under the samev20 run.
+- Preliminary hover/focus did not yield a fresh tooltip; later settled screenshot confirms the strategy-map zoom tooltip. Do not infer click success from the helper alone. Original-client state plus settled pixels establish this bounded result.
+
+**Current target unchanged: v20 client2428/HWND0x00000000037D03DC, authority9444; strategy mode4/grid101, one-step zoom-in retained.** No model/server value changes, memory patch, battle restart or deploy. Do not repeat the input. Next: recovered031D typed data/catalog integration and actual Base/tactical content, not more attempts to prove the now-visible fixed preview. All-command/WARP/cruising/combat/persistence/flagship/full-resource goal remains incomplete.
+
+## 2026-09-05 — typed031D Base catalog implemented locally; tactical ID join next
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-017-static-base-catalog-to-wire.md.
+
+- Added OriginalStaticBaseRecord and global catalog.staticBases. Names/model_file/kind/class/orbit/diameter now reach031D through the existing bootstrap codec and NaturalAuthoritySession call site. Explicit[] emits no definitions; missing/null uses the preserved legacy fallback. Each definition has provenance.
+- Shipped JSON explicitly declares the existing Base1/grid101 values as NEW_DESIGN and reproduces their exact old default bytes. No new map names, balance, planet variants or orbit numbers were invented. BaseDiameter replaces the misleading BaseRadius name; class<=13 and Base/GridType-class equivalence comments corrected.
+- TDD:9 catalog rejection failures reproduced, then green;3 wire-substitution failures reproduced, plus shipped-data failure. Final protocol project **145/145 pass,0 skipped** including15 new tests. TRX files: E:/logh7-build/test-results/static-base-v26/. Test custom model110/kind1/class200/diameter8 is only an offline layout fixture, not deployed content or recovered game balance.
+- **Not deployed; v20 remains current.** No live client input/relaunch in this unit. Explicit catalog records supersede legacy environment probes; probe overrides survive only when no definitions are supplied.
+- Still hardcoded: NaturalAuthoritySession0344/0345 and entry/base-position/target paths use BaseId1/template.BaseSpawn. Next join must align031D IDs,031F ownership,0345 instances and actual-grid target/position lists. Do not deploy arbitrary multi-Base definitions yet or report full map integration.
+
+Full gameplay/resource objective remains incomplete. Existing safe native preview result stands; do not repeat its clicks. Numeric authored-cadence approval remains a separate pending choice.
+
+## 2026-09-05 — tactical Base ID/grid projections and fail-closed objectives
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-018-tactical-base-id-grid-joins.md.
+
+- Added template.tacticalBases and validated instance/ownership IDs against global031D definitions. Queries now filter by actual grid and requested IDs; no phantomBase1 on empty/other grids, no duplicate request rows. Shipped instance retains prior Base1 coordinates/attributes.
+-0344->0345, Base-position queries and tactical startup now share these projections. Startup ownership/position frames split at4 records; tactical count limit16 per grid enforced. Stop Base-ID context validation uses actual-grid instance IDs.
+- Completion now receives ProjectBaseObjectives: missing ownership for a known static Base remains unknown and cannot pass victory. This fixes the previous empty-ownership false-completion case.
+- TDD reproduced3 validation failures and5 projection failures, then8 including bounds/default cases. Final **156/156 protocol tests pass**,11 new join tests. Results E:/logh7-build/test-results/base-join-v27/. This is local code/codec/encounter evidence, not a new live session.
+- **No deployment or client input; v20 remains active.** WARP base argument and unit Base association still hardcodeBase1. OriginalGridUnitRecord has only grid persistence, not Base association; do not choose the first available Base as a substitute. Recover/represent the actual association before multi-Base deployment.
+- Coordinates in0345/position responses remain authored instance coordinates; original client kind-dependent orbital updates are separate. No server arbitrary-tick orbit parity or native multi-chunk accumulation was proven.
+
+Full objective remains open. Next start: unit Base association and WARP/undocking transitions, then a bounded fresh native catalog validation after local joins are complete. Preserve existing preview/run evidence and pending authored-cadence choice.
+
+## 2026-09-05 — Unit Base persistence and strategic-WARP projection consistency
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-019-unit-base-association-and-migration.md.
+
+- Fixed local contradiction: permitted strategic101->102 WARP next state,0B07 notification and subsequent0325 now agree onBase0. Unit records carryBaseId; session restore/move/tactical-WARP/unit frames use it instead ofBase1. Explicit wire association0/7/u32-max is preserved. Tactical docking/undocking behavior itself was not invented.
+- Added0017 original_grid_unit.base_id and movement-history destination_base_id. Npgsql queries/reader/update/history replay carry the fields. Compatibility backfill/seed preserves authored grid101/Base1 and moved grid102/Base0, explicitly NEW_DESIGN, not original docking history.
+- TDD reproduced5 failures, then **162/162 protocol tests pass**. E:/logh7-build/test-results/unit-base-v28/. These tests do not exercise the full Npgsql transaction.
+- **Actual PostgreSQL17.11 SQL test PASS** on a new isolated cluster/port55433: actual0011+0017 applied, backfill/seed/u32 constraints/committed Base7/reconnect/history independence verified. Game DB55432 untouched. Receipt unit-base-existing-cluster-sql-test.json SHA256D4EBA134D08E5B8509D97243AEC20C7EC2F2AD708DEF52EFF9015D409A0F4A24.
+- Test runner initially hung after pg_ctl startup. Read-only inspection identified runner540 and ready test server10140. Only owned runner540 was stopped; SQL continued on the same cluster with hidden Start-Process, then test server stopped. Original failed step preserved. Shutdown independently confirms no55433 listener/no stalled runner. Test files preserved.
+- Fresh input-free game check after test: client2428/authority9444 remain valid, strategy1/tactical0/mode4. **v20 still deployed; new server not launched.**
+
+**Next step at E019 (now updated by E020):** actual PostgresAccountStore read/move/replay/rollback on isolated full schema, then controlled native validation. **Correction:** NaturalAuthorityServerCommand.RunAsync DOES automatically apply0017 via the migration runner before listening; the earlier contrary statement was an incomplete call-chain inspection. Native Base/catalog/WARP/cruising and the full goal remain incomplete.
+
+## 2026-09-05 — actual full-schema store PASS; stagedv21 ready for native validation
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-020-real-store-transaction-and-v21-package.md.
+
+- Ran the real compiled PostgresAccountStore and production migration runner against a new disposable DB with all17 migrations.16 checks passed, including fresh connection restore, moveBase7->0, atomic versions/history/event, historical replay despite currentBase9, stale/conflicting/cross-account rejection, and rollback after an injected late domain-event failure. No mocks or substituted SQL for the tested store methods.
+- Result unit-base-store-probe-result.json SHA256C78A270B2D91613656AD61947CB99FC89D44704C6552C31061C99029367E1B55. Driver SHA256438C1150A1A5F3BECAE1D12F89AF71AC8756A26A11F458440CC917DB22DEF49E. New test DB retained; test55433 server stopped and independently verified absent. Live game DB55432 untouched.
+- Protocol regression rerun162/162 pass. All17 executed migration hashes match current source.
+- **Auto-migration correction:** Hosting/NaturalAuthorityServerCommand.cs:31 calls ApplyAllAsync before listener startup. Do not manually apply0017 outside its migration history. Allow controlled clone startup to apply it and verify the result.
+- **Staged, NOT deployed v21 ZIP:** E:/logh7-build/logh7-server-v21-base-catalog-association.zip, SHA256B6957F55E81C9F9B964AE4F47174F3C955EA51CD4E1DE29C06DF55578284B535. Server DLL SHA256C3984534205193152E32EA05333AE836D8AD1E395B4C46094B3421C0B06FF91D exactly matches the one executed by the successful store probe.
+
+**Current game remainsv20/client2428/HWND0x00000000037D03DC/authority9444/gamePG2700**, run20260905T014150Z-natural-l1-relogin-v1, strategy mode4/grid101/one-step zoom retained. Fresh identity/listener/memory read confirms strategy1/mode4. No gameplay input or game restart this unit.
+
+Next: owned clean shutdown and consistent DB copy into a newv21 native-validation run; verify automatic0017/startup and original031D/WARP101->102/0325 Base+cruising/persistence agreement. Do not repeat sealed four-attack inputs or claim the staged ZIP is running. Full strategy/other commands/tactics/maps/flagships/resources objective remains incomplete.
+
+## 2026-09-05 — v21 deployed; actual tactical entry and flagship sheet; retreat remains
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-021-v21-native-entry-and-retreat-boundary.md.
+
+- Oldv20/client2428/authority9444/PG2700 were identity-checked and cleanly stopped. Source DB/files retained, no deletion. Source pg_control09E7D984C89E56FEECDB223488F36F48E678C157D067A2C8F3803EA3C4200B9F bound a new copiedDB.
+- **Current run20260905T041218Z-natural-l1-relogin-v1, v21/client3644/HWND0x00000000019403C2/authority388.** ZIP B6957F55E81C9F9B964AE4F47174F3C955EA51CD4E1DE29C06DF55578284B535, DLL C3984534205193152E32EA05333AE836D8AD1E395B4C46094B3421C0B06FF91D. Same item116client; no new patch.
+- Startup through automatic migration path and real stored-unit restore succeeded. No manual0017 application. SQL migration-history rows were not independently dumped; E020 remains the separate full-schema/hash proof.
+- One native login/existing-character selection reached **actual tactical HUD**, memory tactical1/strategy0. Static/normalized Base1/grid101/model0 and nativeBase1/staticIndex0 match. Player InformationUnit2 hasgrid101/Base1/cruising10.0.83 processed frames,0 rejects in initial89-line snapshot. This is native entry/catalog evidence, not WARP or full-map PASS.
+- Actual information icon752,744 -> thirdrow 旗艦情報795,615 opened flagship sheet. Both units still model0; blank shipname, NO TABLE labels and faction/content inconsistencies remain. Screenshot flagship-information.png SHA97A6DCC9C279EB748C54FC68C90A6910FE45415E836C5DB8E11FD7FC30F8F345. **Sheet remains open.**
+- No attack, warp, power change, zoom or celestial-view toggle in newrun. Old four-volley sequence not repeated. v20 victory was session-local; new login starts another tactical encounter, so strategic WARP verification is not reached.
+
+**Next:** trace natural retreat before strategyWARP. Manual says maximum WARP allocation plus outside tactical circle. Current allocation10/warpEnabled0; ProcessTacticalWarpAsync sends0425/refresh but does not itself transition encounter/grid/strategy reload. No native retreat attempted yet; do not invent radius or forge0B01. Recover eligibility and0425 consumer -> implement authorized lifecycle -> natural101->102/Base0/cruising9/0325/relogin proof. Recheck currentv21 identities and screen before input. Full gameplay/resource goal remains open; original named flagship assignment/cadence choice unchanged.
+
+## 2026-09-05 — original retreat sender/timing and radar resource trace
+
+Controlling E022/report: docs/2026-09-05_reverse-retreat-report.md, work/20260904-warp-state-reverse/evidence/E-022-retreat-and-radar-boundaries.md.
+
+- Original004C187E comparesWARP allocation against50 and setsentity+94C0/1. Native50boundaryinputnotyettested.
+- Manualp52(2521–2538) specifies5s wait,150s preparation, outside radar circle; othercommandsremainavailableduringprep; participatingfleet/range capturedatstart; planetgroundtroopsremain. Do notcallinstant0425retreatcorrect.
+- **Actual0404sender004B4500 usesselector0x55.**004B78A0 decrementsselector; previouslyinspected0x54/004B3B20float-pairpathis0403reverse-turn,notawarpcodecdefect. Existingcount*4warpIDsremaincorrect. SenderleavesTime/Waituninitialized;servermustnotadoptcommand.Timeasnotificationdeadline.
+-0425→004C1990 deactivatescharacterthrough004C2C60/004C8440 andsetsentity+5B8/+5B9=1;004C94E0immediateremovalbranch,nodestructionanimationwait. **Own-characterinactive-to-sceneaftermathremainsunknown**;E021servermethod'sabsenceofexplicitreloadisnotproofthatclientcannottransition. Do notunconditionallyadd0F1Fwithouttracing.
+- User-requestedresourcebacktrace:actualinstalledimage/Rader/Rader_parts.tgaSHA4429BA4B7B0F1C33B763AC893EDAC56EED7EC8E571B23A8C8F3584B67B52DEB4→007744B8→004EDE60→owner+A730/A734→004EC700. Hardcodedprojection±250to±95px,center118/125;circlebakedinatlas.±250isnotretreatradius;~75pxringonlysuggests~200worldunits,notexactoriginalserverrule. ThisisfixedUIgeometry,notevidencethatserverBase/obstaclelayoutishardcoded.326unresolvedresourcesretained.
+-7coderegions/5constantsbyte-identicalbetweenpristineBD192...anditem116AEF382...;verifierretreat-byte-verification-v30.jsonSHA377C3502F44BEB4E4E6FF78627E24DEC67DA5A5F86DEB91EEC3221DD6E24F0FC.Reproducewithscripts/verify-retreat-boundaries.pyusinganewoutputpath.
+
+**Currentv21unchanged:client3644/HWND0x00000000019403C2/authority388,run20260905T041218Z-natural-l1-relogin-v1,flagshipsheetopen.**Freshread-onlybaselinehashD611AB8884DAD7CBBF764D13093C1F97461023DA2E1BE26DCBDBC30B89A9DE1C.No gameinput,deploymentorDBchange. Next0404ack/preparation andown-character0425sceneaftermath,thenproperretreatlifecycle andnaturalstrategyWARP/persistence. Entiregoalactive.
+
+## 2026-09-05 — E023: 워프 완료 통지의 서버 시각 수정, 로컬165 tests PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-023-warp-authority-clock.md.
+
+- `OriginalTacticalCommandAuthority.AuthorizeWarp`는 미초기화 request Time/Wait 대신 authorityTick을 사용한다. `NaturalAuthoritySession.ProcessTacticalWarpAsync`에서 `_gameClock.Tick`을 전달한다. 기본0 sentinel은 시계 없는 호출용이며 원본 준비 시간이0이라는 주장이 아니다.
+- 요청 쓰레기 시간4045620583 반사 실패 → authority tick321/golden frame 실패 → 실제 세션 expected24/actual0 실패를 각각 확인했다. 마지막 수정 후 **165/165 프로토콜 테스트 통과,0 skipped**. 여섯 TRX는 case evidence/retreat-v31-tests/에 보존. 최종 TRX SHA256 ACBDD38078642A90DD99F5D2F6BB228D979455C096C4722365997B50309F2620.
+- 세션 테스트는 인증·월드 진입 완료 fixture에서 실제 암호문 복호화/dispatch/완료 응답을 검증한다. 로그인·PostgreSQL·native gameplay 증거는 아니다. 초기 fixture의 필수 인터페이스 메서드 누락 컴파일 오류는 RED로 세지 않았다.
+- 추가 Ghidra 추적:0425 direct dispatch→004C1990→공통 끝,004E96F0 world-header 검사,004C9640 렌더 객체 정리 확인. world header와 개별 character active는 다르다. **자기 함선 철수 뒤 scene 전환은 여전히 UNKNOWN**이며 간접 전환 부재도 입증하지 않았다.
+- **로컬 수정만 완료. v22 미생성/미배포; native 입력0/게임DB 변경0.** 준비 시간 예약·중복 완료 방지·목적지·영속 철수 수명주기는 아직 구현하지 않았다. 기존 즉시0425를 완전한 철수로 보고하지 않는다.
+
+마지막 확인 기준은 v21/run20260905T041218Z-natural-l1-relogin-v1/client3644/HWND0x00000000019403C2/authority388, 기함 정보창이다. E023에서는 이를 새로 조회하지 않았으므로 다음 입력 전에 동일성/리스너/화면을 재검증한다. 정확한 원본 서버 철수 반경·도착 그리드 규칙은 미확정; 교체 가능한 NEW_DESIGN 허용 질문은 미응답이다. 반경 약200을 원본 상수로 확정하거나 무조건0F1F로 전략 화면을 만들지 않는다. 다음은0404 준비 상태/자기0425 이후 실제 scene 경로 및 철수 수명주기. 전97전략명령·31전술명령·29통지, 기함/맵, 전체2295리소스 사용처/326미해결 범위를 유지한다. 전체 goal은 active이며 완료하지 않는다.
+
+## 2026-09-05 — E024:0404 준비 수신부터 함선 상태 막대까지 연결
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-024-warp-ack-countdown-and-dispatch.md.
+
+- 기존 서버가 생략한 단계 확인:0404 receipt metadata(004B90B4)→004BFC40(flag1)→각 entity+5BC/+5C0=(Time+Wait)-clientTick.004B2740은5BC를 프레임 delta만큼 감소/0 clamp하고,004F0260은5BC/5C0을004F0B90 상태 막대에 전달한다. 실제 native 준비 막대는 아직UNSEEN.
+- **명령별 queue 의미가 다름:**0404는Time에dispatch,0405/0406은Time+Wait에dispatch.0404 실제dispatch(004BB86A)는004BFC40(flag0)으로 초기화를 하지 않는다. 공용 receiver라고 공통 예약 규칙을 만들지 않는다.
+- pristine/item116 실제hash 재확인, 다섯 범위 독립 disassembler 출력 일치. artifact retreat-ack-pristine-item116-disassembly-v32.txt SHA2560E772D90AFCE2F0A0F4E90163F6020D30AD129CB0591683A30150EDC29A74617. 이는 decoded instruction 비교이지 raw byte 전체 동일성 검사는 아니다.
+- 004C8440은활성character lookup; 비활성 쓰기는004C2C60이다.004BE600의 frame처리와그리기manager,004C1B20 직접xref 확인. **자기 함선 철수 뒤scene 전환은 여전히UNKNOWN.**0425 actor0과자기 actor2 callback을 혼동하지 않는다.
+- 매뉴얼5초/150초는확인했으나Time/Wait 숫자 투영은미확정. Time=current+120/Wait3600은가능한NEW_DESIGN 예일뿐 원본서버값아님. 반경·목적지 NEW_DESIGN 허용질문도미응답.
+- 이번단위는정적진전:production code0/runtime change0/input0/deploy0/DB change0.165 tests는E023의지난실행결과이며새테스트실행아님. 마지막v21run20260905T041218Z-natural-l1-relogin-v1/client3644/authority388을이번에새로조회하지않았으므로다음입력전검증필수.
+
+다음은0404 수신/대기표시→authoritative 준비→조건부0425와survivor/destination/scene 일관성. 즉시0425 뒤모든함선refresh를완전철수로보지않는다. 전체명령·워프후항속/상태·전술전투·기함·실제맵·2295리소스사용처/326미해결목표유지; goal active.
+
+## 2026-09-05 — E025: 전략 워프 모델과20개 소리 파일 등록 경로
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-025-warp-model-and-sound-table.md; sound-static-use-ledger-v33.json.
+
+- 실제전략효과loader는06.mdx(007720B8→004D473E→004D1F30→handle009D2FAC).004D6B70의scene owner+4C=1/+3C비0일때wrapper표시/위치/animation처리하고후속fade단계를갱신한다. test_warp.mdx는명시적사용처미해결상태유지;파일이름으로대체하지않는다. native새픽셀검증없음.
+-20음원의직접stringxref0문제는간접테이블로해결:descriptor0076E190(+18 filenameBase0076CD90,+1C count20)→soundmanager006178D0/vtable00682034+18→00617B50의256-byte filename슬롯등록. category table0076CD30,2개,stride0x30.
+-BGM choice0..6은category0의단일entry0076CD00 fileindex를변경한다.004B0150은SEcategory1의13entry에fileindex7..19를설정한다.004AFF50/004B0000 packedID→00618320으로group/entry/file을연결. **SE4→file11→warp1.wav**확인,실제warp event발동은미확인.
+-전술effect004E64A0의d8값1→SE7,2→SE8,3/12→SE9,4/5/8→SE10;004E6540→SE11.서버무기enum과d8동일성/실제소리재생은아직확인하지않았다.
+-20원본파일해시재검증PASS. ledgerSHA2562833D44AD4A86CFB4574556DFB49FFB6C3EC26280D24CD78DB30BBD6B12865FB. 모든playbackStatus는UNSEEN. **326미해결queue는다른분류(DATA_DRIVEN_OR_UNRESOLVED)만포함하므로20을빼지않는다.** 기존graph는보존하고별도semantic ledger추가.
+-이번은리소스분석진전. production code0/runtime0/input0/deploy0/DBchange0. 마지막v21/run20260905T041218Z-natural-l1-relogin-v1/client3644/authority388은이번에새로조회하지않음. 기함배정·철수반경/목적지NEW_DESIGN 허용질문미응답유지.
+
+다음은개별음원발동/전술effect생성상위호출과전략워프06.mdx/fade/항속통지의자연스러운검증. 원본확인과새규칙승인을구분하며전체명령/전술/맵/기함/2295리소스사용처목표를계속유지한다.
+
+## 2026-09-05 — E026: 관찰자마다 바뀌던 NPC 진영 수정,176 tests PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-026-battlefield-npc-power-consistency.md.
+
+- 재로그인시적이살아나는구조를조사하다동일NPCid의Power를접속자반대진영으로매번계산하는모순확인. **전투결과DB저장은아직구현하지않았고,이번에는선행NPC진영일관성만수정했다.**
+- OriginalBattlefieldTemplate.EnemyPower를catalog필수값(0..4)으로추가. 기본NEW_DESIGN catalog는3을명시해기존v21/제국플레이어의NPC값을유지. 동맹플레이어에게도동일NPC3을보내며플레이어자신의Power는바꾸지않는다. 원본NPC배정표회수아님.
+- NaturalAuthoritySession은선택적battlefieldCatalog생성자인자를지원하고ActiveBattlefieldCatalog를통해NPC/Base정의·좌표/소유권/Stop대상/목표를일관되게조회한다. 미지정시기존defaultloader. DLL과catalog는함께배포해야하며enemyPower없는구schema1파일은이제거부된다.
+- 실제암호화세션0322→0323 테스트에서viewer3expected3/actual2실패확인후수정. null/5/255거부실패,configured0/1/2/4를무시하고3을보내는실패도확인. **최종176/176 protocoltestsPASS,0skipped**. finalTRXSHA256004B9EA9E01B01BC407DA74F95CB21A2656304BE6A53D22CFE28EC43858B74AC, case evidence/encounter-v34-tests/.
+- Nullable컴파일오류와InlineData nullable-byte바인딩오류는기능RED로세지않고원래실패영수증보존. 기존clock회귀테스트도통과.
+- **미배포/패키지미생성/게임입력0/게임DB변경0.** 마지막v21/run20260905T041218Z-natural-l1-relogin-v1/client3644/authority388은이번에새로조회하지않음. 재로그인복원PASS아님.
+
+다음필수:NPC Face/AbilityValues/Rank등아직source복사인부분을world-ownedidentity와분리;실제grid/template/NPC공유전투키,동시수정/rollback,피해+완료원자저장,중복재전송vs정당한동일payload공격구분후store/migration/relogin구현. 동맹관찰자에게NPC3은동맹소속이므로친선공격/적배치/승리까지양진영완성으로해석하지않는다. 기함배정·철수반경/목적지NEW_DESIGN질문미응답유지. 전체명령·워프/항속·전술·기함/맵·2295리소스목표는active/미완료.
+
+## 2026-09-05 — E027: 실제 전술 HUD WARP50과 자기 함선 활성화 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-027-native-warp-power-50.md.
+
+- v21/run20260905T041218Z-natural-l1-relogin-v1/client3644/HWND0x00000000019403C2/authority388을 새로 검증했다. 원본005123B0 WARP슬라이더max50과 역방향 좌표를 확인하고 세 번만 드래그: BEAM20→0, GUN20→0, WARP10→50. 재시도0/메모리쓰기0.
+- **서버040C accepted3 → 자기characterWARP50 → entity+94C(warpEnabled)0→1 → 실제 전술HUD50**을 확인했다. 적warpEnabled0/count100, 자기count100, 방어막합20 유지. 실측10/50이며49/50양측경계실측은아니다.
+- 새wire snapshot은총6626줄의tail2000.05:40Z이후1284event/reject0/connectionclose0/0404·0405·0406각0. requestPayloadHex는암호문이므로ObservedApplicationType1036/metadata로대조했다. 호스트/게스트시계차가있어절대시간순서로인과관계를확정하지않는다.
+- 최종stateSHA1F5D23B296CBE365CF25DA6ED8B127D3758C4B26051D038250B74D72189D0330, 화면warp50-max-v35.pngSHA5A09C4859260BCD917A3E3BDA9C67D08A7D01A6187D209878BF3C68F49EECA7F, wireSHA0518811EE41DD4C9A2CE43CC07D0020F0B6EFDFA58F9ACF514C7EB0C55401752. 모두해당run폴더에보존.
+- **현재기함정보창은계속열려있고NO TABLE/빈기함명문제유지. 배분은BEAM0/GUN0/ENGINE20/WARP50/SENSOR10.** 철수/공격/새배포/게임DB직접변경없음. E023/E026수정은로컬만;176tests는E026의이전결과로이번에재실행하지않음.
+
+다음은0404준비통지/상태막대→0425자기함선제거후scene경로. 이단위는배분/활성화한정PASS이며철수반경·목적지·5초/150초투영·전략워프후항속/재로그인PASS아님. 미응답NEW_DESIGN질문유지. 세드래그를반복하지말고다음입력전동일성/화면재검증; 게임종료용escape helper로정보창을닫지않는다. 전체명령·전술·기함/맵·2295리소스사용처/326미해결목표는active.
+
+## 2026-09-05 — E028: 서버도 WARP 배분50 조건 검사,181 tests PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-028-warp-authority-power-gate.md.
+
+- 원본scene역추적을진행하다서버가배분10에서도0404를수락하는실제결함확인. **NaturalAuthoritySession.ProcessTacticalWarpAsync는현재accepted040C의PowerWarp가50미만이면0500으로거부하고0425/함선refresh를보내지않는다.** 초기배분만보거나클라이언트활성화flag를신뢰하지않는다.
+- 실제암호화세션5case로default10/0/10/49/50→49거부를검증. 초기testsequence1재사용문제로생긴4실패는RED에서제외하고수정후다섯case모두기존수락실패확인. 기존clocktest도먼저040C50을적용하도록변경.
+- 전체181/181PASS,0skipped. finalTRXSHA256E23FB65D6E3025DE1D296006FCD2518B8870D3897ADC9D1E879663A515B3C965; validREDSHA256DD48D2F4EB511A8FABAE5F630594ADCC392B8C552FD962A6D627B845EEF6C421. caseevidence/warp-power-v36-tests/보존.
+- 새Ghidraexport3개:자기함선조회후보004C5580은waypoint갱신,004FD100은UI모드처리,004F3010은카메라보간.004B68F0은reload완료와InformationGrid+35F35A에따라전술/전략builder선택.35837C..384직접displacement134개/scene호출자31개확인. alias/간접쓰기부재까지입증하지않았고**자기0425뒤원본서버메시지순서는여전히미확정**.
+- **로컬수정만,새패키지/배포/native입력/게임DB변경0.** 0404준비encoder나수명주기를이번에추가한것은아니다. 50이상에서는기존미완성즉시0425경로유지. 마지막native는E027의v21/3644/388/정보창/WARP50이며이번에재조회하지않음.
+
+다음:0404준비통지/예약완료/중복방지와survivor·도착지·scene연결. 전력검사통과를전체철수승인으로해석하지않는다. 반경/목적지NEW_DESIGN질문미응답유지. E023/E026/E028은함께배포전검증필요. 전명령·워프후항속/재로그인·전술전투·기함/맵·2295리소스/326미해결목표active.
+
+## 2026-09-05 — E029: 공격 회신·피해 통지를 서버 시각에 맞춤,188 tests PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-029-attack-authority-time.md.
+
+- **최초가설정정:**004B4110은0405/0406Time을클라이언트시각으로초기화한다.0404스택미초기화와같지않다. Wait주소007CC704/007CBFF4는직접xref없음만확인했고미초기화라고단정하지않는다.
+- 원본큐는0405/0406Time+Wait,0426Time에dispatch한다. 기존서버는피해를즉시적용하면서요청Time으로0426을보내고전체요청을회신했다. **이제현재즉시적용정책에서한번읽은server appliedAt을피해통지와0405/0406회신에공유하며회신Wait0**. 사격중지도회신시각수정/피해없음. Stop/Move/WARP시간일괄변경없음.
+- 실제암호화세션7caseRED확인(expected24/actual0또는4045620583등),수정후전체188/188PASS0skipped. 연속정상sequence1/2에서tick24→48/피해25→50,나머지명령바이트와암호문입력보존검사. 재전송idempotency증거는아님.
+- finalTRXSHA61A94421D4186949183A9BAF9378412F79484A159D01E175BF233A5DA7F6E1C2,REDSHA49D64325549681DDFB17B533D5B320CDB85B114A3559C6CFDF1A9A5A964CF92E. caseevidence/attack-clock-v37-tests/보존.
+- **로컬미배포/새패키지0/native입력0/게임DB변경0.** 원본사격주기복원이나Wait0원본값주장이아니다. 25피해와한번만공격하는자동모드/세션로컬전투결과는여전히미완성. 마지막v21/3644/388/정보창/WARP50은E027상태이며이번에재조회하지않음.
+
+다음:명령모드·무기·장전/사격주기·결과영속성연결,철수준비/목적지/scene및전략워프항속검증. E023/E026/E028/E029미배포묶음검증필요. 미응답NEW_DESIGN질문유지;전명령·전술·기함/맵·2295리소스/326미해결전체goalactive.
+
+## 2026-09-05 — E030: 장전량 쓰기 후보가 별도 UI 객체임을 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-030-corps-fill-alias-boundary.md.
+
+- Ghidra로9B0..9EB의부모필드사용24개를추적. **00546570의+9CE/+9D0쓰기는전술함선이아닌UI객체021A9B70의인물레코드복사다.** 호출자00549816/00549908은0x370인수를만들어전달한다. E012의미확정장전쓰기후보에서이경로를제외한다.
+- 실제EBX=entity+9B0(004C3D4E)에서이어지는004C3D33..3F44는전력12..1C/방어막22이후를소비하며장전1E/20의증가루프는확인되지않았다. 전체간접사용부재나unused주장아님.
+- pristine/item116전체hash재확인및세범위(00546570/670bytes,005497F3/42bytes,004C3D33/530bytes)독립바이트동일성PASS. 새export2개와각hash는E030에보존.
+- 이번은정적후보제외진전. production/build/test/deploy/native입력/게임DB변경0.188PASS는E029지난실행이며현재native동일성도새로조회하지않았다.
+
+다음에는이UI복사와이미제외한0343default를반복하지않는다. 원본서버장전/출력수치또는다른gameplay소비경로가미해결이고명시적authored cadence승인질문은미응답이다. 마지막native는E027v21/3644/388/정보창/WARP50;다음입력전재검증. 전명령·전술·워프항속·기함/맵·2295리소스/326미해결전체goalactive.
+
+## 2026-09-05 — E031: 반전0403의 마지막 방향 byte와0424 회전 경로 회수
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-031-reverse-command-and-turn-notification.md; reverse-turn-static-layout-v39.json.
+
+- **0403형식은Time/Wait/Order u32,count u8,unit별{IDu32,directionf32},마지막directionu8**. body14+8*n/application16+8*n,count<=32. 마지막00610420(dst,1,0,2)는현재cursor에서1바이트읽기이며2바이트나enum범위검증아님.
+- 0403직접dispatcher는world+437C08에복사/명령기록만하고회전handler를호출하지않는다. **0424(timeu32/unitu32/directionf32)→004BF970→004BF4C0**가현재위치유지회전trajectory를구성한다. 네pristine/item116범위바이트동일성확인.
+- manual2517–2519:제자리180도/대기10초/기동능력에따른속도. sender mode6/7이쓰는per-unitfloat1/2와마지막direction의UI의미는미해결. 임의로1/2라디안또는±π로치환하지않는다.
+- coverage생성기에0403layout추가,별도JSON에0403/0424형식보존. **둘다NOT_IMPLEMENTED/UNSEEN유지**,기존coverage snapshot을과거시점PASS로재작성하지않음. 새서버코드/build/test/deploy/native입력/게임DB변경0.
+
+다음:mode6/7·마지막direction설정UI→10초예약/방향상태/후속명령취소/실제회전검증. echo만추가해서완료로보지않는다. 마지막nativeE027v21/3644/388/정보창/WARP50은이번에재조회하지않음.188PASS도E029지난결과. 전명령·전술·워프항속·기함/맵·2295리소스/326미해결전체goalactive.
+
+## 2026-09-05 — E032: 좌우 반전 선택 확정, 전술 아이콘 204개 사용 경로 연결
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-032-reverse-choice-and-tactical-icon-bindings.md; tactical-widget-resource-bindings-v40.json.
+
+- 원본 등록 루프 00512F02..00513014 → 00503A10 → 004DDA90와 UI 선택/송신 분기를 연결했다. **hanten_left: widget0x2B → mode7 → unit direction float2.0; hanten_right: widget0x2C → mode6 → float1.0.** 최종 라디안 값과 구분한다.
+- 새 hash-bound 생성기로 전술 widget60개/상태 이미지 연결240건/고유 리소스204개를 추출했다. 기존 인벤토리와 전체 크기·해시 일치. 그중 201개는 과거 STRING_NO_DIRECT_XREF였으며 간접 테이블 등록/로더 경로가 확인됐다. 모든 명령 구현이나 화면 표시 검증이 아니다. 과거 graph와 별도326 queue는 재작성하지 않았다.
+- 5개 원본/item116 코드·테이블 범위와 사용 문자열 바이트 동일. JSON SHA252E5B6C8DFE5859BF1DBDFA47FD5D3A6E3DBE0DD492F465938CB5EB061B856F. 생성기는 기존 출력 덮어쓰기를 거부하며 그 방지도 확인했다.
+- 마지막 direction byte 007CC8B0 직접 참조 없음은 간접 쓰기 부재/항상0을 뜻하지 않는다. 회전 부호·속도·10초 예약·후속 취소/native는 미해결. production/build/test/deploy/native/DB 변경0. 188PASS와 E027 native 상태는 이번 재검증이 아니다.
+
+다음: 실제 회전 보간 소비자 및 native 요청의 tail byte/Time/Wait 확인. 입력 전 새 PID/HWND/listener 확인. 전체 플레이 가능성과 2295 리소스 사용처 확인 목표는 유지한다.
+
+## 2026-09-05 — E033: 원본 Turn 회전율과 통지 시각, ±π 경계 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-033-turn-rate-clock-and-angle-boundary.md; turn-projection-static-check-v41.json.
+
+- **030B Turn → template+214 → 24*Turn 회전율**, 004CA040의 duration은 abs(normalized target-current)/rate. 004CA620 type3이 시간 보간한다. 004C9A80 최초 catchup은 uint32(clientTick-notificationTick)/24. 원본 배율24를 나눗셈으로 잘못 해석하지 않는다.
+- 현재 authored Turn1이면 반전 segment 약0.1309초라는 계산이며 원본 수치나 native 실측이 아니다. 매뉴얼의10초 명령 대기와 회전 소요시간은 별개다. 인물 기동 배율의 원본 서버 계산은 미해결.
+- 004DC320은 [-π,+π] 정규화. float32 모델에서 heading1 +π, heading-1 -π의 단순 target 생성이 반대 부호로 정규화되는 경계 후보를 재현했다. 실제 x87/native 재현이 아니고 보정 epsilon도 미확정이다.
+- 8개 PE 범위/7개 상수 동일,4개 모델 사례 확인. JSON SHA9DBE569203708419CE7C042A9FC270C21A72EBC0DC5C10D3E6A9A11526324425. production/build/suite/deploy/native/DB 변경0. 188PASS와 E027 runtime은 과거 결과다.
+
+다음: fresh identity/화면을 확인한 native 요청 Time/Wait/tail과 좌우 반전 표현, 서버 예약/취소/중간 heading 연결. 즉시 echo나 임의 회전율로 완료 처리하지 않는다. 전체 목표 active.
+
+## 2026-09-05 — E034: 반전 codec 구현204PASS, 실제Turn1 확인, 화면 캡처 실패
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-034-reverse-wire-codec-and-native-baseline.md.
+
+- **0403 exact parser/0424 encoder를 로컬 구현**했다. 별도 tail byte, 최대32, 정확한 길이, NaN/Inf 방어, signed/unwrapped float 보존. literal 테스트16개 추가; 미구현stub RED11/16 이후 전체204/204PASS0skip. GreenTRXSHA6FF312513F290F6BDD683D2E6E7CC22BF5940941A3CB99DA9FE536CE9EBBD4D4.
+- **아직 NaturalAuthoritySession 실행에는 연결하지 않았다.** CODEC_IMPLEMENTED_LOCAL/EXECUTION_NOT_WIRED. 10초 예약·후속 취소·방향 상태·native 반전은 미완료. 패키지/배포/DB변경0.
+- 새07:02/07:04Z read: client3644/authority388 살아 있음, client경로/item116hash와listener소유권확인. tactical1/strategy0, selection0, WARP50, 양측100/morale100. 실제template+214 Turn1/raw0000803F, 자기heading0/적pi. request/reversebuffer0은 **미전송 기준 상태**이지 tail항상0 증거가 아니다.
+- computer-use로 반환된VMware창을 선택/활성화했으나 `SetIsBorderRequired failed (0x80004002)` 캡처 오류. 새창정보로1회재시도도동일, **게임입력중단/재시작없음**. 새스크린샷/guestHWND확인은못얻음. 오래된닫기/반전좌표를쓰지않았다.
+- run reverse-rpm-v42.json SHA3255960CCA6A80D5FFD38C9B8CC16DF6A447C0A34B6E5AE141F3C447016AF1B3; reverse-preflight-v42.json SHAF1C440642874B9DDDCF306E02D4B9C2692C443A3851AFCFB1658C0D5EECBD513.
+
+다음: 서버반전예약/취소/중간heading 연결과 화면관찰 복구 후 native검증. capture오류를게임종료로해석하지않고바로재실행/클릭하지않는다. 미응답NEW_DESIGN선택유지, 전체목표active.
+
+## 2026-09-05 — E035: VM 대체 캡처도 UI 관찰 불가, 프로세스 시계 진행 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-035-live-clock-with-unobservable-screen.md.
+
+- 새 guest PrintWindow와 별도GDI PNG는 흰색, 인증된vmrun captureScreen PNG는 검은색. 세 이미지를 직접 확인했다. HWND0x19403C2 owner3644/visible/foreground, item116hash/path/TCP연결은확인. **캡처 성공이 게임 화면 관찰 성공은 아니다.**
+- 새07:15:40Z RPM은같은PID/생성시각, clock262394. E03407:04:54Z246869에서15525tick진행. 실제출력이빈것인지캡처경로문제인지아직모름; 게임멈춤/device-loss단정없음.
+- 사용자에게 실제VM화면도빈지 비동기질문,응답대기. 같은캡처뺑뺑이/옛좌표클릭/게임서버재시작없음. 새host-capture-vm-screen.ps1은기존DPAPI출처로인증해읽기전용캡처하며비밀번호기록없음.
+- gameinput/production/test/deploy/DB변경0. 204PASS는E034과거실행. E035run파일과해시는controllingreport참조.
+
+다음은화면관찰회복후native요청검증,그동안안전한서버반전예약/취소/상태연결작업. UI경로문제를전체goal완료/blocked로바꾸지않는다. 전체명령/전술/워프항속/기함/맵/리소스/영속성목표active.
+
+## 2026-09-05 — E036: 정지 원문과 반전 예약 교체 규칙의 승인 경계
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-036-stop-semantics-and-reverse-reservation-boundary.md.
+
+- manual2599–2600은대기0초정지가현재실행중함선명령을취소/정지한다고명시. 대기반전예약과새이동/반전의교체규칙은아직명시적원본근거없음. Stop의현재서버구현은권한검사/echo이며예약취소상태없음.
+- 서버는프레임을완전히읽어야ProcessAsync/송신하므로입력없는10초예약실행경로가필요. 하나의pendingframe read/상태소유자/암호화송신순서를유지해야한다. 공유전투/영속성목표를세션별독립타이머로대체하지않는다.
+- 추천미확정규칙: Stop은현재동작/예약취소, 새Move/Reverse는이동계열기존예약교체. **NEW_DESIGN 선택이며아직승인/구현아님.** 기존서버/프로토콜변경승인은유지. brainstorming구조변경검토에서이선택확인전구현대기.
+- production/build/test/deploy/native/DB변경0;204PASS는E034과거실행. 캡처반복/게임재시작없음. 전체goalactive.
+
+## 2026-09-05 — E037: 잘못된 업데이트CAB 전제 정정, 원본250리소스 복구
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-037-update-cabinet-recovery-and-constmsg-boundary.md.
+
+- 기존official-updates/data1.cab은MSCF설치엔진9파일이며unshield게임CAB가아니다. 로컬unshield1.6.2는이미있음. G7UPD040514.exe의0x19200overlay를분석해**실제data1.cab@0x19229/264894,data1.hdr@0x59D0F/33492,data2.cab@0x6200D/9468513**을분리했다. 원본실행/다운로드없음.
+- unshield목록/test265개정상. 모델/텍스처250개만새evidence디렉터리로추출:기존인벤토리와202동일/48다름/0신규경로. 변경은47BMP와전략grid.mdx(44140→11934bytes). ShipMDX/누락101모델을복구한것아님. runtime/originaloverlay미적용.
+- **이업데이트에는constmsg/msgdat없음.** 과거의이파일에서새constmsg복구가설제외. 현재constmsg는HFWR/tableCount120/stringCount3199,0054D4E0이요구하는0x78/0x7B는실제범위밖→NO TABLE. 서버기함번호교체로해결되지않음. group85row8브륀힐트와model8관계는여전히미확정.
+- carve receipt SHA94C25F766F712EC815AE6E9F779662B7F9FBBC859D1E438311086D2B67418898;resource receipt SHAE74ECC26201737C276814BEE1494C9F6E48F4BDACE7E1702E59B4EA0C2F3D743. 두재현스크립트와모든파일해시는report참조.
+
+다음:별도호환constmsg원본/loader버전,48개asset차이소비자,기함kind-modeljoin. 잘못된기존CAB추출을반복하지않는다. 반전예약규칙/화면질문미응답유지. production/testsuite/deploy/DB/native입력0,204PASS는E034이전결과. 전체goalactive.
+
+## 2026-09-05 — E038: 기함 이름179행과 selector 분리 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-038-flagship-name-selector-and-source-boundary.md.
+
+- 원본 constmsg group85의179행을 hash-bound 직접 파싱: row0=戦艦, row8=ブリュンヒルト. 정보창0054D896은 character+31C u16로 이 표를 조회하고, 외형은 별도 template.model_file 경로다. 현재 단일 kind0/model0 bootstrap은 일반 전함 이름과 공통 외형을 공급하는 상태이며 model0을 브륀힐트라고 확정하지 않는다.
+- wrapper004C8DC0의5개 직접 caller와 서로 다른 레코드 selector를 회수했다. 정보창/5caller/wrapper의7개 코드 범위 pristine/item116 동일. 다른 scalar55 후보는 widget색상 인자나 group16 row55여서 기함 이름 소비자가 아니다. JSON SHADF6E60ABE872BFFDEDBE165E914747C84F89C1470FE90EE4C3F1797BFD6E57E7.
+- 두 로컬 raw constmsg 사본은 동일hash/114905bytes. 이전 revival overlay120..123은 빈 PLACEHOLDER/DERIVED이며 원본 호환 신판으로 재사용하지 않았다. NO TABLE/기함배정은 아직 미수정.
+
+다음:00572EE0 레코드 공급자와0057C890 목록 생성, 생성/추첨 kind→030B template→model_file 연결. row8을 model8로 대입 금지. 확인 위치는 이전에 검증한 情報→旗艦情報이며 현 화면은 재관찰하지 않았다. 이번 production/testsuite/deploy/DB/native입력0,204PASS는E034과거결과. 전체목표 active.
+
+## 2026-09-05 — E039: 실제 생성 selector 정정, 기함 종류 ACK 공급 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-039-creation-flagship-ack-and-selector-correction.md.
+
+- **004B78A0 decompile의 case라벨만 믿지 않는다.** 실제DEC/128pointertable로 selector0x0E→1008,0x0D→1007을 확인했다. 생성00595DE0도0x0E송신. 새 rawtable127성공코드분기/1오류분기, 전체table/branch bytes두PE동일. 반전54/철수55는이전결론과같다. 기계적전체+1정정금지.
+- 생성00595DB0는buffer128bytes0초기화.00595E00는성공event후응답pointer에서128bytes복원.00597720기함페이지는buffer+5E kind를group55로표시하고함명만저장한다. 현재서버category0..3그대로echo이며원본기함배정규칙미구현. 종류8을model8로대입하지않는다.
+-00572EE0→004C6930은TARGET_ORGANIZE의편성수량목록이며기함모델대응표가아니다.6개생성/편성범위pristine/item116동일. 핵심JSON request-selector-table-v46-complete.json SHA0439A655953EB447E55963B3E333D248B8FAD53F66E3D6F082CCB14D9A989596.
+
+다음:생성/추첨의서버배정자료및kind→template→modeljoin. 다른명령selector도새rawtable대조. 기존 decompile 기반case라벨을원본번호로재사용하지않는다. 이번production/testsuite/deploy/DB/native입력0;204PASS는E034과거실행. 전체목표active.
+
+## 2026-09-05 — E040: 저장된 함명0323 누락 수정,210PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-040-character-flagship-name-projection.md.
+
+- **E039해석정정:**Ghidra에`switch((selector&0xffff)-1)`가명시돼있다. case0x0D와caller0x0E는일치한다. 앞서case만읽은분석자오류이며Ghidra오류가아니다. rawtable은유효.
+- OriginalWorldEntryCodec.EncodeCharacter의0323flagship_name이항상빈문자열이었다. 이제저장/restoredcommand.FlagshipName을전송한다. 원본00417390/00419300확인및두PE범위동일. 함종/model/배정규칙변경없음.
+- NPCclone이새전송필드까지viewer함명을복사하는회귀를RED로잡고미지정NPC는빈함명유지. literal빈/영문/일문/최대13글자,실제암호화0322→storefixture복원→0323(두새세션),NPC분리총6cases. expandedRED4/5,NPCRED1/1후전체 **210/210PASS0skip**. finalTRXSHA A7B9F1F50BDB388CA3A660876192D735C5200DA179C7276E755A3F94872C9C6D.
+
+로컬미배포/DB/native입력/새패키지0. 테스트저장소fixture는Postgres/native재로그인이아니다. 030Btemplate명과0323개인함명을혼동하지않고기함정보창전체표시수정으로보고하지않는다. 기함kind/modeljoin·전전략/전술/워프항속/전리소스/영속성전체목표active.
+
+## 2026-09-05 — E041: 함명 raw→인물→UI 복사 경로 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-041-character-name-copy-and-display-boundary.md.
+
+-0323raw+28 count/+2A u16[13]→dispatcher snapshot→004C2C80 normalized+4C/+4E→00549FD0 stackcopy→00546570 UI+9F0/+9F2. 이경로는13칸을복사하며종료문자를추가하지않는다.4개PE범위동일.
+-실제그리기소비자의count/NUL방식은미확정. 배열꼬리가남을수있다는사실을화면오류로단정하거나wire를임의로줄이지않았다. 직접4E/2A/9F2/절대주소검색을반복하지않고UI전체객체표시바인딩또는동일실행픽셀검증으로이어간다.
+
+이번production/testsuite/deploy/DB/native입력0.210PASS는E040지난실행. 실제VM화면정상여부미응답,실패캡처/옛좌표재시도없음. 전체goalactive.
+
+## 2026-09-05 — E042: 정지 실행 결함 확인,0423 codec226PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-042-stop-boundary-and-movedship-codec.md.
+
+-040A직접case는명령복사/공통order처리. 서버도Stop은echo이며Move는즉시목적지를저장한다. 이동중현재좌표가없으므로마지막목적지를정지위치로보내지않는다.
+-0423parser004A5870/logger004A5A20:timeu32/unitu32/directionf32/xyzf32/routes8,본문25(application27/full31),expanded28과구분.004BF870은route>=0때410/414갱신,음수때mode4/경로재구성. Stop과정확히어떻게연결되는지아직미확정.
+-MovedShipNotificationencoder추가,route경계4+NaN/Inf12cases RED16후전체 **226/226PASS0skip**. 생산실행분기미연결/로컬미배포. GreenTRXSHA ABC19AFB4EEC10D561F992C68648A764C2AB25B17EFF2F78BE47F2B083947F56.4개PE범위동일.
+
+다음:410/414경로진행소비자와권위이동보간/정지위치/취소/공유전투연결. 신규위치통지를임의Stop레시피로사용하지않는다. 배포/DB/native입력0,NEW_DESIGN및화면질문미응답유지. 전체goalactive.
+
+## 2026-09-05 — E043: 경로 진행 제한과 소행성대 감속 데이터 연결
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-043-route-progress-and-asteroid-speed.md.
+
+- 004CA620은 +410 route/+414 dirty를 경로 구간 진행 한도로 변환한다. X/Z가 일치하는 첫 구간을 선택하며 Y/type은 비교하지 않는다. elapsed 누적은 현재 구간 <= 허용 구간일 때만, 완료는 elapsed > duration이다. 보간 계산은 이 제한보다 앞서므로 화면이 완전히 정지한다고 단정하지 않는다.
+- 004B2C80은 환경 배율 +420을 1로 초기화하고 소행성대 내부에서 0.5로 설정한다. 0347 radius/range → innerRadius=radius-range → 장애물+8C4 → 엄격한 안쪽/바깥쪽 반경 비교. +418=+420*+41C; 이동 경로 속도는 여기에 24를 곱한다. 맵 데이터가 외형뿐 아니라 이동 규칙에도 연결된다. 전체 원본 맵/16개 레코드 동작을 복구했다는 뜻은 아니다.
+- 원본/패치본 9개 구간 동일, 경계값 15개 검증 통과. **STATIC_MODELED_NOT_NATIVE**. receipt SHA256 4F4775617D9FF8D92E6EEB272577FE5647428D30F4D31F61C7C7EF9193FFF241. 실제 서버의 목적지 즉시 저장은 아직 남아 있다.
+
+다음: 초기 경로 진행 허용값/명령 응답 연결을 확인하고 공유 전투 소유의 시간별 이동 상태로 연결. Stop은 같은 상태에서 현재 위치를 얻어야 한다. 임의 통지 주기/예약 교체 규칙 추가 금지. 이번 production/testsuite/deploy/DB/native 입력 변경 없음; 226PASS는 E042 결과. 전체 리소스 사용처 역추적을 포함한 전체 목표 active.
+
+## 2026-09-05 — E044: 이동 응답의 초기 route와 일반/평행 이동 구분
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-044-move-response-initial-route.md.
+
+- 0400 → 004BE8F0는 mode2, 0402 → 004BF320은 평행 이동 mode4. 실행 분기는 Time+Wait와 목적지/velocity를 004BF4C0에 전달한다. 별도 flag 분기는 대기 카운트만 설정한다.
+- 004BF4C0이 rebuild+60=1, dirty+414=1, route+410=0을 설정한다. 실행된 새 이동은 기존 경로를 덮어쓴다. 미실행 예약 교체 규칙까지 확인한 것은 아니다. 004C9A80은 elapsed/currentSegment를 0으로 초기화하며 첫 양수 시간 갱신에서 route0이 허용 구간을 공급한다.
+- 일반 단일 목적지는 선회/이동/최종 선회 3구간, 평행 이동은 이동/최종 선회 2구간이다. 퇴화하지 않은 X/Z 조건에서 route0은 최초 이동 구간까지 허용하므로 최종 구간을 위한 후속 진행 통지가 필요하다. 정확한 원본 서버 송신 시점은 미복구.
+- 현재 서버는 목적지를 즉시 저장하고 echo+전체 함선 snapshot을 보낸다. snapshot만 삭제해도 권위 위치/진행 통지 결함은 남는다. 정확한 화면 영향은 미관찰. 4개 PE 구간 동일, 신규 export SHA1FA51023F1BE8D33EC10EB654AFF99C47F1840FF0CFBFD8931E6571CBDE94532.
+
+초기 route 추적은 종료하고 공유 권위 이동 상태/경로 경계 통지로 이어간다. 이번 production/testsuite/deploy/DB/native 입력 변경 없음. 전체 목표 active, 226PASS는 E042 이전 실행 결과.
+
+## 2026-09-05 — E045: 전술 장애물 합계10 제한 서버 반영,232PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-045-native-obstacle-capacity-guard.md.
+
+- 예약 교체 질문만 남긴 직전 턴은 no-progress로 분류하고, 승인과 무관하게 확인 가능한 맵 소비 경로로 진행했다. 004C7EF0 category2/004BE520/004B2C80 모두 manager+17991C,stride8E0의 합계10 슬롯 사용. 부족 시 allocator0,004C4970의 후속 복사에는 null검사가 없다. 실제 crash재현은 하지 않았다.
+- 서버 종류별 최대1/1/10/1/5는 합계18까지 허용했다. OriginalBattlefieldCatalog.Validate에서 합계>10을 거부하도록 수정. 정상10은 모든 레코드 유지. wire/geometry/예약정책 변경 없음. 이전 count>16 diagnostic을 asteroid16지원 근거로 삼지 않도록 E043 설명도 정정.
+- TDD 신규6cases: RED3거부누락/3정상PASS → 전체 **232/232PASS0skip**. GREEN TRX SHA256 BFEEE968BF928D709253559021E5AEB2B605CEB3E271A9366ED608E5C4956149. 원본/패치본4개코드구간동일.
+
+로컬미배포,DB/native입력/재시작0. 기본맵은 여전히 장애물없는 authored field이며 행성표시수정으로 보고하지 않는다. 다음은 별도Base(category0)10슬롯과 현재wire16제한의 실제생성경로 대조. 전체전략/전술/워프항속/기함/맵/전리소스/영속성 목표 active; 예약질문 미응답 유지.
+
+## 2026-09-05 — E046: 전술 기지의 필드10/패킷16 분리,235PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-046-native-base-capacity-guard.md.
+
+- 004C32A0의 전술 Base 레코드가 category0 생성으로 이어지고,004C7EF0/004BE4D0은 manager+174124,stride8CC의 별도10슬롯을 사용한다. 장애물 pool과 합산하지 않는다.3개원본/패치코드구간동일.
+- OriginalBattlefieldCatalog.ValidateBaseJoins의 같은grid 생성한도16→10 수정. OriginalSystemSceneCodec의 패킷한도16은 유지. 전역카탈로그합계10으로 제한하지 않는다.
+- 수정전11/16거부test2실패,17은기존거부. 별도grid마다10개씩총20개를 유지하고 위치packet4/4/2분할을 확인. 전체 **235/235PASS0skip**. GREEN TRX SHA256 410C3AAFCA83A053185EA0ADA72DE2B24B4766764C344E4F1F61E00EE1935861.
+
+기지/장애물수용량추적은 이검증범위에서종료. 기본1기지·행성표시상태는 바꾸지 않았다. 로컬미배포/DB/native입력/재시작0. 다음은E043/E044근거의 실제이동상태연결로복귀하며 미확정예약규칙은분리한다. 전체goalactive.
+
+## 2026-09-05 — E047: 거부된 이동의 상태오염과 비유한값 수정,267PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-047-move-state-integrity.md.
+
+- 첫0400은 권한검사전에 기본XYZ0/morale0/search0 함선을 캐시했다. 거부된요청뒤033A도 잘못된상태를 반환했다. 이제맵template의함선을 로컬후보로구하고 승인후에만 캐시한다.
+- 이동9개float의NaN/±Inf를 권위검사에서 거부하고 상태/이동projection을 만들지 않는다. structuraldecoder/연결은 유지하며 기존 visible rejection 사용. 새속도범위/예약규칙 추가없음.
+- TDD RED31/32→전체 **267/267PASS0skip**. 암호화0400거부후033A조회에서맵spawn50/7/-20,heading1.5,morale100/search1유지확인. GREEN TRX SHA256 50A5511ED24CD36CB4202606F4F54F072A977E54C85B79F0489C0816E67649BC.
+
+실제생산분기수정이나 유효이동의목적지즉시저장은아직남아있다. 연속이동/정지/공유전투/예약구현으로보고하지않는다. 로컬미배포/DB/native입력/재시작0,전체goalactive. 다음은E043/E044기반시간별이동상태연결이며 이번입력결함을재조사하지않는다.
+
+## 2026-09-05 — E048: UI 효과음 사용처2개와 워프음 후보 구분
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-048-sound-trigger-discrimination.md.
+
+- 승인질문만반복한직전턴은no-progress. 독립적으로가능한전리소스조사로진행해004AFF50의5개직접호출을확인했다.4곳은ID3→cursor.wav의전술/전략UI선택,1곳은ID1→SOUND01.WAV의로그인form이벤트0D분기다. Enter해석은추론이며인증성공음이아니다.
+-5곳모두warpID4가아니다. warp1.wav는등록확인/발동미확인/미사용확정아님유지. 실제음성출력미관찰. sound-trigger-use-ledger-v55.json에2리소스/5호출/조건/원본해시를추가overlay로기록했으며326queue수치를빼지않는다.
+-5개PUSH/CALL코드구간원본/패치동일,두음원hash현재확인. 신규export SHA256 CE324E45BCC6C79F5B3BB8B619DDBA031A8DFBD5FB59CB175F408021B86F3908. 같은직접wrapper조사반복금지.
+
+이번production/build/testsuite/deploy/DB/native입력0,267PASS는E047이전결과. 예약규칙/화면질문미응답이며자동계속을승인으로보지않는다. 독립리소스추적이진전해전체goalactive유지.
+
+## 2026-09-05 — E049: 전략/전술 BGM 선택설정과7곡 연결
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-049-bgm-mode-and-settings-selection.md.
+
+- 004AFD90의직접caller6개회수:초기화choice0,설정미리듣기2곳,전략/전술선택2곳,unmute기억곡1곳. 전술UI mode1은설정0D,전략mode2는0C를읽는다. 004B68F0→0054E570→004C32A0/004C4170으로모드의미를대조했다.
+- 0054EF40설정UI가곡/음량변경을처리하고닫힐때설정10..13저장함수/004F34F0호출. 디스크영속성검증은아니다. bootstrap0=SwanLake,다른곡은설정값이며특정전투별고정곡배정근거없음.
+- bgm-trigger-use-ledger-v56.json에7곡과선택조건을추가.7개원본음원hash/7개PE구간검증. 실제재생UNSEEN/기존326queue불변.같은BGM직접호출추적반복금지.
+
+다음은등록/발동/실재생을구분하는리소스원장통합. 이번production/build/testsuite/deploy/DB/native/audio설정변경0,267PASS는E047이전결과. 전체goalactive,예약정책/화면질문미응답유지.
+
+## 2026-09-05 — E050: 음원20개 증거 통합과 단계별 미검증 유지
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-050-consolidated-sound-evidence.md.
+
+- 최신통합view는sound-use-consolidated-v57.json. E025등록20/E048UI2/E049BGM7/기존E025무기5를path+hash+실행파일계보로합쳤다. 등록20,부분발동근거14,발동미해결6,실재생검증0. 무기5는기존근거구조화이며신규발견으로세지않는다.
+- 미해결6:W_NOISE/SOUND02/warp1/fengine/bburn/exp3. 모두미사용확정아님. 역사적326queue와2,295전체인벤토리수치불변.
+- 검증utility7tests RED→GREEN,실제실행파일및20개원본음원hash검사통과. 다른hash/계보/unknown/중복및정적증거로playback승격을거부한다. 통합JSON SHA256 62C9C7A7DAD6023BC582CE6AA77B15049EBEEB882200134B62EE7B989147362C.
+
+이번게임production/protocolsuite/deploy/DB/native/audio설정변경0. utility7PASS를이전protocol267PASS에합산하지않는다. 전체플레이목표active,이동/정지/예약및화면미확정유지. 이후음원검토는이통합view부터읽고같은등록/직접호출조사를반복하지않는다.
+
+## 2026-09-05 — E051: 공식 전술 명령표와 패치 기록 복구
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-051-official-tactical-reference-recovery.md.
+
+공식 gineiden.com의 Wayback 원시 HTML 4개를 official-web-v58에 고정 URL·해시와 함께 보존했다. 공격은 자동 공격, 사격은 지정 무기의 단발로 구분된다. 정지는 실행 중 명령을 대상으로 설명하지만 예약 취소 범위는 명시하지 않는다. 2004-06-25 전술 조정 공지는 명중률의 공격/방어 보정과 주둔 유닛 차폐 변경을 기록하며 수식은 없다. 고정25피해를 원본 규칙으로 취급하지 않는다.
+
+매뉴얼 페이지에서 2004-10-07 갱신 gin7manual.pdf 경로를 확인했으나 PDF 자체의 로컬 판본 비교는 아직 안 했다. 다음 시작은 이 판본 비교 또는 보존 업데이트 공지의 명령 대기·취소 변경 조사다. CGI num과 캡처 날짜를 함께 검증할 것. 이번 production/test/deploy/DB/native 입력0,267PASS는 이전 결과. 전체 목표 active; 예약 규칙이나 실제 플레이가 해결된 것으로 보고하지 않는다.
+
+## 2026-09-05 — E052: 매뉴얼 중복 경로 종료, 기함 구매 ID96으로 연결
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-052-manual-identity-and-late-gameplay-update.md.
+
+기존 manual-variants의 Wayback PDF와 IA PDF는 동일 SHA256 FF9B7B638582FEBBA723413D9956F4166AECBC20746CB35BB4AFDDCEF9515080. E051의 매뉴얼 후보는 새 판본이 아니며 재조사하지 않는다. 기존 파일이 있는데 초기 index.csv의 ERROR만 보고 미확보라고 판단하지 말 것.
+
+기존 공식 update05의 본문을 다시 대조: 수도성 기함 공창의 개인 카드에서 기함 구매, 함종별 평가 포인트/계급 제한, 격침 후 구축함 복귀. 우주 전술 철퇴는 위치 방향의 인접 그리드로 바뀌었다는 설명이다. 정확한 기하·가격·모델 ID·현재 PE의 업데이트 적용은 미확정.
+
+strategy-command-ledger.json ID96에 출처/문서상 UI만 추가하고 NOT_STARTED/request=null 유지. 개인 카드0 빈 목록 제공 관찰을 원본 전체 무명령 규칙으로 일반화했던 문장을 정정했다. 다음은 ID96 표시 조건→목록 공급자→요청 생성 추적이다. 이번 게임 코드/test/deploy/DB/native 입력0; 전체 목표 active.
+
+## 2026-09-05 — E053: 기함 변경0358의 직접 후속 처리 없음
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-053-flagship-change-receiver-stub.md.
+
+00571870의17개 대상 선택 표에는ID96이 없으며, scalar60 UI 후보 네 함수의 해당 값은배치였다. 구매 요청은미발견이고클라이언트전체기능부재를확정하지않는다.
+
+0358 NotifyChangeFlagShip 분기는world+4332D0에확장92바이트를복사한뒤005266E0호출. 이함수는C2 04 00(RET4)뿐이며다른통지도공유한다. 원본/item116의함수3바이트·dispatcher54바이트·표136바이트동일. 서버0358송신만으로기함교체표시완료라고보고할수없다. 다른정보갱신경로가능성은열려있다.
+
+다음은기함kind/template의실제갱신소비자또는지원클라이언트판본확인이다. 같은scalar검색·네UI후보·이미완료한G7UPD040514추출반복금지. 이번production/test/deploy/DB/native변경0. 전체goalactive,ID96 NOT_STARTED유지.
+
+## 2026-09-05 — E054:033B는기존entity/model갱신증거가아님
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-054-unit-snapshot-versus-render-binding.md.
+
+033B는world+4271A8에확장0x79E4바이트복사후004BE750호출. 이함수는B0 01 C2 04 00으로성공값1만반환한다. 함종은004C46A0 category1→identity004C5130→entity+8BC에서설정된다. 모델연결004F19E0의직접경로는004B64C0→004BE440및004C32A0→004BE490이다. 원본/item116의7구간동일; 간접갱신전체부재나원본전체미구현을단정하지않는다.
+
+서버033B전송/테스트를실제기존함선표시갱신으로승격하지말것. 다음은E042–E044의0423통지를실제이동authority에연결하는핵심작업으로복귀한다. 033B재전송으로대신하지않고같은stub/caller조사를반복하지않는다. 이번production/test/deploy/DB/native0,전체goalactive.
+
+## 2026-09-05 — E055: 전술 경로cursor C# 구현,300PASS / 아직미연결
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-055-tactical-trajectory-cursor-implementation.md.
+
+OriginalTacticalTrajectory.Step을서버프로젝트에추가했다. E043/E044의004CA620을따라type2/4보간,type3회전,XZ첫match,승인구간경과시간,엄격한elapsed>duration,새ack프레임잔여루프중지등을구현했다. 실제함선추종좌표가아닌Desired계산이며x87비트동일주장없음.
+
+TDD33테스트: 초기21/22실패→기능22PASS→확장guard10/33실패→전체300/300PASS0skip. GREEN TRX SHA25641023F36B8FFAB8C57B03B517291D6FD5F9CE4BA0CF97FFC57FFEF81ABC636F9. 입력방어는재구현API규칙으로분리.
+
+아직테스트만호출하며0400목적지즉시저장문제를고친것이아니다. 다음은기존004CA2E0 actual pursuit와004C9D30 builder,이후공용battle/clock/0423/Stop연결이다. Desired를실제좌표로저장하거나033B재전송으로대신하지않는다. DB/deploy/native0,전체goalactive.
+
+## 2026-09-06 — E056: 실제 추종 계산 구현과 XYZ 거리 정정
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-056-tactical-pursuit-implementation.md.
+
+OriginalTacticalTrajectory.Pursue를 추가했다. 004CA2E0의 이동 한계·도달 시 XYZ 복사·회전의 signed 비교·moving flag clear 조건을 이식했다. 원본/item116 전체 hash 및 8개 코드/상수 구간 동일 확인. 새25개 테스트 포함 최종325PASS. 중간322PASS는 아래 정정 전 결과이므로 최종 근거로 쓰지 않는다.
+
+중요 정정: 004CA160→005DD880은 XZ가 아니라 XYZ 거리다. 004DC2B0은 그 XYZ 거리로 정규화한 벡터에 asin/acos를 사용하므로 Y가 다를 때 atan2(dx,dz)와도 다르다. E043의 거리 설명은 폐기한다. 경로 승인 XZ 매칭과 asteroid XZ 판정은 다른 함수이며 변경하지 않는다. 004CA1E0 duration도 같은 XYZ helper를 사용한다.
+
+아직 runtime 미연결이다. 다음은 기존 export의004C9D30/004CA0D0/004CA040/004CA1E0 builder를 구현하고 shared battle/clock/0423/Stop에 연결한다. 편대 leader transform과 render derivative는 미구현. 현재0400 즉시 저장은 그대로이며 DB/deploy/native0. 반복 helper 조사 금지, 전체goalactive.
+
+## 2026-09-06 — E057: 경로 생성기 구현,349PASS / 명령 연결은 다음
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-057-tactical-path-builder-implementation.md.
+
+OriginalTacticalTrajectory.Build로mode2 일반/mode3 선회후이동/mode4 평행 및 저장origin 보정 fallback을 구현했다. 실제entity pose로 첫 거리/회전을 계산하되 interpolation origin은entity+110으로 따로 유지한다. rotation target은(0,heading,0),duration은짧은호/turn rate이고 translation은XYZ거리/speed. 004CA0D0 거리0은 기존heading 유지. 13개 원본/item116 구간 동일.
+
+신규24RED→전체349PASS. 생성→cursor→actual pursuit 조합 test 포함. 하지만 production handler에는 미연결이며0400 목적지 즉시 저장은 남아 있다. 다음은 builder/helper 반복분석이 아니라 shared battle/clock/실제motion 수명주기와0423/Stop 연결이다. idle에서도 due event를 내보낼 single writer와 진행 중 frame read를 보존할 것. pending예약 교체 정책은 미승인 상태 그대로이며 읽기요청 기반 위치갱신/033B 재송신을 완성으로 취급하지 않는다. DB/deploy/native0,전체goalactive.
+
+## 2026-09-06 — E058: 비동기 통지 I/O 루프 연결,360PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-058-idle-capable-connection-pump.md.
+
+NaturalAuthorityServer가OriginalConnectionPump를사용한다. 단일전체frame read task와session.PendingNotifications를동시에기다리며cipher sequence/송신callback은직렬이다. 부분prefix/body수신중통지를처리해도원래read를재시작하지않는다. 종료시양쪽wait를cancel/회수하고channel writer도complete한다. 기존길이경계와응답batch순서를유지한다.
+
+실제loopback TCP7RED→7PASS,추가회귀4포함11case/전체360PASS. 전체host로그인native검증은아니다. PendingNotifications는bounded64 Wait 내부큐이며현재전투producer는없다. 따라서다음은shared battle/motion clock/subscription과실제due-event공급이다. 0400목적지즉시저장/per-session상태는아직남아있다. I/O만연결한것을게임이동해결로승격하지말것. DB/deploy/native/restart0,전체goalactive.
+
+## 2026-09-06 — E059: 관리자 직접 접근 분류와 데이터 음원 경로
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-059-alternate-sound-data-path.md.
+
+예약 정책 질문은 미응답이며 자동 continuation을 승인으로 간주하지 않았다. 독립 전체 리소스 조사로00616CA0 getter38CALL(16함수) 중 신규10함수를 분류했다. 대부분 생성/정리/설정이며0061D1E0 case2에는 이벤트ID→stride10h 레코드→memory source→자식 음원 생성 경로가 있다. fengine/bburn 연결은 아직 미확정. packed10000106 literal1건은실행불가.rdata이므로play CALL이 아니다.
+
+신규13함수 원본/item116 구간 및 미확정6음원hash검사. sound-alternate-access-v65.json SHA2562E8EBD6AF45306A61B925A558A56B1B3CD599F1FBC348D1958BE4B7414D5B215. 기존20/14/6/native0과2295전체/326queue 불변. 다음음원추적은0061D120/0061D1E0 owner+14/+18 descriptor 공급자와payload다. 같은getter/등록/래퍼직접호출 반복금지. production/test/deploy/DB/native0,전체goalactive.
+
+## 2026-09-06 — E060: 대체 음원 경로는 GSD로 한정, 반복 조사 종료
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-060-gsd-sound-path-boundary.md.
+
+0061CBE0이owner+14에source+11C를저장하고subselection ID로descriptor+10table의row를선택해owner+18로연결한다. 이객체는0061C590 format2→0061CA00→vtable00682458이만들며format2는gsd다. source mode0/2(file/memory)와format0/1/2/3(wav/ogg/gsd/ikm)을혼동하지말것.
+
+현재20음원은WAV/OGG,보존설치원장2295행과별도CD추출data2185파일에서gsd/ikm파일명0. 내장/후공급데이터부재까지단정하지않지만이GSD경로를fengine/bburn발동근거로쓸수없다.15구간원본/item116일치와20음원hash검사. receipt sound-format-boundary-v66.json SHA2564C23BFFEBDB712F0269321E94FCEBA4B60E90024CAE21C979353548162BA2054.
+
+새GSD/embedded bank근거전까지이분기반복조사금지. 음원20/14/6/native0과전체2295/326queue불변. 다음은다른미해결리소스사용자추적또는새관찰조건이갖춰진native검증. 예약정책승인미응답,production/test/deploy/DB/native0,전체goalactive.
+
+## 2026-09-06 — E061: 공유 NPC피해와 실제 비동기 producer 연결,371PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-061-shared-npc-battle-and-idle-damage.md.
+
+NaturalAuthorityServer가grid별OriginalTacticalBattleRegistry를모든session에주입한다. 기존NPC피해/생존/종료는process공유이며relay의표적확인→변경→publish를commandlease로직렬화한다. 관찰자는0426과종료0317/0F1F를PendingNotifications로받는다. actor개인snapshot은타인에게복사하지않는다. 구독은grid변경/연결종료시해제된다. overflow는slowpeerchannel을실패시키며lock안에서대기하거나조용히이벤트를누락하지않는다.
+
+5통합RED→5GREEN,추가6검증포함전체371PASS. 다른key의무입력observer가실제loopbackTCP에서session암호화sequence2/3,피해25/50수신. 최종피해후종료통지/latejoin완료유지/다른grid격리/동시공격/서로다른unit2/3도검증. 최종TRX SHA2563A85E77072D33208762C6C2A02E0ED3B679E4C91E10F99039600E4988B3DE534.
+
+E058의producer없음은NPC피해/종료에한해해소. 플레이어이동/편대/모델생성/DB영속성은아직공유하지않으며0400즉시저장도남아있다. 원본0426수신자가관찰자에게없는공격자unit을필요로하는지확인해야하므로native표시성공으로승격하지않는다. 다음은해당조건/참여자bootstrap또는공유motion연결이다. 원본미확정예약정책/25피해balance변경0,DB/deploy/native/restart0,전체goalactive.
+
+## 2026-09-06 — E062: 타인 공격자 누락 시 피해 전체 무시, 증분 함선 진입 경로 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-062-incremental-tactical-participant-entry.md.
+
+원본 004C0DF0은 공격자/피격자 중 하나라도 lookup 실패하면 효과뿐 아니라 피해·잔존 수·방어막·사기 갱신 전체를 건너뛴다. 따라서 E061의 서로 다른 unit 통신 테스트는 관찰자 화면의 피해 반영 증거가 아니다.
+
+0B09는 임시 인물 count를 비우고, 전술 mode +126711==0의 0B0A는 004C2A80(1)→004C32A0(1)을 호출한다. 후자는 033B와 0325를 unit ID로 조인하고 실제 0323 인물과 모델 kind를 연결한 뒤 004BE490 renderer bind를 호출한다. E054의 033B 단독 hot-apply 불가와 구별할 것. 004C4970은 중복 ID 슬롯을 재사용하지만 0x8BC 공통 영역을 덮어쓰므로 기존 viewer/NPC를 반복 진입시키면 안 된다.
+
+다음 구현은 원본 함수를 더 재조사하는 것이 아니라 (1) 요청 응답이 끼어들지 않는 단일 알림 batch, (2) 실제 actor descriptor 및 observer별 known ID, (3) 누락 actor 진입 뒤 0426 순서다. 현재 per-frame pump에는 중간 응답이 임시 0325/033B를 덮을 위험이 있다. 최소 packet 집합과 corps/shield 조건은 보고서의 확인/미확인 경계를 유지할 것. 타인에게 자신의 CharacterContext/full-scene/0F1F를 복사하지 말 것.
+
+원본/item116 9구간 일치, 9명령 assertion PASS. receipt incremental-ship-entry-v68.json SHA256 368AE2E7A2EDFAEE9FF4D939ED727D74857D7854AB500986365C42BDC47504D3. production/test 재실행/DB/deploy/native/restart 0. 직전 371 PASS는 통신/서버 검사이며 native 성공으로 승격하지 않는다. 전체 리소스 목표와 예약정책 미응답 상태는 그대로, 전체 goal active.
+
+## 2026-09-06 — E063: 공격자 증분 진입을 공유 피해에 연결, 전송 묶음과 377 PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-063-observer-participant-batches.md.
+
+알림 채널을 OriginalTacticalNotificationBatch 단위로 변경했다. 등록 시 프레임을 복사하고 grid/subscription ID를 붙인다. Registry는 observer별 known unit을 추적해 처음 보는 공격자만 0B09→0323→0325→033F→033B→0B0A로 등록한 뒤 0426을 보낸다. 배우의 실제 character/기함명/현재 pose·사기·corps를 사용하며 recipient/NPC를 진입 목록에 포함하지 않는다. 단 kind는 기존 0 유지로 기함 모델 선택 복원이 아니다. 인물 데이터 없는 새 공격자는 사용할 수 없는 피해를 전송하는 대신 해당 observer 연결을 실패시킨다.
+
+Pump는 generic notification callback을 지원하며 실제 host는 한 callback에서 전체 묶음을 인코딩·전송한다. Full queue는 새 사건 일부만 받지 않는다. Grid를 떠났다가 같은 grid로 돌아와도 옛 subscription 묶음은 sequence 소비 전에 폐기한다. 최초 2개 실제 실패를 확인했고 추가 경계/TCP 포함 신규 6개, 전체377PASS. 다른 key의 실제 TCP에서 진입 중 들어온 조회 응답은 진입·피해 sequence2–8 뒤 sequence9로 전달됐다. Final TRX SHA256 6727A675B6C1041AD10F903F8447987839756F626E7F2E7770573319A21DB2BD; evidence/participant-v69-tests에 보존.
+
+이것은 공격 시점의 누락 actor 보완이지 전체 참가자 입장/퇴장/조회 동기화 완료가 아니다. 0341 조건부 방어막 보조 데이터와 0337/UI 후속 소비자, native 전술 scene 준비 조건이 남았다. 다음은 그 데이터 조인과 full participant lifecycle이며 같은 null guard/idle pump 반복 조사 금지. DB/deploy/native/restart/resource 신규 검증0, E023+ 미배포, 예약정책 미응답 유지, 전체 goal active.
+
+## 2026-09-06 — E064: 방어막 0341 데이터 연결, 388 PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-064-shield-fill-import-data.md.
+
+00423890 파서/00423CC0 logger 확인: count:u16<=600, unit:u32 + next_time:u32[6] + shield_step:u16[6], 레코드40바이트. 원본은 +9==0 함선의 레코드를 unit ID로 찾고 없으면004C4005 오류 경로에 들어간다. next_time은 초기 elapsed=period-next_time에 쓰이며 절대 game tick이 아니다. 004C1700이 정적 shield table에서 period를 만들고004B2740은 strict elapsed>period일 때 [0,3,5,4,1,2] 축 순서로 회복시킨다. shield_step은 이 import loop에서 읽지 않으며 미해결이지 unused가 아니다.
+
+OriginalTacticalShieldCodec을 추가해 초기 scene/0340 요청/새 actor 진입에 해당 함선의0341을 공급한다. 기존 정적 table100을 공통 상수로 뽑아 next_time100→초기elapsed0, authored step0으로 연결했다. 정적 table wire는 불변이며 충전량100을 step으로 복사하지 않는다. 동적 서버 방어막 회복·phase 영속성은 아직 구현하지 않았다.
+
+최초 bootstrap/actor 실패와 query fixture 수정 후 empty-branch count 실패를 확인했다. 신규11개 포함 전체388PASS; TCP actor batch에0341이 추가되어 진입·피해sequence2–9 뒤 query응답sequence10. TRX SHA256 97463016CB1DBD6CCF4755E60F49053B9AB841B92D812361BE88EE79506A1F51. 원본/item116 9구간·8명령·3label 확인 receipt shield-fill-layout-v70.json SHA256 C1674975EB2C33737219829E73B40E4E1BF9C85733908DDC64E930567951A4D2.
+
+0341 누락은 서버/codec 범위에서 보완됐다. 다음은0337/UI 소비자와 전체 참가자 입장·퇴장·조회 연결 또는 shield_step의 실제 소비 경로다. 같은0341 parser/null-record 재조사 금지. native 모델/방어막 표시 성공으로 승격하지 않는다. DB/deploy/native/restart/resource 신규 검증0, 미배포·예약정책 미응답·전체goalactive 유지.
+
+## 2026-09-06 — E065: 참가자 목록 경계와 동일 그리드 재생성 수정,392 PASS
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-065-roster-and-scene-rebuild-boundary.md.
+
+0337 handler는+431AB4에0x259dword 복사 후004BDD33 cleanup으로 간다. 직접 buffer use는 writer1개이며0337만으로 모델/HUD refresh를 일으킨다는 근거가 없다. 전체 unused 주장은 금지. 실제 증분 진입은 E062의0323/0325/033B→0B0A import다. 반대로0B08→004BECE0은 인물 context 제거와 UI 이벤트 후 entity+5B8/+5B9를 설정한다.004BEDA4 lookup 후 null guard 없이 dereference하므로 임의 unit ID를 모든 observer에게 퇴장 통지하면 안 된다. Packed reader/maxcount는 아직 미회수.
+
+조사 중 같은grid0F02 scene rebuild에서도 known actor ID가 남아 다음 공격의 진입이 생략되는 버그를 찾았다. ResetBattleObservationForSceneImport와 battle lease를 initial bootstrap/refresh에 연결해 구독 token/known ID를 갱신하고 옛 pending batch를 폐기한다. 공유 encounter 피해는 그대로다.2RED→2GREEN,추가2검증 포함전체392PASS; 재생성 뒤 actor 재진입과NPC25→50 유지 확인. Native 재현은 아님.
+
+TRX SHA256 518A1F00CBA1EFC8C68ED18D1C18A367BA87CA37633F9E883C5855AB8118E735.3구간/5명령 확인 receipt roster-scene-boundary-v71.json SHA256209328C8D6DE13CC22D395F18D6513E702B01CB40601E50BC76F589B9064E933. 다음은 shared participant descriptor와 전체join/query projection,정확한0B08 wire/native scene-ready 경계다. 같은0337직접buffer scan 반복금지. 첫 공격 때만추가하는현재동작을전체입장완료로부르지말것. DB/deploy/native/restart/resource 신규검증0,미배포/미응답정책/전체goalactive유지.
+
+## 2026-09-06 — E066: 서버·클라 동시 검증으로 전환, 현재 게스트 화면 검정
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-066-server-client-paired-checkpoint.md.
+
+사용자가 “서버 처리랑 클라 확인을 동시에 해야지”라고 정정했다. 이후 서버만 확장하지 말고 명령 한 개마다 서버 처리→원본 화면 관찰을 함께 닫는다. 참가자 snapshot/초기 scene/조회 연결은 빌드 가능한 상태이며6RED→6GREEN, 전체398PASS. 전술 방어막 테스트 reflection 인자 변경1건을 고쳐 full397/1FAIL→398PASS. 기존 관찰자의 eager join/leave와 lifecycle 검증은 미완료이며 E066은 중간 체크포인트다.
+
+현재runningVM1개는oracle-win11-hd-re.vmx. VMwarePID11704/window407570838, read-only guest query에서G7MTClientPID3644/Logh7.ServerPID388. @oai/sky는SetIsBorderRequired/0x80004002 실패, 같은호출반복안함. Orca1.4.190의computer-use로같은VMware창을restore/capture했고 창테두리는정상이나게스트영역은검다. 게임키/클릭/종료/재시작없음. 사용자에게 실제화면도검은지,정상이라면캡처제공을요청했다. 답전동일capture반복/옛좌표입력/화면실패만으로재시작금지.
+
+화면 native-v72-vmware-black.png SHA2565FD71C42CE628023D32DCE1A068BF47B4DD45D2E041479381AF080ADE4C25CAF. 현재fullTRX SHA2569B0105DF3D35DEB53D36EFC0675A7E0A862D0C79AD0424B31CFB294725F3E669. 다음은화면구분→client/serverhash·session/listener현재검증→배포/run경계확정→실제장착무기1회발사·명중·피해를wire와함께검증. 현재미사일미장착,빔화면효과미관찰. Native OBSERVATION_BLOCKED/전체goalACTIVE,DB·배포·게임입력·리소스검증0.
+
+## 2026-09-06 — E067: 게임 화면 확인, 서버·클라 쌍 검증 일부 완료
+
+사용자가 현재 실행 중이라고 알려준 후 새 캡처에서 전술 조작 패널과 기함 정보 창을 확인했다. E066의 현재 검은 화면 상태는 해소되었으나 원인은 미확정. native-v73-game-visible.png SHA2564D2A1874EF704E5D23FAF68A4707ADA0F85743213AA65249D5992A3A9C6E599B. 패널 BEAM/GUN0 및 무기명 NO TABLE 관찰은 미장착/발사불가 증명이 아니다.
+
+기존 단발 read-only probe로 G7PID3644의 run경로/item116해시/생성시각, 서버PID388의 prep경로/생성시각/listener47900, 클라이언트 두 함선 슬롯을 확인했다. 영수증 native-state-v73.json SHA2562AB67D13D82D25048262E8942E5EAF9CD1121D20FE42BF3C00717C3EACD87778. 서버 파일 해시·실제 TCP 연결은 이 probe 범위 밖이다.
+
+추가 native-live-pair-v73 진단이 응답하지 않아 정확히 식별한 호스트 진단 pwsh36900만 종료했다. guest 진단의 staging/완료 여부 UNKNOWN, 복사 영수증 없음. 이 step명 재사용/가능한 guest출력 덮어쓰기/무작정 재조회 금지. VM·게임·서버 프로세스는 종료하지 않았다. E020 공격4회/E027 power drag 봉인 유지, 게임입력/재시작/배포/제품코드변경0. 빔·미사일 실제 효과 UNSEEN, 현재398PASS 소스는 계속 미배포. 자세한 경계와 다음 시작점은 work/20260904-warp-state-reverse/evidence/E-067-native-visible-paired-preflight.md. 전체goalACTIVE, 서버와 클라이언트를 한 검증 단위로 진행한다.
+
+## 2026-09-06 — E068: 화면은 있으나 연결 종료, 원본 heartbeat 복구 및 진척도 계획
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-068-native-heartbeat-and-progress-plan.md.
+
+v73 진단과 일치하는 게스트 프로세스 없음/결과 파일 없음 확인 후 재실행하지 않았다. 별도 단발 v74 진단은 직접 vmrun으로 성공. client3644와server388 경로·exe해시·생성시각, 서버DLL C3984534205193152E32EA05333AE836D8AD1E395B4C46094B3421C0B06FF91D(v21) 확인. netstat에는 두 서버LISTENING만 있고 클라TCP없음. native-connection-v74.json SHA2569DD825D15F760E7D3B79F83562BCAEF9C0A944071B45F13CBA293BB1A3AF7D0D.
+
+보존한server-wire-disconnect-v74.jsonl(19,485,535bytes/31,567lines/SHA25647C1A7F160DAAAE4A3B922846029BB08423B1CC95D854FA04B161D5BF6D6A648)의 마지막은2026-09-05T12:34:56Z connection3 control0002/payload0→unexpected-control→Rejected/closed. 원본004AD93E의30000→00612570→00614BC0×1000→00615520 설정,00615550 밀리초타이머가 raw프레임00020002를 생성한다. 약8h20m주기와실제종료시간부합. 플레이어로그아웃으로추정하거나0002echo를추가하지말것.
+
+NaturalAuthoritySession.ProcessAsync에서 활성handshake/lobby/session의 빈0002를 응답·암호sequence·참가자publication없이 소비하도록 수정했다. payload있는0002/terminalstate는기존거부유지.11case중7실제RED(실제TCPreset포함)→전체409PASS. TRX heartbeat-full-green-v74 SHA2562C7443862ED91886D8DC603ED04E899043B888865DBD834CDCD6B37FDA0148B0. 실제TCP는00020002두번뒤암호화seq1요청/서버seq1응답성공. 원본장시간재검증은미완료이며아직미배포다. v22publish는NETSDK1047(net10.0/win-x64 restoretarget없음)실패,출력디렉터리·패키지없음. E:환경restore후진행해야한다.
+
+사용자 최신 요구: 유저↔유저/NPC↔유저/NPC↔NPC, 모든게임동작과자동NPC AI, 전략·전술명령실행과효과, 명령·제안전체과정,2D아트·스프라이트·3D모델정체/출력, 고장난시스템파악, 기능복구먼저·한글화나중, 관련도구충분히활용. 이후“진척도를어떻게확인할지계획”요청으로배포진행을멈추고 docs/superpowers/plans/2026-09-06-gameplay-progress-verification.md 작성. 기능×시나리오별 서버/실제클라/저장증거로완료판정하고테스트수·xref수를게임완료율로쓰지않는다. 전략원장97행의과거7PASS표시/90NOT_STARTED,리소스2295정적분류는현재전체기능완료율아님. 현재피해경로고정NPC/명령제안자기대상카드제한도현황에반영했다. 새게임입력·재시작·배포·AI구현0,전체goalACTIVE.
+
+## 2026-09-06 — E069: 함선 위 라벨은 인물 display_name, v22 패키지 준비
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-069-tactical-overhead-name-and-v22-checkpoint.md.
+
+사용자가 이름 위치를 함선 바로 위 라벨로 특정했다. Ghidra로 00419300의 raw0323 필드명과004C32A0 전술 import를 연결: parentage가 있으면 +B8 길이/+BA display_name을 entity+6BC로 복사한다(004C3C2C..59). 함명이 비어서 대체하는 분기가 아니다. 004F0260은 함선 투영좌표 위로 Y를 옮겨004F0516에서004C8020을 호출하고,004C807B/88은 entity+6BC를004E8AF0 텍스트 경로로 넘긴다. 원본 SHA BD19263C...의3구간 바이트 일치. 원본 정적분석 확인이며 item116 새실행/화면변경 검증은 아니다. 서버 flagship_name 전송 E040만으로 이 라벨은 바뀌지 않는다. 인물 display_name을 함명으로 전역 덮어쓰기 금지; 함명 라벨 요구는 클라 전용 표시 경로 변경과 범주/갱신/실기 검증이 필요하다. 이번 진단은 패치하지 않았다.
+
+E068의 publish 실패는 E: win-x64 restore로 해결. v22 self-contained ZIP SHA B7816B9AB65C9B4828335552E4C021038EE9AEDE534723A1A1C5311A1FCD8DCA, DLL SHA16375E706B99895749D1D31F68AF9C4C4829EF5A4F7FB1631699F73F6CFE63E4; full409PASS/TRX SHA5B928889A57B56E2380B66B125C38C2450F12B0B4D0AD5AD25D812F60600EABF. 패키지만 준비, 미배포. 기존 client3644는 이미 없고server388/DB는 살아있다. 별도 exited-client preflight 성공 후 기존 clean-stop을1회 실행했으나PG_CTL_NOT_FOUND_IN_RUN_COPY로 processStops0/gameInputs0 실패. 같은 stop 반복금지. 정확한 소유 DB runtime/pg_ctl 확보 후 안전한 새run 경계를 잡아야한다. 사용자 라벨 질문으로 배포 중단, DB·서버 종료/새run/게임입력 없음. 전체goalACTIVE.
+
+## 2026-09-06 — E070: v22 실제 배포, 자연 로그인과 전술 화면 재진입
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-070-v22-deployed-native-login-tactical-reentry.md.
+
+E069의 missingpg_ctl을 검증된 PostgreSQL17.11 ZIP에서 별도db-tools-v76폴더로 복원. 정확한 oldserver388/DB8808 소유권 확인 후 서버종료와pg_ctl fast shutdown 성공, cluster=shut down/남은postgres0. 기존DB·로그 보존, 삭제0. 복사용 cleanpg_control SHA54851DD42DE0C339DDD7230ED0B6CC2AC7EABDE81D89C15519DD9898DA5457B4. v22ZIP의17migrations/catalog/DLL은소스와모두일치했다.
+
+새run **20260906T030656Z-natural-l1-relogin-v1**, guestroot C:\Users\logh7-oracle\AppData\Local\Temp\logh7-l1\20260906T030656Z-natural-l1-relogin-v1. 실제client9508/HWND0x00000000030A0440/start03:08:37.0583111Z/item116hashAEF382...; server3420/v22DLL16375E...; 새DB는기존계정1/인물1/gridUnit2|2|39|101을복사했다. 한국어runtime/신규계정/probe flags없음. Prep의variant문구item114는install검증대상이며실제launchoverride/hash는item116이다.
+
+초기VMware호스트캡처검정,게스트GDI는흰시작창. focus1회/제목줄클릭1회로변화없었고보이는File메뉴클릭1회후로그인화면이관찰됐다. 지연초기화의정확한원인은미확정. ID필드클릭후DPAPI자격증명1회38keyevents전송, 로비에LOGH7 v22 native verification공지와TCP Established확인. 게임시작1회→기존첫캐릭터1회선택.900ms후화면은picker였으나뒤wire에서session3/0200→SessionServerReady,0205/0F02/0300/0348/034A성공확인하여재클릭하지않았다. world-v76.png에서전술操艦패널과자기함선·인물명라벨관찰,BEAM20/GUN20/ENGINE20/WARP10/SENSOR10/NO TABLE남음.03:21:19Z TCP127.0.0.1:51998→127.0.0.2:47900 Established. 화면SHA597D7458DC01AE41C0EFFA30A114E9F061631F6DCC1702A52F0817BC1F62E7F8,wire86lines/비Success0/SHA C64B851A2B3EBEBA26D060DAF56A4211601323F64C38A5F023FEAAD19D9685E9. 공격·이동·전력변경은이번run에서0회,빛을빔발사증거로쓰지말것.
+
+처음read-only진단1540이CPU를계속소모하여정확한path/start확인후그진단만종료했다. 이후raw client-startup-v76.json은Get-Content provider metadata직렬화로19.9MB로팽창: 다시전체출력금지,compact.json사용,새진단은문자열cast필수. x64.NET의WOW64module목록누락을D3D미로딩으로해석금지. 지금새run은실행중이며다시시작할이유없다. 다음은이run현재PID/hash/TCP/화면재확인후장착무기/목표를고정한한번의실제명령·효과검증. 원본장주기heartbeat/일반PvP/NPC자동AI/전체명령효과·영속성은미완료. 전체goalACTIVE.
+
+## 2026-09-06 — E071: 실제 빔 사격을 막는 0311 무기 성능 0 데이터
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-071-native-beam-zero-arms-range-gate.md.
+
+같은 v22 run/client9508/server3420의 실제 TCP·해시·HWND·pick ID 확인 후 자기함선→射撃→빔 선택. 화면 밖 NPC를 세 번의 서로 다른 줌 입력으로 화면 안에 넣고 (750,385) 적 목표를 정확히 한 번 클릭했다. 46프레임/6.702초 보존, wire0406 없음, 두 함선100→100,0426 buffer0. 선택/명령가능 상태는 정상이며 현재 빔 목표선택모드로 남아 있다. 같은 클릭 반복 금지.
+
+원인은 서버 OriginalWorldBootstrapCodec의0310→0311/432바이트 전체0 응답과 연결된다. 원본004BACA6→world+3F5902,004C5140의27행×8short 정규화→004C73D0 조회→004C7820 사거리 구성→004F1180 목표필터. 실메모리 arms1 거리성능8칸은 모두0,6방향 끝값[0,0,1,0,1,1], 실제적거리20이라 sender004B4110 전 단계에서 제외된다. 원본파일3바이트구간 검증, static-chain와 live-gate 영수증 보존. 030D나0343으로 대체하지 말 것.
+
+정정: 미사일 arms코드0만으로 미장착이라고 한 판단은 근거 부족. 원본은0도 유효 인덱스로 받고FF를 특별 처리한다. 현재 missile power/mask0은 별도 미완성 데이터이며 무기 정체 확인은 남았다. 다음은 실제0311 표의 출처/값 및 packed reader 회수→명시적 직렬화/테스트/서버 사거리 검증→같은 기능의 native 재검증이다. 임의100/사거리8로 채우고 원본 복원이라고 하지 말 것. 이번에는 제품코드/테스트/배포/DB/재시작 변경 없음, 빔 발사·피해 성공은 아직 UNSEEN, 전체goalACTIVE.
+
+## 2026-09-06 — E072: 무기표 구현, 매뉴얼 실제 수치 확인, 임시 곡선 승인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-072-static-arms-codec-manual-data-and-approved-curves.md.
+
+00412EB0는 count/ID 없이27×8개의16비트 값을 읽고00412F90은hit[8]로 기록한다. signed MOVSX와원본/item1165구간씩 검증. OriginalStaticArmsTable의크기검증·불변복사·network직렬화 및bootstrap/암호화session주입 연결:11실제RED→420PASS. 사용자 “그렇게 할 것. 아, 매뉴얼에 데이터 있을텐데?”로 임시 전투 수치 승인. 매뉴얼을 이미지로 다시확인하여10월판PDF79/90에SS75/동맹787의실제빔파괴력48/64,속도·장갑·군수품등표 확인;4개기함/표준I행 manual-ship-combat-rows-v78.json에전사. 함선파괴력과0311명중값은다르며Brunhild에표준전함수치를씌우지않았다.
+
+기본allzero를잡는2RED후27개AUTHORED_PLACEHOLDER거리곡선을기본0311에연결,전체422PASS. 무기수치원본복원·실제확률식복원주장금지;이전cadence/power/예약정책까지승인된것아님. 기존고정피해25는그대로이며서버range/hit시뮬레이션은아직연결안됨. E071보완:일반선택무기사거리끝은마지막유효칸+1로최대8,현재임시beam1은5라20거리적은표만바꿔도닿지않는다. 정상접근/방향/사선확인이필요하다.
+
+v23ZIP E:/logh7-build/logh7-server-v23-static-arms.zip SHA608E7164CF897549BE3CD2E47AD45C05ACD4A095E515DE14DB688CF2BB34C6CD,DLL6E437F288562586E1B387F4AC2E39DCC568C7DFD9DFF9301DA730992E9422102. 테스트TRX3038F9ED664D7A752A239F88F316777225646F0B72A8052271F9362C62791F50. 사용자후속“실행중인게임과서버재시작해야하지않아?”에따라E073에서실제교체진행. 전체goalACTIVE;동일실패클릭/봉인입력반복금지.
+
+## 2026-09-06 — E073: v23 실제 재시작과 원본 무기표·사거리 적용 확인
+
+Controlling evidence: work/20260904-warp-state-reverse/evidence/E-073-v23-restarted-native-arms-import.md.
+
+사용자명시재시작요청으로 oldclient9508에WM_CLOSE1회→server3420종료→DB2208pg_ctl fast shutdown 성공. shut down/남은runtime0,oldDB·로그삭제0. Cleanpg_control4824123033F018EFA993D1784E14F3BA73EC234BB7F62CC0C2B07436D73E6B29를새run으로복사,계정1/캐릭터1/gridUnit2|2|39|101유지.
+
+현재run **20260906T042731Z-natural-l1-relogin-v1**,guestroot C:/Users/logh7-oracle/AppData/Local/Temp/logh7-l1/20260906T042731Z-natural-l1-relogin-v1. **client1996/HWND0x00000000047D0446/start04:29:45.1216633Z/item116AEF382...**, **server120/start04:29:40.41022Z/v23DLL6E437F...**. Prep의item114라벨은override전metadata이며실제hash는item116.
+
+흰시작창→보이는File메뉴1회/빈클라영역클릭으로닫기1회→로그인화면. ID클릭/자격증명제출각1회,GameStart1회/기존인물1회선택으로전술재진입. lobby-v79는초기스플래시,world-v79는NOWLOADING이다;전술증거는world-ready-v79.png. 새v23공지와TCP확인. 이후자기함선→射撃→빔각1회선택.
+
+ReadProcessMemory로27행216개hit값이배포곡선과모두일치,현재beam1=[65,65,55,40,20,0,0,0]. 실제선택사거리끝[0,0,5,0,5,5]로이전1에서5로바뀜. arms-selected-v79.json SHABD7018C60CB6C071E778E2419CE08344E2764C8ABDE6D8409256B756C3693C81,화면63B5807CCB0EE05668A053314598DB69670E9BD4CC425AD5F1AC8282B50FE676. wire실패0/0406요청0:발사·피해성공아님. 적거리20이고현재빔targetmode4/selection1로남아있다. 새로운재시작필요없음. 다음현재실행재확인→타겟선택안전취소→정상줌/이동/방향/사선→유효거리내실제사격1회. RawEscape는게임종료이므로취소용으로쓰지말것. 서버motion/hit/range권위/NPC AI/일반PvP등미완료,전체goalACTIVE.
+
+## E074 — 정상 접근 확인, 사격 각도와 일반 함선 배정 미완료 (2026-09-06)
+
+같은v23 run20260906T042731Z/client1996/server120에서 정상UI0400 1회. 시점이 평면을 옆에서 보아 처음 잡힌z16경유점은 확정하지 않고 취소; 오른쪽드래그로기울인후 목적지 render(6.663802,0,-0.0927124)로 실제중간좌표를거쳐도착. 적거리3.337. 원본 wire두번째좌표→renderZ이며004C4240은높이를0으로둔다. 디코더축교환버그아님.
+
+현재trajectory0098229C는 current2/authorized1/elapsed0/active1, 마지막회전승인누락. 실제yaw는pick+18/entity+24; 초기guest-motion-read-v80의direction은rotationX(+20)이므로heading으로쓰지말것. 보정readerguest-route-yaw-v80와영수증보존.
+
+Shoot→beam→enemy각1회후0406요청0/피해0. mask34의rangeends[0,0,5,0,5,5]에서현재yaw0.500532는sector1/end0; 최종요청yaw1.5673도정면sector0/end0이므로거리가짧아도불가. 가상의pi회전은sector4/end5지만실행하지않음. 현재uiState6 shooting target, unit2/적둘다100. 같은클릭재시도금지. 서버motion/0423/Stop아직미완성.
+
+사용자추가요청: 적도왜브륀힐트이며우리도일반함선이어야한다. Fresh양쪽templateIndex0/modelFile0. 서버030B가Kind0/ModelFile0단일template,CreateTacticalEnemyCharacter가아군레코드의FlagshipType/Kind를상속하는원인확인. 진영별일반함선의독립배정·모델·무장·각도데이터연결을새작업우선순위로명시. 아직교체/배포하지않음. EM027='standard'라는과거명칭은임시라폐기;EM012/FM003의반복variant참조는후보일뿐SS75/787확정아님. 이름표row=modelID추정금지.
+
+상세 work/20260904-warp-state-reverse/evidence/E-074-natural-approach-and-beam-arc-boundary.md. 이동/경로/사격48프레임/원시wire/양쪽PE7구간동일성영수증보존. 이번생산코드수정/빌드/재시작0,전체goalACTIVE. 다음일반함선모델식별과독립배정→매뉴얼능력/각도연결→수정패키지배포후실제양쪽모델검증;경로완료통지도해결할것.
+
+## E075 — 일반 함선 독립 배정 구현, 179개 함선 이름/120 모델 슬롯 정리 (2026-09-06)
+
+030B에kind0/model12와kind89/model1003후보를서빙하도록분리.0325아군은저장FlagshipKind보존,NPC는전장EnemyPower(2→0,3→89)로독립배정;0/1/4호환kind0유지. EM012/FM003은일반전함후보일뿐원본정체·화면확정아님. 능력치와mask34미변경. 전체426/426PASS, v24ZIP1BB11CD31C6EB182AC914CC1C716B15976DED27D0CAB4B3B16A197A54191EE7F/DLL3566E84E547EE3771669F714A8A7840BB888D366F412B14277FA2062723C02ED. 압축216파일/publish해시일치/17migration검사.
+
+사용자 “각각 무슨함선인지 정리해놔” 요청에 docs/reference/2026-09-06-reverse-ship-identity-report.md와work/20260904-warp-state-reverse/evidence/ship-identity-index-v81.json작성. 원문179이름/79썸네일/120모델슬롯,348고유경로중247존재101미확보,해시변경0. 확정이름/번호일치썸네일후보/미확정3D모델을구분. iu000제국전함/iu089동맹전함/iu008브륀힐트/iu009바르바로사이미지확인. 이름row≠modelID, M/H/L=LOD.
+
+아직재시작하지않았다. 현v23run20260906T042731Z client1996/server120/PG6520유지;05:35:36Zread-onlypreflight및v24zip만stage. guest-stop-v23-v81.ps1은로컬준비만했으며실행0. 다음identity재검사→preparehelperstage→정확한소유runtimecleanstop→새runDB보존copy/v24launch→자연로그인/실제전술양측모델확인. 상세 E-075-regular-hulls-and-ship-identity-index.md. 전체goalACTIVE,실제발사/함종능력치/경로완료/NPC AI미완료. 기존사격클릭재시도금지.
+
+## E076 — v24 실제 모델 분리, 경로 승인 v25 구현, 전체 제작 우선 (2026-09-06)
+
+사용자 “전체 제작을 최대한 빨리 시작” 지시. 모델 완전식별을 게임 구현의 선행조건으로 두지 않고 이동/회전→사격/피해/격침→NPC 자동행동→전략 실행효과/영속성 흐름으로 수렴. 미응답 예약정책을 원본 규칙으로 간주하지 않는다.
+
+v23client1996/server120/DB6520 정확한소유정상종료,삭제0,원DB보존copy. **현재run20260906T054802Z-natural-l1-relogin-v1/client4128/HWND0x031A0392/start05:48:30.6335360Z/server9404/start05:48:25.8458931Z/v24DLL3566E84E547EE3771669F714A8A7840BB888D366F412B14277FA2062723C02ED**. 계정1/캐릭터1보존. 자연로그인/전술HUD 확인. native아군kind0/model12,적kind89/model1003. HullOblique-v82.png에서회색아군선체출력. 적확대외형/정확한원본함종대응은미확정;녹색마커더블클릭은적식별/카메라중앙화PASS아님. label은여전히인물명. 근거models-entry-v82.json/HullOblique-v82.png/v24-wire-v82.jsonl. 모델원장읽기보고서에상태추가.
+
+E074최종회전cursor2/authorized1원인인0423미송신에실패테스트추가. ProcessTacticalMoveShipAsync에서033B뒤0423(route=waypointCount=1,서버24Hztime)를보내도록연결. 비음수범위밖route는원본004CA620에서최종segment승인,음수경로재구성안함. 선승인은NEW DESIGN,도착완료나원본서버타이밍복원아님. 현재즉시목적지저장/공유movementclock부재는여전히미완료. RED1FAIL/1PASS→GREEN2→full428PASS.
+
+**v25미배포**: E:/logh7-build/logh7-server-v25-route-authorization.zip SHA5F7600F35542383F085A42ED27E5519375C43307F510AC1CB471C157C3BF82E5; DLL E8A829263275595A5B57B0066AFE3208CD801E49963A0373A0F487F602CE77D7. 상세 work/20260904-warp-state-reverse/evidence/E-076-v24-native-models-and-route-authorization.md. 다음현재v24identity/DBmaster재검사→v25archive검사/보존재시작→정상0400최종yaw/route완료native확인→사선내사격. 빔mask0x34=52이며정면은range0;E074동일사격반복금지/rawEscape금지. 전체goalACTIVE,실제사격/PvP/NPC AI/전략효과/저장아직미완료.
+
+## E077 — 실제 이동 완료·사격·적 제거·전략 복귀 (2026-09-06)
+
+**현재v25배포완료/run20260906T060947Z-natural-l1-relogin-v1/client3100/HWND0x038403DC/start06:10:18.2172844Z/server5964/start06:10:13.6213931Z/DLL E8A829263275595A5B57B0066AFE3208CD801E49963A0373A0F487F602CE77D7.** v24소유프로세스정상종료/원DB보존copy/계정1캐릭터1보존. 현재화면은전략HUD이며연결유지.
+
+정상UI0400한번:render(−10,0,0)→중간좌표→(6.663802,0,−0.0927124),최종yaw−2.97969842. trajectory0098229C current3/count3/authorized2/active0으로E074최종회전막힘해소. 033B뒤0423 route1실제효과확인;서버시간운동전체완료아님.
+
+유효측면사선에서실제0406총4회. native정상함수100→75→50→25;생존총수100유지후4회차serverdamage100/destroyed100/encounter-completedTrue. 적entity비활성·marker제거후06:27:06Z **원본전략HUD로복귀**. 임시4hit밸런스한전투루프증거이며원본피해계산/AI/PvP/보상/영속성완료아님. 첫사격160프레임보존/전체해시일치;시각검토055/056/059에서빔은미확인. 미사일/포장비0,발사미검증. copy실행중zip열기잠금실패는동일session89658종료확인후새추출폴더로처리했고캡처/공격재시작없음.
+
+근거 work/20260904-warp-state-reverse/evidence/E-077-native-movement-damage-and-strategy-return.md, route-motion-v83.json, combat-terminal-wire-v83.jsonl, post-destruction-v83.png. wire0400=1/0406=4/Invalid0. 이번생산수정·테스트실행0(428PASS는직전E076). 다음이미끝난전투반복/재시작말고 **일반부대별공유전투상태+권위movementtick+NPC자동행동**을구현. 현재AuthorizeTargetCommand는임의비자기target을허용하나실제피해는고정EnemyDamage뿐인결함;이것을일반PvP/NPCvsNPC로확장해야함. 전략97개실행효과/워프항속/명령제안/전체리소스/저장범위유지,goalACTIVE.
+
+## E078 — 플레이어 표적 피해·관찰자 수신·양 진영 전투 처리 (2026-09-06)
+
+0405/0406의 고정 NPC 전용 피해 분기를 부대별 공유 피해로 확장했다. 같은 전장의 등록 플레이어에게 피해 적용, 자기/타인0325 재조회 유지, 없는 표적·우군·격침 표적 거부, 격침 플레이어 공격 거부를 구현했다. 적 플레이어가 남으면 NPC 격침만으로 종료하지 않으며 동맹은 아군 NPC를 죽일 필요가 없다. 기지 소유 조건은 유지한다.
+
+관찰자가 공격자 또는 표적을 모르면 0B09/data/0B0A를 먼저 보낸다. 표적 import는 피격 전 수치를 고정해0426 차분을 유지한다. 자동 표적 선택은 요청1회의 선택일 뿐 NPC 자동 AI가 아니다. 최초8RED→8GREEN, 양진영/피격전import 보완3RED→전체 **438PASS/0FAIL/0skip**, 새 테스트10개. 인메모리 roster+암호화 session 검증이며 실제 두 클라이언트 PvP나 DB 저장 증거가 아니다.
+
+**v26 미배포** E:/logh7-build/logh7-server-v26-player-combat.zip SHA1A1E53A677267B2B7790273410D39A49AEECFACED70B26048A0C7BE6D612A97D; DLL8EB59BC90F9470998E7B4B9673D5C0F066DD27BD5CC156EEA71F9EBEAC0FA127. 216파일 hash 일치/17migration. 최신 TRX player-combat-v84-verified.trx SHAD7C6A91236FF0DD181835AFD77E75FB96CA7CA7D7580204BEDD5FD77A182A5A2.
+
+이번 native입력/재시작/DB쓰기0. 마지막 실제 관측은 E077 v25/run20260906T060947Z/client3100/server5964/전략HUD; 현재 생존 여부를 새로 확인한 것은 아니다. 피해는 프로세스/그리드 수명이고 임시100/+25 유지. 다음 보존 배포와 독립 native 사용자들의 실제 피해·격침 수신 검증→공유 판정에 NPC 자동행동 연결. NPCvsNPC/권위movementtick/사거리·확률·shield/전투재개·저장/전략효과는 미완료. E077 전투 재생으로 PvP를 주장하지 말 것. 상세 E-078-player-target-combat-and-observer-imports.md, goalACTIVE.
+
+## E079 — 현재 연결 확인, 검은 VM 화면, 다중 계정 준비 제한 수정 (2026-09-06)
+
+Guest 열거에서 client3100/server5964와 PostgreSQL이 존재한다. current-wire-v85.jsonl은07:03:38Z까지 connection3의0300/Success를 확인한다. 하지만 sky 캡처는 재조회 후에도0x80004002, 인증된 vmrun 캡처와 Orca 전경 캡처는 모두 게스트 영역이 검다. 검은 원인/현재HUD 미확정. 사용자에게 실제VM화면 확인 요청; native입력/재시작/DB쓰기0, v26미배포.
+
+**현재 읽기 전용 진단이 아직 실행 중:** host exec session89134 / vmrunPID28936(start15:58:27KST) / guestPowerShell7776. guest-runtime-preflight-v85.ps1의 runtime-preflight-v85.json은 별도Exists에서 아직없음. 같은handle을 확인할것; 관찰 지연만으로 종료·재실행·VM재시작하지말것. 상세path/start/hash/socket preflight미완료이므로 기존PID기록만으로 새게임입력금지.
+
+실제PvP준비 중 guest-prepare-fresh-run.ps1의계정1/인물1고정검사를 발견. ExpectedAccountRows/ExpectedCharacterRows(기본1/1)로 정확한 기대행수 대조와receipt기록을추가.2RED→7PASS(PS7/WindowsPS5.1). 실제파라미터블록+검사분기실행이고DB복사/다중계정생성검증아님. 사용자행누락/예상외행은여전히거부한다. 상세 E-079-native-black-screen-and-multiplayer-preflight.md. 다음화면/현재진단해결→보존배포/독립native참가자검증; 전체goalACTIVE.
+
+**E079 종료상태 정정07:08:38Z:** 동일session89134가exit1/Guest program nonzero로종료. 후속receipt CopyFrom은파일없음. 새열거에서hostvmrun28936/guestPS7776없고client3100/server5964/DB는남음. 위“진단실행중”은이전관측이며현재pending진단없음. 결과파일없어실패단계미확정; 다음관측은실행/출력경계를보완해야하며같은스크립트무조건재실행·게임재시작금지. 현재화면검정에대한사용자응답대기.
+
+## E080 — 관측 복구, v26 실제 배포·기존 캐릭터 전술 재진입 (2026-09-06)
+
+새 단계별진단을RunInteractive/session1에서 실행해path/start/hash/DB조회성공. 원인미확정v85를그대로재실행하지않았다. 호스트캡처는검지만게스트session1의기존input-free GDI캡처는실제전략HUD를보임. 게임종료아님; **이관측경계는사용자조치없이해결**. sky0x80004002/호스트검정캡처반복말고guest-capture-desktop사용.
+
+소유v25client3100/server5964/PG6112정상종료,삭제0/원DB·로그보존. cleanpg_control E6D9B1B6B8A87E2BE2581212B81D26213D633873786526F82D1BC98542A77846를새run으로복사. **현재v26배포완료: run20260906T071511Z-natural-l1-relogin-v1/client5008/HWND0x019D03C2/start07:16:04.2671678Z/server4156/start07:15:59.5871484Z/DLL8EB59BC90F9470998E7B4B9673D5C0F066DD27BD5CC156EEA71F9EBEAC0FA127**. 계정1/캐릭터1/grid2|2|39|101유지. 새PGmasterPID아직미확인;구6112재사용금지.
+
+File메뉴→빈곳닫기→ID선택→보호된기존계정제출1회→v26공지확인→게임시작→기존캐릭터선택→실제전술HUD. native tacticalActive1/units2,아군kind0/model12·적kind89/model1003/각100. world-wire69처리/실패0/0406=0. **PvP실제검증아님**, 인물명라벨미수정, NPC가재등장하는것은전투상태process수명때문이며전투영속성미완료.
+
+근거 E-080-v26-deployed-native-reentry-and-capture-recovery.md, world-ready-v86.png SHA98219289FD6B2F90FF2FB34A87968E7FAB0577E9A494185ED4210076E1F7092B, combat-entry-v86.json SHA9DB5468E4C52DFFC67FD3D13AE108641421733DF5DC88A37C2C00B63B9CDDEBC. 이번서버코드수정/테스트0(438PASS는E078),pendinghandle없음. 다음현재v26유지→독립두번째계정/캐릭터·원본다중실행조건확인→실제양측피해와관찰자import검증. credential-v86소비됨,재제출금지. 전체NPC AI/전략효과/공유motion/리소스/저장목표유지,goalACTIVE.
+
+## E081 — 승인된 임시 NPC AI 로컬 구현, 원본 AI 위치는 미확정 (2026-09-06)
+
+사용자 “임시 AI도 구현해야지”로 탐지→접근·선회→사격→재선택 임시 서버 AI 승인. 이어 “AI까지 서버 데이터였어?”에 **원본 AI가 서버 데이터/서버 코드였다는 증거는 없으며 아직 위치 미확정**이라고 정정했다. 원본 클라의 명령·피해 수신 경로와 우리 서버의 자동 판단 루프 부재를 혼동하지 말 것.
+
+OriginalTacticalNpcController와 BattleRegistry.Npcs, 실제 호스트250ms 타이머를 연결했다. 같은 그리드의 생존 적·센서·기관/무기출력·임시무기표 사거리·기존6방향 마스크·3초 재사격 간격을 판정하며 사용자 요청 없이 진행한다. +25/4회 피해는 기존 공유 권위 사용. NPC 위치는 재조회/재진입 시 초기 배치로 돌아가지 않는다. 0400/033B/0423과0426을 기존 단일 연결 writer로 전달하고 미등록 전투원은 피격 전 수치로 import. 격침 NPC 행동/격침 사용자 이동 차단, 이탈 표적 재선택.
+
+TDD 정책5RED→registry4RED→host/scene2RED, 접근 경계 정지1RED 및 격침 후 이동1RED 수정. 최종 **459PASS/0FAIL/0skip**, 새 AI21개. 실제 NaturalAuthorityServer 타이머+인메모리 roster에서 입력 없이 피해 발생 확인이며 **네이티브 AI 전투/PvP/DB 검증 아님**. TRX E:/logh7-build/test-results/npc-ai-v88/npc-ai-v88-final.trx SHA BA9504A2FE3084BACFAAB34C758B2CEF22F2A7F253CAB977AF2336C69977313A.
+
+**미배포, 새 release 패키지도 아직 없음.** 이번 게스트 입력/재시작/DB변경0. 마지막 검증 runtime은 E080 v26/client5008/server4156이며 이번에 신원 재조회하지 않았다. 다음 새 패키지→현재 runtime/hash/PGmaster 확인→보존 재시작→자연 로그인→NPC 이동/사격과 아군 피해, 사용자 반격을 연속 화면·메모리·wire로 증명할 것. 과거 credential/launch 재사용 금지.
+
+플레이어0400은 여전히 목적지 즉시 저장, 전체 공유motion 미완료. 플레이어 사거리·쿨다운/명중·shield/탄약/점령·패배·영속성/원본 AI 추적/다중 NPC 실제 장면/전략효과·제안/함명라벨/리소스 전체 매핑은 남아 있다. 상세 work/20260904-warp-state-reverse/evidence/E-081-approved-temporary-npc-ai-local-implementation.md, WI083. 전체 goalACTIVE.
+
+## E082 — v27 배포, 실제 NPC 자동 공격·아군 격침, 사망 후 재진입 반복 발견 (2026-09-06)
+
+v27 배포 완료. ZIP E:/logh7-build/logh7-server-v27-npc-ai.zip SHA2BC1666198C2BBE7CE5CADDFEAC82BA18DAFA1B58EFEE8CCE46B41B80B0A9186, DLL0B83FC5471A5C5AC4D019707529E119BDA2D4E89107F99F88A51F6E660038AF9.216파일hash일치/17migration/재검사459PASS. 이전v26client5008/server4156/PG7588만 정상 종료하고 DB·로그 보존, 삭제0.
+
+**현재 run20260906T080624Z-natural-l1-relogin-v1/client460/HWND0x045E040A/start08:08:23.7079502Z/server3784/start08:08:17.4401967Z/PG9452/start08:08:14.7482160Z**.08:21:04Z현재path/start/hash/listener재확인. 원래 계정1/캐릭터1/grid2|2|39|101 유지. 기존portproxyPID2952는 건드리지 않았다.
+
+자연 로그인1회→v27공지→게임시작→기존캐릭터선택. 이후 게임입력0/client0405·0406=0. NPC0x7F000001이 X10→−6로 접근·선회 후08:14:28.449/31.445/34.446/37.442Z에 사격, 서버피해25/50/75/100·최종destroy100. 실제클라 아군 normal100→75→50→25→0, remaining100→0, 폭발 후 own entity 비활성. NPC100/100. 파란 광선효과를2번째사격시점frames81/82에서 관측; 정확한 muzzle/resource동일성·미사일은 별개미확인. 접근 대부분NOW LOADING중 발생했으므로 화면상 연속이동을 확인했다고 하지 말 것.
+
+140프레임(08:14:08.814→48.790Z)과 동시읽기전용 상태/hash전부검증. 실제영상 **work/20260904-warp-state-reverse/evidence/ai-combat-v89.mp4**(원본frames67–116/13.96초/합성없음). ai-observe-v89.json SHA90777D0CAC6178D072083141539B99036CFF509FB7CD5B071152273F85330286, ai-wire-final-v89.jsonl SHA9CEC57A449B75DBD1F0684AE5B18578BBCDCE6788216A807085CAC9830EBEB6F.90처리/실패0,16이동+4사격/20통지배치. **NPC→사용자만 실제 검증; 상호교전/PvP/native NPCvsNPC 미완료**.
+
+**새 플레이 차단 결함:** 격침 뒤 클라이언트가0F02를6–8초마다 자동 요청. 서버는 encounter-completed=False/enemy-present=True로 죽은own unit을 재전달, native0/0 own entity가128프레임에서 재등장→133에서 또 비활성. 사용자/에이전트 재클릭이 아니다. 원본 개인 함대 격침→재편/기지/관전자/복귀 프로토콜부터 역추적할 것. NPC와 아군기지가 남은 전장 전체를 임의로 종료하거나035A 캠페인종료로 대체하지 말 것. 현재 재현 실행을 무조건 재시작하지 말 것.
+
+다음 우선순위: 이 사망 후 재import루프의 실제 세션 재현테스트/원본복귀경로 수정→사용자 지속공격/중지의 공유타이머 연결→같은실행에서 반격 검증. 전체공유motion/사거리·명중·shield·탄약/전투영속성/원본AI위치/전략효과·제안/함명·리소스·모델 매핑은 유지. credential-v89/launch-v89 소비됨, 재사용금지. sky실패/호스트검정반복 없이guest session1캡처 사용. copy36112 종료 전 파일잠금/후속wire없음을 봤지만 같은handle완료 후 재검증했음; 현재pendinghandle없음. 상세 E-082-v27-native-autonomous-npc-combat-and-death-refresh-loop.md/WI084, goalACTIVE.
+
+
+## E083 — 개인 격침 귀환 규칙과 캐릭터/장면 필드 경계 (2026-09-06)
+
+**재import 루프는 아직 미수정.** 매뉴얼 인쇄51쪽: 기함 격침은 캐릭터 부상→귀환 행성 이동이며, 인쇄13쪽: 미설정이면 출신지. 일반 극소확률 사망/추후 하드코어 고확률은 사용자 신규 제안(NEW DESIGN), 확률 확정·영구 사망 적용0.
+
+0F1A CommandSetReturnBase 수신은 time/id/base 3*u32, 00480CF0 parser/00480DD0 logger/004BD51F→004BC063의 12바이트 copy 확인. 단순 status ACK 금지. 실제 UI 송신 producer/ACK consumer는 아직 미회수. 00429730은 다른 큰 캐릭터 logger 내부라 SetReturnBase 전용 함수로 재추적 금지.
+
+**offset 의미 정정:** expanded InformationCharacter+24=flagship ID지만 HUD+24=character ID, HUD+48=flagship ID. 004B5B80은 HUD+24를 반환하므로 무조건 기함 getter라 부르면 안 됨. return_base expanded+18→HUD+3C, spot+1C→+40, spot_owner+20→+44, state+06→+2A. HUD+318 embedded InformationUnit의 grid(+08)는HUD+320, base(+40)는HUD+358. 서버 EncodeCharacter는 이 위치/귀환 필드를0고정, 저장에도 부상/귀환 없음.
+
+원본/item116 각8구간 검증(총16일치), manual hash도 일치. death-return-static-v90.json/dispatch-and-scene-v90.json/byte-verification-v90.json 및 verify-death-return-v90.ps1 보존. 0050D2A6의 자기entity없음→state1/fade,004B76E0 step0F→kind14/0F02→step10 playerInfojoin 확인. 004B68F0 world+35F35A가전술/전략분기,004C4170→004C45F0전략mode2는HUD+320grid사용. next: 부상enum/spot·출신지 공급·0317개인참여 관계→귀환저장/새장면session회귀→native배포. dead-own만삭제/전체전투강제종료/즉시부활로우회금지.
+
+이번 서버 코드·서버 테스트·guest입력·재시작·DB쓰기0. 마지막 runtime 신원은 E082 08:21:04Z client460/server3784/PG9452이며 이번 새로 확인한 것은 아니다. constmsg lookup(118,36)은 CD catalog(group118 count7)와 불일치하므로 문구 추정 금지. 상세 work/20260904-warp-state-reverse/evidence/E-083-character-return-and-death-scene-data.md/WI085. 전체 goalACTIVE.
+
+
+## E084 — 귀환 행성 설정 서버 구현과 실제 PostgreSQL 검증 (2026-09-06)
+
+0F1A(time/id/base 3*u32) 설정을 선택 캐릭터 소유권·알려진 같은 진영 기지 검사→DB commit→전체 레코드 ACK로 연결했다. base0은 미설정. 0323 return_base와 새 세션 복원에 실제 저장값을 전달한다. 이는 설정 경로 구현이며 **격침 후 부상/자동 귀환/장면 전환은 아직 미구현, E082 재import 루프 미수정**이다. 영구 사망 적용0, 미배포.
+
+migration0018_original_return_base.sql과 PostgresAccountStore.ReturnBase.cs 추가. account lock 아래 설정·domain_event·authority version/hash·요청 영수증을 원자 저장. 실제 격리 PG17.11에서 새 데이터소스 재조회, 과거 논리 A→B→replayA, 초기 no-op replay,8개 동시 중복, 타 계정 거부, 강제 실패 rollback, 기존 캐릭터 삭제/영수증 보존 확인. NPC의 viewer 귀환 설정 상속과 새 FK의 기존 삭제 방해를 각각 RED로 재현 후 수정.
+
+검토 중 raw payload hash가 fresh A→B→A(time0)도 중복으로 오인함을 발견. 같은 연결의 새 순번과 새 연결의 같은 순번을2RED로 재현, per-session Guid+decoded.Sequence+payload+domain prefix로 교정. wire 변경 없음. 재접속 재인코딩 요청의 dedup 보장을 주장하지 않음. 읽기 전용 재검토 PASS(이 설정 기능만).
+
+최종 **472PASS/0FAIL/0SKIP, 새13개**. E:/logh7-build/test-results/return-base-v91/return-base-reviewed-full-v91.trx SHA E4267CE858DFCE9D5F7ADC00079D215B287897C60BAEE4F713D704EAD16236D7. realPG 시험 cluster E:/logh7-build/return-base-pgdata-v91,localhost55439,lastmaster32452는18:10:59KST 정상 종료/shut down/checkpoint0/1A85DA8. 파일/시험데이터 보존. 첫 시작 wrapper60284는 pg_ctl 종료 후 후손까지 기다리는 Start-Process -Wait 문제로 그 wrapper만 종료했고 DB는 유지했다. 이후 PassThru.WaitForExit 사용. pending handle 없음.
+
+게임 VM 입력/DB쓰기/재시작0. 실제 runtime은 E082가 마지막 관측, 이번 새 신원 확인 아님. E083의 부상enum/spot·출신지/0317 개인 참여 경계를 이어서 구현하고, migration18 포함 보존 배포 후 native 설정/격침 귀환 검증으로 합류할 것. 0F1A만 보려고 격침 재현 실행을 초기화하지 말 것. 상세 work/20260904-warp-state-reverse/evidence/E-084-return-base-preference-and-persistence.md, return-base-implementation-v91.json/WI086. 전체 goalACTIVE.
+
+
+## E085 — 귀환 목적지 사전 점검과 임시 후방 행성 선택 (2026-09-06)
+
+현재 소스와 보존 v27 패키지 catalog.json은 SHA ADEBF0384E05CA18986BFA78EC4ACDD08E1315EE803C8028DD2DAB57EDAC57B2로 동일. Base1/grid101/power2/camp0 하나뿐이며 전투 그리드 밖의 기지0, power3 귀환기지0. 기존 인접grid102는 정의되어 있지만 기지가 없다. 원본 출신지 공급도 미복원. 기존 인접그리드에 NEW_DESIGN 후방 귀환행성을 추가해 검증할지, 원본 출신지 데이터부터 복원할지 사용자에게 질문했고 아직 답변 미수신.
+
+별도 injury state enum/치유 타이머의 존재나 필수성은 입증되지 않았으므로 추정 숫자 때문에 수리를 막거나 임의 추가하지 말 것. 같은 전투그리드 기지 내부로 귀환 가능한 원본 참여 규칙도 미확정; '귀환 전부 불가능'이라고 확대 해석하지 않는다. 새 행성/출신지/영구 사망 적용0. 서버코드/배포/VM입력/DB쓰기0, 실제 runtime 신원 새 확인 아님. E084 472PASS는 이전 검증. 다음 사용자 선택→목적지와 개인 위치/0317 join을 연결해 실제 격침 재진입 루프 수정. 상세 E-085-return-destination-content-preflight.md/return-destination-preflight-v92.json/WI087. 전체 goalACTIVE.
+
+## E086 — 임시 귀환 행성 승인·추가와 비전투 장면 분리 (2026-09-06)
+
+**사용자가 “임시 귀환 행성을 추가한다”로 승인했다. E085의 답변 대기는 해소됐다.** Base2/grid102/power2/camp0, 이름 帰還惑星（仮）, NEW_DESIGN을 데이터 파일에 추가했다. static/tactical/ownership/position을 같은 ID로 연결하고, 명시 template의 spawnEnemy=false로 적 자동 배치를 막았다. modelFile0은 기존 selector 재사용이며 정식 행성 모델 동일성/native 렌더 증거가 아니다. 출신지/기본 귀환지 강제 설정·power3 후방 기지·영구 사망 적용0.
+
+NPC 없는 장면은0317=0/자기 unit·character만, 없는 NPC 공격/조회 거부. 기존 전장101은 계속 활성이다. 실제 적 플레이어가 오면 교전 가능하며 영구 안전 지역은 아니다. 없는 primaryNPC를 이미 import했다고 기록하던 문제1RED→수정. 검토에서 기존 quiet 관찰자의 전투 시작 누락 발견1RED→grid lease 안에서0317=1/0F1F=1을 한 번 통지하도록 수정. 뒤늦은 NPC도 AI 이벤트 전에 시작 통지와 선행 import를 보장하는1RED를 통과했다. 같은 장면 반복 통지/다른 그리드 전달 없음(서버 검사).
+
+최종 **481PASS/0FAIL/0SKIP, E084 대비9개 추가**, 실제 격리 PostgreSQL 포함. TRX E:/logh7-build/test-results/return-planet-v93/return-planet-full-final-v93.trx SHA840529672C05157905A90131CD3FA5FDA26BD824B8E609E3AE06EEAFE63BEF83. 별도 읽기 전용 재검토 PASS(이번 단위만). 초기 전체14FAIL은 합성 fixture에 추가 template 참조가 남는 문제와 기존 한 행성/102전투 가정 교정으로 해소했고 production join 검증을 약화하지 않았다. 중간 activation-first는 subscription getter 재귀로 ABORTED이며4부분PASS를 성공으로 세지 않는다. owned testhost55728만 확인 후 종료, 부작용 없는 encounter getter로 수정. 최종 PGmaster61176은09:39:40Z 정상 종료/shut down/checkpoint0/1DAACE0, 데이터·로그 보존.
+
+**미배포, 새 패키지 없음, E082 격침 뒤0F02 재import 루프와 자동 부상 귀환은 아직 미수정.** 이번 VM입력/재시작/DB쓰기0, live 신원 새 확인0. 다음 개인 귀환 위치·피해 원자 저장→flagship join 보존→목적지 scene→native 격침 검증. 단순 grid 이동은 encounter 피해를 지워 부활시키고 persisted grid restore가 다시 덮어쓸 수 있으니 둘을 함께 처리할 것. 원래 전장 전체 강제 종료/dead-own만 삭제/임의 injury enum·치유 타이머 금지. 다른 그리드0317 조회0의 기존 한계도 남는다. 이전 credential/launch/IDs 재사용 전 경계 재확인.
+
+상세 work/20260904-warp-state-reverse/evidence/E-086-approved-return-planet-and-quiet-scene.md, return-planet-implementation-v93.json(10개 소스 SHA)/WI088. 전체 전략 명령 효과·제안, 지속 공격·권위motion, 영속성, 실제 PvP/NPCvsNPC, 함명 및 전체2D/3D/음향 리소스 역추적 목표 유지. goalACTIVE.
+
+## E087 — 선택된 후방 기지로 개인 격침 귀환·손실 보존, v28 준비 (2026-09-06)
+
+**로컬 구현·검증 완료/미배포/native 귀환 UNSEEN.** 자동0F02에서 격침된 자기 unit을 감지하고 명시 return_base가 같은 진영의 비전투 후방 기지이면 위치·기지·손실·격침ID·이벤트·authority version/hash를 함께 저장한다. migration19 damaged/destroyed/injury_return_id/request_hash 추가. commit 뒤에만 원래 관찰/참가를 해제하며 다른 참가자의 전투는 종료하지 않는다. 기함/캐릭터 join과100/100 격침 수치를 보존, 재조회/새 registry 재접속에도 피해가0으로 돌아가지 않는다. 치유나 대체 함선 생성은 없다.
+
+**NEW_DESIGN 비참가자 어댑터:** 귀환한 캐릭터를 전투 roster에서 제외하고 자기0317만 전략 장면으로 공급, start/hit/tactical peer 통지를 보내지 않는다. 목적지에서 다른 플레이어가 싸워도 부상자가 다시 전술로 끌려들어가지 않는다. 원본 injury enum/spot 의미를 복원했다는 주장은 아니다. original004FEF90 전략 루프는0050D230 전술 own-entity 상실 검사와 별개이며, HUD context는 그대로 유지해야 한다.
+
+검토에서 목적지 lock 미흡·나중에 적 진입·0404 격침 전후 우회·상충 replay를 재현해 수정했다. 두 grid를 숫자 순으로 잠갔어도 기존0B01이 이를 우회함을 **실제 암호화0B01 경쟁 테스트1RED**로 추가 발견: 전략 이동도 source/destination 잠금 안에서 저장과 참가자 등록을 마친다. 격침 직후 아직 return marker가 없는0B01도1RED→source 생존 검사로 차단. 모두최종 재검토 PASS(이번 단위).
+
+최종 **490PASS/0FAIL/0SKIP, E086 대비9개 추가**, 실제 격리 PostgreSQL 포함. TRX E:/logh7-build/test-results/injury-return-v94/injury-return-terminal-final-v94.trx SHA7BE7D3FA6D8A46264F5DC06B761A00A00432CEB9094942D7722EE915496DFADF. PG는 새 합성schema에 migration19까지2회 적용,8중복/새datasource/타계정/상충replay/강제domain_event CHECK rollback 확인. testmaster50188은10:04:29Z 정상 종료/shut down/checkpoint0/29D3EC0. 시험 파일·로그 보존.
+
+v28 **패키지만 준비**: E:/logh7-build/logh7-server-v28-injury-return.zip SHAB033D96A9AAA32B45DC335A74D174B33491E64F341569D5CF64E21C8F7A3AA3A; DLLB3FCD792779C605105CA74A05F66EE918C6E1613E8D4D54F7B749D93AC537BC1. self-contained win-x64 Release/218파일/19migration ZIP해시 전부일치. injury-return-package-v94.json에 전체목록.
+
+**실제 실행10:04:34Z 재확인:** run20260906T080624Z/client460/start08:08:23.7079502Z/item116 SHA AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F; server3784/start08:08:17.4401967Z/v27 DLL0B83FC5471A5C5AC4D019707529E119BDA2D4E89107F99F88A51F6E660038AF9; PG9452/start08:08:14.7482160Z/localhost55432. 서버202.8.80.179 및127.0.0.2:47900, 별도proxy2952미변경. boundary-current-v94.json SHA3F8CC4DA498E9C9FB1818BDE363968FBCF009BB60998FD9D928F859EF8C13E26. 새 게임입력/재시작/게임DB쓰기/화면확인0.
+
+원본4영역 byte 대조는 전부일치. item116은전략루프/import/mode3영역동일하나0058EE70 HUD에서10개의 PUSH immediate가0x68→0x63으로 다르다(리소스그룹 인자). 이를 원본동일이라고 숨기지 않았다. verify-injury-strategy-v94.ps1의 기본 strict실행은그차이로실패하고 -ReportDifferences는비교결과만낸다. injury-strategy-static-v94.json 및 injury-strategy-byte-comparison-v94.json 보존, 이번 바이너리변경0.
+
+**다음 실제 귀환검증 선행조건:** return_base=0이면출신지 데이터미복원으로 birthplace-unavailable이며 native검증이 되지 않는다. 시험캐릭터에 Base2를 명시적으로 선택/설정했다는 별도근거를 남긴 뒤 v28보존배포→자연로그인→실제NPC격침→개인전략장면/기지2/손실/반복0F02해소를 연속화면·wire·DB로 확인할 것. 임시Base2지정을 원본출신지로부르거나 현재v27에서이미귀환했다고말하지말것. 같은전장/적있는목적지귀환, 치유·재편, 격침즉시(현재0F02시점)와 그전서버중단손실영속성, 부분피해의전략이동보존, 전계정unitID/실제다중클라교전은아직미완료. 기존credential/launch/IDs재사용전경계재검사, 데이터삭제/전체전장강제종료/원본미확정수치승격금지.
+
+상세 work/20260904-warp-state-reverse/evidence/E-087-selected-injury-return-and-loss-persistence.md, injury-return-implementation-v94.json(10개소스SHA)/WI089. 전체전략효과·제안/지속공격·motion/실제PvP·NPCvsNPC/함명/전체리소스추적목표유지, goalACTIVE.
+
+
+## E088 — v28 배포·임시 귀환지 지정, 흰 게임 창에서 실제 검증 대기 (2026-09-06)
+
+**v28 서버 및 19개 migration 배포, 시험캐릭터2의 return_base2 지정 완료. 실제 격침 귀환 UNSEEN.** 임시 Base2/grid102는 NEW_DESIGN이며 원본 출신지/실제0F1A 입력 근거가 아니다. 실제 PG setup 검사1RED→1GREEN, 전체491PASS/0SKIP. TRX E:/logh7-build/test-results/native-return-v95/native-return-setup-full-v95.trx SHA87024D36A8008BEA532A5A5E1F2F56712F15B505BCD333D850449B74EDF2E076.
+
+기존 v27client460/server3784/PG9452 정상 종료 후 원본DB를 새 run20260906T102317Z-natural-l1-relogin-v1로 보존 복사. 삭제0/proxy2952 유지. 새server9776/start10:39:27.5854335Z/v28DLL B3FCD792779C605105CA74A05F66EE918C6E1613E8D4D54F7B749D93AC537BC1, PG3704/start10:39:25.9441340Z/55432, client3512/start10:43:39.1673439Z/HWND0x00000000003000D4/item116. 10:52:31Z 재확인. 원본pg_control SHA E6B942B830C12A499C122F101E382E7CA8064697E7328E1D25F0B12145BB3014 동일.
+
+첫 prepare는 TEST_RETURN_BASE_SETUP에서 PS5가 UTF8 일본어catalog를 기본인코딩으로 읽어 실패했다(서버/DB는 이미 실행, 설정/클라 실행 전). 실패영수증 보존→default decode 실패/UTF8 성공 및 무설정 DB 상태 확인→별도 일회 resume-client-v95.ps1로 설정·클라 실행만 이어갔다. 추가 서버/DB 재시작0. v95c/복구스크립트 각각 읽기 전용 검토 PASS. 암호 stdin 전달/HBA finally 복원·reload, 복사본 DB 암호 CurrentUser DPAPI 저장, 평문 기록0.
+
+**현재 화면은 흰 게임 창**(diagnostic-v95.png, SHA184F3F54F856A789BA7D2FFA3F7A5C4D05BBE013C1E36F7E85267CCB03DF898E). FRESH_RUN_PREINPUT_READY는 HWND 생존 검사일 뿐 로그인/게임화면 준비 증거가 아니다. runtime-db-v95-final.json SHAB6628989FE9880B949CE27804B31B1B42F9D1585585D5EC493591FF9C7161B47: unit|2|2|101|1|0|0|none,19migration/설정1/OriginalReturnBaseChanged1, injury-return event0, wire listener-ready뿐. 로그인/전투 미발생. 게임입력0.
+
+사용자에게 게임창을 클릭해 시작/로그인 화면이 나오는지 확인 요청했다. 흰 화면 원인 미확정, Computer Use 인증 화면 자동조작 제한으로 로그인은 사용자에게 요청. 다음 fresh boundary→화면복원→로그인→실제NPC격침/전략귀환/Base2/grid102/손실/반복0F02해소 확인. setup과 launch/resume 재실행 금지. 기존 DB/새 runtime 보존. 조회 helper의 깊은 JSON 직렬화 지연은 Get-Content 메타데이터를 순수문자열로 바꾼 final reader에서 해소; 이전 reader5837 exit1, helper-stop 성공영수증 없음, 게임/서버/PG는 final조회에서 동일. pendingexec없음.
+
+상세 work/20260904-warp-state-reverse/evidence/E-088-v28-deployment-and-explicit-test-return-base.md, WI090. 치유·재편/출신지/실제PvP·NPCvsNPC/전략효과·함명·전체리소스 역추적 유지, goalACTIVE.
+
+
+## E089 — 흰 화면에서도 렌더 프레임은 진행, 표시·입력 경계로 조사 축소 (2026-09-06)
+
+**흰 화면 미해소/로그인·귀환 UNSEEN.** 원본004013F0 idle67바이트를 원본PE(hash BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16)·Ghidra·현재item116 두 메모리 관찰과 대조해 전부일치했다. MainWnd.IsIconic=false, global007C1B4C=07B50048, +2A5F4=1, byte0075E740=1이므로 이 idle 허용 조건은 닫혀 있지 않다. renderObject07B50088/vtable0066BBC8, windowed1/active1/renderReady1/device07F367A0.11:04:33Z framecounter56→31(600ms,주기적reset)/fps68.84849. visible renderchild005E00D6 rect(3,46)-(647,530),parent003000D4.
+
+005DC9E0은device TestCooperativeLevel→update/render→frame/FPS→005DD450이다. 005DD450은Present virtual+3C를호출하지만 HRESULT를저장하지않으므로 **프레임 진행≠Present/표시 성공**.005DB3B0의메뉴진입/종료는virtual+34 pause경로. 이전E070/E073의File메뉴후회복과관련될수있지만현재실행인과는미확정. MFCidle과별도005DC8F0loop혼동금지.
+
+Computer Use 반환VM창407570838를선택해activate1/Ctrl+G1/Alt+Tab1시도. hostcapture는기존SetIsBorderRequired0x80004002실패,반복0. 매입력후accessibility재조회했으나 guest11:05:40Zforeground5196/흰pixels/TCP0는불변. host키의실제guest전달미입증,추가키반복중지. screenshotSHA184F3F54F856A789BA7D2FFA3F7A5C4D05BBE013C1E36F7E85267CCB03DF898E는E088과동일. 게스트UI직접조작/자격증명전송0,메모리쓰기/일시중지0.
+
+11:09:02Z server/DB/client신원재확인: run102317/client3512/server9776/PG3704/v28동일,proxy2952유지,원본pg_control동일. unit|2|2|101|1|0|0|none,19migration/귀환설정1,wire listener-ready만. 이번서버코드/배포/재시작/DB쓰기0.491PASS는E088이전검사.
+
+**다음 사용자 확인은 VM 내부 게임의 ファイル(F) 메뉴 열기/닫기 후 화면 갱신 여부.** 단순 창생존/렌더FPS만으로게임준비완료주장금지. 인증화면은Computer Use제한상사용자가로그인.원격키반복/추정좌표/무조건재시작/설정재실행금지.분석대상은실제Present결과·표시경계이지서버초기화가아니다. startup-static-v96.json SHA578CACF45DC162F795140DE9BFBA0BB03DE51296CB7BCBBB5A74B93EBA5FEEEC, startup-memory-v96b.json SHAB028AE2DB5976838C36AA82AA32732B6DD12560D14E41A56EE91273F91F9515A, verify-startup-idle-v96.ps1 재현가능. 상세E-089-startup-render-progress-and-white-display.md/WI091. goalACTIVE.
+
+
+## E090 — 직접 로그인과 실제 NPC 격침 후 귀환 확인 (2026-09-06)
+
+사용자의 “로그인도 너가 해야지. 이전엔 잘하더만.” 요청으로 기존 합성 시험 계정의 guest CurrentUser DPAPI 보관 자격증명을 사용해 직접 로그인했다. 평문 출력/기록0, credential submit1(38 key events), ID focus1/Game Start1/기존 캐릭터 선택1. E088/E089의 사용자 로그인 대기는 해소됐다. 첫 auth-preflight-v101은 실행 중 wire의 ReadAllLines 공유 위반으로 입력 전에 실패; 실패 영수증 보존 후 새 v101b의 Get-Content로 통과했다. credential-v101 consumed 영수증과 PID/HWND/path/start/hash/foreground 검증을 적용했고 재전송0.
+
+현재 run20260906T102317Z-natural-l1-relogin-v1. v98에서 old client3512 부재 확인 후 client만7152로 재실행했으며 이번 v101 재시작0. client7152/start11:24:11.5802403Z/HWND0x0000000001E603B0/item116 SHA AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F. server9776/start10:39:27.5854335Z/v28 DLL B3FCD792779C605105CA74A05F66EE918C6E1613E8D4D54F7B749D93AC537BC1, PG3704/start10:39:25.9441340Z/55432. 원본 v27 pg_control SHA E6B942B830C12A499C122F101E382E7CA8064697E7328E1D25F0B12145BB3014 동일, proxy2952 유지. setup SQL 재실행/수동 DB 변경/메모리 쓰기0.
+
+**단일 실행 관찰 PASS: 로그인 → 캐릭터 진입 → NPC 4회 공격 → 자기 함선 격침 → 개인 전략 HUD/임시 기지2 귀환.** 11:54:57.0107318Z LobbyReady. 12:00:50.4541755Z 최초0F02. 60초 연속217프레임 RPM에서 자기unit2 normal/remaining100/100→75/100→50/100→25/100→0/0·destroyArmed1→자기entity 소거. 서버 fire는12:00:54.5051432Z/57.7454222Z/12:01:00.7467111Z/03.7446404Z, damaged25/50/75/100 및 destroyed100. frame152의 전술 HUD/폭발/광선과 frame216의 전략 HUD를 실제 확인했다. frame105는 메모리 전술 활성에도 NOW LOADING 화면이므로 메모리 활성만으로 화면 진입을 주장하지 않는다. 로딩 중 AI 시작 시점은 추가 점검 대상이다.
+
+12:01:10.7521583Z 자동0F02 1회 후 전략 HUD 전환. 원래 전장의 enemy-present=True/encounter-completed=False는 전체 전투를 강제 종료하지 않은 상태. 12:02:52.9929773Z까지 추가0F02가 없어 기존6–8초 dead-own 재import 반복은 이번 약102초 구간에서 재현되지 않았다. 12:03:53.0643572Z fresh screenshot도 전략 HUD/연결 유지. NPC와 전투 수치는 승인된 authored-temporary-v1이지 원본 AI/수치 복원 완료가 아니다.
+
+DB 12:01:28Z 및12:02:52Z 두 번 읽기 모두 unit|2|2|102|2|100|100|f4d4ff17-d97e-48b8-9474-ecf17f8b6462. 위치101/base1→102/base2, 손실100/100 보존, OriginalUnitInjuryReturned1/OriginalReturnBaseChanged1/설정 영수증1/19migration. 치유·대체 함선·재출격 미구현, 이번 native 재접속 검증0. 파란 구체를 정식 행성 모델로 판정하지 않았다. 전체 기능/PvP/NPCvsNPC 완료로 확대 금지.
+
+증거: work/20260904-warp-state-reverse/evidence/credential-v101.json, login-wire-v101.jsonl, character-select-v101.json, return-observe-v101.json(SHA C0A73571E4C9BED96435EB81D53C6C65877EB5FB5798C8C861C761E28165D261), runtime-db-v101-stable.json(SHA A014F06A63EDB02637206FA4806F6E53E92C64D24DBD849BEA1D042798C84289), return-frame-v101-152.png, return-final-v101.png, return-stable-v101.png(SHA EBA5FFF6069D47BE9A3F5DD85961D5436641DBE5561E7FA2FDCBA5C523819441). 전체217프레임/ZIP은 current guest run의 return-frames-v101와 return-frames-v101.zip에 보존. 새 input-free/read-only 관찰 helper scripts도 보존. 이번 서버 코드 변경/새 테스트 실행0,491PASS는 E088 이전 검사.
+
+다음은 현재 부상 귀환 상태를 보존하고 fresh runtime 확인 후 치유·재편·재출격의 원본 HUD/리소스→명령→데이터 경로 조사. 함명 라벨/모델 식별/전체 리소스 사용처/전략 효과·제안/지속 공격·권위motion/실제 PvP·NPCvsNPC 목표도 유지. 소비한 credential·character-select·return setup 재사용, 검증을 위한 기존 DB 초기화 금지. 로그인은 더 이상 사용자에게 넘길 blocker가 아니다. 이번 단위 보고 후 대기, 전체 goal ACTIVE/미완료.
+
+
+## E091 — 재편성 원본 UI→0C02 구조 회수와 서버 코덱 (2026-09-06)
+
+**코덱 구현/검사 완료, 재편성 효과·재출격 미연결/미배포.** 매뉴얼 인쇄43–44쪽(PDF44–45)을 렌더해 재편성은 부대↔부대창고 이동, 보충은 동일 타입 함선·승무원 재고를 사용한다는 규칙을 확인했다. 수리와 격침 취소를 혼동하거나 임의 무료함선을 생성하지 않았다. 원본 기함부상 치유시간/재출격 조건은 아직 확인하지 못했다.
+
+005313F0에서 명령63→004B4FC0,00574BA0 TARGET_ORGANIZE 확인 경로→같은 sender. base는004B5BF0,outfit은004B5BA0에서 읽는다. 내부 selector101(0x65)→dispatcher(selector-1) index100→0C02. 004B4DA0는selector100 완전보급이고004B4E00는selector62의다른명령이므로 혼동하지 않는다(E007/E039의기존bias규칙재확인). 00584420은TARGET_ORGANIZE/SendOrganizeDataCommand를 구성하지만 실제 이미지리소스경로/loader종결은미추적.
+
+로그00551DD0/길이00551860/쓰기00551A80/읽기00555EB0로 expanded0x310과 wire40+5*ships+5*troops를 구분했다. caps99/24, 함선unitNumber:i8/boatNumber:u16, 육전대unitNumber:i16/grade:u8, maxTroop/maxCrew:i32, supplies:u32. 시간/id/mode/PCP/MCP/base/outfit/kind도보존. OriginalReorganizationCodec.TryDecode/Encode는엄격type/길이/잘림/후행/배열상한검사,mode의권위적의미·client값채택·재고변경은하지않는다. 원장63을CODEC_TESTED_AUTHORITY_NOT_IMPLEMENTED_NATIVE_UNSEEN으로수정. 미구현0Cxx echo를실행효과라고부르지않는다.
+
+원본/item116 각11개선택구간,총22개바이트대조모두일치. verify-reorganization-v102b.ps1과 reorganization-byte-comparison-v102b.json SHA9E343442BC8B34552194479B0181605C25E25B8E2CA228591D831E3E455F3F85. 신규7검사는5RED/2PASS→7PASS. 전체 **495PASS/0FAIL/3SKIP**(PostgreSQL필요3개이번미실행); E088491PASS/0SKIP를새검사로재사용하지않는다. TRX E:/logh7-build/test-results/maintenance-v102/maintenance-full-v102.trx SHA2AB0E1FC7050DA6846B1DC8C8CF9CB1C67430ED2CBDFCD6FAAA90B0035C4BFFC. 별도읽기전용검토PASS,Critical/Important0(코덱만).
+
+12:23:04Z runtime read-only 새검사: client7152/start11:24:11.5802403Z/server9776/start10:39:27.5854335Z/PG3704/start10:39:25.9441340Z/v28동일. 귀환후grid102/base2/damaged100/destroyed100/returnID f4d4ff17-d97e-48b8-9474-ecf17f8b6462/귀환event1 유지. 원본v27pg_control동일/proxy2952유지. 이번게임입력·메모리쓰기·DB쓰기·재시작·배포·새화면캡처0. 이전E090화면을현재새화면이라고주장하지않는다.
+
+다음은 TARGET_ORGANIZE preview/commit 목록공급과0C03/04 begin/end,004C6930/004C6A70의원본수량계산→부대창고/승무원/소유권/동시작업lock 구현→부상해제·기함재지정→실제재출격. 기존격침/귀환DB초기화,credential/설정/전투영수증재사용금지. 상세 work/20260904-warp-state-reverse/evidence/E-091-reorganization-codec-and-original-command-path.md 및 reorganization-static-v102.json SHA086132E7CF9A8E7451BBDD42A7501699B635B24332D9BA678E0C3B4280BC54E5. 전체전략효과·제안/PvP·NPCvsNPC/함명/전체리소스목표유지,goalACTIVE.
+
+
+## E092 — 재편성 인원 규칙과 함선 보급 필드 하드코딩 해소 (2026-09-06)
+
+**함종별 정적 logistics 입력 연결/검사 완료, 창고·치유·재출격 미구현/미배포.** OriginalStaticUnitShipLogistics(Price:u32, Resources/Cost/Term/Crew:u16)를 template의 선택 필드로 추가하고 항상0을 쓰던 다섯 writer를 교체했다. 생략하면 기존0 fixture 유지; 원본 수치·무료 재고·치유시간을 만들지 않았다. 이 코드는 인코더 연결이며 재편성의 실행 효과가 아니다.
+
+원본004C6930/004C6A70은 signed delta를 보낸다. 규칙표00788398=(0,0),(1,1),(2,1),(-1,-1). category1은 승무원,2는 육전대(일본어 진단 문자열 확인). 004C6DD0 rule1은 승무원 합=param6, 육전대 합≤param7. -1은 가전송 전 미확정으로 거절. 0052FF2E는 MaxCrew(world+43DBDC)에 baseline+A780을 더해 UI+A980을 설정; MaxTroop(world+43DBD8)는UI+A984. MaxCrew를 최종 총수로 추정 송신하지 말것. 0C03/04는 logger 존재만 확인했고 활성 parser/consumer 미확정이므로 E091의 begin/end 송신 계획을 그대로 실행하지 말것.
+
+실제030B packed reader는004109A0. 이전 테스트의00411630 주석은 잘못된 내부주소여서 이번 관련 주석 정정. 00410B50–00410BBF 및logger00411A60로필드순서검증. Ghidra 새logger의body_size1메타데이터는불완전하므로전체함수검증이라고하지않는다. 원본/item116 각9개선택영역총18바이트대조모두일치. logistics-byte-comparison-v103.json SHAE03F8B6307713FBF46686732D3FF8D988FE2AF46342AEE9CF038A921D4BACC62.
+
+TDD3FAIL/1PASS→4PASS,전체499PASS/0FAIL/3PGSKIP. TRX E:/logh7-build/test-results/maintenance-v103/maintenance-full-v103.trx SHA88C38CCAA4DF484C8E7BEDE0CBD7E557E2E4AD52A00F755D64301A4ADA6A7566. 별도읽기전용리뷰PASS/Critical0/Important0(필드연결범위만). 현재12:42:58Z client7152/server9776/PG3704/v28/19migration동일,grid102/base2/손실100/100/귀환event1유지. runtime-db-v103-stable.json SHAAC29E060C588FFF999B6A6E446920265A13D6F69ED98ADD0B98AEED8D0F626BA. 게임입력/DB쓰기/재시작/배포/새화면0. 로그인대기없음.
+
+다음은 부대·부대창고 조회 응답/소유권 연결→서버재고를 반영한 mode0 한도→원자적 mode1 차감→기함/치유/재출격이다. 실제재고없는데echo성공송신하거나현재격침/귀환DB초기화금지. 상세 work/20260904-warp-state-reverse/evidence/E-092-reorganization-crew-rules-and-logistics-fields.md, 정적자료 reorganization-logistics-static-v103.json SHA7742631E2C8CA66E478D9D7E28D0C185DFAA0321C688019EC78E6E7DE31973A6. 전체게임목표ACTIVE/미완료.
+
+
+## E093 — 네 재편성 목록 공급자와 부대 결성 선행조건 (2026-09-06)
+
+**0326/0327 warehouse 코덱 구현/검사 완료, 실제 조회 핸들러·재고 영속성·결성·재편성 효과·재출격은 미구현/미배포.** 재편성 화면00568380/005685B0은 기지창고(outfit0),부대창고(actualoutfit),부대편성,운송품을 각각 selector23/23/16/18→0326/0326/032E/0328로 조회한다. 004C5D50가네버퍼를합쳐row+10/+14/+18/+1C수량에둔다. kind/grade로합성하며troop staticcategory0x13은crew다. BoatNumber의물리정규화/손실의미는아직미확정.
+
+OriginalWarehouseCodec: requestbody8(base/outfit:u32), responsebody26+5N+5M(base/outfit/index:u32,N:u8,shipkind:u16/unitNumber:u8/boatNumber:u16,M:u8,troopkind:u16/grade:u8/unitNumber:u16,supplies/food/mineral:u32),99/24한도. unsignedstock과0C02signeddelta분리. exact길이/type/count/null검사. 빈코덱응답가능≠실제없는창고를빈성공으로서빙. 원본writer0040C2D0/logger0040C320,reader0041A870/logger0041AFF0. 원본/item116각8개선택구간총16바이트대조일치. warehouse-byte-comparison-v104.json SHA8E2C82A3F01251E388042386E28123E7A79AB5789FE2EE3036AA33E6CE3629A8.
+
+중요선행조건: 현재OriginalWorldEntryCodec.InformationUnit.outfit는항상0이고실제부대생성/소속저장없음. **部隊結成(command25)은전용TARGET_ORGANIZE/TARGET_SELECT_OUTFIT_TYPE→004B4E00→selector62→0903 CommandCreateOutfit.** generic17-entrytable에없다는이유로picker경로없다고한옛원장결론정정. command25원장status ORIGINAL_PATH_TRACED_AUTHORITY_NOT_IMPLEMENTED_NATIVE_UNSEEN/request0903. 실제결성과부대창고를만들지않고재편성만붙이면안됨.
+
+TDD6FAIL/4PASS→10PASS,전체509PASS/0FAIL/3PGSKIP. TRX E:/logh7-build/test-results/warehouse-v104/warehouse-full-v104.trx SHAC59E9B97F051C2B92272B6CB39F7EDF7A8C235ADD78D310A5162BBEDAE948E9F. 별도읽기전용코덱리뷰PASS/Critical0/Important0. 현재13:01:32Z client7152/server9776/PG3704/v28/19migration동일,grid102/base2/손실100/100/귀환event1유지. runtime-db-v104-stable.json SHA65B6B22DFC15793FC874CD129224BCD634E41276FE353336F5EC54BCD3A98F94. 게임입력/메모리쓰기/DB쓰기/재시작/배포/새화면0.
+
+**다음첫작업: 0903 serializer/response effects 및032F InformationOutfitParty→실제부대ID/소속·기지별공유재고·원자적결성/배분→0C02 preview/commit→재출격.** 추가필드/빈목록코덱만반복하며실제기능구현을대신하지말것. 현재부상/격침DB초기화,무료함선생성,소비한로그인/설정영수증재사용금지. 최초stock출처/NEW_DESIGN은분리하고기지재고를계정별로복제하지않는다. 상세 work/20260904-warp-state-reverse/evidence/E-093-warehouse-wire-and-outfit-prerequisite.md, warehouse-static-v104.json SHABDF779B4212C357D004BC58D98BD39132444E77F402489B189B676D9F283E505. 전체목표ACTIVE/미완료.
+
+
+## E094 — 공유 창고 영속성과 원본0326 조회 연결 (2026-09-06)
+
+**공유 재고 저장·원자적 이동·원본 조회 핸들러 구현/검사 완료, 미배포. 부대 결성·재편성 효과·재출격은 아직 미연결이다.** PostgresWarehouseStore와 migration0020은 (base,outfit) 전역 창고/독립 카운터, account+character grants, 요청 영수증을 저장한다. 계정별 재고 복제/프로덕션 stock seed0. 계정→전역 창고 키 순 lock으로 계정 간 경쟁/반대 방향 이동을 직렬화하며 양쪽 수량·버전·actor authority hash/event·중복 영수증을 단일 트랜잭션으로 커밋한다. 부족·overflow·99함종/24병력그룹 한도·권한을 검사하고 replay는 현재 재고를 되감지 않는다. 저장/grants/hash 정책은 NEW_DESIGN, 원본 초기 재고나 직책 규칙 복원 주장이 아니다.
+
+NaturalAuthoritySession.Warehouse는 암호화0326→현재 인증계정/선택캐릭터→PostgresAccountStore→공유snapshot→0327로 연결됐다. 없음/무권한/저장실패를 빈성공으로 만들지 않는다. Index=0은 명시적 NEW_DESIGN 미확정 대용값이고 warehouseVersion과 혼동하지 않으며 native 소비는 UNSEEN이다. TransferAsync는 창고↔창고 primitive이지0C02의부대↔창고 효과가 아니므로 그대로 명령완료로 승격금지.
+
+0903 writer0048DA80/reader0048FB80/length0048D860/logger004908F0,expanded324. BODY52+5N+5M/opcode포함payload54+5N+5M/application4바이트message-codeprefix포함58+5N+5M이며 transport/encryption overhead별도다. 생성ID expanded+308/body32+5(N+M)/payload34+5(N+M). 최초 “payload52” 혼용은 검산 후 정정. 004C5650→004C31F0는 outfitID keyedcache를 갱신하지만 unit.outfit 소속을 바꾸지 않는다. 0904/05는 outfit:u32 하나를 별도session필드에 저장하나 완료순서/소속효과미확정. maxTroop/Crew는 raw32bits, signed UI sentinel가능성 유지. create-outfit-static-v105.json SHA7DF7B3FCB6F463F9F9ED23724556AE4527474205DB9E0FF4927A7D2EC2DC9610.
+
+실제격리PG:5RED→5GREEN→추가7GREEN,session3RED4PASS→7GREEN. 최종 실제PG+암호화세션 통합 포함 **전체527PASS/0FAIL/0SKIP**. 마지막재고 두계정경쟁,8동일재전송,역방향동시성,한도,권한,후반event강제실패전체rollback,새저장소/새세션조회와조회무변경검증 포함. 읽기전용독립리뷰 저장/조회각PASS/Critical0/Important0. TRX E:/logh7-build/test-results/warehouse-v105/warehouse-full-v105.trx SHAC395CF6A20C8733C8E0BFE519B6F50A0E7074836E5D9401EDDFBECE373BA1527. 로그인·native게임통합시험이 아니라 인증/worldfixture부터의 암호화 요청이다.
+
+13:25:15Z 실제run client7152/server9776/guestPG3704/v28/19migration동일. unit2/grid102/base2/손실100/100/returnID f4d4ff17-d97e-48b8-9474-ecf17f8b6462/귀환event1/원본v27pg_control동일. runtime-db-v105-stable.json SHAE19BE07DB0C11EF98E104306281BE3C3CD924FAF09BB3C3AB9C8B00D69CF7A2D. 게임입력/실제DB쓰기/배포/재시작/새화면0. 호스트테스트PG9764(port55805,data E:/logh7-build/warehouse-pgdata-v105)만 신원검증 후13:27:07Z 정상종료/port부재/cluster shut down확인,파일삭제0·데이터/로그보존.
+
+**다음첫작업: 032F InformationOutfitParty와 unit.outfit 갱신→실제부대ID/소속저장→결성/배분과 창고/부대재고 단일트랜잭션→0C02 preview/commit→기함/부상/재출격.** 기본stock/grants출처/정책을분리하고 실제게임DB초기화·무료함선·소비한credential재사용금지. 상세 work/20260904-warp-state-reverse/evidence/E-094-shared-warehouse-authority-and-query.md 및 warehouse-authority-verification-v105.json에 코드해시/검사경계/테스트클러스터보존기록. 이번은progress이며blocker아님. 전체전략·전술/PvP·NPCvsNPC/AI/함명/리소스목표ACTIVE/미완료.
+
+
+## E095 — 다중 유저 유닛 ID 결함과 부대 편성 관계 분리 (2026-09-06)
+
+**서버의 다중 계정/캐릭터 진입 결함 수정·검사 완료, 미배포.** 부대 소속 경로에서 기존 seed_original_minimal_grid_unit이 계정마다unit2만 만들고 두번째slot을 ONCONFLICT로 생략하는 반면 세션은unitID=characterID로 조회하는 결함을 발견했다. migration0021은 legacy ID를characterID로 맞추고 누락slot만기존authored초기상태로추가한다. 기존손실/기지/버전/귀환ID/hash/과거event·command보존,oldIDalias기록. 임의nonlegacy매핑/범위밖ID는거절. NEW_DESIGN player1..0x7EFFFFFF,0x7F000000+NPC예약; 기존NPC0x7F000001/2충돌은리뷰후수정했다. gateway중지후적용필수/살아있는클라에hotrenumber금지.
+
+실제PG ID2RED→GREEN,두계정/세slot진입·두DB기반암호화세션PvP(피격대상25/공격자0)·legacy손실/history·잘못된매핑/예약IDrollback검사. 예약ID첫실패는OVERRIDING SYSTEM VALUE누락fixture오류라유효RED로세지않았고,정정후2RED1PASS확인. 원래unit2-bound인consumednative설정SQL은수정하지않고시험캐릭터를원래run처럼2로고정. injury시험은생성된unitID사용. 최종 **전체552PASS/0FAIL/0SKIP**(신규ID7/codec18), 독립리뷰최종PASS/Critical0/Important0. TRX E:/logh7-build/test-results/outfit-v106/outfit-full-green-v106.trx SHADDB4CE1A5E9C8AFEFB56E0A82E865CAF9BEB3E20C8A22BF650E7DD36E2CE12D0. 이는native두창PvP아님.
+
+032E BODY9(outfit/base/mode),writer00464AC0/length0040C890/logger0040C8C0.032F reader0041CBA0/logger0041EAA0,expanded8B04,BODY39..35145/opcode+2/applicationmessagecodeprefix+6. 인물10/이름13u16,함선60/각unitIDs70,병력24,일반cargo3/병력cargo24,notTogether함선/병력별도. OriginalOutfitPartyCodec18RED→18PASS; unitNumber와unitIDscount별도/strictlength·count·rawUTF16보존. **권위032F핸들러/부대저장·0903결성·0C02효과미구현**.
+
+**E094 다음단계 정정:** 부대인물·함종별유닛·캐릭터기함은별도관계이며0903cache만으로생성자현재기함을새부대에자동배속할근거없다. 단건0325→004C2C80(mode1)은preview슬롯만;activeself는004C2A80(character.flagship==unit.id)→mode0.0B0A일부분기에호출돼도formation통지로임의재사용금지.005686C0→004C5D50편집공급은일반ships/troops/supplies만,notTogether를합치지않는다.mode1관찰/정확한mode·notTogether기지판정미확정. outfit-party-static-v106.json SHAC2AFC30D6A8AF91460AEB39B167CB6CB6A11462F5A7A4EF7D5F4CC5C3A44B23D.
+
+13:47:03Z client7152/server9776/guestPG3704/v28/19migration/grid102/base2/손실100/100/귀환event1유지. runtime-db-v106-stable.json SHA8D6BA7697AB7C5FFD78A91A54FD0E6DBFD4C3C32446BAA08A9CEB7D0AC8DEB9F. 게임입력/실제DB쓰기/배포/재시작/새화면0. hosttestPG52304/55805만13:48:14Z정상종료/데이터·로그·스키마보존/삭제0.
+
+다음은현재격침·귀환DB보존하에새배포/실제다중계정진입·PvP검증,그리고부대인물·유닛관계저장→032F실제조회→0903/0C02원자효과→재출격이다. 기존데이터초기화/무료함선/빈성공/단독0325소속완료주장금지. 상세 work/20260904-warp-state-reverse/evidence/E-095-player-unit-identity-and-outfit-party.md 및 player-unit-identity-verification-v106.json. 이번progress/외부blocker없음,전체게임·전략/전술/AI·함명/리소스목표ACTIVE.
+
+
+## E096 — v29 보존 배포 완료, 새 클라이언트 흰 화면으로 재로그인 미도달 (2026-09-06)
+
+**v29 서버와 migration21 배포 PASS, 실제 재로그인 NOT_REACHED.** 현재 run20260906T140233Z-natural-l1-relogin-v1: server9640/start14:04:05.2831942Z, PG2524/start14:04:04.8083928Z, client5636/start14:05:34.5360172Z/HWND0x00000000040B0406. PG binary는 이전102317Z run을 읽기 전용 재사용하고 데이터는 새 run/postgres-data이다. 이전 client7152/server9776과 PG3704는 소유권 확인 후 각 한 번 종료; old DB/로그/DPAPI/영수증 모두 보존, 삭제0. proxy2952/127.0.0.1:47900 유지.
+
+배포 script guest-rollforward-v29-v107b.ps1 SHA3B2639786456BAE891A514C9389AABF2C32EDAC858D0848FE8C970E423F2B5FE. 초기 v107 Stage만 실행하고 별도 사전 리뷰에서 PS5 Process.Handle 보존/pg_controldata English locale 두 문제 수정 후 새 v107b Stage→Stop→Start→Client 완료. 135634Z는 미사용 server stage만 남음. v29 ZIP SHACE0851D6E40A7998ED1F1CA73EC68C6A4A7A791311194B48E7FB4FE324512E9F, DLL SHA37CBE0C953623DD779CA9B74C3BF66D61700701EA71CDC92844A301BB11FF8B7.
+
+source→copied→migration 후 gameplay state SHA d3f0100c3c9cbcdd591c369ae5bee6be0914aa2dfdc3afd2d7a5769a2b1f7779 모두 일치. account/character/unit/event/return-request 전체 정렬 JSONB를 DB 내부에서 해시했고 민감 필드 출력0. cold source pg_control SHAF4CD6F94D931CFF62A77366F8C381BDDF96696515256AD59E0436F6E7AC07C69 동일. 14:12:42Z 별도 read-only 확인: migrations21/unit2/grid102/base2/손실100·100/returnID f4d4ff17-d97e-48b8-9474-ecf17f8b6462/귀환event1,warehouse0,identity-alias0,SCRAM 유지. 비밀번호 회전·hba 변경·무료재고·귀환 설정 재실행0.
+
+client 실행 전 self session1=console1/input desktop Default 확인. 그러나 14:05:57Z와14:09:01Z game content 흰 화면, foreground PID5196/notClient, TCP없음. Computer Use에서 host Ctrl+G/Alt+Tab 각1회 후 guest전달/foreground전환 입증 못함. element69 click은 coordinate input geometry is unavailable, 새 window state screenshot은 SetIsBorderRequired failed/0x80004002. 같은 입력 반복/PowerShell UI 우회0; 스킬의 동일 턴 UI 방식 혼용 제한으로 중단. **인증 제출0, wire listener-ready 한 줄뿐: E090 로그인 성공을 이번 성공으로 재사용하지 않는다.**
+
+이번 publish/guest Stage/실제 배포/독립 사전 리뷰 PASS이지 새 전체 시험이 아니다. **552PASS/0FAIL/0SKIP는 E095 결과**. 실제 두 클라 PvP/032F 조회/0903·0C02 효과/재출격 미검증·미연결 경계 유지.
+
+다음 첫 단계: VM 내부 게임 ファイル(F) 메뉴 한 번 열기/닫기로 화면 갱신 여부를 사용자 확인한 뒤 fresh PID/화면으로 로그인 경계를 재개한다. 확정 해결책으로 단정하지 않는다. 서버 배포/consumed 단계·credential 반복·DB초기화 금지. 상세 work/20260904-warp-state-reverse/evidence/E-096-v29-preserved-deployment-and-native-display.md, rollforward-verification-v107.json. runtime-db-v107.json SHA4E1563E4BEA764F809421118B8F2049F38ACB3B159163DBC8C976784A5764DAF; client-focus-v107.png SHADCFCDA5D43135B5BA2E38BC927BA2AADEB0FACC07FB2261C998DA677E46AD34E. 전체 목표 ACTIVE/미완료.
+
+
+## E097 — NPC 조기 접근과 임포트/획득 반응 경계 수정 (2026-09-06)
+
+**로컬 구현·전체 검사 PASS / 미배포 / 새 native 동작 UNSEEN.** 서버0F02에서 roster를 즉시 NPC표적으로 쓰던 경로를 분리했다. 해당grid의0F02 후 유효0348에 자기unitID가 포함돼야 NPC표적이 되며, 실제 허용된 공격도 보호를 해제한다. 빈/타인/NPC만/잘린0348·0300·034A는 활성화하지 않는다. 같은grid 재임포트/grid이동은 준비만 초기화하고 공유 피해·NPC pose 유지. 중복접속은 하나가준비되면같은unit을계속표적으로취급. NPCvsNPC/다른준비참가자전투는계속되고 살아있는로딩참가자는승리판정에서사라지지않는다. NEW_DESIGN 72tick/3초 반응은NPC생성시점이아닌실제표적획득·재획득부터계산.
+
+원본004B68F0→004C32A0임포트→004B64C0구성 뒤004B6E00가최대600활성엔티티ID열거→selector0x2E→minus1/index0x2D→0348. 원본/item116 각6선택구간/총12바이트대조일치. verify-npc-import-v108.ps1 및 npc-import-byte-verification-v108.json SHA05AE3B2B9793F110F7FAA8D24876A413CBC0FAB415F28CEE409E2A480B99A2D8. **0348은원본Ready명령도화면페이드완료증명도아니다.** 정책을원본서버동작으로승격하지않는다.
+
+E090원본기록시간대조정정:0F02 12:00:50.4541755Z,첫0348 53.8467854Z,첫fire54.5051432Z. 보존frame114(53.5323659Z)NOWLOADING,117(54.3715923Z)전술HUD+로딩아트페이드,118(54.6593673Z)전술HUD/로딩아트없음. 따라서로딩중접근은관찰했지만첫피해가순수NOWLOADING화면에서발생했다고단정하지않는다. PNG3개는과거frame회수이며새촬영아님. load-boundary-wire-v108.json SHADAB7A056E45E6BF85B8C2956284CF84259FCD5C5974B3A04AA141F2A5CC899EE.
+
+검사 initial8RED1PASS→9GREEN,lateacquisition1RED12PASS. 독립리뷰가MoveGrid뒤구장면0348의목적지조기활성화를발견:실제0B01+MoverStore경로1RED→bootstrapgrid검사추가. 기존2NPC motionfixture는self0348전송후움직임을검사하도록갱신/기존효과assert유지. **최종실제격리PG포함566PASS/0FAIL/0SKIP**,별도리뷰최종PASS/Critical0/Important0. TRX E:/logh7-build/test-results/scene-import-v108/scene-import-full-green-v108.trx SHA43A8B9352D4838A0887B184F65ADBEF7C8A9017936238B476BA10D889726BC20. reviewed session SHA8B1A39F8EF906DCB75951C5DB92A3AD9699704226A52D9F3DFFDE140CCB7B94F. 원본wire에scene generation이없어같은grid의오래된poll완전구별/일반PvP로딩보호·악의적반복정책까지해결한것아님.
+
+14:39:33.3006535Z fresh read-only: v29/server9640/client5636/guestPG2524/migration21/grid102/base2/손실100·100/귀환event1/warehouse0/clientTCP없음/wirelistener-ready유지. runtime-db-v108.json SHA86800F0E79DE486EDD3B5CE0217524F3B6DE807D4FE8D8604ED0100068D72EFD. 이번게임입력/실제DB쓰기/재시작/배포/새화면0. 호스트격리PG22820/55805만14:37:25.3505249Z정상종료/데이터·스키마·로그보존/삭제0.
+
+다음은현재표시경계복구→재로그인→기존손실보존상태의검토된배포·별도건강한검증참가자로접근/첫사격화면+wire검증이다. 기존부상캐릭터를무료치유·리셋하지않는다.032F권위조회·0903결성·0C02효과·치유/재출격및전체전략·전술/PvP·NPCvsNPC/리소스목표미완료. 상세 work/20260904-warp-state-reverse/evidence/E-097-npc-scene-import-and-reaction-boundary.md 및 npc-scene-import-verification-v108.json. 이번progress/goalACTIVE.
+
+
+## E098 — 기존 실행에서 원본 로그인 화면 표시 회복 (2026-09-06)
+
+**현재 원본 로그인 화면 관찰 PASS / 인증·게임 재진입 NOT_REACHED.** Computer Use로현재목록의유일VMware창407570838을재선택하고activate_window1회→접근성element69포커스확인. 이후14:45:36.7295545Z input-free guest캡처에서흰내용이아닌원본ID/비밀번호/ログイン화면을관찰했다. 파일메뉴를열어화면을복구해달라는E096요청은이제불필요하다. 활성화가회복의직접원인인지/중간자연갱신·사용자행동여부는미입증.
+
+run140233Z/client5636/HWND0x00000000040B0406/item116 SHA AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F. guestforegroundPID5196/notClient,clientTCP없음. 로그인성공아님. 이번키/클릭/인증제출0,재시작/배포/DB쓰기0. Computer Use스킬의인증자동조작금지와동일턴PowerShell UI입력혼용금지로인증단계는중지했다. 다른입력경로로우회하지않았다.
+
+증거 work/20260904-warp-state-reverse/evidence/client-activated-v109.png SHA F5DA7268032EDFA0C33350DC725BA14600E2BDB158FF0434616A30BA2871E09D,동명JSON,상세E-098-native-login-screen-restored.md. 서버/DB별도확인은E097의14:39:33Z가마지막이며새조회라고하지않는다. NPC개선566PASS/리뷰PASS는여전히미배포. 다음인증→기존귀환캐릭터재접속검증;격침/부상데이터초기화금지. 이번화면관찰로다음행동이바뀐progress,전체goalACTIVE.
+
+
+## E099 — 자동 로그인 및 v29 귀환 캐릭터 재접속 PASS (2026-09-06)
+
+사용자의 “로그인은 자동으로 할 수 있는데?” 지적에 따라 E090에서 성공한 **게스트 전용 입력 경로**를 현재 v29 실행에 맞춰 재검증·적용했다. 특정 Computer Use 경로의 제약을 모든 자동 로그인 불가능으로 확대했던 E098의 설명/사용자 로그인 대기는 잘못됐으며 해소됐다. 이번 턴에는 Computer Use JS 입력을 호출하지 않았고 다른 Windows 입력 방식과 혼용하지 않았다.
+
+기존 run140233Z/client5636/start14:05:34.5360172Z/HWND0x00000000040B0406/server9640/start14:04:05.2831942Z/PG2524 동일. preflight14:53:06Z는 단일 클라이언트/path/start/hash/PG master와 data directory/서버 listener-only/Default input desktop와session1을 검증했다. 기존 protected 시험 계정 재사용, 비밀값 출력·기록0. ID초점 클릭1, credential 제출1(38 key events), GameStart1, 기존 첫캐릭터 선택1. 소비 영수증 재사용/재전송0. client/서버/PG 재시작·새계정생성·DB수동수정0.
+
+**실제 새 실행에서 자동 로그인→로비→기존 캐릭터→귀환 전략 HUD PASS.** 14:54:10.4353245Z LobbyReady, 실제 로비 공지 LOGH7 v29 distinct player units 관찰. 캐릭터 선택 직후 캡처는 아직 picker였지만 재클릭하지 않았다. 이후 SessionServerReady/0205/0F02/시간응답 성공,14:56:47.0614378Z world-ready-v111.png에서 전략 그리드 HUD·帰還惑星（仮） 표기를 확인했다. 전술 전투나 새로운 귀환을 수행한 것이 아니다.
+
+14:56:37.8301755Z DB read-only: unit|2|2|2|102|2|100|100|f4d4ff17-d97e-48b8-9474-ecf17f8b6462,21migration,OriginalReturnBaseChanged1/OriginalUnitInjuryReturned1,warehouse0,alias0,SCRAM 유지. 클라이언트127.0.0.1:52160→127.0.0.2:47900 Established. 이 실행의0F02는1회,frame-processed 실패0;격침 손실·귀환 위치가 새세션에도 보존됐다. 무상치유/새함선/재출격 증거로 확대 금지.
+
+증거 work/20260904-warp-state-reverse/evidence/credential-v111.json SHA10453816523C027075F0649BC02CBF3E7975D00CBC780E4B431828D6FA59673F;runtime-db-v111.json SHA532AF523F2A6B7CED655F050C4E61AC6FF87467C43AD5B776E284BB6B26205ED;world-ready-v111.png SHA77745ABB3B3B6E0C416073FA2CA9110244CCA792CC428C8898546CFB26127015. scripts guest-auth-preflight-v111/guest-interactive-session-v111/guest-click-v111/guest-submit-credential-v111/guest-runtime-db-v111는 현재 실행 신원용이며 제출 영수증은 소비됨.
+
+이번 새 테스트·배포0. E097 NPC임포트/반응 수정566PASS는 여전히 로컬 미배포다. 다음 실제남은기능은 부대·창고/재편성·치유/재출격 및 별도 건강한 참가자의 새 AI 검증이다. 현재원본로그인/표시blocker없음;기존귀환캐릭터상태보존하고부대상태를만들어실제플레이로이어갈것. 전체 전략·전술·AI·명령/제안·리소스/PvP·NPCvsNPC 목표ACTIVE/미완료.
+
+
+## E100 — 기함 격침 후 구축함 복귀의 영속 저장 구현 (2026-09-07)
+
+**LOCAL_STORAGE PASS / 세션 미연결 / 미배포 / 실제 재출격 UNSEEN.** E099 이후 로그인 보고만 반복한 직전 턴은 no-progress로 분류하고, 영구 부상 상태를 끝내는 실제 저장 코드를 구현했다. 로그인 성공을 다시 플레이 완료로 세지 않는다.
+
+규칙 정정: 보존된 공식 update05의104행은 기함 격침 시 계급에 관계없이 구축함으로 복귀하며 상위 기함은 다시 구매한다고 명시한다. 이 자료는 E052에서 이미 찾았던 것이며 새 발견/새 다운로드가 아니다. 일반 부대 재편성·창고 보충을 개인 기함 복귀의 필수 선행조건으로 둔 E099 다음 순서는 수정한다. 원본 규칙과 NEW_DESIGN 저장 구조를 구분한다. source E:/logh7-greenfield/evidence/manual-variants/wayback/update05-20050418003249.utf8.txt SHA337D4CA847E0D4ED6D8DB41B20C1D42C7135675E140707F1704D7B22B4A1100A.
+
+원인: IsRecoveringFromInjury는 InjuryReturnId 존재만으로 영구 이동 금지하고, encounter 피해는 unitId만으로 공유한다. 플래그만 제거하면 이전100/100피해가 새 기함에 복원될 수 있다. 또한 OriginalMoveGridAuthority.Transition은101→102만 허용하므로102귀환지에서의재출격경로도미구현이다.
+
+이번코드: migration0022가 ship_generation(기존0)과 original_flagship_recovery 이력표를 추가하되 기존손실은치유하지않는다. RecoverOriginalFlagshipAsync는 account→unit/character잠금, 반환ID/버전/소유/완전손실검사 후 이전손실·귀환request hash를 보관하고 새세대/무손실활성함선/constmsg함종2진영→3,3진영→93/authority/event를 한 트랜잭션으로 저장한다. 유닛ID=characterID와사용자함명유지. 함종3/93은group85 구축함 CLASS행이지3D모델번호가아니다. 해당모델/실제성능·원본클라이언트버전별복귀적용은아직미검증. API호출부는아직없으며현재게임을무상치유한것아니다.
+
+과거귀환/복귀재전송은이력hash/버전을검사하고현재상태만반환한다. 두번째손실뒤첫복귀요청을보내도새함선을치유하지않는다. Unsupported비군사진영은거절하며원본규칙을추측확장하지않는다. generation/request ledger는교체서버NEW_DESIGN이다.
+
+검사: 기능미구현2RED(NotSupportedException)→2GREEN; 복귀후과거귀환재전송2RED(INJURY_RETURN_SOURCE_STALE)→2GREEN. 첫호스트PG시작에서포트옵션을누락해5432로떠연결거절이났으며해당출력은기능RED로세지않는다. 소유PID54528확인후정상종료하고55805로재시작했다. 첫구현의character.updated_at없는컬럼오류42703은실제스키마에맞춰제거했다. 최종실제격리PG포함 **568PASS/0FAIL/0SKIP**; initial동시8요청중1회지급/후속8재전송/재오픈/실패시archive·unit·character전체rollback/이력보존/2저장생명주기검사. 두번째손실fixture는저장층검사이며실제두번전투나안전한귀환경로증거가아니다.
+
+TRX E:/logh7-build/test-results/recovery-v112/recovery-full-final-v112b.trx SHA749872D476A7BB01EB8EAC148AF4A2D788C8B1BC02E2997B705802C9DB9A4E85. 읽기전용review_recovery_v112 최종저장단위PASS/Critical0/Important0/Minor0. 중요연결주의: 기존MoveOriginalGridUnitAsync의과거replay결과는새ShipGeneration을기본0으로구성한다(PostgresAccountStore.cs 약1537행); 이를현재세대로오해하지말고현행state와분리해야한다.
+
+호스트시험PG25300/start15:12:39.9320248Z를15:19:08.3564715Z정상종료,postmaster.pid없음/55805listener없음. DB데이터·시험schema·로그보존/삭제0. 이번guest입력/DB쓰기/배포/재시작0. 마지막실제게임관찰은E099이며이번새관찰로승격하지않는다. E097NPC수정도여전히미배포.
+
+다음실제연결순서:
+1. 안전한귀환장면경계에서복귀호출→현재character/함종재조회;0325/0358단독모델갱신으로완료주장금지.
+2. ship_generation별encounter손실과오래된세션/participant갱신분리. 같은encounter.Id를여러생명주기귀환ID로재사용하면archive충돌하므로세대별lossID가필요하다.
+3. 함종3/93의실제3D모델/정적능력과표시경로확인. 항속을단순목적지상수로되돌리지말고권위지속값으로연결하며102→101재출격경로구현.
+4. 위연결후에만DB보존배포와원본클라+서버동시검증:귀환→구축함표시→워프→전투/재격침→재접속. migration만배포하거나DB수동손실초기화로통과하지않는다.
+
+전체전략·전술명령/효과·NPC AI/PvP/NPCvsNPC/명령제안·함명/모델/전체리소스목표는ACTIVE/미완료. 상세해시·시험범위 work/20260904-warp-state-reverse/evidence/flagship-recovery-verification-v112.json.
+
+
+## E101 — 복귀 저장을 장면 재생성에 연결하고 함선 세대별 전투 상태 분리 (2026-09-07)
+
+**LOCAL_SESSION_AND_STORAGE PASS / 미배포 / native 구축함·재출격 UNSEEN.** E100은실제저장구현·PG검증진척이며이번에는0F02→귀환→구축함복귀호출→새장면projection을연결했다. 전체게임목표는ACTIVE/미완료다.
+
+함선세대경계: registry의unit별최대generation으로오래된participant/NPC-ready정보를제외하며새owner종료후에도이전함선을되살리지않는다. encounter는같은세대관찰에서손실max병합,새세대에서만새손실로교체한다. 다른유닛/NPC·원래전장종결상태를리셋하지않는다. 새세대adoption은tacticalship/corps/임포트준비/관찰구독을비우고선택인물의현재함종을재조회한다. 옛장면의명령은재임포트전거절한다.
+
+0F02에서귀환상태를적용한뒤친군·비전투귀환기지의grid lease하에RecoverOriginalFlagshipAsync를호출한다. 저장반환unit/세대/손실/위치를검사하고인물재조회후새gridCharacter로0325/0323/전술장면을재구성한다. 미지원시험store는기존부상상태유지. 원본0358단독갱신을쓰지않았다. 군사진영함종3/93은constmsg CLASS행일뿐모델번호/원본정적성능증명아니다. 실제미배포이므로현재실행중캐릭터에새함선을지급하지않았다.
+
+반복격침: generation0은기존encounter.Id를그대로사용하여기존귀환ID와호환한다. 이후는 original-defeat/v2|encounterGuidN|unitId|generation UTF8의SHA256앞16바이트로서버내부defeatId를만든다(NEW_DESIGN). 같은전장두번째격침을첫귀환replay로오인하지않는다. 원래전장의죽은함선손실은다른grid복귀시에보존하며해당unit이새세대로그전장에재진입하면그unit만새손실로전환한다.
+
+같은unitId여도observer KnownUnits가generation을비교하여0426등사건전에새인물/함선entry를전달한다. 자기함선세대가오래된observer에는새전투를발행하지않고,이미queue에있던batch도EncodeNotificationBatch에서버려cipher sequence를소비하지않는다.
+
+검사: initial3RED→3GREEN,복귀호출/peer재임포트2RED→5GREEN,두번째lossID/옛observer2RED→7GREEN. 독립리뷰가발견한중요3건(restore와명령잠금사이의경합,다른접속의옛함종잔류,기존queue인코딩)을실제세마포어FIFO·2세션·batch시험으로3RED→10GREEN. 모든전술변경·전략이동/장면snapshot의mutation lease안에서generation을재확인한다. 0348기존내부lease를새외부snapshot lease와중첩해첫전체시험이교착되어해당호스트test handle64977만Ctrl+C취소했다. 원인확인후내부재취득제거/외부lease유지. 일시관찰timeout을완료로세지않았다.
+
+**최종Logh7.Server.ProtocolTests 전체578PASS/0FAIL/0SKIP,실제격리PostgreSQL포함.** 실제PostgresAccountStore+NaturalAuthoritySession연결fixture(제국):세대2상태를시험SQL로101에배치→0205/0F02→encounter100/100→0F02→귀환/복귀→0325kind3/손실0,DBgeneration3/grid102,event3;refresh로추가지급없음. 시험SQL배치는아직미구현인102→101실제워프증거가아니다. 동맹저장시험은E100경계를유지하며동맹native복귀를증명하지않는다.
+
+TRX E:/logh7-build/test-results/incarnation-v113/incarnation-full-final-v113.trx SHA75DB4565071C10605748549C92BF37C513B8DD5DEC73112E46AFFF060CA7E275. review_incarnation_v113 재검토LOCAL CODE ready/Critical0/Important0;minor였던송신sequence미소비assert도추가하고최종전체시험완료. 최종Session SHA21CF5B4788FAEC9CDC14658C10852634D8236EF7142F512DF0B9B773F1886511. 상세9개파일hash/검증범위 work/20260904-warp-state-reverse/evidence/ship-incarnation-verification-v113.json.
+
+호스트시험PG3448/start15:32:39.3661731Z를15:40:07.5963005Z정상종료,postmaster.pid/55805listener없음. 데이터/schema/로그보존,삭제0. guest입력·실제DB쓰기·배포·재시작·새캡처0. 실제게임마지막검증은E099이며이번관찰로승격하지않는다.
+
+다음은kind3/93→정적함선표→실제모델/능력→native구축함표시를확인하고,102→101복귀후출격경로와지속항속을구현한다. 현재OriginalMoveGridAuthority는101→102만허용하고항속은목적지기반상수다. E100의과거이동replay가generation0기본값을반환하는주의도유지(현재gateway는replay를거절하므로이번새세대로채택하지않음). 연결완료후migration22+E097NPC수정을기존격침/귀환DB보존배포하여클라화면과서버처리를같이검증한다. 전체전략·전술효과/명령제안·NPC AI/PvP/NPCvsNPC·전체리소스/함명/모델확인은여전히남아있다.
+
+
+## E102 — 원본 MDX 76개 추출·비교 및 복귀 구축함 정적 모델 연결 (2026-09-07)
+
+**LOCAL_CANDIDATE_MODELS_CONNECTED / 미배포 / native 모델표시 UNSEEN.** E101은세대별복귀세션구현진척이었다. 이번에는kind3/93에대응하는030B정적템플릿누락을확인하고수정했다. 기존서버는kind0/model12와kind89/model1003만보냈다. 원본004C46A0→004C5130은kind를그대로entity+8BC로넘기고,004F3D80은world+2C1A78+kind*2A8+20C에서modelFile을읽는다. 빈슬롯의값0을읽으면모델테이블0/GE EM001이선택되므로이름변경만으로복귀구축함이표시되지않는다.
+
+원본함종이름표와모델표는별개다. Ghidra의.MDX로더는004DD6A0→005DE500→005E3C00(param3=1)→005E39E0→005F6230이며.MDS의005F5D70과혼동하지않는다. 파일에남은옛heap포인터는직접rebasing해쓸수없다.005F6230 count-walk와005F61D0의descriptor36/vertexcount*stride/indexcount*2/vertexmapcount*2를재현한mdx_geometry_v114.py로GE/FP중간LOD76개를추출했다. 전부EOF/222basegroups. 원본파일을수정하지않았다.
+
+ship-geometry-v114b/{GE-0,GE-1,FP-0,FP-1}.png는각파일의첫비어있지않은base entry를무텍스처local좌표로투영한비교표다. 게임캡처·자식transform·애니메이션·정확한재질/전체함체native렌더가아니다. 초기v114의4개NoPrimaryGeometry는entry0이비어서발생한표시문제이며파서실패가아니었다. FM014는entry6이다. 두출력폴더모두보존.
+
+원본iu003/iu093썸네일(기존sheet0)과비교하여 **VISUAL_CANDIDATE kind3→model18/GE EM018,kind93→model1014/FP FM014**를선택했다. EM018의쌍장축구조/전방부,FM014의작은분리형선수/중앙선체형상을근거로한검증용배정이며원본서버배정표확정이아니다. model1014는테이블64이며이름93/파일번호93대입이아니다. H/M/L6원본파일현재SHA대조일치. 원본구축함능력치미회수이므로기존승인임시능력치유지,정식balance주장금지. 기존0/89는보존하고030B에3/93템플릿추가(4records/439bytes). docs/reference/2026-09-06-reverse-ship-identity-report.md에최신후보/비교표를추가하고v23/v24현재표현은당시기록임을명시했다.
+
+검증: Ghidra004C5130전체8/004F3D80전체155/005F6230선택시작52/005F61D0전체81bytes를원본BD19263…및item116AEF382…양쪽과대조,8선택검사일치. verify-model-loader-v114.ps1 및 model-loader-byte-verification-v114.json. MDX파서3RED→3GREEN;리뷰의empty-model.trailingBytes누락1RED→수정,variant/secondary인공fixture포함최종5PASS. 실제76개코퍼스는모두base분기이며비교표정체를자동확정하지않는다. review_destroyer_assets_v114가76원본해시/그룹/EOF독립대조0불일치,LOCAL후보연결/진단도구ready/Critical0/Important0;minor위항목수정완료.
+
+서버missingkind2RED→6focusedGREEN;최초전체시험은기존2record길이assert1FAIL/579PASS였고기존능력assert를보존하여4record로갱신·모든추가record의count/power비영0검사추가했다. **최종실제격리PG포함ProtocolTests580PASS/0FAIL/0SKIP.** TRX E:/logh7-build/test-results/destroyer-v114/destroyer-full-final-v114.trx SHAF4674656E52D0BECEF885E6A2CE6411641A88F7E813BB745E803122B336D24DD. codecSHAD9C6C4AA25C8D0A20D9004D09F3E7B4215CB2316A73ED8EF192B0609F56C80F5. 상세source/LOD/9artifact SHA work/20260904-warp-state-reverse/evidence/destroyer-model-verification-v114.json.
+
+호스트PG53512/start15:58:13.5188433Z→16:01:39.9083760Z정상종료,postmaster.pid/55805listener없음/삭제0. guest입력·실제DB쓰기·배포·재시작0. Codex의오프라인제국비교표open은queued였으며원본게임화면을열었다고하지않는다. 마지막native실행검증은E099. 이번워프/항속코드는변경하지않았으며 **다음즉시작업은102→101재출격경로+지속항속** 이다. 이후보존배포/migration22/E097NPC수정포함으로실제kind3/93→template→model/표시와귀환→출격→전투를서버·클라동시에확인한다. 전체전략·전술효과/AI/PvP/NPCvsNPC/명령제안/전체리소스목표ACTIVE/미완료.
+
+## E103 — 지속 항속·왕복 워프·재접속 연결 (v115, 2026-09-07 KST)
+
+**LOCAL_STORAGE_SESSION PASS / 미배포 / 실제 클라이언트 워프·재출격 UNSEEN.** 직전 로그인 기록 설명은 no-progress이며 이번에는 실제 저장·세션 코드를 변경했다. E102의 다음 작업이었던 102→101을 포함하는 authored101↔102 왕복을 연결했다. 경로·초기항속10·차감1·새 기함항속10은 NEW_DESIGN이며 원본 밸런스 회수로 주장하지 않는다.
+
+Migration0023은 original_grid_unit.cruising(real)을 저장한다. 기존102행은 이전0325표시값9, 나머지는10으로 초기화하며 기존 손실·기지·위치·함선세대는 바꾸지 않는다. 과거 소모 이력을 복원한 것이 아니다. 새 이동 결과의 cruising/generation/damaged/destroyed를 명령 원장에 함께 기록하고 재전송 시 그대로 반환한다. 이동·항속·이벤트·버전/hash는 계정/유닛 잠금 아래 한 트랜잭션이다. 음수/NaN/Infinity 및 항속부족은 거부한다. 부상귀환은 남은 항속을 유지하고, 실제 fallback issuance에서만 NEW_DESIGN10을 부여한다.
+
+NaturalAuthoritySession은 payload만으로 영구 중복 처리하던 fingerprint를 연결scope+inner sequence+payload로 바꿨다. 원본 wire에 cross-connection intent token이 관찰됐다는 뜻이 아니다. 그리드 lease 뒤 DB행 재검증, 동일 함선세대 확인, ApplyPersistedGridUnit로 이동 결과 적용, 0B07/0325에 실제 소모 후 항속 연결. 기존 grid102→9/그외→10 투영은 실제 세션에서 제거했다. OriginalWorldEntryCodec.EncodeUnit의 구형 fixture helper는 남아 있으나 실제 authoritative 세션은 CurrentPlayerInformationUnit/EncodeUnits를 사용한다.
+
+**실제 격리 PostgreSQL 포함 최종586PASS/0FAIL/0SKIP.** E:/logh7-build/test-results/cruising-v115/cruising-upgrade-full-v115.trx SHA AF5E47AF55782F217D01E8DFF7DF1FC2BC0E6B0C2E4A03DB06E47148DE2D2334. 8동시 중복요청1회차감, 10회왕복10→0·11회거부, 이벤트실패rollback, 손실25/10·세대3 replay일치, DB재접속, 22→23업그레이드에서 기존행JSON필드전체보존·migration재실행항속보존을 검증했다. 실제 암호화0B01 세션102→101→102→101의0B07/자기0325는9→8→7, 새datasource/session의0F02도7, 이후 격침→귀환→새구축함generation3/cruising10을 검증했다. 이전 SQL로 출발위치만 조작하던 recovery session 테스트를 실제0B01로 대체했다.
+
+RED 영수증: storage9예상/10실제, fresh fallback10예상/7실제, historical replay 7/8손실불일치. 최초 session RED는 잘못된 마지막NPC record를 읽어 근거에서 제외하고 자기unitID+0325offset46으로 수정했다. 이후 구형 grid기반 투영을 잠시 복원한 mutation은 정확히 자기항속9예상/10실제로 실패했으며 수정코드를 복원하고 최종전체재검증했다. review_cruising_v115의 minor replay손실누락도 재현→수정→재검토하여 Critical/Important/Minor0. 추가 upgrade test는 리뷰 이후이며 production변경은 없다.
+
+배포용 **E:/logh7-build/v30-cruising-v115.zip**, SHA1F62A82EE79FED9ED704EF614536CB0947F50136C54D4AFEAB0DC70136F17E98. publish E:/logh7-build/publish-v30-cruising-v115 (Release/win-x64/self-contained, migrations23). DLL1138142128513185EB160A03F21F1C67C8C385CABEE638EE794F07EF5BDF78C8, EXEC525060083F0F0CF7860D482B3C16E3E392B29BF9CFB5678DAB7551BFE3F99A4. Migration0023 SHA7F2867D140BDBE2554944CF5C97C98A1CB7E90A57C0280B83BBEAE3AA1FA8B64. 전체 영수증 work/20260904-warp-state-reverse/evidence/cruising-verification-v115.json.
+
+**실제 상태 새 검증:** 2026-09-06T16:22:24.3975909Z guest-runtime-db-v115에서 v29/server9640/start14:04:05.2831942Z, PG2524/start14:04:04.8083928Z, client5636/start14:05:34.5360172Z 경로·시작시각·DLL/클라이언트hash·data directory·listener 소유를 재확인했다. 현재도 migration21/unit2 grid102/base2 loss100/100/기존injuryID, SCRAM. proxy2952 그대로. 새 capture before-cruising-v115.png는 검은 화면이므로 전략/전술 HUD를 새로 관찰했다고 하지 않는다. 자동 로그인 가능은 E099에서 이미 해결됐으며 사용자에게 로그인을 넘기지 않는다. 이번 guest입력0/DB쓰기0/배포0/재시작0. 호스트 시험PG60872/start16:15:27.3909779Z→16:27:26.5311926Z 정상종료, postmaster.pid/55805listener 없음. 데이터/schema/log 삭제0.
+
+**즉시 다음:** 이미 만든 v30 zip을 사용해 새로운 run에 보존 roll-forward 준비→정확한 기존 client/server/PG 및 상태hash 재확인→기존클러스터 clean stop/cold copy→copyhash 확인→v30 시작/migration22+23 보존검증. E097NPC/기함복귀/세대차단/3·93 model/이번 항속 변경을 모두 포함한다. 기존 script guest-rollforward-v29-v107b.ps1은 구조 참고만 하고 소비된 stage/stop/start/client 영수증·credential-v111 제출은 재사용하지 않는다. 신선한실행신원과 영수증으로 자동 로그인→실제 구축함표시→102→101워프/항속→전투/귀환을 서버·클라·DB 동시에 관찰한다. 수동 heal/teleport/계정reset 금지. 전체 전략/전술/AI/PvP/NPCvsNPC/명령제안/전체리소스 목표 ACTIVE, 미완료.
+
+## E104 — v30 보존 배포·자동 로그인·실제 기함복귀, HUD 항속 불일치 발견 (v116, 2026-09-07 KST)
+
+**진척: 배포 및 실제 클라이언트 요청으로 기함 복귀 확인. 전체 플레이 완료 아님.** E103 zip을 배포했다. 처음 부모가 Start를 -Interactive 없이 호출한 오류로 서버/PG가 session0에서 시작됐다. Stage/clean Stop/cold copy/migration23의 기존 상태 해시 d3f0100c3c9cbcdd591c369ae5bee6be0914aa2dfdc3afd2d7a5769a2b1f7779 일치는 확인됐으나 대화형 Client guard에서 PROCESS_IDENTITY_CHANGED, 클라이언트생성0으로 중단했다. session1에서는 session0 서버Path/StartTime이 읽히지 않았다. PG5400은16:34:49Z child2564 exception0xC0000142 후 실제 종료; 프로세스/55432/postmaster.pid 부재를 확인했다. pg_control은 in production이므로 로그의 shutdown 문자열을 clean shutdown으로 오인하지 않는다.
+
+복구 전 검토에서 b의 기존 wire FileMode.CreateNew 충돌/로그overwrite/Client session guard 누락을 수정했고 b실행0. c Stop은 DATABASE_NOT_SHUT_DOWN으로 변경없이실패. d는JS replace replacement문자열의 $' 확장으로 깨진 스크립트라 parser실패/실행0, **절대 실행금지**. 올바른 literal callback 편집의 e는PS5.1검사·review_rollforward_v116 Critical/Important0. 기존 v29 clean source를 보존하고 중단된 v30 DB를 postgres-data-pre-session-repair-v116e에 추가복사한 뒤 정확히 소유된 session0서버5252만 종료했다. 새 **session1 PG6996/server6412**가 기존업그레이드DB를 WAL복구했고 전후statehash일치. 회복로그에서 redo/checkpoint/ready 확인,16:57:45Z 12분이상현재생존·실제SELECT검증. 바탕화면세션변경으로 재현구간이 해소됐지만DLL초기화실패의내부원인을확정한것은아니다.
+
+**현재 RUN: C:\Users\logh7-oracle\AppData\Local\Temp\logh7-l1\20260906T163027Z-natural-l1-relogin-v1**.
+server6412/start2026-09-06T16:45:46.9822816Z/session1, DLL1138142128513185EB160A03F21F1C67C8C385CABEE638EE794F07EF5BDF78C8, wire **server-wire-v116e.jsonl**/stdout server-v116e.stdout/stderr server-v116e.stderr.
+PG6996/start16:45:44.7860841Z/session1/55432/data 현재run postgres-data, binary는이전102317Zrun의postgresql/pgsql/bin.
+client540/start16:46:09.3613798Z/session1/HWND0x000000000133044A/item116 SHA AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F.
+proxy2952/127.0.0.1:47900 그대로. 이전140233Zrun source pg_control SHA080036A7CBC4C0D2D11C2C0BDD17501DA9E42CEB70CD0B71F2F6FCD54ED18777 및DB 보존. 삭제0,수동heal/teleport0.
+
+VMware Capture는검정이지만게스트CopyFromScreen은흰650×533시작창을보였다. focus API1회로변화없음. 핸드오프E076/E079의이미알려진동작을다시찾아 **실제보이는File메뉴(30,35)1회→로그인화면표시→메뉴닫기(605,502)1회** 확인했다. 렌더초기화근본원인미확정,다시추측클릭/포커스루프금지. ID(324,331)1회→새credential-v116e 영수증으로보호시험계정38keyevents1회→실제로비(v30공지)→GameStart(125,192)1회→기존캐릭터(650,307)1회. 모든좌표는해당새캡처기준이며다음run재사용금지. rawEscape는종료일수있어사용하지않았다. 자동로그인을다시사용자에게넘기지않는다.
+
+**실제 world요청 0F02 → OriginalFlagshipRecovered(version27) → DB state PASS.** 16:57:45.9052497Z unit|2|2|2|102|2|0|0|none|1|10|3; migration23/recoveries1/warehouse0/alias0/SCRAM. 이벤트에이전damage100/destroyed100/generation0/cruise9/returnId f4d4ff17-d97e-48b8-9474-ecf17f8b6462가보존되고새kind3/type0/generation1/cruise10이기록됐다. login후clientTCP127.0.0.1:52180→127.0.0.2:47900 Established,worldwire0F02및시간응답Success. 이것은새native입력으로발생한저장효과이며fixture나수동치유아니다.
+
+**다음 실제 blocker: 전략HUD航続는0인데DB항속10.** window-world-v116.png에서그리드전략HUD/귀환행성/艦内는관찰했으나3D구축함형상·전술HUD·새전투·102→101워프는아직관찰하지않았다. source0325→HUD 소비(인물→unit/current base/boarding 소속 포함)를역추적하고기지내표시규칙인지데이터누락인지분리할것. 서버저장10만으로사용자에게항속표시/워프정상이라고보고하지않는다. 최초runtime-db-v116의unit행이빈문자열인것은nullable flagship_kind 문자열연결probe오류였으며b/final에서coalesce로수정했다. 실제row소실아니다.
+
+증거 work/20260904-warp-state-reverse/evidence/deployment-recovery-verification-v116.json.
+최종runtime-db-v116-final.json SHA621FE68A1A0CBE23CB12DBC376F31FD4A4D8E6CF4049678BC1198060ACE812D0.
+world PNG SHA2391C1CE45BD35D144B7D158851C29423E7385A9AA7AE70F4F26B79F0207F229.
+credential-v116e.json SHA4358D38DFC20CE938F9E6B39E2B94FFD346114AFEBFB641DA7B2796FAD4F4998.
+server-wire-world-v116.jsonl SHA088232E38E12C2C32E7835B9B9D17E8DF7C22968F3703BCD030DCDC03D7AE079.
+postgres-v116-recovered.log SHA009C47407DB795DEED559CE5D8D2DFF0A1135AF7517D96D820781CD8BE59CC1A.
+scripts guest-session-repair-v116e Stop/Start/Client 및 credential-v116e 모두소비됨. e재시작/로그인반복금지. 현재runtime그대로이어가며새조회영수증사용. guest-window-observe-v116.ps1은새Tag로현재창관찰가능; guest-click-v116e는fresh신원·화면을확인하고새ReceiptPath로새로운실제필요입력만. auth-preflight-v116e가사용중인identityanchor. 전략항속/HUD→실제출격/워프→새kind3/93형상/전투 확인이우선이며전체전략·전술·AI·PvP/NPCvsNPC·명령제안·전체리소스목표ACTIVE/미완료.
+
+## E105 — 전략 항속0은 원본 double/정수 포맷 버그, 별도 표시 패치 준비 (v117, 2026-09-07 KST)
+
+**원인 확정 / LOCAL_PATCH3PASS / 적용승인 대기 / 실제 HUD 수정 UNSEEN.** E104의 “DB10/HUD0”는 서버송신이나기지내항속초기화오류가아니다. 원본 HUD초기화0058D140/업데이트0058EE70는004B5B50(context+318)의InformationUnit+54 float를읽고 double로승격해 CString::Format00646616→0064630E에전달한다. 그런데0078D574의ASCII형식은 **%-4d\n**(252D34640A000000), 즉정수용이다. 실제명령0058F7DD FLD[ECX+54]→SUB ESP,8→FSTP double[ESP]→PUSH0078D574→CALL00646616. 두참조는0058D523/0058F7EA. 원본PE BD19263C…와item116 AEF382…에서format8바이트와호출27바이트가모두일치하므로Ghidra만의타입추정/우리서버NEW_DESIGN문제가아니다.
+
+**새실제RPM 17:05:12.1122424Z:** client540/server6412/PG6996 경로·시작시각·파일hash·PGmaster/data directory검증후읽기만수행. world08AF9020/context08AF902C/unit08AF9344, unit2/kind3/**cruising10(raw00002041)**. double승격0000000000002440의정수하위32비트는0으로HUD증상과일치. 게임데이터를10으로강제로쓴것이아니며memoryWrites0/gameInputs0. 증거 cruising-read-v117.json SHA8A523FFA4619041811676CA3DB52B1C1E1F36EF248E122D0230AB6456BC5013E. 4개원본함수decompile cruising-format-{0058d140,0058ee70,00646616,0064630e}-v117.txt저장.
+
+별도패치 **work/20260903-client-debuglog-patch/G7MTClient.cruising-format-v117.exe**, SHA C4098D75546F44F888212D11E80D91AD687B9D88AE70B2FAB739013DC21A50DC. 입력item116을보존하고0078D574의8바이트영역만 **%-4.0f\n**(252D342E30660A00)로수정. 실제변경4바이트/파일길이3960832동일/명령·나머지리소스·모델·wire·게임상태불변. 소수항속이있으면0자리로반올림하는표시방식은NEW_DESIGN UI수정이며원본정상표시회수주장이아니다. 기존G7MTClient.item117.exe는이미존재하여exclusive출력이거부됐고그파일은건드리지않았다. v117은이작업버전이며globalitem117을덮어쓰지않는다.
+
+TDD: identity baseline의실제Windows CRT_snprintf에서10/9가0으로출력되는2실패와알수없는입력허용1실패를관찰후수정. **최종3testsPASS**: 실제CRT10/9/0출력,8바이트밖전체불변/길이보존,다른SHA/재적용거부. builder scripts/patch_cruising_format_v117.py, tests/test명은같은scripts/test_patch_cruising_format_v117.py. 출력파일은xb로만생성해덮어쓰기금지. review_cruising_format_v117가바이너리전체차이·2개double호출·정확한형식과3tests를독립확인해blocking0. 상세receipt cruising-format-verification-v117.json.
+
+**클라이언트적용승인질문을보냈으며현재미응답.** 이전서버/프로토콜변경승인과구분해서원본클라이언트표시형식패치승인을요청했다. 현재실행클라이언트540/item116은그대로이며live메모리수정·클라재시작·게임DB쓰기·서버변경0. 승인전실행파일교체나실행메모리패치로승격하지않는다. 승인후이패치만적용한새실측으로HUD10을확인하고워프후9/재접속유지까지검증할것. 서버항속을정수비트로위조해서표시를맞추지말것. 승인대기중다른전략/전술분석은가능하며전체goalACTIVE/미완료.
+정확한원장경로는 **docs/reverse-engineering/strategy-command-ledger.json**, **docs/reverse-engineering/client-card-command-dispatch.json**(work/evidence아님). 현재게임·서버·PG계속사용,소비된v116e시작/로그인영수증재실행금지.
+
+## E106 — 출항60은 CommandSwitchMode0B06, 서버 처리 누락 확인 (v118, 2026-09-07 KST)
+
+**STATIC_CHAIN_CONFIRMED / AUTHORITY_MISSING / NATIVE_UNSEEN.** Ghidra LOGH7/G7MTClient.exe version33에서 재출격 명령을 추적했다. 0058C85E가00C9E3EC에00583E20을 설치하며, 명령테이블 시작00C9E2FC와 차이를4로 나누면60이다. 명령 원장의 출항60과 일치한다. 00583E20은 GetMoveBaseMode(vtable00676C48,+8=00570940), FLOW_FLAGNUM5/6에 조건부인 command60 확인 흐름, SendWarpCommand(vtable00676AEC,+8=005737D0)를 만든다.
+
+00570940은004B5B90의 현재outfit ID와004C54D0/004C5470 두 레코드 존재를 확인한다. context+40이0이면flag5, 양수이면flag6. 005737D0은flag5→004B4A00(4),flag6→004B4A00(5)를 호출한다. 이 분기는0B00/0B01 이동과 별개이다. 004B4A00은0x164 구조체를0으로 초기화하고 actor004B4A90, modeu16+14, unit_count0+16을 채워 내부selector0x42로 송신한다. 004B78A0은selector-1의case0x41에서 **0B06 CommandSwitchMode**로 매핑한다. 00448C90 길이계산은unit_count+16<=70,move_character_count+138<=10,30+4*N+4*M. 모드4/5를 전략/전술 번호라고 추정하지 않는다.
+
+현재 server-scratch/apps/server/**/*.cs(bin/obj 제외)를 --no-ignore로 검색했을 때 SwitchMode 및0x0B06/0xB06 처리 참조가0이다. 따라서 버튼 노출만 추가하지 말고 요청 codec·서버 권한검사·영속 mode/base 상태·NotifyChangeMode 및 현재투영의 결합을 먼저 구현해야 한다. 아직 전체writer/응답필드 의미를 회수하지 않았으므로 이번 서버수정0,클라이언트수정0,DB쓰기0,게임입력0. 전략명령원장60을NOT_STARTED에서 정적경로확인/권위구현누락/실클라미검증으로 수정했다.
+
+증거 **work/20260904-warp-state-reverse/evidence/departure-static-v118.json**에 원본 decompile/listing을 저장했다. 다음 시작은 **00448EA0 Output_CommandSwitchMode::output_to_stream**와 **NotifyChangeMode** serializer/receiver이다. Ghidra에서00448EA0은 아직data로 취급되므로 decompile이 단일명령만 반환할 수 있다. 정확한 코드경계를 확인해 분석하거나 로컬PE disassembler를 사용할 것. opcode를 추정해 임시성공응답을 보내지 말 것. E105항속표시패치 승인은 여전히 미응답이며 변경하지 않았다. 자동로그인은E104에서 성공했고 직전턴에client540/server6412/PG6996 생존만 재확인했다. 이번턴 새runtime상태·출항·전술진입 검증으로 승격하지 않는다. 전체goalACTIVE/미완료.
+
+## E107 — 출항 요청·모드변경 알림 코덱 구현, 영속모드 연결 남음 (v119, 2026-09-07 KST)
+
+**CODEC_TESTED / AUTHORITY_NOT_CONNECTED / NATIVE_UNSEEN.** Ghidra의00448EA0과004A79B0에 함수 정의를 생성해 실제writer/reader를 회수했다. 분석DB만 변경했으며 EXE바이트 수정0. 원본SHA BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16과writer/reader/004C1D20/004B5DB0의각96바이트가일치했다. 전체함수바이트대조로확대하지않는다.
+
+0B06 body는 u32 time,id / u16 card / u32 pcp,mcp / u16 mode / u8 unitCount / u32 unit[N] / u32 spot,spotOwner / u8 moveCharacterCount / u32 moveCharacter[M]. 최대70/10,body30+4*N+4*M. 00449190 logger에서두번째u32는id이며wait가아니다. 기존MoveGrid와필드를혼동하지말것. 042F NotifyChangeMode reader004A79B0/logger004A7F20은 u32 time / u8 kind / u32 targetBase / u8 unitCount / (u32 id,f32 direction,x,y,z)[N] / u32 spot,spotOwner. 최대32,body18+20*N. 요청70과알림32의차이는향후서버에서분할송신하되권위상태는원자적으로처리할것.
+
+server-scratch의 **OriginalGateway/OriginalSwitchModeCodec.cs** 및 ProtocolTests/OriginalGateway/OriginalSwitchModeCodecTests.cs 추가. 요청파서는정확한길이·type·두배열상한을검사하고,알림인코더는원본필드순서/floatbits/4byte메시지코드prefix를보존한다. codec은권한·PCP/MCP·위치·mode정당성을승인하지않는다. 테스트의기대바이트는writer/reader에서수기로작성했으며생성함수로기대값을계산하지않았다. RED빈구현5FAIL/1PASS→GREEN6PASS. 모든관련CodecTests **113PASS/0FAIL/0SKIP**. 이는전체프로토콜/DB/실클라통과아니다.
+
+중요한다음구현: 004BC169는042F를004C1C30으로넘기고,004C1D20은kind4/6에서entity+5C4=0,5에서5,7에서6;004B5DB0으로모드설정,004B5E80으로기지연결초기화/재설정,좌표/방향및기지상대좌표를적용한다. 자기unit은004B5DB0이context+31E(InformationUnit+6)의mode를직접바꾼다. **현재OriginalWorldEntryCodec.EncodeUnits는mode를항상0으로송신한다.** 세션0B06handler뿐아니라영속mode/base 및0325재접속투영을함께수정해야한다. 임시042F만보내서출항완료라고하지말것. 현재codec은NaturalAuthoritySession에연결하지않았고서버재시작/배포/DB쓰기/실클릭0이다.
+
+영수증 work/20260904-warp-state-reverse/evidence/switch-mode-codec-v119.json에decompile과원본pin저장. TRX E:/logh7-build/test-results/switch-mode-v119/{switch-mode-v119-red,switch-mode-v119-green,switch-mode-v119-codecs}.trx. 최종113테스트TRXSHA40FD6C9B1FABDDADACE37EB7BEA529DAAA4479E256470E22864CE9CDC7594818. codecSHA8813E027EF81003E19121824C5E08A278B62EF0BB416B5035754249105518C51,testsSHA4B077C886042C6CE76C49442EB418B094F9F60DDDEA565F5FA446A0413BD493C. 독립리뷰/전체DBsuite/실클라출항은미실시. 다음은actor/card권한·outfit검사와mode4/5기지상태전이를기존저장트랜잭션에연결하고실패/재전송/재접속시험으로검증하는것이다. E105클라표시패치는아직승인대기,전체goalACTIVE.
+
+## E108 — 출항 사전검사는outfit이아닌base, 유닛모드 전송초기화 제거 (v120, 2026-09-07 KST)
+
+**정정:** E106/E107에서004B5B90/thunk004B5BF0의반환값을outfit이라고쓴것은잘못이다. 현재Ghidra에서004B5BF0은context+358을읽고004B5B50은context+318을반환한다. 따라서유닛+40의 **base** 이다.004B5E80도정확히context+358을쓴다. 기존client-card-command-dispatch.json의unitFieldMap+40=base와일치한다. 출항00570940의조회키는현재기지ID이며,잘못된outfit검사를새로추가하지말것. 위절과v118영수증은과거조사기록으로남기며이정정이우선한다. 00570940의별도context+40분기를unit+40과혼동하지말것.
+
+**구현:** OriginalInformationUnitProjection에Mode(byte,default0)를추가하고OriginalWorldEntryCodec.EncodeUnits가그값을0325에기록하도록수정했다. 같은유닛정보를다시송신할때serializer가모드를무조건0으로덮던부분을제거했다. 기존호출자의기본동작은0으로유지되며이것만으로실제출항상태가생기는것은아니다.
+
+TDD: OriginalUnitModeProjectionTests의mode4/5/6/7 모두실제payload0으로4FAIL을재현한뒤수정. 두유닛의서로다른mode/base,42byte레코드오프셋,mode바이트외전체frame불변을검증한다. 관련CodecTests포함 **117PASS/0FAIL/0SKIP**. E:/logh7-build/test-results/unit-mode-v120/unit-mode-v120-green.trx SHA08915A26E8964D71A837C24BAEDF29C7345B4E5A26A99D84DC850B1712219470. 근거 work/20260904-warp-state-reverse/evidence/unit-mode-projection-v120.json.
+
+**미완료/다음:** 이번시작때계획했던영속저장까지완료하지못했다. OriginalGridUnitRecord/PostgresAccountStore에는아직Mode필드가없으며CurrentPlayerInformationUnit도Mode를공급하지않아실제세션은여전히0이다. mode4/5가요구하는base/spot상태전이를확정한후migration·트랜잭션·과거명령재전송·격침귀환/새함선세대·재접속투영을같이연결해야한다. 특히042F004C1C30/004C1D20/004B5E80에서targetBase가있으면기지ID와상대좌표를다시설정하므로모든출항에무조건base0을대입하지말것. 004C9170은context+40/+44를기지내spot목록에매칭하는추가소비자이다. 이번DB쓰기0/배포0/재시작0/게임입력0,독립리뷰와실클라검증미실시. E105클라이언트표시패치는여전히승인대기. 전체goalACTIVE.
+
+## E109 — 유닛모드 영속보존·재접속 투영 연결 (v121, 2026-09-07 KST)
+
+**STORAGE_AND_SESSION_TESTED / DEPARTURE_AUTHORITY_UNCONNECTED / NATIVE_UNSEEN.** E108의미연결중Mode저장·조회·세션투영을구현했다. migration0024_original_unit_mode.sql은original_grid_unit.mode와original_grid_move_command.result_mode(integer0..255,default0)를추가한다. 기존송신값0을보존할뿐과거출항을추측하지않으며기존필드는변경하지않는다. OriginalGridUnitRecord.Mode추가,Find/Move/부상귀환/기함복귀의4개조회에서mode를읽는다. 공통reader는mode열명을사용하고부가컬럼ordinal을바꾸지않았다.
+
+Move트랜잭션은기존mode를유지하며이동명령원장에result_mode를기록한다. 과거재전송은당시mode를돌려주고현재상태를덮지않는다. OriginalGridUnitMoved이벤트와move-grid-v3해시에mode를포함했다. NaturalAuthoritySession.CurrentPlayerInformationUnit은_persistedGridUnit.Mode를0325로전달하므로새세션/참가자투영에도연결된다. 기존Cruising업그레이드시험의행보존비교는새mode열만제외하도록갱신했고,모드자체업그레이드는별도시험한다.
+
+실제격리PostgreSQL에서RED열개수1예상/0실제→저장시험통과,이어새DB연결+새세션의암호화0205/0F02→0325에서mode7예상/0실제를재현→세션연결후통과했다. SQLfixture로mode4를설정한뒤실제Move저장호출,다음fixturemode7후과거명령재전송4/현재7유지,두번새datasource/session응답7,mode-1/256DB거부,기존행JSON필드보존,이벤트mode4와독립canonical해시를검증했다. **SQLfixture는실제출항명령이아니다.** 전체ProtocolTests최종 **597PASS/0FAIL/0SKIP**, E:/logh7-build/test-results/unit-mode-v121/unit-mode-v121-final.trx SHA8266949A133BDA79D4F9F31B28721113D9E33756B855732278BA1AA63FD58D9E. migrationSHA28167806CFE648368553D6B4645E2EC0CB15EFC93A23E418458755301CBF4CA0.
+
+호스트시험PG39260/start2026-09-06T17:41:06.3421538Z,경로E:/logh7-build/return-base-postgres-runtime-v91/pgsql/bin/postgres.exe,dataE:/logh7-build/warehouse-pgdata-v105,port55805를확인하고17:45:00.7838158Z정상종료했다. postmaster.pid없음/listener0. 새시험schema/로그/데이터는보존하고삭제0. 게스트게임/서버/DB에입력·쓰기·배포·재시작0,게스트는여전히v30/migration23이다. 로컬migration24를배포완료라고하지말것.
+
+다음은 **0B06의실제출항handler와권한/기지·spot상태전이** 이다. 그후042F알림·0325갱신·원본화면에서출항→워프→전투를닫는다. 현코드는Mode를저장/보존할수있지만게임명령으로Mode를변경하는경로는아직없다. 부상귀환/기함복귀도기존mode를보존하며새생명mode규칙은미확정이다. 독립리뷰/원본출항/재접속UI검증미실시. 근거work/20260904-warp-state-reverse/evidence/unit-mode-storage-v121.json. E105항속표시패치승인여전히미응답,전체goalACTIVE.
+
+## E110 — 전략 인물 위치 갱신은0B0B 경로, 알림코덱 추가 (v122, 2026-09-07 KST)
+
+**STATIC_PATH_CONFIRMED / CODEC_TESTED / AUTHORITY_UNCONNECTED / NATIVE_UNSEEN.** 042F의004C1C30은world+126718이0이면아무처리도하지않는다. 전략장면에이알림만보내면인물위치가갱신되지않을수있다. 반면0B0B NotifyMovedBase는004BCF83→004BEE60,world+2A58F8조건에서600개playercontext를순회하고move_character[] ID와맞는인물의context+40(spot),+44(spot_owner),004B5BD0(unitmode+31E),004B5BE0(unitbase+358)를갱신한다. **move_character[]가비면갱신대상이없다.** 004C2C80은CharacterInformation[7]/[8]→context40/44와InformationUnit[6]/[40]→모드/기지매핑도확인한다. 기존서버에0B0B경로없음.
+
+reader0044BEE0/logger0044C310의body는u32 time,id,base / u16 mode / u32 spot,spot_owner / u8 move_character_count / u32 character[N],최대10,23+4*N바이트이다. Ghidra0044BEE0함수정의만추가했으며EXE바이트패치0. **OriginalMovedBaseCodec.cs**와**OriginalMovedBaseCodecTests.cs**추가:4byte메시지코드prefix+type+body,필드순서,0/10명길이,11명/null거부검증. RED3FAIL→관련CodecTests/ModeProjection **120PASS/0FAIL/0SKIP**. TRX E:/logh7-build/test-results/moved-base-v122/moved-base-v122-green.trx SHA105A303BAD70FCF1A3D206B1F084917FC5FC643361E9EE9053D2E0BCF30E673A. 이번전체DBsuite는미실시이며E109의597을새검증으로표현하지않는다.
+
+근거work/20260904-warp-state-reverse/evidence/moved-base-v122.json. 0B0B는0B00응답으로도쓰이므로0B06뒤원본서버가보낸정확한알림순서가관찰됐다는뜻은아니다. 새서버의변경상태에맞춰인물컨텍스트와전술엔티티투영을선택한다. 다음은CharacterInformation spot/owner의현재서버투영·영속위치를확인하고실제0B06권한검사/트랜잭션에연결하는것이다. 모드4/5의최종base/spot전이는아직미구현. 코드생성만으로전략출항성공아님. 게스트입력/DB쓰기/배포/재시작0,호스트PG는E109정상종료상태를변경하지않음. E105표시패치승인대기,전체goalACTIVE.
+
+## E111 — 전략 자기 함선 출항 저장·세션 연결 (v123, 2026-09-07 KST)
+
+**STRATEGIC_OWN_MODE4_STORAGE_SESSION_TESTED / NATIVE_UNSEEN.** 중단돼 있던 NaturalAuthoritySession.Departure.cs의 nullable 캐릭터 Power 접근 두 곳을 수정하고 실제 출항 요청 연결을 검증했다. 0B06에서 world/actor/zero-fields/mode4/현재 그리드/함선 세대/생존/우호 기지를 검사한다. 현 서버의 spot/owner=0인 자기 함선 경로만 연결했으며 mode5, 여러 유닛, 적이 있는 전술 장면 출항은 명시적으로 미지원 응답한다. 이를 전체 출항 완료로 해석하지 않는다.
+
+migration0025_original_departure_request.sql과 PostgresAccountStore.Departure.cs: 계정·유닛 행 잠금 후 base0/mode4, OriginalUnitDeparted 이벤트, 계정 버전·해시, 요청 이력을 한 트랜잭션으로 저장한다. 비용/시간/출항 최종 상태 규칙은 원본 서버 회수가 아닌 NEW_DESIGN이다. 과거 저장 요청 재실행은 현재 유닛을 반환하며 이후 함선 세대/위치를 되돌리지 않는다. 0B0B에는 실제 대상 인물 ID를 넣고 0325도 갱신한다. 전술042F 좌표/기지 상대 위치 연결은 남았다.
+
+실제 격리 PostgreSQL 테스트: 동시8요청 중 변경1회, 외부 계정·오래된 버전 거부, 이벤트 저장 실패 시 유닛/이력 롤백, 후속 세대에 과거 요청 재생해도 불변, 암호화0B06으로 base2/mode7 fixture에서 base0/mode4 전환, 새 datasource/새 세션0205/0F02에서도 유지 확인. 0325 packed base는 frame+28이며 초기 잘못된 +34 검사를 고치고 출항 전 base2도 단언했다. 같은 통신 순번을 성공으로 기대한 초기 테스트는 기존 strict sequence 규약과 충돌해 수정했다. 중복 순번은 Invalid로 세션을 종료하므로 마지막에 검사하며, 새 순번으로 다시 출항해도 이미 base0이어서 상태 변경 없이 거절된다. 기존 transport를 느슨하게 바꾸지 않았다.
+
+최종 전체 ProtocolTests **601PASS/0FAIL/0SKIP**. TRX E:/logh7-build/test-results/departure-v123/departure-v123-final.trx SHA D8992A241F512678FAC2BE79FC131DD5E349F982FF9D47A55CBD827BC8C12602. 상세 영수증 work/20260904-warp-state-reverse/evidence/departure-v123.json. 호스트 PG32568/start17:54:22.7037700Z/data E:/logh7-build/warehouse-pgdata-v105/port55805 신원 재검증 후18:06:16.8655994Z 정상 종료, pidfile 없음/listener0, 데이터·schema·로그 보존.
+
+**다음 실제 플레이 경계:** 게스트는 아직 v30/migration23이다. migration24/25와 이 서버를 데이터 보존 배포하고 자동 로그인→실제 출항→워프→전술 진입을 확인해야 한다. 소비된 v116e 시작·로그인 영수증을 재사용하지 말고 새 실행 신원으로 수행한다. 이번 게스트 입력/DB쓰기/배포/재시작0. E105 클라이언트 항속 표시 패치는 여전히 별도 승인 대기이며 배포하지 않았다. 자동 로그인 가능은 E099/E104에서 확인됐고 사용자에게 로그인을 넘기지 않는다. 독립 리뷰 및 실제 출항 화면 검증은 아직 없음. 전체 전략/전술/AI/리소스 목표 ACTIVE/미완료.
+
+## E112 — v31 보존 배포·자동 로그인·실제 전략 화면 재진입 (v124, 2026-09-07 KST)
+
+**V31_DEPLOYED / NATIVE_LOGIN_STRATEGY_WORLD_PASS / DEPARTURE_UNSEEN.** E111의 로컬 출항 처리와 migration24/25를 실제 게스트에 배포했다. 새 run은 C:\Users\logh7-oracle\AppData\Local\Temp\logh7-l1\20260906T181000Z-departure-v124. 호스트 publish E:/logh7-build/server-v31-departure-v124, zip E:/logh7-build/v31-departure-v124.zip SHA37C07C08DD12048DD2FB992CB7638AFDCA4A9248DD5DEC8F016F00BFAE27F621, DLL FE3E5A02DBB9335E8757A1F82DC05493FDAD1924BD482E7389B33DFFDE19BFC5. Release win-x64 self-contained publish 성공; 전체601테스트는 E111 영수증이며 이번 새 전체suite 실행은 아니다.
+
+기존client540/server6412/PG6996의 경로·시각·바이너리·DB 및 포트 소유를 새로 검증하고 정상 DB종료 후 cold copy했다. 기존 163027Z run은 오프라인 복구용으로 보존, pg_control SHA D5E59E2CC2F691D05A986C1A4CE090E2E48E700D30E52156D546F6BADABC3D3E. 사전/복사후/업그레이드후 상태해시 cb29734c3af635b776e0e197d43f8de6876ca7b6a259ac5ce8b83626deae75bd 일치. 범위는 account/character/unit(mode신규열제외)/event/return-base preference이며 모든 테이블 비교라고 확대하지 않는다. migration25,unit2/grid102/base2/loss0/0/gen1/cruising10/recovery1 유지. 삭제0, proxy2952/127.0.0.1:47900 그대로.
+
+현재 **server4920/start18:11:30.7518583Z, PG1812/start18:11:30.2695908Z/55432**, 둘다대화형session1. client6944/start18:12:05.8663449Z/HWND0x0000000003E80264, 기존item116 SHA AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F 그대로. 새서버와client경로는 새run/server,새run/client/exe. PGbinary는 기존102317Z run/postgresql/pgsql/bin, data는새run/postgres-data. wire새run/server-wire.jsonl. host-vmrun-v79.ps1 게스트 Run은 Start/Client/화면/입력에 반드시 -Interactive를 사용한다. 초기auth-preflight-v124는 비대화형 세션에서 HWND_CHANGED로 실패했고, 재시작 없이 새 v124b 영수증에서 동일PID/start/HWND 대화형검사가 통과했다.
+
+실제 화면에서 흰650x533시작창→보이는File메뉴(30,35)1회→로그인화면→메뉴닫기(605,502)→ID(324,331)→DPAPI 시험계정38keyevents1회→v31공지 로비→GameStart(125,192)→기존캐릭터(650,307)로 이동했다. 모든 입력은 해당 실행 새 캡처 기준이며 좌표 재사용 금지. 첫메뉴 영수증의 기본 coordinateProvenance 문구(fullscreen)는 부정확하며 실제 근거 window-before-login-v124.png는0,0의650x533창이다. 이후 영수증에는 실제 캡처명을 넣었다. SKY Computer Use JS 입력과 혼용하지 않았으며 기존 게스트 입력 경로 사용. 비밀값 출력/저장0, 로그인시도1/재시도0.
+
+로그18:16:26.0666883Z LobbyReady, 기존캐릭터 선택 후 SessionServerReady/0205/0F02 성공. **window-world-ready-v124.png SHA2DC8D6F13AD28E770CD183F61D04D9E3812EAE28D6B2BB4F781301AAE56DEB7D**에서 전략그리드·帰還惑星（仮）·艦内 확인. runtime-db-v124.json에서 kind3 구축함/cruising10/손실0 유지. HUD항속0은 E105표시패치 미적용으로 남아 있으며 이번에 해결했다고 하지 않는다. world-wire-v124.jsonl SHA6E35D1C80F51768880D21ED8941FD6E53D8CA1AF197380A7E75ED3EC108447A8. 상세 work/20260904-warp-state-reverse/evidence/deployment-login-v124.json.
+
+**다음:** 현재 실행을 유지하고 새 신원/화면 확인 후 command60 출항 UI 진입점을 찾아 실제 클릭→0B06/0B0B/0325→DB효과→워프→전술진입을 검증한다. 아직 출항 클릭/새워프/전술전투0이므로 출항 완료로 승격하지 않는다. 소비된 v124 Stage/Stop/Start/Client 및 credential-v124 영수증 재실행 금지. 로그인은 완료했으므로 다시 사용자에게 요구하거나 불필요한 재로그인을 하지 않는다. E105표시패치 별도승인대기/미적용. 전체goalACTIVE.
+
+## E113 — 출항 handler만 있고 기본 메뉴 목록에 없던 연결 누락 수정 (v125, 2026-09-07 KST)
+
+**LOCAL_MENU_FIX_TESTED / v31 LIVE UNCHANGED / NATIVE_DEPARTURE_UNSEEN.** Ghidra 역추적에서 004F58C0이 manager0x65의 클릭 이벤트를 읽고 StaticInformationCard 캐시의 stride0x46/+0x20 명령ID 배열에서 선택한 u16을004F93C0으로 넘기는 것을 확인했다. 004F93C0은 컨트롤러+0x1C의 함수표에서 해당 명령 flow를 만든다. 0058C750은 command60 위치00C9E3EC에00583E20을 설치한다. 00C9E2F8은 현재flow 포인터이며 command표의0번이 아니므로 인덱스를1씩 옮기지 말것. constmsg의単独航行은 동항/단독항행 전환 설명과 연결돼 있어 출항 버튼으로 가정하지 않았다.
+
+서버 OriginalWorldBootstrapCodec.ExtraCardCommandIds 기본값[5] 때문에 0305/0307의 card39 명령은 **[0,43,5]뿐**이었다. E111의0B06handler를 연결했지만 이를 고르는 UI 목록을 놓쳤다. TDD 두 테스트에서60없음으로 실제 실패한 뒤 기본목록을[5,60]으로 변경, 양쪽응답에 출항60을 한 번씩 추가했다. 이 카드 배정은 NEW_DESIGN이며 원본 직책 권한 회수나 mode5 지원 주장이 아니다. 원본클라 바이트 변경0.
+
+OriginalDepartureMenuTests는0305의고정19byte헤더/u16명령들과0307의3byte헤더/8byte명령들을 독립파싱해 전체frame소비/24상한/card39의60정확히1회/0·43·5유지/다른카드에60없음을 확인한다. **579PASS/0FAIL/24SKIP(total603)**; DB전용24개는 이번 격리PG를 시작하지 않아 미실행이며 E111의601PASS와 섞지 않는다. TRX E:/logh7-build/test-results/departure-menu-v125/departure-menu-v125-green.trx SHA F8FDC97FD43BFDA28BB399236BCD972FB63B0C47F21E330EE56ECCB0B7B8E340.
+
+새배포후보 **E:/logh7-build/v32-menu-v125.zip** SHA45B511235A73B62EBE22B12519E05A641D61D984CE6C4AD748BF6838FB390A89, DLL F57E4F4431323A676D18761F3A37E0EB359090CBF2A1FC69F36A32D7642E2A68, publish E:/logh7-build/server-v32-menu-v125. migration25동일/신규DB변경없음. 아직 게스트배포안함. 근거 work/20260904-warp-state-reverse/evidence/departure-menu-v125.json에실제decompile저장, Ghidra004F5986에Note/LOGH7_command_menu_v125북마크추가.
+
+runtime-db-v125.json은 새읽기검사로 E112의server4920/PG1812/client6944 신원 및 unit2/grid102/base2/loss0/gen1/cruising10/kind3/migration25를 확인했다. original_character_card행은0이며 LoadPersistedCardAsync의미지정fallback은39이다(강제env는v124기동때LOGH7_*를제거했음). 입력/메모리쓰기/DB쓰기/재시작0. 실제메뉴가60을표시하거나클릭했다고하지않는다.
+
+**즉시다음:** v32는새migration이없으므로불필요한전체DB복사/PG재시작을반복할필요없다. 현재실행신원을검증하고원래server/client보존한side-by-side서버교체와클라이언트재접속으로새카탈로그를받는다. 현재PG1812와data는유지가능. 새로그인영수증으로게임진입→職務権限カード/카드39선택→出港60→실제0B06/0B0B/0325/DB효과→워프/전술검증이남았다. 메뉴가명확히보이기전좌표추측금지,소비된v124로그인/배포영수증재사용금지. E105표시패치는여전히승인대기/미적용. 전체goalACTIVE.
+
+## E114 — v32 출항 메뉴 실클릭, Institution 데이터 누락으로 원본 사전검사 거부 (v126, 2026-09-07 KST)
+
+**MENU_VISIBLE / NATIVE_CLICK_REJECTED_INSTITUTION_DATA_MISSING / AUTHORITY_NOT_REACHED.** v32를 동일181000Z run/server-v32-v126에 side-by-side 배포했다. PG1812(start18:11:30.2695908Z)/55432/data는 그대로 유지, DB종료0·신규migration0·삭제0·proxy2952변경0. 기존server4920/client6944만 정확한 경로/시각 검증 후 종료했다. 상태해시(account/character/unit/event/schema_migration범위)0b1c726ea3b70ec2327561ac79a3489f894422fc2ca04cd2894e94357d6d5247이Stage/Stop/Start동일. 전체테이블동등성으로확대하지않는다.
+
+현재 **server2508/start18:31:03.1752238Z**, DLL F57E4F4431323A676D18761F3A37E0EB359090CBF2A1FC69F36A32D7642E2A68. **client4448/start18:32:03.2568600Z/HWND0x0000000004120448**, 기존item116 SHA AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F, 경로는 동일run/client/exe. server경로는run/server-v32-v126/Logh7.Server.exe, wire는run/server-wire-v126.jsonl. 기동/재접속 영수증server-swap-{stage,stop,start,client}-v126.json. 소비된Action재실행금지.
+
+새 auth-preflight-v126 및 대화형Default검사 후, 관찰된흰창File메뉴→로그인표시→메뉴닫기→ID→DPAPI38keyevents1회로자동로그인했다. v32공지로비/기존캐릭터/전략HUD확인. 직무권한탭(732,578)→보이는카드행(822,517)에서昇進/ワープ航行/任命/**出港**4버튼실제표시. role-command-menu-v126.png SHA9D816C5098EEFA55DCA68287CC12992D6DFA365A51529463D81CB37B2020714C. 出港(724,312)1회 클릭 후 원본「実行不可」「拠点から離れているため態勢変更できません…」거부,0B06요청0/DBdeparture0. 실패재클릭없이확인버튼만닫아현재전략HUD유지. 클릭좌표는이번캡처에서만유효.
+
+**실제 RPM 18:39:13.6455553Z:** world08AFB020/context08AFB02C/actionContext동일/unit08AFB344. unitBase2,mode0,spot0,spotOwner0,kind3,cruising10. base summary(world+2B6A74)count1/ID2, **Institution(world+2B7078)count0**. departure-cache-read-v126.json SHA4435FFA2EFED0E345331DC594EC4094D186BE818E91426B0F692C23218234BD8. memoryWrites0. DB도unit2/grid102/base2/loss0/gen1/cruise10. 따라서잘못된기지ID나거리값이라고추측해변조하지말것.
+
+Ghidra00570940실명령은기지getter004B5B90→0아님→004C54D0(기지ID)→004C5470(동일ID)를검사하며 이경로에는거리계산이없다. 004C54D0은world+2B7078/u8 count,records2B707C stride2378;004C5470은2B6A74/u8 count,records2B6A78 stride180. **누락된건031F요약이아니라0321 ResponseInformationInstitution**이다. 004BA559의switchbyte표004BDEF4에서index28(0305+28=0321)의slot12→004BDEC8→004BAE8E. 004BAE8E는0x2379dwords를world+3FB2F8에복사하고, 전략import004C4170이이를2B7078로복사한다. 한화면버튼만의조건이아니며004C9170/00591450거점시설·장소목록도같은데이터소비.
+
+**다음구현에필요한회수된wire:** reader004167F0/logger00417140에Ghidra함수정의추가(EXE수정0). 0321 body=u8 baseCount(<=4);각 u32 base,u8 institutionCount(<=36);각기관 u16 kind,u32 id,u8 spotCount(<=20);각spot u16 kind,u32 id,u16 file. packed길이1+5B+7I+8S. 실제전체decompile/수신/검사listing은work/20260904-warp-state-reverse/evidence/departure-native-v126.json에저장. body_size1은Ghidra함수정의경계메타데이터이며전체decompile출력과구분. reader해석에맞는단위테스트/원본바이트pin검증은다음필요.
+
+시설이름004C8D10→constmsggroup73,장소004C8CF0→group74. group73kind4=宇宙港,kind11=係留所,kind16=居住区,kind17=ホテル. group74kind6=旗艦桟橋,kind13=居室. **hex0x11=17을함선시설이라고추정하지말것.** kind/file리소스및spotID모델연결을회수해작은시험기지구성을명시NEW_DESIGN으로정의한다. 빈Institution레코드만추가해출항gate통과를목표완료로대체하지말것.
+
+**즉시다음:** 0321codec + 기지별Institution/Spot카탈로그 + 최초0F02/장면진입/워프/재접속의전략import이전전송을함께연결한다. 필요시0320요청writer도회수한다. 메뉴추가때처럼codec/handler만만들고실제bootstrap투영을놓치지말것. 이후새단일실측으로시설캐시base2존재→출항0B06→0B0B/0325→DB→워프/전술을검증. 현재실행은정상로그인상태이며이번출항실패1회를그대로보존. E105클라이언트항속패치승인대기/미적용. 전체goalACTIVE,모든전략/전술/AI완료아님.
+
+## E115 — Institution 코덱·카탈로그·장면 투영 구현, 배경 이미지 selector 회수 (v127)
+
+**LOCAL_CODEC_CATALOG_BOOTSTRAP_TESTED / NOT_DEPLOYED / NATIVE_DEPARTURE_STILL_UNVERIFIED.** OriginalInstitutionCodec.cs에 0321 big-endian packed 응답과 Base/Institution/Spot typed records를 추가했다. 최대4/36/20, null nested records/lists 및 overflow를 거부한다. OriginalInstitutionCodecTests는 독립 literal bytes, 최대24075byte frame, empty cache-clear, invalid input을 검증한다. stub RED4FAIL → GREEN4PASS.
+
+OriginalBattlefieldTemplate.BaseInstitutions nullable data를 추가하고 static base ID join, base/기관/장소 ID 중복, 기관/장소 zero IDs, nested count, 그리드별4base상한을 로드 때 검증한다. EncodeInstitutionFrame은 현재그리드만 투영한다. Native receiver는 전체캐시교체이므로0321은 batch 분할하지 않는다. NaturalAuthoritySession.EncodeTacticalSceneBootstrapFrames에서031F 다음0321을 추가하여 초기/refresh 양쪽0F02 경로에 연결했다. 새 encrypted dispatch test는 실제 session handler를 거쳐 두 순번의0F02 응답에서0321정확한내용과0B0A/0F03이전순서를 확인했다. 초기initialization boundary/재시작/로그인은 이 테스트의 범위가 아니다. test-only RosterStore가 소유목록을 공급한다. catalog/bootstrap RED11FAIL → suite GREEN.
+
+전체 **594PASS/0FAIL/24SKIP(total618)**. 격리PG를 시작하지 않아 DB전용24개는 이번 미실행. TRX E:/logh7-build/test-results/institution-v127/institution-v127-suite.trx SHA61DCF9404411E152831BBB79DE9ED30CE1651B5563489239779CAA6118972B77. 테스트의 file7/9는 wire검증용이며 실제 아트 배정이 아니다. shipped catalog.json은 아직 수정하지 않았고 기본시설내용은 여전히 없음. 빈base행만 넣어gate통과로 대체하지 않았다. 게스트배포/DB쓰기/클라패치/재시작0.
+
+**Ghidra resource join 회수:** 004D5030은 004C9170에서 반환한 선택spot의u16+8을 읽어004D4F10에 전달한다. 004D4F10은00772204의 `../data/image/spot/bg%03d.jpg` 형식으로 경로를 만들어004D1F70로 로드한다(정확한 슬래시 표기는 string bytes로 추가 pin 필요). 따라서 file은kind와별개의 직접숫자배경selector. 선택spot이없는경우004D5030은004D4FD0결과에따라42/43또는-1을 선택한다. 함선 내부 배경의42/43 진영의미는 아직 추가회수필요. decompile전체는 work/20260904-warp-state-reverse/evidence/institution-v127.json. project.list_programs는tool outputSchema검증오류였으나 기존G7MTClient.exe inspect두함수는정상성공. 새import/EXE수정없음.
+
+**다음:** 원본 설치/추출 경로에서spot/bg*.jpg실파일확인 및 이미지관찰→spaceport/flagship-pier 등 작은 기지구성 NEW_DESIGN으로 JSON작성, file선택의원본사실과시설배정의신규설계구분. rootworktree rg에서 bg*.jpg는없었으므로 기존게스트설치/원본asset inventory를조회할것. content/schema/re-entry/cross-grid검증후v33후보배포→자동로그인→시설캐시→실제출항→DB→워프/전술. 0320request layout은아직미회수/미구현,031F다중batch의원본cache대체문제는별도audit필요. live v32 server2508/client4448/PG1812유지. 직전새캡처 window-login-check-20260907a-v126.png에서전략HUD·艦内를직접확인했고현재로그인완료이므로사용자에게로그인을넘기지말것. 전체goalACTIVE.
+
+## E116 — 원본 장소 배경 확인, 두 시험기지 시설 내용과 v33 배포후보 준비 (v128)
+
+**CONTENT_IMPLEMENTED / ASSETS_PRESENT_IN_GUEST / v33_NOT_DEPLOYED.** 원본asset inventory는 worktree가 아닌 E:/logh7-greenfield/docs/reverse-engineering/client-assets-inventory.csv에 있었고, JPG들은 root evidence/installshield-extract/____________s___/____/data/image/spot에 있다. bg001(침대·의자있는방),bg006(녹색함선도크),bg007(회색함선도크)을 직접 관찰. bg001과bg007은 게스트현재run/client/data/image/spot에도 존재하며 원본추출해시와일치. guest-institution-assets-v128.ps1은읽기전용이며영수증 institution-assets-v128.json UTC19:00:52.0381207Z. UI입력/게임상태변경0.
+
+catalog.json base1/grid101,base2/grid102에각宇宙港kind4→旗艦桟橋kind6/file7 및居住区kind16→居室kind13/file1 추가. 기관IDs101/102,201/202;spotIDs1001/1002,2001/2002. 모두NEW_DESIGN으로원본서비스데이터복원주장아님. 출항gate용빈레코드아님. 원본이미지→file wire연결및관찰내용·해시·배정은 docs/reverse-engineering/institution-background-content-v128.md에정리. 전체리소스추적완료아님.
+
+OriginalInstitutionContentTests RED2FAIL/1PASS→GREEN3PASS. 전체597PASS/0FAIL/24SKIP(total621),DB전용미실행. 기존OriginalBattlefieldBaseJoinTests/OriginalStaticBaseTests합성fixture가staticID를교체하면서기본시설base1을남겨8실패했으므로그두helper에서시설배열을비우도록분리했으며기존assertions유지. 최종TRX E:/logh7-build/test-results/institution-v128/institution-content-v128-green.trx SHA9B18C34A51317EA4896FA3F44934827302E2C2F669B9DA4E57043B0ADB4BFDEE.
+
+Release win-x64 self-contained publish성공. v33candidate E:/logh7-build/server-v33-institutions-v128, DLL EF15A3BD0832CA07A2B8649D8821C208F4FBA6A5BC552FFB9D35B052B52230BB. ZIP E:/logh7-build/v33-institutions-v128.zip SHA259F37642B4E9C6BF55E5BD15FF71BB10AF9432A51DE6B9D31C664EBC60310BB. migration25변경없음. 아직게스트배포/게임서버재시작없음.
+
+**즉시다음:** 실행신원재검증→PG1812/data와proxy보존→v33side-by-side서버교체/client재접속→자동로그인→0321base2시설캐시→실제出港0B06/0B0B/0325/DB→워프/전술. v126consumedStage/Stop/Start/Client/credential재실행금지;새영수증으로진행. 장소배경실제UI렌더도별도검증필요. E105항속표시클라패치승인대기유지. 전체goalACTIVE.
+
+## E117 — v33 보존 배포·자동 로그인·원본 출항 실제 처리와 DB/클라 반영 (v129)
+
+**NATIVE_DEPARTURE_COMMAND_EFFECT_PASS / RECONNECT_PERSISTENCE_NOT_YET_RUN / WARP_NEXT.** E116 v33을 동일181000Zrun/server-v33-v129에side-by-side배포. v32server2508/client4448만경로·시작시각·해시확인후종료. PG1812(start18:11:30.2695908Z)/55432/data/proxy유지,DB종료0/파일삭제0/신규migration0. Stage/Stop/Start account-character-unit-event-migration상태해시0b1c726ea3b70ec2327561ac79a3489f894422fc2ca04cd2894e94357d6d5247동일. 다른테이블동등성주장아님.
+
+현재 **server3480/start2026-09-06T19:04:21.0986239Z**,path run/server-v33-v129/Logh7.Server.exe,DLL EF15A3BD0832CA07A2B8649D8821C208F4FBA6A5BC552FFB9D35B052B52230BB. **client2340/start19:04:45.2312199Z/HWND0x00000000008A00D6**,동일run/client/exe/item116해시AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F. wire run/server-wire-v129.jsonl,stdout/stderr server-v129.stdout/.stderr. PG1812는기존바이너리/데이터유지. v129 Stage/Stop/Start/Client action 모두소비됨;재사용금지.
+
+새대화형Default확인/auth-preflight-v129후관찰화면File메뉴→메뉴닫기→ID클릭→credential-v129 DPAPI38keyevents1회,재시도0. 원본v33공지로비확인→게임시작→기존캐릭터→전략HUD재진입. 자동로그인완료이므로사용자에게수동로그인을요구하지말것. SKY JS입력혼용없음. 로그인secret값출력/영수증저장없음.
+
+**실측전후:** departure-cache-read-v129.json UTC19:08:55.2901247Z에서unit2/base2/mode0/cruising10,summarycount1/ID2,facilitycount1/ID2. E114의시설count0누락해소. 원본메모리쓰기0. 역할탭→카드→出港1회→확인창실제진입. 확인창은「惑星or要塞名」「コマンドポイント」「MCP」「G時間」등미치환자리표시자와「宇宙港に駐留します」문구가남음. 이설명문구는실제mode4출항과불일치하며추가수정대상;확인문완성판정금지.
+
+확인(565,517)1회후 **0B06 native request UTC2026-09-07T04:10:29.6314559+09:00,Success,departure-unit=2;authority-version=28;design=new**. reply48bytes/additional64bytes (암호프레임길이;이길이만으로독립wire필드검증주장안함). DB unit|2|2|102|0|4|0|0|1|10,OriginalUnitDeparted1회,original_departure_request1회. eventsourceBase2/sourceMode0/destinationBase0/mode4,loss0/0/gen1/cruising10보존. hostevidence live-after-departure-v129.json에동일run메타데이터/DB/event/wire저장.
+
+window-departure-result-v129.png SHA6F59D1A62AFDE44447986DEC133E7A4921CC0B2B501FCFE142271328FF1E2811에서아래위치가帰還惑星（仮）→**星系内宇宙**로바뀜. departure-cache-after-v129.json UTC19:11:02.7368387Z SHA FB6C6D350FE04A3D8727E06B144DBEF6F2CE4D2CE9F02259E61A126EE1FF1A2C에서클라unitBase0/mode4/cruising10직접확인. 원본입력→서버처리→DB→클라메모리→HUD위치효과까지이번실측. 출항후재접속영속성은아직새실측아님. E105항속숫자HUD0표시문제별도승인대기/미적용.
+
+**즉시다음:** 현재정상로그인된출항후상태유지. 새화면관찰후워프→항속소비→전술진입/공격/피해/종결을이어검증. 출항반복·로그인반복·DBfixture텔레포트금지. 현재카탈로그facility기지2내용은있지만시설메뉴/배경JPG실제렌더는아직안봤음. 출항확인문구와비용시간치환추적,mode5/다함선/전술항구route,0320request/031Fcachebatchaudit도남음. 이번새코드테스트없으며E116597PASS/24SKIP와구분. 전체goalACTIVE.
+
+## E118 — 출항후 실제102→101워프 커밋, 클라이언트 도착전환 미완료 특정 (v130)
+
+**SERVER_WARP_COMMITTED / CLIENT_CONTEXT_STALE / TACTICAL_NOT_ENTERED.** 기존v33server3480/client2340/PG1812그대로사용,재시작/재로그인/DBfixture변경0. fresh live-warp-pre-v130.json은unit2/grid102/base0/mode4/loss0/0/gen1/cruising10을확인. 역할카드→ワープ航行→화면왼쪽인접그리드→확인1회. 확인문은통상320MCP/작전목표근접80MCP로표시되지만원본비용실제차감검증아님.
+
+실제0B01 UTC2026-09-07T04:14:23.6438185+09:00 Success,authority29,source102/destination101. DB unit|2|2|101|0|4|0|0|1|9. 기존출항이벤트1회유지. live-warp-after-v130.json 및live-warp-settled-v130.json에동일실행결과. 서버응답추가104byte는0325두유닛projection경로이며현재code는0B07후EncodeTacticalBattlefieldUnits만추가한다. 도착직후0F02요청없고0300시간동기화는계속옴.
+
+**클라상태불일치:** window-warp-settled-v130.png는여전히전략HUD. warp-cache-v130.json UTC19:16:57.1742092Z에서unitBase0/mode4/**cruising10**,strategyFlag1,tacticalFlag0,sceneMode2,facilityIDs[2]. DB9를클라반영PASS로승격금지. 현재플레이어컨텍스트는이전그리드장면에남아있다. 프레임의항속0은별도E105표시버그이며이번내부10→9전환누락과구분한다.
+
+**Ghidra새분기:** dispatcher0B07→004BEE20→00517CD0. 004BEE20은world+2A58F8전략flag검사;00517CD0은*DAT02215E2C값1/2/3에따라manager42/6F/56의root에event0x16(type0B07,payload)을큐잉한다. vtable006702C0+8=005751B0를읽고그주소에ReceiveResult_MoveGrid_WarpEffectWait함수정의추가(원본EXE수정없음). 이함수는event0x16/type0B07소비후local+34=1,전역009D2A7C=2/009D2A74=0으로전환하고상태3까지기다린다. 004D6B70은warp모델/효과존재시상태2의시간을증가시켜3으로변경한다.
+
+warp-effect-v130.json UTC19:19:22.3879954Z: **warpEffectState1/time0**,warpModel90104624/child90066416,warpEffect90011728모두nonzero. 따라서효과리소스없음이나상태2fade정체라고단정하면안된다. 정상event수신후상태2로가지못한경계가다음대상. 0055FC28의07 0B는CALL상대offset일뿐opcode소비자가아님. 상세decompile및판정work/20260904-warp-state-reverse/evidence/warp-transition-v130.json.
+
+**다음:** 현재warp대기실행을보존한채decoded0B07캐시/현재UI manager/명령flow의event0x16수신과dispatch후처리를RPM/정적분석으로대조. sourcegrid/destinationgrid의로컬정보갱신순서와0B09/0B0A필요조건을회수하여서버변경을TDD로연결한다. 무조건NotifyTactics추가나DB텔레포트/새로그인으로전환누락을감추지말것. v130워프확인재실행금지. 실제전술진입/공격/종결은이번0회. 전체goalACTIVE.
+
+## E119 — 원본0B07 캐릭터 응답ID 불일치 확인과 v34 수정 (v131)
+
+**ORIGINAL_RESPONSE_ID_MISMATCH_PROVEN / LOCAL_FIX_TESTED / v34_NOT_DEPLOYED.** 동일v33실행을입력없이RPM검사. warp-event-v131.json UTC19:21:26.7202882Z에서world+437714의decoded0B07은time0/Id0/grid101/base0/mode0/records1(unit2,cruising9)였다. 클라가파싱하지못한것이아니라완료ID가잘못됨. UIroot89335856/mode2/registry152211488,manager6F222573936존재,currentflow0. warp-matcher-v131.json의world+3584A0=2,world+357EC0=1,pendingrecord010B0000070B000048FD1900은0B01→0B07대기잔류를확인. memoryWrites0/입력0/재시작0.
+
+Ghidra dispatcher0x0204 SSCharacterIDResponce가004BA3E9에서world+3584A0에**캐릭터ID**를저장. 0B07branch는local_1c=param3[1](Id),004BDD50/7C는그값이로그인캐릭터와같을때localresult004BE350및expected-responsequeue매칭을진행. 따라서unit배열의Unit값과별개로완료Id는캐릭터여야한다. 기존OriginalMoveGridAuthority.Notification은Time0/Id0/Mode0이었고NaturalAuthoritySession이그대로실전송한것이오류. 전체decompile/pending증거는work/20260904-warp-state-reverse/evidence/warp-identity-v131.json및warp-matcher-v131.json.
+
+NaturalAuthoritySession.ProcessMoveGridAsync의0B07인코딩에 Id=_worldCharacterId,Time=_gameClock.Tick,Mode=movedUnit.Mode를연결. records의unitID와cruising은기존authoritative결과유지. 원본시간지연/비용복원주장아님. 새OriginalWarpCompletionIdentityTests는캐릭터41/함선7분리fixture로realencrypted0B01→0B07응답을검사하여Expected41/Actual0 RED를확인후GREEN. 시간24/목적101/base0/mode4/recordsunit7/cruising9검증. storage부분은testdouble이며PG원자성/native전환테스트아님.
+
+전체 **598PASS/0FAIL/24SKIP(total622)**. TRX E:/logh7-build/test-results/warp-identity-v131/warp-identity-v131-green.trx SHA16D69CCD955AFE8B3656FFB6E4019E15F3D6D3C6685313504CEE4EBB4E1F7A00. Release win-x64 self-contained publish E:/logh7-build/server-v34-warp-identity-v131 성공. DLL937BDD9785FC57E0554F51DE7E8AA36DC6DDBF6B2820F4733ACA2E490944481E. ZIP E:/logh7-build/v34-warp-identity-v131.zip SHAD351855AE3697918693231E93EF35CD90A9FCFED0943B8579C1A9799AD79C58A. migration25동일. 아직게스트배포없음/현재v33유지.
+
+**다음실행:** 현재DBgrid101/base0/mode4/cruising9는이미커밋됐으므로reset/텔레포트/워프replay금지. v34데이터보존배포와자동로그인으로이위치/항속복원을검증하되그재접속전술화면을이번워프전환수정PASS로세지않는다. 새정상플레이이동에서0B07Id=캐릭터,expectedqueue해제,클라항속갱신,0F02/전술HUD를확인해야한다. 004BEE20event0x16과전체expectedqueue의상호작용때문에Id수정만으로모든문제가끝났다고단정하지말것. v129consumedactions/credential및v130워프submit반복금지. 전체목표ACTIVE.
+
+## E120 — v34 배포·재접속 항속 복원·전술 HUD와 NPC 격침 확인, 귀환 미완료 (v132)
+
+**V34_DEPLOYED / RELOGIN_CRUISING_RESTORED / TACTICAL_HUD_VISIBLE / NPC_DAMAGE_RECEIVED / DESTRUCTION_RETURN_PENDING.** 동일181000Zrun/server-v34-v132에side-by-side배포. 현재server4244/start2026-09-06T19:28:41.4903593Z,DLL937BDD9785FC57E0554F51DE7E8AA36DC6DDBF6B2820F4733ACA2E490944481E. client8540/start19:29:31.3154961Z/HWND0x000000000490042C,path동일run/client/exe,item116SHA동일. PG1812/start18:11:30.2695908Z/data/55432/proxy유지. DB중단0/삭제0/migration25동일. Stage/Stop/Start상태해시24867faf8f84e7054aeadf61dd2768182db9155f39f51f1cd7a9a04fd0d76479동일(account/character/unit/event/migrations범위). v132스크립트초안의광역PID치환이신규DLL해시944481부분을변경한것을전송전검사에서발견해정정;Stage부터는원래정확한hash로검증했다.
+
+새auth-preflight/Default확인→File메뉴·닫기·ID포커스→credential-v132DPAPI38keyevents1회→v34공지로비→기존캐릭터진입. 모든UI입력은새캡처기준/재시도0. server-swap-v132 Stage/Stop/Start/Client및credential모두소비됨. 현재wire run/server-wire-v132.jsonl,stdout/stderr server-v132.stdout/.stderr. 기존v33바이너리보존. 새로운0B01워프는이번실행0회.
+
+live-reconnected-v132.json/ live-tactical-v132.json에서DB unit2/grid101/base0/mode4/loss0/0/gen1/cruising9유지. departure-cache-read-v132.json UTC19:33:02.3077026Z에서클라kind3/cruising9/base0/mode4확인. 따라서E118워프커밋의재접속영속성/항속복원확인;**E119ID수정후새워프전환PASS는아직아님.** window-world-ready-v132.png SHA8033E466DDFB84683DF81C3FD46FAE2EC37E1A7BCA374BDF823C7E6482A014BA는전술레이더·BEAM/GUN/ENGINE/WARP/SENSOR분배·명령아이콘HUD를실제표시. 다만함선상세는NO TABLE/NO DATA,함선모델이나발사광선의직접관찰은이번없음.
+
+**NPC 실제권위처리:** live-tactical-v132.json SHABCA4FD32758FF1D8C633E5F7392BF92AD2E3EAB67849317395B5B8C123CCE273의npc-ai결정은04:32:14.4688333+09부터unit2130706433→target2접근,04:32:18.217/21.203/24.209/27.210경4회fire,damaged25/50/75/100,destroyed마지막100. authority-notification-sent도각fire1frame. 후속0348/034A scene요청은계속됨. DB손실이0인상태이므로전투손실DB완료나귀환완료로승격안함.
+
+새읽기tactical-entities-v132.json UTC19:35:07.8847726Z SHA405DEBDCC3AA82649C9A4611061D5B857E5DC62A01A1CD4BD04293E0D27D160A: tacticalFlag1/sceneMode0,kind3staticNumber100. 600entity슬롯스캔에서slot0unit2/power2/kind3/normal0/remaining0/maximum100/destroyArmed1/mode0/localFlag0,slot1NPC2130706433/power3/kind89/100/100/destroyArmed0/mode0/localFlag0. 피해수신은확인됐지만자기entity소거→귀환0F02가안옴. 전술플래그/잔존수만으로게임완성판정금지. 기함버튼클릭1회는정보/카메라변경없었고반복안함.
+
+**다음실측경계:** 현재격침플래그1인자기kind3entity가왜소거·귀환되지않는지추적한다. 원본004C32A0는kind별staticNumber와피해값으로8D4/8D8/8DC를채우고끝에서004C1D20으로mode를적용한다. guest-return-observe-v101.ps1의기존entityfield맵/원본소거loop와kind3model/폭발리소스/5B8·5B9/5BC·5C0변화를대조. 이번서버코드수정/새suite실행0,새전술공격입력0. 서버PrepareInjuryReturn은클라새0F02에의존하므로죽은상태를수동DB치유/귀환으로덮지말것. v34새워프전환검증은귀환/정상플레이상태확보후필요. 전체goalACTIVE.
+
+## E121 — 함선 모델 존재와 mode4 표시·격침 소거 차단을 실측 (v133)
+
+**ORIGINAL_MODE_GATE_PROVEN / AUTHORITY_FIX_PENDING.** 직전 로그인 상태 확인은 로그인 문제가 아닌 전술 상태 문제로 다음 행동을 좁혔으나 게임 기능 수정은 아니었다. 이번에는 살아 있는 client8540/server4244/PG1812의 경로·시작시각·클라/서버 해시를 확인하고 읽기 전용 RPM을 수행했다. 재시작/입력/메모리쓰기/DB변경0. guest-tactical-lifecycle-v133.ps1과 tactical-lifecycle-v133.json을 새로 작성·실행. UTC2026-09-06T19:44:03.9415978Z, receipt SHA6F96B0B8A5CD1030C11C83EB075E396B2EA25B64E3070604940E5B134F8CB9FD.
+
+자기unit2는 remaining0/destroyArmed1/effectState3/effectTime14595이나 **renderEnabled(+5BA)=0**. context active1/owner2/mode4, fallbackOwner0/fallbackMode0. 렌더러slot599가 존재하며 kindSelector18/model89138304(nonzero), initialized0. NPC2130706433은 renderEnabled1/contextOwner2130706434/mode0, renderer598/kindSelector53/model89177728/initialized1. 따라서 이번 자기함선의 첫 실패 경계는 모델 파일 누락이 아니다.
+
+Ghidra004B5D50은 자기함선의 effectiveMode를 entity+8C0 context의 +31E에서 읽는다. 004B2740은 effectiveMode4면 entity+5BA를0으로 하고 반환한다. 004C94E0은 +5BA!=0일 때만 renderer를 찾고 표시 또는 격침 소거를 처리하므로, 현재의 mode4는 모델 표시뿐 아니라 entity active0/폭발 후처리도 막는다. 004C1D20에서 mode4와6 모두 entity+5C4=0으로 바꾸므로 E120의 entity mode0을 effectiveMode0이라고 해석하면 틀린다. mode5는 기지 상대위치, mode6/7은 +5BA=1 경로. 이 사실만으로 실제 서버 도착 모드6을 확정하지는 않는다.
+
+**추가 원본 명령 의미 경계:** command60→00583E20의 GetMoveBaseMode vtable00676C48+8은00570940. assembly에서 flow context+40이 양수면 FLOW6,0이면 FLOW5. 이후005737D0은 FLOW5→004B4A00(4),FLOW6→004B4A00(5). 즉 단순 고정 출항이 아니라 spot-dependent toggle이다. 현재 NEW_DESIGN 서버는 mode4 요청을 base0/mode4 최종 출항으로 저장한다. 이전 E117의「宇宙港に駐留します」확인문 불일치와 함께 이 해석을 재검토해야 한다. 아직 항구/우주/전술의 완전 상태표 회수나 서버 수정은 안 했다.
+
+원본 decompile 영수증 evidence/destruction-mode-gate-v133.json SHAC45217B64CC81285289AEA8C09ECD33AE76DCDD50CF801213EB0EA11834637B0. 위00570940 branch 숫자는 decompile에서 인자가 누락되어 assembly00570997/005709A8로 확인했다. 원본EXE 패치0, E105 미승인 유지. 새 테스트/빌드/배포0.
+
+**다음:** command60의 실제 toggle 상태표와 0B06 request mode→0B0B/042F/0325 result mode 및 base/spot을 원본 소비자·문구·매뉴얼로 복원한다. 이를 기준으로 잘못된 출항 저장/전술 진입 투영을 수정하고 회귀시험한다. 단순 +5BA 클라 패치나 임의 mode6 투영으로 감추지 말것. 현재 격침 실행 보존; DB 치유/텔레포트/로그인·출항·워프 consumed 입력 재실행 금지. 수정 후 정상 상태 전환과 종결/귀환의 실제 화면·서버 영수증까지 필요. 전체목표 ACTIVE.
+
+## E122 — 원본 전술 태세 4/5/6/7과 기존 출항 구현 의미 오류 (v134)
+
+**MODE_SEMANTICS_CROSSCHECK / PREVIOUS_DEPARTURE_ACCEPTANCE_RETRACTED_IN_PART.** E121은 표시·격침 gate를 실제 RPM으로 특정한 진척이었다. 이번에는 원본 Ghidra0050D230(0050F968 포함)의 전술 태세 버튼→요청 및 현재 PostgresAccountStore.Departure.cs를 대조했다. 새 UI입력/재시작/런타임상태변경0. 이전 실행 신원을 이번 새 실측이라고 주장하지 않음.
+
+0050D230의 버튼0x35/36/37/38은 DAT02216698에 각각4/6/7/5를 저장하고 state10으로 전환한다. state10은 같은 태세 유닛을 제외한 뒤 mode4/5만 기지 표적 선택을 요구하고,004B4490에 selectedUnits/targetBase/mode를 보내 commandID0x37을 직렬화한다. mode6/7은 기지 선택 없이 요청된다. 원본 constmsg.dat SHA5B3FAFBA7DD7230CDEB5F2FF9ACF9BBBE20FD95ADE25C425BC0D11AE645C383C 직접 재확인. group0 rows51-54는 駐留(자진영기지),航行(통상),戦闘(공격중시/기동저하),碇泊(기지궤도). 버튼 순서와 target 조건, E121 mode4 숨김/mode5 기지상대좌표/mode6·7 표시가 맞물려 **4=주둔,5=궤도정박,6=통상항행,7=전투**로 교차확인된다. 단 버튼→tooltip 개별 바인딩은 별도 회수하지 않았다는 한계를 영수증에 명시했다. group118 rows32-35는 원본에서 빈 문자열이므로 해당 알림만으로 이름을 회수했다고 주장하지 않는다.
+
+기존 보존 매뉴얼 OCR E:/logh7-greenfield/evidence/manual-variants/internet-archive/gin7manual_djvu.txt의 態勢変更 절은 네 태세를 별도로 정의한다. 이어 出撃은 주둔함선이 나오는 별도명령이며 유닛당20초라고 설명한다. OCR오류/공백 존재, 이번 PDF직접렌더나 원본시간구현 아님. group18 command60 이름은 出港이나00570940의 spot-dependent toggle과 확인문을 같이 봐야 한다.
+
+**정정:** 현재 저장코드72/75/80행은 request4를 base0/mode4 및 OriginalUnitDeparted로 기록한다. 이는 주둔 태세를 기지없는 우주 출항으로 저장하는 의미 오류다. E117의 DB/클라 위치·모드 반영 실측 자체는 유효하지만「정상 출항 실행·효과 PASS」로 더 이상 인용하지 말것. 원본 요청과 게임 규칙을 바꾸는 NEW_DESIGN으로 오류를 정당화하지 않는다.
+
+증거 evidence/unit-mode-semantics-v134.json SHA192D7FBD791D1178FFBB5F7EABD471AD8848DC7305B2E4CE997E4C10E399B03C에 전체0050D230/상태맵/근거/한계 저장. 서버 코드수정·테스트·배포는 아직0. **다음 구현:** 주둔요청4는 기지/시설spot을 유지·연결,出港요청5와 실제出撃/항행6 경로를 구분해 저장·통지·재접속을 고친다. 기지없는mode4의 기존 잘못된 상태는 자동 DB치유가 아닌 명시적 상태수정·손실보존 경로를 설계해야 한다. 현 격침/모델 상태를 단순 클라flag패치나 mode6 표현층 치환으로 덮지 않는다. E105 별도 승인대기 유지, 전체목표 ACTIVE.
+
+## E123 — 주둔 기지 보존과4→5정박 실제 저장·세션 수정 (v135)
+
+**LOCAL_AUTHORITY_FIXED_PARTIALLY / 622_TESTS_PASS / NOT_DEPLOYED.** E122는 명령 의미 오류를 확인한 진척. 이번에는 테스트를 먼저 변경해 실제 격리Postgres에서 ExpectedBase1/ActualBase0 RED를 재현했다. PostgresAccountStore.Departure.cs는 mode4에서 BaseId를 지우지 않고, 성공 이벤트를 OriginalUnitStanceChanged로 기록한다(과거 이벤트 수정없음). IAccountStore.OriginalDepartureWrite에 TargetMode(default4)를 추가하고4/5만허용. mode5는 현재mode4에서만허용하고기지를보존한다. 같은태세 재요청은 거부하며 기존fingerprint 재생은 현재상태 반환으로 이후함선/태세를되돌리지 않는다.
+
+NaturalAuthoritySession.Departure.cs가 zero-field own request4/5를 구분해 저장으로 전달한다. 실제 암호화0B06→0B0B/0325는 mode4 및mode5 모두 base2 유지. mode5미지원RED를 먼저 확인후GREEN. 동일테스트는 동시8요청중변경1,외부계정/버전거부,이벤트실패rollback,신규연결·세션재접속mode4/base2,4→5실제저장,그뒤과거fingerprint재생불변을검사한다. 기존「출항 후기지0」기대값은 원본 의미오류라 수정;권한·동시성·rollback 단언은유지. 지상spot/정박좌표까지완성이라고주장하지않는다.
+
+전용hostPG37872/start2026-09-06T19:52:29.2040446Z,bind127.0.0.1:55805,data E:/logh7-build/unit-stance-pgdata-v135를새로초기화했다. 기존게스트DB와별개. suite후정확한PID/path/data/port검증후정상종료,postmaster.pid없음/listener없음,파일삭제0. guest입력/재시작/배포/DB쓰기0. 빌드환경NUGET_PACKAGES/TMP/TEMP E:설정.
+
+전체ProtocolTests **622PASS/0FAIL/0SKIP**(실제DB테스트포함). TRX E:/logh7-build/test-results/stance-v135/stance-v135-full.trx. RED및focusedGREEN도같은폴더별도파일. 변경/한계영수증 work/20260904-warp-state-reverse/evidence/stance-authority-v135.json. publish/package는아직하지않았다.
+
+**바로다음 필수:** mode4의실제우주항施設spot/spotOwner를카탈로그에연결해0B0B와0324캐릭터재접속투영에반영한다. 지금은여전히spot0으로원본UI가같은주둔요청을선택하므로아직배포하지말것. 현재기지없는mode4격침실행은이번코드로자동치유되지않으며손실보존종결경로별도필요. 전술042F/출격·항행6,이전워프전환,모델·피해·귀환실클라검증남음. 원본클라E105패치승인대기유지,전체goalACTIVE.
+
+## E124 — 주둔 공용 부두 위치를0B0B·재접속0323에 연결 (v136)
+
+**LOCAL_PUBLIC_PORT_PROJECTION_TESTED / NATIVE_UNSEEN.** E123은실제저장수정진척. 이번TDD에서주둔0B0B spot Expected2001/Actual0 RED를확인후수정했다. OriginalWorldEntryCodec.EncodeCharacter에optional spot/spotOwner를추가하고body+24/+28에직렬화한다. **캐릭터응답은0323이다. E123의0324표기는오류이며새테스트도처음그오류를따라프레임검색에실패해0323으로정정했다. wire타입은바꾸지않았다.**
+
+NaturalAuthoritySession.Departure.cs의 FindPublicFlagshipPort는현재grid/BaseId의institutionKind4/spotKind6 중최저ID를선택한다. CurrentPublicPortSpot은persistedMode4/BaseId>0에서만그ID,그외0. 0B0B및세션내9개캐릭터인코딩호출은자기character/unit에만같은projection을사용하며NPC에는전파하지않는다. mode4요청은실제공용부두없으면저장전거부한다. 원본004C9170는base시설목록에서context+40=spotID를찾고+44(owner)=0이면공용spot로해결한다;private16/17소유자경로와혼동하지않는다.
+
+실제격리DB+암호화세션시험: mode4/base2→0B0Bspot2001/owner0;새DB연결·세션0205/0F02→0323spot2001/owner0;4→5후0B0Bspot0;0322조회→0323spot0. 기존base보존·rollback·재전송·피해/세대보존검사유지. 전체 **622PASS/0FAIL/0SKIP**. TRX E:/logh7-build/test-results/spot-v136/spot-v136-full.trx. 영수증 work/20260904-warp-state-reverse/evidence/public-port-v136.json.
+
+hostPG27684/start2026-09-06T19:58:02.7121915Z는이전시험전용unit-stance-pgdata-v135/127.0.0.1:55805로실행;끝에PID/start/path/data/port확인후정상종료/postmaster.pid없음. 파일삭제0/guest입력·DB쓰기·재시작0. 아직package/publish/deploy없음.
+
+**제약/다음:** 이projection은현재카탈로그의공용부두만대상인NEW_DESIGN. 일반캐릭터장소영속화/사유공간/시설선택은아니며catalog변경시파생spot도변할수있다. 현재live격침base0/mode4는별도권위오류복구와손실영속화가필요하다. 재시작으로in-memory피해를잃거나DBteleport/치유하지말고,현재NPC최종피해영수증과권위손실저장경로를이어확인한다. 이후정상주둔/출항toggle UI·0321부두배경·전술종결실측필요. E105클라패치미승인유지. 전체목표ACTIVE.
+
+## E125 — 피해 영속화 누락 실측과 별도 손실 저장 트랜잭션 구현 (v137)
+
+**DURABLE_DAMAGE_STORAGE_TESTED / ATTACK_PATHS_NOT_CONNECTED / NOT_DEPLOYED.** E124는주둔spot구현진척. 이번 fresh guest-live-read-v132 -Tag casualty-v137은client8540/server4244/PG1812신원을검증하고UTC2026-09-06T20:02:32.8993786Z에DB unit2/grid101/base0/mode4/damaged0/destroyed0/gen1/cruising9,최종NPCfire04:32:27.2104305+09 damaged100/destroyed100을다시확인했다. evidence/live-casualty-v137-v132.json. 입력/DB쓰기/재시작0;현재피해를치유하지않았다.
+
+**원인 확대:** OriginalTacticalBattleRegistry.Npcs.AdvanceNpcsAsync는RecordUnitDamage→Publish만수행하며Hosting.NaturalAuthorityServer.RunNpcLoopAsync는결과로그만쓴다. 플레이어ProcessTacticalCommand도3194부근RecordUnitDamage→통지뿐이다. PrepareInjuryReturnAsync(0F02전용)가유일손실저장·귀환경로여서NPC만고치면PvP가남는다. completed encounter에서NPC루프는skip하므로새AI공격을기다리는것은복구가아니다. ObserveShipGeneration은같은세대면max(메모리,DB)로합치므로실행중DB0재읽기가현재손실을0으로줄이지않지만서버재시작시메모리는소실된다.
+
+**새코드:** IAccountStore에OriginalUnitDamageWrite/StoreResult 및SaveOriginalUnitDamageAsync(defaultNotSupported)를추가했다. PostgresAccountStore.Damage.cs는계정→함선행잠금,계정/인물/함선소유권,grid/shipGeneration/return상태,손실단조증가와number범위를검증한다. 동일누적손실은updatedfalse/이벤트추가없음. 실제변경은damaged/destroyed+authorityVersion+OriginalUnitDamaged event+계정stateHash를같은트랜잭션에저장한다. 기지/모드/위치/항속/세대를바꾸지않는다. 귀환이나치유가아니다. 기존테이블사용,신규migration0.
+
+OriginalUnitDamagePostgresTests는미지원기본API NotSupported RED→구현후GREEN. 실DB동시8동일피해중변경1,25/0→100/100저장/새연결재조회,이벤트실패시함선rollback,이전손실재전송거부,다른계정/그리드/세대거부,손실범위검증,성공피해이벤트2개를확인. 전체 **623PASS/0FAIL/0SKIP**. TRX E:/logh7-build/test-results/damage-v137/damage-v137-full.trx. hostPG54772/start20:04:10.1790457Z는시험전용data/unit-stance-pgdata-v135/127.0.0.1:55805;끝에PID/path/start/data/port검증후정상종료/postmaster.pid없음. 파일삭제0. 현재게스트변경0.
+
+**필수 다음 연결:** 새SaveOriginalUnitDamageAsync는아직실제공격에서호출되지않는다. 레지스트리참여자에소유계정/캐릭터/함선세대에바인딩된저장callback(또는동등한권위서비스)을연결하고,NPC와플레이어두경로에서**DB커밋→RecordUnitDamage→Publish**를보장해야한다. grid명령lease보유중인공격에서PrepareInjuryReturnAsync를호출하면재진입grid lock교착위험;피해저장과귀환은분리한다. DB실패시메모리피해/0426전송없음,끊긴피해자/중복세션/새함선세대도회귀검증. 기존guestv34의이미발생한100/100을안전하게인계하는별도종결경로는여전히필요. storage테스트를native저장완료로인용금지. v135/v136상태·spot변경도아직미배포,전체goalACTIVE.
+
+## E126 — NPC/PvP 피해를 저장 후 적용하도록 실제 경로 연결 (v138)
+
+**ATTACK_COMMIT_BOUNDARY_CONNECTED / 626_TESTS_PASS / DISCONNECT_RACE_AUDIT_PENDING.** E125의손실저장API를실제공격에연결했다. Registry.Presence에선택적PersistDamage callback,UpdateParticipant에동일인자를추가했다. CommitUnitDamageAsync는현재grid/unit/generation의최신presence를선택해callback을await한뒤RecordUnitDamage한다. NPC AdvanceNpcsAsync와플레이어사격처리가모두이함수를호출한다. NPC/명시적인메모리호환참여자는callback이없다.
+
+실제세션 PublishOwnParticipantSnapshot은persistedunit이있으면 BindOwnDamagePersistence callback을등록한다. accountId/store/character/unit/grid/shipGeneration을지역값으로캡처하여세션변경으로피격대상이바뀌지않는다. SaveOriginalUnitDamageAsync결과의identity/loss를검사하고불일치는예외. NPC루프에서피해자세션필드를동시에변경하지않으며다음권위조회에서version을갱신한다. DB미지원은조용히무시하지않음.
+
+TDD: NPC저장실패callback무시 RED(No exception)→GREEN;플레이어실제암호화0406에서도동일RED→GREEN. 두경로실패후피해0, NPC0426미전송검사. OriginalSessionDamagePersistenceTests는실DB+새세션0205/0F02등록후피해자추가요청없이레지스트리손실적용→새DB연결조회에서25/0/version2를검사;처음Expected25/Actual0 RED후세션callback연결GREEN. 이시험은공통commit진입의실DB연결증거이며실제클라/NPC루프전체DB end-to-end와구분.
+
+전체처음625PASS/1FAIL은OriginalInjuryReturnSessionTests.MoverStore가새저장메서드미지원이어서실패. 해당시험double에인물/함선/grid/generation/손실검증및피해저장을추가하고기존scene-ready명령검사는유지했다. 최종 **626PASS/0FAIL/0SKIP**,TRX E:/logh7-build/test-results/damage-v138/damage-v138-final.trx SHA4786D8FA9B34CD17C894C5B12556A832E353F66404CFD2D4EDC04397F16C7721. hostPG11684/start20:09:51.9145236Z/시험전용unit-stance-pgdata-v135/55805는확인후정상종료,파일삭제0. guest입력/DB쓰기/배포/재시작0.
+
+**배포 전 다음:** 현재CommitUnitDamageAsync는대상presence를조회하는시점에접속종료로제거됐으면callback없이메모리적용할위험이있다. 동일unit중복세션에서최신presence의callback선택·오래된incarnation제거도검증필요. 공격이채택한대상과지속적인소유권저장sink를바인딩하여disconnect사이에도저장누락을막고,DB실패/await중알림없음/종결손실재시작복원을검증한다. 아직이경쟁조건해결전deploy하지않는다. 또한guestv34의기존100/100손실은새코드로소급저장되지않으므로현재실행종결인계가별도로필요하다. v135-138미배포,원본UI태세/귀환검증미완료. 전체goalACTIVE.
+
+## E127 — 접속종료 피해 저장 누락 수정과 v35 빌드 (v139)
+
+**DISCONNECT_COMMIT_BOUNDARY_FIXED / 630_PASS / v35_BUILT_NOT_DEPLOYED.** E126은공격저장연결진척. 이번에는RemoveParticipant후이미채택한피해를commit할때저장callback이사라지는문제를RED2건(예외없음/저장대기없이피해적용)으로재현했다. Registry에unit별최신durablePresence를유지하는_damageOwners를추가해transport제거와분리했다. callback없는중복등록은기존durablebinding을지우지않으며revision/generation이오래된등록이새binding을덮지못한다. 이map은offline전투참여자명부가아니다.
+
+CommitUnitDamageAsync는expectedGeneration을받아전후현재generation을검사하고,저장binding의grid/generation불일치면거부한다. NPC는대상snapshot.ShipGeneration,플레이어사격은대상participant.ShipGeneration을넘긴다. DB실패·대기·disconnect에서DBcommit→메모리손실→통지순서를유지한다. 최신세대가도착한후과거hit가새함선저장callback을부르는것도막는다. NPC및순수in-memory호환참여자에는아직별도DBowner가없으며NPCcampaign영속화완료주장아님.
+
+회귀6개: NPC저장실패시피해/0426없음,실제암호화플레이어0406저장실패시피해없음,접속종료후저장실패전파,접속종료후저장대기동안피해0→해제후25,oldgen0→newgen1거부,oldgrid101→newgrid102거부. 새generation fixture에immutableclass를record로잘못취급해컴파일오류1회후명시적constructor로정정했다. full실행완료는session76027동일handle로확인. 전체 **630PASS/0FAIL/0SKIP**,TRX E:/logh7-build/test-results/damage-v139/damage-v139-full.trx.
+
+Release win-x64 self-contained **E:/logh7-build/server-v35-stance-damage-v139** publish성공. v135-139의주둔기지보존/4→5정박/공용spot/피해저장/공격commit/disconnect수정이포함된다. migration25유지. 아직ZIP/guest배포/서버재시작없다. hostPG35760/start20:14:20.6157139Z/시험전용unit-stance-pgdata-v135/55805는신원확인후정상종료. 삭제0,guest입력·DB쓰기0.
+
+**다음 실제플레이경계:** guestv34는여전히NPC누적100/100이DB0/0인상태다. v35재시작은이기존메모리손실을자동인계하지않는다. 기존run최종피해/동일계정unit2/gen1/grid101/서버해시를읽기검증한후,이미구현된SaveOriginalUnitDamageAsync로권위손실을정상트랜잭션으로인계하는정확한one-shot복구도구를준비해야한다(손실을소스로그에서맹목재생하지말고동일실행메모리와대조;currentmode4/base0는임의치유/teleport금지). 그후v35데이터보존교체/자동로그인/격침귀환및정상태세·새워프진입을실클라검증한다. 함선소거가mode4에서막힌기존불일치의정상화도아직남았다. 원본EXE/E105패치미승인유지,전체goalACTIVE.
+
+## E128 — 실행중 v34 격침 손실을 v35 저장 함수로 실제 인계 (v140/v141)
+
+**LIVE_DAMAGE_CHECKPOINT_COMMITTED / RESTART_NOW_LOSS_SAFE_FOR_THIS_UNIT / v35_NOT_DEPLOYED.** E127은disconnect저장수정·v35빌드진척. 이번 freshRPM tactical-lifecycle-v140.json UTC2026-09-06T20:16:38.2965833Z SHA1F11ED89111CC2B99FA12D8CCDC68DC0DFBAB58F685C684E34BE1AD1895EA6B1에서동일client8540/server4244/PG1812확인. unit2/normal0/remaining0/max100/destroyArmed1,mode4,cruising9. 최종서버NPCfire100/100과교차확인했다.
+
+원본프로세스쓰기없이새 DamageCheckpoint one-shot콘솔도구를만들었다. work/.../damage-checkpoint-v140은초안,**v141이성공본**. v141은정확runroot/클라·서버PID/path/start/hash/PGPID/data/port/freshRPM15분/최종NPCfire/DBunit2character2grid101base0mode4gen1cruise9version29loss0/0을검사한다. dry-run/commit별CreateNew영수증으로재실행차단. 연결secret은guest DPAPI에서환경변수로만전달하고출력안함. SaveOriginalUnitDamageAsync만호출;직접SQL UPDATE/텔레포트/치유없음. stage는새도구디렉터리만추출.
+
+v140ZIP전송exec45272가아직진행중인데stage/dry-run을너무일찍실행해실패. 동일전송handle완료확인후읽기전용stage상태확인(ziphash일치/destination없음/receipt없음)하고준비했다. 이어v140실제dryrun은IOException/before null로중단,DB쓰기0. v141에서쓰기중인wire파일을FileShare.ReadWrite로읽도록고치고단계명진단을추가했다. v141ZIP전송35533은완료까지기다린후stage실행했다. v140실패영수증은보존했고재사용하지않았다.
+
+**v141 preflight:** damage-checkpoint-v141-dry-run.json UTC20:22:42.9542151Z VERIFIED_DRY_RUN,DBbefore unit2/grid101/base0/mode4/loss0/0/gen1/cruise9/version29. **commit:** damage-checkpoint-v141-commit.json UTC20:23:08.1507671Z DAMAGE_CHECKPOINT_COMMITTED. after는동일unit/grid/base/mode/gen/cruise에damaged100/destroyed100/version30. 기존위치·모드·항속·함선세대보존검증. 게임입력0/재시작0/치유0/relocation0.
+
+독립후속 guest-live-read-v132 -Tag checkpoint-after-v141의 live-checkpoint-after-v141-v132.json UTC20:23:12.9506016Z READ_ONLY_RUNTIME_VERIFIED에서 **unit|2|2|101|0|4|100|100|1|9**,migration25,departure1개유지확인. 따라서이기존격침은이제DB에보존되어재시작시0/0으로잃지않는다. 전함선/모든세션상태의스냅샷인계주장아님. 정상공격의자동저장실클라증거가아닌,구버전누락에대한검증된one-shot운영인계다.
+
+성공도구 E:/logh7-build/damage-checkpoint-v141 및ZIP SHA3C2D91C93534CCA3D19EB8C12BAD5AC78DF550B12489853390A6ADF1A3EDBADE,helperDLL3BC2EB933B90163FD1CD448058BF3EB2B302CC72F359F8BA71C7FB1F7C621D01. 함께실행한Logh7.Server.dll은v35 SHA7DDDBC41C5AD4F7C29CEFB7DEB1F1B6C307E184F30FEE015289466E865122F01와일치. 서버본체는아직v34server4244. v141stage/dry-run/commit소비됨,**재실행금지**.
+
+**다음 바로실플레이:** v35정확패키지/실행신원재검증→PG1812/data/55432및proxy보존한서버·클라교체→자동로그인→0F02에서persisted100/100으로PrepareInjuryReturn이실제우호귀환행성base2/grid102를커밋하는지확인한다. 새함선복구가언제발생하는지손실/세대로그와분리해서검증. mode4/base0의구버전오류는손실인계에서수정하지않았으며새재접속귀환경로가해소하는지확인해야한다. 주둔/출항toggle/부두그림/정상warp→전술/자동피해저장/종결은미검증. E105클라패치미승인유지,전체goalACTIVE.
+
+## E129 — v35 실제 배포·자동로그인·손실보존 귀환 및 새 함선 복구 (v142)
+
+**V35_LIVE / NATIVE_RELOGIN_RETURN_AND_RECOVERY_OBSERVED / STRATEGY_PORT_HUD_VISIBLE.** E128의기존피해인계뒤v35를side-by-side배포했다. 현재server1084/start2026-09-06T20:26:16.1538048Z,path181000Zrun/server-v35-v142/Logh7.Server.exe,DLL7DDDBC41C5AD4F7C29CEFB7DEB1F1B6C307E184F30FEE015289466E865122F01. ZIPv35-stance-damage-v139.zip SHAB7A3D107ED8F839D3E42BA9F61FF91BA0734CA5F46F37A9E50B39DB6E53BBC81. 현재client2428/start20:26:34.7656141Z/HWND0x0000000003DE03DC,동일client/exe,item116SHA동일. PG1812/55432/data와proxy보존,DB중단0/삭제0. Stage→Stop→Start 상태hash9e309a3da326b9aa1cec82feec5ea4935234e3839b0483e2963836c772d11925동일. v142 Stage/Stop/Start/Client는모두소비됨. wire server-wire-v142.jsonl,stdout/stderr server-v142.stdout/.stderr.
+
+새interactive/auth-preflight완료. click-v142초안이oldDLLhash를검사해첫File메뉴입력전실패했으므로새v142bscript에정확v35hash를고정하고재관찰뒤입력했다. 첫성공File메뉴캡처는template의__TAG__두번째치환누락으로guest **__TAG__-v142.png**에저장되었으며hostevidence/filemenu-b-v142.png로회수했다;클릭반복없음. 이후CloseMenu→FocusId. credential-v142첫호출은id-focus이름/LOGIN-ID명칭불일치때문에입력0/키0으로실패. 실제focus-id/FocusId영수증을검사하는v142b로정정후credential-v142b1회성공. 자동로그인확인: window-lobby-v142.png에v35공지. GameStart→기존캐릭터1회. 사용자수동로그인요구금지.
+
+**실제 귀환과 복구:** live-returned-v142.json UTC20:32:18.5367541Z unit|2|2|102|2|4|0|0|2|10. events-returned-v142.json은기존version30 OriginalUnitDamaged100/100/gen1 → **version31 OriginalUnitInjuryReturned100/100 sourceGrid101/base0→destination102/base2** → **version32 OriginalFlagshipRecovered previousGeneration1→2/previousCruising9→10/previousKind3→3**를확인. returnId dbf4a678-2490-c4dc-49ea-37dd275aa0db. 손실로그를남긴정상귀환/새함선복구이며수동치유/DBteleport아님. 기존v26/27과이번v31/32를혼동하지않는다.
+
+초기window-world-ready-v142.png는전환중캐릭터선택overlay였으므로완료화면아님. 후속 **window-return-settled-v142.png**는전략HUD로실제전환했고,오른쪽 **宇宙港 / 旗艦桟橋**,위치 **惑星帰還惑星（仮）**가표시됐다. 따라서v136spot연결이원본HUD에서식별된다. 현재전술HUD가아니며전술모델/격침애니메이션을이번에봤다고주장하지않는다. 항속HUD0표시는E105원본표시버그여전히미패치;DB항속10과구분.
+
+**바로다음:** 지금정상로그인된grid102/base2/mode4/spot부두/함선세대2상태에서역할카드出港toggle를선택해이번에는request5/responsemode5/base2/spot0이되는지실제확인한다. UI카드메뉴·확인문·행성모드전환을각새스크린으로검증. 그후warp→통상항행6의정상mode계약/항속변화/전술재진입/새공격피해자동DB저장·종결을검증한다. 이번귀환은v34피해one-shot인계+재접속이며v35실시간피격무입력저장/native종결애니메이션PASS아님. 원본EXE/E105미승인유지,전체goalACTIVE.
+
+## E130 — 실제 출항4→5·기지 보존·부두→궤도 HUD 반영 (v143)
+
+**NATIVE_UNDOCK_COMMAND_EFFECT_PASS / NEW_WARP_NOT_RUN.** v35server1084/client2428/PG1812그대로유지. 새화면확인→직무권한카드탭→카드→出港→확인1회. 카드열기직후캡처는아직이전panel이어서추가클릭없이settled관찰후出港을눌렀다. consumed role-v143/card-v143/undock-open-v143/undock-submit-v143영수증,입력재시도0. DBfixture변경/재시작/로그인0.
+
+확인문 window-undock-dialog-v143-v142.png는이번에는「惑星or要塞名から宇宙へ上がります」다. E117의宇宙港に駐留します와달리부두spot가있어서원본FLOW6→mode5출항선택이실제작동한다. 비용/시간/행성이름자리표시자는여전히미치환이라완성된설명문판정은아님.
+
+실제0B06 frame-processed timestamp2026-09-07T05:35:51.4922447+09:00 Success,departure-unit2/authority33. events-undocked-v143-v142.json에서 **OriginalUnitStanceChanged version33 mode4→5,base2→2,grid102/gen2/cruising10/loss0/0유지**. 기존잘못된OriginalUnitDeparted version28이벤트는그대로보존. 새서버단위효과로반드시구분한다.
+
+**원본메모리:** departure-cache-read-v143.json UTC2026-09-06T20:36:46.1650109Z,같은client/server/PG신원검증,memoryWrites0. unit2/kind3/**unitBase2/unitMode5/spot0/spotOwner0/cruising10**. baseSummary/facility각1/ID2,actionContextnonzero. 따라서응답을보냈다는것만이아니라원본상태반영까지확인. window-undocked-v143-v142.png는HUD가 **宇宙港/旗艦桟橋→惑星／要塞軌道上/艦内**로전환했다. E105항속HUD0은내부10과구분,미패치유지.
+
+**다음:** 현재정상정박mode5/base2/grid102에서신규워프를검증해야한다. 단현MoveOriginalGridUnit이mode를무조건보존하므로base0목적지에mode5를남길수있다. E121의원본mode5는base상대위치전용이다. 새warp목적지의base/mode계약을소스와원본0B07/0B08소비자로확인하고필요시출발mode5→도착항행6을저장·통지에일관되게수정한뒤실제이동한다. 표현층mode만치환하거나과거워프를replay하지말것. 이번은전술아님/공격0회. v35실시간피해자동저장/연속전술종결/전체명령·리소스검증미완료. 전체goalACTIVE.
+
+## E131 — 우주공간 워프 도착 태세6 일관 저장·응답 및 v36 빌드 (v144)
+
+**WARP_ARRIVAL_MODE_FIXED_LOCALLY / v36_BUILT_NOT_DEPLOYED.** E130의실제정박mode5/base2상태에서다음워프전에저장코드를검사했다. 현재지원되는101↔102 route는항상destinationBase0인데출발unit.Mode를DB/history/event/hash/returnedrecord에그대로유지했다. 원본004B2740/004C1D20의mode5기지상대좌표규칙과충돌한다.
+
+PostgresAccountStore.MoveOriginalGridUnitAsync에arrivalMode6을적용했다. DBupdate mode,original_grid_move_command.result_mode,event mode/hash,result.Unit.Mode가모두6. 이벤트에sourceMode를별도로기록. 기존저장history의mode는변경하지않아과거replay는기록된결과그대로이며현재행을되돌리지않는다. 이번규칙은현재우주공간도착route용NEW_DESIGN으로원본서버전체도착/비용/대기규칙복원주장아님. 항행6 의미는원본전술태세역추적근거(E122). 지도route/비용확장미구현이며pure OriginalMoveGridAuthority.Notification 기본Mode0은실제세션의committedmode override와구분한다.
+
+OriginalUnitModePostgresTests의이전mode4그대로보존기대는정정했다. fixture출발mode5→새DB워프결과Expected6/Actual5 RED→GREEN. 독립canonicalhash mode6,history/reopen보존,이후fixturemode7후과거replay현재7유지검사. 추가실제DB+암호화0205/0F02/0B01로반대방향워프하여0B07mode6/base0/cruising8확인. 인증은시험fixture이며native게임입력이아니다. 현재guest정박함선이동0/재시작0.
+
+전체 **630PASS/0FAIL/0SKIP**,TRX E:/logh7-build/test-results/warp-mode-v144/warp-mode-v144-final.trx. Release win-x64 self-contained **E:/logh7-build/server-v36-warp-mode-v144** publish성공(session97308동일handle완료확인). migration25동일. hostPG62776/start20:39:28.8419614Z/시험전용unit-stance-pgdata-v135/55805는identity확인후정상종료/삭제0. 현재guest는아직v35server1084/client2428/PG1812.
+
+**바로다음실플레이:** v36side-by-side배포/DB보존서버교체/자동로그인(현재mode5base2grid102gen2cruise10재접속유지확인)→새원본UI워프102→101→0B07Id/time/mode6/base0/항속9→pendingqueue해제·전술HUD·함선모델·실시간NPC/PvP피해DB를검증한다. v142consumeddeploy/credentials/v143출항반복금지. 현재정박까지성공했고warp새입력은아직0회. E105항속HUD표시패치미승인유지,전체goalACTIVE.
+
+## E132 — v36 실제 워프→전술→NPC 누적피해 자동DB저장→귀환·복구 연속 검증 (v145)
+
+**NATIVE_WARP_TACTICAL_NPC_DAMAGE_RETURN_CHAIN_PASS / FULL_GAME_INCOMPLETE.** v36server9812/start2026-09-06T20:44:24.4000440Z,path동일181000Zrun/server-v36-v145/Logh7.Server.exe,DLL443083E5D2D767716AF2064967D741F2B95EED806D1FF72817E6A091A33633E8. ZIPv36-warp-mode-v144.zip SHACF889690EA3A5FBDC37B74800CB32D1C002EE8CC065F8A7A158CD117D0A3791A. client10092/start20:44:42.8429702Z/HWND0x0000000004E80446,item116SHA동일. PG1812/data/55432/proxy보존,DB중단0/삭제0. Stage/Stop/Start상태hashfb497e7fb09f8f3d473fb93e2d40c8cf1d280ae7a9e373a86676194d63453603동일. v145Stage/Stop/Start/Client모두소비됨. wire server-wire-v145.jsonl.
+
+새interactive/auth-preflight→File메뉴/닫기/FocusId→credential-v1451회→v36공지로비→기존캐릭터. 초기lobby캡처는BOTHTEC로고였으므로추가입력없이새관찰로로비확인. 재접속DB는grid102/base2/mode5/gen2/cruise10/loss0/0,전략HUD는궤도/함내. 출항반복없음. 역할카드→ワープ航行→왼쪽인접grid→확인1회. v145clicktemplateは全placeholder置換、全入力新観察、再試行0.
+
+**실제워프:** 0B01timestamp2026-09-07T05:50:13.7503825+09Success authority34,source102/dest101. DB **unit2/grid101/base0/mode6/loss0/0/gen2/cruising9**. 이어05:50:14.982232+09원본클라0F02자동요청,world-bootstrap enemy-presentTrue. window-warp-after-v145.png는레이더/에너지분배/전술명령HUD에실제전환. 따라서이번에는재로그인으로도착전환을우회하지않았고E119응답ID수정및E131태세수정후정상새워프전환이실측됐다. 항속10→9는DB증거;이번크루징직접RPM별도미실시. E105화면0표시는여전히미패치.
+
+**무입력자동전투·영속화:** NPC2130706433이접근후unit2에4회사격. events-tactical-live-v145.json에서OriginalUnitDamaged **v35=25/0,v36=50/0,v37=75/0,v38=100/100**,모두shipGeneration2/sourceGrid101. 최종NPCfire05:50:31.5625478+09 tick8764,직전75fire05:50:28.5596383. 이는v141운영인계가아닌v36실시간NPC→저장→피해통지경로다. 이번피해에수동DB쓰기/치유/재시작/재로그인0.
+
+**연속귀환:** 뒤이어OriginalUnitInjuryReturned **version39**,source101/base0→102/base2,loss100/100,returnId39bba15c-2a9c-15fb-3888-9aa2afbf01c4. OriginalFlagshipRecovered **version40**,gen2→3,kind3유지,cruising9→10,과거손실100/100event보존. 현재DB **unit|2|2|102|2|6|0|0|3|10**. window-tactical-live-v145.png는이름과달리이미귀환후전략HUD다. 전술에머문화면이라고잘못인용하지말것.
+
+**남은실제문제:** 전술함선위라벨은ダスティ・アッテンボロー로여전히인물명이다(사용자가고치라고한버그재현). 원거리작은표식은보였지만함선모델정체/빔·미사일·폭발애니메이션의시각검증은이번캡처에없다. 반환/복구저장은Mode6을보존해base2/mode6/spot0(HUD궤도/함내)로돌아왔다;원본귀환후태세4/부두로의정상규칙은별도정리해야한다. 전체PvP·NPCvsNPC실클라/모든전략명령효과/임무제안/전체리소스추적미완료.
+
+**다음 플레이작업:** 현재살아있는귀환gen3세션유지. 인물라벨→함선명소비자역추적및원본0348/라벨이름join검증,귀환태세/부두규칙,이번공격의실제effect/모델/적기함구분을진행한다. 시험사격을반복하려고DBreset/로그인/warpreplay하지말것;새정상플레이시나리오로명시. 현재커밋630테스트이후추가코드수정없음. E105클라패치미승인유지. 전체goalACTIVE.
+
+## E133 — 함선 라벨 클라이언트 변경 경계 확인 (v146)
+
+E069의 인물명 직접복사 결론을 새 Ghidra decompile/listing으로 확인했다. 새 영수증 work/20260904-warp-state-reverse/evidence/E-133-tactical-label-change-boundary-v146.md. 004C3C2C의 parentage+7D 조건, 004C3C39의 length+B8, 004C3C3F의 text+BA, entity+6BC 복사를 확인. 함명은 별도 +28/+2A. 두 offset만 교체하면 parentage 없는 함선이 빠지고, 복사 블록에는 명시적 종료문자가 없어 재사용 시 짧은 함명 suffix 검증도 필요하다. 천체도 같은 entity 이름필드를 사용하므로 전역 이름 변경 금지. 서버 display_name 오염 없이 요구를 충족하려면 원본 클라의 함선 표시 전용 수정이 필요하다. 별도 승인 질문; E105 승인을 포함하지 않는다. 패치/배포/DB쓰기/게임입력0, 현재 runtime 재관찰0. 전체 goal ACTIVE.
+
+## E134 — 귀환 행성 주둔 태세·부두 응답 연결 및 v37 빌드 (v147)
+
+**LOCAL_RETURN_STANCE_AND_DOCK_PROJECTION_VERIFIED / v37_NOT_DEPLOYED.** E132의 연속 귀환은 base2/mode6을 남겼다. 현재 ReturnInjuredOriginalUnitAsync SQL은 위치/손실만 변경하고 mode를 생략했으며 recovery도 이를 보존했다. 이번 새 귀환의 도착 태세를4(주둔)로 저장·returnedrecord·이벤트에 일관 적용했다. 이벤트 sourceMode/mode를 추가하여 기존 payload 기반 authority hash에도 포함된다. replay 조기반환은 변경하지 않아 과거 귀환이 이후 새 함선을 다시 주둔시키지 않는다. 과거 이벤트/기존 살아있는 gen3 행 수정 없음, migration 추가 없음.
+
+규칙 출처 구분: 매뉴얼 OCR gin7manual_djvu.txt 2470–2478은 격침 후 지정 귀환 행성으로 순간 복귀를 설명하지만 주둔 태세를 명시하지 않는다. mode4의 원본 의미는 E122. **귀환 도착4 선택은 현재 replacement server NEW_DESIGN**이며 원본 서버 규칙 복원 주장 아님. 사용자 승인된 서버 구현 범위에서 진행; 원본 라벨/E105 패치는 둘 다 미적용.
+
+실제 격리 PostgreSQL OriginalInjuryReturnPostgresTests fixture를 mode6으로 설정해 expected4/actual6 RED를 확인했다(return-stance-v147-red.trx). 수정 후 rollback 시6 보존, 정상 return4/독립 datasource reopen/8회 replay/이벤트 source6→4를 검증했다. OriginalFlagshipRecoveryPostgresTests는 복구 후4 보존, 실제 암호화0205/0F02 응답0323에서 공용 부두 spot2001/owner0 확인, 이후 3회 정상 워프 사이 과거 귀환 retry가 현 mode6/위치/항속을 그대로 반환하는지 추가 검증했다. 이는 fixture 인증+실제 저장소·세션 응답 검증이지 native 화면 실측이 아니다.
+
+최종 **630 PASS / 0 FAIL / 0 SKIP**, E:/logh7-build/test-results/return-stance-v147/return-stance-v147-final.trx SHA93D42E62327E6CB7DF6B5BDBE467C2457C8D3DFE79603C246D23B5184BC3599D. Release win-x64 self-contained E:/logh7-build/server-v37-return-stance-v147 publish exit0, DLL SHACF9419F82B1132E84217188BC2ED2C4DB8BDFDFE35A2B01A379EBECD5D528FF4. 테스트 hostPG53704/data unit-stance-pgdata-v135/55805 신원검증 후 정상 종료, 데이터 삭제0. guest 게임/서버/PG는 이번 턴 접근·재시작0; 최신 live 증거는 v145이고 현재 생존을 재확인하지 않았다.
+
+다음: v37 데이터 보존 배포 전 guest 현재 신원/상태 fresh read. 현재 gen3를 SQL로 주둔시키거나 재격침 fixture로 조작하지 말 것. 정상 플레이에서 다음 실제 귀환이 부두 HUD를 표시하는지 검증하고, 같은 전투에서 무기/폭발 영상도 준비해 확인한다. 라벨 패치 승인 대기는 전체 서버 작업 blocker가 아니다. 전체 goal ACTIVE.
+
+## E135 — v37 실배포·자동로그인·격침 폭발·주둔 부두 귀환 실측 (v148)
+
+**NATIVE_CONTINUOUS_CASUALTY_DOCK_RETURN_PASS / PROJECTILE_TRAIL_AND_EXPLOSION_VISIBLE.** 현재 guest runroot는 동일 20260906T181000Z-departure-v124. server5216/start2026-09-06T21:05:03.7130110Z/server-v37-v148/Logh7.Server.exe, DLL CF9419F82B1132E84217188BC2ED2C4DB8BDFDFE35A2B01A379EBECD5D528FF4. client10160/start21:05:30.3684375Z/HWND0x000000000178044A/item116 AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F. PG1812/55432/기존data 및 proxy 보존. stage/stop/start hash4a1cbc0d73f9d189e554c73c720f98b76b2ac1076120348ad7613f2402c98788 동일(계정/캐릭터/함선/이벤트/마이그레이션 범위). DB중단0/파일삭제0. v148 Stage/Stop/Start/Client 소비, 반복금지. ZIP v37-return-stance-v147.zip SHAAFAF4E5D25636BC5020A97F94E9E262E7D888317E7403A5A8EA025067EDC9A59.
+
+fresh events-pre-v148-v145는 기존 gen3/grid102/base2/mode6/loss0/cruise10 확인. Windows sky 캡처는 창 재선택 포함2회 SetIsBorderRequired 0x80004002, 입력0 후 기존 guest 도구로 전환. interactive/auth-preflight→File/CloseMenu/FocusId→보호된 자격증명1회→v37공지 로비→GameStart→기존캐릭터. credential/capture host handle12539가 진행중인데 이미지파일을 일찍 읽어 파일없음 오류가1회 있었으나 같은 handle 완료 후 파일을 읽었다; 로그인/입력재실행0. 실제 재접속도 gen3/mode6 그대로, 기존 행을 임의로4로 바꾸지 않았다.
+
+정상 역할카드→ワープ航行→왼쪽grid→결정1회. UI확인 직전65초 capture-only 시작(handle66969), 게임입력은 별도 fresh screenshot 기반1회씩. 신규 MoveGrid event version41 source102→101/mode6/cruising10→9/gen3. NPC2130706433→unit2 실제 fire 21:10:34.0842433Z/37.0610555Z/40.0580843Z/43.0614379Z. 손실DB event42=25/0,43=50/0,44=75/0,45=100/100. 재시작/재로그인/수동DB쓰기 없이 **event46 OriginalUnitInjuryReturned sourceMode6→mode4/source101base0→102base2**, event47 OriginalFlagshipRecovered gen3→4/cruising9→10/kind3 유지. returnId db72a53c-d9bf-1cfa-1d02-8ee4adfee3d9. 현재 unit|2|2|102|2|4|0|0|4|10.
+
+**실제 화면:** window-return-after-v148.png에 전략 HUD의 宇宙港/旗艦桟橋가 표시된다. E134 새 도착태세+기존 spot2001 연결이 native에서 동작했다. 이전 전술 HUD와 혼동 금지.
+
+**연속 캡처:** battle-capture-v148.json은21:10:06.0426833Z–21:11:11.0231097Z 358 PNG/게임입력0/메모리쓰기0. ZIP 전송 handle55231 완료 확인, 새 host evidence/battle-frames-v148로 해제, 모든358개 SHA가 guest 영수증과 일치. 처음+마지막과 대표 사격 프레임만 눈으로 검사했으며 전프레임 시각검수 주장은 아님. 0162(21:10:35.2221402Z)에는 푸른 발사체 점과 긴 궤적이 있으며 사격 전0155/직후0159에는 없었다. 0204에는 푸른 점, **0206(21:10:43.4519693Z)**과0210에는 최종100/100 뒤 큰 주황/백색 폭발·섬광과 인물 라벨 소거가 보인다. 0224에는 전환 중 큰 회색 3D함선이 보임; 이를 실제 전투 함종/적 모델의 확정 증거로 쓰지 않는다. 수평 흰 선/고정 배경 별은 발사증거가 아니다. 빔/미사일 정확한 종류 및 모든 무기별 source/target/effect join은 미검증.
+
+주요 SHA: events-return-after-v148.json DDCC3A6A8D262F6290368DED6D64584724B297581C14565390DB2BD4696AE6BC; window-return-after-v148.png 91120118081FD2796FAF950A39C1CC7F8DC0355CCC01C4CD3B644FC3A410B35F; battle-capture-v148.json E1E40F84126FCC1EFAE3370E9AABD84DB0C5381CD9C20C5E3483798AC0F72CC5; battle-frames-v148.zip D1A51B25BE4320E773322D42772FFF7D4A710DE11D2CDDBBBCD8DCAC890E82C6; 0206.png 27B7ADB0B7637F60B7FE62EAC6F66D268702196BB6B0E23E31D2681C08334717.
+
+다음: 현재 gen4/주둔/부두 세션 유지. 공격자가 화면 밖에 있어 정확한 무기종·아군 공격·적 모델식별은 이 연속캡처만으로 완료되지 않는다. 기존358프레임과0426/arms·시각리소스 소비자 분석을 먼저 이어가고, 새 실제 입력은 새 장면 관찰을 기준으로 한다. NPCvsplayer 피격·폭발·귀환 한 경로는 확인했지만 PvP/NPCvsNPC 및 전체 전략/전술기능은 미완료. 라벨/E105 EXE패치 미승인 유지. 현재 helper guest-click-v148/guest-window-observe-v148/guest-return-events-v148와 auth-preflight-v148 신원 사용; credential/warp/배포 재실행금지. 전체 goal ACTIVE.
+
+## E136 — 무기 ID→효과→모델 발사 위치 역추적 (v149)
+
+영수증 work/20260904-warp-state-reverse/evidence/E-136-arms-model-launch-points-v149.md. 새 Ghidra004C7790/004B3460/004E4450/004E6010/004E62B0/004DC940/004DC8C0 확인. arms0..7→effect1/BEAM,8..11→3/GUN,12..15→2/MISSILE;16..26/FF는0426함선피격 경로에서 시각효과0. 00772DF4 원문bytes로이름확인. 이 문자열은 actor model의 entry table+108/count+10C를 검색해 transform+58을 얻는 발사위치 selector다. 전체리소스추적에서 모델 geometry뿐 아니라 발사점까지 연결해야한다.
+
+v148는 trail/explosion실측이나 npc-ai로그에 Arms가 없어 무기 ID는 source로만 예측할수있었다. OriginalNpcEvent nullable Arms와 fire시 실제0426무기값 기록을 추가. host타이머 실제JSON missing arms RED→GREEN. NPCvsplayer/NPCvsNPC 송신0426 byte14와 event Arms 일치/이동null 추가검사. 첫 검사 전역hit1개 가정은NPC상호사격2개로실패해 actor10으로정확히좁혔다. 최종 관련34PASS/0FAIL/0SKIP; full630은v147과거결과로이번전체검사아님. TRX SHA4EFB9275DBDE1A22B1796A571BD9FD7D78489A72ED517EF62F907EA9132AF4E0. production은로그필드만 변경, gameplay/wire/DB변경0; 미배포이며 guestv37에는아직없음. 다음은 모델별 발사점/실제플레이어사격 검증, passive격침 반복금지. 전체goalACTIVE.
+
+## E137 — 247개 함선 MDX 노드 추출·model18 발사점 결손 후보 (v150)
+
+**STATIC_NODE_INVENTORY / MODEL18_RUNTIME_JOIN_UNVERIFIED.** scripts/mdx_nodes_v150.py는005F6230의header88/count+4/stride232로직을따라노드앞64bytes의NUL종료ASCII이름을읽는다. 기존geometry분석과달리geometry/animation을평가하지않는다. serialized pointer무시/잘린header·배열거부/잘못된name거부/노드밖문자열무시를검증했다. 처음3RED1PASS→새4테스트+기존geometry5테스트총9PASS. 모델파일을변경하지않는읽기전용분석이다.
+
+기존ship-model-catalog의348distinct path를신규대조:247 SERIALIZED_NODES_READ,101 MISSING,invalid0. 누락은원본표경로와현재추출root사이의미발견이지다른설치/패치에도없다는주장아님. 모든존재파일SHA/node index/offset/name/LODuses를 evidence/ship-model-nodes-v150.json에기록(SHA8843469D72DB57FE3F392169FCEFD061F6B8F6BA2CDCDC90F250E9687224978C). 스크립트SHA72A5FE7D9086FF22BEBBE4F02CD05D29081AA1DC426FA0F850F988CB99742690. 인벤토리 markers는동일이름또는family_ prefix기준분류이며전체nodes원문도보존한다.
+
+추가Ghidra005FE1F0는대소문자구분substring검색(strstr형동작)으로확인:원본004DC940/004DC8C0는단순prefix보다넓게일치한다. JSON의prefix분류를원본matcher완전재현으로승격금지. 아래model18은전체이름에substring BEAM이없는지도별도확인했다. 004F2AF0는renderer+B24별B38/B34/B30/B2C 모델포인터를선택한다;이값들의런타임LOD매핑/로드후이름보정은별도확인필요.
+
+현재OriginalWorldBootstrapCodec는kind0→model12,89→1003,**kind3→18**,93→1014. 현재v148귀환후kind3이므로이분석은다음플레이어사격에직접관련있다. GE/EM018과EH018은8노드(B2,B1,C4,C1,C2,C3와hull이름),EL018은1hull노드;세파일모두BEAM/GUN/MISSILE/ENGINE문자열노드없음. SHA EM018=479B827AAC9BF20AD508A39ACE953DB15AB4AC6C4989EC29101DAB3D3CE706A8,EH018=B9ED3B30B70295513F518DF225EE54808266A29B79CE71D86DB395A124F72BE1,EL018=AD0AC8ED9C73AC853E927061EF1BD2230CCC3AB637E7DD1D2906A6B4652240EB. 반면FP/FM014/FH014는12노드로BEAM_01/GUN_01/MISSILE_01/ENGINE_01있고lowFL014는2노드/ENGINE만있다. GE/EM012/EH012도발사점있고EL012에는없다. **lowLOD에발사점이없는것만으로원본무기가고장났다는뜻이아님**;실제로어떤모델포인터를검색하는지확인해야한다. model18은현재임시함종배정과원본발사점연결의불일치후보로기록,멋대로다른선체/브륀힐트로바꾸지않았다.
+
+플레이어사격소스검사:NaturalAuthoritySession.ProcessTacticalTargetCommand의0405/0406은소유·적대·생존·장착검사뒤즉시ApplyAuthoredDamage하며사거리/사각/출력/쿨다운검사가없다. NPC쪽과동등한전체게임규칙이라고할수없다. 이번은그검증미구현,게임/DB/서버변경0(로컬분석스크립트와영수증만추가),v149로컬Arms로그추가는그대로미배포. 다음:생존gen4부두세션에서새무작정격침실험보다model18 loader runtime목록/발사점변환/원본함종join을확인하고플레이어사격권위누락을구현한다. 이미요청한라벨/E105클라패치승인미응답유지. 전체goalACTIVE.
+
+## E138 — 전력배분0→플레이어 공격 피해 차단 및 v38 빌드 (v151)
+
+**LOCAL_POWER_COMMAND_EFFECT_VERIFIED / v38_NOT_DEPLOYED.** 직전발견중무기출력0에서도피해가나가는경로를수정했다. NaturalAuthoritySession 실제명칭은 ProcessTacticalRelayAsync(E137의ProcessTacticalTargetCommand표기는오류). 장착검사뒤현재 _tacticalPlayerCorps 또는초기corps의선택무기출력을확인하고0이면TACTICAL_WEAPON_POWER_INSUFFICIENT/0500일본어설명으로거부한다. DBcommit/메모리피해/NPC보호해제/0426발행이전에거부. family0=PowerBeam,나머지는기존NPC임시정책처럼PowerGun;포/미사일장비별완전원본정책은아님. 현재템플릿은빔만실제장착되어그분기를실세션검증했다.
+
+OriginalPlayerCombatTests 4cases(0405/0406 × NPC/타플레이어표적): 실제암호화040C beam0승인→사격거부/0426없음/공유damage0→040C beam20승인(gun0유지)→사격1회/0426/damage25. 처음4RED(actual tactical-command-accepted)→GREEN. 기존사거리·사각·쿨다운없는즉시피해정책은여전히남아있으며이번guard로완전전투권위라고주장하지않는다. 전력은현재세션상태이며중복세션/재접속영속공유도아직없다.
+
+격리실제PostgreSQL포함전체 **634PASS/0FAIL/0SKIP**. E:/logh7-build/test-results/fire-power-v151/fire-power-v151-full.trx SHA9E2A013FA673B8E013A180D785F3DB3500526C888461C12DFAADD46B7D8872FD. v149 NPC Arms로그추가도이번전체검사에포함. Release win-x64 self-contained E:/logh7-build/server-v38-fire-power-v151 publish exit0,DLL AD026B1AB5D0ACBE9452017E327C2841ED0699D39870CE3D47667BC636CBAEAA. host시험PG56644/55805/data unit-stance-pgdata-v135 신원확인후정상종료,파일삭제0. guestv37/client10160은이번턴접근0/재시작0/배포0,최신native영수증v148유지.
+
+다음: v38배포전현재guest신원/손실fresh확인;model18발사점/로드후노드변환을우선읽기검증하여새플레이어사격에서어디를봐야하는지정한다. 미승인원본EXE/모델파일을고치거나임의로선체를바꿔문제를감추지않는다. 전력명령native효과및플레이어사격실측은미완료;사거리/사각/쿨다운·지속공격은진짜게임구현의다음항목. 전체goalACTIVE.
+
+## E139 — 실제 모델 검색 대상 정정: transform node가 아닌 mesh, 부두 신원 재검증 (v152)
+
+**LOADER_MESH_NAME_JOIN_CONFIRMED_STATIC / LIVE_MODEL_CACHE_EMPTY_AT_DOCK.** guest-model-cache-v152.ps1는v148실행신원·EXE/DLL·PGdata검사뒤RPM만실행했다.21:30:03.2986173Z client10160/server5216/PG1812생존. 원본자기unit2/kind3/base2/mode4/spot2001/owner0/cruising10확인. tacticalFlag0/sceneMode2/ships·renderers·modelCache빈배열. 따라서현재부두에전술모델목록이없으며읽기실패/모델파일없음과다르다. 메모리쓰기0/게임입력0/로그인0/재시작0. receipt model-cache-v152.json SHA0065EBAF57D5B9CE6CD7D55E3B9A7E524B4CBD2CC280237598044DF463E60485. 같은부두조회반복금지;전술상태에서만active모델읽기가의미있다.
+
+중요정정:E137의노드이름목록은파일사실이지만원본발사점검색대상자체는아니다. 004DD6A0 loadMdxOrMdsModelFile에서 .MDX/.mdx→005DE500→005E3C00(type1)→005E39E0→005F6230. 004F2920는모델별005DE8E0→005DE550(case1)→**005DF940**으로런타임객체를만든다. 이함수는rawheader+4의transform node수를 runtime+104/포인터+100에놓고, **rawheader+2C의mesh수를 runtime+10C/포인터+108**에놓는다.005DE920/005E0900은meshentry+4에raw384byte mesh레코드포인터를저장;이raw레코드앞이name. mesh의+80 transform-nodeindex로runtimeentry+0에변환노드를연결한다.따라서004DC940/004DC8C0의검색은meshname,행렬은해당변환노드+58이다.005FE1F0의대소문자구분substring규칙은유지된다.
+
+mdx_nodes_v150.py를기존검증된mdx_geometry_v114.extract의meshNames와연결하고실제substring분류로보완했다. 이전v150JSON은보존;새 **ship-model-mesh-launch-points-v152.json**에node와mesh둘다보존. 새247성공/101missing/invalid0,기존parser9테스트PASS. 출력SHA4C6522E690E96C4E08D892E61F43C9C6C5AA328CF18954B07930F564639307D5. 현재스크립트는E137옛SHA와다르므로구영수증재생성에덮어쓰지말것.
+
+model18의실제mesh도EM018/EH018각8개,B1/B2/C1..C4및hull명뿐,EL0181개hull명;모두BEAM/GUN/MISSILE0. model1014의FM014/FH014 mesh12개,BEAM1/GUN1/MISSILE1,FL014mesh2개/무기0. 따라서model18위험후보는올바른검색테이블로도재현됐다. 단live active model선택/사격fallback위치실측은여전히미검증.004F2AF0 selector0/1/2/3→B38/B34/B30/B2C,004F2920/004F3F70과결합하면0low/1medium/2high/3fallback경로. 어떤LOD가발사시선택되는지다음실플레이에서읽어야한다.
+
+v38패키지는미배포,기존v37/gen4부두유지. 이번분석은임의모델교체나클라패치허가가아니다. 다음구현은플레이어사격사거리·사각·쿨다운과0405지속공격정책을진행하고,다음정상전술진입에model-cache관찰을붙여model18의실제발사결과를한번에확인한다. 전체goalACTIVE.
+
+## E140 — 플레이어 사거리 경계 연결, 회귀 fixture 조정 진행중 (v153)
+
+**RANGE_VERTICAL_FOCUSED_PASS / REGRESSION_NOT_GREEN / DO_NOT_DEPLOY_CURRENT_SOURCE.** 새Ghidra004F1180/004EFD70/004EF740과기존E071/E074를대조했다. E074실측distance3.337486/max5,원본엄격distance<directionalEnd규칙. 이번생산변경은NaturalAuthoritySession.ProcessTacticalRelayAsync의0405/0406 공통피해직전 rangeguard:현재자기pose와현재공유NPC pose 또는targetParticipant pose, (_staticArms??authored).EncodeResponse의실제선택arms행에서최후positive bin+1을최대사거리로계산. wireXY=renderXZ, double유한평면거리검사, distance>=range 또는nonfinite거부0500/TACTICAL_TARGET_OUT_OF_RANGE. 권한좌표만사용하며요청의가짜거리없음. 현재zero-distance는range만으로배제하지않으며사각·충전·명중·0405지속공격은별도미완료.
+
+OriginalPlayerCombatTests.Shooting_outside_the_equipped_weapon_range_does_not_damage_the_npc:초기-10/+10거리20에서기존코드actualaccepted RED→guardGREEN. 실제0400이동요청으로x5까지이동후경계5도거부,다시x6이동후거리4에서0426/피해25확인. fixture SQLteleport/손실직접주입아님;인메모리권위세션의현재즉시이동정책을사용하므로native이동시간일치주장아님. E:/logh7-build/test-results/range-v153/range-v153-focused.trx 1PASS/0FAIL,원RED range-v153-red.trx보존.
+
+전체suite(이번에는PGenv미설정)에서원거리NPC즉시명중을전제로한기존tests가실패했고PG테스트는SKIP이므로전체통과주장금지. session6603은running상태를동일handle로확인. OriginalSharedBattleTests.UnknownActorWithoutIdentityFailsObserverInsteadOfSendingAnUnusableHit 481부근에서공격거부뒤알림채널실패를무기한기다리는소스를확인하고해당test실행만Ctrl+C종료(exit1). 단순시간초과로프로세스사망을추정한것아님. 전체TRX range-v153-scope.trx는종료전미생성으로완결영수증없음.
+
+**다음 즉시 작업:** 테스트의본래검증조건을유지한채사격전적법한위치fixture/0400접근을명시한다. 실패확인대상 OriginalSharedBattleTests의Attack/AttackActor/Session과특수actorpose123,4,567,OriginalPlayerCombatTests NPC표적 power復帰/종결,OriginalNpcSceneImportTests.Accepted_player_fire_removes_npc_protection...,OriginalShipIncarnationSessionTests.Old_scene_cannot_attack_as_replacement_before_reimport. 그외실패명도다음bounded검사로회수. 무조건globaltest사거리확대/생산rangeguard삭제/기존assert약화금지. 알림기다림은원래사격이승인됐는지먼저assert하고시간상한을주어회귀가hang되지않도록한다. 이후PG포함전체재실행→남은geometry/사각/cooldown검증. 현재v38빌드는E138당시코드라신규rangeguard없음;현재생산소스는미빌드패키지/미배포. guestv37/gen4은이번접근0. 전체goalACTIVE.
+
+## E141 — 사거리 회귀 정상화·전체635PASS·v39 빌드 (v154)
+
+**RANGE_REGRESSION_GREEN / v39_BUILT_NOT_DEPLOYED.** E140 생산rangeguard는유지했다. OriginalSharedBattleTests.CloseCombatCatalog는해당관찰자테스트용기존맵복제에서enemySpawn.x만-7로설정한다(player-10과거리3);원래생산catalog/무기수치변경0. 특수actor pose는X123→-8로만바꾸고Y4/Z567/yaw0.75/morale73/confusion2/identity/배치순서assert유지(적-7,0과거리sqrt17). 첫bootstrap observer도같은fixture를사용해중간bootstrap에서NPC가원거리로새등록되지않도록했다.
+
+관찰자missing-identity 테스트의채널실패대기는5초상한+TestContext cancellation적용. 처음xUnit1051컴파일오류는WaitAsync cancellation누락때문이라추가후해소. 다음전체scope검사는정상종료하여12FAIL/597PASS/26PGSKIP을회수했다(range-v154-scope.trx). 같은근거리fixture를실패한시계6cases,전력복구NPC표적2cases,혼합플레이어/NPC종결,수입전공격보호해제,재생성후새공격검사에만명시적으로주입했다. 기본Session/global맵전체를바꾸지않아E140의원거리거부·실제0400접근테스트는원래-10/+10배치를유지한다. 다음scope2는609PASS/0FAIL/26SKIP.
+
+별도hostPG54500/55805/data unit-stance-pgdata-v135를실행해실제DB포함 **635PASS/0FAIL/0SKIP**. E:/logh7-build/test-results/range-v154/range-v154-full.trx SHA3D88FA6F6D6B0166F438CC964817369EECC4598EED25A7132101FAD2E931D1FC. Release win-x64 self-contained E:/logh7-build/server-v39-fire-range-v154 publish exit0,DLL ED175BAA6CCFA57B4B7CD339C07944195C1595DE13C9EC5120EA4D5BD421A647. v149무기로그/v151출력gate/v153rangegate포함. hostPG정확소유경로/data확인후정상종료,삭제0. guestv37/client10160/PG1812는이번턴접근0이며최신실측v152(gen4부두)유지.
+
+E140의REGRESSION_NOT_GREEN은이번전체결과로해소됐으나native사거리/출력표시검증은아직없다. 사각·재사격간격·0405지속공격/추적/중지·다중접속전력상태공유미구현. 다음은v39배포와명시적플레이어공격시나리오또는이권위기능추가. 수동격침/치유/DB이동없이실제명령경로검증;현재model18발사점결손후보와클라이언트라벨/E105승인대기는유지. 전체goalACTIVE.
+
+## E142 — 사각 guard 회귀 진행중·자동로그인 상태 확인 (v155)
+
+**ARC_FOCUSED_IMPLEMENTED / FULL_REGRESSION_NOT_GREEN / DO_NOT_DEPLOY_CURRENT_SOURCE.** NaturalAuthoritySession의 기존 사거리 guard 뒤 실제 선택 무기의 angle mask와 OriginalTacticalNpcController.Sector를 연결했다. 평면 atan2(dx,dy), 현재 함선 heading을 사용하며 거리0/비유한 heading/허용되지 않은 sector는 TACTICAL_TARGET_OUTSIDE_WEAPON_ARC로 피해 commit 전 거부한다. 동일 NPC의 6sector 정책이며 원본 x87 경계 완전 재현 주장은 아니다.
+
+OriginalPlayerCombatTests.Turning_into_an_equipped_arc_enables_an_in_range_target 0405/0406 두 테스트: 근거리 표적을 사각 밖에서 거부하고 실제0400 제자리 선회 뒤 명중하도록 검증. 수정 전 두 RED(arc-v155-red.trx). 수정 후 전체 비PG 실행은 정상 종료했으나 **599PASS/12FAIL/26SKIP**, E:/logh7-build/test-results/arc-v155/arc-v155-scope.trx. 실패는 기존 PvP 시험 함선이 같은 좌표로 시작하는 fixture와 관련된 것으로 추정되며 아직 수정/재검증하지 않았다. 새 두 사각 테스트는 해당 실패 목록에 없다. 생산 guard 제거/각도 mask 확대/원본 맵 변경으로 테스트를 통과시키지 말 것. 다음은 OriginalPlayerCombatTests.Session helper 및 이를 쓰는 DamageCommitBoundary/InjuryReturn/ReturnPlanet 시험에서 명시적인 서로 다른 근거리 위치를 배치하고 PG 포함 전체 회귀를 실행한다. 마지막 전체 GREEN 빌드는 v39이며 신규 arc 소스는 미배포.
+
+사용자의 자동로그인 지적에 대해 v148 성공 경로를 확인하고 새 read-only window-login-check-v155-v148.png를 관찰했다. v148 pinned client PID/start/HWND 검사를 통과한 새 캡처이며 전략 HUD의 宇宙港/旗艦桟橋가 현재 표시된다. 지금 이미 로그인된 상태이므로 자격증명을 다시 입력하거나 재로그인하지 않았다. VM 관찰 실행 exit0, 입력0/DB쓰기0/재시작0. 자동로그인 가능 여부를 사용자 수동 로그인 필요로 잘못 보고하지 말 것. 새 캡처는 work/20260904-warp-state-reverse/evidence/window-login-check-v155-v148.png. 전체 goal ACTIVE.
+
+## E143 — 사각 회귀637PASS·v40 빌드, 실제 PvP 입장 좌표 중첩 발견 (v156)
+
+**ARC_REGRESSION_GREEN / v40_BUILT_NOT_DEPLOYED.** 직전 턴은 pinned native 화면으로 로그인 유지/부두를 확인한 evidence progress였으며 재로그인은 필요하지 않았다. 이번에는 E142의 실패12건이 공유 OriginalPlayerCombatTests.Session helper의 동일 playerSpawn을 쓰는 경로임을 추적했다. 이 전투 시험 helper에서만 power3 함선의 X를 기준+3으로 배치하고 나머지 pose/원본 catalog 값은 보존했다. player2의 custom heading을 보존하므로 사각 밖→실제0400선회→명중 검사는 그대로다. 생산 angle mask/거리/DB/맵은 수정하지 않았다. 비PG scope는611PASS/0FAIL/26SKIP.
+
+격리 PostgreSQL을 포함하자 OriginalPlayerUnitIdentityPostgresTests.Two_database_backed_players_remain_distinct_targets_in_one_battle 하나가 실패했다(636PASS/1FAIL/0SKIP, arc-v156-full.trx). 이 경로는 시험 helper가 아니라 실제0205/0F02 진입을 사용하며 두 플레이어 모두(-10,0)에 입장한다. 따라서 **운영 기본 PvP 입장 좌표 중첩은 실제 미완료 항목**이며 fixture 수정으로 해결됐다고 주장하지 않는다. 해당 시험에는 처음 중첩 사격이 TACTICAL_TARGET_OUTSIDE_WEAPON_ARC로 거부되고 피해0임을 명시했고, 실제0400 명령으로 자기 함선만(-13,0)으로 이동 후0406을 보내 다른 플레이어에게25 피해/올바른 target ID/자기 피해0을 검증했다. DB teleport나 직접 손실 주입이 아니다. 현재 이동 즉시 목적지 정책은 여전히 원본 시간 보간 완전 재현이 아니다.
+
+최종 실제DB 포함 **637PASS/0FAIL/0SKIP**, E:/logh7-build/test-results/arc-v156/arc-v156-final.trx SHA96157DCBD084DD5AC5597A48725AD0AC413F55441309AEF066667A57AE41AAE1. Release win-x64 self-contained E:/logh7-build/server-v40-fire-arc-v156 publish exit0, DLL SHA0F6122E7E37DA58855C333CD564E818B1790D4FE7977A31AFE8A972D09ADAFB0. 포함: v149 실제 NPC Arms 로그, v151 전력 gate, v153 사거리 gate, v155 사각 gate. hostPG16500/data unit-stance-pgdata-v135/port55805의 정확한 executable/data 소유 확인 후 pg_ctl fast 정상 종료, 삭제0. guest 서버/클라/PG는 이번 접근0·배포0·재시작0. 현재 마지막 직접 화면은 v155의 로그인된 부두이며 live 서버 버전은 v37.
+
+**다음 실제 플레이:** v40 데이터 보존 side-by-side 배포를 위해 fresh guest PID/start/hash/DB 상태를 확인하고, 새로운 버전의 Stage/Stop/Start/Client/자동로그인 영수증을 사용한다. v148 consumed 작업 재실행 금지. 정상 전술 진입에서 플레이어의 전력 배분/거리/방향 변화에 따른 공격 거부·명중 및 NPC arms 로그와 실제 효과를 대조해야 한다. model18 active LOD/mesh 발사점 관찰도 같은 시나리오에 결합한다. 기본 입장 겹침은 PvP 배치 정책(출발방향/진영/유닛별 겹침방지) 구현 대상으로 유지. 지속공격/추적/중지/재사격 주기, 모든 전략 명령/제안/리소스/2클라 전투 검증은 미완료. 라벨/E105 원본 EXE 패치 미승인 유지. 전체 goal ACTIVE.
+
+## E144 — v40 실제 배포·자동로그인·기존 부두 세션 복원 (v157b)
+
+**V40_DEPLOYED_STATE_PRESERVED / NATIVE_AUTOLOGIN_AND_DOCK_REENTRY_PASS / NEW_FIRE_GUARDS_NATIVE_UNSEEN.** 새 읽기 events-pre-v157-v148.json은 이전 server5216/client10160/PG1812 생존과 unit|2|2|102|2|4|0|0|4|10을 확인했다. v40 zip SHA7AE0CB230B4AAABB815310B9ABEB69CCA118A4CE016327E05CEB23704155DBA1. 최초 copy exec handle61574가 running인데 Stage를 먼저 실행해 ZIP 공유잠금 오류 발생(21:58:07Z). 서버/클라 중단 전 실패, v157 receipt 보존. 같은 copy handle을 기다려 terminal exit0 확인 후 새 v157b script/출력/별도 directory로 Stage를 수행했다. 실패 작업 재실행·영수증 덮어쓰기·패키지 재전송0. 이후 모든 의존 작업은 이전 명령 exit0 확인 후 수행.
+
+guest runroot 동일20260906T181000Z-departure-v124. v157b Stage/Stop/Start의 account/character/unit/event/migration stateHash **dbf96152892af98d80b50b74a4626c89a2d0ce46b40765611fc57b31fe3aa48b** 동일. PG1812/start2026-09-06T18:11:30.2695908Z/기존 postgres-data/55432 유지, 중단0·삭제0·SQL 상태조작0. 마이그레이션25개 구파일 hash 동일. 원본 EXE SHA AEF3827602CD13A395618BDEF0F48F44BCB8ED60F4FA9C2017F2D2E128660F2F 미변경.
+
+**현재 live server8712**,start2026-09-06T21:59:01.0991040Z,path runroot/server-v40-v157b/Logh7.Server.exe. DLL0F6122E7E37DA58855C333CD564E818B1790D4FE7977A31AFE8A972D09ADAFB0,EXE C525060083F0F0CF7860D482B3C16E3E392B29BF9CFB5678DAB7551BFE3F99A4. wire server-wire-v157b.jsonl,stdout/stderr server-v157b.stdout/.stderr. notice LOGH7 v40 fire power range arc. **현재 client1192**,start2026-09-06T21:59:27.7541301Z,HWND0x0000000004300448,동일 client/exe/G7MTClient.exe.
+
+fresh interactive/auth preflight→초기흰창 File메뉴 클릭으로 실제 로그인폼 redraw→닫기→FocusId 새화면 기반1회씩→credential-v157b 22:01:31.9388461Z 단1회 제출/재시도0/비밀값 기록0. window-lobby-v157b.png에 v40 notice 확인. GameStart→기존 캐릭터1회. events-relogin-v157b.json READ_ONLY_RUNTIME_VERIFIED/unit|2|2|102|2|4|0|0|4|10 보존. 최초 window-relogin은 재접속 선체 연출 중 캡처; 이후 window-dock-ready-v157b.png에서 정상 전략 HUD 宇宙港/旗艦桟橋 확인. 이 모델 연출은 전술 함종 식별 증거가 아니다. 아직 새 워프/공격 입력0.
+
+사용 script suffix는 모두 **v157b**: guest-server-swap, guest-interactive-session, guest-auth-preflight, guest-submit-credential, guest-window-observe, guest-click, guest-return-events. host bridge host-vmrun-v79.ps1 유지. v157b Stage/Stop/Start/Client/credential 모두 CONSUMED 재실행금지. window/events read-only는 새 Tag만 사용. click에 ExpectedPid1192/HWND04300448/PrepFileName auth-preflight-v157b.json 사용, 이전 v148/v152 identity script 직접 실행금지. functions.store click157 템플릿은 모든 placeholder replaceAll 후 새 screenshot에 근거해 한 번만 입력. 다음 정상102→101 워프 전 capture/model-cache 관찰 계획을 준비한 뒤 플레이어 명령과 NPC arms/효과를 함께 검증한다. 수동 격침/치유/DB 순간이동 금지. 기존 v40까지 로컬637PASS는 native 사격 guard 검증으로 대체되지 않는다. 전체 goal ACTIVE.
+## E145 — v40 전술 연속 동작·실제 NPC arms1 확인, 관찰 타이밍 실패 (v158)
+
+**NATIVE_V40_WARP_NPC_DAMAGE_RETURN_PASS / NPC_SELECTED_ARMS_1_LOGGED / PLAYER_SHOT_UNSEEN.** 이전 턴은 v40 배포·자동로그인 실제 progress. 새 2026-09-08 pre-v158 읽기는 v157b runtime 동일 신원을 확인했다. server8712/client1192/PG1812 유지. 부두→역할카드→운용→워프→왼쪽grid→첫 확인(내용 없는 확인창)→두번째 실제 워프 비용 안내 확인으로 정상 새102→101 워프. 첫 클릭 준비 때 functions.store click157가 사라져 JS TypeError, 도구 실행/입력0; 현재 pinned 신원으로 click158를 새 구성한 뒤 관찰 기반 각 입력1회. 기존 입력 재생0.
+
+event48 이동: gen4/sourceMode4→6/base2→0/cruise10→9. **RPM model-cache-tactical-v158.json** 01:50:39.6892052Z unit2/kind3/base0/mode6/cruise9 확인. 하지만 tacticalFlag0/sceneMode0/ships/renderers/modelCache empty: 전환 중 너무 이른 조회였으며 모델 없음의 증거 아님. window-arrival-v158-v157b.png는 흰 전환 화면. 뒤의 window-battle-v158-v157b.png는 좌측레이더/우측에너지분배/하단전술명령 HUD이며 입장 선체 연출이 아직 겹쳐 있다.
+
+**NPC 실제 무기 선택 로그:** events-after-v158-v157b.json의 npc-ai decision은 actor2130706433→target2, x-6/y0/heading-0.52359915, fire **01:50:47.6059117Z / 50.8293185Z / 53.831758Z / 56.8360135Z**, 매번 **arms1**. 이동 event arms는null. 기존 E135에서 코드로 추정만 하던 무기번호가 이번 v149 로그 연결 배포 후 실제로 관찰됐다. 원본004C7790 분류상1은 빔군이지만 이번 캡처가 실제 빔궤적을 잡았다는 뜻은 아니다.
+
+damage events49/50/51/52=25/0→50/0→75/0→100/100. event53 returnId42bb4e83-6291-ac9d-3c56-173b4622d625/grid101→102/base0→2/mode6→4. event54 recoveredgen4→5/kind3/cruise9→10. 최종 **unit|2|2|102|2|4|0|0|5|10**. DB쓰기/재시작/재로그인/수동격침0. 전술 캡처 후 BeamPowerMinimum 의도 클릭(x695,y39)은 실제 후캡처에서 이미 부두였다. wire의040C/0405/0406 요청0이므로 출력변경/사격성공 주장은 금지. 현재 부두에서 같은 클릭이나 격침 반복 금지.
+
+**다음 행동을 바꾸는 원인:** 도구별 캡처·전송 시간 사이에 전투가 끝나 사용자 공격검증을 놓쳤다. 현재 AI 접근 후 약9초만에4회 피해; HUD 입장연출과 실제 게임입력 가능 시점을 분리하지 않았다. 모델 관찰은 고정 지연이 아닌 실제 active renderer/mesh 준비 상태로 해야 한다. 신규 scripts/guest-model-cache-ready-v159.ps1를 추가: ReadProcessMemory only, 최대45초 동안 실제renderer와선택LOD의meshcount>0을 기다린 뒤 기존 modelCache 분석 수행. UI입력/메모리쓰기0, 준비실패는 ACTIVE_MODEL_NOT_READY_WITHIN_45_SECONDS로 실패 처리. host PowerShell AST PARSE_OK만 확인, **guest 전송·실행 아직0**. 다음 실행 전 필요한 skill/현재신원을 확인하고 새로운 정상 플레이에만 붙일 것. 이 스크립트가 플레이어 조작창 부족 자체를 해결하지는 않는다. 클라이언트 준비통지/시작연출/AI 초기취득 타이밍을 역추적하여 실제 조작 가능한 전투를 만들어야 한다. 소스 전투수치/패키지변경0, v40 계속실행. 전체 goal ACTIVE.
+## E146 — NPC 준비조건 정상 동작·원본 전술 입력 전단 gate 추적 (v159)
+
+**IMPORT_GATE_CONFIRMED / PRESENTATION_INPUT_READY_NOT_PROVEN.** v158 영수증을 시간 범위로 재분석했다. 최초 광범위 출력은 하루치0300 폴링까지 포함해 잘렸으므로 뒤의01:50:35Z–48Z 좁힌 결과로 판정. 0B01=01:50:37.1603815Z,0F02=38.6347814Z,최초0348=43.685529Z,034A=43.6869428Z,NPC첫move=43.8401355Z,첫fire=47.6059117Z. 따라서 NPC가0F02부터 공격하거나 scene gate를 무시했다는 가설은 반증됐다. 자체함선0348 뒤 약0.15초에 이동,약3.92초에첫사격. OriginalNpcSceneImportTests 새실행 **12PASS/0FAIL/0SKIP**(E:/logh7-build/test-results/scene-ready-v159/scene-ready-v159.trx); 이는 원본 화면 조작성 테스트가 아니다. 생산 동작/전투수치/DB/guest입력/재시작 변경0.
+
+NaturalAuthoritySession.MarkOwnNpcSceneImported는 destination bootstrap을 받은현재함선의0348 또는acceptedAttack에만NpcTargetReady를발행한다. QueryParticipants(npcTargetsOnly:true)는이를필터한다. Controller는목표취득시lastShot=tick,72tick후사격하며매tick이동을6tick상한으로제한한다. 서버가모델로드완료/입장연출끝메시지를받는코드는아니다.
+
+새Ghidra decompile: **004B68F0**은sceneMode+126711==0 및tacticalFlag+126718!=0일때0050D230→0050CF10→004B6E00(0348폴링)순서로호출한다. **0050D230** 시작은 *( *(param+0xC)+0x3A0 )==0이면 즉시return,world/자기entity체크,그뒤004B7890이false면return. 즉 전술함수가earlyreturn해도 바깥004B6E00은호출가능하여0348만으로입력준비증명불가. 이UI활성플래그의실제runtime값/부모포인터는아직미회수.
+
+**004B7890→004B8950**은fade 전용함수가아니라500개수신큐를시간순으로검사/실행하는함수다. world+3552B4 duecount,큐+3552B8/stride20. global007C25F4==0이면1반환,그외004AD4B0호출뒤world+357EC0==0일때만true. 이분석은gate존재의정적증거이며v158에서실제로막혔다는동적증거는없다. 시간 맞추려고 임의NPC 지연/원본패치하지 않았다.
+
+evidence/decompile-004b68f0-v159.c,0050d230-v159.c,004b7890-v159.c,004b8950-v159.c 보존. 0050d230 전체export는보존했지만이번분석범위는위의전단gate와0348상위호출관계;전체커맨드분석완료아님. guest-model-cache-ready-v159.ps1에queueGateGlobal/queueGateState/dueQueueCount 읽기필드추가,AST PARSE_OK. 아직guest전송/실행0;modelReady가inputReady라는주장금지. 다음은이45초read-only준비관찰을워프최종확인전에실행하고 실제active모델및gate상태를같이회수한다. 현재v40/gen5부두는v158마지막live증거이며이번새생존조회0. 전체goalACTIVE.
+
+## E147 — 실제 model18 발사점 결손·queue gate 열림 실측 (v160)
+
+**ACTIVE_MODEL18_MESH_NAMES_VERIFIED / PLAYER_POWER_OR_SHOT_NOT_VERIFIED.** 직전정적분석을실제RPM에연결했다. 시작부두카드클릭의200ms후캡처는변화없었으나새관찰에서카드가정상열림. 클릭재시도0,서버시간조회계속됨을확인해freeze/restart로오판하지않았다. v157b server8712/client1192/PG1812 신원검사유지.
+
+새정상워프최종확인전 guest-model-cache-ready-v159.ps1를처음guest전송/실행. hostwait handle17615가running임을확인한채별도정상워프확인. 관찰은01? 정확히 **2026-09-08T02:01:30.9621407Z wait시작→02:01:50.8529753Z modelReady**. handle17615 terminalexit0을동일handle로확인. 영수증 model-cache-ready-v159.json SHA **D3D5794988FE7579306BCEB268F05FAB9F611EA8B04C610452CB33902A4E70DD**, RPMonly/입력0/쓰기0. 스크립트/출력CONSUMED 재실행금지.
+
+실제unit2/kind3/cruise9/base0/mode6,world08AF9020/context08AF902C,tacticalFlag1/sceneMode0,두unit모두normal100/remaining100/destroyArmed0. **queueGateGlobal89148848/nonzero, queueGateState0, dueQueueCount0**: E146정적조건상그순간queuegate는열려있다. 이것은모든입력준비증명아니며*(param+0xC)+0x3A0 UI활성값은여전히미회수. actionContext021AA888은0.
+
+**자기실제renderer slot599/id2/kindSelector18,selectedLOD selector1**, modelptr335656160. 실제검색대상mesh8개: EL018:Layer1,B2,B1,C4,C1,C2,C3,EL018_02. **BEAM/GUN/MISSILE 문자열0**이며이제파일상의후보가아닌로드후실제mesh목록증거다. 004DC940/004DC8C0의발사점이름검색과join됨. 발사체fallback/사용자자기사격의실제효과는여전히UNSEEN. 잘못된명명node필드는영수증원본대로보존하되내용은mesh이다. 이증거만으로새이름을임의부여하거나원본모델수정하지말것.
+
+적entitykind89/id2130706433의renderer slot598은kindSelector53으로관찰됐다. selectedLOD항목은기존관찰코드가selector>3이면skip하므로modelCache에적entry가없다. 이유는그순간selector원값을기록하지않았기에미확정. 과거89→1003 추정/조인과불일치가능성이있으므로**53의의미와원본함종→렌더러모델조인을다음역추적**한다. 자기18과적53을브륀힐트fallback이라고통칭금지.
+
+워프event55/gen5/02:01:43.7619122Z source102→101/cruise10→9. 최초0348=48.9648527Z,modelReady=50.8529753Z,첫fire52.0806791Z(arms1),55.0838025Z/58.079942Z/02:02:01.3282412Z손실100. 따라서모델준비관찰약1.23초뒤첫명중,약10.48초뒤격침. window-hud-v160-v157b.png에아직입장선체연출/어두운전술HUD. BeamPowerMinimum시도후캡처는이미부두이며040C/0405/0406요청없음. 이세션에서명령전송실측실패를숨기지않는다. event56..59손실,60returnIdf71a84d5-f785-95f9-f8fa-c98c31f101ac,61recoverygen5→6. 현재 **unit|2|2|102|2|4|0|0|6|10**. DB수동쓰기/재시작/재로그인0,source/package변경0,v40계속실행.
+
+**다음은같은재출격반복금지.** 이제모델18의발사점결손은충분히입증됐으므로enemy53조인/원본입장연출의UI활성+3A0/실제플레이어조작진입경로를정적으로좁힌다. 현재임시AI가모델준비직후공격한다는타이밍은확인됐으나원본서버기준이나안전한조작창정책은미결. 필요하면승인된임시AI의전투페이스를명시적인NEW_DESIGN으로설계하되도구지연을감추는테스트전용무적/운영DB조작금지. 전체goalACTIVE.
+
+## E148 — 적89→1003→내부53→FM003 정상 join 확인·LOD5 관찰 누락 수정 (v161)
+
+**MODEL_MAPPING_DISCREPANCY_RESOLVED_STATIC / NOT_A_SERVER_MAPPING_BUG.** E147 actualrenderer53은filecode1003과다른번호체계였다. 새Ghidra **004F19E0**은entity+8BC(kind)→004F3D80→renderer+B28→004F2920(param2=0) shiploader. **004F3D80**은world+kind*2A8+2C1C84(기본staticrecord+20C)의ushort filecode를읽고 /1000그룹0=그대로,1=나머지+50,2=나머지+100,3=나머지+110으로변환한다. 1003→3+50=53,18→18. 적kind89/renderer53의E147관찰은이정적join과일치한다. 원본파일코드에대한동적직접읽기는이번추가하지않았으므로이를새RPM1003실측이라부르지않는다.
+
+004F3F70는내부index로LOD별포인터테이블조회: medium00774B68,high00774D48,low00774F28. medium53주소 **00774C3C**의raw **38877700→00778738**,그문자열 **/../data/model/Ship/FP/FM003.mdx**를Ghidra memoryread로확인했다. 따라서적이Empire모델53을잘못받았다는가설은반증. 파일code와테이블index,unitkind를혼동하지말것. production모델/맵/DB변경0.
+
+**LOD5는지원되는숨김상태.** 004F2920초기+B24=5,LOD0/1/2/3선택시도뒤5fallback. 004F2B40(param2=5)는현재selectedmodel이있으면005DF450로루트에서떼고+B24=5,이후004F2300. E147의관찰코드는selector>3을그냥skip했으므로적renderer있음/modelCache없음은선택값원본을잃은관찰누락이다. 실제적selector가5였다는증거는없으며새정적분석만으로과거값을만들지않는다.
+
+새 scripts/guest-model-cache-ready-v161.ps1은소비된v159를덮지않고clone. selector>3도entry를남김,5=HIDDEN_NO_SELECTED_LOD/그외UNMAPPED_SELECTOR,모든entry에modelTableIndex추가. SELECTED_LOD와분리. AST PARSE_OK,guest전송/실행0. 45초읽기대기의종료조건은여전히실제mesh있는모델이며입력준비판정은아님. decompile-004f19e0/004f3d80/004f3f70/004f2b40-v161.c 보존.
+
+자기model18 실제발사점문자열결손은E147로유지된다. 다음은그효과생성fallback/실제함종의원본modelcode가18이맞는지데이터원천검증및입장UI활성+3A0의경로확인. 잘못된적매핑을고친다며모델을교체하지말것. 같은짧은재출격반복0/클라이언트패치0/guest접근0. 현재v40/gen6부두는E147마지막실측이며이번생존재확인0. 전체goalACTIVE.
+
+## E149 — 발사점 이름 없음≠효과 생성 중단: 원본 fallback 확인 (v162)
+
+**STATIC_LAUNCH_ORIGIN_FALLBACK_CONFIRMED / PLAYER_SHOT_STILL_UNSEEN.** E147 model18 실제mesh에BEAM/GUN/MISSILE0은사실이다. 그러나이를빔안나옴의원인이나모델수정필요로간주할근거는없음이이번새Ghidra제어흐름으로확인됐다. 기존발사점결손표현은이름기준소켓없음만뜻하며발사불능주장으로승격금지.
+
+004E4450은effect+E4=4(visualtype10은1),+E8=0뒤004E6010호출. 004E6010은actor renderer+108이없으면return0하지만있으면종류별BEAM/MISSILE/GUN검색004E62B0후E4개발사효과초기화를계속하고004E64A0호출. **004E62B0**은먼저005DD5A0으로identity64byte행렬,005DD640으로renderer+89C회전반영,005DD6B0으로renderer+88C xyz를stackmatrix+30translation에복사한다. 검색count0이어도E4반복문을돌며004DC8C0반환값을검사하지않고004DC400으로위치/방향을꺼낸다. **004DC8C0**은모델null/이름불일치시output행렬을쓰지않고0반환. 따라서no-marker이면초기actor world transform이남는다. 004DC400은matrix+30 xyz복사와방향추출/정규화를한다. matching mesh일때만별도mesh transform복사. 이는임의추가한fallback이아닌원본코드경로.
+
+새decompile-004e4450/004e6010/004e62b0/004dc8c0/004dc400/005dd5a0/005dd640/005dd6b0-v162.c 보존. launch-point-fallback-v162.json에런타임모델receipt SHA와정적chain/제한명시. 단순listing호출은첫instruction만돌려줘전체listing검증주장없음. model18실제플레이어사격,발사체origin/이후effectlifetime/render성공은아직UNSEEN. NPCarms1/v148발사체궤적을자기함선발사증거로인용하지말것.
+
+**다음우선순위변경:** 모델18이름수정이나적정상모델교체를하지않고실제0405/0406입력전송→0426→effectrecord를우선확인. 반복격침을더하지않도록입장연출UI활성및명령선택방식을정적으로확인하고,필요한임시전투페이스는NEW_DESIGN으로원본사실과분리. 이번source/game/model/DB변경0,guest접근0,기존v40/gen6부두는E147마지막실측. 원본EXE패치승인경계유지. 전체goalACTIVE.
+
+## E150 — 전술 UI 활성 포인터 확정·부두 RPM 검증·공격 메뉴 선택조건 (v163)
+
+**UI_GATE_ADDRESS_RESOLVED / LIVE_DOCK_READ_VERIFIED / TACTICAL_INPUT_GATE_UNSEEN.** Ghidra listing004B6DBC는MOV ECX,[02215E2C],004B6DC2 CALL0050D230. 따라서0050D230 param은이전추정actionContext021AA888(당시0)아닌**[02215E2C] UIcontroller**. 그+0C의UIroot+3A0이전단활성byte. 다음명령상태는controller+4,이전state+8. 바깥0348호출은같은UIgate를조건으로하지않는다는E146결론유지.
+
+새읽기script guest-ui-state-v163.ps1을currentv157b신원/해시/PGdata확인후실행(exit0). **02:10:49.2699696Z** controller88942640/root152199200/uiActive1/commandState1/previous1/selectedCount0(02216660)/commandableSelectedCount0(02216664)/queueGateState0. sceneMode2/tacticalFlag0/unit2/base2/mode4/cruising10으로부두다. server8712/client1192/PG1812생존검사통과,입력0/메모리쓰기0/재시작0. 이부두값을과거전술입장uiActive값으로대체하지말것. script/output CONSUMED. modelCache-readonly status명을재사용했으나추가UI필드가목적이며전술모델증거는아님.
+
+0050D230 case0은선택수02216660/명령가능수02216664와배열초기화후state1로진행. 상태1은map선택을02214D2C 배열에모으고004EC6B0통과유닛을02215128/02216664에따로모은다. 메뉴button IDs2..5는category(旗艦/艦艇/司令官/要塞)교체이며**그버튼만누르면자기함선선택되는것으로추정하지말것**. attack계열button9는선택된commandable units를돌며004C7820의장비가능조건을통과한무기별subbutton21/22/23을켜는경로. 따라서실제발사검증시자기함선map선택→선택/명령가능수>0→해당공격메뉴/무기→target선택을연결해야한다. 구체화면좌표/전술동적검증은미실행. 수신큐나uiActive만으로공격버튼활성증명불가.
+
+기존v159의decompile0050D230에서이번엔초기선택초기화/ship필터/메뉴button2..5/9분기를확인했다;전체2750줄의모든명령을이번완료했다고주장하지않는다. 생산서버/원본EXE/모델변경0. 반복출격없이실제UIgate주소와선택조건을확보한progress. 다음readiness관찰에controller/root+3A0와선택두count를함께넣고입장연출시uiActive를관찰해야한다. 공격선택이불가능한시간대에기존부두이미지좌표로반복클릭금지. 전체goalACTIVE.
+
+## E151 — 명령 가능 선택 플래그 생성·소속/반경 join 확인 (v164)
+
+**COMMAND_ELIGIBILITY_STATIC_CHAIN_RESOLVED / OWN_ELIGIBILITY_LIVE_UNSEEN.** 0050DF03 MOV ECX,00C515F0→0050DF08 CALL004EC6B0,selectedunitID와param3=0 전달을listing확인. 004EC6B0는picker700개/stride3C에서base+68 ID,base+6C flags를찾아**0x10000**이면true(다른param3는0x20000). 이결과가commandableSelectedCount02216664/배열02215128로들어가며단순ownerID검사가아니다.
+
+생성자004EF0D0는picker+48+count*3C entry에renderer/entity위치와ID+20/entitypointer+28를저장. entryflags+24는entity+9종류에서1/81/101/201로초기화. 004B5C00 관계owner가자기004B5B80 ID와같으면+400;소속power/보조flag가같으면+800;다르면+1000 enemy. 자기/동일소속인경우picker+A724원점과함선위치거리 < **picker+A714 effectiveRadius**이면+10000. **picker+A718 outerRadius < distance**이면+20000. strictboundary가있으므로radius0이라면자기거리0도pass안됨(그러나실제radius0관찰은없음).
+
+004EC600은A718=param3,A710=param4,A70C=nonnegativeparam5업데이트뒤ratio=A70C/param4를최대1로제한하고A714=ratio*param3. 0050D230후단은자기entity8C4/5BA 조건하에이함수를호출하므로현재프레임UI선택과이전/다음프레임반경갱신순서도있다. 원본004C32A0 shipimport는8C4=1,8CC=120. 매칭corps/static처리경로는static+254에서8C8 radius를읽고작으면1.6 fallback. 이경로가실제자기함선에서실행된값은미측정. 서버에없는값이라고추정해추가하지않는다.
+
+004C7820은entity8BC kind의staticrecord에서Beam/Gun/Missile 장비byte+28A/+28F/+293을읽고FF/27이상거부;방향mask와거리8bin을별도로전개. 선택eligible와장비eligible는별도단계. 이번사실은기존E150선택경로를세분화한것이지실제공격버튼활성PASS가아니다.
+
+새 guest-command-eligibility-v164.ps1은소비된script수정없이v161clone,모델ready대기후UIactive/commandstate/selectedcount/commandablecount와picker현재entry ID/flags/10000/20000/entityptr/effectiveRadius/outerRadius를읽는다. AST PARSE_OK,guest전송/실행0. export decompile-004ec6b0/004ef0d0/004c7820-v164.c. 원본서버생산코드/EXE/모델/DB변경0,guest접근0. 다음실측은이통합관찰을사용해자기eligibility를확인한후만선택/무기버튼검증;무작정같은워프/격침반복금지. 전체goalACTIVE.
+
+## E152 — 플레이어 공유 재사격 간격 구현·회귀 진행중 (v165)
+
+**PLAYER_CADENCE_FOCUSED_PASS / FULL_REGRESSION_NOT_GREEN / DO_NOT_DEPLOY_CURRENT_SOURCE.** 실제UI선택관찰은E151준비상태로유지하고,명확한서버전투누락인0405/0406즉시연속피해를구현했다. 신규 OriginalTacticalBattleRegistry.PlayerFire.cs는unit별(longGeneration,uintTick)를공유ConcurrentDictionary에저장,session/reimport/grid전환으로지우지않는다. 같은generation에서uncheckedelapsed<72 또는역행half-range초과를거부. **NEW_DESIGN 72tick(3초)**: 승인된임시NPC FireIntervalTicks와동일한함선단위cadence이며원본무기별충전곡선복원아님. 무기전환으로즉시우회되지않는다. 세대가다르면새함선이며기존stamp미적용. 프로세스재시작영속화는없고모든tick은server-process시계다.
+
+NaturalAuthoritySession.ProcessTacticalRelayAsync의grid lease내appliedAt=_gameClock.Tick,기존출력/거리/사각/표적검사뒤 IsPlayerWeaponRecharging으로0500/TACTICAL_WEAPON_RECHARGING. CommitUnitDamageAsync 성공직후만 RecordPlayerShot,이후ready해제/피해notification. 실패하거나거부된사격은cooldown소비안함. 단일그리드lease가해당행위를직렬화한다;서로다른grid의동일unit stale참여방지및generation변경동시성은추가회귀확인필요. dictionary가원자적이라는이유만으로check/commit전체원자성입증금지.
+
+OriginalPlayerFireCadenceTests 2cases0405/0406 실제암호화세션: 동일unit두세션/동일TestClock/근거리catalog,firstshot25→다른세션동일tick거부→2999ms(71tick)거부→3000ms(72tick)50. 요청시각F1234567/WaitDEADBEEF를써도권위시각사용. **2RED(actualaccepted)→2GREEN**. OriginalPlayerCombatTests.Session helper마지막optionalTimeProvider를추가하여본래기본System보존.
+
+전체비PG scope 정상종료 **20FAIL/593PASS/26SKIP/639total**, cadence-v165-scope.trx. timeout30s설정했으나hangkill없이전체종료;IdleObserverTCP는기존5초취소실패. 즉시동일unit연사를가정한SharedBattleTests11개+PlayerCombat3개+AttackClock6개가실패. AttackClock6개는1000/2000ms→1000/4000ms 및응답tick24/48→24/96으로명시적인적법간격변경,wire시각/요청불변/피해assert유지. 새focused cadence+clock **9PASS/0FAIL**(cadence-v165-clock.trx). 나머지14개재검증아직안함. 마지막전체GREEN/v40빌드는E143/637개,현재source는그보다새롭고배포금지.
+
+**다음즉시작업:** SharedBattleTests와PlayerCombatTests 실패목록을TRX에서읽고각테스트의기존검증목적을유지하며공유fakeclock을도입해성공사격사이에72tick진행. ParallelAttackSessions같은중복접속동시사격은합당한기대(단1회사격/나머지reload拒否)로바꿔야하며예전누적100기대를억지유지하지말것. 서로다른실제unit은독립쿨다운검증도추가. FailedPersistence재시도,재import/세대교체/구generation,wrap/역행시간테스트와PG포함전체를통과시킨뒤빌드. 테스트기다림상한유지,생산guard삭제/0tick테스트모드우회금지. guest접근/재시작/DB/EXE/모델변경0,운영v40유지. 전체goalACTIVE.
+
+## E153 — 재사격 회귀 정상화·전체639PASS·v41 빌드 (v166)
+
+**CADENCE_REGRESSION_GREEN / V41_BUILT_NOT_DEPLOYED.** E152의20실패중잔여14개를처리했다. OriginalSharedBattleTests는각testinstance전용BattleClock과하나의OriginalGameClock을공유한다. 새세션마다시계epoch를다시0으로만들던시험factory에optionalgameClock만추가해운영처럼같은시계를주입했다;일반기본값은보존. observer동일/다른grid/재import/latejoin/완료/TCP테스트는본래목적·ID·피해·순서assert를유지하고성공사격사이에fakeclock3000ms를명시. Attackhelper에서자동시간진행하지않는다.
+
+ParallelAttackSessionsDoNotLoseOrDuplicateCumulativeDamage는동일unit2의8세션동시시도결과를**25피해1회+7건TACTICAL_WEAPON_RECHARGING**으로검증한다. DifferentOwnedUnitIdsStillAttackTheSameMapNpc는서로다른unit2/3이동일tick에각사격해누적50이됨을그대로검증하여전역쿨다운오류를막는다. Shared22PASS. PlayerCombat의3개누적격침/승패시험도독립CombatClock으로적법간격추가;비PG613PASS/26SKIP.
+
+새cadence시험에두번째session0F02재import뒤71tick거부/72tick허용추가. Failed_persistence_prevents_player_shot_damage는고정fakeclock에서저장IOException/피해0뒤persistence callback정상화→**같은tick재시도25**를추가해실패사격이cooldown소비하지않음을검증. 이것은운영DB실패주입아니라시험callback경계검증이다. 임의운영손실변경0.
+
+hostPG60680/55805/data unit-stance-pgdata-v135 실행, 실제DB포함 **639PASS/0FAIL/0SKIP**. E:/logh7-build/test-results/cadence-v166/cadence-v166-full.trx SHAECBFFF11737837474FBAF7037BED96290892A200D83B36D4DA3A8D7572F9088E. Release win-x64 self-contained E:/logh7-build/server-v41-player-cadence-v166 publishexit0,DLL **8A9A17995F54AEB1060E52CD28BF06B7414E16350709AFC2EC2B53920B83C3E4**. PGexactexecutable/data소유확인후fast정상종료,파일삭제0. 새일반PG실행시기존postmaster.pid/port먼저확인.
+
+v41은E152생산cadence를포함하고이번생산코드추가변경없음. 서버재시작시쿨다운영속화/모든무기별원본충전/0405지속공격복원은포함하지않는다. generation교체/wrap/서로다른grid동일unitstale동시성의cadence전용추가회귀는아직미실시;기존incarnation/move전체통과만을그새경계전부의증명으로확대하지말것. **운영은v40,guest접근/배포/재시작0**,최신직접신원은E150(server8712/client1192/PG1812부두)이며이번fresh생존조회없음.
+
+다음: cadence전용경계검증보완또는v41데이터보존배포후현재E151의UI선택eligibility관찰과실제플레이어사격시나리오합류. UI테스트가플레이어command송신을입증하지못한상태유지;세대6부두를DB로reset하거나같은단기격침반복금지. 전체goalACTIVE.
+
+## E154 — 재사격 시계 순환·늦은 접속 검증, 전체642PASS (v167)
+
+**CADENCE_WRAP_AND_LATE_CONNECTION_VERIFIED / V41_STILL_NOT_DEPLOYED.** OriginalPlayerFireCadenceTests에기존생산경계보호3cases추가. firstShotTime10000ms와178956970000ms 두case: 실제OriginalGameClock.Tick240/4294967280에서최초사격25,서버clock1ms역행거부,2999ms후71tick거부,3000ms후72tick허용50. 순환case의다음tick은**56**을literalassert하여uintwrap을확인한다. fakeTimeProvider사용이며운영시계조작0.
+
+늦은접속test는동일OriginalGameClock을공유:첫session0ms생성/1000ms사격,두번째2000ms생성/즉시거부,4000ms(첫사격+3초)허용. OriginalPlayerCombatTests.Session에optionalgameClock만추가해시험factory로전달,기본동작유지. 새접속마다epoch0으로만드는시험helper와운영서버공통epoch를혼동하지않는다. focused5PASS. 기존생산코드를바꾸지않은회귀검사라신규productionRED→GREEN주장없음.
+
+hostPG22584/55805/data unit-stance-pgdata-v135에서전체 **642PASS/0FAIL/0SKIP**, E:/logh7-build/test-results/cadence-v167/cadence-v167-full.trx SHA **F363E46394F2A2A6B1617B2359E7231C28E5FDF8878BC9E45867F5A2D18D2F2B**. 동일handle21730 terminalexit0확인후PG정확소유검사→fast정상종료/삭제0. 생산source변경0이므로기존v41패키지DLL8A9A17995F54AEB1060E52CD28BF06B7414E16350709AFC2EC2B53920B83C3E4 유지,새publish안함.
+
+generation교체/crossgridstale동시성의cadence전용검증은아직별도남음;전체게임목표완료아님. 다음v41데이터보존배포와E151통합UI관찰/자기함선선택/실제사격으로합류한다. guestv40/runtime/DB이번접근0,최신직접신원E150,현재생존은배포전fresh검사필수. 같은UI관찰실패격침을반복하지않고선택eligibility와입장활성값을먼저확인한다. 전체goalACTIVE.
+
+## E155 — v41 데이터 보존 배포 및 자동 로그인 완료 (v168)
+
+**V41_DEPLOYED / AUTOMATIC_LOGIN_AND_STRATEGY_DOCK_VISIBLE.** 2026-09-08 UTC02:33 서버 교체. Stage/Stop/Start/Client 각각 1회 실행 및 완료 확인. 이전 server8712/client1192만 종료, PG1812 유지. 저장 상태 SHA18b3d69b6ad0eaa135f54d4fc293bf4f796ec29e69f56f3c03ecc79ef446877c 교체 전후 동일. DB 정지/삭제/직접 상태 조작 0. ZIP E:/logh7-build/v41-player-cadence-v166.zip SHA EC7B70582D63DA32C14B098EE16CB7E578C81881DF41E711216F7B22DE274035. DLL은 E153의 8A9A1799... 유지.
+
+현재 guestroot 동일 20260906T181000Z-departure-v124. 서버 **2508**, startUTC2026-09-08T02:33:43.6359545Z, server-v41-v168/Logh7.Server.exe. 클라이언트 **6688**, startUTC2026-09-08T02:33:57.6993550Z, HWND **0x00000000009C036C**, 원본 SHA AEF38276... 변경 없음. Wire server-wire-v168.jsonl. PG1812 그대로.
+
+새 interactive-session/auth-preflight 성공 후 실제 UI FileMenu→CloseMenu→FocusId→DPAPI 자격 증명 1회 입력→로비 공지 `LOGH7 v41 shared player recharge` 확인→GameStart→기존 캐릭터 선택. 사용자 수동 로그인 요구 없음. 자격 증명 값 출력/기록 없음. 자동 로그인은 실제 성공했고 단순 입력 전송 성공과 구분한다. window-login-result-v168.png, game-start-v168.png, window-dock-confirmed-v168.png를 직접 확인. 마지막 화면은 **전략 그리드/우주항/기함잔교**, 전술 HUD 아님. 초기 캐릭터 선택 직후 캡처는 아직 로비여서 재클릭 없이 서버 기록과 후속 캡처로 진입 확인.
+
+evidence/events-login-v168.json READ_ONLY_RUNTIME_VERIFIED, unit|2|2|102|2|4|0|0|6|10 유지. 0F02/0F06 및 정적 데이터 요청 Success 확인. 이번 전투/0405/0406 입력 0이므로 v41 실제 플레이어 재사격 검증은 아직 UNSEEN. v168 Stage/Stop/Start/Client, credential 및 클릭 영수증 모두 CONSUMED, 재사용 금지. 새 guest-*-v168.ps1들이 현재 신원 영수증을 참조한다. 다음은 E151 UI 선택 eligibility와 실제 자기 함선 선택·사격 검증이며 짧은 격침 반복/DB 리셋 금지. 전체 goal ACTIVE.
+
+## E156 — v41 정상 출항과 궤도상 전략 상태 실측 (v169)
+
+**NATIVE_UNDOCK_EFFECT_VERIFIED / SAME_GRID_TACTICAL_ENTRY_NOT_OBSERVED.** 직전 v168 배포/로그인은 progress. 현재 client6688/server2508/PG1812 그대로 신원 검증. 새 화면에서 역할 탭→운용 카드→出港→확인 각 1회. 카드 설명에 인사/출항과 맞지 않는 정보 문구가 보이고 출항 확인문은 아직 미치환 행성명/CP/MCP/G시간 자리표시자임. 완성 UI로 세지 않는다. 원본 입력만 사용, DB 직접쓰기/재시작/로그인/워프/전투 0.
+
+0B06 UTC2026-09-08T02:41:05.2720645Z Success, metadata departure-unit=2;authority-version=62;design=new. events-undock-v169-v168.json 상태 unit|2|2|102|2|5|0|0|6|10. window-undocked-v169-v168.png에서 우주항/旗艦桟橋→惑星/要塞軌道上/艦内 변경 확인. 이는 정상 주둔4→출항5이며 전술 진입이나 출격6의 증거가 아니다.
+
+새 읽기 전용 guest-command-eligibility-v169.ps1은 v164의 process/hash/PG/선택 테이블 경계 검사를 유지하되 model-ready 대기를 제거하여 전략 상태도 측정 가능하게 함. command-eligibility-v169.json UTC02:42:32.6543382Z COMMAND_ELIGIBILITY_SNAPSHOT_VERIFIED. uiActive1, commandState1, selectedCount0, commandableSelectedCount0, pickerCount0, effective/outerRadius0, unit2/mode5/base2/spot0, sceneMode2/tacticalFlag0/queueGateState0. **전략 모드의 빈 picker와 radius0을 전술 모드 결함으로 추론 금지.** read-only/memory writes0/gameInputs0. 실제 전술 선택 가능 판정은 아직 미관찰.
+
+현재 안전한 grid102 궤도상5/세대6 상태 보존. role/card/undock-open/undock-submit-v169 및 command-eligibility-v169 영수증 CONSUMED. 다음은 같은 그리드에서 궤도상5→출격/항행6 원본 진입 경로를 확인해 적의 짧은 격침 없이 선택·이동·에너지 명령을 먼저 검증할 수 있는지 조사. 경로가 없다면 추측으로 모드6/전술flag를 덮지 말고 원본 소비자와 서버 bootstrap 조건을 대조. 실제 플레이어 사격/재사격은 여전히 UNSEEN; 전체 goal ACTIVE.
+
+## E157 — 평화 그리드의 전술 전환 탐색 방향 수정: 매뉴얼 시작 조건 확인 (v170)
+
+**MANUAL_AND_SCENE_GATE_CROSSCHECK / QUIET_GRID_STRATEGY_NOT_A_PROVEN_BUG.** E156은 정상 출항 실측 progress. 이번에는 원본 Ghidra 004B68F0,004C1B20,004B76E0을 새로 읽어 evidence/decompile-*-v170.c에 보존하고 현재 서버 IsCurrentTacticalFieldActive와 대조했다. E156의 '출항5→항행6으로 바꾸면 같은 평화 그리드에서 전술 검증 가능할 것'은 입증되지 않았으며 더 이상 전제로 삼지 않는다.
+
+보존 매뉴얼 OCR E:/logh7-greenfield/evidence/manual-variants/internet-archive/gin7manual_djvu.txt SHA256 A15C2402C4B3132BA6B844D919A7BE44CAB1FE130A0DEB172EA5A78F2069F368, lines2172–2184: 전술 시작은 한 그리드의 아군·적군 유닛 공존. 종료는 적 유닛 부재 및 행성/요새가 있으면 전부 점령 조건. 이번 확인은 OCR 텍스트이고 PDF 원본 시각 재검증은 아님. lines2220–2260에는 자동 지휘권 우선순위(온라인/계급/평가/공적) 및 자기 기함·개인 명령의 커맨드 범위 영향 제외가 별도 명시됨. 현재 단일 소유자 구현이 이 지휘권 전체를 구현했다는 뜻이 아니다.
+
+현재 NaturalAuthoritySession.cs:3496의 전술 활성은 부상 복귀 제외, 교전 미완료 AND (primary NPC 존재 OR 생존한 타진영 참여자). 이 값은0317 state와 초기0F1F 발송에 사용된다. mode5/6 자체를 활성 조건으로 사용하지 않는다. 004B68F0은 world+35F35A로 tactical/strategy import를 선택하고 sceneMode+126711=0/tacticalFlag+126718!=0일 때0050D230 실행. 004C1B20은0F1F state1→transition2,그 외→0으로 reload를 시작. 태세mode와 전술씬은 다른 축이다. 매뉴얼의 공존 조건과 현재 서버의 큰 방향은 일치하나 모든 세력관계/오프라인/주둔 유닛 조건까지 검증한 것은 아니다.
+
+fresh events-field-gate-v170-v168.json READ_ONLY_RUNTIME_VERIFIED, server2508/client6688/PG1812 신원 확인 및 unit|2|2|102|2|5|0|0|6|10 보존. 이번 UI 입력/원본 메모리쓰기/DB쓰기/빌드/배포0. 원본 전술flag 강제수정이나 평화 그리드에 근거 없는 전술 알림 추가하지 않았다. 다음 실제 교전 검증은 기존 E151 선택·명령권 계측과 연결해야 하며, 현재 NPC의 3초 첫 사격/25 손실로 인한 짧은 UI 관찰 창을 해소하지 않은 동일 격침 재시도 금지. v41의 플레이어 사격/재사격 native UNSEEN 유지. 전체 goal ACTIVE.
+
+## E158 — NPC 센서 배분 누락 재현, 선형 후보 회귀 실패로 미배포 (v171)
+
+**LOCAL_CANDIDATE_INCOMPLETE / 7_REGRESSIONS / LIVE_V41_UNCHANGED.** 상세 다음 시작점: work/20260904-warp-state-reverse/evidence/sensor-policy-v171.md. 매뉴얼 p48 센서 배분→탐지범위 규칙과 현재 NPC의 nonzero-only 최대범위 사용을 대조. 정확한 원본 수식은 미회수. 임시 선형 후보를 테스트 우선으로 추가: 6cases 중 예상대로2RED/4PASS 확인 후 생산센서범위에 적용. 관련 NPC/import40cases 실행결과 **33PASS/7FAIL**. sensor-v171-green.trx라는 파일명은 성공 판정이 아님.
+
+기본 SENSOR10/SearchingRange100→후보 범위10인데 기존 거리20에서 자율접근/재import 이동을 요구하는7cases 실패. 수색행동이 없으므로 임의 기대값 수정/배분확대만으로 가리지 말것. 수정 파일은 OriginalTacticalNpcController.cs 및 OriginalNpcAiTests.cs이며 기존 타변경 보존. 후보 완성 또는 명시적 철회 전 successor 배포 금지. 전체suite/Release publish/guest입력/배포0. 마지막 실제운영신원은E157, 이번fresh생존조회없음. RED TRX SHA43D58473167054035885B8EBD1D80F65E020EAC450CB5DDB17BB8202018DB5F9; regression TRX SHAF1261DA454DF49C8EB4C8F3AF4986D4F44949C61B9C4036FCE6F1597498AC49E. 전체 goal ACTIVE.
+
+## E159 — 원본 센서 구간식 회수·선형 후보 철회·전체654PASS (v172)
+
+상세 evidence/sensor-range-v172.md 및 listing-004c18c4-v172.txt/listing-005ff374-v172.txt. Ghidra 스킬로004C1700의 디컴파일에서 누락된 x87 계산을 실제 어셈블리로 확인. sensor=CommandControl+1C→context+314. index=min(3,floor(sensor*4/30)),float32배율0.5/0.7/0.9/1.0,template+258 SearchingRange 곱→__ftol절삭→entity+958. 구간0–7/8–14/15–22/23–100. 원본 클라이언트 범위 계산에 근거해 NPC adapter를 교체했으며, 서버의 확률 탐지/은폐/시야 공유·완전x87재현을 회수했다는 뜻은 아님.
+
+v171의 근거 없는 선형 기대값을 명시적으로 철회. 신규 원본 구간 경계12cases는 기존 선형식에서4RED/8PASS, 수정 후 NPC/import46PASS. 기존7실패 fixture/기대값 완화0. 실제DB 포함 전체 **654PASS/0FAIL/0SKIP**, sensor-v172-full.trx/handle15082 terminalexit0. hostPG58100 정확 소유 확인후fast정상종료,삭제0. Release win-x64 self-contained **E:/logh7-build/server-v42-sensor-v172**,DLL **8C6A0B8DA1B3392BD6A25C4B08057E8BB282797BB57547B8973D7BEF5650A369**,publishexit0.
+
+이번guest조회/배포/입력0. 마지막운영증거는E157의v41/server2508/client6688/grid102/mode5/gen6. 다음v42데이터보존배포 전fresh생존/DB검사필수. 실제 센서 표시·플레이어040C/0405/0406 사격 검증 미완료이며 같은 짧은 격침 반복금지. 전체 goal ACTIVE.
+
+## E160 — v42 데이터 보존 배포·자동 로그인·궤도상 복원 (v173)
+
+**V42_RUNNING / NATIVE_RELOGIN_WORLD_VISIBLE / COMBAT_NOT_RUN.** fresh pre-v173 읽기로 기존v41/server2508/client6688/PG1812와 unit|2|2|102|2|5|0|0|6|10 확인. v42 ZIP SHA C2555D749CC34ADF2225673D3446A9146B63E8FA98B42C06F04EEC3AD8394087. 새 guest-server-swap-v173.ps1 Stage→Stop→Start→Client 각1회 성공. stage/stop/start stateHash **5a8fd42bdfd63b24f0ebe48e6400f9d6b2fb233c4650234bc86042df549193e1** 동일. PG정지/DB직접쓰기/삭제0. 영수증 호스트 복사 명령의 경로 결합 오류는 CopyFrom만 수정하여 회수했고 배포 action 재실행0.
+
+현재 guestroot 동일20260906T181000Z-departure-v124. 서버 **4824**, startUTC **2026-09-08T02:58:58.8753325Z**, server-v42-v173/Logh7.Server.exe,DLL8C6A0B8D... (E159 전체해시). 클라이언트 **9884**, startUTC **2026-09-08T02:59:04.4840972Z**, HWND **0x0000000005740410**, 원본SHA AEF38276... 불변. PG1812 유지. wire **server-wire-v173.jsonl**.
+
+새 interactive-session/auth-preflight 후 화면별 확인→FileMenu→CloseMenu→FocusId→DPAPI credential1회→v42 sensor bands 공지 로비→GameStart→기존캐릭터. window-world-v173.png에서 전략그리드/惑星・要塞軌道上/艦内 복원 확인. events-relogin-v173.json READ_ONLY_RUNTIME_VERIFIED,0F02 Success, unit|2|2|102|2|5|0|0|6|10 보존. credential 및 배포/클릭 영수증 CONSUMED; 재실행 금지. 새 guest-window-observe/click/return-events-v173.ps1은 현재 영수증 신원을 참조한다.
+
+실제센서 임계값/플레이어사격/재사격 전투 검증은 이번0. v42배포·재접속을 전투PASS로 세지 않는다. 다음은 원본 UI 선택/명령가능수/센서entity+958의 통합 관찰과 실제사격 검증. 불충분한관찰창으로같은짧은격침반복/DBreset금지. 전체 goal ACTIVE.
+
+## E161 — 전술 준비·선택 가능 시간축 실측, 센서 정밀도 정정 (v174)
+
+**NEW_TIMELINE_EVIDENCE / PLAYER_SHOT_STILL_UNSEEN / SENSOR_PRECISION_LOCAL_FIX.** 직전배포progress. 새 guest-entry-timeline-v174.ps1은 현재v173 프로세스/해시/PG검사 후 읽기전용 250ms 간격으로 scene/UI/state/picker/own잔존/sensorRange를 최대90초 관찰, 전술→부두귀환에서 종료. 입력/메모리쓰기0. 과거 model-ready 한점 관찰과 달리 전체 입장·피해·귀환183샘플 회수. 실행handle82351 terminalexit0 확인. entry-timeline-v174.json SHA **2758DF22C28A8AFE9309AE7979D199E48626D2D44395171233CB6C44F2555C4C**.
+
+새 역할카드→워프→왼쪽grid→grid확인→비용확인 각1회. 최종확인 전 관찰 시작. 워프 이후 공격/선택/에너지 입력0으로 시간축을 관찰했다. 03:07:09.4215211Z tacticalFlag1/uiActive1/own100. 03:07:12.3040067Z ownpickerflags132225(0x20481),03:07:12.5735949Z commandState1/flags66689(**0x10481 명령범위내**)/잔존100. selected/commandableSelected는 입력하지 않아0. 'UI활성 전에 격침' 가설은 이번 실행으로 반박; 실제클릭 수용까지 입증한 것은 아님.
+
+NPC arms1 첫fire03:07:16.3287398Z,후속19.3011158/22.312602/25.3082867Z로손실25/50/75/100. 명령state1부터첫피격약3.755초/격침약12.735초. 03:07:33.9265721Z strategy2/mode4 귀환. events-after-v174-v173.json 및 window-returned-v174-v173.png 확인: **unit|2|2|102|2|4|0|0|7|10**,server4824/client9884/PG1812 유지. 수동heal/reset0. consumed v174 입력/관찰 영수증 재실행금지.
+
+**E159 정정:** 실제 기본SENSOR10/template100에서 entity+958는 **70**으로 관찰됐다. v172의extended/double곱→69는 실행환경 관찰 없이 둔 가정이었으며 철회. OriginalTacticalNpcController에서 float32곱 후절삭으로수정,관련sensor경계테스트를70/90모델로변경하고 실제10/70case추가. 기존v42에서3RED/10PASS→수정후NPC/import **47PASS/0FAIL**. 90 및다른구간은float32모델추론/테스트,이번실측값은70뿐;실행FPU controlword자체읽음주장금지. 관련 TRX E:/logh7-build/test-results/sensor-v174/sensor-v174-red.trx 및 sensor-v174-green.trx. 전체suite/새publish/배포아직0,운영v42는아직69모델. 다음전체검증후후속빌드반영,핵심native사격은준비된선택가능창에서실제자기함선선택→무기→표적을연결해야함. 동일관찰목적격침반복금지. 전체 goal ACTIVE.
+
+## E162 — 센서 반올림 전체655PASS/v43빌드, native배분입력 타이밍 실패 (v175)
+
+**V43_BUILT_NOT_DEPLOYED / NATIVE_CONTROL_NOT_SENT.** E161의float32곱수정전체검증:실제DB포함655PASS/0FAIL/0SKIP, E:/logh7-build/test-results/sensor-v175/sensor-v175-full.trx SHA DFEF35979D99E462DF9895BA634F030E99FFA418952CF0C872DB406110FD8D00. handle19795 terminalexit0. 테스트PG23560의정확executable/data소유확인후fast정상종료/삭제0. Release win-x64 self-contained E:/logh7-build/server-v43-sensor-rounding-v175 DLL **E74DDD2400AC8A767CCE4B69BFC76F239E5FEED7037167C4D222D0695885D9C3**,publishexit0. 운영은v42계속,배포0.
+
+새entry-timeline-v175는v174읽기에entity+9C4(sensorPower)추가. 새warp입력1회로전술진입후보이는SENSOR슬라이더좌측696,140을1회클릭했으나 **이미귀환후입력**: timeline전략mode4귀환03:14:07.5419454Z,clicksent03:14:11.1387330Z. window-hud-v175-v173.png는전술이나postclick은전략. 따라서입력성공영수증은커맨드성공아님. 040C요청0,관찰own63샘플sensorPower10유지. entry-timeline-v175.json TACTICAL_RETURN_TIMELINE_RECORDED,handle26784 terminalexit0. 같은입력재시도금지.
+
+events-after-v175-v173.json **unit|2|2|102|2|4|0|0|8|10**,server4824/client9884/PG1812유지. DBreset/heal0. 이번다른그리드warp목적은에너지배분명령검증이었으나실패;플레이어사격도UNSEEN. 다음실행전현재guest-click-v173의ExpectedStage가검사조건아닌로그일뿐인점을보완해야함. stale화면→입력지연동안scene이바뀌어도PID/HWND만같으면클릭하는경계: 입력직전살아있는전술scene/own생존조건검사와측정된도구지연을해결하지않고또같은짧은격침시도금지. v175입력/관찰영수증모두CONSUMED. 전체goalACTIVE.
+
+## E163 — 입력 직전 전술·생존 검사 구현, 현재 전략 상태 실거부 (v176)
+
+**TACTICAL_INPUT_GUARD_IMPLEMENTED / LIVE_NEGATIVE_CHECK_PASS / INPUT_LATENCY_STILL_OPEN.** E162 전체검증/build는progress이나native제어실패. 새 scripts/tactical-input-state-v176.ps1 및 test-tactical-input-state-v176.ps1: live/damaged-live허용,전략복귀/로딩/UI비활성/command초기화/격침/다른unit/미존재거부9cases. no-op경계에서7RED/2PASS→실제판정후9PASS. 기존운영게임코드/DB수정0.
+
+guest-tactical-click-v176.ps1은v173click신원/해시검사를보존하고ExpectedUnitId필수추가. 현재world+126711/126718,controller→UI+3A0,commandState,600entity배열의own정상수>0을cursor처리전과hover후mouse-down직전에검사. 실제클릭영수증에마지막guard샘플포함. 조건변경시TACTICAL_INPUT_REJECTED_BEFORE_CLICK영수증기록후거부. GuardOnly는판정후입력없이종료하는진단옵션. 기존v173자동로그인·전략click스크립트는변경안함. 원본memory쓰기0.
+
+새guest스크립트2개복사후현재client9884/server4824신원에서GuardOnly1회실행. vmrunexit1은예상된거부이며재실행하지않고영수증확인: evidence/guard-only-v176.json UTC03:19:14.4714138Z statusTACTICAL_INPUT_REJECTED_BEFORE_CLICK,errorTACTICAL_SCENE_NOT_ACTIVE,sceneMode2/tacticalFlag0/uiActive1/commandState1,clicks0/gameInputs0. guard-only영수증CONSUMED. 부두/전략에서실수로누르지않는실경계확인이지live전술positive클릭PASS아님.
+
+아직남음: 스크린샷관찰→실제입력의총지연해소,전술생존상태의positive실입력,040C와사격검증. guard는마지막읽기후게임tick과경쟁하는극소window를완전히없애지는않음. 현함선상태최신DB는E162gen8부두,이번DB접근0. v43(E74DDD...)미배포/운영v42유지. guard추가만으로동일짧은격침시도를재개하지말것. 전체goalACTIVE.
+
+## E164 — 운영 배치·입력 지연 계량, 같은 자동 전투 재시도 중단 (v177)
+
+**LATENCY_CAUSE_QUANTIFIED / NO_GAMEPLAY_MUTATION.** E163은guard구현/실전략거부progress. 운영 server-v42-v173/battlefields/catalog.json을 새로 읽어 evidence/live-battlefield-catalog-v177.json 보존,SHA0012B284E491220458B6A4565C0D45FEA6731355FCF70A24D81FE64AE4857ACB. 기본 open-space 및rear template 모두playerX=-10/enemyX=10. 운영에별도근접enemyX=-7fixture가남았다는가설은반박됐다. 현재Speed1/engine20 모델의최대접근속도4.8좌표단위/초는작성된임시정책이며원본밸런스아님.
+
+새회수 window-hud-v175-v173.json captureStart03:13:57.7239832Z 대 sensor-min-v175-v173.json sentAt03:14:11.1387330Z: **end-to-end13.4147498초**. 이는host/guest/관찰/판단/입력전체합이며개별원인을전부분해측정한것아님. E161 명령가능→격침12.735초보다길다. 전술guard는오입력을거부하지만관찰지연자체를해결하지않으므로같은자동격침loop금지.
+
+이번서버/DB/배치/피해/AI속도/원본EXE변경0,UI입력0. 검증통과를위해전투규칙을약화시키지않음. 실제native사격의다음선택으로사용자의한차례직접조작협조를요청하고서버·프로토콜·상태기록을동시검증하는방법을제시. 사용자응답전워프/공격실행하지않음. 이는전체게임목표완료나모든개발작업blocked판정아님. 현재마지막상태E162gen8부두/운영v42,v43미배포. 전체goalACTIVE.
+
+## E165 — 중복 접속 에너지 배분 공유·발사 판단 수정, 전체659PASS (v178)
+
+**SHARED_CONTROL_FIXED_IN_LOCAL_SOURCE / V44_BUILT_NOT_DEPLOYED.** E164 입력협조응답전새전투안함. 다른플레이어조회가오래된값이라는초기가설은테스트PASS로반박: ProcessAsync끝PublishOwnParticipantSnapshot가이미갱신함. 그와달리같은함선중복접속은원래session-local배분을읽고다시발행해실제control20을10으로되돌리는경계. OriginalSharedControlTests:다른unit조회PASS/같은unit중복조회1RED 확인. 최초control-v178-red.trx는PASS이므로이름만으로RED주장금지;실패증거control-v178-duplicate-red.trx.
+
+OriginalTacticalBattleRegistry.PlayerControl.cs에unit+shipGeneration별acceptedcorps공유상태추가. 오래된세대쓰기최신세대덮어쓰기불가. NaturalAuthoritySession.CurrentPlayerCorps를통해scene/projection/participant발행/beam·gunpower/warpPower/control수정기준을일치시킴. accepted040C후기록,거부명령은기록0. 서버재시작간DB영속화나중복접속즉시push는이번범위아님. 기존energyfill/shield값보존.
+
+4개회귀:서로다른unit조회,중복unit조회,중복접속의꺼진beam사격거부/피해0,신규세대비상속/oldgeneration덮어쓰기거부. focused4PASS,control/warp/cadence관련19PASS(추가2cases전),실제DB포함전체 **659PASS/0FAIL/0SKIP**. control-v178-full.trx SHA207699B1E3067E2301B6E1C3457D7FC9ACB17ACE5429844A6CB06CC21EA261E1. 테스트PG22440소유확인후fast정상종료/삭제0.
+
+Release win-x64 self-contained **E:/logh7-build/server-v44-shared-control-v178**,DLL **9CF9DF3949798B9010F1117736A15BA1CBF53C56B6D250CA1F2CA3B18A02B186**. v174센서float32수정도포함;v43별도배포불필요. guest조회/입력/배포0,운영v42마지막생존E163,DBgen8부두마지막E162. native040C/사격미검증유지. 다음v44배포시fresh신원확인필수,사용자협조응답전새짧은전투loop금지. 전체goalACTIVE.
+
+## E166 — 격침 함선의040C수락 차단, 전체660PASS/v45빌드 (v179)
+
+**DESTROYED_CONTROL_REJECTED / V45_BUILT_NOT_DEPLOYED.** 직전E165실수정/전체검증progress. ProcessTacticalControlAsync에는세대확인만있고개별함선생존확인이빠짐. 교전전체미종결/자기손실100에서040C를보내자tactical-control-accepted가나오는1RED를실제session경로로재현했다. 이후기존move/attack과같은_tacticalEncounter.HasSurvivors판정을grid controlLease안,배분Apply/공유기록전에추가. 거부코드TACTICAL_ACTOR_DESTROYED,원본visible메시지. 테스트는거부뿐아니라session-local/shared배분미기록과033F갱신미발송확인.
+
+관련47PASS,실제DB포함전체 **660PASS/0FAIL/0SKIP**, dead-control-v179-full.trx SHA **BE62C7F86686A5CD0F6ACB336BD15BE5222A1AFAB8842A4ACD72BF3C9F5FADA3**. handle84692 terminalexit0후hostPG36284소유확인→fast정상종료/삭제0. Release win-x64 self-contained **E:/logh7-build/server-v45-dead-control-v179**,DLL **07625B85596C60D27CD15EC33E8BDF8092A9DF5BC2541386AA992EB304AD8F25**,publishexit0. v43센서반올림+v44공유배분수정포함,중간버전별도배포불필요.
+
+guest실행조회/입력/배포0,운영마지막확인v42/gen8부두유지판정은과거증거이며이번생존주장아님. native040C/플레이어공격은아직UNSEEN. 직접조작협조답변전새전투시작하지않는E164경계유지. 다음배포시fresh신원/상태검사필수. 전체게임요구(전체전략·전술명령,실제효과,AI,자산연결)는미완료이며전체goalACTIVE.
+
+## E167 — 전체 콘텐츠 범위 및 함대 캐시의 실제 선행 패킷 확인 (v181)
+
+사용자는 개별 소수 수정 반복보다 다진영 동시 함대전과 전체 콘텐츠 구현을 요구했다. 범위는 docs/goals/2026-09-08-original-client-all-content-scope.md에 기록했다. 기존 새 엔진 목표 문서로 작업 대상을 바꾸지 않는다.
+
+이번 원본 정적 분석에서 004C32A0의 nonzero unit.outfit → world+811FC 부대 캐시 조인을 재확인했고, 004C2A80의 캐시 재구축이 **032B ResponseInformationOutfit** 테이블(world+3DFE98, record stride1C)을 소비함을 확인했다. 032F 편성 응답은 다른 테이블(world+35F35C)이며 이것만 공급해도 부대 캐시가 생긴다는 가정은 금지. 캐릭터 없는 함선은 부대 캐시에서 faction/camp를 얻는 경로가 있다. 모든 일반 함선에 임의 인물 레코드를 붙이는 설계로 원본 의미를 대체하지 않는다.
+
+영수증: work/20260904-warp-state-reverse/evidence/fleet-cache-join-v181.md 및 fleet-field-import-v181.c, fleet-cache-rebuild-v181.c, fleet-unit-parser-v181.c. 서버에서는 unit.outfit/boarding_ship=0 고정과 032E/032F 코덱의 세션 호출자 부재를 확인했다. 다음 첫 작업은 032B reader/logger의 packed layout 회수 후 부대 목록·유닛 소속·편성 조회를 같은 권위 데이터로 연결하는 것이다. 이번 서버 코드 변경/빌드/배포/게임 입력0, 함대전 실플레이 UNSEEN, 목표 ACTIVE.
+
+## E168 — 032B packed 레이아웃 회수 및 부대·유닛 소속 직렬화 구현 (v182)
+
+원본 0041BBD0 reader(기존 Ghidra에서 함수 미정의여서 분석 함수만 생성, EXE 변경0), 0041C330 logger 회수. count:u8 최대100. 각 레코드 id:u32, kind/power/camp/index:u8, achievement:u16, strategy_id:u32, practice warp/speed/command/offence/defence/antiaircraft/search/deception/landbattle/airbattle 각u8. native stride28, packed24바이트이며 padding 전송금지. 증거 evidence/outfit-reader-v182.c 및 outfit-logger-v182.c.
+
+OriginalInformationOutfitCodec.Encode 추가: 032B 응답, 실제 필드 전송, null/101개 거부, 100개 허용. OriginalInformationUnitProjection에 Outfit/BoardingShip 기본0 필드 추가, EncodeUnits가 해당 값 전송하도록 변경. 새 OriginalFleetWireTests는 실제 프레임의 소속 위치 및 손계산 literal packed bytes, 빈 목록/최대 목록/초과/null 경계를 검증한다. 처음 using Xunit 누락 컴파일 오류는 RED 증거로 세지 않음. 수정 후 API 누락2FAIL, 이후 packing2FAIL/소속1PASS, 구현 후 관련 **21PASS/0FAIL/0SKIP**, dotnet terminal exit0. TRX E:/logh7-build/test-results/fleet-wire-v182/fleet-wire-v182-green.trx.
+
+현재 코덱은 아직 세션 실서빙 호출자가 없고 부대 목록 공급/편성 권한/다함대 카탈로그 연결은 미완료. 다음은 NaturalAuthoritySession의 0F02 refreshFrames 및 bootstrap gridFrames가 같은 부대 스냅샷의032B를 원본 재구축 전에 공급하도록 연결하고, 실제 부대 소속 데이터와032E 조회를 구현하는 것. 빈 응답만 삽입해 통합 완료로 세지 않는다. 전체 테스트/새publish/운영 배포/게임 입력0. 이번 변경만 별도 배포하지 않고 함대 기능 묶음으로 합류한다. 목표 ACTIVE.
+
+## E169 — 콘텐츠 기반 다함대 등록·032B 실제 공급·두 전장 NPC 교전 연결 (v183)
+
+OriginalBattlefieldFleet/FleetShip 및 template.Fleets 추가. 명시된 exact grid에 여러 부대와 일반 함선을 배치한다. 임시 ID namespace7E000000..7EFFFFFF, 부대/함선 ID 전체 카탈로그 중복 거부, fallback grid0의 fleet 배치 거부(다른 grid로 동일ID 복제 방지),100부대 및598함선 상한, 실제030B로 공급하는 일반함선kind3/89/93만 허용한다. 이 범위/훈련0/동일capabilities100/AI는 NEW_DESIGN 임시 정책이며 원본 밸런스 회수 주장이 아니다. 플레이어 다수로 총600을 넘는 입장 정책은 추가 구현 필요.
+
+NaturalAuthoritySession.RegisterAuthoredNpc가 카탈로그 fleet를 기존 공유 registry에 등록한다. 기본단일NPC는 SpawnEnemy로 별도 유지. 초기/refresh 0F02에 참여자 스냅샷의 부대정보032B를 공급한다. OriginalTacticalParticipantSnapshot.Outfit 추가 및 동적 entry에서032B 포함/없는 CharacterFrame 생략, NPC 이동·damage projection과 플레이어 표적 projection에서 Outfit 보존. 별도 가짜 인물 생성 없음.
+
+원본004B5C00/004B5C50은 non-player entity+96C에 지휘식별자를 저장/조회하며, 인물연결 객체는 해당 PLAYER_INFO+24 경로를 쓴다. 새 일반함선은 TacticsInformationUnitShip.Character 필드와 Corps.Id에 부대ID를 넣어 이 non-character 경로를 사용하려는 CANDIDATE 연결이다. faction/camp는004C32A0의 outfit lookup 경로. 실제 네이티브 일반함선 label/control/0341 소비 검증 전 원본 함대 지휘 구현완료 주장금지.
+
+OriginalFleetContentTests: 기존소스에서 중복ID 허용/미등록2FAIL 확인. 첫 실행의 namespace 누락 컴파일오류는 RED 아님. 이후 scene fixture에 createdCharacter 없는 문제를 기존 OriginalPlayerCombatTests.Session으로 고쳐 실제0F02경로 사용. 두 진영2부대4함선 등록, 소속/032B/빈인물부재/이동후동적entry보존/NPC 상호사격 확인. 두 번째 그리드103에 별도ID의2부대4함선을 같은 registry로 등록하여 같은 tick 진행에서 두 전장 모두사격하고 대상이 다른grid에 섞이지 않음을 확인. 이는 서버 통합 테스트이며 DB/원본 화면증거가 아니다.
+
+관련 최종 **101PASS/0FAIL/0SKIP**, terminal exit0; E:/logh7-build/test-results/fleet-content-v183/fleet-content-v183-multigrid.trx. 전체suite/운영catalog변경/새publish/배포/UI입력0. 운영은 과거v42증거뿐, 이번 생존조회 없음. 다음: 일반함선의0322 조회에 빈 CharacterFrame을 응답하지 않도록 처리, 부대032A/032E 조회와 명령 지휘권·Corps 공유를 연결, 콘텐츠 설정의 추가 경계 테스트, 실제 native 선행 검증 후 묶음 배포. 함대 명령·진형·승패 영속화·실제 사용자전투·전체콘텐츠는 미완료. 목표 ACTIVE.
+
+## E170 — 기함/휘하 구분 및 v184~v187 통합 다음 시작점
+
+사용자지적에따라 E169의 “8함선”은8전투유닛으로정정. 실제함선수와유닛수를구별한다. 다음상세영수증을순서대로참조(work/20260904-warp-state-reverse/evidence):
+
+- fleet-query-v184.md:032E→032F 전장NPC부대조회연결,0322 빈인물응답차단,108관련PASS.
+- unit-complement-v185.md:유닛별편제상한/생존/피해적용,서로다른편제NPC등록,공격자수량으로표적생존판정하던버그수정,79관련PASS.
+- flagship-complement-manual-v186.md:매뉴얼OCR에서기함1/일반300반복확인.손해상한검증을영속쓰기전에이동,24관련PASS.
+- subordinate-kind-complement-v187.md:일반subtype32/56/119/139를별도030B슬롯으로공급,서버등록도동일300.기존기함후보0/3/89/93은100유지.109관련PASS.첫4종누락RED와최종TRX명시.
+
+현재기함1척은아직구현완료아님.기함Number1과내구Existence·damage/destroyed를함께복원해야한다.임시25피해와Number1만결합해1발격침을원본처럼만들지말것.함대지휘관/권한/진형/032A와native화면검증도미완료.운영은과거v42증거만있고이번묶음배포0.기존liveDB피해리셋/소비된입력반복금지.전체goalACTIVE.
+
+## E171 — v188~v193 기함 수량·영속화·클라이언트 투영 및 현재 승인 경계
+
+work/20260904-warp-state-reverse/evidence의후속영수증:
+- flagship-damage-and-grid-capacity-v188.md:damaged/destroyed는척수,Existence=HP근거없음.원본재편성코드의유닛수*300확인.그리드당진영별300유닛/최대2진영은함선300척과별개.
+- single-hull-policy-v189.md:승인된임시단일척정상→손상→격침(두번피격)정책,원본피해공식아님.
+- single-hull-storage-return-v190.md:등록수량을세션피해저장·귀환요청에전달.
+- unit-complement-persistence-v191.md:schema026 unit_number DEFAULT100로기존손실보존,실제DB1/100재접속복원,전체690PASS.
+- flagship-template-projection-v192.md:030A→030B에현재기함저장수량투영.동일kind수량충돌은030A/0F02거부.이미로드된template에대한동적새참가자/워프캐시검증은미완료.
+- return-complement-validation-v193.md:새귀환요청수량과DB일치검증,과거replay보존,실제DB포함전체693PASS/0FAIL/0SKIP。TRXSHA DBBF6CD6E24BF299A2FE910A49A66EE2CFF858C1E01B9CF14E7E94024107AE29。PG54284정상정지.
+
+현재사용자응답대기:기존100척임시기함을1척으로변환할때원래수치를보존하고정상/손상생존/격침상태를대응할지,기존유지하고새기함부터적용할지질문함.응답없이운영기함값변환금지.아직원본기함1척운영검증완료아님.운영v42이후생존이번확인없음,새publish/배포0.변환선택은전체개발blocked를뜻하지않음.동적입장template일관성/기함·휘하지휘/전체콘텐츠가남아있음.전체goalACTIVE.
+
+## E172 — v194~v196 진영과 기함/휘하 지휘 경계
+
+영수증은 work/20260904-warp-state-reverse/evidence 아래에 있다.
+
+- power-camp-combat-v194.md: Power+Camp 적대 판정과 동일 Power의 다른 Camp 교전. 관련 82 PASS; 원본 반란 Camp 수치 회수 또는 플레이어 Camp 저장 완료는 아님.
+- quiet-field-camp-v195.md: 귀환/출항의 후방 안전 검사에 Camp 및 아직 등록되지 않은 콘텐츠 유닛 반영. 관련 77 PASS, DB 테스트 1 SKIP. v193 전체 테스트가 이 변경까지 검증한 것은 아님.
+- flagship-command-identity-v196.md: 기함 1척/일반 유닛 300척 및 명령권 구분을 재확인. 004C3B16→004B5CF0의 인자는 InformationUnit.outfit이며 entity+970/playerInfo+324 저장으로 연결된다. 지휘관 필드라고 임의 해석하지 말 것. 자기 기함 단독 승인 제한은 아직 남아 있다.
+
+v196은 정적 조사와 범위 보강만 수행했다. 새 테스트/빌드/배포/클라이언트 입력은 없고 전체 목표는 ACTIVE다. 다음은 지휘권 배정 통지와 선택 가능 유닛 필터에서 실제 제어자 관계를 추적하는 것이다.
+
+## E173 — v197 제어자 인물 ID와 지휘권 변경 통지 연결
+
+영수증: work/20260904-warp-state-reverse/evidence/changed-authority-consumer-v197.md 및 authority-004c2c80/004c09e0/004c7360/004c96c0-v197.c.
+
+004C2C80 생산자 확인으로 PLAYER_INFO+24는 인물 ID, +48은 기함 유닛 ID로 분리됐다. 원본 InformationCharacter+24가 기함 ID인 것과 혼동 금지. 004B5C00은 PLAYER_INFO+24 또는 일반 entity+96C의 제어자 인물 ID를 반환한다. entity+970은 별도 outfit이다.
+
+NotifyChangedAuthority 0439 →004C09E0→004C7360: 기준 유닛에서 제어자 인물 ID를 읽어 대상 유닛들에 복사한다. 네이티브 레코드 +0 기준 유닛 ID, +4 u8 개수, +8 대상 ID 배열. 136바이트 네이티브 구조를 그대로 wire로 보내지 말 것; input_from_stream 미회수. 004C96C0은 현재 인물 ID와 일치하는 유닛에 선택정보 분류0x400, 다른 동일 Power0x800, 다른 Power0x1000을 부여한다. 전체 명령 가능 필터는 별도004EC6B0의0x10000/0x20000 생산자 추적 필요.
+
+현재 fleetId를 Ship.Character/Corps.Id에 넣는 임시 투영은 실제 지휘권 증거가 아니다. 다음은0439 wire reader/지휘권 변경 request sender와 명령 가능 필터를 회수하고 서버 배정·AI 제어 양도·복수 유닛 명령에 연결한다. 이번에는 정적 조사 및 증거 저장만 수행; 테스트/배포/실전 입력0. 전체 목표 ACTIVE.
+
+## E174 — v198 지휘권 변경 통지 wire 회수와 인코더
+
+영수증 work/20260904-warp-state-reverse/evidence/changed-authority-codec-v198.md 및 changed-authority-reader-v198.c. 원본 reader004A94D0 확인:0439 이후 기준 UNIT ID u32, 대상 수 u8(최대32), 대상 UNIT ID u32 배열. 네이티브+5..+7 패딩은 wire에 없음. 시간 필드 없음.0개 허용. Ghidra 함수 생성만 했고 EXE 패치는 없음.
+
+OriginalChangedAuthorityCodec/Tests 추가. 미구현 상태5RED→관련52PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/authority-codec-v198/authority-codec-v198-green.trx. 인코더는 아직 세션 핸들러에서 호출하지 않으며 실제 지휘권 배정·AI 제어 양도·지휘 범위·복수 명령 처리는 미완료다. 서버 단독 표시용 권한 통지를 먼저 보내지 말고 서버 상태/명령 승인과 함께 연결할 것. 새 배포/실전 입력 없음. 전체 목표 ACTIVE.
+
+## E175 — v199 지휘권 요청0420 및 지휘 원 선택 플래그
+
+영수증 work/20260904-warp-state-reverse/evidence/authority-request-range-v199.md. reader004A3D60/listing과 logger00499F20으로0420 time/wait/id u32, count u8<=32, unitIDs 배열, target u32 확인. OriginalTacticalCommandCodec.TryDecodeChangeAuthorityCommand 추가;3RED/1PASS→관련56PASS/0FAIL/0SKIP. 아직 세션 실행 핸들러와 연결되지 않았다.
+
+004EF0D0은0x10000/0x20000 거리 플래그 생산자다. 자기 제어 및 같은 Power+Camp 다른 제어 유닛 양쪽 모두 거리 플래그를 받으므로 이를 권한 승인과 동일시하지 말 것.004EC600/004EE250 지휘 원 반경=min(elapsed/duration,1)*max,00510CCB 인자는 own entity+4/+8C8/+8CC/+8D0. 렌더러 중심Y=-0.08과 시간 단위/예외를 원본 서버 법칙으로 무비판 복제하지 말 것. 다음은0420 request sender의target 의미와 지휘권/AI 제어 상태를 연결한다. 새 배포/실전 입력0, 전체목표ACTIVE.
+
+## E176 — v200 지휘권 target은 선택 유닛 ID
+
+영수증 work/20260904-warp-state-reverse/evidence/authority-target-meaning-v200.md.004B47F0의 유일 호출0050F378은(1,&clickedUnit,DAT_02215128)을 전달한다. 즉0420 unit[]은 새 클릭 유닛, target은 기존 선택 유닛 ID다. 인물/부대 ID 아님. 클릭 mask981→004F12B0은 same-side other-controller800 및 flagship/ordinary80/100을 허용한다. 원본이 이 경로에서 일반 유닛만 허용한다고 가정하지 말 것.
+
+0439 reference=selected target / destinations=clicked units 방향은 원본 sender/consumer+매뉴얼에서 도출한 추론이며 원본 서버 왕복 관측은 없다. 현재 NPC registry는 생존 NPC를 모두 Advance하므로 Ship.Character 또는0439만 변경해선 AI 제어가 중지되지 않는다. 배정 영속화/전장 투영/AI 제어 양도/권한 검증을 같은 grid lease 아래 일관되게 구현해야 한다. 이번 정적 조사만 수행, 새 테스트/배포/실전 입력0. 전체목표ACTIVE.
+
+## E177 — v201 NPC 자율 제어 중지/재개 기반
+
+영수증 work/20260904-warp-state-reverse/evidence/npc-control-suspension-v201.md. OriginalTacticalNpcController.SetAutonomousControl 추가. 중지중 Advance는 이동/표적/사격 없이 기존 snapshot을 보존한다. 제어 전환시 표적/시간 이력을 비워 재개 첫 tick 사격·catch-up 이동을 막고, 같은 mode 재설정은 cooldown을 초기화하지 않는다. 임시 AI 구현 정책이지 원본 AI 복원 사실은 아니다.
+
+실제 controller 테스트2RED/1PASS→NPC/함대 회귀49PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/npc-control-v201/npc-control-v201-green.trx. 아직 지휘권 배정 핸들러가 이 메서드를 호출하지 않는다. Ship.Character/영속 배정/0439송신과 원자적으로 연결해야 하며 이 API 자체는 권한을 주지 않는다. 기본 NPC는 기존처럼 자율 제어한다. 배포/실전 입력0, 전체목표ACTIVE.
+
+## E178 — v202 전장 배정 투영과 AI 모드 연결
+
+영수증 work/20260904-warp-state-reverse/evidence/npc-assignment-projection-v202.md. Registry.ApplyNpcControlAssignment는 기존 NPC를 찾아 Ship.Character/Corps를 일치시켜 교체하고 자율제어 모드를 적용한다. Unit/좌표/소속/진영/세대/피해원장은 유지한다. 새 snapshot 구성·검증 후 변경하며 잘못된0/Corps ID 불일치는 기존 상태를 바꾸지 않는다. 기존 CharacterFrame을 유지하므로 기함 재배정 UI까지 해결한 것으로 간주하지 말 것.
+
+실제 registry 테스트2RED→관련51PASS/0FAIL/0SKIP. 재등록 refresh에도 배정 유지, AI중지 중에도 적의 공격 대상으로 남음 확인. TRX E:/logh7-build/test-results/assignment-v202/assignment-v202-green.trx. 이 경로는 단일 유닛의 신뢰된 내부 투영 적용이며 세션 요청/권한검사/DB저장/0439송신은 아직 미연결이다. 호출자는 grid lease 및 저장된 배정의 세대/리비전과 실제 인물 데이터 검증을 책임져야 한다. 다음은 영속 배정 및 복수 유닛 원자 처리·플레이어 명령 라우팅. 배포/실전입력0, 전체목표ACTIVE.
+
+## E179 — v203 복수 배정 선검증·일괄 반영
+
+영수증 work/20260904-warp-state-reverse/evidence/assignment-batch-v203.md. ApplyNpcControlAssignments와 ExpectedGeneration 포함 레코드 추가. 모든 대상/중복/세대/Corps를 검증하고 detached snapshot 준비 후 commit하므로 뒤쪽 오류로 앞쪽만 변경되지 않는다. caller-held grid lease 기준 명령/AI 사이 원자성이며 DB/lock-free reader/송신 원자성은 아니다. 기존 단일 적용 경로에 세대 체크가 새로 들어간 것은 아님.
+
+2RED/3PASS→관련56PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/assignment-batch-v203/assignment-batch-v203-green.trx. 실제0420핸들러/DB배정저장/복원/0439송신은 미연결. 다음은 영속 배정과 원본 인물/부대 권한 및 장면 복원 연결. 배포/실전입력0, 전체목표ACTIVE.
+
+## E180 — v204 일반 함정 유닛 별도 DB 편제 기반
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-roster-schema-v204.md. 기존 original_grid_unit은 unit_id=character_id/인물당1행이므로 일반 유닛 저장 불가.0027_original_fleet_unit 추가:부대/종류/진영/그리드/척수/손실/좌표/항속/선택적 실제 제어인물FK/AI모드/세대/리비전. 기존 기함 데이터 변환·새운영seed 없음.
+
+격리PostgreSQL table absent1RED→새편제테스트+기함피해저장1/100 총3PASS/0FAIL/0SKIP. 새연결2유닛/590잔존척/가짜인물0 확인. PID50404 exe/data확인 후 정상정지, 테스트schemas보존. 운영DB/게임 미접촉.
+
+아직 storeAPI/실제카탈로그import/장면복원/배정트랜잭션 없음. 중요:player ID범위가7E authored와 겹쳐 두테이블간 ID중복 방지 필요. 전체 전술 필드/명령상태 저장도 미완료. 이 schema만으로 편제영속화 완성/배포가능이라 판정하지 말 것. 다음은전역ID충돌 방지와 저장/복원API. 전체목표ACTIVE.
+
+## E181 — v205 player/fleet 공통 unit ID 충돌 방지
+
+영수증 work/20260904-warp-state-reverse/evidence/global-unit-identity-v205.md.0028 공통ID등록테이블 및 두유닛테이블 INSERT/ID UPDATE 트리거 추가. 기존중복은 migration실패(자동재번호/삭제없음), 새충돌은 unique23505로거부. 삭제후에도 category ID예약 유지(복원서버설계).
+
+실제PG 기함먼저/일반먼저/병렬attempt 모두양쪽성공하던3RED→기존편제/기함피해저장포함6PASS/0FAIL/0SKIP. 병렬테스트는 동시dispatch이며 실제lockwait겹침강제검증은아님. TRX E:/logh7-build/test-results/global-unit-v205/global-unit-v205-green.trx. PG33756정상종료, 테스트schemas보존. 운영DB/게임미접촉.
+
+다음은fleet저장/복원API와revision CAS배정트랜잭션, 장면복원,0420권한핸들러. 전체전술명령상태저장도남음. 배포/실전입력0, 전체목표ACTIVE.
+
+## E182 — v206 편제 저장·조회·CAS API 및 전체722PASS
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-store-v206.md. PostgresFleetUnitStore/OriginalFleetUnitRecord 추가. 누락행만 생성,그리드별조회,revision/generation/소속일치시에만 동적상태저장. 초기seed 재등록이 기존손실/위치를덮지않음. 새datasource복원/그리드변경/오래된버전거부 실제DB검증.
+
+집중7PASS 및 누적전체722PASS/0FAIL/0SKIP(실제PG포함), exec85722 exit0. TRX E:/logh7-build/test-results/fleet-store-v206/fleet-store-v206-full.trx SHA256 9E58B63A420917CD98F16224412C6BCCCB9BA89259D676B069136E96FE844015. 초반stub CS9113 수정후 실제NotImplemented1RED확인. PG51796확인후정상정지,schemas보존.
+
+아직host/session에서store호출안함. scalar편제만저장하며 전체Corps/shield/detachment/order상태미완료. catalog기존행불일치조정,복수배정DB트랜잭션,인물/부대권한,장면복원/피해연결이남음. 운영게임/DB미접촉,배포/실전입력0. 테스트전체PASS를원본게임플레이완료로승격금지. 전체목표ACTIVE.
+
+## E183 — v207 실제0F02경로에 일반편제DB복원 연결
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-scene-restore-v207.md. PostgresAccountStore가IOriginalFleetUnitStoreProvider 제공, scene reset async→RestoreFleetRosterAsync. 누락카탈로그행seed(기존행불변),현재그리드DB조회→종류/부대/진영/척수확인→저장위치/항속/세대/피해등록. 이미메모리에있는NPC는refresh로되돌리지않음. 다른저장구현/primarylegacyNPC경로유지.
+
+수정된실제계정fixture+PostgreSQL store로0F02최초/refresh,033B좌표,35/10복원 및메모리50피해가DB35로안돌아감 확인. 최초fixture는인물설정누락으로다른경로였으므로RED근거에서제외. 수정fixture에서restore호출만제거한red-corrected1FAIL→최종관련15PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/fleet-scene-v207/fleet-scene-v207-final.trx. v206전체722는이번변경이전임. PG40864정상정지,schemas보존.
+
+다음최우선:전투중일반유닛피해/이동DBwriteback. 현재복원만연결돼새전투결과는아직프로세스재시작에유실가능. human/controller!=null 복원은명시적거부(실제인물/Corps resolver미완료). 전술전체필드/배정DB트랜잭션/0420권한/동적template/다중그리드이동일관성남음. 운영DB/게임미접촉,배포/실전입력0,전체목표ACTIVE.
+
+## E184 — v208 일반 유닛 피해 저장 연결
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-damage-writeback-v208.md. 초기복원후 registry에PostgresFleetUnitStore/행revision binding. 공통CommitUnitDamageAsync의 비플레이어경로에서fleet CAS저장성공후피해확정. 현재피격유닛위치도함께저장. 실패는FLEET_UNIT_SAVE_CONFLICT,피해메모리불변. viewer session이아닌registry소유.
+
+실제DB공통피해commit60/20→새연결revision2→새session0F02복원확인. 외부revision변경뒤80/30거부·메모리60/20유지.1RED→관련39PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/fleet-damage-v208/fleet-damage-v208-green.trx. 테스트는공통commit직접호출이며native사격증거아님. PG11196정상정지,schemas보존.
+
+남음:피격없이이동만한유닛의pose writeback(현재없음),저장성공응답유실의멱등처리,세대전환시binding교체,지휘권DB트랜잭션/복원/명령승인. 운영미접촉·배포/실전입력0,전체목표ACTIVE.
+
+## E185 — v209 피격 없는 일반 유닛 이동 저장
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-motion-writeback-v209.md. PrepareAdvance가복제한pending AI에서계산→PersistFleetPoseAsync CAS저장→AI snapshot/timing commit→이동통지. 저장실패시해당actor위치/AI진행/이동통지불변. bound일반유닛만DB저장,legacy무DB AI경로유지.
+
+실제PG/registry AI의이동-only새연결저장·외부버전충돌시위치와큐불변2RED→관련52PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/fleet-motion-v209/fleet-motion-v209-green.trx. PG35208정상정지,schemas보존. 매이동유닛별저장이라대규모성능미측정;전체tick/사격원자성아님(앞actor또는이동성공뒤다음피해실패가능).DB응답유실멱등처리도남음.
+
+다음은지휘권배정DB트랜잭션/실제인물Corps복원/복수명령연결. 전술전체필드,세대/그리드전환binding,실제클라검증미완료. 운영미접촉,배포/실전입력0,전체목표ACTIVE.
+
+## E186 — v210 지휘권 복수DB트랜잭션
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-control-transaction-v210.md. SaveControlAssignmentsAsync/OriginalFleetControlWrite 추가. unit/grid/outfit/generation/revision일치시제어인물/AI모드/revision만변경,ID순서잠금.뒤행불일치/예외면전체rollback.위치/피해불변.
+
+실제DB실존인물1명에일반2유닛배정후새연결확인,뒤행stale및없는인물FK오류23503둘다앞행까지rollback.1RED→관련5PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/fleet-control-v210/fleet-control-v210-green.trx. PG58128정상정지,schemas보존.
+
+아직runtime배정caller없음. 이store를단독호출하면registrybindingrevision이낡으므로다음pose/damage CAS충돌. 다음은prepared메모리배정+DBcommit+bindingrevision동기화연결,실제인물Corps복원과0420권한/0439송신. 멱등request처리도남음. 운영미접촉,배포/실전입력0,전체목표ACTIVE.
+
+## E187 — v211 DB배정과registry제어/저장버전동기화
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-control-commit-v211.md. CommitFleetControlAssignmentsAsync 추가. grid lease하에전체대상/binding/세대/부대/datasource확인,메모리commit준비→DB전체트랜잭션→binding revision 및제어자/AI일괄적용. 저장실패메모리불변. 아직요청권한/0439송신은수행하지않는신뢰된하위경로.
+
+실제DB/registry배정→즉시피해저장시새버전연속성확인. 뒤쪽DB버전외부변경후전체배정거부·앞snapshot및DB모드불변.1RED→관련11PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/fleet-commit-v211/fleet-commit-v211-green.trx. PG30648정상정지,schemas보존.
+
+다음:원본0420권한검사/실제인물·부대·Corps resolver/0439송신과human복원. 저장commit응답유실멱등성,lock-free관측원자성미완료. 운영미접촉·배포/실전입력0,전체목표ACTIVE.
+
+## E188 — v212 지휘권에 앞서 실제 플레이어 부대소속 필요
+
+영수증 work/20260904-warp-state-reverse/evidence/player-outfit-membership-gap-v212.md. 현 CurrentPlayerInformationUnit은Outfit생략→0,original_grid_unit에도outfit없고canonical인물/부대관계테이블없음. 창고ACL을부대소속으로전용금지. CreateOutfit/재편성의실제소속결과연결이0420동일부대검증의선행조건이다.
+
+v105재확인:0903의004C5650→004C31F0은부대캐시만갱신,기함소속갱신증거없음. 새수신확인:0325→005266E0은ret,단일행이면004C2C80 mode1(보조world+80E8C)갱신이므로단일0325송신만으로active소속변경완료라판정금지. 전체scene재구성의실제InformationUnit.Outfit+032B동시투영을연결해야한다.
+
+다음:canonical부대/인물·기함소속저장과실제생성·편성결과,그후0420동일부대/범위/재배정조건. 같은진영전체유닛권한부여·창고ACL전용금지. 이번정적조사만,새테스트/배포/실전입력0,전체목표ACTIVE(전체blocked아님).
+
+## E189 — v213 canonical 부대·인물소속DB기반
+
+영수증 work/20260904-warp-state-reverse/evidence/outfit-membership-schema-v213.md.0029 original_outfit(032B메타/훈련10bytes/revision)와 original_outfit_member(인물당1소속/revision/실존인물진영 및부대Power+Camp FK)추가. 기존플레이어자동소속/창고ACL전용/유닛제어변경없음. 초기훈련0은복원설계기본값이지원본수치아님.
+
+실제DB존재/진영/Camp제약및새연결유지1RED→관련4PASS/0FAIL/0SKIP. TRX E:/logh7-build/test-results/outfit-membership-v213/outfit-membership-v213-green.trx. PG18204정상정지,schemas보존. 일반unit.OutfitId와canonical부대FK연결/카탈로그동기화,인물삭제·진영변경소속처리,실제부대생성/편성효과/소속API/기함Outfit투영은미완료. 운영미접촉·배포/실전입력0,전체목표ACTIVE.
+
+## E190 — v214 저장된 플레이어 소속을 기함 장면에 연결
+
+영수증 work/20260904-warp-state-reverse/evidence/outfit-scene-projection-v214.md. 계정 소유 인물의 canonical 소속 조회를 구현하고, 0F02 장면 갱신에서 기함 InformationUnit.Outfit, participant snapshot, 032B 부대 정보를 함께 투영한다. 소속 없으면 0 유지. Power 불일치 및 미지원 nonzero Camp는 거부하고, 동일 부대 ID의 상충 메타데이터도 거부한다. 부대 소속은 지휘권 자체가 아니며 자동 권한 부여는 없다.
+
+실제 격리 PostgreSQL에서 RED(null membership) → 집중 1 PASS → 전체 727 PASS/0 FAIL/0 SKIP. TRX E:/logh7-build/test-results/outfit-scene-v214/outfit-scene-v214-full.trx. PID4740 소유 경로 확인 후 정상 정지, schema 보존. 운영 데이터·기존 기함 함선 수 변경 없음, 배포/실전 입력 0.
+
+다음: 실제 생성/재편성 소속 변경, 일반 유닛과 canonical 부대 연결, 0420 권한·범위·정지 조건 및 실제 인물 Corps 복원/0439 송신. 소속 갱신은 현재 scene import 시점만이다. 실제 클라이언트 지휘·함대전은 미검증, 전체 목표 ACTIVE.
+
+## E191 — v215 배정된 실제 지휘관 상태 저장·휘하 유닛 복원
+
+영수증 work/20260904-warp-state-reverse/evidence/fleet-controller-restore-v215.md. 0030 original_tactical_corps 추가. registry 배정 시 실제 Corps를 유닛 제어자/AI 모드와 같은 DB 트랜잭션에 저장한다. scene 복원은 실제 인물/Power/Corps를 조회하여 Ship.Character와 Corps.Id에 연결하고 human 모드는 자동 이동·발사를 정지한다. 기함 자신의033F도 저장된 같은 지휘관 상태를 사용하도록 연결했다. 기함/일반 유닛 ID나 함선 수를 합치지 않는다.
+
+실제 DB 배정→새 연결/registry→0F02 복원, 배정 실패 시 Corps rollback, human actor 이동·발사 없음 검증. 복원 불가 RED와 기함033F 기본값20/저장값7 불일치 RED 후 전체727 PASS/0 FAIL/0 SKIP. TRX E:/logh7-build/test-results/fleet-controller-v215/fleet-controller-v215-full.trx. PG49140 소유 확인 후 정상 정지, schema 보존. 운영/배포/실전 입력0, 전체 목표 ACTIVE.
+
+**다음 우선순위:** 현재 저장은 배정 시점 snapshot이다. 이후040C 배분 변경의 저장·휘하 유닛 전파 및 기함 세대/격침·교체 시 snapshot 무효화가 없으므로 배포 전에 연결해야 한다. character별 공유 상태의 동시성/CAS도 필요. 그 후0420 권한·범위·정지/명령 조건/0439 및 실제 클라이언트 검증. 이번 결과를 전체 Corps 영속성·플레이 가능 판정으로 승격 금지.
+
+## E192 — v216 저장된 지휘 상태의 기함 세대 경계
+
+영수증 work/20260904-warp-state-reverse/evidence/controller-incarnation-v216.md.0031은 Corps snapshot에 controller_unit_id/ship_generation 출처를 추가한다. 기존 행은 추정 backfill 없이 null 유지. 조회는 현재 기함 ID·세대와 일치하는 행만 허용한다. durable 배정은 명시한 지휘관 기함 ID/세대를 DB 행 잠금으로 확인한 뒤 휘하 유닛 및 snapshot을 같은 트랜잭션에 기록한다. 옛 세대 재저장은 false, 유닛 변경 없음.
+
+실제 격리DB 세대 변경→옛 조회 거부/옛 배정 거부→새 세대 명시 배정 복원 검증. RED 후 전체727 PASS/0 FAIL/0 SKIP. TRX E:/logh7-build/test-results/controller-life-v216/controller-life-v216-full.trx. PG60484 소유 경로 확인 후 정상 정지, schema 보존. 운영/배포/실전 입력0, 전체 목표 ACTIVE.
+
+다음:040C 변경 저장·공유 유닛 전파, 같은 세대의 snapshot revision/CAS, 격침·교체 후 휘하 배정 정리/유효 새 상태 마련. 현재 오래된 지휘관 snapshot이 없어지면 휘하 scene 복원은 거부되며 자동 AI 전환을 만들지 않았다. 이 저장 경계만으로 격침·귀환·재출격 전체를 완료 판정 금지.0420과 native 검증도 남음.
+
+## E193 — v217 출력 배분040C 저장·휘하 유닛 전파
+
+영수증 work/20260904-warp-state-reverse/evidence/power-distribution-writeback-v217.md. SavePlayerCorpsAsync는 계정 소유/기함 ID·세대를 행 잠금으로 확인하고 같은 세대의 이전 JSONB 상태 비교 후 저장한다.040C는 저장 성공 전에 메모리나 성공 응답을 내지 않고, 성공 후 같은 grid·지휘관의 휘하 snapshot에 Corps를 전파한다. 기존 human/AI 모드는 유지한다.
+
+실제 격리DB 및 session040C→휘하 beam7→10→새 registry/scene10 복원 검증. 다른 계정 거부·메모리 유지, 오래된 before-state 저장 거부, human 자동 이동/발사 정지 유지. RED 후 전체727 PASS/0 FAIL/0 SKIP. TRX E:/logh7-build/test-results/power-write-v217/power-write-v217-full.trx. PG19452 소유 확인 후 정상 정지, schema 보존. 운영/배포/실전 입력0, 전체 목표 ACTIVE.
+
+다음:격침/교체 후 휘하 배정·새 지휘 상태 복구,0420 권한/범위/정지·명령 조건 및0439. 현재040C는 contents CAS이며 revision/request 멱등성이 아니다. 배정 snapshot upsert에는 별도 stale-source 방어가 더 필요하고, 외부 DB 변경 충돌 후 registry 캐시 재동기화 정책도 미완료. 모든 관전자에 즉시 push된다는 native 증거 없음. 전체 플레이 가능 판정 금지.
+
+## E194 — v218 격침 후 지휘권은 클라이언트가 자동 복구해 주지 않는다
+
+영수증 work/20260904-warp-state-reverse/evidence/controller-loss-static-v218.md 및 동명JSON. Ghidra fresh004B2740/004C94E0은 해당 유닛 격침 상태/활성 표지를 처리하며, 조사한 몸체에 휘하 지휘권 재배정은 없다.004B5C50 setter xref는 생성004C46A0의 두 호출과0439 경로004C7360 한 호출. 다른 직접 메모리 쓰기까지 전부 배제한 것은 아니다.
+
+0439→004C09E0은 source/destination UNIT이 모두 조회돼야 지휘관을 복사한다. 사라진 기함을 donor로 보내는 방식은 무효다. 매뉴얼은 진입 시 온라인/계급/평가/공적 배분과 부상 귀환을 명시하지만 격침 직후 재배분 우선순위는 이 절에서 확인되지 않았다. 당시 offline AI도 미구현으로 표기되어 있다.
+
+다음: 서버 injury-return/휘하 controller lifecycle을 구현하고 valid donor 또는 검증된 scene rebuild로 클라 반영. 임시 post-loss AI/승계는 복원 설계로 명시해야 한다. 유닛/함선 수/피해/위치 보존, 실제 지휘관 이탈과 데이터 손상 구분, 저장 후 공개가 필요. 옛 Corps를 새 기함 세대로 추정 승격 금지. 이번 정적 증거 추가만이며 새 테스트/배포/실전 입력0. 마지막 전체 테스트는v217의727 PASS, 전체 목표 ACTIVE.
+
+## E195 — v219 지휘관 세대 상실 시 임시 AI로 scene 복구
+
+영수증 work/20260904-warp-state-reverse/evidence/orphan-controller-ai-v219.md. 승인된 임시AI 범위의 NEW DESIGN이며 원본 승계 규칙으로 주장하지 않는다.0032는 휘하 row별 배정 지휘관의 기함 ID/세대를 저장한다. 현재 기함 ID/세대 불일치 또는 부상 기록 확인 시 제어만 해제해 기존 catalog AI로 돌린다. 출처 불명·인물 누락은 해제 근거로 쓰지 않는다. 함선 수/피해/위치 보존, DB CAS 후 runtime/binding 갱신.
+
+격리DB에서 세대 변경→fresh scene 및 기존 registry scene refresh→AI move/fire와 후속 저장 검증. RED 후 전체728 PASS/0 FAIL/0 SKIP. TRX E:/logh7-build/test-results/orphan-ai-v219/orphan-ai-v219-full.trx. PG51172 소유 경로 확인 후 정상 정지, schema 보존. 운영/배포/실전 입력0, 전체 목표 ACTIVE.
+
+현재 실행점은0F02이며 즉시 격침/부상/AI tick 통합은 아님. 실제 return/recovery 연쇄 및 injury flag 분기는 별도 검증 필요. 다음은 관전자 없이도 loss 후 AI 복구, 부상 지휘관에 대한 배정/040C 저장 거부, 전체 클라이언트 표시 검증이다. 유닛별 commit이므로 fleet 전체 원자성 아님. 사라진 donor0439 전송 없음. 플레이 가능 완료 판정 금지.
+
+## E196 — v220 장면 재요청 없이 AI 진행에서 지휘관 상실 복구
+
+영수증 work/20260904-warp-state-reverse/evidence/orphan-controller-tick-v220.md. binding에 원래 catalog fallback을 보존하고 controlled row 복원 시 명시적으로 제공한다. AdvanceNpcsAsync가 grid lease 아래에서 지휘관 상태를 확인·저장 후 제어를 해제하고 기존 AI 진행을 수행한다. 새0F02에 의존하지 않는다.
+
+격리DB 세대 변경 후 추가 scene request 없이 AI tick만 호출하는 세 번째 변형에서 RED(controller1 유지)→복구/이동·발사/후속 저장 확인. 전체729 PASS/0 FAIL/0 SKIP. TRX E:/logh7-build/test-results/orphan-tick-v220/orphan-tick-v220-full.trx. PG17204 소유 확인 후 정상 정지, schema 보존. 운영/배포/실전 입력0, 전체 목표 ACTIVE.
+
+주의: 현재 controlled unit마다 매 AI 호출에서 DB transaction/행 잠금을 수행한다. 대함대 성능 미측정이며 지휘관별 조회 통합/이탈 이벤트 방식 검토 필요. dedicated native 제어 변경 notification 미연결, 실제 부상·귀환·교체 연쇄 및 injured actor 배정/040C 거부도 미검증. 마지막 운영 패키지와 장기 미배포 source 간 차이를 확인한 뒤 실제 클라이언트 검증으로 합류해야 한다.
+
+## E197 — v221 실제 게스트는v42, 최신v47은 로컬 빌드만
+
+영수증 work/20260904-warp-state-reverse/evidence/runtime-readonly-v221.json 및 runtime-rollout-gap-v221.md.06:52:41Z 게스트 server4824(v42-v173 경로)/client9884 실행·상호TCP연결 확인. 서버DLL8C6A0B8D…50A369, client AEF38276…660F2F. 시작시각 각각02:58:58Z/02:59:04Z. 별도47900 proxy2952 보존. 화면·현재모드는 관찰하지 않았다.
+
+Release win-x64 self-contained v47을 E:/logh7-build/server-v47-fleet-control-v221 에 새로 publish 성공. DLL E2C1AB5AD3504937D4113157313B0B84082C5309BBA096FA68D30E15C288ED38. 기존v46 대비0026~0032 추가, 구 migration 변경 없음. 게스트 staging/배포/재시작/게임입력/운영DB변경0.
+
+**다음 실제 플레이 차단점:** 배포 catalog grid0/102 모두 fleets=0이다. 테스트의 다함대 설정은 배포 데이터에 들어있지 않다. 서버 교체만으로 함대전 구현 확인 불가. 명시적 임시 플레이 시나리오 catalog와 실제 loader설정, 운영DB migration preflight, 클라이언트 관찰을 한 흐름으로 묶어야 한다. v47 실행 검증도 아직0, 마지막 전체테스트는v220729PASS. 전체 목표 ACTIVE.
+
+## E198 — v222 실제 배포 함대전 JSON·선택 경로와v48
+
+영수증 work/20260904-warp-state-reverse/evidence/deployable-fleet-scenario-v222.md. server/battlefields/fleet-skirmish.json 추가: grid101에 power2/3 각각2개300척 전투유닛, 기존 기함·기지·후방102 보존. 기본 catalog 변경 없음. LOGH7_BATTLEFIELD_CATALOG에 서버 환경의 절대 경로를 지정하면 선택하며, 미설정은기존 catalog, 잘못된 지정은 오류. 첫 사용 시 lazy 캐시이므로 변경 후 프로세스 재시작 필요.
+
+실제 packaged JSON에서4유닛 import 및 양방향fire, 선택 loader/오류 처리를 RED→GREEN 검증. 전체731 PASS/0 FAIL/0 SKIP. TRX E:/logh7-build/test-results/deploy-fleets-v222/deploy-fleets-v222-full.trx. PG49860 소유 확인 후 정상 정지, schema 보존.
+
+새 로컬 publish E:/logh7-build/server-v48-fleet-scenario-v222. DLL D37ED84F207A49955A1630EFCF60BD3506847DA9434BEE841E0959D0A5E655F5, scenario B7D431FBCFDB8E28B1CC2496A2D1DFDC91A811BB01567F40553EEFA4A8294C60. 아직 guest staging/배포/재시작/운영DB/게임입력0. 다음은실제DB migration preflight→v48 guest경로설정 포함교체→원본 클라이언트 관찰. 전체 목표 ACTIVE.
+
+## E199 — v223 운영DB 읽기 전용 사전 점검 통과
+
+영수증 work/20260904-warp-state-reverse/evidence/db-preflight-v223b.json 및 operational-db-preflight-v223.md.07:04:04Z transaction_read_only=on 확인. 적용25개 migration hash가v48과일치, playerunit ID중복0, 피해기본수량100 제약위반0, 새scenario6개 ID충돌0. 신규fleet/outfit/corps 테이블없음. unit2는grid102/base2/gen8/damage0/destroyed0/injuredfalse.
+
+PG1812 exe/start/data/listener현재확인. 첫진단은postmaster 경로슬래시차이로SQL전실패했고별도identity조회후GetFullPath정규화한v223b만새로실행했다. 비밀값출력/이동없음. DB변경·마이그레이션적용·게임재시작·입력0. 이결과는captured preflight이지마이그레이션실행/백업/native PASS아님.
+
+다음:게스트disk/runtime재확인→v48 stage→실제게스트scenario절대경로설정포함교체→자동로그인/실제클라관찰. PostgreSQL과proxy2952보존,소비한이전입력재실행금지. 마지막fulltest v222731PASS, 전체목표ACTIVE.
+
+## E200 — v224 게스트v48 stage 완료, 아직실행은v42
+
+영수증 work/20260904-warp-state-reverse/evidence/server-stage-v224b.json, stage-preflight-v224b.json, guest-stage-v48-v224.md. 게스트 기존run/server-v48-v224 에새폴더로준비완료. DLL D37ED84F…655F5, scenario B7D431FB…294C60, migrations32 확인. 기존 server4824/client9884 경로·hash·Get-Process 정밀시각·listeners현재확인, C여유14.93GB.
+
+첫신원검사CIM/Get-Process시각정밀도차이를v173원실행영수증과대조해수정. archiveCopy exec98491 완료전검증시파일잠금실패; 같은copyhandle exit0확인후새v224b stage에서absent destination 추출성공. 실패영수증덮어쓰기/완료copy재실행없음.
+
+현재 V48_STAGED_NOT_RUNNING. 서버/클라중지·시작·DB변경·게임입력0. 다음은DB백업 및app-data보존digest→신원재검증→scenario절대guest경로환경변수를포함한교체. 새migration으로변하는schema전체hash와보존할게임데이터hash를구분할것. PG1812/proxy2952/구패키지보존. 전체목표ACTIVE.
+
+## E201 — v225 운영DB백업 및 기존24테이블 보존해시
+
+영수증 work/20260904-warp-state-reverse/evidence/backup-v225.json 및 database-backup-v225.md. 게스트기존run/before-v48-v225.dump 생성:88642bytes, SHA4DC2614F…3B24DF. pg_dump와pg_restore --list 모두exit0,139TOC항목. 실제restore시험은하지않았다. dump본문/자격증명host복사없음.
+
+기존public24테이블(schema_migration제외,신규unit_number필드제외)의정렬JSONB행해시가백업전후동일:2a8697ad34c161636a58319408402df5f08cf654973aa0438d1db5e42b52c4c4. 게스트run/preserved-data-v225.sql SHA527EB156F8B33D9B59BDD60E0C66B334FFE1F0AC86B94623329A2A7C3C59AA60. 다음교체전후같은고정쿼리로기존행보존확인하고32migration은별도검사할것. 이digest는sequence/schema/새테이블까지포함한전체DB해시가아니다.
+
+PG1812신원검사·readonly사용. 서버/클라재시작·DB변경·게임입력0. 다음은신규swap스크립트로v48실행및scenario절대guest경로선택,PG/proxy/구패키지보존. 현재v48은stage만완료. 전체목표ACTIVE.
+
+## E202 — v226 v48 실제 실행·32migration·클라이언트 재실행
+
+영수증 work/20260904-warp-state-reverse/evidence/v48-runtime-swap-v226.md 및 swap-stop-v226/swap-start-v226b/client-launch-v226.json. 옛server4824/client9884만신원확인후중지. 첫v48PID6996은25006(readonly)로종료:진단PGOPTIONS상속원인. 종료확인후새v226b에서자식시작전PGOPTIONS해제,검사용psql에만readonly복구하여성공.
+
+현재server4112 start2026-09-08T07:20:08.0597703Z, 기존run/server-v48-v224/Logh7.Server.exe. 두서버listener확인,적용32migration hash일치. 기존24테이블digest2a8697ad…52c4c4전후동일. scenario절대guest경로환경변수설정됨(lazy실제scene로드미검증). PG1812/proxy2952/백업/구패키지보존.
+
+원본client4348 start2026-09-08T07:21:09.6858433Z, HWND0x0000000003F00392, item116기존hash동일. CLIENT_LAUNCHED_NO_INPUT:로그인/화면/함대전아직미검증. wire기존run/server-wire-v226b.jsonl. 다음fresh desktop/auth preflight→새영수증자동로그인→실제scenario원본클라확인. 이번Stop/Start/Client모두CONSUMED재실행금지. 전체목표ACTIVE.
+
+## E203 — v227 로그인/화면 자동화 경계
+
+영수증 work/20260904-warp-state-reverse/evidence/native-auth-observation-v227.md 및 wire-auth-boundary-v227.jsonl. 현재Computer Use 스킬/필수guidance를읽고sky로유일한VMware창407570838선택. 첫list_apps timeout은2초후1회재조회성공. get_window_state는SetIsBorderRequired/0x80004002,창재열거후1회재시도도동일실패. 새화면/좌표없음.
+
+wire복사본은listener-ready1건뿐,login/connect이벤트없음. 현스킬은인증대화상자자동조작및동일turn다른PowerShellUI경로혼용을금지하므로사용자로그인·화면확인요청. 우회입력/이전좌표/소비스크립트재실행금지. 서버측다른진전은가능하며전체goal blocked/complete아님. 이번재시작/입력0. 사용자이어짐후현재신원및post-login화면다시확인.
+
+## E204 — v228 사용자 지적 후 게스트 직접 화면 확인
+
+최신 v243: `work/20260904-warp-state-reverse/evidence/fleet-supplies-persistence-v243.md`. migration0033 함대 Supplies 저장/재조회/CAS/장면복원 연결 구현. default100은 기존 임시표시 보존, 원본재고 주장 아님. 2RED→focused8PASS→전체738PASS/0FAIL/0SKIP. 테스트PG62176 검증후정상종료, 자료보존. 미배포; 운영v48/피해상태 그대로. 실제수리/소비/권한/원본UI 연결은 남음.
+
+최신 v242: `work/20260904-warp-state-reverse/evidence/repair-state-refresh-v242.md/json`. 0325 batch가 활성전술 피해 갱신 보장 못함 확인. 별도042D NotifyRepairFleet body14(maneuver_unit,target,maneuver_supplies u32,target_damage u16)와004C15A0 정상수/물자 갱신 회수. 원본은 maneuver_unit을 두번조회하는 특이점, fullrepair61과 동일명령 아님. Fleet DB Supplies 필드 부재도 확인; 단순damage reset 구현 금지. 운영 변화 없음.
+
+최신 v241: `work/20260904-warp-state-reverse/evidence/repair-ack-cache-boundary-v241.md/json`. 0C00 초기 소비는 결과버퍼 복사→메시지 표시, 공통 본인 기록은 type/+4/+8만 저장. 여기에는 per-unit 피해 갱신 루프 없음(간접소비 전면배제는 아님). 결과응답만으로 실수리 완료 처리 금지; 권위상태+정확한 유닛 갱신 경로 필요. 운영 변경 없음.
+
+최신 v240: `work/20260904-warp-state-reverse/evidence/repair-request-result-direction-v240.md/json`. 중요 정정: 원본004B4D40 송신은 actor/count/unit ID만 채우며 result_damaged/supplies는 초기화하지 않음. v238 ‘클라 계산 결과’ 추정 철회, 요청값 검증 전제에도 쓰면 안 됨. 수신도0C00, binary reader00554F80/dispatcher004BCDA2→world43D254→004BFCD0 확인. 수리 결과 소비·물자식은 추가추적 필요. 코덱 형식 불변, 주석 정정만.
+
+최신 v239: `work/20260904-warp-state-reverse/evidence/completeness-repair-codec-v239.md`. strict0C00 코덱 구현, 새7+인접7=14PASS/0FAIL/0SKIP(새테스트5RED 선확인). 잘림/초과70/후행byte/잘못된type 거부. 실제 수리·물자·권한·응답 처리 및 native61은 아직 미구현/미검증, 메뉴/dispatcher 미연결. 운영v48 변경 없음.
+
+최신 v238: `work/20260904-warp-state-reverse/evidence/completeness-repair-wire-v238.md/json`. 완전수리 별도0C00 등록/직렬화/필드명 회수: body17+12N,N<=70,time/id/pcp/mcp 및 unit/result_damaged/result_supplies. 원장61에 정적 회수만 반영. 다음 strict codec+tests, 후속 응답/권한·물자계산 검증. UI61 송신·실수리 미검증, 미노출. EXE/운영DB 변경 없음.
+
+최신 v237: `work/20260904-warp-state-reverse/evidence/repair-replenishment-boundary-v237.md`. command60 원장의 낡은 v126 실패 상태를 v233 단일유닛 출항 효과 검증으로 정정(JSON 검증). 매뉴얼에서 수리/격침분 보충·동일함종 창고재고·승무원 구분 확인. 수리61 wire 미회수,00571870 일반 대상수집의 null 참조 경계를 listing으로 재확인했지만 repair61 경로와 동일성은 미입증. 게임/DB 변경 없음.
+
+최신 v236: `work/20260904-warp-state-reverse/evidence/render-observation-boundary-v236.md`. 다음 전투용 guest-render-timeline-v236에 유닛 modelFile/좌표와 렌더러 LOD/모델 포인터/노드 수 추가. 현재 프로세스 1초 검증은 scene2/ships0/renderers0으로 전투 후 정리 상태 확인. 활성 모델 경로 및 카메라/픽셀은 아직 검증 안 됨. 현 전투 재생/데이터 복원 없음.
+
+최신 v235: `work/20260904-warp-state-reverse/evidence/fleet-persistence-and-assets-v235.md`. 실제 전투 DB 영속성 확인: kind56 2유닛 각 손상275/격침0, kind119 2유닛 각300/300. 모델 EM/EH/EL018 및 FM/FH/FL003 6파일 모두 설치 경로에 존재·원본 해시 일치. 재귀열거의 missing은 data 정션 미추적 오판 후보였으며 exact-path로 반박. 렌더 로딩/카메라/픽셀 확인은 남음; 파일교체·전투재실행·DB복원 없음.
+
+최신 v234: `work/20260904-warp-state-reverse/evidence/native-fleet-battle-v234.md`. 실제 warp→grid101/base0/mode6/cruising9, 전술 HUD 표시, 양측 2유닛씩 NPC 상호사격과 클라 normal300→50 반영 확인. 서버 두 적 유닛 destroy300 기록 후 전략 화면으로 자동 복귀. 플레이어 loss0, 사격 입력 미실행. NPC 모델/발사효과 가시성·전투 종결/영속성 상세는 추가검증. 소비된 전투 재실행/격침 유닛 암묵적 재생성 금지.
+
+최신 v233: `work/20260904-warp-state-reverse/evidence/native-undock-v233.md`. 원본 출항 입력 0x0B06 Success/authority77, DB mode4→5 및 화면 우주항→행성·요새 궤도상 확인. **현재 grid102/base2/mode5/gen8/loss0/cruising10**. 워프·전술 진입 전 현재 incarnation 관찰/생존 guard 준비 필요. 직무카드 설명 및 확인창 자리표시자는 미해결.
+
+최신 v232: `work/20260904-warp-state-reverse/evidence/native-world-entry-v232.md`. 승인된 테스트 계정 자동로그인 1회 성공 → 로비 → 기존 캐릭터 → 전략 HUD/임시 귀환 행성 우주항을 화면과 0x0F02 Success로 검증. **현재 로그인 화면이 아니라 전략 화면**. 추가 클릭 없이 전환 완료 재관찰. 전술 함대전은 이번 incarnation에서 아직 미검증. v232 입력 스크립트 모두 소비됨.
+
+최신 v231: `work/20260904-warp-state-reverse/evidence/native-login-render-v231.md`. AttachThreadInput으로 전경 소유권 확인 후 파일 메뉴 단일 클릭 → 로그인 화면 표시, 별도 배경 단일 클릭 → 메뉴 닫힘을 캡처 검증했다. **현재 흰 화면이 아니라 로그인 화면이며 인증 입력은 아직 없다.** 소비한 메뉴 복구 스크립트 재실행 금지.
+
+후속 v229/v230 영수증: `work/20260904-warp-state-reverse/evidence/native-menu-boundary-v230.md`. 창/메뉴 읽기와 새 화면 캡처 완료. 메뉴 클릭은 입력 전 foreground 검사에서 진행되지 않았고, 별도 1회 포커스 시도 후에도 클릭 영수증 없음. 정확한 다음 조사 경계는 해당 영수증 참고. 로그인·전투 진입 미확인.
+
+사용자 “너가 볼 수 있잖아” 지적 반영. host sky 실패를 전체관찰불가로 취급한 것은 잘못. native-screen-v228.png는VMware black이지만 guest-window-observe-v228.ps1을client-launch-v226에묶어읽기전용capture하여 window-current-v228.png 확보. Windows바탕화면/게임제목·메뉴/흰내부영역이보인다. 로그인dialog는관찰되지않았으며render장애로단정도금지. 이번focus/click/credential/restart0. 화면요청을사용자에게불필요하게넘기지말것.
+
+동시에진행중이던서버수정:LockControllerAsync에injury_return_id IS NULL 추가. 부상지휘관출력/배정저장거부,부상기록에따른해제시비제어필드보존을격리DB에서3RED→3PASS검증. TRX E:/logh7-build/test-results/injured-controller-v228/injured-controller-v228-green.trx. PG30828확인후정상정지. 소스미배포,게스트v48변경없음. 전체목표ACTIVE.
+
+## E205 - v244: manual full-repair rule and atomic ordinary-unit persistence
+
+영수증: `work/20260904-warp-state-reverse/evidence/full-repair-atomic-storage-v244.md`.
+매뉴얼 PDF68/71 표 전체 확인: 완전수리160CP, 대기0/소요0, 부대 보유 군수물자 전량소비, 기함 및 모든 함정유닛 수리. 함당 RepairCost 식과 구분한다.
+`PostgresFleetUnitStore.Repair.cs`에 일반함선 다중수리 원자 저장 구현: DB의 destroyed를 damaged 결과로 유지하고 supplies0, 신원/세대/revision 충돌 시 전체 롤백. 격침 부활/위치/지휘권 덮어쓰기 없음. 7RED→7PASS, 전체745PASS/0FAIL/0SKIP.
+**명령61/0C00 자체는 아직 미연결**: 전체부대 검증·권한·기함 물자 영속성·PCP/MCP 잔액/160차감·동일 트랜잭션·클라이언트 갱신이 남음. 현 primitive를 바로 handler에 연결하지 말 것. 다음은 포인트 및 기함 상태를 포함한 명령 전체 처리. 운영v48/클라이언트/DB 재시작·수리·재생성하지 않았음. 테스트 TRX는 E:/logh7-build/test-results/repair-v244/.
+
+## E206 - v245: PCP/MCP wire fields and recovery/substitution requirements
+
+영수증 `work/20260904-warp-state-reverse/evidence/command-points-wire-v245.md/json`. 원본00419300/00417390의0323 expanded+50/+54 PCP/MCP와 context+74/+78, HUD0058D140을 확인했다. EncodeCharacter의 6개0 묶음에서 포인트를 분리해 서버값 직렬화 매개변수 추가(기존 기본0 유지). 새3RED→3PASS, 인접11PASS, 전체748PASS/0FAIL/0SKIP. 아직 잔액 저장/호출부 연결/실제 포인트 표시·소모는 미검증.
+매뉴얼 PDF27(인쇄26) 직접 확인: PCP는政略/MCP는軍事, 부족 시 다른 풀2배 대납; 2게임시간/실제5분마다 오프라인 포함 회복, 전술 중 회복없고 종료 후 시간집계 시작. 부족분 대납 산식·회복량/상한은 미확정. 잔액·기함·수리의 전체 트랜잭션으로 이어갈 것. 0323 first-response upsert는 mode1 임시문맥이므로 주HUD 즉시갱신으로 단정금지. 운영미배포/게임입력0, 목표ACTIVE.
+
+## E207 - v246: persistent PCP/MCP to restored encrypted character response
+
+영수증 `work/20260904-warp-state-reverse/evidence/command-points-persistence-v246.md`.
+0034 마이그레이션으로 character PCP/MCP(u32범위bigint, 기존투영보존0) 추가. DB계정소유 조회→캐릭터 복원→암호화0323 실제응답 연결. 적캐릭터에 내잔액 전파하지않음. 실제격리PG 재연결+새세션2회321/uint.MaxValue 유지검증, 새RED1+기존확장RED1 후 집중10PASS/전체749PASS(FAIL/SKIP0).
+소스미배포, 운영잔액지급/재시작0. 차감/회복/원자수리·native갱신 미완료. 캐시된캐릭터는Restore가earlyreturn하므로 향후잔액변경 commit후세션갱신 필수; 캐릭터생성idempotent-replay의잔액refresh도 남음. 지금의0잔액으로 기존명령을차감형으로전환하지말고 초기지급/회복규칙을먼저연결할것. 목표ACTIVE.
+
+## E208 - v247: explicit self-info query refreshes current balances
+
+영수증 `work/20260904-warp-state-reverse/evidence/command-points-refresh-v247.md`. 같은세션에서 DB변경후0322 요청이낡은321을반환하는버그 RED→수정. 명시적self조회시계정소유row에서잔액갱신, 소유row없으면캐시반환거부. 실제격리DB321→161, MCP max→23을동일세션및다음재연결의암호화응답에서검증. 첫전체검사의테스트설정2실패수정후750PASS/FAIL0/SKIP0. 운영미배포/입력0. 차감·회복·수리전체transaction·nativeHUD/peer push는여전히남음. 생성replay초기bootstrap의캐시복원도별도경계이며다음self조회에서만이수정적용. 목표ACTIVE.
+
+## E209 - v248: CP substitution must be separated from growth usage
+
+영수증 `work/20260904-warp-state-reverse/evidence/command-point-policy-boundary-v248.md/json`. PDF15(인쇄14) 직접확인: 대납으로소모한CP는능력성장용사용량에누적하지않음. 직접소모와대납소모를향후event에서분리할것. 사용량threshold/경험치선택식은미확정. 원본송신004B78A0/수리caller 및actoroverride globals조사에서대납산식미회수, 일본어웹검색에서도수치근거못찾음.
+임시정책 제안은 PCP/MCP각1600초기/상한, 실제5분마다각160회복(전술중제외), 부족분만2배대납. **아직승인·적용안됨**, 다음사용자응답확인할것. 원본데이터로표시하지말것. 운영변경0/전체목표ACTIVE; 미승인일때기함저장등다른안전한작업은가능.
+
+## E210 - v249: flagship supplies survive persistence and project into scene
+
+영수증 `work/20260904-warp-state-reverse/evidence/flagship-supplies-persistence-v249.md`. 기함물자를매번100으로투영하던경로수정. 0035 original_grid_unit.supplies 기본100(기존authored값보존), 공용reader사용6조회연결, CurrentPlayerInformationUnit에서저장량사용. 실제격리DB물자23을피해동시갱신/rollback/격침/reopen중보존, 암호화0F02응답0325의0/23/u32max 검증(각RED선확인). migration옛필드보존테스트2개새열반영후전체753PASS/FAIL0/SKIP0. 운영미배포/게임입력0, 임시CP정책여전히미승인.
+다음: 비기본물자값의워프replay/current-row roll-forward 검증(과거move결과객체에는물자snapshot없어기본100이므로현재권위값으로쓰지말것), 전체수리transaction/권한/native연결. 새기함복구시물자정책도별도확정필요. 목표ACTIVE.
+
+## 2026-09-12 재개 주의: 위 v249 이후 구현이 이미 진행됨
+
+**2026-09-13 최신 배포: [2026-09-13-controller-profile-deployment.md](2026-09-13-controller-profile-deployment.md).** 지휘권 변경 및 오프라인 지휘관 정보 복원 수정 배포, 서버 PID7732/스키마44. 새 백업 실제 복원·후보 서버 기동·운영 교체 전후 공적 포함 인물/유닛/함대 보존 확인. 전체1014 테스트 통과. 게임은 PID5968 그대로이며, 배포 후 캡처는 로그인 화면이다. 네이티브 전술 검증과 최고사령관/임무 AI 등은 미완료.
+
+**최신 배포는 [2026-09-12-mission-merit-deployment.md](2026-09-12-mission-merit-deployment.md)**. 실제 VM 서버 PID2080/스키마44, 신규 백업의 별도 DB 복원과 43→44 업그레이드 검증 후 배포. 기존 인물·유닛·함대 데이터 보존 확인, 전체1012 테스트 통과. 아래 이전 배포/미배포 표시는 과거 시점이다. 최고사령관 선출·임무 AI/보상·네이티브 플레이 검증은 미완료. 검은 화면은 화면 절전 타이머 초기화로 복구했으며 마지막 시각 확인은 게임 로그인 화면이다.
+
+최신 배포 시작점: [2026-09-12-service-observer-deployment.md](2026-09-12-service-observer-deployment.md). 수리·보급 거리/수행함 잠금/NPC 잠금/시간 응답/관전자 갱신 수정 배포, 전체962 테스트 통과, VM 서버 교체 전후 유닛·함대 보존 확인. 완료·취소 작업 연결과 실제 클라이언트 검증은 미완료. 아래928/배포없음 기록은 이전 시점의 이력이다.
+
+최신 시작점은 `2026-09-09-command-points-and-live-hostile-fleet.md`와 `2026-09-12-current-state-reconciliation-and-warp-supplies.md`. 과거의CP미승인/수리미구현 메모로현재코드를되돌리지말것. 현재마이그레이션0043/전술35타입등록, 실제격리PG포함전체928PASS/FAIL0/SKIP0 재검증. 워프+replay 뒤현재물자23유지/320MCP중복차감없음 보강검증. 이번guest관측·입력·배포없음. 기존PID/HWND는재검증필수. 전체플레이완료를의미하지않으며목표ACTIVE.
+
+## 2026-09-13 NPC 무기 선택 수정 배포 — 위 배포 기록을 대체하는 최신 상태
+
+**추가 최신 배포:** [무접속 NPC 핸드오프](2026-09-13-headless-npc-bootstrap-gap.md) 최상단 LIVE 절. 서버PID2964/DLL8C9FFB.../스키마44. 무접속 함대 복원·재시작 이동 보존·NPC 독립 프로필 및 양방향 창고 primitive 반영, 전체1033PASS. 새백업 실제복원/후보기동/운영교체/독립포트점검 완료. 기존12함대·인물·기함보존,카탈로그 후방지원함2추가. 게임5968미접속,네이티브전투와전략전체미완료. 아래1260은이전상태. 전략 작업은 [현재 감사](2026-09-13-strategy-command-current-audit.md)에서 계속.
+
+**다음 플레이 기능 결손:** [2026-09-13-headless-npc-bootstrap-gap.md](2026-09-13-headless-npc-bootstrap-gap.md). 자동 틱은 서버 시작 시 실행되지만 NPC 등록은 플레이어 장면 진입에 묶여 있다. 무접속 재시작 후 NPCvsNPC 진행을 위해 계정과 독립된 영속 함대 부트스트랩 필요. 기존 직접 RegisterNpc 테스트로 이 경계를 통과했다고 간주하지 말 것.
+
+**추가 최신 운영: 같은 [사거리 핸드오프](2026-09-13-npc-sparse-range-positioning.md)의 overlap 배포.** 거리0 이격 수정까지 PID1260/DLL132BB2...에 반영. 전체1028PASS, 새 백업 실제 복원·후보 기동·운영 교체 전후 데이터 보존 확인. 스키마44. 아래5284/미배포 기록은 이전 상태이며 실클라 전투는 아직 미검증.
+
+**최신 배포: [2026-09-13-npc-sparse-range-positioning.md](2026-09-13-npc-sparse-range-positioning.md).** 사거리 이격/접근 수정 운영 반영, 새 서버 PID5284/스키마44. 백업 실제 복원·후보 기동 및 교체 전후 인물/유닛/함대 해시 보존 검증. 전체1019PASS 이후 추가 통합4건 포함 사거리9PASS. 실클라 전투 검증은 미완료. 아래 미배포/PID3796 기록은 이전 상태다.
+
+후속 로컬 수정(미배포): [2026-09-13-npc-sparse-range-positioning.md](2026-09-13-npc-sparse-range-positioning.md). 유효 사거리 중간에 명중불가 구간이 있을 때 NPC가 그 안에 멈추던 문제 수정. 너무 가까우면 유효 구간으로 이격하며, 무효 거리에서 발사하지 않는다. 회귀2건 RED 후 관련52PASS. 전체 테스트·배포·실클라 검증은 다음 단계.
+
+후속 리소스 조사: [2026-09-13-model-launch-marker-gap.md](2026-09-13-model-launch-marker-gap.md). Ship MDX 261개 원본 바이트 조사, 153개에 무기 마커. 현재 무장 kind56의 GE E018에는 마커가 없고 E012/F003에는 존재한다. 005FE1F0 부분 문자열 검색 확인; 004E62B0는 발사점 조회 실패를 무시하므로 마커 부재를 효과 부재로 단정하지 말 것. LOD/런타임 변환 연결 및 실제 발사 위치는 다음 검증 대상. 이번 서버/클라이언트 변경 없음.
+
+**추가 최신 배포: [2026-09-13-npc-fire-commit-retry.md](2026-09-13-npc-fire-commit-retry.md).** NPC 피해 저장 실패 시 재충전 소비 수정, 전체1017 테스트 통과. 새 백업 실제 복원·후보 기동·운영 교체 전후 데이터 보존 검증. 서버 PID3796/스키마44, 게임 PID5968 미접속. 미사일 차감 통합 저장·실클라 검증은 미완료. 아래 PID4760은 이전 배포다.
+
+[2026-09-13-npc-weapon-range-selection.md](2026-09-13-npc-weapon-range-selection.md): 현재 거리별 무기 선택 수정, 전체1017 테스트 통과. 새 백업 실제 복원 및 운영 교체 후 인물·유닛·함대 보존 확인. 서버 PID4760/스키마44, 게임 PID5968 미접속. 기존 바이너리·백업은 보존했다. 실제 클라이언트 전투 및 임무 AI 검증은 미완료.

@@ -1,4 +1,4 @@
-﻿using Logh7.Server.Authority;
+using Logh7.Server.Authority;
 using Logh7.Server.OriginalGateway;
 using Logh7.Server.Security;
 using Npgsql;
@@ -10,9 +10,14 @@ using System.Text.Json;
 
 namespace Logh7.Server.Storage;
 
-public sealed class PostgresAccountStore : IAccountStore
+public sealed partial class PostgresAccountStore : IAccountStore, IOriginalFleetUnitStoreProvider
 {
+    public PostgresFleetUnitStore FleetUnits => new(_dataSource);
     private readonly NpgsqlDataSource _dataSource;
+
+    public Task<OriginalWarehouseSnapshot> ReadOriginalWarehouseAsync(
+        Guid accountId, long characterId, OriginalWarehouseKey key, CancellationToken cancellationToken) =>
+        new PostgresWarehouseStore(_dataSource).ReadAsync(accountId, characterId, key, cancellationToken);
 
     public PostgresAccountStore(NpgsqlDataSource dataSource)
     {
@@ -120,7 +125,8 @@ public sealed class PostgresAccountStore : IAccountStore
     {
         const string sql = """
             SELECT character_id, slot, faction, blood, sex,
-                   last_name, first_name, flagship_name, face, ability_values, rank
+                   last_name, first_name, flagship_name, face, ability_values, rank,
+                   flagship_type, flagship_kind, return_base_id, pcp, mcp, achievement
             FROM character
             WHERE account_id = $1
             ORDER BY slot
@@ -142,7 +148,13 @@ public sealed class PostgresAccountStore : IAccountStore
                 reader.GetString(7),
                 reader.GetInt32(8),
                 reader.GetFieldValue<short[]>(9),
-                reader.GetInt16(10)));
+                reader.GetInt16(10),
+                reader.IsDBNull(11) ? null : checked((byte)reader.GetInt16(11)),
+                reader.IsDBNull(12) ? null : checked((ushort)reader.GetInt32(12)),
+                checked((uint)reader.GetInt64(13)),
+                checked((uint)reader.GetInt64(14)),
+                checked((uint)reader.GetInt64(15)),
+                checked((uint)reader.GetInt64(16))));
         }
 
         return characters;
@@ -217,8 +229,8 @@ public sealed class PostgresAccountStore : IAccountStore
             INSERT INTO character(
                 account_id, slot, request_fingerprint, payload_hash,
                 faction, blood, sex, last_name, first_name, flagship_name,
-                face, ability_values, authority_version)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                face, ability_values, authority_version, flagship_type, flagship_kind)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING character_id
             """;
         await using (var insert = new NpgsqlCommand(insertCharacter, connection, transaction))
@@ -238,6 +250,10 @@ public sealed class PostgresAccountStore : IAccountStore
                 NpgsqlDbType.Array | NpgsqlDbType.Smallint,
                 write.AbilityValues);
             insert.Parameters.AddWithValue(nextVersion);
+            insert.Parameters.AddWithValue(NpgsqlDbType.Smallint,
+                write.FlagshipType is { } flagshipType ? (object)(short)flagshipType : DBNull.Value);
+            insert.Parameters.AddWithValue(NpgsqlDbType.Integer,
+                write.FlagshipKind is { } flagshipKind ? (object)(int)flagshipKind : DBNull.Value);
             characterId = (long)(await insert.ExecuteScalarAsync(cancellationToken) ??
                 throw new InvalidOperationException("CHARACTER_INSERT_NO_ID"));
         }
@@ -252,6 +268,8 @@ public sealed class PostgresAccountStore : IAccountStore
             write.LastName,
             write.FirstName,
             write.FlagshipName,
+            write.FlagshipType,
+            write.FlagshipKind,
             write.Face,
             abilityValues = write.AbilityValues
         });
@@ -361,6 +379,23 @@ public sealed class PostgresAccountStore : IAccountStore
             }
         }
 
+        // An explicit no-post row is authoritative. Never let an unappointed
+        // actor restore their own privileges through the appointment endpoint.
+        // Complete post hierarchy permissions remain a separate validation.
+        await using (var authority = new NpgsqlCommand(
+            "SELECT card_id FROM original_character_card WHERE account_id=$1 AND character_id=$2 FOR UPDATE",
+            connection,transaction))
+        {
+            authority.Parameters.AddWithValue(accountId);
+            authority.Parameters.AddWithValue(write.CharacterId);
+            var heldPost = await authority.ExecuteScalarAsync(cancellationToken) is int storedPost
+                ? storedPost : write.BootstrapActorCard;
+            if (heldPost == 0)
+                throw new InvalidOperationException("CARD_APPOINTMENT_ACTOR_HAS_NO_POST");
+            if (write.RequiredAppointerCard is {} required && heldPost != required)
+                throw new InvalidOperationException("CARD_APPOINTMENT_AUTHORITY_MISMATCH");
+        }
+
         foreach (var id in new[] { write.CharacterId, write.TargetCharacterId })
         {
             await using var exists = new NpgsqlCommand(
@@ -390,6 +425,13 @@ public sealed class PostgresAccountStore : IAccountStore
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        var appointmentPoints = await ApplyCommandPointChargeAsync(connection, transaction, accountId,
+            new OriginalCommandPointWrite(write.CharacterId, OriginalCommandPointPool.Military, 160,
+                write.RequestFingerprint), write.PointPolicy ?? OriginalCommandPointPolicy.LoadDefault(),
+            write.Now ?? DateTimeOffset.UtcNow, write.InTactics, nextVersion, cancellationToken,
+            emitDomainEvent: false);
+        if (!appointmentPoints.Applied) throw new InvalidOperationException("CARD_APPOINTMENT_POINTS_REPLAYED");
+
         await using (var upsert = new NpgsqlCommand(
             "INSERT INTO original_character_card(account_id, character_id, card_id, appointed_by_character_id, authority_version) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (account_id, character_id) DO UPDATE SET card_id = EXCLUDED.card_id, appointed_by_character_id = EXCLUDED.appointed_by_character_id, authority_version = EXCLUDED.authority_version, updated_at = transaction_timestamp()",
             connection,
@@ -408,7 +450,9 @@ public sealed class PostgresAccountStore : IAccountStore
             characterId = write.CharacterId,
             cardId = write.CardId,
             targetCharacterId = write.TargetCharacterId,
-            requestFingerprint = write.RequestFingerprint
+            requestFingerprint = write.RequestFingerprint,
+            mcpCost = 160,
+            points = appointmentPoints
         });
         await using (var insertEvent = new NpgsqlCommand(
             "INSERT INTO domain_event(account_id, aggregate_type, aggregate_id, event_type, payload, authority_version) VALUES ($1, 'character', $2, 'CharacterCardAppointed', $3::jsonb, $4)",
@@ -447,8 +491,8 @@ public sealed class PostgresAccountStore : IAccountStore
         return new CardAppointmentStoreResult(write.TargetCharacterId, write.CardId, true, nextVersion);
     }
 
-    // 罷免 (0x0708): the inverse of AppointCardAsync — remove the target's current appointment (original_character_card
-    // row) and record the dismissal for replay + audit. The target reverts to their statically-served base card.
+    // 罷免 (0x0708): clear the target's current appointment to explicit no-post card0
+    // and record dismissal for replay + audit. Row absence would restore authored default39.
     public async Task<CardDismissalStoreResult> DismissCardAsync(
         Guid accountId,
         CardDismissalWrite write,
@@ -506,6 +550,16 @@ public sealed class PostgresAccountStore : IAccountStore
             }
         }
 
+        await using (var authority = new NpgsqlCommand(
+            "SELECT card_id FROM original_character_card WHERE account_id=$1 AND character_id=$2 FOR UPDATE",
+            connection,transaction))
+        {
+            authority.Parameters.AddWithValue(accountId);
+            authority.Parameters.AddWithValue(write.CharacterId);
+            if (await authority.ExecuteScalarAsync(cancellationToken) is int heldPost && heldPost == 0)
+                throw new InvalidOperationException("CARD_DISMISSAL_ACTOR_HAS_NO_POST");
+        }
+
         await using (var held = new NpgsqlCommand(
             "SELECT card_id FROM original_character_card WHERE account_id = $1 AND character_id = $2 FOR UPDATE",
             connection,
@@ -526,14 +580,23 @@ public sealed class PostgresAccountStore : IAccountStore
         }
 
         var nextVersion = checked(currentVersion + 1);
-        await using (var delete = new NpgsqlCommand(
-            "DELETE FROM original_character_card WHERE account_id = $1 AND character_id = $2",
+        // Absence means authored bootstrap default, not no post. Preserve card0
+        // explicitly so reconnect cannot silently grant the dismissed character39.
+        var dismissalPoints = await ApplyCommandPointChargeAsync(connection, transaction, accountId,
+            new OriginalCommandPointWrite(write.CharacterId, OriginalCommandPointPool.Military, 160,
+                write.RequestFingerprint), write.PointPolicy ?? OriginalCommandPointPolicy.LoadDefault(),
+            write.Now ?? DateTimeOffset.UtcNow, write.InTactics, nextVersion, cancellationToken,
+            emitDomainEvent: false);
+        if (!dismissalPoints.Applied) throw new InvalidOperationException("CARD_DISMISSAL_POINTS_REPLAYED");
+        await using (var clearPost = new NpgsqlCommand(
+            "UPDATE original_character_card SET card_id=0,authority_version=$3,updated_at=transaction_timestamp() WHERE account_id = $1 AND character_id = $2",
             connection,
             transaction))
         {
-            delete.Parameters.AddWithValue(accountId);
-            delete.Parameters.AddWithValue(write.TargetCharacterId);
-            if (await delete.ExecuteNonQueryAsync(cancellationToken) != 1)
+            clearPost.Parameters.AddWithValue(accountId);
+            clearPost.Parameters.AddWithValue(write.TargetCharacterId);
+            clearPost.Parameters.AddWithValue(nextVersion);
+            if (await clearPost.ExecuteNonQueryAsync(cancellationToken) != 1)
             {
                 throw new InvalidOperationException("CARD_APPOINTMENT_NOT_FOUND");
             }
@@ -558,7 +621,9 @@ public sealed class PostgresAccountStore : IAccountStore
             characterId = write.CharacterId,
             cardId = write.CardId,
             targetCharacterId = write.TargetCharacterId,
-            requestFingerprint = write.RequestFingerprint
+            requestFingerprint = write.RequestFingerprint,
+            mcpCost = 160,
+            points = dismissalPoints
         });
         await using (var insertEvent = new NpgsqlCommand(
             "INSERT INTO domain_event(account_id, aggregate_type, aggregate_id, event_type, payload, authority_version) VALUES ($1, 'character', $2, 'CharacterCardDismissed', $3::jsonb, $4)",
@@ -693,6 +758,15 @@ public sealed class PostgresAccountStore : IAccountStore
         }
 
         var nextVersion = checked(currentVersion + 1);
+        // Original resignation confirmation explicitly states80MCP. Charge and
+        // post removal must commit together; raw request balances are not inputs.
+        var resignationPoints = await ApplyCommandPointChargeAsync(connection, transaction, accountId,
+            new OriginalCommandPointWrite(write.CharacterId, OriginalCommandPointPool.Military, 80,
+                write.RequestFingerprint), write.PointPolicy ?? OriginalCommandPointPolicy.LoadDefault(),
+            write.Now ?? DateTimeOffset.UtcNow, write.InTactics, nextVersion, cancellationToken,
+            emitDomainEvent: false);
+        if (!resignationPoints.Applied)
+            throw new InvalidOperationException("CARD_RESIGNATION_POINTS_REPLAYED");
         await using (var upsert = new NpgsqlCommand(
             "INSERT INTO original_character_card(account_id, character_id, card_id, appointed_by_character_id, authority_version) VALUES ($1, $2, 0, $2, $3) ON CONFLICT (account_id, character_id) DO UPDATE SET card_id = 0, appointed_by_character_id = EXCLUDED.appointed_by_character_id, authority_version = EXCLUDED.authority_version, updated_at = transaction_timestamp()",
             connection,
@@ -722,6 +796,7 @@ public sealed class PostgresAccountStore : IAccountStore
             characterId = write.CharacterId,
             sourceCardId = write.SourceCardId,
             resultingCardId = 0,
+            points = resignationPoints,
             requestFingerprint = write.RequestFingerprint
         });
         await using (var insertEvent = new NpgsqlCommand(
@@ -816,22 +891,52 @@ public sealed class PostgresAccountStore : IAccountStore
                     false,
                     reader.GetInt64(3));
                 await reader.DisposeAsync();
+                // Replay acknowledges the old operation but projects current character state.
+                // Ordinary/special promotion share a receipt table; recover the
+                // committed operation identity from its same-version domain event.
+                await using (var identity = new NpgsqlCommand(
+                    "SELECT event_type,COALESCE((payload->>'actorCharacterId')::bigint,0) FROM domain_event WHERE account_id=$1 AND authority_version=$2",
+                    connection,transaction))
+                {
+                    identity.Parameters.AddWithValue(accountId);
+                    identity.Parameters.AddWithValue(result.AuthorityVersion);
+                    await using var identityReader=await identity.ExecuteReaderAsync(cancellationToken);
+                    if (!await identityReader.ReadAsync(cancellationToken) ||
+                        identityReader.GetString(0)!=write.EventType ||
+                        identityReader.GetInt64(1)!=write.ActorCharacterId)
+                        throw new InvalidOperationException("CHARACTER_RANK_UP_REPLAY_MISMATCH");
+                }
+                await using var current = new NpgsqlCommand(
+                    "SELECT rank,achievement FROM character WHERE account_id=$1 AND character_id=$2",
+                    connection, transaction);
+                current.Parameters.AddWithValue(accountId);
+                current.Parameters.AddWithValue(write.CharacterId);
+                await using (var currentReader = await current.ExecuteReaderAsync(cancellationToken))
+                {
+                    if (!await currentReader.ReadAsync(cancellationToken))
+                        throw new InvalidOperationException("CHARACTER_NOT_FOUND");
+                    result = result with { Rank = currentReader.GetInt16(0),
+                        Achievement = checked((uint)currentReader.GetInt64(1)) };
+                }
                 await transaction.CommitAsync(cancellationToken);
                 return result;
             }
         }
 
         short currentRank;
+        uint currentAchievement;
         await using (var character = new NpgsqlCommand(
-            "SELECT rank FROM character WHERE account_id = $1 AND character_id = $2 FOR UPDATE",
+            "SELECT rank,achievement FROM character WHERE account_id = $1 AND character_id = $2 FOR UPDATE",
             connection,
             transaction))
         {
             character.Parameters.AddWithValue(accountId);
             character.Parameters.AddWithValue(write.CharacterId);
-            var value = await character.ExecuteScalarAsync(cancellationToken) ??
+            await using var stateReader = await character.ExecuteReaderAsync(cancellationToken);
+            if (!await stateReader.ReadAsync(cancellationToken))
                 throw new InvalidOperationException("CHARACTER_NOT_FOUND");
-            currentRank = (short)value;
+            currentRank = stateReader.GetInt16(0);
+            currentAchievement = checked((uint)stateReader.GetInt64(1));
         }
 
         if (currentRank != write.ExpectedRank)
@@ -840,8 +945,22 @@ public sealed class PostgresAccountStore : IAccountStore
         }
 
         var nextVersion = checked(currentVersion + 1);
+        OriginalCommandPointState? specialPoints = null;
+        if (write.EventType == "CharacterSpeciallyPromoted" || demotion)
+        {
+            if (write.ActorCharacterId <= 0) throw new InvalidOperationException("SPECIAL_PROMOTION_ACTOR_REQUIRED");
+            specialPoints = await ApplyCommandPointChargeAsync(connection,transaction,accountId,
+                new OriginalCommandPointWrite(write.ActorCharacterId,OriginalCommandPointPool.Military,demotion ? 160u : 320u,
+                    write.RequestFingerprint),write.PointPolicy ?? OriginalCommandPointPolicy.LoadDefault(),
+                write.Now ?? DateTimeOffset.UtcNow,write.InTactics,nextVersion,cancellationToken,emitDomainEvent:false);
+            if (!specialPoints.Applied) throw new InvalidOperationException("SPECIAL_PROMOTION_POINTS_REPLAYED");
+        }
         await using (var update = new NpgsqlCommand(
-            "UPDATE character SET rank = $3, authority_version = $4 WHERE account_id = $1 AND character_id = $2 AND rank = $5",
+            """
+            UPDATE character SET rank = $3, authority_version = $4,
+                achievement = CASE WHEN $6 THEN 100 WHEN $7 THEN 0 ELSE achievement END
+            WHERE account_id = $1 AND character_id = $2 AND rank = $5
+            """,
             connection,
             transaction))
         {
@@ -850,6 +969,10 @@ public sealed class PostgresAccountStore : IAccountStore
             update.Parameters.AddWithValue(write.PromotedRank);
             update.Parameters.AddWithValue(nextVersion);
             update.Parameters.AddWithValue(write.ExpectedRank);
+            // Manual printed p35: ordinary promotion=0, demotion=100.
+            // Special/automatic promotion policies are not inferred here.
+            update.Parameters.AddWithValue(demotion);
+            update.Parameters.AddWithValue(write.EventType == "CharacterRankPromoted");
             if (await update.ExecuteNonQueryAsync(cancellationToken) != 1)
             {
                 throw new InvalidOperationException("CHARACTER_RANK_UPDATE_FAILED");
@@ -882,6 +1005,9 @@ public sealed class PostgresAccountStore : IAccountStore
             characterId = write.CharacterId,
             sourceRank = write.ExpectedRank,
             promotedRank = write.PromotedRank,
+            sourceAchievement = currentAchievement,
+            points = specialPoints,
+            achievement = demotion ? 100u : write.EventType == "CharacterRankPromoted" ? 0u : currentAchievement,
             actorCharacterId = write.ActorCharacterId,
             requestFingerprint = write.RequestFingerprint
         });
@@ -928,7 +1054,8 @@ public sealed class PostgresAccountStore : IAccountStore
             write.CharacterId,
             write.PromotedRank,
             true,
-            nextVersion);
+            nextVersion,
+            demotion ? 100u : write.EventType == "CharacterRankPromoted" ? 0u : currentAchievement);
     }
 
     public async Task<CharacterDeleteStoreResult> DeleteCharacterAsync(
@@ -1451,7 +1578,7 @@ public sealed class PostgresAccountStore : IAccountStore
         ArgumentOutOfRangeException.ThrowIfZero(unitId);
         const string sql = """
             SELECT character_id, unit_id, authority_card_id,
-                   current_cell_id, authority_version
+                   current_cell_id, authority_version, base_id, damaged, destroyed, injury_return_id, ship_generation, cruising, mode, unit_number, supplies, morale
             FROM original_grid_unit
             WHERE account_id = $1 AND character_id = $2 AND unit_id = $3
             """;
@@ -1490,7 +1617,7 @@ public sealed class PostgresAccountStore : IAccountStore
             """
             SELECT character_id, unit_id, authority_card_id,
                    expected_current_cell_id, source_cell_id, destination_cell_id,
-                   action, authority_version
+                   action, authority_version, destination_base_id, ship_generation, result_cruising, damaged, destroyed, result_mode
             FROM original_grid_move_command
             WHERE account_id = $1 AND request_fingerprint = $2
             """,
@@ -1511,6 +1638,12 @@ public sealed class PostgresAccountStore : IAccountStore
                     checked((uint)reader.GetInt64(5)) == write.DestinationCellId &&
                     checked((ushort)reader.GetInt32(6)) == write.Action;
                 var replayVersion = reader.GetInt64(7);
+                var replayBaseId = checked((uint)reader.GetInt64(8));
+                var replayGeneration = reader.GetInt64(9);
+                var replayCruising = reader.GetFloat(10);
+                var replayDamaged = checked((ushort)reader.GetInt32(11));
+                var replayDestroyed = checked((ushort)reader.GetInt32(12));
+                var replayMode = checked((byte)reader.GetInt32(13));
                 await reader.DisposeAsync();
                 if (!isSameCommand)
                 {
@@ -1525,7 +1658,9 @@ public sealed class PostgresAccountStore : IAccountStore
                     write.UnitId,
                     write.AuthorityCardId,
                     write.DestinationCellId,
-                    replayVersion);
+                    replayVersion,
+                    replayBaseId, Damaged: replayDamaged, Destroyed: replayDestroyed,
+                    ShipGeneration: replayGeneration, Cruising: replayCruising, Mode: replayMode);
                 await transaction.CommitAsync(cancellationToken);
                 return new OriginalMoveGridStoreResult(
                     OriginalMoveGridStoreStatus.Replayed,
@@ -1539,7 +1674,7 @@ public sealed class PostgresAccountStore : IAccountStore
         await using (var selectUnit = new NpgsqlCommand(
             """
             SELECT character_id, unit_id, authority_card_id,
-                   current_cell_id, authority_version
+                   current_cell_id, authority_version, base_id, damaged, destroyed, injury_return_id, ship_generation, cruising, mode, unit_number, supplies, morale
             FROM original_grid_unit
             WHERE account_id = $1 AND unit_id = $2
             FOR UPDATE
@@ -1564,6 +1699,12 @@ public sealed class PostgresAccountStore : IAccountStore
                 "MOVE_GRID_UNIT_NOT_OWNED");
         }
 
+        if (unit.InjuryReturnId is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return RejectOriginalMoveGrid(currentVersion, "MOVE_GRID_UNIT_RECOVERING", unit);
+        }
+
         if (write.ExpectedCurrentCellId != unit.CurrentCellId)
         {
             await transaction.CommitAsync(cancellationToken);
@@ -1577,13 +1718,14 @@ public sealed class PostgresAccountStore : IAccountStore
             new OriginalMoveGridAuthorityState(
                 unit.UnitId,
                 unit.AuthorityCardId,
-                unit.CurrentCellId),
+                unit.CurrentCellId,
+                unit.BaseId, unit.Cruising),
             new OriginalMoveGridAuthorityCommand(
                 write.UnitId,
                 write.AuthorityCardId,
                 write.SourceCellId,
                 write.DestinationCellId,
-                write.Action));
+                write.Action) { DestinationBaseId = write.DestinationBaseId });
         if (decision.Status != OriginalMoveGridAuthorityStatus.Allowed)
         {
             await transaction.CommitAsync(cancellationToken);
@@ -1593,11 +1735,17 @@ public sealed class PostgresAccountStore : IAccountStore
                 unit);
         }
 
+        // This implemented route arrives in open space (BaseId0), not in the
+        // departure port's garrison/orbital stance. E122:6 is normal navigation.
+        const byte arrivalMode = 6;
         var nextVersion = checked(currentVersion + 1);
         await using (var updateUnit = new NpgsqlCommand(
             """
             UPDATE original_grid_unit
             SET current_cell_id = $4,
+                base_id = $8,
+                cruising = $9,
+                mode = $10,
                 authority_version = $5,
                 updated_at = transaction_timestamp()
             WHERE account_id = $1
@@ -1616,6 +1764,9 @@ public sealed class PostgresAccountStore : IAccountStore
             updateUnit.Parameters.AddWithValue(nextVersion);
             updateUnit.Parameters.AddWithValue((long)write.ExpectedCurrentCellId);
             updateUnit.Parameters.AddWithValue(unit.AuthorityVersion);
+            updateUnit.Parameters.AddWithValue((long)decision.State.BaseId);
+            updateUnit.Parameters.AddWithValue(decision.State.Cruising);
+            updateUnit.Parameters.AddWithValue((int)arrivalMode);
             if (await updateUnit.ExecuteNonQueryAsync(cancellationToken) != 1)
             {
                 await transaction.RollbackAsync(cancellationToken);
@@ -1629,8 +1780,8 @@ public sealed class PostgresAccountStore : IAccountStore
             INSERT INTO original_grid_move_command(
                 account_id, request_fingerprint, character_id, unit_id,
                 authority_card_id, expected_current_cell_id, source_cell_id,
-                destination_cell_id, action, outcome, authority_version)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'moved', $10)
+                destination_cell_id, action, outcome, authority_version, destination_base_id, ship_generation, result_cruising, damaged, destroyed, result_mode)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'moved', $10, $11, $12, $13, $14, $15, $16)
             """;
         await using (var command = new NpgsqlCommand(insertCommand, connection, transaction))
         {
@@ -1644,7 +1795,37 @@ public sealed class PostgresAccountStore : IAccountStore
             command.Parameters.AddWithValue((long)write.DestinationCellId);
             command.Parameters.AddWithValue((int)write.Action);
             command.Parameters.AddWithValue(nextVersion);
+            command.Parameters.AddWithValue((long)decision.State.BaseId);
+            command.Parameters.AddWithValue(unit.ShipGeneration);
+            command.Parameters.AddWithValue(decision.State.Cruising);
+            command.Parameters.AddWithValue((int)unit.Damaged);
+            command.Parameters.AddWithValue((int)unit.Destroyed);
+            command.Parameters.AddWithValue((int)arrivalMode);
             await command.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        OriginalCommandPointState? pointState = null;
+        if (write.Points is { } points)
+        {
+            try
+            {
+                pointState = await ApplyCommandPointChargeAsync(connection, transaction, accountId,
+                    new OriginalCommandPointWrite(write.CharacterId, points.Pool, points.Cost,
+                        write.RequestFingerprint),
+                    points.Policy, points.Now, points.InTactics, nextVersion, cancellationToken,
+                    emitDomainEvent: false);
+            }
+            catch (InvalidOperationException error)
+                when (error.Message == "COMMAND_POINTS_INSUFFICIENT")
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return RejectOriginalMoveGrid(currentVersion, "MOVE_GRID_COMMAND_POINTS_INSUFFICIENT", unit);
+            }
+            if (!pointState.Applied)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return RejectOriginalMoveGrid(currentVersion, "MOVE_GRID_COMMAND_POINTS_REPLAYED", unit);
+            }
         }
 
         var eventPayload = JsonSerializer.Serialize(new
@@ -1655,9 +1836,20 @@ public sealed class PostgresAccountStore : IAccountStore
             expectedCurrentCellId = write.ExpectedCurrentCellId,
             sourceCellId = write.SourceCellId,
             destinationCellId = write.DestinationCellId,
+            sourceBaseId = unit.BaseId,
+            destinationBaseId = decision.State.BaseId,
+            sourceCruising = unit.Cruising,
+            destinationCruising = decision.State.Cruising,
+            sourceMode = unit.Mode,
+            mode = arrivalMode,
+            shipGeneration = unit.ShipGeneration,
             action = write.Action,
             outcome = "moved",
-            requestFingerprint = write.RequestFingerprint
+            requestFingerprint = write.RequestFingerprint,
+            commandPointCost = write.Points?.Cost,
+            commandPointPool = write.Points?.Pool.ToString(),
+            pcp = pointState?.Political,
+            mcp = pointState?.Military
         });
         await using (var insertEvent = new NpgsqlCommand(
             "INSERT INTO domain_event(account_id, aggregate_type, aggregate_id, event_type, payload, authority_version) VALUES ($1, 'original-grid-unit', $2, 'OriginalGridUnitMoved', $3::jsonb, $4)",
@@ -1671,10 +1863,13 @@ public sealed class PostgresAccountStore : IAccountStore
             await insertEvent.ExecuteNonQueryAsync(cancellationToken);
         }
 
+        // The command points this move consumes are spent in the same
+        // transaction and at the same authority version, so the client can
+        // never be charged for a warp that did not happen.
         var stateHash = OriginalGridUnitMovedStateHash(
             accountId,
             nextVersion,
-            write);
+            write, decision.State.Cruising, unit.ShipGeneration, arrivalMode);
         await using (var updateAccount = new NpgsqlCommand(
             "UPDATE account SET authority_version = $2, authority_state_hash = $3, updated_at = transaction_timestamp() WHERE account_id = $1 AND authority_version = $4",
             connection,
@@ -1694,6 +1889,9 @@ public sealed class PostgresAccountStore : IAccountStore
         var movedUnit = unit with
         {
             CurrentCellId = write.DestinationCellId,
+            BaseId = decision.State.BaseId,
+            Cruising = decision.State.Cruising,
+            Mode = arrivalMode,
             AuthorityVersion = nextVersion
         };
         return new OriginalMoveGridStoreResult(
@@ -2361,8 +2559,8 @@ public sealed class PostgresAccountStore : IAccountStore
             INSERT INTO character(
                 account_id, slot, request_fingerprint, payload_hash,
                 faction, blood, sex, last_name, first_name, flagship_name,
-                face, ability_values, authority_version)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                face, ability_values, authority_version, flagship_type, flagship_kind)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING character_id
             """;
         await using (var insert = new NpgsqlCommand(insertCharacter, connection, transaction))
@@ -2382,6 +2580,10 @@ public sealed class PostgresAccountStore : IAccountStore
                 NpgsqlDbType.Array | NpgsqlDbType.Smallint,
                 write.Character.AbilityValues);
             insert.Parameters.AddWithValue(nextVersion);
+            insert.Parameters.AddWithValue(NpgsqlDbType.Smallint,
+                write.Character.FlagshipType is { } flagshipType ? (object)(short)flagshipType : DBNull.Value);
+            insert.Parameters.AddWithValue(NpgsqlDbType.Integer,
+                write.Character.FlagshipKind is { } flagshipKind ? (object)(int)flagshipKind : DBNull.Value);
             characterIdCreated = (long)(await insert.ExecuteScalarAsync(cancellationToken) ??
                 throw new InvalidOperationException("CHARACTER_INSERT_NO_ID"));
         }
@@ -2414,6 +2616,8 @@ public sealed class PostgresAccountStore : IAccountStore
             write.Character.LastName,
             write.Character.FirstName,
             write.Character.FlagshipName,
+            write.Character.FlagshipType,
+            write.Character.FlagshipKind,
             write.Character.Face,
             abilityValues = write.Character.AbilityValues
         });
@@ -2464,7 +2668,15 @@ public sealed class PostgresAccountStore : IAccountStore
             checked((uint)reader.GetInt64(1)),
             checked((ushort)reader.GetInt32(2)),
             checked((uint)reader.GetInt64(3)),
-            reader.GetInt64(4));
+            reader.GetInt64(4),
+            checked((uint)reader.GetInt64(5)),
+            checked((ushort)reader.GetInt32(6)),
+            checked((ushort)reader.GetInt32(7)),
+            reader.IsDBNull(8) ? null : reader.GetGuid(8),
+            reader.GetInt64(9), reader.GetFloat(10), checked((byte)reader.GetInt32(reader.GetOrdinal("mode"))),
+            checked((ushort)reader.GetInt32(reader.GetOrdinal("unit_number"))),
+            checked((uint)reader.GetInt64(reader.GetOrdinal("supplies"))),
+            checked((byte)reader.GetInt32(reader.GetOrdinal("morale"))));
 
     private static OriginalMoveGridStoreResult RejectOriginalMoveGrid(
         long authorityVersion,
@@ -2497,11 +2709,17 @@ public sealed class PostgresAccountStore : IAccountStore
     private static string OriginalGridUnitMovedStateHash(
         Guid accountId,
         long authorityVersion,
-        OriginalMoveGridWrite write)
+        OriginalMoveGridWrite write, float cruising, long shipGeneration, byte mode)
     {
         var canonicalJson = FormattableString.Invariant(
-            $"{{\"accountId\":\"{accountId:D}\",\"authorityVersion\":{authorityVersion},\"characterId\":{write.CharacterId},\"unitId\":{write.UnitId},\"sourceCellId\":{write.SourceCellId},\"destinationCellId\":{write.DestinationCellId},\"requestFingerprint\":\"{write.RequestFingerprint}\"}}");
-        var prefix = "logh7-authority-state/v1\n"u8;
+            $"{{\"accountId\":\"{accountId:D}\",\"authorityVersion\":{authorityVersion},\"characterId\":{write.CharacterId},\"unitId\":{write.UnitId},\"sourceCellId\":{write.SourceCellId},\"destinationCellId\":{write.DestinationCellId},\"cruisingBits\":{BitConverter.SingleToUInt32Bits(cruising)},\"shipGeneration\":{shipGeneration},\"requestFingerprint\":\"{write.RequestFingerprint}\"}}");
+        canonicalJson = canonicalJson[..^1] + FormattableString.Invariant($",\"mode\":{mode}}}");
+        // A charged move and a free one are different worlds, so the state hash
+        // must separate them. A move with no charge hashes exactly as before.
+        if (write.Points is { } charged)
+            canonicalJson = canonicalJson[..^1] + FormattableString.Invariant(
+                $",\"commandPointPool\":{(int)charged.Pool},\"commandPointCost\":{charged.Cost}}}");
+        var prefix = "logh7-authority-state/move-grid-v3\n"u8;
         var jsonBytes = Encoding.UTF8.GetBytes(canonicalJson);
         var input = new byte[prefix.Length + jsonBytes.Length];
         prefix.CopyTo(input);

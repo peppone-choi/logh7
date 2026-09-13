@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "staticBases": [
+    {
+      "id": 1, "grid": 101, "modelFile": 0, "kind": 0,
+      "name": "第1拠点", "class": 1,
+      "revolutionRadius": 1.0, "revolutionCycle": 1,
+      "revolutionDirection": 0, "revolutionInitialAngle": 0.5,
+      "diameter": 1.0, "evidenceStatus": "NEW_DESIGN"
+    },
+    {
+      "id": 2, "grid": 102, "modelFile": 0, "kind": 0,
+      "name": "帰還惑星（仮）", "class": 1,
+      "revolutionRadius": 1.0, "revolutionCycle": 2400,
+      "revolutionDirection": 0, "revolutionInitialAngle": 0.5,
+      "diameter": 1.0, "evidenceStatus": "NEW_DESIGN"
+    }
+  ],
+  "templates": [
+    {
+      "id": "authored-open-space-v1",
+      "baseInstitutions": [
+        { "id": 1, "institutions": [
+          { "kind": 4, "id": 101, "spots": [{ "kind": 6, "id": 1001, "file": 7 }] },
+          { "kind": 16, "id": 102, "spots": [{ "kind": 13, "id": 1002, "file": 1 }] }
+        ] }
+      ],
+      "grid": 0,
+      "evidenceStatus": "NEW_DESIGN",
+      "enemyPower": 3,
+      "playerSpawn": { "x": -10.0, "y": 0.0, "z": 0.0, "direction": 0.0 },
+      "enemySpawn": { "x": 10.0, "y": 0.0, "z": 0.0, "direction": 3.1415927 },
+      "baseSpawn": { "x": 0.0, "y": 30.0, "z": 0.0, "direction": 0.0 },
+      "tacticalBases": [
+        { "id": 1, "x": 0.0, "y": 30.0, "z": 0.0,
+          "antiaircraft": 0, "cannonAngle": 0, "cannonStart": 0, "stamina": 100 }
+      ],
+      "baseInformation": [
+        { "id": 1, "power": 2, "camp": 0, "grid": 101, "priceIndex": 1.0, "supplies": 100, "armor": 100 }
+      ],
+      "blackHoles": [],
+      "asteroidBelts": [],
+      "gasClouds": [],
+      "abnormalGravities": [],
+      "circles": []
+    },
+    {
+      "id": "authored-rear-return-v1",
+      "baseInstitutions": [
+        { "id": 2, "institutions": [
+          { "kind": 4, "id": 201, "spots": [{ "kind": 6, "id": 2001, "file": 7 }] },
+          { "kind": 16, "id": 202, "spots": [{ "kind": 13, "id": 2002, "file": 1 }] }
+        ] }
+      ],
+      "grid": 102,
+      "evidenceStatus": "NEW_DESIGN",
+      "enemyPower": 3,
+      "spawnEnemy": false,
+      "playerSpawn": { "x": -10.0, "y": 0.0, "z": 0.0, "direction": 0.0 },
+      "enemySpawn": { "x": 10.0, "y": 0.0, "z": 0.0, "direction": 3.1415927 },
+      "baseSpawn": { "x": 0.0, "y": 30.0, "z": 0.0, "direction": 0.0 },
+      "tacticalBases": [
+        { "id": 2, "x": 0.0, "y": 30.0, "z": 0.0,
+          "antiaircraft": 0, "cannonAngle": 0, "cannonStart": 0, "stamina": 100 }
+      ],
+      "baseInformation": [
+        { "id": 2, "power": 2, "camp": 0, "grid": 102, "priceIndex": 1.0, "supplies": 100, "armor": 100 }
+      ],
+      "blackHoles": [], "asteroidBelts": [], "gasClouds": [],
+      "abnormalGravities": [], "circles": []
+    }
+  ]
+}

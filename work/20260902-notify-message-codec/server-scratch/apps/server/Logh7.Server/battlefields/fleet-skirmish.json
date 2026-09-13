@@ -1,0 +1,529 @@
+{
+  "schemaVersion": 1,
+  "staticBases": [
+    {
+      "id": 1,
+      "grid": 101,
+      "modelFile": 0,
+      "kind": 0,
+      "name": "第1拠点",
+      "class": 1,
+      "revolutionRadius": 1,
+      "revolutionCycle": 1,
+      "revolutionDirection": 0,
+      "revolutionInitialAngle": 0.5,
+      "diameter": 1,
+      "evidenceStatus": "NEW_DESIGN"
+    },
+    {
+      "id": 2,
+      "grid": 102,
+      "modelFile": 0,
+      "kind": 0,
+      "name": "帰還惑星（仮）",
+      "class": 1,
+      "revolutionRadius": 1,
+      "revolutionCycle": 2400,
+      "revolutionDirection": 0,
+      "revolutionInitialAngle": 0.5,
+      "diameter": 1,
+      "evidenceStatus": "NEW_DESIGN"
+    }
+  ],
+  "templates": [
+    {
+      "id": "authored-open-space-v1",
+      "baseInstitutions": [
+        {
+          "id": 1,
+          "institutions": [
+            {
+              "kind": 4,
+              "id": 101,
+              "spots": [
+                {
+                  "kind": 6,
+                  "id": 1001,
+                  "file": 7
+                }
+              ]
+            },
+            {
+              "kind": 16,
+              "id": 102,
+              "spots": [
+                {
+                  "kind": 13,
+                  "id": 1002,
+                  "file": 1
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "grid": 0,
+      "evidenceStatus": "NEW_DESIGN",
+      "enemyPower": 3,
+      "playerSpawn": {
+        "x": -10,
+        "y": 0,
+        "z": 0,
+        "direction": 0
+      },
+      "enemySpawn": {
+        "x": 10,
+        "y": 0,
+        "z": 0,
+        "direction": 3.1415927
+      },
+      "baseSpawn": {
+        "x": 0,
+        "y": 30,
+        "z": 0,
+        "direction": 0
+      },
+      "tacticalBases": [
+        {
+          "id": 1,
+          "x": 0,
+          "y": 30,
+          "z": 0,
+          "antiaircraft": 0,
+          "cannonAngle": 0,
+          "cannonStart": 0,
+          "stamina": 100
+        }
+      ],
+      "baseInformation": [
+        {
+          "id": 1,
+          "power": 2,
+          "camp": 0,
+          "grid": 101,
+          "priceIndex": 1,
+          "supplies": 100,
+          "armor": 100
+        }
+      ],
+      "blackHoles": [],
+      "asteroidBelts": [],
+      "gasClouds": [],
+      "abnormalGravities": [],
+      "circles": []
+    },
+    {
+      "id": "authored-rear-return-v1",
+      "baseInstitutions": [
+        {
+          "id": 2,
+          "institutions": [
+            {
+              "kind": 4,
+              "id": 201,
+              "spots": [
+                {
+                  "kind": 6,
+                  "id": 2001,
+                  "file": 7
+                }
+              ]
+            },
+            {
+              "kind": 16,
+              "id": 202,
+              "spots": [
+                {
+                  "kind": 13,
+                  "id": 2002,
+                  "file": 1
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "grid": 102,
+      "evidenceStatus": "NEW_DESIGN",
+      "enemyPower": 3,
+      "spawnEnemy": false,
+      "playerSpawn": {
+        "x": -10,
+        "y": 0,
+        "z": 0,
+        "direction": 0
+      },
+      "enemySpawn": {
+        "x": 10,
+        "y": 0,
+        "z": 0,
+        "direction": 3.1415927
+      },
+      "baseSpawn": {
+        "x": 0,
+        "y": 30,
+        "z": 0,
+        "direction": 0
+      },
+      "tacticalBases": [
+        {
+          "id": 2,
+          "x": 0,
+          "y": 30,
+          "z": 0,
+          "antiaircraft": 0,
+          "cannonAngle": 0,
+          "cannonStart": 0,
+          "stamina": 100
+        }
+      ],
+      "baseInformation": [
+        {
+          "id": 2,
+          "power": 2,
+          "camp": 0,
+          "grid": 102,
+          "priceIndex": 1,
+          "supplies": 100,
+          "armor": 100
+        }
+      ],
+      "blackHoles": [],
+      "asteroidBelts": [],
+      "gasClouds": [],
+      "abnormalGravities": [],
+      "circles": [],
+      "fleets": [
+        {
+          "id": 2113929572,
+          "power": 3,
+          "camp": 0,
+          "posture": "defend",
+          "ships": [
+            {
+              "id": 2113929480,
+              "kind": 139,
+              "spawn": {
+                "x": -6.0,
+                "y": -1.0,
+                "z": 0.0,
+                "direction": 3.1415927
+              },
+              "complement": 1
+            }
+          ],
+          "commander": "敵哨戒隊"
+        },
+        {
+          "id": 2113929573,
+          "power": 2,
+          "camp": 0,
+          "posture": "defend",
+          "ships": [
+            {
+              "id": 2113929481,
+              "kind": 56,
+              "spawn": {
+                "x": -8.0,
+                "y": 2.0,
+                "z": 0.0,
+                "direction": 0.0
+              }
+            }
+          ],
+          "commander": "僚艦隊"
+        },
+        {
+          "id": 2113929577,
+          "power": 2,
+          "camp": 0,
+          "posture": "defend",
+          "role": "repair",
+          "ships": [
+            {
+              "id": 2113929485,
+              "kind": 57,
+              "spawn": {
+                "x": -0.5,
+                "y": 0.15,
+                "z": 0.0,
+                "direction": 0.0
+              }
+            }
+          ],
+          "commander": "工作隊"
+        },
+        {
+          "id": 2113929578,
+          "power": 2,
+          "camp": 0,
+          "posture": "defend",
+          "role": "supply",
+          "ships": [
+            {
+              "id": 2113929486,
+              "kind": 58,
+              "spawn": {
+                "x": -0.5,
+                "y": -0.15,
+                "z": 0.0,
+                "direction": 0.0
+              }
+            }
+          ],
+          "commander": "補給隊"
+        }
+      ]
+    },
+    {
+      "id": "authored-fleet-skirmish-v1",
+      "baseInstitutions": [
+        {
+          "id": 1,
+          "institutions": [
+            {
+              "kind": 4,
+              "id": 101,
+              "spots": [
+                {
+                  "kind": 6,
+                  "id": 1001,
+                  "file": 7
+                }
+              ]
+            },
+            {
+              "kind": 16,
+              "id": 102,
+              "spots": [
+                {
+                  "kind": 13,
+                  "id": 1002,
+                  "file": 1
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "grid": 101,
+      "evidenceStatus": "NEW_DESIGN",
+      "enemyPower": 3,
+      "playerSpawn": {
+        "x": -10,
+        "y": 0,
+        "z": 0,
+        "direction": 0
+      },
+      "enemySpawn": {
+        "x": 10,
+        "y": 0,
+        "z": 0,
+        "direction": 3.1415927
+      },
+      "baseSpawn": {
+        "x": 0,
+        "y": 30,
+        "z": 0,
+        "direction": 0
+      },
+      "tacticalBases": [
+        {
+          "id": 1,
+          "x": 0,
+          "y": 30,
+          "z": 0,
+          "antiaircraft": 0,
+          "cannonAngle": 0,
+          "cannonStart": 0,
+          "stamina": 100
+        }
+      ],
+      "baseInformation": [
+        {
+          "id": 1,
+          "power": 2,
+          "camp": 0,
+          "grid": 101,
+          "priceIndex": 1,
+          "supplies": 100,
+          "armor": 100
+        }
+      ],
+      "blackHoles": [],
+      "asteroidBelts": [],
+      "gasClouds": [],
+      "abnormalGravities": [],
+      "circles": [],
+      "spawnEnemy": false,
+      "fleets": [
+        {
+          "id": 2113929568,
+          "power": 2,
+          "camp": 0,
+          "ships": [
+            {
+              "id": 2113929473,
+              "kind": 56,
+              "spawn": {
+                "x": -3,
+                "y": 0,
+                "z": 0,
+                "direction": 0
+              }
+            },
+            {
+              "id": 2113929474,
+              "kind": 56,
+              "spawn": {
+                "x": -3,
+                "y": 2,
+                "z": 0,
+                "direction": 0
+              }
+            }
+          ],
+          "commander": "第一分艦隊"
+        },
+        {
+          "id": 2113929569,
+          "power": 3,
+          "camp": 0,
+          "ships": [
+            {
+              "id": 2113929475,
+              "kind": 119,
+              "spawn": {
+                "x": 3,
+                "y": 0,
+                "z": 0,
+                "direction": 3.1415927
+              }
+            },
+            {
+              "id": 2113929476,
+              "kind": 119,
+              "spawn": {
+                "x": 3,
+                "y": 2,
+                "z": 0,
+                "direction": 3.1415927
+              }
+            }
+          ],
+          "commander": "敵第一分艦隊"
+        },
+        {
+          "id": 2113929570,
+          "power": 3,
+          "camp": 0,
+          "ships": [
+            {
+              "id": 2113929477,
+              "kind": 119,
+              "spawn": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0,
+                "direction": 3.1415927
+              }
+            },
+            {
+              "id": 2113929478,
+              "kind": 119,
+              "spawn": {
+                "x": 0.0,
+                "y": 3.0,
+                "z": 0.0,
+                "direction": 3.1415927
+              }
+            }
+          ],
+          "posture": "defend",
+          "kind": 7,
+          "index": 9,
+          "commander": "敵第二分艦隊"
+        },
+        {
+          "id": 2113929571,
+          "power": 3,
+          "camp": 0,
+          "posture": "defend",
+          "ships": [
+            {
+              "id": 2113929479,
+              "kind": 139,
+              "spawn": {
+                "x": -6.0,
+                "y": -1.0,
+                "z": 0.0,
+                "direction": 3.1415927
+              },
+              "complement": 1
+            }
+          ],
+          "commander": "敵先遣隊"
+        },
+        {
+          "id": 2113929574,
+          "power": 2,
+          "camp": 0,
+          "posture": "defend",
+          "ships": [
+            {
+              "id": 2113929482,
+              "kind": 56,
+              "spawn": {
+                "x": -8.0,
+                "y": 2.0,
+                "z": 0.0,
+                "direction": 0.0
+              }
+            }
+          ],
+          "commander": "僚艦隊"
+        },
+        {
+          "id": 2113929575,
+          "power": 2,
+          "camp": 0,
+          "posture": "defend",
+          "role": "repair",
+          "ships": [
+            {
+              "id": 2113929483,
+              "kind": 57,
+              "spawn": {
+                "x": -0.5,
+                "y": 0.15,
+                "z": 0.0,
+                "direction": 0.0
+              }
+            }
+          ],
+          "commander": "工作隊"
+        },
+        {
+          "id": 2113929576,
+          "power": 2,
+          "camp": 0,
+          "posture": "defend",
+          "role": "supply",
+          "ships": [
+            {
+              "id": 2113929484,
+              "kind": 58,
+              "spawn": {
+                "x": -0.5,
+                "y": -0.15,
+                "z": 0.0,
+                "direction": 0.0
+              }
+            }
+          ],
+          "commander": "補給隊"
+        }
+      ]
+    }
+  ]
+}

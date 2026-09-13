@@ -28,11 +28,13 @@ public static class OriginalSimpleRankCodec
 
         // ORIGINAL_STATIC + LIVE: NotifySimpleInformationRank (0x1209) is a
         // packed byte count followed by raw little-endian ushort rank pairs.
-        // Eligibility is authoritative: expose only the selected character's
-        // current ladder step; the client renders current -> current - 1.
-        var rank = Allocate(RankType, sizeof(byte) + sizeof(ushort));
-        rank[6] = 1;
-        BinaryPrimitives.WriteUInt16LittleEndian(rank.AsSpan(7), currentRank);
+        // The client renders current -> current - 1. Never offer rank zero;
+        // this boundary check is not the original full eligibility policy.
+        var hasHigherRank = currentRank > 1;
+        var rank = Allocate(RankType, sizeof(byte) + (hasHigherRank ? sizeof(ushort) : 0));
+        rank[6] = hasHigherRank ? (byte)1 : (byte)0;
+        if (hasHigherRank)
+            BinaryPrimitives.WriteUInt16LittleEndian(rank.AsSpan(7), currentRank);
 
         return [begin, rank, Allocate(EndType, EndBodySize)];
     }
@@ -83,6 +85,15 @@ public static class OriginalSimpleRankCodec
     //   u32 characterId, u8 cardCount(<=13) + u16[cardCount], u16, u16, u8 n2(<=16) + u16[n2], u8 flagA(<=1) [+ nested],
     //   u8 n3(<=4) [+ nested], u32, u32   -> minimal record = 20 bytes (all counts 0). Cell stride 0x120, cap 200.
     public const ushort NinmeiCharacterSelector = 0x0004;
+    // ORIGINAL_STATIC + LIVE (runs 20260903T054448Z/063644Z and
+    // 20260904T111550Z): 部隊解散 sends selector 0x001E. The command panel
+    // is state 6 and consumes NotifySimpleInformationUnit (0x1207), whose
+    // records identify units under the current character's command.
+    public const ushort UnitCommandPrefetchSelector = 0x001e;
+
+    public static ushort KnownListKind(ushort selector) =>
+        selector == UnitCommandPrefetchSelector ? (ushort)0x1207 : (ushort)0;
+
     // PROBE (2026-09-03, LOGH7_LIST_KIND_PROBE="15:1202,0B:1202,1E:1202"): serve a known list kind for a 0x1200
     // selector whose expected notify kind is not known yet (live sweep 054448Z: 抜擢 person picker 0x0015, 発令 0x000B,
     // 部隊解散 0x001E all rejected the 0x120F roster fallback with 選択可能な項目が存在しません). Values: 1202 character

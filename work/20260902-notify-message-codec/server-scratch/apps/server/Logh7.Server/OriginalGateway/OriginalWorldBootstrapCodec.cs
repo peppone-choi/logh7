@@ -12,6 +12,47 @@ public readonly record struct OriginalMessengerInformationRecord(
     string FlagshipName,
     ushort Rank);
 
+public readonly record struct OriginalStaticUnitShipTemplate(
+    ushort Kind,
+    byte Type,
+    byte Category,
+    ushort Achievement,
+    ushort ModelFile,
+    string Name,
+    OriginalStaticUnitShipCapabilities? Capabilities = null,
+    OriginalStaticUnitShipLogistics? Logistics = null);
+
+// Original static template fields, not warehouse quantities or a recovery policy.
+// Null retains the legacy zero fixture; zero is not evidence of free ships or
+// crew-free operation. Callers must supply independently sourced catalog data.
+public readonly record struct OriginalStaticUnitShipLogistics(
+    uint Price, ushort Resources, ushort Cost, ushort Term, ushort Crew);
+
+public readonly record struct OriginalStaticUnitShipCapabilities(
+    ushort Navigation,
+    float Speed,
+    float Turn,
+    ushort ArmorFront,
+    ushort ArmorBack,
+    ushort ArmorSide,
+    ushort Shield,
+    ushort ShieldCapacity,
+    byte BeamArms,
+    ushort BeamPower,
+    byte BeamAngleMask,
+    ushort Number = 0,
+    ushort Existence = 0,
+    ushort TotalPower = 0,
+    float CommunicationRange = 0,
+    float SearchingRange = 0,
+    byte GunArms = 0,
+    ushort GunPower = 0,
+    byte GunAngleMask = 0,
+    byte MissileArms = 0,
+    ushort MissilePower = 0,
+    byte MissileAngleMask = 0,
+    ushort MissileConsumption = 0);
+
 public static class OriginalWorldBootstrapCodec
 {
     private const int StaticGridBodySize = 0x138c;
@@ -20,10 +61,25 @@ public static class OriginalWorldBootstrapCodec
     private const int MaximumMessengerCharacters = 101;
     private const int MaximumMessengerNameCharacters = 13;
     private const int MaximumMessengerFlagshipCharacters = 16;
+    private const int MaximumStaticUnitShipTemplates = 200;
+    // Input_ResponseStaticInformationUnitShip allows 13 u16 elements,
+    // including the NUL consumed by the direct name reader in 0x0054D886.
+    private const int MaximumStaticUnitShipNameCharacters = 12;
 
-    public static bool TryEncodeResponse(ReadOnlySpan<byte> request, out byte[] response)
+    public static bool TryEncodeResponse(ReadOnlySpan<byte> request, out byte[] response,
+        IReadOnlyList<OriginalStaticBaseRecord>? staticBases = null,
+        OriginalStaticArmsTable? staticArms = null)
     {
         response = [];
+        if (request.Length == sizeof(ushort) * 2 &&
+            BinaryPrimitives.ReadUInt16BigEndian(request) == 0x0316)
+        {
+            response = EncodeInformationGrid(
+                BinaryPrimitives.ReadUInt16BigEndian(request[sizeof(ushort)..]),
+                tacticsState: 1);
+            return true;
+        }
+
         if (request.Length == 0x1b &&
             BinaryPrimitives.ReadUInt16BigEndian(request) == 0x0f0d)
         {
@@ -39,17 +95,16 @@ public static class OriginalWorldBootstrapCodec
         var requestType = BinaryPrimitives.ReadUInt16BigEndian(request);
         response = requestType switch
         {
-            0x0300 => EncodeResponseTime(),
             0x0304 => EncodeStaticCards(),
             0x0306 => EncodeStaticCardCommands(),
-            0x0308 => EncodeZeroFilled(0x0309, 0x055c),
-            0x030a => EncodeZeroFilled(0x030b, 0x6d64),
+            0x0308 => EncodeStaticPowerDistribution(),
+            0x030a => EncodeStaticUnitShips(),
             0x030c => EncodeZeroFilled(0x030d, 0x0184),
             0x030e => EncodeZeroFilled(0x030f, 0x0034),
-            0x0310 => EncodeZeroFilled(0x0311, 0x01b0),
+            0x0310 => (staticArms ?? OriginalAuthoredPlayableCatalog.TacticalArms).EncodeResponse(),
             0x0312 => EncodeStaticGridTypes(),
             0x0314 => EncodeStaticGrid(),
-            0x031c => EncodeStaticBases(),
+            0x031c => staticBases is null ? EncodeStaticBases() : EncodeStaticBases(staticBases),
             0x0f00 => EncodeStatus(0x0f01),
             0x0f02 => EncodeStatus(0x0f03),
             0x0f04 => EncodeMailAddresses([]),
@@ -59,10 +114,62 @@ public static class OriginalWorldBootstrapCodec
         return response.Length != 0;
     }
 
-    private static byte[] EncodeResponseTime()
+    // Original input 004A7670: u32/u32/u32/u16, NOT the padded 16-byte object.
+    // Completion scheduling and authoritative unit updates are the caller's responsibility.
+    public static byte[] EncodeNotifyRepairFleet(
+        uint maneuverUnit, uint target, uint maneuverSupplies, ushort targetDamage)
     {
+        var response = Allocate(0x042d, 14);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(6), maneuverUnit);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(10), target);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(14), maneuverSupplies);
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(18), targetDamage);
+        return response;
+    }
+
+    // Original 042E input object uses shared reader 0043E9E0: four u32 values.
+    public static byte[] EncodeNotifySupplyFleet(
+        uint transportUnit, uint target, uint transportSupplies, uint targetSupplies)
+    {
+        var response = Allocate(0x042e, 16);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(6), transportUnit);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(10), target);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(14), transportSupplies);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(18), targetSupplies);
+        return response;
+    }
+
+    // 043C input reader004A9AD0: u32,u32,u8,u8,u32 (14 wire bytes).
+    // Logger004A9C20 names these time,id,kind,mission,achievement.
+    // Preserve raw kind/id: their gameplay domains are not yet recovered.
+    public static byte[] EncodeNotifyMissionResult(
+        uint tick, uint id, byte kind, byte mission, uint achievement)
+    {
+        var response = Allocate(0x043c, 14);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(6), tick);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(10), id);
+        response[14] = kind;
+        response[15] = mission;
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(16), achievement);
+        return response;
+    }
+
+    // 004A8120 reads power/camp as bytes, then a network-order character ID.
+    // The expanded object is eight bytes; its padding is not on the wire.
+    public static byte[] EncodeNotifyTacticsChiefCommander(byte power, byte camp, uint characterId)
+    {
+        var response = Allocate(0x0431, 6);
+        response[6] = power;
+        response[7] = camp;
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(8), characterId);
+        return response;
+    }
+
+    public static byte[] EncodeResponseTime(uint tick)
+    {
+        // Input_ResponseTime::input_from_stream (004AA250): one network-order u32.
         var response = Allocate(0x0301, sizeof(uint));
-        BinaryPrimitives.WriteUInt32LittleEndian(response.AsSpan(6), 0x40000000);
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(6), tick);
         return response;
     }
 
@@ -71,6 +178,221 @@ public static class OriginalWorldBootstrapCodec
         var response = Allocate(type, 1);
         response[6] = 1;
         return response;
+    }
+
+    public static byte[] EncodeInformationGrid(ushort index, byte tacticsState)
+    {
+        if (tacticsState > 2)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tacticsState),
+                tacticsState,
+                "The original parser accepts tactics_state values from 0 through 2.");
+        }
+
+        // Input_ResponseInformationGrid::input_from_stream (0x00413950):
+        // index:u16 followed by tactics_state:u8 constrained to 0..2.
+        var response = Allocate(0x0317, sizeof(ushort) + sizeof(byte));
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(6), index);
+        response[8] = tacticsState;
+        return response;
+    }
+
+    public static byte[] EncodeStaticPowerDistribution()
+    {
+        // ORIGINAL_STATIC: Input_ResponseStaticInformationPowerDistribution::
+        // input_from_stream at 0x00410370 consumes this exact compact order.
+        // Its expanded object is 0x55c bytes because the client inserts two
+        // alignment bytes after warp[2]; those bytes are not present on wire.
+        var body = new WireWriter();
+
+        // NEW DESIGN: the original authority values have not been recovered.
+        // Use bounded nonzero defaults so all parser-proven tactical curves and
+        // HUD denominators are defined until original data is found.
+        for (var index = 0; index < 11; index++)
+        {
+            body.WriteSingle(1); // move[11]
+        }
+
+        body.WriteByte(1); // warp[0]
+        body.WriteByte(1); // warp[1]
+
+        for (var index = 0; index < 4; index++)
+        {
+            body.WriteSingle(1); // sensor[4]
+        }
+
+        for (var shield = 0; shield < 11; shield++)
+        {
+            for (var fillup = 0; fillup < 9; fillup++)
+            {
+                body.WriteUInt32(OriginalAuthoredPlayableCatalog.TacticalShieldRecoveryPeriod); // shield[11][9].fillup.time
+            }
+        }
+
+        for (var beam = 0; beam < 14; beam++)
+        {
+            for (var fillup = 0; fillup < 20; fillup++)
+            {
+                body.WriteUInt16(100); // beam[14][20].fillup.value
+            }
+        }
+
+        for (var gun = 0; gun < 11; gun++)
+        {
+            for (var fillup = 0; fillup < 16; fillup++)
+            {
+                body.WriteUInt16(100); // gun[11][16].fillup.value
+            }
+        }
+
+        return Wrap(0x0309, body);
+    }
+
+    public static byte[] EncodeStaticUnitShips() =>
+        EncodeStaticUnitShips(PlayableUnitShipTemplates());
+
+    public static byte[] EncodeStaticUnitShipsWithComplements(IReadOnlyDictionary<ushort, ushort> numbers) =>
+        EncodeStaticUnitShips(PlayableUnitShipTemplates().Select(t => numbers.TryGetValue(t.Kind, out var number)
+            ? t with { Capabilities = t.Capabilities.GetValueOrDefault() with { Number = number } } : t).ToArray());
+
+    private static IReadOnlyList<OriginalStaticUnitShipTemplate> PlayableUnitShipTemplates() =>
+        [
+            new OriginalStaticUnitShipTemplate(
+                Kind: 0,
+                Type: 0,
+                Category: 0,
+                Achievement: 0,
+                // VISUAL_CANDIDATE E075: original GE/EM012; validate against
+                // the ordinary-hull thumbnail, not constmsg row=model index.
+                ModelFile: 12,
+                Name: string.Empty,
+                Capabilities: OriginalAuthoredPlayableCatalog.TacticalShipCapabilities),
+            new OriginalStaticUnitShipTemplate(
+                Kind: 89,
+                Type: 0,
+                Category: 0,
+                Achievement: 0,
+                // Separate FP/ FM003 candidate. model_file /1000 selects
+                // faction table; 004C4290 normalizes by Kind, not packet order.
+                ModelFile: 1003,
+                Name: string.Empty,
+                Capabilities: OriginalAuthoredPlayableCatalog.TacticalShipCapabilities),
+            // E102 VISUAL_CANDIDATE: original MDX geometry compared with iu003
+            // and iu093. Class IDs are not model IDs; native identity/rendering
+            // remains unverified. Preserve the approved temporary capabilities.
+            // Without these normalized slots,004F3D80 reads zero -> EM001.
+            new OriginalStaticUnitShipTemplate(
+                Kind: 3, Type: 0, Category: 0, Achievement: 0,
+                ModelFile: 18, Name: string.Empty,
+                Capabilities: OriginalAuthoredPlayableCatalog.TacticalShipCapabilities),
+            new OriginalStaticUnitShipTemplate(
+                Kind: 93, Type: 0, Category: 0, Achievement: 0,
+                ModelFile: 1014, Name: string.Empty,
+                Capabilities: OriginalAuthoredPlayableCatalog.TacticalShipCapabilities),
+            ..OriginalSubordinateShipCatalog.Templates,
+        ];
+
+    public static byte[] EncodeStaticUnitShips(
+        IReadOnlyList<OriginalStaticUnitShipTemplate> templates)
+    {
+        ArgumentNullException.ThrowIfNull(templates);
+        if (templates.Count > MaximumStaticUnitShipTemplates)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(templates),
+                templates.Count,
+                $"At most {MaximumStaticUnitShipTemplates} static unit-ship templates are supported.");
+        }
+
+        var body = new WireWriter();
+        body.WriteByte(checked((byte)templates.Count));
+        foreach (var template in templates)
+        {
+            if (template.Name.Length > MaximumStaticUnitShipNameCharacters)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(templates),
+                    template.Name.Length,
+                    $"Static unit-ship names are limited to {MaximumStaticUnitShipNameCharacters} characters.");
+            }
+
+            body.WriteUInt16(template.Kind);
+            body.WriteByte(template.Type);
+            body.WriteByte(template.Category);
+            body.WriteUInt16(template.Achievement);
+            body.WriteUInt16(template.ModelFile);
+            // With count=0 the parser skips its name buffer entirely. The
+            // flagship sheet still reads that buffer as a NUL-terminated
+            // string, exposing stale heap data (live: repeated 0x00FF).
+            body.WriteByte(checked((byte)(template.Name.Length + 1)));
+            foreach (var character in template.Name)
+            {
+                body.WriteUInt16(character);
+            }
+            body.WriteUInt16(0);
+
+            // NEW DESIGN: the first playable probe uses bounded authored combat
+            // values in parser-proven fields. Callers that omit Capabilities
+            // retain an all-zero template for exact codec fixtures.
+            var capabilities = template.Capabilities.GetValueOrDefault();
+            // 00411A60 prints exactly six direction bits for each *_angle.
+            // These are sector masks, not degrees; reject silently ignored bits.
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(capabilities.BeamAngleMask, (byte)0x3f);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(capabilities.GunAngleMask, (byte)0x3f);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(capabilities.MissileAngleMask, (byte)0x3f);
+            // ORIGINAL_STATIC + LIVE ORIGINAL CLIENT (2026-09-05):
+            // FUN_004C4C50 expands this `number` into tactical template
+            // +0x218. FUN_004C32A0 derives entity +0x8D8 (remaining ships)
+            // from it; FUN_004B2740 arms destruction at zero and
+            // FUN_004C94E0 removes the entity after 30 update frames.
+            body.WriteUInt16(capabilities.Number);
+            var logistics = template.Logistics.GetValueOrDefault();
+            body.WriteUInt32(logistics.Price);
+            body.WriteUInt16(logistics.Resources);
+            body.WriteUInt16(logistics.Cost);
+            body.WriteUInt16(logistics.Term);
+            // ORIGINAL_STATIC: FUN_00411A60 names expanded UnitShip+0x32
+            // `existence`; FUN_004C4C50 projects it to tactical +0x24e.
+            body.WriteUInt16(capabilities.Existence);
+            body.WriteUInt16(logistics.Crew);
+            // ORIGINAL_STATIC: FUN_00411A60 names expanded UnitShip+0x36
+            // `power`. FUN_004C4C50 projects it to tactical template +0x252,
+            // which FUN_0050D230 uses as the total-system-power divisor.
+            body.WriteUInt16(capabilities.TotalPower);
+            // ORIGINAL_STATIC + LIVE ORIGINAL CLIENT (2026-09-05):
+            // StaticInformationUnitShip.communication_range is projected by
+            // FUN_004C4C50 into tactical template +0x254, then copied by
+            // FUN_004C32A0 to entity +0x8C8. FUN_0050D230 passes it to
+            // FUN_004EC600 as the pick manager's far/selectable threshold.
+            // Zero makes every non-origin ship alternate-only (0x20000).
+            body.WriteSingle(capabilities.CommunicationRange);
+            body.WriteSingle(capabilities.SearchingRange);
+            body.WriteUInt16s(11);
+            body.WriteUInt16(0); // searching evasion
+            body.WriteUInt16(capabilities.Navigation);
+            body.WriteSingle(capabilities.Speed);
+            body.WriteSingle(capabilities.Turn);
+            body.WriteUInt16(capabilities.ArmorFront);
+            body.WriteUInt16(capabilities.ArmorBack);
+            body.WriteUInt16(capabilities.ArmorSide);
+            body.WriteUInt16(capabilities.Shield);
+            body.WriteUInt16(capabilities.ShieldCapacity);
+            body.WriteByte(capabilities.BeamArms);
+            body.WriteUInt16(capabilities.BeamPower);
+            body.WriteByte(capabilities.BeamAngleMask);
+            body.WriteByte(capabilities.GunArms);
+            body.WriteUInt16(capabilities.GunPower);
+            body.WriteByte(capabilities.GunAngleMask);
+            body.WriteByte(capabilities.MissileArms);
+            body.WriteUInt16(capabilities.MissilePower);
+            body.WriteByte(capabilities.MissileAngleMask);
+            body.WriteUInt16(capabilities.MissileConsumption);
+            body.WriteByte(0);   // antiaircraft arms
+            body.WriteUInt16s(6);
+        }
+
+        return Wrap(0x030b, body);
     }
 
     public static byte[] EncodeMailAddresses(IReadOnlyList<OriginalMailAddressRecord> addresses)
@@ -239,7 +561,11 @@ public static class OriginalWorldBootstrapCodec
     {
         // NEW_DESIGN default (2026-09-03): 任命 (5, CommandCardAppointment) is served on the authored card by default so
         // the verified appointment vertical reproduces without LOGH7_EXTRA_CARD_COMMANDS; env ids are appended.
-        var ids = new List<ushort> { 5 };
+        // NEW_DESIGN: expose own-ship departure60 now that its authoritative
+        // handler exists. Both0305 and0307 consume this list; defining only
+        // the handler leaves the original command panel unable to select it.
+        // This does not claim original card39 assignment or mode5 support.
+        var ids = new List<ushort> { 5, 60 };
         var raw = Environment.GetEnvironmentVariable("LOGH7_EXTRA_CARD_COMMANDS");
         if (string.IsNullOrWhiteSpace(raw))
         {
@@ -446,6 +772,29 @@ public static class OriginalWorldBootstrapCodec
         return Wrap(0x0307, body);
     }
 
+    public static byte[] EncodeStaticBases(IReadOnlyList<OriginalStaticBaseRecord> records)
+    {
+        ArgumentNullException.ThrowIfNull(records);
+        OriginalStaticBaseRecord.ValidateAll(records);
+        var body = new WireWriter();
+        body.WriteUInt16(checked((ushort)records.Count));
+        foreach (var record in records)
+        {
+            body.WriteUInt32(record.Id);
+            body.WriteUInt16(record.Grid);
+            body.WriteUInt16(record.ModelFile);
+            body.WriteUInt16(record.Kind);
+            body.WritePstr16(record.Name, 13);
+            body.WriteByte(record.Class);
+            body.WriteSingle(record.RevolutionRadius);
+            body.WriteUInt32(record.RevolutionCycle);
+            body.WriteByte(record.RevolutionDirection);
+            body.WriteSingle(record.RevolutionInitialAngle);
+            body.WriteSingle(record.Diameter);
+        }
+        return Wrap(0x031d, body);
+    }
+
     public static byte[] EncodeStaticBases()
     {
         // Input_ResponseStaticInformationBase::input_from_stream
@@ -453,13 +802,13 @@ public static class OriginalWorldBootstrapCodec
         // 0x520c zero body represented count=0 and therefore resolved every
         // base-name lookup as NO DATA.
         var body = new WireWriter();
-        // EXPERIMENT (condition 5, 2026-09-03): with LOGH7_CELESTIAL_CLASS_SWEEP=1 emit one Base per class_
-        // value 0..13 at distinct grid cells, so a single in-system (星系内宇宙) capture reveals which class_
-        // renders which celestial family (planet / fortress / sun / black hole). Default = the single Base 1.
+        // Legacy opt-in probe only. Explicit catalog definitions use the typed overload above.
+        // E013 corrects the old inference: <=13 bounds nameCount, NOT Class.
+        // The fourteen-value sweep is an authored experiment, not a proven enum domain.
         var classSweep = Environment.GetEnvironmentVariable("LOGH7_CELESTIAL_CLASS_SWEEP") == "1";
         if (classSweep)
         {
-            const int classCount = 14; // class_ range 0..13 (client FUN_004142E0 bounds class_ <= 0xD)
+            const int classCount = 14;
             body.WriteUInt16(classCount);
             for (var i = 0; i < classCount; i++)
             {
@@ -473,7 +822,7 @@ public static class OriginalWorldBootstrapCodec
                 body.WriteUInt32(OriginalAuthoredPlayableCatalog.BaseRevolutionCycle);
                 body.WriteByte(OriginalAuthoredPlayableCatalog.BaseRevolutionDirection);
                 body.WriteSingle(OriginalAuthoredPlayableCatalog.BaseRevolutionInitAngle);
-                body.WriteSingle(OriginalAuthoredPlayableCatalog.BaseRadius);
+                body.WriteSingle(OriginalAuthoredPlayableCatalog.BaseDiameter);
             }
             return Wrap(0x031d, body);
         }
@@ -485,21 +834,17 @@ public static class OriginalWorldBootstrapCodec
         body.WritePstr16(OriginalAuthoredPlayableCatalog.BaseName, 13);
         // ORIGINAL_STATIC: FUN_004142E0 reads class as the byte immediately
         // after the compact name. The nonzero class is NEW DESIGN for Base 1.
-        // PROBE (2026-09-04): BASE-target commands (部隊結成/部隊解散/発令/演説) reject the authored base with
-        // 「選択可能な拠点が存在しません」 even though the character and the base share grid cell 101, so position is
-        // not the gate. The client's wording is 「惑星／要塞軌道上」, and klass 3 is the known planet family
-        // (render path FUN_004D3BD0 accepts klass 3, variants 0..6) while the authored base ships klass 1.
-        // LOGH7_BASE_KLASS sweeps the class byte to find which value the client accepts as a usable 拠点.
+        // Retained legacy opt-in probe; Base Class and strategy GridType klass are distinct.
         body.WriteByte(TryByteEnv("LOGH7_BASE_KLASS", OriginalAuthoredPlayableCatalog.BaseKlass));
         // ORIGINAL_STATIC: FUN_004142E0 reads f32/u32/u8/f32/f32 here.
-        // FUN_00425C20 labels the matching slots revolution radius, cycle,
-        // direction, initial angle, and radius. Float IEEE754 bits use network
+        // Exact Base logger00414A30 names revolution radius, cycle,
+        // direction, initial angle (degrees), and DIAMETER. Float bits use network
         // byte order. Concrete values are bounded NEW DESIGN placeholders.
         body.WriteSingle(OriginalAuthoredPlayableCatalog.BaseRevolutionRadius);
         body.WriteUInt32(OriginalAuthoredPlayableCatalog.BaseRevolutionCycle);
         body.WriteByte(OriginalAuthoredPlayableCatalog.BaseRevolutionDirection);
         body.WriteSingle(OriginalAuthoredPlayableCatalog.BaseRevolutionInitAngle);
-        body.WriteSingle(OriginalAuthoredPlayableCatalog.BaseRadius);
+        body.WriteSingle(OriginalAuthoredPlayableCatalog.BaseDiameter);
         return Wrap(0x031d, body);
     }
 

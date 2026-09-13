@@ -16,14 +16,16 @@ public readonly record struct OriginalCreateCharacterCommand(
     uint Face,
     byte[] AbilityValues,
     byte BonusPoint,
+    byte SpecialAbilityCount,
     byte Title,
     byte Rank,
-    byte FlagshipClass,
-    byte FlagshipModel,
-    ushort FlagshipId,
+    byte FlagshipType,
+    ushort FlagshipKind,
     string FlagshipName,
     byte Check,
-    byte[] RawPayload);
+    byte[] RawPayload,
+    uint ReturnBaseId = 0,
+    uint Achievement = 0);
 
 public readonly record struct OriginalCreateCharacterParseResult(
     bool Success,
@@ -67,11 +69,13 @@ public static class OriginalCharacterCodec
         var abilities = payload.Slice(cursor, 8).ToArray();
         cursor += abilities.Length;
         var bonusPoint = payload[cursor++];
+        // Original parser 0x004066F0 and logger 0x00405EA0: +0x59 is
+        // special_ability_num, then +0x5A title, +0x5B rank, +0x5C flagship_type.
+        var specialAbilityCount = payload[cursor++];
         var title = payload[cursor++];
         var rank = payload[cursor++];
-        var flagshipClass = payload[cursor++];
-        var flagshipModel = payload[cursor++];
-        var flagshipId = BinaryPrimitives.ReadUInt16BigEndian(payload[cursor..]);
+        var flagshipType = payload[cursor++];
+        var flagshipKind = BinaryPrimitives.ReadUInt16BigEndian(payload[cursor..]);
         cursor += sizeof(ushort);
         if (!TryReadPstr16(payload, ref cursor, allowEmpty: true, out var flagshipName) ||
             cursor >= payload.Length)
@@ -101,11 +105,11 @@ public static class OriginalCharacterCodec
                 face,
                 abilities,
                 bonusPoint,
+                specialAbilityCount,
                 title,
                 rank,
-                flagshipClass,
-                flagshipModel,
-                flagshipId,
+                flagshipType,
+                flagshipKind,
                 flagshipName,
                 check,
                 payload.ToArray()),

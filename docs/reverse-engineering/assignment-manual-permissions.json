@@ -1,0 +1,58 @@
+{
+  "schema": "logh7-assignment-manual-permissions/1",
+  "status": "ORIGINAL_MANUAL_VISUALLY_VERIFIED_NOT_NATIVE_AUTHORITY",
+  "source": {
+    "path": "evidence/manual-variants/internet-archive/gin7manual.pdf",
+    "pdfPage": 43,
+    "printedPage": 42,
+    "render": "E:/logh7-build/manual-assignment-p43-20260913.png"
+  },
+  "outfitKindResourceMap": {
+    "consumer": "004F68F0 reads outfit+4, calls004C9010;004C8DA0 resolves constmsg group0x53 using Kind",
+    "resourceSha256": "5B3FAFBA7DD7230CDEB5F2FF9ACF9BBBE20FD95ADE25C425BC0D11AE645C383C",
+    "0": "艦隊",
+    "1": "輸送艦隊",
+    "2": "巡察隊",
+    "3": "地上部隊",
+    "4": "守備隊",
+    "caveat": "Garrison Kind4 is absent from the manual allocation permission table; do not infer permission."
+  },
+  "cardResourceSelectors": {
+    "name": "staticCard[cardId].u16@0 ->004C8CB0 ->constmsg group3",
+    "scope": "staticCard[cardId].u8@5 ->004C8C40;11..14 use current outfit name;15..16 use territory placeholder;other scopes use004C8D50 group4",
+    "caveat": "Card array ID, name selector, scope selector and outfit Kind are separate domains."
+  },
+  "roles": [
+    {
+      "name": "統帥本部作戦一課長",
+      "constmsgGroup3NameRows": [24, 88],
+      "fleet": true, "patrol": false, "transportFleet": false, "groundOutfit": false
+    },
+    {
+      "name": "統帥本部作戦二課長",
+      "constmsgGroup3NameRows": [25, 89],
+      "fleet": false, "patrol": true, "transportFleet": true, "groundOutfit": true
+    },
+    {
+      "name": "統合作戦本部第三次長",
+      "constmsgGroup3NameRows": [150, 212],
+      "fleet": true, "patrol": true, "transportFleet": true, "groundOutfit": true
+    }
+  ],
+  "constraints": [
+    "Allocation cannot execute while any outfit is executing reorganization or replenishment.",
+    "Reorganization, replenishment and transport loading/unloading cannot execute while allocation is executing.",
+    "Name rows are labels, not independently verified original authority card IDs.",
+    "Warehouse write grants alone do not establish these role permissions."
+  ],
+  "nativeRequestEvidence": {
+    "selectorStates": "00570EB0:16=TARGET_SELECT_CASTING;17=TARGET_SELECT_CASTPLANET",
+    "listBuilder": "00577E70 state16 ->0057C250(0), state17 ->0057BD90",
+    "kindProvenance": "0057C250 normal0x2C-byte simple-outfit record+5 copied to selection payload+8;record+0 copied to payload+4 outfit ID;00574BA0 copies these to004B51C0",
+    "pooledTargets": "When selected card command is0x43,0057C250 emits at most one entry per Kind2/3 using a five-byte seen-kind array. Kind0/1 use individual outfit names. Pooling is original UI behavior, not inferred from names.",
+    "caller": "00574BA0 case4 calls004C6930 before004B51C0",
+    "shipDelta": "004C69C6..004C69C8 copies signed unit delta;004C69D3 explicitly zeros BoatNumber",
+    "unresolved": "Authoritative conversion from signed unit delta to physical hull movement, especially partially filled units."
+  },
+  "currentServerGap": "OriginalWorldBootstrapCodec static card catalog uses authored card39 and optional command overrides; original role/card mapping is not restored."
+}
