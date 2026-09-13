@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://logh7.local/schemas/oracle-run-receipt.schema.json",
+  "title": "LOGH7 Original Client Oracle Run Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "$comment": "Every run must either list at least one capture boundary or explain the explicit stop point.",
+      "anyOf": [
+        {
+          "properties": {
+            "runtimeObservations": {
+              "required": ["captureBoundaries"],
+              "properties": {
+                "captureBoundaries": { "minItems": 1 }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "runtimeObservations": {
+              "required": ["lastConfirmedBoundary", "blocker"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "$comment": "SEALED_ORACLE is promotable only when the original client and resources are hash-clean, unpatched, read-only under the debugger, and backed by bounded packet/process/debugger/dump/visual evidence.",
+      "if": {
+        "properties": {
+          "evidenceState": { "const": "SEALED_ORACLE" }
+        },
+        "required": ["evidenceState"]
+      },
+      "then": {
+        "properties": {
+          "originalClient": {
+            "properties": {
+              "sha256": { "const": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16" },
+              "patched": { "const": false }
+            }
+          },
+          "checks": {
+            "properties": {
+              "hashClean": { "const": true },
+              "resourcesHashClean": { "const": true },
+              "debuggerMemoryWrites": { "const": false },
+              "internetBlocked": { "const": true },
+              "pcapSaved": { "const": true },
+              "procmonSaved": { "const": true },
+              "debuggerLogSaved": { "const": true },
+              "memoryDumpsSaved": { "const": true }
+            }
+          },
+          "network": {
+            "properties": {
+              "mode": { "const": "host-only" },
+              "targetEndpoint": { "const": "202.8.80.179:47900" }
+            },
+            "not": {
+              "anyOf": [
+                { "required": ["fakeServerIp"] },
+                { "required": ["routeOverride"] }
+              ]
+            }
+          },
+          "artifacts": {
+            "minItems": 7,
+            "allOf": [
+              { "contains": { "properties": { "kind": { "const": "resource-manifest" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 },
+              { "contains": { "properties": { "kind": { "const": "pcapng" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 },
+              { "contains": { "properties": { "kind": { "const": "procmon-pml" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 },
+              { "contains": { "properties": { "kind": { "const": "x32dbg-log" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 },
+              { "contains": { "properties": { "kind": { "const": "x32dbg-dump" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 },
+              {
+                "anyOf": [
+                  { "contains": { "properties": { "kind": { "const": "screenshot" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 },
+                  { "contains": { "properties": { "kind": { "const": "video" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 }
+                ]
+              },
+              { "contains": { "properties": { "kind": { "const": "receipt" }, "state": { "const": "OBSERVED" } }, "required": ["kind", "state"] }, "minContains": 1 }
+            ]
+          },
+          "runtimeObservations": {
+            "required": ["captureBoundaries"],
+            "properties": {
+              "captureBoundaries": {
+                "minItems": 2,
+                "allOf": [
+                  { "contains": { "properties": { "name": { "const": "lobby-login-request" }, "state": { "enum": ["OBSERVED", "PARTIAL"] } }, "required": ["name", "state"] }, "minContains": 1 },
+                  {
+                    "anyOf": [
+                      { "contains": { "properties": { "name": { "const": "world-entry-transition" }, "state": { "enum": ["OBSERVED", "PARTIAL"] } }, "required": ["name", "state"] }, "minContains": 1 },
+                      { "contains": { "properties": { "name": { "const": "strategy-world-snapshot" }, "state": { "enum": ["OBSERVED", "PARTIAL"] } }, "required": ["name", "state"] }, "minContains": 1 }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "required": [
+    "oracleRunId",
+    "evidenceState",
+    "startedAt",
+    "endedAt",
+    "originalClient",
+    "vm",
+    "network",
+    "tools",
+    "artifacts",
+    "checks",
+    "runtimeObservations"
+  ],
+  "properties": {
+    "oracleRunId": { "type": "string", "pattern": "^[0-9]{8}T[0-9]{6}K-logh7-oracle-[a-z0-9-]+$" },
+    "evidenceState": { "enum": ["SEALED_ORACLE", "EXPLORATORY_REDIRECT", "PATCHED_EXPLORATORY"] },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "endedAt": { "type": "string", "format": "date-time" },
+    "originalClient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "sizeBytes", "patched"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sizeBytes": { "type": "integer", "minimum": 1 },
+        "patched": { "type": "boolean" },
+        "patchNotes": { "type": "string" }
+      }
+    },
+    "vm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "snapshotBefore", "guestOs", "oracleFidelity", "cpuCount", "ramMiB", "display"],
+      "properties": {
+        "name": { "type": "string" },
+        "path": { "type": "string" },
+        "snapshotBefore": { "type": "string" },
+        "guestOs": { "type": "string" },
+        "oracleFidelity": { "enum": ["xp-original", "modern-compatibility"] },
+        "cpuCount": { "type": "integer", "minimum": 1 },
+        "ramMiB": { "type": "integer", "minimum": 512 },
+        "display": { "type": "string" },
+        "installMediaPath": { "type": "string" },
+        "installMediaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "guestIp", "captureInterface", "targetEndpoint"],
+      "properties": {
+        "mode": { "enum": ["host-only", "nat-controlled", "unknown"] },
+        "guestIp": { "type": "string" },
+        "xpGuestIp": { "type": "string", "deprecated": true },
+        "fakeServerIp": { "type": "string" },
+        "captureInterface": { "type": "string" },
+        "targetEndpoint": { "type": "string" },
+        "routeOverride": { "type": "string" }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path", "sha256", "state"],
+        "properties": {
+          "kind": { "enum": ["resource-manifest", "pcapng", "procmon-pml", "procmon-export", "x32dbg-log", "x32dbg-dump", "screenshot", "video", "vmx", "receipt", "notes"] },
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "state": { "enum": ["OBSERVED", "PARTIAL", "UNSEEN", "BLOCKED"] },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hashClean", "resourcesHashClean", "debuggerMemoryWrites", "internetBlocked", "pcapSaved", "procmonSaved", "debuggerLogSaved", "memoryDumpsSaved"],
+      "properties": {
+        "hashClean": { "type": "boolean" },
+        "resourcesHashClean": { "type": "boolean" },
+        "debuggerMemoryWrites": { "type": "boolean" },
+        "internetBlocked": { "type": "boolean" },
+        "pcapSaved": { "type": "boolean" },
+        "procmonSaved": { "type": "boolean" },
+        "debuggerLogSaved": { "type": "boolean" },
+        "memoryDumpsSaved": { "type": "boolean" }
+      }
+    },
+    "runtimeObservations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "packetResolverHits": { "type": "integer", "minimum": 0 },
+        "tacticalImportHits": { "type": "integer", "minimum": 0 },
+        "makeTacticsUnitHits": { "type": "integer", "minimum": 0 },
+        "battleSequenceHits": { "type": "integer", "minimum": 0 },
+        "noDataHits": { "type": "integer", "minimum": 0 },
+        "notes": { "type": "string" },
+        "lastConfirmedBoundary": {
+          "enum": [
+            "none",
+            "startup-window",
+            "initial-connect",
+            "lobby-login-request",
+            "login-ok-ng",
+            "server-session-list",
+            "session-select",
+            "lobby-session-login",
+            "character-charge",
+            "character-slot-list",
+            "character-create",
+            "character-delete",
+            "character-select",
+            "world-entry-transition",
+            "strategy-world-snapshot",
+            "notify-change-mode",
+            "notify-tactics-chief-commander",
+            "notify-tactics",
+            "notify-enter-grid",
+            "worldin-tactics-field-import",
+            "make-tactics-unit",
+            "battle-sequence-entry"
+          ]
+        },
+        "blocker": { "type": "string", "minLength": 1 },
+        "captureBoundaries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "state"],
+            "properties": {
+              "name": {
+                "enum": [
+                  "startup-window",
+                  "initial-connect",
+                  "lobby-login-request",
+                  "login-ok-ng",
+                  "server-session-list",
+                  "session-select",
+                  "lobby-session-login",
+                  "character-charge",
+                  "character-slot-list",
+                  "character-create",
+                  "character-delete",
+                  "character-select",
+                  "world-entry-transition",
+                  "strategy-world-snapshot",
+                  "notify-change-mode",
+                  "notify-tactics-chief-commander",
+                  "notify-tactics",
+                  "notify-enter-grid",
+                  "worldin-tactics-field-import",
+                  "make-tactics-unit",
+                  "battle-sequence-entry"
+                ]
+              },
+              "state": { "enum": ["OBSERVED", "PARTIAL", "UNSEEN", "BLOCKED"] },
+              "screenshotPath": { "type": "string" },
+              "packetTimeRange": { "type": "string" },
+              "debuggerLogRange": { "type": "string" },
+              "procmonTimeRange": { "type": "string" },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
