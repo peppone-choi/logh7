@@ -1,0 +1,536 @@
+{
+ "schema": "logh7-client-request-sender-sites/1",
+ "source": "E8 callers of FUN_004B78A0 with the preceding 'push <kind>' immediate; request type via client-request-kind-table.json",
+ "note": "Strategy command execute helpers 0x4B52C7-0x4B5497 send 0x0704..0x0709 (kinds 106-111); 0x0704 = 昇進 (rank-up, verified), 0x0707 = 任命 (verified). Others to be captured live with LOGH7_COMMAND_ECHO=1.",
+ "count": 88,
+ "sites": [
+  {
+   "site": "0x004B3CB8",
+   "kind": 96,
+   "request": "0x041F",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B3DCC",
+   "kind": 49,
+   "request": "0x0400",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B3E88",
+   "kind": 50,
+   "request": "0x0401",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B3F0D",
+   "kind": 84,
+   "request": "0x0403",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B3F68",
+   "kind": 83,
+   "request": "0x040A",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B3FC3",
+   "kind": 83,
+   "request": "0x040A",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B40CE",
+   "kind": 51,
+   "request": "0x0402",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B41CA",
+   "kind": 52,
+   "request": "0x0405",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B423D",
+   "kind": 53,
+   "request": "0x0406",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B4287",
+   "kind": 86,
+   "request": "0x0407",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B42E3",
+   "kind": 87,
+   "request": "0x040E",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B432B",
+   "kind": 91,
+   "request": "0x0419",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B43D5",
+   "kind": 54,
+   "request": null,
+   "family": null
+  },
+  {
+   "site": "0x004B4430",
+   "kind": 56,
+   "request": "0x040F",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B4482",
+   "kind": 57,
+   "request": "0x0410",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B44EE",
+   "kind": 55,
+   "request": "0x0411",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B4542",
+   "kind": 85,
+   "request": "0x0404",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B457B",
+   "kind": 89,
+   "request": "0x0413",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B45BB",
+   "kind": 90,
+   "request": "0x0414",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B45F3",
+   "kind": 88,
+   "request": "0x0409",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B4642",
+   "kind": 58,
+   "request": "0x0412",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B469D",
+   "kind": 92,
+   "request": "0x041B",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B46FD",
+   "kind": 93,
+   "request": "0x041C",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B4733",
+   "kind": 94,
+   "request": "0x041D",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B476B",
+   "kind": 97,
+   "request": "0x0422",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B47D9",
+   "kind": 98,
+   "request": "0x040D",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B4840",
+   "kind": 126,
+   "request": "0x0420",
+   "family": "tactics ship/fleet/base commands (0x0400-0x0422)"
+  },
+  {
+   "site": "0x004B48BC",
+   "kind": 127,
+   "request": null,
+   "family": null
+  },
+  {
+   "site": "0x004B490E",
+   "kind": 59,
+   "request": "0x0B01",
+   "family": "strategic movement / grid (0x0B00-0x0B06)"
+  },
+  {
+   "site": "0x004B4957",
+   "kind": 60,
+   "request": "0x0B00",
+   "family": "strategic movement / grid (0x0B00-0x0B06)"
+  },
+  {
+   "site": "0x004B498B",
+   "kind": 61,
+   "request": null,
+   "family": null
+  },
+  {
+   "site": "0x004B49BB",
+   "kind": 81,
+   "request": "0x0B03",
+   "family": "strategic movement / grid (0x0B00-0x0B06)"
+  },
+  {
+   "site": "0x004B49EB",
+   "kind": 82,
+   "request": "0x0B02",
+   "family": "strategic movement / grid (0x0B00-0x0B06)"
+  },
+  {
+   "site": "0x004B4A3F",
+   "kind": 66,
+   "request": "0x0B06",
+   "family": "strategic movement / grid (0x0B00-0x0B06)"
+  },
+  {
+   "site": "0x004B4D32",
+   "kind": 78,
+   "request": "0x0F12",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x004B4D87",
+   "kind": 99,
+   "request": "0x0C00",
+   "family": "unit maintenance (repair/supply/reorganize 0x0C00-0x0C0B)"
+  },
+  {
+   "site": "0x004B4DED",
+   "kind": 100,
+   "request": "0x0C01",
+   "family": "unit maintenance (repair/supply/reorganize 0x0C00-0x0C0B)"
+  },
+  {
+   "site": "0x004B4F55",
+   "kind": 62,
+   "request": "0x0903",
+   "family": "0x0900-0x0906 family"
+  },
+  {
+   "site": "0x004B4FAB",
+   "kind": 63,
+   "request": "0x0906",
+   "family": "0x0900-0x0906 family"
+  },
+  {
+   "site": "0x004B50CA",
+   "kind": 101,
+   "request": "0x0C02",
+   "family": "unit maintenance (repair/supply/reorganize 0x0C00-0x0C0B)"
+  },
+  {
+   "site": "0x004B51AB",
+   "kind": 102,
+   "request": "0x0C05",
+   "family": "unit maintenance (repair/supply/reorganize 0x0C00-0x0C0B)"
+  },
+  {
+   "site": "0x004B5276",
+   "kind": 105,
+   "request": "0x0C0B",
+   "family": "unit maintenance (repair/supply/reorganize 0x0C00-0x0C0B)"
+  },
+  {
+   "site": "0x004B52C7",
+   "kind": 106,
+   "request": "0x0704",
+   "family": "card/personnel commands (0x0704-0x0709)"
+  },
+  {
+   "site": "0x004B5326",
+   "kind": 107,
+   "request": "0x0705",
+   "family": "card/personnel commands (0x0704-0x0709)"
+  },
+  {
+   "site": "0x004B5382",
+   "kind": 108,
+   "request": "0x0706",
+   "family": "card/personnel commands (0x0704-0x0709)"
+  },
+  {
+   "site": "0x004B53E9",
+   "kind": 109,
+   "request": "0x0707",
+   "family": "card/personnel commands (0x0704-0x0709)"
+  },
+  {
+   "site": "0x004B5442",
+   "kind": 110,
+   "request": "0x0708",
+   "family": "card/personnel commands (0x0704-0x0709)"
+  },
+  {
+   "site": "0x004B5497",
+   "kind": 111,
+   "request": "0x0709",
+   "family": "card/personnel commands (0x0704-0x0709)"
+  },
+  {
+   "site": "0x004B5503",
+   "kind": 112,
+   "request": "0x0900",
+   "family": "0x0900-0x0906 family"
+  },
+  {
+   "site": "0x004B5551",
+   "kind": 113,
+   "request": "0x0901",
+   "family": "0x0900-0x0906 family"
+  },
+  {
+   "site": "0x004B55A9",
+   "kind": 114,
+   "request": "0x0902",
+   "family": "0x0900-0x0906 family"
+  },
+  {
+   "site": "0x004B55F1",
+   "kind": 115,
+   "request": "0x0F16",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x004B5681",
+   "kind": 121,
+   "request": "0x0F1C",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x004B5709",
+   "kind": 122,
+   "request": "0x0F1D",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x004B587D",
+   "kind": 70,
+   "request": "0x1200",
+   "family": "simple information transaction"
+  },
+  {
+   "site": "0x004B6CEE",
+   "kind": 48,
+   "request": "0x0300",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x004B76CB",
+   "kind": 3,
+   "request": "0x0205",
+   "family": "session"
+  },
+  {
+   "site": "0x004B778D",
+   "kind": 26,
+   "request": "0x0304",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x004B779A",
+   "kind": 27,
+   "request": "0x0306",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x004C85B7",
+   "kind": 24,
+   "request": "0x032A",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x004FF241",
+   "kind": 16,
+   "request": "0x032E",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x0051BE34",
+   "kind": 5,
+   "request": "0x2000",
+   "family": "lobby"
+  },
+  {
+   "site": "0x0051BE6F",
+   "kind": 6,
+   "request": "0x2003",
+   "family": "lobby"
+  },
+  {
+   "site": "0x0051BEBA",
+   "kind": 8,
+   "request": "0x2009",
+   "family": "lobby"
+  },
+  {
+   "site": "0x0052C3F5",
+   "kind": 72,
+   "request": "0x0F0C",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x00533414",
+   "kind": 21,
+   "request": "0x0322",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x0053B012",
+   "kind": 77,
+   "request": "0x0F11",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x0053B9C6",
+   "kind": 80,
+   "request": "0x0F14",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x0053C3CE",
+   "kind": 69,
+   "request": "0x0F08",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x0053C661",
+   "kind": 69,
+   "request": "0x0F08",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x0053CA9F",
+   "kind": 67,
+   "request": "0x0F04",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x0053CE2F",
+   "kind": 69,
+   "request": "0x0F08",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x00543E44",
+   "kind": 74,
+   "request": "0x0F0E",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x005440FA",
+   "kind": 73,
+   "request": "0x0F0D",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x00544176",
+   "kind": 74,
+   "request": "0x0F0E",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x00545091",
+   "kind": 68,
+   "request": "0x0F06",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x005453DE",
+   "kind": 74,
+   "request": "0x0F0E",
+   "family": "mail/messenger/chat"
+  },
+  {
+   "site": "0x00579FBC",
+   "kind": 21,
+   "request": "0x0322",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x0057A005",
+   "kind": 23,
+   "request": "0x0326",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x0057A02A",
+   "kind": 33,
+   "request": "0x031E",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x0057A06A",
+   "kind": 16,
+   "request": "0x032E",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x0057B57F",
+   "kind": 21,
+   "request": "0x0322",
+   "family": "static/world information requests"
+  },
+  {
+   "site": "0x00593D20",
+   "kind": 7,
+   "request": "0x2005",
+   "family": "lobby"
+  },
+  {
+   "site": "0x00595C8F",
+   "kind": 9,
+   "request": "0x1000",
+   "family": "character lottery/charge"
+  },
+  {
+   "site": "0x00595D20",
+   "kind": 12,
+   "request": "0x1006",
+   "family": "character lottery/charge"
+  },
+  {
+   "site": "0x00595D9F",
+   "kind": 4,
+   "request": "0x0203",
+   "family": "session"
+  },
+  {
+   "site": "0x00595DF8",
+   "kind": 14,
+   "request": "0x1008",
+   "family": "character lottery/charge"
+  },
+  {
+   "site": "0x00598958",
+   "kind": 11,
+   "request": "0x1004",
+   "family": "character lottery/charge"
+  }
+ ]
+}

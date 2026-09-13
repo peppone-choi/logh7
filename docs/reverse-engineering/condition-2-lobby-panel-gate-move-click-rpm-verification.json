@@ -1,0 +1,102 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 2,
+  "feature": "lobby sub-panel input gate — move/click while wedged, read-only RPM (also conditions 7/8)",
+  "verdict": "OBSERVED_INPUT_ALIVE_LATCH_CLEARS_ON_NEXT_PRESS",
+  "runId": "20260902T230931Z-natural-l1-relogin-v1",
+  "supersedes": "condition-2-lobby-panel-gate-rpm-verification.json (its 'modal input-owner state' conclusion is narrowed: the 0x100 cells are a button latch cleared by the next DOWN, not a dispatcher gate)",
+  "method": "States: C1 responsive lobby; C2 環境設定 open (wedged); C3 wedged + VNC pointer move to (600,300) with no button; C4 wedged + one VNC click at (600,300) on the panel's empty area. Each state dumped 64 KB at 0x02210000 via OpenProcess(PROCESS_VM_READ|PROCESS_QUERY_INFORMATION). No writes, no threads, no debugger, no input retries.",
+  "inputOwner_0x022142A8": {
+    "C1": {
+      "cursor": [
+        300,
+        12
+      ],
+      "press": [
+        0,
+        0
+      ],
+      "latch": [
+        0,
+        0
+      ]
+    },
+    "C2": {
+      "cursor": [
+        122,
+        481
+      ],
+      "press": [
+        122,
+        481
+      ],
+      "latch": [
+        256,
+        256
+      ]
+    },
+    "C3": {
+      "cursor": [
+        600,
+        300
+      ],
+      "press": [
+        122,
+        481
+      ],
+      "latch": [
+        256,
+        256
+      ]
+    },
+    "C4": {
+      "cursor": [
+        600,
+        300
+      ],
+      "press": [
+        600,
+        300
+      ],
+      "latch": [
+        0,
+        0
+      ]
+    },
+    "C2_to_C3_changedDwords": 23,
+    "C3_to_C4_changedDwords": 29
+  },
+  "conclusion": "Mouse delivery is alive while the lobby panel is wedged: the cursor cells follow a pure move and a click is recorded as a complete new press at its point. The +0x194/+0x294 value 0x100 is the panel-opening press left logically down (a bare LEFTUP does not clear it; the next DOWN does). The wedge is therefore not an input-owner/modal state and not transport loss. Remaining candidates: (a) panel controls are routed by the sub-panel selector 0x02216C80=1 to a manager whose hit-test never matches, or (b) the first click after opening is consumed clearing the latch and only the second click reaches controls. Decisive next live check (one sealed run): open panel -> one click on empty area -> one click on a control (閉じる/OK) -> capture + dump.",
+  "checks": {
+    "probe_readOnly_VM_READ_only": true,
+    "login_natural_one_submission": true,
+    "settingsOpen_wedge_reproduced": true,
+    "moveWhileWedged_cursorFollows": true,
+    "moveWhileWedged_pressAndLatchUnchanged": true,
+    "clickWhileWedged_newPressRecorded": true,
+    "clickWhileWedged_latch0x100_cleared": true,
+    "subPanelCell_stays_1_through_move_and_click": true,
+    "eventRing_0x02214778_cycles_not_gate": true,
+    "clientWedged_stoppedByOwnPidStop_cleanShutdown": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "3803E82795D111F2697084F6C1E946A5FFE797DE9AA34C016E4CD0807087C14E",
+    "fresh-run-prep.json": "C36136038DF3D1CD2361CDA9B474D4A411036168C203A182D6C2D9DD128497C6",
+    "cred-c.json": "4F4FB8B2C4654B7A428F72BD5EE948A7EA8833FA6BAAD752BEB0BED0DBA4FF2D",
+    "rpm-c1.json": "9E78C58D26B3BA44FE63C16B41431F41FD3FC1FFD278622D346F609207E3B8B0",
+    "rpm-c2.json": "9811A0255F6DF6DE9F306ACBE1754F51AAD66F1010E5AE9BDA3453B29A375314",
+    "rpm-c3.json": "21BCBC6069FE2C2C37E498749FF7C082E318FC9970B471AA0402CFB402F4E89A",
+    "rpm-c4.json": "4B403B2C95D0BB2778847B66F560903F8D44B7350704FAF27BEBCAE8E77F1872",
+    "rpm-dump-c1.bin": "A59DF2E7ABE99AAF24FF2C394A84890B2192FB504733D9B24A87B03E42417CE7",
+    "rpm-dump-c2.bin": "91B4CB1AD433677344E04FD06CDA0BB77974B766B790FA5AE5C8BAFC41D92C5E",
+    "rpm-dump-c3.bin": "BB663B4A54CF8CC07D66C147FFB38DBC788E040C709AD3B4D7975AFF18B064CE",
+    "rpm-dump-c4.bin": "DD8954D2EA7668CE8AFF5AB76977DA9AA1A834F7279B9CC8D939BF8A16396373",
+    "vnc-q1-settings.png": "6F6391F2E40435D4B7D4E10E912B620ABF7640D40D35A97A6CF28E55A984D3AB",
+    "vnc-q2-after-move.png": "B38942FFA23C3262BF5288B5B64E8AA0163E78FF8D02C168303E0F8F2BC17383",
+    "vnc-q3-after-click.png": "C7E0A2F98AB9321034A986CFF75763D13D9CEE895858B23F3613922D4285F107",
+    "stop-own-client.json": "B92A667C7A9F0072A73E77411EF2609D42756B0862740F68C236580A9F06DDBF",
+    "clean-stop.json": "F2CD6A21D885C12BC12B4D700BE57060DE69E23D1E4E7B4B8AD44CCE1A0072F6",
+    "cleanup.json": "6693F9642C2F14A8A3E67119BC4B50CA195015697D54B6FD947B8EBD491D9BD1",
+    "verify-after-stop.json": "D5551BA07769AD989921456B8E34887AC4B2C05BC36CCA7CD91AA9D3592FBEC9"
+  }
+}

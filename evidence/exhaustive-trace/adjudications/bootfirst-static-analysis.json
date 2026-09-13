@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "status": "PROVEN_STATIC",
+  "scope": "BOOTFIRST_UPDATE_BOOTSTRAP_PROCESS_LAUNCH",
+  "source": {
+    "rowKey": "RESOURCE:FILE:original-installshield-payload:bootfirst.exe",
+    "relativePosixPath": "bootfirst.exe",
+    "byteSize": 40960,
+    "sha256": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+    "treeManifestSha256": "B8487B3967F486DA9559EF30CE244EAF7F5886F3EB9CB1980A4A049BF0A63B71"
+  },
+  "staticTools": {
+    "ghidraExporter": {
+      "path": "work/20260828-bootfirst-resource-loader/ExportBootFirstFlow.java",
+      "sha256": "DB99864A5AF34DD888092F42E73094BDF8E664C4E68261F68E31E50AEAC54DD5"
+    },
+    "ghidraOutput": {
+      "path": "work/20260828-bootfirst-resource-loader/evidence/bootfirst-flow.txt",
+      "sha256": "BF48F72407EEAD223A4017AC991ECAE01C3AB9E4F8F44F5ED00F61315FD92A06"
+    },
+    "peParser": "python-pefile"
+  },
+  "pe": {
+    "format": "PE32_X86_GUI_EXECUTABLE",
+    "machine": "0x014C",
+    "subsystem": 2,
+    "imageBase": "0x00400000",
+    "entryPointRva": "0x00001150",
+    "coffTimestampUtc": "2004-02-13T06:19:56Z",
+    "sectionCount": 4,
+    "overlaySize": 0,
+    "authenticodeSize": 0,
+    "exportCount": 0,
+    "fileVersion": "1, 0, 0, 0",
+    "companyName": "株式会社 マルチターム",
+    "fileDescription": "アップデートクライアント 起動プログラム"
+  },
+  "role": "UPDATE_CLIENT_BOOTSTRAP",
+  "imports": {
+    "required": [
+      "KERNEL32.dll::GetFileAttributesA",
+      "KERNEL32.dll::MoveFileA",
+      "KERNEL32.dll::DeleteFileA",
+      "KERNEL32.dll::CreateProcessA",
+      "KERNEL32.dll::WaitForSingleObject",
+      "KERNEL32.dll::GetExitCodeProcess"
+    ],
+    "gameAssetDecoderImports": []
+  },
+  "processLaunch": {
+    "status": "PROVEN",
+    "function": "FUN_00401000",
+    "functionVa": "0x00401000",
+    "api": "KERNEL32.dll::CreateProcessA",
+    "iatVa": "0x00405014",
+    "callsite": "0x004010B1",
+    "executableString": ".\\Gin7UpdateClient.exe",
+    "executableStringVa": "0x004060A4",
+    "waitCallsite": "0x004010BE",
+    "exitCodeCallsite": "0x004010D2",
+    "targetRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+    "targetRelativePosixPath": "gin7updateclient.exe",
+    "targetByteSize": 1060864,
+    "targetSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+    "childExitCodeOneDisposition": "REPLACE_OR_RELAUNCH_MAX_FOUR_ATTEMPTS"
+  },
+  "selfReplacement": {
+    "newPath": ".\\Gin7UpdateClient.new",
+    "oldPath": ".\\Gin7UpdateClient.old",
+    "currentPath": ".\\Gin7UpdateClient.exe",
+    "status": "PROVEN"
+  },
+  "negativeFindings": {
+    "directG7MTClientReferenceCount": 0,
+    "gameResourceLoadPathCount": 0,
+    "networkImportCount": 0,
+    "interpretation": "BootFirst is a process bootstrap, not a G7MTClient data/render/audio resource loader."
+  },
+  "limitations": [
+    "Static process-launch proof is not runtime execution evidence.",
+    "InstallShield shell-object metadata supports an installed entry point but does not prove install-time auto-launch.",
+    "The updater-to-game launch belongs to Gin7UpdateClient.exe and remains a separate executable analysis surface."
+  ]
+}

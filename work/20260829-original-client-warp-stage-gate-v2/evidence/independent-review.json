@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "recordType": "INDEPENDENT_READ_ONLY_REVIEW",
+  "reviewer": "g7mt_independent_review",
+  "singleWriter": "Codex/root",
+  "verdict": "APPROVE",
+  "reviewRound": 1,
+  "scope": "OFFLINE_WARP_GATE_V2_AUDIT_PASS_READY_FALSE_ONLY",
+  "rerun": {
+    "command": "pwsh -NoProfile -File work/20260829-original-client-warp-stage-gate-v2/verify.ps1",
+    "exitCode": 0,
+    "tests": 8,
+    "mutations": 83,
+    "externalRoles": 13
+  },
+  "hashes": {
+    "evaluator": "C014C11FF1001C76BCCF23173EF7EEC6EFBFC111E05B48A9BBB611CAC9EE0954",
+    "tests": "ADA4BFCA5646F379DF439F9CBF1CBBE68A54DFA937437F83D1A0313AD51FF42A",
+    "expectedSourceManifest": "BCD7B21070C7EE3C10CA187F194E3FC8C7F803B0911EC45DF70B11DA37A2B891",
+    "gateInput": "0C3E1DCB2FC293DF67AF85F6F5CE5547CC3F926D389FE5A4DD9853D62E17D9CC",
+    "contract": "AEEDDDA434D38C919322E6A75F53C680B54B1D87A5E303ECD60FA595E53415F6",
+    "publishedEvaluation": "757D4AD08A93DA22758FD4C9A6AD4FC84A4131D5E10CD2236D89FB6C22E68DDB",
+    "verifier": "61B012BFA580D829EB5C8240ED4667D7D71A2260E167DA283D97C9039331C3A9"
+  },
+  "confirmed": {
+    "authorityMaxOnePreserved": true,
+    "v1ThreeActivationModelNotInherited": true,
+    "externalHashRolesVerified": 13,
+    "allStagesNotCreated": true,
+    "allStageConsumptionZero": true,
+    "geometryCopied": false,
+    "activationPointEmitted": false,
+    "permitEmitted": false,
+    "interactiveHwndBlockerFirst": true,
+    "targetMutationCapabilityCount": 0,
+    "validatorWrites": 0
+  },
+  "claimBoundary": "OFFLINE_AUDIT_APPROVED_LIVE_READY_FALSE"
+}

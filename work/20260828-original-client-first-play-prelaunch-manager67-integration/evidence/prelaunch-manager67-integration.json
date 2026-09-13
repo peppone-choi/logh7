@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 3,
+  "contract": "ORIGINAL_CLIENT_FIRST_SERVER_BACKED_PLAY_PRELAUNCH_V3_MANAGER67_INTEGRATED",
+  "state": "OFFLINE_PRELAUNCH_MANAGER67_INTEGRATED_READY_FALSE",
+  "oracleRunId": null,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "currentAuthority": {
+    "source": "USER_APPROVED_CURRENT_THREAD",
+    "scope": "ONE_LIVE_ORACLE_ONE_PHYSICAL_ACTIVATION_READ_ONLY_CAPTURE",
+    "activationBudget": 1,
+    "doesNotBypassPrelaunchGates": true
+  },
+  "priorPermit": {
+    "id": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "state": "CONSUMED_NO_RETRY",
+    "reusable": false
+  },
+  "integrationDelta": {
+    "resolvedStaticBlockers": [
+      "MANAGER67_CURRENT_CARD_COLLECTOR_MISSING",
+      "SELECTED_CAPTAIN_CARD_WIDGET_COLLECTOR_MISSING"
+    ],
+    "introducedRuntimeBlockers": [
+      "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+      "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING"
+    ],
+    "priorBlockerCount": 12,
+    "currentBlockerCount": 12
+  },
+  "staticPreparation": {
+    "manager67AuthorityCardCollector": {
+      "status": "STATIC_OFFLINE_COLLECTOR_PASS_LIVE_BINDING_MISSING",
+      "runtimeObserved": "UNSEEN",
+      "semantic": "AUTHORITY_CARD_WITH_WARP_ACTION_NOT_PROVEN_CAPTAIN_PORTRAIT",
+      "fixtureCoordinateReusable": false,
+      "publishedFixtureArtifactsReproduced": 2,
+      "artifactHashesVerified": 10,
+      "independentReview": "APPROVE"
+    },
+    "manager65Collector": {
+      "status": "OFFLINE_PASS_NOT_LIVE_HARDENED",
+      "runtimeObserved": "UNSEEN",
+      "deficiencies": [
+        "CANONICAL_HASH_NOT_INTERNALLY_ENFORCED",
+        "MODULE_BASE_NOT_BOUND",
+        "DOUBLE_CAPTURE_MISSING",
+        "WIDGET_ACTIVE_VISIBLE_GATE_MISSING",
+        "POST_CAPTURE_HWND_SURFACE_RECHECK_MISSING"
+      ]
+    },
+    "destinationProjection": {
+      "status": "STATIC_OFFLINE_RESOLVER_PASS",
+      "runtimeObserved": "UNSEEN",
+      "fixtureCoordinateReusable": false
+    },
+    "textDialog": {
+      "status": "STATIC_OFFLINE_RESOLVER_PASS",
+      "runtimeObserved": "UNSEEN",
+      "fixtureCoordinateReusable": false
+    },
+    "moveGridWire": {
+      "status": "STATIC_WIRE_BINDING_PASS",
+      "runtimeObserved": "UNSEEN"
+    },
+    "movementInstrumentation": {
+      "status": "STATIC_ADDRESSES_PARTIAL_RECEIPT_SCHEMA_MISSING",
+      "runtimeObserved": "UNSEEN",
+      "missingBindings": [
+        "MOVEMENT_HANDLER_CONSUMPTION_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_PAYLOAD_BUILDER_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_EXPECTED_0B07_ASSIGNMENT_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_OUTBOUND_0B01_ASSIGNMENT_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_TRANSPORT_SEND_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_INBOUND_0B07_DISPATCH_BP_RECEIPT_BINDING_MISSING",
+        "MOVEGRID_OWNED_HWND_DELTA_RECEIPT_BINDING_MISSING"
+      ]
+    }
+  },
+  "requiredSameRunComposition": [
+    "fresh G7MTClient PID/startTime/hash/moduleBase/HWND/owner/client surface",
+    "fresh listener and heartbeat",
+    "fresh x32dbg PID/startTime/HWND/owner and exact foreground",
+    "fresh manager65-bound manager67 authority-card/action-0x2B/page-selected widget/gates/rect snapshot",
+    "independently bound manager67 authority-card hit region",
+    "hardened manager65 action-0x2B snapshot",
+    "WARP stage-owner pointer bound to the scoped TextDialog manager",
+    "fresh destination projection snapshot and independently resolved hit region",
+    "fresh TextDialog snapshot and independently resolved confirm region",
+    "movement-specific breakpoint/receipt schema installed without writes",
+    "one physical activation sequence followed by outbound/inbound/pixel receipts"
+  ],
+  "blockers": [
+    "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "MANAGER65_LIVE_COLLECTOR_NOT_HARDENED",
+    "WARP_STAGE_OWNER_POINTER_UNBOUND",
+    "MOVEMENT_SPECIFIC_BREAKPOINT_RECEIPT_SCHEMA_MISSING",
+    "FRESH_RUN_IDENTITY_MISSING",
+    "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+    "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+    "FRESH_MANAGER65_SNAPSHOT_MISSING",
+    "FRESH_DESTINATION_PROJECTION_SNAPSHOT_MISSING",
+    "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+    "FOREGROUND_PROBE_NOT_RUN",
+    "INDEPENDENT_LIVE_PRELAUNCH_REVIEW_MISSING"
+  ],
+  "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+  "firstTechnicalBoundary": "MANAGER65_LIVE_COLLECTOR_NOT_HARDENED",
+  "boundArtifacts": {
+    "gapAuditV3": {
+      "path": "work/20260828-original-client-first-play-prelaunch-manager67-integration/evidence/ui-movement-gap-audit-v3.json",
+      "sha256": "6D138E4E5B595FD85E9F8F589C6CF7D625D4C86C69F44573D75D495DBCEDB4A0"
+    },
+    "priorV2Contract": {
+      "path": "work/20260828-original-client-first-play-prelaunch-integration/evidence/first-play-prelaunch-integration.json",
+      "sha256": "5DE8873D2C9372CF9F7068AA9A8FD97D48032DFBA84A2ACC36DE57877057FEAE"
+    },
+    "priorV2Verification": {
+      "path": "work/20260828-original-client-first-play-prelaunch-integration/evidence/final-verification.json",
+      "sha256": "BE0F57F465D55967CA9EC8D40669D37ECF27E7D80A9F3C55EF9E7B55EF087BFB"
+    },
+    "manager67Verification": {
+      "path": "work/20260828-manager67-current-card-hit-surface/evidence/verification.json",
+      "sha256": "628AF51614931DEDFFCCB1B5BA71A94864F437609E6948A1B28B8D8AA77FA9D2"
+    },
+    "manager67ArtifactLedger": {
+      "path": "work/20260828-manager67-current-card-hit-surface/evidence/artifact-ledger.json",
+      "sha256": "1205449A4E247323D59CB73C975F0EE6865AC5865C8F9FBA54BA54F1FEE62AF3"
+    }
+  },
+  "forbidden": [
+    "reuse prior permit/run/PID/HWND/pointer/coordinate",
+    "automatic click or retry",
+    "input before all same-run gates and independent review pass",
+    "process-memory write or binary/resource patch",
+    "VM lifecycle or server/protocol/database change",
+    "fixture or self-claimed live evidence promotion"
+  ],
+  "operationCounters": {
+    "guestOperations": 0,
+    "debuggerAttach": 0,
+    "breakpointsInstalled": 0,
+    "processMemoryReads": 0,
+    "physicalInputs": 0,
+    "captures": 0,
+    "memoryWrites": 0
+  }
+}

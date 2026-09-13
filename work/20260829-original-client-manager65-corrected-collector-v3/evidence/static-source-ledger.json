@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "file": "G7MTClient.exe",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "imageBase": "0x00400000"
+  },
+  "sources": [
+    {
+      "path": "work/20260829-original-client-warp-prelaunch-v10/evidence/root-role-static-adjudication.json",
+      "sha256": "1753317B9EBC597A353AFCFD203742F06DA2BE617BAF543AD50DA6DBD4B4858A",
+      "role": "CORRECTED_UI_ROOT_AND_INLINE_STRATEGY_OWNER_ROLES"
+    },
+    {
+      "path": "work/20260829-original-client-warp-prelaunch-v10/evidence/fresh-manager65.json",
+      "sha256": "FC766FE64B16DC27693D9003C43D78CB79E5D103649954100256D56851D533D9",
+      "role": "LIVE_READONLY_COUNTEREXAMPLE_TO_LEGACY_OWNER_MODE_FIELDS"
+    },
+    {
+      "path": "work/20260828-original-client-manager65-live-collector-hardening/src/collect-manager65-action2b-hardened.ps1",
+      "sha256": "9B475E5D171FC34A9C69322E29A80D59F7FB9199B0B8653D435CFEAC72A4494C",
+      "role": "SUPERSEDED_COLLECTOR_FOR_REGRESSION_COMPARISON"
+    },
+    {
+      "path": "work/20260827-original-client-manager65-readonly-collector/evidence/manager65-widget-memory-layout.txt",
+      "sha256": "0E57E4329EB616D309F99577D870887DDCE194EB6A3DFC85205D7151899A360C",
+      "role": "MANAGER65_WIDGET_AND_ACTION_RECORD_LAYOUT"
+    }
+  ],
+  "correction": {
+    "uiRoot": "U32(moduleBase+0x1E15E2C)",
+    "registry": "U32(uiRoot+0x0C)",
+    "strategyOwner": "moduleBase+0x89E638",
+    "manager65Controller": "strategyOwner+0x130",
+    "manager67Controller": "strategyOwner+0x48C",
+    "rejected": [
+      "I32(strategyOwner+0x00)_IS_BUILDER_MODE",
+      "I32(strategyOwner+0x04)_IS_HANDLER_STATE",
+      "I32(strategyOwner+0xF4)_MUST_EQUAL_2_FOR_WARP",
+      "ENGINE_VIEWPORT_MUST_EQUAL_FULL_OWNED_HWND"
+    ]
+  }
+}

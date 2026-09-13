@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "recordType": "EXHAUSTIVE_TRACE_FOUNDATION_INDEPENDENT_REVIEW",
+  "reviewedAt": "2026-08-28",
+  "verdict": "APPROVE",
+  "scope": "Task 14 reproducible foundation baseline only",
+  "sealedBaselineReceipt": {
+    "path": "work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-verification.json",
+    "sha256": "D2F4EC9D8A5AFE25387E44039DD0C150D06DAA92D39902C85ADA62B8DC6ECFFE"
+  },
+  "independentExecutionReceipt": {
+    "path": "work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-independent-verification.json",
+    "sha256": "EE453CCE7AE62407256AA4A83A896BDCB479A9EC5D39FE899B2AD14175CEAB02",
+    "bytes": 73242,
+    "receiptTargetPolicy": "FRESH_SYSTEM_TEMP_CHILD",
+    "verifierExecutions": 1,
+    "verifierExit": 0
+  },
+  "checks": {
+    "testsDiscovered": 265,
+    "testsPassed": 265,
+    "testFailuresErrorsSkipsExpectedFailuresUnexpectedSuccesses": 0,
+    "deterministicArtifactCount": 32,
+    "inventorySourceKeyCount": 15999,
+    "uniquePrimaryAssignmentCount": 15999,
+    "duplicateMissingExtraPrimaryKeys": 0,
+    "coverageFatalCount": 1,
+    "coverageFatalId": "FEATURE_REACHABILITY_LEDGER_ABSENT",
+    "evidenceGapCount": 25609,
+    "protectedFileCount": 84,
+    "protectedPrePostMismatchCount": 0,
+    "receiptPolicyPreflightCommandCount": 1,
+    "receiptPolicyFinalCommandCount": 1,
+    "freshPublicationNoReplace": true,
+    "firstUnitExecutionStatus": "NOT_STARTED",
+    "firstUnitAuthorization": "NOT_AUTHORIZED_BY_BASELINE"
+  },
+  "reviewLanes": [
+    {
+      "lane": "metrics-and-document-binding",
+      "verdict": "APPROVE",
+      "repositoryWrites": 0
+    },
+    {
+      "lane": "verifier-code-and-safety",
+      "verdict": "APPROVE",
+      "repositoryWrites": 0
+    },
+    {
+      "lane": "independent-full-execution",
+      "verdict": "APPROVE",
+      "repositoryWrites": 0
+    }
+  ],
+  "runtimeActions": {
+    "vm": 0,
+    "originalExecutable": 0,
+    "debuggerAttach": 0,
+    "processMemoryReadWrite": 0,
+    "physicalInput": 0,
+    "serverProtocolDatabaseMutation": 0,
+    "vmLifecycle": 0
+  },
+  "limits": {
+    "overallGoal": "INCOMPLETE",
+    "coverageGate": "STRUCTURAL_FATAL",
+    "featureLedger": "ABSENT",
+    "approvalDoesNotProve": [
+      "original-client playability",
+      "player-visible gameplay",
+      "authority",
+      "persistence",
+      "both factions",
+      "complete content",
+      "final game completion"
+    ]
+  }
+}

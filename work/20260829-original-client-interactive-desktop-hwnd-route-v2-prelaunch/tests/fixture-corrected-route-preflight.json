@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "runId": "fixture-corrected-route-v2",
+  "provenance": "SYNTHETIC_FIXTURE",
+  "observedAtUtc": "2026-08-29T01:00:00.0000000Z",
+  "helper": {
+    "pid": 9100,
+    "sessionId": 0,
+    "userName": "LOGH7-ORACLE-HD\\logh7-oracle",
+    "userSid": "S-1-5-21-556201276-3002815643-375215121-1000"
+  },
+  "activeConsoleSessionId": 1,
+  "absoluteProgram": {
+    "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "exists": true,
+    "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "length": 512000,
+    "observedAtUtc": "2026-08-29T01:00:00.0000000Z"
+  },
+  "processes": [
+    {
+      "role": "CLIENT",
+      "name": "G7MTClient",
+      "pid": 3448,
+      "sessionId": 1,
+      "startTimeUtc": "2026-08-25T15:47:31.9489446Z",
+      "path": "C:\\LOGH7_ORACLE\\exe\\G7MTClient.exe",
+      "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+      "owner": "LOGH7-ORACLE-HD\\logh7-oracle",
+      "ownerSid": "S-1-5-21-556201276-3002815643-375215121-1000",
+      "ownerLookupStatus": "SUCCESS",
+      "moduleBase": "0x00400000",
+      "moduleSize": 49643520
+    },
+    {
+      "role": "DEBUGGER",
+      "name": "x32dbg",
+      "pid": 6548,
+      "sessionId": 1,
+      "startTimeUtc": "2026-08-27T03:40:33.7883244Z",
+      "path": "C:\\LOGH7_TOOLS\\x64dbg-xp-2020-12-14\\release\\x32\\x32dbg.exe",
+      "sha256": "42CF419B3549332AF44A8500E99085A0C590547CAE6950623FE592EA885711C6",
+      "owner": "LOGH7-ORACLE-HD\\logh7-oracle",
+      "ownerSid": "S-1-5-21-556201276-3002815643-375215121-1000",
+      "ownerLookupStatus": "SUCCESS",
+      "moduleBase": "0x00A00000",
+      "moduleSize": 65536
+    },
+    {
+      "role": "INTERACTIVE_AGENT",
+      "name": "vmtoolsd",
+      "pid": 6688,
+      "sessionId": 1,
+      "startTimeUtc": "2026-08-25T02:16:40.4706175Z",
+      "path": "C:\\Program Files\\VMware\\VMware Tools\\vmtoolsd.exe",
+      "sha256": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+      "owner": "LOGH7-ORACLE-HD\\logh7-oracle",
+      "ownerSid": "S-1-5-21-556201276-3002815643-375215121-1000",
+      "ownerLookupStatus": "SUCCESS",
+      "moduleBase": "0x0000000140000000",
+      "moduleSize": 4096000
+    }
+  ],
+  "operations": {
+    "helperProcessesCreated": 1,
+    "guestSourceCopies": 1,
+    "guestFileWrites": 1,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "foregroundChanges": 0,
+    "debuggerAttach": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "captures": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "permitIssued": false,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  }
+}

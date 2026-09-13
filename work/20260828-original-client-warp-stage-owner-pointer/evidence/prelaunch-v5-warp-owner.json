@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 5,
+  "contract": "ORIGINAL_CLIENT_FIRST_SERVER_BACKED_PLAY_PRELAUNCH_V5_WARP_OWNER_INTEGRATED",
+  "state": "OFFLINE_PRELAUNCH_WARP_OWNER_INTEGRATED_READY_FALSE",
+  "oracleRunId": null,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "currentAuthority": {
+    "source": "USER_APPROVED_CURRENT_THREAD",
+    "scope": "ONE_LIVE_ORACLE_ONE_PHYSICAL_ACTIVATION_READ_ONLY_CAPTURE",
+    "activationBudget": 1,
+    "doesNotBypassPrelaunchGates": true
+  },
+  "priorPermit": {
+    "id": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "state": "CONSUMED_NO_RETRY",
+    "reusable": false
+  },
+  "integrationDelta": {
+    "resolvedStaticBlockers": ["WARP_STAGE_OWNER_POINTER_UNBOUND"],
+    "introducedRuntimeBlockers": ["FRESH_WARP_STAGE_OWNER_SNAPSHOT_MISSING"],
+    "priorBlockerCount": 12,
+    "currentBlockerCount": 12
+  },
+  "staticPreparation": {
+    "warpStageOwner": {
+      "status": "STATIC_WARP_STAGE_MANAGER_OWNER_PASS_LIVE_SNAPSHOT_MISSING",
+      "runtimeObserved": "UNSEEN",
+      "activeFlowPointerField": "moduleBase+0x89E2F8",
+      "ownerCommand": "activeFlow+0x28=0x2B",
+      "ownerCardBinding": "activeFlow+0x20==strategyRoot+0x488",
+      "textDialogChild": "child[2] vtable=moduleBase+0x275780",
+      "textDialogManager": "moduleBase+0x8A292C",
+      "managerCacheEquality": "U32(textDialog+0x58)==moduleBase+0x8A292C",
+      "fixtureCoordinateReusable": false,
+      "independentLiveBinding": "UNBOUND"
+    }
+  },
+  "requiredSameRunComposition": [
+    "fresh G7MTClient PID/startTime/hash/moduleBase/HWND/owner/client surface",
+    "fresh listener and heartbeat",
+    "fresh x32dbg PID/startTime/HWND/owner and exact foreground",
+    "fresh manager65-bound manager67 authority-card/action-0x2B/page-selected widget/gates/rect snapshot",
+    "independently bound manager67 authority-card hit region",
+    "fresh hardened manager65 action-0x2B snapshot",
+    "independently bound manager65 action-0x2B hit region",
+    "fresh WARP stage-owner snapshot binding active flow child[2] to the scoped TextDialog manager",
+    "fresh destination projection snapshot and independently resolved hit region",
+    "fresh TextDialog snapshot and independently resolved confirm region",
+    "movement-specific breakpoint/receipt schema installed without writes",
+    "one physical activation sequence followed by outbound/inbound/pixel receipts"
+  ],
+  "blockers": [
+    "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "MOVEMENT_SPECIFIC_BREAKPOINT_RECEIPT_SCHEMA_MISSING",
+    "FRESH_RUN_IDENTITY_MISSING",
+    "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+    "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+    "FRESH_MANAGER65_SNAPSHOT_MISSING",
+    "MANAGER65_ACTION_0X2B_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+    "FRESH_WARP_STAGE_OWNER_SNAPSHOT_MISSING",
+    "FRESH_DESTINATION_PROJECTION_SNAPSHOT_MISSING",
+    "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+    "FOREGROUND_PROBE_NOT_RUN",
+    "INDEPENDENT_LIVE_PRELAUNCH_REVIEW_MISSING"
+  ],
+  "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+  "firstTechnicalBoundary": "MOVEMENT_SPECIFIC_BREAKPOINT_RECEIPT_SCHEMA_MISSING",
+  "boundArtifacts": {
+    "warpOwnerStaticLedger": {"path":"work/20260828-original-client-warp-stage-owner-pointer/evidence/warp-stage-owner-static-ledger.json","sha256":"AE058E57927DEF598DA598537D0D4DF469733FC6A1CBDAB8DD28C73D6A809B51"},
+    "priorV4Contract": {"path":"work/20260828-original-client-first-play-prelaunch-manager65-integration-v4/evidence/prelaunch-manager65-integration-v4.json","sha256":"97C5A06A9BE678F4AEF7B0121806CDF1EDEE50D0C8947B06BE3F8E27CB996614"},
+    "priorV4Verification": {"path":"work/20260828-original-client-first-play-prelaunch-manager65-integration-v4/evidence/final-verification.json","sha256":"085093C899E1B1DCA60BF4187E71D1C3A4992F6D8C6060D061F9CC89C74BF321"},
+    "priorV4ArtifactLedger": {"path":"work/20260828-original-client-first-play-prelaunch-manager65-integration-v4/evidence/artifact-ledger.json","sha256":"DD92B2E869A0DE55B8D4795B308B513F5205F2F3A2A88B207F03574A4FD99294"}
+  },
+  "forbidden": [
+    "reuse prior permit/run/PID/HWND/pointer/coordinate",
+    "automatic click or retry",
+    "input before all same-run gates and independent review pass",
+    "process-memory write or binary/resource patch",
+    "VM lifecycle or server/protocol/database change",
+    "fixture or self-claimed live evidence promotion"
+  ],
+  "operationCounters": {"guestOperations":0,"debuggerAttach":0,"breakpointsInstalled":0,"processMemoryReads":0,"physicalInputs":0,"captures":0,"memoryWrites":0}
+}

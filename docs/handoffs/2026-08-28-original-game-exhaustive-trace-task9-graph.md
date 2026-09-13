@@ -1,0 +1,21 @@
+# Handoff - exhaustive trace foundation Task 9 unified graph
+
+- status: `PASS` for the bounded static graph join; overall goal `INCOMPLETE`; original gameplay, full implementation, runtime authority, persistence, and both-faction play remain `UNSEEN`
+- input: six inventories, 15,999 rows total, exact 12 inventory/reconciliation files, source-manifest and original client/message-data hashes bound
+- graph: 35,685 nodes = 15,999 source rows + 19,686 derived nodes; 92,053 typed edges
+- input-reference conservation: 132,954 independently enumerated join candidates = 124,917 normalized + 8,037 unresolved + 0 source-conflict; unaccounted 0
+- join-reference surface SHA-256: `49292B8D5DA77DDDB88AE2AF6EC11D9CC3D5972C42BE3666BFB8F3EC3F967781`
+- graph integrity: 84,638 normalized edges + 7,390 unresolved + 25 source-conflict = 92,053; dangling 0; duplicate node/edge/candidate identity 0
+- reference closure: 5,145 strings, 35,520 caller mirrors, 7,996 upstream classifications, 1,048 protocol ownership refs, 167 resource loader refs, 365 UI state fields, 16 enablement predicates, and 14 UI event type/predicate refs are explicit node/edge sourceRefs; no reference is attached by nearest address
+- identity discipline: 3,638 `NAME_MATCH` edges remain inferred low-confidence candidates; no name equality becomes `IDENTIFIES`; function name/address collisions are explicit `SOURCE_CONFLICT`
+- immutability: inventory rows and nested graph attributes/states are deeply immutable; graph loading validates canonical records, content hashes, conservation, source bundle, and required live bundle equality
+- output: `evidence/exhaustive-trace/graph.jsonl`, 101,553,653 bytes, SHA-256 `ED1ED9EC7435245AF856F631D742D4D6B4B76B478E7A44493BCB4988B783BE71`
+- component hashes: nodes `95C5B37434D9D630BCBC25620FFDA4E37CDB731D98A0EBBA0F81E5326E348A77`; edges `BFF4EDD9C1609B784599C4B02029D45F8ED1C13181E798B0616AB7B64B321BB9`; graph surface `EF0DDFDC5C6F8F1701FD568FD2CC9948E1FF496A3A8287D40D448CD19E08D33D`
+- reproducibility: two full CLI builds byte-identical; clean unittest discovery 191/191 PASS
+- full-suite command: `python -m unittest discover -s tests/tools/exhaustive_trace -p 'test_*.py'`
+- independent review: initial and intermediate contract reviews `REJECT`; every finding was made RED and corrected; final contract, population, and QA reviews all `APPROVE`; reviewer writes 0
+- verification receipt: `work/20260828-original-game-exhaustive-trace-task9-graph/repro/task9-verification.json`
+- report: `work/20260828-original-game-exhaustive-trace-task9-graph/report/task9-graph-report.md`
+- runtime state: no VM, original executable, debugger, process memory, input, binary patch, Ghidra, server, protocol, database, port, or lifecycle action
+- next start: foundation Task 10 - enforce orphan and vertical-trace coverage gates
+- forbidden retry: do not infer identity from names, adjacency, address proximity, first-seen mappings, candidate IDs, or authority prefixes; do not turn `UNRESOLVED`, `SOURCE_CONFLICT`, graph connectivity, static nodes, focused tests, or this Task 9 PASS into playability, runtime, authority, persistence, both-faction, Gate-A, or Gate-B claims

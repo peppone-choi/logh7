@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "recordType": "INDEPENDENT_READ_ONLY_REVIEW",
+  "reviewer": "g7mt_independent_review",
+  "singleWriter": "Codex/root",
+  "verdict": "APPROVE",
+  "reviewRound": 2,
+  "scope": "OFFLINE_WARP_EXTERNAL_LIVE_BINDING_SUBJECT_V1_PASS_NOT_CREATED_NOT_ELIGIBLE_ONLY",
+  "priorRound": {
+    "verdict": "REVISE",
+    "blockingFinding": "TEST_ONLY_GEOMETRY_HASH_BOUND_BUT_NOT_SEMANTICALLY_SOURCE_BOUND",
+    "closed": true
+  },
+  "rerun": {
+    "command": "pwsh -NoProfile -File work/20260829-original-client-warp-external-binding-subject-v1/verify.ps1",
+    "exitCode": 0,
+    "tests": 4,
+    "mutations": 115
+  },
+  "coordinatedAlternateGeometryProof": {
+    "logicalRect": [600, 630, 720, 654],
+    "candidateClientRect": [480, 420, 576, 436],
+    "manualPoint": [527, 427],
+    "threeByThreeRect": [526, 426, 529, 429],
+    "forwardLogical": [658, 640],
+    "activationCell": [527, 427, 528, 428],
+    "sourceFilesChanged": false,
+    "expectedSourceHashesExternallySupplied": true,
+    "contractPass": false,
+    "testOnlyVectorValid": false,
+    "blocker": "TEST_ONLY_VECTOR_INVALID:ValueError:logical rect not bound to unique capture command 0x2B"
+  },
+  "hashes": {
+    "evaluator": "DF0F60CC27D079613E08B912AA01FADE0CFFC2D749B0AE0F26F27A94BE281AE3",
+    "schema": "81AEE0E7AFDB2E2D5A2B0A2FEC86E6973493C4DDE93695DEC5F90BF54752C9D4",
+    "contract": "603C2C75F82E116D02D8DBE236FAA72A4BB506E008E8A6B87684E09657B91E69",
+    "tests": "7388DCF1492036C268E6E59380C3C1A422434F5EF9F4B76939984DBDAB065879",
+    "publishedEvaluation": "035D1E3A22575589158667C4C35E9ADDFBC9788D020B3EE2B813D53981DD3632",
+    "verifier": "03CD95BEBB80C4B628C213BBD552F96EEDE29094683AD147937124C09EE34601"
+  },
+  "confirmed": {
+    "captureAndEvaluationJsonParsed": true,
+    "externalExpectedCaptureAndEvaluationHashesRequired": true,
+    "captureDimensionsAndSnapshotsCrossBound": true,
+    "uniqueCommand0x2BLogicalRectCrossBound": true,
+    "scaleDecimalsAndRawBitsCrossBound": true,
+    "evaluationGeometryAndRunChainCrossBound": true,
+    "allChainStepsNotCreated": true,
+    "authorityMaxConsumedRemaining": "1/0/1",
+    "testGeometryEscapedToLiveOutput": false,
+    "targetMutationCapabilityCount": 0,
+    "reviewerWrites": 0
+  },
+  "claimBoundary": "OFFLINE_CONTRACT_APPROVED_LIVE_SUBJECT_NOT_CREATED_NOT_ELIGIBLE"
+}

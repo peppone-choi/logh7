@@ -1,0 +1,106 @@
+{
+  "schema": "logh7/condition-9-demotion-verification/v1",
+  "condition": 9,
+  "feature": "降等 CommandRankDown 0x0706 (card 39, target = own character 2, 一等兵 19 -> 二等兵 20 after a prior 抜擢 20 -> 19)",
+  "runId": "20260903T070357Z-natural-l1-relogin-v1",
+  "clientExe": null,
+  "authorityZipSha256": null,
+  "checks": {
+    "prepReady": true,
+    "oneCredentialSubmission": true,
+    "specialPromotionFirst": true,
+    "ladderListServed": true,
+    "personPickerServedAsCharacterList": true,
+    "rankDownAccepted": true,
+    "noConnectionCloseAfterCommand": true,
+    "dbRankBackToTwenty": true,
+    "domainEventCharacterDemoted": true,
+    "relaunchReady": true,
+    "reloginOneCredentialSubmission": true,
+    "dbIdenticalAfterRestart": true,
+    "dbIdenticalAfterRelogin": true,
+    "accountVersionStable": true,
+    "cleanStop": true,
+    "cleanup": true,
+    "noLeftoverProcesses": true
+  },
+  "passed": "17/17",
+  "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "rankDownResponse": {
+    "t": "2026-09-03T07:07:46.9825379+00:00",
+    "ev": "frame-processed",
+    "outerControl": 48,
+    "payloadLength": 48,
+    "status": "Success",
+    "ObservedApplicationType": 1798,
+    "ResponseMetadata": "rank-down-accepted;target=2;rank=19->20;updated=True;authorityVersion=26",
+    "requestPayloadHex": "C7E9A50A654D1D466C214B2CF959E59DB8538DE9AAC463DDA8244C1D462CFBAABD147612546F41C8BD147612546F41C8",
+    "ResponseOuterControl": 48,
+    "responsePayloadLength": 176,
+    "stateBefore": "SessionServerReady",
+    "stateAfter": "SessionServerReady"
+  },
+  "dbCharacters": {
+    "afterCommands": [
+      {
+        "character_id": 2,
+        "slot": 0,
+        "rank": 20,
+        "authority_version": 26
+      }
+    ],
+    "afterRestart": [
+      {
+        "character_id": 2,
+        "slot": 0,
+        "rank": 20,
+        "authority_version": 26
+      }
+    ],
+    "afterRelogin": [
+      {
+        "character_id": 2,
+        "slot": 0,
+        "rank": 20,
+        "authority_version": 26
+      }
+    ]
+  },
+  "domainEvent": {
+    "event_id": 26,
+    "aggregate_type": "character",
+    "aggregate_id": "2",
+    "event_type": "CharacterDemoted",
+    "payload": {
+      "sourceRank": 19,
+      "characterId": 2,
+      "promotedRank": 20,
+      "actorCharacterId": 2,
+      "requestFingerprint": "34b122019dfbb7aeefb9ba0c3b53a2751503528611429224394478189afc111e"
+    },
+    "authority_version": 26,
+    "created_at": "2026-09-03T16:07:46.966589+09:00"
+  },
+  "screenshots": {
+    "vnc-r2-0-lobby.png": "C0253ACDF67DC488822B6F466215BFC28C4BBC1002A46783DABDA142E932D668",
+    "vnc-r2-1-roster.png": "7F45B4AD21B47D74071959A6E754136150480A1583777D700DEC5DBD5CB0636C",
+    "vnc-r2-2-strategy.png": "E75051F1E890E2BED609604A86F8235D386778101DCFA2533ADD89EC6F29E148",
+    "vnc-r2-3-cardtab.png": "3C3078844D40E3BB991EAE8AA257A94E0928D2B9F23160B04B56ED34674584B0",
+    "vnc-r2-4-card.png": "E749E01D0B73541FC0E5895CB5E090EF4CA7ECF0AEA2E1DE87214E4018305953",
+    "vnc-x1-c-0-card.png": "B0A5DE2986276A1706021FE66713F7F5A5A2343A4AFCC71B8FCBEB85E9ECAD72",
+    "vnc-x1-c-1-batteki.png": "A075FF64FC83A09B161F2A501A49A26E5AD411FFFE763DD76177C6DCABA95758",
+    "vnc-x1-c-2-ladder.png": "CDF275CEC6556062728CBDA583324763EDA0DAC0824FACA3D462846CC3222996",
+    "vnc-x1-c-3-persons.png": "8A8A303578E39C2BE242D47B81B8A00F556C4208490ADA38598439FD19935BA0",
+    "vnc-x1-c-4-person.png": "3C3F282EC9B99B5A2768F4358CBEEA1DE52EB180CA7CABD14F7A036B2BBA7DAE",
+    "vnc-x1-c-5-confirm.png": "28D8C3A33D291905B3571D8495EACF28D6252C236D7CB956168AFB50FA2CEA29",
+    "vnc-x1-c-6-sent.png": "99EC1D2CCF69389F7A8CA31F56E56EB1117F01EBFA999857EFF2AA51BCE13435",
+    "vnc-x1-d-0-card.png": "8845B37665A51C918DC4E828A03540D73D3A1AC2123440236F7D5A292A017CF6",
+    "vnc-x1-d-1-kotou.png": "236C186D4C9A5119AD45B67702838B2F0D1D793FDD1380AE91A24F2D1D493548",
+    "vnc-x1-d-2-ladder.png": "D4E6888B6B4682DBB039DD979CCD19ADCE6F261BB49D6F0EC908BD14788A858E",
+    "vnc-x1-d-3-persons.png": "98765F48A8CC94723BA33A71519870BD4B3998B3C9E977280F4B42DF1BB4E27F",
+    "vnc-x1-d-4-person.png": "B9BE52F0A3183C0DCD9B6E81901F96B7AFEBB6E612C6412116744FAAA45C7B32",
+    "vnc-x1-d-5-confirm.png": "DE03D4A3DEA2A7A10D04E0FBFD76C13BABB276911AA5EA613C406E3D661758E2",
+    "vnc-x1-d-6-sent.png": "80D7EC2C9B393FAFF8F8FA3CDBBB5F4349512EB557EE53B5618ACB9998B262F0"
+  },
+  "newDesign": "Demotions persist in character_rank_down_command (migration 0013, demoted_rank = source_rank + 1) with event CharacterDemoted and the actor id; the original 320/80 MCP costs and wait times are not modelled. Store failures soft-reject via 0x0500 NotifyInvalidMessage instead of dropping the connection."
+}

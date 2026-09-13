@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:logh7:original-client-movement-breakpoint-receipt-v1",
+  "title": "LOGH7 original-client movement breakpoint receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion","receiptType","state","sourceMode","runtimeBindingStatus","run","client","debugger","priorPermit","instrumentationPlan","breakpoints","hits","correlation","ownedHwnd","operations","review","evaluation","permitIssued"],
+  "$defs": {
+    "nullableString": {"type":["string","null"]},
+    "nullableInteger": {"type":["integer","null"]},
+    "sha256OrNull": {"type":["string","null"],"pattern":"^[0-9A-F]{64}$"},
+    "hexOrNull": {"type":["string","null"],"pattern":"^0x[0-9A-F]+$"},
+    "breakpoint": {
+      "type":"object","additionalProperties":false,
+      "required":["id","order","staticVa","rva","runtimeAddress","role","instruction","installed","softwarePatchBytesWritten"],
+      "properties": {
+        "id":{"type":"string"},"order":{"type":"integer","minimum":1,"maximum":9},"staticVa":{"type":"string"},"rva":{"type":"string"},
+        "runtimeAddress":{"$ref":"#/$defs/hexOrNull"},"role":{"type":"string"},"instruction":{"type":"string"},
+        "installed":{"type":"boolean"},"softwarePatchBytesWritten":{"const":0}
+      }
+    },
+    "hit": {
+      "type":"object","additionalProperties":false,
+      "required":["id","sequence","runtimeAddress","movementCommandOrdinal","queueSlot","payloadSha256","observedOutboundOpcode","observedExpectedOpcode","registers","stack","memoryCaptures","registersSha256","memoryCaptureSha256"],
+      "properties": {
+        "id":{"type":"string"},"sequence":{"type":"integer","minimum":1,"maximum":9},"runtimeAddress":{"type":"string"},
+        "movementCommandOrdinal":{"type":"integer","minimum":1},"queueSlot":{"type":["integer","null"],"minimum":0},"payloadSha256":{"type":"string","pattern":"^[0-9A-F]{64}$"},
+        "observedOutboundOpcode":{"type":["string","null"]},"observedExpectedOpcode":{"type":["string","null"]},
+        "registers":{"type":"object","additionalProperties":{"type":["string","null"]}},
+        "stack":{"type":"object","additionalProperties":{"type":["string","null"]}},
+        "memoryCaptures":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["label","addressExpression","resolvedAddress","length","sha256"],"properties":{"label":{"type":"string"},"addressExpression":{"type":"string"},"resolvedAddress":{"type":"string"},"length":{"type":"integer","minimum":1},"decodedU32":{"type":["integer","null"],"minimum":0},"sha256":{"type":"string","pattern":"^[0-9A-F]{64}$"}}}},
+        "registersSha256":{"type":"string","pattern":"^[0-9A-F]{64}$"},"memoryCaptureSha256":{"type":"string","pattern":"^[0-9A-F]{64}$"}
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion":{"const":1},
+    "receiptType":{"const":"ORIGINAL_CLIENT_MOVEMENT_BREAKPOINT_RECEIPT"},
+    "state":{"enum":["EMPTY_TEMPLATE_NOT_LIVE","SYNTHETIC_SEMANTIC_SPECIMEN","LIVE_CAPTURE_UNREVIEWED","LIVE_CAPTURE_REVIEWED_PASS","LIVE_CAPTURE_REVIEWED_FAIL"]},
+    "sourceMode":{"enum":["NOT_RUN","SYNTHETIC_TEST_ONLY","LIVE_READONLY"]},
+    "runtimeBindingStatus":{"enum":["UNSEEN","SYNTHETIC_SPECIMEN_ONLY","LIVE_UNREVIEWED","ORIGINAL_RUNTIME_OBSERVED"]},
+    "run": {
+      "type":"object","additionalProperties":false,"required":["oracleRunId","authorizedScopeId","singleWriter","preparedAtUtc","capturedAtUtc","maxIdentityAgeSeconds","movementCommandOrdinal"],
+      "properties":{"oracleRunId":{"$ref":"#/$defs/nullableString"},"authorizedScopeId":{"$ref":"#/$defs/nullableString"},"singleWriter":{"$ref":"#/$defs/nullableString"},"preparedAtUtc":{"$ref":"#/$defs/nullableString"},"capturedAtUtc":{"$ref":"#/$defs/nullableString"},"maxIdentityAgeSeconds":{"type":"integer","minimum":1,"maximum":300},"movementCommandOrdinal":{"$ref":"#/$defs/nullableInteger"}}
+    },
+    "client": {
+      "type":"object","additionalProperties":false,"required":["pid","processStartTimeUtc","executablePath","executableSha256","moduleBase","moduleSize","hwnd","hwndOwnerPid","clientWidth","clientHeight"],
+      "properties":{"pid":{"$ref":"#/$defs/nullableInteger"},"processStartTimeUtc":{"$ref":"#/$defs/nullableString"},"executablePath":{"$ref":"#/$defs/nullableString"},"executableSha256":{"$ref":"#/$defs/sha256OrNull"},"moduleBase":{"$ref":"#/$defs/hexOrNull"},"moduleSize":{"$ref":"#/$defs/nullableInteger"},"hwnd":{"$ref":"#/$defs/hexOrNull"},"hwndOwnerPid":{"$ref":"#/$defs/nullableInteger"},"clientWidth":{"$ref":"#/$defs/nullableInteger"},"clientHeight":{"$ref":"#/$defs/nullableInteger"}}
+    },
+    "debugger": {
+      "type":"object","additionalProperties":false,"required":["pid","processStartTimeUtc","executablePath","executableSha256","hwnd","hwndOwnerPid","attachedClientPid","foregroundHwnd"],
+      "properties":{"pid":{"$ref":"#/$defs/nullableInteger"},"processStartTimeUtc":{"$ref":"#/$defs/nullableString"},"executablePath":{"$ref":"#/$defs/nullableString"},"executableSha256":{"$ref":"#/$defs/sha256OrNull"},"hwnd":{"$ref":"#/$defs/hexOrNull"},"hwndOwnerPid":{"$ref":"#/$defs/nullableInteger"},"attachedClientPid":{"$ref":"#/$defs/nullableInteger"},"foregroundHwnd":{"$ref":"#/$defs/hexOrNull"}}
+    },
+    "priorPermit":{"type":"object","additionalProperties":false,"required":["id","state","reusable"],"properties":{"id":{"type":"string"},"state":{"const":"CONSUMED_NO_RETRY"},"reusable":{"const":false}}},
+    "instrumentationPlan":{"type":"object","additionalProperties":false,"required":["mechanism","totalDefinitions","maxConcurrentHardwareBreakpoints","rearmRequired","rearmPlanStatus","softwareInt3Allowed","processMemoryWritesAllowed"],"properties":{"mechanism":{"enum":["NOT_RUN","SYNTHETIC_TEST_ONLY","HARDWARE_EXECUTION_REARMED_SEQUENCE"]},"totalDefinitions":{"const":9},"maxConcurrentHardwareBreakpoints":{"const":4},"rearmRequired":{"const":true},"rearmPlanStatus":{"enum":["UNPROVEN","SYNTHETIC_SEMANTIC_SPECIMEN","INDEPENDENTLY_REVIEWED_PASS"]},"softwareInt3Allowed":{"const":false},"processMemoryWritesAllowed":{"const":false}}},
+    "breakpoints":{"type":"array","minItems":9,"maxItems":9,"items":{"$ref":"#/$defs/breakpoint"}},
+    "hits":{"type":"array","maxItems":9,"items":{"$ref":"#/$defs/hit"}},
+    "correlation": {
+      "type":"object","additionalProperties":false,"required":["localQueueKind","outboundOpcode","expectedOpcode","inboundNotifyOpcode","movementCommandOrdinal","queueSlot","payloadSha256","stateBeforeSha256","stateAfterSha256","wireCorrelationId","correlationBasis","outboundBeforeInbound"],
+      "properties":{"localQueueKind":{"enum":["0x3B",null]},"outboundOpcode":{"enum":["0x0B01",null]},"expectedOpcode":{"enum":["0x0B07",null]},"inboundNotifyOpcode":{"enum":["0x0B07",null]},"movementCommandOrdinal":{"$ref":"#/$defs/nullableInteger"},"queueSlot":{"$ref":"#/$defs/nullableInteger"},"payloadSha256":{"$ref":"#/$defs/sha256OrNull"},"stateBeforeSha256":{"$ref":"#/$defs/sha256OrNull"},"stateAfterSha256":{"$ref":"#/$defs/sha256OrNull"},"wireCorrelationId":{"enum":["ABSENT_OR_UNPROVEN",null]},"correlationBasis":{"enum":["SINGLE_OUTSTANDING_QUEUE_ENTRY",null]},"outboundBeforeInbound":{"type":["boolean","null"]}}
+    },
+    "ownedHwnd": {
+      "type":"object","additionalProperties":false,"required":["beforeHwnd","afterHwnd","ownerPid","beforePixelSha256","afterPixelSha256","captureMethod","ownershipStable"],
+      "properties":{"beforeHwnd":{"$ref":"#/$defs/hexOrNull"},"afterHwnd":{"$ref":"#/$defs/hexOrNull"},"ownerPid":{"$ref":"#/$defs/nullableInteger"},"beforePixelSha256":{"$ref":"#/$defs/sha256OrNull"},"afterPixelSha256":{"$ref":"#/$defs/sha256OrNull"},"captureMethod":{"enum":["NOT_RUN","OWNED_HWND_PRINTWINDOW"]},"ownershipStable":{"type":["boolean","null"]}}
+    },
+    "operations": {
+      "type":"object","additionalProperties":false,"required":["guestOperations","debuggerAttach","breakpointsInstalled","debuggerCommands","processMemoryReads","processMemoryWrites","physicalActivations","automaticInputs","binaryPatches","vmLifecycleChanges","serverProtocolDbChanges"],
+      "properties":{"guestOperations":{"type":"integer","minimum":0},"debuggerAttach":{"type":"integer","minimum":0,"maximum":1},"breakpointsInstalled":{"type":"integer","minimum":0,"maximum":9},"debuggerCommands":{"type":"integer","minimum":0},"processMemoryReads":{"type":"integer","minimum":0},"processMemoryWrites":{"const":0},"physicalActivations":{"type":"integer","minimum":0},"automaticInputs":{"const":0},"binaryPatches":{"const":0},"vmLifecycleChanges":{"const":0},"serverProtocolDbChanges":{"const":0}}
+    },
+    "review":{"type":"object","additionalProperties":false,"required":["status","reviewer","artifactPath","artifactSha256"],"properties":{"status":{"enum":["NOT_REVIEWED","PASS","FAIL"]},"reviewer":{"$ref":"#/$defs/nullableString"},"artifactPath":{"$ref":"#/$defs/nullableString"},"artifactSha256":{"$ref":"#/$defs/sha256OrNull"}}},
+    "evaluation":{"type":"object","additionalProperties":false,"required":["schemaValid","staticAnchorsBound","orderedCorrelationValid","ownedHwndTransitionValid","liveReceiptEligible","blockers"],"properties":{"schemaValid":{"type":"boolean"},"staticAnchorsBound":{"type":"boolean"},"orderedCorrelationValid":{"type":"boolean"},"ownedHwndTransitionValid":{"type":"boolean"},"liveReceiptEligible":{"type":"boolean"},"blockers":{"type":"array","items":{"type":"string"},"uniqueItems":true}}},
+    "permitIssued":{"const":false}
+  }
+}

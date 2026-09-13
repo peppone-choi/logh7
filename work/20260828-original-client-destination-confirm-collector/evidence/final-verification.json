@@ -1,0 +1,42 @@
+{
+  "result": "PASS",
+  "boundedStatus": "STATIC_STAGE_STATE_COLLECTORS_PARTIAL",
+  "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+  "destination": {
+    "cases": 6,
+    "assertions": 24,
+    "stateCollector": "PASS_OFFLINE",
+    "activationRectangle": "UNBOUND"
+  },
+  "confirm": {
+    "cases": 5,
+    "assertions": 25,
+    "stateAndWidgetCollector": "PASS_OFFLINE",
+    "coordinateFrame": "UNBOUND"
+  },
+  "staticMarkersChecked": 8,
+  "nativeImports": [
+    "CloseHandle",
+    "GetClientRect",
+    "GetWindowThreadProcessId",
+    "IsWindow",
+    "OpenProcess",
+    "ReadProcessMemory"
+  ],
+  "forbiddenCapabilityHits": 0,
+  "liveOperations": 0,
+  "permitIssued": false,
+  "firstMissingBoundary": "DESTINATION_GRID_WORLD_TO_CLIENT_HIT_REGION_OWNER",
+  "hashes": {
+    "ledger": "59C1988F7743CCE774345D25E8BF50AD3728BC2A01D0944890E937C45DD844D3",
+    "exporter": "62616D8660FF0679BF4DCFA812A04C2236F58A351FEB9D324E0889851832963D",
+    "staticExport": "2335E2DEC7A16F338B3673A29C95A75F536D8930F8DE2588734CE465EAF91DDD",
+    "destinationCollector": "14E488099F5FADEC4852A9E84BB2C5F2A2E0CFCD83DCFC9F8D0F73164B5E4EF1",
+    "confirmCollector": "72D30F7B580F899D431C96218B4D9B94C59FEFD447DA6252259074B25BEE0B2A",
+    "destinationTest": "613571BAF2DF7125C19C236C9CFE230F2B732C73C48383FED6373ABBB3A58556",
+    "confirmTest": "85B1C84FFDE3FF9CC10851070716BE7C65F5A82AF12F621616268B38188A5378",
+    "identityFixture": "70441EEC961F34B5B152A5575C1BBF7231AC7C2538DC85AC348393A0BE3D41AD",
+    "destinationFixture": "BC45D60F569A07DF6269C9E25581E84B3421600D41F565B13A2509E22F04E4A7",
+    "confirmFixture": "AE5642111C7BAF944DBDEA27FFDEC090D5C12245881EC95009F2F3F850E7306B"
+  }
+}

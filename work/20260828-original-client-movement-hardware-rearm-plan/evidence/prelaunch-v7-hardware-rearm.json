@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 7,
+  "contract": "ORIGINAL_CLIENT_FIRST_SERVER_BACKED_PLAY_PRELAUNCH_V7_HARDWARE_REARM_PLAN_INTEGRATED",
+  "state": "OFFLINE_PRELAUNCH_HARDWARE_REARM_PLAN_INTEGRATED_RECEIPT_V2_MISSING_READY_FALSE",
+  "oracleRunId": null,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "currentAuthority": {
+    "source": "USER_APPROVED_CURRENT_THREAD",
+    "scope": "ONE_LIVE_ORACLE_ONE_PHYSICAL_ACTIVATION_READ_ONLY_CAPTURE",
+    "activationBudget": 1,
+    "doesNotBypassPrelaunchGates": true
+  },
+  "priorPermit": {
+    "id": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "state": "CONSUMED_NO_RETRY",
+    "reusable": false
+  },
+  "integrationDelta": {
+    "resolvedStaticBlockers": ["MOVEMENT_HARDWARE_BREAKPOINT_REARM_PLAN_MISSING"],
+    "introducedStaticBlockers": ["MOVEMENT_RECEIPT_TEMPORAL_THREAD_CORRELATION_SCHEMA_MISSING"],
+    "priorBlockerCount": 12,
+    "currentBlockerCount": 12
+  },
+  "staticPreparation": {
+    "hardwareRearm": {
+      "status": "OFFLINE_HARDWARE_REARM_PLAN_PASS_RECEIPT_SCHEMA_GAP",
+      "anchorCount": 9,
+      "phaseCount": 10,
+      "maximumConcurrentSlots": 4,
+      "peakActiveSlots": 4,
+      "mechanism": "X86_DEBUG_REGISTERS_EXECUTE_SIZE_1",
+      "installedX32dbgCommit": "9c8ca1cae0b6d56cc44f31fddcb10e3b02ffbb87",
+      "installedX32dbgExeSha256": "822028F0755DBA773E445EAF57FDB3DBA84C9550AC7BDAD2AFA449912B5FBA41",
+      "installedCommitHashFileSha256": "80A7077840C2DD987861A857DB19C06279408E0344B0AD13538217075A0E2C67",
+      "threadCoverage": "STATIC_SOURCE_INDICATES_ALL_THREAD_PROGRAMMING_RUNTIME_UNSEEN",
+      "livePerThreadDrReceipt": "MISSING",
+      "runtimeNoMissProof": "MISSING",
+      "runtimeObserved": "UNSEEN"
+    },
+    "receiptV2": {
+      "status": "MISSING",
+      "missingFields": [
+        "HIT_THREAD_ID_AND_DEBUG_EVENT_ORDINAL",
+        "TEMPORAL_REARM_PHASE_LEDGER",
+        "PER_THREAD_DR_STATE_RECEIPT",
+        "REJECTED_HIT_LOG",
+        "UNIQUE_PENDING_0X0B07_QUEUE_CENSUS",
+        "REARM_PLAN_VERSION_AND_ARTIFACT_SHA256",
+        "INSTALLED_X32DBG_EXE_DLL_GUI_AND_COMMITHASH_BINDING",
+        "PER_PHASE_BPHWC_BPHWS_COMMAND_RESULT_PRE_POST_ACTIVE_SET_AND_BEFORE_RESUME_VERIFICATION"
+      ]
+    }
+  },
+  "requiredSameRunComposition": [
+    "receipt-v2 schema covering plan version/hash, installed debugger hashes/commit file, temporal phase, exact command/results, pre/post active sets, before-resume verification, hit thread/event, per-thread DR state, rejected hits, and unique pending 0x0B07 queue census",
+    "fresh G7MTClient PID/startTime/hash/moduleBase/HWND/owner/client surface",
+    "fresh listener and heartbeat",
+    "fresh x32dbg PID/startTime/HWND/owner, installed binary hashes, and exact foreground",
+    "fresh manager65-bound manager67 authority-card/action-0x2B/page-selected widget/gates/rect snapshot",
+    "independently bound manager67 authority-card hit region",
+    "fresh hardened manager65 action-0x2B snapshot",
+    "independently bound manager65 action-0x2B hit region",
+    "fresh WARP stage-owner snapshot binding active flow child[2] to the scoped TextDialog manager",
+    "fresh destination projection snapshot and independently resolved hit region",
+    "fresh TextDialog snapshot and independently resolved confirm region",
+    "independently reviewed non-writing hardware breakpoint installation and per-thread receipt",
+    "one authorized physical activation followed by separately adjudicated stage progression and movement outbound/inbound/queue-completion/pixel receipts"
+  ],
+  "blockers": [
+    "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "MOVEMENT_RECEIPT_TEMPORAL_THREAD_CORRELATION_SCHEMA_MISSING",
+    "FRESH_RUN_IDENTITY_MISSING",
+    "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+    "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+    "FRESH_MANAGER65_SNAPSHOT_MISSING",
+    "MANAGER65_ACTION_0X2B_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+    "FRESH_WARP_STAGE_OWNER_SNAPSHOT_MISSING",
+    "FRESH_DESTINATION_PROJECTION_SNAPSHOT_MISSING",
+    "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+    "FOREGROUND_PROBE_NOT_RUN",
+    "INDEPENDENT_LIVE_PRELAUNCH_REVIEW_MISSING"
+  ],
+  "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+  "firstTechnicalBoundary": "MOVEMENT_RECEIPT_TEMPORAL_THREAD_CORRELATION_SCHEMA_MISSING",
+  "boundArtifacts": {
+    "hardwareRearmPlan": {"path":"work/20260828-original-client-movement-hardware-rearm-plan/evidence/hardware-rearm-plan.json","sha256":"54192253616B5CE26F81A87276BD861B15069677E8F3EEDD6C3FA903D8DE665D"},
+    "hardwareDryRun": {"path":"work/20260828-original-client-movement-hardware-rearm-plan/evidence/hardware-rearm-dry-run.json","sha256":"F9CEA3F0AF236BBB20A7742DA06B6C3C16FEFD83BAD01FA12A611D31DA997F06"},
+    "officialSources": {"path":"work/20260828-original-client-movement-hardware-rearm-plan/evidence/official-x64dbg-hardware-sources.json","sha256":"AFC36F62445424A84D46C9C68DE25C3A33ADF97D2F636CA3490A5DD53555C2F7"},
+    "hardwareVerifier": {"path":"work/20260828-original-client-movement-hardware-rearm-plan/src/verify-hardware-rearm-plan.ps1","sha256":"166BA3EB1D01558CCAC87C2E8AE3D15BF00324DAFFB49F380DD4DEEECB6B7E51"},
+    "hardwareTests": {"path":"work/20260828-original-client-movement-hardware-rearm-plan/tests/test-hardware-rearm-plan.ps1","sha256":"792F8FE4710C2678E73336A1EA20D411E1703750FF4A0D83D69B67AF1E84228F"},
+    "priorV6Contract": {"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/prelaunch-v6-movement-receipt.json","sha256":"7371B9157C329FA4B538792C1C999B46671CE7E66B30C3F2AECC4B59A7C10C1F"},
+    "priorV6Verifier": {"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/src/verify-prelaunch-v6-movement-receipt.ps1","sha256":"207883D457B9F8F43845825BA577919BF7F2A10774B2449EF80613AFB9387288"},
+    "priorV6Tests": {"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/tests/test-prelaunch-v6-movement-receipt.ps1","sha256":"1D5579E172FF47E817421065570AEF04882165FCF70A19501B707E6897A93D32"},
+    "priorV6FinalVerification": {"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/final-verification.json","sha256":"CAFFEF999A83FA5E862A63743BF843840E3FDC5C3CE306EB5DDA6B1226C555CC"},
+    "priorV6ArtifactLedger": {"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/artifact-ledger.json","sha256":"7A6E5594B7D2DA7DB331A92BEA350759EF36EB857AF75E379C12DE7DF8209DE3"}
+  },
+  "forbidden": [
+    "reuse prior permit/run/PID/HWND/pointer/coordinate",
+    "software INT3, empty-address bphwc, DR-slot-number dependency, or any process-memory write",
+    "automatic click, retry, or breakpoint rearm command",
+    "input before all same-run gates, receipt-v2 schema, and independent review pass",
+    "binary/resource patch",
+    "VM lifecycle or server/protocol/database change",
+    "fixture, static source, bplist, or self-claimed live evidence promotion"
+  ],
+  "operationCounters": {"guestOperations":0,"debuggerAttach":0,"debuggerCommands":0,"breakpointsInstalled":0,"processMemoryReads":0,"physicalInputs":0,"captures":0,"memoryWrites":0}
+}

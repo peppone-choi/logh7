@@ -1,0 +1,108 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 2,
+  "feature": "lobby sub-panel controls ignore correctly-recorded presses (VNC and guest transport) — also conditions 7/8",
+  "verdict": "OBSERVED_PANEL_CONTROLS_UNROUTED",
+  "runId": "20260902T232632Z-natural-l1-relogin-v1",
+  "supersedes": "condition-2-lobby-panel-gate-move-click-rpm-verification.json hypothesis (b): the first click after opening is NOT consumed by a latch; +0x194/+0x294 merely toggle per click",
+  "method": "Sequence with one deliberate input per step and a read-only 64 KB dump after each: lobby (D1) -> VNC click 環境設定 (122,481) (D2) -> VNC click empty panel area (600,300) (D3) -> VNC click 戻る (763,582) (D4) -> guest SetCursorPos+mouse_event click 戻る (763,582) (D5b). No input retries; the first D5 probe failed on the VIX side (step-rpm-d5-host.json) and was re-run once as a read-only probe.",
+  "inputOwner_0x022142A8": {
+    "d1": {
+      "press": [
+        0,
+        0
+      ],
+      "cells194_294": [
+        256,
+        256
+      ]
+    },
+    "d2": {
+      "press": [
+        122,
+        481
+      ],
+      "cells194_294": [
+        0,
+        0
+      ]
+    },
+    "d3": {
+      "press": [
+        600,
+        300
+      ],
+      "cells194_294": [
+        256,
+        256
+      ]
+    },
+    "d4": {
+      "press": [
+        763,
+        582
+      ],
+      "cells194_294": [
+        0,
+        0
+      ]
+    },
+    "d5b": {
+      "press": [
+        763,
+        582
+      ],
+      "cells194_294": [
+        256,
+        256
+      ]
+    }
+  },
+  "pixelChecks": {
+    "r1_vs_r3_modoruAndApply_opaque": true,
+    "r1_vs_r4_modoruAndApply_opaque": true,
+    "note": "戻る interior identical in r1..r4 -> no hover/pressed visual state either"
+  },
+  "conclusion": "The 戻る control of 環境設定 receives a correctly-placed press through BOTH transports and does nothing; keyboard was already shown inert on the lottery panel. Since the press point, cursor and sub-panel cells all behave, the wedge lives in the panel's widget routing: the manager branch that consumes hit-test results for lobby sub-panel parts. No smaller live input can narrow this further; next unit is static — the panel constructor near 0x5210d9 (fills 0x02216C20), its part list / +0x08 active flags, and the FUN_005015F0 dispatcher condition that delivers hits to parts.",
+  "checks": {
+    "probe_readOnly_VM_READ_only": true,
+    "login_natural_one_submission": true,
+    "settingsOpen_wedge_reproduced": true,
+    "emptyClick_recordedAsPress": true,
+    "controlClick_vnc_recordedAtModoru": true,
+    "controlClick_vnc_panelStillOpen": true,
+    "controlClick_guest_sent_once": true,
+    "controlClick_guest_panelStillOpen": true,
+    "controlClick_guest_pressRecordedAtModoru": true,
+    "release_never_recorded_in_any_state": true,
+    "cells_0x194_0x294_toggle_per_click_not_gate": true,
+    "subPanelCell_stays_1_while_open": true,
+    "clientWedged_stoppedByOwnPidStop_cleanShutdown": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "7F5274CC27261E09BBF8D749A795134570936EC639454EADDEABA2372712237D",
+    "fresh-run-prep.json": "A7B15DCB5C65BE49CB456AAB40CA3D826F8751B470FD2340B74AC9EB0FCA163F",
+    "cred-d.json": "AAF8FA8E2C2F245C2FD50D7003E72B3684F118D6AA0D58FA31E06E8D929E2A27",
+    "rpm-d1.json": "1852A296BBD2E5998AD37F427A51C7A65532A2F09400888577C2E459DBAA26D0",
+    "rpm-d2.json": "BB297AAEC0CEB750D2AC7ECA09622A9E21FE69307B35BBEBFA09BB763E82EC3F",
+    "rpm-d3.json": "CF2DB81EECDE055106A722228CFA9D4058756B58A35C6C490AE5973790C0DB6F",
+    "rpm-d4.json": "4E524BBE03B0914B6B34D2FB256BF9C3E00A77CAA35472B255F09C7BFDC0C69C",
+    "rpm-d5b.json": "72B599F9E8F3EF90AE36E95393D59BEE0C30F22EF8B64638FAB0D783C963BEE1",
+    "rpm-dump-d1.bin": "F46BA8912612F737D45365E677FE927FC843B8E6826B08943DA0F165D6120813",
+    "rpm-dump-d2.bin": "E497E6487E301B3D2784E3732BCB6EFA9FB84E1853CC18B18594470B0BA8BE28",
+    "rpm-dump-d3.bin": "063600A135F9EAE9D35201B608D5840BC8FF3013DB69E904E5511B6B7947C368",
+    "rpm-dump-d4.bin": "20EEC309E4EC0863D95DB0EFC431D94AD3A0B19727858AB7887AE4EE19A091DA",
+    "rpm-dump-d5b.bin": "7C16EAB4973AB8D4208665D954AD347B6FDAF6D5EC5E9B12A3F9B024891DD199",
+    "gclick-modoru.json": "21E96B192DF55B083CEFAF071F03D5DF898BEBF03836C6E71BE7772C7D87CEFA",
+    "step-rpm-d5-host.json": "6E47E868D5D1D57969729B1B440F71A4AAA2F8BC1B3EBC475DC6155E146F6382",
+    "vnc-r0b-lobby.png": "BD7C7B29D53470A94529B9E239F55BBEB048876E9863E8BC21A8E765765ECC3A",
+    "vnc-r1-settings.png": "74FC95E0403376B660F484E2215CAFA3C9D8FFCF1F6A89414848EF4C86BA047D",
+    "vnc-r2-after-empty-click.png": "A20D30311E43DDB9F528315F2BF1E304087395C088147C20F265A281CBC6A1A7",
+    "vnc-r3-after-modoru-click.png": "394C3288C0F58F2B084B5D52063878C7FCEC2ADB986DF2FCF84415FCAE1A3EED",
+    "vnc-r4-after-guest-modoru.png": "D270914FA7D9F8BA4FB6C0974E1BB5777A03D3A9840BA13730A9FAF0F10E89DC",
+    "stop-own-client.json": "AE0EA99DC7B10D8C346B2D6D286AC4E48CC1F065F3D50CE62FBEE87F304941F6",
+    "clean-stop.json": "0D93FFF84D186FAEB3E573187C2C86F4BDA4F638DAB2315A7B2492D8579E96AF",
+    "cleanup.json": "1F6ECF40D4AD3A8818CF2A7E007C58D2ED7A5655549BEBDDBD6CA757E7793916",
+    "verify-after-stop.json": "1608B8F8A2E3FF7E56099E208416A0BBE7ADE69030966A2CE7655B64B7BCD4A4"
+  }
+}

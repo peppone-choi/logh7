@@ -1,0 +1,83 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 7,
+  "feature": "order-suggest 承認 (approve) button on an ALREADY-DECIDED authored order card (card 39, reply_value 2)",
+  "verdict": "OBSERVED_GATED_SILENT",
+  "meaning": "The client correctly refrains from sending 0x0F14 for a resolved card (state matches the authority's ALREADY_DECIDED rule), BUT it gives NO visible reason — the goal's condition 7 requires a verifiable reason for a disabled/inert required button. Recorded as a condition-7 GAP item (silent no-op), not a pass.",
+  "runId": "20260902T220359Z-natural-l1-relogin-v1",
+  "sequence": "login → strategy → mail icon → mailbox → row 「命令（返答済み）」(440,240) → client 0x0F11 → authority Success (order-suggest-resolved-card-read; reply=2; authored-card-id=39) → body 「オウム返しK」 → 承認 (250,166) → no request, no dialog, no message → DB unchanged → close → ゲーム終了 → clean-stop → cleanup",
+  "wire": {
+    "resolvedCardRead0x0F11": {
+      "timestampUtc": "2026-09-02T22:06:31.8827693+00:00",
+      "eventName": "frame-processed",
+      "connectionId": 3,
+      "outerControl": 48,
+      "payloadLength": 64,
+      "stateBefore": "SessionServerReady",
+      "stateAfter": "SessionServerReady",
+      "status": "Success",
+      "errorCode": null,
+      "observedApplicationType": 3857,
+      "originalLoginInputShape": null,
+      "rejectedApplicationPayloadHex": null,
+      "responseMetadata": "order-suggest-resolved-card-read;character-id=2;reply=2;authored-card-id=39",
+      "responseOuterControl": 48,
+      "responsePayloadLength": 72,
+      "responsesBeforePrimaryPayloadLengths": null,
+      "additionalResponsePayloadLengths": null
+    },
+    "reply0x0F14Count": 0
+  },
+  "snapshots": {
+    "A0_baseline": {
+      "orderReply": [
+        {
+          "character_id": 2,
+          "card_id": 39,
+          "reply_value": 2,
+          "authority_version": 23
+        }
+      ],
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "character": "2|5|20"
+    },
+    "M_afterApprove": {
+      "orderReply": [
+        {
+          "character_id": 2,
+          "card_id": 39,
+          "reply_value": 2,
+          "authority_version": 23
+        }
+      ],
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "character": "2|5|20"
+    }
+  },
+  "checks": {
+    "baseline_cardAlreadyDecided_reply2_card39": true,
+    "login_reachedStrategy_mailbox": true,
+    "orderMailRow_opens_resolvedCardRead_0x0F11": true,
+    "approveButton_noRequestSent_0x0F14_absent": true,
+    "approveButton_noVisibleChange": true,
+    "db_unchanged_afterApprove": true,
+    "normalShutdown_and_cleanup": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "17FC09D9B2A4ADFEEC4ED937662FDB264E227CCCDA27449664A79A194378BC32",
+    "fresh-run-prep.json": "658FD311F4F356694B36666AA3C33B3EE35D8E65DCBC6D9A89BC3E32148FEF21",
+    "db-a0.json": "AE31DCAA70FA75F9A6F34BF42A4B2DA85F4FB56588DEC56B089DDEA75B910E1F",
+    "db-m.json": "DFA641DBAA50F14B4F7BA2EDA163A386E5C7DF471736B6CEBF5B37468925A2AB",
+    "cred-c.json": "77ACF5E74B584F8E37A777C8A31500AD1252C29E31699A1513DC5F169745E901",
+    "clean-stop.json": "AB488B1DB68A28983C7241F699D63B9C7FC971E9C34A579706FF8C4DD54F935C",
+    "cleanup.json": "DBE35D1D8EC4D11D82A0FB6AE7124D391946D24A1A19CE84361CE59E1B446112",
+    "server-wire.jsonl": "F83140A65476329F7006ECCEEB489515507325F34ED71433DAA5B292F407DB41",
+    "vnc-e-strategy.png": "3CB0071CF37502A74BF4B6D58CC238E70237FECDC5A22EF6E949891F33ADD71E",
+    "vnc-o1-mailbox.png": "BDBFE3F666D03142DBE5C64B9CF7591C990CD3B9344438ED8AE0CBDF4F829504",
+    "vnc-o2-order-mail.png": "C7DC49B51B0008482922026F0685BE5762107BA31A388DC3D06B9ED95F1E65D2",
+    "vnc-o3-after-shounin.png": "CD5692D760CD44200069D9F679D2D766EAD1191E0818876C220B738698698F7C",
+    "vnc-o4-closed.png": "C2E522EF4ED964673CEAD149B0BB765D10C17406ABE6C7CAC8CD68E795D282FE"
+  }
+}

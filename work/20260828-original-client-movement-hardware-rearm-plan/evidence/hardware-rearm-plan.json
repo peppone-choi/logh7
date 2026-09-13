@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "plan": "ORIGINAL_CLIENT_MOVEMENT_HARDWARE_REARM_PLAN",
+  "state": "OFFLINE_HARDWARE_REARM_PLAN_PASS_RECEIPT_SCHEMA_GAP",
+  "target": {"file":"G7MTClient.exe","sha256":"BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16","runtimeAddressRule":"freshModuleBase+anchorRva","staleAbsoluteAddressReusable":false},
+  "anchorOrder": ["MVB01","MVB02","MVB03","MVB04","MVB05","MVB06","MVB07","MVB08","MVB09"],
+  "hardware": {
+    "mechanism": "X86_DEBUG_REGISTERS_EXECUTE_SIZE_1",
+    "maximumConcurrentSlots": 4,
+    "softwareInt3Allowed": false,
+    "processMemoryWritesAllowed": false,
+    "singleshoot": false,
+    "onHitCommandAutomation": false,
+    "emptyDeleteAddressAllowed": false,
+    "slotNumberDependencyAllowed": false,
+    "operatorMode": "SINGLE_WRITER_PAUSED_TRANSACTION",
+    "setCommandTemplate": "bphws {runtimeAddress}, x, 1",
+    "deleteCommandTemplate": "bphwc {runtimeAddress}"
+  },
+  "installedX32dbg": {
+    "path": "C:/Users/user/Tools/x64dbg-2026.05.27/release/x32/x32dbg.exe",
+    "commit": "9c8ca1cae0b6d56cc44f31fddcb10e3b02ffbb87",
+    "commitHashFilePath": "C:/Users/user/Tools/x64dbg-2026.05.27/commithash.txt",
+    "commitHashFileSha256": "80A7077840C2DD987861A857DB19C06279408E0344B0AD13538217075A0E2C67",
+    "x32dbgExeSha256": "822028F0755DBA773E445EAF57FDB3DBA84C9550AC7BDAD2AFA449912B5FBA41",
+    "x32dbgDllSha256": "1C2A4A10E0D1C33FE230277E3A4C64AE5E18C165C9D6AED58B1F37E2CE9812FC",
+    "x32guiDllSha256": "74090ABE1FF077AB0C56F3B96D18314E7706B867345ABDD05891652F69A96853"
+  },
+  "threadCoverage": {
+    "status": "STATIC_SOURCE_INDICATES_ALL_THREAD_PROGRAMMING_RUNTIME_UNSEEN",
+    "sourceImplementationIteratesAllExistingThreads": true,
+    "newThreadHandlerAppliesDefinitionsBeforeContinuation": true,
+    "selectedThreadOnlyAllowed": false,
+    "installedSourceMultiThreadTodoPresent": true,
+    "multiThreadRuntimeValidation": "MISSING",
+    "livePerThreadDrReceipt": "MISSING"
+  },
+  "debuggerSemantics": {
+    "scheduleProperty": "NEXT_ANCHOR_MEMBERSHIP_REQUIRED_BEFORE_RESUME",
+    "debugEventAllThreadsStoppedEvidence": "MISSING_OR_UNBOUND",
+    "executeHardwareBreakpointPreInstructionEvidence": "MISSING_OR_UNBOUND",
+    "runtimeNoMissProof": "MISSING"
+  },
+  "initial": {
+    "targetStoppedRequired": true,
+    "active": ["MVB01","MVB06","MVB08","MVB09"],
+    "allThreadStateVerificationRequiredBeforeResume": true,
+    "resumeAllowed": false
+  },
+  "transitions": [
+    {"hit":"MVB01","activeBefore":["MVB01","MVB06","MVB08","MVB09"],"remove":["MVB01"],"add":["MVB02"],"activeAfter":["MVB02","MVB06","MVB08","MVB09"],"nextRequired":"MVB02","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB02","activeBefore":["MVB02","MVB06","MVB08","MVB09"],"remove":["MVB02"],"add":["MVB03"],"activeAfter":["MVB03","MVB06","MVB08","MVB09"],"nextRequired":"MVB03","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB03","activeBefore":["MVB03","MVB06","MVB08","MVB09"],"remove":["MVB03"],"add":["MVB04"],"activeAfter":["MVB04","MVB06","MVB08","MVB09"],"nextRequired":"MVB04","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB04","activeBefore":["MVB04","MVB06","MVB08","MVB09"],"remove":["MVB04"],"add":["MVB05"],"activeAfter":["MVB05","MVB06","MVB08","MVB09"],"nextRequired":"MVB05","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB05","activeBefore":["MVB05","MVB06","MVB08","MVB09"],"remove":["MVB05"],"add":["MVB07"],"activeAfter":["MVB06","MVB07","MVB08","MVB09"],"nextRequired":"MVB06","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB06","activeBefore":["MVB06","MVB07","MVB08","MVB09"],"remove":[],"add":[],"activeAfter":["MVB06","MVB07","MVB08","MVB09"],"nextRequired":"MVB07","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB07","activeBefore":["MVB06","MVB07","MVB08","MVB09"],"remove":[],"add":[],"activeAfter":["MVB06","MVB07","MVB08","MVB09"],"nextRequired":"MVB08","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB08","activeBefore":["MVB06","MVB07","MVB08","MVB09"],"remove":[],"add":[],"activeAfter":["MVB06","MVB07","MVB08","MVB09"],"nextRequired":"MVB09","targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":true,"resumeAllowed":true},
+    {"hit":"MVB09","activeBefore":["MVB06","MVB07","MVB08","MVB09"],"remove":["MVB06","MVB07","MVB08","MVB09"],"add":[],"activeAfter":[],"nextRequired":null,"targetStoppedForEntireMutationRequired":true,"activeSetVerificationRequiredBeforeResume":true,"nextRequiredArmedBeforeResumeRequired":false,"resumeAllowed":false}
+  ],
+  "hitAcceptance": {
+    "rotateOnlyOnAcceptedCandidateHit": true,
+    "rejectedHitDoesNotMutateSlots": true,
+    "laterAnchorWithoutAcceptedPredecessor": "FAIL_CLOSED",
+    "mismatchAtMVB08": "FAIL_CLOSED_NO_MVB09_SUCCESS_WAIT",
+    "noSecondMVB01BetweenMVB05AndMVB06": true
+  },
+  "sources": {
+    "movementLedger": {"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/movement-breakpoint-static-ledger.json","sha256":"9BC141E9C2F9AA7A0EF6BADF9B63CED2822F3E5D7AF820382F38803523ED3B99"},
+    "x64dbg": {"commit":"9c8ca1cae0b6d56cc44f31fddcb10e3b02ffbb87","commandSourceSha256":"E33D8A19C6B2110EB3786FF6532C51F581C7E0EC3B2AA39735C017C96516114D"},
+    "titanEngine": {"commit":"ccac889f27622255dfb199b2f534d69e2e1e9050","breakpointSourceSha256":"9886D1E28D60A8099F37765414D0FBDAE73587D55ECBAACF88DFA54BB71E0B6E","debugLoopSourceSha256":"3EA92B19A27DF1071162FF6DDA24D18A0CA0EF7081A1A3E0A3F3BD570086B1FA"},
+    "setHardwareDoc": {"contentSha256":"33FD09975D8AA3FDCD98E689CE36FD5E51688DCC12B243A6A66D0AE17FD9C26A"}
+  },
+  "receiptGapAudit": {
+    "status": "MISSING",
+    "missingFields": ["HIT_THREAD_ID_AND_DEBUG_EVENT_ORDINAL","TEMPORAL_REARM_PHASE_LEDGER","PER_THREAD_DR_STATE_RECEIPT","REJECTED_HIT_LOG","UNIQUE_PENDING_0X0B07_QUEUE_CENSUS","REARM_PLAN_VERSION_AND_ARTIFACT_SHA256","INSTALLED_X32DBG_EXE_DLL_GUI_AND_COMMITHASH_BINDING","PER_PHASE_BPHWC_BPHWS_COMMAND_RESULT_PRE_POST_ACTIVE_SET_AND_BEFORE_RESUME_VERIFICATION"],
+    "nextBoundary": "MOVEMENT_RECEIPT_TEMPORAL_THREAD_CORRELATION_SCHEMA_MISSING"
+  },
+  "dryRun": {"runtimeStatus":"SYNTHETIC_DRY_RUN_ONLY","liveInstallEligible":false,"permitIssued":false},
+  "operations": {"guestOperations":0,"debuggerAttach":0,"debuggerCommands":0,"breakpointsInstalled":0,"processMemoryReads":0,"processMemoryWrites":0,"captures":0,"physicalInputs":0,"automaticInputs":0,"vmLifecycleChanges":0,"serverProtocolDbChanges":0}
+}

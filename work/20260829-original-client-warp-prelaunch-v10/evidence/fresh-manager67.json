@@ -1,0 +1,223 @@
+﻿{
+    "schemaVersion":  1,
+    "provenance":  "LIVE_READONLY",
+    "process":  {
+                    "pid":  3448,
+                    "startTimeUtc":  "2026-08-25T15:47:31.9489446Z",
+                    "sha256":  "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+                    "moduleBase":  "0x00400000",
+                    "hwnd":  "0x001A0490",
+                    "hwndOwnerPid":  3448,
+                    "clientWidth":  1024,
+                    "clientHeight":  822,
+                    "secondHwndOwnerPid":  3448,
+                    "secondClientWidth":  1024,
+                    "secondClientHeight":  822
+                },
+    "strategyRoot":  {
+                         "pointer":  "0x00C9E638",
+                         "builderMode":  225134896,
+                         "handlerState":  225134952,
+                         "strategyMode":  1
+                     },
+    "manager65":  {
+                      "boundAuthorityCardId":  -1
+                  },
+    "manager67":  {
+                      "controllerPointer":  "0x00C9EAC4",
+                      "managerPointer":  "0x0D56CD50",
+                      "managerId":  103,
+                      "managerInputGate":  0,
+                      "page":  1,
+                      "cardCount":  2,
+                      "pendingHitIndex":  -1,
+                      "dataOwnerPointer":  "0x08C2802C",
+                      "dataOwnerCount":  2,
+                      "dataOwnerCountMatches":  true,
+                      "currentCharacterOwnerPointer":  "0x08C28020",
+                      "expectedCurrentRecordPointer":  "0x08C2802C",
+                      "currentRecordSourceMatches":  true,
+                      "registryHostPointer":  "0x055529F0",
+                      "registryPointer":  "0x09255020",
+                      "registrySlotPointer":  "0x0D56CD50",
+                      "registrySlotMatches":  true,
+                      "cards":  [
+                                    {
+                                        "index":  0,
+                                        "cardId":  59,
+                                        "actionCount":  16,
+                                        "actionIds":  [
+                                                          43,
+                                                          44,
+                                                          45,
+                                                          46,
+                                                          47,
+                                                          48,
+                                                          49,
+                                                          50,
+                                                          51,
+                                                          52,
+                                                          53,
+                                                          54,
+                                                          55,
+                                                          56,
+                                                          57,
+                                                          58
+                                                      ],
+                                        "hasWarpAction":  true,
+                                        "surfaceC":  {
+                                                         "surface":  "C",
+                                                         "widgetPointer":  "0x096015E4",
+                                                         "status":  "READ",
+                                                         "initialized":  1,
+                                                         "localSelector":  0,
+                                                         "localGate":  0,
+                                                         "hitTestEnabled":  1,
+                                                         "activeVisible":  1,
+                                                         "renderVisible":  1,
+                                                         "width":  316,
+                                                         "height":  32,
+                                                         "eligible":  true,
+                                                         "logicalRect":  {
+                                                                             "left":  0,
+                                                                             "top":  0,
+                                                                             "right":  316,
+                                                                             "bottom":  32
+                                                                         }
+                                                     },
+                                        "surfaceD":  {
+                                                         "surface":  "D",
+                                                         "widgetPointer":  "0x096024FC",
+                                                         "status":  "READ",
+                                                         "initialized":  1,
+                                                         "localSelector":  0,
+                                                         "localGate":  0,
+                                                         "hitTestEnabled":  1,
+                                                         "activeVisible":  1,
+                                                         "renderVisible":  1,
+                                                         "width":  316,
+                                                         "height":  32,
+                                                         "eligible":  true,
+                                                         "logicalRect":  {
+                                                                             "left":  0,
+                                                                             "top":  0,
+                                                                             "right":  316,
+                                                                             "bottom":  32
+                                                                         }
+                                                     }
+                                    },
+                                    {
+                                        "index":  1,
+                                        "cardId":  0,
+                                        "actionCount":  15,
+                                        "actionIds":  [
+                                                          82,
+                                                          83,
+                                                          84,
+                                                          85,
+                                                          86,
+                                                          87,
+                                                          88,
+                                                          89,
+                                                          90,
+                                                          91,
+                                                          92,
+                                                          93,
+                                                          94,
+                                                          95,
+                                                          96
+                                                      ],
+                                        "hasWarpAction":  false,
+                                        "surfaceC":  {
+                                                         "surface":  "C",
+                                                         "widgetPointer":  "0x09603414",
+                                                         "status":  "READ",
+                                                         "initialized":  1,
+                                                         "localSelector":  0,
+                                                         "localGate":  0,
+                                                         "hitTestEnabled":  1,
+                                                         "activeVisible":  1,
+                                                         "renderVisible":  1,
+                                                         "width":  316,
+                                                         "height":  32,
+                                                         "eligible":  true,
+                                                         "logicalRect":  {
+                                                                             "left":  0,
+                                                                             "top":  32,
+                                                                             "right":  316,
+                                                                             "bottom":  64
+                                                                         }
+                                                     },
+                                        "surfaceD":  {
+                                                         "surface":  "D",
+                                                         "widgetPointer":  "0x0960432C",
+                                                         "status":  "READ",
+                                                         "initialized":  1,
+                                                         "localSelector":  0,
+                                                         "localGate":  0,
+                                                         "hitTestEnabled":  1,
+                                                         "activeVisible":  1,
+                                                         "renderVisible":  1,
+                                                         "width":  316,
+                                                         "height":  32,
+                                                         "eligible":  true,
+                                                         "logicalRect":  {
+                                                                             "left":  0,
+                                                                             "top":  32,
+                                                                             "right":  316,
+                                                                             "bottom":  64
+                                                                         }
+                                                     }
+                                    }
+                                ]
+                  },
+    "coordinateFrame":  {
+                            "contextChain":  [
+                                                 {
+                                                     "pointer":  "0x0D56CD50",
+                                                     "id":  103,
+                                                     "active":  0,
+                                                     "parentId":  -1,
+                                                     "localX":  0,
+                                                     "localY":  0,
+                                                     "registry":  "0x09255020"
+                                                 }
+                                             ],
+                            "logicalOrigin":  {
+                                                  "x":  0,
+                                                  "y":  0
+                                              },
+                            "scaleX":  1,
+                            "scaleY":  1,
+                            "logicalWidth":  1024,
+                            "logicalHeight":  768,
+                            "engineClientRect":  {
+                                                     "left":  0,
+                                                     "top":  0,
+                                                     "right":  1024,
+                                                     "bottom":  768
+                                                 }
+                        },
+    "selectedAuthorityCard":  null,
+    "snapshotStable":  true,
+    "windowSurfaceStable":  true,
+    "stateEligible":  false,
+    "blockers":  [
+                     "ENGINE_RECT_HWND_MISMATCH",
+                     "STRATEGY_MODE_NOT_2",
+                     "MANAGER67_CONTEXT_INACTIVE",
+                     "MANAGER67_PAGE_NOT_2_OR_3",
+                     "MANAGER65_BOUND_AUTHORITY_CARD_ID_INVALID",
+                     "SCALE_LOGICAL_SURFACE_MISMATCH",
+                     "BOUND_AUTHORITY_CARD_NOT_IN_CURRENT_MANAGER67_LIST"
+                 ],
+    "originalRuntimeObserved":  false,
+    "permitIssued":  false,
+    "operations":  {
+                       "memoryReads":  "READ_ONLY",
+                       "memoryReadCount":  236,
+                       "writes":  0,
+                       "gameInputs":  0,
+                       "breakpointsInstalled":  0
+                   }
+}

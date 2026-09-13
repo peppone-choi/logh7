@@ -1,0 +1,1460 @@
+{
+  "descriptorCount": 11,
+  "descriptors": [
+    {
+      "dll": "KERNEL32.dll",
+      "imports": [
+        {
+          "iatVa": "0x004400D4",
+          "name": "RaiseException"
+        },
+        {
+          "iatVa": "0x004400D8",
+          "name": "GetStartupInfoA"
+        },
+        {
+          "iatVa": "0x004400DC",
+          "name": "GetCommandLineA"
+        },
+        {
+          "iatVa": "0x004400E0",
+          "name": "ExitProcess"
+        },
+        {
+          "iatVa": "0x004400E4",
+          "name": "HeapFree"
+        },
+        {
+          "iatVa": "0x004400E8",
+          "name": "CreateThread"
+        },
+        {
+          "iatVa": "0x004400EC",
+          "name": "ExitThread"
+        },
+        {
+          "iatVa": "0x004400F0",
+          "name": "GetTimeZoneInformation"
+        },
+        {
+          "iatVa": "0x004400F4",
+          "name": "GetSystemTime"
+        },
+        {
+          "iatVa": "0x004400F8",
+          "name": "GetLocalTime"
+        },
+        {
+          "iatVa": "0x004400FC",
+          "name": "GetACP"
+        },
+        {
+          "iatVa": "0x00440100",
+          "name": "TerminateProcess"
+        },
+        {
+          "iatVa": "0x00440104",
+          "name": "RtlUnwind"
+        },
+        {
+          "iatVa": "0x00440108",
+          "name": "HeapAlloc"
+        },
+        {
+          "iatVa": "0x0044010C",
+          "name": "HeapReAlloc"
+        },
+        {
+          "iatVa": "0x00440110",
+          "name": "SetHandleCount"
+        },
+        {
+          "iatVa": "0x00440114",
+          "name": "GetStdHandle"
+        },
+        {
+          "iatVa": "0x00440118",
+          "name": "GetEnvironmentVariableA"
+        },
+        {
+          "iatVa": "0x0044011C",
+          "name": "GetVersionExA"
+        },
+        {
+          "iatVa": "0x00440120",
+          "name": "HeapDestroy"
+        },
+        {
+          "iatVa": "0x00440124",
+          "name": "HeapCreate"
+        },
+        {
+          "iatVa": "0x00440128",
+          "name": "VirtualFree"
+        },
+        {
+          "iatVa": "0x0044012C",
+          "name": "VirtualAlloc"
+        },
+        {
+          "iatVa": "0x00440130",
+          "name": "IsBadWritePtr"
+        },
+        {
+          "iatVa": "0x00440134",
+          "name": "GetFileType"
+        },
+        {
+          "iatVa": "0x00440138",
+          "name": "GetDriveTypeA"
+        },
+        {
+          "iatVa": "0x0044013C",
+          "name": "UnhandledExceptionFilter"
+        },
+        {
+          "iatVa": "0x00440140",
+          "name": "SetStdHandle"
+        },
+        {
+          "iatVa": "0x00440144",
+          "name": "HeapSize"
+        },
+        {
+          "iatVa": "0x00440148",
+          "name": "SetThreadPriority"
+        },
+        {
+          "iatVa": "0x0044014C",
+          "name": "SetErrorMode"
+        },
+        {
+          "iatVa": "0x00440150",
+          "name": "LCMapStringA"
+        },
+        {
+          "iatVa": "0x00440154",
+          "name": "LCMapStringW"
+        },
+        {
+          "iatVa": "0x00440158",
+          "name": "GetStringTypeA"
+        },
+        {
+          "iatVa": "0x0044015C",
+          "name": "GetStringTypeW"
+        },
+        {
+          "iatVa": "0x00440160",
+          "name": "IsBadReadPtr"
+        },
+        {
+          "iatVa": "0x00440164",
+          "name": "IsBadCodePtr"
+        },
+        {
+          "iatVa": "0x00440168",
+          "name": "CompareStringA"
+        },
+        {
+          "iatVa": "0x0044016C",
+          "name": "CompareStringW"
+        },
+        {
+          "iatVa": "0x00440170",
+          "name": "SetEnvironmentVariableA"
+        },
+        {
+          "iatVa": "0x00440174",
+          "name": "GetDiskFreeSpaceExA"
+        },
+        {
+          "iatVa": "0x00440178",
+          "name": "Sleep"
+        },
+        {
+          "iatVa": "0x0044017C",
+          "name": "SuspendThread"
+        },
+        {
+          "iatVa": "0x00440180",
+          "name": "WaitForSingleObject"
+        },
+        {
+          "iatVa": "0x00440184",
+          "name": "GetCurrentProcess"
+        },
+        {
+          "iatVa": "0x00440188",
+          "name": "DuplicateHandle"
+        },
+        {
+          "iatVa": "0x0044018C",
+          "name": "ResumeThread"
+        },
+        {
+          "iatVa": "0x00440190",
+          "name": "CreateFileA"
+        },
+        {
+          "iatVa": "0x00440194",
+          "name": "SetFileTime"
+        },
+        {
+          "iatVa": "0x00440198",
+          "name": "CloseHandle"
+        },
+        {
+          "iatVa": "0x0044019C",
+          "name": "SetFileAttributesA"
+        },
+        {
+          "iatVa": "0x004401A0",
+          "name": "DosDateTimeToFileTime"
+        },
+        {
+          "iatVa": "0x004401A4",
+          "name": "SizeofResource"
+        },
+        {
+          "iatVa": "0x004401A8",
+          "name": "GetCurrentDirectoryA"
+        },
+        {
+          "iatVa": "0x004401AC",
+          "name": "GetProcessVersion"
+        },
+        {
+          "iatVa": "0x004401B0",
+          "name": "GetOEMCP"
+        },
+        {
+          "iatVa": "0x004401B4",
+          "name": "GetCPInfo"
+        },
+        {
+          "iatVa": "0x004401B8",
+          "name": "LocalReAlloc"
+        },
+        {
+          "iatVa": "0x004401BC",
+          "name": "GlobalFlags"
+        },
+        {
+          "iatVa": "0x004401C0",
+          "name": "TlsGetValue"
+        },
+        {
+          "iatVa": "0x004401C4",
+          "name": "LeaveCriticalSection"
+        },
+        {
+          "iatVa": "0x004401C8",
+          "name": "TlsSetValue"
+        },
+        {
+          "iatVa": "0x004401CC",
+          "name": "EnterCriticalSection"
+        },
+        {
+          "iatVa": "0x004401D0",
+          "name": "DeleteCriticalSection"
+        },
+        {
+          "iatVa": "0x004401D4",
+          "name": "TlsFree"
+        },
+        {
+          "iatVa": "0x004401D8",
+          "name": "GlobalHandle"
+        },
+        {
+          "iatVa": "0x004401DC",
+          "name": "LocalAlloc"
+        },
+        {
+          "iatVa": "0x004401E0",
+          "name": "TlsAlloc"
+        },
+        {
+          "iatVa": "0x004401E4",
+          "name": "InitializeCriticalSection"
+        },
+        {
+          "iatVa": "0x004401E8",
+          "name": "GetFileTime"
+        },
+        {
+          "iatVa": "0x004401EC",
+          "name": "SystemTimeToFileTime"
+        },
+        {
+          "iatVa": "0x004401F0",
+          "name": "LocalFileTimeToFileTime"
+        },
+        {
+          "iatVa": "0x004401F4",
+          "name": "LocalFree"
+        },
+        {
+          "iatVa": "0x004401F8",
+          "name": "GetFileSize"
+        },
+        {
+          "iatVa": "0x004401FC",
+          "name": "FormatMessageA"
+        },
+        {
+          "iatVa": "0x00440200",
+          "name": "lstrcmpA"
+        },
+        {
+          "iatVa": "0x00440204",
+          "name": "GetCurrentThread"
+        },
+        {
+          "iatVa": "0x00440208",
+          "name": "GetFullPathNameA"
+        },
+        {
+          "iatVa": "0x0044020C",
+          "name": "FindClose"
+        },
+        {
+          "iatVa": "0x00440210",
+          "name": "GetVolumeInformationA"
+        },
+        {
+          "iatVa": "0x00440214",
+          "name": "FindFirstFileA"
+        },
+        {
+          "iatVa": "0x00440218",
+          "name": "UnlockFile"
+        },
+        {
+          "iatVa": "0x0044021C",
+          "name": "MoveFileA"
+        },
+        {
+          "iatVa": "0x00440220",
+          "name": "SetEndOfFile"
+        },
+        {
+          "iatVa": "0x00440224",
+          "name": "SetFilePointer"
+        },
+        {
+          "iatVa": "0x00440228",
+          "name": "LockFile"
+        },
+        {
+          "iatVa": "0x0044022C",
+          "name": "FlushFileBuffers"
+        },
+        {
+          "iatVa": "0x00440230",
+          "name": "lstrcpynA"
+        },
+        {
+          "iatVa": "0x00440234",
+          "name": "WriteFile"
+        },
+        {
+          "iatVa": "0x00440238",
+          "name": "ReadFile"
+        },
+        {
+          "iatVa": "0x0044023C",
+          "name": "CreateEventA"
+        },
+        {
+          "iatVa": "0x00440240",
+          "name": "FileTimeToLocalFileTime"
+        },
+        {
+          "iatVa": "0x00440244",
+          "name": "FileTimeToSystemTime"
+        },
+        {
+          "iatVa": "0x00440248",
+          "name": "FreeEnvironmentStringsA"
+        },
+        {
+          "iatVa": "0x0044024C",
+          "name": "SetLastError"
+        },
+        {
+          "iatVa": "0x00440250",
+          "name": "SetEvent"
+        },
+        {
+          "iatVa": "0x00440254",
+          "name": "GetTempPathA"
+        },
+        {
+          "iatVa": "0x00440258",
+          "name": "InterlockedExchange"
+        },
+        {
+          "iatVa": "0x0044025C",
+          "name": "lstrlenA"
+        },
+        {
+          "iatVa": "0x00440260",
+          "name": "MultiByteToWideChar"
+        },
+        {
+          "iatVa": "0x00440264",
+          "name": "WideCharToMultiByte"
+        },
+        {
+          "iatVa": "0x00440268",
+          "name": "LoadLibraryA"
+        },
+        {
+          "iatVa": "0x0044026C",
+          "name": "InterlockedDecrement"
+        },
+        {
+          "iatVa": "0x00440270",
+          "name": "InterlockedIncrement"
+        },
+        {
+          "iatVa": "0x00440274",
+          "name": "lstrcatA"
+        },
+        {
+          "iatVa": "0x00440278",
+          "name": "FreeLibrary"
+        },
+        {
+          "iatVa": "0x0044027C",
+          "name": "GetVersion"
+        },
+        {
+          "iatVa": "0x00440280",
+          "name": "lstrcmpiA"
+        },
+        {
+          "iatVa": "0x00440284",
+          "name": "GetCurrentThreadId"
+        },
+        {
+          "iatVa": "0x00440288",
+          "name": "GlobalGetAtomNameA"
+        },
+        {
+          "iatVa": "0x0044028C",
+          "name": "GlobalDeleteAtom"
+        },
+        {
+          "iatVa": "0x00440290",
+          "name": "GlobalAddAtomA"
+        },
+        {
+          "iatVa": "0x00440294",
+          "name": "GlobalFindAtomA"
+        },
+        {
+          "iatVa": "0x00440298",
+          "name": "GetFileAttributesA"
+        },
+        {
+          "iatVa": "0x0044029C",
+          "name": "GetModuleHandleA"
+        },
+        {
+          "iatVa": "0x004402A0",
+          "name": "GetProcAddress"
+        },
+        {
+          "iatVa": "0x004402A4",
+          "name": "FreeEnvironmentStringsW"
+        },
+        {
+          "iatVa": "0x004402A8",
+          "name": "WritePrivateProfileStringA"
+        },
+        {
+          "iatVa": "0x004402AC",
+          "name": "CreateProcessA"
+        },
+        {
+          "iatVa": "0x004402B0",
+          "name": "lstrcpyA"
+        },
+        {
+          "iatVa": "0x004402B4",
+          "name": "GetPrivateProfileSectionNamesA"
+        },
+        {
+          "iatVa": "0x004402B8",
+          "name": "CreateMutexA"
+        },
+        {
+          "iatVa": "0x004402BC",
+          "name": "GetPrivateProfileStringA"
+        },
+        {
+          "iatVa": "0x004402C0",
+          "name": "GetPrivateProfileIntA"
+        },
+        {
+          "iatVa": "0x004402C4",
+          "name": "DeleteFileA"
+        },
+        {
+          "iatVa": "0x004402C8",
+          "name": "GetLastError"
+        },
+        {
+          "iatVa": "0x004402CC",
+          "name": "GetModuleFileNameA"
+        },
+        {
+          "iatVa": "0x004402D0",
+          "name": "LoadResource"
+        },
+        {
+          "iatVa": "0x004402D4",
+          "name": "MulDiv"
+        },
+        {
+          "iatVa": "0x004402D8",
+          "name": "FindResourceA"
+        },
+        {
+          "iatVa": "0x004402DC",
+          "name": "LockResource"
+        },
+        {
+          "iatVa": "0x004402E0",
+          "name": "GlobalReAlloc"
+        },
+        {
+          "iatVa": "0x004402E4",
+          "name": "GlobalLock"
+        },
+        {
+          "iatVa": "0x004402E8",
+          "name": "GlobalAlloc"
+        },
+        {
+          "iatVa": "0x004402EC",
+          "name": "GlobalFree"
+        },
+        {
+          "iatVa": "0x004402F0",
+          "name": "GetEnvironmentStrings"
+        },
+        {
+          "iatVa": "0x004402F4",
+          "name": "GlobalUnlock"
+        },
+        {
+          "iatVa": "0x004402F8",
+          "name": "GetEnvironmentStringsW"
+        },
+        {
+          "iatVa": "0x004402FC",
+          "name": "SetUnhandledExceptionFilter"
+        },
+        {
+          "iatVa": "0x00440300",
+          "name": "CreateDirectoryA"
+        },
+        {
+          "iatVa": "0x00440304",
+          "name": "RemoveDirectoryA"
+        },
+        {
+          "iatVa": "0x00440308",
+          "name": "FindNextFileA"
+        },
+        {
+          "iatVa": "0x0044030C",
+          "name": "GetProfileStringA"
+        },
+        {
+          "iatVa": "0x00440310",
+          "name": "TerminateThread"
+        }
+      ]
+    },
+    {
+      "dll": "USER32.dll",
+      "imports": [
+        {
+          "iatVa": "0x00440320",
+          "name": "ClientToScreen"
+        },
+        {
+          "iatVa": "0x00440324",
+          "name": "BeginPaint"
+        },
+        {
+          "iatVa": "0x00440328",
+          "name": "EndPaint"
+        },
+        {
+          "iatVa": "0x0044032C",
+          "name": "TabbedTextOutA"
+        },
+        {
+          "iatVa": "0x00440330",
+          "name": "GetWindowDC"
+        },
+        {
+          "iatVa": "0x00440334",
+          "name": "DrawTextA"
+        },
+        {
+          "iatVa": "0x00440338",
+          "name": "GetCursorPos"
+        },
+        {
+          "iatVa": "0x0044033C",
+          "name": "ValidateRect"
+        },
+        {
+          "iatVa": "0x00440340",
+          "name": "GetActiveWindow"
+        },
+        {
+          "iatVa": "0x00440344",
+          "name": "TranslateMessage"
+        },
+        {
+          "iatVa": "0x00440348",
+          "name": "GetMessageA"
+        },
+        {
+          "iatVa": "0x0044034C",
+          "name": "CharUpperA"
+        },
+        {
+          "iatVa": "0x00440350",
+          "name": "InflateRect"
+        },
+        {
+          "iatVa": "0x00440354",
+          "name": "GrayStringA"
+        },
+        {
+          "iatVa": "0x00440358",
+          "name": "PostQuitMessage"
+        },
+        {
+          "iatVa": "0x0044035C",
+          "name": "SetCursor"
+        },
+        {
+          "iatVa": "0x00440360",
+          "name": "CreateDialogIndirectParamA"
+        },
+        {
+          "iatVa": "0x00440364",
+          "name": "EndDialog"
+        },
+        {
+          "iatVa": "0x00440368",
+          "name": "LoadStringA"
+        },
+        {
+          "iatVa": "0x0044036C",
+          "name": "GetClassNameA"
+        },
+        {
+          "iatVa": "0x00440370",
+          "name": "PtInRect"
+        },
+        {
+          "iatVa": "0x00440374",
+          "name": "GetSysColorBrush"
+        },
+        {
+          "iatVa": "0x00440378",
+          "name": "DestroyMenu"
+        },
+        {
+          "iatVa": "0x0044037C",
+          "name": "ShowWindow"
+        },
+        {
+          "iatVa": "0x00440380",
+          "name": "MoveWindow"
+        },
+        {
+          "iatVa": "0x00440384",
+          "name": "SetWindowTextA"
+        },
+        {
+          "iatVa": "0x00440388",
+          "name": "IsDialogMessageA"
+        },
+        {
+          "iatVa": "0x0044038C",
+          "name": "UpdateWindow"
+        },
+        {
+          "iatVa": "0x00440390",
+          "name": "SendDlgItemMessageA"
+        },
+        {
+          "iatVa": "0x00440394",
+          "name": "MapWindowPoints"
+        },
+        {
+          "iatVa": "0x00440398",
+          "name": "PeekMessageA"
+        },
+        {
+          "iatVa": "0x0044039C",
+          "name": "DispatchMessageA"
+        },
+        {
+          "iatVa": "0x004403A0",
+          "name": "GetFocus"
+        },
+        {
+          "iatVa": "0x004403A4",
+          "name": "SetActiveWindow"
+        },
+        {
+          "iatVa": "0x004403A8",
+          "name": "IsWindow"
+        },
+        {
+          "iatVa": "0x004403AC",
+          "name": "SetFocus"
+        },
+        {
+          "iatVa": "0x004403B0",
+          "name": "ScreenToClient"
+        },
+        {
+          "iatVa": "0x004403B4",
+          "name": "GetMenuState"
+        },
+        {
+          "iatVa": "0x004403B8",
+          "name": "LoadBitmapA"
+        },
+        {
+          "iatVa": "0x004403BC",
+          "name": "GetMenuCheckMarkDimensions"
+        },
+        {
+          "iatVa": "0x004403C0",
+          "name": "GetTopWindow"
+        },
+        {
+          "iatVa": "0x004403C4",
+          "name": "MessageBoxA"
+        },
+        {
+          "iatVa": "0x004403C8",
+          "name": "GetCapture"
+        },
+        {
+          "iatVa": "0x004403CC",
+          "name": "WinHelpA"
+        },
+        {
+          "iatVa": "0x004403D0",
+          "name": "GetClassInfoA"
+        },
+        {
+          "iatVa": "0x004403D4",
+          "name": "RegisterClassA"
+        },
+        {
+          "iatVa": "0x004403D8",
+          "name": "GetSubMenu"
+        },
+        {
+          "iatVa": "0x004403DC",
+          "name": "GetMenuItemID"
+        },
+        {
+          "iatVa": "0x004403E0",
+          "name": "GetDlgItem"
+        },
+        {
+          "iatVa": "0x004403E4",
+          "name": "GetWindowTextLengthA"
+        },
+        {
+          "iatVa": "0x004403E8",
+          "name": "GetWindowTextA"
+        },
+        {
+          "iatVa": "0x004403EC",
+          "name": "GetDlgCtrlID"
+        },
+        {
+          "iatVa": "0x004403F0",
+          "name": "GetKeyState"
+        },
+        {
+          "iatVa": "0x004403F4",
+          "name": "DefWindowProcA"
+        },
+        {
+          "iatVa": "0x004403F8",
+          "name": "DestroyWindow"
+        },
+        {
+          "iatVa": "0x004403FC",
+          "name": "CreateWindowExA"
+        },
+        {
+          "iatVa": "0x00440400",
+          "name": "SetWindowsHookExA"
+        },
+        {
+          "iatVa": "0x00440404",
+          "name": "CallNextHookEx"
+        },
+        {
+          "iatVa": "0x00440408",
+          "name": "GetClassLongA"
+        },
+        {
+          "iatVa": "0x0044040C",
+          "name": "SetPropA"
+        },
+        {
+          "iatVa": "0x00440410",
+          "name": "UnhookWindowsHookEx"
+        },
+        {
+          "iatVa": "0x00440414",
+          "name": "GetPropA"
+        },
+        {
+          "iatVa": "0x00440418",
+          "name": "CallWindowProcA"
+        },
+        {
+          "iatVa": "0x0044041C",
+          "name": "RemovePropA"
+        },
+        {
+          "iatVa": "0x00440420",
+          "name": "GetMessageTime"
+        },
+        {
+          "iatVa": "0x00440424",
+          "name": "GetMessagePos"
+        },
+        {
+          "iatVa": "0x00440428",
+          "name": "GetLastActivePopup"
+        },
+        {
+          "iatVa": "0x0044042C",
+          "name": "GetForegroundWindow"
+        },
+        {
+          "iatVa": "0x00440430",
+          "name": "GetWindow"
+        },
+        {
+          "iatVa": "0x00440434",
+          "name": "GetWindowLongA"
+        },
+        {
+          "iatVa": "0x00440438",
+          "name": "SetWindowLongA"
+        },
+        {
+          "iatVa": "0x0044043C",
+          "name": "SetWindowPos"
+        },
+        {
+          "iatVa": "0x00440440",
+          "name": "RegisterWindowMessageA"
+        },
+        {
+          "iatVa": "0x00440444",
+          "name": "IntersectRect"
+        },
+        {
+          "iatVa": "0x00440448",
+          "name": "SystemParametersInfoA"
+        },
+        {
+          "iatVa": "0x0044044C",
+          "name": "GetWindowPlacement"
+        },
+        {
+          "iatVa": "0x00440450",
+          "name": "GetWindowRect"
+        },
+        {
+          "iatVa": "0x00440454",
+          "name": "IsIconic"
+        },
+        {
+          "iatVa": "0x00440458",
+          "name": "DrawIcon"
+        },
+        {
+          "iatVa": "0x0044045C",
+          "name": "KillTimer"
+        },
+        {
+          "iatVa": "0x00440460",
+          "name": "LoadIconA"
+        },
+        {
+          "iatVa": "0x00440464",
+          "name": "GetSystemMetrics"
+        },
+        {
+          "iatVa": "0x00440468",
+          "name": "GetDialogBaseUnits"
+        },
+        {
+          "iatVa": "0x0044046C",
+          "name": "SetTimer"
+        },
+        {
+          "iatVa": "0x00440470",
+          "name": "DestroyIcon"
+        },
+        {
+          "iatVa": "0x00440474",
+          "name": "FindWindowA"
+        },
+        {
+          "iatVa": "0x00440478",
+          "name": "SetForegroundWindow"
+        },
+        {
+          "iatVa": "0x0044047C",
+          "name": "FillRect"
+        },
+        {
+          "iatVa": "0x00440480",
+          "name": "LoadCursorA"
+        },
+        {
+          "iatVa": "0x00440484",
+          "name": "GetClientRect"
+        },
+        {
+          "iatVa": "0x00440488",
+          "name": "ModifyMenuA"
+        },
+        {
+          "iatVa": "0x0044048C",
+          "name": "SetMenuItemBitmaps"
+        },
+        {
+          "iatVa": "0x00440490",
+          "name": "GetDC"
+        },
+        {
+          "iatVa": "0x00440494",
+          "name": "CheckMenuItem"
+        },
+        {
+          "iatVa": "0x00440498",
+          "name": "EnableMenuItem"
+        },
+        {
+          "iatVa": "0x0044049C",
+          "name": "GetNextDlgTabItem"
+        },
+        {
+          "iatVa": "0x004404A0",
+          "name": "ReleaseDC"
+        },
+        {
+          "iatVa": "0x004404A4",
+          "name": "PostMessageA"
+        },
+        {
+          "iatVa": "0x004404A8",
+          "name": "wsprintfA"
+        },
+        {
+          "iatVa": "0x004404AC",
+          "name": "EnableWindow"
+        },
+        {
+          "iatVa": "0x004404B0",
+          "name": "GetParent"
+        },
+        {
+          "iatVa": "0x004404B4",
+          "name": "GetAsyncKeyState"
+        },
+        {
+          "iatVa": "0x004404B8",
+          "name": "SendMessageA"
+        },
+        {
+          "iatVa": "0x004404BC",
+          "name": "SetRect"
+        },
+        {
+          "iatVa": "0x004404C0",
+          "name": "OffsetRect"
+        },
+        {
+          "iatVa": "0x004404C4",
+          "name": "IsWindowEnabled"
+        },
+        {
+          "iatVa": "0x004404C8",
+          "name": "IsWindowVisible"
+        },
+        {
+          "iatVa": "0x004404CC",
+          "name": "InvalidateRect"
+        },
+        {
+          "iatVa": "0x004404D0",
+          "name": "CopyRect"
+        },
+        {
+          "iatVa": "0x004404D4",
+          "name": "GetSysColor"
+        },
+        {
+          "iatVa": "0x004404D8",
+          "name": "GetMenuItemCount"
+        },
+        {
+          "iatVa": "0x004404DC",
+          "name": "GetMenu"
+        },
+        {
+          "iatVa": "0x004404E0",
+          "name": "AdjustWindowRectEx"
+        },
+        {
+          "iatVa": "0x004404E4",
+          "name": "ShowCaret"
+        },
+        {
+          "iatVa": "0x004404E8",
+          "name": "DefDlgProcA"
+        },
+        {
+          "iatVa": "0x004404EC",
+          "name": "UnregisterClassA"
+        },
+        {
+          "iatVa": "0x004404F0",
+          "name": "HideCaret"
+        },
+        {
+          "iatVa": "0x004404F4",
+          "name": "ExcludeUpdateRgn"
+        },
+        {
+          "iatVa": "0x004404F8",
+          "name": "IsWindowUnicode"
+        },
+        {
+          "iatVa": "0x004404FC",
+          "name": "CharNextA"
+        },
+        {
+          "iatVa": "0x00440500",
+          "name": "DrawFocusRect"
+        }
+      ]
+    },
+    {
+      "dll": "GDI32.dll",
+      "imports": [
+        {
+          "iatVa": "0x00440024",
+          "name": "GetTextMetricsA"
+        },
+        {
+          "iatVa": "0x00440028",
+          "name": "SelectPalette"
+        },
+        {
+          "iatVa": "0x0044002C",
+          "name": "RealizePalette"
+        },
+        {
+          "iatVa": "0x00440030",
+          "name": "CreatePalette"
+        },
+        {
+          "iatVa": "0x00440034",
+          "name": "CreateCompatibleBitmap"
+        },
+        {
+          "iatVa": "0x00440038",
+          "name": "GetObjectA"
+        },
+        {
+          "iatVa": "0x0044003C",
+          "name": "CreateCompatibleDC"
+        },
+        {
+          "iatVa": "0x00440040",
+          "name": "BitBlt"
+        },
+        {
+          "iatVa": "0x00440044",
+          "name": "CreateDIBitmap"
+        },
+        {
+          "iatVa": "0x00440048",
+          "name": "GetTextExtentPoint32A"
+        },
+        {
+          "iatVa": "0x0044004C",
+          "name": "CreateFontA"
+        },
+        {
+          "iatVa": "0x00440050",
+          "name": "GetClipBox"
+        },
+        {
+          "iatVa": "0x00440054",
+          "name": "CreateSolidBrush"
+        },
+        {
+          "iatVa": "0x00440058",
+          "name": "CreateBitmap"
+        },
+        {
+          "iatVa": "0x0044005C",
+          "name": "DeleteDC"
+        },
+        {
+          "iatVa": "0x00440060",
+          "name": "SetBkColor"
+        },
+        {
+          "iatVa": "0x00440064",
+          "name": "SaveDC"
+        },
+        {
+          "iatVa": "0x00440068",
+          "name": "RestoreDC"
+        },
+        {
+          "iatVa": "0x0044006C",
+          "name": "GetStockObject"
+        },
+        {
+          "iatVa": "0x00440070",
+          "name": "SetBkMode"
+        },
+        {
+          "iatVa": "0x00440074",
+          "name": "SelectObject"
+        },
+        {
+          "iatVa": "0x00440078",
+          "name": "SetMapMode"
+        },
+        {
+          "iatVa": "0x0044007C",
+          "name": "OffsetViewportOrgEx"
+        },
+        {
+          "iatVa": "0x00440080",
+          "name": "SetViewportExtEx"
+        },
+        {
+          "iatVa": "0x00440084",
+          "name": "SetViewportOrgEx"
+        },
+        {
+          "iatVa": "0x00440088",
+          "name": "ScaleViewportExtEx"
+        },
+        {
+          "iatVa": "0x0044008C",
+          "name": "ScaleWindowExtEx"
+        },
+        {
+          "iatVa": "0x00440090",
+          "name": "SetWindowExtEx"
+        },
+        {
+          "iatVa": "0x00440094",
+          "name": "IntersectClipRect"
+        },
+        {
+          "iatVa": "0x00440098",
+          "name": "LineTo"
+        },
+        {
+          "iatVa": "0x0044009C",
+          "name": "SetTextAlign"
+        },
+        {
+          "iatVa": "0x004400A0",
+          "name": "MoveToEx"
+        },
+        {
+          "iatVa": "0x004400A4",
+          "name": "DeleteObject"
+        },
+        {
+          "iatVa": "0x004400A8",
+          "name": "GetDeviceCaps"
+        },
+        {
+          "iatVa": "0x004400AC",
+          "name": "CreatePen"
+        },
+        {
+          "iatVa": "0x004400B0",
+          "name": "RectVisible"
+        },
+        {
+          "iatVa": "0x004400B4",
+          "name": "TextOutA"
+        },
+        {
+          "iatVa": "0x004400B8",
+          "name": "PtVisible"
+        },
+        {
+          "iatVa": "0x004400BC",
+          "name": "Escape"
+        },
+        {
+          "iatVa": "0x004400C0",
+          "name": "ExtTextOutA"
+        },
+        {
+          "iatVa": "0x004400C4",
+          "name": "PatBlt"
+        },
+        {
+          "iatVa": "0x004400C8",
+          "name": "GetTextExtentPointA"
+        },
+        {
+          "iatVa": "0x004400CC",
+          "name": "SetTextColor"
+        }
+      ]
+    },
+    {
+      "dll": "comdlg32.dll",
+      "imports": [
+        {
+          "iatVa": "0x00440584",
+          "name": "GetFileTitleA"
+        }
+      ]
+    },
+    {
+      "dll": "WINSPOOL.DRV",
+      "imports": [
+        {
+          "iatVa": "0x0044051C",
+          "name": "OpenPrinterA"
+        },
+        {
+          "iatVa": "0x00440520",
+          "name": "ClosePrinter"
+        },
+        {
+          "iatVa": "0x00440524",
+          "name": "DocumentPropertiesA"
+        }
+      ]
+    },
+    {
+      "dll": "ADVAPI32.dll",
+      "imports": [
+        {
+          "iatVa": "0x00440000",
+          "name": "RegSetValueExA"
+        },
+        {
+          "iatVa": "0x00440004",
+          "name": "RegQueryValueExA"
+        },
+        {
+          "iatVa": "0x00440008",
+          "name": "RegCloseKey"
+        },
+        {
+          "iatVa": "0x0044000C",
+          "name": "RegCreateKeyExA"
+        },
+        {
+          "iatVa": "0x00440010",
+          "name": "RegOpenKeyExA"
+        }
+      ]
+    },
+    {
+      "dll": "SHELL32.dll",
+      "imports": [
+        {
+          "iatVa": "0x00440318",
+          "name": "SHGetFileInfoA"
+        }
+      ]
+    },
+    {
+      "dll": "COMCTL32.dll",
+      "imports": [
+        {
+          "iatVa": "0x00440018",
+          "name": "_TrackMouseEvent"
+        },
+        {
+          "iatVa": "0x0044001C",
+          "name": "ordinal_17"
+        }
+      ]
+    },
+    {
+      "dll": "ole32.dll",
+      "imports": [
+        {
+          "iatVa": "0x0044058C",
+          "name": "CoUninitialize"
+        },
+        {
+          "iatVa": "0x00440590",
+          "name": "CoInitialize"
+        }
+      ]
+    },
+    {
+      "dll": "WSOCK32.dll",
+      "imports": [
+        {
+          "iatVa": "0x0044052C",
+          "name": "htons"
+        },
+        {
+          "iatVa": "0x00440530",
+          "name": "ntohs"
+        },
+        {
+          "iatVa": "0x00440534",
+          "name": "htonl"
+        },
+        {
+          "iatVa": "0x00440538",
+          "name": "closesocket"
+        },
+        {
+          "iatVa": "0x0044053C",
+          "name": "ioctlsocket"
+        },
+        {
+          "iatVa": "0x00440540",
+          "name": "ntohl"
+        },
+        {
+          "iatVa": "0x00440544",
+          "name": "getsockopt"
+        },
+        {
+          "iatVa": "0x00440548",
+          "name": "setsockopt"
+        },
+        {
+          "iatVa": "0x0044054C",
+          "name": "socket"
+        },
+        {
+          "iatVa": "0x00440550",
+          "name": "WSAGetLastError"
+        },
+        {
+          "iatVa": "0x00440554",
+          "name": "shutdown"
+        },
+        {
+          "iatVa": "0x00440558",
+          "name": "listen"
+        },
+        {
+          "iatVa": "0x0044055C",
+          "name": "bind"
+        },
+        {
+          "iatVa": "0x00440560",
+          "name": "accept"
+        },
+        {
+          "iatVa": "0x00440564",
+          "name": "recv"
+        },
+        {
+          "iatVa": "0x00440568",
+          "name": "send"
+        },
+        {
+          "iatVa": "0x0044056C",
+          "name": "inet_addr"
+        },
+        {
+          "iatVa": "0x00440570",
+          "name": "WSACleanup"
+        },
+        {
+          "iatVa": "0x00440574",
+          "name": "WSAStartup"
+        },
+        {
+          "iatVa": "0x00440578",
+          "name": "gethostbyname"
+        },
+        {
+          "iatVa": "0x0044057C",
+          "name": "connect"
+        }
+      ]
+    },
+    {
+      "dll": "WINMM.dll",
+      "imports": [
+        {
+          "iatVa": "0x00440508",
+          "name": "timeEndPeriod"
+        },
+        {
+          "iatVa": "0x0044050C",
+          "name": "timeGetDevCaps"
+        },
+        {
+          "iatVa": "0x00440510",
+          "name": "timeGetTime"
+        },
+        {
+          "iatVa": "0x00440514",
+          "name": "timeBeginPeriod"
+        }
+      ]
+    }
+  ],
+  "dynamicResolutionSurface": [
+    "KERNEL32.DLL::LoadLibraryA",
+    "KERNEL32.DLL::GetProcAddress"
+  ],
+  "importCount": 347,
+  "quality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+  "schemaVersion": 1,
+  "source": {
+    "byteSize": 1060864,
+    "sha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+  },
+  "status": "PROVEN_STATIC"
+}

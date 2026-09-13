@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "file": "G7MTClient.exe",
+    "format": "PE32_X86",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "imageBase": "0x00400000"
+  },
+  "sources": {
+    "narrowExport": {"path":"work/20260828-original-client-warp-stage-owner-pointer/evidence/warp-stage-owner-pointer.txt","sha256":"A4A910C18AB295EBD4EAC799DEF00D69A698FC93DB4F79DF1A2056CCDBFF1248"},
+    "narrowExporter": {"path":"work/20260828-original-client-warp-stage-owner-pointer/ExportWarpStageOwnerPointer.java","sha256":"421EC9C2E8C881CDE22AC586B36185F5D0F683D5E601C284A1B9861838C307BE"},
+    "visibleWarpEntry": {"path":"work/20260827-original-client-visible-warp-command-entry-owner/evidence/visible-warp-command-entry-owner.txt","sha256":"4A31AA77BC734CD3E111F096CF05C0443A92585218426A69FFDA57BF53262D54"},
+    "warpWidgetChain": {"path":"work/20260827-original-client-warp-widget-chain-owner/evidence/warp-widget-chain-owner.txt","sha256":"62C43B56E4ABEEC7D57F7DDD1A26677C7B303EF009596D3A543EC127D6746F46"},
+    "destinationConfirmOwners": {"path":"work/20260828-original-client-destination-confirm-collector/evidence/destination-confirm-owners.txt","sha256":"2335E2DEC7A16F338B3673A29C95A75F536D8930F8DE2588734CE465EAF91DDD"},
+    "textDialogCoordinateFrame": {"path":"work/20260828-textdialog-coordinate-frame-owner/textdialog-coordinate-frame.txt","sha256":"BC4DE3E8EBD27CFA0556C08D52408EC6C37AD78D636D693CDC64451E92D1EC47"}
+  },
+  "facts": {
+    "dispatcherRoot": "moduleBase+0x89E2E0",
+    "activeFlowPointerField": "moduleBase+0x89E2F8",
+    "warpFactorySlot": "moduleBase+0x89E3A8",
+    "warpFactory": "FUN_00581C80",
+    "ownerCommandField": "activeFlow+0x28",
+    "ownerCardField": "activeFlow+0x20",
+    "currentAuthorityCardField": "strategyRoot+0x488",
+    "childVector": {"begin":"activeFlow+0x10","end":"activeFlow+0x14","capacity":"activeFlow+0x18","requiredCount":6},
+    "orderedChildVtables": ["moduleBase+0x270228","moduleBase+0x276B30","moduleBase+0x275780","moduleBase+0x276AEC","moduleBase+0x276AA8","moduleBase+0x2702C0"],
+    "textDialogChildIndex": 2,
+    "textDialogConstructor": "FUN_00572170(4,0,3)",
+    "textDialogFields": {"builder":"+0x38=4","variant":"+0x3C=0","managerIndex":"+0x40=3","command":"+0x48=0x2B","commandArg":"+0x4C=0","managerCache":"+0x58"},
+    "textDialogStageCallback": "vtable+0x08=0x005725E0",
+    "managerLookup": "FUN_004FDDE0(strategyRoot,index=3,builder=4)",
+    "managerDerivation": "strategyRoot+3*0x0DE4+0x1948",
+    "textDialogManager": "moduleBase+0x8A292C"
+  },
+  "status": {
+    "staticWarpStageManagerOwner": "PASS",
+    "offlineCollector": "PASS",
+    "liveSnapshot": "UNSEEN",
+    "independentLiveBinding": "UNBOUND",
+    "playerVisible": "UNSEEN",
+    "authorityProven": "UNSEEN",
+    "persistenceProven": "UNSEEN",
+    "fixtureCoordinateReusable": false,
+    "permitIssued": false,
+    "liveOperations": 0,
+    "gameInputs": 0
+  }
+}

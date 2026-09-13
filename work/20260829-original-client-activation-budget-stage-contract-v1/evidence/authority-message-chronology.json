@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "record": "CURRENT_THREAD_AUTHORITY_MESSAGE_CHRONOLOGY",
+  "sourceSession": {
+    "threadId": "01a03bde-ebcb-7ee2-8a71-a07b0fcee407",
+    "path": "C:/Users/user/.codex/sessions/2026/08/26/rollout-2026-08-26T11-21-00-01a03bde-ebcb-7ee2-8a71-a07b0fcee407.jsonl",
+    "mutableAppendOnlySource": true,
+    "wholeFileHashRequired": false,
+    "bindingMethod": "EXACT_RESPONSE_ITEM_MESSAGE_ID_AND_RAW_JSONL_LINE_SHA256"
+  },
+  "initialGrant": {
+    "messageId": "msg_01a040f6-6fda-78a2-a493-deba1fe79bc3",
+    "turnId": "01a040f6-69ce-7870-a2b0-5eaea534947f",
+    "timestampUtc": "2026-08-27T02:04:47.45Z",
+    "createTime": 1787796287.4500902,
+    "sequenceOrdinalZeroBased": 14344,
+    "lineNumberOneBased": 14345,
+    "rawLineSha256": "0D50F121CF981D8DC37985051962752D427A69BDACEB2D152FAA89B0C93929B6",
+    "text": "VM 계정은 너가 관리하고 있잖아. 그리고 oracle-win11-hd-re.vmx의 G7MTClient.exe를 대상으로 1회의 live oracle 실행을 승인한다. VMware guest operation, fresh PID/HWND 조회, x32dbg attach, BP01–BP14 설치, read-only process-memory capture, 1회의 물리 activation 입력, owned-HWND 캡처를 허용한다. 메모리 쓰기, 바이너리 패치, 자동 클릭·자동 재시도, VM lifecycle 변경, server/protocol/DB 변경은 금지한다. Codex를 single writer로 지정하며 별도 read-only validator의 독립 검토를 허용한다. 각 단계별 추가 승인은 요구하지 않는다."
+  },
+  "historicalPermitConsumption": {
+    "path": "work/20260827-mode2-information-menu-row2-live-oracle-run-v3/evidence/permit-consumption.json",
+    "sha256": "6DEB344D029C4315865AE44495F0B8A73AF6E5A4BA55D9649154FDC1B2C5B570",
+    "observedAtUtc": "2026-08-27T03:45:18.6619092Z",
+    "permitId": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "permitState": "CONSUMED_NO_RETRY"
+  },
+  "postConsumptionBroadApproval": {
+    "messageId": "msg_01a04341-060c-7501-8694-90a25198f52e",
+    "turnId": "01a04335-c0b1-7d43-850e-1ef12d35b53a",
+    "timestampUtc": "2026-08-27T12:45:29.996Z",
+    "createTime": 1787834729.996114,
+    "sequenceOrdinalZeroBased": 23326,
+    "lineNumberOneBased": 23327,
+    "rawLineSha256": "98757CB2D1E2125F801B55076177755D11715AFB08B862A49BBDDF573F47E556",
+    "text": "그리고 전체 권한 부여. 앞으로 권한을 물어보지 않아도 돼.\n"
+  },
+  "ordering": {
+    "initialGrantBeforePermitConsumption": true,
+    "permitConsumptionBeforeBroadApproval": true,
+    "initialGrantOrdinalBeforeBroadApproval": true,
+    "status": "PASS"
+  },
+  "adjudication": {
+    "historicalGrantLiveRunsGranted": 1,
+    "historicalGrantLiveRunsConsumed": 1,
+    "historicalGrantLiveRunsRemaining": 0,
+    "postConsumptionApprovalReauthorizesFreshLiveRun": true,
+    "currentGrantLiveRunsGranted": 1,
+    "currentGrantLiveRunsConsumed": 0,
+    "currentGrantLiveRunsRemaining": 1,
+    "retainedPhysicalActivationCap": 1,
+    "retainedAutomaticInputBudget": 0,
+    "retainedRetryBudget": 0,
+    "retainedForbiddenOperations": true,
+    "extendsCompatibleReadOnlyInstrumentationToMvb01Mvb09": true,
+    "doesNotIssuePermit": true,
+    "reason": "The later blanket approval is chronologically after the consumed historical run. It reauthorizes one fresh run while the earlier explicit one-activation and forbidden-operation caps remain the narrow controlling limits."
+  },
+  "operations": {
+    "liveOperations": 0,
+    "physicalInputs": 0,
+    "permitsIssued": 0
+  }
+}

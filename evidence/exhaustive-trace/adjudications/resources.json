@@ -1,0 +1,529 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "rootId": "original-installshield-payload",
+    "sourceManifestSha256": "128798534AEDBA4600EECDEFE5A8892030F36D6697901F36143CDECDBCC6B699",
+    "treeManifestSha256": "B8487B3967F486DA9559EF30CE244EAF7F5886F3EB9CB1980A4A049BF0A63B71"
+  },
+  "adjudications": [
+    {
+      "relativePosixPath": "_____p_y_`__vii_____t_c_g.url",
+      "schemaVersion": 1,
+      "kind": "WINDOWS_INTERNET_SHORTCUT",
+      "contentSha256": "4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+      "contentBytesHex": "5B496E7465726E657453686F72746375745D0D0A55524C3D687474703A2F2F7777772E67696E656964656E2E636F6D2F0D0A",
+      "byteSize": 50,
+      "originalName": "銀河英雄伝説VII公式サイト.url",
+      "originalNameEncoding": "CP932",
+      "originalNameBytesHex": "8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C",
+      "targetUrl": "http://www.gineiden.com/",
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client scope: this hash-bound file is a Windows shell Internet Shortcut installed for user navigation, not a G7MTClient runtime resource format; exact filename, URL, and .url references are absent from the hash-bound client surfaces.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:1DFEC1FA0ADCE4B0",
+          "original-payload-sha256:4A480EB7B1D7E2B5B70081E8032A5CEC244340D18E08D10F694A6185042EA1A8",
+          "resources-ghidra-sha256:F6AEF134697B8418526FE315A046EF3D42432B95AAAFF9BDF8C90032CD57D0B2",
+          "functions-ghidra-sha256:9CA2DF2D5E43CAEEE47324D776B5A359B09E060358DA964D7901B69C5D9EC6A1",
+          "pe-imports-sha256:E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE"
+        ]
+      },
+      "evidence": [
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "tree-manifest:LOGH7/_____p_y_`__vii_____t_c_g.url",
+        "content-signature:[InternetShortcut]+URL",
+        "installshield-original-name-cp932:8BE289CD89709759936090E05649498CF68EAE8354834383672E75726C"
+      ]
+    },
+    {
+      "relativePosixPath": "bootfirst.exe",
+      "schemaVersion": 1,
+      "kind": "PE_EXECUTABLE_BOOTSTRAP",
+      "contentSha256": "23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+      "byteSize": 40960,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PE32_X86_GUI_EXECUTABLE",
+        "machine": "0x014C",
+        "subsystem": 2,
+        "entryPointRva": "0x00001150",
+        "role": "UPDATE_CLIENT_BOOTSTRAP",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/bootfirst-static-analysis.json",
+        "receiptSha256": "CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+        "evidence": [
+          "bootfirst-static-analysis-sha256:CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+          "ghidra-output-sha256:BF48F72407EEAD223A4017AC991ECAE01C3AB9E4F8F44F5ED00F61315FD92A06"
+        ]
+      },
+      "processLaunch": {
+        "status": "PROVEN",
+        "api": "KERNEL32.dll::CreateProcessA",
+        "function": "FUN_00401000",
+        "callsite": "0x004010B1",
+        "targetRelativePosixPath": "gin7updateclient.exe",
+        "targetSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+        "executableStringVa": "0x004060A4",
+        "waitCallsite": "0x004010BE",
+        "exitCodeCallsite": "0x004010D2",
+        "evidence": [
+          "bootfirst:FUN_00401000",
+          "bootfirst:CreateProcessA:0x004010B1",
+          "bootfirst:string:.\\Gin7UpdateClient.exe@0x004060A4",
+          "target-resource-sha256:EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PE is an OS-loaded updater bootstrap process, not a G7MTClient data/render/audio resource format. Its proven static behavior launches and waits for Gin7UpdateClient.exe.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:C7063B6F6EE54AC7",
+          "bootfirst-static-analysis-sha256:CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+          "bootfirst:CreateProcessA:0x004010B1",
+          "bootfirst:no-g7mtclient-resource-load-path"
+        ]
+      },
+      "evidence": [
+        "tree-manifest:LOGH7/bootfirst.exe",
+        "original-payload-sha256:23D01278CAABE2AF2C0BC240EF62742B506C1DB9484A2B380E9BD63BCA411096",
+        "version-info:アップデートクライアント 起動プログラム",
+        "ghidra-exporter-sha256:DB99864A5AF34DD888092F42E73094BDF8E664C4E68261F68E31E50AEAC54DD5"
+      ]
+    },
+    {
+      "relativePosixPath": "doc/___p_`_v_}_j___a__.pdf",
+      "schemaVersion": 1,
+      "kind": "PDF_OPERATION_MANUAL",
+      "contentSha256": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+      "byteSize": 5374309,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PDF_1_4",
+        "role": "ORIGINAL_OPERATION_MANUAL",
+        "headerHex": "255044462D312E340D25E2E3CFD30D0A",
+        "pdfVersion": "1.4",
+        "pageCount": 69,
+        "encrypted": true,
+        "emptyPasswordAccess": true,
+        "title": "銀河英雄伝説Ⅶ　操作説明書",
+        "author": "BOTHTEC",
+        "creator": "Word 用 Acrobat PDFMaker 5.0",
+        "producer": "Acrobat Distiller 5.0.5 (Windows)",
+        "creationDate": "D:20040411114123+09'00'",
+        "modificationDate": "D:20040411125421+09'00'",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/cd-manual-v1-static-analysis.json",
+        "receiptSha256": "16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+        "evidence": [
+          "cd-manual-static-analysis-sha256:16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+          "pdf-header:%PDF-1.4",
+          "pdf-metadata-title:銀河英雄伝説Ⅶ　操作説明書",
+          "pdf-page-count:69"
+        ]
+      },
+      "externalDocumentOpen": {
+        "status": "PROVEN",
+        "openerKey": "ORIGINAL_CD_ARTIFACT:G7START.EXE",
+        "openerName": "G7Start.exe",
+        "openerSha256": "1023C4A045F184BF76CA84AB603E0C03DB989799F02B701BF8DD89B21EA78F93",
+        "openerByteSize": 434176,
+        "api": "SHELL32.dll::ShellExecuteA",
+        "commandId": 1001,
+        "handler": "FUN_00403860",
+        "callsite": "0x004038E6",
+        "verb": "open",
+        "targetOriginalName": "銀英伝７マニュアル.pdf",
+        "targetSha256": "1C4CF3DB13A172361277264C06ADA6E2499BE0969494C6557EB84BC4CC005399",
+        "evidence": [
+          "original-cd:G7Start.exe:message-map-command:1001",
+          "original-cd:G7Start.exe:FUN_00403860",
+          "original-cd:G7Start.exe:ShellExecuteA:0x004038E6",
+          "original-cd:G7Start.exe:manual-name@0x00427900"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PDF is the standalone original operation manual. G7Start.exe delegates it to the OS default PDF viewer with ShellExecuteA; G7MTClient.exe does not parse it as a data, render, audio, or map resource.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:E8B07A6802B17EEF",
+          "cd-manual-static-analysis-sha256:16B20FDEB11539BF2B434F55B78629102282750A01432DD485C90426F74A42B2",
+          "original-cd:G7Start.exe:ShellExecuteA:0x004038E6",
+          "g7mtclient:no-pdf-or-shell-open-reference-in-hash-bound-static-surfaces"
+        ]
+      },
+      "evidence": [
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "tree-manifest:LOGH7/doc/___p_`_v_}_j___a__.pdf",
+        "original-joliet-name:銀英伝７マニュアル.pdf",
+        "installshield-shell-target:<TARGETDIR>\\doc\\銀英伝７マニュアル.pdf",
+        "inspector-sha256:4F55234F6BDF22A2AA24C99818CD0D064E35E9F878560B37420EA4879C3EC1CC"
+      ]
+    },
+    {
+      "relativePosixPath": "doc/___p_`vii___p_k__.txt",
+      "schemaVersion": 1,
+      "kind": "CP932_TERMS_DOCUMENT",
+      "contentSha256": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+      "byteSize": 8376,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "CP932_TEXT",
+        "role": "ORIGINAL_SERVICE_TERMS",
+        "encoding": "CP932",
+        "title": "銀河英雄伝説Ⅶ利用規約",
+        "characterCount": 4371,
+        "lineEnding": "CRLF",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/terms-of-service-static-analysis.json",
+        "receiptSha256": "34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+        "evidence": [
+          "terms-static-analysis-sha256:34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+          "strict-cp932-roundtrip:PASS",
+          "title:銀河英雄伝説Ⅶ利用規約",
+          "line-ending:130-CRLF-no-lone-newlines"
+        ]
+      },
+      "duplicateSource": {
+        "status": "PROVEN",
+        "path": "evidence/installshield-extract/_support_language_independent_os_independent_files/license.txt",
+        "contentSha256": "BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+        "byteSize": 8376,
+        "relation": "BYTE_IDENTICAL_INSTALLSHIELD_SUPPORT_COPY",
+        "evidence": [
+          "installshield-extract:_support_language_independent_os_independent_files/license.txt",
+          "sha256:BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound CP932 file is the original online-service terms duplicated as InstallShield support license.txt, not a G7MTClient data, render, audio, map, or gameplay resource. Hash-bound client, launcher, updater, and Ghidra byte surfaces contain no exact target reference; installer license.txt and SdLicense2 string co-presence does not prove an opener callflow.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:F9CBE1F4AEAE7D6B",
+          "terms-static-analysis-sha256:34A90CCFD3758DFD0403AE9DFE221921AAC85CCE8E9140477FB5CD55931FA168",
+          "installshield-data1-original-name:銀英伝VII利用規約.txt@0x00031737",
+          "setup-inx:license.txt@0x00005C16",
+          "setup-inx:SdLicense2@0x0001D5BE",
+          "installer-callflow:UNRESOLVED",
+          "g7mtclient:no-exact-target-reference-on-hash-bound-static-surfaces"
+        ]
+      },
+      "evidence": [
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "tree-manifest:LOGH7/doc/___p_`vii___p_k__.txt",
+        "installshield-original-name-cp932:8BE289709360564949979897708B4B96F12E747874",
+        "support-license-byte-identical-sha256:BC7B4D48326A536EAC26F9B4C74395F4C42AC73C461FDE82ECD33B7CA19F4103",
+        "inspector-sha256:ECC8D8B70463E4895BB66B13ECAA004BFBCD91421C093CC207C543227E42CD33"
+      ]
+    },
+    {
+      "relativePosixPath": "update.ini",
+      "schemaVersion": 1,
+      "kind": "EXTERNAL_PE_INI_CONFIGURATION",
+      "contentSha256": "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C",
+      "byteSize": 124,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "ASCII_INI",
+        "encoding": "ASCII",
+        "role": "ORIGINAL_UPDATE_CLIENT_CONFIGURATION",
+        "section": "UPDATE",
+        "byteSize": 124,
+        "lineCount": 7,
+        "crlfCount": 7,
+        "trailingCrlf": true,
+        "orderedEntries": [
+          {"key": "VERSION", "value": "131"},
+          {"key": "BASE_DIR", "value": ".\\"},
+          {"key": "TEMP_DIR", "value": ""},
+          {"key": "STARTUP_APPNAME", "value": ""},
+          {"key": "WORK_DIR", "value": ""},
+          {"key": "LAST_ERROR", "value": "0x00000003"}
+        ],
+        "receiptPath": "evidence/exhaustive-trace/adjudications/update-ini-static-analysis.json",
+        "receiptSha256": "A7B7BA3691DD1F1EA0DDD4DC03952217C3A3701FDB9037148C2798373612A965",
+        "evidence": [
+          "update-ini-static-analysis-sha256:A7B7BA3691DD1F1EA0DDD4DC03952217C3A3701FDB9037148C2798373612A965",
+          "strict-ascii-roundtrip:PASS",
+          "crlf-count:7"
+        ]
+      },
+      "externalConfigAccess": {
+        "status": "PROVEN_STATIC",
+        "consumerRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+        "consumerRelativePosixPath": "gin7updateclient.exe",
+        "consumerSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+        "targetRelativePosixPath": "update.ini",
+        "targetSha256": "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C",
+        "pathResolution": {
+          "status": "PROVEN_STATIC",
+          "resourceType": "RT_STRING",
+          "resourceId": 3,
+          "language": 1041,
+          "template": "%supdate.ini",
+          "moduleDirectoryFunctionVa": "0x00404A80",
+          "formatFunctionVa": "0x00433E1C",
+          "formatCallsiteVa": "0x00404BA9",
+          "destinationFieldOffset": "0xD8",
+          "result": "<module-directory>update.ini"
+        },
+        "section": "UPDATE",
+        "readAccesses": [
+          {
+            "accessId": "READ:VERSION:00404E13",
+            "operation": "READ",
+            "api": "KERNEL32.dll::GetPrivateProfileIntA",
+            "consumerFunctionVa": "0x00404DC0",
+            "callsiteVa": "0x00404E13",
+            "pathArgumentProvenance": "APP_PLUS_0xD8",
+            "sectionArgument": "UPDATE",
+            "keyArgument": "VERSION",
+            "keyResolution": "EXACT_LITERAL",
+            "status": "PROVEN_STATIC",
+            "evidence": ["updater:profile-int-read:0x00404E13"]
+          },
+          {
+            "accessId": "READ:STRING-KEYS:00404FF7",
+            "operation": "READ",
+            "api": "KERNEL32.dll::GetPrivateProfileStringA",
+            "consumerFunctionVa": "0x00404FD0",
+            "callsiteVa": "0x00404FF7",
+            "pathArgumentProvenance": "APP_PLUS_0xD8",
+            "sectionArgument": "UPDATE",
+            "keyArgument": "SERVER_ADDRESS|SERVER_PORT|PROXY_ADDRESS|PROXY_PORT|BASE_DIR|TEMP_DIR|STARTUP_APPNAME|WORK_DIR",
+            "keyResolution": "VARIABLE",
+            "status": "PROVEN_STATIC",
+            "evidence": ["updater:profile-string-read-helper:0x00404FF7"]
+          }
+        ],
+        "writeAccesses": [
+          {
+            "accessId": "WRITE:VERSION:0040508F",
+            "operation": "WRITE",
+            "api": "KERNEL32.dll::WritePrivateProfileStringA",
+            "consumerFunctionVa": "0x00405060",
+            "callsiteVa": "0x0040508F",
+            "pathArgumentProvenance": "APP_PLUS_0xD8",
+            "sectionArgument": "UPDATE",
+            "keyArgument": "VERSION",
+            "keyResolution": "EXACT_LITERAL",
+            "status": "PROVEN_STATIC",
+            "evidence": ["updater:version-write:0x0040508F"]
+          },
+          {
+            "accessId": "WRITE:LAST_ERROR:00406F24",
+            "operation": "WRITE",
+            "api": "KERNEL32.dll::WritePrivateProfileStringA",
+            "consumerFunctionVa": "0x00406ED0",
+            "callsiteVa": "0x00406F24",
+            "pathArgumentProvenance": "APP_PLUS_0xD8",
+            "sectionArgument": "UPDATE",
+            "keyArgument": "LAST_ERROR",
+            "keyResolution": "EXACT_LITERAL",
+            "status": "PROVEN_STATIC",
+            "evidence": ["updater:last-error-write:0x00406F24"]
+          }
+        ],
+        "runtimeObservationStatus": "UNSEEN",
+        "evidence": [
+          "updater:module-directory-path-flow:0x00404A80-0x00404BB7",
+          "updater:profile-api-dataflow:PROVEN_STATIC"
+        ]
+      },
+      "installedMutationObservation": {
+        "status": "INSTALLED_POST_SETUP_UPDATER_DIVERGENT",
+        "causality": "INFERRED",
+        "installedSha256": "F89660546D6D0C7D4A00EFDCAA73E5120916C730E07E6CCFE7D8FF111FD71A88",
+        "installedByteSize": 124,
+        "originalBytesPreserved": false
+      },
+      "loader": {
+        "status": "PROVEN",
+        "kind": "EXTERNAL_PE_CONFIG_ACCESS",
+        "consumerRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+        "acceptedFormats": ["ASCII_INI"],
+        "operations": ["READ", "WRITE"],
+        "apis": [
+          "KERNEL32.dll::GetPrivateProfileIntA",
+          "KERNEL32.dll::GetPrivateProfileStringA",
+          "KERNEL32.dll::WritePrivateProfileStringA"
+        ],
+        "reason": "Hash-bound Gin7UpdateClient static dataflow constructs <module-directory>update.ini from RT_STRING ID 3, reads UPDATE keys through GetPrivateProfileIntA/GetPrivateProfileStringA, and writes VERSION/LAST_ERROR through WritePrivateProfileStringA. Runtime I/O success remains unseen.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:CF0262816AEED6F7",
+          "update-ini-static-analysis-sha256:A7B7BA3691DD1F1EA0DDD4DC03952217C3A3701FDB9037148C2798373612A965",
+          "updater-sha256:EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D"
+        ]
+      },
+      "evidence": [
+        "tree-manifest:LOGH7/update.ini",
+        "original-payload-sha256:EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C",
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "installshield-filename:update.ini@data1.hdr+0x000316EB"
+      ]
+    },
+    {
+      "relativePosixPath": "gin7updateclient.exe",
+      "schemaVersion": 1,
+      "kind": "PE_GAME_UPDATER_EXECUTABLE",
+      "contentSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+      "byteSize": 1060864,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PE32_X86_GUI_EXECUTABLE",
+        "machine": "0x014C",
+        "subsystem": 2,
+        "imageBase": "0x00400000",
+        "entryPointRva": "0x00009A2E",
+        "role": "ORIGINAL_GAME_UPDATE_CLIENT",
+        "sectionCount": 4,
+        "importDescriptorCount": 11,
+        "importCount": 347,
+        "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+        "packingAssessment": "NO_KNOWN_PACKER_SIGNATURE_STATIC_ONLY",
+        "originalFilename": "",
+        "fileVersion": "1, 0, 0, 0",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/gin7updateclient-static-analysis.json",
+        "receiptSha256": "4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517",
+        "evidence": [
+          "gin7updateclient-static-analysis-sha256:4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517",
+          "updater-pe-imports:11-descriptors:347-imports"
+        ]
+      },
+      "processImage": {
+        "status": "PROVEN_STATIC_FORMAT",
+        "osLoader": "WINDOWS_PE_LOADER",
+        "target": "SELF_PROCESS_IMAGE",
+        "runtimeObservationStatus": "NOT_CLAIMED",
+        "evidence": [
+          "pe32-machine:0x014C",
+          "pe32-subsystem:WINDOWS_GUI",
+          "runtime-execution:NOT_CLAIMED_BY_STATIC_FORMAT"
+        ]
+      },
+      "processLaunch": {
+        "status": "PROVEN_STATIC_DEFAULT",
+        "api": "KERNEL32.dll::CreateProcessA",
+        "function": "FUN_00407260",
+        "callsite": "0x004072C2",
+        "triggerCallsite": "0x004068A1",
+        "targetCommand": ".\\exe\\G7MTClient.exe",
+        "workingDirectory": ".\\exe\\",
+        "targetRelativePosixPath": "exe/g7mtclient.exe",
+        "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "configOverrideStatus": "POSSIBLE",
+        "gateSemantics": "UNRESOLVED",
+        "runtimeObservationStatus": "UNSEEN",
+        "evidence": [
+          "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",
+          "updater-default:WORK_DIR=.\\exe\\@0x0044A514",
+          "updater-trigger-call:0x004068A1",
+          "updater-CreateProcessA:0x004072C2",
+          "updater-config-override:POSSIBLE",
+          "runtime-launch:UNSEEN"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PE is the original update client process image. Its network and filesystem surfaces perform update work and its default CreateProcessA path starts G7MTClient.exe; neither behavior makes the updater executable itself a model, image, audio, map, string, or data asset consumed by a G7MT runtime resource loader. Actual network success, downloaded payload identity, precise remote-version comparison, runtime launch, and playability remain unresolved or unseen.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:627680C75CFF6DA7",
+          "gin7updateclient-static-analysis-sha256:4F1E31E61AD7A53B820775AFEAED2C4BC634668CA8EBBC125BD649C375E15517",
+          "os-loader:WINDOWS_PE_LOADER",
+          "updater-role:ORIGINAL_GAME_UPDATE_CLIENT",
+          "runtime-network-and-launch:UNSEEN"
+        ]
+      },
+      "evidence": [
+        "tree-manifest:LOGH7/Gin7UpdateClient.exe",
+        "original-payload-sha256:EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "installshield-filename:Gin7UpdateClient.exe@data1.hdr+0x000316F6",
+        "inspector-sha256:0417B5094BFA4FB2571E8A3F9373EDA39398630B543AB072272144BAAEDC163A"
+      ]
+    },
+    {
+      "relativePosixPath": "exe/g7mtclient.exe",
+      "schemaVersion": 1,
+      "kind": "PE_PRIMARY_GAME_CLIENT_EXECUTABLE",
+      "contentSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+      "byteSize": 3956736,
+      "analysis": {
+        "status": "PROVEN",
+        "format": "PE32_X86_GUI_EXECUTABLE",
+        "machine": "0x014C",
+        "subsystem": 2,
+        "imageBase": "0x00400000",
+        "entryPointRva": "0x00201FBC",
+        "role": "ORIGINAL_PRIMARY_GAME_CLIENT",
+        "sectionCount": 5,
+        "importDescriptorCount": 19,
+        "importCount": 452,
+        "importQuality": "READABLE_STATIC_WITH_DYNAMIC_RESOLUTION_LIMITATION",
+        "packingAssessment": "NOT_PACKED_BY_STATIC_INDICATORS",
+        "originalFilename": "G7MTClient.EXE",
+        "fileVersion": "1, 0, 0, 1",
+        "receiptPath": "evidence/exhaustive-trace/adjudications/g7mtclient-static-analysis.json",
+        "receiptSha256": "27AFC24D084FF56CED23D974B974114EE37531EC7BC6D44228C3B1E7F5782001",
+        "evidence": [
+          "g7mtclient-static-analysis-sha256:27AFC24D084FF56CED23D974B974114EE37531EC7BC6D44228C3B1E7F5782001",
+          "pe-imports-sha256:E0C5BADAE9C5062B2E9F767AB88BA22E557ED99004B8B165BEA7B196DF9A3FBE",
+          "version-original-filename:G7MTClient.EXE",
+          "version-file-version:1, 0, 0, 1"
+        ]
+      },
+      "processImage": {
+        "status": "PROVEN_STATIC_FORMAT",
+        "osLoader": "WINDOWS_PE_LOADER",
+        "target": "SELF_PROCESS_IMAGE",
+        "runtimeObservationStatus": "NOT_CLAIMED",
+        "evidence": [
+          "pe32-machine:0x014C",
+          "pe32-subsystem:WINDOWS_GUI",
+          "original-client-runtime-execution:NOT_CLAIMED_BY_STATIC_FORMAT"
+        ]
+      },
+      "inboundLaunch": {
+        "status": "PROVEN_STATIC_DEFAULT",
+        "launcherRowKey": "RESOURCE:FILE:original-installshield-payload:gin7updateclient.exe",
+        "launcherRelativePosixPath": "gin7updateclient.exe",
+        "launcherSha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D",
+        "api": "KERNEL32.dll::CreateProcessA",
+        "callsite": "0x004072C2",
+        "triggerCallsite": "0x004068A1",
+        "targetCommand": ".\\exe\\G7MTClient.exe",
+        "workingDirectory": ".\\exe\\",
+        "targetRelativePosixPath": "exe/g7mtclient.exe",
+        "targetSha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "configOverrideStatus": "POSSIBLE",
+        "gateSemantics": "UNRESOLVED",
+        "runtimeObservationStatus": "UNSEEN",
+        "g7StartLaunchStatus": "UNRESOLVED",
+        "evidence": [
+          "updater-default:STARTUP_APPNAME=.\\exe\\G7MTClient.exe@0x0044A51C",
+          "updater-default:WORK_DIR=.\\exe\\@0x0044A514",
+          "updater-trigger-call:0x004068A1",
+          "updater-CreateProcessA:0x004072C2",
+          "updater-config-override:POSSIBLE",
+          "updater-launch-gate-semantics:UNRESOLVED",
+          "runtime-launch-observation:UNSEEN"
+        ]
+      },
+      "loader": {
+        "status": "NOT_APPLICABLE",
+        "reason": "Original-client RESOURCE_LOADER scope: this hash-bound PE is the primary G7MTClient process image loaded by the Windows PE loader and started by the updater's default CreateProcessA path. It is the consumer of game resources, not itself a model, image, audio, map, string, or data asset consumed by a G7MT runtime resource loader. Internal resource-loader functions and embedded PE resources remain separate evidence surfaces; actual launch, reachability, playability, and runtime state are not claimed.",
+        "evidence": [
+          "resource-adjudication-unit:RECOVERY:D01:RESOURCE_LOADER:E346F47C94A6E543",
+          "g7mtclient-static-analysis-sha256:27AFC24D084FF56CED23D974B974114EE37531EC7BC6D44228C3B1E7F5782001",
+          "os-loader:WINDOWS_PE_LOADER",
+          "updater-default-launch:PROVEN_STATIC_DEFAULT",
+          "runtime-launch:UNSEEN",
+          "original-client-playability:NOT_CLAIMED"
+        ]
+      },
+      "evidence": [
+        "tree-manifest:LOGH7/exe/g7mtclient.exe",
+        "original-payload-sha256:BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+        "original-cd-iso-sha256:375838CE1C0798E166D9D127CD598705560DE4EFCFF1FF0AD7D0B19FAB01CC22",
+        "installshield-filename:G7MTClient.exe@data1.hdr+0x00031764",
+        "inspector-sha256:2E25F7DEB51F7EDC6EA6B546220F9ADD1F14952D56A24F15C3C37265B2F0103C"
+      ]
+    }
+  ]
+}

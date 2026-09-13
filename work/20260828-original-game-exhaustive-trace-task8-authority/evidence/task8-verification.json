@@ -1,0 +1,61 @@
+{
+  "caseId": "20260828-original-game-exhaustive-trace-task8-authority",
+  "status": "PASS",
+  "focusedTests": {"run": 35, "passed": 35, "failed": 0},
+  "aggregateTests": {"run": 173, "passed": 173, "failed": 0},
+  "sourceGate": {"status": "PASS", "verifiedPathCount": 21},
+  "inputs": {
+    "sourceManifestSha256": "A6C4A96639117C5F2F7F036E389963269E95141B607808ADFACDA9750C3A05F3",
+    "protocolInventorySha256": "556A1C7C21FA01548F996A103214B62B9C707A0377A7E9CA861F771ECE510FC2",
+    "entityInventorySha256": "36F9408212D1235005D83C4D4CD0C3CCF3AE657728F5274A5097FEC55E2D6410",
+    "uiInventorySha256": "E25764B9150A95F8D39101524C8D7980E3239BD53BAC6A68E3253D395413DE70",
+    "importerSha256": "0CA14414B1E8D699FB15BC1E1DA00725C7EB352FE252CB925187AA64088A4241",
+    "testsSha256": "46D25252F4F86C24660FC4ACB2694434F242DADF436CBFCE3C1859955B2BCAAA"
+  },
+  "source": {
+    "currentRoots": 3,
+    "currentFiles": 0,
+    "traceMarkers": 0,
+    "legacyRoots": 0,
+    "legacyFiles": 0,
+    "rawSurfaceSha256": "29A3386C586B12688F148AB017B4F4FC2AED0ADE7051AE5907449144D7322CA5",
+    "rawFileSha256": "2B7CAECFEA25225735B0C5C40DD4598BF670C764163D5A266AC1900ECD74D9F1"
+  },
+  "surface": {
+    "inventoryRows": 1102,
+    "protocolRows": 547,
+    "entityRows": 71,
+    "eventRows": 62,
+    "clientBehaviorRows": 422,
+    "lifecycleRequirements": 568,
+    "requirementCandidates": 1670,
+    "normalizedCandidates": 1670,
+    "unresolvedCandidates": 3,
+    "unaccountedCount": 0
+  },
+  "boundaries": {
+    "COMMAND_HANDLER": 288,
+    "NOTIFICATION_FANOUT": 259,
+    "AUTHORITY_OWNER": 71,
+    "EMISSION_IDENTITY": 62,
+    "AUTHORITY_COUNTERPART_CLASSIFICATION": 422
+  },
+  "inventory": {
+    "semanticSha256": "C857D4A18DEF908839C794F2BFE603BAB124E3BFAB89D8C861448B495EC112CF",
+    "fileSha256": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
+    "reproducedFileSha256": "1C7A14C9C9C578D7677AD3B432BA6082C3F5923EE482312A1BEDB31E9789B4C4",
+    "nonEnumeratedStateTrueCount": 0
+  },
+  "reconciliation": {
+    "fileSha256": "8C9C83B73EA12879D957BE0790A7CA640823438CCB823ACB236F973C424303FD",
+    "reproducedFileSha256": "8C9C83B73EA12879D957BE0790A7CA640823438CCB823ACB236F973C424303FD"
+  },
+  "independentReviews": [
+    {"review": "task8_contract", "result": "APPROVE", "writes": 0},
+    {"review": "task8_links", "result": "APPROVE", "writes": 0},
+    {"review": "task8_sources", "result": "APPROVE", "writes": 0}
+  ],
+  "runtimeMutations": 0,
+  "serverProtocolDatabaseMutations": 0,
+  "vmActions": 0
+}

@@ -1,0 +1,129 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "feature": "communications (通信) — mail SEND creates real state; fourth strategy-screen feature for condition 9",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "runId": "20260902T215023Z-natural-l1-relogin-v1",
+  "verticalPath": "strategy HUD mail icon (872,748) → mailbox → 新規作成 (326,166) → address book (友人: ダスティ・アッテンボローン) → entry (190,80) + 決定 (320,534) → compose view: タイトル field (540,195) typed, body pane (500,430) typed (VNC keyboard) → 送信 (692,634) → client 0x0F10 → authority Success (mail-id=7; created=true; sender=2; recipient=2) → lists auto-refresh (count 4) → PostgreSQL original_mail_message id 7 inserted, domain_event 25 = OriginalMailSent{title, body, mailId 7}, account version 24→25 → close → ゲーム終了 → authority RESTART on same DB → relogin → mail 7 persisted (M==R==S) → 送信 tab shows 'cond11 send test…' (005/100).",
+  "inputNotes": "the bottom '※ここにメッセージを書きます' line is the HUD chat bar, not the mail body: a click there did not move focus, so the second typed string appended to the title (title became 'cond11 send testlogh7 mail send vertical'); the body pane (500,430) accepted text. VNC typing works for ASCII in these GDI edit controls.",
+  "renderFinding": "送信-tab title column draws new titles over stale ones without clearing ('TRACE MAILd testlogh7 mail send ve…', 'FIX LIVEELd…'): list-refresh clipping/erase bug — condition 6/16 item.",
+  "nonDestructive": "no 削除/全削除 pressed",
+  "wire": {
+    "send0x0F10": {
+      "timestampUtc": "2026-09-02T21:55:06.6259061+00:00",
+      "eventName": "frame-processed",
+      "connectionId": 3,
+      "outerControl": 48,
+      "payloadLength": 240,
+      "stateBefore": "SessionServerReady",
+      "stateAfter": "SessionServerReady",
+      "status": "Success",
+      "errorCode": null,
+      "observedApplicationType": 3856,
+      "originalLoginInputShape": null,
+      "rejectedApplicationPayloadHex": null,
+      "responseMetadata": "mail-id=7;created=true;sender-character-id=2;recipient-character-id=2",
+      "responseOuterControl": null,
+      "responsePayloadLength": null,
+      "responsesBeforePrimaryPayloadLengths": null,
+      "additionalResponsePayloadLengths": null
+    }
+  },
+  "snapshots": {
+    "A0_baseline": {
+      "mailCount": 6,
+      "maxMailId": 6,
+      "mail7": null,
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "latest": "[{\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMessengerMessageSent\",\"payload\":{\"Message\": \"T115\", \"messageId\": 1, \"senderCharacterId\": 2, \"wirePayloadBase64\": \"Dw8AAAAAAAAAAgwwwDC5MMYwozD7MKIwwzDGMPMw3DDtMPwAFAAAAzDqMLIw6wEAAAACAAEBAAAAAgAUAAAMMMAwuTDGMKMw+zCiMMMwxjDzMNww7TD8AQAAAAAAAgAUAAAMMMAwuTDGMKMw+zCiMMMwxjDzMNww7TD8AAA"
+    },
+    "M_afterSend": {
+      "mailCount": 7,
+      "maxMailId": 7,
+      "mail7": {
+        "mail_id": 7,
+        "sender_character_id": 2,
+        "recipient_character_id": 2,
+        "is_read": false,
+        "read_at": null,
+        "authority_version": 25
+      },
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMailSent\",\"payload\":{\"Body\": \"mail body for condition 11 send vertical\", \"Title\": \"cond11 send testlogh7 mail send vertical\", \"mailId\": 7, \"senderCharacterId\": 2, \"requestFingerprint\": \"66b0d02f7287e7d0408c8aac70d6e5811c1ffe305ca18399d84d0ce926ceba1d\", \"recipientCharacterId\": 2},\""
+    },
+    "R_afterRestart": {
+      "mailCount": 7,
+      "maxMailId": 7,
+      "mail7": {
+        "mail_id": 7,
+        "sender_character_id": 2,
+        "recipient_character_id": 2,
+        "is_read": false,
+        "read_at": null,
+        "authority_version": 25
+      },
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMailSent\",\"payload\":{\"Body\": \"mail body for condition 11 send vertical\", \"Title\": \"cond11 send testlogh7 mail send vertical\", \"mailId\": 7, \"senderCharacterId\": 2, \"requestFingerprint\": \"66b0d02f7287e7d0408c8aac70d6e5811c1ffe305ca18399d84d0ce926ceba1d\", \"recipientCharacterId\": 2},\""
+    },
+    "S_afterRelogin": {
+      "mailCount": 7,
+      "maxMailId": 7,
+      "mail7": {
+        "mail_id": 7,
+        "sender_character_id": 2,
+        "recipient_character_id": 2,
+        "is_read": false,
+        "read_at": null,
+        "authority_version": 25
+      },
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMailSent\",\"payload\":{\"Body\": \"mail body for condition 11 send vertical\", \"Title\": \"cond11 send testlogh7 mail send vertical\", \"mailId\": 7, \"senderCharacterId\": 2, \"requestFingerprint\": \"66b0d02f7287e7d0408c8aac70d6e5811c1ffe305ca18399d84d0ce926ceba1d\", \"recipientCharacterId\": 2},\""
+    }
+  },
+  "checks": {
+    "baseline_sixMails_noMail7": true,
+    "login_reachedStrategy_mailbox_compose": true,
+    "recipientChosen_addressBook": true,
+    "titleAndBodyTyped": true,
+    "send_0x0F10_authoritySuccess_created": true,
+    "screenReturnedToList_afterSend": true,
+    "db_mail7Inserted_event_OriginalMailSent_withTitleBody": true,
+    "mailboxClosed_clientExited": true,
+    "authorityRestartedOnSameDb": true,
+    "sentMailSurvivedRestart_R_equals_M": true,
+    "reloginAfterRestart_oneSubmission": true,
+    "restoredAfterRelogin_S_equals_M": true,
+    "sentTabShowsMail7_afterRestart_visibleRestore": true,
+    "normalShutdown_and_cleanup": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "00C24BF4A4D701948A3DD6112854F02E8DC7EBC563AE04C545F31E988A5E5FF5",
+    "fresh-run-prep.json": "D84E77AF85E1D8FF3F5E0ED0222CDC319A9CE901E9C94C7FF64E6D9DD369CD1F",
+    "relaunch-prep.json": "D838B51407A01E6D86F906BFF30717D8ED77162944C15743596C06D0F581744E",
+    "db-a0.json": "B4C5320F1C057B7BA075E844D2B610E6B42C2159D9B37E8B824E567D3568E92B",
+    "db-m.json": "9D3A1B85AB3FBA3F193D6D2E017CBB3D4A4BAE7F79C7AFC3713EEE5AEA89D8C1",
+    "db-r.json": "DD4DF8E18D82BB24F7B039FE78BA6318B961A53C3C756CC8AC6DF20091D65D79",
+    "db-s.json": "7BC9A3BD8A22AF119947BC636F8D7F75A2075FFBFCFF8D654465E9D6407544E3",
+    "cred-c.json": "CC185671B4A0332A93FFDFF1A8711F79A890DC75CC02057C5BE2F38A6B58F588",
+    "cred-e.json": "5C4A4612211C9BB2FE08104A23B69A94657B534466E9BA5CB78258FC0AA6080E",
+    "clean-stop.json": "55EEABC0705EEC5DD1C27C546D4F10AD6A8988DDDE19D60AFD8D0571A2813E14",
+    "cleanup.json": "5E6899F01E855CF804E2C15E7EF5C236519668AAB18C3EFF1B960A0DA0000812",
+    "server-wire.jsonl": "FFDAC9740F2D017E5790BC80D4863254E086DBE09E5F6459E47D6A45F2ACA410",
+    "server-wire-2.jsonl": "DAEBB08438E97F5B1C7F945EB91F58BDA068DCBAC1E20C8654A67DF7A9C04317",
+    "vnc-e-strategy.png": "57712C3B7A9514670030C9495A8D4ECF8BB8495962039C69760CB1A38775D340",
+    "vnc-s1-mailbox.png": "401894C7B3E59B074675A6B91760A4575C6B1EB7F5A64800B855050961184ABF",
+    "vnc-s2-compose.png": "B32A4DAF686C790D20D7DB3E8101511675E7A9C06DD2A2A2CFE57FF1ED09172B",
+    "vnc-s3-recipient.png": "E5B7D2D807FD145409958D5732FDF10785A2E1848694FAA6647AE58F11866FA0",
+    "vnc-s4-typed.png": "A6F1934CB1E90F53808C42DC5DEFA51F713677F7D92C73ACB9C96BF3C244EA1F",
+    "vnc-s5-body.png": "84B9C4E45ED79621A5B4AB957A721E392BCD1D985F361F6507564D123DD6BCC0",
+    "vnc-s6-after-send.png": "CB113A2C09CCF80DEB371CEA26EE47F533A30B8397A28866DBE1C2D08C758C1C",
+    "vnc-s7-closed.png": "5BC8C3EEC6875EC8ABA07E86577FD5F99511917800E91729E996FF3C5CC9213B",
+    "vnc-s8-mailbox-after.png": "1223C2AD416E94A4666682BFC6080E49BA15E59782843EB57E768434BB68A108",
+    "vnc-s9-sent-tab.png": "B7BD76611B1EE98F2A13A79A948F97D219B35F80107294DD48EA226E264F23FC",
+    "vnc-s10-closed-after.png": "746EE27C2E65845AEBC78357A61D1DAE215477ACA36D02E1CC2A0E17D8480440"
+  }
+}

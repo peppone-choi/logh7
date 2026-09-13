@@ -1,0 +1,46 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 7,
+  "feature": "lobby button sweep — 環境設定 (settings) panel",
+  "verdict": "OBSERVED_WEDGED_PANEL",
+  "runId": "20260902T221133Z-natural-l1-relogin-v1",
+  "sequence": "login → lobby → 環境設定 (122,481) opens the settings panel (画面解像度 1024 768, テクスチャー品質 MIDDLE, モデル品質 HIGH, エフェクトレベル empty row, 予備) → 戻る (762,582) via VNC: panel stays → クレジット (122,539) via VNC: ignored → 戻る via guest SetCursorPos+mouse_event: panel stays → ESC: ゲーム終了 dialog opens OVER the panel → 決定 (565,432): ignored, client stays alive → clean-stop (authority/pg stopped) → guest-stop-own-client (pid identity-checked) → no leftovers",
+  "meaning": "The 環境設定 menu button works (consumes the click, opens the panel with proper strings, no NO DATA), but once open the panel is a dead end: its 戻る consumes neither VNC nor guest mouse_event input, the left menu and even the exit dialog's 決定 are ignored, only ESC (keyboard) is processed. The client must be process-stopped. This is the same 'inert required button' family as the faction-panel 次へ (condition 2) — likely the client-side widget arm (manager+0x05) not being set for this panel in this session. Condition 7 gap items: 戻る inert; no verifiable reason; 変更を適用 deliberately NOT pressed (user config).",
+  "safeToPress": [
+    "ゲーム開始",
+    "環境設定 (opens)"
+  ],
+  "doNotPressAgain": [
+    "環境設定 in the lobby until the panel gate is understood (wedges the client)",
+    "変更を適用 (changes user settings)",
+    "キャラクター削除 / 削除 / 全削除 (destructive)"
+  ],
+  "checks": {
+    "login_lobbyReached": true,
+    "settingsMenuButton_consumesClick_opensPanel": true,
+    "settings_modoru_VNC_inert_panelStaysOpen": true,
+    "menu_credits_ignored_whilePanelOpen": true,
+    "settings_modoru_guestMouseEvent_inert": true,
+    "esc_opensExitDialog_overPanel": true,
+    "exitDialog_kettei_inert_whilePanelOpen_clientStayedAlive": true,
+    "authorityAndPostgres_cleanlyStopped": true,
+    "ownClientStopped_identityChecked_noLeftovers": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "228E91632C8D67C7D331BC779D62664D1BF3152727954BCA05B1A412CE7AE370",
+    "fresh-run-prep.json": "900FD34EA53BC2EE391646AEB70431D595B974B55A2E1AF5263A28B2B5262D38",
+    "cred-c.json": "7475FE284B2C34F1E172477198941C4D52BF5D9C591F1B720AF4EF59DBD9C4F2",
+    "click-modoru.json": "0BA7A925C0153B2DCB5A4D461C17779AC0B6F890AFA58FDC929ED5C0C4DA4F79",
+    "clean-stop.json": "3ACA5624806C2999BBFE68841DDE9969CAFE6A75AFBF21774CB0AEFCBBE352C5",
+    "cleanup.json": "7724E649751E27080CFF9A738FF99379022A4F2DA8B36D5626AF2397A4F8BF6C",
+    "stop-own-client.json": "BA6EDFE46722F073A9B6D1F8088FA1AE0FA300A8E2170CB962879A9A7D58DF04",
+    "verify-after-stop.json": "4BF7B98565D73265E65C9BE9403A3A49AA583146B854EEE8ABDE38F3BD7B12B9",
+    "vnc-b1-lobby.png": "572090841B2206BA20D535FD55806C473EABD2B0D2135786B75716471852FE74",
+    "vnc-b2-settings.png": "2639FA42C44C110C2FEC4FA837F2AD0638030C039F568090DBDB3CFB04EB7D88",
+    "vnc-b3-settings-back.png": "3EEDDA57F2447D70CFD5C0C157AFEA0E2F796FCD969C87EE3CD14F8A56EA6BB5",
+    "vnc-b4-credits.png": "91BF9C6548BBE5A929903B45F6FB404485BE99AFF01430FC1CF03213D688AC70",
+    "vnc-b5-after-guest-modoru.png": "5011C62BF2A0D24AE18A48B8C4CDF5B8210CE2B47FBDA71B31F33D5B1F10353A",
+    "vnc-b6-after-esc.png": "419D02D227038DB416250FA9CDC367895D5EB694958B618A7A4531DFDB5B8F8B",
+    "vnc-b7-postexit.png": "0B8849D728CCF58FDD6CADD1C1A98813ABC587D18656F4606F08F34E8C29440D"
+  }
+}

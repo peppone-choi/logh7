@@ -1,0 +1,111 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "alsoConditions": [
+    9,
+    13
+  ],
+  "feature": "任命 CommandCardAppointment (personnel): post list (0x1208, static appointer == player card), person list (0x1202), character info (0x0322/0x0323), command 0x0707 -> PostgreSQL -> restart -> relogin",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "runId": "20260903T051509Z-natural-l1-relogin-v1",
+  "method": "natural PostgreSQL authority, unmodified client code path (item115 = reversible debug-log working copy for logs only), one SendInput credential per login, VNC clicks; read-only DB inspection (guest-db-inspect); authority restart on the same database (guest-restart-authority); no process-memory writes.",
+  "newDesignNotes": "Env-free reproduction: the static appointing-authority hierarchy (cards 40-43 -> 39), the served post list (0x1208 with holders from original_character_card), the person list (0x1202, account characters) and 任命 on the card are authority defaults (NEW_DESIGN, documented); probe env vars only override. Persistence tables original_card_appointment / original_character_card are NEW_DESIGN (original server DB semantics unrecoverable). The earlier probe-env run 20260903T050523Z is kept as condition-11-appointment-verification-probe-env.json.",
+  "checks": {
+    "post_list_served_0x1208": true,
+    "character_list_served_0x1202": true,
+    "information_character_served_0x0322": true,
+    "appointment_accepted_0x0707": true,
+    "db_appointment_row_card40_target2": true,
+    "db_character_card_target2_card40": true,
+    "db_domain_event_CharacterCardAppointed": true,
+    "authority_restarted_on_same_db": true,
+    "db_identical_after_restart_and_relogin": true,
+    "relogin_one_submission": true,
+    "run_closed_cleanly": true
+  },
+  "observed": {
+    "appointmentWire": [
+      "card-appointment-accepted;card=40;target=2;appointer=2;authorityVersion=25;payloadHex=07070000000000000002000000000000000000000002000000280000000000000000000000000000"
+    ],
+    "dbAppointment": [
+      {
+        "character_id": 2,
+        "card_id": 40,
+        "target_character_id": 2,
+        "authority_version": 25,
+        "created_at": "2026-09-03T14:17:53.729903+09:00"
+      }
+    ],
+    "dbCharacterCard": [
+      {
+        "character_id": 2,
+        "card_id": 40,
+        "appointed_by_character_id": 2,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T14:17:53.729903+09:00"
+      }
+    ],
+    "accountVersionAfter": "25",
+    "accountVersionAfterRelogin": "25"
+  },
+  "receipts": {
+    "census-after-exit.json": "6692ECC29F93DC1FB0D8B44ACB1E7E9ED4080B8662498D7281F171495F2D1BB4",
+    "clean-stage-final.json": "BD2F4AE80FC7DF45D5F29594AF2C33996C031D2ABA9A6C88F55D62F31AF0B5B9",
+    "clean-stop.json": "4B171B90FEC4A33ABDC0CE7F59302ECE5EA1589848E49CA4295CCA1306731B5A",
+    "cleanup.json": "92A55E7CABADFFFD76E827CDE14CED45FB4570A3951711709EA55BAC2930B4B6",
+    "cred-al.json": "0B87462A5721C641D49572BE63E88001545894B7F0D8AB3F6644FD6F91AE34D3",
+    "cred-r.json": "845E0BBCF1034172B1768C3EE262EFCBB90CC3D60269538C8369DB236FD8E803",
+    "db-al.json": "96F0B69AF8A51B1915A8CC5E7EFD184823103984B617A04F86203602AF2B5413",
+    "db-r0.json": "338A602385690401508C1E553D387D1805F1C50982C43AAF1F9348111926FC71",
+    "db-r1.json": "521483A6FADD5F5BCFA65C22F22EB714068F5402D157C14B6287F5C9E76669B3",
+    "debuglog-after-confirm-al.json": "22ADE23F16006FEBB8D5AA788724DCFDDDEA081FCB06DF5EBD65BDAF80666112",
+    "debuglog-final.json": "2F4EBA0C7BB429E9370CC3B13E404F2C5C9FFCA2D77CF2256C7D57C3E080615D",
+    "fresh-run-plan.json": "D6D154D6F4507894000FCDE5B0B8098E546B9F70F122AC7C1A3F0A953F68C65C",
+    "fresh-run-prep.json": "9E43696A8E0159EC1331733F72C95597DABAD704D86D8F7EC68F0B6884D97DE1",
+    "host-summary.json": "55CA684DFA170C7CFA4CC81841EE0B51F4D6C00DEA3AF9719A7A606D5FFC5001",
+    "preinput-desktop.json": "B6EDE19D196A92468634567D581B4AF10D780C9CFBF82A01F0AE968D7F8C01C8",
+    "relaunch-prep.json": "A25FECB8199FE7D8C3509F6B1338F5ACED7F712F6FBD658634D18A136E883352",
+    "server-wire.jsonl": "BF5C2A331758FD55583A9BF0F963410B533E77231DC9AEA11E6BD2FF3E7563A7",
+    "step-census-after-exit-host.json": "11516C724599BAB30847C4918F6A307E8D86FD7C955FC13A845652CD23D07623",
+    "step-clean-stage-final-host.json": "CFA7768565AB33B9C99632DA8A5A96140CF3B72DA3755179C70A660DFA11B20D",
+    "step-clean-stop-host.json": "4CB350607AC4C532CAFE4AB5C8A34F971C5E4FCF9B69B024FADB6B4014FD884F",
+    "step-cleanup-host.json": "D55747BD1852BFB62FE243E59D0DFDC0BC5C75013470BF4EB0FF7549CB52D90A",
+    "step-cred-al-host.json": "1E97D7B894681D5CD56FF5BF6B68F9006DA32C8D6B09D1E579312CCAC1650003",
+    "step-cred-r-host.json": "F44553AB1C4A651F576F5ED729B1263C6E4E7BC5CCD9247BEB730B1C0C057893",
+    "step-db-al-host.json": "B377789BFEAA402CB20C18282F8217E9161636CF61E399CFDF8802679B109BB6",
+    "step-db-r0-host.json": "71F289B794AC99D401A45DF657A82FAA3D86C0AF43FA28D4CB1407792EFBCC5C",
+    "step-db-r1-host.json": "A09BC514B3A00961E1194FA14EB04441CA7E03E6859DEC76289285A468219674",
+    "step-debuglog-after-confirm-al-host.json": "3089069095423C9F7989EB7E8E6B9B2901DECFD712752746C995ABB8E173ACA8",
+    "step-debuglog-final-host.json": "EF6C3B88003417633C06372FA89401703E85FC0E0BAB0552ACF9B64EF2E91C72",
+    "step-restart-r-host.json": "FC67CB346E3273BCB0E8D4F6639ED48DB58A5FEF6DA7261964A3F9686658F7A1",
+    "step-verify-after-stop-host.json": "3EB9B9119F8786032B57F32560F501D1E4D66DBD3786F75D14A80ED985136912",
+    "step-wire-after-confirm-al-host.json": "5E6034EFEE016D66DAEBFF464669BC6296E52F6B8BCFF6D18CB1B48A81915FA4",
+    "step-wire-r-host.json": "19E57EF94657BC81DBB1FF35055E6D755ED3B209F17651DCADF3EFCB4219DB8A",
+    "step-wire-r2-host.json": "3E563BA36671476FD2EA797FB036B6F03E51CED1B3E88413AC74B68BE5FA6251",
+    "verify-after-stop.json": "CA77BA876E820FF0C5A7D8ECCD1A375532401E1F7C482A6637723D1A3E126497",
+    "vnc-r-0-lobby.png": "21F12FFF4EEC77D63726B14AD3D020E3145BC66D3D19FE50D5575EC5E2A11643",
+    "vnc-r-1-roster.png": "41B07DBA9B7AEEA1AB35A9C954405499E67273455A85253C5538E3E76DD2BF10",
+    "vnc-r-2-strategy.png": "194E866E683C21F418DF0D1D3DC6BD51B36D349814934DBAAD18D2ECAD5BC41F",
+    "vnc-r-3-cardtab.png": "85105FDDCEC272BB86A38F91876517A113DA5B63D4BC26E8ECE5E2F59942F747",
+    "vnc-r-4-card.png": "F93EBEF22C00D0911381A67199A00C02A7CEE53A2A60D65902C4347334C5183B",
+    "vnc-r-5-ninmei.png": "E53151F4CC2AD249910AB34A22911A51DC38A4081520AE3AF63580A6A1E6ED18",
+    "vnc-s0-lobby.png": "02A2199290CC61952937C4378F18BE6262121DD51E16B910B24EB884C5E7E456",
+    "vnc-s1-roster.png": "AB8A374E12515A541244FA382EE80F05FA13062FBA7886FE0438781E50C8DFA6",
+    "vnc-s10-confirm.png": "E39CDF44D4ECDFA63744B503FD59B6BDEB9722EE49F79A87D315B5466D0A8A2B",
+    "vnc-s11-after.png": "844FEBB694AD631EBF84761B04FC0B12C5D590BCA8805F1B5801F2027576E891",
+    "vnc-s2-strategy.png": "FBA3573648BFE1217FDFE2940373C09D67DE175F63DDCB70AAA72ACB1C0555BA",
+    "vnc-s3-cardtab.png": "C5A4BD30B75D4E3B8A650DF5F8C4225A62130DC512CA50201B31322893637B4E",
+    "vnc-s4-card.png": "ABA93D900E32906EBBE3B65C17F4FBEDC2DB9CB45A73BFDA8D1FEC25EB8F6284",
+    "vnc-s5-ninmei.png": "75BB9B84CE59072ED514625248D42BDC0E21333B2245B2029DF0AD43E8037C1F",
+    "vnc-s6-row.png": "479389103455987C94F87D0D8DDFC83BDEB3543012698037920F86549D0981DF",
+    "vnc-s7-kettei.png": "DBDD80C62C8AAB8DB3B47803E5607FD45669B587F7F2CFDE5D54D5BD351E1A90",
+    "vnc-s8-charrow.png": "0361289DABAE23A2F297F52C94365CC21C32A983D559CFD77F3109D45B6B811A",
+    "vnc-s9-kettei2.png": "6F5FD70A147B05D9ACA613A2A7BCE618BA649C182F377E779EDE7175B0180A5E",
+    "wire-after-confirm-al.json": "23C35B78A55A6D28AE06539C57515F1703652A7D67990E86D76290326DACE7F7",
+    "wire-r.json": "59CA969FFBD6C61842C8FB0AAB2404A356F1730880C17DEF9A01FE2183BCBEC3",
+    "wire-r2.json": "5D3095F3081DCF2C257F6D0C0278C73B220CD6483DCB87AC85D56107EE6CC9B3"
+  },
+  "reentry": {
+    "afterRestartAndRelogin": "任命 re-opened: 0x1200 selector 0x0012 -> ninmei-post-list-served;posts=40:2+41:0+42:0+43:0 (holder of card 40 = character 2 served from the DB); the dialog lists the same four posts (vnc-r-5-ninmei.png)"
+  }
+}

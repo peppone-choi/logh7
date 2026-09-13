@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    { "path": "src/verify-prelaunch-manager67-integration.ps1", "sha256": "68683D66234AEF297CC1EFBB3C5FBB946B28D3AA3886B225C4E4511E3A6B0384" },
+    { "path": "tests/test-prelaunch-manager67-integration.ps1", "sha256": "B5041478086EEF9C7BA06E96EE1D6BE3F40E11A30171F0249817A4F12938199F" },
+    { "path": "evidence/prelaunch-manager67-integration.json", "sha256": "12D3CA4D39BF746EAF08EC5ACE936C4D4CD368F1E7AA62B907CB82297F2DA0DE" },
+    { "path": "evidence/ui-movement-gap-audit-v3.json", "sha256": "6D138E4E5B595FD85E9F8F589C6CF7D625D4C86C69F44573D75D495DBCEDB4A0" },
+    { "path": "verify.ps1", "sha256": "0422B586FA6790E5B220F0FCF3CB2C3DF590B031C68DFC6F9BDC5C331B1DB06C" }
+  ]
+}

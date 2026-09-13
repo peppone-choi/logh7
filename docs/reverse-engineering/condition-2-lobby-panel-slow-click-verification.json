@@ -1,0 +1,46 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 2,
+  "feature": "lobby sub-panel control ignores a held (0.5 s) click; mouse producer/getters decoded statically — also conditions 7/8",
+  "verdict": "OBSERVED_PANEL_CONTROL_IGNORES_HELD_CLICK",
+  "runId": "20260902T233650Z-natural-l1-relogin-v1",
+  "method": "lobby (D1) -> VNC click 環境設定 (D2) -> VNC mousedown at 戻る (763,582), 0.5 s hold, mouseup (D4); read-only 64 KB dumps at 0x02210000. Static decode (capstone over G7MTClient.item1.exe): mouse producer 0x500D90-0x501130, input-owner update FUN_00500580, getters FUN_00500820/870/8E0, keyboard state machine FUN_005009D0.",
+  "staticDecode": {
+    "inputOwnerCopy_FUN_00500580": "+0x134/8<-0x779b10/14 cursor; +0x154<-0x2214be0 RIGHT press pending; +0x155<-0x2214be1 LEFT press pending; +0x158/c<-0x2214bb8/bc RIGHT press point; +0x160/4<-0x2214bd8/dc LEFT press point; +0x00..+0x2c<-0x2214bf8..0x2214c30 (right down-now/prev, left down-now/prev, right release edge +0x10, left release edge +0x18 <- 0x2214c10, cursor-inside-client flag +0x24 <- 0x2214c28)",
+    "producer": "pressed := cursor-inside && (GetAsyncKeyState(VK_LBUTTON)<0 || DI state [0x221442c]>=1); new press := down-now && !down-prev -> be1=1 + point; release := down-prev && !down-now -> 0x2214c10=1 for ONE frame (all edge globals zeroed at every poll start 0x500e53-0x500e77) -> not observable in delayed dumps",
+    "getter_FUN_00500870": "returns true (and the press point) when left press pending OR a fresh left release edge (+0x18 != +0x1c and != 0) -> widgets can fire on press or release",
+    "keyboard_FUN_005009D0": "+0x194 current / +0x294 previous 256-key arrays, repeat counters 0x2214774..0x2214b74 -> the dword pairs seen toggling per click are keyboard state, not a mouse gate"
+  },
+  "runtimeHazard": "Between prep (23:36Z) and 23:43Z, 1550 of 1563 files of the run's own PostgreSQL runtime copy (postgresql\\pgsql) disappeared while the 13 in-use files (postgres.exe + loaded DLLs) survived; pg_ctl.exe was gone, so the clean stop could not run until guest-restore-runtime.ps1 re-extracted the missing files from the sealed zip (sha 37E1C5CF…). Suspected guest temp cleaner acting on %LOCALAPPDATA%\\Temp; identify read-only before the next run.",
+  "conclusion": "A held click on 戻る is recorded as a correct press and the panel stays open. With the producer and getters decoded as healthy, the wedge is in the sub-panel part class / FUN_005015F0 delivery branch. Live minimal inputs are exhausted for this gate; next unit is decompile-level static analysis.",
+  "checks": {
+    "probe_readOnly_VM_READ_only": true,
+    "login_natural_one_submission": true,
+    "settingsOpen_wedge_reproduced": true,
+    "slowClick_pressRecordedAtModoru": true,
+    "slowClick_panelStillOpen_opaqueRegionsIdentical": true,
+    "subPanelCell_stays_1": true,
+    "runtimeCopy_lostFiles_restoredFromSealedZip_noOverwrite": true,
+    "clientWedged_stoppedByOwnPidStop_cleanShutdown": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "2D39625D97369997B6F48C0006702FCD46EEC8BD42CC7334B4A15484F4AF65BF",
+    "fresh-run-prep.json": "8D929AE4009D1D69955F99BD5DA14CBBEBEC6D651B21E24F7F2B2BCCD2413B48",
+    "cred-e.json": "447CA85C0C192E076D6F90968A892BCBD9D9F2EEE987978D38E0B8892BEB939D",
+    "rpm-d1.json": "2580296CCD6866EC5077205B59B51A86F57B09A268B79844D1561C25DA15A323",
+    "rpm-d2.json": "C62F40B74641FF1C197DC359424766D4754F6E357D18E3F01AD0F0E4C21292AF",
+    "rpm-d4.json": "AA9B227BCFD86490C5365E4874C317CE90805C52889722BBF72FA25E81703AD2",
+    "rpm-dump-d1.bin": "184F1A75B042FA142E11CDE52B7C164A892032F50B9FF110F2C8E18F80D917B7",
+    "rpm-dump-d2.bin": "E1DB1D8727929DBBFC485848861C7B00E8BC1CD01A9AD7093A54A16188A8C90B",
+    "rpm-dump-d4.bin": "33471DBD3EA6FB81CDE3E0341EBCC2133DFA3E041FF1B3D1CA10800E63FB00E8",
+    "vnc-r0b-lobby.png": "808010FF666BA3EC0026A7F1127F776D9D8A6F8D0313AAD7F1B7ABBC9E036321",
+    "vnc-r1-settings.png": "7230A5596D43E551B6ACE3E622E168BA4A9235B8611691FED0CE10E0328F0E6A",
+    "vnc-r3-after-slow-modoru.png": "A6DABF8C20476A50A59601EB9764F438C81AFF204E142C1AEBD7A29C36DD601B",
+    "stop-own-client.json": "4B7F70905CB2F202175DF6F8529F5E6167EE6586B63A7A3CC504B84302D739CE",
+    "census-mid.json": "DBB1FD816F93F78C8C5254385E5DAC769CA4ADFA8462038B04A738B96B3D616F",
+    "restore-runtime.json": "00328E1274121AFB6CF4BC16B4B7E5D74527ABDFCFA4DF0B4102797161547EC9",
+    "clean-stop.json": "9B4B5E79ABEFE046517FC9E5684139E462D2C1FD8891E59E8BACFD05884B1D40",
+    "cleanup.json": "AF1AAA9351B056A2172EAB033C869AF6B6FB1A1C0E3E591C4AEE9B722165E19D",
+    "verify-after-stop.json": "8300CC1700CDE4F21662EE7A80AA45E5B994EB9111E93D1AF8EF452F1B4A0EA0"
+  }
+}

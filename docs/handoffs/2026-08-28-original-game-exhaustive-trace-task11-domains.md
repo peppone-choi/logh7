@@ -1,0 +1,24 @@
+# Handoff - exhaustive trace foundation Task 11 domain routing
+
+- bounded-unit status: `PASS` for deterministic D01-D16 routing and package integrity
+- overall goal: `INCOMPLETE`; original playability and full implementation remain unproved
+- inputs: current graph SHA-256 `6B520907EB7C22CB65FE4DA305D59F9C07F6357FDF5E0A249C8572CFE795F3C9`, coverage SHA-256 `EAEECB3D6261AE1EBC9EAF9BF002527DE30BC0B3901083E3F75776A0600F24A4`, canonical domain configuration
+- outputs: exact `evidence/exhaustive-trace/domains/D01.json` through `D16.json`, 44,707,134 bytes total
+- conservation: 15,999 primary assignments = 15,999 unique source rows; unassigned 0; duplicate primary 0; unresolved 15,317; secondary 4,282; cross-domain dependencies 3,132
+- routing semantics: typed entity/protocol/UI/resource selectors, exact authority sourceKey inheritance, and one conservative proven-edge wave; primary scheduling ownership is separate from semantic proof
+- unresolved semantics: fallback, multi-domain, candidate-only and conflicting rows remain in `crossDomainUnresolved`; 11,497 function rows are not silently claimed as recovered domain facts
+- dependency semantics: configured HARD edges form an acyclic DAG; graph-derived cross-domain edges remain SOFT with original disposition
+- D04: primary 75, secondary 1,342; required topology types and grid records present; exact topology plan SHA-256 `06801FD8671A8DA5F3E9FD61C55BB33377369F29377A0EC15921D45F246F4D25`
+- bindings: config `A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379`; policy `126841E77AD381935BFBED25B7F84CA6E65E3E8CCA1CBDAD45BCEE590CBE3732`; route surface `5B5F2C2BAE79333945417F0F8B9FD50933B7920DA30A0C84ADC5D21036D95D0B`; package set `948D5B84EBB6B3B1472CF83C9E675F5E04008BFF140F326C5C486B8306E182DA`
+- reproducibility: checked/run-a/run-b contain exact 16 byte-identical files; directory hash surface `C51061E80CE18F9C5659CA1E354F7102E86CFB9F05070A72B25A0C7867330E81`
+- verification: focused domains 14/14 PASS; full suite 230/230 PASS; strict load, canonical bytes, tamper/missing/extra, candidate non-promotion, hard cycles and reparse inputs pass
+- independent review: initial `REJECT` findings converted to RED tests; final read-only verdict `APPROVE`; validator writes 0
+- coverage carry-forward: `STRUCTURAL_FATAL`, exactly `FEATURE_REACHABILITY_LEDGER_ABSENT`; package success does not promote coverage
+- receipt: `work/20260828-original-game-exhaustive-trace-task11-domains/repro/task11-verification.json`
+- report: `work/20260828-original-game-exhaustive-trace-task11-domains/report/task11-domain-routing-report.md`
+- runtime state: no VM, original executable, debugger, process memory, physical input, binary patch, Ghidra, server, protocol, database, port, or lifecycle action
+- decision_delta: foundation phase advances `Task11 routing -> Task12 implementation/live-validation package generation`; no evidence state or coverage gate changes
+- carry_forward_refs: `docs/handoffs/2026-08-28-original-game-exhaustive-trace-task10-coverage.md`, this handoff, `evidence/exhaustive-trace/coverage.json`, `evidence/exhaustive-trace/domains/D01.json` through `D16.json`
+- next start: Task 12 must split every routed feature/entity/boundary into reverse-contract, versioned-contract, authority-server, legacy-gateway, new-client, database/replay, content/admin, and QA/independent-review units
+- forbidden promotion: do not call a provisional primary a recovered semantic domain; do not infer identity from filenames, display names, NAME_MATCH, adjacency, calls or candidate edges; do not claim coverage PASS, gameplay, authority, persistence, both factions, Gate-A, Gate-B, or overall completion
+- forbidden retry: do not launch the VM or mutate server/protocol/database for Task 12 planning; do not erase unresolved rows to simplify work-package generation

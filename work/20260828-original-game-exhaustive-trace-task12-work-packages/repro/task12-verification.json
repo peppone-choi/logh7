@@ -1,0 +1,53 @@
+{
+  "artifact": {
+    "bytes": 81454264,
+    "fileSha256": "A05521C335BC216CC712AFF3B207A6FD3CD79733EBA813840DC14CCE0D569B4C",
+    "path": "evidence/exhaustive-trace/domain-plan-inputs.json",
+    "planSurfaceSha256": "76F61C5BA4510640907767B884EBF54AB91B0F0938F83E24A2971646A5A7CD55"
+  },
+  "bindings": {
+    "configSha256": "A5733017C423EF9EB2F67F44FD7A03AB617DC207E6AA7CC7B8503B51326E7379",
+    "coverageSurfaceSha256": "665FF9C360D48073A1907B2C8371F2535194FB270FB845CB610DAB89836B33D0",
+    "graphSurfaceSha256": "65B553753259DF830C5C2B86098CED589574A3C6E47868F3DE8613159B8BC6D0",
+    "packageSetSha256": "948D5B84EBB6B3B1472CF83C9E675F5E04008BFF140F326C5C486B8306E182DA",
+    "routeSurfaceSha256": "5B5F2C2BAE79333945417F0F8B9FD50933B7920DA30A0C84ADC5D21036D95D0B",
+    "routingPolicySha256": "126841E77AD381935BFBED25B7F84CA6E65E3E8CCA1CBDAD45BCEE590CBE3732"
+  },
+  "conservation": {
+    "automaticRetryUnitCount": 0,
+    "candidateFeatureUnitCount": 8,
+    "candidateGameplayFeatureCount": 1,
+    "confirmedGameplayFeatureCount": 0,
+    "maxLiveInputCount": 0,
+    "openRowCount": 15999,
+    "recoveryCoveredRowCount": 15999,
+    "recoveryUnitCount": 15999,
+    "routingUnresolvedRowCount": 15317,
+    "runtimeMutationUnitCount": 0,
+    "sourceRowCount": 15999,
+    "uncoveredOpenRowCount": 0
+  },
+  "determinism": {
+    "checkedSha256": "A05521C335BC216CC712AFF3B207A6FD3CD79733EBA813840DC14CCE0D569B4C",
+    "runASha256": "A05521C335BC216CC712AFF3B207A6FD3CD79733EBA813840DC14CCE0D569B4C",
+    "status": "BYTE_IDENTICAL"
+  },
+  "independentReview": {
+    "initialVerdict": "REJECT",
+    "resolvedFinding": "feature source domain, firstMissingBoundary, recoveryDisposition, and uniqueness were not cross-validated",
+    "validatorWrites": 0,
+    "verdict": "APPROVE"
+  },
+  "status": {
+    "boundedUnit": "PASS",
+    "coverageGate": "STRUCTURAL_FATAL",
+    "featureLedger": "ABSENT",
+    "overallGoal": "INCOMPLETE"
+  },
+  "tests": {
+    "compile": "PASS",
+    "focused": "13/13 PASS",
+    "fullExhaustiveTrace": "244/244 PASS",
+    "gitDiffCheck": "PASS"
+  }
+}

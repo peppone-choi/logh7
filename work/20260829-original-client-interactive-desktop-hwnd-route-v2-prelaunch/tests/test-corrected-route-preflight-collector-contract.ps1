@@ -1,0 +1,5 @@
+$ErrorActionPreference='Stop';$root=Split-Path -Parent $PSScriptRoot;$path=Join-Path $root 'src\collect-corrected-route-preflight.ps1';if(-not(Test-Path $path)){throw 'collector missing'};$text=Get-Content $path -Raw
+$required=@('[Parameter(Mandatory=$true)][string]$RunId','Win32_Process','GetOwner','GetOwnerSid','ownerLookupStatus','moduleBase','moduleSize','WTSGetActiveConsoleSessionId','Get-FileHash','LIVE_READONLY_CORRECTED_ROUTE_PREFLIGHT','C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe','processMemoryReads=0','gameInputs=0','automaticInputs=0','permitIssued=$false')
+$forbidden=@('SendInput','SetForegroundWindow','ShowWindow','ReadProcessMemory','WriteProcessMemory','DebugActiveProcess','OpenProcess(','CreateProcess','Start-Process','Stop-Process','schtasks','Start-Service','Stop-Service','vmrun','vncdo')
+foreach($x in $required){if(-not$text.Contains($x)){throw "missing $x"}};foreach($x in $forbidden){if($text.Contains($x)){throw "forbidden $x"}}
+[ordered]@{status='PASS';assertions=$required.Count+$forbidden.Count}|ConvertTo-Json -Compress

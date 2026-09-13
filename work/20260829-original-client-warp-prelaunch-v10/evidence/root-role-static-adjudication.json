@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "target": {
+    "file": "G7MTClient.exe",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "imageBase": "0x00400000"
+  },
+  "sources": [
+    {
+      "path": "work/20260828-original-game-exhaustive-trace-task4-ui/ui-ghidra-second.json",
+      "sha256": "A1B96D615294A6285F4F7E6FDC807218CD9729179BBE8D8FD39255E5F9DCD6F0"
+    },
+    {
+      "path": "work/20260827-original-client-manager65-readonly-collector/evidence/manager65-widget-memory-layout.txt",
+      "sha256": "0E57E4329EB616D309F99577D870887DDCE194EB6A3DFC85205D7151899A360C"
+    },
+    {
+      "path": "work/20260826-system-panel-runtime-audit/handler-object-refs.txt",
+      "sha256": "F50814FDDB9BB77ACA309375F840D27FE685B50CA092AAD34E92D8FDB8E01E9D"
+    },
+    {
+      "path": "work/20260828-textdialog-coordinate-frame-owner/textdialog-coordinate-frame.txt",
+      "sha256": "BC4DE3E8EBD27CFA0556C08D52408EC6C37AD78D636D693CDC64451E92D1EC47"
+    },
+    {
+      "path": "work/20260826-system-panel-runtime-audit/evidence/runtime-registry-enumeration.json",
+      "sha256": "EF2F42A4B9AE716C5317A1FE98121BDA015035F391959381D4E5BF44073C4243"
+    },
+    {
+      "path": "work/20260829-original-client-warp-prelaunch-v10/evidence/fresh-manager65.json",
+      "sha256": "FC766FE64B16DC27693D9003C43D78CB79E5D103649954100256D56851D533D9"
+    },
+    {
+      "path": "work/20260829-original-client-warp-prelaunch-v10/evidence/fresh-manager67.json",
+      "sha256": "0D20CBC4CC251B2421430949A8E727539624E34476F4FA8127EF35E9816726DD"
+    }
+  ],
+  "adjudication": {
+    "status": "SOURCE_CONFLICT_RESOLVED_STATIC_WITH_PARTIAL_RUNTIME_CORROBORATION",
+    "uiRoot": {
+      "formula": "U32(moduleBase+0x1E15E2C)",
+      "role": "UI_MODE_AND_REGISTRY_HOST",
+      "registryFormula": "U32(uiRoot+0x0C)"
+    },
+    "strategyOwner": {
+      "formula": "moduleBase+0x89E638",
+      "role": "INLINE_STRATEGY_MANAGER_OWNER",
+      "manager65ControllerFormula": "strategyOwner+0x130",
+      "manager67ControllerFormula": "strategyOwner+0x48C"
+    },
+    "rejectedInterpretations": [
+      "U32(moduleBase+0x1E15E2C)_IS_THE_INLINE_STRATEGY_OWNER",
+      "moduleBase+0x89E638_REPLACES_THE_UI_ROOT",
+      "I32(strategyOwner+0x00)_IS_BUILDER_MODE",
+      "I32(strategyOwner+0x04)_IS_HANDLER_STATE",
+      "I32(strategyOwner+0xF4)_MUST_EQUAL_2_FOR_WARP"
+    ],
+    "runtimeCorroboration": [
+      "U32(strategyOwner+0x130)==U32(registry+0x198)",
+      "U32(strategyOwner+0x48C)==U32(registry+0x1A0)",
+      "U32(strategyOwner+0x00)==registry_slot_106_manager_pointer"
+    ]
+  },
+  "currentLiveBoundary": {
+    "status": "BLOCKED",
+    "reason": "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION",
+    "latestGuestSessionId": 0,
+    "latestClientPid": 3448,
+    "latestClientConnectionTo47900": "ESTABLISHED",
+    "freshOwnedHwnd": "MISSING",
+    "rootRoleLiveCapture": "NOT_EXECUTED_AFTER_HWND_GATE",
+    "hostObservations": 2,
+    "guestWorkloadAttempts": 13,
+    "guestTransportCalls": "NOT_INSTRUMENTED_BEFORE_THIS_LEDGER",
+    "readOnlyProcessMemoryReads": 292,
+    "physicalActivationConsumed": 0,
+    "debuggerAttachCount": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "processMemoryWrites": 0,
+    "ownedHwndCaptures": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "permitIssuance": 0,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0
+  },
+  "claimCeiling": "STATIC_MAPPED_WITH_PARTIAL_RUNTIME_STRUCTURAL_CORROBORATION_NOT_WARP_READY"
+}

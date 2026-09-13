@@ -1,0 +1,100 @@
+{
+  "schema": "logh7/condition-9-dismissal-verification/v1",
+  "condition": 9,
+  "feature": "罷免 CommandCardDismissal 0x0708 (remove card 40 = 艦隊副司令官 from character 2, the inverse of 任命 0x0707)",
+  "runId": "20260903T080842Z-natural-l1-relogin-v1",
+  "clientExe": null,
+  "authorityZipSha256": null,
+  "checks": {
+    "prepReady": true,
+    "oneCredentialSubmission": true,
+    "appointmentFirst": true,
+    "appointmentPersisted": true,
+    "postListServed": true,
+    "holderPickerServedAsCharacterList": true,
+    "dismissalAccepted": true,
+    "noConnectionCloseAfterCommand": true,
+    "appointmentRemoved": true,
+    "domainEventCharacterCardDismissed": true,
+    "relaunchReady": true,
+    "reloginOneCredentialSubmission": true,
+    "removedAfterRestart": true,
+    "removedAfterRelogin": true,
+    "accountVersionStable": true,
+    "cleanStop": true,
+    "cleanup": true,
+    "noLeftoverProcesses": true
+  },
+  "passed": "18/18",
+  "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "dismissalResponse": {
+    "t": "2026-09-03T08:15:49.7280197+00:00",
+    "ev": "frame-processed",
+    "outerControl": 48,
+    "payloadLength": 40,
+    "status": "Success",
+    "ObservedApplicationType": 1800,
+    "ResponseMetadata": "card-dismissal-accepted;card=40;target=2;appointer=2;authorityVersion=26;payloadHex=07080000000000000002000000000000000000000002000000280000000000",
+    "requestPayloadHex": "403480DB1775426DDD23469C49ACA165C338DC768D3B06F1C5C318C7DBD7FBBFC04E895DCDFDFBD0",
+    "ResponseOuterControl": 48,
+    "responsePayloadLength": 176,
+    "stateBefore": "SessionServerReady",
+    "stateAfter": "SessionServerReady"
+  },
+  "characterCard": {
+    "afterAppoint": [
+      {
+        "character_id": 2,
+        "card_id": 40,
+        "appointed_by_character_id": 2,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T17:11:24.130042+09:00"
+      }
+    ],
+    "afterDismiss": "",
+    "afterRestart": "",
+    "afterRelogin": ""
+  },
+  "domainEvent": {
+    "event_id": 26,
+    "aggregate_type": "character",
+    "aggregate_id": "2",
+    "event_type": "CharacterCardDismissed",
+    "payload": {
+      "cardId": 40,
+      "characterId": 2,
+      "targetCharacterId": 2,
+      "requestFingerprint": "465bd04b02ca6e43b6e16c2fdc4d07d119be01c8ef03e08effe3795a4e8a463c"
+    },
+    "authority_version": 26,
+    "created_at": "2026-09-03T17:15:49.714762+09:00"
+  },
+  "screenshots": {
+    "vnc-r3-0-lobby.png": "F139A6E4D46D5EB349E2A9E41E4C08D222B3ACB9465785C4E0BC948E8AFB0B8C",
+    "vnc-r3-1-roster.png": "27179308207AFB2EE2B06801604D8C3904023AB339A1675A89C7C4CBA93577BF",
+    "vnc-r3-2-strategy.png": "1F890E46B42447FEB44C261944A139765FF7B824E23593FAE34FCBD4965D8F04",
+    "vnc-r3-3-cardtab.png": "D1A3D6D34B2AC60A683706CD32C58DC51CD8999CDF914445BAF3329079A6AE68",
+    "vnc-r3-4-card.png": "796E6AD40E24B686AB6F481BBA66EF3DA749BA625374BBEAEA6C9BFE6921B1BF",
+    "vnc-y1-a-1-ninmei.png": "D26CAADB6CE29F7C2C30BB34BE3D1CFEAC750B3568CF38749CF5FFE6107165A4",
+    "vnc-y1-a-2-post.png": "EED31FB94A9D564446BC4F8E0F111C2B2957ABCB78549CDCC64C901C05983132",
+    "vnc-y1-a-3-persons.png": "C29A38CEFEBC155D6FECC26458D5F42E8C2E83F2203045A6D18389C26E3A0AC4",
+    "vnc-y1-a-4-person.png": "4E6B7077AFC554B65B48E886F6CBDC9DDD40C3901A828FE21B028CFFF76660A3",
+    "vnc-y1-a-5-confirm.png": "2A16429C0B13D2BD1EE95B1A950D50B430546B1E7160E63DFD6ABDC915655310",
+    "vnc-y1-a-6-sent.png": "A77D4FA5F09BB3DB0A929106109AF2A5403D771F1E0CEFFFFBC944B740C66E2D",
+    "vnc-y1-b-0-card.png": "FE1A02B69A9239D3F06E540199D4B76A56974072394CD4E4D9060BD7E4AD50BC",
+    "vnc-y1-b-1-himen.png": "5BAD3958B19256BECE671D5E421DE1D9D497C53C60FB926D58AACE7E639FD0FD",
+    "vnc-y1-b-2-post.png": "7D1CFF44D02DF1E620C23B1A92D0B2C22CC72B23F84C33463425F81D42DA2CF6",
+    "vnc-y1-b-3-holders.png": "A6A50C3CC990404E1E9B20DCC775DBF208FA5957D50B095C6071D234F948CD71",
+    "vnc-y1-b-4-holder.png": "5A9E5B775533507C01EDC839BCCCB7D576609E26F841577849E97F6C0C7B754C",
+    "vnc-y1-b-5-confirm.png": "E15CA24B73AF85220D05CC43249363DCAB05B9EC21D6797B7D98B2A9E395F88F",
+    "vnc-y1-b-6-sent.png": "E4EA73E55167C297AC99E78A29A85BCDBC636AC05A6C6CAE5D2BEB9F4350EDA6",
+    "vnc-y1-c-0-card.png": "E5E486D43794FD73004ABFE88B801520E1F4B536C1FF2A949586378CF924BBBA",
+    "vnc-y1-c-1-himen.png": "BDCFD238517E1C72269B2B87E834C30D7F1F98D30E12F1CBABBB80355C4E3F8D",
+    "vnc-y1-c-2-post.png": "8B3F25B46865BF5A5DAA7DB944D7219891A4000FD9C11BB4F751A773455B28EA",
+    "vnc-y1-c-3-holders.png": "D7325658821CC11F19C587FD4BEFA967B48C758DD0C9AA61D83C545E307EE3C0",
+    "vnc-y1-c-4-holder.png": "1CF53465A04C3DF73233BD2FA5E2BE7A3A3EF3DC6114C83AFC101FD035355D53",
+    "vnc-y1-c-5-confirm.png": "C6001DEB22E9D14A28DB66A4090421B2A138426EA6572CCCD437BACC7714F652",
+    "vnc-y1-c-6-sent.png": "E58C1D3730ECB402C5B496A067A83FC244A240BC7300B6BE430E8FEE6B19B5AC"
+  },
+  "newDesign": "Dismissal removes original_character_card and records original_card_dismissal_command (migration 0014) with event CharacterCardDismissed; the 任命 audit row in original_card_appointment is retained. The original 160 MCP cost and wait time are not modelled. Store failures (no such appointment) soft-reject via 0x0500 NotifyInvalidMessage instead of dropping the connection."
+}

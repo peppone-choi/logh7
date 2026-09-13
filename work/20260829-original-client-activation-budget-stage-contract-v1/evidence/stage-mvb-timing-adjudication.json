@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "record": "WARP_DESTINATION_CONFIRM_STAGE_MVB_TIMING_ADJUDICATION",
+  "provenance": "ORIGINAL_OBSERVED_STATIC_AND_OFFLINE_CONTRACT",
+  "status": "STATIC_EXPECTED_NOT_RUNTIME_OBSERVED",
+  "boundSources": {
+    "stageGateContract": {
+      "path": "work/20260827-original-client-first-play-stage-gate/evidence/first-play-stage-gate-contract.json",
+      "sha256": "1A7A9AF14EEC47D1C51AD34A3DF3294C2846A8E6526954B4743A26355D79FCFF"
+    },
+    "warpStageOwnerLedger": {
+      "path": "work/20260828-original-client-warp-stage-owner-pointer/evidence/warp-stage-owner-static-ledger.json",
+      "sha256": "AE058E57927DEF598DA598537D0D4DF469733FC6A1CBDAB8DD28C73D6A809B51"
+    },
+    "destinationConfirmLedger": {
+      "path": "work/20260828-original-client-destination-confirm-collector/evidence/destination-confirm-stage-ledger.json",
+      "sha256": "59C1988F7743CCE774345D25E8BF50AD3728BC2A01D0944890E937C45DD844D3"
+    },
+    "movementBreakpointLedger": {
+      "path": "work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/movement-breakpoint-static-ledger.json",
+      "sha256": "9BC141E9C2F9AA7A0EF6BADF9B63CED2822F3E5D7AF820382F38803523ED3B99"
+    },
+    "hardwareRearmPlan": {
+      "path": "work/20260828-original-client-movement-hardware-rearm-plan/evidence/hardware-rearm-plan.json",
+      "sha256": "54192253616B5CE26F81A87276BD861B15069677E8F3EEDD6C3FA903D8DE665D"
+    }
+  },
+  "stageFacts": {
+    "orderedStages": ["WARP", "DESTINATION", "CONFIRM"],
+    "maxConsumptionByStage": {"WARP": 1, "DESTINATION": 1, "CONFIRM": 1},
+    "requiredPredecessorsByStage": {
+      "WARP": [],
+      "DESTINATION": ["WARP=1"],
+      "CONFIRM": ["WARP=1", "DESTINATION=1"]
+    },
+    "maximumPhysicalActivations": 3,
+    "warpFactory": "FUN_00581C80",
+    "warpCreatesFlowObject": "SelectGrid",
+    "sendWarpChildIndex": 3,
+    "sendWarpChildVtable": "moduleBase+0x276AEC",
+    "confirmFlowObject": "TextDialog"
+  },
+  "mvbFacts": {
+    "mvb01AnchorId": "MVB01_HANDLER_CALLBACK",
+    "mvb01Role": "WARP_SEND_CALLBACK_ENTRY",
+    "mvb01CaptureRequiresActiveFlowChild3Equality": true,
+    "initialActiveAnchorShortIds": ["MVB01", "MVB06", "MVB08", "MVB09"],
+    "firstRearmTransitionRequiresAcceptedMvb01": true
+  },
+  "postWarpExpectation": {
+    "scope": "AFTER_WARP_ACTIVATION_BEFORE_DESTINATION_ACTIVATION",
+    "destinationStageCreated": true,
+    "expectedMvb01AcceptedHits": 0,
+    "expectedReceiptPhaseOrdinal": 0,
+    "expectedActiveAnchorShortIds": ["MVB01", "MVB06", "MVB08", "MVB09"],
+    "continueToDestinationInput": false,
+    "stopAndHandoff": true,
+    "evidenceClass": "INFERRED_FROM_HASH_BOUND_STATIC_FLOW_AND_REARM_CONTRACT",
+    "runtimeObserved": false
+  },
+  "claimCeiling": {
+    "allowed": ["STATIC_STAGE_ORDER", "STATIC_MVB01_SEND_BOUNDARY", "EXPECTED_POST_WARP_ZERO_MVB01"],
+    "forbidden": ["RUNTIME_OBSERVED", "MVB01_ACCEPTED_HIT", "OUTBOUND_0X0B01", "FULL_MOVEMENT", "PLAYER_VISIBLE_MOVEMENT"]
+  },
+  "operations": {
+    "liveOperations": 0,
+    "debuggerCommands": 0,
+    "physicalInputs": 0,
+    "permitsIssued": 0
+  }
+}

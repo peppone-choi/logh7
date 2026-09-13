@@ -1,0 +1,19 @@
+{
+  "schemaVersion":1,
+  "evidence":"DEBUG_EVENT_SUSPENSION_AND_EXECUTE_HWBP_TIMING",
+  "claims":{
+    "debugEventSuspendsAffectedProcessThreadsUntilContinueDebugEvent":"AUTHORITATIVE_STATIC_PASS",
+    "instructionBreakpointFaultsBeforeInstructionExecution":"AUTHORITATIVE_STATIC_PASS",
+    "x32dbgCommandExecutesBeforeContinuePath":"STATIC_SOURCE_PASS",
+    "actualG7MTClientRearmContinuity":"RUNTIME_UNSEEN"
+  },
+  "sources":[
+    {"id":"MICROSOFT_DEBUGGING_EVENTS","url":"https://raw.githubusercontent.com/MicrosoftDocs/win32/3aee48ac3f48e187d17bdfd56951741737331749/desktop-src/Debug/debugging-events.md","sha256":"C0DC0EAEB21E029DCE783AB1625D5553A95152E5CE6CED9B8CBE9FAF88B9CD0A"},
+    {"id":"MICROSOFT_DEBUGGER_MAIN_LOOP","url":"https://raw.githubusercontent.com/MicrosoftDocs/win32/3aee48ac3f48e187d17bdfd56951741737331749/desktop-src/Debug/writing-the-debugger-s-main-loop.md","sha256":"7686976FF1493624508D75039447F052BBD0CE0827EA29D4D62941E7D722AA15"},
+    {"id":"MICROSOFT_CONTINUE_DEBUG_EVENT","url":"https://raw.githubusercontent.com/MicrosoftDocs/sdk-api/0797841e74f7d55cba99a08948b601604799ef07/sdk-api-src/content/debugapi/nf-debugapi-continuedebugevent.md","sha256":"0EB2B35A762D71F08081206DF8188EC5AFE938898FB47FF2A820F0BE68A7AA7C"},
+    {"id":"INTEL_SDM_VOL3B","url":"https://cdrdv2-public.intel.com/774491/253669-sdm-vol-3b.pdf","sha256":"B2AF74CEC482B88548BB6078434E9F0AED62579C0D4FD91D5BE3FF45846215B5"},
+    {"id":"X64DBG_COMMAND_SOURCE","url":"https://raw.githubusercontent.com/x64dbg/x64dbg/9c8ca1cae0b6d56cc44f31fddcb10e3b02ffbb87/src/dbg/commands/cmd-breakpoint-control.cpp","sha256":"E33D8A19C6B2110EB3786FF6532C51F581C7E0EC3B2AA39735C017C96516114D"},
+    {"id":"X64DBG_DEBUGGER_SOURCE","url":"https://raw.githubusercontent.com/x64dbg/x64dbg/9c8ca1cae0b6d56cc44f31fddcb10e3b02ffbb87/src/dbg/debugger.cpp","sha256":"7197D4430EDCAFAD1C55B7D4DECBCD637654C2A5D6F19DE4B155E54259FA67A1"}
+  ],
+  "caveats":["DBG_REPLY_LATER must not be used","EFLAGS.RF and POP SS/MOV SS suppression exceptions must be absent at every anchor","bphws and bphwc expose no result variable; post-command evidence is required","bplist does not prove per-thread DR state"]
+}

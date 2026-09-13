@@ -1,0 +1,96 @@
+﻿{
+    "schemaVersion":  2,
+    "provenance":  "LIVE_READONLY",
+    "process":  {
+                    "pid":  3448,
+                    "startTimeUtc":  "2026-08-25T15:47:31.9489446Z",
+                    "sha256":  "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+                    "moduleBase":  "0x00400000",
+                    "hwnd":  "0x001A0490",
+                    "hwndOwnerPid":  3448,
+                    "clientWidth":  1024,
+                    "clientHeight":  822,
+                    "secondHwndOwnerPid":  3448,
+                    "secondClientWidth":  1024,
+                    "secondClientHeight":  822
+                },
+    "root":  {
+                 "pointer":  "0x00C9E638",
+                 "builderMode":  225134896,
+                 "handlerState":  225134952,
+                 "strategyMode":  1
+             },
+    "manager65":  {
+                      "controllerPointer":  "0x00C9E768",
+                      "managerPointer":  "0x0BE60E40",
+                      "managerId":  101,
+                      "managerInputGate":  0,
+                      "page":  1,
+                      "cardId":  -1,
+                      "actionCount":  24,
+                      "recordActionCount":  -1,
+                      "recordActionCountMatches":  false,
+                      "selectedIndex":  -1,
+                      "registryHostPointer":  "0x055529F0",
+                      "registryPointer":  "0x09255020",
+                      "registrySlotPointer":  "0x0BE60E40",
+                      "registrySlotMatches":  true,
+                      "currentCharacterOwnerPointer":  "0x08C28020",
+                      "contextChain":  [
+                                           {
+                                               "pointer":  "0x0BE60E40",
+                                               "id":  101,
+                                               "active":  0,
+                                               "parentId":  -1,
+                                               "localX":  0,
+                                               "localY":  0,
+                                               "registry":  "0x09255020"
+                                           }
+                                       ],
+                      "actions":  [
+
+                                  ]
+                  },
+    "coordinateFrame":  {
+                            "type":  "LOGICAL_TO_CLIENT_TRUNCATE_SCALE",
+                            "logicalOrigin":  {
+                                                  "x":  0,
+                                                  "y":  0
+                                              },
+                            "scaleX":  1,
+                            "scaleY":  1,
+                            "logicalWidth":  1024,
+                            "logicalHeight":  768,
+                            "engineClientRect":  {
+                                                     "left":  0,
+                                                     "top":  0,
+                                                     "right":  1024,
+                                                     "bottom":  768
+                                                 }
+                        },
+    "action0x2B":  {
+                       "semantic":  "CURRENT_AUTHORITY_CARD_ACTION_WIDGET_FOR_COMMAND_0X2B_WARP_NAVIGATION",
+                       "match":  null
+                   },
+    "snapshotStable":  true,
+    "windowSurfaceStable":  true,
+    "stateEligible":  false,
+    "blockers":  [
+                     "ENGINE_RECT_HWND_MISMATCH",
+                     "SCALE_LOGICAL_SURFACE_MISMATCH",
+                     "STRATEGY_ROOT_STATE_MISMATCH",
+                     "MANAGER65_CONTEXT_INACTIVE",
+                     "MANAGER65_RECORD_ACTION_COUNT_MISMATCH",
+                     "MANAGER65_BOUND_CARD_ID_INVALID",
+                     "ACTION_0X2B_NOT_FOUND"
+                 ],
+    "originalRuntimeObserved":  false,
+    "permitIssued":  false,
+    "operations":  {
+                       "memoryReads":  "READ_ONLY",
+                       "memoryReadCount":  56,
+                       "writes":  0,
+                       "gameInputs":  0,
+                       "breakpointsInstalled":  0
+                   }
+}

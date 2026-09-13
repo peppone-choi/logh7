@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "provenance": "SYNTHETIC_FIXTURE",
+  "process": {
+    "pid": 4242,
+    "startTimeUtc": "2026-08-28T00:00:00.0000000Z",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "moduleBase": "0x00400000",
+    "hwnd": "0x00001234",
+    "hwndOwnerPid": 4242,
+    "clientWidth": 800,
+    "clientHeight": 600,
+    "secondHwndOwnerPid": 4242,
+    "secondClientWidth": 800,
+    "secondClientHeight": 600
+  },
+  "strategyRoot": {
+    "pointer": "0x00C9E638",
+    "builderMode": 2,
+    "handlerState": 3,
+    "strategyMode": 2
+  },
+  "manager65": {
+    "boundAuthorityCardId": 200
+  },
+  "manager67": {
+    "controllerPointer": "0x00C9EAC4",
+    "managerPointer": "0x02000000",
+    "managerId": 103,
+    "managerInputGate": 1,
+    "page": 2,
+    "cardCount": 3,
+    "pendingHitIndex": -1,
+    "dataOwnerPointer": "0x03000000",
+    "dataOwnerCount": 3,
+    "dataOwnerCountMatches": true,
+    "currentCharacterOwnerPointer": "0x07000000",
+    "expectedCurrentRecordPointer": "0x03000000",
+    "currentRecordSourceMatches": true,
+    "registryHostPointer": "0x01000000",
+    "registryPointer": "0x06000000",
+    "registrySlotPointer": "0x02000000",
+    "registrySlotMatches": true,
+    "cards": [
+      {
+        "index": 0,
+        "cardId": 100,
+        "actionCount": 1,
+        "actionIds": [
+          16
+        ],
+        "hasWarpAction": false,
+        "surfaceC": {
+          "surface": "C",
+          "widgetPointer": "0x02001000",
+          "status": "READ",
+          "initialized": 1,
+          "localSelector": 0,
+          "localGate": 0,
+          "hitTestEnabled": 1,
+          "activeVisible": 1,
+          "renderVisible": 1,
+          "width": 100,
+          "height": 50,
+          "eligible": true,
+          "logicalRect": {
+            "left": 150,
+            "top": 170,
+            "right": 250,
+            "bottom": 220
+          }
+        },
+        "surfaceD": {
+          "surface": "D",
+          "widgetPointer": "0x02001100",
+          "status": "READ",
+          "initialized": 1,
+          "localSelector": 0,
+          "localGate": 0,
+          "hitTestEnabled": 0,
+          "activeVisible": 0,
+          "renderVisible": 0,
+          "width": 100,
+          "height": 50,
+          "eligible": false,
+          "logicalRect": {
+            "left": 260,
+            "top": 170,
+            "right": 360,
+            "bottom": 220
+          }
+        }
+      },
+      {
+        "index": 1,
+        "cardId": 200,
+        "actionCount": 2,
+        "actionIds": [
+          43,
+          1
+        ],
+        "hasWarpAction": true,
+        "surfaceC": {
+          "surface": "C",
+          "widgetPointer": "0x02002000",
+          "status": "READ",
+          "initialized": 1,
+          "localSelector": 1,
+          "localGate": 1,
+          "hitTestEnabled": 1,
+          "activeVisible": 1,
+          "renderVisible": 1,
+          "width": 120,
+          "height": 60,
+          "eligible": true,
+          "logicalRect": {
+            "left": 310,
+            "top": 225,
+            "right": 430,
+            "bottom": 285
+          }
+        },
+        "surfaceD": {
+          "surface": "D",
+          "widgetPointer": "0x02002100",
+          "status": "READ",
+          "initialized": 1,
+          "localSelector": 0,
+          "localGate": 0,
+          "hitTestEnabled": 0,
+          "activeVisible": 0,
+          "renderVisible": 0,
+          "width": 120,
+          "height": 60,
+          "eligible": false,
+          "logicalRect": {
+            "left": 440,
+            "top": 220,
+            "right": 560,
+            "bottom": 280
+          }
+        }
+      },
+      {
+        "index": 2,
+        "cardId": 300,
+        "actionCount": 1,
+        "actionIds": [
+          16
+        ],
+        "hasWarpAction": false,
+        "surfaceC": {
+          "surface": "C",
+          "widgetPointer": "0x02003000",
+          "status": "READ",
+          "initialized": 1,
+          "localSelector": 0,
+          "localGate": 0,
+          "hitTestEnabled": 1,
+          "activeVisible": 1,
+          "renderVisible": 1,
+          "width": 100,
+          "height": 50,
+          "eligible": true,
+          "logicalRect": {
+            "left": 150,
+            "top": 300,
+            "right": 250,
+            "bottom": 350
+          }
+        },
+        "surfaceD": {
+          "surface": "D",
+          "widgetPointer": "0x02003100",
+          "status": "READ",
+          "initialized": 1,
+          "localSelector": 0,
+          "localGate": 0,
+          "hitTestEnabled": 0,
+          "activeVisible": 0,
+          "renderVisible": 0,
+          "width": 100,
+          "height": 50,
+          "eligible": false,
+          "logicalRect": {
+            "left": 260,
+            "top": 300,
+            "right": 360,
+            "bottom": 350
+          }
+        }
+      }
+    ]
+  },
+  "coordinateFrame": {
+    "contextChain": [
+      {
+        "pointer": "0x02000000",
+        "id": 103,
+        "active": 1,
+        "parentId": -1,
+        "localX": 100,
+        "localY": 120,
+        "registry": "0x05000000"
+      }
+    ],
+    "logicalOrigin": {
+      "x": 100,
+      "y": 120
+    },
+    "scaleX": 1.25,
+    "scaleY": 1.5,
+    "logicalWidth": 1000,
+    "logicalHeight": 900,
+    "engineClientRect": {
+      "left": 0,
+      "top": 0,
+      "right": 800,
+      "bottom": 600
+    }
+  },
+  "selectedAuthorityCard": {
+    "source": "MANAGER65_BOUND_CARD_ID_UNIQUELY_RECONCILED_TO_MANAGER67_REVERSED_LIST",
+    "semantic": "AUTHORITY_CARD_WITH_WARP_ACTION_NOT_PROVEN_CAPTAIN_PORTRAIT",
+    "index": 1,
+    "cardId": 200,
+    "actionIds": [
+      43,
+      1
+    ],
+    "activeSurface": {
+      "surface": "C",
+      "widgetPointer": "0x02002000",
+      "status": "READ",
+      "initialized": 1,
+      "localSelector": 1,
+      "localGate": 1,
+      "hitTestEnabled": 1,
+      "activeVisible": 1,
+      "renderVisible": 1,
+      "width": 120,
+      "height": 60,
+      "eligible": true,
+      "logicalRect": {
+        "left": 310,
+        "top": 225,
+        "right": 430,
+        "bottom": 285
+      }
+    },
+    "inactiveSurface": {
+      "surface": "D",
+      "widgetPointer": "0x02002100",
+      "status": "READ",
+      "initialized": 1,
+      "localSelector": 0,
+      "localGate": 0,
+      "hitTestEnabled": 0,
+      "activeVisible": 0,
+      "renderVisible": 0,
+      "width": 120,
+      "height": 60,
+      "eligible": false,
+      "logicalRect": {
+        "left": 440,
+        "top": 220,
+        "right": 560,
+        "bottom": 280
+      }
+    },
+    "surfaces": [
+      {
+        "surface": "C",
+        "widgetPointer": "0x02002000",
+        "status": "READ",
+        "initialized": 1,
+        "localSelector": 1,
+        "localGate": 1,
+        "hitTestEnabled": 1,
+        "activeVisible": 1,
+        "renderVisible": 1,
+        "width": 120,
+        "height": 60,
+        "eligible": true,
+        "logicalRect": {
+          "left": 310,
+          "top": 225,
+          "right": 430,
+          "bottom": 285
+        }
+      },
+      {
+        "surface": "D",
+        "widgetPointer": "0x02002100",
+        "status": "READ",
+        "initialized": 1,
+        "localSelector": 0,
+        "localGate": 0,
+        "hitTestEnabled": 0,
+        "activeVisible": 0,
+        "renderVisible": 0,
+        "width": 120,
+        "height": 60,
+        "eligible": false,
+        "logicalRect": {
+          "left": 440,
+          "top": 220,
+          "right": 560,
+          "bottom": 280
+        }
+      }
+    ]
+  },
+  "snapshotStable": true,
+  "windowSurfaceStable": true,
+  "stateEligible": true,
+  "blockers": [],
+  "originalRuntimeObserved": false,
+  "permitIssued": false,
+  "operations": {
+    "memoryReads": "READ_ONLY",
+    "memoryReadCount": 238,
+    "writes": 0,
+    "gameInputs": 0,
+    "breakpointsInstalled": 0
+  }
+}

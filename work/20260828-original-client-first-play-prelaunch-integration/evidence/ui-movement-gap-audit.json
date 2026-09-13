@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "audit": "FIRST_PLAY_UI_AND_MOVEMENT_GAP_AUDIT",
+  "uiBindings": [
+    {
+      "binding": "manager67 current pointer/count/card widget/gate/rect",
+      "status": "STILL_STATIC_MISSING",
+      "firstMissingBoundary": "MANAGER67_CURRENT_CARD_COLLECTOR_MISSING",
+      "evidenceSource": "firstServerActionLedger"
+    },
+    {
+      "binding": "selected captain-card widget/gate/rect",
+      "status": "STILL_STATIC_MISSING",
+      "firstMissingBoundary": "SELECTED_CAPTAIN_CARD_WIDGET_COLLECTOR_MISSING",
+      "evidenceSource": "warpWidgetLedger"
+    },
+    {
+      "binding": "warp action 0x2B widget/gate/rect",
+      "status": "OFFLINE_COLLECTOR_EXISTS_NOT_LIVE_HARDENED",
+      "firstMissingBoundary": "MANAGER65_LIVE_COLLECTOR_NOT_HARDENED",
+      "evidenceSource": "visibleWarpLedger"
+    },
+    {
+      "binding": "destination-grid hit region",
+      "status": "LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "FRESH_DESTINATION_PROJECTION_SNAPSHOT",
+      "evidenceSource": "destinationHitVerification"
+    },
+    {
+      "binding": "confirm widget hit region",
+      "status": "LIVE_BINDING_MISSING",
+      "firstMissingBoundary": "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+      "evidenceSource": "textDialogVerification"
+    }
+  ],
+  "movementAnchors": [
+    { "id": "MVB01_HANDLER_CALLBACK", "address": "0x005737D0", "binding": "MISSING" },
+    { "id": "MVB02_PAYLOAD_READY", "address": "0x004B490E", "binding": "MISSING" },
+    { "id": "MVB03_EXPECTED_SET", "address": "0x004B7EDE", "binding": "MISSING" },
+    { "id": "MVB04_COMMAND_SET", "address": "0x004B7EE3", "binding": "MISSING" },
+    { "id": "MVB05_TRANSPORT_SEND", "address": "0x004B85B6", "binding": "MISSING" },
+    { "id": "MVB06_NOTIFY_DISPATCH", "address": "0x004BCF4F", "binding": "MISSING" },
+    { "id": "MVB07_NOTIFY_APPLIED", "address": "0x004BCF7E", "binding": "MISSING" }
+  ],
+  "movementReceiptAudit": {
+    "status": "MISSING",
+    "requiredCorrelation": [
+      "movementCommandOrdinal",
+      "payloadDigest",
+      "ordered 0x0B01 to 0x0B07 correlation",
+      "owned HWND before/after hashes"
+    ],
+    "existingInformationBreakpointCount": 14,
+    "movementAddressIntersectionCount": 0,
+    "informationBreakpointsReusable": false
+  },
+  "activationGate": {
+    "stageNames": ["WARP", "DESTINATION", "CONFIRM"],
+    "maximumPhysicalActivations": 3,
+    "currentAuthorityActivationBudget": 1,
+    "status": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH"
+  },
+  "sources": {
+    "firstServerActionLedger": {
+      "path": "work/20260827-original-client-first-server-backed-action-owner/evidence/first-server-backed-action-ledger.json",
+      "sha256": "A8788998AFFF657BDD9E367C9CD7375411116859CBC172C2B7DCF6A7FAE771F3"
+    },
+    "warpWidgetLedger": {
+      "path": "work/20260827-original-client-warp-widget-chain-owner/evidence/warp-widget-chain-owner-ledger.json",
+      "sha256": "BE9A6227E017799E5EA243B9748CDC8627110903F940F7E3D92A08D9887E772C"
+    },
+    "visibleWarpLedger": {
+      "path": "work/20260827-original-client-visible-warp-command-entry-owner/evidence/visible-warp-command-entry-ledger.json",
+      "sha256": "8034E0461312974185CF12CC6B545BFCE38ACA586276D67E8C88672184182CF0"
+    },
+    "informationLiveContract": {
+      "path": "work/20260827-mode2-information-menu-row2-live-oracle-contract-v3-integration/evidence/live-oracle-contract-v3.json",
+      "sha256": "5727FF72879C9FD1C4183EFA122CA65D2AF13329F91EFE1AB5146FBFAA2C1292"
+    },
+    "stageGateContract": {
+      "path": "work/20260827-original-client-first-play-stage-gate/evidence/first-play-stage-gate-contract.json",
+      "sha256": "1A7A9AF14EEC47D1C51AD34A3DF3294C2846A8E6526954B4743A26355D79FCFF"
+    },
+    "stageGateVerification": {
+      "path": "work/20260827-original-client-first-play-stage-gate/evidence/final-verification.json",
+      "sha256": "057FEBB59166C2EB87D731ABB699F061B352A697B9F98F2D767C7675191CB893"
+    },
+    "destinationHitVerification": {
+      "path": "work/20260828-original-client-destination-hit-region-owner/evidence/final-verification.json",
+      "sha256": "9C5C2918EB6010393126650B738A7830FF50EC2E0EE812E0C03EF61C63DE910A"
+    },
+    "textDialogVerification": {
+      "path": "work/20260828-original-client-textdialog-coordinate-correction/evidence/final-verification.json",
+      "sha256": "6FBD209DFC4E8E636AA4383B919973B60C77AF7D62307F94F9450235C8308650"
+    }
+  }
+}

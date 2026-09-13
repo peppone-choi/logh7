@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "sourceMode": "OFFLINE_FIXTURE",
+  "identity": {
+    "pid": 7404,
+    "startTimeUtc": "2026-08-28T00:00:00.0000000Z",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "hwnd": "0x00012345",
+    "hwndOwnerPid": 7404,
+    "moduleBase": "0x00400000",
+    "clientWidth": 100,
+    "clientHeight": 100
+  },
+  "target": {
+    "gridX": 50,
+    "gridY": 25
+  },
+  "stageEligible": true,
+  "blockers": [],
+  "controller": {
+    "mode": 257,
+    "resultState": 0,
+    "selectedGridId": -1,
+    "requestedChoice": 0
+  },
+  "observedHover": {
+    "gridX": 50,
+    "gridY": 25
+  },
+  "targetValidity": {
+    "valid": true,
+    "reasons": [],
+    "cellIndex": 7,
+    "cellType": 3,
+    "renderRecordActive": true,
+    "filter": 5,
+    "currentCellId": 2551,
+    "currentGridX": 51,
+    "currentGridY": 25,
+    "distance": 1.0
+  },
+  "engineViewportRect": {
+    "left": 0,
+    "top": 0,
+    "right": 100,
+    "bottom": 100
+  },
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "width": 100,
+    "height": 100,
+    "minDepth": 0.0,
+    "maxDepth": 1.0
+  },
+  "world": [
+    2.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "view": [
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    3.0,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "projection": [
+    0.05,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.0,
+    -0.1,
+    0.0,
+    0.0,
+    -0.15,
+    0.0,
+    0.0,
+    1.0
+  ],
+  "provenance": {
+    "originalRuntimeObserved": false,
+    "playerVisible": false
+  },
+  "operations": {
+    "memoryReadCount": 144,
+    "writes": 0,
+    "gameInputs": 0,
+    "liveOperations": 0
+  },
+  "permitIssued": false
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "recordType": "INDEPENDENT_READ_ONLY_REVIEW",
+  "unitId": "RECOVERY:D01:RESOURCE_LOADER:CF0262816AEED6F7",
+  "pathKey": "RESOURCE:FILE:original-installshield-payload:update.ini",
+  "verdict": "APPROVE",
+  "blockingFindings": [],
+  "reviewScope": "UPDATE_INI_RESOURCE_LOADER_BOUNDARY",
+  "inputs": {
+    "authorAggregate": {"path": "work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-verification.json", "sha256": "EF3858AF14BDBDC13B02C58B3C52D84A5C366F58BD278EE9E005578442012AFE"},
+    "gitAttributes": {"path": ".gitattributes", "sha256": "BF93D44BA469223E0C28310F1D82396E822308C1EF893C81DD06E49B9A957A61"},
+    "source": {"path": "evidence/installshield-extract/____________s___/____/update.ini", "sha256": "EBB093A34852454DD8D15CA14E95804D9200416B8724CD4F445770B07C17EF7C", "byteSize": 124},
+    "consumer": {"path": "evidence/installshield-extract/____________s___/____/gin7updateclient.exe", "sha256": "EA196E6EAA17BE36715132A7919C5470FF45F614E19D9E7E70CBB2C46BA0429D", "byteSize": 1060864},
+    "staticReceipt": {"path": "evidence/exhaustive-trace/adjudications/update-ini-static-analysis.json", "sha256": "A7B7BA3691DD1F1EA0DDD4DC03952217C3A3701FDB9037148C2798373612A965"},
+    "inspector": {"path": "work/20260829-update-ini-resource-loader/InspectUpdateIni.py", "sha256": "D454BA10F3FDA5D5F9380F5FA0294B85A260537AE741AE35752A520B1A5B29C9"},
+    "adjudications": {"path": "evidence/exhaustive-trace/adjudications/resources.json", "sha256": "8677275130F52C6C30AE246BB1619E6D001C96D69BCDF5BE0C58F38FB23BE82F"},
+    "importer": {"path": "tools/exhaustive_trace/import_resources.py", "sha256": "B313579F9818CDD455B50858B3460398135F07A57897FB3ED0EA1C2D374CB3ED"},
+    "graphBuilder": {"path": "tools/exhaustive_trace/graph.py", "sha256": "E3C2C9D6F7F139EFA30D55F17DD059107E8F7B6A1F2CB2F5A524B2EB7B67FD93"},
+    "resourceTests": {"path": "tests/tools/exhaustive_trace/test_resource_importer.py", "sha256": "E05452F791DB40488520B56E8A0F42CACB3026BD2E6904481301ED8D4C3548E8"},
+    "graphTests": {"path": "tests/tools/exhaustive_trace/test_graph.py", "sha256": "DC3E0817942D140E3760888BEBDA22B5C335AE76E190276ED83FA113E85D2407"}
+  },
+  "recomputed": {
+    "strictAscii": true,
+    "crlfCount": 7,
+    "trailingCrlf": true,
+    "data1HdrSha256": "A0BE81CB1DB8AE3240837580168FC01862BF979A10D50EE5DE333D7D261A4576",
+    "installshieldFilenameCount": 1,
+    "installshieldFilenameOffset": "0x000316EB",
+    "rtString": "%supdate.ini",
+    "rtStringCount": 1,
+    "rtStringFileOffset": "0x00101C4A",
+    "profileIats": {"GetPrivateProfileIntA": "0x004402C0", "GetPrivateProfileStringA": "0x004402BC", "WritePrivateProfileStringA": "0x004402A8", "LoadStringA": "0x00440368"},
+    "callAnchors": {"0x00404BA9": "E86EF20200", "0x00404BB7": "E804020000", "0x00404E13": "FF15C0024400", "0x00404FF7": "FF15BC024400", "0x0040508F": "FF15A8024400", "0x00406F24": "FF15A8024400", "0x00439C90": "FF1568034400"}
+  },
+  "normalized": {"loader": "PROVEN", "usageDisposition": "ORPHAN", "firstMissingBoundary": "RUNTIME_OWNER", "reachability": "UNKNOWN", "trueStates": ["ENUMERATED"]},
+  "graph": {
+    "reads": {"count": 1, "edgeId": "83C8B6B67CAB41652472850B64EDADDF95FB1AE3EE3771F7DC5BC5667F5BDE7E", "sourceRefCount": 2},
+    "writes": {"count": 1, "edgeId": "4C461388137EAF486D1C47BAD59B2B83D753A3DF4B28318E1E6AAFC11CA7BC36", "sourceRefCount": 2},
+    "loads": 0,
+    "reverse": 0
+  },
+  "generated": {
+    "resourcesInventory": {"sha256": "12F04F188FC53CCF2B42EFC25A9C7BD4C6B25E9077F4B2960B9E3C03DCE8278B"},
+    "graph": {"sha256": "2DDFCCECEEB36EEFAAF467F4E2D4A41C4772FFC1D5E8D413C5424666EE79B68C"},
+    "coverage": {"sha256": "C188056C3AF1AD6D48562A4BCCBE15158025DFDDFB7D953B033DFFA8F99F5E49"},
+    "domainPlanInputs": {"sha256": "4568F21E2786479A96B784DB9FF7772199A30213DEF5F51ED80E0AEC8FBF8F15"},
+    "recovery": {"sha256": "AE1AEA9B2F8A610B5AE6E9DC92FB6C0ECF3FC6294568FF81588BE04B47F3E96E"},
+    "rows": 15999,
+    "nodes": 35686,
+    "edges": 92058,
+    "evidenceGaps": 25602,
+    "missingBoundaryOccurrences": 153594,
+    "fatalIds": ["FEATURE_REACHABILITY_LEDGER_ABSENT"]
+  },
+  "verification": {"fullTests": {"discovered": 299, "passed": 299, "failures": 0, "errors": 0, "skipped": 0}, "focusedTests": {"passed": 65}, "deterministicArtifactCount": 32, "protectedInputCount": 109, "currentEqualsRunAEqualsRunB": true, "protectedBeforeAfter": true, "sourceTreesUnchanged": true, "diffCheck": "PASS"},
+  "checkoutPolicy": {"inspectorText": true, "inspectorEol": "lf", "inspectorCrCount": 0, "diffCheck": "PASS_NO_WARNING"},
+  "limitations": {"runtimeReadWrite": "UNSEEN", "installedBytes": "NOT_PRESERVED", "installedDivergenceCause": "INFERRED", "networkSuccess": "UNSEEN", "playability": "NOT_CLAIMED", "overallGoal": "INCOMPLETE"},
+  "safety": {"repositoryWrites": 0, "originalExecutableActions": 0, "vmActions": 0, "ghidraActions": 0, "debuggerAttach": 0, "processMemoryRead": 0, "processMemoryWrite": 0, "physicalInput": 0}
+}

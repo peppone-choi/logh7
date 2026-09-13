@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    { "path": "src/collect-manager65-action2b-hardened.ps1", "sha256": "9B475E5D171FC34A9C69322E29A80D59F7FB9199B0B8653D435CFEAC72A4494C" },
+    { "path": "src/resolve-manager65-action2b-hardened.ps1", "sha256": "A8F04B22995325AF3481C108178F4F2B6C60963667B5BEA62D3FB8884A22DD59" },
+    { "path": "tests/test-manager65-live-collector-hardening.ps1", "sha256": "C269EDD25A432337557FE3572B80352A254507546D96EBFFF34C6B98FA1859F3" },
+    { "path": "tests/fixture-memory.json", "sha256": "90428869195285EB196A528329AC31D8DDAAC96108FA37BD07D36245C9097FC1" },
+    { "path": "tests/fixture-identity.json", "sha256": "76A425F4A030603D21FCFBE1BB9184BC670E979B86DA071A7E3C01CA77C52D09" },
+    { "path": "evidence/static-owner-ledger.json", "sha256": "B0EAA1C0F3A165F1D1D12883EE83C5BC5CACEB5C7A4CE0C789F11ADAB32DFADA" },
+    { "path": "evidence/fixture-capture.json", "sha256": "96159B84A7382E7F59965DBC18468E6B5F8018D1969E4F0FD4F99998DCCD1EC6" },
+    { "path": "evidence/fixture-resolution.json", "sha256": "1B2FBACB472B1980051000B26A2C5FA7F7748E4356830C610CE4949FAD84AC4B" },
+    { "path": "verify.ps1", "sha256": "757E2D988F916F58017973371073C5FFF65711BB8C09FC72E85241AEB3B56695" }
+  ]
+}

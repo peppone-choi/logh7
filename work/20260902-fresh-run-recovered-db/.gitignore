@@ -1,0 +1,3 @@
+# Per-run evidence (screenshots, wire dumps, RPM dumps, DB inspections) is ~500 MB and regenerable by re-running the harness.
+# The bound verification receipts that cite these runs live in docs/reverse-engineering/condition-*-verification.json.
+runs/

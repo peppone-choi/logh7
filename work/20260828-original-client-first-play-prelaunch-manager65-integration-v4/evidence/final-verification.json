@@ -1,0 +1,42 @@
+{
+  "result": "PASS",
+  "tests": {"result":"PASS","cases":19,"assertions":32},
+  "contract": {
+    "result": "PASS",
+    "state": "OFFLINE_PRELAUNCH_MANAGER65_INTEGRATED_READY_FALSE",
+    "permitEligible": false,
+    "launchEligible": false,
+    "blockerCount": 12,
+    "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "firstTechnicalBoundary": "WARP_STAGE_OWNER_POINTER_UNBOUND",
+    "artifactCount": 7,
+    "manager65StaticGapsResolved": 1,
+    "manager65FreshRuntimeBoundaries": ["FRESH_MANAGER65_SNAPSHOT_MISSING","MANAGER65_ACTION_0X2B_HIT_REGION_INDEPENDENT_BINDING_MISSING"],
+    "liveOperations": 0,
+    "gameInputs": 0,
+    "permitIssued": false
+  },
+  "artifactHashesVerified": 5,
+  "artifactLedgerSha256": "DD92B2E869A0DE55B8D4795B308B513F5205F2F3A2A88B207F03574A4FD99294",
+  "artifactHashMap": {
+    "src/verify-prelaunch-manager65-integration-v4.ps1": "A66528D3D4746F747BB05D9B9A54E1F39729C5FD3ECEAEA12AE76A9678DF7587",
+    "tests/test-prelaunch-manager65-integration-v4.ps1": "013EBC8C346496D3048AB4B53A90324C85225203206B802850373D419799A47E",
+    "evidence/prelaunch-manager65-integration-v4.json": "97C5A06A9BE678F4AEF7B0121806CDF1EDEE50D0C8947B06BE3F8E27CB996614",
+    "evidence/ui-movement-gap-audit-v4.json": "D4FEF852D6CCED8F84343B2E7125C94E43FAE6F79555D8F510A606707AD93053",
+    "verify.ps1": "D497E52610DD7353D91645A77737E6AA7C89756BE5F37B807B000CCFF6977AAC"
+  },
+  "productionCommandCount": 18,
+  "localProductionWriteCapabilityHits": [],
+  "localTestTemporaryWriteCommands": ["New-Item","Remove-Item","Set-Content"],
+  "transitivelyAuthorizedTemporaryWrites": [
+    "v4 mutation-test JSON under system temp",
+    "v3 mutation-test JSON under system temp",
+    "manager65 test fixtures under system temp",
+    "manager65 aggregate capture/resolution replay under system temp"
+  ],
+  "persistentWorkspaceWrites": 0,
+  "forbiddenCapabilityHits": 0,
+  "liveOperations": 0,
+  "gameInputs": 0,
+  "permitIssued": false
+}

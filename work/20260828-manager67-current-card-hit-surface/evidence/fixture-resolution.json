@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "OFFLINE_RESOLVED",
+  "reason": null,
+  "sourceProvenance": "SYNTHETIC_FIXTURE",
+  "originalRuntimeObserved": false,
+  "selectedAuthorityCard": {
+    "index": 1,
+    "cardId": 200,
+    "semantic": "AUTHORITY_CARD_WITH_WARP_ACTION_NOT_PROVEN_CAPTAIN_PORTRAIT",
+    "regions": [
+      {
+        "surface": "C",
+        "widgetPointer": "0x02002000",
+        "logicalRect": {
+          "left": 310,
+          "top": 225,
+          "right": 430,
+          "bottom": 285
+        },
+        "clientRect": {
+          "left": 248,
+          "top": 150,
+          "right": 344,
+          "bottom": 190
+        },
+        "safePoint": {
+          "x": 295,
+          "y": 169,
+          "forwardLogical": {
+            "x": 368,
+            "y": 253
+          }
+        }
+      }
+    ]
+  },
+  "automaticActivationPoint": null,
+  "selectionPolicy": "PAGE_TABLE_SELECTS_EXACT_SCANNER_SURFACE_NO_AUTOMATIC_INPUT",
+  "blockers": [],
+  "operations": {
+    "writes": 0,
+    "gameInputs": 0
+  }
+}

@@ -1,0 +1,8 @@
+﻿{
+    "status":  "FAIL",
+    "exceptionType":  "Microsoft.PowerShell.Commands.WriteErrorException",
+    "message":  "The file \u0027C:\\Windows\\Temp\\vmware-vmsvc-SYSTEM.log\u0027 cannot be read: The process cannot access the file \u0027C:\\Windows\\Temp\\vmware-vmsvc-SYSTEM.log\u0027 because it is being used by another process.",
+    "scriptName":  "C:\\LOGH7_ORACLE\\collect-vmware-tools-log-inventory.ps1",
+    "scriptLineNumber":  13,
+    "positionMessage":  "At C:\\LOGH7_ORACLE\\collect-vmware-tools-log-inventory.ps1:13 char:126\r\n+ ... o\u0027);sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA25 ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+}

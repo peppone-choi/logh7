@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "unitId": "RECOVERY:D01:RESOURCE_LOADER:C7063B6F6EE54AC7",
+  "verdict": "APPROVE",
+  "reviewMode": "READ_ONLY_FRESH_POST_SEAL",
+  "repositoryWriteCount": 0,
+  "vmLiveActionCount": 0,
+  "independentReceipt": {
+    "path": "C:\\Users\\user\\AppData\\Local\\Temp\\logh7-bootfirst-independent-f0c48880217442fdb549b1ec29f52367.json",
+    "sha256": "2334C9E1511935D817DB9354FF21621D700016E59B76AECE89760FD2F4823FE4",
+    "exitCode": 0
+  },
+  "repositoryReceipt": {
+    "path": "work/20260827-original-game-exhaustive-trace-foundation/evidence/foundation-verification.json",
+    "sha256": "6DA901377E32FBC6BF179905437A55BE0B7A675AD5A2B4745DCCE09BBD2D3F81"
+  },
+  "assertions": {
+    "tests": {
+      "discovered": 276,
+      "passed": 276,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "expectedFailures": 0,
+      "unexpectedSuccesses": 0
+    },
+    "deterministicArtifactCount": 32,
+    "artifactMismatchCount": 0,
+    "protectedFileCount": 88,
+    "protectedMismatchCount": 0,
+    "fatalStructuralCount": 1,
+    "fatalRuleId": "FEATURE_REACHABILITY_LEDGER_ABSENT",
+    "evidenceGapCount": 25607,
+    "oldUnitCount": 0,
+    "targetNextUnitId": "RECOVERY:D01:RESOURCE_OWNER:6A88913B2B850300",
+    "globalNextUnitId": "RECOVERY:D01:RESOURCE_LOADER:E8B07A6802B17EEF",
+    "bootFirstLaunchEdgeCount": 1,
+    "bootFirstLoadsEdgeCount": 0,
+    "runtimeOrPlayerStatePromotions": 0
+  },
+  "reviewedBindings": {
+    "adjudicationsSha256": "FBF7430AEDDF1AD7555B4B637BEE450465D139113FE5165E9ED59134107B057A",
+    "staticReceiptSha256": "CFE22BEE90C04E3BDBB4FCE461132925607CD1B8C041EA5EF70E7D402D318B38",
+    "ghidraExporterSha256": "DB99864A5AF34DD888092F42E73094BDF8E664C4E68261F68E31E50AEAC54DD5",
+    "ghidraOutputSha256": "BF48F72407EEAD223A4017AC991ECAE01C3AB9E4F8F44F5ED00F61315FD92A06",
+    "importResourcesSha256": "24233EB8D07D251E544F570C6B91808184739B5BE75FBBE8C77B8A005E3C2087",
+    "graphToolSha256": "E715C888B57F0361B9F60CA40885E607023D9CE5AFA01527132C1BF95344A7DD",
+    "resourceInventorySha256": "FF734315A63714E356A1F7BE5FDF7C5C71670D776F0915DB794EB2B199895344",
+    "graphSha256": "8C81E94ECE5F93C2215E24F9D03247D3904DCD001FF2AD16B50741FE5D39910B",
+    "coverageSha256": "9FA4CB065DDBA7E1DE3CFCA3F1A74FDFB946364F13B4D8F102CF9925FB63B448",
+    "workPackagesSha256": "F8ECB488BDA3217F6CB7BBE3E73BA7C61411F5237FD45DF1A98DA0F14A567E31",
+    "recoverySha256": "930987C1744A085C39E685F52F63EB65E7D6CB9BD971961DDECF86CCAB984AEC"
+  }
+}

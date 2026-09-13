@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "receiptType": "WARP_EXTERNAL_LIVE_BINDING_SUBJECT_V1_OFFLINE_CONTRACT",
+  "evidenceClass": "OFFLINE_CONTRACT_ONLY",
+  "authorityEnvelope": {
+    "authorizationId": "CURRENT_THREAD_ORACLE_ONE_RUN_ONE_ACTIVATION_V1",
+    "oneRunApproved": true,
+    "maxPhysicalActivations": 1,
+    "physicalActivationsConsumed": 0,
+    "physicalActivationsRemaining": 1,
+    "automaticInputBudget": 0,
+    "retryBudget": 0,
+    "issuedForStage": "WARP_ONLY",
+    "reusableAfterFailure": false,
+    "isPermit": false
+  },
+  "liveSubject": {
+    "oracleRunId": null,
+    "lifecycle": "NOT_CREATED",
+    "chain": {
+      "h1Identity": {"lifecycle":"NOT_CREATED","receipt":null,"sourcePath":null,"sourceSha256":null,"expectedSha256":null,"observedAtUtc":null},
+      "h2Capture": {"lifecycle":"NOT_CREATED","receipt":null,"sourcePath":null,"sourceSha256":null,"expectedSha256":null,"observedAtUtc":null},
+      "h3Evaluation": {"lifecycle":"NOT_CREATED","receipt":null,"sourcePath":null,"sourceSha256":null,"expectedSha256":null,"observedAtUtc":null},
+      "h4HitRegionSubject": {"lifecycle":"NOT_CREATED","receipt":null,"sourcePath":null,"sourceSha256":null,"expectedSha256":null,"observedAtUtc":null},
+      "h5IndependentReview": {"lifecycle":"NOT_CREATED","receipt":null,"sourcePath":null,"sourceSha256":null,"expectedSha256":null,"observedAtUtc":null},
+      "h6Bundle": {"lifecycle":"NOT_CREATED","receipt":null,"sourcePath":null,"sourceSha256":null,"expectedSha256":null,"observedAtUtc":null}
+    },
+    "bindingDigest": null,
+    "fullClientRect": null,
+    "replaySafeManualPoint": null,
+    "activationCell": null
+  },
+  "futureChainContract": {
+    "order": ["H1_IDENTITY","H2_CAPTURE","H3_EVALUATION","H4_HIT_REGION_SUBJECT","H5_INDEPENDENT_REVIEW","H6_BUNDLE"],
+    "steps": {
+      "H1_IDENTITY": {"dependsOn":[],"receiptType":"FRESH_SAME_RUN_IDENTITY","requiresExpectedSha256":true,"sameOracleRunRequired":true},
+      "H2_CAPTURE": {"dependsOn":["H1_IDENTITY"],"receiptType":"CORRECTED_MANAGER65_LIVE_CAPTURE","requiresExpectedSha256":true,"sameOracleRunRequired":true},
+      "H3_EVALUATION": {"dependsOn":["H1_IDENTITY","H2_CAPTURE"],"receiptType":"MANAGER65_LIVE_EVALUATION","requiresExpectedSha256":true,"sameOracleRunRequired":true},
+      "H4_HIT_REGION_SUBJECT": {"dependsOn":["H1_IDENTITY","H2_CAPTURE","H3_EVALUATION"],"receiptType":"INDEPENDENT_HIT_REGION_SUBJECT","requiresExpectedSha256":true,"sameOracleRunRequired":true},
+      "H5_INDEPENDENT_REVIEW": {"dependsOn":["H1_IDENTITY","H2_CAPTURE","H3_EVALUATION","H4_HIT_REGION_SUBJECT"],"receiptType":"INDEPENDENT_READ_ONLY_REVIEW","requiresExpectedSha256":true,"sameOracleRunRequired":true},
+      "H6_BUNDLE": {"dependsOn":["H1_IDENTITY","H2_CAPTURE","H3_EVALUATION","H4_HIT_REGION_SUBJECT","H5_INDEPENDENT_REVIEW"],"receiptType":"EXTERNAL_WARP_BINDING_BUNDLE","requiresExpectedSha256":true,"sameOracleRunRequired":true}
+    },
+    "h4IndependentlyRecomputed": true,
+    "h4PointSource": "RAW_H2_CAPTURE_NOT_H3_EVALUATION",
+    "h4ScaleSource": "H2_RAW_IEEE754_BINARY32_BITS",
+    "h5ReviewerMustDifferFromSingleWriter": true,
+    "h6MayIssuePermit": false,
+    "h6MayPerformInput": false
+  },
+  "testOnlyVector": {
+    "schemaVersion": 1,
+    "receiptType": "WARP_BINDING_GEOMETRY_TEST_VECTOR_V1",
+    "evidenceClass": "TEST_ONLY_NONPROMOTABLE",
+    "vectorId": "MANAGER65_V3_CANONICAL_GEOMETRY_TEST_ONLY",
+    "source": {
+      "capturePath": "work/20260829-original-client-manager65-corrected-collector-v3/evidence/fixture-capture.json",
+      "captureSha256": "1863BBC8DD91547208A8877A5BE34EC199CBAC1C0F25F389CB306648306CB255",
+      "expectedCaptureSha256": "1863BBC8DD91547208A8877A5BE34EC199CBAC1C0F25F389CB306648306CB255",
+      "evaluationPath": "work/20260829-original-client-manager65-corrected-collector-v3/evidence/fixture-evaluation.json",
+      "evaluationSha256": "93AEDD157883657072A13CE2EC40554DD376444BDA8A4F28C4ACB720F5E1DB06",
+      "expectedEvaluationSha256": "93AEDD157883657072A13CE2EC40554DD376444BDA8A4F28C4ACB720F5E1DB06"
+    },
+    "fullClientRect": {"left":0,"top":0,"right":800,"bottom":600},
+    "logicalRect": {"left":700,"top":630,"right":820,"bottom":654},
+    "scale": {"xBits":"3FA00000","yBits":"3FC00000","xDecimalMirror":1.25,"yDecimalMirror":1.5,"precision":"IEEE754_FLOAT32_BITS_TEST_ONLY"},
+    "scaleProvenance": "TEST_ONLY_BITS_DERIVED_FROM_SYNTHETIC_DECIMAL_NOT_LIVE_CAPTURE",
+    "candidateClientRect": {"left":560,"top":420,"right":656,"bottom":436},
+    "manualPoint": {"x":607,"y":427},
+    "threeByThreeRect": {"left":606,"top":426,"right":609,"bottom":429},
+    "forwardLogical": {"x":758,"y":640},
+    "activationCell": {"left":607,"top":427,"right":608,"bottom":428},
+    "promotable": false,
+    "liveEligible": false,
+    "activationEligible": false,
+    "permitEligible": false
+  },
+  "blockers": [
+    "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION",
+    "H1_IDENTITY_NOT_CREATED",
+    "H2_CAPTURE_NOT_CREATED",
+    "H3_EVALUATION_NOT_CREATED",
+    "H4_HIT_REGION_SUBJECT_NOT_CREATED",
+    "H5_INDEPENDENT_REVIEW_NOT_CREATED",
+    "H6_BUNDLE_NOT_CREATED",
+    "NEW_WARP_STAGE_PERMIT_NOT_ISSUED"
+  ],
+  "claimCeiling": {
+    "liveSubjectEligible":false,"warpPrelaunchEligible":false,"activationEligible":false,"launchEligible":false,"permitEligible":false,"permitIssued":false,"originalRuntimeObserved":false,"independentLiveBinding":false,"livePromotionAllowed":false,"activationPoint":null,"automaticActivationPoint":null,"permit":null,"bindingDigest":null
+  },
+  "operations": {
+    "liveRuns":0,"processMemoryReads":0,"processMemoryWrites":0,"physicalInputs":0,"automaticInputs":0,"retries":0,"binaryPatches":0,"debuggerAttach":0,"debuggerCommands":0,"breakpointsInstalled":0,"ownedHwndCaptures":0,"vmLifecycleChanges":0,"serverChanges":0,"protocolChanges":0,"databaseChanges":0,"permitIssuance":0
+  }
+}

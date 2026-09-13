@@ -1,0 +1,90 @@
+{
+    "schemaVersion":  1,
+    "provenance":  "LIVE_READONLY_HELPER_PROCESS_INVENTORY",
+    "observedAtUtc":  "2026-08-28T18:06:15.2485767Z",
+    "powershellProcesses":  [
+                                {
+                                    "pid":  5152,
+                                    "parentPid":  1828,
+                                    "sessionId":  1,
+                                    "creationDate":  "2026-08-25T14:48:22.2290480Z",
+                                    "executablePath":  "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "powershell"
+                                },
+                                {
+                                    "pid":  556,
+                                    "parentPid":  604,
+                                    "sessionId":  1,
+                                    "creationDate":  "2026-08-25T18:43:26.4838860Z",
+                                    "executablePath":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" "
+                                },
+                                {
+                                    "pid":  4044,
+                                    "parentPid":  604,
+                                    "sessionId":  1,
+                                    "creationDate":  "2026-08-25T20:49:34.1750860Z",
+                                    "executablePath":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" "
+                                },
+                                {
+                                    "pid":  896,
+                                    "parentPid":  604,
+                                    "sessionId":  1,
+                                    "creationDate":  "2026-08-25T21:11:17.6604850Z",
+                                    "executablePath":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" "
+                                },
+                                {
+                                    "pid":  9004,
+                                    "parentPid":  604,
+                                    "sessionId":  1,
+                                    "creationDate":  "2026-08-26T02:47:37.5651510Z",
+                                    "executablePath":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" "
+                                },
+                                {
+                                    "pid":  3020,
+                                    "parentPid":  604,
+                                    "sessionId":  1,
+                                    "creationDate":  "2026-08-26T03:06:26.8797840Z",
+                                    "executablePath":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" "
+                                },
+                                {
+                                    "pid":  4520,
+                                    "parentPid":  4468,
+                                    "sessionId":  1,
+                                    "creationDate":  "2026-08-26T04:19:57.7581840Z",
+                                    "executablePath":  "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                                },
+                                {
+                                    "pid":  5272,
+                                    "parentPid":  3336,
+                                    "sessionId":  0,
+                                    "creationDate":  "2026-08-28T18:03:14.9844130Z",
+                                    "executablePath":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" \"-NoProfile\" \"-ExecutionPolicy\" \"Bypass\" \"-File\" \"C:\\LOGH7_ORACLE\\collect-vmware-tools-log-inventory.ps1\" \"-OutputPath\" \"C:\\LOGH7_ORACLE\\vmware-tools-log-inventory.json\" "
+                                },
+                                {
+                                    "pid":  10136,
+                                    "parentPid":  3336,
+                                    "sessionId":  0,
+                                    "creationDate":  "2026-08-28T18:06:14.6960000Z",
+                                    "executablePath":  "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "commandLine":  "\"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" \"-NoProfile\" \"-ExecutionPolicy\" \"Bypass\" \"-File\" \"C:\\LOGH7_ORACLE\\collect-owned-helper-processes.ps1\" \"-OutputPath\" \"C:\\LOGH7_ORACLE\\owned-helper-processes.json\" "
+                                }
+                            ],
+    "operations":  {
+                       "guestObservationHelpers":  1,
+                       "processesKilled":  0,
+                       "processMemoryReads":  0,
+                       "processMemoryWrites":  0,
+                       "foregroundChanges":  0,
+                       "gameInputs":  0,
+                       "automaticInputs":  0,
+                       "permitIssued":  false,
+                       "vmLifecycleChanges":  0
+                   }
+}

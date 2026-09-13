@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 4,
+  "contract": "ORIGINAL_CLIENT_FIRST_SERVER_BACKED_PLAY_PRELAUNCH_V4_MANAGER65_INTEGRATED",
+  "state": "OFFLINE_PRELAUNCH_MANAGER65_INTEGRATED_READY_FALSE",
+  "oracleRunId": null,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "currentAuthority": {
+    "source": "USER_APPROVED_CURRENT_THREAD",
+    "scope": "ONE_LIVE_ORACLE_ONE_PHYSICAL_ACTIVATION_READ_ONLY_CAPTURE",
+    "activationBudget": 1,
+    "doesNotBypassPrelaunchGates": true
+  },
+  "priorPermit": {
+    "id": "permit-live-v3-20260827-d89449bc2c3c4b70a9854833b2214012-once",
+    "state": "CONSUMED_NO_RETRY",
+    "reusable": false
+  },
+  "integrationDelta": {
+    "resolvedStaticBlockers": ["MANAGER65_LIVE_COLLECTOR_NOT_HARDENED"],
+    "preservedRuntimeBlockers": ["FRESH_MANAGER65_SNAPSHOT_MISSING"],
+    "introducedRuntimeBlockers": ["MANAGER65_ACTION_0X2B_HIT_REGION_INDEPENDENT_BINDING_MISSING"],
+    "priorBlockerCount": 12,
+    "currentBlockerCount": 12
+  },
+  "staticPreparation": {
+    "manager67AuthorityCardCollector": {
+      "status": "STATIC_OFFLINE_COLLECTOR_PASS_LIVE_BINDING_MISSING",
+      "runtimeObserved": "UNSEEN",
+      "semantic": "AUTHORITY_CARD_WITH_WARP_ACTION_NOT_PROVEN_CAPTAIN_PORTRAIT",
+      "fixtureCoordinateReusable": false,
+      "independentReview": "APPROVE"
+    },
+    "manager65Collector": {
+      "status": "HARDENED_COLLECTOR_RESOLVER_PASS_LIVE_SNAPSHOT_MISSING",
+      "runtimeObserved": "UNSEEN",
+      "semantic": "CURRENT_AUTHORITY_CARD_ACTION_WIDGET_FOR_COMMAND_0X2B_WARP_NAVIGATION",
+      "fixtureCoordinateReusable": false,
+      "independentLiveHitRegion": "UNBOUND",
+      "staticOwner": "PASS",
+      "offlineCollectorResolver": "PASS",
+      "independentReview": "APPROVE",
+      "hardening": {
+        "canonicalHashInternallyEnforced": true,
+        "moduleBaseBound": true,
+        "fullDoubleCapture": true,
+        "widgetActiveVisibleGates": true,
+        "postCaptureHwndSurfaceRecheck": true,
+        "liveSelfClaimPromotable": false
+      }
+    },
+    "destinationProjection": {
+      "status": "STATIC_OFFLINE_RESOLVER_PASS",
+      "runtimeObserved": "UNSEEN",
+      "fixtureCoordinateReusable": false
+    },
+    "textDialog": {
+      "status": "STATIC_OFFLINE_RESOLVER_PASS",
+      "runtimeObserved": "UNSEEN",
+      "fixtureCoordinateReusable": false
+    },
+    "moveGridWire": {"status": "STATIC_WIRE_BINDING_PASS", "runtimeObserved": "UNSEEN"},
+    "movementInstrumentation": {
+      "status": "STATIC_ADDRESSES_PARTIAL_RECEIPT_SCHEMA_MISSING",
+      "runtimeObserved": "UNSEEN"
+    }
+  },
+  "requiredSameRunComposition": [
+    "fresh G7MTClient PID/startTime/hash/moduleBase/HWND/owner/client surface",
+    "fresh listener and heartbeat",
+    "fresh x32dbg PID/startTime/HWND/owner and exact foreground",
+    "fresh manager65-bound manager67 authority-card/action-0x2B/page-selected widget/gates/rect snapshot",
+    "independently bound manager67 authority-card hit region",
+    "fresh hardened manager65 action-0x2B snapshot",
+    "independently bound manager65 action-0x2B hit region",
+    "WARP stage-owner pointer bound to the scoped TextDialog manager",
+    "fresh destination projection snapshot and independently resolved hit region",
+    "fresh TextDialog snapshot and independently resolved confirm region",
+    "movement-specific breakpoint/receipt schema installed without writes",
+    "one physical activation sequence followed by outbound/inbound/pixel receipts"
+  ],
+  "blockers": [
+    "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+    "WARP_STAGE_OWNER_POINTER_UNBOUND",
+    "MOVEMENT_SPECIFIC_BREAKPOINT_RECEIPT_SCHEMA_MISSING",
+    "FRESH_RUN_IDENTITY_MISSING",
+    "FRESH_MANAGER67_AUTHORITY_CARD_SNAPSHOT_MISSING",
+    "MANAGER67_AUTHORITY_CARD_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+    "FRESH_MANAGER65_SNAPSHOT_MISSING",
+    "MANAGER65_ACTION_0X2B_HIT_REGION_INDEPENDENT_BINDING_MISSING",
+    "FRESH_DESTINATION_PROJECTION_SNAPSHOT_MISSING",
+    "FRESH_TEXTDIALOG_SNAPSHOT_MISSING",
+    "FOREGROUND_PROBE_NOT_RUN",
+    "INDEPENDENT_LIVE_PRELAUNCH_REVIEW_MISSING"
+  ],
+  "firstMissingBoundary": "ACTIVATION_BUDGET_STAGE_CONTRACT_MISMATCH",
+  "firstTechnicalBoundary": "WARP_STAGE_OWNER_POINTER_UNBOUND",
+  "boundArtifacts": {
+    "gapAuditV4": {
+      "path": "work/20260828-original-client-first-play-prelaunch-manager65-integration-v4/evidence/ui-movement-gap-audit-v4.json",
+      "sha256": "D4FEF852D6CCED8F84343B2E7125C94E43FAE6F79555D8F510A606707AD93053"
+    },
+    "priorV3Contract": {
+      "path": "work/20260828-original-client-first-play-prelaunch-manager67-integration/evidence/prelaunch-manager67-integration.json",
+      "sha256": "12D3CA4D39BF746EAF08EC5ACE936C4D4CD368F1E7AA62B907CB82297F2DA0DE"
+    },
+    "priorV3ArtifactLedger": {
+      "path": "work/20260828-original-client-first-play-prelaunch-manager67-integration/evidence/artifact-ledger.json",
+      "sha256": "673AFA46BEBA5732D06F959B54159B83A2DC8B4E93E456CEE0ACC81BE0F1A31C"
+    },
+    "priorV3Verification": {
+      "path": "work/20260828-original-client-first-play-prelaunch-manager67-integration/evidence/final-verification.json",
+      "sha256": "D61A6D0B8EFD4AEB62F8F8B41FA77ED52AEA19FBB89E67CA2C20252649BB3AC8"
+    },
+    "manager65ArtifactLedger": {
+      "path": "work/20260828-original-client-manager65-live-collector-hardening/evidence/artifact-ledger.json",
+      "sha256": "F26DFC2E9E9AA7252323171595E3C2E4073286862372D05A7097A70C9656E897"
+    },
+    "manager65StaticOwnerLedger": {
+      "path": "work/20260828-original-client-manager65-live-collector-hardening/evidence/static-owner-ledger.json",
+      "sha256": "B0EAA1C0F3A165F1D1D12883EE83C5BC5CACEB5C7A4CE0C789F11ADAB32DFADA"
+    },
+    "manager65Verifier": {
+      "path": "work/20260828-original-client-manager65-live-collector-hardening/verify.ps1",
+      "sha256": "757E2D988F916F58017973371073C5FFF65711BB8C09FC72E85241AEB3B56695"
+    }
+  },
+  "forbidden": [
+    "reuse prior permit/run/PID/HWND/pointer/coordinate",
+    "automatic click or retry",
+    "input before all same-run gates and independent review pass",
+    "process-memory write or binary/resource patch",
+    "VM lifecycle or server/protocol/database change",
+    "fixture or self-claimed live evidence promotion"
+  ],
+  "operationCounters": {
+    "guestOperations": 0,
+    "debuggerAttach": 0,
+    "breakpointsInstalled": 0,
+    "processMemoryReads": 0,
+    "physicalInputs": 0,
+    "captures": 0,
+    "memoryWrites": 0
+  }
+}

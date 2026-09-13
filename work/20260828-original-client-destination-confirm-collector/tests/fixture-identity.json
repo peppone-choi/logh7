@@ -1,0 +1,9 @@
+{
+  "pid": 4242,
+  "startTimeUtc": "2026-08-28T09:00:00.0000000Z",
+  "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+  "hwnd": "0x00012345",
+  "hwndOwnerPid": 4242,
+  "clientWidth": 1024,
+  "clientHeight": 768
+}

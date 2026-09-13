@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "receiptType": "ORIGINAL_CLIENT_MANAGER65_ACTION_0X2B_OFFLINE_EVALUATION_V3",
+  "sourceCaptureSha256": "1863BBC8DD91547208A8877A5BE34EC199CBAC1C0F25F389CB306648306CB255",
+  "sourceCollectorSha256": "DBC416FFC27DFD247BCDDD7077F335ADFD494BB8FB858D4BDBE41E71E45EAEA4",
+  "oracleRunId": "SYNTHETIC-RUN-V3",
+  "status": "OFFLINE_CORRECTED_MANAGER65_ACTION_0X2B_CANDIDATE_PASS",
+  "rootRolesCorrected": true,
+  "actionSemanticCandidate": true,
+  "offlineCandidateRegion": {
+    "clientRect": {
+      "left": 560,
+      "top": 420,
+      "right": 656,
+      "bottom": 436
+    },
+    "safePoint": {
+      "x": 607,
+      "y": 427
+    },
+    "forwardLogical": {
+      "x": 758,
+      "y": 640
+    }
+  },
+  "semanticBlockers": [],
+  "remainingLiveBlockers": [
+    "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION",
+    "FRESH_RUN_IDENTITY_RECOLLECTION_REQUIRED",
+    "FRESH_LISTENER_HEARTBEAT_FOREGROUND_REQUIRED",
+    "INDEPENDENT_MANAGER65_HIT_REGION_BINDING_REQUIRED",
+    "INDEPENDENT_LIVE_PRELAUNCH_REVIEW_REQUIRED"
+  ],
+  "originalRuntimeObserved": false,
+  "independentLiveBinding": false,
+  "livePromotionAllowed": false,
+  "warpPrelaunchEligible": false,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "automaticActivationPoint": null,
+  "claimCeiling": "OFFLINE_STATIC_AND_SYNTHETIC_CANDIDATE_ONLY",
+  "operationsPerformedByEvaluator": {
+    "memoryReads": 0,
+    "memoryWrites": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "vmOperations": 0,
+    "serverProtocolDbChanges": 0
+  }
+}

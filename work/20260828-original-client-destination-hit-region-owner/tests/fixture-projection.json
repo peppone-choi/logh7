@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "target": { "gridX": 50, "gridY": 25 },
+  "stageEligible": true,
+  "targetValidity": { "valid": true, "cellType": 3, "filter": 5 },
+  "viewport": { "x": 0, "y": 0, "width": 100, "height": 100, "minDepth": 0.0, "maxDepth": 1.0 },
+  "world": [2,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  "view": [1,0,0,0, 0,1,0,0, 0,0,1,0, 3,0,0,1],
+  "projection": [0.05,0,0,0, 0,0,1,0, 0,-0.1,0,0, -0.15,0,0,1]
+}

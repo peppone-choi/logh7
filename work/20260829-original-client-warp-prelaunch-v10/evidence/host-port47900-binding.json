@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "provenance": "HOST_LIVE_READONLY",
+  "observedAtUtc": "2026-08-28T17:08:42.0561608Z",
+  "computerName": "PEPPONE-CHOI-PC",
+  "port": 47900,
+  "rows": [
+    {
+      "protocol": "TCP",
+      "localEndpoint": "0.0.0.0:47900",
+      "remoteEndpoint": "0.0.0.0:0",
+      "state": "LISTENING",
+      "pid": 30216
+    }
+  ],
+  "processes": [
+    {
+      "pid": 30216,
+      "name": "node",
+      "path": "C:\\Program Files\\nodejs\\node.exe",
+      "sha256": "0B0BE4B64648E4F01803B9582AAFCE9D0F648B1115083ABBDD55351CAE38BDE1",
+      "startTimeUtc": "2026-08-25T02:53:55.7707822Z",
+      "commandLine": "\"C:\\Program Files\\nodejs\\node.exe\" E:\\logh7-revival\\.omo\\tmp\\vm-oracle-20260825T111834\\launch-private.mjs E:\\logh7-revival\\.omo\\tmp\\vm-oracle-20260825T111834\\accounts2.json E:\\logh7-revival\\.omo\\tmp\\vm-oracle-20260825T111834\\fixture2.sqlite E:\\logh7-revival\\.omo\\tmp\\vm-oracle-20260825T111834\\server-trace2.jsonl"
+    }
+  ],
+  "operations": {
+    "hostObservations": 1,
+    "guestOperations": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "debuggerCommands": 0,
+    "gameInputs": 0,
+    "permitIssued": false
+  }
+}

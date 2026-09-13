@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "review": "ORIGINAL_CLIENT_ACTIVATION_BUDGET_STAGE_POLICY_INDEPENDENT_REVIEW",
+  "reviewer": "/root/prelaunch_v7_delta",
+  "reviewerRole": "READ_ONLY_VALIDATOR",
+  "verdict": "APPROVE",
+  "reviewedArtifactLedgerSha256": "F4D5A04ED91CB13407BC9836172DC642E22F4CC0493FB985B5B24C6196B6CA94",
+  "freshVerification": {
+    "command": "pwsh -NoProfile -File work/20260829-original-client-activation-budget-stage-contract-v1/verify.ps1",
+    "result": "PASS",
+    "activationPolicy": {"cases": 55, "assertions": 69, "mutations": 54},
+    "prelaunchV9": {"cases": 38, "assertions": 52, "mutations": 37},
+    "boundPrelaunchV8": {"cases": 20, "assertions": 30, "mutations": 19},
+    "boundStageGate": {"cases": 9, "assertions": 19},
+    "artifactHashesVerified": 11,
+    "forbiddenExecutableCapabilityHits": 0
+  },
+  "authorityChronology": {
+    "initialGrantLineNumberOneBased": 14345,
+    "initialGrantSequenceOrdinalZeroBased": 14344,
+    "initialGrantMessageId": "msg_01a040f6-6fda-78a2-a493-deba1fe79bc3",
+    "initialGrantTimestampUtc": "2026-08-27T02:04:47.45Z",
+    "initialGrantRawLineSha256": "0D50F121CF981D8DC37985051962752D427A69BDACEB2D152FAA89B0C93929B6",
+    "historicalPermitConsumptionTimestampUtc": "2026-08-27T03:45:18.6619092Z",
+    "historicalPermitConsumptionSha256": "6DEB344D029C4315865AE44495F0B8A73AF6E5A4BA55D9649154FDC1B2C5B570",
+    "historicalRunAccounting": {"granted": 1, "consumed": 1, "remaining": 0},
+    "postConsumptionApprovalLineNumberOneBased": 23327,
+    "postConsumptionApprovalSequenceOrdinalZeroBased": 23326,
+    "postConsumptionApprovalMessageId": "msg_01a04341-060c-7501-8694-90a25198f52e",
+    "postConsumptionApprovalTimestampUtc": "2026-08-27T12:45:29.996Z",
+    "postConsumptionApprovalRawLineSha256": "98757CB2D1E2125F801B55076177755D11715AFB08B862A49BBDDF573F47E556",
+    "currentRunAccounting": {"granted": 1, "consumed": 0, "remaining": 1},
+    "orderingVerified": true
+  },
+  "stageAndTiming": {
+    "orderedStages": ["WARP", "DESTINATION", "CONFIRM"],
+    "maxConsumptionEach": 1,
+    "authorizedAllocation": {"WARP": 1, "DESTINATION": 0, "CONFIRM": 0},
+    "additionalPhysicalActivationsRequiredForFullTransaction": 2,
+    "postWarpMvb01AcceptedHitsExpected": 0,
+    "postWarpReceiptPhaseExpected": 0,
+    "postWarpActiveSetExpected": ["MVB01", "MVB06", "MVB08", "MVB09"],
+    "expectationStatus": "STATIC_EXPECTED_NOT_RUNTIME_OBSERVED",
+    "stopAndHandoffRequired": true
+  },
+  "remaining": {
+    "scopedPrelaunchBlockers": 8,
+    "postWarpRequiredEvidenceItems": 7,
+    "deferredFullTransactionBoundaries": 4,
+    "firstMissingBoundary": "FRESH_RUN_IDENTITY_MISSING",
+    "firstAuthorityBoundary": "FULL_MOVEMENT_TRANSACTION_AUTHORITY_INSUFFICIENT_TWO_ADDITIONAL_PHYSICAL_ACTIVATIONS_REQUIRED",
+    "runtimeStatus": "UNSEEN",
+    "liveInstallEligible": false,
+    "launchEligible": false,
+    "permitEligible": false,
+    "permitIssued": false
+  },
+  "validatorOperations": {
+    "filesWritten": 0,
+    "liveOperations": 0,
+    "physicalInputs": 0,
+    "permitsIssued": 0
+  }
+}

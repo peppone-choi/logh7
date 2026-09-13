@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "sourceCaptureSha256": "28A669DC93B9AF9429A1B513C9DD238DC57D01786CAD217DD5AF9C31AA871BE4",
+  "sourceProvenance": "SYNTHETIC_FIXTURE",
+  "roleAdjudication": {
+    "status": "ROLES_PROVEN_OFFLINE_FIXTURE",
+    "rolesProven": true,
+    "uiRootRole": "UI_MODE_AND_REGISTRY_HOST",
+    "strategyOwnerRole": "INLINE_STRATEGY_MANAGER_OWNER",
+    "rejectedInterpretation": "INLINE_STRATEGY_OWNER_FIRST_DWORDS_ARE_MODE_STATE",
+    "blockers": []
+  },
+  "currentStage": "MANAGER65_WARP_ACTION",
+  "manager67Disposition": "DORMANT_STRUCTURAL_DATA_ONLY_PRIOR_HIT_REGION_REQUIRED",
+  "rootRoleCandidateEligible": true,
+  "warpPrelaunchEligible": false,
+  "launchEligible": false,
+  "blockers": [
+    "MANAGER65_CONTEXT_INACTIVE",
+    "MANAGER65_BOUND_CARD_ID_INVALID",
+    "MANAGER65_ACTION_0X2B_RECEIPT_REQUIRED",
+    "MANAGER65_HIT_REGION_INDEPENDENT_BINDING_REQUIRED",
+    "MANAGER67_PRIOR_STAGE_HIT_REGION_RECEIPT_REQUIRED",
+    "INDEPENDENT_LIVE_REVIEW_REQUIRED"
+  ],
+  "originalRuntimeObserved": false,
+  "livePromotionAllowed": false,
+  "independentReviewStatus": "NOT_REVIEWED",
+  "automaticActivationPoint": null,
+  "operations": {
+    "writes": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "debuggerAttach": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "permitIssuance": 0
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "artifact": {
+    "bytes": 101553653,
+    "edgesSha256": "BFF4EDD9C1609B784599C4B02029D45F8ED1C13181E798B0616AB7B64B321BB9",
+    "fileSha256": "ED1ED9EC7435245AF856F631D742D4D6B4B76B478E7A44493BCB4988B783BE71",
+    "graphSurfaceSha256": "EF0DDFDC5C6F8F1701FD568FD2CC9948E1FF496A3A8287D40D448CD19E08D33D",
+    "nodesSha256": "95C5B37434D9D630BCBC25620FFDA4E37CDB731D98A0EBBA0F81E5326E348A77",
+    "path": "evidence/exhaustive-trace/graph.jsonl"
+  },
+  "conservation": {
+    "edgeCount": 92053,
+    "joinCandidateCount": 132954,
+    "joinReferencesSha256": "49292B8D5DA77DDDB88AE2AF6EC11D9CC3D5972C42BE3666BFB8F3EC3F967781",
+    "nodeCount": 35685,
+    "normalizedJoinCandidateCount": 124917,
+    "sourceConflictJoinCandidateCount": 0,
+    "sourceRowNodes": 15999,
+    "unaccountedJoinCandidates": 0,
+    "unresolvedJoinCandidateCount": 8037
+  },
+  "independentReviews": [
+    {
+      "reviewer": "task9_final_contract",
+      "scope": "contract, evidence discipline, immutability, manifest and bundle binding",
+      "verdict": "APPROVE"
+    },
+    {
+      "reviewer": "task9_final_population",
+      "scope": "full artifact population, source-reference conservation, hashes and deterministic rebuild",
+      "verdict": "APPROVE"
+    },
+    {
+      "reviewer": "task9_final_qa",
+      "scope": "clean regression suite, atomic CLI, staged scope, plan and handoff consistency",
+      "verdict": "APPROVE"
+    }
+  ],
+  "runtimeMutation": false,
+  "schemaVersion": 1,
+  "status": "PASS",
+  "unit": "original-game-exhaustive-trace-task9-graph",
+  "validation": [
+    {
+      "command": "python -m unittest discover -s tests/tools/exhaustive_trace -p 'test_*.py'",
+      "outcome": "PASS",
+      "tests": 191
+    },
+    {
+      "command": "python -m tools.exhaustive_trace.cli build-graph --inventories evidence/exhaustive-trace/inventories --output evidence/exhaustive-trace/graph.jsonl",
+      "outcome": "PASS"
+    },
+    {
+      "command": "second full build and exact SHA-256 comparison",
+      "outcome": "BYTE_IDENTICAL"
+    }
+  ]
+}

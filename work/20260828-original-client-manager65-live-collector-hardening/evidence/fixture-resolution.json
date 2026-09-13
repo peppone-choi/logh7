@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "status": "OFFLINE_RESOLVED",
+  "reason": null,
+  "sourceProvenance": "SYNTHETIC_FIXTURE",
+  "originalRuntimeObserved": false,
+  "action0x2B": {
+    "semantic": "CURRENT_AUTHORITY_CARD_ACTION_WIDGET_FOR_COMMAND_0X2B_WARP_NAVIGATION",
+    "cardId": 7,
+    "actionIndex": 1,
+    "regions": [
+      {
+        "widgetPointer": "0x07100F18",
+        "logicalRect": {
+          "left": 700,
+          "top": 630,
+          "right": 820,
+          "bottom": 654
+        },
+        "clientRect": {
+          "left": 560,
+          "top": 420,
+          "right": 656,
+          "bottom": 436
+        },
+        "safePoint": {
+          "x": 607,
+          "y": 427,
+          "forwardLogical": {
+            "x": 758,
+            "y": 640
+          }
+        }
+      }
+    ]
+  },
+  "automaticActivationPoint": null,
+  "selectionPolicy": "EXACT_DISCRETE_INVERSE_REGION_NO_AUTOMATIC_INPUT",
+  "blockers": [],
+  "operations": {
+    "writes": 0,
+    "gameInputs": 0
+  }
+}

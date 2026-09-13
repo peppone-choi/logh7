@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "contract": "ORIGINAL_CLIENT_WARP_STAGE_GATE_V2_OFFLINE_AUDIT",
+  "stage": "WARP",
+  "state": "PRE_ACTIVATION_NOT_CREATED",
+  "authority": {
+    "authorizationId": "CURRENT_THREAD_ORACLE_ONE_RUN_ONE_ACTIVATION_V1",
+    "maxPhysicalActivations": 1,
+    "consumed": 0,
+    "remaining": 1,
+    "allocation": {"WARP":1,"DESTINATION":0,"CONFIRM":0},
+    "authorizedPrefixLength": 1,
+    "isPermit": false,
+    "stopAfterAuthorizedStage": true
+  },
+  "stages": {
+    "WARP": {"lifecycle":"NOT_CREATED","consumed":0},
+    "DESTINATION": {"lifecycle":"NOT_CREATED","consumed":0,"authorized":false},
+    "CONFIRM": {"lifecycle":"NOT_CREATED","consumed":0,"authorized":false}
+  },
+  "currentEvidence": {
+    "manager65": "SYNTHETIC_FIXTURE_OFFLINE_CANDIDATE_ONLY",
+    "liveBinding": "NOT_CREATED",
+    "bindingSourceSha256": null,
+    "activationPoint": null,
+    "permit": null
+  },
+  "firstReadinessBlocker": "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION",
+  "deferredFullTransactionBlocker": "FULL_MOVEMENT_TRANSACTION_AUTHORITY_INSUFFICIENT_TWO_ADDITIONAL_PHYSICAL_ACTIVATIONS_REQUIRED",
+  "evaluatorMayIssuePermit": false,
+  "evaluatorMayPerformInput": false,
+  "claimCeiling": "OFFLINE_WARP_GATE_V2_AUDIT_PASS_READY_FALSE"
+}

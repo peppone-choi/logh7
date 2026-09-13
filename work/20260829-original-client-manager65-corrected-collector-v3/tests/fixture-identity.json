@@ -1,0 +1,18 @@
+{
+  "pid": 4242,
+  "startTimeUtc": "2026-08-28T00:00:00.0000000Z",
+  "path": "C:\\Program Files (x86)\\BOTHTEC\\G7\\G7MTClient.exe",
+  "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+  "moduleBase": "0x00400000",
+  "moduleSize": 32071680,
+  "sessionId": 1,
+  "hwnd": "0x00123456",
+  "hwndOwnerPidA": 4242,
+  "hwndVisibleA": true,
+  "clientWidthA": 800,
+  "clientHeightA": 600,
+  "hwndOwnerPidB": 4242,
+  "hwndVisibleB": true,
+  "clientWidthB": 800,
+  "clientHeightB": 600
+}

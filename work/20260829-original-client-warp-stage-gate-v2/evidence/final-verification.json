@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "recordType": "FINAL_VERIFICATION",
+  "result": "PASS",
+  "status": "OFFLINE_WARP_GATE_V2_AUDIT_PASS_READY_FALSE",
+  "verification": {
+    "tests": 8,
+    "mutationSubtests": 83,
+    "externalSourceRolesVerified": 13,
+    "artifactHashesVerified": 14,
+    "artifactLedgerSha256": "8E59592C6A180F471FACB6D622B2FCF7E2E6E22E5082F3166962CB14EC2BF081",
+    "independentReviewVerdict": "APPROVE",
+    "independentReviewSha256": "6228C8773A23D54ED1A8EE98B3EADA3BB8A4DA33DFB521F2ED88458F90A558F4",
+    "gitDiffCheck": "PASS"
+  },
+  "authority": {
+    "authorizationId": "CURRENT_THREAD_ORACLE_ONE_RUN_ONE_ACTIVATION_V1",
+    "stage": "WARP",
+    "maxPhysicalActivations": 1,
+    "consumed": 0,
+    "remaining": 1,
+    "destinationAllocated": 0,
+    "confirmAllocated": 0,
+    "priorPermitReusable": false
+  },
+  "stages": {
+    "warp": {"lifecycle":"NOT_CREATED","consumed":0},
+    "destination": {"lifecycle":"NOT_CREATED","consumed":0},
+    "confirm": {"lifecycle":"NOT_CREATED","consumed":0}
+  },
+  "claimCeiling": {
+    "activationEligible": false,
+    "warpPrelaunchEligible": false,
+    "launchEligible": false,
+    "permitEligible": false,
+    "permitIssued": false,
+    "activationPoint": null,
+    "automaticActivationPoint": null,
+    "bindingSourceSha256": null,
+    "firstReadinessBlocker": "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION"
+  },
+  "operations": {
+    "liveRuns": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "physicalInputs": 0,
+    "automaticInputs": 0,
+    "debuggerOperations": 0,
+    "vmOperations": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0,
+    "permitIssuance": 0
+  },
+  "overallGameGoal": "INCOMPLETE"
+}

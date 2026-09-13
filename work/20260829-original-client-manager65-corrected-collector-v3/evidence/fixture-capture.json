@@ -1,0 +1,335 @@
+{
+  "schemaVersion": 3,
+  "receiptType": "ORIGINAL_CLIENT_MANAGER65_ACTION_0X2B_RAW_CAPTURE",
+  "provenance": "SYNTHETIC_FIXTURE",
+  "oracleRunId": "SYNTHETIC-RUN-V3",
+  "externalIdentityReceiptSha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "captureStartedAtUtc": "2026-08-29T05:09:47.1738623+00:00",
+  "observedAtUtc": "2026-08-29T05:09:47.3257126+00:00",
+  "captureCompletedAtUtc": "2026-08-29T05:09:47.3462449+00:00",
+  "process": {
+    "pid": 4242,
+    "startTimeUtc": "2026-08-28T00:00:00Z",
+    "path": "C:\\Program Files (x86)\\BOTHTEC\\G7\\G7MTClient.exe",
+    "sha256": "BD19263C10DECC3D58373165A82D42A9267868400D407DA87D5F4F4109AB6E16",
+    "moduleBase": "0x00400000",
+    "moduleSize": 32071680,
+    "sessionId": 1,
+    "hwnd": "0x00123456",
+    "hwndOwnerPidA": 4242,
+    "hwndVisibleA": true,
+    "clientWidthA": 800,
+    "clientHeightA": 600,
+    "hwndOwnerPidB": 4242,
+    "hwndVisibleB": true,
+    "clientWidthB": 800,
+    "clientHeightB": 600
+  },
+  "rootRoles": {
+    "uiRootRole": "UI_MODE_AND_REGISTRY_HOST",
+    "strategyOwnerRole": "INLINE_STRATEGY_MANAGER_OWNER",
+    "legacyOwnerModeFieldsRejected": true
+  },
+  "snapshotA": {
+    "uiRoot": {
+      "pointer": "0x01000000",
+      "builderMode": 2,
+      "handlerState": 1,
+      "registryPointer": "0x06000000"
+    },
+    "strategyOwner": {
+      "pointer": "0x00C9E638",
+      "role": "INLINE_STRATEGY_MANAGER_OWNER"
+    },
+    "manager65": {
+      "controllerPointer": "0x00C9E768",
+      "managerPointer": "0x07000000",
+      "registrySlotPointer": "0x07000000",
+      "inputGate": 1,
+      "context": {
+        "nodes": [
+          {
+            "pointer": "0x07000000",
+            "id": 101,
+            "active": 1,
+            "parentId": -1,
+            "localX": 650,
+            "localY": 580,
+            "registry": "0x05000000"
+          }
+        ],
+        "resolvedX": 650,
+        "resolvedY": 580
+      },
+      "page": 2,
+      "actionCount": 3,
+      "selectedIndex": -1,
+      "cardId": 7,
+      "recordOwnerPointer": "0x08000000",
+      "recordActionCount": 3,
+      "actions": [
+        {
+          "index": 0,
+          "commandId": 16,
+          "widget": {
+            "widgetPointer": "0x07100000",
+            "status": "READ",
+            "initialized": 1,
+            "localSelector": 0,
+            "localX": 0,
+            "localY": 0,
+            "localGate": 0,
+            "hitTestEnabled": 1,
+            "activeVisible": 1,
+            "renderVisible": 1,
+            "width": 120,
+            "height": 24,
+            "eligible": true,
+            "logicalRect": {
+              "left": 700,
+              "top": 600,
+              "right": 820,
+              "bottom": 624
+            }
+          }
+        },
+        {
+          "index": 1,
+          "commandId": 43,
+          "widget": {
+            "widgetPointer": "0x07100F18",
+            "status": "READ",
+            "initialized": 1,
+            "localSelector": 0,
+            "localX": 0,
+            "localY": 0,
+            "localGate": 0,
+            "hitTestEnabled": 1,
+            "activeVisible": 1,
+            "renderVisible": 1,
+            "width": 120,
+            "height": 24,
+            "eligible": true,
+            "logicalRect": {
+              "left": 700,
+              "top": 630,
+              "right": 820,
+              "bottom": 654
+            }
+          }
+        },
+        {
+          "index": 2,
+          "commandId": 82,
+          "widget": {
+            "widgetPointer": "0x07101E30",
+            "status": "READ",
+            "initialized": 1,
+            "localSelector": 0,
+            "localX": 0,
+            "localY": 0,
+            "localGate": 0,
+            "hitTestEnabled": 1,
+            "activeVisible": 1,
+            "renderVisible": 1,
+            "width": 120,
+            "height": 24,
+            "eligible": true,
+            "logicalRect": {
+              "left": 700,
+              "top": 660,
+              "right": 820,
+              "bottom": 684
+            }
+          }
+        }
+      ]
+    },
+    "manager67": {
+      "controllerPointer": "0x00C9EAC4",
+      "managerPointer": "0x07200000",
+      "registrySlotPointer": "0x07200000",
+      "managerId": 103,
+      "active": 0,
+      "inputGate": 0,
+      "disposition": "DORMANT_PRIOR_AUTHORITY_CARD_STAGE"
+    },
+    "coordinateFrame": {
+      "scaleX": 1.25,
+      "scaleY": 1.5,
+      "logicalWidth": 1000,
+      "logicalHeight": 900,
+      "engineClientRect": {
+        "left": 0,
+        "top": 0,
+        "right": 800,
+        "bottom": 576
+      }
+    }
+  },
+  "snapshotB": {
+    "uiRoot": {
+      "pointer": "0x01000000",
+      "builderMode": 2,
+      "handlerState": 1,
+      "registryPointer": "0x06000000"
+    },
+    "strategyOwner": {
+      "pointer": "0x00C9E638",
+      "role": "INLINE_STRATEGY_MANAGER_OWNER"
+    },
+    "manager65": {
+      "controllerPointer": "0x00C9E768",
+      "managerPointer": "0x07000000",
+      "registrySlotPointer": "0x07000000",
+      "inputGate": 1,
+      "context": {
+        "nodes": [
+          {
+            "pointer": "0x07000000",
+            "id": 101,
+            "active": 1,
+            "parentId": -1,
+            "localX": 650,
+            "localY": 580,
+            "registry": "0x05000000"
+          }
+        ],
+        "resolvedX": 650,
+        "resolvedY": 580
+      },
+      "page": 2,
+      "actionCount": 3,
+      "selectedIndex": -1,
+      "cardId": 7,
+      "recordOwnerPointer": "0x08000000",
+      "recordActionCount": 3,
+      "actions": [
+        {
+          "index": 0,
+          "commandId": 16,
+          "widget": {
+            "widgetPointer": "0x07100000",
+            "status": "READ",
+            "initialized": 1,
+            "localSelector": 0,
+            "localX": 0,
+            "localY": 0,
+            "localGate": 0,
+            "hitTestEnabled": 1,
+            "activeVisible": 1,
+            "renderVisible": 1,
+            "width": 120,
+            "height": 24,
+            "eligible": true,
+            "logicalRect": {
+              "left": 700,
+              "top": 600,
+              "right": 820,
+              "bottom": 624
+            }
+          }
+        },
+        {
+          "index": 1,
+          "commandId": 43,
+          "widget": {
+            "widgetPointer": "0x07100F18",
+            "status": "READ",
+            "initialized": 1,
+            "localSelector": 0,
+            "localX": 0,
+            "localY": 0,
+            "localGate": 0,
+            "hitTestEnabled": 1,
+            "activeVisible": 1,
+            "renderVisible": 1,
+            "width": 120,
+            "height": 24,
+            "eligible": true,
+            "logicalRect": {
+              "left": 700,
+              "top": 630,
+              "right": 820,
+              "bottom": 654
+            }
+          }
+        },
+        {
+          "index": 2,
+          "commandId": 82,
+          "widget": {
+            "widgetPointer": "0x07101E30",
+            "status": "READ",
+            "initialized": 1,
+            "localSelector": 0,
+            "localX": 0,
+            "localY": 0,
+            "localGate": 0,
+            "hitTestEnabled": 1,
+            "activeVisible": 1,
+            "renderVisible": 1,
+            "width": 120,
+            "height": 24,
+            "eligible": true,
+            "logicalRect": {
+              "left": 700,
+              "top": 660,
+              "right": 820,
+              "bottom": 684
+            }
+          }
+        }
+      ]
+    },
+    "manager67": {
+      "controllerPointer": "0x00C9EAC4",
+      "managerPointer": "0x07200000",
+      "registrySlotPointer": "0x07200000",
+      "managerId": 103,
+      "active": 0,
+      "inputGate": 0,
+      "disposition": "DORMANT_PRIOR_AUTHORITY_CARD_STAGE"
+    },
+    "coordinateFrame": {
+      "scaleX": 1.25,
+      "scaleY": 1.5,
+      "logicalWidth": 1000,
+      "logicalHeight": 900,
+      "engineClientRect": {
+        "left": 0,
+        "top": 0,
+        "right": 800,
+        "bottom": 576
+      }
+    }
+  },
+  "snapshotStable": true,
+  "windowSurfaceStable": true,
+  "semanticCandidateEligible": true,
+  "blockers": [],
+  "originalRuntimeObserved": false,
+  "independentLiveBinding": false,
+  "livePromotionAllowed": false,
+  "warpPrelaunchEligible": false,
+  "launchEligible": false,
+  "permitEligible": false,
+  "permitIssued": false,
+  "automaticActivationPoint": null,
+  "operations": {
+    "memoryAccess": "READ_ONLY",
+    "memoryReadCount": 150,
+    "memoryWrites": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "retries": 0,
+    "debuggerAttach": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "vmLifecycleChanges": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0,
+    "permitIssuance": 0
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 9,
+  "feature": "promotion (昇進, personnel rank-up) — second strategy feature; also evidence for condition 11 (인사)",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "runId": "20260902T212309Z-natural-l1-relogin-v1",
+  "verticalPath": "unit/character 2 (rank 20 二等兵) → 職務権限カード tab → card 39 → 昇進 → authority serves promotion ladder (0x1200, '二等兵→一等兵') → ladder entry selected (情報: 二等兵 実行不可(0) as served text) → 決定 → client 0x0704 rank-up → authority Success → PostgreSQL character.rank 20→19, character.authority_version 5→25, domain_event 25 = CharacterRankPromoted{20→19}, account.authority_version 24→25 → client ゲーム終了 → authority RESTART on same DB → relogin → rank 19 restored (M==R==S) → strategy HUD shows 一等兵.",
+  "screenUpdateNote": "The in-session HUD rank label stayed 二等兵 right after 決定 (dialog closed, log '昇進コマンド選択を行います'); the promoted label 一等兵 is shown after relogin. Faithful observation: screen refresh of the rank label is deferred to re-entry in this build.",
+  "placeholderTextFindings": [
+    "promotion dialog list header renders 'サーバーが混み合っています' (server busy) and the second button 'バージョンが違います' (version differs) — wrong temporary strings served/indexed for this dialog; condition 6/16 items",
+    "情報 shows '二等兵 実行不可(0)' yet the authority accepted the rank-up — the served executability text does not match the authority decision; condition 7 (rejection/enable reason must match authority) item"
+  ],
+  "wire": {
+    "ladder0x1200": {
+      "timestampUtc": "2026-09-02T21:25:59.633074+00:00",
+      "eventName": "frame-processed",
+      "connectionId": 3,
+      "outerControl": 48,
+      "payloadLength": 40,
+      "stateBefore": "SessionServerReady",
+      "stateAfter": "SessionServerReady",
+      "status": "Success",
+      "errorCode": null,
+      "observedApplicationType": 4608,
+      "originalLoginInputShape": null,
+      "rejectedApplicationPayloadHex": null,
+      "responseMetadata": null,
+      "responseOuterControl": 48,
+      "responsePayloadLength": 16,
+      "responsesBeforePrimaryPayloadLengths": [
+        48,
+        24
+      ],
+      "additionalResponsePayloadLengths": null
+    },
+    "rankUp0x0704": {
+      "timestampUtc": "2026-09-02T21:27:31.7108762+00:00",
+      "eventName": "frame-processed",
+      "connectionId": 3,
+      "outerControl": 48,
+      "payloadLength": 40,
+      "stateBefore": "SessionServerReady",
+      "stateAfter": "SessionServerReady",
+      "status": "Success",
+      "errorCode": null,
+      "observedApplicationType": 1796,
+      "originalLoginInputShape": null,
+      "rejectedApplicationPayloadHex": null,
+      "responseMetadata": null,
+      "responseOuterControl": 48,
+      "responsePayloadLength": 176,
+      "responsesBeforePrimaryPayloadLengths": null,
+      "additionalResponsePayloadLengths": [
+        224
+      ]
+    }
+  },
+  "snapshots": {
+    "A0_baseline": {
+      "characterId": 2,
+      "characterVersion": 5,
+      "rank": 20,
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "latest": "[{\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356-ba44-4bb2-ada6-c5179e1bf34e\",\"event_type\":\"OriginalMessengerMessageSent\",\"payload\":{\"Message\": \"T115\", \"messageId\": 1, \"senderCharacterId\": 2, \"wirePayloadBase64\": \"Dw8AAAAAAAAAAgwwwDC5MMYwozD7MKIwwzDGMPMw3DDtMPwAFAAAAzDqMLIw6wEAAAACAAEBAAAAAgAUAAAMMMAwuTDGMKMw+zCiMMMwxjDzMNww7TD8AQAAAAAAAgAUAAAMMMAwuTDGMKMw+zCiMMMwxjDzMNww7TD8AAA"
+    },
+    "M_afterPromotion": {
+      "characterId": 2,
+      "characterVersion": 25,
+      "rank": 19,
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"character\",\"aggregate_id\":\"2\",\"event_type\":\"CharacterRankPromoted\",\"payload\":{\"sourceRank\": 20, \"characterId\": 2, \"promotedRank\": 19, \"requestFingerprint\": \"1a67053b2dbcb84e235002d482d8de4adbc27ae8dfc27b8db16640fd63178127\"},\"authority_version\":25,\"created_at\":\"2026-09-03T06:27:31.686564+09:00\"}, \r\n {\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356"
+    },
+    "R_afterRestart": {
+      "characterId": 2,
+      "characterVersion": 25,
+      "rank": 19,
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"character\",\"aggregate_id\":\"2\",\"event_type\":\"CharacterRankPromoted\",\"payload\":{\"sourceRank\": 20, \"characterId\": 2, \"promotedRank\": 19, \"requestFingerprint\": \"1a67053b2dbcb84e235002d482d8de4adbc27ae8dfc27b8db16640fd63178127\"},\"authority_version\":25,\"created_at\":\"2026-09-03T06:27:31.686564+09:00\"}, \r\n {\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356"
+    },
+    "S_afterRelogin": {
+      "characterId": 2,
+      "characterVersion": 25,
+      "rank": 19,
+      "domainEventCount": 25,
+      "accountVersion": 25,
+      "latest": "[{\"event_id\":25,\"aggregate_type\":\"character\",\"aggregate_id\":\"2\",\"event_type\":\"CharacterRankPromoted\",\"payload\":{\"sourceRank\": 20, \"characterId\": 2, \"promotedRank\": 19, \"requestFingerprint\": \"1a67053b2dbcb84e235002d482d8de4adbc27ae8dfc27b8db16640fd63178127\"},\"authority_version\":25,\"created_at\":\"2026-09-03T06:27:31.686564+09:00\"}, \r\n {\"event_id\":24,\"aggregate_type\":\"account\",\"aggregate_id\":\"78e4e356"
+    }
+  },
+  "checks": {
+    "baseline_rank20_version5": true,
+    "login_reachedStrategy_cardTab_card": true,
+    "promotionButton_opensLadderDialog": true,
+    "authorityServedPromotionLadder_0x1200": true,
+    "ladderEntrySelected_infoShown": true,
+    "decision_sent_0x0704_authoritySuccess": true,
+    "dbRankPromoted_20_to_19_versionsBumped": true,
+    "domainEvent_CharacterRankPromoted_appended": true,
+    "clientExited_thenAuthorityRestartedOnSameDb": true,
+    "promotionSurvivedRestart_R_equals_M": true,
+    "reloginAfterRestart_oneSubmission": true,
+    "restoredAfterRelogin_S_equals_M": true,
+    "screenShowsPromotedRank_ittouhei_afterRelogin": true,
+    "normalShutdown_and_cleanup": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "79FFF00A4F6C18E42233FDD5EF4B68A8E4CF8A40B641C8DB14DF37C0F0EED9DA",
+    "fresh-run-prep.json": "6AA39D1088162D9758914051510562BCA99549161D66CFB007F2D3D42EA292B7",
+    "relaunch-prep.json": "762DD2B32C1D3939B87EB843E21DD92744ACC4485762332C22E5DF5D1EBEB4FE",
+    "db-a0.json": "597B5DF281C766DF366B607D6F244A5779400FD162EED9AFFCEB26CBA405A019",
+    "db-m.json": "8244C0336B48D4930F6113C0194794C07DBC3E66A9E6CFDF34EAC380D6E76266",
+    "db-r.json": "CDB9B5002905B0547A0F2AB2CE114FF9BC55B7C30CA09B483648534841DB3047",
+    "db-s.json": "EC8F7BB476EF7A8719FB8CA110C37BC38F6B2D29F68711315CF3EF6986E82B63",
+    "cred-c.json": "134B71F77E45D9DE8729816E122E215E642E46576DFEDCABC46BC7D8F4BC93C0",
+    "cred-e.json": "7F1735DF0C77CBC3716717AF63F5B32E431CD3F3E5ACCF59B9FF6C9E6E07F3E7",
+    "clean-stop.json": "CDD2F09D8C7F4740E5245A1D29E107601762158B877145716B29536AEE469411",
+    "cleanup.json": "A25228C640CDF10381964F3656BDA1AD9C108515EA0FF57DD56010C8548E6C68",
+    "server-wire.jsonl": "B4152E2E567B6EF9373002B67667B82BC5376E8A0A0EEEE823B0E49E26F86C26",
+    "server-wire-2.jsonl": "2F5A9B5F79CB54CBFC445625CB2A2B93E8AD847061737FFFE3BCEAE8D6BE7E78",
+    "vnc-e-strategy.png": "5ACFA6D6CF2489CF5487938B61A9C5D71B86E2D1AA08C8AE5A2D591049793931",
+    "vnc-r1-cardtab.png": "DDAA46E2E38BB4F10F9EB39564DAB4BEAB331B7C11082CBD8B342A6029E7EA7B",
+    "vnc-r2-card.png": "F71466424FD340C8A3C8F0128E5413E7C3BCB111D53150ADC89FEBBB0EBEF155",
+    "vnc-r3-shoushin.png": "7A932D0E5313DA37FAEBE229AEF1D107ADF718FDD89CC065986DD967496154A9",
+    "vnc-r4-ladder-selected.png": "823F6343E4722A7AD8F24FAF72736DA7908147FC9A79E6EFF5F439E88DD7BE30",
+    "vnc-r5-after-kettei.png": "02EA1A7EA063A6A2582D9D6CF0038298D9F80D0476C76C670DE8996CD4D72A80",
+    "vnc-x-strategy-restored.png": "E15AD24025029EC38005B7E898961DB5AA233CB39F74C8A8F0904BC7A2D9F32F"
+  }
+}

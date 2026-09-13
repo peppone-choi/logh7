@@ -1,0 +1,10 @@
+{
+  "result": "PASS",
+  "collector": { "result": "PASS", "cases": 11, "assertions": 28 },
+  "resolver": { "result": "PASS", "cases": 5, "assertions": 17 },
+  "requiredMarkers": 11,
+  "forbiddenCapabilityHits": 0,
+  "liveOperations": 0,
+  "gameInputs": 0,
+  "permitIssued": false
+}

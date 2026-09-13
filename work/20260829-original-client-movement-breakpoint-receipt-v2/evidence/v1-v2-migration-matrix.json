@@ -1,0 +1,33 @@
+{
+  "schemaVersion":1,
+  "matrix":"ORIGINAL_CLIENT_MOVEMENT_RECEIPT_V1_TO_V2_MIGRATION",
+  "policy":"NO_AUTOMATIC_EVIDENCE_PROMOTION",
+  "v1FrozenArtifacts":{
+    "schema":{"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/movement-breakpoint-receipt.schema.json","sha256":"1DBADE5E0EFAC91ED648307C8026B26A4F80BC9A4E3A4F2E80AAED749BFC24F4"},
+    "template":{"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/movement-breakpoint-receipt-template.json","sha256":"122B8555BF25E752AE82958F14188669FCCE6B7FFB9BF4A9307CF1EA0DE9AD5A"},
+    "verifier":{"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/src/verify-movement-breakpoint-receipt.ps1","sha256":"299648AED08C07A75B31A0E52D2A59A6AAE35C0B24E7E46CAD0D7452B9B1BCFF"},
+    "fixture":{"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/tests/fixture-semantic-specimen.json","sha256":"6B6E0509C37259D29CE2E2317AF5363626B7458C7B81B028B9CC5602CD2786DE"},
+    "tests":{"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/tests/test-movement-breakpoint-receipt.ps1","sha256":"0DF45DA9CAD41288E578889019F5FE7DCE84A7737AFE075082B6B9CB5C2516F6"},
+    "staticLedger":{"path":"work/20260828-original-client-movement-breakpoint-receipt-schema/evidence/movement-breakpoint-static-ledger.json","sha256":"9BC141E9C2F9AA7A0EF6BADF9B63CED2822F3E5D7AF820382F38803523ED3B99"}
+  },
+  "hazards":[
+    {"id":"V1_CLOSED_OBJECT_BREAKING_EXTENSION","disposition":"PARALLEL_V2_ENVELOPE"},
+    {"id":"V1_NINE_INSTALLED_AMBIGUOUS_WITH_FOUR_SLOT_REARM","disposition":"REPLACE_WITH_PHASE_COMMAND_AND_MEMBERSHIP_LEDGER"},
+    {"id":"V1_ACCEPTED_HIT_SEQUENCE_HAS_NO_GLOBAL_DEBUG_EVENT_ORDINAL","disposition":"ADD_ACCEPTED_AND_REJECTED_EVENT_ORDINALS"},
+    {"id":"V1_SINGLE_OUTSTANDING_ASSERTION_HAS_NO_QUEUE_CENSUS","disposition":"REQUIRE_EXACTLY_ONE_MATCHING_PENDING_0X0B07"},
+    {"id":"V1_DEBUGGER_BINDS_ONLY_ONE_EXECUTABLE","disposition":"BIND_EXE_DLL_GUI_AND_COMMITHASH"},
+    {"id":"V1_VERIFIER_OFFLINE_STATES_ONLY","disposition":"V2_VERIFIER_MUST_NOT_PROMOTE_SCHEMA_VALIDITY_TO_LIVE_VALIDITY"}
+  ],
+  "fieldGroups":[
+    {"id":"HIT_THREAD_ID_AND_DEBUG_EVENT_ORDINAL","pointer":"/acceptedHits"},
+    {"id":"TEMPORAL_REARM_PHASE_LEDGER","pointer":"/phaseExecutionLedger/phases"},
+    {"id":"PER_THREAD_DR_STATE_RECEIPT","pointer":"/perThreadDrState"},
+    {"id":"REJECTED_HIT_LOG","pointer":"/rejectedHitLog"},
+    {"id":"UNIQUE_PENDING_0X0B07_QUEUE_CENSUS","pointer":"/queueCensus"},
+    {"id":"REARM_PLAN_VERSION_AND_ARTIFACT_SHA256","pointer":"/rearmPlanBinding"},
+    {"id":"INSTALLED_X32DBG_EXE_DLL_GUI_AND_COMMITHASH_BINDING","pointer":"/debuggerBuildBinding"},
+    {"id":"PER_PHASE_BPHWC_BPHWS_COMMAND_RESULT_PRE_POST_ACTIVE_SET_AND_BEFORE_RESUME_VERIFICATION","pointer":"/phaseExecutionLedger/phases/*"}
+  ],
+  "automaticMigrationAllowed":false,
+  "syntheticMayBecomeLive":false
+}

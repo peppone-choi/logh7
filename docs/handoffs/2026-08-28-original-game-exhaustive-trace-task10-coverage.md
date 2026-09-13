@@ -1,0 +1,21 @@
+# Handoff - exhaustive trace foundation Task 10 coverage gates
+
+- bounded-unit status: `PASS` for coverage machinery and artifact integrity
+- current coverage status: `FAIL` by design; overall goal `INCOMPLETE`
+- population: 15,999 audited rows; protocol 547, UI 422, entity 237, resource 2,194, function 11,497, authority 1,102; missing/extra/duplicate 0
+- result: 25,609 evidence gaps, 153,601 ordered missing-boundary references, 15,999 `UNKNOWN` row verdicts, zero closed vertical traces
+- only structural fatal: `FEATURE_REACHABILITY_LEDGER_ABSENT`; absence of the full feature denominator is not reported as zero complete features
+- vertical contract: frozen feature/entity/content paths; current facts derive `allMissingBoundaries`; stored first-missing text, later states, names, candidates, and graph adjacency cannot promote closure
+- orphan contract: direction/ownership, UI handler/dormancy, entity identity/parent, nested recovery, writer input source identity, resource loader/owner, authority mutation/event/persistence, eight implementation targets, reason-bound N/A
+- structural fills: protocol 547/547 and UI 422/422 exact implementation maps; entity field 230/230 and population 37/37 nested recovery dispositions
+- graph: 35,685 nodes, 92,053 edges, SHA-256 `6B520907EB7C22CB65FE4DA305D59F9C07F6357FDF5E0A249C8572CFE795F3C9`, graph surface `65B553753259DF830C5C2B86098CED589574A3C6E47868F3DE8613159B8BC6D0`
+- coverage: `evidence/exhaustive-trace/coverage.json`, 38,641,608 bytes, SHA-256 `EAEECB3D6261AE1EBC9EAF9BF002527DE30BC0B3901083E3F75776A0600F24A4`, surface `665FF9C360D48073A1907B2C8371F2535194FB270FB845CB610DAB89836B33D0`
+- determinism: two full graph builds and three coverage audits byte-identical; audit publishes atomically and returns 1 for the current honest fatal
+- tests: focused coverage 16/16 PASS; complete exhaustive-trace suite 214/214 PASS; strict loaders and LF attributes PASS
+- independent review: two iterative `REJECT` verdicts converted to RED tests; final read-only verdict `APPROVE`; validator writes 0
+- receipt: `work/20260828-original-game-exhaustive-trace-task10-coverage/repro/task10-verification.json`
+- report: `work/20260828-original-game-exhaustive-trace-task10-coverage/report/task10-coverage-report.md`
+- runtime state: no VM, original executable, debugger, process-memory, input, binary patch, Ghidra, server, protocol, database, port, or lifecycle action
+- next start: foundation Task 11, deterministic routing into sixteen domain work packages; separately create the complete evidence-bound feature/reachability ledger rather than inventing it to clear this fatal
+- forbidden promotion: this Task 10 PASS does not prove feature-ledger closure, original-client playability, complete reverse engineering, authority, persistence, both factions, any player-visible feature, Gate-A, Gate-B, or the overall objective
+- forbidden retry: do not trust stored `firstMissingBoundary`, evidence-free `PROVEN`, free-form writer source IDs, reasonless N/A, candidate/name/adjacency joins, or a single synthetic FEATURE row; do not change server/protocol/database or launch the VM for Task 11 routing

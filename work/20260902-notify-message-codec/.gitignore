@@ -1,0 +1,6 @@
+# Build outputs and packaged authority builds are regenerable from the source tree (dotnet publish + Compress-Archive);
+# each self-contained win-x64 zip is ~35 MB and there are dozens (extracmdNN). Keep only source, migrations and small vectors.
+*.zip
+server-scratch/**/bin/
+server-scratch/**/obj/
+server-scratch/publish*/

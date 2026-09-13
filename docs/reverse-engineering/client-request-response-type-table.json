@@ -1,0 +1,185 @@
+{
+  "schema": "logh7-client-request-table/1",
+  "source": {
+    "binary": "G7MTClient.item1.exe (login-input working copy; code identical to original outside the item1 patch)",
+    "sha256": "FCAC79429822D6E0A5B0341F42880AAD73AA13F5DDB3396770A0E9DD62E37563",
+    "function": "FUN_004B78xx request sender: per case `mov ebx, expected; mov esi, request; jmp 0x4B78EF`",
+    "extractedBy": "scratch disasm.py regex over 0x4B7000-0x4B8600 (capstone)"
+  },
+  "note": "43 request kinds the unmodified client can send with the response type it waits for; conditions 7/16 inventory input. Session-server 0x02xx/0x03xx, mail 0x0F0x, lottery 0x100x, simple-information transaction 0x1200/0x1201.",
+  "count": 43,
+  "pairs": [
+    {
+      "request": "0x0203",
+      "expectedResponse": "0x0204"
+    },
+    {
+      "request": "0x0300",
+      "expectedResponse": "0x0301"
+    },
+    {
+      "request": "0x0304",
+      "expectedResponse": "0x0305"
+    },
+    {
+      "request": "0x0306",
+      "expectedResponse": "0x0307"
+    },
+    {
+      "request": "0x0308",
+      "expectedResponse": "0x0309"
+    },
+    {
+      "request": "0x030A",
+      "expectedResponse": "0x030B"
+    },
+    {
+      "request": "0x030C",
+      "expectedResponse": "0x030D"
+    },
+    {
+      "request": "0x030E",
+      "expectedResponse": "0x030F"
+    },
+    {
+      "request": "0x0310",
+      "expectedResponse": "0x0311"
+    },
+    {
+      "request": "0x0312",
+      "expectedResponse": "0x0313"
+    },
+    {
+      "request": "0x0314",
+      "expectedResponse": "0x0315"
+    },
+    {
+      "request": "0x0316",
+      "expectedResponse": "0x0317"
+    },
+    {
+      "request": "0x031C",
+      "expectedResponse": "0x031D"
+    },
+    {
+      "request": "0x031E",
+      "expectedResponse": "0x031F"
+    },
+    {
+      "request": "0x0320",
+      "expectedResponse": "0x0321"
+    },
+    {
+      "request": "0x0322",
+      "expectedResponse": "0x0323"
+    },
+    {
+      "request": "0x0324",
+      "expectedResponse": "0x0325"
+    },
+    {
+      "request": "0x0326",
+      "expectedResponse": "0x0327"
+    },
+    {
+      "request": "0x0328",
+      "expectedResponse": "0x0329"
+    },
+    {
+      "request": "0x032A",
+      "expectedResponse": "0x032B"
+    },
+    {
+      "request": "0x032C",
+      "expectedResponse": "0x032D"
+    },
+    {
+      "request": "0x032E",
+      "expectedResponse": "0x032F"
+    },
+    {
+      "request": "0x0330",
+      "expectedResponse": "0x0331"
+    },
+    {
+      "request": "0x0336",
+      "expectedResponse": "0x0337"
+    },
+    {
+      "request": "0x033A",
+      "expectedResponse": "0x033B"
+    },
+    {
+      "request": "0x033E",
+      "expectedResponse": "0x033F"
+    },
+    {
+      "request": "0x0340",
+      "expectedResponse": "0x0341"
+    },
+    {
+      "request": "0x0344",
+      "expectedResponse": "0x0345"
+    },
+    {
+      "request": "0x0346",
+      "expectedResponse": "0x0347"
+    },
+    {
+      "request": "0x0348",
+      "expectedResponse": "0x0349"
+    },
+    {
+      "request": "0x034A",
+      "expectedResponse": "0x034B"
+    },
+    {
+      "request": "0x034E",
+      "expectedResponse": "0x034F"
+    },
+    {
+      "request": "0x0408",
+      "expectedResponse": "0x0430"
+    },
+    {
+      "request": "0x0B00",
+      "expectedResponse": "0x0B0B"
+    },
+    {
+      "request": "0x0B01",
+      "expectedResponse": "0x0B07"
+    },
+    {
+      "request": "0x0F00",
+      "expectedResponse": "0x0F01"
+    },
+    {
+      "request": "0x0F02",
+      "expectedResponse": "0x0F03"
+    },
+    {
+      "request": "0x0F04",
+      "expectedResponse": "0x0F05"
+    },
+    {
+      "request": "0x0F06",
+      "expectedResponse": "0x0F07"
+    },
+    {
+      "request": "0x0F08",
+      "expectedResponse": "0x0F09"
+    },
+    {
+      "request": "0x1001",
+      "expectedResponse": "0x1003"
+    },
+    {
+      "request": "0x1004",
+      "expectedResponse": "0x1005"
+    },
+    {
+      "request": "0x1200",
+      "expectedResponse": "0x1201"
+    }
+  ]
+}

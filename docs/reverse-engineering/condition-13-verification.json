@@ -1,0 +1,96 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 13,
+  "text": "서버 재시작 후 PostgreSQL과 이벤트 재생이 같은 상태를 복원한다",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "runId": "20260902T205210Z-natural-l1-relogin-v1",
+  "sequence": "login -> strategy (state A) -> DB snapshot A -> client ゲーム終了 -> authority RESTART on the SAME PostgreSQL (guest-restart-authority: stop client+authority, keep DB, rotate password, restart same binary, relaunch client) -> DB snapshot B -> relogin -> strategy -> DB snapshot C -> clean-stop -> cleanup",
+  "pids": {
+    "authorityBefore": 2672,
+    "authorityAfter": 4920,
+    "clientBefore": 4896,
+    "clientAfter": 6576
+  },
+  "snapshots": {
+    "A": {
+      "gridUnit": {
+        "account_id": "78e4e356-ba44-4bb2-ada6-c5179e1bf34e",
+        "unit_id": 2,
+        "character_id": 2,
+        "authority_card_id": 39,
+        "current_cell_id": 101,
+        "authority_version": 5,
+        "updated_at": "2026-09-02T17:39:31.699964+09:00"
+      },
+      "moveCommandCount": 0,
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "identity": "logh7|logh7|false|55432",
+      "status": "DB_INSPECTED"
+    },
+    "B": {
+      "gridUnit": {
+        "account_id": "78e4e356-ba44-4bb2-ada6-c5179e1bf34e",
+        "unit_id": 2,
+        "character_id": 2,
+        "authority_card_id": 39,
+        "current_cell_id": 101,
+        "authority_version": 5,
+        "updated_at": "2026-09-02T17:39:31.699964+09:00"
+      },
+      "moveCommandCount": 0,
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "identity": "logh7|logh7|false|55432",
+      "status": "DB_INSPECTED"
+    },
+    "C": {
+      "gridUnit": {
+        "account_id": "78e4e356-ba44-4bb2-ada6-c5179e1bf34e",
+        "unit_id": 2,
+        "character_id": 2,
+        "authority_card_id": 39,
+        "current_cell_id": 101,
+        "authority_version": 5,
+        "updated_at": "2026-09-02T17:39:31.699964+09:00"
+      },
+      "moveCommandCount": 0,
+      "domainEventCount": 24,
+      "accountVersion": 24,
+      "identity": "logh7|logh7|false|55432",
+      "status": "DB_INSPECTED"
+    }
+  },
+  "eventReplayNote": "State is DB-backed with an append-only domain_event log (24 events, authority_version 24 for the account; grid unit authority_version 5). Across the restart the log and every versioned row are byte-identical (A==B==C); no event was lost or re-applied, and the restarted authority served the identical character/grid state to the relogged client. Login/logout in this scene appends no domain events (counts unchanged), which is faithful to the observed authority.",
+  "checks": {
+    "A_isBaselinePersistedState": true,
+    "firstSession_loggedIn_reachedStrategy": true,
+    "clientExitedViaOwnDialog_beforeRestart": true,
+    "authorityRestartedOnSameDatabase": true,
+    "postgresKeptRunningAcrossRestart": true,
+    "B_equals_A_afterRestart_preRelogin": true,
+    "relogin_afterRestart_oneSubmission": true,
+    "restoredStateVisible_sameCharacterSameSystem": true,
+    "C_equals_A_afterRelogin": true,
+    "eventLogPreserved_notTruncated": true,
+    "normalShutdownAfter": true,
+    "runCleaned": true
+  },
+  "receipts": {
+    "fresh-run-plan.json": "3C10804C0AA6E27383CD95BBA75FF713966E9A2229999348F06AB2BCBEFB0AC0",
+    "fresh-run-prep.json": "35DC8F58CABDD9A167242F5C557D742AD5764C54F02C7EEE4CCB97E8FA474900",
+    "relaunch-prep.json": "F353658EC58326676C9F842328F1884E0711DCBE70F48EAD9170D07EA81E02EC",
+    "db-a.json": "E10FB20AFBF53E993BFD53F863A51CEDAA77BDD67E4EF0A8FEFBD69F13D78892",
+    "db-b.json": "69118010114BFEB0EB59EBA787DF91AA3F5B5EB40EC057C5F0CFA4B7651F7995",
+    "db-c.json": "0137B20075B1920D940754F4BCFBF8489CCFF433585F5B49D4173C66D1772ADE",
+    "cred-c.json": "211EC4BF3458E9CBB979DA4279ABCF1072C276A3D2925567D59C3995C6ADB86D",
+    "cred-e.json": "D3323B2A24EFCCC9CF419AA9D8E858DAA4D19B2622ED3C3621C1C7CD24250456",
+    "clean-stop.json": "88A7C2A126CAB306D4157F3B9FED363B7F8A2B04283621A995CAD6DE47D90AA6",
+    "cleanup.json": "EE5BD5CF279B56BE3CFC5CE07EF527CCCB9FE3A9039EC695493C898ED8D825D5",
+    "vnc-e-strategy.png": "53B639E0F80188D4197B1B9472B7901E8C76239925324B908CA287B2163361B5",
+    "vnc-f-exitdlg.png": "643FFA3426DF3EA3EB811FC3D7A53FEF80811879E8ECCFA13E579D4F0BEA721A",
+    "vnc-j-strategy-after.png": "EFAA05AB130FF12F982A8DB7BA6E6FC4BCC5523A62D0B8686E20B1BB08063714",
+    "server-wire.jsonl": "8F8B5956A52A8AA8343513AA78B3A7518F54BF6AB3A3DEE3F01A1CBBADDCAE6A",
+    "server-wire-2.jsonl": "0DBA3A12747BD920F8B83E5A8D6B06799C86195DA2F5124240E46C6901BE04DC"
+  }
+}

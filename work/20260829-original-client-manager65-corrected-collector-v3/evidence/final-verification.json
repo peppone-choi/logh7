@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "recordType": "FINAL_VERIFICATION",
+  "result": "PASS",
+  "status": "OFFLINE_CORRECTED_MANAGER65_ACTION_0X2B_COLLECTOR_V3_PASS_RUNTIME_UNSEEN",
+  "verification": {
+    "pwsh": {"exitCode": 0, "tests": 7, "mutations": 62},
+    "windowsPowerShell51": {"exitCode": 0, "tests": 7, "mutations": 62},
+    "staticSourcesVerified": 4,
+    "canonicalExecutableVerified": true,
+    "artifactHashesVerified": 16,
+    "artifactLedgerSha256": "304D49A3D65D49AE9706B04952E6BEAB537539157B7A7006493D1736187D2907",
+    "independentReviewVerdict": "APPROVE",
+    "independentReviewSha256": "8269D98DB4BE2911BC5B6AA3ACFE1110AF0EC3FA22C75A926ECADA288839899B",
+    "gitDiffCheck": "PASS",
+    "temporaryEvidenceArtifacts": 0
+  },
+  "collector": {
+    "nativeReadOnlyApis": ["CloseHandle","GetClientRect","GetWindowThreadProcessId","IsWindow","IsWindowVisible","OpenProcess","ReadProcessMemory"],
+    "openProcessAccess": "0x0410",
+    "fixtureMemoryReads": 150,
+    "forbiddenNativeCapabilities": 0
+  },
+  "operations": {
+    "liveRuns": 0,
+    "processMemoryReads": 0,
+    "processMemoryWrites": 0,
+    "gameInputs": 0,
+    "automaticInputs": 0,
+    "debuggerAttach": 0,
+    "debuggerCommands": 0,
+    "breakpointsInstalled": 0,
+    "ownedHwndCaptures": 0,
+    "vmOperations": 0,
+    "serverChanges": 0,
+    "protocolChanges": 0,
+    "databaseChanges": 0,
+    "permitIssuance": 0
+  },
+  "claimCeiling": {
+    "originalRuntimeObserved": false,
+    "independentLiveBinding": false,
+    "warpPrelaunchEligible": false,
+    "launchEligible": false,
+    "permitEligible": false,
+    "permitIssued": false,
+    "automaticActivationPoint": null,
+    "currentBlocker": "FRESH_OWNED_HWND_NOT_OBSERVABLE_FROM_AVAILABLE_GUEST_OPERATION_SESSION"
+  },
+  "overallGameGoal": "INCOMPLETE"
+}

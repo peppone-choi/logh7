@@ -1,0 +1,102 @@
+{
+  "schema": "logh7/condition-9-special-promotion-verification/v1",
+  "condition": 9,
+  "feature": "抜擢 CommandSpeciallyRankUp 0x0705 (card 39, target = own character 2, 二等兵 20 -> 一等兵 19)",
+  "runId": "20260903T062748Z-natural-l1-relogin-v1",
+  "clientExe": null,
+  "authorityZipSha256": null,
+  "checks": {
+    "prepReady": true,
+    "oneCredentialSubmission": true,
+    "ladderListServed": true,
+    "personPickerServedAsCharacterList": true,
+    "characterInfoServed": true,
+    "specialRankUpAccepted": true,
+    "dbRankDecrementedByOne": true,
+    "domainEventCharacterSpeciallyPromoted": true,
+    "relaunchReady": true,
+    "reloginOneCredentialSubmission": true,
+    "dbIdenticalAfterRestart": true,
+    "dbIdenticalAfterRelogin": true,
+    "accountVersionStable": true,
+    "cleanStop": true,
+    "cleanup": true,
+    "noLeftoverProcesses": true
+  },
+  "passed": "16/16",
+  "status": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "specialRankUpResponse": {
+    "t": "2026-09-03T06:30:34.5188239+00:00",
+    "ev": "frame-processed",
+    "outerControl": 48,
+    "payloadLength": 48,
+    "status": "Success",
+    "ObservedApplicationType": 1797,
+    "ResponseMetadata": "special-rank-up-accepted;target=2;rank=20->19;updated=True;authorityVersion=25",
+    "requestPayloadHex": "2789236DC0BA39F266E447E8B9844B1AC8F3C7E96B0289E446BF54001838D5938568098BD541843B8568098BD541843B",
+    "ResponseOuterControl": 48,
+    "responsePayloadLength": 176,
+    "stateBefore": "SessionServerReady",
+    "stateAfter": "SessionServerReady"
+  },
+  "dbCharacters": {
+    "afterCommand": [
+      {
+        "character_id": 2,
+        "slot": 0,
+        "rank": 19,
+        "authority_version": 25
+      }
+    ],
+    "afterRestart": [
+      {
+        "character_id": 2,
+        "slot": 0,
+        "rank": 19,
+        "authority_version": 25
+      }
+    ],
+    "afterRelogin": [
+      {
+        "character_id": 2,
+        "slot": 0,
+        "rank": 19,
+        "authority_version": 25
+      }
+    ]
+  },
+  "domainEvent": {
+    "event_id": 25,
+    "aggregate_type": "character",
+    "aggregate_id": "2",
+    "event_type": "CharacterSpeciallyPromoted",
+    "payload": {
+      "sourceRank": 20,
+      "characterId": 2,
+      "promotedRank": 19,
+      "actorCharacterId": 2,
+      "requestFingerprint": "60096acd1b275c2abbc924f9eeff09f3138e4948106494d04a1d456a4167f6df"
+    },
+    "authority_version": 25,
+    "created_at": "2026-09-03T15:30:34.488756+09:00"
+  },
+  "screenshots": {
+    "vnc-r1-0-lobby.png": "A77AED9F55E82E2F174E4583479A07733EB470C975ED585592D3ABFC96C40782",
+    "vnc-r1-1-roster.png": "2166EC4701F4D13C4DE123C82613906EB41F64DCD6AA3A3606A3E9DAD0A3AD1B",
+    "vnc-r1-2-strategy.png": "2BCC1C0FA66AD25A85FF9184A658D26E2FC890E28E9E6659522F9EE23BF9C24B",
+    "vnc-r1-3-cardtab.png": "C7315A1148BA432821782EF33B274E036ED7B4568813492A6ABE8CC11B9BF04E",
+    "vnc-r1-4-card.png": "5501471056D4EA83008734A09B81C2A7117D7F4AEAF90B24E67CF96408D350A6",
+    "vnc-v1-1-batteki.png": "529F2494C03F9BD3ED5DA49C0B2EEE09CF836B4D685F93BCB24E1A9367C3ADF2",
+    "vnc-v1-2-ladder.png": "C805EEF6AE9723CE5AA35C3FFADA31969A45A781EAE09CF80E379E35685F9F28",
+    "vnc-v1-3-picker.png": "BB972230EAE5195037CCE2B4C3ADE65F61AF7D6BF83F8ED8EC045591BA53BA59",
+    "vnc-v1-4-person.png": "F3C98CD4B5DF4B4C778F9D40C836E82B13C0AE01CBB79FBEE457206651E3C779",
+    "vnc-v1-5-confirm.png": "4DEDBDC1934283FBE6428AB386FACA51E9571024BF05BDACAD092584D00F7F2B",
+    "vnc-v1-6-sent.png": "4C1C059B43AA68CDE8E24382D25613CE9B06DF650A7A6986B8EDD256EF87746E",
+    "vnc-v1-7-after.png": "A2FAE5F38645EBD9A21403C6312FE45BB3F0DC07B3C563A9A9FB0A4A64E1D737"
+  },
+  "newDesign": "The original server's 320 MCP cost and wait time are not modelled (served pcp/mcp are 0); persistence reuses the 0x0704 rank tables with event CharacterSpeciallyPromoted and the actor id.",
+  "knownGaps": [
+    "confirm dialog placeholders ($com_xfullname$ etc.) render empty (client-side context writer not located)",
+    "after the restart leg the relaunched authority does not inherit LOGH7_EXTRA_CARD_COMMANDS, so the card shows the 3 default commands"
+  ]
+}

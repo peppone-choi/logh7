@@ -1,0 +1,105 @@
+{
+  "schema": "logh7-condition-verification/1",
+  "condition": 11,
+  "alsoConditions": [
+    9,
+    13
+  ],
+  "feature": "任命 CommandCardAppointment (personnel): post list (0x1208, static appointer == player card), person list (0x1202), character info (0x0322/0x0323), command 0x0707 -> PostgreSQL -> restart -> relogin",
+  "verdict": "PLAYER_VISIBLE_REPRODUCIBLE",
+  "runId": "20260903T050523Z-natural-l1-relogin-v1",
+  "method": "natural PostgreSQL authority, unmodified client code path (item115 = reversible debug-log working copy for logs only), one SendInput credential per login, VNC clicks; read-only DB inspection (guest-db-inspect); authority restart on the same database (guest-restart-authority); no process-memory writes.",
+  "newDesignNotes": "The static card field @6 (appointing authority) and the served candidate lists are still driven by probe env (LOGH7_STATIC_CARD_APPOINTER / LOGH7_NINMEI_PROBE=10 / LOGH7_NINMEI_CHARS); persistence tables original_card_appointment / original_character_card are NEW_DESIGN (original server DB semantics unrecoverable).",
+  "checks": {
+    "post_list_served_0x1208": true,
+    "character_list_served_0x1202": true,
+    "information_character_served_0x0322": true,
+    "appointment_accepted_0x0707": true,
+    "db_appointment_row_card40_target2": true,
+    "db_character_card_target2_card40": true,
+    "db_domain_event_CharacterCardAppointed": true,
+    "authority_restarted_on_same_db": true,
+    "db_identical_after_restart_and_relogin": true,
+    "relogin_one_submission": true,
+    "run_closed_cleanly": true
+  },
+  "observed": {
+    "appointmentWire": [
+      "card-appointment-accepted;card=40;target=2;appointer=2;authorityVersion=25;payloadHex=07070000000000000002000000000000000000000002000000280000000000000000000000000000"
+    ],
+    "dbAppointment": [
+      {
+        "character_id": 2,
+        "card_id": 40,
+        "target_character_id": 2,
+        "authority_version": 25,
+        "created_at": "2026-09-03T14:08:07.831883+09:00"
+      }
+    ],
+    "dbCharacterCard": [
+      {
+        "character_id": 2,
+        "card_id": 40,
+        "appointed_by_character_id": 2,
+        "authority_version": 25,
+        "updated_at": "2026-09-03T14:08:07.831883+09:00"
+      }
+    ],
+    "accountVersionAfter": "25",
+    "accountVersionAfterRelogin": "25"
+  },
+  "receipts": {
+    "census-after-exit.json": "67DA64DEBDDDFC3D7BA0484C3BFF38F16FEF5967BB38F102A8BA91593F3B036E",
+    "clean-stage-final.json": "83BFA27302B44F6528774B1A90AFF9947F508277F8DA897E0D2F749A13880EDD",
+    "clean-stop.json": "A8FDC91F9FAEFDECEC149C2F67632EA150D5CA737230462A9DF22D6AC510DAFE",
+    "cleanup.json": "5A31AE75D60669888AC6E6E416F3B2234C8D7EA463D5ABB889E80C17F866B343",
+    "cred-ak.json": "646CC0A0FC7C198FA123AFFB018DA87C2749954D3397DEC9DCED3E52FC085329",
+    "cred-r.json": "4545B3B9E3D418B20D48E26A1158089F3F2F5B94486E8F5F88B46833EAA4DF21",
+    "db-ak.json": "0D3A0DBD403ACCA7436534B71E601E8EF2BAC4CB4B694CA13F8F26FCC7C3E629",
+    "db-r0.json": "4E5943B0A08061C73EAECF6EAD0DB812CE589A67CB0AC45DB6F6F544FF3931D4",
+    "db-r1.json": "261F4493D717F2A6D7051EECAE79F461CFD8B96C6342C4102394CB4F169A73B7",
+    "debuglog-after-confirm-ak.json": "96B1B0C3D1D582387705215FD969BDF268CD383B7ADDACF078144E547D668A66",
+    "debuglog-final.json": "37D2A18007F6B5805DE04650E71BFCE5D73D5B8F9D7D1D1F4C7DE1BBD2D65311",
+    "fresh-run-plan.json": "E070DE4E422FCAB16D50751F28D303753D56943C3888256F5F357BE40FC0482F",
+    "fresh-run-prep.json": "08F19D5B523687757C3F8DDB72B15B55D9E6B33B9B555E1BBB95473F135A4BB8",
+    "host-summary.json": "7BC2A0549405AC37513B39A3790A3D8001D0B4D325B37CADD4A16C1A23CA1B1C",
+    "preinput-desktop.json": "CBA892E1F1D0F9AF51C8F8CA655AE8F34D0DE6235882FC2CAF8F361A4149F9F0",
+    "relaunch-prep.json": "EB979DF13373B21BA5982A6126DA850504E8BB0D4674F886C51F1535A04793F7",
+    "server-wire.jsonl": "BF6D150C97DE6936BA63FB2AC90B08822F25E395294DAB390C61E2DF3B2A387D",
+    "step-census-after-exit-host.json": "F24BCE03B06C5D5CB022371E796FD278C3C8D964C1032AF6BD9263ABC4C9186B",
+    "step-clean-stage-final-host.json": "4ED476E68CAEE338B79E5762671CCAFBBC445A5C8F427E9267F560029B181A44",
+    "step-clean-stop-host.json": "76A533A02E5BD251983421D7592A9AEA9C17B6364FD0642C77BFD8F2156A723A",
+    "step-cleanup-host.json": "25E251E0C95678A897D7FEF591C3E85194206A7B59901F3D112CABB2B48B62BE",
+    "step-cred-ak-host.json": "40AD30D3137CFE4608B1391D42BBA8987089A5A88DEC5290D92991A65AC414B7",
+    "step-cred-r-host.json": "1691AEE7C1891897AEAE78DCDBC3B9485B5B91707306A8A9FB859C7A44B06CCE",
+    "step-db-ak-host.json": "9B25443B01324CF344C00D0A650B4DC0D267B44E201FFE36719ADE6B47F41FD6",
+    "step-db-r0-host.json": "E7F02671286D7CB4655F6AE8A3EF9B56C038A9FC9DF6D54C16C82342215F312C",
+    "step-db-r1-host.json": "01F98A9BE1231EFF192D890EA69BFC5EA5F1056BE3F6547FF38E09061E03499C",
+    "step-debuglog-after-confirm-ak-host.json": "4390C74859A81DC05E2D56B4B50A1C644625F0C785EDBD72E75B35D70D899F70",
+    "step-debuglog-final-host.json": "7EE3037B5F6A70B7904EE088662F44F4105DF398DE8942ED3A392E6A886FE346",
+    "step-restart-r-host.json": "052FECE98CF7885527481EDF2657A22580A10388284D0EC65A95A48E997AB81A",
+    "step-verify-after-stop-host.json": "3D77A1885C3925DA0E3BD100453B99956766FECE0D79C518D829EC318D5E929A",
+    "step-wire-after-confirm-ak-host.json": "56EC6BE8BD06CF74468384C63057C5DE87EE4DFC6B1618B4DCCCAC4047B35A2B",
+    "step-wire-r-host.json": "95C69286BA8ED7D1F256235A80BB239C076F6C1CF2754092C3E4748B53490CAC",
+    "verify-after-stop.json": "68212046377E5033CFBCA48131A06A22019591D2065E90EB47EF40AF581533E0",
+    "vnc-r-0-lobby.png": "F92E677C7784E1C546F3F01442C44D3D1A4AEC38F8DB118EFA5992EFD258D529",
+    "vnc-r-1-roster.png": "E9820CFB755ACA7E0E4D585B143EEDA7DB19A2C1EDA6290B5CC5C4A4B4D4022D",
+    "vnc-r-2-strategy.png": "B9C5BC0485D4DAB781D518E23B027CF1F03A27A8B6FA7F62CF92AA339FD0AD40",
+    "vnc-r-3-cardtab.png": "9C365367CCBAFA0C67AE1E78E5A83499E60F7F0CEEB0333EF206352386505598",
+    "vnc-r-4-card.png": "EBB763614C18B8724C2C28B001157FC9AF1C5FD5784F093CB01D753F12CAD412",
+    "vnc-s0-lobby.png": "55F2E09C7739093FB58C70D967ED41FF641DB19A923FAA8A5F86C7D9392E59EB",
+    "vnc-s1-roster.png": "85F8E071F1C08AA418872B5958AF17D2A701603BEE2992A8A01348D0AD515E5B",
+    "vnc-s10-confirm.png": "697B316CB63BB64BE0DAF2F69C10747548FB415C6247B3EFA1EB664442CDC8E7",
+    "vnc-s11-after.png": "AE4B36CEC25942E2CE7B20CAABE0C04F6E9335571A7C0712F43EDCB9308FAC77",
+    "vnc-s2-strategy.png": "FC61F83095F37821F01C0F527212A4BFFF8A7D7AEEBE22A9BF0200B4CD17F1A9",
+    "vnc-s3-cardtab.png": "996CF329116C839916928A2C352B3AC6F25E2F52C20A8AF7018E787A7D31BFBE",
+    "vnc-s4-card.png": "000E522AF2666C5B21AD1EC1753C2F9EF6AAC79D8CA5D5C255904179F2ABC6C9",
+    "vnc-s5-ninmei.png": "7A0BDEAFDD54998ED204C3ED95CEF0D637B24599C16C67846CC88FF1259065ED",
+    "vnc-s6-row.png": "1BF400CF94DE98206887215BFA77CAD4114CADEC5D78DAE83892ED446CD9017B",
+    "vnc-s7-kettei.png": "A7494CB8212EC9115D65A47F468347ACBF65BFE091D55E82ADC06C11255BFAE6",
+    "vnc-s8-charrow.png": "1EADADA4BDC5C5E5971FEBFF3F821FE7B830DCD932405C10A7A11DF4563AF3D3",
+    "vnc-s9-kettei2.png": "6F5FD70A147B05D9ACA613A2A7BCE618BA649C182F377E779EDE7175B0180A5E",
+    "wire-after-confirm-ak.json": "4EC4A55818B1D4EF596F828F96A6401AEB60E0ED670B3A5B7830E5BBFB409913",
+    "wire-r.json": "25D1D354F8A703E55AB463A49DB779C3E171EDE3DF1E892754513A86ECDEF69D"
+  }
+}
