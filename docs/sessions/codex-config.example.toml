@@ -1,0 +1,49 @@
+# LOGH7 세션 2용 Codex CLI 설정 예시 — ~/.codex/config.toml 에 사용자가 직접 병합한다.
+# (이 파일 자체는 Codex 가 읽지 않는다. 전역 설정 변경은 사용자 승인 사항이라 에이전트가 대신 쓰지 않았다.)
+# 키 이름 확인: https://learn.chatgpt.com/docs/config-file/config-reference (2026-09-27)
+
+# ── 샌드박스·승인 ──────────────────────────────────────────────
+# 권장 A(이번 세션): VBoxManage(%USERPROFILE%\.VirtualBox 쓰기), Docker(named pipe), Ghidra/Java, Gradle 이
+# Windows 네이티브 샌드박스(실험 단계)에 막히지 않도록 전체 접근 + 필요 시 질문.
+sandbox_mode = "danger-full-access"
+approval_policy = "on-request"
+
+# 대안 B(더 엄격): 막히는 도구가 생기면 A 로 되돌린다.
+# sandbox_mode = "workspace-write"
+# approval_policy = "on-request"
+# [sandbox_workspace_write]
+# writable_roots = ['E:\Tools', 'E:\VM', 'E:\reverse-skill', 'E:\logh7-original']
+# network_access = true
+
+# AGENTS.md 가 없는 폴더에서 CLAUDE.md 를 대신 읽게 함(logh7 에는 AGENTS.md 가 있음)
+project_doc_fallback_filenames = ["CLAUDE.md"]
+
+# ── 멀티 에이전트(서브에이전트) ───────────────────────────────
+[features]
+multi_agent = true
+
+[agents]
+max_concurrent_threads_per_session = 5
+
+# 역할 설명(선택). Codex 가 이 형식을 거부하면 이 블록들만 지운다.
+[agents.server-core]
+description = "T1 서버 핵심: Kotlin/Netty 서버 골격(Spring 없음, 내장 Ktor), 스키마→코덱, MPS 암호 계층, 스텁 게이트웨이·업데이트 스텁. 쓰기: server/, docs/protocol/server-notes.md"
+
+[agents.re-deep]
+description = "T2 정적 역공학: Ghidra headless 로 키 교환 필드 맵·테스트 벡터, Login/LGLoginOK 본문, 업데이터 본문, 전략 지도 데이터. 쓰기: docs/protocol/, docs/re/, server/protocol/src/test/resources/vectors/, work/logh7-client-triage/"
+
+[agents.l10n]
+description = "T3 한국어화: HFWR/GFWR 왕복 도구, 용어집(일본어 직역+나무위키), 로캘·글꼴 문자열 패치 도구(사본 전용). 쓰기: tools/l10n/, docs/l10n/"
+
+[agents.content-docs]
+description = "T4 규칙 문서: Wayback 패치노트 요약·규칙 변경 이력, 매뉴얼 부록 CSV 페이지 대조. 쓰기: docs/manual/"
+
+[agents.ops]
+description = "T5 운영: GCP 전제 ADR-0005 개정안, docker-compose, 로컬 Ubuntu VM 리허설, GCP IaC 초안(apply 금지), 비용 추정, 백업 설계. 쓰기: deploy/, docs/ops/"
+
+# ── Linear MCP ────────────────────────────────────────────────
+# 설정은 명령으로: codex mcp add linear --url https://mcp.linear.app/mcp
+# 로그인은 사용자가 직접: codex mcp login linear   (OAuth, 브라우저 승인)
+# 수동으로 쓰려면:
+# [mcp_servers.linear]
+# url = "https://mcp.linear.app/mcp"
