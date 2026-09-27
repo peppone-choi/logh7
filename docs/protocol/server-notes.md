@@ -52,7 +52,7 @@ Set-Location E:\logh7\server
 
 - `evidence:guess` 후속 `gradlew.bat build :app:installDist --no-daemon` 실행 성공. JUnit 13개, 실패 0: protocol 7개(정적 벡터 총 22건 포함), gateway 5개, engine 1개(동시 생산자 10개·명령 1,000개).
 - `evidence:guess` 배포 디렉터리에서 JVM 앱 기동 후 GET /health=ok, POST /commands/probe=queued, GET /snapshot의 revision=1/acceptedCommands=1을 확인했다. TCP 47900/47902 합성 입력이 시각·방향·원본 hex로 기록됨을 확인했다. `netstat`에서 세 포트 모두 127.0.0.1 바인딩임을 확인한 뒤 프로세스를 종료했고 LISTENING 잔존 없음도 확인했다.
-- `evidence:guess` smoke 산출물은 `server/build/smoke-captures/`(git 제외), JUnit XML은 각 모듈 `build/test-results/test/`이다. GitHub Actions 정의는 작성했으나 원격 CI는 실행하지 않았다.
+- `evidence:guess` smoke 산출물은 `server/build/smoke-captures/`(git 제외), JUnit XML은 각 모듈 `build/test-results/test/`이다. 리드가 push 후 [GitHub Actions 성공](https://github.com/peppone-choi/logh7/actions/runs/36303360614)을 확인했다.
 - `evidence:guess` 합성 TCP 연결에서 업데이트 요청 `00026810`, `0006682000000083`에 각각 `00026811`, `00026822`가 반환됨을 확인했다. 방향별 `.bin`에 원본 byte stream이 정확히 남았다. 이것은 실제 업데이터 실행 관찰이 아니다.
 - `evidence:guess` 활성 VirtualBox Host-Only Ethernet Adapter의 APIPA 주소 `169.254.44.17/16`을 `LOGH7_BIND_ADDRESS`로 지정한 뒤 합성 TCP 요청을 보냈다. 게임·업데이트 포트는 해당 주소에만, 운영 API는 `127.0.0.1`에만 LISTENING 상태였고 업데이트 응답 및 방향별 `.bin`이 일치했다. 프로세스 종료 후 세 포트의 LISTENING 잔존이 없음을 확인했다. VM 게스트에서의 접속은 아직 검증하지 않았다.
 - `evidence:client` T2 `kex-envelope.md`, `update-protocol.md`, `login-messages.md`의 정적 분석을 반영했다. 47902 응답은 구현됐지만 VM에서 원본 업데이터로 검증해야 한다.

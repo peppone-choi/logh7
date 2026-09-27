@@ -1,57 +1,37 @@
----
-title: 격리 실행 환경 계획
-author: 최병호
-created: 2026-09-27
-status: 사용자 결정 대기 (Linear LOGH-5)
----
+# 격리 실행 환경
 
-# 격리 실행 환경 계획
+작성: 최병호 · 2026-09-27 · LOGH-5·6·20
 
-원본 설치·클라이언트 실행은 호스트에서 하지 않는다(CLAUDE.md §4). 우선순위는 VirtualBox VM → Windows Sandbox → (불가 시 확인).
+## 현재 상태
 
-## 1. 현황 (2026-09-27 확인)
+VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM 골격을 만들었다. Windows OS·원본 게임은 아직 설치하지 않았다. `evidence:client` (동적 케이스 E-101).
 
-| 후보 | 상태 | 근거 |
-|---|---|---|
-| VirtualBox 7.0.18 | **사용 불가** — 레지스트리 `HKLM\SOFTWARE\Oracle\VirtualBox` InstallDir=`G:\VBox\` 인데 G: 드라이브 없음 | `Get-ItemProperty HKLM:\SOFTWARE\Oracle\VirtualBox` |
-| 기존 VM | `E:\VM\myUbuntu`(VirtualBox, Ubuntu) 1개. Windows 게스트 없음 | `Get-ChildItem E:\VM` |
-| VMware Workstation 17.6.4 | **사용 가능** (`C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe`, 실행 중 VM 0) | 설치 목록, `vmrun list` |
-| Windows Sandbox | Win10 Pro라 지원 가능, **기능 꺼짐**(`WindowsSandbox.exe` 없음). 켜려면 관리자 권한 시스템 설정 변경 필요 | `Test-Path $env:windir\System32\WindowsSandbox.exe` |
-| Windows 게스트 ISO | E: 드라이브에서 발견 안 됨 | `Get-ChildItem E:\ -Recurse -Depth 3 -Filter *.iso` |
+| 항목 | 확인 결과 |
+|---|---|
+| 실행 파일 | `E:\VirtualBox\VBoxManage.exe`, `7.2.20r175154` |
+| Windows VM | `E:\VM\logh7-win\logh7-win.vbox`, UUID `742099e5-d79b-40fb-90e6-a10f12235525` |
+| 자원 | 4 GiB RAM, 2 CPU, 64 GiB 동적 VDI, BIOS, VBoxSVGA·3D 켜짐 |
+| 네트워크 | NIC1 host-only, `VirtualBox Host-Only Ethernet Adapter`, NIC2 없음 |
+| 공유·계정·로캘 | OS 미설치로 미설정. 자동 로그인·빈 비밀번호·ja-JP로 구성 예정 |
+| 스냅샷 | `clean`/`installed` 미생성. 빈 VM을 설치 완료 스냅샷으로 표시하지 않음 |
+| ISO | Microsoft 공식 일본어 x64 링크 요청이 SentinelReject. 미확보 |
 
-## 2. 게스트 공통 규칙
+표의 환경 관찰은 `evidence:client` (E-101·E-102), 예정 설정은 `evidence:guess`다.
 
-- **자동 로그인 + 빈 비밀번호**(또는 매우 단순한 값). 사용자에게 로그인·비밀번호를 요구하지 않는다. 설정한 값은 이 문서에 기록한다.
-- 시스템 로캘 **일본어(ja-JP)** — 원작 요구 사양이 Windows 2000/XP 일본어판(W p.6).
-- 네트워크: **호스트 전용**. 외부 인터넷 차단. 스텁 서버는 호스트(또는 같은 호스트 전용망의 서버 VM)에서.
-- 공유 폴더: 호스트 `E:\logh7-original\extracted\` 읽기 전용, `E:\logh7\work\vm-share\` 쓰기(결과 반출).
-- 스냅샷: 설치 전 `clean`, 설치 후 `installed`.
-- DirectX 8.1 이상 필요(W p.6). CD의 `DirectX9\` 재배포본 사용 가능.
+## G: 조사와 재설치
 
-## 3. 선택지별 절차 초안
+G:의 과거 MBR 식별자는 `46BE25E5`, 파티션 오프셋은 1 MiB였다. 현재 열거된 물리 디스크 3개(C: Samsung 250 GB, D: Hitachi 500 GB, E: SK Hynix 2 TB) 중 이에 해당하는 디스크가 없었다. 문자 없는 볼륨은 EFI·복구 파티션이었다. 따라서 다른 볼륨에 G:를 부여하지 않았다. `evidence:client` (세션 2 리드 실행 기록).
 
-### A. VirtualBox (G: 복구 시)
-1. G: 드라이브 연결 확인 → `G:\VBox\VBoxManage.exe --version`
-2. Windows 게스트 ISO 필요. `VBoxManage unattended install` 로 사용자 계정 + 빈 비밀번호 + 자동 로그온 구성
-3. 호스트 전용 어댑터, 공유 폴더, 스냅샷
+사용자가 재설치와 `E:\VirtualBox` 예외 경로를 승인했다. 첫 설치는 E:\Tools 상위 폴더 권한 요건으로, 두 번째는 기존 7.0.18 제거 중 `Invalid Drive: G:\`로 실패했다. 빈 전용 폴더 `E:\Tools\virtualbox-legacy-drive`를 관리자 설치 과정 동안만 G:로 연결하여 이전 제품 제거를 끝내고 새 버전을 설치했다. 임시 연결은 finally에서 해제했다. 기존 Ubuntu VDI·설정은 보존했다. `evidence:client`
 
-### A'. VMware Workstation (대안)
-1. Windows 게스트 ISO 필요. 간이 설치(Easy Install)로 계정·자동 로그온 구성
-2. 네트워크 "Host-only(VMnet1)", 공유 폴더, 스냅샷 — `vmrun` 으로 스크립트화
+설치 파일은 [Oracle 7.2.20 공식 배포](https://download.virtualbox.org/virtualbox/7.2.20/)에서 받았다. SHA256 `a81777d2b36380ce042a29e9c554cf032eb46a793f62e3cc82e7411e535c2c26`이 공식 목록과 일치하고 Oracle America 전자서명은 Valid였다. [설치 폴더 요건](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/installation.html), [subst](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/subst). 설치·임시 경로는 E:이며 Windows 드라이버·Installer 시스템 등록 파일은 OS 관리 위치에 설치된다. `evidence:client`
 
-### B. Windows Sandbox (기능 켜기 후)
-- `.wsb` 설정: `<Networking>Disable</Networking>`(첫 실행) → 스텁 연결 단계에서는 호스트 전용 대체 필요, `<MappedFolder>` 로 추출본·반출 폴더 연결, `<LogonCommand>` 로 설치 스크립트 실행.
-- 창을 닫으면 초기화되므로 반복 디버깅에는 불리. 설치 결과 비교(LOGH-6)에는 충분.
+## ISO 확보 후 재개
 
-## 4. 스텁 서버 접속 (LOGH-20)
+1. [Microsoft 공식 Windows 10 다운로드](https://www.microsoft.com/en-us/software-download/windows10ISO)에서 x64 ISO를 E:에 확보하고 공식 해시와 대조한다. 직접 링크 API는 이번에 거부됐고 Windows Chrome은 미디어 생성 도구 안내로 이동했다. 다른 배포처의 ISO로 대체하지 않았다. `evidence:client` (E-102).
+2. 기존 `logh7-win`에 ISO를 연결하고 일본어 시스템 로캘·자동 로그인·빈 비밀번호를 구성한다. OS/언어 설치에 필요한 기간에만 NAT를 허용한다. `evidence:guess`
+3. 게임 실행 전에 NIC1 host-only·NIC2 없음과 게스트 외부 인터넷 차단을 확인한다. 원본 공유는 읽기 전용, 결과 반출 폴더만 쓰기 가능하게 설정하고 `clean` 스냅샷을 만든다. `evidence:guess`
+4. 파일 해시·레지스트리를 설치 전후 수집하고 원본 설치를 VM 안에서만 수행한다. 설치본 비교 후 `installed` 스냅샷을 만든다. `evidence:guess`
+5. 호스트 전용 IP에 스텁을 바인딩한 뒤 VM에서 `exe\G7MTClient.exe <스텁 host> 47900 <세션명> 1 dummy`를 실행한다. 첫 0x34 캡처와 정적 근거를 대조하기 전에는 프레이밍을 validated로 승격하지 않는다. `evidence:client` (기존 E-014·E-028), `evidence:guess` (실행 계획).
 
-- 원본 무수정: 게스트에서 `exe\G7MTClient.exe <스텁 host> 47900 <세션명> 1 dummy` 로 직접 실행한다(ADR-0002). 세션 서버 주소는 스텁이 LGLoginOK(0x7001)로 돌려준다.
-- `202.8.80.179` 는 IP 리터럴이라 hosts 파일로는 바뀌지 않는다. 원본 체인(BootFirst→업데이터)을 그대로 관찰해야 할 때만 NAT 리다이렉트를 쓴다.
-- 업데이터는 `update.ini [UPDATE] SERVER_ADDRESS/SERVER_PORT` 로 업데이트 서버를 스텁에 지정할 수 있다(docs/re/connection-flow.md).
-
-## 5. 결정이 필요한 것 (사용자)
-
-1. G: 드라이브를 다시 연결할 수 있는지(VirtualBox 복구)
-2. 아니면 VMware를 쓸지, 그 경우 Windows ISO(버전·경로)
-3. 또는 Windows Sandbox 기능을 켤지
-
+DirectX 8·3D 때문에 클라이언트 기동이 실패하면 그 실패를 기록하고 VMware 등 대안을 사용자에게 묻는다. 현재는 OS 설치 전이라 그래픽 호환성 실패를 관찰한 상태가 아니다. `evidence:guess`

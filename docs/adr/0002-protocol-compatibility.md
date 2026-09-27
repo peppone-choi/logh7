@@ -1,5 +1,7 @@
 # ADR-0002 프로토콜 호환 전략
 
+> 세션 2 정정: 로그인 요청의 실제 opcode는 0x7000이며 LGLoginOK의 IPv4는 u32 필드다. 업데이터의 0x80xx는 외부 opcode가 아닌 오류 본문 값이다. 구현은 [최신 로그인 명세](../protocol/login-messages.md)와 [업데이터 명세](../protocol/update-protocol.md)를 따른다. 명령행 인자·서버 주소 반환 전략은 유지한다. `evidence:client` (E-302·E-303).
+
 - 상태: 채택 — 명령행 인자 방식(정적 근거 high), P2 동적 확인으로 validated 예정
 - 작성: 최병호
 - 관련: ADR-0001, ADR-0004, docs/re/connection-flow.md, docs/protocol/protocol-draft.md
