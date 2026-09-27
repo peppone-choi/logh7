@@ -21,9 +21,16 @@
 | `server/` | 대체 서버 (예정) |
 | `l10n/` | 번역 파이프라인 (예정) |
 
-## 원본 준비
+## 게임 원본
 
-게임 원본은 저장소에 포함하지 않는다. 사용자가 가진 복제본(archive.org `logh-7`)을 아래 스크립트로 검증·추출한다.
+게임 원본은 저장소에 포함하지 않는다. 아래 보관본을 받아 스크립트로 검증·추출한다.
+
+| 자료 | 링크 | 비고 |
+|---|---|---|
+| 클라이언트 CD 이미지 | **https://archive.org/details/logh-7** (`Logh7.bin` + `Logh7.cue`) | 무결성 기준: `logh-7_files.xml` |
+| 공식 매뉴얼(웹판, 2004-10-07, 101p) | https://archive.org/details/gin7manual | CD 동봉판(2004-04, 69p)은 CD 이미지 안에 있음 |
+| 공식 추가 데이터 업데이트 `G7UPD040514.exe` | https://web.archive.org/web/20040625193252/http://gineiden.com:80/G7UPD040514.exe | 텍스처·모델만 포함(실행 파일 변경 없음) |
+| 공식 사이트(보관본) | https://web.archive.org/web/2004*/gineiden.com | 패치노트·공지·FAQ |
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\fetch-original.ps1 -Root E:\logh7-original
@@ -33,5 +40,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\fetch-original.ps1 -Ro
 |---|---|---|---|
 | `Logh7.bin` | 229,070,688 | `bf87c6a8cb068f05625737377a07b09d` | `80e261e9d84c81bca622c99d9cbdc47a2154c1a8` |
 | `Logh7.cue` | 71 | `878418e704a913f7baac67b38b10e680` | `9bff4ea17ca6ff7b088440bd7f8a5206cd2dfe81` |
+| `G7UPD040514.exe` | 10,913,837 | — | SHA256 `0bd0cd52eca4050e8045cf9e469788f222333e0509b8259f64ce93736a2e489c` |
 
 작성: 최병호

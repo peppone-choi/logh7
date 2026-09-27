@@ -12,9 +12,10 @@ source: ADR-0001, ADR-0002, ADR-0004, ADR-0005, docs/re/connection-flow.md
 ```mermaid
 flowchart LR
   subgraph Player["플레이어 PC (Windows, 일본어 로캘 불필요 목표)"]
-    BF["BootFirst.exe"] --> UPD["Gin7UpdateClient.exe<br/>(버전 131)"]
-    UPD --> CL["G7MTClient.exe<br/>(원본 무수정)"]
-    DLL["프록시 DLL<br/>connect 리다이렉트 + 한글 렌더링 훅"] -. 로드 .-> CL
+    LA["런처<br/>(인자: host port 세션명)"] --> CL
+    CL["G7MTClient.exe<br/>(원본 무수정)"]
+    UPD["Gin7UpdateClient.exe<br/>(update.ini 로 업데이트 서버 지정)"]
+    PATCH["한글화 패치<br/>setlocale·글꼴명 + MsgDat CP949"] -. 적용 .-> CL
   end
 
   subgraph Home["자택 서버 (Docker Compose)"]
@@ -48,10 +49,11 @@ flowchart LR
     GH["Ghidra 프로젝트<br/>work/logh7-client-triage/ghidra"]
     CASE["케이스 Evidence<br/>work/logh7-client-triage/evidence"]
   end
-  C2 -- "202.8.80.179:47900/47902 → 리다이렉트" --> STUB
+  C2 -- "명령행 인자로 스텁 주소 지정<br/>(LGLoginOK 가 세션 주소도 스텁으로)" --> STUB
   STUB -- "기록 바이트" --> CASE
   GH -- "정적 가설" --> CASE
   CASE -- "Finding validated(정적1+동적1)" --> SPEC["docs/protocol/*"]
 ```
 
 주의: 클라이언트 안에 서버 계산이 얼마나 들어 있는지(전술 시뮬레이션의 클라이언트/서버 분담)는 아직 확인되지 않았다 `evidence:guess`. P2 트래픽 기록 후 이 그림을 갱신한다.
+

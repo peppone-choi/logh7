@@ -43,13 +43,15 @@ status: 사용자 결정 대기 (Linear LOGH-5)
 - `.wsb` 설정: `<Networking>Disable</Networking>`(첫 실행) → 스텁 연결 단계에서는 호스트 전용 대체 필요, `<MappedFolder>` 로 추출본·반출 폴더 연결, `<LogonCommand>` 로 설치 스크립트 실행.
 - 창을 닫으면 초기화되므로 반복 디버깅에는 불리. 설치 결과 비교(LOGH-6)에는 충분.
 
-## 4. 트래픽 리다이렉트 (LOGH-20)
+## 4. 스텁 서버 접속 (LOGH-20)
 
-- 원본 무수정: 게스트에서 `202.8.80.179` 를 스텁 쪽으로 보낸다(루프백 별칭 IP + 포트 프록시 또는 호스트 전용망에서 해당 IP를 스텁 호스트에 부여).
-- 업데이터는 `SERVER.INI` 로 주소 재지정 가능성을 먼저 확인(docs/re/connection-flow.md).
+- 원본 무수정: 게스트에서 `exe\G7MTClient.exe <스텁 host> 47900 <세션명> 1 dummy` 로 직접 실행한다(ADR-0002). 세션 서버 주소는 스텁이 LGLoginOK(0x7001)로 돌려준다.
+- `202.8.80.179` 는 IP 리터럴이라 hosts 파일로는 바뀌지 않는다. 원본 체인(BootFirst→업데이터)을 그대로 관찰해야 할 때만 NAT 리다이렉트를 쓴다.
+- 업데이터는 `update.ini [UPDATE] SERVER_ADDRESS/SERVER_PORT` 로 업데이트 서버를 스텁에 지정할 수 있다(docs/re/connection-flow.md).
 
 ## 5. 결정이 필요한 것 (사용자)
 
 1. G: 드라이브를 다시 연결할 수 있는지(VirtualBox 복구)
 2. 아니면 VMware를 쓸지, 그 경우 Windows ISO(버전·경로)
 3. 또는 Windows Sandbox 기능을 켤지
+

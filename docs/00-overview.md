@@ -24,9 +24,10 @@
 
 | 영역 | 내용 | 문서 |
 |---|---|---|
-| 원본 | archive.org 해시 일치, ISO 변환, InstallShield 7 캐비닛 전량 추출·MD5 검증(실패 0) | tools/, work 케이스 E-001~E-003 |
-| 클라이언트 구성 | 런처 `G7Start.exe`(CD) → `BootFirst.exe` → 업데이터 `Gin7UpdateClient.exe`(버전 131) → 본체 `exe\G7MTClient.exe`. 데이터 `data\`(이미지·모델·사운드·`MsgDat\*.dat`) | docs/re/ |
-| 네트워크 | 원시 TCP. 게임 서버 기본 `202.8.80.179:47900`, 업데이트 서버 `:47902`, 업데이터는 `SERVER.INI`로 주소 재지정 가능성 | docs/re/connection-flow.md |
+| 원본 | archive.org 해시 일치, ISO 변환, InstallShield 7 캐비닛 전량 추출·MD5 검증(실패 0). 공식 추가 데이터 G7UPD040514(텍스처만) 확보 | tools/, docs/re/update-040514.md, E-001~E-003·E-007~E-008 |
+| 클라이언트 구성 | `BootFirst.exe` → 업데이터 `Gin7UpdateClient.exe`(버전 131, `update.ini`) → 본체 `exe\G7MTClient.exe`. CD의 `G7Start.exe` 는 설치 메뉴. 데이터 `data\`(이미지·모델·사운드·`MsgDat\*.dat`) | docs/re/binary-inventory.md |
+| 네트워크 | **MultiTerm MPS** 미들웨어, 원시 TCP. 게임 로그인 서버 기본 `202.8.80.179:47900`(명령행 인자로 변경 가능, 세션 서버는 로그인 응답이 지정), 업데이트 서버 `:47902`. **Blowfish 변형 + 키 교환 + 체크섬·시퀀스 봉투**로 암호화 | docs/re/connection-flow.md, docs/protocol/protocol-draft.md |
+| 텍스트 | 대사 98%가 외부 `MsgDat`(HFWR, Shift_JIS), 변환은 `setlocale("Japanese")+mbstowcs` 한 곳 | docs/l10n/text-format.md |
 | 규칙 | 매뉴얼 2판본 + 사이트 스냅샷을 시스템별로 정리, 부록 표 CSV화 | docs/manual/ |
 | 미구현 | 후보 28건(U-01~U-28) | docs/manual/unimplemented-candidates.md |
 
