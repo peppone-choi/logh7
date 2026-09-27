@@ -14,7 +14,7 @@ VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM 골격을 �
 | 네트워크 | NIC1 host-only, `VirtualBox Host-Only Ethernet Adapter`, NIC2 없음 |
 | 공유·계정·로캘 | OS 미설치로 미설정. 자동 로그인·빈 비밀번호·ja-JP 시스템 로캘과 ko-KR 입력·글꼴 구성 예정 |
 | 스냅샷 | `clean`/`installed` 미생성. 빈 VM을 설치 완료 스냅샷으로 표시하지 않음 |
-| ISO | Microsoft 공식 일본어 x64 링크 요청이 SentinelReject. 미확보 |
+| ISO | Microsoft 공식 일본어 x64 링크 요청이 SentinelReject. 판본 선택도 요청 처리 오류. 미확보 |
 
 표의 환경 관찰은 `evidence:client` (E-101·E-102), 예정 설정은 `evidence:guess`다.
 
@@ -28,13 +28,15 @@ G:의 과거 MBR 식별자는 `46BE25E5`, 파티션 오프셋은 1 MiB였다. �
 
 ## ISO 확보 후 재개
 
-1. [Microsoft 공식 Windows 10 다운로드](https://www.microsoft.com/en-us/software-download/windows10ISO)에서 x64 ISO를 E:에 확보하고 공식 해시와 대조한다. 직접 링크 API는 이번에 거부됐고 Windows Chrome은 미디어 생성 도구 안내로 이동했다. 다른 배포처의 ISO로 대체하지 않았다. `evidence:client` (E-102).
+1. [Microsoft 공식 Windows 10 다운로드](https://www.microsoft.com/en-us/software-download/windows10ISO)에서 일본어 x64 ISO를 E:에 확보하고 해시를 기록한다. 직접 링크 API는 거부됐고, ISO 페이지에서 Windows 10 판본 선택 후에도 요청 처리 오류가 났다. Windows 브라우저에서는 미디어 생성 도구 안내로 이동한다. 다른 배포처의 ISO로 대체하지 않았다. `evidence:client` (E-102 및 후속 확인).
 2. 기존 `logh7-win`에 일본어 Windows 10 x64 ISO를 연결하고 자동 로그인·빈 비밀번호를 구성한다. OS·언어 설치에 필요한 기간에만 NAT를 허용한다. 아래 게스트 로캘 절차를 마친 뒤 재부팅·검증한다. `evidence:guess`
 3. 게임 실행 전에 NIC1 host-only·NIC2 없음과 게스트 외부 인터넷 차단을 확인한다. 원본 공유는 읽기 전용, 결과 반출 폴더만 쓰기 가능하게 설정하고 `clean` 스냅샷을 만든다. `evidence:guess`
 4. 파일 해시·레지스트리를 설치 전후 수집하고 원본 설치를 VM 안에서만 수행한다. 설치본 비교 후 `installed` 스냅샷을 만든다. `evidence:guess`
 5. 호스트 전용 IP에 스텁을 바인딩한 뒤 VM에서 `exe\G7MTClient.exe <스텁 host> 47900 <세션명> 1 dummy`를 실행한다. 첫 0x34 캡처와 정적 근거를 대조하기 전에는 프레이밍을 validated로 승격하지 않는다. `evidence:client` (기존 E-014·E-028), `evidence:guess` (실행 계획).
 
 DirectX 8·3D 때문에 클라이언트 기동이 실패하면 그 실패를 기록하고 VMware 등 대안을 사용자에게 묻는다. 현재는 OS 설치 전이라 그래픽 호환성 실패를 관찰한 상태가 아니다. `evidence:guess`
+
+[Microsoft 공식 미디어 생성 도구](https://www.microsoft.com/en-us/software-download/windows10)는 `E:\Tools\WindowsMedia\MediaCreationTool_22H2.exe`에 받았다(SHA256 `690C8A63769D444FAD47B7DDECEE7F24C9333AA735D0BD46587D0DF5CF15CDE5`, Microsoft Corporation 서명 `Valid`). 도구가 ISO 생성 중 시스템 드라이브에 임시 파일을 둘 수 있어, C:에 캐시를 두지 않는 저장소 규칙을 보장할 방법을 확인하기 전에는 실행하지 않았다. ISO 파일은 여전히 없다. [Microsoft 안내](https://www.microsoft.com/en-us/software-download/windows10)는 미디어 생성 도구로 ISO를 만드는 경로를 설명한다. `evidence:manual` (공식 도구 경로), `evidence:client` (다운로드·서명·페이지 오류), `evidence:guess` (실행 보류 판단).
 
 ## 일본어·한국어 로캘 준비
 
