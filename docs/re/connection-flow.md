@@ -1,5 +1,7 @@
 # 접속 흐름 (트랙 B)
 
+> 세션 2 정정: 아래는 초기 조사 기록이며, 로그인 송신 opcode는 0x7000, LGLoginOK의 주소는 u32 IPv4다. 업데이터 0x80xx는 오류 본문 값이다. 구현 시 [로그인 명세](../protocol/login-messages.md)와 [업데이터 명세](../protocol/update-protocol.md)를 우선한다. `evidence:client` (E-302·E-303).
+
 - 작성자: 최병호
 - 작성일: 2026-09-27
 - 근거: Evidence E-011, E-012, E-013, E-014, E-018. 태그 `evidence:client`(관찰) / `evidence:guess`(추정), 신뢰도 high/medium/low.

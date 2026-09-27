@@ -27,15 +27,17 @@
 | [06-tactics](06-tactics.md) | 전술 게임 전반·커맨드·최고사령관 임무 |
 | [07-command-table](07-command-table.md) | 전략 커맨드 81개(CP·시간·상태) |
 | [08-organization-units-data](08-organization-units-data.md) | 부록 조직표·초기 배치·함종·병원 데이터(CSV) |
-| [unimplemented-candidates](unimplemented-candidates.md) | 미구현 후보 U-01~U-28, 수치 미기재 목록 |
+| [09-patch-history](09-patch-history.md) | Wayback 33 URL·18개 고유 공지 요약, 날짜·규칙·U 대응 |
+| [unimplemented-candidates](unimplemented-candidates.md) | 미구현 후보 U-01~U-32, 수치 미기재 목록 |
 
 ## 데이터
 
-`data/*.csv` — `tools/manual_tables.py` 로 부록 표에서 추출(사실 데이터만). 재생성:
+`data/*.csv` — `tools/manual_tables.py` 기반 보정 추출기로 부록 표에서 추출(사실 데이터만). 재생성:
 
 ```powershell
 $env:PYTHONPATH='E:\Tools\pylib'
-python tools\manual_tables.py E:\manual-variants\internet-archive\gin7manual.pdf docs\manual\data
+$env:PYTHONDONTWRITEBYTECODE='1'
+python docs/manual/rebuild-verified-tables.py E:\manual-variants\internet-archive\gin7manual.pdf
 ```
 
 ## 미결 질문

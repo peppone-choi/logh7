@@ -1,0 +1,8 @@
+# 작성자: 최병호. evidence:client — login-messages.md, candidate.
+messages:
+  - name: LGLoginRequest
+    opcode: 0x7000
+  - name: LGLoginOK
+    opcode: 0x7001
+  - name: LGLoginNG
+    opcode: 0x7002

@@ -1,0 +1,8 @@
+# 작성: 최병호 | evidence:guess
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+# game-server:8080 /metrics 는 서버 계약 확정 후 추가한다.

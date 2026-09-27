@@ -23,7 +23,7 @@
 
 ### 2.1 HFWR (constmsg.dat, messages_*.dat) — Shift_JIS 문자열 테이블
 ```
-+0x00  char[4]  magic = "HFWR" (0x52 0x57 0x46 0x48, dword 0x52574648)
++0x00  char[4]  magic = "HFWR" (0x48 0x46 0x57 0x52, dword 0x52574648)
 +0x04  u32      예약(0)
 +0x08  u32      N = 총 문자열 개수
 +0x0c  u32      G = 그룹 개수
@@ -37,7 +37,7 @@
 ### 2.2 GFWR (g7sw.dat) — UTF-16LE 금칙어 목록
 ```
 +0x00  "GFWR"(dword 0x52574647)  +0x04 u32 0  +0x08 u32 seed/hash(예: 0x6ab57d4d)  +0x0c u32 N(=14)
-+0x10  N × { u32 len(문자 수) ; UTF-16LE 문자 len개 }
++0x10  N × { u32 len(UTF-16 코드 유닛 수) ; UTF-16LE 코드 유닛 len개 }
 ```
 - `sw` = stop words. 채팅 필터용으로 추정. 14개 단어(예: 짧은 일본어 낱말들). `evidence:client`(구조)/`evidence:guess`(용도).
 
@@ -76,4 +76,17 @@
 
 - `.tcf` 얼굴 이미지 묶음의 압축/인코딩(고엔트로피 본문)과 `.mdx/.mds` 모델 포맷 — 텍스트는 아니지만 이미지 현지화 시 필요. 미해결.
 - MsgDat 그룹 인덱스가 게임 내 어떤 문맥과 대응되는지(대사 트리거) — 서버·게임로직 분석 영역.
-- 한글 렌더가 실제로 표시되는지, cp949 변환 패치의 정확한 위치 — 동적 검증 필요.
+- 한글 렌더가 실제로 표시되는지 — 동적 검증 필요. 로캘·글꼴 문자열 패치 위치는 아래 정적 검증으로 확인.
+
+## 6. T3 도구·정적 검증 추가 (2026-09-27)
+
+작성자: 최병호. `evidence:client`(work/l10n E-400~E-402).
+
+- [도구 사용법](../../tools/l10n/README.md): HFWR/GFWR 추출·재생성, 토큰 검사, CP949 출력, PE 사본 패치.
+- 원본 MsgDat 22개 모두 JSON 왕복 SHA256 동일. 원본 불변 확인. 결과는 `work/l10n/roundtrip/roundtrip.json`.
+- `Japanese` VA `0x0076e3fc` → `Korean`, 글꼴 VA `0x0076e240` → `굴림`; 원바이트 검사를 통과한 사본만 생성.
+- 원본 SHA256: `bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16`.
+- 사본 SHA256: `2a901619878512f43982c9199f2ba654af9f203ea27308aea483bcf84a50979a`.
+- 합성 테스트 7개 통과. case-review의 해시 검증·strict 결과는 `work/l10n/case-review.txt`.
+- Finding은 candidate 유지: 화면 렌더링·시스템 코드페이지·폰트 동작을 VM에서 확인하지 않았다. `evidence:guess`.
+- reverse-skill 기록 통합 제안: CP932 중복 Unicode 매핑의 원바이트 보존, GFWR UTF-16 코드 유닛 길이, JSON 왕복 해시 검증을 재사용 사례로 기록. 로컬 main 반영은 리드 담당. `evidence:guess`.

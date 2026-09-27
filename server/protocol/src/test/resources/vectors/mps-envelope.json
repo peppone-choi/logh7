@@ -1,0 +1,80 @@
+{
+  "author": "최병호",
+  "status": "candidate",
+  "evidence": "evidence:client",
+  "source_sha256": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16",
+  "validation": "static calculation; not captured from a running client",
+  "key_hex": "000102030405060708090a0b0c0d0e0f",
+  "vectors": [
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "",
+      "checksum_hex": "0602",
+      "plaintext_hex": "0602010203040000",
+      "ciphertext_hex": "af0cbd7e57ceddb7"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "00",
+      "checksum_hex": "0603",
+      "plaintext_hex": "060301020304000100",
+      "ciphertext_hex": "4bd72b875ee62aa60d2367f2dff3ac0f"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "0001",
+      "checksum_hex": "0502",
+      "plaintext_hex": "05020102030400020001",
+      "ciphertext_hex": "b56e53f0dbd1d2f3442b6b59fe186759"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "000102",
+      "checksum_hex": "0400",
+      "plaintext_hex": "0400010203040003000102",
+      "ciphertext_hex": "c97c8aacfed2ffe19fa68fe412d41723"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "00010203",
+      "checksum_hex": "0303",
+      "plaintext_hex": "030301020304000400010203",
+      "ciphertext_hex": "a449721d7d0cb8777c9ec99d26e10888"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "0001020304",
+      "checksum_hex": "0207",
+      "plaintext_hex": "02070102030400050001020304",
+      "ciphertext_hex": "846f54e544e7c3597d17ba3425f084c8"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "000102030405",
+      "checksum_hex": "0704",
+      "plaintext_hex": "0704010203040006000102030405",
+      "ciphertext_hex": "b8d9145afdb157853e9f4bad71422c9d"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "00010203040506",
+      "checksum_hex": "0602",
+      "plaintext_hex": "060201020304000700010203040506",
+      "ciphertext_hex": "24264c414b3f5d7b8c6156ca2179b38b"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "0001020304050607",
+      "checksum_hex": "0905",
+      "plaintext_hex": "09050102030400080001020304050607",
+      "ciphertext_hex": "fe26e9789a28e2c5f0def03b0eb0d9a0"
+    },
+    {
+      "sequence_hex": "01020304",
+      "body_hex": "000102030405060708",
+      "checksum_hex": "080d",
+      "plaintext_hex": "080d010203040009000102030405060708",
+      "ciphertext_hex": "57c0246c2fe74411f0def03b0eb0d9a067766815f80546d7"
+    }
+  ]
+}

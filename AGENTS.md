@@ -14,8 +14,8 @@
 | 분석 스킬 | `E:\reverse-skill` (행위 계약: `RULES.md`, 진입: `AGENTS.md`) |
 | 매뉴얼·공식 사이트 스냅샷 | `E:\manual-variants` (`gin7manual.pdf` 는 디지털 텍스트 레이어 있음, `*_djvu.txt` OCR은 신뢰 금지) |
 | 케이스 산출물 | `E:\logh7\work\<case>\` (git 제외) |
-| 신규 도구 설치 | `E:\Tools\` |
-| VM | `E:\VM\` (VirtualBox 본체는 `G:\VBox\`) |
+| 신규 도구 설치 | `E:\Tools\` (VirtualBox만 사용자 승인 예외 `E:\VirtualBox\`) |
+| VM | `E:\VM\` (VirtualBox 본체는 `E:\VirtualBox\`, 2026-09-27 재설치) |
 | Ghidra headless | `C:\Users\user\AppData\Local\Programs\Ghidra\ghidra_12.1.2_PUBLIC\support\analyzeHeadless.bat` |
 
 - **C: 드라이브 여유가 약 7GB뿐이다. C:에 설치·캐시·VM·ISO를 두지 않는다.** (예: `GRADLE_USER_HOME=E:\Tools\gradle-home`, npm/pip 캐시도 E:)
@@ -51,7 +51,7 @@
 
 ## 4. 실행·격리
 
-- 게임 설치·클라이언트 실행은 호스트에서 하지 않는다. **VirtualBox VM**(`G:\VBox\VBoxManage.exe`) 안에서만.
+- 게임 설치·클라이언트 실행은 호스트에서 하지 않는다. **VirtualBox VM**(`E:\VirtualBox\VBoxManage.exe`) 안에서만.
 - VM 은 **자동 로그인 + 빈 비밀번호(또는 매우 단순한 값)** 로 구성한다. 사용자에게 로그인·비밀번호를 요구하지 않는다.
 - 게임 클라이언트 VM 네트워크는 호스트 전용망. OS·언어 기능 설치 중에만 NAT 허용. 스텁 서버는 localhost/호스트 전용 어댑터에만 바인딩.
 - 외부 대상에 대한 능동 스캔 금지. GCP 리소스 생성·과금 작업은 별도 승인 전 금지(IaC·스크립트 초안만).
@@ -76,7 +76,7 @@
 
 | ID | 결정 | 근거 |
 |---|---|---|
-| D-1 | 게임 클라이언트 격리 실행은 VirtualBox(`G:\VBox`) | 사용자 2026-09-27 |
+| D-1 | 게임 클라이언트 격리 실행은 VirtualBox(`E:\VirtualBox`, 기존 G: 부재로 재설치) | 사용자 2026-09-27 추가 승인 |
 | D-2 | 배포는 **GCP 전제**, 지금은 로컬에서 연습(로컬 Ubuntu VM `E:\VM\myUbuntu` 또는 Docker) | 사용자 2026-09-27, ADR-0005 |
 | D-3 | reverse-skill 회신은 로컬 main 에만 | 사용자 2026-09-27 |
 | D-4 | 용어: 일본어 직역 + 나무위키 | 사용자 2026-09-27 |

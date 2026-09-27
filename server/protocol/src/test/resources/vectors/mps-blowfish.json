@@ -1,0 +1,57 @@
+{
+  "author": "최병호",
+  "status": "candidate",
+  "evidence": "evidence:client",
+  "source_sha256": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16",
+  "validation": "static calculation; not captured from a running client",
+  "block_words": "little-endian",
+  "key_words": "big-endian cyclic",
+  "padding": "zero to multiple of 8, no extra aligned block",
+  "vectors": [
+    {
+      "key_hex": "0000000000000000",
+      "plaintext_hex": "0000000000000000",
+      "ciphertext_hex": "176f055ebb7071f7"
+    },
+    {
+      "key_hex": "0000000000000000",
+      "plaintext_hex": "0001020304050607",
+      "ciphertext_hex": "1cd96e7d01739f86"
+    },
+    {
+      "key_hex": "0000000000000000",
+      "plaintext_hex": "000102030405060708090a0b0c0d0e0f10",
+      "ciphertext_hex": "1cd96e7d01739f86431c018affd46511ca3575978e42e3a4"
+    },
+    {
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "plaintext_hex": "0000000000000000",
+      "ciphertext_hex": "0d2367f2dff3ac0f"
+    },
+    {
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "plaintext_hex": "0001020304050607",
+      "ciphertext_hex": "f0def03b0eb0d9a0"
+    },
+    {
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "plaintext_hex": "000102030405060708090a0b0c0d0e0f10",
+      "ciphertext_hex": "f0def03b0eb0d9a052120fddfe1a6d72c16a6e67ad2e2528"
+    },
+    {
+      "key_hex": "7b41344331333734382d303135392d346335342d414542332d3144363835373537363142337d",
+      "plaintext_hex": "0000000000000000",
+      "ciphertext_hex": "89e035e8b8c01390"
+    },
+    {
+      "key_hex": "7b41344331333734382d303135392d346335342d414542332d3144363835373537363142337d",
+      "plaintext_hex": "0001020304050607",
+      "ciphertext_hex": "2f397b58c86a94f7"
+    },
+    {
+      "key_hex": "7b41344331333734382d303135392d346335342d414542332d3144363835373537363142337d",
+      "plaintext_hex": "000102030405060708090a0b0c0d0e0f10",
+      "ciphertext_hex": "2f397b58c86a94f763394043bc459367b63a8fb60ec4a2c5"
+    }
+  ]
+}
