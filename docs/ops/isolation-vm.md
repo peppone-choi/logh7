@@ -4,19 +4,19 @@
 
 ## 현재 상태
 
-VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어 Windows 10 x64(10.0.19045.3803)를 설치했다. 원본 게임은 아직 설치하지 않았다. `evidence:client` (동적 케이스 E-101 및 후속 VM 관찰).
+VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어 Windows 10 x64(10.0.19045.3803)와 원본 게임을 설치했다. 설치 전후 비교는 [설치 비교](../re/install-diff.md)에 기록했다. 원본 클라이언트는 아직 정상 기동하지 못했다. `evidence:client` (동적 케이스 E-101·E-103~108).
 
 | 항목 | 확인 결과 |
 |---|---|
 | 실행 파일 | `E:\VirtualBox\VBoxManage.exe`, `7.2.20r175154` |
 | Windows VM | `E:\VM\logh7-win\logh7-win.vbox`, UUID `742099e5-d79b-40fb-90e6-a10f12235525` |
-| 자원 | 8 GiB RAM, 4 CPU, 64 GiB 동적 VDI, BIOS, VBoxSVGA·3D 꺼짐(설치용) |
-| 네트워크 | NIC1 host-only, `VirtualBox Host-Only Ethernet Adapter`, NIC2 없음. 언어 기능 설치 시에만 NAT 재연결 예정 |
+| 자원 | 8 GiB RAM, 4 CPU, 64 GiB 동적 VDI, BIOS, VBoxSVGA·3D 켜짐(클라이언트 재시험 후) |
+| 네트워크 | NIC1 host-only, `VirtualBox Host-Only Ethernet Adapter`, NIC2 없음. NAT는 언어 기능 설치 중에만 사용 |
 | 공유·계정·로캘 | 자동 로그인·간단한 비밀번호. 시스템·UI 로캘 `ja-JP`, 사용자 언어 `ja`·`ko`, 각 입력기 및 양쪽 글꼴 확인 |
-| 스냅샷 | `os-ja-base` UUID `58031c9b-485b-43a3-8feb-9ef805c19bec`, 게임 설치 전 `clean` UUID `75804d62-d331-45a4-ac83-3bc37858cd71`. `installed`는 미생성 |
+| 스냅샷 | `os-ja-base` UUID `58031c9b-485b-43a3-8feb-9ef805c19bec`, 게임 설치 전 `clean` UUID `75804d62-d331-45a4-ac83-3bc37858cd71`, 설치 후 `installed` UUID `68f5a67e-c39f-4f8d-bc80-c84d6bd113cc`, 정상 종료 후 `installed-verified` UUID `b8ac6179-38f0-40ee-9f55-0682f227b57d` |
 | ISO | `E:\iso\Windows.iso`(일본어 x64, 4,895,932,416바이트), SHA256 `F47A3ECF5DD4AB407746D42516D1219E9B2D1CBCD542956CF67E7F804EF1E5DB` |
 
-현재 VM은 정상 종료한 `poweroff` 상태다. 표의 환경 관찰은 `evidence:client` (E-101·E-102 및 후속 VM 실행), 예정 설정은 `evidence:guess`다.
+현재 VM은 정상 종료한 `poweroff` 상태다. 표의 환경 관찰은 `evidence:client` (E-101·E-103~108)다.
 
 ## G: 조사와 재설치
 
@@ -26,15 +26,15 @@ G:의 과거 MBR 식별자는 `46BE25E5`, 파티션 오프셋은 1 MiB였다. �
 
 설치 파일은 [Oracle 7.2.20 공식 배포](https://download.virtualbox.org/virtualbox/7.2.20/)에서 받았다. SHA256 `a81777d2b36380ce042a29e9c554cf032eb46a793f62e3cc82e7411e535c2c26`이 공식 목록과 일치하고 Oracle America 전자서명은 Valid였다. [설치 폴더 요건](https://docs.oracle.com/en/virtualization/virtualbox/7.2/user/installation.html), [subst](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/subst). 설치·임시 경로는 E:이며 Windows 드라이버·Installer 시스템 등록 파일은 OS 관리 위치에 설치된다. `evidence:client`
 
-## ISO 확보 후 재개
+## ISO 확보부터 설치·접속 시험까지
 
 1. [Microsoft 공식 Windows 10 다운로드](https://www.microsoft.com/en-us/software-download/windows10)의 미디어 생성 도구로 일본어 x64 ISO를 E:에 확보했다. 직접 링크 API와 ISO 판본 선택은 거부됐으므로 이 경로를 사용했다. ISO의 `sources\lang.ini`는 `ja-jp`, `efi\boot\bootx64.efi`가 있고 7-Zip UDF 검사는 통과했다. 위 해시는 로컬 파일 해시이며 Microsoft 게시 해시와 대조한 값은 아니다. `evidence:client` (후속 실행).
 2. 기존 `logh7-win`에 일본어 Windows 10을 설치했다. 첫 시도는 2 CPU·4 GiB RAM에서 설치 진행이 멈춰 전원을 껐고, 4 CPU·8 GiB RAM·3D 꺼짐으로 재시도해 일본어 바탕화면과 Guest Additions 7.2.20을 확인했다. VirtualBox 무인 설치는 빈 비밀번호를 거부해 간단한 비밀번호로 자동 로그인을 구성했다. 게스트 기본 시스템·UI 로캘과 한국어 언어 기능을 확인했다. `evidence:client` (후속 VM 실행 및 `locale-verify.log`).
-3. 게임 실행 전에 NIC1 host-only·NIC2 없음과 게스트 외부 인터넷 차단을 확인한다. 원본 공유는 읽기 전용, 결과 반출 폴더만 쓰기 가능하게 설정하고 `clean` 스냅샷을 만든다. `evidence:guess`
-4. 파일 해시·레지스트리를 설치 전후 수집하고 원본 설치를 VM 안에서만 수행한다. 설치본 비교 후 `installed` 스냅샷을 만든다. `evidence:guess`
-5. 호스트 전용 IP에 스텁을 바인딩한 뒤 VM에서 `exe\G7MTClient.exe <스텁 host> 47900 <세션명> 1 dummy`를 실행한다. 첫 0x34 캡처와 정적 근거를 대조하기 전에는 프레이밍을 validated로 승격하지 않는다. `evidence:client` (기존 E-014·E-028), `evidence:guess` (실행 계획).
+3. 게임 실행 전에 NIC1 host-only·NIC2 없음과 게스트 외부 인터넷 차단을 확인하고 `clean` 스냅샷을 만들었다. ISO는 읽기 전용 광학 드라이브로 연결했다. `evidence:client` (E-103)
+4. 파일 목록·레지스트리를 설치 전후 수집하고 원본 게임을 VM 안에서만 설치했다. 설치 파일 2,194개는 정적 추출본과 SHA-256이 모두 일치했다. `installed`와 `installed-verified` 스냅샷을 만들었다. `evidence:client` (E-105~107)
+5. 호스트 전용 IP의 Kotlin 스텁은 기동했으나 게스트에서 해당 IP의 47900 포트로 TCP 연결이 시간 초과됐다. 호스트 방화벽 설정은 변경하지 않았다. VM 내부 `127.0.0.1:47900`에 캡처 스텁을 띄워 원본 `exe\G7MTClient.exe 127.0.0.1 47900 ginei00 1 dummy`를 세 차례 실행했다. 3D를 끄고 켠 상태 모두에서 프로세스가 응답하지 않고 TCP 연결도 없었다. 첫 0x34와 프레이밍 validated는 미달성이다. `evidence:client` (E-108)
 
-DirectX 8·3D 때문에 클라이언트 기동이 실패하면 그 실패를 기록하고 VMware 등 대안을 사용자에게 묻는다. 현재는 OS 설치 전이라 그래픽 호환성 실패를 관찰한 상태가 아니다. `evidence:guess`
+클라이언트는 정상 기동하지 않았지만 원인을 DirectX 8이나 VirtualBox 3D로 단정할 증거는 없다. VirtualBox 로그에 D3D 기능 조회는 남았다. 사용자에게 기존 VMware Workstation에서 복제본 재시험 여부를 물었으며 답에 따라 다음 단계를 결정한다. `evidence:client` (E-108), `evidence:guess` (대안 시험).
 
 [Microsoft 공식 미디어 생성 도구](https://www.microsoft.com/en-us/software-download/windows10)는 `E:\Tools\WindowsMedia\MediaCreationTool_22H2.exe`에 받았다(SHA256 `690C8A63769D444FAD47B7DDECEE7F24C9333AA735D0BD46587D0DF5CF15CDE5`, Microsoft Corporation 서명 `Valid`). 사용자의 후속 실행 지시에 따라 도구를 실행했고, 실제로 C:에 임시 다운로드 파일이 생성됐다가 도구 처리 중 상당 부분 회수됐다. ISO 최종 저장은 E:였다. `evidence:manual` (공식 도구 경로), `evidence:client` (다운로드·서명·파일·공간 변화).
 
