@@ -11,7 +11,7 @@ VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어
 | 실행 파일 | `E:\VirtualBox\VBoxManage.exe`, `7.2.20r175154` |
 | Windows VM | `E:\VM\logh7-win\logh7-win.vbox`, UUID `742099e5-d79b-40fb-90e6-a10f12235525` |
 | 자원 | 8 GiB RAM, 4 CPU, 64 GiB 동적 VDI, BIOS, VBoxSVGA·3D 꺼짐(설치용) |
-| 네트워크 | NIC1 임시 NAT(언어 기능 설치 중), NIC2 없음. 게임 실행 전 host-only 복귀 필요 |
+| 네트워크 | NIC1 host-only, `VirtualBox Host-Only Ethernet Adapter`, NIC2 없음. 언어 기능 설치 시에만 NAT 재연결 예정 |
 | 공유·계정·로캘 | 일본어 UI·시스템 로캘 `ja-JP` 확인. 임시 단순 비밀번호로 자동 로그인. 한국어 기능·빈 비밀번호 전환은 미완료 |
 | 스냅샷 | `clean`/`installed` 미생성. 언어 설치·격리 복귀 후 `clean` 예정 |
 | ISO | `E:\iso\Windows.iso`(일본어 x64, 4,895,932,416바이트), SHA256 `F47A3ECF5DD4AB407746D42516D1219E9B2D1CBCD542956CF67E7F804EF1E5DB` |
@@ -49,4 +49,4 @@ DirectX 8·3D 때문에 클라이언트 기동이 실패하면 그 실패를 기
 
 언어 설치가 Windows Update에서 실패하면 기능 상태와 오류를 기록하고 NAT·Windows Update 접근을 확인한다. 영어 ISO에 일본어 기본 기능만 더해서 일본어 UI 전체가 설치됐다고 간주하지 않는다. 일본어 이미지의 실제 UI와 클라이언트 표시까지 게스트에서 확인한다. `evidence:guess`
 
-게스트에 `prepare-win10-locales.ps1`을 복사했고 언어 설치용으로 NIC1을 임시 NAT로 전환했다. 게스트의 `logh7` 계정은 관리자 그룹에 속하지만 원격 실행 토큰은 보통 권한이므로, 기능 설치에는 VM 화면의 UAC 승인이 필요하다. 첫 관리자 실행 요청은 승인 전에 취소되어 스크립트가 시작되지 않았다. 재시도 후 `Verify` 성공을 기록하고 NIC1을 host-only로 복귀시키기 전에는 게임을 실행하지 않는다. `evidence:client` (게스트 명령·화면 관찰).
+게스트에 `prepare-win10-locales.ps1`을 복사했고 언어 설치를 위해 NIC1을 일시적으로 NAT로 전환했다. 게스트의 `logh7` 계정은 관리자 그룹에 속하지만 원격 실행 토큰은 보통 권한이므로, 기능 설치에는 VM 화면의 UAC 승인이 필요하다. 첫 관리자 실행 요청은 승인 전에 취소되어 스크립트가 시작되지 않았다. 현재 NIC1은 host-only로 복귀했다. 재시도 때만 NAT를 켜고 `Verify` 성공을 기록한 뒤 다시 host-only로 돌린다. `evidence:client` (게스트 명령·화면 관찰).
