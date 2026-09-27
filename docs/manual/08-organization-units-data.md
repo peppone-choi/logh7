@@ -7,14 +7,14 @@ source: gin7manual.pdf(웹판) 부록 p.56–100 (추출: tools/manual_tables.py
 
 # 조직표·초기 배치·유닛 데이터
 
-부록 표는 `tools/manual_tables.py` 로 CSV 추출했다. 병합 셀은 PDF 셀 좌표로 복원했고, 조직표(p.63)와 함종표(p.79)는 페이지 이미지와 1:1 대조해 일치를 확인했다. 나머지 페이지는 **표본 검증 전**이므로 서버 시드로 쓰기 전에 페이지별 대조를 한다(Linear 이슈로 관리). `evidence:manual`
+부록 표는 `tools/manual_tables.py`를 기반으로 [보정 추출기](rebuild-verified-tables.py)를 실행해 다시 생성했다. 2026-09-27에 웹판 p.56–100의 45쪽 이미지를 열람하고 표 구조·병합 경계·대표 수치 및 발견 오류를 대조했다. 전 셀의 독립 수기 전사 검증은 아니며, p.92 기함 이름 2개는 원본 이미지에서도 잘려 있어 서버 시드 사용을 보류한다. 상세 범위는 §4. `evidence:manual`
 
 | 파일 | 행 수 | 내용 | 열 |
 |---|---|---|---|
 | [data/org-posts.csv](data/org-posts.csv) | 121 | 제국·동맹 전 직책 | faction, page, department, post, seats, min_rank, max_rank, appointed_by |
-| [data/initial-card-holders.csv](data/initial-card-holders.csv) | 68 | 세션 시작 시 원작 캐릭터의 직무권한 카드 보유 | faction, page, post, initial_holder, raw_cells |
+| [data/initial-card-holders.csv](data/initial-card-holders.csv) | 75 | 세션 시작 시 원작 캐릭터의 직무권한 카드 보유 | faction, page, post, initial_holder, raw_cells, department, unit |
 | [data/strategy-commands.csv](data/strategy-commands.csv) | 81 | 전략 커맨드 CP·대기·소요 | group, command, cp, wait, duration, page |
-| [data/initial-deployment.csv](data/initial-deployment.csv) | 331 | 함대·순찰대 초기 위치, 행성별 초기 유닛 | page, table, columns, values |
+| [data/initial-deployment.csv](data/initial-deployment.csv) | 334 | p.75 초기 위치 + p.76–78 자동 생산 품목 | page, table, columns, values, faction, kind |
 | [data/ship-units.csv](data/ship-units.csv) | 118 | 함종·서브타입별 성능 | 건조 공기, 필요 승조원, 출력, 색적, 최고 속도, 장갑(전/측/후), 실드, 빔·건·미사일·대공, 전투정 탑재, 물자 탑재, 수리 소비 |
 | [data/crew-units.csv](data/crew-units.csv) | 11 | 병원 유닛 훈련 과정·육전 공방 | faction, unit, training, ground_attack, ground_defense |
 
@@ -40,20 +40,47 @@ source: gin7manual.pdf(웹판) 부록 p.56–100 (추출: tools/manual_tables.py
 - 원작 캐릭터도 파면 대상(W p.37). 초기 보유자는 `initial-card-holders.csv`(예: 제국 皇帝 = フリードリヒⅣ世, 帝国宰相·国務尚書 = リヒテンラーデ, 軍務尚書 = エーレンベルグ元帥, 宇宙艦隊司令長官 = G.ミュッケンベルガー元帥, 第2艦隊 = ローエングラム中将 등).
 - 세션 시작 시점은 원작 초반(라인하르트 중장, 키르히아이스 소령=사령관 부관)으로, **우주력 796년 전후**로 보인다 `evidence:guess`. 종료 기한 801-07-27(W p.12).
 
-## 2. 초기 배치 `evidence:manual` (W p.75–78)
+## 2. 초기 배치와 자동 생산 `evidence:manual` (W p.75–78)
 
-- 함대 번호별 초기 성계·행성(예: 제국 第1艦隊 ヴァルハラ/オーディン, 동맹 第1艦隊 バーラト/ハイネセン), 순찰대 번호별 배치, 행성별 초기 함정·승조원·육전병 유닛 종류.
+- 함대 번호별 초기 성계·행성(예: 제국 第1艦隊 ヴァルハラ/オーディン, 동맹 第1艦隊 バーラト/ハイネセン), 순찰대·지상부대 번호별 배치는 p.75에 있다. p.76–78은 행성별 **자동 생산** 함정·승조원·육전병 종류이며 초기 보유량 표가 아니다.
 - 성계·행성 이름 목록은 전략 지도 시드의 1차 자료다. 그리드 좌표는 매뉴얼에 없으므로 **클라이언트 맵 데이터**(트랙 B)에서 얻어야 한다.
 
 ## 3. 유닛 `evidence:manual` (W p.79–100)
 
 - 제국 함종: 標準戦艦(SS75), 高速戦艦(PK86), 巡航艦(SK80), 駆逐艦(Z82), 戦闘艇母艦(FR88), 雷撃艇母艦(TR88), 工作艦(A76), 輸送艦(A74), 兵員輸送艦(A72), 揚陸艦(A78), 民間船.
 - 동맹 함종: 標準戦艦(787年型), 巡航艦(795年型), 打撃巡航艦(794年型), 駆逐艦(796年型), 戦闘艇母艦(796年型), 工作艦(793年型), 輸送艦(792年型), 兵員輸送艦(788年型), 揚陸艦(795年型), 民間船.
-- 각 함종에 旗艦 행 + 서브타입(Ⅰ~Ⅷ 등). 기함 행만 출력·실드 값을 가진다.
+- 일부 함종에는 旗艦 행과 서브타입(Ⅰ~Ⅷ 등)이 있고, 기함 행이 없는 함종도 있다. 기함 행만 출력·실드 값을 가진다.
 - 병원 유닛(p.100): 제국 軽装陸戦兵·近衛兵·装甲擲弾兵·擲弾兵教導·装甲兵·艦隊乗組員, 동맹 軽装陸戦兵·装甲擲弾兵·薔薇の騎士·装甲兵·艦隊乗組員. 훈련 과정 값과 육전 공방 값.
 - 경비함(警備艦) 무인 유닛 26종의 가격(평가 포인트)·필요 계급은 update03 스냅샷에 있다(매뉴얼 부록에는 없음).
 
-## 4. 검증 필요 사항
+## 4. 검증·보정 결과 (2026-09-27) `evidence:manual`
 
-- `initial-card-holders.csv` 는 표가 다단으로 배치돼 있어 `post`/`initial_holder` 짝이 틀릴 수 있다(`raw_cells` 로 원자료 보존). 사용 전 페이지 대조 필요.
-- `initial-deployment.csv` 는 표 6개가 한 페이지에 섞여 있어 `columns` 헤더로 구분한다.
+원본: `E:\manual-variants\internet-archive\gin7manual.pdf`, SHA-256 `ff9b7b638582febba723413d9956f4166aecbc20746cb35bb4afddcef9515080`. 쪽 번호는 PDF 1기준이다. OCR 텍스트를 사용하지 않고 PyMuPDF 텍스트·표 좌표와 1.5배 렌더 이미지를 사용했다.
+
+| 범위 | 실행한 대조 | 결과·한계 |
+|---|---|---|
+| p.56–58, 62–64 조직표 | 6쪽 이미지의 계급 병합·계속쪽·직책 구조 대조, 121행 재추출 | 황제 최대 계급에 원수가 섞이던 오류 제거. 병합 중심은 첫 열이 아니라 행 셀 y구간 교집합으로 계산. 임명권자는 여전히 해설 정규식 추출이며 전 권한 수기 확정 아님. |
+| p.59, 65 조직도 | 2쪽 전체 이미지 열람 | 선으로 연결된 조직도는 표 CSV의 추가 직책으로 중복 추출하지 않음. |
+| p.60–61, 66–67 카드 | 4쪽 직책·보유자·함대 번호·부관 열 대조 | 잘못된 68행을 75행으로 보정. 7명 부관을 별도 행으로 보존. 제국 제2함대 사령관과 사령관 부관을 분리. p.61 함대 계속쪽, p.67 순찰대 계속쪽 복원. |
+| p.68–74 명령 | 7쪽 구조와 CP·대기·소요 병합값 대조, 81행 재생성 | 워프 대기시간 공란은 0으로 임의 보충하지 않음. 공란과 명시적 0을 구분. 실제 서비스 동작 검증 아님. |
+| p.75 배치 | 6개 표의 진영·번호·성계 병합 대조 | `faction`, `kind=deployment` 명시. 범위 표현은 개별 부대로 펼치지 않음. |
+| p.76–78 생산 | 3쪽의 제목·연속쪽·행성 경계 대조 | `kind=automatic_production`. p.77 좌·우 첫 행과 p.78 첫 행을 헤더로 버리던 오류를 복원(전체 331→334행). p.76→77 하이네센 연속 셀 복원. 셀 내 줄바꿈은 ` / `로 보존하며 같은 유닛의 반복을 임의 중복 제거하지 않음. |
+| p.79–99 함선 | 21쪽 이미지와 118행 수치표 대조, 명시 보정 적용 | p.88 대공 40, p.89 상선 전면 장갑 12, p.98 II형 장갑 17/12/7 및 빔·건 `-` 복원. PDF p.92 첫 두 기함 이름은 잘림 상태 유지. |
+| p.100 병원 | 양 진영 11행과 주석 대조 | 근위병·척탄병 교도·장미의 기사는 표에 수치가 있지만 당시 생산하지 않는다는 주석이 있다. 수치 존재와 생산 가능을 구분. |
+
+### 재현
+
+```powershell
+$env:PYTHONPATH = 'E:\Tools\pylib'
+$env:PYTHONDONTWRITEBYTECODE = '1'
+python docs/manual/rebuild-verified-tables.py E:\manual-variants\internet-archive\gin7manual.pdf
+```
+
+원래 `tools/manual_tables.py`만 실행하면 카드 열 오류와 생산 연속쪽 누락이 되살아난다. 보정 파일은 담당 쓰기 경로 제한에 따라 `docs/manual/`에 두었다. 리드가 이후 도구 디렉터리로 통합할 수 있다.
+
+### 서버 시드 사용 제한
+
+- `ship-units.csv`의 `source_row`는 페이지 내 데이터행 1기준이다. p.92 행 1·2는 `verification_status=name_clipped`; 같은 `unit=艦）`로 충돌하므로 이름을 추정해서 키로 사용하지 않는다. 나머지 `reviewed`는 문서 대조 상태이며 클라이언트 실측·서비스 최종판 검증을 뜻하지 않는다.
+- 생산표는 한 셀에 여러 품목이 있다. ` / ` 항목을 분리하더라도 반복 횟수를 일일 생산량으로 확정할 수 없다. 표 제목은 품목이고 공지는 군수물자의 1G일 주기를 설명한다. 함선별 생산 주기·수량은 별도 규칙 확인이 필요하다.
+- p.87 I형의 전면/측면/후면 장갑 6/16/9, p.98 IV형 후면 장갑 18 등 불균형해 보이는 값은 이미지에 그대로 있어 보정하지 않았다. 밸런스를 이유로 원자료를 바꾸지 않는다.
+- 열 이름은 병합 헤더 수정으로 `装甲:側`, `装甲:後`, `シールド（旗艦のみ）:容量`가 되었다. 이전의 `側:側`, `後:後`, `容量:容量`를 읽는 소비자는 갱신해야 한다.
