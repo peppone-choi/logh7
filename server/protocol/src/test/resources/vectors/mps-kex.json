@@ -1,0 +1,30 @@
+{
+  "author": "최병호",
+  "status": "candidate",
+  "evidence": "evidence:client",
+  "source_sha256": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16",
+  "validation": "static calculation; not captured from a running client",
+  "wrapping_key_hex": "7b41344331333734382d303135392d346335342d414542332d3144363835373537363142337d",
+  "initiator_tx_key_hex": "000102030405060708090a0b0c0d0e0f",
+  "responder_tx_key_hex": "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+  "vectors": [
+    {
+      "frame_type_hex": "0034",
+      "plaintext_hex": "10010010000102030405060708090a0b0c0d0e0f00000001",
+      "ciphertext_hex": "35eb18155d09bbb52a8d5c7fcef57d7712d9f1f6a2bebede",
+      "socket_frame_hex": "001a003435eb18155d09bbb52a8d5c7fcef57d7712d9f1f6a2bebede"
+    },
+    {
+      "frame_type_hex": "0035",
+      "plaintext_hex": "02000010000102030405060708090a0b0c0d0e0f0010f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff00000002",
+      "ciphertext_hex": "0ae5496598e865832a8d5c7fcef57d774f45662f518c4787df09d00b325f2b21d79b00d06e006dced97727f232edeec3",
+      "socket_frame_hex": "003200350ae5496598e865832a8d5c7fcef57d774f45662f518c4787df09d00b325f2b21d79b00d06e006dced97727f232edeec3"
+    },
+    {
+      "frame_type_hex": "0036",
+      "plaintext_hex": "efff0010f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+      "ciphertext_hex": "385c1e213879e5fc44d62157e541b061e556d88f3a5ae35b",
+      "socket_frame_hex": "001a0036385c1e213879e5fc44d62157e541b061e556d88f3a5ae35b"
+    }
+  ]
+}
