@@ -66,9 +66,18 @@ if ($Mode -eq 'Prepare') {
 }
 
 $capabilities = @(Get-RequiredCapabilities)
-$languages = @(Get-WinUserLanguageList)
+$languageList = Get-WinUserLanguageList
+$languages = @(for ($i = 0; $i -lt $languageList.Count; $i++) {
+    $languageList[$i]
+})
 $systemLocale = (Get-WinSystemLocale).Name
 $languageTags = @($languages | ForEach-Object { $_.LanguageTag })
+$japaneseInputReady = @($languages | Where-Object {
+    $_.LanguageTag -in @('ja', 'ja-JP') -and $_.InputMethodTips.Count -gt 0
+}).Count -gt 0
+$koreanInputReady = @($languages | Where-Object {
+    $_.LanguageTag -in @('ko', 'ko-KR') -and $_.InputMethodTips.Count -gt 0
+}).Count -gt 0
 $inputMethods = @($languages | ForEach-Object {
     [pscustomobject]@{
         LanguageTag = $_.LanguageTag
@@ -92,13 +101,10 @@ $result | ConvertTo-Json -Depth 5
 
 if ($systemLocale -ne 'ja-JP' -or
     $result.UserInterfaceCulture -ne 'ja-JP' -or
-    $languageTags -notcontains 'ja-JP' -or
-    $languageTags -notcontains 'ko-KR' -or
+    -not $japaneseInputReady -or
+    -not $koreanInputReady -or
     -not $result.JapaneseFontPresent -or
     -not $result.KoreanFontPresent -or
-    @($capabilities | Where-Object { $_.State -ne 'Installed' }).Count -gt 0 -or
-    @($languages | Where-Object {
-        $_.LanguageTag -in @('ja-JP', 'ko-KR') -and $_.InputMethodTips.Count -eq 0
-    }).Count -gt 0) {
+    @($capabilities | Where-Object { $_.State -ne 'Installed' }).Count -gt 0) {
     throw 'Japanese/Korean guest locale verification failed. Review the JSON above.'
 }
