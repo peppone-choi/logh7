@@ -1,0 +1,12 @@
+﻿faction,unit,training,ground_attack,ground_defense
+empire,軽装陸戦兵,60,10,10
+empire,近衛兵,300,20,20
+empire,装甲擲弾兵,180,20,20
+empire,擲弾兵教導,900,30,30
+empire,装甲兵,240,50,50
+empire,艦隊乗組員,120,-,-
+alliance,軽装陸戦兵,60,10,10
+alliance,装甲擲弾兵,180,20,20
+alliance,薔薇の騎士,900,30,30
+alliance,装甲兵,240,50,50
+alliance,艦隊乗組員,120,-,-
