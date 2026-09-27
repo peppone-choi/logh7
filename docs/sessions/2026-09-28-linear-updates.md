@@ -24,3 +24,7 @@ Kotlin 유지에 대한 사용자 응답을 LOGH-17에 기록했다. D-3 reverse
 - LOGH-5: 사용자 추가 승인으로 E:\VirtualBox 재설치·VM 골격까지 진행. 현재 장애는 Microsoft 공식 ISO 미확보다.
 
 상태는 각 이슈의 실제 완료 조건에 맞추었으며, 정적 이슈 Done을 전체 클라이언트 상호운용 완료로 해석하지 않는다. `evidence:client`/`evidence:guess`.
+
+- 최종 운영 반영: LOGH-41·42·43은 In Progress. GCP 설계·Ubuntu 복제본 Compose 리허설은 완료했으나 실제 게임 이미지·WAL 복원·공식 SKU 견적은 남았다.
+- LOGH-6·20·22에 현재 ISO 장애와 원본 동적 미검증 상태를 기록하고 blocked 라벨을 추가했다.
+- 통합 PR: https://github.com/peppone-choi/logh7/pull/5
