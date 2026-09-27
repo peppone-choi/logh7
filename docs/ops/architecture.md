@@ -21,7 +21,7 @@ flowchart LR
   subgraph Home["자택 서버 (Docker Compose)"]
     GW["게이트웨이 (Netty)<br/>TCP 47900 게임 / 47902 업데이트"]
     ENG["게임 엔진 (Kotlin)<br/>×24 게임 시계 · tick<br/>전략 월드 + 전술 인스턴스"]
-    ADM["관리 API (Spring Boot)"]
+    ADM["운영 API (내장 Ktor, 내부 전용)"]
     PG[("PostgreSQL<br/>스냅샷 · 이벤트 로그 · 계정")]
     MON["Prometheus / Grafana"]
     GW <--> ENG
