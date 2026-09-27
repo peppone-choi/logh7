@@ -22,7 +22,7 @@
 |---|---|---|
 | G-4 VM·원본 설치·비교 | 달성(빈 비밀번호 대체 기록) | 일본어/한국어 기능, host-only, 원본 설치, `clean`/`installed`, 해시·레지스트리 비교 완료. 자동 로그인은 간단한 비밀번호를 사용 |
 | G-5 첫 0x34·프레이밍 validated | 미달성 | 클라이언트가 TCP 이전에 응답 중지. 실제 0x34 원자료 없음. 원인과 대안 VM 선택은 미결 |
-| G-9 기록·검증 | 동적 케이스 검증 완료 | `review_case.py --verify-hashes --strict` PASS: Evidence 9, Finding 3, Path 1, 오류·경고 0. 게임 저작물은 Git 제외 |
+| G-9 기록·검증 | 동적 케이스·PR 완료 | `review_case.py --verify-hashes --strict` PASS: Evidence 9, Finding 3, Path 1, 오류·경고 0. 게임 저작물은 Git 제외. [PR #12](https://github.com/peppone-choi/logh7/pull/12) 병합 |
 
 ## 3. 못 한 것과 다음 조치
 

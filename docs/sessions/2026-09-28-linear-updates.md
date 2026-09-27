@@ -32,7 +32,7 @@ Kotlin 유지에 대한 사용자 응답을 LOGH-17에 기록했다. D-3 reverse
 ## 후속 실행 반영 (2026-09-27)
 
 - LOGH-5: 공식 ISO·일본어 Windows·한국어 기능·host-only·자동 로그인·`clean`/`installed` 완료로 Done. VirtualBox 무인 설치가 빈 비밀번호를 거부해 AGENTS.md 허용 범위의 간단한 비밀번호를 사용했다.
-- LOGH-6: 설치 전후 목록과 레지스트리, 설치본 2,194개 대 정적 추출본 2,194개 SHA-256 완전 일치를 기록했다. 문서 PR 검토 중에는 In Progress, 병합 후 Done으로 갱신한다.
+- LOGH-6: 설치 전후 목록과 레지스트리, 설치본 2,194개 대 정적 추출본 2,194개 SHA-256 완전 일치를 기록했다. [PR #12](https://github.com/peppone-choi/logh7/pull/12) 병합 후 Done으로 갱신했다.
 - LOGH-20: 원본 클라이언트 세 차례 기동했으나 3D off/on 모두 TCP 이전에 응답 중지. VMware 대안 선택을 기다리며 In Progress.
 - LOGH-22: 실제 첫 0x34가 없어 Backlog와 candidate 유지. 합성 테스트를 동적 증거로 승격하지 않는다.
 
