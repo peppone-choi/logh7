@@ -9,6 +9,7 @@
     3) tools/bin2iso.py 로 MODE2/2352 → ISO
     4) 7-Zip 으로 ISO 해제
     5) tools/isextract.py 로 InstallShield 7 캐비닛 해제(항목별 MD5 검증, _manifest.csv)
+    6) 공식 추가 데이터 업데이트 G7UPD040514.exe(Wayback) 확보·SHA256 검증·해체(실행하지 않음)
 
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File tools\fetch-original.ps1 -Root E:\logh7-original
@@ -57,3 +58,18 @@ $install = Join-Path $extracted 'install'
 & $Python (Join-Path $PSScriptRoot 'isextract.py') (Join-Path $isoDir 'data1.hdr') $install
 if ($LASTEXITCODE -ne 0) { throw 'isextract reported failures (see _manifest.csv)' }
 Write-Host "done: $install"
+
+# 공식 추가 데이터 업데이트(2004-05-14) — Wayback 보관본. 실행하지 않고 해체만 한다.
+$upd = Join-Path $archive 'G7UPD040514.exe'
+if (-not (Test-Path $upd)) {
+    curl.exe -L --retry 5 --retry-delay 5 'https://web.archive.org/web/20040625193252id_/http://gineiden.com:80/G7UPD040514.exe' -o $upd
+    if ($LASTEXITCODE -ne 0) { throw 'download failed: G7UPD040514.exe' }
+}
+$sha256 = (Get-FileHash $upd -Algorithm SHA256).Hash.ToLower()
+if ($sha256 -ne '0bd0cd52eca4050e8045cf9e469788f222333e0509b8259f64ce93736a2e489c') { throw "hash mismatch: G7UPD040514.exe ($sha256)" }
+$updOut = Join-Path $extracted 'G7UPD040514'
+& $Python (Join-Path $PSScriptRoot 'is_sfx_extract.py') $upd (Join-Path $updOut 'sfx') | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'is_sfx_extract failed' }
+& $Python (Join-Path $PSScriptRoot 'isextract.py') (Join-Path $updOut 'sfx\Disk1\data1.hdr') (Join-Path $updOut 'install')
+if ($LASTEXITCODE -ne 0) { throw 'isextract (update) reported failures' }
+Write-Host "done: $updOut"
