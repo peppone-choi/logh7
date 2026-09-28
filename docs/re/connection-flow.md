@@ -3,7 +3,7 @@
 > 세션 2 정정: 아래는 초기 조사 기록이며, 로그인 송신 opcode는 0x7000, LGLoginOK의 주소는 u32 IPv4다. 업데이터 0x80xx는 오류 본문 값이다. 구현 시 [로그인 명세](../protocol/login-messages.md)와 [업데이터 명세](../protocol/update-protocol.md)를 우선한다. `evidence:client` (E-302·E-303).
 
 - 작성자: 최병호
-- 작성일: 2026-09-27
+- 작성일: 2026-09-27 · 작업 디렉터리 정정 2026-09-28
 - 근거: Evidence E-011, E-012, E-013, E-014, E-018. 태그 `evidence:client`(관찰) / `evidence:guess`(추정), 신뢰도 high/medium/low.
 
 ## 1. 실행 순서
@@ -21,6 +21,8 @@
                            ├─ 로그인 서버(기본 47900)에 접속 → 인증
                            └─ LGLoginOK가 준 세션/로비 서버 주소로 재접속하여 게임 진행
 ```
+
+업데이터의 `WORK_DIR` 설정이 비어 있으면 기본값은 `.\exe\`다(`0x00404f6e`). 직접 실행에서 설치 루트를 작업 디렉터리로 두면 클라이언트의 `../data` 상대 경로가 어긋난다. 원래 기본값으로 실행한 격리 VM에서 첫 `0x34`를 확보했다. `evidence:client` (정적 E-306, 동적 E-118~120).
 
 - CD의 `G7Start.exe`는 **설치·런처 메뉴**로, 이 실행 체인과 분리되어 있다(설치/제거/PDF/DirectX). 게임 실행 시에는 관여하지 않는다. `evidence:client`, high.
 
