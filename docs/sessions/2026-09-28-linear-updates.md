@@ -29,6 +29,10 @@ Kotlin 유지에 대한 사용자 응답을 LOGH-17에 기록했다. D-3 reverse
 - LOGH-6·20·22에 현재 ISO 장애와 원본 동적 미검증 상태를 기록하고 blocked 라벨을 추가했다.
 - 통합 PR: https://github.com/peppone-choi/logh7/pull/5
 
+## 후속 정정 (세션 3, 2026-09-28)
+
+위 표의 LOGH-26 `argv[3]` 해석은 당시 Linear 변경 영수증이다. 이후 클라이언트 실제 게임 로그인 경로에서 해당 값이 0x7000의 첫 계정 문자열로 전달되는 정적 근거 E-311이 나와 세션명 단정을 철회했다. 최신 기준은 [세션 로그인 명세](../protocol/session-login.md)와 [ADR-0002](../adr/0002-protocol-compatibility.md)다. `evidence:client`(정적), 동적 상호운용은 candidate.
+
 ## 후속 실행 반영 (2026-09-27)
 
 - LOGH-5: 공식 ISO·일본어 Windows·한국어 기능·host-only·자동 로그인·`clean`/`installed` 완료로 Done. VirtualBox 무인 설치가 빈 비밀번호를 거부해 AGENTS.md 허용 범위의 간단한 비밀번호를 사용했다.

@@ -74,3 +74,39 @@ phase1/2는 송신 초기 sequence가 0이면 1로 바꾼다. phase3의 잔여 s
 ## 남은 검증
 
 첫 `0x0034`의 복호·키 길이·초기 sequence·checksum 대조는 완료했다. 서버가 `0x0035`를 응답하고 원본 클라이언트의 `0x0036`을 기록해 골든 프레임 3개를 확보해야 전체 키 교환을 검증할 수 있다. 재키 `0x0031`은 `0x0030` 복호 본문 안에서 인식되는 제어값이므로 외부 평문 type으로 단순 구현하면 안 된다(`0x006130a0`). 현재 벡터는 초기 교환과 일반 봉투만 다룬다. `evidence:client` (첫 프레임), `evidence:guess` (후속 검증 경로).
+
+## phase3 수용 조건·실패 처리 (T2 심화, candidate)
+
+작성자: 최병호 · 2026-09-28. 근거 `evidence:client`, E-310. 디스어셈블리 `notes/t2deep-phase3.asm`을 Ghidra 출력과 대조했다. 아래 순서를 서버 체크리스트로 사용한다.
+
+- [ ] 외부 type=0x35, wrapping ciphertext는 8바이트 배수. `0x00612d80`은 다른 type을 받으면 연결을 닫는다.
+- [ ] 복호 성공 후 checksum 필드 2바이트, A_len 2바이트, A[A_len]가 존재한다.
+- [ ] A_len은 클라이언트가 보낸 키 길이와 같고 A의 모든 바이트가 원래 키와 일치한다. **반향 키를 서버 송신키 B로 바꾸면 실패**한다.
+- [ ] B_len 필드 2바이트와 B[B_len]가 존재한다. 정상 합성 벡터는 B_len=16이다.
+- [ ] checksum은 A_len부터 B_initial_seq까지 정확히 A_len+B_len+8바이트를 계산한다. zero padding은 제외한다.
+- [ ] B 수신키 설정 성공, B_initial_seq 네 바이트를 제공한다. 원본의 남은 길이 비교는 2지만 실제 읽기는 4다. checksum도 앞서 sequence까지 읽으므로 잘린 입력의 안전한 거부를 원본에서 기대하지 않는다.
+- [ ] 0x36은 checksum + B_len + B를 wrapping key로 암호화한 결과다. B_len=16일 때 논리 20바이트, 암호문 24바이트, 외부 프레임 `00 1a 00 36 ...`이다. A를 반향하거나 세션키 B로 wrapping하지 않는다.
+
+체크리스트 전체 `evidence:client`. 입력 검사·키 설정·할당·출력 암호화 실패는 phase3에서 false로 돌아간다. 호출자 `0x00612d80`은 false면 `0x00614b30 → 0x006151d0 → 0x00615d70(closesocket)`로 닫으며 **이 함수 안에서 같은 0x35를 재시도하지 않는다**. 이후 연결 폴러는 연결 상태 0을 오류 콜백으로 보고한다. 상위 UI/명령행 재진입에 따른 새 연결 시도와 이 실패 처리를 구분한다. 성공한 0x36 송신 뒤 연결 완료 콜백이 0x7000 또는 0x0020을 보낸다. `evidence:client` E-310/E-311.
+
+### 실패 문자열과 관측 경로
+
+아래는 공통 접두사 `[mpsCipherManager] exchange_key_phase3: ` 뒤의 문자열이다. 원본 영어 오타·명칭을 보존한다. 모두 `0x00402290(&DAT_03350ce0,...)` 스트림 출력 호출로 연결되며 **DBWIN/OutputDebugString으로 전달되는지는 미검증**이다. 수집 실패를 검사 통과 증거로 쓰지 않는다. `evidence:client` E-310.
+
+| VA | 접미 문자열 | 검사 |
+|---|---|---|
+| 0x007c074c | `illegal param2` | wrapping 복호 실패 |
+| 0x007c06fc | `param2 length is illegal(checksum)` | checksum 필드 부족 |
+| 0x007c06b0 | `param2 length is illegal(cipher)` | A_len 필드 부족 |
+| 0x007c0660 | `param2 length is illegal(encipher)` | A 바이트 부족 |
+| 0x007c0614 | `disagree with encipher key length` | A 길이 불일치 |
+| 0x007c0578 | `disagree with encipher key data` | A 내용 불일치 |
+| 0x007c05c4 | `param2 length is illegal(cipher len)` | B_len 필드 부족 |
+| 0x007c0524 | `param2 length is illegal(decipher len)` | B 바이트 부족 |
+| 0x007c04ec | `broken data` | checksum 불일치 |
+| 0x007c049c | `param2 length is illegal(sequence)` | sequence 잔여 길이 부족 |
+| 0x007c0464 | `out of memory` | 0x36 평문 할당 실패 |
+
+별도 게임 상태 로그 호출 `0x005923a0`은 CD판에서 **ret만 수행**한다. `InputFromCommandLine`, `ACCOUNT_ERROR`, `CONNECT_SS_OK` 등의 문자열은 정적 추적 표식으로 쓸 수 있지만 DBWIN 출력 기대값으로 삼으면 안 된다. `evidence:client` E-311.
+
+리드에게 요청: 정상 0x35와 A 반향 불일치·checksum 불일치 벡터를 각각 **별도 새 연결**에 적용해 0x36 존재/부재, TCP 종료를 기록한다. 스트림 출력 수집은 추가 관측이며 네트워크 결과를 우선 확인한다. 길이 부족 벡터는 원본의 경계 검사 결함 때문에 VM 스냅샷을 확보한 별도 시험으로 분리한다. `evidence:guess` 검증 계획.

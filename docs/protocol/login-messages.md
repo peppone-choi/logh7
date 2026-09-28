@@ -61,3 +61,7 @@
 ## 재현·남은 검증
 
 Ghidra 기존 프로젝트를 `-readOnly -noanalysis`로 열어 `LoghExport.java`의 `decomp:`로 위 주소를 내보냈다. 원시 자료는 케이스 `ghidra/export/G7MTClient.exe.t2login2.decomp.txt`, `notes/t2-login.asm`이다. `0x7000` 요청, `0x7001` 응답, 재접속 후 `0x0020`을 같은 VM 세션에서 캡처해야 상호운용 확인이 된다. `evidence:client`
+
+## T2 심화 보완 (2026-09-28)
+
+작성자: 최병호. `evidence:client`, E-311~E-314, 상태 candidate. 첫 요청의 UI/명령행 조건, 계정·인증 문자열 전달 경로, 0x0020 뒤 로비 단계, 오류 코드 표시 위치는 [session-login.md](session-login.md)에 기록했다. 실제 argv[3] 포인터는 0x7000 첫 인증 문자열로 쓰이고 UI 계정 입력도 같은 포인터를 갱신한다. 두 인증 문자열을 단순히 세션명·암호키라고 부르지 않는다. 추가 합성 벡터는 `mps-login-deep.json`이며 각 응용 벡터는 독립 연결의 sequence 예시다.

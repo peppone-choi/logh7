@@ -51,27 +51,33 @@ internal class CaptureHandler(private val capture: Capture, private val id: Stri
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) { if (msg is ByteBuf) capture.record(id, "S>C", msg); ctx.write(msg, promise) }
 }
 
-class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-dynamic-p2/captures")) : AutoCloseable {
+class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-dynamic-p2/captures"), private val accounts: Map<String, String> = emptyMap()) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
-    fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1") {
+    fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress) {
         val host = checkedBindAddress(bindAddress)
+        require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
+        val tickets = SessionTickets()
         val capture = Capture(captureDirectory)
         try {
-            listOf(gamePort, updatePort).forEach { port ->
+            listOf(gamePort, updatePort, sessionPort).forEach { port ->
                 val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
                     .childHandler(object : ChannelInitializer<SocketChannel>() {
                         override fun initChannel(ch: SocketChannel) {
-                            val handshake = Handshake()
+                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort)
                             val updateExchange = UpdateExchange()
                             ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
                             ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
                             ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
                                 override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
                                     val payload = ByteArray(msg.readableBytes()); msg.readBytes(payload)
-                                    if (port == gamePort) {
-                                        val (type, _) = Frames.decodePayload(payload); handshake.observe(type)
+                                    if (port != updatePort) {
+                                        val (type, data) = Frames.decodePayload(payload)
+                                        exchange.accept(type, data)?.let { response ->
+                                            val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
+                                            if (exchange.state == GameExchange.State.REJECTED) written.addListener(ChannelFutureListener.CLOSE)
+                                        }
                                     } else {
                                         val response = updateExchange.accept(payload)
                                         val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
@@ -80,7 +86,7 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                                         }
                                     }
                                 }
-                                override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) { System.err.println("gateway: ${cause.message}"); handshake.close(); ctx.close() }
+                                override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) { System.err.println("gateway: ${cause.message}"); exchange.close(); ctx.close() }
                             })
                         }
                     })
