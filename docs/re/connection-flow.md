@@ -30,7 +30,7 @@
 
 | 프로세스 | 소스 | 기본값 | 근거 |
 |---|---|---|---|
-| G7MTClient.exe | 명령행 인자 `argv[1]=host argv[2]=port argv[3]=세션 서버 이름 argv[4]=수치 argv[5]=문자열(기본 dummy)`. 비면 내장 기본값 사용. **argv[3]은 계정이 아니라 MPS 세션 서버 이름**(robot usage 문자열, E-028이 E-011 정정) | host `202.8.80.179`, port `47900`, session `ginei00`, argv4 `1`, argv5 `dummy` (포인터 테이블 `0x0076ee04`) | E-011, E-028, `evidence:client`, high(argv1~3) / candidate(argv4~5 의미) |
+| G7MTClient.exe | 명령행 인자 `argv[1]=host argv[2]=port argv[3]=계정 문자열 argv[4]=선택 세션 ID 후보 argv[5]=인증 문자열`. 실제 게임 경로에서 argv[3]·[5]가 0x7000의 두 문자열로 간다. 옛 robot usage의 세션명 설명은 이 경로에 적용하지 않는다 | host `202.8.80.179`, port `47900`, 계정 기본 문자열 `ginei00`, argv4 `1`, argv5 `dummy` (포인터 테이블 `0x0076ee04`) | E-011, E-028, E-311, `evidence:client`; 동적 의미 candidate |
 | G7MTClient.exe | 로그인 성공 응답(LGLoginOK, 0x7001)이 다음 접속용 host(문자열)·port(u16)·token을 내려줌 | 서버가 지정 | E-018, host/port 위치는 high, 정확한 바이트 오프셋은 candidate |
 | Gin7UpdateClient.exe | `update.ini` 파일의 `[UPDATE]` 섹션 (`GetPrivateProfileString/Int`) | `SERVER_ADDRESS=202.8.80.179`, `SERVER_PORT=47902` (문자열 폴백) | E-012, `evidence:client`, high |
 | Gin7UpdateClient.exe | `%sSERVER.INI`(BASE_DIR 기준)의 `TYPE=1` 섹션 `ADDR`/`PORT` 목록 | 파일 없으면 무시 | E-012, `evidence:client`. 용도(서버 목록/폴백)는 미해결 |
@@ -95,3 +95,7 @@ sequenceDiagram
 
 - 업데이터가 클라이언트에 로그인 정보를 넘기지 않는데, 원 서비스에서 계정/비밀번호가 어떻게 채워졌는지(전용 런처? 로그인 다이얼로그?) — 정적으로는 로그인 GUI 입력 경로(`0x2216bd2` 계정, `0x2216c3c` 수치)만 확인. `evidence:guess`.
 - `SERVER.INI`의 `TYPE/ADDR/PORT` 목록이 게임 서버 목록인지 업데이트용인지. 업데이터 코드에만 있어 업데이트 관련으로 추정. candidate.
+
+## T2 심화 정정 (2026-09-28)
+
+작성자: 최병호. `evidence:client`, E-311/E-312, 상태 candidate. [세션 로그인 심화](../protocol/session-login.md)가 위 argv 의미와 재접속 설명을 보완·정정한다. argv[3]의 기본 `ginei00`는 실제 0x7000 첫 인증 문자열로 들어가며 UI 계정 입력이 같은 포인터를 갱신한다. 따라서 “계정이 아니다”라는 기존 단정은 철회한다. argv[4]는 선택 세션 ID 후보, argv[5]는 둘째 인증 문자열이다. 0x7001 직후 연결은 새 키 교환 → 0x0020 → 0x2000 로비 로그인 순서이며, 0x0200/0201은 로비 세션 선택과 다음 연결 뒤의 게임 세션 인증이다.

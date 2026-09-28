@@ -60,7 +60,7 @@ template: docs-generator 역공학 보고서 (flavor = null)
 | E-025 | 자산 시그니처(HFWR/GFWR/.tcf/.mdx/.mds/ViX 등) | command | `scripts/asset_sigs.py` |
 | E-026 | (E-020 정정) 글꼴 face = ＭＳ ゴシック @0x0076e240 | file | — |
 | E-027 | (E-025 정정) .tcf 배너 인코딩 | file | — |
-| E-028 | 미들웨어 = MultiTerm MPS, argv[3] = 세션 서버 이름 | command | robot usage 문자열 0x0076be64 |
+| E-028 | 미들웨어 = MultiTerm MPS, 옛 robot usage는 argv[3]을 세션 서버 이름으로 지칭 | command | 실제 게임 로그인 경로는 E-311로 정정 |
 
 원문 발췌와 해시는 케이스 `evidence/E-*.md`(git 제외)에 있다.
 
@@ -84,7 +84,7 @@ template: docs-generator 역공학 보고서 (flavor = null)
 - confidence_note: high(정적)
 - evidence_ids: [E-005, E-011, E-012, E-014, E-018, E-028]
 - location: 기본값 테이블 `0x0076ee04`, 로그인 응답 처리 `FUN_004ac700`
-- impact: `G7MTClient.exe <host> <port> <세션명> …` 로 로그인 서버를 지정하고, 서버가 LGLoginOK에서 세션 서버 주소를 돌려주면 클라이언트 수정 없이 접속할 수 있다. IP 리터럴이라 hosts 파일은 무효.
+- impact: `G7MTClient.exe <host> <port> <계정 문자열> <세션 ID> <인증 문자열>`로 로그인 서버를 지정하고, 서버가 LGLoginOK에서 다음 주소를 돌려주면 클라이언트 수정 없이 접속할 수 있다. argv[3]의 실제 게임 경로는 E-311로 정정했다. IP 리터럴이라 hosts 파일은 무효.
 - 승격 조건: 격리 VM에서 인자 실행 → 스텁 도달(LOGH-20)
 
 ### F-003 MPS 암호 계층
@@ -94,7 +94,7 @@ template: docs-generator 역공학 보고서 (flavor = null)
 - confidence: high
 - confidence_note: high(구조) / medium(필드 배치)
 - evidence_ids: [E-014, E-015, E-016, E-024, E-028]
-- location: `mpsCipherManager::encipher/decipher_message`(`FUN_00645ce0`/`FUN_00645db0`), 키 교환 `0x00645180~0x006457e8`, 핸드셰이크 키 `0x0076bbf0`
+- location: `mpsCipherManager::encipher/decipher_message`(`FUN_00645ce0`/`FUN_00645db0`), 키 교환 `0x00645180~0x00645a80`, 핸드셰이크 키 `0x0076bbf0`
 - impact: 대체 서버가 Blowfish 변형·키 교환·봉투를 바이트 호환으로 구현해야 로그인 가능(LOGH-61).
 
 ### F-004 메시지 체계
@@ -105,7 +105,7 @@ template: docs-generator 역공학 보고서 (flavor = null)
 - confidence_note: high(S→C 디스패처) / medium(C→S 이름표)
 - evidence_ids: [E-017, E-018, E-024]
 - location: 디스패처 `FUN_004ba2b0`, 이름 테이블 15개
-- impact: opcode = `그룹<<8 | 인덱스`, 로그인 0x0010/0x7001/0x7002, 세션 0x02xx, 정보 0x03xx, 커맨드 0x04xx…, 로비 0x20xx. 미구현 후보 9건의 클라이언트 흔적 확인에도 사용.
+- impact: opcode = `그룹<<8 | 인덱스`, 로그인 요청 0x7000·응답 0x7001/0x7002, 세션 0x02xx, 정보 0x03xx, 커맨드 0x04xx…, 로비 0x20xx. 기존 0x0010 로그인 해석은 E-302로 정정했다.
 
 ### F-005 텍스트 경로와 한국어화 비용
 - category: design
@@ -154,7 +154,7 @@ template: docs-generator 역공학 보고서 (flavor = null)
   1. BootFirst 가 업데이터 자기 갱신 후 실행 — evidence: E-013 — finding: none
   2. 업데이터가 `update.ini`(기본 `202.8.80.179:47902`)로 버전 확인, 인자 없이 클라이언트 실행 — evidence: E-012, E-023 — finding: F-007
   3. 클라이언트가 인자 또는 기본값으로 로그인 서버(47900) 접속, `[u16 len][type]` 프레임 — evidence: E-011, E-014, E-028 — finding: F-002
-  4. 키 교환 0x34/0x35/0x36(정적 GUID 키) 후 0x30 암호 메시지로 Login(0x0010) — evidence: E-015, E-016 — finding: F-003
+  4. 키 교환 0x34/0x35/0x36(정적 GUID 키) 후 0x30 암호 메시지로 Login(0x7000) — evidence: E-015, E-016, E-302 — finding: F-003
   5. LGLoginOK(0x7001)가 세션 서버 host/port/token 전달 → 재접속 후 0x0020 — evidence: E-018 — finding: F-002, F-004
 - residual_risks: 봉투 필드 배치·키 교환 blob·0x7001 오프셋은 동적 확인 필요.
 
@@ -165,10 +165,11 @@ sequenceDiagram
     participant SS as 세션 서버
     CL->>LG: connect (argv host/port)
     CL->>LG: 0x34/0x35/0x36 키 교환 (Blowfish 변형, 정적 GUID 키)
-    CL->>LG: 0x30[봉투: checksum·seq·len] Login 0x0010
+    CL->>LG: 0x30[봉투: checksum·seq·len] Login 0x7000
     LG-->>CL: LGLoginOK 0x7001 {host, port, token}
-    CL->>SS: connect + 0x0020(token)
-    SS-->>CL: SSLoginOK 0x0201 → 게임 진행
+    CL->>SS: connect + 새 키 교환 + 0x0020(token)
+    CL->>SS: LobbyLoginRequest 0x2000
+    SS-->>CL: LobbyLoginOK 0x2001 → 세션 목록 0x2006
 ```
 
 ### P-002 텍스트 렌더 흐름
