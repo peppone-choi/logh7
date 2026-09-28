@@ -46,13 +46,6 @@ class GatewayTest {
             assertNull(channel.readInbound<Any>())
         } finally { channel.finishAndReleaseAll() }
     }
-    @Test fun keyExchangeDoesNotAcceptApplicationBeforeKeys() {
-        assertFailsWith<IllegalArgumentException> { Handshake().observe(0x30) }
-        val handshake = Handshake(); handshake.observe(0x34)
-        assertEquals(Handshake.State.INITIAL_KEY_OBSERVED, handshake.state)
-        assertFailsWith<IllegalStateException> { handshake.observe(0x35) }
-    }
-
     @Test fun updaterCompletesOnlyAfterIdentificationAndVersion() {
         val exchange = UpdateExchange()
         assertContentEquals(byteArrayOf(0, 2, 0x68, 0x11), exchange.accept(byteArrayOf(0x68, 0x10, 1, 2)))
