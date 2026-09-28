@@ -1,6 +1,6 @@
 # 세션 2 후속 실행: VM 설치·동적 접속
 
-작성: 최병호 · 실제 실행일: 2026-09-27(KST). [세션 2 보고서](2026-09-28-report.md)의 ISO 미확보 시점 이후에 실행한 내용을 기록한다.
+작성: 최병호 · 실제 실행일: 2026-09-27~28(KST). [세션 2 보고서](2026-09-28-report.md)의 ISO 미확보 시점 이후에 실행한 내용을 기록한다.
 
 ## 1. 가정과 범위
 
@@ -21,12 +21,12 @@
 | 목표 | 현재 판정 | 이유·조치 |
 |---|---|---|
 | G-4 VM·원본 설치·비교 | 달성(빈 비밀번호 대체 기록) | 일본어/한국어 기능, host-only, 원본 설치, `clean`/`installed`, 해시·레지스트리 비교 완료. 자동 로그인은 간단한 비밀번호를 사용 |
-| G-5 첫 0x34·프레이밍 validated | 미달성 | 클라이언트가 TCP 이전에 응답 중지. 실제 0x34 원자료 없음. 원인과 대안 VM 선택은 미결 |
-| G-9 기록·검증 | 동적 케이스·PR 완료 | `review_case.py --verify-hashes --strict` PASS: Evidence 9, Finding 3, Path 1, 오류·경고 0. 게임 저작물은 Git 제외. [PR #12](https://github.com/peppone-choi/logh7/pull/12) 병합 |
+| G-5 첫 0x34·프레이밍 validated | 미달성 | VirtualBox와 VMware 모두 창·TCP 이전에 정지. 실제 0x34 원자료 없음. 원인은 미확정 |
+| G-9 기록·검증 | 동적 케이스·PR 완료, 재시험 기록 갱신 | `review_case.py --verify-hashes --strict` PASS: Evidence 13, Finding 4, Path 1, 오류·경고 0. 게임 저작물은 Git 제외. [PR #12](https://github.com/peppone-choi/logh7/pull/12) 병합 |
 
 ## 3. 못 한 것과 다음 조치
 
-첫 0x34 캡처, 0x35/0x36 응답, 실제 로그인, 게임 내 한글 표시·IME 왕복은 수행하지 못했다. 클라이언트가 화면이나 TCP 연결을 만들기 전에 멈추기 때문이다. VM의 3D 설정만 바꿔도 동일했고, 호스트 전용 어댑터의 TCP 시간 초과 원인은 별도로 확정하지 않았다. 사용자가 기존 VMware Workstation에서 격리 복제본 재시험을 선택하면 E:에 복제해 동일 명령행·localhost 스텁으로 비교한다. 재시험 전까지 프레이밍 Finding은 candidate다. `evidence:client` (E-108), `evidence:guess` (대안 경로)
+첫 0x34 캡처, 0x35/0x36 응답, 실제 로그인, 게임 내 한글 표시·IME 왕복은 수행하지 못했다. 클라이언트가 화면이나 TCP 연결을 만들기 전에 멈추기 때문이다. VirtualBox의 3D 설정 변경과 사용자 승인 VMware 복제본의 대화형 예약 작업 실행까지 비교했지만 결과가 같았다. 호스트 전용 어댑터의 TCP 시간 초과 원인은 별도로 확정하지 않았고, 게스트 localhost 수신기는 LISTENING이었다. 프레이밍 Finding은 candidate다. `evidence:client` (E-108·111·112); 초기화 원인은 `evidence:guess`.
 
 ## 4. 리스크 3개와 다음 작업 3개
 
@@ -36,21 +36,27 @@
 | 호스트 전용 IP TCP 시간 초과 | localhost 실험 외 호스트 Kotlin 스텁 연결까지 별도 확인 필요. 호스트 방화벽 변경은 미승인 |
 | 정적 프로토콜 명세의 실제 호환성 미확인 | 합성 벡터와 설치본 해시 일치만으로 첫 키 교환을 증명할 수 없음 |
 
-1. 사용자 선택에 따라 VMware 격리 복제본 재시험 또는 VirtualBox 기동 장애 추가 진단.
+1. VMware와 VirtualBox 공통의 네트워크 이전 초기화 정지 지점을 진단.
 2. 정상 기동되면 VM localhost에서 첫 원바이트 프레임을 캡처하고 길이·0x34·checksum을 정적 근거와 대조.
 3. 독립 증거가 맞으면 0x35/0x36과 로그인 교환을 구현·검증하고 한글 표시를 확인.
 
 ## 5. 사용자 미결
 
-기존 VMware Workstation의 격리 복제본 재시험 여부를 물었다. 답이 오기 전까지 VMware 복제·클라이언트 재실행은 진행하지 않는다. GCP 생성·과금·외부 공개는 별도 승인 범위다. `evidence:guess`
+VMware 재시험은 사용자가 승인했고 수행했다. Windows XP 등 새 게스트 이미지나 새로운 가상화 대안은 결정되지 않았다. GCP 생성·과금·외부 공개는 별도 승인 범위다. `evidence:client` (재시험), `evidence:guess` (후속 대안).
 
 ## 6. 출처와 검증 범위
 
-- `work/logh7-dynamic-p2/evidence/E-103.md`~`E-108.md`, `report/report.md`, `report/case-review.md` (Git 제외): VM·언어·설치·실행 시도 원자료와 SHA-256.
+- `work/logh7-dynamic-p2/evidence/E-103.md`~`E-112.md`, `report/report.md`, `report/case-review.md` (Git 제외): VM·언어·설치·실행 시도 원자료와 SHA-256.
 - [격리 VM 절차](../ops/isolation-vm.md), [설치 비교](../re/install-diff.md), [정적 키 교환 명세](../protocol/kex-envelope.md).
 - [Microsoft Windows 10 공식 다운로드](https://www.microsoft.com/en-us/software-download/windows10), [Oracle VirtualBox 7.2 공식 배포](https://download.virtualbox.org/virtualbox/7.2.20/).
 - Linear [LOGH-5](https://linear.app/peppone-choi/issue/LOGH-5), [LOGH-6](https://linear.app/peppone-choi/issue/LOGH-6), [LOGH-20](https://linear.app/peppone-choi/issue/LOGH-20), [LOGH-22](https://linear.app/peppone-choi/issue/LOGH-22).
 
-reverse-skill의 field-journal·참고 문서·색인을 익명화해 로컬 main `76bcc94`에만 커밋했다. `refresh-tool-index.ps1`을 실행해 42개 도구를 재탐색했으며 산출 파일의 내용 변경은 없었다. reverse-skill은 push하지 않았다. `evidence:client`
+reverse-skill의 field-journal·참고 문서·색인을 익명화해 로컬 main `76bcc94`와 후속 `5d79236`에만 커밋했다. `refresh-tool-index.ps1`을 실행해 42개 도구를 재탐색했으며 산출 파일의 내용 변경은 없었다. reverse-skill은 push하지 않았다. `evidence:client`
 
 ISO SHA-256은 로컬 생성물의 해시이며 Microsoft가 게시한 공식 해시와 대조한 값은 아니다. 위 strict PASS는 케이스 증거 그래프·해시 무결성 검사로, 클라이언트 접속 성공 판정이 아니다. `evidence:client`
+
+## 7. 2026-09-28 VMware CLI 재시험
+
+VMware Tools를 설치한 격리 복제본에서 게스트 화면과 사용자 세션을 확인했다. `G7MTClient.exe 127.0.0.1 47900 ginei00 1 dummy`를 Windows 셸 및 대화형 예약 작업으로 실행했다. 예약 작업의 클라이언트 PID는 세션 1에서 2분 이상 살아 있었지만 `MainWindowHandle=0`이고 localhost 수신기 외 TCP 연결이 없었다. 첫 프레임 파일도 없다. 시험 프로세스와 예약 작업을 제거하고 VM을 정상 종료했다. 원본 게임 파일과 호스트 설정은 변경하지 않았다. `evidence:client` (E-111·112).
+
+Linear [LOGH-20](https://linear.app/peppone-choi/issue/LOGH-20)의 설명·댓글과 [LOGH-22](https://linear.app/peppone-choi/issue/LOGH-22) 댓글을 갱신했다. 다음 단계는 그래픽 장애를 단정하기 전에 네트워크 이전 초기화가 멈추는 지점을 독립 증거로 확인하는 것이다. `evidence:client` (현 상태), `evidence:guess` (진단 방향).
