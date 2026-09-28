@@ -1,10 +1,10 @@
 # 격리 실행 환경
 
-작성: 최병호 · 2026-09-27 · LOGH-5·6·20
+작성: 최병호 · 2026-09-28 갱신 · LOGH-5·6·20
 
 ## 현재 상태
 
-VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어 Windows 10 x64(10.0.19045.3803)와 원본 게임을 설치했다. 설치 전후 비교는 [설치 비교](../re/install-diff.md)에 기록했다. 원본 클라이언트는 아직 정상 기동하지 못했다. `evidence:client` (동적 케이스 E-101·E-103~108).
+VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어 Windows 10 x64(10.0.19045.3803)와 원본 게임을 설치했다. 설치 전후 비교는 [설치 비교](../re/install-diff.md)에 기록했다. 사용자 승인으로 VMware Workstation 17.6.4 격리 복제본도 `E:\VM\logh7-vmware`에서 시험했다. 원본 클라이언트는 두 VM 모두에서 첫 TCP 연결 이전에 멈춰 아직 정상 기동하지 못했다. `evidence:client` (동적 케이스 E-101·E-103~112).
 
 | 항목 | 확인 결과 |
 |---|---|
@@ -34,7 +34,7 @@ G:의 과거 MBR 식별자는 `46BE25E5`, 파티션 오프셋은 1 MiB였다. �
 4. 파일 목록·레지스트리를 설치 전후 수집하고 원본 게임을 VM 안에서만 설치했다. 설치 파일 2,194개는 정적 추출본과 SHA-256이 모두 일치했다. `installed`와 `installed-verified` 스냅샷을 만들었다. `evidence:client` (E-105~107)
 5. 호스트 전용 IP의 Kotlin 스텁은 기동했으나 게스트에서 해당 IP의 47900 포트로 TCP 연결이 시간 초과됐다. 호스트 방화벽 설정은 변경하지 않았다. VM 내부 `127.0.0.1:47900`에 캡처 스텁을 띄워 원본 `exe\G7MTClient.exe 127.0.0.1 47900 ginei00 1 dummy`를 세 차례 실행했다. 3D를 끄고 켠 상태 모두에서 프로세스가 응답하지 않고 TCP 연결도 없었다. 첫 0x34와 프레이밍 validated는 미달성이다. `evidence:client` (E-108)
 
-클라이언트는 정상 기동하지 않았지만 원인을 DirectX 8이나 VirtualBox 3D로 단정할 증거는 없다. VirtualBox 로그에 D3D 기능 조회는 남았다. 사용자에게 기존 VMware Workstation에서 복제본 재시험 여부를 물었으며 답에 따라 다음 단계를 결정한다. `evidence:client` (E-108), `evidence:guess` (대안 시험).
+클라이언트는 정상 기동하지 않았지만 원인을 DirectX 8이나 VirtualBox 3D로 단정할 증거는 없다. VirtualBox 로그에 D3D 기능 조회는 남았다. VMware 복제본에서는 Tools 설치 후 단일 VMnet1 host-only NIC와 게스트 localhost 수신기를 확인했다. 2026-09-28 Windows 셸 및 작업 스케줄러의 대화형 사용자 세션에서 원본 클라이언트를 실행했으나 2분 이상 창 핸들·TCP 연결·첫 프레임이 없었다. 임시 예약 작업과 시험 프로세스를 제거한 뒤 VMware VM도 정상 종료했다. 상세 원자료는 Git 제외 동적 케이스 E-111·112에 있다. `evidence:client`; 초기화 원인은 `evidence:guess`.
 
 [Microsoft 공식 미디어 생성 도구](https://www.microsoft.com/en-us/software-download/windows10)는 `E:\Tools\WindowsMedia\MediaCreationTool_22H2.exe`에 받았다(SHA256 `690C8A63769D444FAD47B7DDECEE7F24C9333AA735D0BD46587D0DF5CF15CDE5`, Microsoft Corporation 서명 `Valid`). 사용자의 후속 실행 지시에 따라 도구를 실행했고, 실제로 C:에 임시 다운로드 파일이 생성됐다가 도구 처리 중 상당 부분 회수됐다. ISO 최종 저장은 E:였다. `evidence:manual` (공식 도구 경로), `evidence:client` (다운로드·서명·파일·공간 변화).
 
