@@ -54,6 +54,12 @@
 - 게임 설치·클라이언트 실행은 호스트에서 하지 않는다. **VirtualBox VM**(`E:\VirtualBox\VBoxManage.exe`) 안에서만.
 - VM 은 **자동 로그인 + 빈 비밀번호(또는 매우 단순한 값)** 로 구성한다. 사용자에게 로그인·비밀번호를 요구하지 않는다.
 - 게임 클라이언트 VM 네트워크는 호스트 전용망. OS·언어 기능 설치 중에만 NAT 허용. 스텁 서버는 localhost/호스트 전용 어댑터에만 바인딩.
+- **VM·게스트는 헤드리스 CLI로만 다룬다(2026-09-28 사용자 결정 D-6).** 사용자는 같은 호스트로 다른 일을 하므로 호스트 데스크톱을 건드리지 않는다.
+  - VirtualBox: `VBoxManage startvm <vm> --type headless`, `guestcontrol <vm> run`/`copyto`/`copyfrom`(계정은 `--passwordfile`, 값은 채팅·문서·로그에 쓰지 않음), `controlvm <vm> screenshotpng`, `controlvm <vm> acpipowerbutton`, `snapshot`, `modifyvm`.
+  - VMware: `vmrun -T ws start <vmx> nogui`, `runProgramInGuest`/`runScriptInGuest`, `copyFileFromHostToGuest`/`copyFileFromGuestToHost`, `captureScreen`, `stop <vmx> soft`.
+  - 금지: computer-use·화면/입력/브라우저 자동화, VirtualBox 관리자·VMware Workstation·VNC 뷰어·VM 콘솔 창 열기, 호스트에 창이나 포커스를 띄우는 명령, 사용자에게 게스트 화면 클릭·확인 요청.
+  - 게스트 GUI 프로세스(게임 클라이언트 등)는 guestcontrol로 등록한 작업 스케줄러 `LogonType Interactive` 임시 작업이나 `vmrun runProgramInGuest -interactive`로 대화형 세션에 띄우고, 끝나면 임시 작업을 지운다. 화면 확인은 파일로 저장한 스크린샷으로 한다.
+  - UAC 승인처럼 CLI로 안 되는 단계는 GUI로 우회하지 말고 멈추고 묻는다.
 - 외부 대상에 대한 능동 스캔 금지. GCP 리소스 생성·과금 작업은 별도 승인 전 금지(IaC·스크립트 초안만).
 
 ## 5. 문서 규칙
@@ -81,6 +87,7 @@
 | D-3 | reverse-skill 회신은 로컬 main 에만 | 사용자 2026-09-27 |
 | D-4 | 용어: 일본어 직역 + 나무위키 | 사용자 2026-09-27 |
 | D-5 | 게임 서버 **Kotlin/JVM + Netty + 코루틴, Spring 없음(내장 Ktor 운영 API)**, 웹 Next.js, 플레이어용 런처·패치 적용기·DLL 은 Rust 1순위, 프로토콜은 스키마→코덱 생성 | ADR-0001 개정 2 |
+| D-6 | VM·게스트는 헤드리스 CLI로만 조작, computer-use·GUI 창·사용자 클릭 요청 금지(§4) | 사용자 2026-09-28 |
 | — | 접속: 원본 클라이언트를 명령행 인자(host/port/세션명)로 실행 + 서버가 LGLoginOK 에서 세션 주소 반환(클라이언트 무수정) | ADR-0002 |
 | — | 한국어화: 로캘 전환(CP949, 문자열 2곳 패치 + MsgDat 재작성) 우선, CP932 호환 사설 매핑 대체 | ADR-0004 |
 
