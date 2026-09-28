@@ -1,6 +1,6 @@
 # 키 교환·암호 봉투 정적 명세
 
-작성자: 최병호 · 2026-09-27 · 상태: **candidate**, 동적 미검증.
+작성자: 최병호 · 2026-09-28 갱신 · 상태: 첫 `0x34` 1개 동적 일치, 전체 키 교환은 **candidate**.
 근거: `evidence:client`, E-300/E-301. 주소는 CD판 `G7MTClient.exe` VA이며 SHA256은 벡터 JSON에 기록한다.
 
 ## 암호와 재현
@@ -13,7 +13,7 @@
 python -B docs/protocol/generate_vectors.py work/logh7-client-triage/ghidra/bin/G7MTClient.exe server/protocol/src/test/resources/vectors
 ```
 
-생성기는 표준 라이브러리만 사용한다. `mps-tables.json`은 복원된 숫자 상수, `mps-blowfish.json`은 알려진 키/평문 9건, `mps-envelope.json`은 본문 길이 0~9의 체크섬·봉투, `mps-kex.json`은 합성 키 교환 3개 프레임이다. 실행한 검사는 암복호 왕복 9건이며 실제 클라이언트 출력과의 일치 검사는 아직 없다. 자체 왕복은 호환성 증명이 아니다. `evidence:client`
+생성기는 표준 라이브러리만 사용한다. `mps-tables.json`은 복원된 숫자 상수, `mps-blowfish.json`은 알려진 키/평문 9건, `mps-envelope.json`은 본문 길이 0~9의 체크섬·봉투, `mps-kex.json`은 합성 키 교환 3개 프레임이다. 암복호 왕복 9건에 더해 실제 클라이언트의 첫 `0x34` 프레임 1개가 아래 구조와 일치했다. 자체 왕복만으로는 호환성 증명이 아니며 나머지 교환은 미검증이다. `evidence:client` (동적 E-119·120).
 
 ## 체크섬의 정확한 범위와 잔여 바이트 처리
 
@@ -67,6 +67,10 @@ phase1/2는 송신 초기 sequence가 0이면 1로 바꾼다. phase3의 잔여 s
 
 바깥 소켓 프레임은 `[u16 BE payload_len][u16 BE frame_type][ciphertext]`, payload_len은 type 2바이트와 암호문 길이의 합이다. 합성 교환 벡터는 A=`00..0f`, B=`f0..ff`, 초기 sequence A=1/B=2를 사용한다. `evidence:client`
 
+## 실제 첫 프레임 관찰 (2026-09-28)
+
+격리 게스트 localhost 수신기에서 28바이트 원바이트 프레임을 받았다. `[u16 payload_len=26][u16 type=0x0034][ciphertext 24바이트]`이고 위 정적 wrapping key로 복호한 결과 A 키 길이 16, 초기 sequence 1, checksum `0x287e` 일치, 추가 패딩 0바이트다. 캡처 SHA-256은 `d872b1c8c9d20f758180351891edc93d2efd285e2375d26508f9c4aed50c3063`; 게임 원바이트는 Git 제외 동적 케이스에 둔다. [기동·캡처 보고서](../sessions/2026-09-28-audio-startup-report.md). `evidence:client` (E-119·120).
+
 ## 남은 검증
 
-격리 VM에서 첫 `0x0034`를 캡처하여 복호·키 길이·초기 sequence·checksum을 대조하고 `0x0035`를 응답해 `0x0036`까지 확인해야 한다. 재키 `0x0031`은 `0x0030` 복호 본문 안에서 인식되는 제어값이므로 외부 평문 type으로 단순 구현하면 안 된다(`0x006130a0`). 현재 벡터는 초기 교환과 일반 봉투만 다룬다. `evidence:client`
+첫 `0x0034`의 복호·키 길이·초기 sequence·checksum 대조는 완료했다. 서버가 `0x0035`를 응답하고 원본 클라이언트의 `0x0036`을 기록해 골든 프레임 3개를 확보해야 전체 키 교환을 검증할 수 있다. 재키 `0x0031`은 `0x0030` 복호 본문 안에서 인식되는 제어값이므로 외부 평문 type으로 단순 구현하면 안 된다(`0x006130a0`). 현재 벡터는 초기 교환과 일반 봉투만 다룬다. `evidence:client` (첫 프레임), `evidence:guess` (후속 검증 경로).

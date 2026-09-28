@@ -1,10 +1,10 @@
 # 격리 실행 환경
 
-작성: 최병호 · 2026-09-28 갱신 · LOGH-5·6·20
+작성: 최병호 · 2026-09-28 갱신 · LOGH-5·6·20·22
 
 ## 현재 상태
 
-VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어 Windows 10 x64(10.0.19045.3803)와 원본 게임을 설치했다. 설치 전후 비교는 [설치 비교](../re/install-diff.md)에 기록했다. 사용자 승인으로 VMware Workstation 17.6.4 격리 복제본도 `E:\VM\logh7-vmware`에서 시험했다. 원본 클라이언트는 두 VM 모두에서 첫 TCP 연결 이전에 멈춰 아직 정상 기동하지 못했다. `evidence:client` (동적 케이스 E-101·E-103~112).
+VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어 Windows 10 x64(10.0.19045.3803)와 원본 게임을 설치했다. 설치 전후 비교는 [설치 비교](../re/install-diff.md)에 기록했다. 사용자 승인 VMware Workstation 17.6.4 복제본의 초기 시험은 창·TCP 이전에 멈췄다. 이후 VirtualBox에서 **오디오 출력 부재에 따른 IKSound 초기화 실패**를 확인하고 HDA 출력 엔드포인트를 제공했다. 원래 업데이터의 `./exe/` 작업 디렉터리로 직접 실행하자 원본 클라이언트 창과 localhost 첫 `0x34` 프레임을 확보했다. VM 두 개는 모두 정상 종료 상태다. `evidence:client` (동적 케이스 E-101·E-103~122; 정적 케이스 사운드·업데이터 분석).
 
 | 항목 | 확인 결과 |
 |---|---|
@@ -14,9 +14,11 @@ VirtualBox 7.2.20을 `E:\VirtualBox`에 설치했고 `logh7-win` VM에 일본어
 | 네트워크 | NIC1 host-only, `VirtualBox Host-Only Ethernet Adapter`, NIC2 없음. NAT는 언어 기능 설치 중에만 사용 |
 | 공유·계정·로캘 | 자동 로그인·간단한 비밀번호. 시스템·UI 로캘 `ja-JP`, 사용자 언어 `ja`·`ko`, 각 입력기 및 양쪽 글꼴 확인 |
 | 스냅샷 | `os-ja-base` UUID `58031c9b-485b-43a3-8feb-9ef805c19bec`, 게임 설치 전 `clean` UUID `75804d62-d331-45a4-ac83-3bc37858cd71`, 설치 후 `installed` UUID `68f5a67e-c39f-4f8d-bc80-c84d6bd113cc`, 정상 종료 후 `installed-verified` UUID `b8ac6179-38f0-40ee-9f55-0682f227b57d` |
+| 오디오 변경 전 스냅샷 | `pre-audio` UUID `c8616824-9be4-437c-b746-e363fd983959`(오프라인) |
+| 현재 오디오 | HDA, 출력 on, 호스트 드라이버 null. 게스트 사운드 장치·스피커 엔드포인트 OK |
 | ISO | `E:\iso\Windows.iso`(일본어 x64, 4,895,932,416바이트), SHA256 `F47A3ECF5DD4AB407746D42516D1219E9B2D1CBCD542956CF67E7F804EF1E5DB` |
 
-현재 VM은 정상 종료한 `poweroff` 상태다. 표의 환경 관찰은 `evidence:client` (E-101·E-103~108)다.
+현재 VM은 정상 종료한 `poweroff` 상태다. 표의 환경 관찰은 `evidence:client` (E-101·E-103~122)다.
 
 ## G: 조사와 재설치
 
@@ -32,9 +34,19 @@ G:의 과거 MBR 식별자는 `46BE25E5`, 파티션 오프셋은 1 MiB였다. �
 2. 기존 `logh7-win`에 일본어 Windows 10을 설치했다. 첫 시도는 2 CPU·4 GiB RAM에서 설치 진행이 멈춰 전원을 껐고, 4 CPU·8 GiB RAM·3D 꺼짐으로 재시도해 일본어 바탕화면과 Guest Additions 7.2.20을 확인했다. VirtualBox 무인 설치는 빈 비밀번호를 거부해 간단한 비밀번호로 자동 로그인을 구성했다. 게스트 기본 시스템·UI 로캘과 한국어 언어 기능을 확인했다. `evidence:client` (후속 VM 실행 및 `locale-verify.log`).
 3. 게임 실행 전에 NIC1 host-only·NIC2 없음과 게스트 외부 인터넷 차단을 확인하고 `clean` 스냅샷을 만들었다. ISO는 읽기 전용 광학 드라이브로 연결했다. `evidence:client` (E-103)
 4. 파일 목록·레지스트리를 설치 전후 수집하고 원본 게임을 VM 안에서만 설치했다. 설치 파일 2,194개는 정적 추출본과 SHA-256이 모두 일치했다. `installed`와 `installed-verified` 스냅샷을 만들었다. `evidence:client` (E-105~107)
-5. 호스트 전용 IP의 Kotlin 스텁은 기동했으나 게스트에서 해당 IP의 47900 포트로 TCP 연결이 시간 초과됐다. 호스트 방화벽 설정은 변경하지 않았다. VM 내부 `127.0.0.1:47900`에 캡처 스텁을 띄워 원본 `exe\G7MTClient.exe 127.0.0.1 47900 ginei00 1 dummy`를 세 차례 실행했다. 3D를 끄고 켠 상태 모두에서 프로세스가 응답하지 않고 TCP 연결도 없었다. 첫 0x34와 프레이밍 validated는 미달성이다. `evidence:client` (E-108)
+5. 2026-09-27 당시 호스트 전용 IP의 Kotlin 스텁은 기동했으나 게스트에서 해당 IP의 47900 포트로 TCP 연결이 시간 초과됐다. 호스트 방화벽 설정은 변경하지 않았다. VM 내부 `127.0.0.1:47900`에 캡처 스텁을 띄워 원본 `exe\G7MTClient.exe 127.0.0.1 47900 ginei00 1 dummy`를 세 차례 실행했다. 3D를 끄고 켠 상태 모두에서 창과 TCP 연결이 없었다. 그 시점에는 첫 0x34를 확보하지 못했다. 아래 2026-09-28 재시험에서 원인을 구분하고 첫 프레임을 받았다. `evidence:client` (E-108·113~122)
 
-클라이언트는 정상 기동하지 않았지만 원인을 DirectX 8이나 VirtualBox 3D로 단정할 증거는 없다. VirtualBox 로그에 D3D 기능 조회는 남았다. VMware 복제본에서는 Tools 설치 후 단일 VMnet1 host-only NIC와 게스트 localhost 수신기를 확인했다. 2026-09-28 Windows 셸 및 작업 스케줄러의 대화형 사용자 세션에서 원본 클라이언트를 실행했으나 2분 이상 창 핸들·TCP 연결·첫 프레임이 없었다. 임시 예약 작업과 시험 프로세스를 제거한 뒤 VMware VM도 정상 종료했다. 상세 원자료는 Git 제외 동적 케이스 E-111·112에 있다. `evidence:client`; 초기화 원인은 `evidence:guess`.
+앞선 VirtualBox·VMware 기동 실패의 원인을 DirectX 8이나 3D 설정으로 단정하지 않는다. VMware 복제본은 오디오 장치를 같은 방식으로 직접 확인하지 않았으므로 VirtualBox에서 확정한 유발 조건을 자동 적용하지 않는다. VMware 임시 작업과 VM은 정상 종료했다. `evidence:client` (E-108·111·112), `evidence:guess` (VMware 원인).
+
+## 오디오 초기화와 첫 프레임 재현 (2026-09-28)
+
+오디오 출력이 꺼진 VirtualBox 게스트에는 `Win32_SoundDevice`와 현재 `AudioEndpoint`가 없었다. 클라이언트와 같은 세션 1에서 먼저 시작한 DBWIN 수신기는 `IKSound System: Init failed `를 기록했고, 2분 후에도 창 핸들 0·TCP 연결 없음이었다. 정적 클라이언트는 사운드 스레드 실패 시 `SetEvent`를 호출하지 않고 반환하는데, 호출자는 무기한 이벤트를 기다린다. 변경 전 `pre-audio` 스냅샷을 만들었다. `evidence:client` (동적 E-113~115, 정적 사운드 경로).
+
+전원을 끈 상태에서 `VBoxManage modifyvm logh7-win --audio-enabled on --audio-out on --audio-controller hda --audio-driver null`을 적용했다. 게스트의 HDA 장치·스피커 엔드포인트가 OK가 된 뒤 동일 시험에서 사운드 실패 메시지는 사라졌다. 설치 루트를 작업 디렉터리로 두면 리소스 상대 경로가 어긋나므로, 원래 업데이터의 기본 `WORK_DIR=./exe/`를 적용했다. 이때 창 핸들 131762와 첫 원바이트 프레임 28바이트를 받았다. `[00 1A][00 34][암호문 24바이트]`의 복호 결과는 키 길이 16, 초기 sequence 1, checksum `0x287e` 일치다. `evidence:client` (동적 E-116~121, 정적 업데이터 경로).
+
+재현은 호스트 화면을 열지 않고 `VBoxManage startvm logh7-win --type headless`로 시작한다. 게스트 명령·파일 복사는 `guestcontrol`의 `--passwordfile`로 수행하며 비밀번호 값은 기록하지 않는다. 게스트의 임시 예약 작업은 `LogonType=Interactive`, `RunLevel=Limited`로 localhost 수신기 → DBWIN 수신기 → 원본 클라이언트 순서로 띄운다. 클라이언트 인자는 `127.0.0.1 47900 ginei00 1 dummy`, 작업 디렉터리는 설치 루트의 `exe`다. `controlvm screenshotpng`와 `guestcontrol copyfrom`으로 산출물을 `work/logh7-dynamic-p2/captures/audio-triage/`에 보관하고, 임시 작업을 삭제한 뒤 `controlvm logh7-win acpipowerbutton`으로 정상 종료한다. 원바이트 파일·게임 화면은 Git에 넣지 않는다. `evidence:client` (E-113~122).
+
+첫 `0x34` 하나의 길이·checksum은 일치했지만 `0x35`/`0x36`, 골든 프레임 3개, 로그인은 아직 검증하지 않았다. 호스트 전용 IP는 `169.254.44.17/16`(APIPA)였으며 호스트 방화벽 규칙 조회가 접근 거부라 시간 초과 원인은 미확정이다. 호스트 설정은 바꾸지 않았다. `evidence:client` (첫 프레임·IP 관찰), `evidence:guess` (호스트 IP 장애 원인).
 
 [Microsoft 공식 미디어 생성 도구](https://www.microsoft.com/en-us/software-download/windows10)는 `E:\Tools\WindowsMedia\MediaCreationTool_22H2.exe`에 받았다(SHA256 `690C8A63769D444FAD47B7DDECEE7F24C9333AA735D0BD46587D0DF5CF15CDE5`, Microsoft Corporation 서명 `Valid`). 사용자의 후속 실행 지시에 따라 도구를 실행했고, 실제로 C:에 임시 다운로드 파일이 생성됐다가 도구 처리 중 상당 부분 회수됐다. ISO 최종 저장은 E:였다. `evidence:manual` (공식 도구 경로), `evidence:client` (다운로드·서명·파일·공간 변화).
 
