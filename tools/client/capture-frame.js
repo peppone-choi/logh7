@@ -3,6 +3,7 @@
 if(Process.arch!=='ia32' || Process.mainModule.name.toLowerCase()!=='g7mtclient.exe')
   throw new Error('Only the owned original 32-bit LOGH7 client is supported');
 let done = false;
+rpc.exports.recapture = function() { done = false; };
 let gameWindow = ptr(0);
 let frameNotified = false;
 const failures = new Set();

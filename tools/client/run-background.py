@@ -104,7 +104,40 @@ def activate_private(desk, pid):
     return True
 
 
-def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False):
+def enter_login(desk, pid, script, account, credential):
+    """Queue ASCII text and virtual Tab/Enter only to the owned private game view."""
+    views = []
+    for handle in desk.EnumDesktopWindows():
+        hwnd = int(handle)
+        if win32process.GetWindowThreadProcessId(hwnd)[1] != pid:
+            continue
+        def find_view(child, _):
+            if (win32process.GetWindowThreadProcessId(child)[1] == pid
+                    and win32gui.GetClassName(child) == "AfxFrameOrView42s"):
+                views.append(child)
+        win32gui.EnumChildWindows(hwnd, find_view, None)
+    if len(views) != 1:
+        raise RuntimeError(f"Expected one owned game view, found {len(views)}")
+    target = views[0]
+    for chunk in (account, "\t", credential, "\r"):
+        for char in chunk:
+            if char in "\t\r":
+                code = ord(char)
+                scan = win32api.MapVirtualKey(code, 0)
+                script.exports_sync.setkey(code)
+                try:
+                    win32gui.PostMessage(target, win32con.WM_KEYDOWN, code, 1 | (scan << 16))
+                    time.sleep(0.3)
+                finally:
+                    script.exports_sync.setkey(0)
+                    win32gui.PostMessage(target, win32con.WM_KEYUP, code, 1 | (scan << 16) | (3 << 30))
+            else:
+                win32gui.PostMessage(target, win32con.WM_CHAR, ord(char), 0)
+            time.sleep(0.05)
+        time.sleep(0.4)
+
+
+def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy"):
     source = source.resolve(strict=True)
     out = out.resolve()
     if not out.is_relative_to(WORK.resolve()) or out == WORK.resolve():
@@ -172,7 +205,9 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             info = win32job.QueryInformationJobObject(job, win32job.JobObjectExtendedLimitInformation)
             info["BasicLimitInformation"]["LimitFlags"] = win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
             win32job.SetInformationJobObject(job, win32job.JobObjectExtendedLimitInformation, info)
-            argv = [str(executable), "127.0.0.1", str(port), "ginei00", "1", "dummy"]
+            argv = [str(executable), "127.0.0.1", str(port), account]
+            if not ui_login:
+                argv.extend(["1", credential])
             process, thread, pid, _ = win32process.CreateProcess(
                 str(executable), subprocess.list2cmdline(argv), None, None, False,
                 win32process.BELOW_NORMAL_PRIORITY_CLASS | win32con.CREATE_SUSPENDED,
@@ -183,7 +218,10 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             if render_capture:
                 import frida
                 session = frida.attach(pid)
-                script = session.create_script(Path(__file__).with_name("capture-frame.js").read_text())
+                script_source = Path(__file__).with_name("capture-frame.js").read_text()
+                if ui_login:
+                    script_source += "\n" + Path(__file__).with_name("input-login.js").read_text()
+                script = session.create_script(script_source)
                 def on_message(message, data):
                     payload = message.get("payload", {})
                     if payload.get("type") == "render-frame" and data:
@@ -199,6 +237,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         report["render_capture_error"] = message
                     elif payload.get("type") == "capture-status":
                         report.setdefault("render_status", []).append(payload["event"])
+                    elif payload.get("type") == "login-error-ui":
+                        report["login_failure_code"] = payload["code"]
                 script.on("message", on_message)
                 script.load()
             win32process.ResumeThread(thread)
@@ -207,12 +247,17 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             deadline = time.monotonic() + seconds
             activate_at = time.monotonic() + 3
             private_active = False
+            login_entered = False
             while time.monotonic() < deadline:
                 if audio is not None:
                     report["audio"] = audio.poll()
                 if not private_active and time.monotonic() >= activate_at:
                     private_active = activate_private(desk, pid)
                     report["private_window_activated"] = private_active
+                if ui_login and private_active and not login_entered:
+                    enter_login(desk, pid, script, account, credential)
+                    login_entered = True
+                    report["ui_login_entered"] = True
                 if connection is None:
                     try:
                         connection, peer = listener.accept()
@@ -316,10 +361,19 @@ if __name__ == "__main__":
     parser.add_argument("--upstream-port", type=int, help="Forward only to an existing localhost stub on this port")
     parser.add_argument("--dxwrapper-dir", type=Path, help="Verified unpacked dxwrapper bundle, applied only to the work/ copy")
     parser.add_argument("--audible", action="store_true", help="Leave audio unchanged; default mutes only the owned game's Windows audio sessions")
+    parser.add_argument("--ui-login", action="store_true", help="Enter synthetic test credentials in the normal login UI; requires render capture")
+    parser.add_argument("--test-account", default="ginei00", help="ASCII synthetic account, 1-30 characters")
+    parser.add_argument("--test-credential", default="dummy", help="ASCII synthetic credential, 1-10 characters")
     args = parser.parse_args()
     if args.upstream_port is not None and not 1 <= args.upstream_port <= 65535:
         parser.error("Upstream port must be between 1 and 65535")
     if args.d3d8_wrapper is not None and args.dxwrapper_dir is not None:
         parser.error("Choose one graphics wrapper")
+    if args.ui_login and not args.render_capture:
+        parser.error("UI login requires --render-capture for private virtual key state")
+    for value, limit in ((args.test_account, 30), (args.test_credential, 10)):
+        if not 1 <= len(value) <= limit or not all(33 <= ord(char) <= 126 for char in value):
+            parser.error("Use nonempty printable ASCII test credentials within the documented limits, without spaces")
     raise SystemExit(run(args.source_root, args.out, args.seconds, args.d3d8_wrapper,
-                         args.instance_root, args.render_capture, args.upstream_port, args.dxwrapper_dir, args.audible))
+                         args.instance_root, args.render_capture, args.upstream_port, args.dxwrapper_dir, args.audible,
+                         args.ui_login, args.test_account, args.test_credential))

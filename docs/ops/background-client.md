@@ -36,6 +36,12 @@ Breaking Point 「채팅 오케스트레이션 시작」 채팅에서 `BP_GUI_TE
 
 ## 확인 결과
 
+### 일반 로그인 UI 시험
+
+localhost 스텁에 합성 계정 `ginei00=dummy`를 등록한 뒤 위 실행 명령에 `--upstream-port 47900 --ui-login`을 추가하면 정상 UI에 계정·인증 문자열을 입력한다. 실패 대조에는 `--test-credential wrong`을 더한다. `--test-account`/`--test-credential`은 공백 없는 ASCII 합성 값만 지원하며 실제 계정용 런처 기능이 아니다.
+
+UI 모드는 소유한 `AfxFrameOrView42s` 창에만 문자 메시지를 보내고, Frida가 소유 프로세스의 `GetAsyncKeyState`/`GetKeyState`에 가상 Tab·Enter 상태를 제공한다. 실제 키보드 입력이나 데스크톱을 전환하지 않는다. 마지막 렌더링 화면을 같은 `render-frame.png`에 저장하고 원래 오류 UI 콜백에서 받은 코드를 `login_failure_code`로 기록한다. 2026-10-08 일반 UI의 `wrong` 입력·실제 0x7002/code1·오류창·음소거 상태의 활성 오디오 관측을 함께 통과했다. `evidence:client`
+
 2026-10-07 호스트 시험에서 실제 게임 렌더링과 localhost 접속을 확인했다. 기존 Kotlin 스텁과 `0x34→0x35→0x36` 키 교환 및 첫 로그인 요청 전달도 성공했다. run-16/18의 종료 코드는 0이며 원본 클라이언트 해시를 보존하고 시험 프로세스를 종료했다. 결과와 필요한 화면은 `work/logh7-background-20261007/run-16`, `run-18`에 있다. **전체 로그인·캐릭터 생성·플레이 완료는 아니다.** 스텁에 시험 계정이 등록되지 않아 로그인 거절 응답을 받았다. `evidence:client`
 
 일반 D3D9는 비활성 데스크톱에서 장치 기능 조회를 거부했고, D3D9Ex로 바꾸자 통과했다. `PrintWindow`는 게임의 Direct3D 픽셀을 가져오지 못해 렌더링 버퍼를 직접 캡처했다. 창 캡처 실패와 게임 렌더링 실패를 구분한다.
