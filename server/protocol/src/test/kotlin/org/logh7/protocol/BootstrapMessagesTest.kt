@@ -28,4 +28,10 @@ class BootstrapMessagesTest {
         assertNull(BootstrapMessages.response(byteArrayOf(0x7f, 0)))
         assertFails { BootstrapMessages.response(byteArrayOf(3, 4, 0)) }
     }
+    @Test fun clockResponseCarriesUnsignedGameSecondsAndRejectsOverflow() {
+        val body = BootstrapMessages.response(byteArrayOf(3, 0), 0xfedcba98L)!!
+        assertEquals(0xfedcba98L, ByteBuffer.wrap(body, 6, 4).int.toLong() and 0xffffffffL)
+        assertFails { BootstrapMessages.response(byteArrayOf(3, 0), -1) }
+        assertFails { BootstrapMessages.response(byteArrayOf(3, 0), 0x1_0000_0000L) }
+    }
 }

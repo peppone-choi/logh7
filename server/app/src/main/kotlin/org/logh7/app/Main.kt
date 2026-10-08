@@ -2,6 +2,7 @@ package org.logh7.app
 
 import kotlinx.coroutines.*
 import org.logh7.engine.WorldEngine
+import org.logh7.engine.SessionRules
 import org.logh7.gateway.Gateway
 import org.logh7.gateway.loadTestAccounts
 import org.logh7.ops.startOpsApi
@@ -10,10 +11,12 @@ import java.util.concurrent.CountDownLatch
 
 fun main() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val engine = WorldEngine(scope)
+    val rules = System.getenv("LOGH7_SESSION_RULES")?.let { SessionRules.load(java.nio.file.Files.newInputStream(Path.of(it))) } ?: SessionRules.load()
+    val engine = WorldEngine(scope, rules)
     val gateway = Gateway(Path.of(System.getenv("LOGH7_CAPTURE_DIR") ?: "E:/logh7/work/logh7-dynamic-p2/captures"),
         loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
-        System.getenv("LOGH7_CHARACTERS_FILE")?.let { Path.of(it) })
+        System.getenv("LOGH7_CHARACTERS_FILE")?.let { Path.of(it) },
+        gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds })
     val ops = startOpsApi(engine, engine)
     val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
     val sessionPort = System.getenv("LOGH7_SESSION_PORT")?.toInt() ?: 47903

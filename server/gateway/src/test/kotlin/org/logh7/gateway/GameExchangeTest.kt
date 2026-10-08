@@ -129,7 +129,7 @@ class GameExchangeTest {
         step(data); step(data.copy(category = 1, age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001))
         step(data.copy(category = 2)); step(data.copy(category = 3, shipName = "AlphaShip")); step(data.copy(category = 4))
         val tickets = SessionTickets()
-        val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903, Handshake(b, 2), characters)
+        val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903, Handshake(b, 2), characters, gameSeconds = { 86_400 })
         game.accept(0x34, initial); game.accept(0x36, confirm)
         val token = tickets.issue("user", SessionTickets.Purpose.GAME)
         game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
@@ -150,6 +150,9 @@ class GameExchangeTest {
         }
         assertEquals(listOf(0x204, 0x323, 0x325, 0xf01), opcodes(game.accept(0x30, encrypted(hex("0f00"), 4))!!))
         assertEquals(listOf(0x204, 0x323, 0x325, 0xf03), opcodes(game.accept(0x30, encrypted(hex("0f02"), 5))!!))
+        val clockFrame = game.accept(0x30, encrypted(hex("0300"), 6))!!
+        val clockBody = Envelope.decode(LegacyBlowfish(b).decrypt(clockFrame.copyOfRange(8, clockFrame.size)), serverSequence).second
+        assertContentEquals(hex("00000000030100015180"), clockBody)
     }
     @Test fun goldenCapturedInitialFrameWhenAvailable() {
         val dir = System.getenv("LOGH7_GOLDEN_DIR")

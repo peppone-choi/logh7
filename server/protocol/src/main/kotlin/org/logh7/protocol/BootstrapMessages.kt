@@ -75,11 +75,11 @@ object BootstrapMessages {
         0x0f04 to 1, 0x0f06 to 1, // 00482620 / 00484280: empty mail and messenger lists
     )
 
-    fun response(request: ByteArray): ByteArray? {
+    fun response(request: ByteArray, gameSeconds: Long = 0): ByteArray? {
         require(request.size >= 2)
         val opcode = ((request[0].toInt() and 255) shl 8) or (request[1].toInt() and 255)
         val data = when (opcode) {
-            0x0300 -> byteArrayOf(0, 0, 0, 0) // local epoch; game clock follows separately
+            0x0300 -> { require(gameSeconds in 0..0xffffffffL); ByteBuffer.allocate(4).putInt(gameSeconds.toInt()).array() }
             0x0304 -> cards()
             else -> emptySizes[opcode]?.let { ByteArray(it) } ?: return null
         }

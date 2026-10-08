@@ -51,7 +51,8 @@ internal class CaptureHandler(private val capture: Capture, private val id: Stri
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) { if (msg is ByteBuf) capture.record(id, "S>C", msg); ctx.write(msg, promise) }
 }
 
-class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-dynamic-p2/captures"), private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null) : AutoCloseable {
+class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-dynamic-p2/captures"), private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null,
+    private val gameSeconds: () -> Long = { 0 }) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
@@ -66,7 +67,7 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                 val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
                     .childHandler(object : ChannelInitializer<SocketChannel>() {
                         override fun initChannel(ch: SocketChannel) {
-                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characters)
+                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characters, gameSeconds = gameSeconds)
                             val updateExchange = UpdateExchange()
                             ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
                             ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
