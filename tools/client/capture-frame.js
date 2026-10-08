@@ -13,6 +13,35 @@ function reportFailure(name, hr) {
 function method(object, index, result, args) {
   return new NativeFunction(object.readPointer().add(index * Process.pointerSize).readPointer(), result, args, 'stdcall');
 }
+const resetHooks = new Map();
+function fixWindowedReset(device8) {
+  // Pinned dxwrapper v1.8.8600.25: d3d8to9 device -> wrapper -> native device.
+  // Validate both vtables before using the wrapper's private object layout.
+  const wrapper = device8.add(12).readPointer();
+  if(Process.findModuleByAddress(wrapper.readPointer().readPointer())?.name.toLowerCase()!=='dxwrapper.dll')return;
+  const native = wrapper.add(4).readPointer();
+  if(Process.findModuleByAddress(native.readPointer().readPointer())?.name.toLowerCase()!=='d3d9.dll')
+    throw new Error('Unexpected native D3D9 device');
+  const iid=Memory.alloc(16),output=Memory.alloc(4);
+  iid.writeByteArray([0xce,0x10,0x8b,0xb1,0x49,0x26,0x5a,0x40,0x87,0x0f,0x95,0xf7,0x77,0xd4,0x31,0x3a]);
+  output.writePointer(ptr(0));
+  if(method(native,0,'int',['pointer','pointer','pointer'])(native,iid,output)!==0)
+    throw new Error('Expected a D3D9Ex device');
+  const ex=output.readPointer(),address=ex.readPointer().add(132*4).readPointer();
+  let devices=resetHooks.get(address.toString());
+  if(!devices) {
+    devices=new Set();resetHooks.set(address.toString(),devices);
+    Interceptor.attach(address,{onEnter(args){
+      if(devices.has(args[0].toString()) && !args[1].isNull() && args[1].add(32).readU32()!==0) {
+        // ResetEx requires NULL fullscreen display mode for a windowed device.
+        args[2]=ptr(0);
+      }
+    }});
+  }
+  devices.add(ex.toString());
+  method(ex,2,'uint',['pointer'])(ex); // Balance QueryInterface; the owned game holds the device.
+  send({type:'capture-status',event:'Owned windowed ResetEx fix installed'});
+}
 function capture8(device) {
   if(done)return;
   const sourceOut=Memory.alloc(4),targetOut=Memory.alloc(4);
@@ -52,11 +81,12 @@ function hook8(object) {
   Interceptor.attach(create,{onEnter(args){this.out=args[6];gameWindow=args[3];},onLeave(ret){
     if(ret.toInt32()!==0)return;
     const device=this.out.readPointer();
-    const end=device.readPointer().add(35*4).readPointer();
+    try{fixWindowedReset(device);}catch(e){send({type:'capture-error',message:String(e)});}
+    const present=device.readPointer().add(15*4).readPointer();
     send({type:'capture-status',event:'D3D8 device hooked'});
-    Interceptor.attach(end,{onEnter(args){this.device=args[0];},onLeave(){
-      if(!frameNotified){send({type:'capture-status',event:'D3D8 EndScene reached'});frameNotified=true;}
-      try{capture8(this.device);}catch(e){send({type:'capture-error',message:String(e)});done=true;}
+    Interceptor.attach(present,{onEnter(args){
+      if(!frameNotified){send({type:'capture-status',event:'D3D8 Present reached'});frameNotified=true;}
+      try{capture8(args[0]);}catch(e){send({type:'capture-error',message:String(e)});done=true;}
     }});
   }});
 }

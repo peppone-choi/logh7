@@ -46,4 +46,14 @@ UI 모드는 소유한 `AfxFrameOrView42s` 창에만 문자 메시지를 보내�
 
 일반 D3D9는 비활성 데스크톱에서 장치 기능 조회를 거부했고, D3D9Ex로 바꾸자 통과했다. `PrintWindow`는 게임의 Direct3D 픽셀을 가져오지 못해 렌더링 버퍼를 직접 캡처했다. 창 캡처 실패와 게임 렌더링 실패를 구분한다.
 
+2026-10-08 로비 전환 시험에서 dxwrapper v1.8.8600.25의 창 모드 Reset이 `D3DERR_INVALIDCALL`로 실패해 이전 크기의 버퍼가 남는 문제를 확인했다. 해당 [릴리스 소스](https://github.com/elishacloud/dxwrapper/blob/v1.8.8600.25/d3d9/IDirect3DDevice9Ex.cpp)의 Reset 경로는 창 모드에도 전체화면 구조 포인터를 넘긴다. 소유 프로세스의 네이티브 `ResetEx` 호출에서 창 모드일 때만 이 인자를 NULL로 바꾼다. [Microsoft 계약](https://learn.microsoft.com/en-us/windows/win32/api/d3d9/nf-d3d9-idirect3ddevice9ex-resetex)에 맞추자 재설정 반환값 0과 1024×768 로비 렌더링을 확인했다. 이 보정은 고정 릴리스의 32비트 객체 배치·모듈·D3D9Ex 인터페이스를 확인한 뒤 적용한다. `evidence:client`
+
+화면은 UI 합성이 끝난 Present 직전에 캡처한다. EndScene 직후에는 같은 프레임의 배경만 잡힐 수 있다. 가상 클릭에는 `--ui-click 25:120:250`처럼 실행 후 초·창 내부 x·y를 지정하며 반복해서 쓸 수 있다. 실제 커서 이동 없이 소유 창 메시지·프로세스 내부 커서 조회·DirectInput 마우스 버튼 상태를 제공한다.
+
+### CD판 생성 메뉴 호환 패치
+
+CD판 로비 초기화 `0x0051ab35..0x0051ab58`은 새 캐릭터 생성·원작 캐릭터 추첨 버튼을 항상 비활성화한다. 계정·세션 응답을 바꾸는 것으로 이 두 상수를 바꿀 수 없다. `--enable-creation-menu`를 명시하면 `enable-creation-menu.js`가 원래 명령 바이트를 대조한 뒤 두 enable 즉시값만 실행 프로세스 메모리에서 0→1로 바꾼다. 파일은 수정하지 않으며 이 옵션을 생략한 실행은 기본 CD 동작을 유지한다. `evidence:client`
+
+이는 포커스·렌더링 보정과 구분하는 **애플리케이션 동작 호환 패치**다. 적용 여부는 `run.json`의 `application_patch`와 실제 설치 이벤트에 남긴다. 이 옵션을 쓴 결과를 무수정 클라이언트의 생성 메뉴 동작으로 보고하지 않는다. 주소·포트·인증·메시지 처리와 UI 상태 전환 코드는 바꾸지 않는다.
+
 단일 클라이언트 시험은 이 호스트 경로를 사용한다. VM은 멀티플레이 시험에 필요할 때만 사용한다. 다음 서버 작업은 Linear의 최신 상태·의존을 확인한 뒤 이어간다.

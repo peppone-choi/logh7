@@ -5,9 +5,12 @@ import java.nio.ByteBuffer
 object Frames {
     const val MAX_PAYLOAD = 0xF000
     val types = setOf(0x30, 0x31, 0x34, 0x35, 0x36)
-    fun encode(type: Int, data: ByteArray): ByteArray {
-        require(type in types); require(data.size <= MAX_PAYLOAD - 2)
-        return ByteBuffer.allocate(data.size + 4).putShort((data.size + 2).toShort()).putShort(type.toShort()).put(data).array()
+    fun encode(type: Int, data: ByteArray, clearHeader: Int? = null): ByteArray {
+        val headerSize = if (clearHeader == null) 0 else 4
+        require(type in types); require(data.size <= MAX_PAYLOAD - 2 - headerSize)
+        val output = ByteBuffer.allocate(data.size + 4 + headerSize).putShort((data.size + 2 + headerSize).toShort())
+        if (clearHeader != null) output.putInt(clearHeader)
+        return output.putShort(type.toShort()).put(data).array()
     }
     fun decodePayload(payload: ByteArray): Pair<Int, ByteArray> {
         require(payload.size in 2..MAX_PAYLOAD)
