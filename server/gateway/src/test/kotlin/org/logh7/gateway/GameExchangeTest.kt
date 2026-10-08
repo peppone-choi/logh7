@@ -147,4 +147,54 @@ class GameExchangeTest {
         val last = payload(frames[2]); assertNull(h.accept(last.first, last.second))
         assertEquals(Handshake.State.ESTABLISHED, h.state)
     }
+
+    @Test fun capturedLoginStreamsWhenAvailable() {
+        val directory = System.getenv("LOGH7_CAPTURED_LOGIN_DIR")
+        assumeTrue(!directory.isNullOrBlank(), "LOGH7_CAPTURED_LOGIN_DIR not set")
+        val root = Path.of(directory!!)
+        val clients = Files.list(root).use { paths ->
+            paths.filter { it.fileName.toString().endsWith(".client-to-server.bin") }.sorted().toList()
+        }
+        assertTrue(clients.size >= 3, "At least three independent captured login streams required")
+        fun frames(path: Path): List<Pair<Int, ByteArray>> {
+            val stream = ByteBuffer.wrap(Files.readAllBytes(path))
+            val result = mutableListOf<Pair<Int, ByteArray>>()
+            while (stream.hasRemaining()) {
+                assertTrue(stream.remaining() >= 2, "Truncated length: $path")
+                val length = stream.short.toInt() and 65535
+                assertTrue(length in 2..Frames.MAX_PAYLOAD && length <= stream.remaining(), "Invalid frame: $path")
+                val payload = ByteArray(length).also { stream.get(it) }
+                val decoded = Frames.decodePayload(payload)
+                assertContentEquals(byteArrayOf((length ushr 8).toByte(), length.toByte()) + payload,
+                    Frames.encode(decoded.first, decoded.second))
+                result += decoded
+            }
+            return result
+        }
+        clients.forEach { clientPath ->
+            val serverPath = root.resolve(clientPath.fileName.toString().replace(".client-to-server.bin", ".server-to-client.bin"))
+            val client = frames(clientPath); val server = frames(serverPath)
+            assertEquals(listOf(0x34, 0x36, 0x30), client.map { it.first })
+            assertEquals(listOf(0x35, 0x30), server.map { it.first })
+            val reply = ByteBuffer.wrap(wrap.decrypt(server[0].second))
+            reply.short
+            val aLength = reply.short.toInt() and 65535
+            reply.position(4 + aLength)
+            val bLength = reply.short.toInt() and 65535
+            val key = ByteArray(bLength).also { reply.get(it) }
+            val sequence = reply.int.toLong() and 0xffffffffL
+            val h = Handshake(key, sequence)
+            assertContentEquals(Frames.encode(server[0].first, server[0].second), h.accept(client[0].first, client[0].second))
+            assertNull(h.accept(client[1].first, client[1].second))
+            assertEquals(Handshake.State.ESTABLISHED, h.state)
+            val login = h.receive(client[2].first, client[2].second)
+            assertEquals(LoginMessages.Request("ginei00", "dummy"), LoginMessages.request(login))
+            // Synthetic test credentials only; retain the decoded body in the local test output.
+            println("${clientPath.fileName}: login=${java.util.HexFormat.of().formatHex(login)}")
+            val (replySequence, body) = Envelope.decode(LegacyBlowfish(key).decrypt(server[1].second), sequence - 1)
+            assertEquals(sequence, replySequence)
+            assertContentEquals(LoginMessages.failure(), body)
+            assertContentEquals(Frames.encode(server[1].first, server[1].second), h.send(body))
+        }
+    }
 }
