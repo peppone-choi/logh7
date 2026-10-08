@@ -80,7 +80,10 @@ def deploy(doc, out):
     rows = []
     previous = {}
     for p in m.DEPLOY_PAGES:
-        for ti,table in enumerate(doc[p-1].find_tables().tables):
+        # Colored fill rectangles split merged production cells under the default
+        # detector. Only actual ruling lines define these tables.
+        tables = doc[p-1].find_tables(**({"strategy": "lines_strict"} if p >= 76 else {})).tables
+        for ti,table in enumerate(tables):
             t = unmerge(table, lambda c: (c or "").replace("\n", " / ").strip())
             if p == 75:
                 header, body = t[0], t[1:]
@@ -90,20 +93,22 @@ def deploy(doc, out):
             # p.76–78은 초기 유닛 보유가 아니라 자동 생산 품목이다.
             faction = ("empire" if (ti in (0,2,5) if p == 75 else ti == 0) else "alliance")
             kind = "deployment" if p == 75 else "automatic_production"
-            prev = previous.get(faction, [""] * len(header))
-            for r in body:
+            prev = previous.get((faction, kind), [""] * len(header))
+            for row_index, r in enumerate(body):
                 if not any(r):
                     continue
+                if p == 77 and faction == "empire" and row_index == len(body)-1 and not r[0]:
+                    r[0] = "ビルロスト"  # p.77 아래→p.78 위의 성계 병합 셀
                 if not r[0]:
                     r[0] = prev[0]
-                if p == 76 and faction == "alliance" and not r[1]:
+                if p == 76 and faction == "alliance" and row_index == len(body)-1 and not r[1]:
                     r[1] = "ハイネセン"  # p.76 아래→p.77 위 연속 셀
-                if p > 76 and not r[1]:
+                if p >= 76 and not r[1]:
                     r[1] = prev[1]
                 prev = r
                 rows.append(dict(page=p, table=ti, columns="|".join(header),
                                  values="|".join(r), faction=faction, kind=kind))
-            previous[faction] = prev
+            previous[faction, kind] = prev
     m.write(out, "initial-deployment.csv", rows)
 
 

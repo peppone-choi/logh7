@@ -14,7 +14,7 @@ source: gin7manual.pdf(웹판) 부록 p.56–100 (추출: tools/manual_tables.py
 | [data/org-posts.csv](data/org-posts.csv) | 121 | 제국·동맹 전 직책 | faction, page, department, post, seats, min_rank, max_rank, appointed_by |
 | [data/initial-card-holders.csv](data/initial-card-holders.csv) | 75 | 세션 시작 시 원작 캐릭터의 직무권한 카드 보유 | faction, page, post, initial_holder, raw_cells, department, unit |
 | [data/strategy-commands.csv](data/strategy-commands.csv) | 81 | 전략 커맨드 CP·대기·소요 | group, command, cp, wait, duration, page |
-| [data/initial-deployment.csv](data/initial-deployment.csv) | 334 | p.75 초기 위치 + p.76–78 자동 생산 품목 | page, table, columns, values, faction, kind |
+| [data/initial-deployment.csv](data/initial-deployment.csv) | 294 | p.75 초기 위치 78행 + p.76–78 자동 생산 품목 216행 | page, table, columns, values, faction, kind |
 | [data/ship-units.csv](data/ship-units.csv) | 118 | 함종·서브타입별 성능 | 건조 공기, 필요 승조원, 출력, 색적, 최고 속도, 장갑(전/측/후), 실드, 빔·건·미사일·대공, 전투정 탑재, 물자 탑재, 수리 소비 |
 | [data/crew-units.csv](data/crew-units.csv) | 11 | 병원 유닛 훈련 과정·육전 공방 | faction, unit, training, ground_attack, ground_defense |
 
@@ -44,6 +44,7 @@ source: gin7manual.pdf(웹판) 부록 p.56–100 (추출: tools/manual_tables.py
 
 - 함대 번호별 초기 성계·행성(예: 제국 第1艦隊 ヴァルハラ/オーディン, 동맹 第1艦隊 バーラト/ハイネセン), 순찰대·지상부대 번호별 배치는 p.75에 있다. p.76–78은 행성별 **자동 생산** 함정·승조원·육전병 종류이며 초기 보유량 표가 아니다.
 - 성계·행성 이름 목록은 전략 지도 시드의 1차 자료다. 그리드 좌표는 매뉴얼에 없으므로 **클라이언트 맵 데이터**(트랙 B)에서 얻어야 한다.
+- 생산표에서 진영·성계·행성/요새 이름 관계는 **58성계, 213개 서로 다른 거점 이름 조합**으로 읽힌다. 같은 행성의 품목이 여러 행/쪽에 나뉘기도 하므로 216행을 216행성으로 취급하지 않는다. 이는 생산표 수록 범위이며 원작 전체 행성 수가 아니다. 물리적 행성 유형·인구·자원량·공전값·성계의 그리드 좌표는 이 표로 확정할 수 없다.
 
 ## 3. 유닛 `evidence:manual` (W p.79–100)
 
@@ -64,7 +65,7 @@ source: gin7manual.pdf(웹판) 부록 p.56–100 (추출: tools/manual_tables.py
 | p.60–61, 66–67 카드 | 4쪽 직책·보유자·함대 번호·부관 열 대조 | 잘못된 68행을 75행으로 보정. 7명 부관을 별도 행으로 보존. 제국 제2함대 사령관과 사령관 부관을 분리. p.61 함대 계속쪽, p.67 순찰대 계속쪽 복원. |
 | p.68–74 명령 | 7쪽 구조와 CP·대기·소요 병합값 대조, 81행 재생성 | 워프 대기시간 공란은 0으로 임의 보충하지 않음. 공란과 명시적 0을 구분. 실제 서비스 동작 검증 아님. |
 | p.75 배치 | 6개 표의 진영·번호·성계 병합 대조 | `faction`, `kind=deployment` 명시. 범위 표현은 개별 부대로 펼치지 않음. |
-| p.76–78 생산 | 3쪽의 제목·연속쪽·행성 경계 대조 | `kind=automatic_production`. p.77 좌·우 첫 행과 p.78 첫 행을 헤더로 버리던 오류를 복원(전체 331→334행). p.76→77 하이네센 연속 셀 복원. 셀 내 줄바꿈은 ` / `로 보존하며 같은 유닛의 반복을 임의 중복 제거하지 않음. |
+| p.76–78 생산 | 3쪽의 제목·연속쪽·행성 경계 대조; 2026-10-08 배경색 검출 오류 수정 후 재대조 | `kind=automatic_production`. 배경색 사각형이 병합 셀을 잘못 분할하여 전체 334행이 되었던 오류를 실제 선만 검출하는 `lines_strict`로 수정(전체 294행). 배치표의 부대명이 생산 성계로 상속되던 오류 제거. 하이네센·비르로스트의 계속쪽 셀을 복원. 줄바꿈은 ` / `로 보존하며 반복 품목을 임의 중복 제거하지 않음. |
 | p.79–99 함선 | 21쪽 이미지와 118행 수치표 대조, 명시 보정 적용 | p.88 대공 40, p.89 상선 전면 장갑 12, p.98 II형 장갑 17/12/7 및 빔·건 `-` 복원. PDF p.92 첫 두 기함 이름은 잘림 상태 유지. |
 | p.100 병원 | 양 진영 11행과 주석 대조 | 근위병·척탄병 교도·장미의 기사는 표에 수치가 있지만 당시 생산하지 않는다는 주석이 있다. 수치 존재와 생산 가능을 구분. |
 
