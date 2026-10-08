@@ -18,6 +18,8 @@ source: 銀英伝７マニュアル.pdf(CD 동봉, 69p) / gin7manual.pdf(웹, 10
 
 두 PDF 모두 암호화(RC4) 되어 있으나 열람·텍스트 추출은 가능하다. 추출 텍스트는 저작물이므로 저장소 밖 `work\manual-kb\text\` 에만 둔다.
 
+M-WEB 마지막 p.101은 지도 이미지와 **Text 주석 80개**로 구성된다. `get_text()`가 빈 결과여도 지도 자료가 없는 것이 아니다. 주석에는 성계별 행성·요새 목록이 있으며, 위치와 목록을 [지도 추출기](../../tools/assets/manual_map.py)로 읽는다. M-CD 마지막 p.69에는 이 부록 지도와 주석이 없다. `evidence:manual`
+
 `manual-internet-archive-variants.csv` 의 결론(M-WEB이 VII 정본, LOGH VI·VS 매뉴얼은 제외)은 M-WEB 표지·목차·내용으로 재확인했다. `evidence:manual`
 
 ## 2. 공식 사이트 스냅샷 `evidence:manual`
