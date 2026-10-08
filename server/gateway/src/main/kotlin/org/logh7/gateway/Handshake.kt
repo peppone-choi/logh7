@@ -4,7 +4,7 @@ import org.logh7.protocol.*
 import java.nio.ByteBuffer
 import java.security.SecureRandom
 
-/** evidence:client — kex-envelope.md; responder B, candidate until VM interoperability. */
+/** evidence:client — kex-envelope.md; responder B validated with the original client on the host. Rekey pending. */
 class Handshake(key: ByteArray = ByteArray(16).also { SecureRandom().nextBytes(it) }, initialSequence: Long = 1) {
     enum class State { AWAITING_INITIAL_KEY, AWAITING_CONFIRMATION, ESTABLISHED, CLOSED }
     var state = State.AWAITING_INITIAL_KEY

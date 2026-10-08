@@ -1,9 +1,25 @@
 # 키 교환·암호 봉투 정적 명세
 
-작성자: 최병호 · 2026-09-28 갱신 · 상태: 첫 `0x34` 1개 동적 일치, 전체 키 교환은 **candidate**.
+작성자: 최병호 · 2026-10-08 갱신 · 상태: 초기 키 교환·첫 로그인 봉투 **validated**, 재키 교환 미구현·미검증.
 근거: `evidence:client`, E-300/E-301. 주소는 CD판 `G7MTClient.exe` VA이며 SHA256은 벡터 JSON에 기록한다.
 
 > 2026-10-07 후속: [호스트 백그라운드 실행](../ops/background-client.md)에서 기존 Kotlin 스텁과 실제 클라이언트의 `0x34→0x35→0x36` 및 첫 암호화 로그인 요청 복호를 확인했다. 아래 9월 28일의 미검증 표기는 당시 상태다. 세션 로그인·재키 교환·전체 플레이는 이 시험으로 확인하지 않았다. `evidence:client`
+
+## 실제 교환 골든 검증 (2026-10-08, LOGH-22)
+
+보관된 독립 접속 5회의 양방향 기록을 Kotlin `GameExchangeTest.capturedLoginStreamsWhenAvailable`로 검사했다. 각 접속에서 C→S `0x34/0x36/0x30`, S→C `0x35/0x30`의 길이 경계와 프레임 코덱 왕복이 일치했다. 실제 `0x35`의 키·초기 sequence로 서버 상태를 재구성하자 응답 바이트와 `0x36` 키 반향 검증도 일치했다. 첫 C→S 봉투의 checksum·sequence·패딩을 검증하고 `0x7000` 본문을 복호했으며, 합성 계정 `ginei00`·인증 문자열 `dummy`를 확인했다. S→C 로그인 거절 봉투도 복호·재인코딩이 일치했다. `evidence:client`
+
+원바이트는 `work/logh7-background-20261007/gateway/`의 방향별 `.bin` 10개에 있고, 복호 평문은 로컬 Gradle 테스트 XML의 `system-out`에 남는다. 기존 정적 함수 대조와 이 동적 검증을 합쳐 **초기 소켓 프레이밍·키 교환·첫 로그인 봉투**를 validated로 판단한다. 재키 교환·후속 로비 메시지까지 확대하지 않는다.
+
+```powershell
+$env:JAVA_HOME = 'E:\Tools\jdk-25.0.4.1+1'
+$env:GRADLE_USER_HOME = 'E:\Tools\gradle-home'
+$env:LOGH7_CAPTURED_LOGIN_DIR = 'E:\logh7\work\logh7-background-20261007\gateway'
+Set-Location E:\logh7\server
+.\gradlew.bat :gateway:test --tests org.logh7.gateway.GameExchangeTest --offline
+```
+
+원바이트를 저장소에 넣지 않으므로 이 선택적 테스트는 환경변수가 없는 CI에서 건너뛴다. 캡처 경로를 지정하면 파일 누락·3회 미만·바이트 불일치는 실패한다. 실제 기록 5회 검증은 로컬에서 통과했다.
 
 ## 암호와 재현
 
