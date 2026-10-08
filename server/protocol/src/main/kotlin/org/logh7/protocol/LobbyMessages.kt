@@ -30,7 +30,8 @@ object LobbyMessages {
         u8(character.origin); u8(character.rank); out.putInt(character.face); u8(0) // no ending
         return LoginMessages.sessionMessage(0x2004, out.array().copyOf(out.position()))
     }
-    fun sessions(): ByteArray {
+    fun sessions(selectable: Boolean = true): ByteArray {
+        if (!selectable) return LoginMessages.sessionMessage(0x2006, byteArrayOf(0, 0))
         val output = ByteBuffer.allocate(128)
         output.put(0).put(1) // result, session count
         output.putShort(LOCAL_SESSION_ID.toShort()).put(1) // selectable session status (client accepts 1 or 2)

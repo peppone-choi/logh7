@@ -3,6 +3,8 @@ package org.logh7.app
 import kotlinx.coroutines.*
 import org.logh7.engine.WorldEngine
 import org.logh7.engine.SessionRules
+import org.logh7.engine.MemorySessionGenerationStore
+import org.logh7.persistence.FileSessionGenerationStore
 import org.logh7.gateway.Gateway
 import org.logh7.gateway.loadTestAccounts
 import org.logh7.gateway.EngineGameAdmission
@@ -13,10 +15,14 @@ import java.util.concurrent.CountDownLatch
 fun main() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val rules = System.getenv("LOGH7_SESSION_RULES")?.let { SessionRules.load(java.nio.file.Files.newInputStream(Path.of(it))) } ?: SessionRules.load()
-    val engine = WorldEngine(scope, rules)
+    val characterFile = System.getenv("LOGH7_CHARACTERS_FILE")?.let { Path.of(it) }
+    val generationFile = System.getenv("LOGH7_SESSION_GENERATION_FILE")?.let { Path.of(it) }
+        ?: characterFile?.resolveSibling("${characterFile.fileName}.session-generation")
+    val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
+    val engine = WorldEngine(scope, rules, generationStore = generations)
     val gateway = Gateway(Path.of(System.getenv("LOGH7_CAPTURE_DIR") ?: "E:/logh7/work/logh7-dynamic-p2/captures"),
         loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
-        System.getenv("LOGH7_CHARACTERS_FILE")?.let { Path.of(it) },
+        characterFile,
         gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope))
     val ops = startOpsApi(engine, engine)
     val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"

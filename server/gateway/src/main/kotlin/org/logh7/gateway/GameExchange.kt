@@ -42,6 +42,8 @@ class GameExchange(
     private val gameSeconds: () -> Long = { 0 },
     private val admission: GameAdmission? = null,
     private val connection: String = java.util.UUID.randomUUID().toString(),
+    private val expectedGeneration: Long? = admission?.generation,
+    private val characterProvider: () -> CharacterCreation = { characters },
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -51,7 +53,7 @@ class GameExchange(
     private var lobbyLoggedIn = false
     private var gameLoggedIn = false
     private var gameStarted = false
-    private val generation = admission?.generation
+    private val generation = expectedGeneration
     private var joining = false
     private var joinRequested = false
     private var pendingJoin: CompletableFuture<Admission>? = null
@@ -68,6 +70,8 @@ class GameExchange(
     }
     fun accept(type: Int, data: ByteArray): ByteArray? {
         check(state != State.CLOSED && state != State.REJECTED)
+        check(!obsolete()) { "Session ended or changed" }
+        val characters = if (ticket?.purpose == SessionTickets.Purpose.GAME) characters else characterProvider()
         if (state == State.KEY_EXCHANGE) {
             val response = handshake.accept(type, data)
             if (handshake.state == Handshake.State.ESTABLISHED) state = State.AWAITING_AUTH
@@ -126,11 +130,11 @@ class GameExchange(
                 }
             } else when (opcode) {
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
-                0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.characters(characters.character(identity.account)) }
-                0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2); LobbyMessages.sessions() }
+                0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.characters(if (admission?.running == false) null else characters.character(identity.account)) }
+                0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2); LobbyMessages.sessions(admission?.running != false) }
                 0x2009 -> {
                     check(lobbyLoggedIn)
-                    if (LobbyMessages.select(body) == LobbyMessages.LOCAL_SESSION_ID) {
+                    if (LobbyMessages.select(body) == LobbyMessages.LOCAL_SESSION_ID && admission?.running != false) {
                         LobbyMessages.selected(sessionAddress, sessionPort, tickets.issue(identity.account, SessionTickets.Purpose.GAME))
                     } else LobbyMessages.selectionFailed()
                 }
