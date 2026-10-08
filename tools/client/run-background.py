@@ -104,8 +104,7 @@ def activate_private(desk, pid):
     return True
 
 
-def enter_login(desk, pid, script, account, credential):
-    """Queue ASCII text and virtual Tab/Enter only to the owned private game view."""
+def owned_view(desk, pid):
     views = []
     for handle in desk.EnumDesktopWindows():
         hwnd = int(handle)
@@ -118,7 +117,12 @@ def enter_login(desk, pid, script, account, credential):
         win32gui.EnumChildWindows(hwnd, find_view, None)
     if len(views) != 1:
         raise RuntimeError(f"Expected one owned game view, found {len(views)}")
-    target = views[0]
+    return views[0]
+
+
+def enter_login(desk, pid, script, account, credential):
+    """Queue ASCII text and virtual Tab/Enter only to the owned private game view."""
+    target = owned_view(desk, pid)
     for chunk in (account, "\t", credential, "\r"):
         for char in chunk:
             if char in "\t\r":
@@ -137,7 +141,7 @@ def enter_login(desk, pid, script, account, credential):
         time.sleep(0.4)
 
 
-def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy", clicks=(), creation_menu=False):
+def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy", clicks=(), creation_menu=False, ui_control=False):
     source = source.resolve(strict=True)
     out = out.resolve()
     if not out.is_relative_to(WORK.resolve()) or out == WORK.resolve():
@@ -234,6 +238,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         if valid:
                             path = out / "render-frame.png"
                             frame.save(path)
+                            report["captures"] = [item for item in report["captures"] if item.get("method") != "owned D3D9 backbuffer"]
                             report["captures"].append({"valid": True, "size": list(frame.size),
                                                        "image": str(path), "method": "owned D3D9 backbuffer"})
                     elif message.get("type") == "error" or payload.get("type") == "capture-error":
@@ -242,6 +247,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         report.setdefault("render_status", []).append(payload["event"])
                     elif payload.get("type") == "login-error-ui":
                         report["login_failure_code"] = payload["code"]
+                    elif payload.get("type") == "client-exception":
+                        report["client_exception"] = payload
                 script.on("message", on_message)
                 script.load()
             win32process.ResumeThread(thread)
@@ -251,6 +258,10 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             started_at = deadline - seconds
             pending_clicks = iter(sorted(clicks))
             next_click = next(pending_clicks, None)
+            control_offset = 0
+            control_path = out / "ui-commands.jsonl"
+            if ui_control:
+                control_path.write_text("", encoding="utf-8")
             activate_at = time.monotonic() + 3
             private_active = False
             login_entered = False
@@ -273,6 +284,45 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         script.exports_sync.setmouse(x, y, False)
                     report.setdefault("ui_clicks", []).append({"at": at, "x": x, "y": y})
                     next_click = next(pending_clicks, None)
+                if ui_control:
+                    commands = control_path.read_bytes()
+                    if len(commands) < control_offset:
+                        raise ValueError("UI command file must remain append-only")
+                    while (end := commands.find(b"\n", control_offset)) >= 0:
+                        action = json.loads(commands[control_offset:end])
+                        control_offset = end + 1
+                        if len(action) != 1:
+                            raise ValueError("Expected one UI command")
+                        if "click" in action:
+                            x, y = action["click"]
+                            script.exports_sync.setmouse(x, y, True)
+                            try:
+                                time.sleep(0.3)
+                            finally:
+                                script.exports_sync.setmouse(x, y, False)
+                            time.sleep(0.15) # Allow a release frame before another queued click.
+                        elif "text" in action:
+                            value = action["text"]
+                            if not isinstance(value, str) or not 1 <= len(value) <= 30 or not all(32 <= ord(char) < 127 for char in value):
+                                raise ValueError("Only short synthetic ASCII UI text is supported")
+                            for char in value:
+                                win32gui.PostMessage(owned_view(desk, pid), win32con.WM_CHAR, ord(char), 0)
+                            time.sleep(0.15) # Let the owned view consume text before changing focus.
+                        elif "key" in action and action["key"] in (9, 13):
+                            code = action["key"]
+                            target = owned_view(desk, pid)
+                            script.exports_sync.setkey(code)
+                            try:
+                                win32gui.PostMessage(target, win32con.WM_KEYDOWN, code, 0)
+                                time.sleep(0.3)
+                            finally:
+                                script.exports_sync.setkey(0)
+                                win32gui.PostMessage(target, win32con.WM_KEYUP, code, 3 << 30)
+                        elif action == {"stop": True}:
+                            deadline = time.monotonic()
+                        else:
+                            raise ValueError("Unsupported UI command")
+                        report["ui_command_count"] = report.get("ui_command_count", 0) + 1
                 if connection is None:
                     try:
                         connection, peer = listener.accept()
@@ -328,7 +378,12 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
         # The handles belong to this invocation; never terminate by a borrowed PID.
         if process is not None:
             if win32event.WaitForSingleObject(process, 0) == win32con.WAIT_TIMEOUT:
-                win32process.TerminateProcess(process, 0)
+                try:
+                    win32process.TerminateProcess(process, 0)
+                except win32process.error:
+                    # A crash can finish between the wait and termination calls.
+                    if win32process.GetExitCodeProcess(process) == win32con.STILL_ACTIVE:
+                        raise
             win32event.WaitForSingleObject(process, 5000)
             report["process_stopped"] = win32event.WaitForSingleObject(process, 0) == win32con.WAIT_OBJECT_0
             process.Close()
@@ -357,6 +412,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                              and report["complete_first_0x34"] and report.get("process_stopped", False)
                              and report.get("exit_code_before_cleanup") == win32con.STILL_ACTIVE
                              and report["source_hash_unchanged"] and "error" not in report
+                             and "client_exception" not in report
                              and "render_capture_error" not in report)
         if not audible:
             report["success"] &= report.get("audio", {}).get("active_while_muted", False)
@@ -370,7 +426,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--seconds", type=int, choices=range(5, 61), default=15)
+    parser.add_argument("--seconds", type=int, choices=range(5, 301), default=15)
     parser.add_argument("--d3d8-wrapper", type=Path, help="Optional locally verified DLL, copied only to the test instance")
     parser.add_argument("--instance-root", type=Path, help="Reuse an existing owned work/ copy instead of copying assets again")
     parser.add_argument("--render-capture", action="store_true", help="Use installed Frida to capture the owned D3D9 backbuffer")
@@ -380,6 +436,7 @@ if __name__ == "__main__":
     parser.add_argument("--ui-login", action="store_true", help="Enter synthetic test credentials in the normal login UI; requires render capture")
     parser.add_argument("--ui-click", action="append", default=[], metavar="SECONDS:X:Y", help="Queue a virtual left click in the owned game window; repeatable, requires --ui-login")
     parser.add_argument("--enable-creation-menu", action="store_true", help="Explicitly enable the CD client's two disabled creation menus in owned process memory")
+    parser.add_argument("--ui-control", action="store_true", help="Read append-only UI commands from OUT/ui-commands.jsonl; owned process only")
     parser.add_argument("--test-account", default="ginei00", help="ASCII synthetic account, 1-30 characters")
     parser.add_argument("--test-credential", default="dummy", help="ASCII synthetic credential, 1-10 characters")
     args = parser.parse_args()
@@ -399,9 +456,11 @@ if __name__ == "__main__":
         parser.error("UI clicks require --ui-login")
     if args.enable_creation_menu and not args.ui_login:
         parser.error("Creation menu compatibility patch requires --ui-login")
+    if args.ui_control and not args.ui_login:
+        parser.error("UI command file requires --ui-login")
     for value, limit in ((args.test_account, 30), (args.test_credential, 10)):
         if not 1 <= len(value) <= limit or not all(33 <= ord(char) <= 126 for char in value):
             parser.error("Use nonempty printable ASCII test credentials within the documented limits, without spaces")
     raise SystemExit(run(args.source_root, args.out, args.seconds, args.d3d8_wrapper,
                          args.instance_root, args.render_capture, args.upstream_port, args.dxwrapper_dir, args.audible,
-                         args.ui_login, args.test_account, args.test_credential, clicks, args.enable_creation_menu))
+                         args.ui_login, args.test_account, args.test_credential, clicks, args.enable_creation_menu, args.ui_control))

@@ -118,6 +118,39 @@ class GameExchangeTest {
         assertFails { LoginMessages.request(request() + byteArrayOf(0)) }
         assertContentEquals(hex("01020304002005"), LoginMessages.sessionMessage(0x20, byteArrayOf(5), 0x01020304))
     }
+    @Test fun storedCharacterBootstrapsWorldAndGridBeforeAcknowledgements() {
+        val characters = CharacterCreation()
+        var data = CharacterMessages.Generate(0, 0, 2, 0, 0, "Alpha", "Pilot", 0, 0, 0, 0,
+            List(8) { 0 }, 0, 0, 0, 0, 0, 0, "", 0)
+        fun step(next: CharacterMessages.Generate) {
+            val reply = characters.accept("user", next)
+            data = CharacterMessages.generate(reply.copyOfRange(4, reply.size))
+        }
+        step(data); step(data.copy(category = 1, age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001))
+        step(data.copy(category = 2)); step(data.copy(category = 3, shipName = "AlphaShip")); step(data.copy(category = 4))
+        val tickets = SessionTickets()
+        val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903, Handshake(b, 2), characters)
+        game.accept(0x34, initial); game.accept(0x36, confirm)
+        val token = tickets.issue("user", SessionTickets.Purpose.GAME)
+        game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+        game.accept(0x30, encrypted(hex("0200"), 2))
+        game.accept(0x30, encrypted(hex("0205"), 3))
+        var serverSequence = 3L
+        fun opcodes(bytes: ByteArray): List<Int> {
+            val results = mutableListOf<Int>(); var offset = 0
+            while (offset < bytes.size) {
+                val length = (ByteBuffer.wrap(bytes, offset, 2).short.toInt() and 65535) + 2
+                assertContentEquals(hex("000000000030"), bytes.copyOfRange(offset + 2, offset + 8))
+                val (sequence, body) = Envelope.decode(LegacyBlowfish(b).decrypt(bytes.copyOfRange(offset + 8, offset + length)), serverSequence)
+                serverSequence = sequence
+                results += ByteBuffer.wrap(body, 4, 2).short.toInt() and 65535
+                offset += length
+            }
+            return results
+        }
+        assertEquals(listOf(0x204, 0x323, 0x325, 0xf01), opcodes(game.accept(0x30, encrypted(hex("0f00"), 4))!!))
+        assertEquals(listOf(0x204, 0x323, 0x325, 0xf03), opcodes(game.accept(0x30, encrypted(hex("0f02"), 5))!!))
+    }
     @Test fun goldenCapturedInitialFrameWhenAvailable() {
         val dir = System.getenv("LOGH7_GOLDEN_DIR")
         assumeTrue(!dir.isNullOrBlank(), "LOGH7_GOLDEN_DIR not set")

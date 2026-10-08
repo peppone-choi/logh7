@@ -39,9 +39,6 @@ Process.attachModuleObserver({onAdded(module) {
 Interceptor.attach(Process.mainModule.base.add(0x11c930),{
   onEnter(args){send({type:'login-error-ui',code:args[0].toUInt32()});}
 });
-// Keep only the most recent rendered image so the final dialog is captured.
-setInterval(()=>rpc.exports.recapture(),2000);
-
 // This client polls DirectInput for mouse buttons in addition to cursor position.
 // Supply virtual state only to its system mouse device; no host input is injected.
 const mouseDevices=new Set(),mouseHooks=new Set();
