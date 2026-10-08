@@ -1,0 +1,17 @@
+name: assets
+on:
+  push:
+    paths: ['tools/assets/**', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
+  pull_request:
+    paths: ['tools/assets/**', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -B -m unittest discover -s tools/assets -v
