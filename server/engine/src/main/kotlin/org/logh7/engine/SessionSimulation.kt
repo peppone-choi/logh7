@@ -13,11 +13,12 @@ sealed interface WorldEvent {
     data class TacticalTicks(val instance: String, val first: Long, val count: Long) : WorldEvent
     data class CpRecovery(val firstGameSeconds: Long, val intervalSeconds: Long, val count: Long) : WorldEvent
     data class Ended(val end: SessionEnd) : WorldEvent
+    data class Restarted(val generation: Long) : WorldEvent
 }
 
 /** Deterministic state, mutated only by WorldEngine's actor. Batched events preserve missed ticks. */
-class SessionSimulation(private val rules: SessionRules) {
-    private var generation = 1L
+class SessionSimulation(private val rules: SessionRules, private var generation: Long = 1) {
+    init { require(generation > 0) }
     private var gameMillis = rules.startSeconds * 1000
     private var strategyTicks = 0L
     private var recoveries = 0L
@@ -90,9 +91,10 @@ class SessionSimulation(private val rules: SessionRules) {
         ended = end
         return WorldEvent.Ended(end)
     }
-    fun restart() {
+    fun restart(nextGeneration: Long = Math.addExact(generation, 1)) {
         require(ended != null) { "Only an ended session can restart" }
-        generation++
+        require(nextGeneration == Math.addExact(generation, 1))
+        generation = nextGeneration
         gameMillis = rules.startSeconds * 1000; strategyTicks = 0; recoveries = 0
         participants.clear(); excluded.clear(); battles.clear(); ended = null
     }

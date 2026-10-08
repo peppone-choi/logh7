@@ -37,4 +37,45 @@ class WorldEngineTest {
         assertEquals(24L, engine.snapshot().session!!.gameSeconds)
         assertTrue(engine.snapshot().acceptedCommands > 0)
     }
+    @Test fun endedSessionAutomaticallyRestartsAfterConfiguredDelayAndPersistsGenerationBeforePublishing() = runBlocking {
+        val store = MemorySessionGenerationStore(7)
+        val rules = SessionRules.load().copy(start = GameDate(801, 7, 26, 23, 59, 36), restartDelayRealMillis = 500)
+        val engine = WorldEngine(this, rules, ticking = false, generationStore = store)
+        engine.submit(WorldCommand.AdvanceTo(1000))
+        val invalidJoin = CompletableDeferred<Admission>()
+        engine.submit(WorldCommand.Join("old", Power.EMPIRE, false, invalidJoin, generation = 6))
+        assertEquals(Admission.STALE_SESSION, invalidJoin.await())
+        assertEquals(EndReason.TIME_LIMIT, engine.snapshot().session!!.ended!!.reason)
+        engine.submit(WorldCommand.AdvanceTo(1499))
+        engine.submit(WorldCommand.AdvanceTo(1500))
+        engine.drainAndClose()
+        assertEquals(8L, store.current()); assertEquals(8L, engine.snapshot().session!!.generation)
+        assertEquals(rules.startSeconds, engine.snapshot().session!!.gameSeconds)
+        assertEquals(null, engine.snapshot().session!!.ended)
+    }
+    @Test fun manualRestartRejectsRunningStateAndStorageFailureKeepsEndedGeneration() = runBlocking {
+        val store = object : SessionGenerationStore {
+            override fun current() = 1L
+            override fun advance(expected: Long): Long = throw java.io.IOException("unwritable marker")
+        }
+        val engine = WorldEngine(this, ticking = false, generationStore = store)
+        val running = CompletableDeferred<Boolean>()
+        engine.submit(WorldCommand.RequestRestart(running)); assertEquals(false, running.await())
+        engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 3, Power.ALLIANCE to 4), emptySet()))
+        val ended = CompletableDeferred<Boolean>()
+        engine.submit(WorldCommand.RequestRestart(ended)); assertEquals(false, ended.await())
+        engine.drainAndClose()
+        assertEquals(1L, engine.snapshot().session!!.generation)
+        assertEquals(EndReason.SYSTEMS_REDUCED, engine.snapshot().session!!.ended!!.reason)
+    }
+    @Test fun operatorRestartPublishesNewGenerationOnlyAfterEndedState() = runBlocking {
+        val engine = WorldEngine(this, ticking = false)
+        engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 3, Power.ALLIANCE to 4), emptySet()))
+        val result = CompletableDeferred<Boolean>()
+        engine.submit(WorldCommand.RequestRestart(result))
+        assertEquals(true, result.await())
+        assertEquals(2L, engine.snapshot().session!!.generation)
+        assertEquals(null, engine.snapshot().session!!.ended)
+        engine.drainAndClose()
+    }
 }

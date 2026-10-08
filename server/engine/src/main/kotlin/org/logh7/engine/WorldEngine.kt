@@ -15,6 +15,7 @@ sealed interface WorldCommand {
     data class CloseBattle(val id: String) : WorldCommand
     data class Territory(val systems: Map<Power, Int>, val capturedCapitals: Set<Power>) : WorldCommand
     data object Restart : WorldCommand
+    data class RequestRestart(val result: CompletableDeferred<Boolean>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 interface SnapshotSource { fun snapshot(): WorldSnapshot }
@@ -22,39 +23,57 @@ interface SnapshotSource { fun snapshot(): WorldSnapshot }
 /** Only this actor owns and mutates world state. */
 class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load(), ticking: Boolean = true,
     monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
-    private val onEvent: (WorldEvent) -> Unit = {}) : CommandSink, SnapshotSource, AutoCloseable {
+    private val onEvent: (WorldEvent) -> Unit = {}, private val generationStore: SessionGenerationStore = MemorySessionGenerationStore()) : CommandSink, SnapshotSource, AutoCloseable {
     private val queue = Channel<WorldCommand>(1024)
-    private val simulation = SessionSimulation(rules)
+    private val simulation = SessionSimulation(rules, generationStore.current())
     private val published = AtomicReference(WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
     private val worker = scope.launch {
         var state = published.get()
         var elapsed = 0L
+        var restartAt: Long? = null
+        fun restart(): List<WorldEvent> {
+            val snapshot = simulation.snapshot()
+            check(snapshot.ended != null)
+            val generation = generationStore.advance(snapshot.generation)
+            simulation.restart(generation); restartAt = null
+            return listOf(WorldEvent.Restarted(generation))
+        }
         for (command in queue) {
             var admission: Admission? = null
+            var restartResult: Boolean? = null
             val events = try { when (command) {
                 WorldCommand.Probe -> emptyList()
                 is WorldCommand.AdvanceTo -> {
                     require(command.elapsedRealMillis >= elapsed)
-                    simulation.advance(command.elapsedRealMillis - elapsed).also { elapsed = command.elapsedRealMillis }
+                    val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
+                        else simulation.advance(command.elapsedRealMillis - elapsed)
+                    elapsed = command.elapsedRealMillis
+                    if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
+                    events
                 }
                 is WorldCommand.Join -> { admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION else simulation.join(command.account, command.power, command.original, command.connection); emptyList() }
                 is WorldCommand.Disconnect -> { simulation.disconnect(command.account, command.connection); emptyList() }
                 is WorldCommand.Exclude -> { simulation.exclude(command.account); emptyList() }
                 is WorldCommand.OpenBattle -> { simulation.openBattle(command.id); emptyList() }
                 is WorldCommand.CloseBattle -> { simulation.closeBattle(command.id); emptyList() }
-                is WorldCommand.Territory -> simulation.updateTerritory(command.systems, command.capturedCapitals)
-                WorldCommand.Restart -> { simulation.restart(); emptyList() }
-            } } catch (failure: RuntimeException) {
-                if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException) throw failure
+                is WorldCommand.Territory -> simulation.updateTerritory(command.systems, command.capturedCapitals).also {
+                    if (it.isNotEmpty()) restartAt = elapsed + rules.restartDelayRealMillis
+                }
+                WorldCommand.Restart -> restart()
+                is WorldCommand.RequestRestart -> restart().also { restartResult = true }
+            } } catch (failure: Exception) {
+                if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (command is WorldCommand.Join) command.result.completeExceptionally(failure)
                 state = state.copy(rejectedCommands = state.rejectedCommands + 1)
+                if (command is WorldCommand.RequestRestart) restartResult = false
                 emptyList()
             }
             state = state.copy(revision = state.revision + 1,
                 acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot())
             published.set(state)
             if (command is WorldCommand.Join && admission != null) command.result.complete(admission)
+            if (command is WorldCommand.RequestRestart) command.result.complete(restartResult == true)
             events.forEach(onEvent)
         }
     }

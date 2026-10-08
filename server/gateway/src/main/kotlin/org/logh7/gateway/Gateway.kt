@@ -60,14 +60,16 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
         val host = checkedBindAddress(bindAddress)
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
-        val characters = CharacterCreation(characterFile)
+        val characterStores = CharacterStores(characterFile)
+        fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         val capture = Capture(captureDirectory)
         try {
             listOf(gamePort, updatePort, sessionPort).forEach { port ->
                 val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
                     .childHandler(object : ChannelInitializer<SocketChannel>() {
                         override fun initChannel(ch: SocketChannel) {
-                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characters, gameSeconds = gameSeconds, admission = admission)
+                            val generation = admission?.generation
+                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters)
                             val updateExchange = UpdateExchange()
                             ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
                             ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
