@@ -1,38 +1,101 @@
 package org.logh7.gateway
 
 import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.OriginalCharacterMessages
 import java.text.Normalizer
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.Properties
+import java.time.Clock
+import java.security.SecureRandom
 
 /** Local P2 creation policy; guessed initial ability/rank/ship values are documented separately. */
-class CharacterCreation(private val file: Path? = null) {
+class CharacterCreation(private val file: Path? = null, private val clock: Clock = Clock.systemUTC(),
+    private val lotteryWindowMillis: Long = 60_000, private val random: java.util.Random = SecureRandom(),
+    private val originals: List<OriginalCharacterMessages.Candidate> = OriginalCharacterMessages.localCandidates,
+    private val accountFame: Map<String, Int> = emptyMap()) {
     private var nextId = 10_000L
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
     private val registered = mutableMapOf<String, CharacterMessages.Generate>()
+    private val applications = mutableMapOf<String, List<Long>>()
+    private var deadline = 0L
     init {
+        require(lotteryWindowMillis in 1..3_600_000)
+        require(originals.map { it.character.id }.distinct().size == originals.size && originals.all { it.minimumFame >= 0 && it.character.id in 1..9999 })
+        require(accountFame.values.all { it >= 0 })
         if (file != null && Files.exists(file)) {
             val properties = Properties().also { Files.newBufferedReader(file).use(it::load) }
             for (account in properties.stringPropertyNames()) {
-                val data = CharacterMessages.generate(java.util.HexFormat.of().parseHex(properties.getProperty(account)))
+                val value = properties.getProperty(account)
+                if (account == "@deadline") { deadline = value.toLong(); continue }
+                if (account.startsWith("@application/")) {
+                    applications[account.removePrefix("@application/")] = value.split(',').map(String::toLong); continue
+                }
+                val data = CharacterMessages.generate(java.util.HexFormat.of().parseHex(value.removePrefix("original:")))
+                    .copy(generated = !value.startsWith("original:"))
                 require(data.category == 4 && data.id > 0)
                 registered[account] = data
                 nextId = maxOf(nextId, data.id + 1)
             }
+            require(applications.size <= 4096 && (applications.isEmpty() || deadline > 0))
+            require(applications.all { (account, ids) -> account !in registered && ids.size in 1..5 &&
+                ids.distinct().size == ids.size && ids.all { id -> originals.any { it.character.id == id } } })
         }
     }
-    @Synchronized fun character(account: String): CharacterMessages.Generate? = registered[account]
+    @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account] }
+    @Synchronized fun entries(account: String): List<Long> { resolveLottery(); return applications[account].orEmpty().toList() }
+    @Synchronized fun candidates(account: String): List<OriginalCharacterMessages.Candidate> {
+        resolveLottery()
+        if (account in registered || account in pending) return emptyList()
+        // Local accounts have fame 0. Original numeric conditions are unknown.
+        return originals.filter { it.minimumFame <= fame(account) && registered.values.none { owned -> owned.id == it.character.id } }
+    }
+    fun fame(account: String): Int = accountFame[account] ?: 0
+    @Synchronized fun entryState(account: String, id: Long): ByteArray {
+        val eligible = candidates(account).any { it.character.id == id }
+        val competingPreferences = applications.values.filter { id in it }.take(5).map { (it.indexOf(id) + 1).toLong() }
+        return OriginalCharacterMessages.entryState(id, eligible, competingPreferences)
+    }
+    @Synchronized fun apply(account: String, ids: List<Long>): ByteArray {
+        require(ids.size in 1..5 && ids.distinct().size == ids.size)
+        val available = candidates(account).map { it.character.id }.toSet()
+        require(ids.all { it in available }) { "Ineligible original-character application" }
+        check(applications.size < 4096 || account in applications)
+        val next = applications + (account to ids.toList())
+        val nextDeadline = if (applications.isEmpty()) clock.millis() + lotteryWindowMillis else deadline
+        save(registered, next, nextDeadline)
+        applications[account] = ids.toList(); deadline = nextDeadline
+        println("original application preferences=${ids.joinToString()} deadline=$deadline")
+        return OriginalCharacterMessages.applicationReply(ids)
+    }
+    private fun resolveLottery() {
+        if (applications.isEmpty() || clock.millis() < deadline) return
+        val winners = registered.toMutableMap()
+        val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
+        for (account in accounts) {
+            if (account in winners) continue
+            val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.id == candidate } } ?: continue
+            val candidate = originals.single { it.character.id == id }
+            winners[account] = candidate.character.copy(generated = false)
+        }
+        save(winners, emptyMap(), 0)
+        registered.clear(); registered.putAll(winners); applications.clear(); deadline = 0
+        println("original lottery resolved assigned=${accounts.count { it in winners }}")
+    }
     private fun normalized(value: String) = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
-    private fun save(values: Map<String, CharacterMessages.Generate>) {
+    private fun save(values: Map<String, CharacterMessages.Generate>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline) {
         if (file == null) return
         val target = file.toAbsolutePath()
         Files.createDirectories(target.parent)
         val properties = Properties()
         values.forEach { (account, data) ->
             val encoded = CharacterMessages.generateReply(data)
-            properties.setProperty(account, java.util.HexFormat.of().formatHex(encoded.copyOfRange(4, encoded.size)))
+            properties.setProperty(account, (if (data.generated) "" else "original:") + java.util.HexFormat.of().formatHex(encoded.copyOfRange(4, encoded.size)))
+        }
+        if (entries.isNotEmpty()) {
+            properties.setProperty("@deadline", closesAt.toString())
+            entries.forEach { (account, ids) -> properties.setProperty("@application/$account", ids.joinToString(",")) }
         }
         val temporary = Files.createTempFile(target.parent, "characters-", ".tmp")
         try {
@@ -41,6 +104,8 @@ class CharacterCreation(private val file: Path? = null) {
         } finally { Files.deleteIfExists(temporary) }
     }
     @Synchronized fun accept(account: String, message: CharacterMessages.Generate): ByteArray {
+        resolveLottery()
+        require(account !in applications) { "Original-character application pending" }
         require(message.power in 2..3 && message.gender in 0..1)
         require(message.origin in if (message.power == 2) setOf(0, 1, 2, 4) else setOf(3, 4))
         require(message.surname.isNotBlank() && message.givenName.isNotBlank())

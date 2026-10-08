@@ -30,6 +30,22 @@ messages:
     opcode: 0x0201
   - name: CommandGenerateCharacterCharge
     opcode: 0x1008
+  - name: RequestInformationAccount
+    opcode: 0x1000
+  - name: ResponseInformationAccount
+    opcode: 0x1001
+  - name: RequestCharacterEntryState
+    opcode: 0x1004
+  - name: ResponseCharacterEntryState
+    opcode: 0x1005
+  - name: CommandOriginalCharacterCharge
+    opcode: 0x1006
+  - name: TransactionSimpleDataBegin
+    opcode: 0x1200
+  - name: TransactionSimpleDataEnd
+    opcode: 0x1201
+  - name: NotifySimpleInformationCharacterEntry
+    opcode: 0x120f
   - name: SSCharacterIDRequest
     opcode: 0x0203
   - name: SSCharacterIDResponse
