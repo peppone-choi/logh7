@@ -72,4 +72,4 @@ Ghidra 기존 프로젝트를 `-readOnly -noanalysis`로 열어 `LoghExport.java
 
 일반 로그인 UI에 같은 계정과 틀린 인증 문자열 `wrong`을 입력하면 실제 0x7000에 두 값이 들어갔고 서버가 0x7002/code1을 응답했다. 클라이언트의 원래 오류 UI 콜백 0x0051c930에 code1이 전달되고, 렌더링 버퍼의 오류창 표시를 확인했다. 테스트 코드가 오류창을 대신 생성하거나 인증 결과를 바꾸지 않는다. Tab·Enter는 소유 프로세스 내부의 키 상태 조회에만 제공하고 문자 입력은 소유 창 메시지로 전달한다. `evidence:client`
 
-재현은 [실행 도구](../ops/background-client.md)의 `--ui-login --test-credential wrong`을 사용한다. 필요한 기록·실패 화면은 `work/logh23-host-20261008/ui-gateway/`, `failure-final/`에 있다. 호스트 코드페이지에 따른 기존 일본어 표시 깨짐은 남아 있으며 LOGH-36의 표시·로캘 작업에서 다룬다. 이 확인은 원 서버의 모든 오류 코드 의미나 후속 로비 프로토콜 검증까지 포함하지 않는다.
+재현은 [실행 도구](../ops/background-client.md)의 `--ui-login --test-credential wrong`을 사용한다. 필요한 기록·실패 화면은 `work/logh23-host-20261008/ui-gateway/`, `failure-final/`에 있다. 기존 일본어 표시 깨짐은 남아 있으며 LOGH-36의 표시·로캘 작업에서 다룬다. 이 확인은 원 서버의 모든 오류 코드 의미나 후속 로비 프로토콜 검증까지 포함하지 않는다.
