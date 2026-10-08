@@ -21,5 +21,7 @@ class LobbyMessagesTest {
         assertEquals(0, input.get().toInt()); assertEquals(character.abilities, List(8) { input.short.toInt() })
         assertContentEquals("Beta\u0000".toByteArray(Charsets.UTF_16BE), bytes.copyOfRange(input.position() + 1, input.position() + 11))
         assertEquals(18 * 31_536_000, ByteBuffer.wrap(BootstrapMessages.character(character), 14, 4).int)
+        val original = LobbyMessages.characters(character.copy(generated = false))
+        assertEquals(0, original[7 + session.size + 9].toInt())
     }
 }

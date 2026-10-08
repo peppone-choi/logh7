@@ -4,6 +4,7 @@ import org.logh7.protocol.LoginMessages
 import org.logh7.protocol.LobbyMessages
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.BootstrapMessages
+import org.logh7.protocol.OriginalCharacterMessages
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.SecureRandom
@@ -60,6 +61,19 @@ class GameExchange(
                 when (opcode) {
                     0x0200 -> { check(!gameLoggedIn); gameLoggedIn = true; LobbyMessages.gameLoginOk() }
                     0x1008 -> { check(gameLoggedIn); characters.accept(identity.account, CharacterMessages.generate(body)) }
+                    0x1000 -> { check(gameLoggedIn && !gameStarted && body.size == 2); OriginalCharacterMessages.account(characters.fame(identity.account), characters.entries(identity.account)) }
+                    0x1200 -> {
+                        check(gameLoggedIn && !gameStarted && OriginalCharacterMessages.catalogueRequest(body))
+                        val messages = listOf(LoginMessages.sessionMessage(0x1200, body.copyOfRange(2, body.size)),
+                            OriginalCharacterMessages.catalogue(characters.candidates(identity.account)), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
+                        return messages.fold(ByteArray(0)) { frames, message -> frames + handshake.send(message, clearHeader = 0) }
+                    }
+                    0x1004 -> {
+                        check(gameLoggedIn && !gameStarted)
+                        val id = OriginalCharacterMessages.entryId(body)
+                        characters.entryState(identity.account, id)
+                    }
+                    0x1006 -> { check(gameLoggedIn && !gameStarted); characters.apply(identity.account, OriginalCharacterMessages.application(body)) }
                     0x0205 -> {
                         check(gameLoggedIn && !gameStarted && body.size == 2 && characters.character(identity.account) != null)
                         gameStarted = true
@@ -124,6 +138,6 @@ fun loadTestAccounts(path: Path?): Map<String, String> {
     if (path == null) return emptyMap()
     val properties = Properties().also { Files.newBufferedReader(path).use(it::load) }
     return properties.stringPropertyNames().associateWith { properties.getProperty(it) }.also { accounts ->
-        require(accounts.all { (name, password) -> name.length in 1..30 && password.length <= 10 })
+        require(accounts.all { (name, password) -> name.length in 1..30 && !name.startsWith('@') && password.length <= 10 })
     }
 }

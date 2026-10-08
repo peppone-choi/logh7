@@ -22,7 +22,7 @@ object LobbyMessages {
         val session = sessions()
         out.put(session, 8, session.size - 8) // shared InformationSession record, excluding result/count
         u8(0); u8(2); u8(1) // no next session, existing-character entry state, one charged character
-        out.putInt(character.id.toInt()); u8(character.power); u8(character.power); u8(1)
+        out.putInt(character.id.toInt()); u8(character.power); u8(character.power); u8(if (character.generated) 1 else 0)
         u8(character.gender); u8(character.birthMonth); u8(character.birthDay)
         out.putInt(Math.multiplyExact(character.age, CharacterMessages.AGE_SECONDS_PER_YEAR)); u8(0)
         character.abilities.forEach { out.putShort(it.toShort()) }

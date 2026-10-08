@@ -10,7 +10,7 @@ object CharacterMessages {
         val surname: String, val givenName: String, val age: Int, val birthMonth: Int,
         val birthDay: Int, val face: Int, val abilities: List<Int>, val bonus: Int,
         val special: Int, val title: Int, val rank: Int, val shipType: Int, val shipKind: Int,
-        val shipName: String, val check: Int,
+        val shipName: String, val check: Int, val generated: Boolean = true,
     )
     fun generate(bytes: ByteArray): Generate {
         val input = ByteBuffer.wrap(bytes)

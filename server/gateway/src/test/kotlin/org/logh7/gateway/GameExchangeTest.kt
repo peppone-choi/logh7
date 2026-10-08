@@ -161,6 +161,29 @@ class GameExchangeTest {
         val (type, data) = Frames.decodePayload(frame.copyOfRange(2, frame.size))
         assertNotNull(Handshake().accept(type, data))
     }
+    @Test fun originalCatalogueUsesSessionFramesAndApplicationBelongsToAuthenticatedAccount() {
+        val characters = CharacterCreation()
+        val tickets = SessionTickets()
+        val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903, Handshake(b, 2), characters)
+        game.accept(0x34, initial); game.accept(0x36, confirm)
+        val token = tickets.issue("user", SessionTickets.Purpose.GAME)
+        game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+        game.accept(0x30, encrypted(hex("0200"), 2))
+        val request = ByteBuffer.allocate(31).putShort(0x1200).putInt(0).putShort(0x13).array()
+        val bytes = game.accept(0x30, encrypted(request, 3))!!
+        val opcodes = mutableListOf<Int>(); var offset = 0; var serverSequence = 2L
+        while (offset < bytes.size) {
+            val length = (ByteBuffer.wrap(bytes, offset, 2).short.toInt() and 65535) + 2
+            assertContentEquals(hex("000000000030"), bytes.copyOfRange(offset + 2, offset + 8))
+            val (sequence, body) = Envelope.decode(LegacyBlowfish(b).decrypt(bytes.copyOfRange(offset + 8, offset + length)), serverSequence)
+            serverSequence = sequence; opcodes += ByteBuffer.wrap(body, 4, 2).short.toInt() and 65535; offset += length
+        }
+        assertEquals(listOf(0x1200, 0x120f, 0x1201), opcodes)
+        game.accept(0x30, encrypted(hex("100601000003e9"), 4))
+        assertEquals(listOf(1001L), characters.entries("user"))
+        assertTrue(characters.entries("other").isEmpty())
+        assertFails { game.accept(0x30, encrypted(hex("0205"), 5)) }
+    }
     @Test fun rejectsTruncatedSequenceAndWrongEchoWithValidChecksums() {
         fun sealed(plain: ByteArray): ByteArray {
             ByteBuffer.wrap(plain).putShort(Envelope.checksum(plain.copyOfRange(2, plain.size)).toShort())
