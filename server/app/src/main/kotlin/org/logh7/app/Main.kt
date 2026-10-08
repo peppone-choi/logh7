@@ -5,6 +5,7 @@ import org.logh7.engine.WorldEngine
 import org.logh7.engine.SessionRules
 import org.logh7.gateway.Gateway
 import org.logh7.gateway.loadTestAccounts
+import org.logh7.gateway.EngineGameAdmission
 import org.logh7.ops.startOpsApi
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
@@ -16,7 +17,7 @@ fun main() {
     val gateway = Gateway(Path.of(System.getenv("LOGH7_CAPTURE_DIR") ?: "E:/logh7/work/logh7-dynamic-p2/captures"),
         loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
         System.getenv("LOGH7_CHARACTERS_FILE")?.let { Path.of(it) },
-        gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds })
+        gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope))
     val ops = startOpsApi(engine, engine)
     val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
     val sessionPort = System.getenv("LOGH7_SESSION_PORT")?.toInt() ?: 47903

@@ -3,8 +3,8 @@ package org.logh7.engine
 enum class Power { EMPIRE, ALLIANCE }
 enum class EndReason { CAPITAL_CAPTURED, SYSTEMS_REDUCED, TIME_LIMIT }
 data class SessionEnd(val reason: EndReason, val affected: Set<Power>, val gameSeconds: Long)
-data class Participant(val power: Power, val original: Boolean, val online: Boolean = true)
-enum class Admission { ACCEPTED, FULL, ENDED, FACTION_CHANGED, ORIGINAL_RETURN_FORBIDDEN, IDENTITY_CHANGED }
+data class Participant(val power: Power, val original: Boolean, val online: Boolean = true, val connection: String? = null)
+enum class Admission { ACCEPTED, FULL, ENDED, FACTION_CHANGED, ORIGINAL_RETURN_FORBIDDEN, IDENTITY_CHANGED, ALREADY_ONLINE, STALE_SESSION }
 data class SessionSnapshot(val generation: Long, val gameSeconds: Long, val strategyTicks: Long,
     val cpRecoveryEvents: Long, val tacticalTicks: Map<String, Long>, val participants: Int, val online: Int,
     val ended: SessionEnd?)
@@ -28,12 +28,13 @@ class SessionSimulation(private val rules: SessionRules) {
     private var ended: SessionEnd? = null
     fun snapshot() = SessionSnapshot(generation, gameMillis / 1000, strategyTicks, recoveries,
         battles.mapValues { it.value.ticks }, participants.size, participants.values.count { it.online }, ended)
-    fun join(account: String, power: Power, original: Boolean): Admission {
+    fun join(account: String, power: Power, original: Boolean, connection: String? = null): Admission {
         require(account.isNotBlank())
         if (ended != null) return Admission.ENDED
         participants[account]?.let {
             if (it.power != power || it.original != original) return Admission.IDENTITY_CHANGED
-            participants[account] = it.copy(online = true)
+            if (it.online && it.connection != null && it.connection != connection) return Admission.ALREADY_ONLINE
+            participants[account] = it.copy(online = true, connection = connection)
             return Admission.ACCEPTED
         }
         excluded[account]?.let {
@@ -41,10 +42,12 @@ class SessionSimulation(private val rules: SessionRules) {
             if (it != power) return Admission.FACTION_CHANGED
         }
         if (participants.size >= rules.capacity) return Admission.FULL
-        participants[account] = Participant(power, original)
+        participants[account] = Participant(power, original, connection = connection)
         return Admission.ACCEPTED
     }
-    fun disconnect(account: String) { participants[account]?.let { participants[account] = it.copy(online = false) } }
+    fun disconnect(account: String, connection: String? = null) {
+        participants[account]?.let { if (connection == null || it.connection == connection) participants[account] = it.copy(online = false, connection = null) }
+    }
     fun exclude(account: String) { participants.remove(account)?.let { excluded[account] = it.power } }
     fun openBattle(id: String) {
         require(id.isNotBlank() && ended == null)

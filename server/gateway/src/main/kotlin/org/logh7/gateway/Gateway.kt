@@ -52,7 +52,7 @@ internal class CaptureHandler(private val capture: Capture, private val id: Stri
 }
 
 class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-dynamic-p2/captures"), private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null,
-    private val gameSeconds: () -> Long = { 0 }) : AutoCloseable {
+    private val gameSeconds: () -> Long = { 0 }, private val admission: GameAdmission? = null) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
@@ -67,11 +67,18 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                 val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
                     .childHandler(object : ChannelInitializer<SocketChannel>() {
                         override fun initChannel(ch: SocketChannel) {
-                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characters, gameSeconds = gameSeconds)
+                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characters, gameSeconds = gameSeconds, admission = admission)
                             val updateExchange = UpdateExchange()
                             ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
                             ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
                             ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
+                                private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null
+                                override fun channelActive(ctx: ChannelHandlerContext) {
+                                    if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
+                                        if (exchange.obsolete()) { exchange.close(); ctx.close() }
+                                    }, 1, 1, java.util.concurrent.TimeUnit.SECONDS)
+                                    ctx.fireChannelActive()
+                                }
                                 override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
                                     val payload = ByteArray(msg.readableBytes()); msg.readBytes(payload)
                                     if (port != updatePort) {
@@ -79,6 +86,15 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                                         exchange.accept(type, data)?.let { response ->
                                             val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
                                             if (exchange.state == GameExchange.State.REJECTED) written.addListener(ChannelFutureListener.CLOSE)
+                                        }
+                                        exchange.takePendingJoin()?.whenComplete { result, failure ->
+                                            ctx.executor().execute {
+                                                if (!ctx.channel().isActive || failure != null) { exchange.close(); ctx.close() }
+                                                else exchange.finishJoin(result)?.let { response ->
+                                                    val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
+                                                    if (exchange.state == GameExchange.State.REJECTED) written.addListener(ChannelFutureListener.CLOSE)
+                                                }
+                                            }
                                         }
                                     } else {
                                         val response = updateExchange.accept(payload)
@@ -89,6 +105,7 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                                     }
                                 }
                                 override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) { System.err.println("gateway: ${cause.message}"); exchange.close(); ctx.close() }
+                                override fun channelInactive(ctx: ChannelHandlerContext) { lifecycleCheck?.cancel(false); exchange.close(); ctx.fireChannelInactive() }
                             })
                         }
                     })

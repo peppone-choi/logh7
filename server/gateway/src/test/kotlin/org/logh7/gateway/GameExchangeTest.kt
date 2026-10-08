@@ -7,6 +7,8 @@ import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.*
+import org.logh7.engine.Admission
+import java.util.concurrent.CompletableFuture
 
 class GameExchangeTest {
     private fun hex(s: String) = java.util.HexFormat.of().parseHex(s)
@@ -186,6 +188,45 @@ class GameExchangeTest {
         assertEquals(listOf(1001L), characters.entries("user"))
         assertTrue(characters.entries("other").isEmpty())
         assertFails { game.accept(0x30, encrypted(hex("0205"), 5)) }
+    }
+    @Test fun gameLoginWaitsForActorAdmissionAndRejectsBeforeWorldInitialization() {
+        for (decision in listOf(Admission.ACCEPTED, Admission.FULL)) {
+            var now = java.time.Instant.EPOCH
+            val clock = object : java.time.Clock() {
+                override fun getZone() = java.time.ZoneOffset.UTC
+                override fun withZone(zone: java.time.ZoneId): java.time.Clock = this
+                override fun instant() = now
+            }
+            val characters = CharacterCreation(clock = clock, lotteryWindowMillis = 1)
+            characters.apply("user", listOf(1001)); now = now.plusMillis(1)
+            val pending = CompletableFuture<Admission>()
+            val closed = mutableListOf<String>()
+            val access = object : GameAdmission {
+                override val generation = 1L
+                override val running = true
+                override fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long): CompletableFuture<Admission> {
+                    assertEquals("user", account); assertEquals(1001L, character.id); assertEquals(1L, generation)
+                    return pending
+                }
+                override fun disconnect(account: String, connection: String) { closed += account }
+            }
+            val tickets = SessionTickets()
+            val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903,
+                Handshake(b, 2), characters, admission = access)
+            game.accept(0x34, initial); game.accept(0x36, confirm)
+            val token = tickets.issue("user", SessionTickets.Purpose.GAME)
+            game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+            game.accept(0x30, encrypted(hex("0200"), 2))
+            assertNull(game.accept(0x30, encrypted(hex("0205"), 3)))
+            assertSame(pending, game.takePendingJoin()); assertNull(game.takePendingJoin())
+            pending.complete(decision)
+            val response = game.finishJoin(decision)!!
+            val body = Envelope.decode(LegacyBlowfish(b).decrypt(response.copyOfRange(8, response.size)), 2).second
+            assertContentEquals(hex(if (decision == Admission.ACCEPTED) "00000000020600" else "00000000020601"), body)
+            if (decision == Admission.FULL) assertFails { game.accept(0x30, encrypted(hex("0300"), 4)) }
+            game.close(); game.close()
+            assertEquals(listOf("user"), closed)
+        }
     }
     @Test fun rejectsTruncatedSequenceAndWrongEchoWithValidChecksums() {
         fun sealed(plain: ByteArray): ByteArray {

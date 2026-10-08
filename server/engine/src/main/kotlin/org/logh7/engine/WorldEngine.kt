@@ -8,8 +8,8 @@ data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val ses
 sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
-    data class Join(val account: String, val power: Power, val original: Boolean, val result: CompletableDeferred<Admission>) : WorldCommand
-    data class Disconnect(val account: String) : WorldCommand
+    data class Join(val account: String, val power: Power, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null) : WorldCommand
+    data class Disconnect(val account: String, val connection: String? = null) : WorldCommand
     data class Exclude(val account: String) : WorldCommand
     data class OpenBattle(val id: String) : WorldCommand
     data class CloseBattle(val id: String) : WorldCommand
@@ -38,8 +38,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     require(command.elapsedRealMillis >= elapsed)
                     simulation.advance(command.elapsedRealMillis - elapsed).also { elapsed = command.elapsedRealMillis }
                 }
-                is WorldCommand.Join -> { admission = simulation.join(command.account, command.power, command.original); emptyList() }
-                is WorldCommand.Disconnect -> { simulation.disconnect(command.account); emptyList() }
+                is WorldCommand.Join -> { admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION else simulation.join(command.account, command.power, command.original, command.connection); emptyList() }
+                is WorldCommand.Disconnect -> { simulation.disconnect(command.account, command.connection); emptyList() }
                 is WorldCommand.Exclude -> { simulation.exclude(command.account); emptyList() }
                 is WorldCommand.OpenBattle -> { simulation.openBattle(command.id); emptyList() }
                 is WorldCommand.CloseBattle -> { simulation.closeBattle(command.id); emptyList() }

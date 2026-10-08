@@ -10,6 +10,8 @@ import java.nio.file.Path
 import java.security.SecureRandom
 import java.time.Clock
 import java.util.Properties
+import java.util.concurrent.CompletableFuture
+import org.logh7.engine.Admission
 
 /** evidence:guess — local test accounts and short-lived, single-use session tickets. */
 class SessionTickets(private val clock: Clock = Clock.systemUTC()) {
@@ -38,6 +40,8 @@ class GameExchange(
     private val handshake: Handshake = Handshake(),
     private val characters: CharacterCreation = CharacterCreation(),
     private val gameSeconds: () -> Long = { 0 },
+    private val admission: GameAdmission? = null,
+    private val connection: String = java.util.UUID.randomUUID().toString(),
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -47,6 +51,21 @@ class GameExchange(
     private var lobbyLoggedIn = false
     private var gameLoggedIn = false
     private var gameStarted = false
+    private val generation = admission?.generation
+    private var joining = false
+    private var joinRequested = false
+    private var pendingJoin: CompletableFuture<Admission>? = null
+    fun takePendingJoin(): CompletableFuture<Admission>? = pendingJoin.also { pendingJoin = null }
+    fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
+        (generation != admission.generation || !admission.running)
+    fun finishJoin(result: Admission): ByteArray? {
+        if (state == State.CLOSED) return null
+        check(joining && !gameStarted)
+        joining = false
+        gameStarted = result == Admission.ACCEPTED
+        if (!gameStarted) state = State.REJECTED
+        return handshake.send(LoginMessages.sessionMessage(0x0206, byteArrayOf(if (gameStarted) 0 else 1)), clearHeader = 0)
+    }
     fun accept(type: Int, data: ByteArray): ByteArray? {
         check(state != State.CLOSED && state != State.REJECTED)
         if (state == State.KEY_EXCHANGE) {
@@ -76,7 +95,13 @@ class GameExchange(
                     }
                     0x1006 -> { check(gameLoggedIn && !gameStarted); characters.apply(identity.account, OriginalCharacterMessages.application(body)) }
                     0x0205 -> {
-                        check(gameLoggedIn && !gameStarted && body.size == 2 && characters.character(identity.account) != null)
+                        check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
+                        val character = checkNotNull(characters.character(identity.account))
+                        if (admission != null) {
+                            joining = true; joinRequested = true
+                            pendingJoin = admission.join(identity.account, character, connection, checkNotNull(generation))
+                            return null
+                        }
                         gameStarted = true
                         LoginMessages.sessionMessage(0x0206, byteArrayOf(0))
                     }
@@ -132,7 +157,11 @@ class GameExchange(
             }
         }
     }
-    fun close() { handshake.close(); state = State.CLOSED }
+    fun close() {
+        if (state == State.CLOSED) return
+        if (joinRequested) admission?.disconnect(checkNotNull(ticket).account, connection)
+        handshake.close(); state = State.CLOSED
+    }
 }
 
 fun loadTestAccounts(path: Path?): Map<String, String> {
