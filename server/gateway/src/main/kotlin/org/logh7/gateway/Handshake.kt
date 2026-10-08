@@ -54,10 +54,10 @@ class Handshake(key: ByteArray = ByteArray(16).also { SecureRandom().nextBytes(i
         previous = sequence
         return body
     }
-    fun send(body: ByteArray): ByteArray {
+    fun send(body: ByteArray, clearHeader: Int? = null): ByteArray {
         check(state == State.ESTABLISHED)
         check(next <= 0x7fffffffL) { "Rekey required but not implemented" }
-        return Frames.encode(0x30, outgoing.encrypt(Envelope.encode(next++, body)))
+        return Frames.encode(0x30, outgoing.encrypt(Envelope.encode(next++, body)), clearHeader)
     }
     fun close() { state = State.CLOSED }
 }

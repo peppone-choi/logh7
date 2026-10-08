@@ -3,7 +3,7 @@
 작성자: 최병호 · 2026-09-28 · 상태: **candidate**, 동적 검증은 리드 담당.
 근거: `evidence:client`, E-310~E-313. CD판 G7MTClient.exe 기준이며 VA와 메모리 offset은 wire offset과 구분한다.
 
-> 2026-10-08 갱신: 초기 0x7000 인증·0x7001 주소/포트·0x0020 토큰·이어지는 0x2000 요청과 일반 UI의 0x7002/code1 오류창을 실제 사본에서 확인했다. [로그인 동적 확인](login-messages.md#실제-인증-성공실패-확인-2026-10-08-logh-23)을 따른다. 아래 로비 응답·목록·게임 세션 인증은 계속 candidate다. `evidence:client`
+> 2026-10-08 갱신: 초기 인증·오류창은 [로그인 동적 확인](login-messages.md#실제-인증-성공실패-확인-2026-10-08-logh-23)을 따른다. 로비 로그인·빈 캐릭터 정보·세션 목록 표시·서버 선택·게임 세션 인증·진영 선택 화면 진입도 실제 사본에서 확인했다. 아래 불명 필드 의미와 캐릭터 생성 완료는 계속 미확정이다. 생성 메뉴 진입에는 별도 CD판 호환 패치를 사용했으며 무수정 UI 시험과 구분한다. `evidence:client`
 
 ## 첫 암호 응용 요청의 시점
 
@@ -29,7 +29,13 @@
 02 00 42 00 00               B count + UTF-16BE units
 ```
 
-이를 `checksum:BE16, sequence:BE32=1, body_len:BE16=21, body`로 감싸고 A 송신키로 전체 암호화한다. 외부 프레임은 `00 22 00 30`과 암호문 32바이트다. 일반 C→S opcode 헤더는 2바이트, 로그인 서버 S→C는 opcode+보조 u16 두 개, 재접속한 일반 연결 S→C는 보조 u32+opcode다. 보조 필드 의미·정상 값은 미확정이며 벡터의 0은 합성 선택이다. `evidence:client` E-302/E-314.
+이를 `checksum:BE16, sequence:BE32=1, body_len:BE16=21, body`로 감싸고 A 송신키로 전체 암호화한다. 외부 프레임은 `00 22 00 30`과 암호문 32바이트다. 일반 C→S opcode 헤더는 2바이트, 로그인 서버 S→C는 opcode+보조 u16 두 개, 재접속한 일반 연결 S→C의 **암호 봉투 안**은 보조 u32+opcode다. 일반 연결 S→C에는 아래와 같이 **암호 봉투 밖에도** 보조 u32가 필요하다. 두 필드를 혼동하지 않는다. 보조 필드 의미·정상 값은 미확정이며 벡터의 0은 합성 선택이다. `evidence:client` E-302/E-314 및 2026-10-08 실행.
+
+### 일반 세션의 외부 헤더 정정 (2026-10-08)
+
+로비·게임 세션 연결에서 키 교환 뒤 서버가 보내는 암호 응용 프레임은 `length:BE16, clear_header:BE32, type:BE16=0x0030, encrypted_envelope` 순서다. length는 길이 필드 자신을 제외한 나머지 전체 길이다. 키 교환 0x34/35/36, 초기 로그인 연결, C→S 프레임에는 이 clear_header를 추가하지 않는다. `0x006130a0`은 일반 연결에 설정된 header offset=4를 건너뛴 뒤 type을 읽는다. `evidence:client`
+
+clear_header 없이 보낸 0x2001은 클라이언트가 연결을 닫았다. 외부 clear_header=0과 봉투 안 보조 u32=0을 각각 넣자 실제 클라이언트가 0x2001을 받고 0x2003을 보냈으며, 이어서 0x2004·진영별 0x2006을 받아 로비 상태 0x17에 도달했다. 값 0의 수용을 확인했으며 원 서버에서의 필드 의미는 미확정이다. 로컬 결과는 `work/logh24-host-20261008/gateway-03`, `run-05` 이후에 있다. `evidence:client`
 
 ## 0x7001 이후: 두 번의 연결 전환
 
@@ -61,7 +67,7 @@
 
 | 순서 | wire 필드 | 상한·주석 |
 |---|---|---|
-| 1 | session_id:u16, opaque:u8 | 선택 요청의 ID와 대조 필요 |
+| 1 | session_id:u16, status:u8 | ID=1이 실제 선택 요청과 일치. `0x00593d90`은 status 1 또는 2인 항목이 있어야 목록을 연다. 각 상태의 원 서비스 의미는 미확정 |
 | 2 | name_count:u8, name:u16[name_count] | ≤13, 진단명 session_name_size |
 | 3 | date_count:u8, date:u16[date_count] | ≤65, 진단명 begin_day_size |
 | 4 | opaque:u32 | 메모리 항목 +0xa4 |
@@ -72,6 +78,14 @@ power 구조: `opaque:u8, opaque:u32 ×3, ending_count:u8(≤1), ending[]`.
 power ending 구조: `name_count:u8(≤13), name:u16[N], opaque:u16, opaque:u8 ×5, opaque:u16 ×2, opaque:u32 ×3`. 진단명은 super_man_size다. 세션 항목의 메모리 stride는 0x14c, power stride는 0x48이지만 둘 다 wire padding이 아니다. 두 power를 제국/동맹 중 어느 순서로 해석하는지는 미확정이다. `evidence:client` E-312.
 
 name/date/ending이 모두 비어 있는 항목의 길이는 38바이트, 이름 `S1`+NUL 세 코드 단위만 넣으면 44바이트다. 해당 1개 목록 본문은 46바이트(선두 result/count 포함). 빈 목록과 1개 목록 벡터는 파서 입력 후보이며 UI가 표시 가능한 최소 데이터라는 보장은 없다. `evidence:client`(폭), `evidence:guess`(합성 데이터), E-314.
+
+### 실제 목록·선택 확인 (2026-10-08, LOGH-24)
+
+서버는 선택 가능한 status=1, ID=1, 이름 `LOGH7 Local`과 빈 날짜·양 진영 수치 0인 로컬 항목을 반환한다. 실제 요청은 0x2005의 구분값 2·1·0 순서로 관측됐으며 0은 생성 메뉴의 전체 목록 조회다. 이름 포함 본문은 64바이트다. `evidence:client`
+
+`run-19`에서 목록 이름을 확인했고 `run-20`에서 그 항목을 클릭하자 0x2009/ID1 → 0x200a의 localhost 주소·47903 포트·새 토큰 → 새 키 교환 → 0x0020 → 0x0200 → 0x0201 → 진영 선택 화면 순서로 진행했다. 토큰은 인증 계정과 LOBBY/GAME 용도에 묶고 60초 안에 한 번만 소비한다(대체 서버 정책 `evidence:guess`). 두 연결의 실제 바이트는 `work/logh24-host-20261008/gateway-05`, 화면과 실행 결과는 `run-19`, `run-20`에 있다. `evidence:client`
+
+시험은 [백그라운드 실행기의 CD 생성 메뉴 호환 옵션](../ops/background-client.md#cd판-생성-메뉴-호환-패치)을 명시했다. 원본 파일 해시는 유지했으나 두 메뉴의 enable 상수를 프로세스 메모리에서 바꿨다. 진영 소유·캐릭터 생성 저장·전략 화면은 LOGH-25에서 이어서 구현한다. 세션 항목의 두 power 순서·불명 수치의 원 의미까지 검증한 것은 아니다.
 
 ## 0x7002 오류 표시 위치
 

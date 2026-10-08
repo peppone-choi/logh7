@@ -6,3 +6,25 @@ messages:
     opcode: 0x7001
   - name: LGLoginNG
     opcode: 0x7002
+  - name: LobbyLoginRequest
+    opcode: 0x2000
+  - name: LobbyLoginOK
+    opcode: 0x2001
+  - name: LobbyInformationCharacterRequest
+    opcode: 0x2003
+  - name: LobbyInformationCharacterResponse
+    opcode: 0x2004
+  - name: LobbyInformationSessionRequest
+    opcode: 0x2005
+  - name: LobbyInformationSessionResponse
+    opcode: 0x2006
+  - name: LobbySessionLoginRequest
+    opcode: 0x2009
+  - name: LobbySessionLoginOK
+    opcode: 0x200a
+  - name: LobbySessionLoginNG
+    opcode: 0x200b
+  - name: SSLoginRequest
+    opcode: 0x0200
+  - name: SSLoginOK
+    opcode: 0x0201

@@ -137,7 +137,7 @@ def enter_login(desk, pid, script, account, credential):
         time.sleep(0.4)
 
 
-def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy"):
+def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy", clicks=(), creation_menu=False):
     source = source.resolve(strict=True)
     out = out.resolve()
     if not out.is_relative_to(WORK.resolve()) or out == WORK.resolve():
@@ -221,6 +221,9 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                 script_source = Path(__file__).with_name("capture-frame.js").read_text()
                 if ui_login:
                     script_source += "\n" + Path(__file__).with_name("input-login.js").read_text()
+                if creation_menu:
+                    script_source += "\n" + Path(__file__).with_name("enable-creation-menu.js").read_text()
+                    report["application_patch"] = "CD creation menu enable (two in-memory bytes)"
                 script = session.create_script(script_source)
                 def on_message(message, data):
                     payload = message.get("payload", {})
@@ -245,6 +248,9 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             report["pid"] = pid
             print(json.dumps({"pid": pid, "desktop": report["desktop"], "endpoint": report["endpoint"]}), flush=True)
             deadline = time.monotonic() + seconds
+            started_at = deadline - seconds
+            pending_clicks = iter(sorted(clicks))
+            next_click = next(pending_clicks, None)
             activate_at = time.monotonic() + 3
             private_active = False
             login_entered = False
@@ -258,6 +264,15 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                     enter_login(desk, pid, script, account, credential)
                     login_entered = True
                     report["ui_login_entered"] = True
+                if next_click is not None and time.monotonic() - started_at >= next_click[0]:
+                    at, x, y = next_click
+                    script.exports_sync.setmouse(x, y, True)
+                    try:
+                        time.sleep(0.3)
+                    finally:
+                        script.exports_sync.setmouse(x, y, False)
+                    report.setdefault("ui_clicks", []).append({"at": at, "x": x, "y": y})
+                    next_click = next(pending_clicks, None)
                 if connection is None:
                     try:
                         connection, peer = listener.accept()
@@ -341,7 +356,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                                  for c in report["captures"])
                              and report["complete_first_0x34"] and report.get("process_stopped", False)
                              and report.get("exit_code_before_cleanup") == win32con.STILL_ACTIVE
-                             and report["source_hash_unchanged"] and "error" not in report)
+                             and report["source_hash_unchanged"] and "error" not in report
+                             and "render_capture_error" not in report)
         if not audible:
             report["success"] &= report.get("audio", {}).get("active_while_muted", False)
             report["success"] &= not report.get("audio_restore_errors", [])
@@ -362,6 +378,8 @@ if __name__ == "__main__":
     parser.add_argument("--dxwrapper-dir", type=Path, help="Verified unpacked dxwrapper bundle, applied only to the work/ copy")
     parser.add_argument("--audible", action="store_true", help="Leave audio unchanged; default mutes only the owned game's Windows audio sessions")
     parser.add_argument("--ui-login", action="store_true", help="Enter synthetic test credentials in the normal login UI; requires render capture")
+    parser.add_argument("--ui-click", action="append", default=[], metavar="SECONDS:X:Y", help="Queue a virtual left click in the owned game window; repeatable, requires --ui-login")
+    parser.add_argument("--enable-creation-menu", action="store_true", help="Explicitly enable the CD client's two disabled creation menus in owned process memory")
     parser.add_argument("--test-account", default="ginei00", help="ASCII synthetic account, 1-30 characters")
     parser.add_argument("--test-credential", default="dummy", help="ASCII synthetic credential, 1-10 characters")
     args = parser.parse_args()
@@ -371,9 +389,19 @@ if __name__ == "__main__":
         parser.error("Choose one graphics wrapper")
     if args.ui_login and not args.render_capture:
         parser.error("UI login requires --render-capture for private virtual key state")
+    try:
+        clicks = [tuple(map(int, value.split(":"))) for value in args.ui_click]
+        if any(len(value) != 3 or not 0 < value[0] < args.seconds or not all(0 <= coordinate <= 4095 for coordinate in value[1:]) for value in clicks):
+            raise ValueError()
+    except ValueError:
+        parser.error("Use --ui-click SECONDS:X:Y within the run duration and game window")
+    if clicks and not args.ui_login:
+        parser.error("UI clicks require --ui-login")
+    if args.enable_creation_menu and not args.ui_login:
+        parser.error("Creation menu compatibility patch requires --ui-login")
     for value, limit in ((args.test_account, 30), (args.test_credential, 10)):
         if not 1 <= len(value) <= limit or not all(33 <= ord(char) <= 126 for char in value):
             parser.error("Use nonempty printable ASCII test credentials within the documented limits, without spaces")
     raise SystemExit(run(args.source_root, args.out, args.seconds, args.d3d8_wrapper,
                          args.instance_root, args.render_capture, args.upstream_port, args.dxwrapper_dir, args.audible,
-                         args.ui_login, args.test_account, args.test_credential))
+                         args.ui_login, args.test_account, args.test_credential, clicks, args.enable_creation_menu))

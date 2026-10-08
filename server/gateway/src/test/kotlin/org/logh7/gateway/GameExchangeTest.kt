@@ -79,6 +79,39 @@ class GameExchangeTest {
         assertEquals(GameExchange.State.REJECTED, login.state)
         assertFails { login.accept(0x30, encrypted(request(), 2)) }
     }
+    @Test fun lobbyListSelectionAndPurposeBoundGameTicket() {
+        val tickets = SessionTickets()
+        val session = exchange(GameExchange.Role.SESSION, tickets)
+        val token = tickets.issue("user")
+        assertNull(session.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array())))
+        fun request(body: ByteArray, sequence: Long): ByteArray {
+            val frame = session.accept(0x30, encrypted(body, sequence))!!
+            assertEquals(frame.size - 2, ByteBuffer.wrap(frame).short.toInt() and 65535)
+            assertContentEquals(hex("000000000030"), frame.copyOfRange(2, 8))
+            return Envelope.decode(LegacyBlowfish(b).decrypt(frame.copyOfRange(8, frame.size)), sequence - 1).second
+        }
+        assertContentEquals(hex("000000002001000000"), request(hex("200047494e3700040000070069006e00650069003000300000"), 2))
+        assertContentEquals(hex("00000000200400"), request(hex("2003"), 3))
+        val list = request(hex("200501"), 4)
+        assertContentEquals(hex("00000000200600010001010c"), list.copyOfRange(0, 12))
+        assertTrue(list.toList().windowed(24).any { it.toByteArray().contentEquals("LOGH7 Local\u0000".toByteArray(Charsets.UTF_16BE)) })
+        assertContentEquals(list, request(hex("200502"), 5))
+        assertContentEquals(list, request(hex("200500"), 6))
+        assertContentEquals(hex("00000000200b0100"), request(hex("20090002"), 7))
+        val selected = request(hex("20090001"), 8)
+        assertContentEquals(hex("00000000200a0100007fbb1f"), selected.copyOfRange(0, 12))
+        val gameToken = ByteBuffer.wrap(selected, 12, 4).int
+        val game = exchange(GameExchange.Role.SESSION, tickets)
+        val auth = ByteBuffer.allocate(6).putShort(0x20).putInt(gameToken).array()
+        assertNull(game.accept(0x30, encrypted(auth)))
+        val accepted = game.accept(0x30, encrypted(hex("0200"), 2))!!
+        assertContentEquals(hex("00000000020100"), Envelope.decode(LegacyBlowfish(b).decrypt(accepted.copyOfRange(8, accepted.size)), 1).second)
+        assertFails { exchange(GameExchange.Role.SESSION, tickets).accept(0x30, encrypted(auth)) }
+        val wrongRole = exchange(GameExchange.Role.SESSION, tickets)
+        val otherToken = tickets.issue("user", SessionTickets.Purpose.GAME)
+        wrongRole.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(otherToken.toInt()).array()))
+        assertFails { wrongRole.accept(0x30, encrypted(hex("2000"), 2)) }
+    }
     @Test fun loginUsesActualUtf16LengthAndRejectsTruncation() {
         assertEquals(LoginMessages.Request("user", "pw"), LoginMessages.request(request()))
         assertFails { LoginMessages.request(request().dropLast(1).toByteArray()) }

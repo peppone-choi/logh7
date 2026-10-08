@@ -19,6 +19,11 @@ class ProtocolTest {
         bytes[8] = 9
         assertFailsWith<IllegalArgumentException> { Envelope.decode(bytes, 0) }
     }
+    @Test fun sessionServerClearHeaderIsOutsideCiphertext() {
+        assertContentEquals(byteArrayOf(0, 7, 1, 2, 3, 4, 0, 0x30, 7), Frames.encode(0x30, byteArrayOf(7), 0x01020304))
+        assertEquals(0xF002, Frames.encode(0x30, ByteArray(0xEFFA), 0).size)
+        assertFailsWith<IllegalArgumentException> { Frames.encode(0x30, ByteArray(0xEFFB), 0) }
+    }
     @Test fun cipherRoundTripAndMask() {
         val key = LegacyBlowfish.HANDSHAKE_KEY.toByteArray(Charsets.US_ASCII)
         val cipher = LegacyBlowfish(key)
