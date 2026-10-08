@@ -37,6 +37,8 @@ out/
 .env
 .env.*
 !.env.example
+/launcher/target/
+/launcher/launcher.ini
 
 # OS
 Thumbs.db

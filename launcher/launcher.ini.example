@@ -1,0 +1,10 @@
+# 작성자: 최병호
+# 상대 경로는 이 설정 파일의 디렉터리를 기준으로 해석합니다.
+client_root=../client
+host=127.0.0.1
+port=47900
+account=ginei00
+session=1
+credential=dummy
+# true: 계정·인증 문자열 입력 UI를 사용합니다.
+login_ui=false
