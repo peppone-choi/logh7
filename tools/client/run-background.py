@@ -17,6 +17,8 @@ import time
 import traceback
 import uuid
 
+from audio_session import SessionMute
+
 from PIL import Image, ImageStat
 import win32api
 import win32con
@@ -102,7 +104,7 @@ def activate_private(desk, pid):
     return True
 
 
-def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None):
+def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False):
     source = source.resolve(strict=True)
     out = out.resolve()
     if not out.is_relative_to(WORK.resolve()) or out == WORK.resolve():
@@ -147,6 +149,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
         report["d3d8_wrapper"] = {"path": str(wrapper), "sha256": digest(destination)}
     desk = process = thread = job = connection = None
     session = script = None
+    audio = None
     upstream = None
     received = bytearray()
     try:
@@ -175,6 +178,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                 win32process.BELOW_NORMAL_PRIORITY_CLASS | win32con.CREATE_SUSPENDED,
                 None, str(executable.parent), startup)
             win32job.AssignProcessToJobObject(job, process)
+            if not audible:
+                audio = SessionMute(pid)
             if render_capture:
                 import frida
                 session = frida.attach(pid)
@@ -203,6 +208,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             activate_at = time.monotonic() + 3
             private_active = False
             while time.monotonic() < deadline:
+                if audio is not None:
+                    report["audio"] = audio.poll()
                 if not private_active and time.monotonic() >= activate_at:
                     private_active = activate_private(desk, pid)
                     report["private_window_activated"] = private_active
@@ -236,7 +243,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             pass
                 if win32event.WaitForSingleObject(process, 0) != win32con.WAIT_TIMEOUT:
                     break
-                time.sleep(0.2)
+                time.sleep(0.05)
             report["exit_code_before_cleanup"] = win32process.GetExitCodeProcess(process)
             ctypes.windll.kernel32.SetLastError(0)
             try:
@@ -265,6 +272,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             win32event.WaitForSingleObject(process, 5000)
             report["process_stopped"] = win32event.WaitForSingleObject(process, 0) == win32con.WAIT_OBJECT_0
             process.Close()
+        if audio is not None:
+            report["audio_restore_errors"] = audio.close()
         if session is not None:
             try:
                 session.detach()
@@ -288,6 +297,9 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                              and report["complete_first_0x34"] and report.get("process_stopped", False)
                              and report.get("exit_code_before_cleanup") == win32con.STILL_ACTIVE
                              and report["source_hash_unchanged"] and "error" not in report)
+        if not audible:
+            report["success"] &= report.get("audio", {}).get("active_while_muted", False)
+            report["success"] &= not report.get("audio_restore_errors", [])
         (out / "run.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report), flush=True)
     return 0 if report["success"] else 2
@@ -303,10 +315,11 @@ if __name__ == "__main__":
     parser.add_argument("--render-capture", action="store_true", help="Use installed Frida to capture the owned D3D9 backbuffer")
     parser.add_argument("--upstream-port", type=int, help="Forward only to an existing localhost stub on this port")
     parser.add_argument("--dxwrapper-dir", type=Path, help="Verified unpacked dxwrapper bundle, applied only to the work/ copy")
+    parser.add_argument("--audible", action="store_true", help="Leave audio unchanged; default mutes only the owned game's Windows audio sessions")
     args = parser.parse_args()
     if args.upstream_port is not None and not 1 <= args.upstream_port <= 65535:
         parser.error("Upstream port must be between 1 and 65535")
     if args.d3d8_wrapper is not None and args.dxwrapper_dir is not None:
         parser.error("Choose one graphics wrapper")
     raise SystemExit(run(args.source_root, args.out, args.seconds, args.d3d8_wrapper,
-                         args.instance_root, args.render_capture, args.upstream_port, args.dxwrapper_dir))
+                         args.instance_root, args.render_capture, args.upstream_port, args.dxwrapper_dir, args.audible))
