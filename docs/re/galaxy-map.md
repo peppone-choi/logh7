@@ -154,14 +154,16 @@ float 입력 `0x00611bc0`은 u32에 **ntohl을 적용한 뒤 float로 해석**�
 
 | 파일 / model_file | 추출한 형상 | 삼각형 수 | 이름·용도 후보 — 확정 서버값 아님 |
 |---|---|---:|---|
-| y001 / 110,111 | 구체 | 720 | 이젤론·가이에스부르크의 고정형 후보. 두 슬롯의 이름 대응은 미확인 |
-| y002 / 112 | 구체와 외부 띠·돌출 구조 | 2668 | 가이에스부르크 개조형 후보, 추가 대조 필요 |
+| y001 / 110,111 | 구체 | 720 | 이제르론 후보. 110/111 두 슬롯이 같은 파일을 쓰는 이유는 미확인 |
+| y002 / 112 | 구체와 외부 띠·돌출 구조 | 2668 | 가이에스부르크 후보. 개조 시점·형태는 미확인 |
 | y003 / 113 | 원통으로 연결된 구체 5개 | 1900 | 가르미슈 후보, 특징적인 형상이 일치 |
 | y004 / 114 | 길고 굽은 소행성·표면 구조물 | 3220 | 렌텐베르크 후보, 특징적인 형상이 일치 |
-| y005 / 115 | 긴 타원체·원통형 돌출부, 3개 스트림 그룹 | 1674 | 이름 미확인. 이동 요새 가능성도 조사 대상 |
-| y009 / 119 | 불규칙 소행성 | 624 | 루드밀라·다얀 한의 공용 보급기지 모델 가능성, 미확정 |
+| y005 / 115 | 긴 타원체·원통형 돌출부, 3개 스트림 그룹 | 1674 | 다얀 한 후보, 사용자 외형 식별을 우선 조사 대상으로 반영 |
+| y009 / 119 | 불규칙 소행성 | 624 | 루드밀라 후보, 사용자도 의문형으로 제시하여 미확정 유지 |
 
-형상·모델 번호는 `evidence:client`, 위 이름·용도 후보는 모두 `evidence:guess`다. 후보를 좁히는 외부 자료는 Gineipaedia의 [가르미슈](https://gineipaedia.com/wiki/Garmisch_Fortress), [렌텐베르크](https://gineipaedia.com/wiki/Rentenberg_Fortress), [이젤론](https://gineipaedia.com/wiki/Iserlohn_Fortress), [가이에스부르크](https://gineipaedia.com/wiki/Geiersburg_Fortress), [루드밀라](https://gineipaedia.com/wiki/Rudmila), [다얀 한](https://gineipaedia.com/wiki/Dayan_Khan) 외형·등장회 설명이다. 이는 2차 자료이며 VII의 원본 패킷이나 이름이 표시된 게임 화면을 확인한 것은 아니다. 자료의 OVA 성계 위치를 VII 매뉴얼의 위치에 덮어쓰지 않는다.
+형상·모델 번호는 `evidence:client`, 위 이름·용도 후보는 모두 `evidence:guess`다. 2026-10-08 사용자가 형상 비교 이미지의 순서를 이제르론·가이에스부르크·가르미슈·렌텐베르크·다얀 한·루드밀라(?)로 식별하여 우선 후보를 갱신했다. 특히 5·6번은 추가 화면 대조가 필요하다. 한국어 이제르론 표기는 기존 용어집을 따른다.
+
+후보를 좁히는 외부 자료는 Gineipaedia의 [가르미슈](https://gineipaedia.com/wiki/Garmisch_Fortress), [렌텐베르크](https://gineipaedia.com/wiki/Rentenberg_Fortress), [이제르론](https://gineipaedia.com/wiki/Iserlohn_Fortress), [가이에스부르크](https://gineipaedia.com/wiki/Geiersburg_Fortress), [루드밀라](https://gineipaedia.com/wiki/Rudmila), [다얀 한](https://gineipaedia.com/wiki/Dayan_Khan) 외형·등장회 설명이다. 이는 2차 자료이며 VII의 원본 패킷이나 이름이 표시된 게임 화면을 확인한 것은 아니다. 다얀 한·루드밀라 모두 소행성 보급기지로 설명되므로 이 서술만으로 5·6번을 구별할 수 없다. 연결 이미지의 픽셀 대조도 아직 수행하지 못했다. 자료의 OVA 성계 위치를 VII 매뉴얼의 위치에 덮어쓰지 않는다.
 
 이동 요새는 추측만으로 도입한 기능이 아니다. CD 매뉴얼 PDF p.46(인쇄 45)에 추진 시스템 공격, p.54(인쇄 53)에 그리드 내부 이동 명령이 나온다. 다만 이것으로 y005의 용도를 확정할 수는 없다. 초기 배치의 요새 수와 모델 종류 수가 같아도 공용 모델·개조형·추가 건조형을 배제하지 않는다. `evidence:manual`, `evidence:guess`
 
