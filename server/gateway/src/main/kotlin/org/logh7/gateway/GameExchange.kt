@@ -86,7 +86,7 @@ class GameExchange(
                 }
             } else when (opcode) {
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
-                0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.noCharacters() }
+                0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.characters(characters.character(identity.account)) }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2); LobbyMessages.sessions() }
                 0x2009 -> {
                     check(lobbyLoggedIn)

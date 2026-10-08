@@ -28,7 +28,8 @@ object BootstrapMessages {
         }
         out.putInt(character.id.toInt())
         u8(character.power); u8(character.power); u8(0); u8(character.gender)
-        out.putInt(character.age); u8(character.birthMonth); u8(character.birthDay)
+        out.putInt(Math.multiplyExact(character.age, CharacterMessages.AGE_SECONDS_PER_YEAR))
+        u8(character.birthMonth); u8(character.birthDay)
         out.putInt(0).putShort(0) // fame, maximum special abilities
         out.putInt(0).putInt(0).putInt(character.id.toInt()).putInt(unitId(character))
         string(character.shipName)
