@@ -1,9 +1,9 @@
 name: assets
 on:
   push:
-    paths: ['tools/assets/**', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
+    paths: ['tools/assets/**', 'tools/client/probe-model-loader.*', 'tools/client/test_model_probe.py', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
   pull_request:
-    paths: ['tools/assets/**', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
+    paths: ['tools/assets/**', 'tools/client/probe-model-loader.*', 'tools/client/test_model_probe.py', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
 permissions:
   contents: read
 jobs:
@@ -15,3 +15,4 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -B -m unittest discover -s tools/assets -v
+      - run: python -B -m unittest discover -s tools/client -p test_model_probe.py -v
