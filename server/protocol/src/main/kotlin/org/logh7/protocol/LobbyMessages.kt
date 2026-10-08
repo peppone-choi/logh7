@@ -8,6 +8,28 @@ object LobbyMessages {
     const val LOCAL_SESSION_NAME = "LOGH7 Local"
     fun loginOk() = LoginMessages.sessionMessage(0x2001, byteArrayOf(0, 0, 0))
     fun noCharacters() = LoginMessages.sessionMessage(0x2004, byteArrayOf(0))
+    /** 0043fd60: session information, next-session count, entry state, charged character summary. */
+    fun characters(character: CharacterMessages.Generate?): ByteArray {
+        if (character == null) return noCharacters()
+        val out = ByteBuffer.allocate(512)
+        fun u8(value: Int) { out.put(value.toByte()) }
+        fun string(value: String) {
+            require(value.length <= 12)
+            if (value.isEmpty()) { u8(0); return }
+            u8(value.length + 1); (value + '\u0000').forEach(out::putChar)
+        }
+        u8(1)
+        val session = sessions()
+        out.put(session, 8, session.size - 8) // shared InformationSession record, excluding result/count
+        u8(0); u8(2); u8(1) // no next session, existing-character entry state, one charged character
+        out.putInt(character.id.toInt()); u8(character.power); u8(character.power); u8(1)
+        u8(character.gender); u8(character.birthMonth); u8(character.birthDay)
+        out.putInt(Math.multiplyExact(character.age, CharacterMessages.AGE_SECONDS_PER_YEAR)); u8(0)
+        character.abilities.forEach { out.putShort(it.toShort()) }
+        string(character.surname); string(character.givenName); string(character.surname); string(""); string(character.shipName)
+        u8(character.origin); u8(character.rank); out.putInt(character.face); u8(0) // no ending
+        return LoginMessages.sessionMessage(0x2004, out.array().copyOf(out.position()))
+    }
     fun sessions(): ByteArray {
         val output = ByteBuffer.allocate(128)
         output.put(0).put(1) // result, session count

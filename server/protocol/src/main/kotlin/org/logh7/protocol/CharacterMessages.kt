@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 
 /** CD codec 0x00405a50; strings contain a terminating UTF-16BE NUL. */
 object CharacterMessages {
+    const val AGE_SECONDS_PER_YEAR = 31_536_000 // 0051f310 divides charged-character age by 0x1e13380
     data class Generate(
         val category: Int, val id: Long, val power: Int, val origin: Int, val gender: Int,
         val surname: String, val givenName: String, val age: Int, val birthMonth: Int,
