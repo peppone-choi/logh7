@@ -28,3 +28,25 @@ messages:
     opcode: 0x0200
   - name: SSLoginOK
     opcode: 0x0201
+  - name: CommandGenerateCharacterCharge
+    opcode: 0x1008
+  - name: SSCharacterIDRequest
+    opcode: 0x0203
+  - name: SSCharacterIDResponse
+    opcode: 0x0204
+  - name: SSGameLoginRequest
+    opcode: 0x0205
+  - name: SSGameLoginOK
+    opcode: 0x0206
+  - name: ResponseInformationCharacter
+    opcode: 0x0323
+  - name: ResponseInformationUnit
+    opcode: 0x0325
+  - name: RequestWorldInitialize
+    opcode: 0x0f00
+  - name: ResponseWorldInitialize
+    opcode: 0x0f01
+  - name: RequestGridInitialize
+    opcode: 0x0f02
+  - name: ResponseGridInitialize
+    opcode: 0x0f03

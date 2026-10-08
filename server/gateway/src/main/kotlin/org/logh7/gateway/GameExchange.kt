@@ -2,6 +2,8 @@ package org.logh7.gateway
 
 import org.logh7.protocol.LoginMessages
 import org.logh7.protocol.LobbyMessages
+import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.BootstrapMessages
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.SecureRandom
@@ -33,6 +35,7 @@ class GameExchange(
     private val sessionAddress: String,
     private val sessionPort: Int,
     private val handshake: Handshake = Handshake(),
+    private val characters: CharacterCreation = CharacterCreation(),
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -41,6 +44,7 @@ class GameExchange(
     private var ticket: SessionTickets.Ticket? = null
     private var lobbyLoggedIn = false
     private var gameLoggedIn = false
+    private var gameStarted = false
     fun accept(type: Int, data: ByteArray): ByteArray? {
         check(state != State.CLOSED && state != State.REJECTED)
         if (state == State.KEY_EXCHANGE) {
@@ -53,9 +57,33 @@ class GameExchange(
             val opcode = java.nio.ByteBuffer.wrap(body).short.toInt() and 65535
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
-                check(!gameLoggedIn && opcode == 0x0200) { "Unexpected game login message" }
-                gameLoggedIn = true
-                LobbyMessages.gameLoginOk()
+                when (opcode) {
+                    0x0200 -> { check(!gameLoggedIn); gameLoggedIn = true; LobbyMessages.gameLoginOk() }
+                    0x1008 -> { check(gameLoggedIn); characters.accept(identity.account, CharacterMessages.generate(body)) }
+                    0x0205 -> {
+                        check(gameLoggedIn && !gameStarted && body.size == 2 && characters.character(identity.account) != null)
+                        gameStarted = true
+                        LoginMessages.sessionMessage(0x0206, byteArrayOf(0))
+                    }
+                    0x0203 -> {
+                        check(gameStarted && body.size == 2)
+                        BootstrapMessages.characterId(checkNotNull(characters.character(identity.account)))
+                    }
+                    0x0f00, 0x0f02 -> {
+                        check(gameStarted && body.size == 2)
+                        val character = checkNotNull(characters.character(identity.account))
+                        val messages = listOf(BootstrapMessages.characterId(character),
+                            BootstrapMessages.character(character), BootstrapMessages.unit(character),
+                            checkNotNull(BootstrapMessages.response(body)))
+                        println("world initialized character=${character.id} power=${character.power}")
+                        return messages.fold(ByteArray(0)) { frames, message -> frames + handshake.send(message, clearHeader = 0) }
+                    }
+                    else -> {
+                        check(gameStarted)
+                        BootstrapMessages.response(body)
+                            ?: error("Unsupported game opcode 0x${opcode.toString(16)}")
+                    }
+                }
             } else when (opcode) {
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
                 0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.noCharacters() }

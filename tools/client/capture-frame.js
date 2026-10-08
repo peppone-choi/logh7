@@ -2,8 +2,15 @@
 // No desktop switching, global input, or host foreground activation.
 if(Process.arch!=='ia32' || Process.mainModule.name.toLowerCase()!=='g7mtclient.exe')
   throw new Error('Only the owned original 32-bit LOGH7 client is supported');
+Process.setExceptionHandler(function(details) {
+  if(details.type==='access-violation')send({type:'client-exception', exception:details.type,
+        address:details.address.toString(), memory:details.memory, registers:details.context,
+        backtrace:Thread.backtrace(details.context,Backtracer.FUZZY).map(p=>p.toString())});
+  return false;
+});
 let done = false;
 rpc.exports.recapture = function() { done = false; };
+setInterval(()=>rpc.exports.recapture(),2000);
 let gameWindow = ptr(0);
 let frameNotified = false;
 const failures = new Set();

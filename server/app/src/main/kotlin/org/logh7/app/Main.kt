@@ -12,7 +12,8 @@ fun main() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val engine = WorldEngine(scope)
     val gateway = Gateway(Path.of(System.getenv("LOGH7_CAPTURE_DIR") ?: "E:/logh7/work/logh7-dynamic-p2/captures"),
-        loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }))
+        loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
+        System.getenv("LOGH7_CHARACTERS_FILE")?.let { Path.of(it) })
     val ops = startOpsApi(engine, engine)
     val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
     val sessionPort = System.getenv("LOGH7_SESSION_PORT")?.toInt() ?: 47903
