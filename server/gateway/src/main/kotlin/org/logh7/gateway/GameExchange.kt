@@ -37,6 +37,7 @@ class GameExchange(
     private val sessionPort: Int,
     private val handshake: Handshake = Handshake(),
     private val characters: CharacterCreation = CharacterCreation(),
+    private val gameSeconds: () -> Long = { 0 },
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -94,7 +95,7 @@ class GameExchange(
                     }
                     else -> {
                         check(gameStarted)
-                        BootstrapMessages.response(body)
+                        BootstrapMessages.response(body, gameSeconds())
                             ?: error("Unsupported game opcode 0x${opcode.toString(16)}")
                     }
                 }
