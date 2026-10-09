@@ -5,6 +5,11 @@ enum class EndReason { CAPITAL_CAPTURED, SYSTEMS_REDUCED, TIME_LIMIT }
 data class SessionEnd(val reason: EndReason, val affected: Set<Power>, val gameSeconds: Long)
 data class Participant(val power: Power, val original: Boolean, val online: Boolean = true, val connection: String? = null)
 enum class Admission { ACCEPTED, FULL, ENDED, FACTION_CHANGED, ORIGINAL_RETURN_FORBIDDEN, IDENTITY_CHANGED, ALREADY_ONLINE, STALE_SESSION }
+data class BattleState(val startMillis: Long, val ticks: Long)
+/** Full domain state. Connection fields are cleared only during recovery, never during live cloning. */
+data class SessionState(val generation: Long, val gameMillis: Long, val strategyTicks: Long,
+    val recoveries: Long, val participants: Map<String, Participant>, val excluded: Map<String, Power>,
+    val battles: Map<String, BattleState>, val ended: SessionEnd?)
 data class SessionSnapshot(val generation: Long, val gameSeconds: Long, val strategyTicks: Long,
     val cpRecoveryEvents: Long, val tacticalTicks: Map<String, Long>, val participants: Int, val online: Int,
     val ended: SessionEnd?)
@@ -27,6 +32,40 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
     private data class Battle(val startMillis: Long, var ticks: Long = 0)
     private val battles = mutableMapOf<String, Battle>()
     private var ended: SessionEnd? = null
+    fun exportState() = SessionState(generation, gameMillis, strategyTicks, recoveries,
+        participants.toMap(), excluded.toMap(), battles.mapValues { BattleState(it.value.startMillis, it.value.ticks) },
+        ended?.copy(affected = ended!!.affected.toSet()))
+    companion object {
+        fun restore(rules: SessionRules, state: SessionState, clearConnections: Boolean = true): SessionSimulation {
+            require(state.generation > 0 && state.gameMillis in rules.startSeconds * 1000..rules.endSeconds * 1000)
+            val elapsed = state.gameMillis - rules.startSeconds * 1000
+            require(state.strategyTicks == elapsed / (rules.strategyTickRealMillis * rules.speed))
+            require(state.recoveries == elapsed / (rules.cpIntervalSeconds * 1000))
+            require(state.participants.size <= rules.capacity && state.participants.keys.all { it.isNotBlank() })
+            require(state.excluded.keys.all { it.isNotBlank() })
+            state.participants.forEach { (id, participant) ->
+                require(participant.online || participant.connection == null)
+                state.excluded[id]?.let { require(!participant.original && it == participant.power) }
+            }
+            state.battles.forEach { (id, battle) ->
+                require(id.isNotBlank() && battle.startMillis in rules.startSeconds * 1000..state.gameMillis)
+                require(battle.ticks == (state.gameMillis - battle.startMillis) / (rules.tacticsTickRealMillis * rules.speed))
+            }
+            state.ended?.let {
+                require(it.gameSeconds == state.gameMillis / 1000)
+                if (it.reason == EndReason.TIME_LIMIT) require(it.affected.isEmpty() && state.gameMillis == rules.endSeconds * 1000)
+                else require(it.affected.isNotEmpty())
+            }
+            require(state.gameMillis != rules.endSeconds * 1000 || state.ended != null)
+            return SessionSimulation(rules, state.generation).apply {
+                gameMillis = state.gameMillis; strategyTicks = state.strategyTicks; recoveries = state.recoveries
+                participants.putAll(state.participants.mapValues { if (clearConnections) it.value.copy(online = false, connection = null) else it.value.copy() })
+                excluded.putAll(state.excluded)
+                state.battles.forEach { (id, battle) -> battles[id] = Battle(battle.startMillis, battle.ticks) }
+                ended = state.ended?.copy(affected = state.ended.affected.toSet())
+            }
+        }
+    }
     fun snapshot() = SessionSnapshot(generation, gameMillis / 1000, strategyTicks, recoveries,
         battles.mapValues { it.value.ticks }, participants.size, participants.values.count { it.online }, ended)
     fun join(account: String, power: Power, original: Boolean, connection: String? = null): Admission {
