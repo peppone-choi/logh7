@@ -5,6 +5,7 @@ import org.logh7.engine.WorldEngine
 import org.logh7.engine.SessionRules
 import org.logh7.engine.MemorySessionGenerationStore
 import org.logh7.persistence.FileSessionGenerationStore
+import org.logh7.persistence.FileSessionStore
 import org.logh7.gateway.Gateway
 import org.logh7.gateway.loadTestAccounts
 import org.logh7.gateway.EngineGameAdmission
@@ -19,7 +20,9 @@ fun main() {
     val generationFile = System.getenv("LOGH7_SESSION_GENERATION_FILE")?.let { Path.of(it) }
         ?: characterFile?.resolveSibling("${characterFile.fileName}.session-generation")
     val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
-    val engine = WorldEngine(scope, rules, generationStore = generations)
+    val sessionDirectory = System.getenv("LOGH7_SESSION_STORE_DIR")?.let { Path.of(it) }
+    val store = sessionDirectory?.let { FileSessionStore(it, rules, initialGeneration = generations.current()) }
+    val engine = WorldEngine(scope, rules, generationStore = generations, durability = store)
     val gateway = Gateway(Path.of(System.getenv("LOGH7_CAPTURE_DIR") ?: "E:/logh7/work/logh7-dynamic-p2/captures"),
         loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
         characterFile,
@@ -28,7 +31,11 @@ fun main() {
     val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
     val sessionPort = System.getenv("LOGH7_SESSION_PORT")?.toInt() ?: 47903
     try { gateway.start(bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress) } catch (failure: Throwable) { ops.close(); engine.close(); scope.cancel(); throw failure }
-    Runtime.getRuntime().addShutdownHook(Thread { gateway.close(); ops.close(); engine.close(); scope.cancel() })
+    Runtime.getRuntime().addShutdownHook(Thread {
+        gateway.close(); ops.close()
+        runBlocking { engine.drainAndClose() }
+        scope.cancel()
+    })
     println("LOGH7 stubs: $bindAddress:47900 / 47902 / $sessionPort; ops: 127.0.0.1:47901")
     CountDownLatch(1).await()
 }
