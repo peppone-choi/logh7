@@ -16,6 +16,8 @@ interface GameAdmission {
 /** Never block a Netty event loop while the world actor decides admission. */
 class EngineGameAdmission(private val engine: WorldEngine, private val scope: CoroutineScope) : GameAdmission {
     private val requests = ConcurrentHashMap<String, CompletableFuture<Admission>>()
+    /** Includes live and pending connection bindings; closed bindings must be removed. */
+    fun trackedConnections(): Int = requests.size
     override val generation get() = checkNotNull(engine.snapshot().session).generation
     override val running get() = checkNotNull(engine.snapshot().session).ended == null
     override fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long): CompletableFuture<Admission> {

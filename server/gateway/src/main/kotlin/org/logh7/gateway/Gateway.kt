@@ -14,6 +14,11 @@ import java.net.NetworkInterface
 import java.nio.file.*
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import io.netty.channel.group.DefaultChannelGroup
+import io.netty.util.concurrent.GlobalEventExecutor
+
+data class GatewayConnections(val active: Int, val tracked: Int)
 
 class Capture(private val directory: Path) {
     init { Files.createDirectories(directory) }
@@ -56,6 +61,10 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
+    private val clients = DefaultChannelGroup(GlobalEventExecutor.INSTANCE, true)
+    private val closed = AtomicBoolean()
+    /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
+    fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
     fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress) {
         val host = checkedBindAddress(bindAddress)
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
@@ -68,6 +77,7 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                 val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
                     .childHandler(object : ChannelInitializer<SocketChannel>() {
                         override fun initChannel(ch: SocketChannel) {
+                            clients.add(ch)
                             val generation = admission?.generation
                             val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters)
                             val updateExchange = UpdateExchange()
@@ -115,5 +125,9 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
             }
         } catch (failure: Throwable) { close(); throw failure }
     }
-    override fun close() { channels.forEach { it.close().syncUninterruptibly() }; workers.shutdownGracefully().syncUninterruptibly(); boss.shutdownGracefully().syncUninterruptibly() }
+    override fun close() {
+        if (!closed.compareAndSet(false, true)) return
+        try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
+        finally { try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() } }
+    }
 }

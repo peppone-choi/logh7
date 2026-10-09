@@ -65,3 +65,15 @@ main의 LOGH-29 전략 CSV 등록을 보존했다. LOGH-28/29 별도 격리 통�
 최종 변경 범위 검사는 엔진 30개, persistence 20개, gateway 25개 통과(기존 원본 capture 조건부 검사 3개 건너뜀), app 컴파일 통과다. persistence에는 실제 자식 JVM 강제 종료→새 JVM 전체 상태/후속 진행 비교 5개와 암호화된 입장 ACK/저장 실패 검사 2개가 포함된다. 원본 게임이나 설치 프로그램은 실행하지 않았다.
 
 저널 compaction, 업무 멱등 키/응답 재전송, 이벤트 구독자 부작용/outbox, Windows/전원 장애/외부 저장소, PostgreSQL/WAL/PITR과 RPO/RTO는 미구현 또는 미검증이다. LOGH-43 전체 완료가 아니며 별도 독립 리뷰 전이다. LOGH-28/61의 기존 branch와 작업 트리를 보존했다.
+
+## LOGH-46 합성 루프백 부하 검사 인계 (2026-10-09)
+
+작성: 최병호
+
+실제 TCP와 공유 codec으로 합성 로그인·캐릭터 등록·actor 입장·초기 응답·시각 조회를 검사했다. 3명 수명주기/ACK 대기 RST/gateway 종료 검사는 기본 실행, 50명은 `LOGH7_LOAD_HARNESS=1`로 직접 실행했다. 최초50명 수락/online50→RST50→online/채널/매핑0→동일50명 재접속→접속 중 세션 종료 후 online/active/tracked/admission 매핑0을 확인했다. 정상 오프라인 참가자50은 보존했고 중복 접속·정원 초과를 거절했다. [재현·측정·제한](docs/ops/load-test.md).
+
+관측과 child 채널 종료의 단일 구현 담당은 gateway다. 종료는 멱등하게 정리하며 주소/포트 허용 검사와 WorldEngine은 수정하지 않았다. 기본 gateway28개 통과/4개 건너뜀(기존 원본 capture3+조건부50명1), 명시적50명1개 통과, 엔진27개와 app 컴파일 통과다. 50명 활성화 전체 gateway 회귀도29개 통과/기존 capture3개 건너뜀이다. 원본 클라이언트/설치 프로그램은 실행하지 않았다.
+
+최종 별도50명 실행에서 join102건(성공100+예상 거절2)의 p50/p95/p99/max는3.451/13.961/18.129/35.532ms, 종료/정리1회는985.942ms였고 예상 밖 작업 오류0, bind 재시도0이었다. 원시 표본에서 percentile을 별도 재계산해 일치를 확인했다. SLO 판정, actor queue age/tick lag, rekey, 2,000명/여러 호스트/장기 운영 검증은 수행하지 않았다. 기존 LOGH-28/61과 LOGH-43 branch/작업 트리를 보존한다.
+
+LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(기존 capture3개 건너뜀), app 컴파일과 실제50명 최종 잔여0을 확인했다. #39를 승인된 정확한 head로 main에 병합한 뒤 이 변경을 옮겼으며 검사한 server 소스 전체와 바이트 일치를 확인했다. HANDOFF 추가 문단 충돌은 양쪽을 보존해 해결했다. LOGH-43 자식 JVM 검사는 저장소 계층 강제 종료 복구이고 엔진 게시/ACK 순서는 같은 프로세스 검사와 소스로 확인한 결과다. PostgreSQL/WAL/외부 백업/RPO/RTO/전원 장애는 계속 미완료다.
