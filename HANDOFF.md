@@ -53,3 +53,13 @@ MDX 추출 출력도 새 디렉터리명을 사용한다(기존 추출기의 덮
 - 이번 변경의 합성 검사 25개가 로컬에서 통과했다(기존 14개 포함). Python 구문·캡처 스크립트와 결합한 JavaScript 구문·diff 공백 검사도 통과했다. Pillow가 없는 CI에서는 이미지 테스트 2개만 건너뛴다. 게임·서버 전체 빌드·멀티플레이 시험은 실행하지 않았다.
 
 이번 변경에는 도구 소스·합성 테스트·이 문서만 포함한다. 원본 게임·실행 사본·DLL·데이터·형상·이미지·매뉴얼·인계 ZIP/manifest·내부 오케스트레이션 기록·프로토콜 캡처·인증 자료는 추가하지 않는다.
+
+## LOGH-61 클라우드 송신 원자성 WIP 인계 (2026-10-09)
+
+작성: 최병호
+
+Handshake.send에서 envelope/frame 길이 검사가 실패해도 sequence가 먼저 소비되던 순서를 고쳤다. 프레임 생성 성공 뒤에만 증가한다. 신규 합성 회귀4개는 길이 거부 뒤 정상 재시도·마지막 유효 sequence·양 header의 최대 본문 경계를 검사하며 Kotlin 실행은 자원/슬롯 보류로 미실행이다. 수정 전 실패를 실제 실행했다고 기록하지 않았다. 원본 임계치·KDF·재키 wire·게임 정책은 바꾸지 않는다.
+
+후속 담당은 사용자에게 보이는 앱 별도 채팅에서 새 HandshakeSendTest와 기존 GameExchangeTest/ProtocolTest/GoldenVectorTest를 표적 실행한다. 원본 게임 실행은 부모가 Windows 담당과 연결하며 이 변경의 실제 클라이언트 수용은 미확인이다.
+
+재키는 kex-envelope/server-notes의 복호본문 제어0x31과 protocol-draft/function-map의 외부0x31 설명이 상충한다. 새키 필드·방향별 적용 시점·nested frame 명세를 확인하기 전에는 기존 fail-closed를 유지한다. 추천 후속은 기존 정적 근거 대조 뒤 Windows 단일 담당의 제한된 재키 전후 관측이다. 이 WIP를 전체 LOGH-61 완료로 기록하지 않는다. Claude Opus 리뷰·실제 셀렉션 API 라우팅·CI/main 병합은 미실행이다.
