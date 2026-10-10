@@ -13,7 +13,7 @@ import java.util.concurrent.*
 class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics) : AutoCloseable {
     val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity))
+    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics)
     val access = EngineGameAdmission(engine, scope)
     private val clients = ConcurrentLinkedQueue<SyntheticClient>()
     private val characters = ConcurrentHashMap<String, CharacterMessages.Generate>()
