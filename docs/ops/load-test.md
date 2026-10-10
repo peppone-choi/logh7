@@ -31,12 +31,24 @@ bash ./gradlew :gateway:test --tests org.logh7.gateway.load.LoadHarnessTest --re
 
 ## 관측 seam과 종료
 
-gateway가 소유한 child channel group의 active/tracked 수와 `EngineGameAdmission`의 pending/live 연결 매핑 수만 공개한다. 공유 구현 담당은 gateway이며 `WorldEngine`에는 추가 계측을 넣지 않았다. 종료 시 listener와 child 채널을 닫고 event loop를 정리하며 반복 종료는 멱등하다. group은 닫힌 뒤 들어온 child도 닫는다.
+gateway가 소유한 child channel group의 active/tracked 수와 `EngineGameAdmission`의 pending/live 연결 매핑 수를 공개한다. fixture의 `WorldEngine`은 선택적 `ActorTimings` sink를 사용한다. 시뮬레이션 `monotonicMillis`와 계측 `metricNanos`는 독립적이며 운영 기본값의 null sink는 계측 clock을 읽지 않는다. Channel 1024와 매번 send 반환 후 다음 delay를 시작하는 ticker를 유지한다. sink 예외는 상태 처리·저장·ACK·event에 전파하지 않는다. 종료 시 listener와 child 채널을 닫고 event loop를 정리하며 반복 종료는 멱등하다. group은 닫힌 뒤 들어온 child도 닫는다.
 
 기존 허용 주소 검사와 1–65535/서로 다른 포트 조건을 그대로 사용한다. fixture는 루프백 임시 포트 3개를 잠시 예약하고 해제한 후 bind한다. 해제와 bind 사이 경쟁은 남아 있으며 bind 충돌만 최대 5회 시도하고 `bindRetries`를 기록한다. wildcard/외부 주소 허용, 포트 범위 확장, 네트워크 정책 변경은 없다.
 
 ## 보고서 읽기와 한계
 
-`small`, `fifty`, `pending-reset` 디렉터리의 JSON은 socket 작업 시작부터 완료까지의 실제 `System.nanoTime` 차이를 기록한다. nearest-rank p50/p95/p99/max와 표본 수, 예상 admission 거절 수, RST 요청 수, 각 단계 실제 상태, 예상 밖 작업 오류를 제공한다. 원시 nanosecond 표본은 같은 이름의 `*-durations.tsv`에 남긴다. 테스트 assertion/종료 오류도 incomplete/failed로 표시하므로 JSON 일부 수치만으로 합격 처리하지 않는다. Gradle/JUnit 통과와 모든 최종 관측을 함께 확인한다. gateway의 예상 RST 로그는 예상 밖 작업 오류 0과 구분한다.
+`small`, `fifty`, `pending-reset` 디렉터리의 JSON `latencies`는 socket 작업 시작부터 완료까지의 실제 `System.nanoTime` 차이를 기록한다. `actorTimings`는 아래 구간을 별도 기록한다. 단위는 nanoseconds다.
 
-`join` 표본은 최초/재접속 성공과 예상 거절을 모두 포함한다. `endAndCleanup`은 세션 종료 명령부터 EOF와 최종 상태 확인까지의 벽시계 소요이며 한 번의 수명주기에 표본 1개다. 이를 tick lag나 actor 적용 지연으로 해석하지 않는다. actor queue age와 tick lag는 `NOT_MEASURED`, rekey는 `NOT_RUN_UNSUPPORTED`다. 승인된 SLO, 2,000명 용량, 원본 클라이언트의 전략 화면이나 일반 게임 명령 처리, 재키 교환, 여러 호스트·장시간 운영의 성능을 검증한 결과가 아니다.
+| 지표 | 시작 → 끝 |
+|---|---|
+| `QUEUE_AGE` | enqueue 시도 → actor dequeue 시작(send 대기 포함) |
+| `BACKPRESSURED_QUEUE_AGE` | buffer가 가득 찬 제출의 enqueue 시도 → dequeue 시작 |
+| `SEND_WAIT` | enqueue 시도 → 성공한 send 반환(즉시 성공도 포함) |
+| `TICK_WAKE_LAG` | 이번 delay의 예정 wake → 실제 wake |
+| `TICK_DEQUEUE_LAG` | 같은 예정 wake → 해당 AdvanceTo dequeue 시작 |
+
+수동 `AdvanceTo`는 예정 wake가 없어 tick 표본을 만들지 않는다. 음수 차이와 차이 계산 overflow는 표본에서 제외하고 `clockRegressions`에 센다. 각 지표는 첫 4,096개 원시 표본만 보관하고 전체 유효 `count`/`max`와 초과 `dropped`를 유지한다. nearest-rank p50/p95/p99는 보관 표본에서 계산하며 전체 모집단의 백분위라고 해석하지 않는다. 표본 0인 actor 지표는 `NOT_MEASURED`와 null 백분위/max로 출력한다. 실제 부하에서 backpressure가 없으면 해당 지표도 `NOT_MEASURED`다.
+
+socket 원시 표본은 `*-durations.tsv`, actor 표본은 `*-actor-durations.tsv`에 남긴다. 예상 admission 거절 수, RST 요청 수, 각 단계 실제 상태, 예상 밖 작업 오류도 제공한다. drain 이후 queue/send count와 count=sampled+dropped, 최종 online/활성 채널/추적 채널/admission 매핑 0을 검사한다. 마지막 wake 직후 ticker를 취소하면 enqueue 전에 취소될 수 있으며 wake/dequeue 차이는 `cancelledTickWake`로 남긴다. 테스트 assertion/종료 오류도 incomplete/failed로 표시하므로 JSON 일부 수치만으로 합격 처리하지 않는다. Gradle/JUnit 통과와 모든 최종 관측을 함께 확인한다. gateway의 예상 RST 로그는 예상 밖 작업 오류 0과 구분한다.
+
+`join` 표본은 최초/재접속 성공과 예상 거절을 모두 포함한다. `endAndCleanup`은 세션 종료 명령부터 EOF와 최종 상태 확인까지의 벽시계 소요이며 한 번의 수명주기에 표본 1개다. 이를 tick lag나 actor 적용 지연으로 해석하지 않는다. rekey는 `NOT_RUN_UNSUPPORTED`다. 승인된 SLO, 2,000명 용량, 원본 클라이언트의 전략 화면이나 일반 게임 명령 처리, 재키 교환, 운영 대시보드·알림, 여러 호스트·장시간 운영의 성능을 검증한 결과가 아니다.

@@ -1,6 +1,7 @@
 plugins { kotlin("jvm") }
 dependencies {
 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
+testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
 }
 
 // Keep the reviewed CSV authoritative; no copied command table in Kotlin.

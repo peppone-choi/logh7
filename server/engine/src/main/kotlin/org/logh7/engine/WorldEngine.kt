@@ -24,8 +24,12 @@ interface SnapshotSource { fun snapshot(): WorldSnapshot }
 class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load(), ticking: Boolean = true,
     monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val onEvent: (WorldEvent) -> Unit = {}, private val generationStore: SessionGenerationStore = MemorySessionGenerationStore(),
-    private val durability: SessionDurability? = null) : CommandSink, SnapshotSource, AutoCloseable {
-    private val queue = Channel<WorldCommand>(1024)
+    private val durability: SessionDurability? = null,
+    private val timings: ActorTimings? = null,
+    private val metricNanos: () -> Long = System::nanoTime) : CommandSink, SnapshotSource, AutoCloseable {
+    private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
+        val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
+    private val queue = Channel<Queued>(1024)
     private val simulation = SessionSimulation(rules, generationStore.current())
     private var durableState = durability?.let { store ->
         try {
@@ -52,7 +56,14 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
             return listOf(WorldEvent.Restarted(generation))
         }
         var storageFailure: Exception? = null
-        try { for (command in queue) {
+        try { for (queued in queue) {
+            val command = queued.command
+            queued.submittedNanos?.let { submitted ->
+                val dequeued = metricNanos()
+                duration(ActorTiming.QUEUE_AGE, submitted, dequeued)
+                if (queued.backpressured) duration(ActorTiming.BACKPRESSURED_QUEUE_AGE, submitted, dequeued)
+                queued.scheduledTickNanos?.let { duration(ActorTiming.TICK_DEQUEUE_LAG, it, dequeued) }
+            }
             if (durability != null) {
                 try {
                     storageFailure?.let { throw java.io.IOException("Session storage is unavailable; restart and verify the journal", it) }
@@ -111,10 +122,34 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         } } finally { durability?.close() }
     }
     private val ticker = if (ticking) scope.launch {
-        while (isActive) { delay(minOf(rules.strategyTickRealMillis, rules.tacticsTickRealMillis)); queue.send(WorldCommand.AdvanceTo(Math.addExact(initialElapsed, monotonicMillis() - origin))) }
+        val interval = minOf(rules.strategyTickRealMillis, rules.tacticsTickRealMillis)
+        while (isActive) {
+            val scheduled = if (timings == null) null else try {
+                Math.addExact(metricNanos(), Math.multiplyExact(interval, 1_000_000L))
+            } catch (_: ArithmeticException) { observe { clockRegression() }; null }
+            delay(interval)
+            scheduled?.let { duration(ActorTiming.TICK_WAKE_LAG, it, metricNanos()) }
+            enqueue(WorldCommand.AdvanceTo(Math.addExact(initialElapsed, monotonicMillis() - origin)), scheduled)
+        }
     } else null
     override suspend fun submit(command: WorldCommand) {
-        queue.send(if (command is WorldCommand.Territory) command.copy(systems = command.systems.toMap(), capturedCapitals = command.capturedCapitals.toSet()) else command)
+        enqueue(if (command is WorldCommand.Territory) command.copy(systems = command.systems.toMap(), capturedCapitals = command.capturedCapitals.toSet()) else command)
+    }
+    private suspend fun enqueue(command: WorldCommand, scheduledTickNanos: Long? = null) {
+        if (timings == null) { queue.send(Queued(command)); return }
+        currentCoroutineContext().ensureActive()
+        val submitted = metricNanos()
+        val queued = Queued(command, submitted, scheduledTickNanos = scheduledTickNanos)
+        val sent = queue.trySend(queued)
+        if (!sent.isSuccess) queue.send(queued.copy(backpressured = !sent.isClosed))
+        duration(ActorTiming.SEND_WAIT, submitted, metricNanos())
+    }
+    private fun duration(metric: ActorTiming, start: Long, end: Long) {
+        val elapsed = try { Math.subtractExact(end, start) } catch (_: ArithmeticException) { -1L }
+        if (elapsed < 0) observe { clockRegression() } else observe { record(metric, elapsed) }
+    }
+    private inline fun observe(record: ActorTimings.() -> Unit) {
+        try { timings?.record() } catch (_: Exception) { /* Monitoring cannot affect state, ACKs or events. */ }
     }
     override fun snapshot(): WorldSnapshot = published.get()
     suspend fun drainAndClose() { ticker?.cancelAndJoin(); queue.close(); worker.join() }
