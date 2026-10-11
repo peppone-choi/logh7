@@ -1,0 +1,43 @@
+name: tcp-alerts
+on:
+  push:
+    paths: ['deploy/prometheus/prometheus-tcp.yml', 'deploy/prometheus/tcp-alerts*', 'deploy/blackbox/tcp.yml', 'deploy/test_tcp_alerts.py', '.github/workflows/tcp-alerts.yml']
+  pull_request:
+    paths: ['deploy/prometheus/prometheus-tcp.yml', 'deploy/prometheus/tcp-alerts*', 'deploy/blackbox/tcp.yml', 'deploy/test_tcp_alerts.py', '.github/workflows/tcp-alerts.yml']
+permissions:
+  contents: read
+jobs:
+  tcp-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch verified Linux tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          alert_tools="$RUNNER_TEMP/logh7-alert-tools"
+          mkdir "$alert_tools"
+          cd "$alert_tools"
+          curl --fail --silent --show-error --location --max-time 180 -o prometheus.tar.gz https://github.com/prometheus/prometheus/releases/download/v3.13.3/prometheus-3.13.3.linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --max-time 120 -o blackbox.tar.gz https://github.com/prometheus/blackbox_exporter/releases/download/v0.29.0/blackbox_exporter-0.29.0.linux-amd64.tar.gz
+          cat > checksums.txt <<'CHECKSUMS'
+          b349c732d8a853e657d0e7ae1bbad4d11b586615fb65fdc59d896b9f869c001e  prometheus.tar.gz
+          5512929259bb6164f68ebe20ce433ec43b8609e3a79c95324f5020e931488fb4  blackbox.tar.gz
+          CHECKSUMS
+          sha256sum --check checksums.txt
+          tar --extract --gzip --file prometheus.tar.gz --strip-components=1 prometheus-3.13.3.linux-amd64/prometheus prometheus-3.13.3.linux-amd64/promtool
+          tar --extract --gzip --file blackbox.tar.gz --strip-components=1 blackbox_exporter-0.29.0.linux-amd64/blackbox_exporter
+      - name: Validate rules and real TCP failure/recovery
+        run: |
+          python3 deploy/test_tcp_alerts.py \
+            --prometheus "$RUNNER_TEMP/logh7-alert-tools/prometheus" \
+            --promtool "$RUNNER_TEMP/logh7-alert-tools/promtool" \
+            --blackbox-exporter "$RUNNER_TEMP/logh7-alert-tools/blackbox_exporter" \
+            --report-dir "$RUNNER_TEMP/logh7-tcp-alert-report"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tcp-alert-evaluation
+          path: ${{ runner.temp }}/logh7-tcp-alert-report/result.json
+          if-no-files-found: warn

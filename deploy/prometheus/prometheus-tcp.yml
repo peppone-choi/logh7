@@ -1,0 +1,30 @@
+# 작성: 최병호 | LOGH-46 | Opt-in native processes on the same localhost.
+# This is separate from the existing Docker rehearsal configuration.
+global:
+  scrape_interval: 5s
+  scrape_timeout: 3s
+  evaluation_interval: 5s
+rule_files:
+  - tcp-alerts.yml
+scrape_configs:
+  - job_name: logh7-tcp
+    metrics_path: /probe
+    params:
+      module: [logh7_tcp_connect]
+    static_configs:
+      - targets: ['127.0.0.1:47900']
+        labels:
+          endpoint: login
+      - targets: ['127.0.0.1:47902']
+        labels:
+          endpoint: update
+      - targets: ['127.0.0.1:47903']
+        labels:
+          endpoint: session
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: '127.0.0.1:9115'

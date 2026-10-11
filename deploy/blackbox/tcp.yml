@@ -1,0 +1,8 @@
+# 작성: 최병호 | LOGH-46 | No handshake, credentials or game command is sent.
+modules:
+  logh7_tcp_connect:
+    prober: tcp
+    timeout: 2s
+    tcp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false

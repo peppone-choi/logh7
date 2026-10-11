@@ -36,3 +36,7 @@ bash rehearsal.sh
 `GAME_SERVER_IMAGE`를 빌드된 불변 digest로 지정하고 `--profile game`으로 시작한다. `DATABASE_PASSWORD_FILE` 등은 **제안된 계약**이며 서버가 읽는지 확인해야 한다. `POSTGRES_USER=logh7`는 초기화 관리자이므로 실제 게임 접속에는 별도 최소 권한 DB 역할을 생성한 뒤 교체한다. 세션 47903은 임시값이며 실제 세션 리스너는 미구현이다. 내장 Ktor 운영 API는 127.0.0.1:47901에서 동작하므로 이 포트를 공개 세션 포트로 사용하지 않는다. 운영 API는 호스트에 게시하지 않는다. `evidence:guess`
 
 GCP 적용은 [IaC 초안](gcp/README.md), 복구는 [백업 설계](../docs/ops/backup.md), 실제 검증 기록은 [리허설 기록](../docs/ops/rehearsal-2026-09-27.md)을 따른다. `evidence:guess`
+
+## LOGH-46 TCP 알림 평가
+
+별도 네이티브 localhost probe의 장애 유지·복구 검증은 [TCP 알림 인수 단위](../docs/ops/tcp-alerts.md)를 따른다. 이 구성은 기존 Compose·인증 설정을 변경하지 않으며 알림 수신자 전달, 운영 dashboard와 SLO는 후속 범위다.
