@@ -1,0 +1,81 @@
+# 작성: 최병호 | LOGH-46 | Virtual samples test the unchanged one-minute rules.
+rule_files: [tcp-alerts.yml]
+evaluation_interval: 5s
+
+tests:
+  - name: listener failure waits one minute and resolves after recovery
+    interval: 5s
+    input_series:
+      - series: 'probe_success{job="logh7-tcp",endpoint="session",instance="127.0.0.1:47903"}'
+        values: '1x2 0x14 1x6'
+      - series: 'probe_success{job="logh7-tcp",endpoint="login",instance="127.0.0.1:47900"}'
+        values: '1x24'
+      - series: 'probe_success{job="other",endpoint="update",instance="127.0.0.1:47902"}'
+        values: '0x24'
+      - series: 'up{job="logh7-tcp",endpoint="session",instance="127.0.0.1:47903"}'
+        values: '1x24'
+    alert_rule_test:
+      - eval_time: 70s
+        alertname: LOGH7TcpListenerUnavailable
+        exp_alerts: []
+      - eval_time: 75s
+        alertname: LOGH7TcpListenerUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: logh7-tcp
+              endpoint: session
+              instance: 127.0.0.1:47903
+              severity: warning
+            exp_annotations:
+              summary: 'LOGH7 session TCP listener unavailable'
+              description: 'TCP connect to 127.0.0.1:47903 failed for one minute; this does not test the game protocol.'
+      - eval_time: 90s
+        alertname: LOGH7TcpListenerUnavailable
+        exp_alerts: []
+      - eval_time: 75s
+        alertname: LOGH7TcpProbeUnavailable
+        exp_alerts: []
+    promql_expr_test:
+      - eval_time: 70s
+        expr: 'ALERTS{alertname="LOGH7TcpListenerUnavailable",alertstate="pending"}'
+        exp_samples:
+          - labels: 'ALERTS{alertname="LOGH7TcpListenerUnavailable",alertstate="pending",job="logh7-tcp",endpoint="session",instance="127.0.0.1:47903",severity="warning"}'
+            value: 1
+  - name: short listener failure does not fire
+    interval: 5s
+    input_series:
+      - series: 'probe_success{job="logh7-tcp",endpoint="login",instance="127.0.0.1:47900"}'
+        values: '1 0x5 1x20'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: LOGH7TcpListenerUnavailable
+        exp_alerts: []
+      - eval_time: 120s
+        alertname: LOGH7TcpListenerUnavailable
+        exp_alerts: []
+  - name: exporter failure without probe samples is unknown listener health
+    interval: 5s
+    input_series:
+      - series: 'up{job="logh7-tcp",endpoint="update",instance="127.0.0.1:47902"}'
+        values: '0x14 1x12'
+    alert_rule_test:
+      - eval_time: 55s
+        alertname: LOGH7TcpProbeUnavailable
+        exp_alerts: []
+      - eval_time: 60s
+        alertname: LOGH7TcpProbeUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: logh7-tcp
+              endpoint: update
+              instance: 127.0.0.1:47902
+              severity: warning
+            exp_annotations:
+              summary: 'LOGH7 update TCP probe scrape unavailable'
+              description: 'Cannot obtain the TCP probe for 127.0.0.1:47902; listener health is unknown.'
+      - eval_time: 60s
+        alertname: LOGH7TcpListenerUnavailable
+        exp_alerts: []
+      - eval_time: 75s
+        alertname: LOGH7TcpProbeUnavailable
+        exp_alerts: []

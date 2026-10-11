@@ -1,0 +1,20 @@
+# 작성: 최병호 | LOGH-46 | TCP reachability; protocol/SLO evidence is separate.
+groups:
+  - name: logh7-tcp
+    rules:
+      - alert: LOGH7TcpListenerUnavailable
+        expr: probe_success{job="logh7-tcp"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 {{ $labels.endpoint }} TCP listener unavailable'
+          description: 'TCP connect to {{ $labels.instance }} failed for one minute; this does not test the game protocol.'
+      - alert: LOGH7TcpProbeUnavailable
+        expr: up{job="logh7-tcp"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 {{ $labels.endpoint }} TCP probe scrape unavailable'
+          description: 'Cannot obtain the TCP probe for {{ $labels.instance }}; listener health is unknown.'
