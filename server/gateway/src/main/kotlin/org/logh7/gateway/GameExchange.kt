@@ -60,25 +60,35 @@ class GameExchange(
     fun takePendingJoin(): CompletableFuture<Admission>? = pendingJoin.also { pendingJoin = null }
     fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running)
-    fun finishJoin(result: Admission): ByteArray? {
+    // ByteArray convenience is retained for codec callers. Gateway always writes the bound outbound batch.
+    fun finishJoin(result: Admission): ByteArray? = finishJoinOutbound(result)?.bytes
+    fun accept(type: Int, data: ByteArray): ByteArray? = acceptOutbound(type, data)?.bytes
+    internal fun submitting(batch: OutboundBatch) = handshake.submitting(batch)
+    internal fun committed(batch: OutboundBatch) = handshake.committed(batch)
+    private inline fun prepared(block: () -> OutboundBatch?): OutboundBatch? = try { block() } catch (failure: Exception) {
+        close(); throw failure
+    }
+    internal fun finishJoinOutbound(result: Admission): OutboundBatch? = prepared { finishJoinCore(result) }
+    internal fun acceptOutbound(type: Int, data: ByteArray): OutboundBatch? = prepared { acceptCore(type, data) }
+    private fun finishJoinCore(result: Admission): OutboundBatch? {
         if (state == State.CLOSED) return null
         check(joining && !gameStarted)
         joining = false
         gameStarted = result == Admission.ACCEPTED
         if (!gameStarted) state = State.REJECTED
-        return handshake.send(LoginMessages.sessionMessage(0x0206, byteArrayOf(if (gameStarted) 0 else 1)), clearHeader = 0)
+        return handshake.stageAll(listOf(LoginMessages.sessionMessage(0x0206, byteArrayOf(if (gameStarted) 0 else 1))), clearHeader = 0)
     }
-    fun accept(type: Int, data: ByteArray): ByteArray? {
+    private fun acceptCore(type: Int, data: ByteArray): OutboundBatch? {
         check(state != State.CLOSED && state != State.REJECTED)
         check(!obsolete()) { "Session ended or changed" }
         val characters = if (ticket?.purpose == SessionTickets.Purpose.GAME) characters else characterProvider()
         if (state == State.KEY_EXCHANGE) {
             val response = handshake.accept(type, data)
             if (handshake.state == Handshake.State.ESTABLISHED) state = State.AWAITING_AUTH
-            return response
+            return response?.let(handshake::plain)
         }
         if (state == State.AUTHENTICATED && role == Role.SESSION) {
-            val body = handshake.receive(type, data)
+            val body = handshake.receive(type, data) ?: return null
             val opcode = java.nio.ByteBuffer.wrap(body).short.toInt() and 65535
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
@@ -90,7 +100,7 @@ class GameExchange(
                         check(gameLoggedIn && !gameStarted && OriginalCharacterMessages.catalogueRequest(body))
                         val messages = listOf(LoginMessages.sessionMessage(0x1200, body.copyOfRange(2, body.size)),
                             OriginalCharacterMessages.catalogue(characters.candidates(identity.account)), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
-                        return messages.fold(ByteArray(0)) { frames, message -> frames + handshake.send(message, clearHeader = 0) }
+                        return handshake.stageAll(messages, clearHeader = 0)
                     }
                     0x1004 -> {
                         check(gameLoggedIn && !gameStarted)
@@ -120,7 +130,7 @@ class GameExchange(
                             BootstrapMessages.character(character), BootstrapMessages.unit(character),
                             checkNotNull(BootstrapMessages.response(body)))
                         println("world initialized character=${character.id} power=${character.power}")
-                        return messages.fold(ByteArray(0)) { frames, message -> frames + handshake.send(message, clearHeader = 0) }
+                        return handshake.stageAll(messages, clearHeader = 0)
                     }
                     else -> {
                         check(gameStarted)
@@ -140,10 +150,10 @@ class GameExchange(
                 }
                 else -> error("Unsupported lobby opcode 0x${opcode.toString(16)}")
             }
-            return handshake.send(response, clearHeader = 0)
+            return handshake.stageAll(listOf(response), clearHeader = 0)
         }
         check(state == State.AWAITING_AUTH) { "Post-authentication messages are not implemented" }
-        val body = handshake.receive(type, data)
+        val body = handshake.receive(type, data) ?: return null
         return when (role) {
             Role.LOGIN -> {
                 val request = LoginMessages.request(body)
@@ -152,7 +162,7 @@ class GameExchange(
                     expected.toByteArray(Charsets.UTF_8), request.credential.toByteArray(Charsets.UTF_8))
                 val reply = if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account)) else LoginMessages.failure()
                 state = if (accepted) State.AUTHENTICATED else State.REJECTED
-                handshake.send(reply)
+                handshake.stageAll(listOf(reply))
             }
             Role.SESSION -> {
                 ticket = requireNotNull(tickets.take(LoginMessages.sessionToken(body))) { "Invalid or expired session token" }
@@ -163,8 +173,8 @@ class GameExchange(
     }
     fun close() {
         if (state == State.CLOSED) return
-        if (joinRequested) admission?.disconnect(checkNotNull(ticket).account, connection)
         handshake.close(); state = State.CLOSED
+        if (joinRequested) admission?.disconnect(checkNotNull(ticket).account, connection)
     }
 }
 

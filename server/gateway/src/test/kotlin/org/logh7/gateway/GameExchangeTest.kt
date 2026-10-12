@@ -52,8 +52,8 @@ class GameExchangeTest {
         assertEquals(Handshake.State.AWAITING_CONFIRMATION, h.state)
         h.close(); assertFails { h.accept(0x36, confirm) }
     }
-    @Test fun rejectsEncryptedRekeyAndWrongOuterType() {
-        assertFailsWith<IllegalStateException> { handshake().receive(0x30, encrypted(byteArrayOf(0, 0x31))) }
+    @Test fun rejectsEmptyRekeyAndWrongOuterType() {
+        assertFailsWith<IllegalArgumentException> { handshake().receive(0x30, encrypted(byteArrayOf(0, 0x31))) }
         assertFailsWith<IllegalArgumentException> { handshake().receive(0x31, encrypted(request())) }
         val h = handshake()
         val damaged = Envelope.encode(1, request()).also { it[0] = (it[0].toInt() xor 1).toByte() }
@@ -243,7 +243,7 @@ class GameExchangeTest {
         assertEquals(Handshake.State.AWAITING_CONFIRMATION, h.state)
         assertNull(h.accept(0x36, confirm))
     }
-    @Test fun sendingStopsBeforeSequenceWrap() {
+    @Test fun loginCarrierRemainsUnsupportedAtRekeyBoundary() {
         val h = Handshake(b, 0x7fffffff); h.accept(0x34, initial); h.accept(0x36, confirm)
         h.send(byteArrayOf(0x70, 1))
         assertFailsWith<IllegalStateException> { h.send(byteArrayOf(0x70, 1)) }
@@ -320,7 +320,7 @@ class GameExchangeTest {
             assertContentEquals(Frames.encode(server[0].first, server[0].second), h.accept(client[0].first, client[0].second))
             assertNull(h.accept(client[1].first, client[1].second))
             assertEquals(Handshake.State.ESTABLISHED, h.state)
-            val login = h.receive(client[2].first, client[2].second)
+            val login = assertNotNull(h.receive(client[2].first, client[2].second))
             assertEquals(LoginMessages.Request("ginei00", "dummy"), LoginMessages.request(login))
             // Synthetic test credentials only; retain the decoded body in the local test output.
             println("${clientPath.fileName}: login=${java.util.HexFormat.of().formatHex(login)}")
