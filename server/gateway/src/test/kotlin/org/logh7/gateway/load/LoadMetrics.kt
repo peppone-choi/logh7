@@ -65,7 +65,7 @@ class LoadMetrics : ActorTimings {
         }
         val observed = observations.entries.joinToString(",") { "\"${it.key}\":${it.value}" }
         val status = if (observations["completed"] == 1L && errors.isEmpty()) "COMPLETED" else "INCOMPLETE_OR_FAILED"
-        return "{\"status\":\"$status\",\"durationUnit\":\"nanoseconds\",\"latencies\":{$latencies},\"actorTimings\":{$actor},\"clockRegressions\":$clockRegressions,\"observations\":{$observed},\"errors\":[${errors.joinToString(",") { "\"$it\"" }}],\"rekey\":\"NOT_RUN_UNSUPPORTED\"}"
+        return "{\"status\":\"$status\",\"durationUnit\":\"nanoseconds\",\"latencies\":{$latencies},\"actorTimings\":{$actor},\"clockRegressions\":$clockRegressions,\"observations\":{$observed},\"errors\":[${errors.joinToString(",") { "\"$it\"" }}],\"rekey\":\"NOT_RUN\"}"
     }
     @Synchronized fun write(directory: Path, name: String) {
         Files.createDirectories(directory)

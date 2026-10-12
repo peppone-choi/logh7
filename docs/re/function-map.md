@@ -32,8 +32,8 @@
 | 0x00612100 | `mpsClientConnection::init` | 연결 콜백 등록. 문자열 `mpsClientConnection::mpsMessage...` | high |
 | 0x006122c0 | `Connection::pump_recv` | 수신 프레임을 뽑아(0x6130a0) 파서로 넘기는 루프 | medium |
 | 0x006123d0 | `Connection::send_message` | 메시지 길이 검사(`size over [%d] (max msg size:[%d])`) 후 0x30 프레임으로 송신 | high |
-| 0x006130a0 | `Connection::read_frame` | 외부 프레임 파싱. 첫 u16==0x30이면 암호 페이로드, 0x31이면 재키 처리(재귀) | high |
-| 0x00612f20 | `Connection::dispatch_0x30` | 0x30 데이터를 복호화(vtbl+0x14)하고 상위로 전달, 0x31 재키 경로 | medium |
+| 0x006130a0 | `Connection::read_frame` | header offset 뒤 외부 0x30을 복호하고, 내부 opcode 0x31이면 수신키 변경 후 다음 프레임 읽기 | high |
+| 0x00612f20 | `Connection::send_encrypted` | 평문을 암호화(vtbl+0x14)하고 외부 0x30과 암호문을 송신 버퍼에 기록 | high |
 | 0x00612cb0 | `KeyExchange::phase_0x34` | 16바이트 난수 세션키 만들어 상대 공개키로 암호화(0x34) 전송 | medium |
 | 0x00612d80 | `KeyExchange::phase_0x35_36` | 0x35 수신→검증→0x36 응답 | medium |
 | 0x00612e50 | `KeyExchange::rekey_0x31` | 난수 새 키를 현재 세션키로 암호화(0x31) 전송 | medium |

@@ -51,4 +51,4 @@ gateway가 소유한 child channel group의 active/tracked 수와 `EngineGameAdm
 
 socket 원시 표본은 `*-durations.tsv`, actor 표본은 `*-actor-durations.tsv`에 남긴다. 예상 admission 거절 수, RST 요청 수, 각 단계 실제 상태, 예상 밖 작업 오류도 제공한다. drain 이후 queue/send count와 count=sampled+dropped, 최종 online/활성 채널/추적 채널/admission 매핑 0을 검사한다. 마지막 wake 직후 ticker를 취소하면 enqueue 전에 취소될 수 있으며 wake/dequeue 차이는 `cancelledTickWake`로 남긴다. 테스트 assertion/종료 오류도 incomplete/failed로 표시하므로 JSON 일부 수치만으로 합격 처리하지 않는다. Gradle/JUnit 통과와 모든 최종 관측을 함께 확인한다. gateway의 예상 RST 로그는 예상 밖 작업 오류 0과 구분한다.
 
-`join` 표본은 최초/재접속 성공과 예상 거절을 모두 포함한다. `endAndCleanup`은 세션 종료 명령부터 EOF와 최종 상태 확인까지의 벽시계 소요이며 한 번의 수명주기에 표본 1개다. 이를 tick lag나 actor 적용 지연으로 해석하지 않는다. rekey는 `NOT_RUN_UNSUPPORTED`다. 승인된 SLO, 2,000명 용량, 원본 클라이언트의 전략 화면이나 일반 게임 명령 처리, 재키 교환, 운영 대시보드·알림, 여러 호스트·장시간 운영의 성능을 검증한 결과가 아니다.
+`join` 표본은 최초/재접속 성공과 예상 거절을 모두 포함한다. `endAndCleanup`은 세션 종료 명령부터 EOF와 최종 상태 확인까지의 벽시계 소요이며 한 번의 수명주기에 표본 1개다. 이를 tick lag나 actor 적용 지연으로 해석하지 않는다. 이 부하 하네스에서 rekey는 `NOT_RUN`이다(SESSION 재키 후보 구현과 별개). 승인된 SLO, 2,000명 용량, 원본 클라이언트의 전략 화면이나 일반 게임 명령 처리, 재키 교환, 운영 대시보드·알림, 여러 호스트·장시간 운영의 성능을 검증한 결과가 아니다.

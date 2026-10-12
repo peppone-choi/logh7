@@ -1,7 +1,24 @@
 # 키 교환·암호 봉투 정적 명세
 
-작성자: 최병호 · 2026-10-08 갱신 · 상태: 초기 키 교환·첫 로그인 봉투 **validated**, 재키 교환 미구현·미검증.
+작성자: 최병호 · 2026-10-12 갱신 · 상태: 초기 키 교환·첫 로그인 봉투 **validated**, 재키 서버 후보 구현·원본 상호운용 미검증.
 근거: `evidence:client`, E-300/E-301. 주소는 CD판 `G7MTClient.exe` VA이며 SHA256은 벡터 JSON에 기록한다.
+
+## 재키 정적 계약과 서버 후보 (2026-10-12)
+
+승인된 CD 확보 경로에서 실행 파일만 선택 추출했다. 캐비닛 MD5와 CD판 SHA-256 `bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16`을 대조했고, 원본을 실행하지 않고 아래 함수를 읽었다. 원본 바이너리·전체 디스어셈블리는 저장소에 넣지 않는다. 이 확인은 원본 재키 동작 재현이나 상호운용 PASS가 아니다. `evidence:client` (정적)
+
+- `0x00612e50`은 내부 `0x31:BE16 + 새 키 바이트`를 **기존 송신키**의 일반 `0x30` 봉투로 보낸 뒤 새 송신키를 설정한다. 별도 키 길이·초기 sequence 필드는 없다. 새 송신키 설정 성공 후 next=1(`0x00612ed9`).
+- `0x006130a0`은 외부 header offset을 건너뛰어 `0x30`을 읽고, 복호 후 같은 offset을 건너뛰어 `0x31`을 읽는다(`0x006131d7`). 일반 세션 S→C에는 바깥 보조 u32와 안쪽 보조 u32가 각각 필요하다. 수신 키 길이는 body length−offset−2이며 설정 성공 후 previous=0(`0x00613209`), 다음 프레임을 읽는다. 반대 방향 상태는 바꾸지 않는다.
+- `0x00645d09`는 증가 전 unsigned sequence≥`0x80000000`에서 flag를 세운다. `0x00613050`은 응용 메시지를 보낸 뒤 재키를 호출하므로 경계는 응용 `0x80000000` → 기존 키의 제어 `0x80000001` → 새 키의 응용 1이다.
+- 원본은 재키 송신 실패 반환을 검사하지 않고 키 설정을 진행하며, 수신 키 설정 실패도 다음 프레임 읽기를 계속한다. 이 실패 경로는 안전한 서버 계약으로 복제하지 않는다.
+
+`Handshake`는 SESSION 송신 배치를 로컬 후보에서 인코딩하고 bytes·ID·owner가 결합된 불변 `OutboundBatch`를 만든다. 후속 배치는 앞선 staged 후보에서 시작한다. `SecureWriter`는 EventLoop에서 write listener로 완료를 관측하고, 앞선 성공이 모두 확인된 순서까지만 commit한다. 실패·취소·close는 모든 후속 후보와 늦은 콜백을 무효화하며 재전송하지 않는다. 후보 메타데이터는 최대 1024개이고 별도 전송 큐는 없다. 기존 ByteArray codec 편의 API는 유지하지만 Gateway는 `acceptOutbound`/`finishJoinOutbound`의 bound batch만 쓴다. IO 성공은 상대방의 처리 완료가 아니다. `evidence:guess` (실패 안전성과 쓰기 상태 설계)
+
+수신은 기존 checksum·sequence·padding 검증 후 키 길이 1..56을 확인하고 새 cipher 생성에 성공한 뒤에만 키와 previous를 바꾼다. 송신 새 키는 16바이트이며 생성기·cipher 팩토리는 결정적 실패 시험을 위해 주입할 수 있다. 인코딩 실패는 기존 후보/commit 상태를 바꾸지 않으며 Gateway에서는 연결을 종료한다.
+
+SESSION carrier는 기존 `LoginMessages.sessionMessage(0x31, key)`와 outer `clearHeader=0`을 사용한다. **두 aux=0의 의미와 원본 재키에서의 수용은 미관측**이며 기존 저장소의 synthetic 호환 가정이다. LOGIN carrier는 확립되지 않아 송신 경계에서 실패한다. 초기 0x34/35/36은 기존 방식 그대로다. 초기 시험 sequence 주입 범위는 unsigned u32 전체를 허용하지만 0→1 보정은 유지한다.
+
+`HandshakeRekeyTest`·`SecureWriterTest`는 경계, 키 길이·검증 실패, 배치 순서·bytes 불변성, 지연/역순 콜백, 부분 쓰기 실패·취소·close, 비동기 join 응답, 분할·병합 프레임을 검사한다. aux·키는 synthetic이다. 원본 runtime, 장시간 부하와 LOGIN 재키를 이 시험으로 검증했다고 주장하지 않는다. Netty 쓰기 완료 처리와 핸들러 안의 await 금지는 [고정 4.2.18 ChannelFuture 소스](https://raw.githubusercontent.com/netty/netty/netty-4.2.18.Final/transport/src/main/java/io/netty/channel/ChannelFuture.java)를 따른다.
 
 > 2026-10-07 후속: [호스트 백그라운드 실행](../ops/background-client.md)에서 기존 Kotlin 스텁과 실제 클라이언트의 `0x34→0x35→0x36` 및 첫 암호화 로그인 요청 복호를 확인했다. 아래 9월 28일의 미검증 표기는 당시 상태다. 세션 로그인·재키 교환·전체 플레이는 이 시험으로 확인하지 않았다. `evidence:client`
 

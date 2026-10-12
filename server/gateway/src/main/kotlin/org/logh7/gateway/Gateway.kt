@@ -95,17 +95,13 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                                     val payload = ByteArray(msg.readableBytes()); msg.readBytes(payload)
                                     if (port != updatePort) {
                                         val (type, data) = Frames.decodePayload(payload)
-                                        exchange.accept(type, data)?.let { response ->
-                                            val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
-                                            if (exchange.state == GameExchange.State.REJECTED) written.addListener(ChannelFutureListener.CLOSE)
-                                        }
+                                        exchange.acceptOutbound(type, data)?.let { response -> SecureWriter.write(ctx, exchange, response) }
                                         exchange.takePendingJoin()?.whenComplete { result, failure ->
                                             ctx.executor().execute {
-                                                if (!ctx.channel().isActive || failure != null) { exchange.close(); ctx.close() }
-                                                else exchange.finishJoin(result)?.let { response ->
-                                                    val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
-                                                    if (exchange.state == GameExchange.State.REJECTED) written.addListener(ChannelFutureListener.CLOSE)
-                                                }
+                                                if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
+                                                else try {
+                                                    exchange.finishJoinOutbound(result)?.let { response -> SecureWriter.write(ctx, exchange, response) }
+                                                } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
                                             }
                                         }
                                     } else {
@@ -116,7 +112,10 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                                         }
                                     }
                                 }
-                                override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) { System.err.println("gateway: ${cause.message}"); exchange.close(); ctx.close() }
+                                override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
+                                    System.err.println("gateway: ${cause.message}")
+                                    try { exchange.close() } finally { ctx.close() }
+                                }
                                 override fun channelInactive(ctx: ChannelHandlerContext) { lifecycleCheck?.cancel(false); exchange.close(); ctx.fireChannelInactive() }
                             })
                         }
