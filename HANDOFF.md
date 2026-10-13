@@ -77,3 +77,13 @@ main의 LOGH-29 전략 CSV 등록을 보존했다. LOGH-28/29 별도 격리 통�
 최종 별도50명 실행에서 join102건(성공100+예상 거절2)의 p50/p95/p99/max는3.451/13.961/18.129/35.532ms, 종료/정리1회는985.942ms였고 예상 밖 작업 오류0, bind 재시도0이었다. 원시 표본에서 percentile을 별도 재계산해 일치를 확인했다. SLO 판정, actor queue age/tick lag, rekey, 2,000명/여러 호스트/장기 운영 검증은 수행하지 않았다. 기존 LOGH-28/61과 LOGH-43 branch/작업 트리를 보존한다.
 
 LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(기존 capture3개 건너뜀), app 컴파일과 실제50명 최종 잔여0을 확인했다. #39를 승인된 정확한 head로 main에 병합한 뒤 이 변경을 옮겼으며 검사한 server 소스 전체와 바이트 일치를 확인했다. HANDOFF 추가 문단 충돌은 양쪽을 보존해 해결했다. LOGH-43 자식 JVM 검사는 저장소 계층 강제 종료 복구이고 엔진 게시/ACK 순서는 같은 프로세스 검사와 소스로 확인한 결과다. PostgreSQL/WAL/외부 백업/RPO/RTO/전원 장애는 계속 미완료다.
+
+## LOGH-19 업데이터 스텁 TCP 계약 구현 (2026-10-13)
+
+작성: 최병호 · 기준 main `dcf0c578e4248fb86011009202e57db34feb292a`.
+
+`UpdatePortTest.kt`에 실제 Gateway/동적 루프백 포트/임시 capture를 쓰는 합성 검사 8개를 추가했다. 정확한 평문 `00 02 68 11`, `00 02 68 22`와 실제 EOF, 빈 식별 blob, 1바이트 쓰기/합친 요청, 잘못된 첫 opcode·누락 opcode·버전 본문 길이(0/3/5), 완료 뒤 추가 요청을 검사한다. 오류 뒤 동일 Gateway 게임 리스너의 실제 합성 핸드셰이크도 확인한다. 소켓·예약 포트·Gateway는 use/finally로 정리하고 bind 경합만 최대 5회 재시도한다. 제품 코드·암호·포트 정책·connections 의미는 변경하지 않았다.
+
+기획의 “완료 후 추가 요청 — 응답 바이트 0개”는 **정상 요청의 기존 6822 응답을 제외한 추가 응답 0개**로 해석한다. 종료 후 쓰기의 OS 경합을 피하려고 정상 버전 요청+추가 식별 요청을 한 번에 보내고, 정상 6822를 정확히 소비한 다음 실제 EOF(추가 바이트 0개)를 요구한다. timeout/reset은 EOF 성공으로 처리하지 않는다. 1바이트 쓰기는 TCP 수신 chunk 분할을 보장하지 않으며 기존 GatewayTest의 embedded decoder 분할 검사와 구분한다.
+
+로컬 Gradle/빌드는 VPS 정책으로 NOT_RUN. `git diff --check`만 실행했다. 코드 커밋 `8f430c58a07182785d257bccd2d3f7f6c33b7fdd`의 GitHub-hosted 전체 `server.yml` 실행은 [run 38353296927](https://github.com/peppone-choi/logh7/actions/runs/38353296927)은 success로 종료했다(`bash ./gradlew build --no-daemon`, BUILD SUCCESSFUL, `:gateway:test` 실제 실행; CI watch exit 0). 별도 targeted 명령은 기존 workflow 진입점이 없어 NOT_RUN이고 전체 build에 포함된 해당 테스트 실행 결과를 확인한다. PR 생성도 자동 승인 심사에서 denied되어 PR URL은 없으며 우회하지 않았다. 원본 BootFirst/업데이터→게임 기동 NOT_RUN, GUI QA WAITING_FOR_BACKGROUND_QA, LOGH-19 Done 불가. 착수 시 Linear In Progress 갱신은 자동 승인 심사에서 denied되어 미반영이며 재시도·우회하지 않았다. 다음 담당은 `logh-review`이며 정확한 응답·EOF·정리·기존 gateway/capture/부하 검사 무회귀를 독립 확인한다. 독립 리뷰와 병합은 아직 수행하지 않았다. blocker는 PR 생성/Linear 갱신 자동 승인 거절이며 해제 조건은 해당 작업의 도구 승인 허용이다. 이 문서 후속 커밋은 서버 소스 변경이 없으며 CI의 검증 대상 코드 SHA는 위와 같다.
