@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "readiness": "CLOSED",
+  "execution_authorized": false,
+  "target_sha256": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16",
+  "runtime_hashes": {
+    "audio_guard.py": "3353e18184541be0566460993693888872a35c14206128c7ce4a120071890ee3",
+    "silence-x86.js": "83e122c5739de05163eeccb295780d65eda1696d26ed94c64a3092ee7c4f9dfb",
+    "run-background.py": "f6b6c98603c31f138cedc33831dbc338f5ad52429549392eb90f391e4d187a7b",
+    "audio_session.py": "22b0c605059653a528b1c6a3bc862807664e245a4cbb656504f172dc85f806f4",
+    "qa_owned_process.py": "818595eda6b666a6ab0df68f8fcc4793bdf7f095e79d6dfb6260f22c92507869",
+    "logh_audio_adapter.py": "52e2aeb5337be4a3433bf93ca1c5cbded6f24334a90a3749da897dc04a4247ef",
+    "logh_prestart_readiness.py": "87a67c52c44603f1428736ff9a423604876424de8901e0802dc78792e610183d"
+  },
+  "historical_only": {
+    "F1": "44/44 PASS; DO NOT RERUN",
+    "prior127": "preserve; not fresh QA"
+  },
+  "limits": {
+    "outer_job": 5,
+    "inner_job": 1,
+    "temp": "owned E: TEMP only",
+    "frida": "17.11.0"
+  },
+  "cases": [
+    {
+      "id": "delayed-load",
+      "expected": "dsound absent at handshake; late owned harmless module observed; first/repeat synthetic Play intercepted; originals=0"
+    },
+    {
+      "id": "com-denial",
+      "expected": "activation denied before real COM server; synthetic IMM/client Start originals=0"
+    },
+    {
+      "id": "dependency-unsupported",
+      "expected": "harmless dependency loads unsupported module; fatal callback stops owned target; no resume after failure"
+    },
+    {
+      "id": "second-attach-normal",
+      "expected": "same PID+creation; audio session stays attached; second fixture marker succeeds; identities unchanged; cleanup absent"
+    },
+    {
+      "id": "second-attach-exception",
+      "expected": "second fixture RPC throws; finally detaches both sessions and closes owned Job; cleanup absent"
+    },
+    {
+      "id": "second-attach-detach",
+      "expected": "unexpected audio detach invokes retained-handle stop; no capture fallback; cleanup absent"
+    }
+  ],
+  "required_receipt": [
+    "fixture_sha256",
+    "payload_sha256",
+    "runtime_hashes",
+    "pid_creation_identity",
+    "outer_members_before_after",
+    "inner_members",
+    "owned_temp",
+    "input_desktop_before_after",
+    "foreground_before_after",
+    "steam15324_before_after",
+    "audio_handshake_before_resume",
+    "audio_session_alive_after_attach",
+    "case_observations",
+    "finally_cleanup",
+    "owned_processes_remaining",
+    "temp_remaining"
+  ],
+  "NOT_RUN": [
+    "game",
+    "game_audio",
+    "launcher_chain",
+    "native_coverage",
+    "second_attach",
+    "upload_qa_evidence"
+  ],
+  "transport": {
+    "sourceZip": "E:/logh7/work/logh-background-audio-adapter-20261013/f1-upload.zip",
+    "sha256": "f68e06a3f5364770f9d4ed3a1552211992048165dea6665b94942fa265e05d4c",
+    "bytes": 74469,
+    "sourceHashFresh": true,
+    "approvedCommand": "upload-qa-evidence",
+    "destination": "WINDOWS-QA-BUNDLE.zip",
+    "destinationExists": true,
+    "endToEnd": "NOT_RUN",
+    "historicalCommand": "upload-resources (\ud604\uc7ac QA \uc804\uc6a9 \uacbd\ub85c \uac80\uc99d \uc544\ub2d8)",
+    "resourcesBundleChanged": false
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "taskId": "logh-background-audio-adapter-20261013",
+  "source_file_count": 8,
+  "current_handoff": "evidence/f1-20261013/handoff-f1.json",
+  "files": [
+    {
+      "basename": "audio_guard.py",
+      "archive_path": "logh-audio/audio_guard.py",
+      "size": 26914,
+      "sha256": "3353e18184541be0566460993693888872a35c14206128c7ce4a120071890ee3"
+    },
+    {
+      "basename": "silence-x86.js",
+      "archive_path": "logh-audio/silence-x86.js",
+      "size": 14874,
+      "sha256": "83e122c5739de05163eeccb295780d65eda1696d26ed94c64a3092ee7c4f9dfb"
+    },
+    {
+      "basename": "run-background.py",
+      "archive_path": "logh-audio/run-background.py",
+      "size": 28220,
+      "sha256": "f6b6c98603c31f138cedc33831dbc338f5ad52429549392eb90f391e4d187a7b"
+    },
+    {
+      "basename": "audio_session.py",
+      "archive_path": "logh-audio/audio_session.py",
+      "size": 7317,
+      "sha256": "22b0c605059653a528b1c6a3bc862807664e245a4cbb656504f172dc85f806f4"
+    },
+    {
+      "basename": "qa_owned_process.py",
+      "archive_path": "logh-audio/qa_owned_process.py",
+      "size": 14703,
+      "sha256": "818595eda6b666a6ab0df68f8fcc4793bdf7f095e79d6dfb6260f22c92507869"
+    },
+    {
+      "basename": "logh_audio_adapter.py",
+      "archive_path": "logh-audio/logh_audio_adapter.py",
+      "size": 18540,
+      "sha256": "52e2aeb5337be4a3433bf93ca1c5cbded6f24334a90a3749da897dc04a4247ef"
+    },
+    {
+      "basename": "logh_prestart_readiness.py",
+      "archive_path": "logh-audio/logh_prestart_readiness.py",
+      "size": 47404,
+      "sha256": "87a67c52c44603f1428736ff9a423604876424de8901e0802dc78792e610183d"
+    },
+    {
+      "basename": "handoff.json",
+      "archive_path": "logh-audio/handoff.json",
+      "size": 4204,
+      "sha256": "12300d0d47fcaaacd79fd0565e7c47eae5e3c711f7a211b6efc14da004f8433f"
+    },
+    {
+      "basename": "f1-result.json",
+      "archive_path": "logh-audio/evidence/f1-20261013/f1-result.json",
+      "size": 36531,
+      "sha256": "1198bdbeab2da10f5865a9ed20c3c909157a6b28849fb40e32822b0b4c523187"
+    },
+    {
+      "basename": "handoff-f1.json",
+      "archive_path": "logh-audio/evidence/f1-20261013/handoff-f1.json",
+      "size": 4350,
+      "sha256": "58b31d062f760e045c75783530cf8daa93969297766c03544ed55d159418d609"
+    },
+    {
+      "basename": "unintended-query-evidence.json",
+      "archive_path": "logh-audio/evidence/f1-20261013/unintended-query-evidence.json",
+      "size": 7407,
+      "sha256": "a45f5475a186604b38a5915998a47b01bb69d00321c31fb5a08ebce423e1689f"
+    },
+    {
+      "basename": "f1-fixture.py",
+      "archive_path": "logh-audio/evidence/logh-background-audio-adapter-20261013/f1-fixture.py",
+      "size": 9806,
+      "sha256": "50e1a07c1c013fc03fd5bd441b6b6a0f8f5d2e7431d37f576f15138f5564115a"
+    },
+    {
+      "basename": "f1-postcheck.py",
+      "archive_path": "logh-audio/evidence/logh-background-audio-adapter-20261013/f1-postcheck.py",
+      "size": 5617,
+      "sha256": "210f6624ed51060f931d30141134cc731a41b67334fa72152238e8c47b2e61a2"
+    },
+    {
+      "basename": "f1-finalize.py",
+      "archive_path": "logh-audio/evidence/logh-background-audio-adapter-20261013/f1-finalize.py",
+      "size": 3979,
+      "sha256": "ca48358327fefdd635df19315a66d36cf4815738e980c7b3de2d951f407c0c2f"
+    },
+    {
+      "basename": "v1-result.json",
+      "archive_path": "logh-audio/evidence/v1-20261013-181431/v1-result.json",
+      "size": 106408,
+      "sha256": "de6d8980fc61e8cd06764921cd9141eb235a9de915690b2af10f3b2601a6269d"
+    },
+    {
+      "basename": "fixture-r1-r2.json",
+      "archive_path": "logh-audio/evidence/v1-r1-r2-20261013-180550/fixture-r1-r2.json",
+      "size": 18924,
+      "sha256": "97bec1fed624a6174d3484b86298294d289f2c6e65f0107b240e695d950d030c"
+    }
+  ]
+}
