@@ -77,3 +77,40 @@ main의 LOGH-29 전략 CSV 등록을 보존했다. LOGH-28/29 별도 격리 통�
 최종 별도50명 실행에서 join102건(성공100+예상 거절2)의 p50/p95/p99/max는3.451/13.961/18.129/35.532ms, 종료/정리1회는985.942ms였고 예상 밖 작업 오류0, bind 재시도0이었다. 원시 표본에서 percentile을 별도 재계산해 일치를 확인했다. SLO 판정, actor queue age/tick lag, rekey, 2,000명/여러 호스트/장기 운영 검증은 수행하지 않았다. 기존 LOGH-28/61과 LOGH-43 branch/작업 트리를 보존한다.
 
 LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(기존 capture3개 건너뜀), app 컴파일과 실제50명 최종 잔여0을 확인했다. #39를 승인된 정확한 head로 main에 병합한 뒤 이 변경을 옮겼으며 검사한 server 소스 전체와 바이트 일치를 확인했다. HANDOFF 추가 문단 충돌은 양쪽을 보존해 해결했다. LOGH-43 자식 JVM 검사는 저장소 계층 강제 종료 복구이고 엔진 게시/ACK 순서는 같은 프로세스 검사와 소스로 확인한 결과다. PostgreSQL/WAL/외부 백업/RPO/RTO/전원 장애는 계속 미완료다.
+
+## LOGH-19 업데이터 스텁 TCP 계약 고정 — 구현 계획 (2026-10-13)
+
+작성: 최병호 · 기준 main `dcf0c578e4248fb86011009202e57db34feb292a` · 이슈 [LOGH-19](https://linear.app/peppone-choi/issue/LOGH-19) (Todo)
+
+**선정 이유.** `UpdateExchange`(0x6810→0x6811, 0x6820→0x6822)와 47902 리스너 배선은 main에 이미 있으나 검사는 `UpdateExchange` 단위 검사 1개뿐이다. 실제 `Gateway` TCP 경로(게임 암호 봉투 미적용, 정확한 응답 바이트, 0x6822 뒤 서버 종료)를 고정한 검사가 없다. 원본 실행 없이 [업데이터 프로토콜](docs/protocol/update-protocol.md)과 현재 소스만으로 끝나는 작은 서버·프로토콜 계약 작업이다. LOGH-61 잔여는 원본 rekey 런타임, LOGH-28은 Windows 쪽 미푸시 작업 트리, LOGH-37은 LOGH-36 선행이라 제외했다.
+
+**확인한 사실(소스).** `Gateway.kt`는 `port == updatePort`일 때 `Frames.decodePayload`·`SecureWriter`를 거치지 않고 `UpdateExchange.accept` 결과를 그대로 쓰며, `COMPLETE`면 flush 후 닫는다. 잘못된 opcode·길이는 `require` 예외 → `exceptionCaught` → 응답 없이 닫힘이다. 식별 blob 길이 0(payload `68 10`만)은 현재 수락된다. 업데이트 채널도 `GameExchange`를 만들지만 ticket이 없어 `obsolete()`는 false다.
+
+**추론(미검증).** 원본 `Gin7UpdateClient.exe`가 `00 02 68 22`를 받아 게임 기동으로 진행하는지는 실행하지 않았다(NOT_RUN). 오류 시 0x6812/0x6823 중 무엇을 보내야 하는지는 원본 서버 근거가 없어 이번 범위에서 정하지 않는다. `evidence:client`(정적), `evidence:guess`(수용 여부)
+
+### 수정 범위
+
+- 허용: `server/gateway/src/test/kotlin/org/logh7/gateway/` 아래 새 검사 파일 1개(예: `UpdatePortTest.kt`), 필요 시 `UpdateExchange.kt`의 메시지·경계 정리. 이 HANDOFF 섹션의 결과 문단.
+- 금지: `GameExchange`·`SecureWriter`·암호 계층·`Main.kt` 포트 정책·`checkedBindAddress`·`connections()` 집계 의미 변경, 오류 응답(0x6812/0x6823) 신규 송신, 원본 바이너리·캡처 추가.
+
+### 구현 항목
+
+1. `LoadFixture.startGateway`와 같은 방식(루프백 `ServerSocket(0)` 예약, `BindException` 재시도)으로 실제 `Gateway`를 띄우고 `updatePort`에 평문 TCP로 접속한다. `TempDir`에 capture 디렉터리를 둔다.
+2. 정상 교환: `00 04 68 10 01 02` 전송 → 정확히 `00 02 68 11` 수신 → `00 06 68 20 00 00 00 83` 전송 → 정확히 `00 02 68 22` 수신 → 서버가 연결을 닫음(EOF) 확인.
+3. 빈 식별 blob: `00 02 68 10` → `00 02 68 11`.
+4. 조각/합쳐진 프레임: 위 두 요청을 1바이트 분할 및 한 번에 이어 보낸 경우에도 같은 두 응답과 종료.
+5. fail-closed: 첫 opcode가 0x6810이 아님, 0x6820 본문 길이≠4, 완료 후 추가 요청 — 각각 응답 바이트 0개로 닫힘. 게임 포트(47900 역할)는 같은 gateway에서 계속 접속 가능해야 한다(업데이트 채널 오류가 리스너를 죽이지 않음).
+6. 검사 종료 시 gateway close, 소켓 정리. 고정 포트·외부 주소 사용 금지.
+
+### 완료 조건과 검증
+
+- 로컬: 변경 범위만 `server/` 에서 `./gradlew :gateway:test --tests '*UpdatePort*' --tests '*GatewayTest*'` 통과(가벼운 집중 실행). 전체 빌드는 로컬에서 하지 않는다.
+- GitHub-hosted: PR의 `server.yml`(`./gradlew build`) 통과를 필수로 한다. 실패 시 로그 링크와 원인을 남긴다.
+- 독립 리뷰 1회(정확한 바이트·종료 순서·기존 capture/부하 검사 무회귀).
+- Linear: 착수 시 LOGH-19를 In Progress, 병합 후에도 **In Progress 유지**. 이슈 완료 조건(원본 BootFirst/업데이터 → 게임 기동)은 NOT_RUN이며 Windows 백그라운드 QA(현재 WAITING_FOR_BACKGROUND_QA) 배정 전까지 남긴다. 코멘트에 PR·CI 링크와 "합성 TCP 계약만 확인"을 명시한다.
+
+### 범위 밖 / 후속 질문
+
+- 원본 업데이터 수용 확인: Windows 비간섭 QA에서 `server→client` capture가 정확히 `00 02 68 11`, `00 02 68 22`이고 이후 `G7MTClient.exe` 기동이 관측되면 LOGH-19 Done 후보. 무음 검증 전 실행 금지.
+- 오류 응답 형식(0x6812/0x6823 + 0x8000 계열)과 0x6840 본문은 원본 근거가 필요하다. 필요해지면 `Gin7UpdateClient.exe` `0x0041ff50`/`0x00420550`/`0x004205a0` 소비 코드만 REA로 재확인한다(별도 배정).
+- 업데이트 채널이 `connections()`에 함께 집계되는 점은 관측 의미 결정 사항으로 LOGH-46 범위에서 다룬다.
