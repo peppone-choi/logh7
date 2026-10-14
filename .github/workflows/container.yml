@@ -44,6 +44,14 @@ jobs:
             [[ "$status" == *" 200 "* ]]
             echo "$status"
           '
+          # Host connect alone can reach docker-proxy even without an app listener.
+          # Verify the container bridge address reaches the actual gateway too.
+          docker compose -f deploy/docker-compose.yml --profile game exec -T game-server bash -ec '
+            read -ra addresses <<< "$(hostname -i)"
+            for port in 47900 47902 47903; do
+              (exec 3<>/dev/tcp/${addresses[0]}/$port)
+            done
+          '
           python3 - <<'PYCODE'
           import socket
           for port in (47900, 47902, 47903):

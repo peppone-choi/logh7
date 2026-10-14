@@ -22,7 +22,7 @@ docker compose -f deploy/docker-compose.yml --profile game stop game-server
 
 ## 검증과 제한
 
-GitHub-hosted `container` CI는 이미지 비루트·자료 미포함, Compose 실제 `LOGH7_*`·loopback 계약, 120초 health, 47900·47902·47903 합성 TCP 연결 수락, 항상 실행되는 정리를 검사한다. 기존 `server` CI의 전체 Gradle build는 그대로 유지한다. TCP 연결 수락은 게임 프로토콜·로그인 성공의 증거가 아니다.
+GitHub-hosted `container` CI는 이미지 비루트·자료 미포함, Compose 실제 `LOGH7_*`·loopback 계약, 120초 health, 47900·47902·47903 합성 TCP 연결 수락, 항상 실행되는 정리를 검사한다. 기존 `server` CI의 전체 Gradle build는 그대로 유지한다. 호스트 connect만으로는 docker-proxy의 수락을 서버 수락으로 오인할 수 있어 컨테이너 bridge IP의 실제 리스너 도달도 요구한다. TCP 연결 수락은 게임 프로토콜·로그인 성공의 증거가 아니다.
 
 PostgreSQL은 **게임 서버에 미연결**이다. 앱은 파일 기반 세션 저장을 사용하며 DATABASE_* 환경변수·DB 비밀번호·postgres 의존을 제거했다. DB 영속·백업 복구·전체 스택/관리 웹 완성은 이 변경으로 검증되지 않는다.
 
