@@ -7,8 +7,8 @@ services:
     profiles: [game]
     restart: unless-stopped
     environment:
-      # Empty selects the container private IP; Gateway rejects wildcard binds.
-      LOGH7_BIND_ADDRESS: ""
+      # Gateway permits loopback/VirtualBox only; bridge TCP publishing is blocked.
+      LOGH7_BIND_ADDRESS: 127.0.0.1
       LOGH7_SESSION_PORT: ${SESSION_PORT:-47903}
       LOGH7_SESSION_ADDRESS: ${PUBLIC_HOST:-127.0.0.1}
       LOGH7_SESSION_STORE_DIR: /data/sessions

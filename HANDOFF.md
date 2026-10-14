@@ -94,4 +94,4 @@ LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(
 
 로컬 Compose config·diff 정적 검사는 통과했고 VPS 빌드·컨테이너 실행은 NOT_RUN이다. GitHub-hosted 빌드·런타임 결과는 PR checks와 구현 인계 근거에서 확인한다. PostgreSQL 미연결, 원본 클라이언트 상호운용/게임/오디오 QA NOT_RUN, readiness CLOSED, GCP/운영 배포 NOT_RUN. 전체 LOGH-42 Done 판정이 아니며 다음 담당 `logh-review`의 독립 검토와 `logh-verify` 검증이 필요하다. 독립 리뷰·병합은 수행하지 않았다.
 
-첫 container CI에서 0.0.0.0은 기존 Gateway 주소 보호 규칙에 거절되었다. Kotlin 수정 없이 이미지 진입점이 미지정 bind를 컨테이너 사설 IP로 해석하도록 수정했다. 기획의 wildcard 제안은 실행 근거에 따라 대체했으며 실제 기존 주소 보호 규칙은 유지한다.
+CI 실패 조사에서 Gateway는 loopback 또는 활성 VirtualBox host-only adapter만 허용하며 Docker bridge는 지원하지 않음을 확인했다. 첫 0.0.0.0 제안과 후속 사설 IP 해석 모두 이 기존 보호 규칙과 충돌한다. 소스 금지 범위를 지키고 최종 bind를 127.0.0.1로 두었다. 컨테이너 health와 이미지/config는 검증 가능하지만 호스트 공개 TCP(AC3)는 BLOCKED이다. 후속 최소 소스 계약 또는 기획 변경이 필요하며 PR은 draft/차단 상태로 인계한다.
