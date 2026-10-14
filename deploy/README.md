@@ -33,7 +33,7 @@ bash rehearsal.sh
 
 ## 게임 서버 단독 개발·CI
 
-[게임 서버 컨테이너 문서](../docs/ops/deploy.md)의 `docker build` 후 `--profile game up ... game-server`를 사용한다. `GAME_SERVER_IMAGE` 기본값은 `logh7/game-server:local`이며 운영 immutable digest 승격은 별도 작업이다. 앱은 `LOGH7_*`만 읽는다. 파일 세션·캡처 볼륨을 사용하며 PostgreSQL 접속·DB 비밀번호는 연결하지 않는다. 세션 리스너 기본 47903과 게임 리스너 47900·47902는 호스트 loopback에만 게시한다. 운영 API 47901은 컨테이너 loopback healthcheck 전용이다.
+[게임 서버 컨테이너 문서](../docs/ops/deploy.md)의 `docker build` 후 `--profile game up ... game-server`를 사용한다. `GAME_SERVER_IMAGE` 기본값은 `logh7/game-server:local`이며 운영 immutable digest 승격은 별도 작업이다. 앱은 `LOGH7_*`만 읽는다. 파일 세션·캡처 볼륨을 사용하며 PostgreSQL 접속·DB 비밀번호는 연결하지 않는다. `Main.kt`의 파일/메모리 저장 선택에 맞춰 게임 서비스의 PostgreSQL `depends_on`과 secret만 제거했으며, 별도 postgres 서비스의 secret·healthcheck·볼륨은 보존했다. 직접 소스 근거와 bridge bind 차단의 최소 후속 결정은 [게임 서버 문서](../docs/ops/deploy.md)를 따른다. 세션 리스너 기본 47903과 게임 리스너 47900·47902는 호스트 loopback에만 게시한다. 운영 API 47901은 컨테이너 loopback healthcheck 전용이다.
 
 원본 클라이언트 상호운용·게임·오디오 QA NOT_RUN, readiness CLOSED. GitHub CI의 합성 TCP 수락은 실제 게임 성공이 아니다. 이번 변경은 운영/GCP 배포 또는 전체 스택 완료가 아니다.
 
