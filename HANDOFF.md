@@ -93,3 +93,5 @@ LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(
 기준 main `7733a4bdb840f55cd298afe08a197015643f19ec`에서 Java25 다단계·비루트 이미지를 추가했다. game 프로필은 실제 `LOGH7_*` 환경 변수, 파일 세션/캡처 named volume, 호스트 loopback 포트 공개를 사용하고 읽히지 않는 DATABASE_*·postgres 의존·DB secret을 제거했다. [사용·제한](docs/ops/deploy.md). `container` CI는 이미지·Compose 계약, 120초 health HTTP200, 47900/47902/47903 TCP 수락과 항상 실행하는 격리 데이터 정리를 검사한다. 기존 server Gradle CI는 변경하지 않았다.
 
 로컬 Compose config·diff 정적 검사는 통과했고 VPS 빌드·컨테이너 실행은 NOT_RUN이다. GitHub-hosted 빌드·런타임 결과는 PR checks와 구현 인계 근거에서 확인한다. PostgreSQL 미연결, 원본 클라이언트 상호운용/게임/오디오 QA NOT_RUN, readiness CLOSED, GCP/운영 배포 NOT_RUN. 전체 LOGH-42 Done 판정이 아니며 다음 담당 `logh-review`의 독립 검토와 `logh-verify` 검증이 필요하다. 독립 리뷰·병합은 수행하지 않았다.
+
+첫 container CI에서 0.0.0.0은 기존 Gateway 주소 보호 규칙에 거절되었다. Kotlin 수정 없이 이미지 진입점이 미지정 bind를 컨테이너 사설 IP로 해석하도록 수정했다. 기획의 wildcard 제안은 실행 근거에 따라 대체했으며 실제 기존 주소 보호 규칙은 유지한다.
