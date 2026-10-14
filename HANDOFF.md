@@ -87,3 +87,9 @@ LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(
 기획의 “완료 후 추가 요청 — 응답 바이트 0개”는 **정상 요청의 기존 6822 응답을 제외한 추가 응답 0개**로 해석한다. 종료 후 쓰기의 OS 경합을 피하려고 정상 버전 요청+추가 식별 요청을 한 번에 보내고, 정상 6822를 정확히 소비한 다음 실제 EOF(추가 바이트 0개)를 요구한다. timeout/reset은 EOF 성공으로 처리하지 않는다. 1바이트 쓰기는 TCP 수신 chunk 분할을 보장하지 않으며 기존 GatewayTest의 embedded decoder 분할 검사와 구분한다.
 
 로컬 Gradle/빌드는 VPS 정책으로 NOT_RUN. `git diff --check`만 실행했다. 코드 커밋 `8f430c58a07182785d257bccd2d3f7f6c33b7fdd`의 GitHub-hosted 전체 `server.yml` 실행은 [run 38353296927](https://github.com/peppone-choi/logh7/actions/runs/38353296927)은 success로 종료했다(`bash ./gradlew build --no-daemon`, BUILD SUCCESSFUL, `:gateway:test` 실제 실행; CI watch exit 0). 별도 targeted 명령은 기존 workflow 진입점이 없어 NOT_RUN이고 전체 build에 포함된 해당 테스트 실행 결과를 확인한다. PR 생성도 자동 승인 심사에서 denied되어 PR URL은 없으며 우회하지 않았다. 원본 BootFirst/업데이터→게임 기동 NOT_RUN, GUI QA WAITING_FOR_BACKGROUND_QA, LOGH-19 Done 불가. 착수 시 Linear In Progress 갱신은 자동 승인 심사에서 denied되어 미반영이며 재시도·우회하지 않았다. 다음 담당은 `logh-review`이며 정확한 응답·EOF·정리·기존 gateway/capture/부하 검사 무회귀를 독립 확인한다. 독립 리뷰와 병합은 아직 수행하지 않았다. blocker는 PR 생성/Linear 갱신 자동 승인 거절이며 해제 조건은 해당 작업의 도구 승인 허용이다. 이 문서 후속 커밋은 서버 소스 변경이 없으며 CI의 검증 대상 코드 SHA는 위와 같다.
+
+## LOGH-42 게임 서버 이미지·Compose game 프로필 (2026-10-14)
+
+기준 main `7733a4bdb840f55cd298afe08a197015643f19ec`에서 Java25 다단계·비루트 이미지를 추가했다. game 프로필은 실제 `LOGH7_*` 환경 변수, 파일 세션/캡처 named volume, 호스트 loopback 포트 공개를 사용하고 읽히지 않는 DATABASE_*·postgres 의존·DB secret을 제거했다. [사용·제한](docs/ops/deploy.md). `container` CI는 이미지·Compose 계약, 120초 health HTTP200, 47900/47902/47903 TCP 수락과 항상 실행하는 격리 데이터 정리를 검사한다. 기존 server Gradle CI는 변경하지 않았다.
+
+로컬 Compose config·diff 정적 검사는 통과했고 VPS 빌드·컨테이너 실행은 NOT_RUN이다. GitHub-hosted 빌드·런타임 결과는 PR checks와 구현 인계 근거에서 확인한다. PostgreSQL 미연결, 원본 클라이언트 상호운용/게임/오디오 QA NOT_RUN, readiness CLOSED, GCP/운영 배포 NOT_RUN. 전체 LOGH-42 Done 판정이 아니며 다음 담당 `logh-review`의 독립 검토와 `logh-verify` 검증이 필요하다. 독립 리뷰·병합은 수행하지 않았다.

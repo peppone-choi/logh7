@@ -2,24 +2,23 @@
 name: logh7
 services:
   game-server:
-    # 실제 Kotlin 이미지가 생긴 뒤에만 game 프로필을 활성화한다.
-    image: ${GAME_SERVER_IMAGE:-logh7/game-server:unbuilt}
+    image: ${GAME_SERVER_IMAGE:-logh7/game-server:local}
+    build: ../server
     profiles: [game]
     restart: unless-stopped
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/logh7
-      DATABASE_USER: logh7
-      DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-      PUBLIC_HOST: ${PUBLIC_HOST:-127.0.0.1}
-      SESSION_PORT: ${SESSION_PORT:-47903}
-    secrets: [postgres_password]
+      LOGH7_BIND_ADDRESS: 0.0.0.0
+      LOGH7_SESSION_PORT: ${SESSION_PORT:-47903}
+      LOGH7_SESSION_ADDRESS: ${PUBLIC_HOST:-127.0.0.1}
+      LOGH7_SESSION_STORE_DIR: /data/sessions
+      LOGH7_CAPTURE_DIR: /data/captures
+    volumes:
+      - game_sessions:/data/sessions
+      - game_captures:/data/captures
     ports:
       - "${GAME_BIND_IP:-127.0.0.1}:47900:47900"
       - "${GAME_BIND_IP:-127.0.0.1}:47902:47902"
       - "${GAME_BIND_IP:-127.0.0.1}:${SESSION_PORT:-47903}:${SESSION_PORT:-47903}"
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks: [backend]
     logging: &logging
       driver: json-file
@@ -78,6 +77,8 @@ secrets:
   grafana_password:
     file: ./secrets/grafana_password.txt
 volumes:
+  game_sessions:
+  game_captures:
   postgres_data:
   prometheus_data:
   grafana_data:

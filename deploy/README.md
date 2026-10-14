@@ -2,7 +2,7 @@
 
 작성: 최병호 · 2026-09-27 · LOGH-42
 
-이 구성은 PostgreSQL·Prometheus·Grafana를 기동하고 게임 서버는 `game` 프로필의 자리표시자로 남긴다. 실제 서버 이미지, 환경 변수 처리, 지표 API 구현은 별도 연결 작업이다. 기본값은 호스트 loopback에만 포트를 게시한다. `evidence:guess`
+이 구성은 PostgreSQL·Prometheus·Grafana와 선택형 `game` 프로필의 Kotlin 게임 서버 이미지를 정의한다. 게임 서버 빌드·단독 기동·실제 환경 변수·볼륨·검증 제한은 [게임 서버 문서](../docs/ops/deploy.md)를 따른다. PostgreSQL은 게임 서버에 미연결이다. 기본값은 호스트 loopback에만 포트를 게시한다. `evidence:guess`
 
 ## 버전 확인
 
@@ -31,9 +31,11 @@ bash rehearsal.sh
 
 2026-09-27 리허설에는 기존 `E:\VM\myUbuntu`를 보존하고 `E:\VM\myUbuntu-ops` 복제본을 사용했다. 원본은 저장 상태이며, 복제본의 NIC는 NAT, SSH 포워딩은 호스트 `127.0.0.1:2222`에만 바인딩했다. 비밀번호 없는 자동 로그인과 sudo는 복제본의 실습 편의를 위한 설정이다. [실행 결과](../docs/ops/rehearsal-2026-09-27.md)를 참조한다. `evidence:guess`
 
-## 실제 게임 서버 연결 전
+## 게임 서버 단독 개발·CI
 
-`GAME_SERVER_IMAGE`를 빌드된 불변 digest로 지정하고 `--profile game`으로 시작한다. `DATABASE_PASSWORD_FILE` 등은 **제안된 계약**이며 서버가 읽는지 확인해야 한다. `POSTGRES_USER=logh7`는 초기화 관리자이므로 실제 게임 접속에는 별도 최소 권한 DB 역할을 생성한 뒤 교체한다. 세션 47903은 임시값이며 실제 세션 리스너는 미구현이다. 내장 Ktor 운영 API는 127.0.0.1:47901에서 동작하므로 이 포트를 공개 세션 포트로 사용하지 않는다. 운영 API는 호스트에 게시하지 않는다. `evidence:guess`
+[게임 서버 컨테이너 문서](../docs/ops/deploy.md)의 `docker build` 후 `--profile game up ... game-server`를 사용한다. `GAME_SERVER_IMAGE` 기본값은 `logh7/game-server:local`이며 운영 immutable digest 승격은 별도 작업이다. 앱은 `LOGH7_*`만 읽는다. 파일 세션·캡처 볼륨을 사용하며 PostgreSQL 접속·DB 비밀번호는 연결하지 않는다. 세션 리스너 기본 47903과 게임 리스너 47900·47902는 호스트 loopback에만 게시한다. 운영 API 47901은 컨테이너 loopback healthcheck 전용이다.
+
+원본 클라이언트 상호운용·게임·오디오 QA NOT_RUN, readiness CLOSED. GitHub CI의 합성 TCP 수락은 실제 게임 성공이 아니다. 이번 변경은 운영/GCP 배포 또는 전체 스택 완료가 아니다.
 
 GCP 적용은 [IaC 초안](gcp/README.md), 복구는 [백업 설계](../docs/ops/backup.md), 실제 검증 기록은 [리허설 기록](../docs/ops/rehearsal-2026-09-27.md)을 따른다. `evidence:guess`
 
