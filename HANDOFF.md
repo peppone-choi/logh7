@@ -87,3 +87,13 @@ LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(
 기획의 “완료 후 추가 요청 — 응답 바이트 0개”는 **정상 요청의 기존 6822 응답을 제외한 추가 응답 0개**로 해석한다. 종료 후 쓰기의 OS 경합을 피하려고 정상 버전 요청+추가 식별 요청을 한 번에 보내고, 정상 6822를 정확히 소비한 다음 실제 EOF(추가 바이트 0개)를 요구한다. timeout/reset은 EOF 성공으로 처리하지 않는다. 1바이트 쓰기는 TCP 수신 chunk 분할을 보장하지 않으며 기존 GatewayTest의 embedded decoder 분할 검사와 구분한다.
 
 로컬 Gradle/빌드는 VPS 정책으로 NOT_RUN. `git diff --check`만 실행했다. 코드 커밋 `8f430c58a07182785d257bccd2d3f7f6c33b7fdd`의 GitHub-hosted 전체 `server.yml` 실행은 [run 38353296927](https://github.com/peppone-choi/logh7/actions/runs/38353296927)은 success로 종료했다(`bash ./gradlew build --no-daemon`, BUILD SUCCESSFUL, `:gateway:test` 실제 실행; CI watch exit 0). 별도 targeted 명령은 기존 workflow 진입점이 없어 NOT_RUN이고 전체 build에 포함된 해당 테스트 실행 결과를 확인한다. PR 생성도 자동 승인 심사에서 denied되어 PR URL은 없으며 우회하지 않았다. 원본 BootFirst/업데이터→게임 기동 NOT_RUN, GUI QA WAITING_FOR_BACKGROUND_QA, LOGH-19 Done 불가. 착수 시 Linear In Progress 갱신은 자동 승인 심사에서 denied되어 미반영이며 재시도·우회하지 않았다. 다음 담당은 `logh-review`이며 정확한 응답·EOF·정리·기존 gateway/capture/부하 검사 무회귀를 독립 확인한다. 독립 리뷰와 병합은 아직 수행하지 않았다. blocker는 PR 생성/Linear 갱신 자동 승인 거절이며 해제 조건은 해당 작업의 도구 승인 허용이다. 이 문서 후속 커밋은 서버 소스 변경이 없으며 CI의 검증 대상 코드 SHA는 위와 같다.
+
+## LOGH-42 게임 서버 이미지·Compose game 프로필 (2026-10-14)
+
+기준 main `7733a4bdb840f55cd298afe08a197015643f19ec`에서 Java25 다단계·비루트 이미지를 추가했다. 현재 PR45 범위(권장안 C)는 internal-loopback image validation이다. game 프로필은 실제 `LOGH7_*` 환경 변수와 파일 세션/캡처 named volume을 사용하며, 게임 포트는 컨테이너 내부 loopback 전용·비게시다. 읽히지 않는 DATABASE_*·postgres 의존·DB secret은 game-server에서만 제거했다. [사용·제한](docs/ops/deploy.md). `container` CI는 이미지·Compose 계약, 120초 Healthy 대기, 내부 `127.0.0.1:47901` health HTTP200, 내부 `127.0.0.1:47900/47902/47903` TCP 수락과 항상 실행하는 격리 데이터 정리를 검사한다. 기존 server Gradle CI는 변경하지 않았다.
+
+구현 단계에서 로컬 Compose config·diff 정적 검사는 통과했고 VPS 빌드·컨테이너 실행은 NOT_RUN으로 기록했다. 최신 GitHub-hosted 빌드·런타임 결과는 PR checks에서 별도 확인해야 하며 이번 문서 수정에서 재실행하지 않았다. 호스트 게임 연결은 제공하지 않으며 검증 NOT_RUN이다. PostgreSQL 미연결, DB 영속·전체 스택·원본 클라이언트 상호운용·게임·오디오 QA NOT_RUN, readiness CLOSED, Windows/GCP/운영 배포 NOT_RUN. 내부 TCP 수락은 호스트 도달성·프로토콜·로그인 성공의 증거가 아니다. 전체 LOGH-42 Done 판정이 아니며 수정 후 `logh-review`의 R1/R2 독립 재확인과 `logh-verify` 검증 전까지 PR은 draft·병합 불가다. 이 인계는 리뷰 완료 승인이나 병합 완료를 의미하지 않는다.
+
+이전 head 기록: Gateway가 loopback 또는 활성 VirtualBox host-only adapter만 허용해 Docker bridge 검사가 실패했고, 단순 호스트 connect는 docker-proxy 수락으로 거짓 양성이었다. 이 경위는 현재 검증 계약과 구분한다. 현재도 `LOGH7_BIND_ADDRESS=127.0.0.1`과 기존 보호 규칙을 유지하며 Kotlin·Compose·CI 보안 설정은 이번 문서 수정에서 변경하지 않았다.
+
+현재 workflow는 bridge 도달 검사를 수행하지 않는다. PR 자체 bridge·published TCP 검사를 컨테이너 내부 loopback 검사로 정정했으며, bridge TCP 수락(AC3)은 이 PR의 인수 기준이 아니다. 호스트 게임 연결이 필요하면 별도 이슈에서 bind 계약과 정책 개정 여부를 결정해야 한다. 내부 loopback 검사나 이전 green run으로 호스트 연결·전체 스택·게임 QA 완료를 주장하지 않는다.

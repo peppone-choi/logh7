@@ -1,0 +1,64 @@
+name: container
+on:
+  push:
+    paths: ['server/**', 'deploy/docker-compose.yml', '.github/workflows/container.yml']
+  pull_request:
+    paths: ['server/**', 'deploy/docker-compose.yml', '.github/workflows/container.yml']
+permissions:
+  contents: read
+jobs:
+  game-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_PROJECT_NAME: logh7-ci-${{ github.run_id }}-${{ github.run_attempt }}
+      GAME_SERVER_IMAGE: logh7/game-server:ci
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Java 25 image
+        run: docker build -t "$GAME_SERVER_IMAGE" server
+      - name: Validate Compose contract
+        run: |
+          docker compose -f deploy/docker-compose.yml --profile game config --format json > /tmp/compose.json
+          python3 - <<'PYCODE'
+          import json
+          game = json.load(open('/tmp/compose.json'))['services']['game-server']
+          assert all(key.startswith('LOGH7_') for key in game['environment'])
+          assert not game.get('ports')  # Loopback listeners are container-internal only.
+          assert not game.get('depends_on') and not game.get('secrets')
+          PYCODE
+          test "$(docker image inspect --format '{{.Config.User}}' "$GAME_SERVER_IMAGE")" = '10001:10001'
+          docker run --rm --entrypoint bash "$GAME_SERVER_IMAGE" -ec '
+            test "$(id -u)" = 10001
+            test -z "$(find /app /data -iname "*accounts*" -o -name "E:" -o -iname "*.pcap*")"
+            test -z "$(find /data -type f)"
+          '
+      - name: Start game service and wait for health
+        run: docker compose -f deploy/docker-compose.yml --profile game up -d --no-build --wait --wait-timeout 120 game-server
+      - name: Check health HTTP 200 and internal loopback TCP listeners
+        run: |
+          docker compose -f deploy/docker-compose.yml --profile game exec -T game-server bash -ec '
+            exec 3<>/dev/tcp/127.0.0.1/47901
+            printf "GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3
+            IFS= read -r status <&3
+            [[ "$status" == *" 200 "* ]]
+            echo "$status"
+          '
+          # Gateway policy permits loopback, not a Docker bridge address.
+          docker compose -f deploy/docker-compose.yml --profile game exec -T game-server bash -ec '
+            for port in 47900 47902 47903; do
+              (exec 3<>/dev/tcp/127.0.0.1/$port)
+              echo "Internal loopback TCP $port: accepted"
+            done
+          '
+      - name: Diagnostics
+        if: always()
+        run: |
+          docker compose -f deploy/docker-compose.yml --profile game ps -a
+          docker compose -f deploy/docker-compose.yml --profile game logs --no-color
+      - name: Remove isolated CI containers and volumes
+        if: always()
+        run: |
+          docker compose -f deploy/docker-compose.yml --profile game down -v --remove-orphans
+          test -z "$(docker ps -aq --filter label=com.docker.compose.project=$COMPOSE_PROJECT_NAME)"
+          test -z "$(docker volume ls -q --filter label=com.docker.compose.project=$COMPOSE_PROJECT_NAME)"
