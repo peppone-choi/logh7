@@ -90,10 +90,10 @@ LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(
 
 ## LOGH-42 게임 서버 이미지·Compose game 프로필 (2026-10-14)
 
-기준 main `7733a4bdb840f55cd298afe08a197015643f19ec`에서 Java25 다단계·비루트 이미지를 추가했다. game 프로필은 실제 `LOGH7_*` 환경 변수, 파일 세션/캡처 named volume, 호스트 loopback 포트 공개를 사용하고 읽히지 않는 DATABASE_*·postgres 의존·DB secret을 제거했다. [사용·제한](docs/ops/deploy.md). `container` CI는 이미지·Compose 계약, 120초 health HTTP200, 47900/47902/47903 TCP 수락과 항상 실행하는 격리 데이터 정리를 검사한다. 기존 server Gradle CI는 변경하지 않았다.
+기준 main `7733a4bdb840f55cd298afe08a197015643f19ec`에서 Java25 다단계·비루트 이미지를 추가했다. 현재 PR45 범위(권장안 C)는 internal-loopback image validation이다. game 프로필은 실제 `LOGH7_*` 환경 변수와 파일 세션/캡처 named volume을 사용하며, 게임 포트는 컨테이너 내부 loopback 전용·비게시다. 읽히지 않는 DATABASE_*·postgres 의존·DB secret은 game-server에서만 제거했다. [사용·제한](docs/ops/deploy.md). `container` CI는 이미지·Compose 계약, 120초 Healthy 대기, 내부 `127.0.0.1:47901` health HTTP200, 내부 `127.0.0.1:47900/47902/47903` TCP 수락과 항상 실행하는 격리 데이터 정리를 검사한다. 기존 server Gradle CI는 변경하지 않았다.
 
-로컬 Compose config·diff 정적 검사는 통과했고 VPS 빌드·컨테이너 실행은 NOT_RUN이다. GitHub-hosted 빌드·런타임 결과는 PR checks와 구현 인계 근거에서 확인한다. PostgreSQL 미연결, 원본 클라이언트 상호운용/게임/오디오 QA NOT_RUN, readiness CLOSED, GCP/운영 배포 NOT_RUN. 전체 LOGH-42 Done 판정이 아니며 다음 담당 `logh-review`의 독립 검토와 `logh-verify` 검증이 필요하다. 독립 리뷰·병합은 수행하지 않았다.
+구현 단계에서 로컬 Compose config·diff 정적 검사는 통과했고 VPS 빌드·컨테이너 실행은 NOT_RUN으로 기록했다. 최신 GitHub-hosted 빌드·런타임 결과는 PR checks에서 별도 확인해야 하며 이번 문서 수정에서 재실행하지 않았다. 호스트 게임 연결은 제공하지 않으며 검증 NOT_RUN이다. PostgreSQL 미연결, DB 영속·전체 스택·원본 클라이언트 상호운용·게임·오디오 QA NOT_RUN, readiness CLOSED, Windows/GCP/운영 배포 NOT_RUN. 내부 TCP 수락은 호스트 도달성·프로토콜·로그인 성공의 증거가 아니다. 전체 LOGH-42 Done 판정이 아니며 수정 후 `logh-review`의 R1/R2 독립 재확인과 `logh-verify` 검증 전까지 PR은 draft·병합 불가다. 이 인계는 리뷰 완료 승인이나 병합 완료를 의미하지 않는다.
 
-CI 실패 조사에서 Gateway는 loopback 또는 활성 VirtualBox host-only adapter만 허용하며 Docker bridge는 지원하지 않음을 확인했다. 첫 0.0.0.0 제안과 후속 사설 IP 해석 모두 이 기존 보호 규칙과 충돌한다. 소스 금지 범위를 지키고 최종 bind를 127.0.0.1로 두었다. 컨테이너 health와 이미지/config는 검증 가능하지만 호스트 공개 TCP(AC3)는 BLOCKED이다. 후속 최소 소스 계약 또는 기획 변경이 필요하며 PR은 draft/차단 상태로 인계한다.
+이전 head 기록: Gateway가 loopback 또는 활성 VirtualBox host-only adapter만 허용해 Docker bridge 검사가 실패했고, 단순 호스트 connect는 docker-proxy 수락으로 거짓 양성이었다. 이 경위는 현재 검증 계약과 구분한다. 현재도 `LOGH7_BIND_ADDRESS=127.0.0.1`과 기존 보호 규칙을 유지하며 Kotlin·Compose·CI 보안 설정은 이번 문서 수정에서 변경하지 않았다.
 
-loopback head의 단순 호스트 connect CI는 docker-proxy 수락으로 거짓 양성이었다. 최신 workflow는 컨테이너 사설 IP의 실제 gateway 도달 검사를 추가해 이 경우를 실패로 판정한다. 기존 green run만으로 AC3 충족을 선언하지 않는다.
+현재 workflow는 bridge 도달 검사를 수행하지 않는다. PR 자체 bridge·published TCP 검사를 컨테이너 내부 loopback 검사로 정정했으며, bridge TCP 수락(AC3)은 이 PR의 인수 기준이 아니다. 호스트 게임 연결이 필요하면 별도 이슈에서 bind 계약과 정책 개정 여부를 결정해야 한다. 내부 loopback 검사나 이전 green run으로 호스트 연결·전체 스택·게임 QA 완료를 주장하지 않는다.
