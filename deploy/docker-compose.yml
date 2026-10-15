@@ -7,7 +7,7 @@ services:
     profiles: [game]
     restart: unless-stopped
     environment:
-      # Gateway permits loopback/VirtualBox only; bridge TCP publishing is blocked.
+      # Gateway permits loopback/VirtualBox only; listeners stay container-internal.
       LOGH7_BIND_ADDRESS: 127.0.0.1
       LOGH7_SESSION_PORT: ${SESSION_PORT:-47903}
       LOGH7_SESSION_ADDRESS: ${PUBLIC_HOST:-127.0.0.1}
@@ -16,10 +16,7 @@ services:
     volumes:
       - game_sessions:/data/sessions
       - game_captures:/data/captures
-    ports:
-      - "${GAME_BIND_IP:-127.0.0.1}:47900:47900"
-      - "${GAME_BIND_IP:-127.0.0.1}:47902:47902"
-      - "${GAME_BIND_IP:-127.0.0.1}:${SESSION_PORT:-47903}:${SESSION_PORT:-47903}"
+    # No published game ports: Docker bridge cannot reach loopback listeners.
     networks: [backend]
     logging: &logging
       driver: json-file

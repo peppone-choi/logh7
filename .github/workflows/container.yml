@@ -24,7 +24,7 @@ jobs:
           import json
           game = json.load(open('/tmp/compose.json'))['services']['game-server']
           assert all(key.startswith('LOGH7_') for key in game['environment'])
-          assert all(port['host_ip'] == '127.0.0.1' for port in game['ports'])
+          assert not game.get('ports')  # Loopback listeners are container-internal only.
           assert not game.get('depends_on') and not game.get('secrets')
           PYCODE
           test "$(docker image inspect --format '{{.Config.User}}' "$GAME_SERVER_IMAGE")" = '10001:10001'
@@ -35,7 +35,7 @@ jobs:
           '
       - name: Start game service and wait for health
         run: docker compose -f deploy/docker-compose.yml --profile game up -d --no-build --wait --wait-timeout 120 game-server
-      - name: Check health HTTP 200 and published TCP listeners
+      - name: Check health HTTP 200 and internal loopback TCP listeners
         run: |
           docker compose -f deploy/docker-compose.yml --profile game exec -T game-server bash -ec '
             exec 3<>/dev/tcp/127.0.0.1/47901
@@ -44,20 +44,13 @@ jobs:
             [[ "$status" == *" 200 "* ]]
             echo "$status"
           '
-          # Host connect alone can reach docker-proxy even without an app listener.
-          # Verify the container bridge address reaches the actual gateway too.
+          # Gateway policy permits loopback, not a Docker bridge address.
           docker compose -f deploy/docker-compose.yml --profile game exec -T game-server bash -ec '
-            read -ra addresses <<< "$(hostname -i)"
             for port in 47900 47902 47903; do
-              (exec 3<>/dev/tcp/${addresses[0]}/$port)
+              (exec 3<>/dev/tcp/127.0.0.1/$port)
+              echo "Internal loopback TCP $port: accepted"
             done
           '
-          python3 - <<'PYCODE'
-          import socket
-          for port in (47900, 47902, 47903):
-              with socket.create_connection(('127.0.0.1', port), timeout=5):
-                  print(f'TCP {port}: accepted')
-          PYCODE
       - name: Diagnostics
         if: always()
         run: |
