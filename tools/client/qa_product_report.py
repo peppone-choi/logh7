@@ -45,7 +45,7 @@ def product_report(device, head, runtime=None, evidence=None):
         'runtimeHeadProvenanceVerified': False,
         'runtimeEvidence': evidence,
         'runtimeStatus': runtime['status'] if runtime else None,
-        'blockers': ['Product API/render assertion collectors and aggregate PASS gate are missing; '
+        'blockers': ['Product API assertion collector and aggregate PASS gate are missing; '
                      'runtime observation, fixture PASS, exec and probe are not product PASS.'],
     }
 
@@ -262,6 +262,26 @@ def apply_audio_check(report, runtime):
     # Check PASS never promotes the platform/exit code before I6.
 
 
+def apply_render_check(report, runtime):
+    # Only called after same-run hashes and target/config bindings pass.
+    root = Path(runtime['owned_temp']) / 'evidence'
+    if not (root / 'render.json').exists():
+        if ('render_evidence' in runtime['controller'] or
+                runtime.get('controller_config', {}).get('render_collector') is True):
+            raise ValueError('Missing render collector evidence')
+        return  # Older evidence has no I4 collector; never infer coverage.
+    spec = importlib.util.spec_from_file_location('logh_render', Path(__file__).with_name('qa_render.py'))
+    assert spec is not None and spec.loader is not None
+    render = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(render)
+    result = render.check_render(root)
+    report['platforms']['windows']['checks'][2].update(
+        status=result['status'], evidence=str(root / 'render.json'), detail=result)
+    if result['status'] == 'FAIL':
+        report['platforms']['windows']['status'] = 'FAIL'
+    # I6 owns aggregate PASS/exit0; one rendered frame cannot promote it.
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, required=True)
@@ -312,6 +332,7 @@ def main():
                     report['blockers'].pop()
                     apply_protocol_check(report, raw)
                     apply_audio_check(report, raw)
+                    apply_render_check(report, raw)
                 if raw['status'].startswith('WAIT_'):
                     report['blockers'].append(raw['status'])
             validate_checkout(args.head, preflight.git(args.repo, 'rev-parse', 'HEAD'),

@@ -18,7 +18,8 @@ import uuid
 HERE = Path(__file__).resolve().parent
 OWN_CODE = ('qa_prestart_runner.py', 'qa_prestart_audio.py', 'qa_prestart_silence_x86.js',
             'qa_prestart_fixture.py', 'qa_session_mutex.py', 'qa_isolated_runner.py',
-            'qa_silent_fixture.py', 'qa_protocol.py', 'qa_audio_coverage.py')
+            'qa_silent_fixture.py', 'qa_protocol.py', 'qa_audio_coverage.py',
+            'qa_render.py', 'qa_render_x86.js')
 
 
 def digest(path):
@@ -205,7 +206,7 @@ def controller(config):
     import qa_prestart_audio as audio
     result = {'status': 'FAIL', 'resumed': False, 'product_pass': False, 'product_qa': 'NOT_RUN',
               'environment_ready': False, 'guard_receipts': [], 'cleanup_verified': False}
-    process = thread = inner = guard = None
+    process = thread = inner = guard = render = None
     assigned = False
     try:
         if Path(config['cancel']).exists():
@@ -247,6 +248,10 @@ def controller(config):
                                  on_failure=lambda: audio.stop_owned_handle(process))
         result['helper_identities'] = guard.helper_identities
         result['pre_resume_receipt'] = timed_receipt(guard)
+        if config['product_logh']:
+            from qa_render import RenderCollector
+            render = RenderCollector(config, result)
+            render.install(guard.session)
         # Synthetic native callbacks/vtables only: never real audio devices or
         # sessions. Tests the installed blocking mechanism without playback.
         if not config['product_logh']:
@@ -288,6 +293,8 @@ def controller(config):
                         True, elapsed, config.get('observe_seconds')) == 'PRODUCT_WINDOW_COMPLETE':
                     # Retained owned handle only. Hooks stay installed until signalled.
                     save_audio_evidence(config, result, guard)
+                    assert render is not None
+                    render.finish()
                     audio.stop_owned_handle(process)
                     result['status'] = 'PRODUCT_WINDOW_COMPLETE'
                     break
@@ -311,6 +318,12 @@ def controller(config):
         result['error'] = str(error)
         result['status'] = 'TIMEOUT' if isinstance(error, TimeoutError) else 'FAIL'
     finally:
+        if render and not render.saved:
+            try:
+                render.finish()
+            except BaseException as error:
+                result['render_evidence_error'] = str(error)
+                result['status'] = 'FAIL'
         # On failure/cancellation, attempt a last snapshot too. A failed RPC is
         # not coverage and MUST NOT skip retained Job/handle cleanup below.
         if guard and config['product_logh'] and 'audio_evidence' not in result:
@@ -432,6 +445,7 @@ def run(args):
         report['outer_policy'] = job_policy(outer)
         cancel = args.cancel_file or root / 'cancel'
         config = dict(site=pinned['site'], mode=args.mode, timeout=args.timeout,
+                      render_collector=args.product_logh,
                       manifest_sha256=args.manifest_sha256,
                       observe_seconds=getattr(args, 'observe_seconds', None),
                       protocol_port=getattr(args, 'port', 20000),
