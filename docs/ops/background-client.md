@@ -25,6 +25,10 @@ dirty 상태를 수집한다. 지정한 새 작업 전용 `--out`에만 증거�
 검토한 SHA256의 `qa_owned_process.py`에만 `--kind logh --project logh --report`를
 전달하며 launcher 인자나 게임 실행 경로를 전달하지 않는다. 이 wrapper의 LOGH 경로는
 프로세스 생성 전에 무조건 대기한다. wrapper 바이트가 달라지면 실행도 거부한다.
+wrapper가 고정 경로 `E:/logh7/tools/client/audio_guard.py`에서 import하는 파일도
+실행 전에 검토된 SHA256과 대조하고 경로·해시를 `readiness.audioGuard`에 기록한다.
+`--repo`로 import 경로를 바꾸지 않는다. 파일 누락·읽기 실패·해시 불일치는
+`UNREVIEWED_AUDIO_GUARD`로 기록하고 wrapper를 실행하지 않는다.
 
 Windows Python 3.11로 아래 인자를 전달하고 `hermes-windows exec --project logh`로
 실행한다. 어댑터와 출력은 `E:\logh7\work\<task>\` 같은 새 작업 전용 경로에 둔다.

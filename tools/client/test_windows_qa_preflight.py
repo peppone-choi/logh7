@@ -68,17 +68,49 @@ class PreflightTest(unittest.TestCase):
                 self.assertNotIn("run-background.py", command)
                 output.write_text('{"status":"WAITING_FOR_BACKGROUND_QA"}')
                 return subprocess.CompletedProcess(command, 3, "", "")
-            with patch.object(preflight, "sha256", return_value=preflight.WRAPPER_SHA256), \
+            with patch.object(preflight, "sha256", side_effect=[preflight.WRAPPER_SHA256,
+                    preflight.AUDIO_GUARD_SHA256]), \
                     patch.object(preflight.subprocess, "run", side_effect=fake_run):
                 result = preflight.wrapper_readiness(Path(root) / "wrapper.py", output)
             self.assertEqual(result["returncode"], 3)
+            self.assertEqual(result["audioGuard"]["sha256"], preflight.AUDIO_GUARD_SHA256)
             self.assertEqual(result["report"]["status"], "WAITING_FOR_BACKGROUND_QA")
 
     def test_timeout_is_not_success(self):
-        with patch.object(preflight, "sha256", return_value=preflight.WRAPPER_SHA256), \
+        with patch.object(preflight, "sha256", side_effect=[preflight.WRAPPER_SHA256,
+                preflight.AUDIO_GUARD_SHA256]), \
                 patch.object(preflight.subprocess, "run", side_effect=subprocess.TimeoutExpired("wrapper", 20)):
             result = preflight.wrapper_readiness(Path("wrapper.py"), Path("missing.json"))
         self.assertEqual(result["status"], "WRAPPER_TIMEOUT")
+
+    def test_unrecognized_audio_guard_is_not_executed(self):
+        with tempfile.TemporaryDirectory() as root:
+            guard = Path(root) / "audio_guard.py"
+            guard.write_text("raise RuntimeError('must not import')")
+            actual_hash = preflight.sha256(guard)
+            original_sha256 = preflight.sha256
+            def file_hash(path):
+                if path == guard:
+                    return original_sha256(path)
+                return preflight.WRAPPER_SHA256
+            with patch.object(preflight, "AUDIO_GUARD_PATH", guard), \
+                    patch.object(preflight, "sha256", side_effect=file_hash), \
+                    patch.object(preflight.subprocess, "run") as run:
+                result = preflight.wrapper_readiness(Path(root) / "wrapper.py",
+                                                     Path(root) / "readiness.json")
+            run.assert_not_called()
+            self.assertEqual(result["status"], "UNREVIEWED_AUDIO_GUARD")
+            self.assertEqual(result["audioGuard"], {"path": str(guard), "sha256": actual_hash})
+
+    def test_missing_audio_guard_is_not_executed(self):
+        with patch.object(preflight, "sha256", side_effect=[preflight.WRAPPER_SHA256,
+                FileNotFoundError("missing guard")]), \
+                patch.object(preflight.subprocess, "run") as run:
+            result = preflight.wrapper_readiness(Path("wrapper.py"), Path("missing.json"))
+        run.assert_not_called()
+        self.assertEqual(result["status"], "UNREVIEWED_AUDIO_GUARD")
+        self.assertIsNone(result["audioGuard"]["sha256"])
+        self.assertIn("FileNotFoundError", result["audioGuard"]["error"])
 
 
 if __name__ == "__main__":

@@ -14,6 +14,9 @@ import subprocess
 import sys
 
 WRAPPER_SHA256 = "818595eda6b666a6ab0df68f8fcc4793bdf7f095e79d6dfb6260f22c92507869"
+AUDIO_GUARD_SHA256 = "3353e18184541be0566460993693888872a35c14206128c7ce4a120071890ee3"
+# The pinned wrapper imports from this fixed path, independent of --repo.
+AUDIO_GUARD_PATH = Path("E:/logh7/tools/client/audio_guard.py")
 TARGET_SHA256 = "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16"
 
 
@@ -31,6 +34,13 @@ def wrapper_readiness(wrapper, output):
     digest = sha256(wrapper)
     if digest != WRAPPER_SHA256:
         return {"status": "UNREVIEWED_WRAPPER", "sha256": digest}
+    guard = {"path": str(AUDIO_GUARD_PATH), "sha256": None}
+    try:
+        guard["sha256"] = sha256(AUDIO_GUARD_PATH)
+    except OSError as error:
+        guard["error"] = f"{type(error).__name__}: {error}"
+    if guard["sha256"] != AUDIO_GUARD_SHA256:
+        return {"status": "UNREVIEWED_AUDIO_GUARD", "sha256": digest, "audioGuard": guard}
     if output.exists():
         raise ValueError("Refusing to overwrite readiness evidence")
     try:
@@ -38,8 +48,8 @@ def wrapper_readiness(wrapper, output):
             [sys.executable, "-B", str(wrapper), "--kind", "logh", "--project", "logh",
              "--report", str(output)], capture_output=True, text=True, timeout=20)
     except subprocess.TimeoutExpired:
-        return {"status": "WRAPPER_TIMEOUT", "sha256": digest}
-    return {"sha256": digest, "returncode": result.returncode,
+        return {"status": "WRAPPER_TIMEOUT", "sha256": digest, "audioGuard": guard}
+    return {"sha256": digest, "audioGuard": guard, "returncode": result.returncode,
             "stdout": result.stdout, "stderr": result.stderr,
             "report": json.loads(output.read_text(encoding="utf-8")) if output.exists() else None}
 
