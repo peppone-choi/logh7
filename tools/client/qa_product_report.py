@@ -44,7 +44,7 @@ def product_report(device, head, runtime=None, evidence=None):
         'runtimeHeadProvenanceVerified': False,
         'runtimeEvidence': evidence,
         'runtimeStatus': runtime['status'] if runtime else None,
-        'blockers': ['Product API/audio/render/protocol assertion collectors are missing; '
+        'blockers': ['Product API/audio/render assertion collectors are missing; '
                      'runtime observation, fixture PASS, exec and probe are not product PASS.'],
     }
 
@@ -217,6 +217,27 @@ def safety_fields(runtime):
     return result
 
 
+def apply_protocol_check(report, runtime):
+    # Only called after same_run_provenance has bound ALL evidence and target.
+    root = Path(runtime['owned_temp']) / 'evidence'
+    if not (root / 'protocol.json').exists():
+        if 'protocol_check' in runtime or 'protocol_port' in runtime['controller_config']:
+            raise ValueError('Missing protocol collector evidence')
+        return  # Historical I1 evidence has no collector; remain NOT_RUN.
+    spec = importlib.util.spec_from_file_location('logh_protocol', Path(__file__).with_name('qa_protocol.py'))
+    assert spec is not None and spec.loader is not None
+    protocol = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(protocol)
+    result = protocol.check_evidence(root, runtime['controller_config'])
+    if result != runtime.get('protocol_check'):
+        raise ValueError('Protocol runtime/evidence verdict mismatch')
+    check = report['platforms']['windows']['checks'][-1]
+    check.update(status=result['status'], evidence=str(root / 'protocol.json'), detail=result)
+    if result['status'] == 'FAIL':
+        report['platforms']['windows']['status'] = 'FAIL'
+    # I6 owns aggregate PASS. A protocol PASS cannot change the platform to PASS.
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, required=True)
@@ -265,6 +286,7 @@ def main():
                 if verified:
                     report.update(safety_fields(raw))
                     report['blockers'].pop()
+                    apply_protocol_check(report, raw)
                 if raw['status'].startswith('WAIT_'):
                     report['blockers'].append(raw['status'])
             validate_checkout(args.head, preflight.git(args.repo, 'rev-parse', 'HEAD'),

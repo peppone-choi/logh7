@@ -2,7 +2,7 @@
 
 기본 `-Mode Report`는 제품을 실행하지 않고 기존 증거만 보고한다.
 `-Mode Run`은 기존 격리 시험기를 호출하고 같은 실행의 증거를 보고한다.
-제품 check collector는 아직 없으며, 어느 모드에도 PASS/exit 0 경로는 없다.
+프로토콜 check collector만 구현되어 있으며, 어느 모드에도 제품 PASS/exit 0 경로는 없다.
 이 연결만으로 공식 제품 QA를 재개하거나 PASS 영수증을 만들 수 없다.
 
 ## 조사와 재사용
@@ -14,7 +14,7 @@
 - `qa_prestart_runner.py`: 공유 mutex/격리 데스크톱/음소거 계측/소유 Job 정리를
   담당한다. 제품 정상 종료는 PRODUCT_OBSERVED/exit 2이고 제품 PASS가 아니다.
 - `docs/ops/prestart-runtime.md`: 실제 API·DirectSound/WASAPI/winmm·렌더·프로토콜
-  관찰 설계만 존재한다. 실행 가능한 제품 assertion collector는 없다.
+  관찰 설계와 프로토콜 collector를 구분한다. API/오디오/렌더 assertion은 아직 없다.
 - 보존 증거 `results/t_e7260e40-RESULT.json`, `results/t_a1c38302-RESULT.json` 및
   `evidence/t_a1c38302/readback.json`은 준비/fixture 결과다. evidence/의 기존
   PowerShell에서 `platforms`/`hermes-windows qa` 보고 진입은 발견되지 않았다.
@@ -37,7 +37,7 @@ Report 모드의 프로세스 생성은 git 조회뿐이며 게임·fixture를 �
 
 stdout은 Hermes 계약의 JSON 보고 하나다. exit 3은 NOT_RUN, exit 2는 FAIL이다.
 PASS/exit 0 경로는 없다. fixture PASS나 임의 입력의 product_pass=true도 제품
-PASS로 승격하지 않는다. 네 제품 checks는 모두 NOT_RUN이다. Report 모드의
+PASS로 승격하지 않는다. 검증된 same-run 증거가 없는 제품 checks는 NOT_RUN이다. Report 모드의
 안전 증명과 `runtimeHeadProvenanceVerified`는 false다. Run 모드는 아래의
 같은 실행 바인딩을 통과한 뒤에만 안전 증거를 계산한다. false는 안전성 실패의
 관측일 수도, 증명 미제출일 수도 있으므로 원자료를 함께 확인한다.
@@ -82,7 +82,44 @@ Out 부모는 사전에 준비한 전용 출력 경로이며 checkout 밖에 둔
 Windows 경로는 E:/HermesQA 하위만 허용하며 따옴표·제어문자·경로 이탈을 거부한다.
 output은 /srv/hermes-workspace/projects/logh 아래의 새 .ps1이며 덮어쓰지 않는다.
 생성은 실행 승인이 아니다. 이 driver를 기존 `hermes-windows qa --script`에 전달한다.
-upstream 서버 시작/인자는 I1에 포함하지 않는다(프로토콜 단계에서 연결).
+I2에서 선택 `--upstream-port`/`-UpstreamPort`를 연결했다. 서버를 기동하지 않으며
+기존 loopback upstream에만 연결한다. 생략하면 응답을 만들지 않고 NOT_RUN으로 남긴다.
+
+### I2 초기 로그인 프로토콜 collector
+
+`qa_protocol.py`의 stdlib thread는 supervisor(대상 Job 밖)에서 target controller를
+Resume하기 전에 `127.0.0.1:<manifest target port>`에만 bind한다. 다른 bind 주소와
+동일한 recorder/upstream 포트는 거부한다. upstream도 127.0.0.1로만 연결한다.
+수락 연결은 한 개뿐이며 두 번째 연결은 닫고 FAIL로 기록한다. 수신 바이트만 그대로
+전달하며 응답 생성·키 교환 구현·복호화·서버 기동은 하지 않는다.
+
+owned_temp/evidence/에 다음 파일을 보존한다:
+
+- protocol-c2s.bin, protocol-s2c.bin: 각각의 방향에서 받은 원바이트.
+- protocol.jsonl: 수신 청크의 t_mono/dir(c2s 또는 s2c)/offset/len. offset은 방향별이다.
+- protocol.json: run_id/manifest_sha256/config_sha256/target 바인딩, recorder/upstream
+  포트, 연결 수, 오류, 세 companion SHA256, 판정과 관찰 프레임 목록.
+
+모든 파일을 cleanup 후 evidence_files에 등록한다. 바이너리와 JSONL은 원자료이므로
+바인딩을 삽입하지 않고 protocol.json의 companion 해시 및 evidence_files로 결합한다.
+어댑터는 기존 same-run 검증을 통과한 뒤 companion 해시와 target 인자의 고정 포트를
+재검사하고 원바이트/타임라인에서 판정을 다시 계산한다. 저장된 판정도 같아야 한다.
+누락·해시/바인딩/판정 불일치는 FAIL이다. same-user 동시 변조 저항은 주장하지 않는다.
+
+초기 로그인은 session-login.md의 length:BE16(자신 제외), type:BE16만 사용한다.
+clear_header는 없다. TCP 청크 분할/병합과 무관하게 완전한 프레임의 관찰 순서를 본다.
+
+- PASS: 한 연결에서 C2S 0x34 → S2C 0x35 → C2S 0x36 → C2S 외부 type 0x30 ≥1.
+  0x30 본문 복호·0x7000·계정 로그인 성공은 주장하지 않는다.
+- NOT_RUN: upstream 없음, 연결 없음 또는 정상 부분 교환(첫 0x34 포함).
+- FAIL: 손상/잘린 길이, 순서·type 위반, 추가 연결, upstream 연결 실패/단절,
+  capture 한도 초과 또는 전달 실패. target의 선행 연결 종료 뒤에는 upstream도 닫는다.
+
+전체 원바이트 16 MiB, 청크 16,384개, 프레임 4,096개를 넘으면 FAIL이다.
+각 소켓 연결/전송 timeout은 0.2초이며 부하/역압으로 전달하지 못해도 FAIL이다.
+소유 트리 정리 뒤 thread를 멈추며 이미 읽을 수 있는 바이트는 소진한다.
+protocol check의 PASS만 보고해도 platforms.windows는 NOT_RUN/FAIL이며 exit 0은 없다.
+나머지 세 collector와 I6 통합은 후속 단계다. Windows native 실행은 이번 단계 NOT_RUN이다.
 
 ### 같은 실행 바인딩과 안전 계산
 
@@ -115,8 +152,8 @@ owned_temp/evidence/와 cleanup 후 evidence_files[{path,sha256}]를 보존한�
    격리/무음/소유 프로세스 정리 보장을 확인한다. 사용자 프로세스는 중지하지 않는다.
 2. 새 final SHA 전용 별도 사본과 전용 Python/전체 app-tree manifest를 준비하고
    새 해시를 외부 pin한다. 옛 db692c3 사본/manifest는 새 SHA의 증거가 아니다.
-3. 실행 오케스트레이션과 공통 증거 연결은 있으나 실제 제품 check collector는
-   아직 없다. 제품 API/audio/render/protocol assertion을 구현·독립 리뷰한 뒤에만
+3. 실행 오케스트레이션과 프로토콜 collector는 있으나 실제 제품 실행 증거는 없다.
+   제품 API/audio/render assertion 및 최종 통합을 구현·독립 리뷰한 뒤에만
    이 보고 어댑터의 PASS 불가 정책을
    바꿀 수 있다. 제품을 띄워 관찰만 하는 것을 완성된 QA로 제출하지 않는다.
 4. API/오디오/렌더/프로토콜 및 isolation/silent/cleanup의 실제 근거가 모두

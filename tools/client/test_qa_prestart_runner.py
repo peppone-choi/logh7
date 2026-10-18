@@ -141,6 +141,8 @@ class PrestartTests(unittest.TestCase):
                                    win32job=wj, win32process=wp, win32service=Mock(),
                                    win32ts=Mock(WTSEnumerateProcesses=Mock(return_value=[])),
                                    qa_prestart_audio=audio, qa_isolated_runner=isolated)
+                    # No real sockets or thread clock in this Win32 control-flow mock.
+                    modules['qa_protocol'] = Mock()
                     sessions = [[0], [0], [1] if error.startswith('WAIT_') else [0], [0]]
                     with patch.dict(sys.modules, modules), \
                             patch.object(runner, 'validate', return_value={'site': 'pinned', 'app': {}, 'target_args': []}), \

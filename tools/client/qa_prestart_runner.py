@@ -18,7 +18,7 @@ import uuid
 HERE = Path(__file__).resolve().parent
 OWN_CODE = ('qa_prestart_runner.py', 'qa_prestart_audio.py', 'qa_prestart_silence_x86.js',
             'qa_prestart_fixture.py', 'qa_session_mutex.py', 'qa_isolated_runner.py',
-            'qa_silent_fixture.py')
+            'qa_silent_fixture.py', 'qa_protocol.py')
 
 
 def digest(path):
@@ -348,7 +348,7 @@ def run(args):
     from qa_isolated_runner import snapshot, isolated
     from qa_session_mutex import SessionMutex
     import qa_prestart_audio as audio
-    mutex = desk = outer = process = thread = None
+    mutex = desk = outer = process = thread = recorder = None
     assigned = False
     observed = {}
     before = None
@@ -398,6 +398,8 @@ def run(args):
         cancel = args.cancel_file or root / 'cancel'
         config = dict(site=pinned['site'], mode=args.mode, timeout=args.timeout,
                       observe_seconds=getattr(args, 'observe_seconds', None),
+                      protocol_port=getattr(args, 'port', 20000),
+                      upstream_port=getattr(args, 'upstream_port', None),
                       runtime_report=str(args.report),
                       product_logh=args.product_logh, executable=str(executable),
                       app_root=str(app_root), expected_runtime=pinned['app'],
@@ -408,6 +410,10 @@ def run(args):
         config_path.write_text(json.dumps(config))
         report['config_sha256'] = digest(config_path)
         report['controller_config'] = config
+        if args.product_logh:
+            from qa_protocol import LoopbackRecorder
+            recorder = LoopbackRecorder(root / 'evidence', config['protocol_port'], config['upstream_port'])
+            recorder.start()  # Supervisor thread is outside both owned Jobs.
         env = dict(os.environ, TEMP=str(root), TMP=str(root), LOGH_QA_FRIDA_TEMP=str(root),
                    LOGH_QA_TEMP_PARENT=str(args.temp_parent))
         command = controller_command(root, config_path, report['config_sha256'])
@@ -485,10 +491,7 @@ def run(args):
                     raise RuntimeError('Session set changed')
             if args.product_logh:
                 report['protected_processes_after'] = protected_processes()
-            if report.get('owned_temp'):
-                evidence = Path(report['owned_temp']) / 'evidence'
-                report['evidence_files'] = [{'path': str(p), 'sha256': digest(p)}
-                                             for p in sorted(evidence.rglob('*')) if p.is_file()]
+
         except BaseException as error:
             report['status'] = 'CLEANUP_FAILED'
             report['cleanup_error'] = str(error)
@@ -500,6 +503,22 @@ def run(args):
                 desk.CloseDesktop()
             if mutex:
                 mutex.close()
+    # Always finalize captures after owned target/controller cleanup, even if
+    # session/cleanup validation above failed. Never turn a failed run into PASS.
+    try:
+        if recorder and recorder.thread:
+            report['protocol_check'] = recorder.finish(dict(
+                run_id=report['run_id'], manifest_sha256=report['manifest_sha256'],
+                config_sha256=report['config_sha256'],
+                target=report.get('controller', {}).get('target')))
+        if report.get('owned_temp'):
+            evidence = Path(report['owned_temp']) / 'evidence'
+            report['evidence_files'] = [{'path': str(p), 'sha256': digest(p)}
+                                      for p in sorted(evidence.rglob('*')) if p.is_file()]
+    except Exception as error:
+        if report['status'] != 'CLEANUP_FAILED':
+            report['status'] = 'FAIL'
+        report['protocol_error'] = str(error)
     return report
 
 
@@ -521,6 +540,7 @@ def main():
     parser.add_argument('--executable', type=Path)
     parser.add_argument('--app-root', type=Path)
     parser.add_argument('--port', type=int, default=20000)
+    parser.add_argument('--upstream-port', type=int)
     parser.add_argument('--manifest-sha256')
     parser.add_argument('--record-manifest', action='store_true')
     parser.add_argument('--product-logh', action='store_true')
@@ -537,6 +557,9 @@ def main():
         parser.error('observe-seconds requires product mode, 1..25 and less than timeout')
     if not 1024 <= args.port <= 65535:
         parser.error('local stub port must be 1024..65535')
+    if args.upstream_port is not None and (not args.product_logh or
+            not 1024 <= args.upstream_port <= 65535 or args.upstream_port == args.port):
+        parser.error('upstream-port requires product mode and a distinct 1024..65535 loopback port')
     if args.product_logh and (args.executable is None or args.app_root is None):
         parser.error('product requires --executable and --app-root')
     if not args.product_logh and args.fixture_dir is None:

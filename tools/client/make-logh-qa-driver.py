@@ -18,7 +18,7 @@ def private_path(value):
 
 
 def render_driver(head, copy, python, manifest, manifest_sha256, app_root,
-                  temp_parent, port, observe_seconds, out_root, timeout=30):
+                  temp_parent, port, observe_seconds, out_root, timeout=30, upstream_port=None):
     if not re.fullmatch('[0-9a-f]{40}', head):
         raise ValueError('Head must be lowercase 40hex')
     if not re.fullmatch('[0-9a-f]{64}', manifest_sha256):
@@ -26,6 +26,9 @@ def render_driver(head, copy, python, manifest, manifest_sha256, app_root,
     if not (1024 <= port <= 65535 and 1 <= observe_seconds <= 25
             and observe_seconds < timeout <= 30):
         raise ValueError('Port/observation/timeout outside supported bounds')
+    if upstream_port is not None and (type(upstream_port) is not int or
+            not 1024 <= upstream_port <= 65535 or upstream_port == port):
+        raise ValueError('Upstream must be a distinct loopback port in 1024..65535')
     for value in (copy, python, manifest, app_root, temp_parent, out_root):
         private_path(value)
     out = str(PurePosixPath(out_root) / ('product-' + uuid.uuid4().hex + '.json'))
@@ -33,6 +36,8 @@ def render_driver(head, copy, python, manifest, manifest_sha256, app_root,
               ('Out', out), ('Manifest', manifest), ('ManifestSha256', manifest_sha256),
               ('AppRoot', app_root), ('TempParent', temp_parent), ('Port', str(port)),
               ('ObserveSeconds', str(observe_seconds)), ('Timeout', str(timeout))]
+    if upstream_port is not None:
+        values.append(('UpstreamPort', str(upstream_port)))
     def literal(value):
         return "'" + value.replace("'", "''") + "'"
     return ('& ' + literal(copy + '/tools/client/windows-product-qa.ps1') + ' ' +
@@ -45,6 +50,7 @@ def main():
                  'temp-parent', 'out-root'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--port', type=int, default=20000)
+    parser.add_argument('--upstream-port', type=int)
     parser.add_argument('--observe-seconds', type=int, default=5)
     parser.add_argument('--timeout', type=int, default=30)
     parser.add_argument('--output', type=Path, required=True)
@@ -56,7 +62,7 @@ def main():
             raise ValueError('Driver must be a new .ps1 under the LOGH server workspace')
         content = render_driver(args.head, args.copy, args.python, args.manifest,
                                 args.manifest_sha256, args.app_root, args.temp_parent,
-                                args.port, args.observe_seconds, args.out_root, args.timeout)
+                                args.port, args.observe_seconds, args.out_root, args.timeout, args.upstream_port)
         with output.open('x', encoding='utf-8', newline='\n') as stream:
             stream.write(content)
     except (OSError, ValueError) as error:

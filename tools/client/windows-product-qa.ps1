@@ -13,6 +13,7 @@ param(
     [string]$AppRoot,
     [string]$TempParent,
     [ValidateRange(1024,65535)][int]$Port = 20000,
+    [ValidateRange(1024,65535)][int]$UpstreamPort,
     [ValidateRange(1,25)][int]$ObserveSeconds = 5,
     [ValidateRange(2,30)][int]$Timeout = 30
 )
@@ -51,6 +52,7 @@ try {
             '--executable', (Join-Path $AppRoot 'exe/G7MTClient.exe'), '--app-root', $AppRoot,
             '--port', [string]$Port, '--observe-seconds', [string]$ObserveSeconds,
             '--timeout', [string]$Timeout, '--cancel-file', $cancel)
+        if ($UpstreamPort) { $runnerArguments += @('--upstream-port', [string]$UpstreamPort) }
         # Dedicated runspace directly invokes Python; no Start-Process or shell
         # command interpolation. Both native streams go only to owned files.
         $pipeline = [PowerShell]::Create()
