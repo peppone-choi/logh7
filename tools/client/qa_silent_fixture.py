@@ -30,7 +30,13 @@ def main():
         kernel.QueryInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p]
         if not kernel.QueryInformationJobObject(job, 4, ctypes.byref(flags), 4, None):
             raise ctypes.WinError(ctypes.get_last_error())
-        record.update(in_named_job=bool(member.value), job_ui_flags=flags.value)
+        record.update(in_named_job=bool(member.value), named_job_ui_flags=flags.value)
+        if not kernel.QueryInformationJobObject(None, 4, ctypes.byref(flags), 4, None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        record['effective_ui_flags'] = flags.value
+        kernel.GlobalFindAtomW.argtypes = [ctypes.c_wchar_p]
+        kernel.GlobalFindAtomW.restype = ctypes.c_ushort
+        record['atom_isolated'] = kernel.GlobalFindAtomW(os.environ['LOGH_QA_ATOM']) == 0
     finally:
         kernel.CloseHandle.argtypes = [ctypes.c_void_p]
         kernel.CloseHandle(job)
@@ -40,6 +46,7 @@ def main():
         user.CreateDesktopW.restype = ctypes.c_void_p
         handle = user.CreateDesktopW('DENIED_' + str(os.getpid()), None, None, 0, 0x10000000, None)
         record['desktop_creation_denied'] = not handle
+        record['create_desktop_err'] = ctypes.get_last_error() if not handle else 0
         if handle:
             user.CloseDesktop.argtypes = [ctypes.c_void_p]
             user.CloseDesktop(handle)
@@ -49,7 +56,10 @@ def main():
         time.sleep(1)
     elif args.mode == 'hang':
         time.sleep(60)
-    return 7 if args.mode == 'failure' else (9 if audio or not record['in_named_job'] or record['job_ui_flags'] != 255 or record.get('desktop_creation_denied') is False else 0)
+    valid = (not audio and record['in_named_job'] and record['effective_ui_flags'] == 255
+             and record['atom_isolated'] and (args.mode != 'desktop-denial' or
+             (record['desktop_creation_denied'] and record['create_desktop_err'] == 5)))
+    return 9 if not valid else (7 if args.mode == 'failure' else 0)
 
 
 if __name__ == '__main__':

@@ -34,8 +34,21 @@ def inventory(repo):
             runtime.update(p.resolve() for p in parent.rglob('*') if p.is_file() and p.suffix.lower() in ('.py', '.pyd', '.dll', '.exe'))
         runtime.update(p.resolve() for p in Path(sys.base_prefix).glob('*.dll'))
         runtime.add(Path(sys.executable).resolve())
+        runtime.add(base_executable())
         files.update({str(p): digest(p) for p in sorted(runtime)})
-    return {'version': 1, 'files': files}
+    return {'version': 2, 'fixture_executable': str(base_executable()), 'files': files}
+
+
+def base_executable():
+    return Path(getattr(sys, '_base_executable', sys.executable)).resolve(strict=True)
+
+
+def ui_enforced(records, identities, mode):
+    return (bool(records) and {r['pid'] for r in records} == set(identities)
+            and all(r.get('in_named_job') and r.get('effective_ui_flags') == 255
+                    and r.get('atom_isolated') and (mode != 'desktop-denial' or
+                    (r.get('desktop_creation_denied') and r.get('create_desktop_err') == 5))
+                    for r in records))
 
 
 def validate(repo, manifest, fixture):
@@ -83,6 +96,7 @@ def run(args):
     output = args.report.open('x', encoding='utf-8')
     mutex = desk = job = process = thread = None
     held = False
+    atom = 0
     identities = {}
     owned_handles = {}
     assigned = False
@@ -100,6 +114,11 @@ def run(args):
         import win32process
         import win32service
         import win32ts
+        import ctypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.GlobalAddAtomW.argtypes = [ctypes.c_wchar_p]
+        kernel.GlobalAddAtomW.restype = ctypes.c_ushort
+        kernel.GlobalDeleteAtom.argtypes = [ctypes.c_ushort]
         def identity(pid):
             handle = win32api.OpenProcess(0x1000 | 0x100000, False, pid)
             try:
@@ -151,14 +170,20 @@ def run(args):
         startup.lpDesktop = before['winsta'] + '\\' + name
         startup.dwFlags = win32con.STARTF_USESHOWWINDOW | 0x80
         startup.wShowWindow = 4
-        argv = [sys.executable, '-I', '-B', str(args.fixture), '--mode', args.mode]
+        executable = str(base_executable())
+        argv = [executable, '-I', '-B', str(args.fixture), '--mode', args.mode]
+        atom_name = 'LOGH_QA_ATOM_' + uuid.uuid4().hex
+        atom = kernel.GlobalAddAtomW(atom_name)
+        if not atom:
+            raise ctypes.WinError(ctypes.get_last_error())
         if shutil.disk_usage(args.report.parent).free < 128 * 1024 * 1024:
             raise RuntimeError('INSUFFICIENT_FREE_SPACE')
         temp = args.report.parent / ('TEMP_' + name)
         temp.mkdir()
-        environment = dict(os.environ, TEMP=str(temp), TMP=str(temp), LOGH_QA_JOB=name + '_JOB')
+        environment = dict(os.environ, TEMP=str(temp), TMP=str(temp), LOGH_QA_JOB=name + '_JOB', LOGH_QA_ATOM=atom_name)
         report['owned_temp'] = str(temp)
-        process, thread, pid, _ = win32process.CreateProcess(sys.executable, subprocess.list2cmdline(argv), None, None, False, win32con.CREATE_SUSPENDED, environment, str(args.repo), startup)
+        report['fixture_executable'] = executable
+        process, thread, pid, _ = win32process.CreateProcess(executable, subprocess.list2cmdline(argv), None, None, False, win32con.CREATE_SUSPENDED, environment, str(args.repo), startup)
         identities[pid] = identity(pid)
         win32job.AssignProcessToJobObject(job, process)
         assigned = True
@@ -203,6 +228,9 @@ def run(args):
                 if 'owned_temp' in report:
                     report['fixture_records'] = [json.loads(p.read_text(encoding='utf-8')) for p in Path(report['owned_temp']).glob('fixture-*.json')]
                     report['silent_verified'] = bool(report['fixture_records']) and all(r['silent_by_construction'] and r['pid'] in identities for r in report['fixture_records'])
+                    report['ui_enforced'] = ui_enforced(report['fixture_records'], identities, args.mode)
+                    if not report['ui_enforced']:
+                        report['status'] = 'UI_ENFORCEMENT_UNPROVEN'
                     if report['status'] == 'PASS' and not report['silent_verified']:
                         report['status'] = 'SILENCE_UNPROVEN'
                 if not report['cleanup_verified']:
@@ -220,7 +248,7 @@ def run(args):
                     'I1': before['runner_session'] != before['active_console_session'] and all(before['runner_session'] != i for i, s in before['sessions'] if s in (0, 1)),
                     'I2': before['winsta'].lower() != 'winsta0' and not before['flags'] & 1,
                     'I3': bool(report.get('private_desktop')),
-                    'I4': report.get('job_ui_restrictions') == 255,
+                    'I4': report.get('ui_enforced', False),
                     'I5': bool(report['owned_processes']) and all(p['session'] == before['runner_session'] for p in report['owned_processes']),
                     'I6': report['after'] == before,
                     'I7': report['reference_processes_unchanged']}
@@ -231,6 +259,8 @@ def run(args):
             for handle in (*owned_handles.values(), thread, process, job):
                 if handle:
                     handle.Close()
+            if atom:
+                kernel.GlobalDeleteAtom(atom)
             if desk:
                 desk.CloseDesktop()
             if held:

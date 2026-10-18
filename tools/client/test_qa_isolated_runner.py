@@ -12,6 +12,26 @@ SPEC.loader.exec_module(runner)
 
 
 class IsolationTests(unittest.TestCase):
+    def test_effective_ui_gate(self):
+        record = dict(pid=1, in_named_job=True, effective_ui_flags=255,
+                      atom_isolated=True, desktop_creation_denied=True, create_desktop_err=5)
+        self.assertTrue(runner.ui_enforced([record], {1: 'created'}, 'desktop-denial'))
+        for change in (dict(effective_ui_flags=0), dict(atom_isolated=False),
+                       dict(create_desktop_err=1), dict(in_named_job=False)):
+            self.assertFalse(runner.ui_enforced([dict(record, **change)], {1: 'created'}, 'desktop-denial'))
+        self.assertFalse(runner.ui_enforced([], {1: 'created'}, 'success'))
+        self.assertFalse(runner.ui_enforced([record], {1: 'created', 2: 'missing'}, 'success'))
+
+    def test_manifest_base_path_mismatch(self):
+        repo = Path(__file__).resolve().parents[2]
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest = Path(temporary) / 'manifest.json'
+            data = runner.inventory(repo)
+            data['fixture_executable'] = 'unreviewed-launcher.exe'
+            manifest.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError, 'UNREVIEWED_RUNTIME'):
+                runner.validate(repo, manifest, Path(__file__).with_name('qa_silent_fixture.py'))
+
     def test_structural_gate(self):
         state = dict(runner_session=0, active_console_session=1, sessions=[(0, 4), (1, 0)], winsta='Service-private', flags=0)
         self.assertTrue(runner.isolated(state))

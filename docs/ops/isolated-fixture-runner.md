@@ -1,4 +1,4 @@
-# LOGH isolated fixture runner — partial implementation, runtime acceptance BLOCKED
+# LOGH isolated fixture runner — fixture implementation, independent review pending
 
 Task: t_8ce14871. Base: 82d955b1a787f495c4a97fb5dcac755f0adfc644.
 This is not product QA. No LOGH executable is launched. No official QA receipt exists.
@@ -13,9 +13,9 @@ No arbitrary command or project import is supported. `--product-logh` does not l
 it reports WAIT_PRESTART_SILENCE_INTEGRATION. Do not remove this product boundary until
 separately implemented, independently reviewed prestart silence and target coverage exist.
 
-The inventory function emits version 1 plus exact relative own-code hashes, Windows Python
+The inventory function emits version 2, the exact base fixture interpreter path, relative own-code hashes, Windows Python
 stdlib, interpreter DLLs, venv Python/extension/DLL/executable hashes. Windows v8 measured
-3055 entries. Create a candidate JSON by invoking inventory(root) in the dedicated interpreter;
+3055 entries; v9 has 3056 including the base interpreter. Create a candidate JSON by invoking inventory(root) in the dedicated interpreter;
 recording this candidate is NOT independent review approval. Pin and review it before reuse.
 System Windows DLLs are trusted platform dependencies, not a sandboxed closure. Inventory
 validation has a validation/use race under concurrent modification; do not treat it as a hostile
@@ -51,17 +51,36 @@ Final independent readback found no earlier owned PIDs still present; clean-copy
 7e1704443015341164177de4edb84f9739bbac59 and git status empty. This clean copy is not the runner's
 source SHA and was not modified. Runner files are deployed separately, not a git product checkout.
 
-CRITICAL B7 FAILURE: fixture CreateDesktopW succeeds even though its own IsProcessInJob on the
+Historical v8 B7 FAILURE: fixture CreateDesktopW succeeds even though its own IsProcessInJob on the
 named runner job is true and QueryInformationJobObject UI flags are 255. Fixture exits 9,
 desktop_creation_denied=false. The created desktop is in the nonvisible service window station
 and is closed without switching or input. We did NOT attempt SwitchDesktop, SendInput or
 SetForegroundWindow. They remain NOT_RUN; do not infer they are blocked from flag readback.
 Microsoft documentation says UILIMIT_DESKTOP prevents desktop creation/switching:
 https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_ui_restrictions
-Thus the design's B7 effective-enforcement requirement is NOT met. Runtime acceptance and product
-execution remain blocked, not PASS. A specialist must resolve the measured contradiction (including
-nested SSH Job semantics) or deliver an independently reviewed equally strong isolation proof.
-No safety condition is waived by this implementation.
+The cause is now resolved by design t_59dabc39: CPython's venv redirector creates an immediate
+unrestricted nested Job (UI=0). Named-job membership and a named Job UI query of 255 are NOT
+effective enforcement evidence. Runner now starts sys._base_executable directly, pinned by
+manifest path and hash, with -I -B; descendants use the same direct interpreter. The runner
+may still use its dedicated pywin32 venv. No cmd/py/venv redirector wraps the fixture root.
+Each fixture separately records named_job_ui_flags and effective_ui_flags from
+QueryInformationJobObject(NULL), and must not see the runner's global atom. Every sampled
+owned PID must have a record. Missing records, effective flags !=255 or visible atom yield
+UI_ENFORCEMENT_UNPROVEN, including immediate cancellation before fixture readiness. B7
+requires CreateDesktopW denial specifically with ERROR_ACCESS_DENIED (5), not any error.
+I4 is now the combined ui_enforced result, not configuration readback.
+
+v9 actual evidence: /srv/hermes-workspace/projects/logh/evidence/t_8ce14871-matrix-v9-reports.json.
+Nine unique scenarios: success, failure(exit7), tree(exactly 3 PIDs), timeout, exception,
+immediate cancellation, desktop-denial, mutex contention, bad manifest. All seven creation
+paths cleaned up (zero active Job processes and no remaining owned PIDs). Six paths had
+complete effective255/atom-isolated records; immediate cancellation correctly failed closed
+with UI_ENFORCEMENT_UNPROVEN and error CANCELLED, without claiming isolation readiness.
+B7 now exits 0, desktop_creation_denied=true, create_desktop_err=5. Every created case preserves
+Steam reference PID+creation time and WTS/session/winsta snapshot. This is structural session
+boundary evidence, not direct observation of the user's active screen/foreground or audio.
+The original v7/v8 failure evidence remains preserved. No safety condition is waived.
+Exact-head independent review remains required; product execution remains NOT_RUN.
 
 Earlier failed probes and v6 cleanup failures are preserved. Cleanup was corrected to distinguish
 terminated process objects retained by handles from running processes, avoid a second termination
@@ -90,5 +109,8 @@ owned target + guarded helper topology + pre-Resume assert_ready and full target
 Resolve who creates desktop and where inner/outer Job UI restrictions apply; do not simply nest
 legacy run-background under this fixture Job. Validate harmless x86 fixtures/failure paths first,
 then exact-head independent review, then original-client tests via hermes-windows qa only.
+The actual game must have its immediate effective Job UI checked before Resume and during
+execution (reviewed injection/controller path); controller creates desktops outside that Job.
+Audit interactive-session brokers (scheduled tasks/COM) separately; Job UI is not a security sandbox.
 Session-0 D3D9Ex rendering and real DirectSound/WASAPI coverage are unverified product risks.
 Do not use import-time legacy logh_prestart_readiness.py (it queries host audio).
