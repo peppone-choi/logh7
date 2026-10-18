@@ -28,9 +28,16 @@ def git(repo, *args):
             del env[name]
     env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull,
                GIT_TERMINAL_PROMPT='0', GIT_OPTIONAL_LOCKS='0')
-    result = subprocess.run(['git', '-c', 'core.fsmonitor=false', '-c',
+    command = ['git', '-c', 'core.fsmonitor=false', '-c',
         'core.hooksPath=' + os.devnull, '-c', 'core.autocrlf=false',
-        '-c', 'core.attributesFile=' + os.devnull, '-C', str(repo), *args],
+        '-c', 'core.attributesFile=' + os.devnull, '-C', str(repo)]
+    # Local clean/process filters can execute during status as well as checkout.
+    # Enumerate names only (never values/credentials), before any inspection.
+    filters = subprocess.run(command + ['config', '--name-only', '--get-regexp', '^filter\\.'],
+                             env=env, capture_output=True, timeout=20)
+    if filters.returncode not in (0, 1) or filters.stdout.strip():
+        raise RuntimeError('Repository-local Git filters are not permitted')
+    result = subprocess.run([*command, *args],
         env=env, capture_output=True, timeout=120)
     if result.returncode:
         raise RuntimeError(result.stderr.decode('utf-8', errors='replace'))

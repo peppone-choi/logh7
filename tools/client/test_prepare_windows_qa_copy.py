@@ -1,6 +1,7 @@
 """Bounded real-Git regression tests for immutable originals and fail-closed copies."""
 import importlib.util
 from pathlib import Path
+import subprocess
 
 import tempfile
 import unittest
@@ -105,6 +106,13 @@ class CopyTest(unittest.TestCase):
         self.assertTrue(report['originalUnchanged'])
         with self.assertRaises(FileExistsError):
             self.prepare(head=head, destination=self.qa / head)
+
+    def test_local_clean_filter_rejected_before_dirty_inspection(self):
+        subprocess.run(['git', '-C', str(self.original), 'config',
+                        'filter.untrusted.clean', 'untracked-must-not-run'], check=True)
+        with self.assertRaisesRegex(RuntimeError, 'filters are not permitted'):
+            self.prepare()
+        self.assertFalse(self.dest.exists())
 
     def test_disappearing_user_process_is_not_preserved(self):
         values = iter([[{'pid': 1, 'name': 'steam'}], []])

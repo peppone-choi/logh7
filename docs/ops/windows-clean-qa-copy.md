@@ -26,6 +26,8 @@ E:\logh7은 사용자 dirty 원본이다. 이 절차는 원본에 fetch/reset/cl
    원본/중첩 경로, 다른 이름, 기존 디렉터리(비어 있어도)를 거부한다.
    git global/system config, hooks, fsmonitor, external diff/textconv와 자동 CRLF 변환을
    비활성화하며 submodule/LFS/설치·런타임 코드를 실행하지 않는다.
+   원본의 repository-local filter 설정은 이름만 검사하고 발견하면 상태 조회 전
+   거부한다. status 중 clean/process filter로 사용자 코드가 실행되는 것도 막는다.
    실패한 사본은 삭제하지 않고 남기며 재사용하지 않는다.
 3. JSON `COPY_READY` 및 정확한 `copyHead`, 빈 `copyStatus`,
    `originalUnchanged=true`, `userProcessesPreserved=true`를 확인한다.
