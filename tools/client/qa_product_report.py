@@ -1,8 +1,8 @@
 """Fail-closed LOGH report bridge; never launches a product or fixture.
 
-The reviewed prestart runner observes a product but has no product check suite.
-Consequently this bridge deliberately cannot emit product PASS, even for a
-pinned runtime report claiming PASS. A hash is integrity, not trusted provenance.
+Collectors report individual checks, but the aggregate PASS gate belongs to I6.
+This bridge cannot emit product PASS, even for a pinned report claiming PASS.
+A hash is integrity, not trusted provenance.
 """
 import argparse
 import hashlib
@@ -37,15 +37,14 @@ def product_report(device, head, runtime=None, evidence=None):
         'productQA': 'NOT_RUN', 'windows_qa_receipt': None,
         'platforms': {'windows': {'status': status, 'deviceId': device,
             'checks': [{'name': name, 'status': 'NOT_RUN',
-                        'evidence': ('No verified same-run collector evidence' if name in (CHECKS[1], CHECKS[-1])
-                                     else 'No implemented product assertion collector')} for name in CHECKS]}},
+                        'evidence': 'No verified same-run collector evidence'} for name in CHECKS]}},
         # These fields mean product-level proof, not a fixture guard handshake.
         'isolationVerified': False, 'silentVerified': False, 'cleanupVerified': False,
         'runtimeExecutedByAdapter': False,
         'runtimeHeadProvenanceVerified': False,
         'runtimeEvidence': evidence,
         'runtimeStatus': runtime['status'] if runtime else None,
-        'blockers': ['Product API assertion collector and aggregate PASS gate are missing; '
+        'blockers': ['Aggregate product PASS gate is missing; '
                      'runtime observation, fixture PASS, exec and probe are not product PASS.'],
     }
 
@@ -282,6 +281,32 @@ def apply_render_check(report, runtime):
     # I6 owns aggregate PASS/exit0; one rendered frame cannot promote it.
 
 
+def apply_api_check(report, runtime):
+    # Same-run SHA/config/target/inventory verification precedes this reader.
+    path = Path(runtime['owned_temp']) / 'evidence/api.json'
+    c, config = runtime['controller'], runtime['controller_config']
+    if not path.exists():
+        if 'api_evidence' in c or config.get('api_collector') is True:
+            raise ValueError('Missing API collector evidence')
+        return  # Historical evidence cannot prove I5 coverage.
+    envelope = read_object(path)
+    if envelope['observation'] != c.get('product_api_observation'):
+        raise ValueError('API runtime/evidence observation mismatch')
+    port = config['protocol_port']
+    if config['target_args'] != ['127.0.0.1', str(port), 'ginei00', '1', 'dummy']:
+        raise ValueError('API pinned endpoint/target arguments mismatch')
+    spec = importlib.util.spec_from_file_location('logh_api', Path(__file__).with_name('qa_api.py'))
+    assert spec is not None and spec.loader is not None
+    api = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(api)
+    result = api.judge_api(envelope['observation'], port, c.get('resumed', False),
+                           c.get('status') == 'PRODUCT_WINDOW_COMPLETE')
+    report['platforms']['windows']['checks'][0].update(status=result['status'], evidence=str(path), detail=result)
+    if result['status'] == 'FAIL':
+        report['platforms']['windows']['status'] = 'FAIL'
+    # Aggregate PASS/exit0 is I6, not an API observation result.
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, required=True)
@@ -333,6 +358,7 @@ def main():
                     apply_protocol_check(report, raw)
                     apply_audio_check(report, raw)
                     apply_render_check(report, raw)
+                    apply_api_check(report, raw)
                 if raw['status'].startswith('WAIT_'):
                     report['blockers'].append(raw['status'])
             validate_checkout(args.head, preflight.git(args.repo, 'rev-parse', 'HEAD'),

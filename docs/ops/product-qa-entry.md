@@ -2,7 +2,7 @@
 
 기본 `-Mode Report`는 제품을 실행하지 않고 기존 증거만 보고한다.
 `-Mode Run`은 기존 격리 시험기를 호출하고 같은 실행의 증거를 보고한다.
-프로토콜·오디오·렌더 check collector가 구현되어 있으며, 어느 모드에도 제품 PASS/exit 0 경로는 없다.
+프로토콜·오디오·렌더·API check collector가 구현되어 있으며, 어느 모드에도 제품 PASS/exit 0 경로는 없다.
 이 연결만으로 공식 제품 QA를 재개하거나 PASS 영수증을 만들 수 없다.
 
 ## 조사와 재사용
@@ -14,7 +14,7 @@
 - `qa_prestart_runner.py`: 공유 mutex/격리 데스크톱/음소거 계측/소유 Job 정리를
   담당한다. 제품 정상 종료는 PRODUCT_OBSERVED/exit 2이고 제품 PASS가 아니다.
 - `docs/ops/prestart-runtime.md`: 실제 API·DirectSound/WASAPI/winmm·렌더·프로토콜
-  관찰 설계와 collector를 구분한다. API assertion과 최종 통합은 아직 없다.
+  관찰 설계와 collector를 구분한다. 최종 PASS 통합은 아직 없다.
 - 보존 증거 `results/t_e7260e40-RESULT.json`, `results/t_a1c38302-RESULT.json` 및
   `evidence/t_a1c38302/readback.json`은 준비/fixture 결과다. evidence/의 기존
   PowerShell에서 `platforms`/`hermes-windows qa` 보고 진입은 발견되지 않았다.
@@ -125,7 +125,7 @@ clear_header는 없다. TCP 청크 분할/병합과 무관하게 완전한 프�
 각 소켓 연결/전송 timeout은 0.2초이며 부하/역압으로 전달하지 못해도 FAIL이다.
 소유 트리 정리 뒤 thread를 멈추며 이미 읽을 수 있는 바이트는 소진한다.
 protocol check의 PASS만 보고해도 platforms.windows는 NOT_RUN/FAIL이며 exit 0은 없다.
-API collector와 I6 통합은 후속 단계다. Windows native 실행은 이번 단계 NOT_RUN이다.
+I6 통합은 후속 단계다. Windows native 실행은 이번 단계 NOT_RUN이다.
 
 ### 원본 렌더 collector (I4)
 
@@ -174,6 +174,55 @@ Linux 합성·정적 시험(실제 DLL/게임을 로드하지 않음):
     python3 -B -m unittest discover -s tools/client -p 'test_qa_render_criterion.py' -v
     node tools/client/test_qa_render.js
 
+### 외부 영향 API collector (I5)
+
+`qa_api_x86.js`는 같은 guarded Frida session의 별도 관찰 script이며 Resume 전에
+모든 export hook을 설치한다. 원본 API 호출·인자·반환을 바꾸거나 대신 호출하지 않는다.
+차단은 기존 inner Job의 UI255/active limit 1과 silence guard가 담당한다.
+관찰 목록(19개)은 다음으로 고정한다.
+
+- ws2_32: connect, WSAConnect. sockaddr의 family/address/port와 실제 반환 기록.
+- kernel32: CreateProcessA/W.
+- advapi32: CreateProcessAsUserA/W, CreateProcessWithLogonW, CreateProcessWithTokenW.
+- shell32: ShellExecuteA/W, ShellExecuteExA/W.
+- user32: SwitchDesktop, SetForegroundWindow, BlockInput, SendInput,
+  keybd_event, mouse_event, SetCursorPos.
+
+각 호출은 호출자 module/RVA/모듈 크기, 시도와 완료 여부, 실제 반환을 기록한다.
+hook별 api/module/export address/installed 및 오류를 함께 보존한다. 모듈을 추가로
+로드하지 않으며 시작 시 모듈·export 부재/설치 실패는 FAIL이다. target 내부의
+script RPC로만 수집하며 호스트 UI/입력 API를 호출하지 않는다.
+
+관찰 창 종료에서 렌더 drain 뒤, 소유 handle 정지 직전에 `apistatus()`를 읽고
+`owned_temp/evidence/api.json`에 run_id/manifest_sha256/config_sha256/target을
+결합한다. cleanup 뒤 기존 supervisor가 evidence_files에 파일/SHA를 등록한다.
+어댑터는 같은 실행의 전체 목록/해시/바인딩을 확인한 뒤 controller observation과
+비교하고 `judge_api`로 판정한다. config의 protocol_port는 pinned target_args와 같아야 한다.
+신규 config api_collector=true인데 파일이 없으면 FAIL이다.
+
+- PASS: 전체 hook 설치, 관찰 창 완료, 모든 연결 시도가 정확히 127.0.0.1:<pin>,
+  프로세스/상호작용 성공 반환 0건. API 호출 0건도 PASS와 양립한다.
+- FAIL: 연결 실패 반환이어도 다른 endpoint로 시도, CreateProcess*/ShellExecuteEx*의
+  nonzero, ShellExecuteA/W >32, BOOL 상호작용 nonzero 또는 SendInput >0,
+  설치/읽기/script 오류, 미완료 호출, 불명 호출자, 8192개 기록 한도 초과.
+- keybd_event/mouse_event는 void여서 성공/실패 반환이 없다. 임의 EAX를 실패로
+  해석하지 않고 return_value=null로 기록하며 호출되면 FAIL(거부 증명 불가)이다.
+- NOT_RUN: 제품 관찰 창 미완료. retained handle로 조기 종료를 확인했고 최종 RPC가
+  불가능하면 설치 시 부분 receipt에 incomplete_reason을 붙인다. 이는 마지막 호출의
+  증거가 아니며 절대 PASS로 승격하지 않는다. 설치/script 오류는 계속 FAIL이다.
+
+이는 기능 정확성·커널 내부/직접 syscall·열거하지 않은 모든 API의 검증이 아니다.
+마지막 snapshot 이후 정리 구간의 활동을 증명하지 않으며 Job/guard는 대상 종료까지
+유지한다. 모듈 가용성·Frida native hook 동작·실제 제품 행동은 Windows NOT_RUN이다.
+manifest inventory OWN_CODE에 qa_api.py/qa_api_x86.js를 포함한다. 독립 리뷰의 final
+SHA로 Windows 사본·manifest·외부 pin을 다시 생성해야 하며 여기서는 생성/실행하지 않는다.
+API check PASS도 플랫폼 PASS/exit 0이나 공식 영수증을 만들지 않는다(I6).
+
+Linux 합성/정적 시험:
+
+    python3 -B -m unittest discover -s tools/client -p 'test_qa_api.py' -v
+    node tools/client/test_qa_api.js
+
 ### 같은 실행 바인딩과 안전 계산
 
 runtime 파일 위치, 호출 전후 clean HEAD, manifest SHA, 실제 controller-config SHA와
@@ -205,7 +254,7 @@ owned_temp/evidence/와 cleanup 후 evidence_files[{path,sha256}]를 보존한�
 2. 새 final SHA 전용 별도 사본과 전용 Python/전체 app-tree manifest를 준비하고
    새 해시를 외부 pin한다. 옛 db692c3 사본/manifest는 새 SHA의 증거가 아니다.
 3. 실행 오케스트레이션과 프로토콜 collector는 있으나 실제 제품 실행 증거는 없다.
-   제품 API assertion 및 최종 통합을 구현·독립 리뷰한 뒤에만
+   collector 독립 리뷰와 최종 통합 구현·독립 리뷰 뒤에만
    이 보고 어댑터의 PASS 불가 정책을
    바꿀 수 있다. 제품을 띄워 관찰만 하는 것을 완성된 QA로 제출하지 않는다.
 4. API/오디오/렌더/프로토콜 및 isolation/silent/cleanup의 실제 근거가 모두

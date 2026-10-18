@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 OWN_CODE = ('qa_prestart_runner.py', 'qa_prestart_audio.py', 'qa_prestart_silence_x86.js',
             'qa_prestart_fixture.py', 'qa_session_mutex.py', 'qa_isolated_runner.py',
             'qa_silent_fixture.py', 'qa_protocol.py', 'qa_audio_coverage.py',
-            'qa_render.py', 'qa_render_x86.js')
+            'qa_render.py', 'qa_render_x86.js', 'qa_api.py', 'qa_api_x86.js')
 
 
 def digest(path):
@@ -206,7 +206,7 @@ def controller(config):
     import qa_prestart_audio as audio
     result = {'status': 'FAIL', 'resumed': False, 'product_pass': False, 'product_qa': 'NOT_RUN',
               'environment_ready': False, 'guard_receipts': [], 'cleanup_verified': False}
-    process = thread = inner = guard = render = None
+    process = thread = inner = guard = render = api = None
     assigned = False
     try:
         if Path(config['cancel']).exists():
@@ -252,6 +252,9 @@ def controller(config):
             from qa_render import RenderCollector
             render = RenderCollector(config, result)
             render.install(guard.session)
+            from qa_api import ApiCollector
+            api = ApiCollector(config, result)
+            api.install(guard.session)
         # Synthetic native callbacks/vtables only: never real audio devices or
         # sessions. Tests the installed blocking mechanism without playback.
         if not config['product_logh']:
@@ -295,6 +298,8 @@ def controller(config):
                     save_audio_evidence(config, result, guard)
                     assert render is not None
                     render.finish()
+                    assert api is not None
+                    api.finish()
                     audio.stop_owned_handle(process)
                     result['status'] = 'PRODUCT_WINDOW_COMPLETE'
                     break
@@ -323,6 +328,13 @@ def controller(config):
                 render.finish()
             except BaseException as error:
                 result['render_evidence_error'] = str(error)
+                result['status'] = 'FAIL'
+        if api and not api.saved:
+            try:
+                api.finish(target_exited_early=(result['status'] == 'COMMAND_FAILED' and process is not None
+                           and we.WaitForSingleObject(process, 0) == we.WAIT_OBJECT_0))
+            except BaseException as error:
+                result['api_evidence_error'] = str(error)
                 result['status'] = 'FAIL'
         # On failure/cancellation, attempt a last snapshot too. A failed RPC is
         # not coverage and MUST NOT skip retained Job/handle cleanup below.
@@ -446,6 +458,7 @@ def run(args):
         cancel = args.cancel_file or root / 'cancel'
         config = dict(site=pinned['site'], mode=args.mode, timeout=args.timeout,
                       render_collector=args.product_logh,
+                      api_collector=args.product_logh,
                       manifest_sha256=args.manifest_sha256,
                       observe_seconds=getattr(args, 'observe_seconds', None),
                       protocol_port=getattr(args, 'port', 20000),
