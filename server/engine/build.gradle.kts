@@ -11,7 +11,7 @@ tasks.processResources {
         into("strategy")
     }
     from(rootProject.projectDir.resolve("../docs/manual/data")) {
-        include("org-posts.csv", "initial-card-holders.csv")
+        include("org-posts.csv", "initial-card-holders.csv", "initial-deployment.csv")
         into("worldseed")
     }
 }
