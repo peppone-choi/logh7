@@ -1,7 +1,7 @@
 name: qa-distribution
 on:
   push:
-    branches: ['logh/t_10a6812e']
+    branches: ['logh/t_10a6812e', 'logh/t_4da1f19e']
   workflow_dispatch:
 permissions:
   contents: read

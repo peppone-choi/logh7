@@ -12,6 +12,41 @@ import qa_upstream as q
 
 
 class UpstreamTests(unittest.TestCase):
+    def test_inventory_refuses_junction_attributes_without_following_stat(self):
+        entry = MagicMock()
+        entry.is_symlink.return_value = False
+        entry.lstat.return_value = SimpleNamespace(st_file_attributes=0x400)
+        root = MagicMock()
+        root.resolve.return_value = root
+        root.rglob.return_value = [entry]
+        with patch.object(q, 'Path', return_value=root):
+            with self.assertRaisesRegex(ValueError, 'Reparse'):
+                q.inventory('synthetic-root')
+        entry.stat.assert_not_called()
+
+    def test_validate_rechecks_provenance_repository(self):
+        runtime = Path('E:/HermesQA/logh-runtime/test')
+        head = 'a' * 40
+        data = dict(head=head, main=q.MAIN, runtime=str(runtime),
+                    jdk=dict(files={}), distribution=dict(files={}, run_id='1'))
+        provenance = dict(head=head, build=':app:installDist', run_id='1', files={},
+                          repository='another/repository')
+        args = SimpleNamespace(upstream_manifest=Path('manifest'), upstream_manifest_sha256='pin',
+                               repo=Path('repo'), port=20000, upstream_port=47900)
+        def read_text(path, *a, **kw):
+            if path.name == 'release':
+                return 'JAVA_VERSION="25.0.1"'
+            return json.dumps(provenance if path.name == 'distribution-provenance.json' else data)
+        with patch.dict('sys.modules', {'qa_prestart_audio': SimpleNamespace(_plain_path=lambda p: Path(p))}), \
+                patch.object(q, 'digest', return_value='pin'), \
+                patch.object(q, 'inventory', return_value={}), \
+                patch.object(q.subprocess, 'check_output', side_effect=[head, '', head, '']), \
+                patch.object(Path, 'read_text', read_text):
+            with self.assertRaisesRegex(ValueError, 'provenance'):
+                q.validate(args)
+            provenance['repository'] = 'peppone-choi/logh7'
+            self.assertEqual(q.validate(args), (data, runtime))
+
     def test_prepare_manifest_accepts_exact_closure_and_rejects_tamper(self):
         spec = importlib.util.spec_from_file_location('prepare_upstream', Path(q.__file__).with_name('prepare-upstream-runtime.py'))
         module = importlib.util.module_from_spec(spec)
@@ -114,10 +149,21 @@ class UpstreamTests(unittest.TestCase):
                 wa.GlobalMemoryStatus.return_value = {'AvailPhys': 1}
             if fault == 'cancel':
                 args.cancel_file.touch()
+            if fault == 'exited':
+                we.WaitForSingleObject.side_effect = lambda handle, timeout: 0
+            if fault == 'start_timeout':
+                owners = {}
+            else:
+                owners = {('127.0.0.1', p): 123 for p in q.PORTS}
+            if fault == 'client_exit':
+                def client_exit():
+                    we.WaitForSingleObject.side_effect = lambda handle, timeout: 0
+                    return dict(status='PRODUCT_WINDOW_COMPLETE', cleanup_verified=True)
+                client.side_effect = client_exit
             with patch.dict('sys.modules', modules), \
                     patch.object(q, 'validate', return_value=({}, Path(d))), \
                     patch.object(q, 'reserve_check'), \
-                    patch.object(q, 'listener_owners', return_value={('127.0.0.1', p): 123 for p in q.PORTS}), \
+                    patch.object(q, 'listener_owners', return_value=owners), \
                     patch('qa_isolated_runner.snapshot', return_value={}), \
                     patch('qa_isolated_runner.isolated', return_value=True), \
                     patch('qa_prestart_runner.session_ids', return_value=[0, 1]), \
@@ -126,11 +172,15 @@ class UpstreamTests(unittest.TestCase):
                     patch('qa_session_mutex.SessionMutex', return_value=mutex), \
                     patch.object(q.threading, 'Timer') as timer, \
                     patch.object(q.time, 'monotonic', side_effect=range(1000)):
+                if fault == 'watchdog':
+                    client.side_effect = lambda: (timer.call_args.args[1](),
+                        dict(status='PRODUCT_WINDOW_COMPLETE', cleanup_verified=True))[1]
                 result = q.run(args, client)
             if fault != 'wait':
                 process.Close.assert_called_once()
                 job.Close.assert_called_once()
-                wj.TerminateJobObject.assert_called_once_with(job, 2)
+                self.assertEqual(wj.TerminateJobObject.call_count, 2 if fault == 'watchdog' else 1)
+                wj.TerminateJobObject.assert_called_with(job, 2)
                 if fault == 'assign':
                     wp.ResumeThread.assert_not_called()
                     wa.TerminateProcess.assert_called_once_with(process, 2)
@@ -141,6 +191,24 @@ class UpstreamTests(unittest.TestCase):
                 wp.CreateProcess.assert_not_called()
             mutex.close.assert_called_once()
             return result, client
+
+    def test_lifetime_failures_cannot_keep_client_success(self):
+        for fault in ('watchdog', 'client_exit'):
+            with self.subTest(fault=fault):
+                result, client = self.lifetime(fault)
+                client.assert_called_once()
+                self.assertEqual(result['status'], 'UPSTREAM_LIFETIME_FAILED')
+                self.assertFalse(result['cleanup_verified'])
+                self.assertTrue(result['upstream']['cleanup_verified'])
+                self.assertEqual(result['upstream']['watchdog_expired'], fault == 'watchdog')
+
+    def test_start_timeout_and_early_exit_never_call_client(self):
+        for fault, error in (('start_timeout', 'UPSTREAM_START_TIMEOUT'), ('exited', 'UPSTREAM_EXITED')):
+            with self.subTest(fault=fault):
+                result, client = self.lifetime(fault)
+                client.assert_not_called()
+                self.assertEqual(result['error'], error)
+                self.assertTrue(result['upstream']['cleanup_verified'])
 
     def test_success_keeps_client_verdict_and_independent_cleanup(self):
         report, client = self.lifetime()

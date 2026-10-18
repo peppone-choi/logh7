@@ -69,7 +69,11 @@ try {
         }).AddArgument($Python).AddArgument($runnerArguments).AddArgument(
             (Join-Path $run 'runner.stdout')).AddArgument((Join-Path $run 'runner.stderr'))
         $pending = $pipeline.BeginInvoke()
-        if (-not $pending.AsyncWaitHandle.WaitOne(($Timeout + 40) * 1000)) {
+        # Existing client budget plus upstream inventory allowance30/startup10.
+        # At Timeout30 this is 110s, below hermes-windows --timeout 120.
+        $runnerWaitSeconds = $Timeout + 40
+        if ($UpstreamManifest) { $runnerWaitSeconds += 40 }
+        if (-not $pending.AsyncWaitHandle.WaitOne($runnerWaitSeconds * 1000)) {
             # Ask the existing supervisor to clean its Jobs. Never claim that
             # cancellation/runner stop proves target cleanup.
             [IO.File]::WriteAllText($cancel, '')

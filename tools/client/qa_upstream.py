@@ -31,7 +31,7 @@ def inventory(root):
     root = Path(root).resolve(strict=True)
     files = {}
     for p in sorted(root.rglob('*')):
-        if p.is_symlink() or getattr(p.stat(), 'st_file_attributes', 0) & 0x400:
+        if p.is_symlink() or getattr(p.lstat(), 'st_file_attributes', 0) & 0x400:
             raise ValueError('Reparse points refused')
         if p.is_file():
             files[p.relative_to(root).as_posix()] = digest(p)
@@ -60,7 +60,8 @@ def validate(args):
     if not re.search(r'^JAVA_VERSION="25(?:[.+\-"]|$)', release, re.M):
         raise ValueError('JDK25 required')
     provenance = json.loads((runtime / 'distribution/distribution-provenance.json').read_text())
-    if (provenance['head'] != head or provenance['build'] != ':app:installDist'
+    if (provenance['repository'] != 'peppone-choi/logh7'
+            or provenance['head'] != head or provenance['build'] != ':app:installDist'
             or str(provenance['run_id']) != str(data['distribution']['run_id'])
             or provenance['files'] != inventory(runtime / 'distribution/server/app/build/install/app')):
         raise ValueError('Distribution provenance mismatch')
@@ -196,7 +197,9 @@ def run(args, client):
                     args.cancel_file.touch(exist_ok=True)
             finally:
                 wj.TerminateJobObject(job, 2)
-        timer = threading.Timer(65, watchdog)
+        # Startup10 + client(controller timeout<=30 + grace20 + cleanup10)
+        # + pre-controller setup10. Closure hashing completed before JVM resume.
+        timer = threading.Timer(80, watchdog)
         timer.daemon = True
         timer.start()
         wp.ResumeThread(thread)

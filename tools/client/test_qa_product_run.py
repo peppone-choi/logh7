@@ -68,6 +68,39 @@ def synthetic(root) -> tuple[Path, dict, str]:
 
 
 class RunTests(unittest.TestCase):
+    def test_owned_upstream_reuses_one_validation_and_dependency_load(self):
+        pinned = {'site': 'validated'}
+        modules = {name: types.SimpleNamespace() for name in
+                   ('win32api', 'win32con', 'win32event', 'win32job',
+                    'win32process', 'win32service', 'qa_prestart_audio')}
+        with patch.dict(sys.modules, modules), \
+                patch.object(runner, 'os', types.SimpleNamespace(name='nt')), \
+                patch.object(runner, 'sys', types.SimpleNamespace(flags=types.SimpleNamespace(no_site=True))), \
+                patch.object(runner, 'supervisor_prefix', return_value=Path('private/site')) as prefix, \
+                patch.object(runner, 'validate', return_value=pinned) as validate, \
+                patch.object(runner, 'supervisor_dependencies') as dependencies, \
+                patch('qa_upstream.run', side_effect=lambda args, client: client()) as upstream, \
+                patch('qa_isolated_runner.snapshot', return_value={}), \
+                patch('qa_isolated_runner.isolated', return_value=False):
+            result = runner.run(types.SimpleNamespace(upstream_manifest='manifest', manifest_sha256='pin',
+                                                     product_logh=False))
+        self.assertEqual(result['status'], 'WAIT_ISOLATION_UNPROVEN')
+        validate.assert_called_once()
+        prefix.assert_called_once()
+        dependencies.assert_called_once_with(Path('private/site'))
+        upstream.assert_called_once()
+
+    def test_upstream_wait_budget_is_explicit_and_below_transport_timeout(self):
+        import re
+        source = (HERE / 'windows-product-qa.ps1').read_text()
+        base = int(re.search(r'\$runnerWaitSeconds = \$Timeout \+ (\d+)', source)[1])
+        extra = int(re.search(r'if \(\$UpstreamManifest\) \{ \$runnerWaitSeconds \+= (\d+) \}', source)[1])
+        self.assertEqual(base, 40)
+        self.assertEqual(extra, 40)  # inventory30 + startup10
+        self.assertEqual(30 + base + extra, 110)
+        self.assertLess(30 + base + extra, 120)
+        self.assertIn('WaitOne($runnerWaitSeconds * 1000)', source)
+
     def test_no_site_supervisor_validates_before_dependency_import(self):
         with patch.object(runner, 'os', types.SimpleNamespace(name='nt')), \
                 patch.object(runner, 'sys', types.SimpleNamespace(flags=types.SimpleNamespace(no_site=True))), \

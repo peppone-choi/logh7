@@ -384,24 +384,27 @@ def controller(config):
     return result
 
 
-def run(args, _upstream_owned=False):
+def run(args, _upstream_owned=False, _pinned=None):
     report = {'status': 'FAIL', 'product_pass': False,
               'product_qa': 'NOT_RUN', 'games_executed': False, 'environment_ready': False,
               'cleanup_verified': False, 'remaining_owned_pids': [], 'owned_processes': []}
 
-    pinned = None
+    pinned = _pinned
     try:
-        if os.name == 'nt' and sys.flags.no_site:
-            site = supervisor_prefix()
+        if not _upstream_owned:
+            site = supervisor_prefix() if os.name == 'nt' and sys.flags.no_site else None
             pinned = validate(args)
-            supervisor_dependencies(site)
+            if site is not None:
+                supervisor_dependencies(site)
+        elif pinned is None:
+            raise ValueError('Owned upstream callback requires validated client closure')
     except Exception as error:
         report['error'] = str(error)
         return report  # No Windows dependency import or owned process yet.
 
     if getattr(args, 'upstream_manifest', None) and not _upstream_owned:
         from qa_upstream import run as run_upstream
-        return run_upstream(args, lambda: run(args, _upstream_owned=True))
+        return run_upstream(args, lambda: run(args, _upstream_owned=True, _pinned=pinned))
 
     import win32api as wa
     import win32con as wc

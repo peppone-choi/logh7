@@ -22,7 +22,9 @@ JVM은 java.exe 직접 MainKt, suspended 생성 → KILL_ON_JOB_CLOSE/active-pro
 
 정상/실패/취소/예외/시작timeout 모두 finally에서 소유 Job만 종료한다. retained root가 미할당 상태이면 그 suspended handle만 종료한다. ActiveProcesses=0과 root retained handle signalled 모두 확인해야 upstream cleanup_verified=true다. 실패하면 전체 client cleanup_verified=false 및 CLEANUP_FAILED다. Java 프로세스 이름/PID 기반 종료를 사용하지 않는다.
 
-65초 watchdog은 소유 Job을 종료하고 client cancellation을 요청한다. SSH가 끊겨도 supervisor가 유지되면 이 상한을 적용하고, supervisor가 사라지면 비상속 Job의 마지막 handle 닫힘으로 JVM이 종료된다. 이 강제 연결단절 경로의 실제 관측은 독립 리뷰 후 무해 lifetime fixture 단계에서 별도로 시험해야 한다. 소스/합성 테스트를 그 증거로 대체하지 않는다.
+80초 watchdog은 소유 Job을 종료하고 client cancellation을 요청한다. client closure/dependency 검증은 JVM 생성 전 1회만 수행하고 동일 프로세스·스레드 callback에 pinned 결과를 전달한다. resume 후 예산은 startup10 + client(controller timeout 최대30 + grace20 + cleanup10) + controller 준비10초다. PS runner 대기는 기존 Timeout+40에 upstream inventory 여유30/startup10을 더해 최대110초이며 hermes-windows --timeout120보다 작다. 해시/디스크 지연이 무제한 허용된다는 뜻은 아니며 실제 Windows 소요시간은 재리뷰 후 확인한다. 예산 초과는 fail-closed이고 cleanup을 추정하지 않는다.
+
+SSH가 끊겨도 supervisor가 유지되면 watchdog 상한을 적용하고, supervisor가 사라지면 비상속 Job의 마지막 handle 닫힘으로 JVM이 종료된다. 이 강제 연결단절 경로의 실제 관측은 독립 리뷰 후 무해 lifetime fixture 단계에서 별도로 시험해야 한다. 소스/합성 테스트를 그 증거로 대체하지 않는다.
 
 ## Driver arguments
 
