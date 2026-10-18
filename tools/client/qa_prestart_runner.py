@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 OWN_CODE = ('qa_prestart_runner.py', 'qa_prestart_audio.py', 'qa_prestart_silence_x86.js',
             'qa_prestart_fixture.py', 'qa_session_mutex.py', 'qa_isolated_runner.py',
             'qa_silent_fixture.py', 'qa_protocol.py', 'qa_audio_coverage.py',
-            'qa_render.py', 'qa_render_x86.js', 'qa_api.py', 'qa_api_x86.js')
+            'qa_render.py', 'qa_render_x86.js', 'qa_api.py', 'qa_api_x86.js', 'qa_upstream.py')
 
 
 def digest(path):
@@ -384,7 +384,7 @@ def controller(config):
     return result
 
 
-def run(args):
+def run(args, _upstream_owned=False):
     report = {'status': 'FAIL', 'product_pass': False,
               'product_qa': 'NOT_RUN', 'games_executed': False, 'environment_ready': False,
               'cleanup_verified': False, 'remaining_owned_pids': [], 'owned_processes': []}
@@ -398,6 +398,10 @@ def run(args):
     except Exception as error:
         report['error'] = str(error)
         return report  # No Windows dependency import or owned process yet.
+
+    if getattr(args, 'upstream_manifest', None) and not _upstream_owned:
+        from qa_upstream import run as run_upstream
+        return run_upstream(args, lambda: run(args, _upstream_owned=True))
 
     import win32api as wa
     import win32con as wc
@@ -604,6 +608,8 @@ def main():
     parser.add_argument('--app-root', type=Path)
     parser.add_argument('--port', type=int, default=20000)
     parser.add_argument('--upstream-port', type=int)
+    parser.add_argument('--upstream-manifest', type=Path)
+    parser.add_argument('--upstream-manifest-sha256')
     parser.add_argument('--manifest-sha256')
     parser.add_argument('--record-manifest', action='store_true')
     parser.add_argument('--product-logh', action='store_true')
@@ -613,6 +619,10 @@ def main():
     parser.add_argument('--cancel-file', type=Path)
     parser.add_argument('--reference-pid', type=int, action='append', default=[])
     args = parser.parse_args()
+    if bool(args.upstream_manifest) != bool(args.upstream_manifest_sha256):
+        parser.error('upstream manifest and external pin required together')
+    if args.upstream_manifest and (not args.product_logh or args.upstream_port != 47900 or args.port != 20000):
+        parser.error('owned upstream requires product recorder20000/upstream47900')
     if not 0.2 <= args.timeout <= 30:
         parser.error('timeout must be 0.2..30 seconds')
     if args.observe_seconds is not None and (not args.product_logh or

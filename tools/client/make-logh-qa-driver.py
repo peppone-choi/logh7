@@ -18,7 +18,8 @@ def private_path(value):
 
 
 def render_driver(head, copy, python, manifest, manifest_sha256, app_root,
-                  temp_parent, port, observe_seconds, out_root, timeout=30, upstream_port=None):
+                  temp_parent, port, observe_seconds, out_root, timeout=30, upstream_port=None,
+                  upstream_manifest=None, upstream_manifest_sha256=None):
     if not re.fullmatch('[0-9a-f]{40}', head):
         raise ValueError('Head must be lowercase 40hex')
     if not re.fullmatch('[0-9a-f]{64}', manifest_sha256):
@@ -38,6 +39,14 @@ def render_driver(head, copy, python, manifest, manifest_sha256, app_root,
               ('ObserveSeconds', str(observe_seconds)), ('Timeout', str(timeout))]
     if upstream_port is not None:
         values.append(('UpstreamPort', str(upstream_port)))
+    if bool(upstream_manifest) != bool(upstream_manifest_sha256):
+        raise ValueError('Upstream manifest and external pin required together')
+    if upstream_manifest:
+        private_path(upstream_manifest)
+        if not re.fullmatch('[0-9a-f]{64}', upstream_manifest_sha256) or port != 20000 or upstream_port != 47900:
+            raise ValueError('Owned upstream requires pin and fixed D1 ports')
+        values.extend([('UpstreamManifest', upstream_manifest),
+                       ('UpstreamManifestSha256', upstream_manifest_sha256)])
     def literal(value):
         return "'" + value.replace("'", "''") + "'"
     return ('& ' + literal(copy + '/tools/client/windows-product-qa.ps1') + ' ' +
@@ -51,6 +60,8 @@ def main():
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--port', type=int, default=20000)
     parser.add_argument('--upstream-port', type=int)
+    parser.add_argument('--upstream-manifest')
+    parser.add_argument('--upstream-manifest-sha256')
     parser.add_argument('--observe-seconds', type=int, default=5)
     parser.add_argument('--timeout', type=int, default=30)
     parser.add_argument('--output', type=Path, required=True)
@@ -62,7 +73,8 @@ def main():
             raise ValueError('Driver must be a new .ps1 under the LOGH server workspace')
         content = render_driver(args.head, args.copy, args.python, args.manifest,
                                 args.manifest_sha256, args.app_root, args.temp_parent,
-                                args.port, args.observe_seconds, args.out_root, args.timeout, args.upstream_port)
+                                args.port, args.observe_seconds, args.out_root, args.timeout, args.upstream_port,
+                                args.upstream_manifest, args.upstream_manifest_sha256)
         with output.open('x', encoding='utf-8', newline='\n') as stream:
             stream.write(content)
     except (OSError, ValueError) as error:

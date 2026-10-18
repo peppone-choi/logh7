@@ -14,6 +14,8 @@ param(
     [string]$TempParent,
     [ValidateRange(1024,65535)][int]$Port = 20000,
     [ValidateRange(1024,65535)][int]$UpstreamPort,
+    [string]$UpstreamManifest,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$UpstreamManifestSha256,
     [ValidateRange(1,25)][int]$ObserveSeconds = 5,
     [ValidateRange(2,30)][int]$Timeout = 30
 )
@@ -53,6 +55,11 @@ try {
             '--port', [string]$Port, '--observe-seconds', [string]$ObserveSeconds,
             '--timeout', [string]$Timeout, '--cancel-file', $cancel)
         if ($UpstreamPort) { $runnerArguments += @('--upstream-port', [string]$UpstreamPort) }
+        if ([bool]$UpstreamManifest -ne [bool]$UpstreamManifestSha256) { throw 'Upstream manifest and pin required together' }
+        if ($UpstreamManifest) {
+            $runnerArguments += @('--upstream-manifest', $UpstreamManifest,
+                '--upstream-manifest-sha256', $UpstreamManifestSha256)
+        }
         # Dedicated runspace directly invokes Python; no Start-Process or shell
         # command interpolation. Both native streams go only to owned files.
         $pipeline = [PowerShell]::Create()

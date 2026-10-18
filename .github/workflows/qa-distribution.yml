@@ -1,0 +1,45 @@
+name: qa-distribution
+on:
+  push:
+    branches: ['logh/t_10a6812e']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  distribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build exact-head distribution (no product execution)
+        working-directory: server
+        run: bash ./gradlew :app:installDist --no-daemon
+      - name: Record provenance
+        env:
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          root = pathlib.Path('server/app/build/install/app')
+          files = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                   for p in sorted(root.rglob('*')) if p.is_file()}
+          pathlib.Path('distribution-provenance.json').write_text(json.dumps(dict(
+              head=os.environ['HEAD_SHA'], run_id=os.environ['RUN_ID'],
+              run_attempt=os.environ['RUN_ATTEMPT'], repository=os.environ['GITHUB_REPOSITORY'],
+              build=':app:installDist', files=files), indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logh-server-${{ github.sha }}
+          path: |
+            server/app/build/install/app/
+            distribution-provenance.json
+          if-no-files-found: error
+          retention-days: 14
