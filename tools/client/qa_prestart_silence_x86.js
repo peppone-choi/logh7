@@ -4,8 +4,11 @@
 // (or shell broker) is allowed to escape the process-local output policy.
 const callbacks = [], replaced = new Set(), attached = new Set();
 const audit = {ready:false, failed:null, arch:Process.arch, blocked:{}, modules:[],
-  policy:'deny-playback-and-COM-activation; deny-child-creation', version:2,
+  policy:'deny-playback-and-COM-activation; deny-child-creation', version:3,
+  source:globalThis.AUDIO_FIXTURE?'fixture':'product', originals_called:0,
+  calls:[], loaded_modules:[], unsupported_output_modules:[], main_module:Process.mainModule.path,
   installed:[], directsound:[], device_objects:0, buffer_objects:0};
+const callIndex=new Map();
 const terminate = new NativeFunction(Process.getModuleByName('kernel32.dll')
   .getExportByName('TerminateProcess'), 'int', ['pointer','uint'], 'stdcall');
 function fatal(e) {
@@ -13,10 +16,28 @@ function fatal(e) {
   terminate(ptr(-1), 0xA001);
 }
 function count(name) { audit.blocked[name]=(audit.blocked[name]||0)+1; }
+function recordCall(api, caller, value, disposition) {
+  try {
+    const m=Process.findModuleByAddress(caller);
+    if(!m&&!globalThis.AUDIO_FIXTURE)throw new Error('unresolved audio caller '+api);
+    const event={api, caller_module:m?m.name:null, caller_path:m?m.path:null,
+      caller_rva:m?caller.sub(m.base).toString():null, return_value:value,
+      disposition, source:audit.source, count:1};
+    const key=JSON.stringify(event);
+    if(callIndex.has(key))audit.calls[callIndex.get(key)].count++;
+    else {
+      if(audit.calls.length>=4096)throw new Error('audio evidence limit');
+      callIndex.set(key,audit.calls.length);audit.calls.push(event);
+    }
+  } catch(e){fatal(e);}
+}
 function deny(address, name, args, result) {
   const key=address.toString();
   if(replaced.has(key)) return;
-  const cb=new NativeCallback(function(){ count(name); return result; }, 'int', args, 'stdcall');
+  // No trampoline/original playback function is constructed or invoked.
+  const cb=new NativeCallback(function(){
+    count(name);recordCall(name,this.returnAddress,result,'suppressed');return result;
+  }, 'int', args, 'stdcall');
   callbacks.push(cb); Interceptor.replace(address, cb); replaced.add(key); audit.installed.push(name);
 }
 function hook(address,name,events) {
@@ -42,14 +63,20 @@ function qi(obj,role) {
  const original=new NativeFunction(address,'int',['pointer','pointer','pointer'],'stdcall');
  const cb=new NativeCallback(function(self,iid,out){
    try {
-     if(out.isNull())return -2147467261;
+     if(out.isNull()){
+       recordCall('unsupported.QueryInterface',this.returnAddress,-2147467261,'suppressed');
+       return -2147467261;
+     }
      out.writePointer(ptr(0));
      if(qiRoles.get(self.toString())!=='buffer'||iid.isNull()||!bufferIids.has(iidHex(iid))) {
-       count('unsupported.QueryInterface');return -2147467262;
+       count('unsupported.QueryInterface');
+       recordCall('unsupported.QueryInterface',this.returnAddress,-2147467262,'suppressed');
+       return -2147467262;
      }
      const hr=original(self,iid,out);
      if(hr>=0){buffer(out.readPointer());Interceptor.flush();}
      else out.writePointer(ptr(0));
+     recordCall('buffer.QueryInterface',this.returnAddress,hr,'guarded-init');
      return hr;
    } catch(e){fatal(e);return -2147467262;}
  },'int',['pointer','pointer','pointer'],'stdcall');
@@ -63,12 +90,18 @@ function buffer(obj) {
 function device(obj) {
   audit.device_objects++;
   hook(slot(obj,3),'CreateSoundBuffer',{
-    onEnter(a){this.out=a[2];},
-    onLeave(r){if(r.toInt32()>=0)try {buffer(this.out.readPointer());Interceptor.flush();}catch(e){fatal(e);}}
+    onEnter(a){this.out=a[2];this.caller=this.returnAddress;},
+    onLeave(r){try {
+      if(r.toInt32()>=0){buffer(this.out.readPointer());Interceptor.flush();}
+      recordCall('CreateSoundBuffer',this.caller,r.toInt32(),'guarded-init');
+    }catch(e){fatal(e);}}
   });
   hook(slot(obj,5),'DuplicateSoundBuffer',{
-    onEnter(a){this.out=a[2];},
-    onLeave(r){if(r.toInt32()>=0)try {buffer(this.out.readPointer());Interceptor.flush();}catch(e){fatal(e);}}
+    onEnter(a){this.out=a[2];this.caller=this.returnAddress;},
+    onLeave(r){try {
+      if(r.toInt32()>=0){buffer(this.out.readPointer());Interceptor.flush();}
+      recordCall('DuplicateSoundBuffer',this.caller,r.toInt32(),'guarded-init');
+    }catch(e){fatal(e);}}
   });
   // Reject other interfaces rather than let a new unobserved vtable escape.
   qi(obj,'device');
@@ -79,11 +112,13 @@ function audioClient(obj) {
 }
 function immDevice(obj) {
   hook(slot(obj,3),'IMMDevice.Activate',{
-    onEnter(a){this.iid=a[1].readByteArray(16);this.out=a[4];},
-    onLeave(r){if(r.toInt32()>=0)try {
+    onEnter(a){this.caller=this.returnAddress;this.iid=a[1].readByteArray(16);this.out=a[4];},
+    onLeave(r){try {if(r.toInt32()>=0){
       const b=Array.from(new Uint8Array(this.iid)).map(x=>x.toString(16).padStart(2,'0')).join('');
       if(b!=='4cadb91cfadb324cb178c2f568a703b2') throw new Error('unsupported IMMDevice.Activate IID');
       audioClient(this.out.readPointer());Interceptor.flush();
+    }
+    recordCall('IMMDevice.Activate',this.caller,r.toInt32(),'guarded-init');
     }catch(e){fatal(e);}}
   });
 }
@@ -99,12 +134,18 @@ const comArgs={
 };
 function install(m) {
   const name=m.name.toLowerCase();audit.modules.push(name);
+  audit.loaded_modules.push({name:m.name,path:m.path,base:m.base.toString(),size:m.size});
   if(name==='dsound.dll') {
     for(const n of ['DirectSoundCreate','DirectSoundCreate8']) {
       const p=exp(m,n);if(!p)throw new Error('missing '+n);
-      hook(p,n,{onEnter(a){count(n);this.out=a[1];},
-        onLeave(r){audit.directsound.push({api:n,hresult:r.toInt32(),object:this.out.isNull()?'0x0':this.out.readPointer().toString()});
-          if(r.toInt32()>=0)try {device(this.out.readPointer());Interceptor.flush();}catch(e){fatal(e);}}});
+      hook(p,n,{onEnter(a){count(n);this.out=a[1];this.caller=this.returnAddress;},
+        onLeave(r){try {
+          // Keep the legacy diagnostic bounded too. Readiness polling must not
+          // grow evidence without limit during an initialization retry loop.
+          if(audit.directsound.length<64)audit.directsound.push({api:n,hresult:r.toInt32(),object:this.out.isNull()?'0x0':this.out.readPointer().toString()});
+          if(r.toInt32()>=0){device(this.out.readPointer());Interceptor.flush();}
+          recordCall(n,this.caller,r.toInt32(),'guarded-init');
+        }catch(e){fatal(e);}}});
     }
     block(m,'DirectSoundFullDuplexCreate',Array(10).fill('pointer'),-2147024891);
     block(m,'DllGetClassObject',['pointer','pointer','pointer'],-2147024891);
@@ -153,8 +194,10 @@ function install(m) {
     for(const n of ['ShellExecuteA','ShellExecuteW']) block(m,n,Array(6).fill('pointer'),0);
     for(const n of ['ShellExecuteExA','ShellExecuteExW']) block(m,n,['pointer'],0);
   }
-  if(/^(xaudio|xact|openal|avrt|ksuser|mfplat|mfplay|audioses)/.test(name))
+  if(/^(xaudio|xact|openal|avrt|ksuser|mfplat|mfplay|audioses)/.test(name)){
+    audit.unsupported_output_modules.push(name);
     throw new Error('unsupported output module '+name);
+  }
   Interceptor.flush();
 }
 if(Process.arch!=='ia32')throw new Error('x86 only');
@@ -197,7 +240,7 @@ rpc.exports.audioselftest=function(){
  function object(n){const v=Memory.alloc(n*4),o=Memory.alloc(4);o.writePointer(v);return {v:v,o:o};}
  function put(x,n,p){x.v.add(n*4).writePointer(p);}
  const b=object(13);
- put(b,12,cb(function(){originals++;return 42;},['pointer','uint','uint','uint']));
+ put(b,12,cb(function(){originals++;audit.originals_called++;return 42;},['pointer','uint','uint','uint']));
  put(b,0,cb(function(o,i,out){out.writePointer(b.o);return 0;},['pointer','pointer','pointer']));
  const d=object(6);
  put(d,0,cb(function(){return -1;},['pointer','pointer','pointer']));
@@ -212,7 +255,7 @@ rpc.exports.audioselftest=function(){
  const duplicate=play(out.readPointer(),0,0,0);
  const client=object(11);
  put(client,0,cb(function(){return -1;},['pointer','pointer','pointer']));
- put(client,10,cb(function(){originals++;return 42;},['pointer']));
+ put(client,10,cb(function(){originals++;audit.originals_called++;return 42;},['pointer']));
  const imm=object(4);
  put(imm,3,cb(function(o,i,c,p,out){out.writePointer(client.o);return 0;},['pointer','pointer','uint','pointer','pointer']));
  immDevice(imm.o);Interceptor.flush();

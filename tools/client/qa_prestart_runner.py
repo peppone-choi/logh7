@@ -18,7 +18,7 @@ import uuid
 HERE = Path(__file__).resolve().parent
 OWN_CODE = ('qa_prestart_runner.py', 'qa_prestart_audio.py', 'qa_prestart_silence_x86.js',
             'qa_prestart_fixture.py', 'qa_session_mutex.py', 'qa_isolated_runner.py',
-            'qa_silent_fixture.py', 'qa_protocol.py')
+            'qa_silent_fixture.py', 'qa_protocol.py', 'qa_audio_coverage.py')
 
 
 def digest(path):
@@ -48,6 +48,12 @@ def timed_receipt(guard):
     receipt = dict(guard.assert_ready())
     receipt['recorded_mono'] = time.monotonic()
     return receipt
+
+
+def guard_summary(receipt):
+    # Keep the full call table only in the final observation, not 50 copies/s.
+    return {k: receipt[k] for k in ('ready', 'failed', 'arch', 'effective_ui_flags',
+                                   'originals_called', 'recorded_mono') if k in receipt}
 
 
 def protected_processes():
@@ -168,6 +174,24 @@ def job_policy(job, target=False, apply_ui=True):
     return {'flags': flags, 'active_limit': got['ActiveProcessLimit'], 'ui': ui}
 
 
+def save_audio_evidence(config, result, guard):
+    """Final in-process status BEFORE owned stop, never synthetic RPC output."""
+    if not config['product_logh'] or 'audio_evidence' in result:
+        return
+    root = Path(config['controller_report']).parent
+    receipt = guard.script.exports_sync.audiostatus()
+    receipt['recorded_mono'] = time.monotonic()
+    result['product_audio_observation'] = receipt
+    result['guard_receipts'].append(guard_summary(receipt))
+    envelope = dict(run_id=root.name, manifest_sha256=config['manifest_sha256'],
+                    config_sha256=digest(root / 'controller-config.json'),
+                    target=result['target'], observation=receipt)
+    path = root / 'evidence/audio.json'
+    with path.open('x', encoding='utf-8') as stream:
+        json.dump(envelope, stream, indent=2)
+    result['audio_evidence'] = str(path)
+
+
 def controller(config):
     # -I -S disables site/.pth execution. Only pinned, explicit dependency paths.
     site = Path(config['site'])
@@ -259,10 +283,11 @@ def controller(config):
                     # Preserve actual loaded-module/API counters separately from
                     # fixture synthetic counters. Readiness is NOT coverage.
                     result['product_audio_observation'] = receipt
-                result['guard_receipts'].append(receipt)
+                result['guard_receipts'].append(guard_summary(receipt))
                 if config['product_logh'] and observation_status(
                         True, elapsed, config.get('observe_seconds')) == 'PRODUCT_WINDOW_COMPLETE':
                     # Retained owned handle only. Hooks stay installed until signalled.
+                    save_audio_evidence(config, result, guard)
                     audio.stop_owned_handle(process)
                     result['status'] = 'PRODUCT_WINDOW_COMPLETE'
                     break
@@ -286,6 +311,16 @@ def controller(config):
         result['error'] = str(error)
         result['status'] = 'TIMEOUT' if isinstance(error, TimeoutError) else 'FAIL'
     finally:
+        # On failure/cancellation, attempt a last snapshot too. A failed RPC is
+        # not coverage and MUST NOT skip retained Job/handle cleanup below.
+        if guard and config['product_logh'] and 'audio_evidence' not in result:
+            try:
+                save_audio_evidence(config, result, guard)
+            except BaseException as error:
+                result['audio_evidence_error'] = str(error)
+                result['error'] = result.get('error') or str(error)
+                if result['status'] not in ('FAIL', 'TIMEOUT', 'CLEANUP_FAILED'):
+                    result['status'] = 'FAIL'
         # Stop target BEFORE detaching hooks; no audible uninstrumented interval.
         try:
             if inner:
@@ -397,6 +432,7 @@ def run(args):
         report['outer_policy'] = job_policy(outer)
         cancel = args.cancel_file or root / 'cancel'
         config = dict(site=pinned['site'], mode=args.mode, timeout=args.timeout,
+                      manifest_sha256=args.manifest_sha256,
                       observe_seconds=getattr(args, 'observe_seconds', None),
                       protocol_port=getattr(args, 'port', 20000),
                       upstream_port=getattr(args, 'upstream_port', None),

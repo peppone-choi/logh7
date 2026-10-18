@@ -134,7 +134,7 @@ configuration + injected helpers against the final copy. Record with the same
 product arguments and --record-manifest (does not create a game/controller),
 then externally pin the resulting SHA256. Recording is NOT runtime approval.
 The inventory includes all regular app files without mutable-output exclusions,
-seven runner/guard/payload sources as injected entries, Python closure and the
+all OWN_CODE runner/guard/payload/collector sources as injected entries, Python closure and the
 fixed loopback-only launch arguments `127.0.0.1 <port> ginei00 1 dummy`. The
 generated controller config is separately SHA-pinned before controller launch.
 Any app write means the next invocation requires re-recording and review; never
@@ -160,8 +160,10 @@ hostile-code sandbox; concurrent same-user mutation has validation/use races.
 - 독립 리뷰 뒤 t_78eb1710에서만 exact SHA, 외부 manifest SHA, 원본 exe SHA,
   실제 DLL 경로/바이트 SHA, API 주소와 호출자 모듈/RVA를 실행 로그에 연결한다.
   앱 초기화/로그인/재시도/전략·전술·종료 등 실제 제품 시나리오별로 관찰한다.
-  현재 guard의 product_audio_observation은 실제 모듈·카운터 원자료일 뿐
-  호출자 및 전체 시나리오 커버리지를 대신하지 않는다.
+  I3 guard는 각 hook의 api, caller_module, caller_path, caller_rva,
+  return_value, disposition, source, count를 집계한다. caller는 this.returnAddress를
+  Process.findModuleByAddress로 찾으며 제품 호출자 해석 실패는 fatal이다.
+  product_audio_observation은 관찰 창의 원자료이며 전체 시나리오 커버리지를 대신하지 않는다.
 - DirectSound: 원본 코드가 호출한 DirectSoundCreate/Create8의 실제 HRESULT,
   실제 장치 CreateSoundBuffer/DuplicateSoundBuffer와 buffer QI 경로를 추적하고,
   실제 버퍼의 첫·반복 Play가 원본 재생 함수를 호출하지 않고 차단됐음을
@@ -182,11 +184,39 @@ hostile-code sandbox; concurrent same-user mutation has validation/use races.
   Job 0 및 보존 PID 부재를 확인한다. 비간섭·무음·정리·제품 프로토콜 근거를
   모두 갖춘 공식 hermes-windows qa 영수증만 제품 PASS 근거로 사용한다.
 
+I3 collector 계약 (구현, Windows/제품 실행 NOT_RUN):
+
+- controller는 소유 대상 정지 직전 마지막 audiostatus()를
+  owned_temp/evidence/audio.json에 저장한다. run_id, manifest_sha256,
+  config_sha256, target(PID/생성시각/이미지 SHA 포함)를 바인딩하고 supervisor가
+  정리 후 evidence_files에 파일 SHA를 등록한다. 실패/취소에도 snapshot을 시도하되,
+  RPC 실패가 Job/handle 정리를 건너뛰지 않는다. 이미 죽은 대상의 마지막 증거가 없으면 FAIL이다.
+- qa_audio_coverage.py의 순수 판정은 guard ready/UI255 연속성(간격 ≤1초),
+  error/audio-fatal 0, originals_called==0 및 모듈/RVA에 귀속된 유효 시도 ≥1을 요구한다.
+  deny 교체 함수는 원본 재생 NativeFunction/trampoline을 만들거나 호출하지 않는다.
+  originals_called는 이 원본 재생 호출 경로의 카운터(현재 제품 경로 없음)이며
+  허용된 초기화/QI 원본 호출 횟수를 의미하지 않는다. 합성 selftest의 원본 재생
+  callback도 카운터를 증가시키지만 source=fixture이므로 제품 근거가 될 수 없다.
+- suppress 반환은 API별 고정 반환값과 비교한다. DirectSound 초기화/버퍼 생성의
+  성공 반환은 하위 vtable 보호 설치·flush 뒤 guarded-init으로 기록한다.
+  초기화 실패는 장치 부재일 수 있어 PASS 근거에서 제외한다. 일반 COM 거부/QI/자식
+  생성 거부는 기록하되 오디오 의도가 확인되지 않으므로 유효 오디오 시도에 넣지 않는다.
+  WASAPI는 ActivateAudioInterfaceAsync 거부 또는 보호된 인터페이스 시도가 있어야 관찰로 센다.
+- 시도 0건은 NOT_RUN, originals>0/미차단 반환/fatal/새 출력 모듈/잘못된 RVA는 FAIL.
+  미관찰 API 계열은 NOT_OBSERVED 목록이며 fixture/selftest source는 PASS 근거에서 제외한다.
+  고유 호출 집계 상한 4096 초과는 fatal이다. guard_receipts는 작은 readiness 요약을
+  보관하고 전체 호출 표는 마지막 observation에만 남긴다(초기 handshake 제외).
+- same-run 어댑터는 envelope와 runtime 최종 observation 일치·기존 SHA 바인딩을 확인한
+  뒤 재판정한다. 개별 audio PASS도 플랫폼 PASS/exit0를 만들지 않는다(I6 범위).
+  Linux 합성 JSON/정적 시험은 제품 증거가 아니다. D3/D5와 실제 native callback·RVA
+  동작 검증은 t_78eb1710에 남아 있다. 새 manifest와 외부 pin은 최종 exact SHA에서 재생성한다.
+
 ## Verification
 
 제품 QA 보고 진입과 남은 collector 결함은 [product-qa-entry.md](product-qa-entry.md)를
 따른다. 새 `windows-product-qa.ps1`은 비실행 보고 연결이며 런타임 관찰/fixture
-성공을 제품 PASS로 바꾸지 않는다. 실제 제품 assertion collector는 아직 없다.
+성공을 제품 PASS로 바꾸지 않는다. 프로토콜·오디오 collector는 연결됐지만
+나머지 collector 및 통합 PASS gate는 후속 카드 범위다.
 
 Portable focused tests: `python -m unittest discover -s tools/client -p 'test_qa*py' -v`.
 Windows fixture matrix and final-head readback are recorded in

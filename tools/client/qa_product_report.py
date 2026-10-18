@@ -37,7 +37,7 @@ def product_report(device, head, runtime=None, evidence=None):
         'productQA': 'NOT_RUN', 'windows_qa_receipt': None,
         'platforms': {'windows': {'status': status, 'deviceId': device,
             'checks': [{'name': name, 'status': 'NOT_RUN',
-                        'evidence': ('No verified same-run protocol evidence' if name == CHECKS[-1]
+                        'evidence': ('No verified same-run collector evidence' if name in (CHECKS[1], CHECKS[-1])
                                      else 'No implemented product assertion collector')} for name in CHECKS]}},
         # These fields mean product-level proof, not a fixture guard handshake.
         'isolationVerified': False, 'silentVerified': False, 'cleanupVerified': False,
@@ -45,7 +45,7 @@ def product_report(device, head, runtime=None, evidence=None):
         'runtimeHeadProvenanceVerified': False,
         'runtimeEvidence': evidence,
         'runtimeStatus': runtime['status'] if runtime else None,
-        'blockers': ['Product API/audio/render assertion collectors are missing; '
+        'blockers': ['Product API/render assertion collectors and aggregate PASS gate are missing; '
                      'runtime observation, fixture PASS, exec and probe are not product PASS.'],
     }
 
@@ -239,6 +239,29 @@ def apply_protocol_check(report, runtime):
     # I6 owns aggregate PASS. A protocol PASS cannot change the platform to PASS.
 
 
+def apply_audio_check(report, runtime):
+    # Called only after all evidence SHA/run/config/target bindings are checked.
+    path = Path(runtime['owned_temp']) / 'evidence/audio.json'
+    c = runtime['controller']
+    if not path.exists():
+        if 'audio_evidence' in c or 'manifest_sha256' in runtime['controller_config']:
+            raise ValueError('Missing audio collector evidence')
+        return  # Historical I1/I2 observation is not I3 coverage.
+    envelope = read_object(path)
+    if envelope['observation'] != c.get('product_audio_observation'):
+        raise ValueError('Audio runtime/evidence observation mismatch')
+    spec = importlib.util.spec_from_file_location('logh_audio_coverage', Path(__file__).with_name('qa_audio_coverage.py'))
+    assert spec is not None and spec.loader is not None
+    audio = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audio)
+    result = audio.check_audio(envelope['observation'], c)
+    report['platforms']['windows']['checks'][1].update(
+        status=result['status'], evidence=str(path), detail=result)
+    if result['status'] == 'FAIL':
+        report['platforms']['windows']['status'] = 'FAIL'
+    # Check PASS never promotes the platform/exit code before I6.
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, required=True)
@@ -288,6 +311,7 @@ def main():
                     report.update(safety_fields(raw))
                     report['blockers'].pop()
                     apply_protocol_check(report, raw)
+                    apply_audio_check(report, raw)
                 if raw['status'].startswith('WAIT_'):
                     report['blockers'].append(raw['status'])
             validate_checkout(args.head, preflight.git(args.repo, 'rev-parse', 'HEAD'),
