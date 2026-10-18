@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,16 @@ SPEC.loader.exec_module(qa)
 
 
 class ProductReportTests(unittest.TestCase):
+    def test_powershell_python_arguments_disable_site_and_bytecode(self):
+        source = (HERE / 'windows-product-qa.ps1').read_text(encoding='utf-8')
+        arguments = re.search(r"\$arguments\s*=\s*@\(\s*((?:'[^']*'\s*,\s*)+)", source)
+        self.assertIsNotNone(arguments, 'Python argument list must be explicit')
+        assert arguments is not None
+        flags = re.findall(r"'([^']*)'", arguments.group(1))
+        for flag in ('-I', '-S', '-B'):
+            with self.subTest(flag=flag):
+                self.assertIn(flag, flags)
+
     def test_every_runtime_status_is_nonpassing(self):
         for status in ('PASS', 'PRODUCT_OBSERVED', 'WAIT_USER_GAME_OR_STEAM',
                        'TIMEOUT', 'FAIL', 'CLEANUP_FAILED', 'CANCELLED'):

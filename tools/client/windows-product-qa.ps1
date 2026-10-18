@@ -16,7 +16,7 @@ try {
     # user Python environment; -B avoids writes into the exact-head checkout.
     $cache = Join-Path ([IO.Path]::GetDirectoryName($Out)) ('report-cache-' + [Guid]::NewGuid().ToString('N'))
     $null = New-Item -ItemType Directory -Path $cache -ErrorAction Stop
-    $arguments = @('-I', '-B', '-X', ('pycache_prefix=' + $cache),
+    $arguments = @('-I', '-S', '-B', '-X', ('pycache_prefix=' + $cache),
         (Join-Path $Repo 'tools/client/qa_product_report.py'),
         '--repo', $Repo, '--head', $Head, '--out', $Out)
     if ($RuntimeReport -or $RuntimeReportSha256) {
