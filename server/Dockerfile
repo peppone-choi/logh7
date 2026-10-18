@@ -1,6 +1,8 @@
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /build
 COPY . .
+# Required named context supplies Gradle's ../docs/manual/data outside server/.
+COPY --from=logh7-manual-data *.csv /docs/manual/data/
 RUN bash ./gradlew :app:installDist --no-daemon
 
 FROM eclipse-temurin:25-jre

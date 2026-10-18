@@ -2,12 +2,14 @@
 
 Java 25 JDK에서 `:app:installDist`로 빌드하고 Java 25 JRE에서 UID/GID 10001로 실행한다. Docker context는 `server/`이며 `.dockerignore`가 main 소스·빌드 정의·wrapper만 허용한다. 원본 바이너리·캡처·계정 파일을 이미지에 넣지 않는다.
 
+매뉴얼 CSV는 BuildKit named context `logh7-manual-data=docs/manual/data`에서 `*.csv`만 빌드 단계의 `/docs/manual/data/`로 복사한다. 기존 Gradle의 `../docs/manual/data` 경로를 유지하며, 추가 context 없이 빌드하면 실패한다. BuildKit과 Compose v2.17+의 `additional_contexts`가 필요하며 Compose도 같은 디렉터리를 별도 context로 전달한다.
+
 ## 명령
 
 승인된 개발 환경에서 저장소 루트 기준:
 
 ```sh
-docker build -t logh7/game-server:local server
+docker build --build-context logh7-manual-data=docs/manual/data -t logh7/game-server:local server
 docker compose -f deploy/docker-compose.yml --profile game config --quiet
 docker compose -f deploy/docker-compose.yml --profile game up -d --no-build --wait --wait-timeout 120 game-server
 docker compose -f deploy/docker-compose.yml --profile game ps
@@ -40,4 +42,4 @@ PostgreSQL은 **게임 서버에 미연결**이다. 앱은 파일 기반 세션 
 
 호스트 게임 연결이 필요하면 별도 이슈에서 bind 계약과 `AGENTS.md`의 localhost/host-only 제한 개정 여부를 프로젝트 소유자가 결정해야 한다. PR45는 최신 hosted `container/game-image`·`server/build` 성공과 독립 리뷰·검증 전까지 draft·병합 불가를 유지한다. readiness CLOSED와 제품 QA NOT_RUN은 변하지 않는다.
 
-Compose의 `build: ../server`는 로컬 개발용이며 기본 태그 `logh7/game-server:local`은 운영 승격 이미지가 아니다. 위 `--no-build` 명령은 미리 빌드한 이미지를 사용한다. `--build` 또는 암묵적 로컬 빌드를 운영 배포로 해석하지 않는다.
+Compose의 `build.context: ../server`와 매뉴얼 CSV 추가 context는 로컬 개발용이며 기본 태그 `logh7/game-server:local`은 운영 승격 이미지가 아니다. 위 `--no-build` 명령은 미리 빌드한 이미지를 사용한다. `--build` 또는 암묵적 로컬 빌드를 운영 배포로 해석하지 않는다.
