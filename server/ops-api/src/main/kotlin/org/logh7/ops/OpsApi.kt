@@ -53,7 +53,7 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
         respondText("invalid X-LOGH7-Operator", status = HttpStatusCode.BadRequest)
         return
     }
-    val requestId = try { audit.requested(action, operator, request.origin.remoteHost) }
+    val requestId = try { audit.requested(action, operator, request.origin.remoteAddress) }
     catch (_: IOException) {
         respondText("ops audit request not recorded", status = HttpStatusCode.ServiceUnavailable)
         return
