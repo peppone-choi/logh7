@@ -28,8 +28,7 @@ class ProductReportTests(unittest.TestCase):
                 self.assertIn(flag, flags)
 
     def test_every_runtime_status_is_nonpassing(self):
-        for status in ('PASS', 'PRODUCT_OBSERVED', 'WAIT_USER_GAME_OR_STEAM',
-                       'TIMEOUT', 'FAIL', 'CLEANUP_FAILED', 'CANCELLED'):
+        for status in sorted(qa.RUNTIME_STATUSES):
             with self.subTest(status=status):
                 report = qa.product_report('device', 'a' * 40, {'status': status}, 'raw.json')
                 self.assertNotEqual(report['platforms']['windows']['status'], 'PASS')

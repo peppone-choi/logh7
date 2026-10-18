@@ -119,6 +119,7 @@ class PrestartTests(unittest.TestCase):
                 with self.subTest(product=product, error=error), tempfile.TemporaryDirectory() as temp:
                     args = types.SimpleNamespace(product_logh=product, reference_pid=[],
                                                  temp_parent=Path(temp), repo=Path(temp),
+                                                 report=Path(temp) / 'runtime.json',
                                                  cancel_file=None, manifest_sha256='pinned',
                                                  mode='success', timeout=5)
                     process, thread, retained = Mock(), Mock(), Mock()
@@ -140,7 +141,7 @@ class PrestartTests(unittest.TestCase):
                                    win32job=wj, win32process=wp, win32service=Mock(),
                                    win32ts=Mock(WTSEnumerateProcesses=Mock(return_value=[])),
                                    qa_prestart_audio=audio, qa_isolated_runner=isolated)
-                    sessions = [[0], [0], [1] if error.startswith('WAIT_') else [0]]
+                    sessions = [[0], [0], [1] if error.startswith('WAIT_') else [0], [0]]
                     with patch.dict(sys.modules, modules), \
                             patch.object(runner, 'validate', return_value={'site': 'pinned', 'app': {}, 'target_args': []}), \
                             patch.object(runner, 'target_spec', return_value=(Path(temp) / 'not-executed.exe', Path(temp))), \

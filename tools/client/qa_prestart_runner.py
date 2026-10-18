@@ -35,6 +35,30 @@ def normal_fixture_exit(signalled, code, messages):
                         for m in messages))
 
 
+def observation_status(alive, elapsed, observe_seconds):
+    """Observation completion is never a product assertion or PASS."""
+    if not alive:
+        return 'COMMAND_FAILED'
+    if observe_seconds is not None and elapsed >= observe_seconds:
+        return 'PRODUCT_WINDOW_COMPLETE'
+    return None
+
+
+def timed_receipt(guard):
+    receipt = dict(guard.assert_ready())
+    receipt['recorded_mono'] = time.monotonic()
+    return receipt
+
+
+def protected_processes():
+    import win32ts
+    return sorted([{'session': p[0], 'pid': p[1], 'name': p[2]}
+                   for p in win32ts.WTSEnumerateProcesses(0)
+                   if Path(p[2]).name.casefold() in
+                   ('steam.exe', 'steamwebhelper.exe', 'hoi4.exe', 'g7.exe', 'g7o.exe',
+                    'gin7.exe', 'g7mtclient.exe')], key=lambda p: (p['session'], p['pid']))
+
+
 def target_spec(args):
     from qa_prestart_audio import TARGET_SHA256, _file_hash, _plain_path
     if not args.product_logh:
@@ -61,6 +85,22 @@ def controller_command(root, config, config_sha256):
 
 def base_python():
     return Path(getattr(sys, '_base_executable', sys.executable)).resolve(strict=True)
+
+
+def supervisor_prefix():
+    """-S on Python <3.14 skips venv prefix setup as well as site startup."""
+    prefix = Path(sys.executable).resolve(strict=True).parent.parent
+    if not (prefix / 'pyvenv.cfg').is_file() or not prefix.is_relative_to(Path('E:/HermesQA')):
+        raise RuntimeError('Explicit private Windows venv required with -S')
+    sys.prefix = sys.exec_prefix = str(prefix)
+    return prefix / 'Lib/site-packages'
+
+
+def supervisor_dependencies(site):
+    # Only after exact inventory validation. Never call site.main/addsitedir:
+    # .pth and sitecustomize must not run, even in the private environment.
+    sys.path[:0] = [str(site), str(site / 'win32'), str(site / 'win32/lib')]
+    import pywin32_bootstrap
 
 
 def inventory(repo, fixture_dir, executable=None, app_root=None, port=20000):
@@ -182,7 +222,7 @@ def controller(config):
                                  extra_files=[HERE / n for n in OWN_CODE],
                                  on_failure=lambda: audio.stop_owned_handle(process))
         result['helper_identities'] = guard.helper_identities
-        result['pre_resume_receipt'] = guard.assert_ready()
+        result['pre_resume_receipt'] = timed_receipt(guard)
         # Synthetic native callbacks/vtables only: never real audio devices or
         # sessions. Tests the installed blocking mechanism without playback.
         if not config['product_logh']:
@@ -197,9 +237,11 @@ def controller(config):
             return result
         # Last operation before ResumeThread is a synchronous effective-UI + guard check.
         result['guard_receipts'].append(guard.assert_ready())
+        result['guard_receipts'][-1]['recorded_mono'] = time.monotonic()
         wp.ResumeThread(thread)
         result['resumed'] = True
         started = time.monotonic()
+        result['resumed_mono'] = started
         while we.WaitForSingleObject(process, 20) == we.WAIT_TIMEOUT:
             if Path(config['cancel']).exists():
                 result['status'] = 'CANCELLED'
@@ -212,12 +254,18 @@ def controller(config):
             if elapsed > config['timeout']:
                 raise TimeoutError('TIMEOUT')
             try:
-                receipt = guard.assert_ready()
+                receipt = timed_receipt(guard)
                 if config['product_logh']:
                     # Preserve actual loaded-module/API counters separately from
                     # fixture synthetic counters. Readiness is NOT coverage.
                     result['product_audio_observation'] = receipt
-                result['guard_receipts'].append({k: receipt[k] for k in ('ready', 'arch', 'effective_ui_flags')})
+                result['guard_receipts'].append(receipt)
+                if config['product_logh'] and observation_status(
+                        True, elapsed, config.get('observe_seconds')) == 'PRODUCT_WINDOW_COMPLETE':
+                    # Retained owned handle only. Hooks stay installed until signalled.
+                    audio.stop_owned_handle(process)
+                    result['status'] = 'PRODUCT_WINDOW_COMPLETE'
+                    break
             except Exception as error:
                 # Enumerating full helper identities races ordinary target exit.
                 # Only a signalled retained process with the fixture's normal
@@ -228,7 +276,12 @@ def controller(config):
                     break
                 raise
         result['exit_code'] = wp.GetExitCodeProcess(process)
-        result['status'] = ('PRODUCT_OBSERVED' if config['product_logh'] else 'PASS') if result['exit_code'] == 0 else 'COMMAND_FAILED'
+        if result['status'] != 'PRODUCT_WINDOW_COMPLETE':
+            if config['product_logh'] and config.get('observe_seconds') is not None:
+                result['status'] = observation_status(False, 0, config['observe_seconds'])
+            else:
+                result['status'] = (('PRODUCT_OBSERVED' if config['product_logh'] else 'PASS')
+                                    if result['exit_code'] == 0 else 'COMMAND_FAILED')
     except BaseException as error:
         result['error'] = str(error)
         result['status'] = 'TIMEOUT' if isinstance(error, TimeoutError) else 'FAIL'
@@ -241,6 +294,8 @@ def controller(config):
                 audio.stop_owned_handle(process)
             if process and we.WaitForSingleObject(process, 5000) != we.WAIT_OBJECT_0:
                 raise RuntimeError('Target did not exit')
+            if process:
+                result['target_stopped_mono'] = time.monotonic()
             if inner:
                 end = time.monotonic() + 5
                 while wj.QueryInformationJobObject(inner, wj.JobObjectBasicAccountingInformation)['ActiveProcesses'] and time.monotonic() < end:
@@ -261,6 +316,7 @@ def controller(config):
         if guard:
             result['guard_messages'] = guard.messages
             guard.close()
+            result['guard_detached_mono'] = time.monotonic()
         for handle in (thread, process, inner):
             if handle:
                 handle.Close()
@@ -272,6 +328,16 @@ def run(args):
     report = {'status': 'FAIL', 'product_pass': False,
               'product_qa': 'NOT_RUN', 'games_executed': False, 'environment_ready': False,
               'cleanup_verified': False, 'remaining_owned_pids': [], 'owned_processes': []}
+
+    pinned = None
+    try:
+        if os.name == 'nt' and sys.flags.no_site:
+            site = supervisor_prefix()
+            pinned = validate(args)
+            supervisor_dependencies(site)
+    except Exception as error:
+        report['error'] = str(error)
+        return report  # No Windows dependency import or owned process yet.
 
     import win32api as wa
     import win32con as wc
@@ -287,7 +353,8 @@ def run(args):
     observed = {}
     before = None
     try:
-        pinned = validate(args)
+        if pinned is None:
+            pinned = validate(args)
         report['manifest_sha256'] = args.manifest_sha256
         before = snapshot()
         report['before'] = before
@@ -295,17 +362,13 @@ def run(args):
             report['status'] = 'WAIT_ISOLATION_UNPROVEN'
             return report
         ids = session_ids()
+        report['session_ids_before'] = ids
         mutex = SessionMutex(ids).acquire()
         report['mutexes'] = mutex.evidence
         if session_ids() != ids:
             raise RuntimeError('WAIT_SESSION_SET_CHANGED')
         if args.product_logh:
-            import win32ts
-            protected = [{'session': p[0], 'pid': p[1], 'name': p[2]}
-                         for p in win32ts.WTSEnumerateProcesses(0)
-                         if Path(p[2]).name.casefold() in
-                         ('steam.exe', 'steamwebhelper.exe', 'hoi4.exe', 'g7.exe', 'g7o.exe',
-                          'gin7.exe', 'g7mtclient.exe')]
+            protected = protected_processes()
             report['protected_processes'] = protected
             if protected:
                 report['status'] = 'WAIT_USER_GAME_OR_STEAM'
@@ -325,6 +388,8 @@ def run(args):
         root = args.temp_parent / uuid.uuid4().hex
         root.mkdir()
         report['owned_temp'] = str(root)  # Retained evidence; no shared TEMP deletion.
+        (root / 'evidence').mkdir()
+        report['run_id'] = root.name
         name = 'LOGH_PRESTART_' + root.name
         desk = ws.CreateDesktop(name, 0, 0x10000000, None)
         report['private_desktop'] = name
@@ -332,6 +397,8 @@ def run(args):
         report['outer_policy'] = job_policy(outer)
         cancel = args.cancel_file or root / 'cancel'
         config = dict(site=pinned['site'], mode=args.mode, timeout=args.timeout,
+                      observe_seconds=getattr(args, 'observe_seconds', None),
+                      runtime_report=str(args.report),
                       product_logh=args.product_logh, executable=str(executable),
                       app_root=str(app_root), expected_runtime=pinned['app'],
                       target_args=pinned['target_args'],
@@ -340,6 +407,7 @@ def run(args):
         config_path = root / 'controller-config.json'
         config_path.write_text(json.dumps(config))
         report['config_sha256'] = digest(config_path)
+        report['controller_config'] = config
         env = dict(os.environ, TEMP=str(root), TMP=str(root), LOGH_QA_FRIDA_TEMP=str(root),
                    LOGH_QA_TEMP_PARENT=str(args.temp_parent))
         command = controller_command(root, config_path, report['config_sha256'])
@@ -403,13 +471,24 @@ def run(args):
                 report['remaining_owned_pids'] = [p for p, (h, _) in observed.items()
                                                 if we.WaitForSingleObject(h, 5000) != we.WAIT_OBJECT_0]
                 report['cleanup_verified'] = not report['remaining_owned_pids'] and report['outer_active_after'] == 0
-                report['owned_processes'] = [{'pid': p, 'creation_time': t} for p, (_, t) in observed.items()]
+                report['owned_processes'] = [{'pid': p, 'creation_time': t,
+                    'signalled': p not in report['remaining_owned_pids']} for p, (_, t) in observed.items()]
                 if not report['cleanup_verified']:
                     raise RuntimeError('Outer Job cleanup unproven')
             if before:
                 report['after'] = snapshot()
                 if report['after'] != before:
                     raise RuntimeError('Session/window station changed')
+            if mutex:
+                report['session_ids_after'] = session_ids()
+                if report['session_ids_after'] != report['session_ids_before']:
+                    raise RuntimeError('Session set changed')
+            if args.product_logh:
+                report['protected_processes_after'] = protected_processes()
+            if report.get('owned_temp'):
+                evidence = Path(report['owned_temp']) / 'evidence'
+                report['evidence_files'] = [{'path': str(p), 'sha256': digest(p)}
+                                             for p in sorted(evidence.rglob('*')) if p.is_file()]
         except BaseException as error:
             report['status'] = 'CLEANUP_FAILED'
             report['cleanup_error'] = str(error)
@@ -447,11 +526,15 @@ def main():
     parser.add_argument('--product-logh', action='store_true')
     parser.add_argument('--mode', choices=('success', 'failure', 'timeout', 'exception', 'cancel', 'guard-failure', 'detach'), default='success')
     parser.add_argument('--timeout', type=float, default=5)
+    parser.add_argument('--observe-seconds', type=int)
     parser.add_argument('--cancel-file', type=Path)
     parser.add_argument('--reference-pid', type=int, action='append', default=[])
     args = parser.parse_args()
     if not 0.2 <= args.timeout <= 30:
         parser.error('timeout must be 0.2..30 seconds')
+    if args.observe_seconds is not None and (not args.product_logh or
+            not 1 <= args.observe_seconds <= 25 or args.observe_seconds >= args.timeout):
+        parser.error('observe-seconds requires product mode, 1..25 and less than timeout')
     if not 1024 <= args.port <= 65535:
         parser.error('local stub port must be 1024..65535')
     if args.product_logh and (args.executable is None or args.app_root is None):
@@ -461,6 +544,8 @@ def main():
     if args.product_logh and args.mode != 'success':
         parser.error('fault injection modes are fixture-only')
     if args.record_manifest:
+        if os.name == 'nt' and sys.flags.no_site:
+            supervisor_prefix()
         executable, root = target_spec(args)
         with args.manifest.open('x') as stream:
             json.dump(inventory(args.repo, args.fixture_dir,
