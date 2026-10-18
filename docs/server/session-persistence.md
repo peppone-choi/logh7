@@ -19,6 +19,8 @@
 
 append/force/checkpoint 오류 시 엔진 상태와 성공 ACK, 이벤트를 게시하지 않는다. 해당 엔진의 후속 변경도 차단한다. 파일에 쓰였지만 응답하지 못한 명령이 다음 부팅에서 복원될 수 있다. 성공 응답이 없다는 이유로 같은 프로세스에서 다시 append하지 않는다. 이 구현은 클라이언트 업무 명령의 멱등 키나 응답 재전송을 제공하지 않는다.
 
+운영 API의 `GET /health`는 정상 엔진에 200 `ok`, 저장 commit 또는 commit 뒤 처리 실패로 변경이 차단된 엔진에 503 `engine storage failed`를 반환한다. actor 또는 ticker가 종료되면 저장 실패 여부보다 우선하여 503 `engine stopped`를 반환한다. 이 관측은 자동 재시작·복구를 수행하지 않으며, `close()`는 비동기이므로 종료 직후가 아니라 작업 종료가 관측된 뒤 정지 상태가 된다. `/health`에는 운영자 헤더나 감사 로그 설정이 필요 없다.
+
 ## 형식과 복원
 
 schema 1, 모든 `SessionRules` 필드의 SHA-256 fingerprint, 길이 제한 8 MiB, frame payload SHA-256을 사용한다. Java 객체 역직렬화는 사용하지 않는다. checkpoint는 genesis, cutSeq와 해당 전체 상태를 담는다. 256개 기록마다 임시 파일을 force하고 atomic rename한 뒤 디렉터리를 force한다. 단일 writer 파일 lock을 유지한다.

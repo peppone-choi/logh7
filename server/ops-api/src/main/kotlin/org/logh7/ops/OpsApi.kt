@@ -17,7 +17,13 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     audit: OpsAudit? = null): AutoCloseable {
     val server = embeddedServer(Netty, host = "127.0.0.1", port = port) {
         routing {
-            get("/health") { call.respondText("ok") }
+            get("/health") {
+                when (snapshots.health()) {
+                    EngineHealth.RUNNING -> call.respondText("ok")
+                    EngineHealth.STORAGE_FAILED -> call.respondText("engine storage failed", status = HttpStatusCode.ServiceUnavailable)
+                    EngineHealth.STOPPED -> call.respondText("engine stopped", status = HttpStatusCode.ServiceUnavailable)
+                }
+            }
             get("/snapshot") { call.respondText(snapshots.snapshot().toString()) }
             post("/commands/probe") {
                 call.audited(audit, OpsAction.PROBE) {
