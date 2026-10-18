@@ -58,20 +58,60 @@ class AutomaticProductionSeedTest {
     @Test fun diagnosticCrossReferencePinsFiveUnresolvedOriginalTokens() {
         val ships = ShipUnitSeedLoader.load().units.map { it.faction to it.unit }.toSet()
         val crew = CrewUnitSeedLoader.load().units.map { it.faction to it.unit }.toSet()
-        val unresolved = mutableListOf<Pair<Int, String>>()
+        data class Mismatch(val record: Int, val page: Int, val faction: SeedFaction,
+            val column: String, val token: String)
+        val unresolved = mutableListOf<Mismatch>()
         var matched = 0
         for (entry in AutomaticProductionSeedLoader.load().entries) {
-            for ((tokens, definitions) in listOf(entry.shipUnits to ships,
-                entry.crewUnits to crew, entry.groundUnits to crew)) {
+            for ((column, tokens, definitions) in listOf(Triple("ship", entry.shipUnits, ships),
+                Triple("crew", entry.crewUnits, crew), Triple("ground", entry.groundUnits, crew))) {
                 for (token in tokens) {
                     if ((entry.faction to token) in definitions) matched++
-                    else unresolved.add(entry.source.record to token)
+                    else unresolved.add(Mismatch(entry.source.record, entry.source.page, entry.faction, column, token))
                 }
             }
         }
         assertEquals(870, matched)
-        assertEquals(listOf(83 to "揚陸艇Ⅱ", 109 to "艦隊乗組員", 133 to "揚陸艇Ⅳ",
-            172 to "揚陸艇Ⅱ", 182 to "揚陸艇Ⅱ"), unresolved)
+        assertEquals(listOf(
+            Mismatch(83, 76, SeedFaction.EMPIRE, "ship", "揚陸艇Ⅱ"),
+            Mismatch(109, 76, SeedFaction.EMPIRE, "ship", "艦隊乗組員"),
+            Mismatch(133, 76, SeedFaction.ALLIANCE, "ship", "揚陸艇Ⅳ"),
+            Mismatch(172, 77, SeedFaction.EMPIRE, "ship", "揚陸艇Ⅱ"),
+            Mismatch(182, 77, SeedFaction.EMPIRE, "ship", "揚陸艇Ⅱ"),
+        ), unresolved)
+    }
+
+    @Test fun f8SourceMismatchRowsStayVerbatimAsPrintedInManual() {
+        val entries = AutomaticProductionSeedLoader.load().entries.filter {
+            it.source.record in setOf(83, 109, 133, 172, 182)
+        }
+        assertEquals(listOf(
+            AutomaticProduction(SeedFaction.EMPIRE, 0, "アイゼンヘルツ", "ゴータ",
+                listOf("揚陸艇Ⅱ"), listOf("艦隊乗組員"), listOf("軽装陸戦兵", "軽装陸戦兵"),
+                ManualSource("initial-deployment.csv", 76, 83)),
+            AutomaticProduction(SeedFaction.EMPIRE, 0, "ヴァナヘイム", "エインヘリヤル",
+                listOf("高速戦艦Ⅴ", "艦隊乗組員"), emptyList(), listOf("軽装陸戦兵", "軽装陸戦兵"),
+                ManualSource("initial-deployment.csv", 76, 109)),
+            AutomaticProduction(SeedFaction.ALLIANCE, 1, "エルゴン", "ブタンディガ",
+                listOf("揚陸艇Ⅳ"), listOf("艦隊乗組員"), listOf("軽装陸戦兵", "軽装陸戦兵"),
+                ManualSource("initial-deployment.csv", 76, 133)),
+            AutomaticProduction(SeedFaction.EMPIRE, 0, "ヴィッテルスバッハ", "ヴィクトアーリエン",
+                listOf("揚陸艇Ⅱ"), listOf("艦隊乗組員"), listOf("軽装陸戦兵", "軽装陸戦兵"),
+                ManualSource("initial-deployment.csv", 77, 172)),
+            AutomaticProduction(SeedFaction.EMPIRE, 0, "ヴェルラ", "シュテファニ",
+                listOf("揚陸艇Ⅱ"), listOf("艦隊乗組員"), listOf("軽装陸戦兵", "軽装陸戦兵"),
+                ManualSource("initial-deployment.csv", 77, 182)),
+        ), entries)
+    }
+
+    @Test fun f8ShipDefinitionsPreserveLandingShipNamesByFaction() {
+        val units = ShipUnitSeedLoader.load().units
+        assertEquals(0, units.count { it.unit.startsWith("揚陸艇") })
+        for (faction in listOf(SeedFaction.EMPIRE, SeedFaction.ALLIANCE)) {
+            assertEquals(setOf("揚陸艦Ⅰ", "揚陸艦Ⅱ", "揚陸艦Ⅲ", "揚陸艦Ⅳ"),
+                units.filter { it.faction == faction && it.unit.startsWith("揚陸艦") }
+                    .map { it.unit }.toSet(), faction.name)
+        }
     }
 
     @Test fun snapshotAndEveryNestedListAreUnmodifiableDefensiveCopies() {
