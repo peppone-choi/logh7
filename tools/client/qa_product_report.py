@@ -37,7 +37,8 @@ def product_report(device, head, runtime=None, evidence=None):
         'productQA': 'NOT_RUN', 'windows_qa_receipt': None,
         'platforms': {'windows': {'status': status, 'deviceId': device,
             'checks': [{'name': name, 'status': 'NOT_RUN',
-                        'evidence': 'No implemented product assertion collector'} for name in CHECKS]}},
+                        'evidence': ('No verified same-run protocol evidence' if name == CHECKS[-1]
+                                     else 'No implemented product assertion collector')} for name in CHECKS]}},
         # These fields mean product-level proof, not a fixture guard handshake.
         'isolationVerified': False, 'silentVerified': False, 'cleanupVerified': False,
         'runtimeExecutedByAdapter': False,
