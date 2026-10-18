@@ -1,0 +1,59 @@
+import argparse
+import importlib.util
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest import mock
+
+SPEC = importlib.util.spec_from_file_location('runner', Path(__file__).with_name('qa_isolated_runner.py'))
+runner = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(runner)
+
+
+class IsolationTests(unittest.TestCase):
+    def test_structural_gate(self):
+        state = dict(runner_session=0, active_console_session=1, sessions=[(0, 4), (1, 0)], winsta='Service-private', flags=0)
+        self.assertTrue(runner.isolated(state))
+        for patch in [dict(active_console_session=0), dict(sessions=[(0, 0)]), dict(sessions=[(0, 1)]), dict(winsta='WinSta0'), dict(flags=1)]:
+            with self.subTest(patch=patch):
+                self.assertFalse(runner.isolated(dict(state, **patch)))
+
+    def test_mutex_literal(self):
+        self.assertEqual(runner.MUTEX, 'Local' + chr(92) + 'OpenClaw_GUI_TEST_SHARED_PEPPONE_CHOI_PC')
+
+    def test_manifest_exact_and_fixture_path(self):
+        repo = Path(__file__).resolve().parents[2]
+        fixture = Path(__file__).with_name('qa_silent_fixture.py')
+        with tempfile.TemporaryDirectory() as temporary:
+            manifest = Path(temporary) / 'manifest.json'
+            manifest.write_text(json.dumps(runner.inventory(repo)))
+            runner.validate(repo, manifest, fixture)
+            with self.assertRaises(ValueError):
+                runner.validate(repo, manifest, Path(__file__))
+            manifest.write_text('{}')
+            with self.assertRaisesRegex(ValueError, 'UNREVIEWED_RUNTIME'):
+                runner.validate(repo, manifest, fixture)
+
+    def test_manifest_failure_never_imports_windows(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args = argparse.Namespace(report=Path(temporary)/'report.json', repo=Path(temporary), manifest=Path(temporary)/'missing', fixture=Path(temporary)/'fixture', product_logh=False)
+            with mock.patch.object(runner, 'validate', side_effect=ValueError('UNREVIEWED_RUNTIME')):
+                result = runner.run(args)
+            self.assertEqual(result['status'], 'FAIL')
+            self.assertEqual(result['owned_processes'], [])
+            self.assertEqual(json.loads(args.report.read_text())['error'], 'UNREVIEWED_RUNTIME')
+            with self.assertRaises(FileExistsError):
+                runner.run(args)
+
+    def test_product_never_imports_or_launches_game(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args = argparse.Namespace(report=Path(temporary)/'report.json', repo=Path(temporary), manifest=Path(temporary)/'missing', fixture=Path(temporary)/'fixture', product_logh=True)
+            with mock.patch.object(runner, 'validate', return_value='fixture-only-inventory'):
+                result = runner.run(args)
+            self.assertEqual(result['status'], 'WAIT_PRESTART_SILENCE_INTEGRATION')
+            self.assertFalse(result['games_executed'])
+
+
+if __name__ == '__main__':
+    unittest.main()
