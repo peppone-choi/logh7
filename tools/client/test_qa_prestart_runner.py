@@ -8,6 +8,9 @@ from unittest.mock import Mock
 from unittest.mock import patch
 import sys
 import tempfile
+import os
+import py_compile
+import subprocess
 
 import qa_prestart_fixture as fixture
 import qa_prestart_runner as runner
@@ -86,14 +89,55 @@ class PrestartTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             mutex.object_path(-1)
 
-    def test_product_boundary_does_not_import_windows_or_validate(self):
-        self.assertEqual(runner.run(types.SimpleNamespace(product_logh=True))['status'],
-                         'WAIT_PRESTART_SILENCE_INTEGRATION')
-        result = runner.run(types.SimpleNamespace(product_logh=True))
-        self.assertFalse(result['product_pass'])
-        self.assertFalse(result['environment_ready'])
-        self.assertEqual(result['product_qa'], 'NOT_RUN')
-        self.assertEqual(result['owned_processes'], [])
+    def test_product_target_requires_exact_hash_and_private_full_root(self):
+        audio = types.SimpleNamespace(TARGET_SHA256='pinned', _file_hash=lambda p: 'wrong',
+                                      _plain_path=lambda p: Path(p))
+        args = types.SimpleNamespace(product_logh=True, executable=Path('E:/HermesQA/app/G7.exe'),
+                                     app_root=Path('E:/HermesQA/app'))
+        with patch.dict(sys.modules, qa_prestart_audio=audio):
+            with self.assertRaisesRegex(RuntimeError, 'target hash'):
+                runner.target_spec(args)
+            audio._file_hash = lambda p: 'pinned'
+            self.assertEqual(runner.target_spec(args)[0], args.executable)
+            args.app_root = Path('E:/user')
+            with self.assertRaisesRegex(ValueError, 'private'):
+                runner.target_spec(args)
+
+    def test_controller_pycache_is_empty_owned_and_redirected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            command = runner.controller_command(root, root / 'config.json', 'digest')
+            self.assertIn('-X', command)
+            self.assertIn('pycache_prefix=' + str(root / 'pyc'), command)
+            self.assertEqual(list((root / 'pyc').iterdir()), [])
+            with self.assertRaises(FileExistsError):
+                runner.controller_command(root, root / 'config.json', 'digest')
+
+    def test_product_guard_uses_nonfixture_manifest_and_no_synthetic_rpc(self):
+        source = (HERE / 'qa_prestart_runner.py').read_text()
+        self.assertIn("fixture=not config['product_logh']", source)
+        self.assertIn("expected_runtime=config['expected_runtime']", source)
+        self.assertIn("app_root=config['app_root']", source)
+        self.assertIn("if not config['product_logh']:", source)
+        self.assertIn("report['status'] = 'WAIT_USER_GAME_OR_STEAM'", source)
+
+    def test_controller_flags_bypass_matching_malicious_pyc(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            module = root / 'probe.py'
+            module.write_text('VALUE = "evil"\n')
+            stamp = module.stat().st_mtime_ns
+            py_compile.compile(str(module), doraise=True)
+            module.write_text('VALUE = "safe"\n')
+            os.utime(module, ns=(stamp, stamp))
+            code = f'import sys; sys.path.insert(0, {str(root)!r}); import probe; print(probe.VALUE)'
+            old = subprocess.check_output([sys.executable, '-I', '-S', '-B', '-c', code], text=True)
+            self.assertEqual(old.strip(), 'evil')  # demonstrates why -B is insufficient
+            command = runner.controller_command(root, root / 'config', 'unused')
+            flags = command[:command.index(str(runner.HERE / 'qa_prestart_runner.py'))]
+            actual = subprocess.check_output([*flags, '-c', code], text=True)
+            self.assertEqual(actual.strip(), 'safe')
+            self.assertEqual(list((root / 'pyc').iterdir()), [])
 
     def test_ui_gate_rejects_unobservable_or_unrestricted_target(self):
         tree = ast.parse((HERE / 'qa_prestart_audio.py').read_text())
@@ -117,7 +161,7 @@ class PrestartTests(unittest.TestCase):
 
     def test_static_suspend_gate_and_direct_controller(self):
         source = (HERE / 'qa_prestart_runner.py').read_text()
-        self.assertIn("[str(base_executable()), '-I', '-S', '-B'", source)
+        self.assertIn("[str(base_python()), '-I', '-S', '-B', '-X'", source)
         controller = source[source.index('def controller('):source.index('def run(')]
         self.assertLess(controller.index('wj.AssignProcessToJobObject'), controller.index('audio.AudioGuard'))
         self.assertLess(controller.index("result['guard_receipts'].append(guard.assert_ready())"),

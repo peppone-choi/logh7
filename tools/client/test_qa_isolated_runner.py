@@ -88,13 +88,13 @@ class IsolationTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 runner.run(args)
 
-    def test_product_never_imports_or_launches_game(self):
+    def test_product_routes_only_to_prestart_runtime(self):
         with tempfile.TemporaryDirectory() as temporary:
             args = argparse.Namespace(report=Path(temporary)/'report.json', repo=Path(temporary), manifest=Path(temporary)/'missing', fixture=Path(temporary)/'fixture', product_logh=True)
-            with mock.patch.object(runner, 'validate', return_value='fixture-only-inventory'):
+            with mock.patch('qa_prestart_runner.run', return_value={'status': 'WAIT_TEST'}) as product:
                 result = runner.run(args)
-            self.assertEqual(result['status'], 'WAIT_PRESTART_SILENCE_INTEGRATION')
-            self.assertFalse(result['games_executed'])
+            product.assert_called_once_with(args)
+            self.assertEqual(result['status'], 'WAIT_TEST')
 
 
 if __name__ == '__main__':

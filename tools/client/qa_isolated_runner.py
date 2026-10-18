@@ -28,10 +28,10 @@ def inventory(repo):
     if os.name == 'nt':
         runtime = set()
         lib = Path(sys.base_prefix) / 'Lib'
-        parents = [p for p in lib.iterdir() if p.is_dir() and p.name not in ('site-packages', '__pycache__')]
+        parents = [p for p in lib.iterdir() if p.is_dir() and p.name != 'site-packages']
         runtime.update(p.resolve() for p in lib.glob('*.py'))
         for parent in (*parents, Path(sys.base_prefix) / 'DLLs', Path(sys.prefix)):
-            runtime.update(p.resolve() for p in parent.rglob('*') if p.is_file() and p.suffix.lower() in ('.py', '.pyd', '.dll', '.exe', '.pth'))
+            runtime.update(p.resolve() for p in parent.rglob('*') if p.is_file() and p.suffix.lower() in ('.py', '.pyc', '.pyd', '.dll', '.exe', '.pth'))
         runtime.update(p.resolve() for p in Path(sys.base_prefix).glob('*.dll'))
         runtime.add(Path(sys.executable).resolve())
         runtime.add(base_executable())
@@ -87,6 +87,9 @@ def isolated(state):
 
 
 def run(args):
+    if args.product_logh:
+        from qa_prestart_runner import run as run_product
+        return run_product(args)
     report = {'product_qa': 'NOT_RUN', 'games_executed': False,
               'status': 'WAIT_ISOLATION_UNPROVEN', 'cleanup_verified': False,
               'remaining_owned_pids': [], 'owned_processes': [],
@@ -104,9 +107,7 @@ def run(args):
     try:
         report['manifest_sha256'] = validate(args.repo, args.manifest, args.fixture)
         report['runner_sha256'] = digest(Path(__file__))
-        if args.product_logh:
-            report['status'] = 'WAIT_PRESTART_SILENCE_INTEGRATION'
-            return report
+
         import win32api
         import win32con
         import win32event
@@ -273,6 +274,12 @@ def run(args):
 
 
 def main():
+    if '--product-logh' in sys.argv:
+        # Product has ONE implementation and CLI contract, never the old
+        # fixture-only Job/SessionMute path. No fixture imports before routing.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from qa_prestart_runner import main as product_main
+        return product_main()
     parser = argparse.ArgumentParser()
     for name in ('repo', 'report', 'manifest', 'fixture'):
         parser.add_argument('--' + name, type=Path, required=True)
