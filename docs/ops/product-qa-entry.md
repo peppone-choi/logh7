@@ -98,7 +98,7 @@ owned_temp/evidence/에 다음 파일을 보존한다:
 - protocol-c2s.bin, protocol-s2c.bin: 각각의 방향에서 받은 원바이트.
 - protocol.jsonl: 수신 청크의 t_mono/dir(c2s 또는 s2c)/offset/len. offset은 방향별이다.
 - protocol.json: run_id/manifest_sha256/config_sha256/target 바인딩, recorder/upstream
-  포트, 연결 수, 오류, 세 companion SHA256, 판정과 관찰 프레임 목록.
+  포트, 연결 수, 오류, 클라이언트 EOF 여부(client_closed), 세 companion SHA256, 판정과 관찰 프레임 목록.
 
 모든 파일을 cleanup 후 evidence_files에 등록한다. 바이너리와 JSONL은 원자료이므로
 바인딩을 삽입하지 않고 protocol.json의 companion 해시 및 evidence_files로 결합한다.
@@ -111,9 +111,15 @@ clear_header는 없다. TCP 청크 분할/병합과 무관하게 완전한 프�
 
 - PASS: 한 연결에서 C2S 0x34 → S2C 0x35 → C2S 0x36 → C2S 외부 type 0x30 ≥1.
   0x30 본문 복호·0x7000·계정 로그인 성공은 주장하지 않는다.
-- NOT_RUN: upstream 없음, 연결 없음 또는 정상 부분 교환(첫 0x34 포함).
+- NOT_RUN: upstream 없음, 연결 없음 또는 종료되지 않은 정상 부분 교환(첫 0x34 포함).
+  첫 0x34만 관찰한 뒤 클라이언트가 종료해도 NOT_RUN이다.
 - FAIL: 손상/잘린 길이, 순서·type 위반, 추가 연결, upstream 연결 실패/단절,
+  upstream이 있는 상태에서 0x35 이후 첫 C2S 0x30 전에 클라이언트 단절,
   capture 한도 초과 또는 전달 실패. target의 선행 연결 종료 뒤에는 upstream도 닫는다.
+  첫 C2S 0x30 이후 클라이언트 정상 종료는 protocol PASS를 유지한다.
+  client_closed도 원자료 재계산에 사용하며 저장 판정과 일치해야 한다.
+  한계(R-UPEOF-1): upstream EOF는 stage 4 이후에도 FAIL이다. redirect 직후 서버가
+  먼저 닫는 정상 흐름인지 여부는 실제 제품 시험에서 확인해야 하며 여기서는 변경하지 않는다.
 
 전체 원바이트 16 MiB, 청크 16,384개, 프레임 4,096개를 넘으면 FAIL이다.
 각 소켓 연결/전송 timeout은 0.2초이며 부하/역압으로 전달하지 못해도 FAIL이다.

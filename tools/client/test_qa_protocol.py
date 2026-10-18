@@ -68,7 +68,8 @@ def recv_exact(sock, count):
     return data
 
 
-def install_capture(raw, chunks=GOOD, upstream: int | None = 21001, connections=1, errors=None):
+def install_capture(raw, chunks=GOOD, upstream: int | None = 21001, connections=1, errors=None,
+                    client_closed=False):
     """Write explicitly synthetic collector files for adapter tests only."""
     root = Path(raw['owned_temp']) / 'evidence'
     config = raw['controller_config']
@@ -84,9 +85,9 @@ def install_capture(raw, chunks=GOOD, upstream: int | None = 21001, connections=
     (root / 'protocol-s2c.bin').write_bytes(s2c)
     (root / 'protocol.jsonl').write_text(''.join(json.dumps(e) + '\n' for e in events))
     result = protocol.classify(c2s, s2c, events, upstream_port=upstream,
-                               connections=connections, errors=errors or [])
+                               connections=connections, errors=errors or [], client_closed=client_closed)
     write_json(root / 'protocol.json', dict(binding, port=21000, upstream_port=upstream,
-        connections=connections, errors=errors or [], result=result,
+        connections=connections, errors=errors or [], client_closed=client_closed, result=result,
         captures={n: hashlib.sha256((root / n).read_bytes()).hexdigest()
                   for n in (*protocol.RAW_NAMES.values(), 'protocol.jsonl')}))
     raw['protocol_check'] = result
@@ -152,6 +153,39 @@ class ClassificationTests(unittest.TestCase):
 
 
 class RecorderTests(unittest.TestCase):
+    def test_client_disconnect_at_each_login_stage_is_recomputed(self):
+        for stage, expected in ((1, 'NOT_RUN'), (2, 'FAIL'), (3, 'FAIL'), (4, 'PASS')):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as tmp, socket.socket() as upstream:
+                upstream.bind(('127.0.0.1', 0))
+                upstream.listen(1)
+                upstream.settimeout(2)
+                recorder = protocol.LoopbackRecorder(tmp, free_port(), upstream.getsockname()[1]).start()
+                try:
+                    with socket.create_connection(('127.0.0.1', recorder.port), timeout=2) as client:
+                        with upstream.accept()[0] as peer:
+                            peer.settimeout(2)
+                            client.sendall(GOOD[0][1])
+                            self.assertEqual(recv_exact(peer, len(GOOD[0][1])), GOOD[0][1])
+                            if stage >= 2:
+                                peer.sendall(GOOD[1][1])
+                                self.assertEqual(recv_exact(client, len(GOOD[1][1])), GOOD[1][1])
+                            if stage >= 3:
+                                tail = frame(0x36) if stage == 3 else GOOD[2][1]
+                                client.sendall(tail)
+                                self.assertEqual(recv_exact(peer, len(tail)), tail)
+                            client.shutdown(socket.SHUT_WR)
+                            self.assertEqual(peer.recv(1), b'')  # Recorder saw client EOF and closed upstream.
+                finally:
+                    result = recorder.finish(dict(run_id='synthetic-only'))
+                self.assertFalse(recorder.thread.is_alive())
+                self.assertEqual(recorder.errors, [])
+                self.assertEqual(result['status'], expected, result)
+                envelope = json.loads(Path(tmp, 'protocol.json').read_text())
+                self.assertIs(envelope['client_closed'], True)
+                config = dict(protocol_port=recorder.port, upstream_port=recorder.upstream_port,
+                              target_args=['127.0.0.1', str(recorder.port)])
+                self.assertEqual(protocol.check_evidence(tmp, config), result)
+
     def test_only_loopback_and_distinct_valid_ports(self):
         for host in ('0.0.0.0', '::', 'localhost', '192.168.1.1'):
             with self.assertRaises(ValueError):
@@ -258,6 +292,19 @@ class RecorderTests(unittest.TestCase):
 
 
 class AdapterTests(unittest.TestCase):
+    def test_changed_client_close_flag_rejected_by_recomputation(self):
+        for closed in (False, True):
+            with self.subTest(closed=closed), tempfile.TemporaryDirectory() as tmp:
+                _, raw, _ = synthetic(Path(tmp))
+                root = install_capture(raw, GOOD[:2], client_closed=closed)
+                self.assertEqual(protocol.check_evidence(root, raw['controller_config'])['status'],
+                                 'FAIL' if closed else 'NOT_RUN')
+                envelope = report.read_object(root / 'protocol.json')
+                envelope['client_closed'] = not closed
+                write_json(root / 'protocol.json', envelope)
+                with self.assertRaisesRegex(ValueError, 'stored/recomputed verdict mismatch'):
+                    protocol.check_evidence(root, raw['controller_config'])
+
     def test_bound_evidence_recomputed_but_platform_never_passes(self):
         for chunks, upstream, expected in ((GOOD, 21001, 'PASS'), (GOOD[:1], None, 'NOT_RUN'),
                                            ([('c2s', b'\x00')], 21001, 'FAIL')):

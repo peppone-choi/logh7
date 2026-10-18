@@ -24,15 +24,17 @@ def port_number(port):
     return port
 
 
-def classify(c2s, s2c, events, *, upstream_port, connections, errors):
+def classify(c2s, s2c, events, *, upstream_port, connections, errors, client_closed=False):
     """Pure stream/timeline assertion; completion order, not TCP recv boundaries.
 
-    Valid partial handshakes are NOT_RUN. Corruption/errors override partial or
+    Open partial handshakes are NOT_RUN. Corruption/errors override partial or
     complete observations, including when no upstream was configured.
     """
     frames = []
     def verdict(status, reason):
         return dict(status=status, reason=reason, frames=frames)
+    if type(client_closed) is not bool:
+        return verdict('FAIL', 'Malformed client close flag')
     if errors or type(connections) is not int or connections > 1 or connections < 0:
         return verdict('FAIL', 'Recorder error or additional connection: ' + repr(errors))
     if upstream_port is not None:
@@ -82,6 +84,8 @@ def classify(c2s, s2c, events, *, upstream_port, connections, errors):
         if s2c or stage > 1:
             return verdict('FAIL', 'Response bytes without upstream')
         return verdict('NOT_RUN', 'partial: first 0x34; no upstream' if stage else 'No upstream/connection')
+    if client_closed and 2 <= stage < 4:
+        return verdict('FAIL', 'Client disconnected after 0x35 before C2S outer 0x30')
     if stage == 4 and connections == 1:
         return verdict('PASS', 'Complete 0x34 -> 0x35 -> 0x36 -> C2S outer 0x30')
     return verdict('NOT_RUN', 'partial: first 0x34' if stage == 1 else 'Incomplete initial-login exchange')
@@ -102,6 +106,7 @@ class LoopbackRecorder:
             raise ValueError('Upstream must not be the recorder port')
         self.evidence = Path(evidence)
         self.connections = 0
+        self.client_closed = False
         self.errors = []
         self.events = []
         self.offsets = dict(c2s=0, s2c=0)
@@ -164,6 +169,8 @@ class LoopbackRecorder:
                     if not data:
                         if source is upstream:
                             self.errors.append('Upstream disconnected')
+                        else:
+                            self.client_closed = True
                         # Continue listening to detect reconnects; never accept a new session.
                         for sock in (client, upstream):
                             if sock:
@@ -203,13 +210,14 @@ class LoopbackRecorder:
         self._close()
         c2s, s2c = (self.evidence.joinpath(RAW_NAMES[d]).read_bytes() for d in ('c2s', 's2c'))
         result = classify(c2s, s2c, self.events, upstream_port=self.upstream_port,
-                          connections=self.connections, errors=self.errors)
+                          connections=self.connections, errors=self.errors, client_closed=self.client_closed)
         # Binary companions are unmodified wire bytes. This envelope binds each
         # companion (including JSONL) by hash to the same run/config/target.
         captures = {name: hashlib.sha256((self.evidence / name).read_bytes()).hexdigest()
                     for name in (*RAW_NAMES.values(), 'protocol.jsonl')}
         envelope = dict(binding, port=self.port, upstream_port=self.upstream_port,
-                        connections=self.connections, errors=self.errors, captures=captures, result=result)
+                        connections=self.connections, errors=self.errors, client_closed=self.client_closed,
+                        captures=captures, result=result)
         with (self.evidence / 'protocol.json').open('x', encoding='utf-8') as stream:
             json.dump(envelope, stream, indent=2)
         return result
@@ -240,7 +248,7 @@ def check_evidence(evidence, config):
     events = [json.loads(line) for line in data['protocol.jsonl'].decode('utf-8').splitlines()]
     result = classify(data['protocol-c2s.bin'], data['protocol-s2c.bin'], events,
                       upstream_port=envelope['upstream_port'], connections=envelope['connections'],
-                      errors=envelope['errors'])
+                      errors=envelope['errors'], client_closed=envelope['client_closed'])
     if result != envelope['result']:
         raise ValueError('Protocol stored/recomputed verdict mismatch')
     return result
