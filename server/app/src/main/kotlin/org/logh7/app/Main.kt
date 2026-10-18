@@ -18,7 +18,7 @@ fun main() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val resources = ArrayDeque<AutoCloseable>()
     resources.addFirst(AutoCloseable { scope.cancel() })
-    fun closeResources() = synchronized(resources) {
+    fun closeResources(): Unit = synchronized(resources) {
         var failure: Throwable? = null
         while (resources.isNotEmpty()) {
             try { resources.removeFirst().close() }
