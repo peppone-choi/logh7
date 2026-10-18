@@ -16,6 +16,18 @@ spec.loader.exec_module(preflight)
 
 
 class PreflightTest(unittest.TestCase):
+    def test_inspection_and_rejected_checkouts_never_execute_wrapper(self):
+        cases = [('a', 'a', '', True, 'INSPECTION_ONLY'),
+                 ('a', 'b', '', False, 'CHECKOUT_REJECTED'),
+                 ('a', 'a', ' M user-file', False, 'CHECKOUT_REJECTED')]
+        for before, requested, status, inspection, expected in cases:
+            with self.subTest(expected=expected), patch.object(preflight, 'wrapper_readiness') as run:
+                report = preflight.checkout_readiness(before, requested, status, inspection,
+                                                      None, Path('report.json'))
+            run.assert_not_called()
+            self.assertEqual(report['status'], expected)
+            self.assertFalse(report['wrapperExecuted'])
+
     def test_windows_cp949_stdout_preserves_original_unicode_path(self):
         report = {"sourcePath": "E:/original/ｱﾌﾟﾘｹｰｼｮﾝ/exe/G7MTClient.exe"}
         data = io.BytesIO()

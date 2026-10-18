@@ -54,6 +54,14 @@ def wrapper_readiness(wrapper, output):
             "report": json.loads(output.read_text(encoding="utf-8")) if output.exists() else None}
 
 
+def checkout_readiness(repo_head, requested_head, status, inspect_only, wrapper, output):
+    if inspect_only:
+        return {"status": "INSPECTION_ONLY", "wrapperExecuted": False}
+    if repo_head != requested_head or status:
+        return {"status": "CHECKOUT_REJECTED", "wrapperExecuted": False}
+    return wrapper_readiness(wrapper, output)
+
+
 def product_report(device, readiness, blockers):
     return {"platforms": {"windows": {"status": "NOT_RUN", "deviceId": device,
                 "checks": [{"name": "original-client MPS interoperability",
@@ -86,12 +94,16 @@ def print_report(report):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", type=Path, required=True)
+    parser.add_argument("--repo", "--windows-repo", dest="repo", type=Path, required=True)
     parser.add_argument("--head", required=True)
     parser.add_argument("--source-exe", type=Path, required=True)
-    parser.add_argument("--owned-wrapper", type=Path, required=True)
+    parser.add_argument("--owned-wrapper", type=Path)
+    parser.add_argument("--inspect-only", action="store_true",
+                        help="Inspect exact-head copy only; do not execute any wrapper/import")
     parser.add_argument("--out", type=Path, required=True, help="New task-owned evidence directory")
     args = parser.parse_args()
+    if not args.inspect_only and args.owned_wrapper is None:
+        parser.error("--owned-wrapper is required unless --inspect-only")
     if not re.fullmatch(r"[0-9a-f]{40}", args.head):
         parser.error("--head must be an exact lowercase 40-character Git SHA")
     if os.name != "nt":
@@ -113,7 +125,8 @@ def main():
             blockers.append("Windows checkout has local changes; do not reset or overwrite")
         if report["sourceSha256Before"] != TARGET_SHA256:
             blockers.append("Original executable hash differs from reviewed CD client")
-        report["readiness"] = wrapper_readiness(args.owned_wrapper, args.out / "owned-readiness.json")
+        report["readiness"] = checkout_readiness(before, args.head, status_before,
+            args.inspect_only, args.owned_wrapper, args.out / "owned-readiness.json")
         report.update(windowsHeadAfter=git(args.repo, "rev-parse", "HEAD"),
                       windowsStatusAfter=git(args.repo, "status", "--porcelain=v1", "--untracked-files=normal"),
                       sourceSha256After=sha256(args.source_exe))
