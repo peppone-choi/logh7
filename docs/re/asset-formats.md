@@ -35,7 +35,7 @@ CD판 버전 131 클라이언트 `data\` 아래 자산을 확장자별로 정리
 | `.VIX` | 1 | `ViX ` + 개발 경로 `W:\Gin7\...` | 이미지 뷰어 카탈로그 (개발 잔재) | 해당 없음으로 보임 (클라이언트 참조 근거 없음, UNKNOWN) | 아니오 | docs/re/binary-inventory.md:91 | low |
 | `.db` | 1 | OLE CF `D0 CF 11 E0` | Windows `Thumbs.db` (게임과 무관) | 해당 없음 | 아니오 | docs/re/binary-inventory.md:92 | medium |
 
-개수는 E-025 시그니처 조사(`scripts/asset_sigs.py`, 원래 케이스 작업 폴더의 스크립트로 저장소에는 없음) 결과이며 docs/re/2026-09-27_reverse-logh7-client-triage-report.md:60에 기록돼 있다. 공식 추가 데이터 G7UPD040514를 적용하면 `data\model\images\{hi,mid,lo}`, `data\model\strategy`에 신규 108·변경 48개가 생긴다(docs/re/update-040514.md:28-33). 위 개수에 이 변화가 반영됐는지는 UNKNOWN이다.
+개수는 E-025 시그니처 조사(`scripts/asset_sigs.py`, 원래 케이스 작업 폴더의 스크립트로 저장소에는 없음; 조사·스크립트 근거: docs/re/2026-09-27_reverse-logh7-client-triage-report.md:60) 결과이며 docs/re/binary-inventory.md:85-92에 기록돼 있다. 공식 추가 데이터 G7UPD040514를 적용하면 `data\model\images\{hi,mid,lo}`, `data\model\strategy`에 신규 108·변경 48개가 생긴다(docs/re/update-040514.md:28-33). 위 개수에 이 변화가 반영됐는지는 UNKNOWN이다.
 
 ## 포맷별 상세
 
@@ -61,7 +61,7 @@ CD판 버전 131 클라이언트 `data\` 아래 자산을 확장자별로 정리
 | tools/assets/planet_models.py | 모델 번호 표 읽기 | tools/assets/test_planet_models.py |
 | tools/assets/asset_repro.py | 형상·텍스처 미리보기, 네이티브 버퍼 비교 | tools/assets/test_asset_repro.py |
 | tools/assets/manual_map.py | 매뉴얼 지도 주석 추출 | tools/assets/test_manual_map.py |
-| tools/client/probe-model-loader.py / .js | 원래 로더 관찰 (Windows, opt-in) | 없음 |
+| tools/client/probe-model-loader.py / .js | 원래 로더 관찰 (Windows, opt-in) | tools/client/test_model_probe.py (설정·기록 검사만, 클라이언트 실행 없음) |
 
 ### MDS
 
@@ -69,7 +69,7 @@ MDX 렌더 스트림과 섞으면 안 되는 비압축 mesh 배열이라는 기�
 
 ### TCF / HED
 
-`tcf.hed`가 (offset, size) u32 쌍 목록이라는 정적 관찰만 있다. `.tcf` 본문의 압축/인코딩 방식, 이미지 형식, 로더 VA는 UNKNOWN이다(docs/l10n/text-format.md:77). E-027이 배너 인코딩을 cp932로 정정했다(docs/re/2026-09-27_reverse-logh7-client-triage-report.md:62).
+`tcf.hed`가 (offset, size) u32 쌍 목록이라는 정적 관찰만 있다. `.tcf` 본문의 압축/인코딩 방식, 이미지 형식, 로더 VA는 UNKNOWN이다(docs/l10n/text-format.md:77). E-027이 배너 인코딩을 cp932로 정정했다(docs/re/2026-09-27_reverse-logh7-client-triage-report.md:62, docs/re/binary-inventory.md:86).
 
 ### TGA / BMP / JPG / PNG
 
