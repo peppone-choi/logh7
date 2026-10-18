@@ -1,0 +1,398 @@
+"""Project-private prestart runtime integration. Harmless x86 fixtures ONLY.
+
+The product entry stays closed until independent review and target coverage QA.
+Supervisor owns desktop/mutex/outer Job; direct-base controller owns the inner
+active-limit-1/UI255 Job. No SessionMute, host audio query or legacy imports.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import time
+import uuid
+
+HERE = Path(__file__).resolve().parent
+OWN_CODE = ('qa_prestart_runner.py', 'qa_prestart_audio.py', 'qa_prestart_silence_x86.js',
+            'qa_prestart_fixture.py', 'qa_session_mutex.py', 'qa_isolated_runner.py',
+            'qa_silent_fixture.py')
+
+
+def digest(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def fixture_mode(mode):
+    return mode if mode in ('success', 'failure') else 'hang'
+
+
+def normal_fixture_exit(signalled, code, messages):
+    return (signalled and code in (0, 7)
+            and not any(m.get('type') == 'error' or m.get('payload', {}).get('type') == 'audio-fatal'
+                        for m in messages))
+
+
+def inventory(repo, fixture_dir):
+    from qa_isolated_runner import inventory as python_inventory
+    from qa_prestart_fixture import image
+    from qa_prestart_audio import runtime_manifest, _plain_path, _file_hash
+    repo = _plain_path(repo)
+    if not HERE.is_relative_to(repo):
+        raise ValueError('Runner outside explicit repo')
+    files = python_inventory(repo)
+    files['files'].update({p: _file_hash(p) for p in
+                          [Path(sys.prefix) / 'pyvenv.cfg', *[HERE / n for n in OWN_CODE]]})
+    # JSON object keys must be strings.
+    files['files'] = {str(k): v for k, v in files['files'].items()}
+    fixture_dir = _plain_path(fixture_dir)
+    for mode in ('success', 'failure', 'hang'):
+        path = fixture_dir / ('fixture-' + mode + '.exe')
+        if path.read_bytes() != image(mode):
+            raise RuntimeError('Harmless fixture bytes mismatch')
+    files.update(version=3, python_version=sys.version, site=str(Path(sys.prefix) / 'Lib/site-packages'),
+                 app_root=str(fixture_dir), app=runtime_manifest(fixture_dir / 'fixture-success.exe'))
+    return files
+
+
+def validate(args):
+    if digest(args.manifest) != args.manifest_sha256:
+        raise RuntimeError('UNREVIEWED_RUNTIME: external manifest digest mismatch')
+    recorded = json.loads(args.manifest.read_text())
+    if recorded != inventory(args.repo, args.fixture_dir):
+        raise RuntimeError('UNREVIEWED_RUNTIME: exact inventory mismatch')
+    return recorded
+
+
+def session_ids():
+    import win32ts
+    return sorted({0, *(s['SessionId'] for s in win32ts.WTSEnumerateSessions(None, 1, 0))})
+
+
+def job_policy(job, target=False, apply_ui=True):
+    import win32job as wj
+    info = wj.QueryInformationJobObject(job, wj.JobObjectExtendedLimitInformation)
+    flags = wj.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | wj.JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+    info['BasicLimitInformation'].update(LimitFlags=flags, ActiveProcessLimit=1 if target else 5)
+    wj.SetInformationJobObject(job, wj.JobObjectExtendedLimitInformation, info)
+    got = wj.QueryInformationJobObject(job, wj.JobObjectExtendedLimitInformation)['BasicLimitInformation']
+    if got['LimitFlags'] != flags or got['ActiveProcessLimit'] != (1 if target else 5):
+        raise RuntimeError('Owned Job limit mismatch')
+    ui = 255 if target and apply_ui else 0
+    # Even setting UI=0 materializes a Win32k Job UI node. Two such nodes
+    # reject nesting with ERROR_NOT_SUPPORTED on 19045. Leave outer/default
+    # UI untouched; only the assigned suspended target gets a UI node.
+    if ui:
+        wj.SetInformationJobObject(job, wj.JobObjectBasicUIRestrictions,
+                                  {'UIRestrictionsClass': ui})
+    if wj.QueryInformationJobObject(job, wj.JobObjectBasicUIRestrictions)['UIRestrictionsClass'] != ui:
+        raise RuntimeError('Owned Job UI mismatch')
+    return {'flags': flags, 'active_limit': got['ActiveProcessLimit'], 'ui': ui}
+
+
+def controller(config):
+    # -I -S disables site/.pth execution. Only pinned, explicit dependency paths.
+    site = Path(config['site'])
+    sys.path[:0] = [str(HERE), str(site), str(site / 'win32'), str(site / 'win32/lib')]
+    import pywin32_bootstrap
+    import win32api as wa
+    import win32con as wc
+    import win32event as we
+    import win32job as wj
+    import win32process as wp
+    import qa_prestart_audio as audio
+    result = {'status': 'FAIL', 'resumed': False, 'product_pass': False, 'product_qa': 'NOT_RUN',
+              'environment_ready': False, 'guard_receipts': [], 'cleanup_verified': False}
+    process = thread = inner = guard = None
+    assigned = False
+    try:
+        if Path(config['cancel']).exists():
+            result['status'] = 'CANCELLED'
+            return result
+        executable = Path(config['executable'])
+        from qa_prestart_fixture import image
+        if executable.read_bytes() != image(fixture_mode(config['mode'])):
+            raise RuntimeError('Harmless target bytes changed')
+        inner = wj.CreateJobObject(None, config['inner_job'])
+        # Windows rejects assigning to a nested Job with UI restrictions already
+        # set. Assign the suspended target first, then set and verify UI255.
+        result['inner_initial_policy'] = job_policy(inner, target=True, apply_ui=False)
+        startup = wp.STARTUPINFO()
+        startup.lpDesktop = config['desktop']
+        startup.dwFlags = wc.STARTF_USESHOWWINDOW | 0x80
+        startup.wShowWindow = 4
+        process, thread, pid, _ = wp.CreateProcess(str(executable), subprocess.list2cmdline([str(executable)]),
+                                                  None, None, False, wc.CREATE_SUSPENDED | wc.CREATE_NO_WINDOW,
+                                                  dict(os.environ), str(executable.parent), startup)
+        result['target'] = audio.identity(pid)
+        wj.AssignProcessToJobObject(inner, process)
+        assigned = True
+        result['inner_policy'] = job_policy(inner, target=True)
+        if not wj.IsProcessInJob(process, inner):
+            raise RuntimeError('Target Job membership missing')
+        if Path(config['cancel']).exists():
+            result['status'] = 'CANCELLED'
+            return result
+        guard = audio.AudioGuard(pid, executable, fixture=True, verify_helpers=True,
+                                 on_failure=lambda: audio.stop_owned_handle(process))
+        result['helper_identities'] = guard.helper_identities
+        result['pre_resume_receipt'] = guard.assert_ready()
+        # Synthetic native callbacks/vtables only: never real audio devices or
+        # sessions. Tests the installed blocking mechanism without playback.
+        result['synthetic_audio'] = guard.script.exports_sync.audioselftest()
+        if (result['synthetic_audio']['originals'] != 0 or
+                any(result['synthetic_audio'][k] != 0 for k in ('first', 'repeat', 'duplicate', 'start'))):
+            raise RuntimeError('Synthetic prestart audio blocking failed')
+        if config['mode'] == 'guard-failure':
+            raise RuntimeError('INJECTED_PRE_RESUME_FAILURE')
+        if Path(config['cancel']).exists():
+            result['status'] = 'CANCELLED'
+            return result
+        # Last operation before ResumeThread is a synchronous effective-UI + guard check.
+        result['guard_receipts'].append(guard.assert_ready())
+        wp.ResumeThread(thread)
+        result['resumed'] = True
+        started = time.monotonic()
+        while we.WaitForSingleObject(process, 20) == we.WAIT_TIMEOUT:
+            if Path(config['cancel']).exists():
+                result['status'] = 'CANCELLED'
+                return result
+            elapsed = time.monotonic() - started
+            if config['mode'] == 'exception' and elapsed > 0.1:
+                raise RuntimeError('EXCEPTION_TEST')
+            if config['mode'] == 'detach' and elapsed > 0.1:
+                guard.session.detach()
+            if elapsed > config['timeout']:
+                raise TimeoutError('TIMEOUT')
+            try:
+                receipt = guard.assert_ready()
+                result['guard_receipts'].append({k: receipt[k] for k in ('ready', 'arch', 'effective_ui_flags')})
+            except Exception as error:
+                # Enumerating full helper identities races ordinary target exit.
+                # Only a signalled retained process with the fixture's normal
+                # exit code may finish; forced guard stops use 0xA001, not 0/7.
+                if normal_fixture_exit(we.WaitForSingleObject(process, 200) == we.WAIT_OBJECT_0,
+                                       wp.GetExitCodeProcess(process), guard.messages):
+                    result['normal_exit_observation_race'] = str(error)
+                    break
+                raise
+        result['exit_code'] = wp.GetExitCodeProcess(process)
+        result['status'] = 'PASS' if result['exit_code'] == 0 else 'COMMAND_FAILED'
+    except BaseException as error:
+        result['error'] = str(error)
+        result['status'] = 'TIMEOUT' if isinstance(error, TimeoutError) else 'FAIL'
+    finally:
+        # Stop target BEFORE detaching hooks; no audible uninstrumented interval.
+        try:
+            if inner:
+                wj.TerminateJobObject(inner, 2)
+            if process and not assigned:
+                audio.stop_owned_handle(process)
+            if process and we.WaitForSingleObject(process, 5000) != we.WAIT_OBJECT_0:
+                raise RuntimeError('Target did not exit')
+            if inner:
+                end = time.monotonic() + 5
+                while wj.QueryInformationJobObject(inner, wj.JobObjectBasicAccountingInformation)['ActiveProcesses'] and time.monotonic() < end:
+                    time.sleep(0.02)
+                result['inner_active_after'] = wj.QueryInformationJobObject(inner, wj.JobObjectBasicAccountingInformation)['ActiveProcesses']
+            result['cleanup_verified'] = result.get('inner_active_after', 0) == 0
+        except BaseException as error:
+            result['status'] = 'CLEANUP_FAILED'
+            result['cleanup_error'] = str(error)
+        if process and we.WaitForSingleObject(process, 0) != we.WAIT_OBJECT_0:
+            # Never detach a live target after a failed stop. Keep hooks and
+            # handles alive until supervisor's bounded timeout kills the outer
+            # Job (Windows terminates its nested target Job first).
+            result['status'] = 'CLEANUP_FAILED'
+            Path(config['controller_report']).write_text(json.dumps(result, indent=2))
+            while True:
+                time.sleep(1)
+        if guard:
+            result['guard_messages'] = guard.messages
+            guard.close()
+        for handle in (thread, process, inner):
+            if handle:
+                handle.Close()
+        Path(config['controller_report']).write_text(json.dumps(result, indent=2))
+    return result
+
+
+def run(args):
+    report = {'status': 'WAIT_PRESTART_SILENCE_INTEGRATION', 'product_pass': False,
+              'product_qa': 'NOT_RUN', 'games_executed': False, 'environment_ready': False,
+              'cleanup_verified': False, 'remaining_owned_pids': [], 'owned_processes': []}
+    if args.product_logh:
+        return report
+    import win32api as wa
+    import win32con as wc
+    import win32event as we
+    import win32job as wj
+    import win32process as wp
+    import win32service as ws
+    from qa_isolated_runner import snapshot, isolated, base_executable
+    from qa_session_mutex import SessionMutex
+    import qa_prestart_audio as audio
+    mutex = desk = outer = process = thread = None
+    assigned = False
+    observed = {}
+    before = None
+    try:
+        pinned = validate(args)
+        report['manifest_sha256'] = args.manifest_sha256
+        before = snapshot()
+        report['before'] = before
+        if not isolated(before):
+            report['status'] = 'WAIT_ISOLATION_UNPROVEN'
+            return report
+        ids = session_ids()
+        mutex = SessionMutex(ids).acquire()
+        report['mutexes'] = mutex.evidence
+        if session_ids() != ids:
+            raise RuntimeError('WAIT_SESSION_SET_CHANGED')
+        refs = [audio.identity(p) for p in args.reference_pid]
+        report['reference_before'] = refs
+        for directory in (args.temp_parent, args.fixture_dir, args.repo):
+            actual = audio._plain_path(directory)
+            if not actual.is_relative_to(Path('E:/HermesQA')):
+                raise ValueError('Use explicit private E:/HermesQA paths')
+        if args.cancel_file and args.cancel_file.exists():
+            report['status'] = 'CANCELLED'
+            return report
+        if shutil.disk_usage(args.temp_parent).free < 1280 * 1024 * 1024:
+            raise RuntimeError('INSUFFICIENT_FREE_SPACE')
+        root = args.temp_parent / uuid.uuid4().hex
+        root.mkdir()
+        report['owned_temp'] = str(root)  # Retained evidence; no shared TEMP deletion.
+        name = 'LOGH_PRESTART_' + root.name
+        desk = ws.CreateDesktop(name, 0, 0x10000000, None)
+        report['private_desktop'] = name
+        outer = wj.CreateJobObject(None, name + '_OUTER')
+        report['outer_policy'] = job_policy(outer)
+        cancel = args.cancel_file or root / 'cancel'
+        config = dict(site=pinned['site'], mode=args.mode, timeout=args.timeout,
+                      executable=str(args.fixture_dir / ('fixture-' + fixture_mode(args.mode) + '.exe')),
+                      desktop=before['winsta'] + '\\' + name, inner_job=name + '_TARGET',
+                      controller_report=str(root / 'controller-result.json'), cancel=str(cancel))
+        config_path = root / 'controller-config.json'
+        config_path.write_text(json.dumps(config))
+        report['config_sha256'] = digest(config_path)
+        env = dict(os.environ, TEMP=str(root), TMP=str(root), LOGH_QA_FRIDA_TEMP=str(root),
+                   LOGH_QA_TEMP_PARENT=str(args.temp_parent))
+        command = [str(base_executable()), '-I', '-S', '-B', str(HERE / 'qa_prestart_runner.py'),
+                   '--controller', str(config_path), '--config-sha256', report['config_sha256']]
+        report['command'] = command
+        startup = wp.STARTUPINFO()
+        startup.lpDesktop = config['desktop']
+        process, thread, pid, _ = wp.CreateProcess(command[0], subprocess.list2cmdline(command),
+                                                  None, None, False, wc.CREATE_SUSPENDED | wc.CREATE_NO_WINDOW,
+                                                  env, str(args.repo), startup)
+        wj.AssignProcessToJobObject(outer, process)
+        assigned = True
+        marker = {'controller_pid': pid, 'run_id': root.name}
+        (root / '.logh-owned.json').write_text(json.dumps(marker))
+        def observe():
+            for member in wj.QueryInformationJobObject(outer, wj.JobObjectBasicProcessIdList):
+                if member not in observed:
+                    handle = wa.OpenProcess(0x1000 | 0x100000, False, member)
+                    if not wj.IsProcessInJob(handle, outer):
+                        handle.Close()
+                        raise RuntimeError('Owned PID changed before retained handle')
+                    observed[member] = (handle, str(wp.GetProcessTimes(handle)['CreationTime']))
+        observe()
+        wp.ResumeThread(thread)
+        start = time.monotonic()
+        while we.WaitForSingleObject(process, 20) == we.WAIT_TIMEOUT:
+            observe()
+            if session_ids() != ids:
+                raise RuntimeError('WAIT_SESSION_SET_CHANGED')
+            if args.mode == 'cancel' and time.monotonic() - start > 3:
+                cancel.touch(exist_ok=True)
+            if time.monotonic() - start > args.timeout + 20:
+                raise TimeoutError('CONTROLLER_TIMEOUT')
+        observe()
+        report['controller_exit'] = wp.GetExitCodeProcess(process)
+        result = json.loads(Path(config['controller_report']).read_text())
+        report['controller'] = result
+        report['status'] = result['status']
+        report['reference_processes_unchanged'] = refs == [audio.identity(p) for p in args.reference_pid]
+        if not report['reference_processes_unchanged']:
+            raise RuntimeError('REFERENCE_PROCESS_CHANGED')
+    except BaseException as error:
+        report['error'] = str(error)
+        report['status'] = str(error) if str(error).startswith('WAIT_') else 'FAIL'
+    finally:
+        try:
+            if outer:
+                wj.TerminateJobObject(outer, 2)
+            if process and not assigned:
+                wa.TerminateProcess(process, 2)
+            if process and we.WaitForSingleObject(process, 5000) != we.WAIT_OBJECT_0:
+                raise RuntimeError('Controller did not exit')
+            if outer:
+                end = time.monotonic() + 5
+                while wj.QueryInformationJobObject(outer, wj.JobObjectBasicAccountingInformation)['ActiveProcesses'] and time.monotonic() < end:
+                    time.sleep(0.02)
+                report['outer_active_after'] = wj.QueryInformationJobObject(outer, wj.JobObjectBasicAccountingInformation)['ActiveProcesses']
+                report['remaining_owned_pids'] = [p for p, (h, _) in observed.items()
+                                                if we.WaitForSingleObject(h, 5000) != we.WAIT_OBJECT_0]
+                report['cleanup_verified'] = not report['remaining_owned_pids'] and report['outer_active_after'] == 0
+                report['owned_processes'] = [{'pid': p, 'creation_time': t} for p, (_, t) in observed.items()]
+                if not report['cleanup_verified']:
+                    raise RuntimeError('Outer Job cleanup unproven')
+            if before:
+                report['after'] = snapshot()
+                if report['after'] != before:
+                    raise RuntimeError('Session/window station changed')
+        except BaseException as error:
+            report['status'] = 'CLEANUP_FAILED'
+            report['cleanup_error'] = str(error)
+        finally:
+            for h in [*(h for h, _ in observed.values()), thread, process, outer]:
+                if h:
+                    h.Close()
+            if desk:
+                desk.CloseDesktop()
+            if mutex:
+                mutex.close()
+    return report
+
+
+def main():
+    if '--controller' in sys.argv:
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--controller', type=Path, required=True)
+        parser.add_argument('--config-sha256', required=True)
+        args = parser.parse_args()
+        if digest(args.controller) != args.config_sha256:
+            raise RuntimeError('Controller config digest mismatch')
+        return 0 if controller(json.loads(args.controller.read_text()))['status'] == 'PASS' else 2
+    # -I does not import scripts beside the entry point automatically.
+    sys.path.insert(0, str(HERE))
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('repo', 'fixture-dir', 'temp-parent', 'manifest', 'report'):
+        parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--manifest-sha256')
+    parser.add_argument('--record-manifest', action='store_true')
+    parser.add_argument('--product-logh', action='store_true')
+    parser.add_argument('--mode', choices=('success', 'failure', 'timeout', 'exception', 'cancel', 'guard-failure', 'detach'), default='success')
+    parser.add_argument('--timeout', type=float, default=5)
+    parser.add_argument('--cancel-file', type=Path)
+    parser.add_argument('--reference-pid', type=int, action='append', default=[])
+    args = parser.parse_args()
+    if not 0.2 <= args.timeout <= 30:
+        parser.error('timeout must be 0.2..30 seconds')
+    if args.record_manifest:
+        with args.manifest.open('x') as stream:
+            json.dump(inventory(args.repo, args.fixture_dir), stream, indent=2)
+        return 0
+    with args.report.open('x') as stream:
+        result = run(args)
+        json.dump(result, stream, indent=2)
+    print(json.dumps(result))
+    return 0 if result['status'] == 'PASS' else (3 if result['status'].startswith('WAIT') else 2)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

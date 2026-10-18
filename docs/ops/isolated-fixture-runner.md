@@ -94,6 +94,11 @@ while Job termination is pending, and retain descendant handles. v7/v8 verify th
 
 ## Concrete silence/product continuation (existing logh-fix t_5f006c90, then logh-review/verify)
 
+The project-owned prestart bridge is now implemented separately in
+[prestart-runtime.md](prestart-runtime.md) (t_2ff2d248). Its CLI still only runs
+harmless x86 fixtures, and both product switches remain closed. Do not treat its
+synthetic audio/Job evidence as original-client coverage or product readiness.
+
 Read-only source inspected, not imported:
 /srv/openclaw-dev/company/agents/logh-review/reports/audio-f1-review-20261013/logh-audio/audio_guard.py
 - readiness lines 91-105 cannot approve product: APPROVED_RUNTIME_MANIFEST=None (line 6).
