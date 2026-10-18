@@ -6,8 +6,9 @@ import tempfile
 import hashlib
 import shutil
 import subprocess
+import threading
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from qa_render import check_render, frame_stddev, judge_render, RenderCollector
 import qa_prestart_runner as runner
@@ -190,6 +191,45 @@ class RenderTests(unittest.TestCase):
         self.collector.finish()
         self.assertEqual(check_render(self.root / 'evidence')['status'], 'FAIL')
         self.collector.finish()  # Snapshot is idempotent; never overwrite the envelope.
+
+    def test_async_drain_precedes_resize_outside_callback_lock(self):
+        meta, raw = frame()
+        def deliver():
+            for slot in ('first', 'last'):
+                self.collector.on_message(dict(type='send', payload=dict(
+                    type='render-frame', slot=slot, **meta)), raw)
+            self.collector.on_message(dict(type='send', payload=dict(
+                type='render-finished', observation=self.obs)), None)
+        worker = threading.Thread(target=deliver)
+        self.addCleanup(worker.join)
+        self.collector.script = Mock()
+        self.collector.script.exports_sync.finishrender.side_effect = worker.start
+        def resize_after_drain(*args):
+            self.assertTrue(self.collector.finished.is_set())
+            self.assertTrue(self.collector.lock.acquire(blocking=False))
+            self.collector.lock.release()
+            return 10
+        with patch('qa_render.frame_stddev', side_effect=resize_after_drain) as resize:
+            self.collector.finish()
+        self.assertEqual(resize.call_count, 1)
+        self.assertEqual(self.collector.errors, [])
+        self.assertEqual(check_render(self.root / 'evidence')['status'], 'PASS')
+
+    def test_invalid_first_slot_fails_even_with_valid_last(self):
+        for meta, raw in (frame(flat=True), frame(200, 150),
+                          (frame()[0], (bytes([0, 0, 0, 255]) * 200 +
+                                        bytes([6, 6, 6, 255]) * 200) * 300)):
+            with self.subTest(width=meta['width'], raw_prefix=raw[:4]):
+                self.collector = RenderCollector(self.config, self.result)
+                (self.root / 'evidence/render.json').unlink(missing_ok=True)
+                self.collector.on_message(dict(type='send', payload=dict(
+                    type='render-frame', slot='first', **meta)), raw)
+                last_meta, last_raw = frame()
+                self.collector.on_message(dict(type='send', payload=dict(
+                    type='render-frame', slot='last', **last_meta)), last_raw)
+                envelope = self.finish()
+                self.assertIn('First slot is not valid', envelope['observation']['errors'])
+                self.assertEqual(check_render(self.root / 'evidence')['status'], 'FAIL')
 
     def test_same_run_inventory_binds_raw_and_all_metadata(self):
         run, runtime, pin = synthetic(self.root)

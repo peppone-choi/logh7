@@ -167,7 +167,6 @@ class RenderCollector:
                     meta = {k: payload[k] for k in ('format', 'width', 'height', 'pitch', 'interface', 'present_hr', 'frame_no')}
                     if data is None or len(data) > 32768 * 4096:
                         raise ValueError('Invalid raw frame length')
-                    deviation = frame_stddev(meta, data)
                     # Unsupported format/size frames have no raw payload in JS.
                     # Only copy validated layouts to disk, even if spatially flat.
                     if not raw_layout(meta, data):
@@ -177,8 +176,6 @@ class RenderCollector:
                     labels = {'first': ['first'], 'last': ['last'], 'both': ['first', 'last']}.get(slot)
                     if labels is None:
                         raise ValueError('Unknown frame slot')
-                    if 'first' in labels and (deviation is None or deviation <= 3):
-                        raise ValueError('First slot is not valid')
                     for label in labels:
                         path = self.root / 'evidence' / ('render-' + label)
                         path.with_suffix('.bgrx').write_bytes(data)
@@ -199,6 +196,13 @@ class RenderCollector:
             self.script.exports_sync.finishrender()
             if not self.finished.wait(3):
                 raise RuntimeError('Render message drain timed out')
+            # Resize only after ordered Frida delivery has drained, outside the
+            # callback lock. Pure-Python BICUBIC can exceed the drain deadline.
+            if 'first' in self.frames:
+                raw = (self.root / 'evidence/render-first.bgrx').read_bytes()
+                deviation = frame_stddev(self.frames['first'], raw)
+                if deviation is None or deviation <= 3:
+                    raise ValueError('First slot is not valid')
         except Exception as error:
             self.errors.append(str(error))
         with self.lock:
