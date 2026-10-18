@@ -184,6 +184,10 @@ hostile-code sandbox; concurrent same-user mutation has validation/use races.
 
 ## Verification
 
+제품 QA 보고 진입과 남은 collector 결함은 [product-qa-entry.md](product-qa-entry.md)를
+따른다. 새 `windows-product-qa.ps1`은 비실행 보고 연결이며 런타임 관찰/fixture
+성공을 제품 PASS로 바꾸지 않는다. 실제 제품 assertion collector는 아직 없다.
+
 Portable focused tests: `python -m unittest discover -s tools/client -p 'test_qa*py' -v`.
 Windows fixture matrix and final-head readback are recorded in
 `/srv/hermes-workspace/projects/logh/results/t_2ff2d248-RESULT.json` and
