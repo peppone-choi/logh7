@@ -163,6 +163,7 @@ def safety_fields(runtime):
         spec.loader.exec_module(mutex)
         mutexes = runtime['mutexes']
         result['isolationVerified'] = bool(
+            c.get('error') is None and
             sid != b['active_console_session'] and
             all(sid != i for i, state in b['sessions'] if state in (0, 1)) and
             b['winsta'].lower() != 'winsta0' and not b['flags'] & 1 and
@@ -188,6 +189,7 @@ def safety_fields(runtime):
                                       ('resumed_mono', 'target_stopped_mono', 'guard_detached_mono'))
         numbers = [*times, resumed, stopped, detached]
         result['silentVerified'] = bool(
+            c.get('error') is None and
             c['resumed'] is True and isinstance(c['guard_receipts'], list) and len(receipts) >= 2 and
             isinstance(c['guard_messages'], list) and
             all(type(t) in (int, float) and math.isfinite(t) for t in numbers) and

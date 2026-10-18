@@ -125,6 +125,21 @@ class RunTests(unittest.TestCase):
                 del changed['controller'][key]
                 self.assertFalse(qa.safety_fields(changed)['cleanupVerified'])
 
+    def test_controller_guard_errors_fail_closed_with_only_prior_good_receipts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, raw, _ = synthetic(Path(tmp))
+            self.assertTrue(all(qa.safety_fields(raw).values()))
+            for error in ('Target immediate Job UI restrictions not effective',
+                          'Audio guard not ready'):
+                changed = copy.deepcopy(raw)
+                changed['status'] = 'FAIL'
+                changed['controller'].update(status='FAIL', error=error)
+                fields = qa.safety_fields(changed)
+                for flag in ('isolationVerified', 'silentVerified'):
+                    with self.subTest(error=error, flag=flag):
+                        self.assertFalse(fields[flag])
+                self.assertTrue(fields['cleanupVerified'])
+
     def test_bad_gap_detach_audio_ui_and_owned_handle(self):
         with tempfile.TemporaryDirectory() as tmp:
             _, raw, _ = synthetic(Path(tmp))
