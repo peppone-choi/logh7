@@ -7,23 +7,53 @@ const state = {source: 'product', ready: false, finished: false, present_count: 
 const hooks = new Set(), devices = new Map();
 let busy = false;
 let firstFrame = null, lastFrame = null;
-function validFrame(frame) {
+function resizeCoefficients(size, output) {
+  const scale = size / output, filterScale = Math.max(scale, 1), support = 2 * filterScale;
+  return Array.from({length:output}, (_, i) => {
+    const center = (i + 0.5) * scale;
+    const start = Math.max(0, Math.trunc(center - support + 0.5));
+    const end = Math.min(size, Math.trunc(center + support + 0.5));
+    const weights = Array.from({length:end-start}, (_, k) => {
+      const t = Math.abs((start + k - center + 0.5) / filterScale);
+      return t < 1 ? (1.5*t-2.5)*t*t+1 : t < 2 ? ((-0.5*t+2.5)*t-4)*t+2 : 0;
+    });
+    const total = weights.reduce((a,b) => a+b, 0);
+    return [start, weights.map(v => Math.trunc(v/total * 4194304 + (v >= 0 ? 0.5 : -0.5)))];
+  });
+}
+function frameStddev(frame) {
   const m = frame.meta;
-  if (m.width < 400 || m.height < 300) return false;
+  if (m.width < 400 || m.height < 300) return null;
   const bytes = new Uint8Array(frame.bytes), sums = [0,0,0], squares = [0,0,0];
-  for (let y = 0; y < 90; y++) {
-    const py = (y + 0.5) * m.height / 90 - 0.5, top = Math.floor(py), fy = py - top;
+  const xs = resizeCoefficients(m.width,160), ys = resizeCoefficients(m.height,90);
+  const horizontal = new Uint8Array(m.height * 160 * 3);
+  // Match Pillow's signed 22-bit coefficients and 8-bit intermediate image.
+  // Use arithmetic division, not JS bit shifts: the accumulator can exceed int32.
+  for (let y = 0; y < m.height; y++) {
     for (let x = 0; x < 160; x++) {
-      const px = (x + 0.5) * m.width / 160 - 0.5, left = Math.floor(px), fx = px - left;
-      const a = top * m.pitch + left * 4, b = a + m.pitch;
+      const [start, weights] = xs[x];
       for (let c = 0; c < 3; c++) {
-        const v = (bytes[a+c]*(1-fx) + bytes[a+4+c]*fx)*(1-fy) +
-                  (bytes[b+c]*(1-fx) + bytes[b+4+c]*fx)*fy;
+        let value = 2097152;
+        for (let k = 0; k < weights.length; k++) value += bytes[y*m.pitch+(start+k)*4+c]*weights[k];
+        horizontal[(y*160+x)*3+c] = Math.max(0,Math.min(255,Math.floor(value/4194304)));
+      }
+    }
+  }
+  for (const [start, weights] of ys) {
+    for (let x = 0; x < 160; x++) {
+      for (let c = 0; c < 3; c++) {
+        let value = 2097152;
+        for (let k = 0; k < weights.length; k++) value += horizontal[((start+k)*160+x)*3+c]*weights[k];
+        const v = Math.max(0,Math.min(255,Math.floor(value/4194304)));
         sums[c] += v; squares[c] += v*v;
       }
     }
   }
-  return squares.some((s,c) => Math.sqrt(Math.max(0,s/14400-(sums[c]/14400)**2)) > 3);
+  return Math.max(...squares.map((s,c) => Math.sqrt(Math.max(0,s/14400-(sums[c]/14400)**2))));
+}
+function validFrame(frame) {
+  const deviation = frameStddev(frame);
+  return deviation !== null && deviation > 3;
 }
 function error(e) {
   if (state.errors.length < 32) state.errors.push(String(e));

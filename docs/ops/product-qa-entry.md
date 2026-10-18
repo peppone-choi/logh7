@@ -154,9 +154,12 @@ cleanup 뒤 모든 파일을 evidence_files에 등록한다. 어댑터는 same-r
 
 순수 함수 `judge_render`의 PASS 기준: format 21/22, 400x300~4096x4096,
 160x90 축소 RGB 채널 중 최대 모집단 표준편차 >3인 프레임 ≥1과 실패 Present 0건.
-추가 Pillow 의존성 없이 script/controller 모두 명시적 bilinear 축소를 사용한다.
-기존 run-background의 Pillow 기본 bicubic과 픽셀별 동등성을 주장하지 않으며,
-임계값 부근 이미지의 결과 차이는 실제 QA에서 원자료와 함께 확인한다.
+추가 런타임 Pillow 의존성 없이 script/controller 모두 run-background의 RGB
+Pillow 기본 BICUBIC 축소를 재현한다: a=-0.5, 픽셀 중심 매핑, 축소 배율로
+넓힌 support, 경계에서 정규화한 signed 22-bit 계수, 가로→세로 2-pass의
+각 pass 뒤 반올림·0..255 clamp를 적용한 8bit 출력의 통계다.
+Linux 회귀는 Pillow를 기준으로 잡음·1px 패턴·임계값 양쪽·색상/행 padding을
+Python과 Node에서 비교한다(|표준편차 차이|<0.05, >3 판정 일치).
 X/alpha와 행 padding은 통계에서 제외한다. 균일/작은 프레임만 있으면 NOT_RUN이다.
 지원 raw layout은 format 21/22, 1..4096 크기, width*4..32768 pitch이다.
 미지원 포맷/크기는 raw 슬롯을 만들지 않는다. 첫 유효 프레임 뒤 마지막 raw를
@@ -168,6 +171,7 @@ GetRenderTargetData 실패를 숨기지 않는다. D2(session 0/D3D9Ex·dxwrappe
 Linux 합성·정적 시험(실제 DLL/게임을 로드하지 않음):
 
     python3 -B -m unittest discover -s tools/client -p 'test_qa_render.py' -v
+    python3 -B -m unittest discover -s tools/client -p 'test_qa_render_criterion.py' -v
     node tools/client/test_qa_render.js
 
 ### 같은 실행 바인딩과 안전 계산

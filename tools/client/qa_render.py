@@ -15,8 +15,28 @@ def raw_layout(meta, raw):
         return False
 
 
+def _resize_coefficients(size, output):
+    """Pillow RGB BICUBIC: widened support, normalized signed 22-bit weights."""
+    scale = size / output
+    support = 2 * max(scale, 1)
+    coefficients = []
+    for i in range(output):
+        center = (i + 0.5) * scale
+        start = max(0, int(center - support + 0.5))
+        end = min(size, int(center + support + 0.5))
+        weights = []
+        for x in range(start, end):
+            t = abs((x - center + 0.5) / max(scale, 1))
+            weights.append(((1.5 * t - 2.5) * t * t + 1) if t < 1 else
+                           (((-0.5 * t + 2.5) * t - 4) * t + 2) if t < 2 else 0)
+        total = sum(weights)
+        coefficients.append((start, [int(v / total * (1 << 22) + (0.5 if v >= 0 else -0.5))
+                                     for v in weights]))
+    return coefficients
+
+
 def frame_stddev(meta, raw):
-    """Max RGB population stddev of an explicit 160x90 bilinear resize (BGRX).
+    """Max RGB population stddev after Pillow-compatible 160x90 BICUBIC.
 
     Ignore X/alpha and row padding. No image decoder or unpinned site dependency.
     Invalid/unsupported images cannot establish a valid frame.
@@ -29,20 +49,24 @@ def frame_stddev(meta, raw):
                 len(raw) != pitch * h):
             return None
         sums, squares = [0.0] * 3, [0.0] * 3
-        xs = []
-        for x in range(160):
-            px = (x + 0.5) * w / 160 - 0.5
-            left = max(0, min(w - 1, int(px)))
-            xs.append((left * 4, min(w - 1, left + 1) * 4, px - left))
-        for y in range(90):
-            py = (y + 0.5) * h / 90 - 0.5
-            top = max(0, min(h - 1, int(py)))
-            fy = py - top
-            a, b = top * pitch, min(h - 1, top + 1) * pitch
-            for left, right, fx in xs:
+        xs = _resize_coefficients(w, 160)
+        ys = _resize_coefficients(h, 90)
+        # Pillow quantizes/clamps to 8 bits BETWEEN the separable passes too.
+        horizontal = bytearray(h * 160 * 3)
+        for y in range(h):
+            for x, (start, weights) in enumerate(xs):
                 for c in range(3):
-                    v = ((raw[a + left + c] * (1 - fx) + raw[a + right + c] * fx) * (1 - fy) +
-                         (raw[b + left + c] * (1 - fx) + raw[b + right + c] * fx) * fy)
+                    value = 1 << 21
+                    for k, weight in enumerate(weights):
+                        value += raw[y * pitch + (start + k) * 4 + c] * weight
+                    horizontal[(y * 160 + x) * 3 + c] = max(0, min(255, value >> 22))
+        for start, weights in ys:
+            for x in range(160):
+                for c in range(3):
+                    value = 1 << 21
+                    for k, weight in enumerate(weights):
+                        value += horizontal[((start + k) * 160 + x) * 3 + c] * weight
+                    v = max(0, min(255, value >> 22))
                     sums[c] += v
                     squares[c] += v * v
         n = 160 * 90

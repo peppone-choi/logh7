@@ -91,7 +91,7 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(check_render(self.root / 'evidence')['status'], 'NOT_RUN')
         for field, value in [('device_failures', 1), ('present_failures', 1), ('errors', ['script error'])]:
             envelope = json.loads((self.root / 'evidence/render.json').read_text())
-            envelope['observation'][field] = value
+            envelope['observation'] = dict(self.obs, **{field: value})
             (self.root / 'evidence/render.json').write_text(json.dumps(envelope))
             self.assertEqual(check_render(self.root / 'evidence')['status'], 'FAIL')
 
@@ -102,6 +102,25 @@ class RenderTests(unittest.TestCase):
         self.collector.on_message(dict(type='error', description='synthetic exception'), None)
         self.finish()
         self.assertEqual(check_render(self.root / 'evidence')['status'], 'FAIL')
+
+    def test_first_only_fails(self):
+        self.send_frame()
+        envelope = self.finish()
+        del envelope['frames']['last']
+        (self.root / 'evidence/render.json').write_text(json.dumps(envelope))
+        self.assertEqual(check_render(self.root / 'evidence')['status'], 'FAIL')
+
+    def test_adapter_propagates_fail_and_not_run(self):
+        self.send_frame(*frame(flat=True))
+        envelope = self.finish()
+        for status, errors in [('NOT_RUN', []), ('FAIL', ['isolated script error'])]:
+            with self.subTest(status=status):
+                envelope['observation'] = dict(self.obs, errors=errors)
+                (self.root / 'evidence/render.json').write_text(json.dumps(envelope))
+                r = report.product_report('synthetic', 'c' * 40)
+                report.apply_render_check(r, dict(owned_temp=str(self.root), controller=self.result))
+                self.assertEqual(r['platforms']['windows']['checks'][2]['status'], status)
+                self.assertEqual(r['platforms']['windows']['status'], status)
 
     def test_adapter_no_aggregate_pass(self):
         self.send_frame()
