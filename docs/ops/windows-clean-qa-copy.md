@@ -11,6 +11,11 @@ E:\logh7은 사용자 dirty 원본이다. 이 절차는 원본에 fetch/reset/cl
    완전 bundle을 만든다. HEAD는 실제 존재하는 lowercase 40자리 commit SHA여야 한다.
    `sha256sum <bundle>` 값을 함께 전달한다. bundle과 준비 스크립트는 새 task 전용
    Windows 전송 폴더에 놓고 기존 파일을 덮어쓰지 않는다.
+   `git rev-parse --is-shallow-repository`가 true이면 `git rev-parse --git-path shallow`가
+   가리키는 파일의 실제 경계 SHA를 모두 읽어 함께 전달한다. Git bundle 자체는
+   shallow 메타데이터를 보존하지 않는다. 각 경계를 `--shallow-boundary <SHA>`로
+   명시하며 새 사본 .git/shallow에만 기록하고 해당 commit의 존재/타입을 검사한다.
+   경계를 추정하거나 원본·공유 저장소의 shallow 파일을 수정하지 않는다.
 2. `hermes-windows exec --project logh`로 Windows Python 3.11에서 아래 스크립트를
    실행한다. GUI/게임 실행 및 공식 `qa` 호출은 하지 않는다.
 

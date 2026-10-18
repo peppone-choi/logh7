@@ -77,8 +77,11 @@ def validate_paths(original, destination, head, root):
     return destination
 
 
-def prepare(original, destination, head, root, bundle, bundle_sha256, inventory=processes):
+def prepare(original, destination, head, root, bundle, bundle_sha256, inventory=processes,
+            shallow_boundaries=()):
     destination = validate_paths(original, destination, head, root)
+    if any(not re.fullmatch('[0-9a-f]{40}', boundary) for boundary in shallow_boundaries):
+        raise ValueError('Invalid explicit shallow boundary SHA')
     if not re.fullmatch('[0-9a-f]{64}', bundle_sha256) or digest(bundle) != bundle_sha256:
         raise ValueError('Bundle SHA256 mismatch')
     before = snapshot(original)
@@ -86,15 +89,24 @@ def prepare(original, destination, head, root, bundle, bundle_sha256, inventory=
     report = {'requestedHead': head, 'windowsRepo': str(destination),
               'bundleSha256': bundle_sha256, 'originalBefore': before,
               'processesBefore': process_before, 'productQA': 'NOT_RUN',
-              'gamesExecuted': False, 'status': 'FAIL'}
+              'gamesExecuted': False, 'status': 'FAIL',
+              'shallowBoundaries': list(shallow_boundaries)}
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
         # mkdir is atomic: even an empty existing directory is not reused.
         destination.mkdir(exist_ok=False)
         git(destination, 'init', '--template=')
         git(destination, 'bundle', 'verify', str(bundle.resolve()))
+        if shallow_boundaries:
+            # Git bundles omit shallow metadata. Only explicit sender boundaries
+            # are installed, in this newly initialized repository.
+            (destination / '.git' / 'shallow').write_text(
+                '\n'.join(shallow_boundaries) + '\n', encoding='ascii')
         git(destination, 'fetch', '--no-tags', '--no-recurse-submodules', str(bundle.resolve()),
             'HEAD')
+        for boundary in shallow_boundaries:
+            if git(destination, 'cat-file', '-t', boundary).strip() != b'commit':
+                raise ValueError('Shallow boundary is not an available commit')
         actual = git(destination, 'rev-parse', 'FETCH_HEAD^{commit}').decode().strip()
         if actual != head:
             raise ValueError('Bundle commit differs from requested SHA')
@@ -126,6 +138,8 @@ def main():
     parser.add_argument('--head', required=True)
     parser.add_argument('--bundle', type=Path, required=True)
     parser.add_argument('--bundle-sha256', required=True)
+    parser.add_argument('--shallow-boundary', action='append', default=[],
+                        help='Exact sender Git shallow boundary; repeat for each boundary')
     parser.add_argument('--report', type=Path, required=True)
     args = parser.parse_args()
     if os.name != 'nt':
@@ -138,7 +152,8 @@ def main():
     with report_path.open('x', encoding='utf-8') as stream:
         try:
             report = prepare(args.original, args.windows_repo, args.head, args.qa_root,
-                             args.bundle, args.bundle_sha256)
+                             args.bundle, args.bundle_sha256,
+                             shallow_boundaries=args.shallow_boundary)
         except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as error:
             report = {'status': 'FAIL', 'productQA': 'NOT_RUN', 'gamesExecuted': False,
                       'error': f'{type(error).__name__}: {error}'}

@@ -73,6 +73,30 @@ class CopyTest(unittest.TestCase):
             self.prepare(bundle_sha256='0' * 64)
         self.assertFalse(self.dest.exists())
 
+    def test_explicit_shallow_boundary_is_required_for_truncated_bundle(self):
+        copy_qa.git(self.original, '-c', 'user.name=QA', '-c', 'user.email=qa@example.invalid',
+                    'commit', '--allow-empty', '-m', 'child')
+        head = copy_qa.git(self.original, 'rev-parse', 'HEAD').decode().strip()
+        (self.original / '.git' / 'shallow').write_text(head + '\n')
+        bundle = self.root / 'shallow.bundle'
+        copy_qa.git(self.original, 'bundle', 'create', str(bundle), 'HEAD')
+        failed = self.prepare(head=head, destination=self.qa / 'missing-boundary' / head,
+                              root=self.qa / 'missing-boundary',
+                              bundle=bundle, bundle_sha256=copy_qa.digest(bundle))
+        self.assertEqual(failed['status'], 'FAIL')
+        report = self.prepare(head=head, destination=self.qa / head,
+                              bundle=bundle, bundle_sha256=copy_qa.digest(bundle),
+                              shallow_boundaries=[head])
+        self.assertEqual(report['status'], 'COPY_READY')
+        self.assertEqual(report['copyHead'], head)
+        self.assertTrue(report['originalUnchanged'])
+        self.assertEqual(report['shallowBoundaries'], [head])
+
+    def test_malformed_boundary_rejected_before_writes(self):
+        with self.assertRaises(ValueError):
+            self.prepare(shallow_boundaries=['HEAD'])
+        self.assertFalse(self.dest.exists())
+
     def test_nonexistent_commit_refused_and_failure_not_reused(self):
         head = '1' * 40
         report = self.prepare(head=head, destination=self.qa / head)
