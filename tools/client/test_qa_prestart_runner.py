@@ -113,6 +113,52 @@ class PrestartTests(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 runner.controller_command(root, root / 'config.json', 'digest')
 
+    def test_supervisor_loop_failure_preserves_possible_product_execution(self):
+        for product in (True, False):
+            for error in ('WAIT_SESSION_SET_CHANGED', 'CONTROLLER_TIMEOUT'):
+                with self.subTest(product=product, error=error), tempfile.TemporaryDirectory() as temp:
+                    args = types.SimpleNamespace(product_logh=product, reference_pid=[],
+                                                 temp_parent=Path(temp), repo=Path(temp),
+                                                 cancel_file=None, manifest_sha256='pinned',
+                                                 mode='success', timeout=5)
+                    process, thread, retained = Mock(), Mock(), Mock()
+                    wp = Mock(CREATE_SUSPENDED=4, CREATE_NO_WINDOW=0x08000000)
+                    wp.CreateProcess.return_value = (process, thread, 11, 12)
+                    wp.GetProcessTimes.return_value = {'CreationTime': 'owned'}
+                    we = Mock(WAIT_TIMEOUT=258, WAIT_OBJECT_0=0)
+                    we.WaitForSingleObject.side_effect = lambda h, ms: 258 if ms == 20 else 0
+                    wj = Mock(JobObjectBasicProcessIdList=3, JobObjectBasicAccountingInformation=1)
+                    wj.QueryInformationJobObject.side_effect = lambda job, kind: (
+                        [11, 22] if kind == 3 else {'ActiveProcesses': 0})
+                    wa = Mock()
+                    wa.OpenProcess.return_value = retained
+                    audio = Mock()
+                    audio._plain_path.return_value.is_relative_to.return_value = True
+                    isolated = Mock(snapshot=Mock(return_value={'winsta': 'private'}),
+                                    isolated=Mock(return_value=True))
+                    modules = dict(win32api=wa, win32con=wp, win32event=we,
+                                   win32job=wj, win32process=wp, win32service=Mock(),
+                                   win32ts=Mock(WTSEnumerateProcesses=Mock(return_value=[])),
+                                   qa_prestart_audio=audio, qa_isolated_runner=isolated)
+                    sessions = [[0], [0], [1] if error.startswith('WAIT_') else [0]]
+                    with patch.dict(sys.modules, modules), \
+                            patch.object(runner, 'validate', return_value={'site': 'pinned', 'app': {}, 'target_args': []}), \
+                            patch.object(runner, 'target_spec', return_value=(Path(temp) / 'not-executed.exe', Path(temp))), \
+                            patch.object(runner, 'session_ids', side_effect=sessions), \
+                            patch.object(runner, 'job_policy'), \
+                            patch.object(runner, 'controller_command', return_value=['mock-controller']), \
+                            patch.object(runner.shutil, 'disk_usage', return_value=types.SimpleNamespace(free=2**40)), \
+                            patch.object(runner.time, 'monotonic', side_effect=[0, 100, 100, 100]), \
+                            patch.object(mutex, 'SessionMutex'):
+                        report = runner.run(args)
+                    wp.ResumeThread.assert_called_once_with(thread)
+                    self.assertEqual(report['error'], error)
+                    self.assertEqual(report['games_executed'], product)
+                    self.assertTrue(report['cleanup_verified'])
+                    self.assertEqual({p['pid'] for p in report['owned_processes']}, {11, 22})
+                    self.assertFalse(report['product_pass'])
+                    self.assertEqual(report['product_qa'], 'NOT_RUN')
+
     def test_product_guard_uses_nonfixture_manifest_and_no_synthetic_rpc(self):
         source = (HERE / 'qa_prestart_runner.py').read_text()
         self.assertIn("fixture=not config['product_logh']", source)

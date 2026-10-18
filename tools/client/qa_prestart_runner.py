@@ -363,6 +363,9 @@ def run(args):
                     observed[member] = (handle, str(wp.GetProcessTimes(handle)['CreationTime']))
         observe()
         wp.ResumeThread(thread)
+        # A resumed product controller may launch the game before any report
+        # exists. Preserve that possibility on supervisor failure/timeout.
+        report['games_executed'] = bool(args.product_logh)
         start = time.monotonic()
         while we.WaitForSingleObject(process, 20) == we.WAIT_TIMEOUT:
             observe()
