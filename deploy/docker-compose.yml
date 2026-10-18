@@ -12,7 +12,6 @@ services:
       LOGH7_SESSION_PORT: ${SESSION_PORT:-47903}
       LOGH7_SESSION_ADDRESS: ${PUBLIC_HOST:-127.0.0.1}
       LOGH7_SESSION_STORE_DIR: /data/sessions
-      LOGH7_CAPTURE_DIR: /data/captures
     volumes:
       - game_sessions:/data/sessions
       - game_captures:/data/captures

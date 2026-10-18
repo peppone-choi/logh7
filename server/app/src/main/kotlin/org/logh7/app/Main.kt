@@ -7,6 +7,7 @@ import org.logh7.engine.MemorySessionGenerationStore
 import org.logh7.persistence.FileSessionGenerationStore
 import org.logh7.persistence.FileSessionStore
 import org.logh7.gateway.Gateway
+import org.logh7.gateway.captureDirectoryFrom
 import org.logh7.gateway.loadTestAccounts
 import org.logh7.gateway.EngineGameAdmission
 import org.logh7.ops.startOpsApi
@@ -42,7 +43,8 @@ fun main() {
             throw failure
         }
         resources.addFirst(AutoCloseable { runBlocking { engine.drainAndClose() } })
-        val gateway = Gateway(Path.of(System.getenv("LOGH7_CAPTURE_DIR") ?: "E:/logh7/work/logh7-dynamic-p2/captures"),
+        val captureDirectory = captureDirectoryFrom(System.getenv("LOGH7_CAPTURE_DIR"))
+        val gateway = Gateway(captureDirectory,
             loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
             characterFile,
             gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope))
@@ -55,7 +57,7 @@ fun main() {
         val sessionPort = System.getenv("LOGH7_SESSION_PORT")?.toInt() ?: 47903
         gateway.start(bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress)
         Runtime.getRuntime().addShutdownHook(Thread { closeResources() })
-        println("LOGH7 stubs: $bindAddress:47900 / 47902 / $sessionPort; ops: 127.0.0.1:47901")
+        println("LOGH7 stubs: $bindAddress:47900 / 47902 / $sessionPort; ops: 127.0.0.1:47901; capture: ${captureDirectory?.toAbsolutePath() ?: "off"}")
         CountDownLatch(1).await()
     } catch (failure: Throwable) {
         try { closeResources() } catch (closing: Throwable) { failure.addSuppressed(closing) }

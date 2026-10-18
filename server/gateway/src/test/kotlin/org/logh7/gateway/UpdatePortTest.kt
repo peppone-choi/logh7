@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assumptions.assumeFalse
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.gateway.load.LoadMetrics
 import org.logh7.gateway.load.SyntheticClient
@@ -9,9 +10,11 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 /** Synthetic TCP contract only: no original updater or game process is launched. */
 class UpdatePortTest {
@@ -39,14 +42,14 @@ class UpdatePortTest {
         override fun close() = gateway.close()
     }
 
-    private fun startGateway(): Fixture {
+    private fun startGateway(capture: Boolean = true): Fixture {
         repeat(5) { attempt ->
             val reservations = mutableListOf<ServerSocket>()
             val ports = try {
                 repeat(3) { reservations += ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")) }
                 reservations.map { it.localPort }
             } finally { reservations.forEach { it.close() } }
-            val gateway = Gateway(captures.resolve("attempt-$attempt"))
+            val gateway = if (capture) Gateway(captures.resolve("attempt-$attempt")) else Gateway()
             try {
                 gateway.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 return Fixture(gateway, ports[0], ports[1])
@@ -68,6 +71,29 @@ class UpdatePortTest {
     private fun Socket.expectEof() {
         // A timeout or reset fails: require actual EOF and zero additional response bytes.
         assertEquals(-1, getInputStream().read(), "Expected server EOF without additional response")
+    }
+
+    @Test fun updateExchangeWorksWithCaptureOff() {
+        startGateway(capture = false).use { fixture ->
+            fixture.updater().use { socket ->
+                socket.send(identification); socket.expect(identified)
+                socket.send(version); socket.expect(complete); socket.expectEof()
+            }
+            fixture.assertGameListenerAlive()
+        }
+        Files.list(captures).use { assertEquals(0L, it.count()) }
+    }
+
+    @Test fun noArgumentGatewayDoesNotCreateLegacyCaptureDirectory() {
+        val legacyRoot = Path.of("E:")
+        assumeFalse(Files.exists(legacyRoot), "Legacy path already exists; preserve existing captures")
+        startGateway(capture = false).use { fixture ->
+            fixture.updater().use { socket ->
+                socket.send(identification); socket.expect(identified)
+                socket.send(version); socket.expect(complete); socket.expectEof()
+            }
+        }
+        assertFalse(Files.exists(legacyRoot), "Gateway() must not create the old default capture directory")
     }
 
     @Test fun normalExchangeUsesExactPlaintextBytesAndCloses() {

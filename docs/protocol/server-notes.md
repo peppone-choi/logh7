@@ -13,7 +13,7 @@
 - `evidence:guess` 월드 상태는 engine의 단일 coroutine 소비자만 변경한다. 외부에는 CommandSink와 불변 WorldSnapshot만 노출한다. 영속화는 SnapshotStore 인터페이스만 있으며 DB 구현은 미완료다.
 - `evidence:guess` 운영 API는 127.0.0.1:47901에 health/snapshot/probe 명령을 제공한다. probe POST도 엔진 큐로 전달한다.
 - `evidence:guess` 게임/업데이트 스텁은 기본 127.0.0.1:47900/47902로 제한한다. VM에서 접속할 때 `LOGH7_BIND_ADDRESS`에 활성 VirtualBox Host-Only 어댑터의 로컬 IPv4를 지정할 수 있다. 사설망 주소와 APIPA 링크 로컬 주소를 모두 허용하되 해당 어댑터의 소유 주소인지 검사한다. 운영 API는 항상 127.0.0.1이다.
-- `evidence:guess` 모든 수신/송신 TCP 청크를 연결별 TSV(UTC 시각, 방향, hex)와 방향별 `.bin` 원바이트 스트림에 기록한다. 기본 경로는 `E:/logh7/work/logh7-dynamic-p2/captures`, 환경변수 `LOGH7_CAPTURE_DIR`로 변경할 수 있다.
+- `evidence:guess` 캡처는 기본 OFF이며 `LOGH7_CAPTURE_DIR`에 공백이 아닌 경로를 명시한 경우에만 모든 수신/송신 TCP 청크를 연결별 TSV(UTC 시각, 방향, hex)와 방향별 `.bin` 원바이트 스트림에 기록한다. 시작 로그에 `capture: off` 또는 절대 경로를 표시한다. 캡처만으로 로그인 비밀번호를 복원할 수 있으므로 운영에서는 사용을 권장하지 않으며, 필요한 역공학 작업에서만 운영자 사설·Git 제외 경로를 사용한다. 명시 경로 생성 실패는 서버 시작 실패, 기록 실패는 기존 연결 종료 처리를 유지한다. 기존 캡처 파일·디렉터리·볼륨은 삭제하거나 이동하지 않으므로 운영자는 과거 파일의 노출 여부를 수동 점검해야 한다.
 - `evidence:guess` 최초 골격의 0x34 관찰 전용 상태기계는 2026-09-28 아래 T1 구현으로 대체했다. 로그인 47900, 업데이트 47902, 세션 47903을 분리한다.
 - `evidence:client` T2 `update-protocol.md`의 정적 후보에 맞춰 47902에서 `0x6810`에 `00 02 68 11`, 이어 `0x6820`(BE32 버전)에 `00 02 68 22`를 응답하고 연결을 닫는다. 원본 업데이터의 수용 여부는 VM에서 확인해야 한다.
 - `evidence:client` T2 `login-messages.md`가 기존 초안의 로그인 요청 opcode를 0x7000으로 정정했으므로 YAML 스키마에서도 `LGLoginRequest=0x7000`을 사용한다.
@@ -80,7 +80,7 @@ Set-Location E:\logh7\server
 | `LOGH7_SESSION_PORT` | 세션 수신 포트, 기본 47903 |
 | `LOGH7_SESSION_ADDRESS` | 로그인 응답의 세션 IPv4, 기본 bind 주소 |
 | `LOGH7_BIND_ADDRESS` | 기존 localhost 또는 검증된 호스트 전용 어댑터 주소 |
-| `LOGH7_CAPTURE_DIR` | 연결별 암호화 원바이트 캡처 경로; Git 제외 경로 사용 |
+| `LOGH7_CAPTURE_DIR` | 미설정·빈 문자열·공백만이면 OFF; 그 외 값은 원문 경로로 명시 opt-in. 컨테이너도 기본 OFF이며, 필요 시 이 변수만 추가한다(`/data/captures` 디렉터리·`game_captures` 볼륨 보존). 비밀번호 복원 가능: 운영 비권장, 운영자 사설·Git 제외 경로 사용 |
 
 - `evidence:guess` `tools/vm/deploy-server.ps1`은 기본 `-Action Build`로 installDist만 만든다. 선택 `-IncludeRuntime`은 지정 JDK의 jlink로 배포 폴더에 런타임을 생성한다. 기존 runtime 폴더를 자동 삭제하지 않는다.
 - `evidence:guess` 리드는 `-Action Deploy -VmName <이름> -GuestUser <계정> -PasswordFile <파일> -AccountsFile <파일> -GuestDirectory <게스트 절대경로>`로 배치한다. `guestcontrol copyto --passwordfile`을 쓰며 비밀번호 내용은 읽거나 출력하지 않는다. VM 부팅·네트워크 변경은 이 스크립트의 범위가 아니다.
