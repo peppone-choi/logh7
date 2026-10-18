@@ -127,7 +127,11 @@ class PrestartTests(unittest.TestCase):
             module = root / 'probe.py'
             module.write_text('VALUE = "evil"\n')
             stamp = module.stat().st_mtime_ns
-            py_compile.compile(str(module), doraise=True)
+            # Explicit in-tree location: the test runner itself may have an
+            # isolated sys.pycache_prefix, which py_compile otherwise inherits.
+            cached = root / '__pycache__' / ('probe.' + sys.implementation.cache_tag + '.pyc')
+            cached.parent.mkdir()
+            py_compile.compile(str(module), cfile=str(cached), doraise=True)
             module.write_text('VALUE = "safe"\n')
             os.utime(module, ns=(stamp, stamp))
             code = f'import sys; sys.path.insert(0, {str(root)!r}); import probe; print(probe.VALUE)'
