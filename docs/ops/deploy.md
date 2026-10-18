@@ -24,6 +24,21 @@ docker compose -f deploy/docker-compose.yml --profile game stop game-server
 
 ## 검증과 제한
 
+### 격리 전체 스택 smoke CI
+
+작성: 최병호
+
+`container/game-image`는 기존 game-only 검사와 정리를 마친 뒤 `deploy/ci/stack_smoke.py run`으로 네 서비스 전체를 기동한다. 실행별 프로젝트 이름은 `logh7-stack-ci-${github.run_id}-${github.run_attempt}`이며 기존 Compose 이미지·네트워크·loopback 게시 설정을 사용한다. GitHub-hosted runner 전용이다. VPS·운영·실제 데이터 환경에서 실행하지 않는다.
+
+- `up --no-build --wait` 후 PostgreSQL `pg_isready`, Prometheus `/-/ready` HTTP 200, Grafana `/api/health` HTTP 200 및 `database=ok`, game 내부 health HTTP 200과 loopback TCP 47900·47902·47903을 확인한다. readiness 재시도는 최대 60회(간격 2초), 각 HTTP 요청 제한은 3초다.
+- 격리 DB에 무작위 표식을 기록하고 PostgreSQL 컨테이너 `restart` 후 다시 읽어 정확히 비교한다. 이는 컨테이너 재시작 영속성 검사이며 백업 복구·앱 DB 연결 검사가 아니다.
+- 비밀번호 두 개는 실행 중 새로 생성해 `RUNNER_TEMP`의 0700 디렉터리에만 쓴다. PostgreSQL 파일은 0600, Grafana는 UID 472/GID 0 접근용 0640·그룹 0이다. runner의 `sudo chgrp`를 사용한다. Compose secret 경로만 임시 override로 바꾸며 기존 `deploy/secrets/`와 `.env`는 읽지 않는다(`--env-file /dev/null`). 실제 secret 값·전체 Compose 설정·전체 스택 컨테이너 로그·Docker 오류 출력은 기록하지 않는다.
+- `finally` 및 Actions `always()` 정리에서 해당 프로젝트만 `down -v --remove-orphans`한 뒤 Compose 프로젝트 label로 컨테이너와 볼륨이 모두 없는지 각각 확인한다. 정리 실패는 성공으로 처리하지 않으며 override를 남겨 always 단계가 재시도한다. 성공 후 임시 secret 디렉터리도 삭제한다. runner 강제 종료 시 finally/always 실행은 보장되지 않으므로 일회성 hosted runner 밖에서 재사용하지 않는다.
+
+가벼운 제어 흐름 시험: `python3 -m unittest discover -s deploy/ci -p 'test_*.py' -v`. readiness timeout·HTTP/DB 실패·표식 불일치·기동 실패·정리 실패·잔존 컨테이너/볼륨은 실패로 반환하는지 검사한다. 이 mock 시험만으로 실제 Compose 기동 성공을 주장하지 않는다. 실제 결과는 해당 head의 GitHub Actions에서 확인한다.
+
+기존 이미지 태그는 Docker 공식 Registry manifest HEAD에서 확인한다: `registry-1.docker.io/v2/library/postgres/manifests/18.6`, `registry-1.docker.io/v2/prom/prometheus/manifests/v3.13.3`, `registry-1.docker.io/v2/grafana/grafana/manifests/13.2.2`. 이번 변경에서 태그를 바꾸지 않는다. digest 고정은 후속 운영 승격 범위다.
+
 GitHub-hosted `container` CI는 이미지 비루트·자료 미포함, Compose 실제 `LOGH7_*`·game 포트 비게시 계약, 120초 Healthy 대기, 내부 `127.0.0.1:47901`의 HTTP 200, 내부 `127.0.0.1:47900/47902/47903`의 실제 TCP 수락과 항상 실행되는 정리를 검사한다. 기존 `server` CI의 전체 Gradle build는 그대로 유지한다. 다른 서비스의 기존 loopback 게시 설정은 보존한다. 내부 TCP 수락은 호스트 도달성·게임 프로토콜·로그인 성공의 증거가 아니다.
 
 PostgreSQL은 **게임 서버에 미연결**이다. 앱은 파일 기반 세션 저장을 사용하며 DATABASE_* 환경변수·DB 비밀번호·postgres 의존을 제거했다. 근거는 [`Main.kt`](../../server/app/src/main/kotlin/org/logh7/app/Main.kt)의 `LOGH7_SESSION_STORE_DIR` → `FileSessionStore` 선택과 `LOGH7_SESSION_GENERATION_FILE` → `FileSessionGenerationStore` 선택(미지정 시 메모리 구현), 그리고 [`app/build.gradle.kts`](../../server/app/build.gradle.kts)의 앱 의존성이다. 현재 앱 부팅 경로에는 PostgreSQL 접속·DB 환경변수 소비가 없으므로 `depends_on: postgres`는 실제 준비 조건이 아니며 DB secret 마운트도 불필요하다. 제거 범위는 `game-server`에 한정한다. 별도 `postgres` 서비스의 secret·healthcheck·영속 볼륨은 그대로 보존한다. 향후 DB 어댑터를 연결할 때 접속 설정·secret·준비 조건을 별도 계약으로 다시 정의해야 한다. DB 영속·백업 복구·전체 스택/관리 웹 완성은 이 변경으로 검증되지 않는다.

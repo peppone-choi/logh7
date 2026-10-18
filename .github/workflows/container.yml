@@ -1,9 +1,9 @@
 name: container
 on:
   push:
-    paths: ['server/**', 'deploy/docker-compose.yml', '.github/workflows/container.yml']
+    paths: ['server/**', 'deploy/**', '.github/workflows/container.yml']
   pull_request:
-    paths: ['server/**', 'deploy/docker-compose.yml', '.github/workflows/container.yml']
+    paths: ['server/**', 'deploy/**', '.github/workflows/container.yml']
 permissions:
   contents: read
 jobs:
@@ -15,6 +15,8 @@ jobs:
       GAME_SERVER_IMAGE: logh7/game-server:ci
     steps:
       - uses: actions/checkout@v4
+      - name: Test stack smoke failure and cleanup paths
+        run: python3 -m unittest discover -s deploy/ci -p 'test_*.py' -v
       - name: Build Java 25 image
         run: docker build -t "$GAME_SERVER_IMAGE" server
       - name: Validate Compose contract
@@ -62,3 +64,12 @@ jobs:
           docker compose -f deploy/docker-compose.yml --profile game down -v --remove-orphans
           test -z "$(docker ps -aq --filter label=com.docker.compose.project=$COMPOSE_PROJECT_NAME)"
           test -z "$(docker volume ls -q --filter label=com.docker.compose.project=$COMPOSE_PROJECT_NAME)"
+      - name: Smoke isolated full Compose stack
+        env:
+          COMPOSE_PROJECT_NAME: logh7-stack-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 deploy/ci/stack_smoke.py run
+      - name: Always remove full-stack containers, volumes and temporary secrets
+        if: always()
+        env:
+          COMPOSE_PROJECT_NAME: logh7-stack-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 deploy/ci/stack_smoke.py cleanup
