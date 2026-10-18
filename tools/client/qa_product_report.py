@@ -1,7 +1,7 @@
 """Fail-closed LOGH report bridge; never launches a product or fixture.
 
-Collectors report individual checks, but the aggregate PASS gate belongs to I6.
-This bridge cannot emit product PASS, even for a pinned report claiming PASS.
+Only verified same-run evidence can satisfy the aggregate product PASS gate.
+Historical reports and input verdicts cannot authorize PASS or issue a receipt.
 A hash is integrity, not trusted provenance.
 """
 import argparse
@@ -44,8 +44,8 @@ def product_report(device, head, runtime=None, evidence=None):
         'runtimeHeadProvenanceVerified': False,
         'runtimeEvidence': evidence,
         'runtimeStatus': runtime['status'] if runtime else None,
-        'blockers': ['Aggregate product PASS gate is missing; '
-                     'runtime observation, fixture PASS, exec and probe are not product PASS.'],
+        'blockers': ['Product PASS requires same-run provenance, all three safety proofs, '
+                     'all four collector checks and PRODUCT_WINDOW_COMPLETE.'],
     }
 
 
@@ -258,7 +258,7 @@ def apply_audio_check(report, runtime):
         status=result['status'], evidence=str(path), detail=result)
     if result['status'] == 'FAIL':
         report['platforms']['windows']['status'] = 'FAIL'
-    # Check PASS never promotes the platform/exit code before I6.
+    # One collector alone cannot authorize aggregate PASS.
 
 
 def apply_render_check(report, runtime):
@@ -304,7 +304,34 @@ def apply_api_check(report, runtime):
     report['platforms']['windows']['checks'][0].update(status=result['status'], evidence=str(path), detail=result)
     if result['status'] == 'FAIL':
         report['platforms']['windows']['status'] = 'FAIL'
-    # Aggregate PASS/exit0 is I6, not an API observation result.
+    # One collector alone cannot authorize aggregate PASS.
+
+
+def finalize_product_report(report, same_run):
+    """Gate computed output only, after collectors AND final checkout inspection.
+
+    Never call with fields copied from an input verdict. A null receipt remains
+    mandatory: only hermes-windows qa can issue an official exact-head receipt.
+    """
+    windows = report['platforms']['windows']
+    checks = windows['checks']
+    passed = (
+        same_run is True and report['runtimeHeadProvenanceVerified'] is True and
+        all(report[key] is True for key in
+            ('isolationVerified', 'silentVerified', 'cleanupVerified')) and
+        report['runtimeStatus'] == 'PRODUCT_WINDOW_COMPLETE' and
+        windows['status'] != 'FAIL' and len(checks) == len(CHECKS) and
+        all(check['name'] == name and check['status'] == 'PASS' and
+            isinstance(check.get('evidence'), str) and bool(check['evidence'])
+            for check, name in zip(checks, CHECKS)))
+    report['product_pass'] = passed
+    report['productQA'] = 'PASS' if passed else 'NOT_RUN'
+    report['windows_qa_receipt'] = None
+    if passed:
+        windows['status'] = 'PASS'
+        report['blockers'] = []
+        return 0
+    return 2 if windows['status'] == 'FAIL' else 3
 
 
 def main():
@@ -363,8 +390,7 @@ def main():
                     report['blockers'].append(raw['status'])
             validate_checkout(args.head, preflight.git(args.repo, 'rev-parse', 'HEAD'),
                               preflight.git(args.repo, 'status', '--porcelain=v1', '--untracked-files=normal'))
-            if report['platforms']['windows']['status'] == 'FAIL':
-                code = 2
+            code = finalize_product_report(report, args.same_run is not None)
         with args.out.open('x', encoding='utf-8') as stream:
             json.dump(report, stream, ensure_ascii=True, indent=2)
             stream.write('\n')

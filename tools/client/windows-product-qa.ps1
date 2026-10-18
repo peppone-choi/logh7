@@ -91,12 +91,40 @@ try {
     }
     $raw = & $Python @arguments
     $code = $LASTEXITCODE
-    if ($code -notin @(2, 3)) {
+    if ($code -notin @(0, 2, 3)) {
         throw ('Unexpected adapter exit code: ' + $code)
     }
     $parsed = ($raw -join "`n") | ConvertFrom-Json -ErrorAction Stop
-    if ($parsed.platforms.windows.status -notin @('NOT_RUN', 'FAIL') -or
-        $parsed.product_pass -ne $false) { throw 'Refusing unexpected product verdict' }
+    # Recheck the adapter's aggregate contract; Report can NEVER authorize PASS.
+    # Require actual JSON booleans, not strings or numeric safety claims.
+    $expectedChecks = @('original-client API behavior', 'original-client audio coverage',
+        'original-client rendering', 'original-client protocol interoperability')
+    $checks = @($parsed.platforms.windows.checks)
+    $checksPass = $checks.Count -eq $expectedChecks.Count
+    for ($i = 0; $i -lt $checks.Count; $i++) {
+        if ($i -ge $expectedChecks.Count -or $checks[$i].name -cne $expectedChecks[$i] -or
+            $checks[$i].status -cne 'PASS' -or $checks[$i].evidence -isnot [string] -or
+            [string]::IsNullOrWhiteSpace($checks[$i].evidence)) { $checksPass = $false }
+    }
+    $proofsPass = $true
+    foreach ($field in @('runtimeHeadProvenanceVerified', 'isolationVerified', 'silentVerified', 'cleanupVerified')) {
+        if ($parsed.$field -isnot [bool] -or $parsed.$field -ne $true) { $proofsPass = $false }
+    }
+    $canPass = $Mode -ceq 'Run' -and $proofsPass -and $checksPass -and
+        $parsed.runtimeStatus -ceq 'PRODUCT_WINDOW_COMPLETE'
+    if ($null -ne $parsed.windows_qa_receipt -or $parsed.product_pass -isnot [bool]) {
+        throw 'Refusing unexpected receipt or product verdict type'
+    }
+    if ($code -eq 0) {
+        if (-not $canPass -or $parsed.platforms.windows.status -cne 'PASS' -or
+            $parsed.product_pass -ne $true -or $parsed.productQA -cne 'PASS') {
+            throw 'Refusing unproven product PASS'
+        }
+    } elseif ($parsed.product_pass -ne $false -or $parsed.productQA -cne 'NOT_RUN' -or
+        ($code -eq 2 -and $parsed.platforms.windows.status -cne 'FAIL') -or
+        ($code -eq 3 -and $parsed.platforms.windows.status -cne 'NOT_RUN')) {
+        throw 'Refusing inconsistent nonpassing product verdict'
+    }
     if ($Mode -eq 'Run') {
         # Publish the same adapter document to the caller's new output too.
         $stream = [IO.File]::Open($Out, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write)

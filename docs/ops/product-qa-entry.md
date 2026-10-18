@@ -2,8 +2,9 @@
 
 기본 `-Mode Report`는 제품을 실행하지 않고 기존 증거만 보고한다.
 `-Mode Run`은 기존 격리 시험기를 호출하고 같은 실행의 증거를 보고한다.
-프로토콜·오디오·렌더·API check collector가 구현되어 있으며, 어느 모드에도 제품 PASS/exit 0 경로는 없다.
-이 연결만으로 공식 제품 QA를 재개하거나 PASS 영수증을 만들 수 없다.
+프로토콜·오디오·렌더·API collector와 I6 통합 gate가 구현되어 있다.
+Run의 검증된 같은 실행에서 아래 조건이 전부 참일 때만 PASS/exit 0이 가능하다.
+Report는 계속 PASS 불가다. 코드 구현·Linux 합성 PASS는 실제 제품 PASS나 공식 영수증이 아니다.
 
 ## 조사와 재사용
 
@@ -14,7 +15,7 @@
 - `qa_prestart_runner.py`: 공유 mutex/격리 데스크톱/음소거 계측/소유 Job 정리를
   담당한다. 제품 정상 종료는 PRODUCT_OBSERVED/exit 2이고 제품 PASS가 아니다.
 - `docs/ops/prestart-runtime.md`: 실제 API·DirectSound/WASAPI/winmm·렌더·프로토콜
-  관찰 설계와 collector를 구분한다. 최종 PASS 통합은 아직 없다.
+  관찰 설계와 collector를 구분한다. 최종 PASS 통합은 아래 조건만 허용한다.
 - 보존 증거 `results/t_e7260e40-RESULT.json`, `results/t_a1c38302-RESULT.json` 및
   `evidence/t_a1c38302/readback.json`은 준비/fixture 결과다. evidence/의 기존
   PowerShell에서 `platforms`/`hermes-windows qa` 보고 진입은 발견되지 않았다.
@@ -35,13 +36,31 @@ Report 모드의 프로세스 생성은 git 조회뿐이며 게임·fixture를 �
 보고의 `runtimeExecutedByAdapter=false`는 런타임 증거에 게임 실행이 없었다는
 주장이 아니다. 원자료를 조사할 때 `games_executed`와 controller 정보를 따로 본다.
 
-stdout은 Hermes 계약의 JSON 보고 하나다. exit 3은 NOT_RUN, exit 2는 FAIL이다.
-PASS/exit 0 경로는 없다. fixture PASS나 임의 입력의 product_pass=true도 제품
-PASS로 승격하지 않는다. 검증된 same-run 증거가 없는 제품 checks는 NOT_RUN이다. Report 모드의
+stdout은 Hermes 계약의 JSON 보고 하나다. exit 3은 NOT_RUN, exit 2는 FAIL,
+exit 0은 모든 gate 조건을 만족한 같은 실행의 PASS다. fixture PASS나 임의 입력의
+product_pass=true는 무시하며 제품 PASS로 승격하지 않는다.
+검증된 same-run 증거가 없는 제품 checks는 NOT_RUN이다. Report 모드의
 안전 증명과 `runtimeHeadProvenanceVerified`는 false다. Run 모드는 아래의
 같은 실행 바인딩을 통과한 뒤에만 안전 증거를 계산한다. false는 안전성 실패의
 관측일 수도, 증명 미제출일 수도 있으므로 원자료를 함께 확인한다.
 공식 영수증 필드는 null이다. 보고 연결을 제품 영수증 발급으로 혼동하지 않는다.
+
+### I6 집계 PASS 조건 (모두 AND)
+
+- `-Mode Run` → 어댑터 `--same-run` 경로이며 사전·사후 exact clean HEAD 검사를 통과한다.
+- `runtimeHeadProvenanceVerified == true`: 아래의 모든 해시/목록/run/target/config 바인딩 통과.
+- `isolationVerified`, `silentVerified`, `cleanupVerified`가 실제 boolean true다.
+- 네 check(API/audio/render/protocol)가 모두 PASS이며 각 evidence는 검증 후 재판정한
+  실제 `owned_temp/evidence/{api,audio,render,protocol}.json` 경로다.
+- runtime status가 정확히 `PRODUCT_WINDOW_COMPLETE`다. TIMEOUT/COMMAND_FAILED/
+  CLEANUP_FAILED/PASS/PRODUCT_OBSERVED/WAIT 등 다른 상태는 승격하지 않는다.
+
+그때만 `platforms.windows.status=PASS`, `product_pass=true`, `productQA=PASS`, exit 0이다.
+다른 경우에는 기존 FAIL/NOT_RUN과 exit 2/3을 유지한다. 최종 checkout 검사 뒤에만
+gate를 적용하고 PowerShell도 같은 조건·네 check 이름/수·evidence·exit/status 일치를
+재검사한다. 입력의 PASS·안전 필드·receipt를 복사하지 않는다.
+`windows_qa_receipt=null`은 PASS 보고에서도 유지한다. 공식 exact-SHA 영수증 발급은
+`hermes-windows qa`만 담당하며 실제 제품 시험은 기존 `t_78eb1710` 범위다.
 
 호출 예시(경로/SHA를 최종 인계 값으로 치환한 시험 전용 서버 스크립트에서 호출):
 
@@ -52,7 +71,7 @@ PASS로 승격하지 않는다. 검증된 same-run 증거가 없는 제품 check
 이 어댑터의 NOT_RUN/FAIL은 거부 결과 확인용이지 제품 PASS 영수증이 아니다.
 이전 manifest나 이전 SHA의 Windows 사본에 새 어댑터만 섞지 않는다.
 
-## 다음 담당의 실행 조건과 미구현 범위
+## 다음 담당의 실행 조건과 실측 미정 범위
 
 ### Run 모드와 server driver
 
@@ -124,8 +143,8 @@ clear_header는 없다. TCP 청크 분할/병합과 무관하게 완전한 프�
 전체 원바이트 16 MiB, 청크 16,384개, 프레임 4,096개를 넘으면 FAIL이다.
 각 소켓 연결/전송 timeout은 0.2초이며 부하/역압으로 전달하지 못해도 FAIL이다.
 소유 트리 정리 뒤 thread를 멈추며 이미 읽을 수 있는 바이트는 소진한다.
-protocol check의 PASS만 보고해도 platforms.windows는 NOT_RUN/FAIL이며 exit 0은 없다.
-I6 통합은 후속 단계다. Windows native 실행은 이번 단계 NOT_RUN이다.
+protocol check의 PASS 하나로는 플랫폼 PASS/exit 0이 되지 않는다.
+I6의 모든 조건이 별도로 필요하다. Windows native 실행은 이번 단계 NOT_RUN이다.
 
 ### 원본 렌더 collector (I4)
 
@@ -216,7 +235,7 @@ script RPC로만 수집하며 호스트 UI/입력 API를 호출하지 않는다.
 유지한다. 모듈 가용성·Frida native hook 동작·실제 제품 행동은 Windows NOT_RUN이다.
 manifest inventory OWN_CODE에 qa_api.py/qa_api_x86.js를 포함한다. 독립 리뷰의 final
 SHA로 Windows 사본·manifest·외부 pin을 다시 생성해야 하며 여기서는 생성/실행하지 않는다.
-API check PASS도 플랫폼 PASS/exit 0이나 공식 영수증을 만들지 않는다(I6).
+API check PASS 하나는 플랫폼 PASS/exit 0이나 공식 영수증을 만들지 않는다.
 
 Linux 합성/정적 시험:
 
@@ -253,13 +272,24 @@ owned_temp/evidence/와 cleanup 후 evidence_files[{path,sha256}]를 보존한�
    격리/무음/소유 프로세스 정리 보장을 확인한다. 사용자 프로세스는 중지하지 않는다.
 2. 새 final SHA 전용 별도 사본과 전용 Python/전체 app-tree manifest를 준비하고
    새 해시를 외부 pin한다. 옛 db692c3 사본/manifest는 새 SHA의 증거가 아니다.
-3. 실행 오케스트레이션과 프로토콜 collector는 있으나 실제 제품 실행 증거는 없다.
-   collector 독립 리뷰와 최종 통합 구현·독립 리뷰 뒤에만
-   이 보고 어댑터의 PASS 불가 정책을
-   바꿀 수 있다. 제품을 띄워 관찰만 하는 것을 완성된 QA로 제출하지 않는다.
+3. 실행 오케스트레이션·네 collector·I6 통합 gate는 있으나 실제 제품 실행 증거는 없다.
+   I6 독립 리뷰의 final SHA에서만 다음 실행을 준비한다. 제품을 띄워 관찰만 하는
+   것을 완성된 QA로 제출하지 않는다. 개별 check·안전 증명 누락을 덮지 않는다.
 4. API/오디오/렌더/프로토콜 및 isolation/silent/cleanup의 실제 근거가 모두
    있을 때만 hermes-windows qa로 공식 exact-SHA 영수증을 확보한다.
    검증 완료·인수·병합은 그때까지 NOT_PERFORMED다.
+
+실측 미정 사항(설계 t_7b6aa61d의 D1~D5, 모두 t_78eb1710에 남김):
+
+- D1: 프로토콜 upstream 서버 위치·기동 방법과 Windows JVM 존재. 미확정이면 protocol NOT_RUN.
+- D2: session 0 D3D9Ex 렌더 가능 여부와 제품 app tree의 dxwrapper 포함 여부.
+- D3: 최대 25초 관찰 창 안의 원본 오디오 초기화·Present·0x34 도달 여부.
+- D4: 0x30 본문의 `70 00` 복호 증거 출처(서버 로그). 집계 PASS 조건에는 넣지 않는다.
+- D5: UI255에서 Frida script 추가 로드가 대상 동작에 미치는 영향.
+
+Linux 합성 시험은 전 조건 충족 → PASS/exit 0, 각 조건 결손 → 비승격 및 조건 조합을
+검사한다. 합성 결과를 Windows·제품 QA 근거로 제출하지 않는다. 실제 제품 QA NOT_RUN,
+receipt null, 검증 완료·인수·병합 NOT_PERFORMED다. t_78eb1710/t_a1c38302 상태는 변경하지 않는다.
 
 기존 인계 참고(이번 단계에서 Windows 확인/실행 안 함):
 
@@ -272,5 +302,7 @@ owned_temp/evidence/와 cleanup 후 evidence_files[{path,sha256}]를 보존한�
 Linux 회귀는 합성 보고 어댑터 시험일 뿐 제품 검증이 아니다:
 
     python3 -B -m unittest discover -s tools/client -p 'test_qa_product_report.py' -v
+    python3 -B -m unittest discover -s tools/client -p 'test_qa_product_gate.py' -v
 
-PowerShell native 실행, Windows 제품 QA, 공식 영수증, 인수·병합: NOT_RUN.
+PowerShell native 실행·Windows 제품 QA: NOT_RUN. 공식 영수증: null.
+검증 완료·인수·병합: NOT_PERFORMED.

@@ -213,10 +213,24 @@ I3 collector 계약 (구현, Windows/제품 실행 NOT_RUN):
 
 ## Verification
 
-제품 QA 보고 진입과 남은 collector 결함은 [product-qa-entry.md](product-qa-entry.md)를
-따른다. 새 `windows-product-qa.ps1`은 비실행 보고 연결이며 런타임 관찰/fixture
-성공을 제품 PASS로 바꾸지 않는다. 프로토콜·오디오 collector는 연결됐지만
-나머지 collector 및 통합 PASS gate는 후속 카드 범위다.
+제품 QA 보고 진입은 [product-qa-entry.md](product-qa-entry.md)를 따른다.
+`windows-product-qa.ps1 -Mode Report`는 비실행 보고이며 항상 제품 PASS 불가다.
+`-Mode Run`은 기존 격리 시험기에 위임한다. I6 집계는 `--same-run` 바인딩과
+최종 exact clean HEAD 검사 통과 뒤에만 수행한다. runtimeHeadProvenanceVerified와
+isolationVerified/silentVerified/cleanupVerified가 모두 boolean true이고,
+네 collector(API/audio/render/protocol)가 실제 증거 경로와 함께 모두 PASS이며,
+runtime status가 정확히 PRODUCT_WINDOW_COMPLETE인 경우에만 플랫폼 PASS,
+product_pass=true, productQA=PASS, exit 0을 허용한다. PowerShell도 같은 조건을
+재검사한다. 하나라도 결손이면 기존 FAIL/NOT_RUN·exit 2/3을 유지한다.
+runtime 관찰/fixture 성공이나 입력 product_pass=true는 이 조건을 대신하지 않는다.
+windows_qa_receipt는 PASS 보고도 null이며 공식 발급은 hermes-windows qa만 한다.
+
+미정 D1~D5는 실측 전까지 보존한다: D1 upstream 위치/기동과 Windows JVM,
+D2 session 0 D3D9Ex와 app-tree dxwrapper, D3 관찰 창 내 오디오/Present/0x34 도달,
+D4 0x30 본문 70 00의 복호 서버 로그(집계 PASS 조건 아님), D5 UI255의 추가 script
+로드 영향. 실측은 기존 t_78eb1710만 수행한다. 이번 Linux 합성 판정 시험은 실제
+제품 QA가 아니며 Windows/제품/fixture NOT_RUN, receipt null, 검증 완료·인수·병합
+NOT_PERFORMED다. t_a1c38302를 fixture 근거로 자동 해제하지 않는다.
 
 Portable focused tests: `python -m unittest discover -s tools/client -p 'test_qa*py' -v`.
 Windows fixture matrix and final-head readback are recorded in
