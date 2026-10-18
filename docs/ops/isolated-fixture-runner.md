@@ -61,7 +61,7 @@ https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_bas
 The cause is now resolved by design t_59dabc39: CPython's venv redirector creates an immediate
 unrestricted nested Job (UI=0). Named-job membership and a named Job UI query of 255 are NOT
 effective enforcement evidence. Runner now starts sys._base_executable directly, pinned by
-manifest path and hash, with -I -B; descendants use the same direct interpreter. The runner
+manifest path and hash, with -I -S -B; descendants use the same direct interpreter. The runner
 may still use its dedicated pywin32 venv. No cmd/py/venv redirector wraps the fixture root.
 Each fixture separately records named_job_ui_flags and effective_ui_flags from
 QueryInformationJobObject(NULL), and must not see the runner's global atom. Every sampled
@@ -81,6 +81,12 @@ Steam reference PID+creation time and WTS/session/winsta snapshot. This is struc
 boundary evidence, not direct observation of the user's active screen/foreground or audio.
 The original v7/v8 failure evidence remains preserved. No safety condition is waived.
 Exact-head independent review remains required; product execution remains NOT_RUN.
+
+R-PTH-1 correction (t_5f006c90): all fixture generations use `-S` as well as `-I -B`,
+so the base interpreter does not process global site-packages or executable .pth files.
+The pywin32 controller still needs site initialization; its dedicated venv inventory now
+includes .pth files as well as .py/.pyd/.dll/.exe. Regenerate and externally pin the manifest
+after this change. Historical v9 reports predate this correction and are not final-head proof.
 
 Earlier failed probes and v6 cleanup failures are preserved. Cleanup was corrected to distinguish
 terminated process objects retained by handles from running processes, avoid a second termination

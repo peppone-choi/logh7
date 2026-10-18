@@ -31,7 +31,7 @@ def inventory(repo):
         parents = [p for p in lib.iterdir() if p.is_dir() and p.name not in ('site-packages', '__pycache__')]
         runtime.update(p.resolve() for p in lib.glob('*.py'))
         for parent in (*parents, Path(sys.base_prefix) / 'DLLs', Path(sys.prefix)):
-            runtime.update(p.resolve() for p in parent.rglob('*') if p.is_file() and p.suffix.lower() in ('.py', '.pyd', '.dll', '.exe'))
+            runtime.update(p.resolve() for p in parent.rglob('*') if p.is_file() and p.suffix.lower() in ('.py', '.pyd', '.dll', '.exe', '.pth'))
         runtime.update(p.resolve() for p in Path(sys.base_prefix).glob('*.dll'))
         runtime.add(Path(sys.executable).resolve())
         runtime.add(base_executable())
@@ -171,7 +171,7 @@ def run(args):
         startup.dwFlags = win32con.STARTF_USESHOWWINDOW | 0x80
         startup.wShowWindow = 4
         executable = str(base_executable())
-        argv = [executable, '-I', '-B', str(args.fixture), '--mode', args.mode]
+        argv = [executable, '-I', '-S', '-B', str(args.fixture), '--mode', args.mode]
         atom_name = 'LOGH_QA_ATOM_' + uuid.uuid4().hex
         atom = kernel.GlobalAddAtomW(atom_name)
         if not atom:

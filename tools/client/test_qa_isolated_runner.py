@@ -1,4 +1,5 @@
 import argparse
+import ast
 import importlib.util
 import json
 from pathlib import Path
@@ -12,6 +13,27 @@ SPEC.loader.exec_module(runner)
 
 
 class IsolationTests(unittest.TestCase):
+    def test_fixture_processes_disable_site_initialization(self):
+        directory = Path(__file__).parent
+        for filename in ('qa_isolated_runner.py', 'qa_silent_fixture.py'):
+            tree = ast.parse((directory / filename).read_text())
+            commands = [node for node in ast.walk(tree) if isinstance(node, ast.List)
+                        and any(isinstance(item, ast.Constant) and item.value == '-I'
+                                for item in node.elts)]
+            self.assertEqual(len(commands), 1, filename)
+            options = [item.value for item in commands[0].elts if isinstance(item, ast.Constant)]
+            self.assertIn('-S', options, filename)
+
+    def test_runtime_inventory_includes_pth(self):
+        tree = ast.parse(Path(__file__).with_name('qa_isolated_runner.py').read_text())
+        suffixes = [node.comparators[0] for node in ast.walk(tree)
+                    if isinstance(node, ast.Compare) and isinstance(node.ops[0], ast.In)
+                    and isinstance(node.comparators[0], ast.Tuple)
+                    and any(isinstance(item, ast.Constant) and item.value == '.pyd'
+                            for item in node.comparators[0].elts)]
+        self.assertEqual(len(suffixes), 1)
+        self.assertIn('.pth', ast.literal_eval(suffixes[0]))
+
     def test_effective_ui_gate(self):
         record = dict(pid=1, in_named_job=True, effective_ui_flags=255,
                       atom_isolated=True, desktop_creation_denied=True, create_desktop_err=5)

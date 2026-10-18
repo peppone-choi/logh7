@@ -52,7 +52,7 @@ def main():
             user.CloseDesktop(handle)
     Path(os.environ['TEMP'], 'fixture-' + str(os.getpid()) + '.json').write_text(json.dumps(record), encoding='utf-8')
     if args.mode in ('tree', 'branch'):
-        subprocess.Popen([sys.executable, '-I', '-B', str(Path(__file__).resolve()), '--mode', 'branch' if args.mode == 'tree' else 'hang'])
+        subprocess.Popen([sys.executable, '-I', '-S', '-B', str(Path(__file__).resolve()), '--mode', 'branch' if args.mode == 'tree' else 'hang'])
         time.sleep(1)
     elif args.mode == 'hang':
         time.sleep(60)
