@@ -302,7 +302,7 @@ def run(args):
         if args.product_logh:
             import win32ts
             protected = [{'session': p[0], 'pid': p[1], 'name': p[2]}
-                         for p in win32ts.WTSEnumerateProcesses(0, 0, 1)
+                         for p in win32ts.WTSEnumerateProcesses(0)
                          if Path(p[2]).name.casefold() in
                          ('steam.exe', 'steamwebhelper.exe', 'hoi4.exe', 'g7.exe', 'g7o.exe',
                           'gin7.exe', 'g7mtclient.exe')]
