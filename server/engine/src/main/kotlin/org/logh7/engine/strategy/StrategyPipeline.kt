@@ -34,9 +34,10 @@ class StrategyPipeline(private val catalog: StrategyCatalog, private val permiss
     private var lastGameMillis = 0L
     init { require(enabled.all { it in catalog.byId }) }
     fun jobs(): List<StrategyJob> = Collections.unmodifiableList(ArrayList(jobs))
-    fun submit(commandId: String, ownedCards: List<String>, gameMillis: Long): SubmissionResult {
+    fun submit(commandId: String, ownedCards: List<String>, gameMillis: Long, inTacticalGame: Boolean): SubmissionResult {
         fun reject(reason: StrategyRejection) = SubmissionResult.Rejected(reason)
         if (gameMillis < lastGameMillis) return reject(StrategyRejection.TIME_REVERSED)
+        if (inTacticalGame) return reject(StrategyRejection.IN_TACTICAL_GAME)
         val definition = catalog.byId[commandId] ?: return reject(StrategyRejection.UNKNOWN_COMMAND)
         if (!permissions.allows(ownedCards.toList(), commandId)) return reject(StrategyRejection.UNAUTHORIZED)
         if (commandId !in enabled) return reject(StrategyRejection.DISABLED)

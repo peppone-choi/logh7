@@ -11,7 +11,8 @@ class StrategyTest {
         resolution: CommandResolution? = CommandResolution(10,CpPool.PCP,0,0), enabled: Boolean = true,
         resolver: CommandResolver = CommandResolver { resolution }) = StrategyPipeline(StrategyCatalog(listOf(command)),
         CardPermissions(mapOf("synthetic-card" to setOf(command.id))), resolver, if(enabled) setOf(command.id) else emptySet(), balance)
-    private fun submit(p: StrategyPipeline, time: Long = 0) = p.submit("synthetic/test", listOf("synthetic-card"), time)
+    private fun submit(p: StrategyPipeline, time: Long = 0, inTacticalGame: Boolean = false) =
+        p.submit("synthetic/test", listOf("synthetic-card"), time, inTacticalGame)
     private fun rejected(result: SubmissionResult, reason: StrategyRejection) = assertEquals(reason,(result as SubmissionResult.Rejected).reason)
 
     @Test fun manualW68to74_all81OriginalFieldsAndGroupsAreRetained() {
@@ -61,7 +62,7 @@ class StrategyTest {
     }
     @Test fun manualW27_zeroCostRequiresPermissionButNoCpKindOrBalance() {
         val zero=command(TableValue.Fixed(0)); val p=pipeline(zero,CpBalance(0,0),CommandResolution(0,null,0,0))
-        rejected(p.submit(zero.id,emptyList(),0),StrategyRejection.UNAUTHORIZED)
+        rejected(p.submit(zero.id,emptyList(),0,inTacticalGame=false),StrategyRejection.UNAUTHORIZED)
         assertEquals(emptyList(),p.jobs())
         val paid=(submit(p) as SubmissionResult.Accepted).job.payment
         assertEquals(CpBalance(0,0),p.balance); assertEquals(0L,paid.spent); assertEquals(0L,paid.experienceEligibleCp)
@@ -94,13 +95,50 @@ class StrategyTest {
     }
     @Test fun permissionAndFlagsPrecedeInjectedResolutionAndUnknownPolicyNeverDebits() {
         var calls=0; val p=pipeline(resolver=CommandResolver { calls++;null })
-        rejected(p.submit("synthetic/test",emptyList(),0),StrategyRejection.UNAUTHORIZED); assertEquals(0,calls)
+        rejected(p.submit("synthetic/test",emptyList(),0,inTacticalGame=false),StrategyRejection.UNAUTHORIZED); assertEquals(0,calls)
         rejected(submit(p),StrategyRejection.UNRESOLVED_TIMING); assertEquals(1,calls)
         rejected(submit(pipeline(enabled=false)),StrategyRejection.DISABLED)
         rejected(submit(pipeline(command(TableValue.Unspecified))),StrategyRejection.UNRESOLVED_CP)
         rejected(submit(pipeline(command(wait=TableValue.Unspecified))),StrategyRejection.UNRESOLVED_TIMING)
         rejected(submit(pipeline(resolution=CommandResolution(11,CpPool.PCP,0,0))),StrategyRejection.INVALID_RESOLUTION)
         assertEquals(CpBalance(100,100),p.balance); assertTrue(p.jobs().isEmpty())
+    }
+    @Test fun manualW12_tacticalRejectionPreservesBalanceJobsAndNextIdWithoutResolving() {
+        var calls=0
+        val p=pipeline(resolver=CommandResolver { calls++;CommandResolution(10,CpPool.PCP,0,0) })
+        rejected(submit(p,100,inTacticalGame=true),StrategyRejection.IN_TACTICAL_GAME)
+        assertEquals(CpBalance(100,100),p.balance); assertTrue(p.jobs().isEmpty()); assertEquals(0,calls)
+        assertEquals(0L,(submit(p,100) as SubmissionResult.Accepted).job.id)
+        assertEquals(1,calls)
+    }
+    @Test fun manualW12_tacticalGameAlsoBlocksZeroCpCommands() {
+        var calls=0
+        val p=pipeline(command(TableValue.Fixed(0)),CpBalance(0,0),
+            resolver=CommandResolver { calls++;CommandResolution(0,null,0,0) })
+        rejected(submit(p,inTacticalGame=true),StrategyRejection.IN_TACTICAL_GAME)
+        assertEquals(CpBalance(0,0),p.balance); assertTrue(p.jobs().isEmpty()); assertEquals(0,calls)
+        assertEquals(0L,(submit(p) as SubmissionResult.Accepted).job.id)
+    }
+    @Test fun manualW12_timeReversalPrecedesTacticalStateWhichPrecedesCommandAndPermission() {
+        var calls=0
+        val p=pipeline(resolver=CommandResolver { calls++;CommandResolution(10,CpPool.PCP,0,0) })
+        assertTrue(submit(p,100) is SubmissionResult.Accepted)
+        val balance=p.balance; val jobs=p.jobs()
+        rejected(p.submit("absent",listOf("synthetic-card"),100,inTacticalGame=true),StrategyRejection.IN_TACTICAL_GAME)
+        rejected(p.submit("synthetic/test",emptyList(),100,inTacticalGame=true),StrategyRejection.IN_TACTICAL_GAME)
+        rejected(p.submit("absent",emptyList(),99,inTacticalGame=true),StrategyRejection.TIME_REVERSED)
+        assertEquals(balance,p.balance); assertEquals(jobs,p.jobs()); assertEquals(1,calls)
+    }
+    @Test fun manualW12_tacticalRejectionDoesNotAdvanceClockOrAlterExistingJobs() {
+        var calls=0
+        val p=pipeline(resolver=CommandResolver { calls++;CommandResolution(10,CpPool.PCP,0,0) })
+        assertEquals(0L,(submit(p,100) as SubmissionResult.Accepted).job.id)
+        val balance=p.balance; val jobs=p.jobs()
+        rejected(submit(p,200,inTacticalGame=true),StrategyRejection.IN_TACTICAL_GAME)
+        assertEquals(balance,p.balance); assertEquals(jobs,p.jobs()); assertEquals(1,calls)
+        val accepted=submit(p,150) as SubmissionResult.Accepted
+        assertEquals(1L,accepted.job.id); assertEquals(150L,accepted.job.acceptedAtGameMillis)
+        assertEquals(2,calls)
     }
     @Test fun manualW28_injectedGameTimeOrdersCatchupByTimeAndRegistration() {
         val c=command(wait=TableValue.Fixed(1),duration=TableValue.Range(2,3))
