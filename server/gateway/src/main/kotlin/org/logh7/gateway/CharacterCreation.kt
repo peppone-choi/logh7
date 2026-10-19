@@ -114,6 +114,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         require(account !in registered) { "Account already owns a character in this session" }
         val previous = pending[account]
         val response = if (message.category == 0) {
+            require(originals.none { normalized(it.character.surname) == normalized(message.surname) }) { "Surname already reserved" }
             require((pending + registered).none { (owner, data) -> owner != account && normalized(data.surname) == normalized(message.surname) }) { "Surname already reserved" }
             check(pending.size < 4096 || previous != null)
             message.copy(id = previous?.id ?: nextId++, check = 1)
