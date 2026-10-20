@@ -123,15 +123,33 @@ class UpstreamTests(unittest.TestCase):
             args = SimpleNamespace(upstream_manifest_sha256='f' * 64, cancel_file=Path(d) / 'cancel')
             process, thread, job = MagicMock(), MagicMock(), MagicMock()
             wp, wa, we, wf, wj, wc = (MagicMock() for _ in range(6))
+            files = [MagicMock() for _ in range(3)]
+            wf.CreateFile.side_effect = files
+            kernel = MagicMock()
+            raw_job = 0x100000123  # Catch accidental 32-bit HANDLE truncation.
+            kernel.CreateJobObjectW.return_value = raw_job
+            kernel.CloseHandle.return_value = 1
+            pywintypes = MagicMock()
+            pywintypes.HANDLE.return_value = job
+            if fault == 'create_job':
+                kernel.CreateJobObjectW.return_value = None
+            if fault in ('wrap_job', 'close_job'):
+                pywintypes.HANDLE.side_effect = MemoryError('handle wrapper failed')
+            if fault == 'close_job':
+                kernel.CloseHandle.return_value = 0
             wp.CreateProcess.return_value = (process, thread, 123, 456)
             wp.GetProcessTimes.return_value = {'CreationTime': 'created'}
             wa.GlobalMemoryStatus.return_value = {'AvailPhys': 4 * 1024 ** 3}
             we.WaitForSingleObject.side_effect = lambda handle, timeout: 0 if timeout == 5000 else 258
-            wj.CreateJobObject.return_value = job
+            def strict_create(attributes, name):
+                if name is None:
+                    raise TypeError('None is not a valid string in this context')
+                return job
+            wj.CreateJobObject.side_effect = strict_create
             wj.IsProcessInJob.return_value = True
             wj.QueryInformationJobObject.return_value = {'ActiveProcesses': 0}
             modules = dict(win32api=wa, win32con=wc, win32event=we, win32file=wf,
-                           win32job=wj, win32process=wp, pywintypes=MagicMock())
+                           win32job=wj, win32process=wp, pywintypes=pywintypes)
             mutex = MagicMock()
             mutex.acquire.return_value = mutex
             client = MagicMock(return_value=dict(status='PRODUCT_WINDOW_COMPLETE', cleanup_verified=True))
@@ -161,6 +179,9 @@ class UpstreamTests(unittest.TestCase):
                     return dict(status='PRODUCT_WINDOW_COMPLETE', cleanup_verified=True)
                 client.side_effect = client_exit
             with patch.dict('sys.modules', modules), \
+                    patch.object(q.ctypes, 'WinDLL', return_value=kernel, create=True) as dll, \
+                    patch.object(q.ctypes, 'get_last_error', return_value=5, create=True), \
+                    patch.object(q.ctypes, 'WinError', side_effect=lambda code: OSError(code, 'native Job API failed'), create=True), \
                     patch.object(q, 'validate', return_value=({}, Path(d))), \
                     patch.object(q, 'reserve_check'), \
                     patch.object(q, 'listener_owners', return_value=owners), \
@@ -168,7 +189,7 @@ class UpstreamTests(unittest.TestCase):
                     patch('qa_isolated_runner.isolated', return_value=True), \
                     patch('qa_prestart_runner.session_ids', return_value=[0, 1]), \
                     patch('qa_prestart_runner.protected_processes', return_value=[]), \
-                    patch('qa_prestart_runner.job_policy'), \
+                    patch('qa_prestart_runner.job_policy') as policy, \
                     patch('qa_session_mutex.SessionMutex', return_value=mutex), \
                     patch.object(q.threading, 'Timer') as timer, \
                     patch.object(q.time, 'monotonic', side_effect=range(1000)):
@@ -176,9 +197,26 @@ class UpstreamTests(unittest.TestCase):
                     client.side_effect = lambda: (timer.call_args.args[1](),
                         dict(status='PRODUCT_WINDOW_COMPLETE', cleanup_verified=True))[1]
                 result = q.run(args, client)
-            if fault != 'wait':
+            self.assertNotEqual(result.get('error'), 'None is not a valid string in this context')
+            if fault not in ('wait', 'create_job', 'wrap_job', 'close_job'):
+                dll.assert_called_once_with('kernel32', use_last_error=True)
+                kernel.CreateJobObjectW.assert_called_once_with(None, None)
+                self.assertEqual(kernel.CreateJobObjectW.argtypes, [q.ctypes.c_void_p, q.ctypes.c_wchar_p])
+                self.assertIs(kernel.CreateJobObjectW.restype, q.ctypes.c_void_p)
+                pywintypes.HANDLE.assert_called_once_with(raw_job)
+                wj.CreateJobObject.assert_not_called()
+                policy.assert_called_once_with(job, target=True)
+                wj.AssignProcessToJobObject.assert_called_once_with(job, process)
+                wp.GetProcessTimes.assert_called_once_with(process)
+                if fault != 'assign':
+                    wj.IsProcessInJob.assert_called_once_with(process, job)
+                    self.assertEqual(timer.call_args.args[0], 80)
+                thread.Close.assert_called_once()
                 process.Close.assert_called_once()
                 job.Close.assert_called_once()
+                kernel.CloseHandle.assert_not_called()  # PyHANDLE owns it now.
+                for handle in files:
+                    handle.Close.assert_called_once()
                 self.assertEqual(wj.TerminateJobObject.call_count, 2 if fault == 'watchdog' else 1)
                 wj.TerminateJobObject.assert_called_with(job, 2)
                 if fault == 'assign':
@@ -189,8 +227,35 @@ class UpstreamTests(unittest.TestCase):
                 timer.return_value.cancel.assert_called_once() if fault != 'assign' else None
             else:
                 wp.CreateProcess.assert_not_called()
+                client.assert_not_called()
+                job.Close.assert_not_called()
+                policy.assert_not_called()
+                timer.assert_not_called()
+                if fault != 'wait':
+                    kernel.CreateJobObjectW.assert_called_once_with(None, None)
+                    for handle in files:
+                        handle.Close.assert_called_once()
+                    if fault == 'create_job':
+                        pywintypes.HANDLE.assert_not_called()
+                        kernel.CloseHandle.assert_not_called()
+                    else:
+                        kernel.CloseHandle.assert_called_once_with(raw_job)
+                        self.assertEqual(kernel.CloseHandle.argtypes, [q.ctypes.c_void_p])
+                        self.assertIs(kernel.CloseHandle.restype, q.ctypes.c_int)
             mutex.close.assert_called_once()
             return result, client
+
+    def test_job_api_and_handle_transfer_fail_closed_and_release_resources(self):
+        for fault in ('create_job', 'wrap_job', 'close_job'):
+            with self.subTest(fault=fault):
+                result, _ = self.lifetime(fault)
+                self.assertEqual(result['status'], 'FAIL')
+                self.assertIn('handle wrapper failed' if fault == 'wrap_job' else 'native Job API failed', result['error'])
+                self.assertFalse(result['cleanup_verified'])
+                self.assertFalse(result['upstream']['started'])
+                self.assertFalse(result['upstream']['cleanup_verified'])
+                self.assertNotIn('pid', result['upstream'])
+                self.assertNotIn('job_policy', result['upstream'])
 
     def test_lifetime_failures_cannot_keep_client_success(self):
         for fault in ('watchdog', 'client_exit'):

@@ -123,6 +123,26 @@ def listener_owners():
     return owners
 
 
+def _create_unnamed_job():
+    # pywin32's CreateJobObject name converter rejects None. Native NULL
+    # attributes/name guarantee a non-inherited, unnamed Job, not a shared name.
+    import pywintypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
+    kernel.CreateJobObjectW.restype = ctypes.c_void_p
+    handle = kernel.CreateJobObjectW(None, None)
+    if not handle:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return pywintypes.HANDLE(handle)  # Transfer ownership; no duplicate handle.
+    except BaseException:
+        kernel.CloseHandle.argtypes = [ctypes.c_void_p]
+        kernel.CloseHandle.restype = ctypes.c_int
+        if not kernel.CloseHandle(handle):
+            raise ctypes.WinError(ctypes.get_last_error())
+        raise
+
+
 def run(args, client):
     """Same thread callback: SessionMutex reentrancy is balanced, not delegated.
 
@@ -174,7 +194,7 @@ def run(args, client):
                                            ('stdout', wc.GENERIC_WRITE, wc.CREATE_NEW),
                                            ('stderr', wc.GENERIC_WRITE, wc.CREATE_NEW)):
             files.append(wf.CreateFile(str(root / name), access, 0, security, disposition, 0, None))
-        job = wj.CreateJobObject(None, None)  # No inherited/named Job handle.
+        job = _create_unnamed_job()
         proof['job_policy'] = job_policy(job, target=True)
         startup = wp.STARTUPINFO()
         startup.dwFlags = wc.STARTF_USESTDHANDLES
