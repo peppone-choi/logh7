@@ -8,6 +8,7 @@ data class CpBalance(val pcp: Long, val mcp: Long) {
 enum class StrategyRejection {
     UNKNOWN_COMMAND, DISABLED, UNAUTHORIZED, UNRESOLVED_CP, UNRESOLVED_TIMING,
     INVALID_RESOLUTION, INSUFFICIENT_CP, UNRESOLVED_MIXED_PAYMENT, OVERFLOW, TIME_REVERSED,
+    IN_TACTICAL_GAME,
 }
 sealed interface PaymentResult {
     data class Paid(val balance: CpBalance, val chargedPool: CpPool?, val spent: Long,
