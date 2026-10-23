@@ -25,13 +25,13 @@ source: gin7manual.pdf(웹판), 銀英伝７マニュアル.pdf(CD판), wayback 
 | ID | 기능 | 등급 | 근거 | 원작에서의 상태 | 클라이언트 흔적 | 제안 배치 |
 |---|---|---|---|---|---|---|
 | U-01 | AI 대행(오프라인 캐릭터 전술, 미선택 원작 캐릭터) | A | W p.8, p.11 "AI 機能は現在未実装"; ns-update 2004-11 전술 AI 예정; update04 "AI ON 오프라인 캐릭터가 임무 수행" | 2005-02 이전 도입된 것으로 보임 | 있음(부분): `NotifyAIOperation`(0x0357), NPC 도킹 계열 | P5 |
-| U-02 | 경제(징세·예산·납입률·관세·분배·무역·개척) | A | W p.9 "経済関連は現在未実装"; ns-update 무역·개척 연기 | 미도입 | 있음: `CommandChangeTaxRate`, `CommandChangeBudgetRate`, `…PowerDistribution`(0x0308/0309) | P5 |
+| U-02 | 경제(징세·예산·납입률·관세·분배·무역·개척) | A | W p.9 "経済関連は現在未実装"; ns-update 무역·개척 연기 | 미도입 | 있음: `CommandChangeTaxRate`, `CommandChangeBudgetRate`, `…PowerDistribution`(0x0308/0309). 커맨드 opcode 미확정(protocol-draft.md 0x0d??), 추적표 참조 | P5 |
 | U-03 | 공격 시 물자 소비(건·미사일·공전) | A | W p.50 "物資の減少は現在未実装"; ns-update 2004-10 예정 | 도입 예정 발표 | 미확인 | P3(전투 밸런스와 묶음) |
 | U-04 | 공전(전투정·뇌격정) | A | W p.50 "戦闘艇は現在未実装"; ns-update 2004-10 예정 | 도입 예정 발표 | 있음: `CommandAirBattle`(0x040e), `NotifyAirBattle`(0x0428), `…Fighters`(0x030e/030f) | P3/P5 |
 | U-05 | 서훈(叙勲)과 래더 제3법칙 | A | W p.35 "叙勲は未実装" | 미도입 | 미확인 | P5 |
 | U-06 | 채널 채팅 8종 | B | ns-update 2004-12; update02 | 도입 | 부분: `GlobalChat`(0x0207), `CommandGridChat`/`SpotChat`/`SpotUnicastChat`(0x0f1c~1e). 8채널 UI는 미확인 | P5 (클라이언트 패치 필요 가능) |
 | U-07 | 페잔(중립·침범 페널티·점령·외교·회랑 통행권) | A | W p.41 "フェザーン占領は現在未実装"; CD p.39 규칙; ns-update 외교·첩보 연기 | 미도입 | 미확인 | P5 |
-| U-08 | 생산계 커맨드(시설·함선 건조) | A | W p.41 자동 생산만; ns-update "기함 구매 다음" 예정 | 미도입(확인 안 됨) | 있음: `CommandInstitutionBuild`/`Pause`/`ReOperation`/`Destroy`, `…Institution`(0x0302/0320) | P5 |
+| U-08 | 생산계 커맨드(시설·함선 건조) | A | W p.41 자동 생산만; ns-update "기함 구매 다음" 예정 | 미도입(확인 안 됨) | 있음: `CommandInstitutionBuild`/`Pause`/`ReOperation`/`Destroy`, `…Institution`(0x0302/0320). 커맨드 opcode 미확정(protocol-draft.md 0x0d??), 추적표 참조 | P5 |
 | U-09 | 행성 타입(가스 행성 등 지상전 제약) | A | W p.51 "惑星タイプは現在未実装" | 미도입 | 미확인 | P5 |
 | U-10 | 쿠데타(叛意·謀議·説得·叛乱·参加·査閲) | C | W p.12 승리 조건에 쿠데타 언급, 커맨드 표 p.70·74 | 불명 | 미확인 | P5 |
 | U-11 | 전사(戦死) | A | W p.52 "戦死は現在未実装" | 미도입 | 미확인 | P5 |
@@ -69,6 +69,44 @@ source: gin7manual.pdf(웹판), 銀英伝７マニュアル.pdf(CD판), wayback 
 - U-27: 추첨 12→3시간, 평가 포인트 고정 2,000 오류 수정, 로그인 잔류 타임아웃 300초를 추가 근거로 확보했다.
 - p.100의 근위병·척탄병 교도·장미의 기사 비생산 주석은 생산 복원 범위 검토에 포함한다. 후속 생산 가능 시점은 미확인이다.
 
+## 클라이언트 흔적 추적표 (LOGH-47, 정적)
+
+기준: main `000877467665207e6bd61070f6c45c0eec4e8642`. 근거 `path:line`은 이 커밋 기준이다. 확신도는 low/medium만 쓴다(동적 증거 없음). medium은 opcode와 이름이 같은 저장소 행에 함께 있는 경우다. `(msg_ids.tsv, VPS 미검증)`은 기존 표에만 있고 저장소에서 재확인하지 못한 개별값이다. 흔적 미확인은 미구현·부재 증거가 아니다. 제안은 조사 제안이며 최종 개발 채택은 책임자가 정한다.
+
+| U-ID | 원작 출처 | client string/command | opcode | handler VA | 근거 파일/행 | 확신도 | 미확인 이유 | 제안 |
+|---|---|---|---|---|---|---|---|---|
+| U-01 | W p.8, p.11; ns-update 2004-11; update04 | NotifyAIOperation, NPC 도킹 계열 | 0x0357 (msg_ids.tsv, VPS 미검증); 0x0356~0x035a 범위 내 | 미확인 (디스패처 0x004ba2b0, docs/re/function-map.md:88) | docs/protocol/protocol-draft.md:89, docs/protocol/protocol-draft.md:105, docs/manual/09-patch-history.md:52 | low | docs/protocol/protocol-draft.md:89 이름 목록에 AIOperation 없음, NPC 그룹 베이스 미확정(docs/protocol/protocol-draft.md:105). 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음 | 구현후보: update04 원작 동작 근거와 부분 흔적이 있음 |
+| U-02 | W p.9; ns-update 무역·개척 연기 | CommandChangeTaxRate, CommandChangeBudgetRate, …PowerDistribution | 커맨드: 0x0d?? 그룹 베이스 미확정; …PowerDistribution 0x0308/0309 (msg_ids.tsv, VPS 미검증), 0x0300~0x033f 범위 내 | 0x0308 파서 00410370 (server/protocol/src/main/kotlin/org/logh7/protocol/BootstrapMessages.kt:72) | docs/protocol/protocol-draft.md:96, docs/protocol/protocol-draft.md:88, server/protocol/src/main/kotlin/org/logh7/protocol/BootstrapMessages.kt:72 | low | 커맨드 opcode 미확정(그룹 베이스 미확정, docs/protocol/protocol-draft.md:96). 0x0308 파서 주석 power-direction tables와 PowerDistribution 이름 대응은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음 | 구현후보: 원작 미구현 명시이나 커맨드 흔적이 있음. opcode 귀속은 분리해 재확인 |
+| U-03 | W p.50; ns-update 2004-10 | — | — | 미확인 | docs/manual/unimplemented-candidates.md:29 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 전투 밸런스 결정과 묶어 판단 |
+| U-04 | W p.50; ns-update 2004-10 | CommandAirBattle, NotifyAirBattle, …Fighters | 0x040e/0x0428 (msg_ids.tsv, VPS 미검증), 0x0400~0x0442 범위 내; 0x030e/030f (msg_ids.tsv, VPS 미검증), 0x0300~0x033f 범위 내 | 0x030e 파서 00412980 (server/protocol/src/main/kotlin/org/logh7/protocol/BootstrapMessages.kt:70) | docs/protocol/protocol-draft.md:90, docs/protocol/protocol-draft.md:88, server/protocol/src/main/kotlin/org/logh7/protocol/BootstrapMessages.kt:70 | low | 0x030e 파서와 Fighters 이름 대응 및 AirBattle 개별값은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음 | 구현후보: 원작 예정 발표와 커맨드·통지 흔적이 있음 |
+| U-05 | W p.35 | — | — | 미확인 | docs/manual/unimplemented-candidates.md:31 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 A |
+| U-06 | ns-update 2004-12; update02 | GlobalChat; CommandGridChat/SpotChat/SpotUnicastChat | 0x0207; 0x0f1c~1e (msg_ids.tsv, VPS 미검증), 0x0f00~0x0f1f 범위 내 | 0x0207 송신 0x004adeb0 (docs/re/function-map.md:23, low) | docs/protocol/protocol-draft.md:86, docs/protocol/protocol-draft.md:98, docs/re/function-map.md:23 | medium(0x0207) / low(나머지) | Grid/Spot chat 개별값은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음. 8채널 UI 미조사 | 클라이언트패치후보: 등급 B이고 8채널 UI 미확인. 패치 확정이 아닌 스파이크 대상 |
+| U-07 | W p.41; CD p.39; ns-update 외교·첩보 연기 | — | — | 미확인 | docs/manual/unimplemented-candidates.md:33 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 A |
+| U-08 | W p.41; ns-update 기함 구매 다음 | CommandInstitutionBuild/Pause/ReOperation/Destroy, …Institution | 커맨드: 0x0d?? 그룹 베이스 미확정; …Institution 0x0302/0320 (msg_ids.tsv, VPS 미검증), 0x0300~0x033f 범위 내; CommandMoveInstitutionSpot 0x0e00 | 미확인 | docs/protocol/protocol-draft.md:96, docs/protocol/protocol-draft.md:88, docs/protocol/protocol-draft.md:97 | low | 커맨드 opcode 미확정(그룹 베이스 미확정, docs/protocol/protocol-draft.md:96). …Institution 개별값은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음 | 구현후보: 시설 커맨드 흔적이 있음. opcode 귀속은 분리해 재확인 |
+| U-09 | W p.51 | — | — | 미확인 | docs/manual/unimplemented-candidates.md:35 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 A |
+| U-10 | W p.12, 커맨드 표 p.70·74 | — | — | 미확인 | docs/manual/07-command-table.md:48 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-11 | W p.52 | — | — | 미확인 | docs/manual/unimplemented-candidates.md:37 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 A |
+| U-12 | CD p.55; update04 | CommandMission, NotifyTacticsChiefCommander, NotifyMissionResult | 0x0421/0x0431/0x043c (msg_ids.tsv, VPS 미검증), 0x0400~0x0442 범위 내 | 미확인 | docs/protocol/protocol-draft.md:90, docs/manual/09-patch-history.md:25, docs/manual/09-patch-history.md:43, docs/manual/09-patch-history.md:52 | low | 개별값은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음 | 구현후보: 원작 도입 근거와 커맨드·통지 흔적이 있음 |
+| U-13 | ns-update; update01·03 | — | — | 미확인 | docs/l10n/glossary.md:52 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 클라이언트패치후보: 등급 B이고 흔적 미확인. 패치 확정이 아닌 스파이크 대상 |
+| U-14 | update05; W p.70 커맨드 표 | NotifyChangeFlagShip; 구매 커맨드 미발견 | 0x0358 (msg_ids.tsv, VPS 미검증), 0x0356~0x035a 범위 내 | 미확인 (디스패처 0x004ba2b0, docs/re/function-map.md:88) | docs/protocol/protocol-draft.md:89, docs/manual/09-patch-history.md:53 | medium(통지 범위) | ChangeFlagShip은 범위와 같은 행이나 개별값은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음. 구매 커맨드 미확인 | 클라이언트패치후보: 등급 B, 구매 커맨드 미확인. 패치 확정이 아닌 스파이크 대상 |
+| U-15 | ns-update 기함 구매 다음 | …Package, …OutfitTransport, CommandCarryingInOut | 0x0328/0329, 0x0332/0333 (msg_ids.tsv, VPS 미검증), 0x0300~0x033f 범위 내; 0x0c08 (msg_ids.tsv, VPS 미검증), 0x0c00~0x0c0c 범위 내 | 미확인 | docs/protocol/protocol-draft.md:88, docs/protocol/protocol-draft.md:95 | low | 개별값은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음 | 구현후보: 수송 관련 흔적이 있음 |
+| U-16 | ns-update ~2004-12 | CommandOrderSuggestMail, CommandReplyOrderSuggestMail | 0x0f13/0x0f14 (msg_ids.tsv, VPS 미검증), 0x0f00~0x0f1f 범위 내 | 미확인 | docs/protocol/protocol-draft.md:98, docs/manual/09-patch-history.md:46 | low | 개별값은 개별 이름↔opcode는 msg_ids.tsv(Windows work/)에만 있음. 메일 흔적은 부재 시 대행 증거가 아님(docs/manual/09-patch-history.md:46) | 구현후보: 서버측 대행 로직. 메일 흔적은 대행 증거 아님 |
+| U-17 | 커맨드 표 p.74; ns-update 페잔 첩보 연기 | — | — | 미확인 | docs/manual/07-command-table.md:123 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-18 | 커맨드 표 p.69·72–73; 래더 제4법칙 | — | — | 미확인 | docs/manual/07-command-table.md:99 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-19 | 커맨드 표 p.70; CD p.38 | — | — | 미확인 | docs/manual/07-command-table.md:53 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-20 | 커맨드 표 p.72; W p.36·51 | — | — | 미확인 | docs/manual/07-command-table.md:87 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-21 | 커맨드 표 p.68–69 | — | — | 미확인 | docs/manual/07-command-table.md:28 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-22 | 커맨드 표 p.68–71 | — | — | 미확인 | docs/manual/07-command-table.md:23 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-23 | update05 | — | — | 미확인 | docs/manual/09-patch-history.md:29, docs/manual/09-patch-history.md:53 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 클라이언트패치후보: 등급 B이고 흔적 미확인. 패치 확정이 아닌 스파이크 대상 |
+| U-24 | W p.15, p.37 | — | — | 미확인 | docs/manual/09-patch-history.md:23, docs/manual/09-patch-history.md:24, docs/manual/09-patch-history.md:26, docs/manual/09-patch-history.md:28 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 등급 D 잠정 사양, 흔적 미확인 |
+| U-25 | 커맨드 표 p.69·73–74; W p.8 | — | — | 미확인 | docs/manual/07-command-table.md:117 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, 등급 C |
+| U-26 | CD p.54 | — | — | 미확인 | docs/manual/unimplemented-candidates.md:52 | 미확인 | 이름표 검색 미발견. UI 문자열(MsgDat/constmsg.dat)·커맨드 ID 테이블 미조사 | 보류: 흔적 미확인, CD판 단일 근거 |
+| U-27 | W p.10–12, p.34 | — | — | — | docs/manual/09-patch-history.md:27, docs/manual/09-patch-history.md:30, docs/manual/09-patch-history.md:33 | — | 흔적 해당 없음(서버 전용 로직) | 구현후보: 서버 전용, 수치는 evidence:guess 필요 |
+| U-28 | CD p.38 | — | — | — | docs/manual/unimplemented-candidates.md:54 | — | 흔적 해당 없음. 웹판 미기재 | 보류: CD판에만 있어 판본 범위 판단 필요 |
+
+- U-29~U-32는 LOGH-47 범위 밖이므로 이 추적표에 넣지 않는다.
+- P5 에픽 우선순위 갱신은 Linear 변경이므로 이 문서 범위 밖이며 책임자가 판단한다.
+
 ## 수치 미기재 목록 (설계 추정 `evidence:guess` 필요)
 
 | 항목 | 필요한 값 | 근거 위치 |
@@ -85,6 +123,6 @@ source: gin7manual.pdf(웹판), 銀英伝７マニュアル.pdf(CD판), wayback 
 
 ## 다음 단계
 
-1. 트랙 B 결과로 "클라이언트 흔적" 열을 채운다(UI 문자열 `MsgDat`·`constmsg.dat`, 커맨드 ID 테이블).
+1. 트랙 B 결과로 "클라이언트 흔적" 열을 채운다(UI 문자열 `MsgDat`·`constmsg.dat`, 커맨드 ID 테이블). 정적 흔적 추적은 "클라이언트 흔적 추적표 (LOGH-47, 정적)" 절 참조.
 2. 흔적 `있음` + 등급 A/C → P5 우선순위 상, 흔적 `없음` + 등급 B → 클라이언트 패치 필요 여부 스파이크.
 3. 트랙 C(커뮤니티 기록)로 "원작에서의 상태"를 보강.
