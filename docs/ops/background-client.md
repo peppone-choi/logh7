@@ -12,6 +12,45 @@ Breaking Point 「채팅 오케스트레이션 시작」 채팅에서 `BP_GUI_TE
 
 ## 실행
 
+현재 Hermes Windows QA에서는 아래 과거 직접 실행 예제를 사용하지 않는다.
+공식 정책 `/srv/hermes-workspace/WINDOWS-EXECUTION.md`의 격리·공유 mutex·시작 전
+무음·소유 트리 정리 조건이 먼저 충족되어야 한다. 세션 생성 뒤 음소거는 시작 전
+무음 보장이 아니다. 원본 상호운용·공식 제품 QA는 현재 NOT_RUN이다.
+
+### 실행 없는 Windows 사전검사 (LOGH-61)
+
+`tools/client/windows-qa-preflight.py`는 원본 SHA256, Windows checkout의 전후 SHA와
+dirty 상태를 수집한다. 지정한 새 작업 전용 `--out`에만 증거를 쓴다. 원본·작업 사본을
+수정하거나 fetch/reset/checkout하지 않는다. 기존 dirty Windows 변경을 보존한다.
+검토한 SHA256의 `qa_owned_process.py`에만 `--kind logh --project logh --report`를
+전달하며 launcher 인자나 게임 실행 경로를 전달하지 않는다. 이 wrapper의 LOGH 경로는
+프로세스 생성 전에 무조건 대기한다. wrapper 바이트가 달라지면 실행도 거부한다.
+wrapper가 고정 경로 `E:/logh7/tools/client/audio_guard.py`에서 import하는 파일도
+실행 전에 검토된 SHA256과 대조하고 경로·해시를 `readiness.audioGuard`에 기록한다.
+`--repo`로 import 경로를 바꾸지 않는다. 파일 누락·읽기 실패·해시 불일치는
+`UNREVIEWED_AUDIO_GUARD`로 기록하고 wrapper를 실행하지 않는다.
+
+Windows Python 3.11로 아래 인자를 전달하고 `hermes-windows exec --project logh`로
+실행한다. 어댑터와 출력은 `E:\logh7\work\<task>\` 같은 새 작업 전용 경로에 둔다.
+
+    python -B windows-qa-preflight.py --repo E:\logh7 --head <정확한 40자리 SHA> --source-exe <읽기전용 원본 G7MTClient.exe> --owned-wrapper C:\Users\user\AppData\Local\OpenClawNode\hostinger-windows-20261012\qa\qa_owned_process.py --out <새 증거 디렉터리>
+
+stdout은 JSON 하나, 종료 코드는 3(NOT_RUN)이다. readiness 성공을 제품 성공으로
+변환하지 않으며 isolationVerified/silentVerified/cleanupVerified는 모두 false다.
+`hermes-windows qa`에 이 사전검사를 제품 PASS 스크립트로 제출하지 않는다.
+SSH 세션에서 `OpenInputDesktop`가 `[WinError 1]`로 실패할 수 있다. 이 경우
+wrapper의 stderr/종료 코드와 report 부재를 그대로 보존하며 활성 데스크톱 전환,
+노드 재기동, 일반 SSH 게임 실행으로 우회하지 않는다.
+
+다음 제품 시험은 별도 검증 담당이 시작 전 무음 전체 대상 검증과 승인 runtime
+manifest, SSH에서 접근 가능한 문서화된 격리 실행 경로를 먼저 확보해야 한다.
+그 뒤 기존 `--upstream-port` 전달 기능과 Kotlin MPS 서버를 재사용한다.
+기존 `run.json`/송수신 원바이트/서버 로그로 연결, `0x34→0x35→0x36`, 암호 봉투를
+대조하고 정확한 소스 SHA 및 원본 해시와 연결한다. 첫 `0x34`만으로 전체 교환·암호
+봉투·로그인 성공을 주장하지 않는다. 이번 어댑터는 패킷을 합성하거나 과거 로그를
+새 실행으로 재분류하지 않는다. 공식 영수증은 실제 제품 실행 후 `hermes-windows qa`로만
+발급하며 PR #46이나 다른 SHA에 전용하지 않는다.
+
 기존 Python과 설치된 pywin32/Pillow/Frida를 사용한다. [dxwrapper v1.8.8600.25 공식 릴리스](https://github.com/elishacloud/dxwrapper/releases/tag/v1.8.8600.25)는 `E:\Tools\dxwrapper\v1.8.8600.25\unpacked`에 있으며 릴리스 digest와 대조했다. DLL은 실행 사본에만 적용하고 Git에 넣지 않는다.
 
 ```powershell
