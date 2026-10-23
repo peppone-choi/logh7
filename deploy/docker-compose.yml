@@ -3,7 +3,10 @@ name: logh7
 services:
   game-server:
     image: ${GAME_SERVER_IMAGE:-logh7/game-server:local}
-    build: ../server
+    build:
+      context: ../server
+      additional_contexts:
+        logh7-manual-data: ../docs/manual/data
     profiles: [game]
     restart: unless-stopped
     environment:

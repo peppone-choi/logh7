@@ -1,9 +1,9 @@
 name: container
 on:
   push:
-    paths: ['server/**', 'deploy/**', '.github/workflows/container.yml']
+    paths: ['server/**', 'deploy/**', 'docs/manual/data/**', '.github/workflows/container.yml']
   pull_request:
-    paths: ['server/**', 'deploy/**', '.github/workflows/container.yml']
+    paths: ['server/**', 'deploy/**', 'docs/manual/data/**', '.github/workflows/container.yml']
 permissions:
   contents: read
 jobs:
@@ -18,13 +18,46 @@ jobs:
       - name: Test stack smoke failure and cleanup paths
         run: python3 -m unittest discover -s deploy/ci -p 'test_*.py' -v
       - name: Build Java 25 image
-        run: docker build -t "$GAME_SERVER_IMAGE" server
+        run: docker build --build-context logh7-manual-data=docs/manual/data -t "$GAME_SERVER_IMAGE" server
+      - name: Verify packaged manual CSV resources
+        run: |
+          cid=$(docker create "$GAME_SERVER_IMAGE")
+          trap 'docker rm -f "$cid" >/dev/null' EXIT
+          mkdir -p "$RUNNER_TEMP/image-lib"
+          docker cp "$cid:/app/lib/." "$RUNNER_TEMP/image-lib"
+          python3 - <<'PYCODE'
+          import hashlib
+          import os
+          from pathlib import Path, PurePosixPath
+          import re
+          import zipfile
+
+          jars = list((Path(os.environ['RUNNER_TEMP']) / 'image-lib').glob('engine-*.jar'))
+          assert len(jars) == 1, f'Expected one engine jar, found {len(jars)}'
+          expected = set(re.findall(r'"([^"/]+\.csv)"', Path('server/engine/build.gradle.kts').read_text()))
+          assert 'strategy-commands.csv' in expected
+          with zipfile.ZipFile(jars[0]) as jar:
+              entries = [entry for entry in jar.infolist() if entry.filename.endswith('.csv')]
+              names = [PurePosixPath(entry.filename).name for entry in entries]
+              assert len(names) == len(set(names)), f'Duplicate CSV basenames: {names}'
+              assert set(names) == expected, f'Packaged CSVs {set(names)} != Gradle includes {expected}'
+              for entry in entries:
+                  path = PurePosixPath(entry.filename)
+                  directory = 'strategy' if path.name == 'strategy-commands.csv' else 'worldseed'
+                  assert path.parent == PurePosixPath(directory), f'Unexpected CSV path: {path}'
+                  packaged = jar.read(entry)
+                  source = (Path('docs/manual/data') / path.name).read_bytes()
+                  assert packaged == source, f'CSV bytes differ: {path}'
+                  print(f'{path} sha256={hashlib.sha256(packaged).hexdigest()[:16]}')
+              print(f'Verified manual CSV resources: {len(entries)}')
+          PYCODE
       - name: Validate Compose contract
         run: |
           docker compose -f deploy/docker-compose.yml --profile game config --format json > /tmp/compose.json
           python3 - <<'PYCODE'
           import json
           game = json.load(open('/tmp/compose.json'))['services']['game-server']
+          assert game['build']['additional_contexts']['logh7-manual-data'].endswith('/docs/manual/data')
           assert all(key.startswith('LOGH7_') for key in game['environment'])
           assert not game.get('ports')  # Loopback listeners are container-internal only.
           assert not game.get('depends_on') and not game.get('secrets')
