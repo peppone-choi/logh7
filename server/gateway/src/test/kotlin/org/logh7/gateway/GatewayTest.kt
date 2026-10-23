@@ -14,6 +14,14 @@ import org.logh7.protocol.Frames
 class GatewayTest {
     @TempDir lateinit var captures: Path
 
+    @Test fun captureDirectoryFromTreatsMissingOrBlankAsOff() {
+        listOf(null, "", "  ", "\t\n").forEach { assertNull(captureDirectoryFrom(it)) }
+        listOf("/tmp/x", "relative/captures", " captures ").forEach { value ->
+            assertEquals(Path.of(value), captureDirectoryFrom(value))
+        }
+        assertFailsWith<java.nio.file.InvalidPathException> { captureDirectoryFrom("\u0000") }
+    }
+
     @Test fun rawCapturePreservesInboundChunksAndOutboundBytes() {
         val channel = EmbeddedChannel(CaptureHandler(Capture(captures), "sample"))
         try {

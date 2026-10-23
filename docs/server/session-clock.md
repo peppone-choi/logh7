@@ -40,6 +40,8 @@
 
 종료 후 `session.restart_delay_real_millis`(기본 실 60초)가 지나면 자동 재시작한다. localhost 운영 API `POST /session/restart`는 종료된 세션을 즉시 재시작하며 실행 중이면 HTTP 409다. 지연 값은 원 서비스 수치가 아닌 로컬 정책이다. 엔진이 먼저 세대 표식을 원자적으로 저장하고 성공한 뒤 새 상태를 공개한다. 저장 실패 시 이전 종료 상태를 유지한다.
 
+운영 상태 변경 POST(`/commands/probe`, `/session/restart`)에는 `LOGH7_OPS_AUDIT_FILE`로 지정한 쓰기 가능한 감사 파일과 `X-LOGH7-Operator` 헤더(`[A-Za-z0-9._-]{1,64}`)가 필요하다. 파일 미설정 또는 REQUESTED 기록 실패는 503으로 큐 제출 전에 거절하며, 헤더 오류는 400이다(미설정 검사가 먼저다). 헤더는 자기 신고 식별자이지 인증이 아니며 유일한 접근 통제는 `127.0.0.1` 바인딩이다. 감사 파일은 append-only JSONL이고 각 REQUESTED/RESULT 행을 fsync한다. REQUESTED에는 원격 주소, RESULT에는 QUEUED/RESTARTED/CONFLICT/FAILED 결과가 남으며 같은 requestId로 연결한다. 결과 기록 실패는 500으로 알리지만 롤백하지 않는다. queued/restarted/conflict와 실패 시 적용 여부 미확정(outcome unknown)을 구분하므로 500을 보고 재시작을 무조건 재시도하지 말고 REQUESTED와 세션 상태를 확인한다. GET `/health`, `/snapshot`은 헤더 없이 기존대로 동작한다. 컨테이너 구성은 이번 변경에 포함하지 않아 별도 감사 파일 설정 전 POST는 503이다. 로그 회전·백업 및 인증/RBAC는 후속 범위다.
+
 `LOGH7_SESSION_GENERATION_FILE`로 세대 표식 파일을 지정한다. 기본은 `LOGH7_CHARACTERS_FILE` 옆 `<파일명>.session-generation`이다. 둘 다 없으면 메모리 전용이다. 세대 1은 기존 캐릭터 파일, 이후 세대는 `<파일명>.session-N`을 사용한다. 이전 파일은 덮어쓰거나 삭제하지 않으며 새 세션의 로비는 비어 있는 캐릭터 저장소를 조회한다. 원작 캐릭터·접수 정보는 새 세션으로 가져가지 않는다. 제너레이트 이월의 평가 조건은 별도 캐릭터 성장·세션 보상 구현 전까지 적용하지 않는다.
 
 종료 직전으로 시작하는 별도 설정·캐릭터 사본의 `run-03`에서 실제 클라이언트 전략 진입 뒤 시간 제한에 따른 연결 종료 UI, 세대 1→2 자동 전환·참가자 0·세대 표식 저장을 확인했다. 이전 캐릭터 파일은 그대로였다. 시험의 재시작 지연은 5초였고 실제 운영 기본값은 60초다. 실행기의 원본 보존·오디오·정리 검사도 통과했다.

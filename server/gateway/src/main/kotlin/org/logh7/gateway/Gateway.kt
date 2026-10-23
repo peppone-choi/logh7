@@ -20,6 +20,8 @@ import io.netty.util.concurrent.GlobalEventExecutor
 
 data class GatewayConnections(val active: Int, val tracked: Int)
 
+fun captureDirectoryFrom(value: String?): Path? = value?.takeIf { it.isNotBlank() }?.let { Path.of(it) }
+
 class Capture(private val directory: Path) {
     init { Files.createDirectories(directory) }
     @Synchronized fun record(connection: String, direction: String, buffer: ByteBuf) {
@@ -56,7 +58,7 @@ internal class CaptureHandler(private val capture: Capture, private val id: Stri
     override fun write(ctx: ChannelHandlerContext, msg: Any, promise: ChannelPromise) { if (msg is ByteBuf) capture.record(id, "S>C", msg); ctx.write(msg, promise) }
 }
 
-class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-dynamic-p2/captures"), private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null,
+class Gateway(private val captureDirectory: Path? = null, private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null,
     private val gameSeconds: () -> Long = { 0 }, private val admission: GameAdmission? = null) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
@@ -71,7 +73,7 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
         val tickets = SessionTickets()
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
-        val capture = Capture(captureDirectory)
+        val capture = captureDirectory?.let(::Capture)
         try {
             listOf(gamePort, updatePort, sessionPort).forEach { port ->
                 val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
@@ -81,7 +83,7 @@ class Gateway(private val captureDirectory: Path = Path.of("E:/logh7/work/logh7-
                             val generation = admission?.generation
                             val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters)
                             val updateExchange = UpdateExchange()
-                            ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
+                            if (capture != null) ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
                             ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
                             ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
                                 private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null

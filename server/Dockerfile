@@ -11,8 +11,7 @@ RUN groupadd --gid 10001 logh7 && useradd --uid 10001 --gid logh7 --no-create-ho
 WORKDIR /app
 COPY --from=build --chown=logh7:logh7 /build/app/build/install/app/ /app/
 ENV LOGH7_BIND_ADDRESS=127.0.0.1 \
-    LOGH7_SESSION_STORE_DIR=/data/sessions \
-    LOGH7_CAPTURE_DIR=/data/captures
+    LOGH7_SESSION_STORE_DIR=/data/sessions
 USER 10001:10001
 EXPOSE 47900 47902 47903
 HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=20 \
