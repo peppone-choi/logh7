@@ -10,4 +10,8 @@ tasks.processResources {
         include("strategy-commands.csv")
         into("strategy")
     }
+    from(rootProject.projectDir.resolve("../docs/manual/data")) {
+        include("org-posts.csv", "initial-card-holders.csv", "initial-deployment.csv", "crew-units.csv", "ship-units.csv")
+        into("worldseed")
+    }
 }
