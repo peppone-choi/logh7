@@ -38,6 +38,39 @@
 
 Cloud SQL 공식 페이지에 표시된 기본 지역 예시 단가(vCPU $0.0413/h, RAM $0.007/GiB·h)로 2 vCPU·8 GiB는 `730×(2×0.0413+8×0.007)=$101.18/월`의 **계산 자원만** 추가된다. 같은 예시 HA는 $202.36이며 DB 저장·백업·네트워크는 별도다. 이는 서울 견적이 아니고 지역·에디션·머신 계열에 따라 달라진다. `evidence:guess`
 
+## 서울 공식 단가 재조회 (2026-10-18)
+
+2026-10-18 공개 가격 페이지에서 지역 선택을 `Seoul (asia-northeast3)`로 바꿔 표시된 USD 정가(on-demand, 할인·CUD·세금 제외)를 읽었다. 페이지에 SKU ID는 표시되지 않으므로 SKU는 페이지의 항목명으로 기록한다. GCP 계정·API·계산기 견적 저장은 사용하지 않았다. 위 2026-09-27 범위 표는 이력으로 남기며, 아래 값이 이를 대체하는 공식 단가 근거다.
+
+| 항목(페이지 표기) | 서울 단가(USD) | 출처 |
+|---|---|---|
+| e2-standard-2 (2 vCPU·8 GiB), Default | $0.08596572 / 시간 | [general-purpose VM](https://cloud.google.com/products/compute/pricing/general-purpose?hl=en) |
+| Balanced provisioned space | $0.000178082 / GiB·시간 | [disks-image-pricing](https://cloud.google.com/compute/disks-image-pricing?hl=en) |
+| Standard snapshot storage | $0.000087671 / GiB·시간 | 같은 페이지 |
+| Static and ephemeral IP in use on standard VM | $0.005 / 시간 (계정당 월 1시간 무료) | [network-pricing](https://cloud.google.com/vpc/network-pricing?hl=en) |
+| Static IP (assigned but unused) | $0.015 / 시간 | 같은 페이지 |
+| Premium 송신 TO Australia, Indonesia, Korea, … (0~10,240 GiB) | $0.19 / GiB | 같은 페이지 |
+| Standard Tier 송신 (월 200 GiB 무료 후 ~10,240 GiB) | $0.119 / GiB | 같은 페이지 |
+| Cloud SQL Enterprise 일반 vCPU / 메모리 | $0.0537 / 시간, $0.0091 / GiB·시간 | [sql/pricing](https://cloud.google.com/sql/pricing?hl=en) |
+| Cloud SQL HA vCPU / HA 메모리 | $0.1074 / 시간, $0.0182 / GiB·시간 | 같은 페이지 |
+| Cloud SQL SSD / HA SSD / Backups(used) | $0.00030274 · $0.000605479 · $0.000142466 / GiB·시간 | 같은 페이지 |
+
+계산은 [gcp_cost_model.py](gcp_cost_model.py)로 재현하며 `python3 docs/ops/gcp_cost_model.py`, 회귀 시험은 `python3 -m unittest docs/ops/test_gcp_cost_model.py`다. 730시간/월을 쓴다. 수량(부팅 20 GiB도 pd-balanced로 가정, 스냅샷 저장 70 GiB, 송신 100 GiB 전량 한국행)은 **미측정 가정**이다. `evidence:guess`
+
+| 서울 월 비용(730시간) | 계산 | USD |
+|---|---|---:|
+| e2-standard-2 | 0.08596572×730 | 62.75 |
+| pd-balanced 70 GiB | 0.000178082×70×730 | 9.10 |
+| IPv4 사용 중 | 0.005×730 (무료 1시간 무시) | 3.65 |
+| 스냅샷 70 GiB 가정 | 0.000087671×70×730 | 4.48 |
+| Premium 송신 100 GiB(한국) | 0.19×100 | 19.00 |
+| 합계(자체 PostgreSQL) | | **98.98** |
+
+- 이전 범위 $86.05~129.45 안에 든다. 이전 VM 가정 $0.08~0.11은 서울 정가 $0.0860을 포함했고, PD 가정 $0.10~0.15/GiB월은 서울 $0.13(=0.000178082×730)을 포함했다. 이전 송신 가정 $0.12~0.20도 $0.19를 포함한다.
+- **중지 후 잔존 비용**: VM을 한 달 내내 중지해도 디스크 $9.10 + 고정 IPv4 $3.65(중지 VM에 연결된 고정 IP도 in use로 과금) + 스냅샷 $4.48 = **$17.23/월**이 남는다. VM 삭제 후 IP를 예약만 해 두면 $0.015×730=$10.95/월이다. 비용 종료는 디스크·스냅샷·IP를 각각 삭제/해제해야 한다.
+- **누락 비용**: 외부 WAL 보관(GCS 등) 저장·요청 비용, 관측 로그(Cloud Logging) 수집량, 세금·환율, 지속 사용/약정 할인은 포함하지 않았다. GCS·Logging 서울 단가는 이번에 조회하지 않았다(UNKNOWN).
+- **Cloud SQL 서울**(2 vCPU·8 GiB, Enterprise): 계산 자원 $131.55/월, HA $263.09/월. SSD 20 GiB·백업 20 GiB 가정 시 저장 $6.50(HA $10.92)이 추가된다. 위 기본 지역 예시 $101.18/$202.36은 코드로 재현했으나 서울 값이 아니다. `evidence:guess`
+
 ## 완료 조건과 남은 일
 
 Compose 기동·재시작 영속성, 50명 부하와 틱 지연, 세션 재접속, 백업 복원 후 300초 이하 손실, GCP 견적 및 Terraform plan을 확인해야 공개 배포 결정을 할 수 있다. 현재 [리허설 기록](rehearsal-2026-09-27.md)의 환경 제약으로 런타임 검증은 미완료다. GCP 생성·apply·과금 및 호스트 설정 변경은 수행하지 않았다. `evidence:guess`
