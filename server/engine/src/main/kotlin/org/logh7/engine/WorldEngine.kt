@@ -18,7 +18,11 @@ sealed interface WorldCommand {
     data class RequestRestart(val result: CompletableDeferred<Boolean>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
-interface SnapshotSource { fun snapshot(): WorldSnapshot }
+enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
+interface SnapshotSource {
+    fun snapshot(): WorldSnapshot
+    fun health(): EngineHealth = EngineHealth.RUNNING
+}
 
 /** Only this actor owns and mutates world state. */
 class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load(), ticking: Boolean = true,
@@ -44,6 +48,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
+    /** A commit or post-commit processing failure has blocked further durable mutations. */
+    @Volatile private var storageFailed = false
     private val worker = scope.launch {
         var state = published.get()
         var elapsed = 0L
@@ -79,6 +85,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     next.events.forEach(onEvent)
                 } catch (failure: Exception) {
                     storageFailure = failure
+                    storageFailed = true
                     if (command is WorldCommand.Join) command.result.completeExceptionally(failure)
                     if (command is WorldCommand.RequestRestart) command.result.complete(false)
                 }
@@ -152,6 +159,11 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         try { timings?.record() } catch (_: Exception) { /* Monitoring cannot affect state, ACKs or events. */ }
     }
     override fun snapshot(): WorldSnapshot = published.get()
+    override fun health(): EngineHealth = when {
+        worker.isCompleted || ticker?.isCompleted == true -> EngineHealth.STOPPED
+        storageFailed -> EngineHealth.STORAGE_FAILED
+        else -> EngineHealth.RUNNING
+    }
     suspend fun drainAndClose() { ticker?.cancelAndJoin(); queue.close(); worker.join() }
     override fun close() { ticker?.cancel(); queue.close() }
 }
