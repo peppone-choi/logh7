@@ -3,6 +3,7 @@ package org.logh7.gateway
 import org.logh7.engine.Galaxy
 import org.logh7.protocol.WorldMessages
 import org.logh7.protocol.LoginMessages
+import org.logh7.engine.Flagships
 
 class WorldBootstrap(val galaxy: Galaxy) {
     fun warehouse(base: Int): ByteArray {
@@ -39,6 +40,16 @@ class WorldBootstrap(val galaxy: Galaxy) {
         0x0306 to WorldMessages.captainCommands(),
         0x0304 to WorldMessages.cards(),
         0x0308 to WorldMessages.powerDirection(),
-        0x030a to WorldMessages.ships(),
+        0x030a to WorldMessages.ships(Flagships.definitions.map { ship ->
+            WorldMessages.Ship(ship.kind, ship.type, ship.model, ship.name,
+                ship.number("出力:出力"), ship.number("索敵範囲（万km）:索敵範囲（万km）").toFloat(),
+                ship.number("最高速度（km/1G秒）:最高速度（km/1G秒）").toFloat(),
+                ship.number("装甲:前"), ship.number("装甲:側"), ship.number("装甲:後"),
+                ship.number("シールド（旗艦のみ）:防護値"), ship.number("シールド（旗艦のみ）:容量"),
+                ship.number("ビーム兵装破壊力:ビーム兵装破壊力"),
+                ship.number("ガン兵装破壊力/消費物資:ガン兵装破壊力/消費物資"),
+                ship.number("ミサイル兵装破壊力/消費物資:ミサイル兵装破壊力/消費物資"),
+                ship.number("対空兵装破壊力:対空兵装破壊力"), ship.number("修理消費物資(１隻):修理消費物資(１隻)"))
+        }),
     )
 }

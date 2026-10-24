@@ -2,6 +2,7 @@ package org.logh7.gateway
 
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.OriginalCharacterMessages
+import org.logh7.engine.Flagships
 import java.text.Normalizer
 import java.nio.file.Files
 import java.nio.file.Path
@@ -14,7 +15,10 @@ import java.security.SecureRandom
 class CharacterCreation(private val file: Path? = null, private val clock: Clock = Clock.systemUTC(),
     private val lotteryWindowMillis: Long = 60_000, private val random: java.util.Random = SecureRandom(),
     private val originals: List<OriginalCharacterMessages.Candidate> = OriginalCharacterMessages.localCandidates,
-    private val accountFame: Map<String, Int> = emptyMap()) {
+    private val accountFame: Map<String, Int> = emptyMap(),
+    starterKinds: Map<Int, List<Int>> = mapOf(2 to listOf(0), 3 to listOf(89))) {
+    // Current user policy: standard battleship. A later grant policy may supply multiple kinds.
+    private val starters = starterKinds.mapValues { (_, kinds) -> kinds.toList() }
     private var nextId = 10_000L
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
     private val registered = mutableMapOf<String, CharacterMessages.Generate>()
@@ -24,6 +28,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         require(lotteryWindowMillis in 1..3_600_000)
         require(originals.map { it.character.id }.distinct().size == originals.size && originals.all { it.minimumFame >= 0 && it.character.id in 1..9999 })
         require(accountFame.values.all { it >= 0 })
+        require(starters.keys == setOf(2, 3) && starters.all { (power, kinds) ->
+            kinds.isNotEmpty() && kinds.distinct().size == kinds.size && kinds.all { Flagships.find(it)?.power == power }
+        })
         if (file != null && Files.exists(file)) {
             val properties = Properties().also { Files.newBufferedReader(file).use(it::load) }
             for (account in properties.stringPropertyNames()) {
@@ -32,9 +39,15 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 if (account.startsWith("@application/")) {
                     applications[account.removePrefix("@application/")] = value.split(',').map(String::toLong); continue
                 }
-                val data = CharacterMessages.generate(java.util.HexFormat.of().parseHex(value.removePrefix("original:")))
+                var data = CharacterMessages.generate(java.util.HexFormat.of().parseHex(value.removePrefix("original:")))
                     .copy(generated = !value.startsWith("original:"))
                 require(data.category == 4 && data.id > 0)
+                // The old local generator sent kind 0 even when its result said destroyer.
+                // Keep the recorded class without eagerly rewriting an archived generation.
+                if (data.generated && data.power in 2..3 && data.shipKind == 0 && data.shipType in setOf(0, 2, 3)) {
+                    val kind = Flagships.forType(data.power, data.shipType).kind
+                    if (kind != data.shipKind) data = data.copy(shipKind = kind)
+                }
                 registered[account] = data
                 nextId = maxOf(nextId, data.id + 1)
             }
@@ -125,7 +138,12 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             when (message.category) {
                 1 -> {
                     require(previous.category in 0..1 && message.age in 18..59 && message.birthMonth in 1..12 && message.birthDay in 1..30 && message.face > 0)
-                    message.copy(abilities = List(8) { 50 }, bonus = 10, special = 0, title = 0, rank = 20, shipType = 3, shipKind = 0, shipName = "", check = 1)
+                    val ship = if (previous.category == 0) starters.getValue(previous.power).let { kinds ->
+                        checkNotNull(Flagships.find(kinds[if (kinds.size == 1) 0 else random.nextInt(kinds.size)]))
+                    }
+                        else checkNotNull(Flagships.find(previous.shipKind))
+                    message.copy(abilities = List(8) { 50 }, bonus = 10, special = 0, title = 0, rank = 20,
+                        shipType = ship.type, shipKind = ship.kind, shipName = "", check = 1)
                 }
                 2 -> {
                     require(previous.category == 1)

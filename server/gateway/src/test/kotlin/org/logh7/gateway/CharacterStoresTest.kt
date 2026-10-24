@@ -19,11 +19,11 @@ class CharacterStoresTest {
         Files.newBufferedWriter(file).use { props.store(it, "test") }
         val original = Files.readAllBytes(file)
         val stores = CharacterStores(file)
-        assertEquals(character, stores.get(1).character("owner"))
+        assertEquals(character.copy(shipKind = 3), stores.get(1).character("owner"))
         assertNull(stores.get(2).character("owner"))
         assertSame(stores.get(2), stores.get(2))
         assertNull(CharacterStores(file).get(2).character("owner"))
         assertContentEquals(original, Files.readAllBytes(file))
-        assertEquals(character, stores.get(1).character("owner"))
+        assertEquals(character.copy(shipKind = 3), stores.get(1).character("owner"))
     }
 }

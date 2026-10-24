@@ -12,6 +12,72 @@ class CharacterCreationTest {
     private val request = CharacterMessages.Generate(0, 0, 2, 0, 0, "Alpha", "Pilot", 0, 0, 0, 0,
         List(8) { 0 }, 0, 0, 0, 0, 0, 0, "", 0)
     private fun decoded(bytes: ByteArray) = CharacterMessages.generate(bytes.copyOfRange(4, bytes.size))
+    @Test fun newCharactersDefaultToTheirFactionsStandardBattleship() {
+        val service = CharacterCreation(random = object : java.util.Random() {
+            override fun nextInt(bound: Int): Int = error("Fixed grant must not roll")
+        })
+        for (power in 2..3) {
+            val reserved = decoded(service.accept("pilot$power", request.copy(power = power,
+                origin = if (power == 2) 0 else 3, surname = "Pilot$power")))
+            val prepared = decoded(service.accept("pilot$power", reserved.copy(category = 1,
+                age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001)))
+            assertEquals(0, prepared.shipType)
+            assertEquals(if (power == 2) 0 else 89, prepared.shipKind)
+        }
+    }
+    @Test fun grantPolicyRejectsUnknownCrossFactionEmptyAndDuplicateCandidates() {
+        for (kinds in listOf(emptyList(), listOf(199), listOf(89), listOf(0, 0))) {
+            assertFailsWith<IllegalArgumentException> {
+                CharacterCreation(starterKinds = mapOf(2 to kinds, 3 to listOf(89)))
+            }
+        }
+    }
+    @Test fun shipsVaryWithinFactionAndAreDrawnOnlyOnceThenPersisted() {
+        for (power in 2..3) {
+            var draws = 0
+            val random = object : java.util.Random() {
+                override fun nextInt(bound: Int) = (draws++ % bound)
+            }
+            val file = directory.resolve("ships-$power.properties")
+            val service = CharacterCreation(file, random = random,
+                starterKinds = mapOf(2 to listOf(0, 2, 3), 3 to listOf(89, 90, 93)))
+            val kinds = mutableListOf<Int>()
+            repeat(3) { index ->
+                val account = "pilot$index"
+                val reserved = decoded(service.accept(account, request.copy(power = power,
+                    origin = if (power == 2) 0 else 3, surname = "Pilot$index")))
+                val prepared = decoded(service.accept(account, reserved.copy(category = 1,
+                    age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001)))
+                val repeated = decoded(service.accept(account, prepared))
+                assertEquals(prepared.shipKind, repeated.shipKind)
+                assertEquals(index + 1, draws)
+                val allocated = decoded(service.accept(account, repeated.copy(category = 2, shipKind = 199)))
+                assertEquals(prepared.shipKind, allocated.shipKind) // client cannot substitute another ship
+                val named = decoded(service.accept(account, allocated.copy(category = 3, shipName = "Ship$index")))
+                val finished = decoded(service.accept(account, named.copy(category = 4)))
+                kinds += finished.shipKind
+                assertEquals(finished, CharacterCreation(file).character(account))
+            }
+            assertEquals(if (power == 2) listOf(0, 2, 3) else listOf(89, 90, 93), kinds)
+        }
+    }
+    @Test fun legacyPlaceholderMigrationKeepsItsRecordedClassAndDoesNotRerollOriginalCharacters() {
+        for (power in 2..3) {
+            val file = directory.resolve("legacy-ships-$power.properties")
+            val legacy = request.copy(category = 4, id = 10000, power = power, age = 18, birthMonth = 1, birthDay = 1,
+                face = 1_000_001, shipType = 3, shipKind = 0, shipName = "Legacy", check = 1)
+            fun encode(value: CharacterMessages.Generate) = java.util.HexFormat.of()
+                .formatHex(CharacterMessages.generateReply(value).drop(4).toByteArray())
+            java.nio.file.Files.writeString(file, "pilot=${encode(legacy)}\noriginal=original:${encode(legacy.copy(id = 1234))}\n")
+            val originalBytes = java.nio.file.Files.readAllBytes(file)
+            val migrated = CharacterCreation(file)
+            assertEquals(if (power == 2) 3 else 93, migrated.character("pilot")!!.shipKind)
+            assertEquals(3, migrated.character("pilot")!!.shipType)
+            assertEquals(0, migrated.character("original")!!.shipKind)
+            assertEquals(migrated.character("pilot"), CharacterCreation(file).character("pilot"))
+            assertContentEquals(originalBytes, java.nio.file.Files.readAllBytes(file))
+        }
+    }
     @Test fun originalSurnameRejectionDoesNotReserveAccountOrConsumeId() {
         val service = CharacterCreation()
         val candidates = service.candidates("owner")
