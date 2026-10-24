@@ -7,7 +7,7 @@
 ## 데이터와 실행
 
 ```powershell
-python -X utf8 -B tools/assets/prepare_world.py work/logh14-host-20261008/manual-world.json work/local-world.properties
+python -X utf8 -B tools/assets/prepare_world.py work/logh14-host-20261008/manual-world.json work/local-world.properties --design-fallback
 $env:LOGH7_BIND_ADDRESS='127.0.0.1'
 $env:LOGH7_WORLD_FILE='E:\logh7\work\local-world.properties'
 $env:LOGH7_ACCOUNTS_FILE='E:\logh7\work\accounts.properties'
@@ -65,3 +65,21 @@ HUD는 지도 선택 대상이 아닌 현재 위치를 따른다. 거점은 공�
 `planet_type` 0–10은 CD의 외형 모델 계열이며 모델 번호는 `type * 10 + variant`이다. 변형은 0·1, 계열 10만 2도 지원한다. 예를 들어 계열 6/변형 0은 모델 60과 해당 아틀라스 행을 선택한다. 이것은 원작 지상전 규칙의 `physical_class`와 별개다. 시각적으로 암석·가스·지구·빙결형 등으로 구분되는 외형이지, 각 실제 행성에 어느 타입이 배정됐는지를 입증하는 자료는 아니다. `evidence:client`(모델·이미지 계열), `evidence:guess`(입력 형식)
 
 로컬 검증은 `work/world-warp-20261024/appearances-local-preview.json`과 `world-hud-types.properties`의 7개 명시적 시험 배정을 사용했다. 출처는 `local-preview-unverified-planet-types`로 표시했다. 나머지 미확정 행성 배정과 원래 공전 수치 복원은 남아 있다. 타입·변형·표시 좌표 검사는 x86 빌드에, 입력 값 보존·대상 검증 검사는 자산 도구 검사에 포함된다.
+
+## 행성·시설 초기 설계와 이동
+
+매뉴얼 두 판과 CD의 모델·문자열에서 개별 행성의 실제 타입 배정표는 발견하지 못했다. 추가 자료가 없으면 설계해 구현하라는 사용자 지시에 따라 `--design-fallback`을 추가했다. 이 옵션은 미지정 행성만 결정적으로 배정하며 출처를 `design-fallback-v1`로 남긴다. 제공된 원본 값과 별도 지정 값은 보존한다. 두 수도는 생명체 거주 가능 외형으로 고정하고, 거주 가능하지 않은 수도를 초기화하면 거부한다. 물리 종류·경제·환경 수치는 원작 복원이 아닌 초기 설계다. `evidence:guess`
+
+매뉴얼 지도 주석 색은 제국 39개·동맹 40개·중립 1개 성계로 해석해 `system.N.power`에 연결했다. 근거는 `manual-map-annotation`이다. 그 성계의 행성·요새가 같은 초기 소유 세력을 상속한다. 이는 함대의 점령으로 소유권이 변하는 구현까지 포함하지 않는다. `evidence:manual`(지도 주석), `evidence:guess`(초기 상속)
+
+`031f`에는 거점 ID·세력·진영·그리드·인구·세율·물자·환경을, `0321`에는 거점→시설→스폿의 ID와 배경 파일 번호를 보낸다. 클라이언트의 소비 캐시에 실제 값이 들어간 것도 확인했다. `1204`는 거점 이름 목록이며 소유 세력을 담지 않는다. `power`의 제국 2·동맹 3과 `camp`의 정규군 0·반란군 1을 구분한다. 캐릭터·카드·로비에도 정규군 0을 보내도록 고쳤다. `evidence:client`
+
+시설·스폿 종류와 공개/사유/계급/경계/폐쇄 구분은 CD 매뉴얼 PDF 32–34쪽을 따른다. 행성별 배치와 세부 권한은 설계값이다. 거주 행성에는 광장·공원·호텔 등을, 비거주 거점에는 인공 시설을, 두 수도에는 해당 세력의 중앙 시설을 배치한다. 시설 ID와 스폿 ID는 거점 ID에서 안정적으로 파생한다. `evidence:manual`(종류), `evidence:guess`(배정·권한)
+
+개인 카드 82·83, 함장 카드 45·60을 연결했다. `0b00` 기항/출항과 `0e00` 스폿 이동은 인증·소속·부모 거점·권한·CP를 서버에서 검사한다. 기항 MCP 160, 시설 간 PCP 10, 같은 시설 내 PCP 5를 차감한다. 기항의 매뉴얼상 대기 8G시간은 아직 예약 처리와 연결하지 않았다. 폐쇄 스폿과 권한 없는 사유 방은 거부한다. 사유 방의 NPC·직위 소유자 연결은 남아 있다. `evidence:manual`(CP·대기), `evidence:guess`(현 구현)
+
+이동은 저장을 마친 뒤 ACK와 `0356` 현재 캐릭터 갱신·`0325` 유닛·기항 통지를 보낸다. 기존 `0323` 조회 응답만으로는 현재 HUD의 CP가 갱신되지 않았다. `LOGH7-NAV-2` 저장 형식은 거점·정박 모드·스폿·소유자를 추가하며 이전 형식도 읽는다. `evidence:client`(소비 경로)
+
+스폿 배경은 원본 `data/image/spot/bgNNN.jpg`를 사용한다. `0321`의 파일 번호를 원본 배경 로더 `004d4f10`이 읽으므로 별도 이미지를 만들지 않았다. 원본 이미지의 실내·실외 내용을 대조해 배정했지만 원작의 스폿별 대응표를 복원한 것은 아니다. 제국/동맹 로비·회의실·격납고 등을 구분한다. 수감실의 정확한 전용 이미지는 확인하지 못해 임시 방을 사용한다. 재접속 때 스폿에 있으면 호환 모듈이 원래 배경 모드 8로 복원한다. `evidence:client`(로더·자산), `evidence:guess`(배정·복원 정책)
+
+실제 클라이언트 `work/planet-types-20261024/run-04`–`run-06`에서 오딘 기항→정청 로비→회의실→광장→공원 이동과 해당 원본 배경을 확인했다. 서버·클라이언트 재시작 후 회의실 배경·스폿 ID·PCP 985·MCP 840이 자동 복원됐다. 관련 코덱·엔진 이동·이전 저장 형식·저장 완료 전 ACK 금지 검사를 통과했다. 일부 창의 `NO DATA` 문자열과 한글 깨짐, 워프 후 목적지 동적 캐시 갱신, 함선 복귀 동선의 실제 UI 검증은 남아 있다.

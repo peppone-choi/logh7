@@ -5,8 +5,86 @@ import java.io.DataOutputStream
 
 /** CD readers: 00413050, 004134e0, 004142e0. No native struct padding on the wire. */
 object WorldMessages {
+    /** 0041a870: a real empty ship/troop stock with initial commodity quantities. */
+    fun warehouse(base: Int, supplies: Int, food: Int, mineral: Int) = body {
+        require(base > 0 && supplies >= 0 && food >= 0 && mineral >= 0)
+        writeInt(base); writeInt(0); writeInt(0)
+        writeByte(0); writeByte(0)
+        writeInt(supplies); writeInt(food); writeInt(mineral)
+    }
+    fun warehouseQuery(message: ByteArray): Pair<Int, Int> {
+        require(message.size == 10)
+        val input = java.nio.ByteBuffer.wrap(message)
+        require(input.short.toInt() == 0x0326)
+        return (input.int to input.int).also { require(it.first > 0 && it.second >= 0) }
+    }
+    data class Condition(val id: Int, val grid: Int, val power: Int, val camp: Int,
+        val population: Int, val adults: Int, val tax: Int, val approval: Int, val peace: Int,
+        val atmosphere: Int, val habitability: Int, val supplies: Int, val food: Int, val living: Int)
+    /** 0040b9a0/0040bcf0: query uses base IDs, never grid indices or native padding. */
+    fun baseQuery(message: ByteArray, opcode: Int): List<Int> {
+        require(opcode == 0x031e || opcode == 0x0320)
+        val input = java.nio.ByteBuffer.wrap(message)
+        require(message.size >= 3 && input.short.toInt() == opcode)
+        val count = input.get().toInt() and 255
+        require(count <= 4 && input.remaining() == count * 4)
+        val ids = List(count) { input.int.also { require(it > 0) } }
+        require(ids.distinct().size == ids.size)
+        return ids
+    }
+    /** 00414c70: economics and environment, including owning power/camp. */
+    fun conditions(bases: List<Condition>) = body {
+        require(bases.size <= 4)
+        writeByte(bases.size)
+        bases.forEach { base ->
+            require(base.id > 0 && base.grid in 0..4999 && base.power in 0..4 && base.camp in 0..1)
+            require(base.population >= 0 && base.adults in 0..base.population && base.tax in 0..100 &&
+                base.approval in 0..100 && base.peace in 0..100 && base.atmosphere in 0..1 && base.habitability in 0..1 &&
+                base.supplies >= 0 && base.food >= 0 && base.living >= 0)
+            writeInt(base.id); writeByte(base.power); writeByte(base.camp); writeInt(base.grid)
+            writeInt(0); writeFloat(1f); writeInt(0); writeInt(base.supplies)
+            writeByte(0); writeByte(0) // outfit/transport supplies
+            repeat(3) { writeInt(0) } // patrol, ground, defence supplies
+            writeInt(base.population); writeInt(base.adults); writeShort(base.tax)
+            writeByte(6); listOf(20, 20, 20, 20, 10, 10).forEach(::writeShort)
+            writeByte(5); repeat(5) { writeInt(base.supplies / 5) }
+            writeShort(base.approval); writeShort(base.peace); writeShort(50); writeShort(50)
+            writeInt(base.food); writeInt(base.living)
+            writeByte(3); repeat(3) { writeInt(base.supplies / 3) }
+            writeFloat(1f); writeByte(base.atmosphere); writeByte(base.habitability)
+            writeShort(0); writeByte(0); writeInt(0)
+        }
+    }
+    data class Spot(val kind: Int, val id: Int, val file: Int)
+    data class Institution(val kind: Int, val id: Int, val spots: List<Spot>)
+    data class BaseInstitutions(val baseId: Int, val institutions: List<Institution>)
+    /** 004167f0: at most four bases, 36 institutions/base, 20 spots/institution. */
+    fun institutions(bases: List<BaseInstitutions>) = body {
+        require(bases.size <= 4)
+        writeByte(bases.size)
+        bases.forEach { base ->
+            require(base.baseId > 0 && base.institutions.size <= 36)
+            writeInt(base.baseId); writeByte(base.institutions.size)
+            base.institutions.forEach { institution ->
+                require(institution.kind in 0..38 && institution.id > 0 && institution.spots.size <= 20)
+                writeShort(institution.kind); writeInt(institution.id); writeByte(institution.spots.size)
+                institution.spots.forEach { spot ->
+                    require(spot.kind in 0..104 && spot.id > 0 && spot.file in 1..65535)
+                    writeShort(spot.kind); writeInt(spot.id); writeShort(spot.file)
+                }
+            }
+        }
+    }
     data class Base(val id: Int, val grid: Int, val model: Int, val kind: Int, val name: String,
         val physicalClass: Int, val radius: Float, val cycle: Int, val direction: Int, val angle: Float, val diameter: Float)
+    /** 0055e200: public base directory. Ownership is sent separately in 031f. */
+    fun simpleBases(bases: List<Base>) = body {
+        require(bases.size <= 200)
+        writeByte(bases.size)
+        bases.forEach { base ->
+            writeInt(base.id); writeShort(base.grid); writeShort(base.kind); string(base.name)
+        }
+    }
     private fun body(write: DataOutputStream.() -> Unit) = ByteArrayOutputStream().also { bytes ->
         DataOutputStream(bytes).use(write)
     }.toByteArray()
@@ -44,15 +122,20 @@ object WorldMessages {
             writeFloat(it.angle); writeFloat(it.diameter)
         }
     }
-    /** 0040f9f0: card kind, command list, three raw bit-mask fields. Only warp is exposed. */
+    private fun commands(card: Int) = when (card) {
+        0 -> listOf(82, 83)
+        59, 195 -> listOf(43, 45, 60)
+        else -> emptyList()
+    }
+    /** 0040f9f0: card kind, command list, three raw bit-mask fields. */
     fun captainCommands() = body {
         writeShort(261)
         for (card in 0..260) {
             writeShort(card)
-            val captain = card == 59 || card == 195
-            writeByte(if (captain) 1 else 0)
-            if (captain) {
-                writeShort(43)
+            val commands = commands(card)
+            writeByte(commands.size)
+            commands.forEach { command ->
+                writeShort(command)
                 write(byteArrayOf(-1, -1, 31)); write(byteArrayOf(-1, 63)); writeByte(63)
             }
         }
@@ -63,11 +146,12 @@ object WorldMessages {
         for (card in 0..260) {
             val power = when (card) { 59 -> 2; 195 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
-            writeByte(power); writeByte(power); writeByte(0)
+            writeByte(power); writeByte(0); writeByte(0)
             writeShort(0); writeShort(0); writeByte(0); writeByte(20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
-            writeByte(if (power == 0) 0 else 1)
-            if (power != 0) writeShort(43)
+            val commands = commands(card)
+            writeByte(commands.size)
+            commands.forEach(::writeShort)
         }
     }
     fun powerDirection() = ByteArray(1370).also {

@@ -12,7 +12,7 @@ class OriginalCharacterMessagesTest {
         assertEquals(2, input.get().toInt())
         for (candidate in candidates) {
             val character = candidate.character
-            assertEquals(character.power, input.get().toInt()); assertEquals(character.power, input.get().toInt())
+            assertEquals(character.power, input.get().toInt()); assertEquals(0, input.get().toInt())
             assertEquals(character.rank, input.short.toInt()); assertEquals(candidate.minimumFame, input.int)
             assertEquals(character.id, input.int.toLong())
             val count = input.get().toInt()

@@ -16,7 +16,7 @@ class LobbyMessagesTest {
         val input = ByteBuffer.wrap(bytes).position(7 + session.size)
         assertEquals(0, input.get().toInt()); assertEquals(2, input.get().toInt()); assertEquals(1, input.get().toInt())
         assertEquals(10001, input.int)
-        assertEquals(listOf(2, 2, 1, 0, 1, 1), List(6) { input.get().toInt() })
+        assertEquals(listOf(2, 0, 1, 0, 1, 1), List(6) { input.get().toInt() })
         assertEquals(18 * 31_536_000, input.int)
         assertEquals(0, input.get().toInt()); assertEquals(character.abilities, List(8) { input.short.toInt() })
         assertContentEquals("Beta\u0000".toByteArray(Charsets.UTF_16BE), bytes.copyOfRange(input.position() + 1, input.position() + 11))

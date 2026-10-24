@@ -4,7 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Properties
 
-data class GalaxySystem(val kind: Int, val grid: Int, val star: Int, val name: String)
+data class GalaxySystem(val kind: Int, val grid: Int, val star: Int, val name: String, val power: Int = 0)
 data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int, val name: String,
     val physicalClass: Int, val radius: Float, val cycle: Int, val direction: Int, val angle: Float, val diameter: Float)
 
@@ -14,11 +14,17 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
     val width = 100
     val height = 50
     val cells: List<Int>
+    val facilities: Map<Int, List<PlanetFacility>> by lazy {
+        bases.associate { base -> base.id to Places.forBase(base, systems.single { it.grid == base.grid }.power) }
+    }
+    val conditions: Map<Int, BaseCondition> by lazy {
+        bases.associate { base -> base.id to BaseCondition.initial(base, systems.single { it.grid == base.grid }.power) }
+    }
     init {
         require(defaultCell in 0..2 && systems.size in 1..86 && bases.size <= 350)
         require(systems.map { it.kind }.distinct().size == systems.size)
         require(systems.map { it.grid }.distinct().size == systems.size)
-        require(systems.all { it.kind in 3..88 && it.grid in 0..4999 && it.star in 0..6 && it.name.isNotBlank() })
+        require(systems.all { it.kind in 3..88 && it.grid in 0..4999 && it.star in 0..6 && it.name.isNotBlank() && it.power in 0..4 })
         val locations = systems.map { it.grid }.toSet()
         require(bases.map { it.id }.distinct().size == bases.size)
         require(bases.all { it.id in 1..65535 && it.grid in locations && it.model in 0..129 && it.kind in 0..1 &&
@@ -42,7 +48,8 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
             fun int(key: String) = requireNotNull(p.getProperty(key)) { "Missing world key $key" }.toInt()
             val systems = List(int("systems").also { require(it in 1..86) }) { i ->
                 val prefix = "system.$i."
-                GalaxySystem(int(prefix + "kind"), int(prefix + "grid"), int(prefix + "star"), p.getProperty(prefix + "name"))
+                GalaxySystem(int(prefix + "kind"), int(prefix + "grid"), int(prefix + "star"), p.getProperty(prefix + "name"),
+                    p.getProperty(prefix + "power", "0").toInt())
             }
             val bases = List(int("bases").also { require(it in 0..350) }) { i ->
                 val prefix = "base.$i."

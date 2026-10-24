@@ -14,6 +14,8 @@ class BootstrapMessagesTest {
         val ids = List(3) { cards.short.toInt().also { cards.position(cards.position() + 17) } }
         assertEquals(listOf(0, 59, 195), ids); assertFalse(cards.hasRemaining())
         val body = BootstrapMessages.character(character)
+        // Native faction selector is power * 2 + camp (004d34d0); camp 0 is regular.
+        assertEquals(2, body[10].toInt()); assertEquals(0, body[11].toInt())
         val tail = ByteBuffer.wrap(body, body.size - 14, 14)
         assertEquals(2, tail.get().toInt()); assertEquals(0, tail.short.toInt()); assertEquals(0, tail.int)
         assertEquals(59, tail.short.toInt()); assertEquals(1_010_000, tail.int); assertEquals(0, tail.get().toInt())
@@ -33,5 +35,12 @@ class BootstrapMessagesTest {
         assertEquals(0xfedcba98L, ByteBuffer.wrap(body, 6, 4).int.toLong() and 0xffffffffL)
         assertFails { BootstrapMessages.response(byteArrayOf(3, 0), -1) }
         assertFails { BootstrapMessages.response(byteArrayOf(3, 0), 0x1_0000_0000L) }
+    }
+    @Test fun liveCharacterChangeUsesNotificationInsteadOfQueryAndKeepsLocation() {
+        val query = BootstrapMessages.character(character, 990, 840, 10_490_001, 0)
+        val changed = BootstrapMessages.changedCharacter(character, 990, 840, 10_490_001, 0)
+        assertEquals(0x0356, ByteBuffer.wrap(changed, 4, 2).short.toInt())
+        assertEquals(0, changed[6].toInt())
+        assertContentEquals(query.copyOfRange(6, query.size), changed.copyOfRange(7, changed.size))
     }
 }

@@ -9,7 +9,7 @@ object BootstrapMessages {
         val out = ByteBuffer.allocate(128).putShort(3)
         // constmsg group 3: 0=personal, 59=Empire captain, 195=Alliance captain.
         for ((kind, power) in listOf(0 to 0, 59 to 2, 195 to 3)) {
-            out.putShort(kind.toShort()).put(if (kind == 0) 0 else 1).put(power.toByte()).put(power.toByte()).put(0)
+            out.putShort(kind.toShort()).put(if (kind == 0) 0 else 1).put(power.toByte()).put(0).put(0)
             out.putShort(0).putShort(0).put(0).put(20).put(0).putShort(0).put(0).putShort(0)
             out.put(0)
         }
@@ -18,8 +18,15 @@ object BootstrapMessages {
     fun characterId(character: CharacterMessages.Generate) = LoginMessages.sessionMessage(0x0204,
         ByteBuffer.allocate(4).putInt(character.id.toInt()).array())
 
+    /** 0356 uses a raw flag followed by the same character wire record; 0323 is a query buffer only. */
+    fun changedCharacter(character: CharacterMessages.Generate, pcp: Int, mcp: Int, spot: Int = 0, spotOwner: Int = 0): ByteArray {
+        val query = character(character, pcp, mcp, spot, spotOwner)
+        return LoginMessages.sessionMessage(0x0356, byteArrayOf(0) + query.copyOfRange(6, query.size))
+    }
+
     /** 00417390: wire fields follow the reader, without its 724-byte object padding. */
-    fun character(character: CharacterMessages.Generate, pcp: Int = 100, mcp: Int = 100): ByteArray {
+    fun character(character: CharacterMessages.Generate, pcp: Int = 100, mcp: Int = 100,
+        spot: Int = 0, spotOwner: Int = 0): ByteArray {
         val out = ByteBuffer.allocate(1024)
         fun u8(value: Int) { out.put(value.toByte()) }
         fun string(value: String) {
@@ -28,11 +35,11 @@ object BootstrapMessages {
             u8(value.length + 1); (value + '\u0000').forEach(out::putChar)
         }
         out.putInt(character.id.toInt())
-        u8(character.power); u8(character.power); u8(0); u8(character.gender)
+        u8(character.power); u8(0); u8(0); u8(character.gender)
         out.putInt(Math.multiplyExact(character.age, CharacterMessages.AGE_SECONDS_PER_YEAR))
         u8(character.birthMonth); u8(character.birthDay)
         out.putInt(0).putShort(0) // fame, maximum special abilities
-        out.putInt(0).putInt(0).putInt(character.id.toInt()).putInt(unitId(character))
+        out.putInt(0).putInt(spot).putInt(if (spot == 0) character.id.toInt() else spotOwner).putInt(unitId(character))
         string(character.shipName)
         repeat(3) { out.putInt(0) } // strategy and coup fields
         out.putInt(pcp).putInt(mcp).putInt(0) // local PCP, MCP, evaluation
@@ -53,11 +60,12 @@ object BootstrapMessages {
     private fun unitId(character: CharacterMessages.Generate) = character.id.toInt() + 1_000_000
 
     /** 00419ca0: one local flagship unit; its grid and resource values are provisional. */
-    fun unit(character: CharacterMessages.Generate, grid: Int = 2550, cruise: Int = 10_000): ByteArray {
+    fun unit(character: CharacterMessages.Generate, grid: Int = 2550, cruise: Int = 10_000,
+        baseId: Int = 0, mode: Int = 5): ByteArray {
         val out = ByteBuffer.allocate(64)
-        out.putShort(1).putInt(unitId(character)).putShort(character.shipKind.toShort()).put(0)
+        out.putShort(1).putInt(unitId(character)).putShort(character.shipKind.toShort()).put(mode.toByte())
         out.putInt(grid).putInt(0).putInt(0).put(0) // grid, outfit, boarding ship, troop count
-        out.putInt(0).put(100).put(0).putShort(0).putShort(0)
+        out.putInt(baseId).put(100).put(0).putShort(0).putShort(0)
         out.putInt(10_000).putInt(0).putFloat(cruise.toFloat())
         return LoginMessages.sessionMessage(0x0325, out.array().copyOf(out.position()))
     }
