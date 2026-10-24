@@ -46,6 +46,8 @@ class GameExchange(
     private val characterProvider: () -> CharacterCreation = { characters },
     private val world: WorldBootstrap? = null,
     private val navigation: GameNavigation? = null,
+    internal val presence: GamePresence? = null,
+    private val onPresence: (List<ByteArray>) -> Unit = {},
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -61,9 +63,23 @@ class GameExchange(
     private var pendingJoin: CompletableFuture<Admission>? = null
     fun takePendingJoin(): CompletableFuture<Admission>? = pendingJoin.also { pendingJoin = null }
     private var pendingWorld: CompletableFuture<List<ByteArray>>? = null
+    private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean)
+    private var publication: Publication? = null
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
-        if (state == State.CLOSED) null else handshake.stageAll(messages, clearHeader = 0)
+        if (state == State.CLOSED) null else {
+            val update = publication.also { publication = null }
+            val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence)) }
+            val output = if (update?.initialize == true && shared != null) {
+                val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
+                check(index >= 0)
+                messages.take(index) + shared.peers.map(presence!!::character) + messages.drop(index)
+            } else messages + shared?.refresh.orEmpty()
+            handshake.stageAll(output, clearHeader = 0)
+        }
+    }
+    internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
+        if (state == State.CLOSED || !gameStarted || obsolete()) null else handshake.stageAll(messages, clearHeader = 0)
     }
     fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running)
@@ -114,6 +130,7 @@ class GameExchange(
                             captainCard = dock?.card, place = place, rank = character.rank)).thenApply { result ->
                             val player = result.player ?: result.previous
                             val accepted = result.player != null
+                            if (accepted) publication = Publication(character, checkNotNull(player), false)
                             val seconds = gameSeconds()
                             // The CD's 004beaa0 applies ACK coordinates even on a rejection.
                             // Echo the authoritative origin so denial cannot move its background.
@@ -155,6 +172,7 @@ class GameExchange(
                             connection, checkNotNull(generation), command.grid, character.id.toInt() + 1_000_000,
                             command.card)).thenApply { result ->
                             val player = result.player ?: return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(command))
+                            publication = Publication(character, player, false)
                             val seconds = gameSeconds()
                             listOf(org.logh7.protocol.NavigationMessages.accepted(command, seconds, player.pcp, player.mcp),
                                 BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
@@ -208,6 +226,7 @@ class GameExchange(
                                 connection, checkNotNull(generation))
                             pendingWorld = navigation.apply(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
+                                publication = Publication(character, player, true)
                                 listOf(BootstrapMessages.characterId(character),
                                     BootstrapMessages.character(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
                                     BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
@@ -265,6 +284,7 @@ class GameExchange(
     fun close() {
         if (state == State.CLOSED) return
         handshake.close(); state = State.CLOSED
+        presence?.remove(connection)
         if (joinRequested) admission?.disconnect(checkNotNull(ticket).account, connection)
     }
 }

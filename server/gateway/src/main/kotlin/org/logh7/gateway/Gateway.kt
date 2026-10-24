@@ -68,75 +68,108 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val closed = AtomicBoolean()
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
-    fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress) {
-        val host = checkedBindAddress(bindAddress)
+    fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress,
+        additionalBindAddresses: List<String> = emptyList()) {
+        val hosts = (listOf(bindAddress) + additionalBindAddresses).map(::checkedBindAddress)
+        require(hosts.distinct().size == hosts.size)
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
+        val presence = if (world != null && navigation != null) GamePresence() else null
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         val capture = captureDirectory?.let(::Capture)
         try {
-            listOf(gamePort, updatePort, sessionPort).forEach { port ->
-                val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
-                    .childHandler(object : ChannelInitializer<SocketChannel>() {
-                        override fun initChannel(ch: SocketChannel) {
-                            clients.add(ch)
-                            val generation = admission?.generation
-                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation)
-                            val updateExchange = UpdateExchange()
-                            if (capture != null) ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
-                            ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
-                            ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
-                                private val waitingFrames = ArrayDeque<ByteArray>()
-                                private var waiting = false
-                                private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null
-                                override fun channelActive(ctx: ChannelHandlerContext) {
-                                    if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
-                                        if (exchange.obsolete()) { exchange.close(); ctx.close() }
-                                    }, 1, 1, java.util.concurrent.TimeUnit.SECONDS)
-                                    ctx.fireChannelActive()
-                                }
-                                override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
-                                    val payload = ByteArray(msg.readableBytes()); msg.readBytes(payload)
-                                    if (waiting) { check(waitingFrames.size < 128); waitingFrames.addLast(payload); return }
-                                    process(ctx, payload)
-                                }
-                                private fun process(ctx: ChannelHandlerContext, payload: ByteArray) {
-                                    if (port != updatePort) {
-                                        val (type, data) = Frames.decodePayload(payload)
-                                        exchange.acceptOutbound(type, data)?.let { response -> SecureWriter.write(ctx, exchange, response) }
-                                        val join = exchange.takePendingJoin()
-                                        val operation = exchange.takePendingWorld()
-                                        val pending = join?.thenApply { exchangeResult -> ({ exchange.finishJoinOutbound(exchangeResult) }) }
-                                            ?: operation?.thenApply { messages -> ({ exchange.finishWorld(messages) }) }
-                                        if (pending != null) waiting = true
-                                        pending?.whenComplete { finish, failure ->
-                                            ctx.executor().execute {
-                                                if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
-                                                else try {
-                                                    finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
-                                                    waiting = false
-                                                    while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
-                                                } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
+            for (host in hosts) {
+                val advertisedAddress = if (host == bindAddress) sessionAddress else host
+                listOf(gamePort, updatePort, sessionPort).forEach { port ->
+                    val bootstrap = ServerBootstrap().group(boss, workers).channel(NioServerSocketChannel::class.java)
+                        .childHandler(object : ChannelInitializer<SocketChannel>() {
+                            override fun initChannel(ch: SocketChannel) {
+                                clients.add(ch)
+                                val generation = admission?.generation
+                                val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
+                                    presence = presence, onPresence = { messages ->
+                                        if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
+                                    })
+                                val updateExchange = UpdateExchange()
+                                if (capture != null) ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
+                                ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
+                                ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
+                                    private val waitingFrames = ArrayDeque<ByteArray>()
+                                    private var waiting = false
+                                    private val notifications = ArrayDeque<List<ByteArray>>()
+                                    private var notificationBytes = 0
+                                    override fun userEventTriggered(ctx: ChannelHandlerContext, event: Any) {
+                                        if (event !is PresenceNotification) { ctx.fireUserEventTriggered(event); return }
+                                        if (!ctx.channel().isActive) return
+                                        if (waiting) {
+                                            val size = event.messages.sumOf { it.size }
+                                            if (notifications.size >= 128 || notificationBytes + size > 512 * 1024) {
+                                                exchange.close(); ctx.close(); return
+                                            }
+                                            notifications.addLast(event.messages); notificationBytes += size
+                                        } else sendNotification(ctx, event.messages)
+                                    }
+                                    private fun sendNotification(ctx: ChannelHandlerContext, messages: List<ByteArray>) {
+                                        try { exchange.notifyWorld(messages)?.let { SecureWriter.write(ctx, exchange, it) } }
+                                        catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
+                                    }
+                                    private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null
+                                    override fun channelActive(ctx: ChannelHandlerContext) {
+                                        if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
+                                            if (exchange.obsolete()) { exchange.close(); ctx.close() }
+                                        }, 1, 1, java.util.concurrent.TimeUnit.SECONDS)
+                                        ctx.fireChannelActive()
+                                    }
+                                    override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
+                                        val payload = ByteArray(msg.readableBytes()); msg.readBytes(payload)
+                                        if (waiting) { check(waitingFrames.size < 128); waitingFrames.addLast(payload); return }
+                                        process(ctx, payload)
+                                    }
+                                    private fun process(ctx: ChannelHandlerContext, payload: ByteArray) {
+                                        if (port != updatePort) {
+                                            val (type, data) = Frames.decodePayload(payload)
+                                            exchange.acceptOutbound(type, data)?.let { response -> SecureWriter.write(ctx, exchange, response) }
+                                            val join = exchange.takePendingJoin()
+                                            val operation = exchange.takePendingWorld()
+                                            val pending = join?.thenApply { exchangeResult -> ({ exchange.finishJoinOutbound(exchangeResult) }) }
+                                                ?: operation?.thenApply { messages -> ({ exchange.finishWorld(messages) }) }
+                                            if (pending != null) waiting = true
+                                            pending?.whenComplete { finish, failure ->
+                                                ctx.executor().execute {
+                                                    if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
+                                                    else try {
+                                                        finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
+                                                        waiting = false
+                                                        while (notifications.isNotEmpty() && ctx.channel().isActive) {
+                                                            val messages = notifications.removeFirst(); notificationBytes -= messages.sumOf { it.size }
+                                                            sendNotification(ctx, messages)
+                                                        }
+                                                        while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
+                                                    } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
+                                                }
+                                            }
+                                        } else {
+                                            val response = updateExchange.accept(payload)
+                                            val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
+                                            if (updateExchange.state == UpdateExchange.State.COMPLETE) {
+                                                written.addListener(ChannelFutureListener.CLOSE)
                                             }
                                         }
-                                    } else {
-                                        val response = updateExchange.accept(payload)
-                                        val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
-                                        if (updateExchange.state == UpdateExchange.State.COMPLETE) {
-                                            written.addListener(ChannelFutureListener.CLOSE)
-                                        }
                                     }
-                                }
-                                override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                                    System.err.println("gateway: ${cause.message}")
-                                    try { exchange.close() } finally { ctx.close() }
-                                }
-                                override fun channelInactive(ctx: ChannelHandlerContext) { lifecycleCheck?.cancel(false); exchange.close(); ctx.fireChannelInactive() }
-                            })
-                        }
-                    })
-                channels += bootstrap.bind(host, port).sync().channel()
+                                    override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
+                                        System.err.println("gateway: ${cause.message}")
+                                        try { exchange.close() } finally { ctx.close() }
+                                    }
+                                    override fun channelInactive(ctx: ChannelHandlerContext) {
+                                        lifecycleCheck?.cancel(false); waitingFrames.clear(); notifications.clear(); notificationBytes = 0
+                                        exchange.close(); ctx.fireChannelInactive()
+                                    }
+                                })
+                            }
+                        })
+                    channels += bootstrap.bind(host, port).sync().channel()
+                }
             }
         } catch (failure: Throwable) { close(); throw failure }
     }
