@@ -25,23 +25,27 @@ class FileNavigationStore(private val path: Path) : NavigationStore {
         if (!Files.exists(path)) return emptyMap()
         require(Files.size(path) <= 4_000_000) { "Navigation store is too large" }
         val lines = Files.readAllLines(path)
-        require(lines.firstOrNull() == "LOGH7-NAV-1") { "Unknown navigation store format" }
+        val version = lines.firstOrNull()
+        require(version == "LOGH7-NAV-1" || version == "LOGH7-NAV-2") { "Unknown navigation store format" }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
             val f = line.split('\t')
-            require(f.size == 9 && f[0].matches(Regex("[A-Za-z0-9_.@-]{1,30}"))) { "Invalid navigation row" }
+            require(f.size == (if (version == "LOGH7-NAV-1") 9 else 13) && f[0].matches(Regex("[A-Za-z0-9_.@-]{1,30}"))) { "Invalid navigation row" }
             val player = Navigator(f[1].toLong(), f[2].toInt(), Power.valueOf(f[3]), f[4].toInt(),
-                f[5].toInt(), f[6].toInt(), f[7].toInt(), f[8].toLong())
+                f[5].toInt(), f[6].toInt(), f[7].toInt(), f[8].toLong(),
+                if (f.size == 13) f[9].toInt() else 0, if (f.size == 13) f[10].toInt() else 5,
+                if (f.size == 13) f[11].toInt() else 0, if (f.size == 13) f[12].toInt() else 0)
             require(players.put(f[0], player) == null) { "Duplicate navigation account" }
         }
         return players
     }
     override fun save(players: Map<String, Navigator>) {
         val bytes = buildString {
-            append("LOGH7-NAV-1\n")
+            append("LOGH7-NAV-2\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
-                append(listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise, p.moves).joinToString("\t"))
+                append(listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
+                    p.moves, p.baseId, p.mode, p.spotId, p.spotOwner).joinToString("\t"))
                 append('\n')
             }
         }.toByteArray(Charsets.UTF_8)

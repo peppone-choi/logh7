@@ -185,13 +185,69 @@ class GameExchangeTest {
         val player = org.logh7.engine.Navigator(1, 1001, org.logh7.engine.Power.EMPIRE, 2488, 1000, 960, 900, 1)
         pending.complete(org.logh7.engine.NavigationResult(player))
         val messages = operation.join()
-        assertEquals(listOf(0x0b01, 0x0323, 0x0325, 0x0317, 0x0b07), messages.map {
+        assertEquals(listOf(0x0b01, 0x0356, 0x0325, 0x0317, 0x0b07), messages.map {
             ByteBuffer.wrap(it, 4, 2).short.toInt() and 65535
         })
         assertEquals(1000, ByteBuffer.wrap(messages.first()).getInt(20))
         assertEquals(960, ByteBuffer.wrap(messages.first()).getInt(24))
         assertNotNull(game.finishWorld(messages))
         game.close(); assertNull(game.finishWorld(messages))
+    }
+    @Test fun dockAndSpotMovesWaitForPersistenceAndPublishLiveCharacterUpdates() {
+        var now = java.time.Instant.EPOCH
+        val clock = object : java.time.Clock() {
+            override fun getZone() = java.time.ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId): java.time.Clock = this
+            override fun instant() = now
+        }
+        val characters = CharacterCreation(clock = clock, lotteryWindowMillis = 1)
+        characters.apply("user", listOf(1001)); now = now.plusMillis(1)
+        val galaxy = org.logh7.engine.Galaxy(
+            listOf(org.logh7.engine.GalaxySystem(3, 2487, 4, "Capital", 2)),
+            listOf(org.logh7.engine.GalaxyBase(1049, 2487, 60, 0, "Home", 0, 1f, 1, 0, 0f, 1f)),
+            org.logh7.engine.Power.entries.associateWith { 2487 })
+        var pending = CompletableFuture<org.logh7.engine.NavigationResult>()
+        val requests = mutableListOf<org.logh7.engine.NavigationRequest>()
+        val tickets = SessionTickets()
+        val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903,
+            Handshake(b, 2), characters, gameSeconds = { 123 }, expectedGeneration = 1, connection = "owned",
+            world = WorldBootstrap(galaxy), navigation = GameNavigation { requests += it; pending })
+        game.accept(0x34, initial); game.accept(0x36, confirm)
+        val token = tickets.issue("user", SessionTickets.Purpose.GAME)
+        game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+        game.accept(0x30, encrypted(hex("0200"), 2)); game.accept(0x30, encrypted(hex("0205"), 3))
+        val dock = PlaceMessages.Dock(1001, 59, 1049, 4)
+        val command = PlaceMessages.docked(dock, 0, Int.MAX_VALUE, Int.MAX_VALUE).copyOfRange(4, 34)
+        assertNull(game.accept(0x30, encrypted(command, 4)))
+        val operation = assertNotNull(game.takePendingWorld())
+        assertFalse(operation.isDone)
+        assertEquals(org.logh7.engine.PlaceMove.Dock(1049, 4), requests.last().place)
+        assertEquals(1001001, requests.last().unitId)
+        assertEquals(59, requests.last().captainCard)
+        var player = org.logh7.engine.Navigator(1, 1001, org.logh7.engine.Power.EMPIRE,
+            2487, 1000, 840, 1000, 1, 1049, 4)
+        pending.complete(org.logh7.engine.NavigationResult(player))
+        val messages = operation.join()
+        fun opcodes(messages: List<ByteArray>) = messages.map { ByteBuffer.wrap(it, 4, 2).short.toInt() and 65535 }
+        assertEquals(listOf(0x0b00, 0x0356, 0x0325, 0x0b0b), opcodes(messages))
+        assertEquals(840, ByteBuffer.wrap(messages.first()).getInt(24))
+        pending = CompletableFuture()
+        val move = PlaceMessages.Move(1001, 10490003, 0)
+        assertNull(game.accept(0x30, encrypted(PlaceMessages.moved(move, 0, 0, 0).copyOfRange(4, 30), 5)))
+        val moving = assertNotNull(game.takePendingWorld())
+        assertFalse(moving.isDone)
+        assertEquals(org.logh7.engine.PlaceMove.Spot(10490003, 0), requests.last().place)
+        player = player.copy(pcp = 990, spotId = 10490003, moves = 2)
+        pending.complete(org.logh7.engine.NavigationResult(player))
+        assertEquals(listOf(0x0e00, 0x0356, 0x0325), opcodes(moving.join()))
+        assertEquals(990, ByteBuffer.wrap(moving.join().first()).getInt(14))
+        pending = CompletableFuture()
+        game.accept(0x30, encrypted(PlaceMessages.moved(move.copy(spot = 10490019), 0, 0, 0).copyOfRange(4, 30), 6))
+        val rejected = assertNotNull(game.takePendingWorld())
+        pending.complete(org.logh7.engine.NavigationResult(null, rejection = org.logh7.engine.NavigationRejection.ACCESS))
+        assertEquals(listOf(0x0e00), opcodes(rejected.join()))
+        assertEquals(1, ByteBuffer.wrap(rejected.join().single()).int)
+        game.close()
     }
     @Test fun goldenCapturedInitialFrameWhenAvailable() {
         val dir = System.getenv("LOGH7_GOLDEN_DIR")

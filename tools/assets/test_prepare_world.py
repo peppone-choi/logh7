@@ -2,7 +2,7 @@
 import copy
 import unittest
 
-from prepare_world import prepare
+from prepare_world import prepare, CAPITALS, HABITABLE_MODELS, designed_model
 
 
 def world():
@@ -21,6 +21,34 @@ def properties(text):
 
 
 class PrepareWorldTest(unittest.TestCase):
+    def test_map_annotations_keep_empire_alliance_and_neutral_distinct(self):
+        data = world()
+        for i, color in enumerate([(0, 1, 1), (.50197, 1, .50197), (1, 1, 0)]):
+            data['systems'][i]['annotation_color'] = color
+        p = properties(prepare(data))
+        self.assertEqual([p[f'system.{i}.power'] for i in range(4)], ['2', '3', '1', '0'])
+        self.assertEqual(p['system.0.ownership-source'], 'manual-map-annotation')
+    def test_designed_capitals_are_habitable_and_cannot_be_overridden_to_gas(self):
+        data = world()
+        for i, ((grid, name), expected) in enumerate(CAPITALS.items()):
+            data['systems'][i]['bases'][0]['name'] = name
+            self.assertIn(designed_model(grid, name, 0), HABITABLE_MODELS)
+        p = properties(prepare(data, design_fallback=True))
+        self.assertEqual(p['base.0.model'], '60')
+        self.assertEqual(p['base.4.model'], '61')
+        self.assertEqual(p['base.0.appearance-source'], 'design-fallback-v1')
+        with self.assertRaisesRegex(ValueError, 'Capital'):
+            prepare(data, dict(schema=1, source='bad', bases=[
+                dict(grid=2487, name=next(iter(CAPITALS))[1], planet_type=3)]), design_fallback=True)
+
+    def test_design_keeps_supplied_values_and_is_independent_of_system_order(self):
+        data = world()
+        data['systems'][0]['bases'][0]['model_file'] = 81
+        text = prepare(data, design_fallback=True)
+        self.assertEqual(properties(text)['base.0.model'], '81')
+        data['systems'].reverse()
+        self.assertEqual(text, prepare(data, design_fallback=True))
+
     def test_preserves_supplied_model_class_and_orbit_without_mutation(self):
         data = world()
         data['systems'][0]['bases'][1].update(model_file=61, physical_class=7,

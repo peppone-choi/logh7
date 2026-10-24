@@ -12,6 +12,24 @@ from pathlib import Path
 
 PLANET_MODELS = {row * 10 + variant for row in range(11)
                  for variant in range(3 if row == 10 else 2)}
+HABITABLE_MODELS = (60, 61, 80, 81, 100, 101, 102)
+CAPITALS = {(2487, 'オーディン'): 60, (2015, 'ハイネセン'): 61}
+
+
+def designed_model(grid, name, ordinal):
+    """User-authorized fallback, never a claim about original server assignments."""
+    if (grid, name) in CAPITALS:
+        return CAPITALS[grid, name]
+    if grid == 375:
+        solar = {'水星': 0, '金星': 70, '地球': 101, '火星': 1}
+        if name in solar:
+            return solar[name]
+    # Catalogue bases are settlements: keep one terrestrial body per system.
+    # Outer bodies can represent mining outposts and gas-collection stations.
+    if ordinal == 0:
+        return HABITABLE_MODELS[grid % len(HABITABLE_MODELS)]
+    palette = (0, 1, 10, 11, 20, 21, 30, 31, 40, 41, 50, 51, 70, 71, 90, 91)
+    return palette[(grid + ordinal * 5) % len(palette)]
 
 
 def appearance_overrides(document):
@@ -34,7 +52,7 @@ def appearance_overrides(document):
     return result, document['source']
 
 
-def prepare(manual, appearances=None):
+def prepare(manual, appearances=None, design_fallback=False):
     if (manual['width'], manual['height']) != (100, 50):
         raise ValueError('Expected 100 x 50 map')
     systems = manual['systems']
@@ -54,6 +72,10 @@ def prepare(manual, appearances=None):
         for key, value in dict(kind=system['kind'], grid=system['grid']['index'],
                                star='OBAFGKM'.index(system.get('stellar_class') or 'G'), name=system['name']).items():
             result[f'system.{i}.{key}'] = value
+        color = tuple(round(x, 3) for x in system.get('annotation_color', []))
+        power = {(0.0, 1.0, 1.0): 2, (0.502, 1.0, 0.502): 3, (1.0, 1.0, 0.0): 1}.get(color, 0)
+        result[f'system.{i}.power'] = power
+        result[f'system.{i}.ownership-source'] = 'manual-map-annotation' if power else 'unknown'
         for ordinal, base in enumerate(system['bases']):
             target = system['grid']['index'], base['name']
             model = base.get('model_file')
@@ -66,9 +88,16 @@ def prepare(manual, appearances=None):
                 model, source = overrides[target], appearance_source
                 used.add(target)
             if model is None:
-                model = fortress_models.get(base['name'], 0)
                 if base['name'] in fortress_models:
+                    model = fortress_models[base['name']]
                     source = 'confirmed-fortress-model'
+                elif design_fallback and base['kind_code'] == 0:
+                    model = designed_model(target[0], target[1], ordinal)
+                    source = 'design-fallback-v1'
+                else:
+                    model = 0
+            if design_fallback and target in CAPITALS and model not in HABITABLE_MODELS:
+                raise ValueError('Capital must use a habitable terrestrial model')
             if type(model) is not int or model not in (PLANET_MODELS if base['kind_code'] == 0 else set(range(110, 120))):
                 raise ValueError('Unsupported model for base kind')
             display_name = base['name']
@@ -110,12 +139,14 @@ if __name__ == '__main__':
     parser.add_argument('output', type=Path)
     parser.add_argument('--appearance-map', type=Path,
                         help='External schema-1 type/variant assignments with explicit provenance')
+    parser.add_argument('--design-fallback', action='store_true',
+                        help='Use documented gameplay design for missing planet appearances; capitals must be habitable')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2] / 'work'
     if not args.output.resolve().is_relative_to(root.resolve()) or args.output.exists():
         parser.error('Choose a new output file under repository work/')
     appearances = json.loads(args.appearance_map.read_text(encoding='utf-8')) if args.appearance_map else None
-    data = prepare(json.loads(args.manual_world.read_text(encoding='utf-8')), appearances)
+    data = prepare(json.loads(args.manual_world.read_text(encoding='utf-8')), appearances, args.design_fallback)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(data, encoding='utf-8')
     print('Prepared 80 systems and 287 bases with explicit local defaults')

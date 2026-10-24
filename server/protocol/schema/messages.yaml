@@ -78,3 +78,25 @@ messages:
     opcode: 0x0315
   - name: ResponseStaticInformationBase
     opcode: 0x031d
+  - name: RequestInformationBase
+    opcode: 0x031e
+  - name: ResponseInformationBase
+    opcode: 0x031f
+  - name: RequestInformationInstitution
+    opcode: 0x0320
+  - name: ResponseInformationInstitution
+    opcode: 0x0321
+  - name: RequestInformationWarehouse
+    opcode: 0x0326
+  - name: ResponseInformationWarehouse
+    opcode: 0x0327
+  - name: NotifyInformationCharacter
+    opcode: 0x0356
+  - name: CommandMoveBase
+    opcode: 0x0b00
+  - name: NotifyMovedBase
+    opcode: 0x0b0b
+  - name: CommandMoveInstitutionSpot
+    opcode: 0x0e00
+  - name: NotifySimpleInformationBase
+    opcode: 0x1204

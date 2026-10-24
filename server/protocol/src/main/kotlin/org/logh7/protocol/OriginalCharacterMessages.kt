@@ -27,7 +27,7 @@ object OriginalCharacterMessages {
         val data = ByteBuffer.allocate(16_384).put(candidates.size.toByte())
         for (candidate in candidates) {
             val character = candidate.character
-            data.put(character.power.toByte()).put(character.power.toByte()).putShort(character.rank.toShort())
+            data.put(character.power.toByte()).put(0).putShort(character.rank.toShort())
                 .putInt(candidate.minimumFame).putInt(character.id.toInt())
             val name = character.surname + '\u0000'
             require(name.length <= 13)

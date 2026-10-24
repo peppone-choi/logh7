@@ -192,7 +192,9 @@ static void __fastcall drawLayout(void* map, void*, char) {
         at<int>(map, 0x18) = ownGrid % 100;
         at<int>(map, 0x1c) = ownGrid / 100;
         auto setMode = reinterpret_cast<void(__thiscall*)(void*, int)>(0x4d5030);
-        setMode(map, kind(ownGrid % 100, ownGrid / 100) == 3 ? 4 : 1);
+        // A persisted room must resume its native background, rather than the system map.
+        int spot = at<int>(world, 0x4c); // own character slot +0x0c, spot +0x40
+        setMode(map, spot > 0 ? 8 : (kind(ownGrid % 100, ownGrid / 100) == 3 ? 4 : 1));
         at<int>(map, 0x18) = ownGrid % 100;
         at<int>(map, 0x1c) = ownGrid / 100;
         float center[3] = {};
