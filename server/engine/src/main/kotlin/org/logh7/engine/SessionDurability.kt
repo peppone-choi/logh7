@@ -87,4 +87,5 @@ fun WorldCommand.sessionAction(): SessionAction = when (this) {
     is WorldCommand.CloseBattle -> SessionAction.CloseBattle(id)
     is WorldCommand.Territory -> SessionAction.Territory(systems, capturedCapitals)
     WorldCommand.Restart, is WorldCommand.RequestRestart -> SessionAction.Restart
+    is WorldCommand.Navigate -> error("Navigation uses its own forced store on the world actor")
 }

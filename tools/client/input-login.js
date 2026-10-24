@@ -34,6 +34,18 @@ Process.attachModuleObserver({onAdded(module) {
       onLeave(ret){ret.replace(testKey!==0 && this.key===testKey ? ptr(0x8000) : ptr(0));}
     });
   }
+  // The galaxy view detects mouse edges through GetKeyboardState, whereas
+  // the GUI also handles window messages. Supply the same owned virtual keys
+  // to both paths; never read or inject the host desktop's input.
+  Interceptor.attach(module.getExportByName('GetKeyboardState'),{
+    onEnter(args){this.keys=args[0];},
+    onLeave(ret){
+      if(this.keys.isNull())return;
+      this.keys.writeByteArray(new Uint8Array(256));
+      if(testKey!==0)this.keys.add(testKey).writeU8(0x80);
+      ret.replace(1);
+    }
+  });
 }});
 // Observe the actual server-error UI callback; do not create an error dialog ourselves.
 Interceptor.attach(Process.mainModule.base.add(0x11c930),{

@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** evidence:client — initial response readers; empty local catalogues, not original game data. */
+/** evidence:client — initial response readers, with optional external world catalogues. */
 object BootstrapMessages {
     private fun captainCard(character: CharacterMessages.Generate) = if (character.power == 2) 59 else 195
     private fun cards(): ByteArray {
@@ -10,7 +10,8 @@ object BootstrapMessages {
         // constmsg group 3: 0=personal, 59=Empire captain, 195=Alliance captain.
         for ((kind, power) in listOf(0 to 0, 59 to 2, 195 to 3)) {
             out.putShort(kind.toShort()).put(if (kind == 0) 0 else 1).put(power.toByte()).put(power.toByte()).put(0)
-            out.putShort(0).putShort(0).put(0).put(20).put(0).putShort(0).put(0).putShort(0).put(0)
+            out.putShort(0).putShort(0).put(0).put(20).put(0).putShort(0).put(0).putShort(0)
+            out.put(0)
         }
         return out.array().copyOf(out.position())
     }
@@ -18,7 +19,7 @@ object BootstrapMessages {
         ByteBuffer.allocate(4).putInt(character.id.toInt()).array())
 
     /** 00417390: wire fields follow the reader, without its 724-byte object padding. */
-    fun character(character: CharacterMessages.Generate): ByteArray {
+    fun character(character: CharacterMessages.Generate, pcp: Int = 100, mcp: Int = 100): ByteArray {
         val out = ByteBuffer.allocate(1024)
         fun u8(value: Int) { out.put(value.toByte()) }
         fun string(value: String) {
@@ -34,7 +35,7 @@ object BootstrapMessages {
         out.putInt(0).putInt(0).putInt(character.id.toInt()).putInt(unitId(character))
         string(character.shipName)
         repeat(3) { out.putInt(0) } // strategy and coup fields
-        out.putInt(100).putInt(100).putInt(0) // local PCP, MCP, evaluation
+        out.putInt(pcp).putInt(mcp).putInt(0) // local PCP, MCP, evaluation
         out.putShort(0); repeat(6) { u8(0) }; u8(1) // mail, AI switches, online
         out.putInt(0).put(ByteArray(16)); u8(0); u8(1) // money, decorations, arrested, parentage count
         u8(1); string(character.surname); string(character.givenName); string(character.surname)
@@ -52,12 +53,12 @@ object BootstrapMessages {
     private fun unitId(character: CharacterMessages.Generate) = character.id.toInt() + 1_000_000
 
     /** 00419ca0: one local flagship unit; its grid and resource values are provisional. */
-    fun unit(character: CharacterMessages.Generate): ByteArray {
+    fun unit(character: CharacterMessages.Generate, grid: Int = 2550, cruise: Int = 10_000): ByteArray {
         val out = ByteBuffer.allocate(64)
         out.putShort(1).putInt(unitId(character)).putShort(character.shipKind.toShort()).put(0)
-        out.putInt(2550).putInt(0).putInt(0).put(0) // grid, outfit, boarding ship, troop count
+        out.putInt(grid).putInt(0).putInt(0).put(0) // grid, outfit, boarding ship, troop count
         out.putInt(0).put(100).put(0).putShort(0).putShort(0)
-        out.putInt(10_000).putInt(0).putFloat(0f)
+        out.putInt(10_000).putInt(0).putFloat(cruise.toFloat())
         return LoginMessages.sessionMessage(0x0325, out.array().copyOf(out.position()))
     }
     private val emptySizes = mapOf(
@@ -75,10 +76,10 @@ object BootstrapMessages {
         0x0f04 to 1, 0x0f06 to 1, // 00482620 / 00484280: empty mail and messenger lists
     )
 
-    fun response(request: ByteArray, gameSeconds: Long = 0): ByteArray? {
+    fun response(request: ByteArray, gameSeconds: Long = 0, catalogues: Map<Int, ByteArray> = emptyMap()): ByteArray? {
         require(request.size >= 2)
         val opcode = ((request[0].toInt() and 255) shl 8) or (request[1].toInt() and 255)
-        val data = when (opcode) {
+        val data = catalogues[opcode] ?: when (opcode) {
             0x0300 -> { require(gameSeconds in 0..0xffffffffL); ByteBuffer.allocate(4).putInt(gameSeconds.toInt()).array() }
             0x0304 -> cards()
             else -> emptySizes[opcode]?.let { ByteArray(it) } ?: return null

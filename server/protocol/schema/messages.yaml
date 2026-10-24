@@ -66,3 +66,15 @@ messages:
     opcode: 0x0f02
   - name: ResponseGridInitialize
     opcode: 0x0f03
+  - name: CommandMoveGrid
+    opcode: 0x0b01
+  - name: NotifyMovedGrid
+    opcode: 0x0b07
+  - name: ResponseInformationGrid
+    opcode: 0x0317
+  - name: ResponseStaticInformationGridType
+    opcode: 0x0313
+  - name: ResponseStaticInformationGrid
+    opcode: 0x0315
+  - name: ResponseStaticInformationBase
+    opcode: 0x031d
