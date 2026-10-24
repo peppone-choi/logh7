@@ -8,10 +8,14 @@ import java.nio.file.*
 import java.nio.file.StandardOpenOption.*
 
 enum class StorePoint { BEFORE_APPEND, AFTER_APPEND, AFTER_FORCE, CHECKPOINT_FORCED, CHECKPOINT_RENAMED }
+enum class DirectorySync {
+    REQUIRED, FILE_CONTENTS_ONLY
+}
 
 /** Local single-writer journal. A bad/partial tail blocks boot; it is never silently truncated. */
 class FileSessionStore(private val directory: Path, private val rules: SessionRules,
     initialGeneration: Long = 1, private val checkpointEvery: Long = 256,
+    val directorySync: DirectorySync = DirectorySync.REQUIRED,
     private val failPoint: (StorePoint) -> Unit = {}) : SessionDurability {
     private val fingerprint = SessionCodec.fingerprint(rules)
     private val journalPath = directory.resolve("session.journal")
@@ -113,7 +117,9 @@ class FileSessionStore(private val directory: Path, private val rules: SessionRu
         try { journal.close() } finally { try { lock.release() } finally { lockChannel.close() } }
     }
     private fun sameState(a: DurableWorldState, b: DurableWorldState) = SessionCodec.worldBytes(a).contentEquals(SessionCodec.worldBytes(b))
-    private fun forceDirectory(path: Path) { FileChannel.open(path, READ).use { it.force(true) } }
+    private fun forceDirectory(path: Path) {
+        if (directorySync == DirectorySync.REQUIRED) FileChannel.open(path, READ).use { it.force(true) }
+    }
     internal companion object {
         fun frame(payload: ByteArray): ByteArray = ByteArrayOutputStream().also { raw ->
             require(payload.size in 1..SessionCodec.MAX_FRAME)

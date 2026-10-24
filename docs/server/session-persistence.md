@@ -23,7 +23,7 @@ append/force/checkpoint 오류 시 엔진 상태와 성공 ACK, 이벤트를 게
 
 ## 형식과 복원
 
-schema 1, 모든 `SessionRules` 필드의 SHA-256 fingerprint, 길이 제한 8 MiB, frame payload SHA-256을 사용한다. Java 객체 역직렬화는 사용하지 않는다. checkpoint는 genesis, cutSeq와 해당 전체 상태를 담는다. 256개 기록마다 임시 파일을 force하고 atomic rename한 뒤 디렉터리를 force한다. 단일 writer 파일 lock을 유지한다.
+schema 1, 모든 `SessionRules` 필드의 SHA-256 fingerprint, 길이 제한 8 MiB, frame payload SHA-256을 사용한다. Java 객체 역직렬화는 사용하지 않는다. checkpoint는 genesis, cutSeq와 해당 전체 상태를 담는다. 256개 기록마다 임시 파일을 force하고 atomic rename한다. 기본 REQUIRED 모드에서는 디렉터리도 force한다. 단일 writer 파일 lock을 유지한다.
 
 저널은 시작 순번 1부터 엄격하게 읽는다. 인접한 동일 순번·동일 바이트의 중복은 한 번만 적용한다. 다른 중복, 순서 역전, 누락, 부분 tail, checksum/schema/rules 불일치, 재계산한 상태·입장 판정·이벤트 불일치는 부팅을 중단한다. 손상된 tail을 자동으로 자르지 않는다. checksum은 우발적 손상 검사이며 인증 서명이 아니다.
 
@@ -37,4 +37,6 @@ schema 1, 모든 `SessionRules` 필드의 SHA-256 fingerprint, 길이 제한 8 M
 
 별도로 생성한 JVM을 다음 다섯 지점에서 `destroyForcibly`로 종료하고 새로운 JVM을 실행했다: append 전, append 후 force 전, force 후 상태 게시 전, checkpoint force 후 rename 전, checkpoint rename 후. 새 프로세스에서 전체 상태 hash와 접속 정리·재입장·후속 advance 후 전체 상태 hash를 비교했다. append 후 force 전 기록이 살아남은 것은 이번 프로세스 종료 관측이며 전원 장애 내구성 보증으로 확대하지 않는다.
 
-로컬 Linux 파일/디렉터리 force와 atomic move를 사용한다. 해당 기능을 제공하지 않는 파일시스템에서는 오류를 숨기지 않고 시작/쓰기를 중단한다. 2026-10-24 Windows/JDK 25 검사에서는 디렉터리 동기화용 `FileChannel.open(..., READ)`가 `AccessDeniedException`으로 실패함을 확인했다. 파일 저장 모드의 실행·저장·복구 검사는 Linux 파일시스템에서 수행한다. 다른 파일시스템 실행, 실제 전원 장애, 외부 백업·PostgreSQL/WAL/PITR, RPO ≤300초와 RTO, 이벤트 구독자의 부작용/outbox 복구는 미검증 또는 미구현이다. LOGH-43 전체 완료로 처리하지 않는다.
+기본 `DirectorySync.REQUIRED`는 파일·디렉터리 force와 atomic move를 사용하고 지원하지 않는 파일시스템의 오류를 숨기지 않는다. Windows NIO는 디렉터리 `FileChannel.open(..., READ)`를 지원하지 않아 기본 모드의 시작이 실패한다. 로컬 Windows 연습에는 `LOGH7_SESSION_DIRECTORY_SYNC=files-only`를 **명시**해 `FILE_CONTENTS_ONLY`를 선택할 수 있다. 이때 파일 내용의 force·원자적 교체·체크섬·단일 writer·저장 후 ACK는 유지하지만 디렉터리 엔트리의 전원 장애 내구성은 OS/파일시스템에 맡긴다. 시작 로그에도 이 제한을 표시한다. 기본값이 자동으로 약해지거나 Linux 오류를 삼키는 방식은 아니다.
+
+2026-10-25 Windows에서는 이 명시적 모드로 전체 저장소 검사와 다섯 지점의 자식 JVM 강제 종료·새 JVM 복원 검사를 통과했다. Windows 기본 모드가 계속 거부되는 검사도 있다. 프로세스 종료 관측을 전원 장애 보증으로 해석하지 않는다. 실제 전원 장애, 외부 백업·PostgreSQL/WAL/PITR, RPO ≤300초와 RTO, 이벤트 구독자의 부작용/outbox 복구는 미검증 또는 미구현이다. LOGH-43 전체 완료로 처리하지 않는다.

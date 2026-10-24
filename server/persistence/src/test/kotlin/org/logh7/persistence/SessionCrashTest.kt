@@ -19,7 +19,7 @@ class SessionCrashTest {
     @Test fun killAfterCheckpointForceBeforeRenameReplaysOldCut() = crash(StorePoint.CHECKPOINT_FORCED)
     @Test fun killAfterCheckpointRenameRestartsFromNewCut() = crash(StorePoint.CHECKPOINT_RENAMED)
     private fun crash(point: StorePoint) {
-        val before = FileSessionStore(directory, rules, 7).use { store ->
+        val before = localSessionStore(directory, rules, 7).use { store ->
             listOf(SessionAction.Join("original", Power.EMPIRE, true, "dead-connection", 7),
                 SessionAction.Join("excluded", Power.ALLIANCE, false, "dead-2", 7),
                 SessionAction.Exclude("excluded"), SessionAction.Advance(101), SessionAction.OpenBattle("z"),
@@ -67,7 +67,7 @@ object SessionCrashProcess {
         val directory = Path.of(args[0]); val rules = SessionRules.load()
         if (args[1] == "write") {
             val point = StorePoint.valueOf(args[2]); var armed = false
-            FileSessionStore(directory, rules, failPoint = {
+            localSessionStore(directory, rules, failPoint = {
                 if (armed && it == point) {
                     println("READY:${point.name}"); System.out.flush()
                     check(System.`in`.read() == -1) { "Unexpected fixture input" }
@@ -82,17 +82,17 @@ object SessionCrashProcess {
             }
         } else {
             check(args[1] == "recover")
-            val raw = FileSessionStore(directory, rules).use { it.load() }
+            val raw = localSessionStore(directory, rules).use { it.load() }
             check(hash(raw) == args[2]) { "Full state differs after child process kill" }
             runBlocking {
-                val engine = WorldEngine(this, rules, ticking = false, durability = FileSessionStore(directory, rules))
+                val engine = WorldEngine(this, rules, ticking = false, durability = localSessionStore(directory, rules))
                 check(engine.snapshot().session!!.online == 0)
                 val result = CompletableDeferred<Admission>()
                 engine.submit(WorldCommand.Join("original", Power.EMPIRE, true, result, "new-connection", 7))
                 check(result.await() == Admission.ACCEPTED)
                 engine.submit(WorldCommand.AdvanceTo(1002)); engine.drainAndClose()
             }
-            val next = FileSessionStore(directory, rules).use { it.load() }
+            val next = localSessionStore(directory, rules).use { it.load() }
             check(hash(next) == args[3]) { "Full subsequent state differs after restart" }
             println("RECOVERED:${hash(raw)}:NEXT:${hash(next)}")
         }

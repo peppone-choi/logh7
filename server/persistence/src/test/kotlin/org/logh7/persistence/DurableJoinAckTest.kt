@@ -22,7 +22,7 @@ class DurableJoinAckTest {
     private fun exchange(fail: Boolean) = runBlocking {
         val appended = CountDownLatch(1); val release = CountDownLatch(1); val forced = AtomicBoolean()
         val rules = SessionRules.load()
-        val store = FileSessionStore(directory, rules, failPoint = {
+        val store = localSessionStore(directory, rules, failPoint = {
             if (it == StorePoint.AFTER_APPEND) {
                 appended.countDown(); check(release.await(10, TimeUnit.SECONDS))
                 if (fail) throw IOException("Injected force failure")
