@@ -5,6 +5,27 @@ import kotlin.test.*
 import org.junit.jupiter.api.Test
 
 class WorldMessagesTest {
+    @Test fun shipCatalogueSeparatesClassFromModelAndWritesNativeFloats() {
+        val ship = WorldMessages.Ship(93, 3, 1014, "Ship", 220, 3200f, 30000f,
+            10, 6, 4, 40, 19, 24, 0, 50, 50, 40)
+        val input = ByteBuffer.wrap(WorldMessages.ships(listOf(ship)))
+        assertEquals(117, input.limit())
+        assertEquals(1, input.get().toInt()); assertEquals(93, input.short.toInt())
+        assertEquals(3, input.get().toInt()); assertEquals(0, input.get().toInt())
+        assertEquals(0, input.short.toInt()); assertEquals(1014, input.short.toInt())
+        assertEquals(5, input.get().toInt()); repeat(5) { input.char }
+        assertEquals(1, input.short.toInt()); assertEquals(0, input.int)
+        repeat(5) { assertEquals(0, input.short.toInt()) }
+        assertEquals(220, input.short.toInt())
+        assertEquals(0f, input.float); assertEquals(3200f, input.float)
+        repeat(13) { input.short }
+        assertEquals(30000f, input.float); assertEquals(1f, input.float)
+        assertEquals(listOf(10, 4, 6, 40, 19), List(5) { input.short.toInt() })
+        assertEquals(24, input.getShort(91).toInt()); assertEquals(40, input.getShort(113).toInt())
+        assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship, ship)) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(model = 120))) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(model = 51))) }
+    }
     @Test fun baseStatePreservesSeparateFactionFieldsAndEnvironmentAtNativeWireOffsets() {
         val state = WorldMessages.Condition(1049, 2487, 2, 0, 100_000_000, 60_000_000, 20,
             70, 80, 1, 1, 100_000, 1_000_000, 1_000_000)

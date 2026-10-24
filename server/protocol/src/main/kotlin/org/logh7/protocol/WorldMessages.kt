@@ -160,19 +160,38 @@ object WorldMessages {
         out.put(3).put(3) // Strategy warp radii; local navigation policy.
         repeat(4) { out.putFloat(3f) }
     }
-    /** 004109a0. Local ship-kind 0 profile; original ship statistics remain unverified. */
-    fun ships() = body {
-        writeByte(1)
-        writeShort(0); writeByte(0); writeByte(0); writeShort(0); writeShort(0)
-        string("Local ship")
-        writeShort(0); writeFloat(10f)
-        repeat(6) { writeShort(100) }
-        writeInt(1000); writeInt(1000)
-        repeat(13) { writeShort(100) }
-        writeInt(1000); writeInt(1000)
-        repeat(5) { writeShort(100) }
-        writeByte(0); writeShort(0); writeByte(0); writeByte(0); writeShort(0)
-        writeByte(0); writeByte(0); writeShort(0); writeByte(0); writeShort(0); writeByte(0)
-        repeat(6) { writeShort(0) }
+    data class Ship(val kind: Int, val type: Int, val model: Int, val name: String,
+        val outputPower: Int, val searchRange: Float, val speed: Float,
+        val armorFront: Int, val armorSide: Int, val armorBack: Int, val shield: Int, val shieldCapacity: Int,
+        val beam: Int, val gun: Int, val missile: Int, val antiaircraft: Int, val repair: Int)
+    /** 004109a0/00411a60: kind, class and model_file are distinct fields. */
+    fun ships(ships: List<Ship>) = body {
+        require(ships.size <= 200 && ships.map { it.kind }.distinct().size == ships.size)
+        writeByte(ships.size)
+        ships.forEach { ship ->
+            require(ship.kind in 0..199 && ship.type in 0..255)
+            // Native 004f3e30: faction prefix * 1000 + model within faction,
+            // not the index into the combined 120-entry file table.
+            require(ship.model in 0..49 || ship.model in 1000..1049 ||
+                ship.model in 2000..2009 || ship.model in 3000..3009)
+            require(ship.searchRange.isFinite() && ship.searchRange >= 0 && ship.speed.isFinite() && ship.speed > 0)
+            require(listOf(ship.outputPower, ship.armorFront, ship.armorSide, ship.armorBack, ship.shield,
+                ship.shieldCapacity, ship.beam, ship.gun, ship.missile, ship.antiaircraft, ship.repair).all { it in 0..65535 })
+            writeShort(ship.kind); writeByte(ship.type); writeByte(0); writeShort(0); writeShort(ship.model)
+            string(ship.name)
+            writeShort(1); writeInt(0) // number, price; no purchase price recovered
+            repeat(5) { writeShort(0) } // resources, cost, term, existence, crew
+            writeShort(ship.outputPower)
+            writeFloat(0f); writeFloat(ship.searchRange)
+            repeat(13) { writeShort(0) } // sensor profile, evasion, navigation
+            writeFloat(ship.speed); writeFloat(1f) // turning rate is provisional
+            listOf(ship.armorFront, ship.armorBack, ship.armorSide, ship.shield, ship.shieldCapacity).forEach(::writeShort)
+            // Weapon counts and arcs remain unresolved; do not invent a combat fit.
+            writeByte(0); writeShort(ship.beam); writeByte(0)
+            writeByte(0); writeShort(ship.gun); writeByte(0)
+            writeByte(0); writeShort(ship.missile); writeByte(0); writeShort(0)
+            writeByte(0); writeShort(ship.antiaircraft)
+            writeShort(0); writeShort(0); writeShort(0); writeShort(ship.repair); writeShort(0)
+        }
     }
 }
