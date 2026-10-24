@@ -6,10 +6,35 @@ No input is modified. Generated original names belong in work/, never in Git.
 """
 import argparse
 import json
+import math
 from pathlib import Path
 
 
-def prepare(manual):
+PLANET_MODELS = {row * 10 + variant for row in range(11)
+                 for variant in range(3 if row == 10 else 2)}
+
+
+def appearance_overrides(document):
+    """Visual families follow the CD pNNN model/atlas numbering, not combat class."""
+    if document is None:
+        return {}, 'unknown-model-default'
+    if document.get('schema') != 1 or not isinstance(document.get('source'), str) or not document['source'].strip():
+        raise ValueError('Appearance map needs schema=1 and an explicit source')
+    result = {}
+    for row in document['bases']:
+        key = row['grid'], row['name']
+        family, variant = row['planet_type'], row.get('variant', 0)
+        if (type(key[0]) is not int or not 0 <= key[0] < 5000 or not isinstance(key[1], str)
+                or type(family) is not int or type(variant) is not int
+                or not 0 <= family <= 10 or not 0 <= variant <= (2 if family == 10 else 1)):
+            raise ValueError('Invalid planet type, variant or target')
+        if key in result:
+            raise ValueError('Duplicate appearance target')
+        result[key] = family * 10 + variant
+    return result, document['source']
+
+
+def prepare(manual, appearances=None):
     if (manual['width'], manual['height']) != (100, 50):
         raise ValueError('Expected 100 x 50 map')
     systems = manual['systems']
@@ -22,27 +47,57 @@ def prepare(manual):
     # Six fortress model names were independently confirmed by the user.
     fortress_models = {'イゼルローン': 110, 'ガイエスブルク': 112, 'ガルミッシュ': 113,
                        'レンテンベルグ': 114, 'ダヤン・ハーン': 115, 'ルドミラ': 119}
+    overrides, appearance_source = appearance_overrides(appearances)
+    used = set()
     base_index = 0
     for i, system in enumerate(sorted(systems, key=lambda s: s['kind'])):
         for key, value in dict(kind=system['kind'], grid=system['grid']['index'],
                                star='OBAFGKM'.index(system.get('stellar_class') or 'G'), name=system['name']).items():
             result[f'system.{i}.{key}'] = value
         for ordinal, base in enumerate(system['bases']):
+            target = system['grid']['index'], base['name']
+            model = base.get('model_file')
+            source = 'manual-extraction' if model is not None else 'unknown-model-default'
+            if target in overrides:
+                if base['kind_code'] != 0:
+                    raise ValueError('Planet appearance cannot target a fortress')
+                if model is not None and model != overrides[target]:
+                    raise ValueError('Appearance contradicts an existing model assignment')
+                model, source = overrides[target], appearance_source
+                used.add(target)
+            if model is None:
+                model = fortress_models.get(base['name'], 0)
+                if base['name'] in fortress_models:
+                    source = 'confirmed-fortress-model'
+            if type(model) is not int or model not in (PLANET_MODELS if base['kind_code'] == 0 else set(range(110, 120))):
+                raise ValueError('Unsupported model for base kind')
             display_name = base['name']
             if len(display_name) > 12:
                 display_name = display_name.replace('・', '')
                 if len(display_name) > 12:
                     raise ValueError('Base name needs an explicit display alias')
                 result[f'base.{base_index}.source-name'] = base['name']
-            # Stable local object IDs, evenly spaced local orbits, pending original server values.
+            # Preserve supplied orbital data. Defaults remain explicit local placeholders.
+            orbit = base.get('orbit') or {}
             fields = dict(id=1000 + base_index, grid=system['grid']['index'],
-                          model=fortress_models.get(base['name'], 0), kind=base['kind_code'],
-                          name=display_name, radius=12.0 + 8 * ordinal, cycle=86400 * (ordinal + 1),
-                          direction=0, angle=ordinal * 47 % 360, diameter=2.0)
-            fields['class'] = 0
+                          model=model, kind=base['kind_code'], name=display_name,
+                          radius=orbit.get('radius', 12.0 + 8 * ordinal),
+                          cycle=orbit.get('cycle', 86400 * (ordinal + 1)), direction=orbit.get('direction', 0),
+                          angle=orbit.get('angle', ordinal * 47 % 360), diameter=orbit.get('diameter', 2.0),
+                          **{'appearance-source': source})
+            fields['class'] = base['physical_class'] if base.get('physical_class') is not None else 0
+            if (not all(type(fields[key]) in (int, float) and math.isfinite(fields[key])
+                        for key in ('radius', 'angle', 'diameter'))
+                    or fields['radius'] < 0 or fields['diameter'] <= 0
+                    or type(fields['cycle']) is not int or fields['cycle'] <= 0
+                    or type(fields['direction']) is not int or fields['direction'] not in (0, 1)
+                    or type(fields['class']) is not int or not 0 <= fields['class'] <= 255):
+                raise ValueError('Invalid supplied physical fields')
             for key, value in fields.items():
                 result[f'base.{base_index}.{key}'] = value
             base_index += 1
+    if used != set(overrides):
+        raise ValueError('Appearance map targets a base absent from the world')
     for value in result.values():
         if any(c in str(value) for c in '\n\r\t\\'):
             raise ValueError('Unsupported properties value')
@@ -53,11 +108,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manual_world', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--appearance-map', type=Path,
+                        help='External schema-1 type/variant assignments with explicit provenance')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2] / 'work'
     if not args.output.resolve().is_relative_to(root.resolve()) or args.output.exists():
         parser.error('Choose a new output file under repository work/')
-    data = prepare(json.loads(args.manual_world.read_text(encoding='utf-8')))
+    appearances = json.loads(args.appearance_map.read_text(encoding='utf-8')) if args.appearance_map else None
+    data = prepare(json.loads(args.manual_world.read_text(encoding='utf-8')), appearances)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(data, encoding='utf-8')
     print('Prepared 80 systems and 287 bases with explicit local defaults')

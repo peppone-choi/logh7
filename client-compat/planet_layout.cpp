@@ -6,6 +6,7 @@
 #include <math.h>
 #include <float.h>
 #include <string.h>
+#include "hud_atlas.h"
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(linker, "/EXPORT:DirectInput8Create=_ForwardDirectInput8Create@20")
@@ -14,7 +15,6 @@
 static volatile LONG status = 0;
 static int lastGrid = -1;
 static ULONGLONG autoViewAt = 0;
-static void* preparedResources[8] = {};
 static bool patchBytes(void* target, const void* expected, const void* replacement, SIZE_T size) {
     if (memcmp(target, expected, size)) return false;
     DWORD previous = 0;
@@ -54,9 +54,123 @@ static bool verifiedClient() {
 template<class T> static T& at(void* base, unsigned offset) {
     return *reinterpret_cast<T*>(static_cast<BYTE*>(base) + offset);
 }
+
+// Native 004d21c0 sprite layout. Borrow the existing atlas resource each frame;
+// the queue stores these descriptors by pointer until the frame is rendered.
+struct HudSprite {
+    void* texture;
+    int textureWidth, textureHeight, x, y, width, height;
+    float u0, v0, u1, v1;
+};
+static_assert(sizeof(HudSprite) == 44, "CD sprite ABI");
+static HudSprite hudSprites[5] = {};
+
+static void drawHudIcon(int slot, int atlasX, int atlasY, float x, float y, unsigned color) {
+    auto panel = *reinterpret_cast<HudSprite**>(0x9d2ed0);
+    if (!panel || !panel->texture || panel->textureWidth != 1024 || panel->textureHeight != 1024) return;
+    auto& sprite = hudSprites[slot];
+    sprite = *panel;
+    sprite.x = atlasX; sprite.y = atlasY; sprite.width = sprite.height = 33;
+    reinterpret_cast<void(__thiscall*)(void*)>(0x4d2030)(&sprite);
+    float scale[] = {1, 1, 1};
+    reinterpret_cast<int(__thiscall*)(void*, const float*, float, float, float, float, void*, int, unsigned, int, int)>(0x4cb2b0)
+        (reinterpret_cast<void*>(0x9d29a0), scale, x, y, 33, 33, &sprite, 0, color, 0, 0);
+}
+
+static void __fastcall drawHud(void* map, void*) {
+    reinterpret_cast<void(__thiscall*)(void*)>(0x4d5610)(map);
+    void* world = *reinterpret_cast<void**>(0x7ccffc);
+    if (!world || !at<BYTE>(world, 0x2b6a6c)) return;
+    int grid = at<int>(world, 0x2b6a70);
+    if (grid < 0 || grid >= 5000) return;
+    auto type = reinterpret_cast<BYTE*(__stdcall*)(int, int)>(0x4c8b70)(grid % 100, grid / 100);
+    if (!type || type[1] != 3 || type[2] > 6) return;
+    BYTE* bases[4]; int count = 0;
+    for (int i = 0; i < 350; ++i) {
+        BYTE* base = static_cast<BYTE*>(world) + 0x2eb800 + i * 0x250;
+        if (!at<BYTE>(base, 0) || at<int>(base, 8) != 2 || at<unsigned short>(base, 0x10) != grid) continue;
+        if (count == 4) return; // The original HUD has four orbit slots.
+        bases[count++] = base;
+    }
+    // Order by the actual received orbit radius, independent of catalogue order.
+    for (int i = 1; i < count; ++i) {
+        BYTE* base = bases[i]; int j = i;
+        while (j && at<float>(bases[j - 1], 0x34) > at<float>(base, 0x34)) {
+            bases[j] = bases[j - 1]; --j;
+        }
+        bases[j] = base;
+    }
+    void* display = *reinterpret_cast<void**>(0x7c1b4c);
+    if (!display) return;
+    int width = at<int>(display, 0x2a604), height = at<int>(display, 0x2a608);
+    if (width < 743 || width > 4096 || height < 600 || height > 4096) return;
+    float left = static_cast<float>(width - 743), top = static_cast<float>(height - 201);
+    const unsigned stars[] = {0xff809fff,0xffb0c8ff,0xffeeeeff,0xfffff4d0,0xffffdf70,0xffffa050,0xffff6060};
+    drawHudIcon(0, 758, 99, left + 381, top + 47, stars[type[2]]);
+    // Measured at atlas y=263: place the body's centre on each orbit stroke,
+    // rather than in the gaps. The 33-pixel icon cells have centre (16,16).
+    for (int i = 0; i < count; ++i) {
+        int x = 758, y = 0; // Neutral silhouette for an unmapped model, never another body's image.
+        unsigned color = 0xff909090;
+        if (logh::hudIconRect(at<unsigned short>(bases[i], 0x12), x, y)) color = 0xffffffff;
+        drawHudIcon(i + 1, x, y, left + logh::orbitStrokeX[i] - 16, top + 47, color);
+    }
+}
+
 static void hideModels() {
     auto models = reinterpret_cast<void**>(0x9d2f74);
     for (int i = 0; i < 8; ++i) if (models[i]) at<int>(models[i], 0xb0) = 1;
+}
+
+// The original manager owns both resources and instance wrappers. Rebind its
+// existing eight slots instead of accumulating an instance on every warp.
+static void** managedPair(unsigned listOffset, void* value) {
+    void* manager = reinterpret_cast<void*>(0x982fb0);
+    auto head = at<void**>(manager, listOffset);
+    if (!head) return nullptr;
+    auto node = static_cast<void**>(head[0]);
+    for (int i = 0; node && node != head && i < 4096; ++i) {
+        auto pair = static_cast<void**>(node[2]);
+        if (pair && pair[0] == value) return pair;
+        node = static_cast<void**>(node[0]);
+    }
+    return nullptr;
+}
+
+static void* typedModel(int slot, unsigned model) {
+    struct Resource { void* value; void** owner; void* file; };
+    static Resource resources[130] = {};
+    if (model >= 130) return nullptr;
+    const char* path = reinterpret_cast<const char**>(0x775310)[model];
+    if (!path) return nullptr; // No unrelated model fallback for unsupported IDs.
+    // These table entries carry a virtual-root slash. The strategy resource
+    // loader accepts paths relative to exe/, as its own pNNN_low calls do.
+    if (strncmp(path, "/../data/model/Planets/", 23)) return nullptr;
+    ++path;
+    auto models = reinterpret_cast<void**>(0x9d2f74);
+    auto pair = managedPair(0x20, models[slot]);
+    if (!models[slot] || !pair) return nullptr;
+    auto& resource = resources[model];
+    // Never dereference cached scene objects after the native manager unloads them.
+    auto owner = resource.value ? managedPair(0x0c, resource.value) : nullptr;
+    if (!owner || owner != resource.owner || owner[1] != resource.file) {
+        resource = {};
+        resource.value = reinterpret_cast<void*(__thiscall*)(void*, const char*)>(0x4d1db0)
+            (reinterpret_cast<void*>(0x982fb0), path);
+        if (!resource.value) return nullptr;
+        resource.owner = managedPair(0x0c, resource.value);
+        if (!resource.owner) return nullptr;
+        resource.file = resource.owner[1];
+    }
+    if (at<int>(resource.value, 0x2c) != 0)
+        reinterpret_cast<void(__cdecl*)(void*, int)>(0x5e56c0)(resource.value, 0);
+    if (at<void*>(models[slot], 8) != resource.value) {
+        bool ok = reinterpret_cast<bool(__thiscall*)(void*, void*, int)>(0x4d1710)(pair, resource.value, 10);
+        // This routine releases the previous instance, including on failure.
+        models[slot] = pair[0];
+        if (!ok) return nullptr;
+    }
+    return models[slot];
 }
 
 // Replacement for 004d68d0: the CD function always draws four dummy planets.
@@ -116,13 +230,7 @@ static void __fastcall drawLayout(void* map, void*, char) {
         float size[3] = {radius, 0, radius};
         reinterpret_cast<void(__thiscall*)(void*, const float*, const float*, int, int, unsigned, int, int)>(0x4cdf10)
             (reinterpret_cast<void*>(0x9d1320), center, size, 48, 1, 0xff8090a0, 0, 0);
-        if (!models[i]) continue;
-        void* resource = reinterpret_cast<void**>(0x9d14f0)[i];
-        if (resource && (resource != preparedResources[i] || at<int>(resource, 0x2c) != 0)) {
-            // Use the same material flag as the strategy star models (004d47a9).
-            reinterpret_cast<void(__cdecl*)(void*, int)>(0x5e56c0)(resource, 0);
-            preparedResources[i] = resource;
-        }
+        if (!typedModel(i, at<unsigned short>(bases[i], 0x12))) continue;
         float matrix[16] = {};
         float diameter = at<float>(bases[i], 0x44);
         if (!_finite(diameter) || diameter <= 0) continue;
@@ -147,12 +255,17 @@ static void install() {
     BYTE* target = reinterpret_cast<BYTE*>(0x4d68d0);
     const BYTE expected[] = {0x83,0xec,0x58,0x53,0x56};
     if (memcmp(target, expected, sizeof(expected))) { status = -2; return; }
+    BYTE* hudCall = reinterpret_cast<BYTE*>(0x4d7e5f);
+    const BYTE expectedHudCall[] = {0xe8,0xac,0xd7,0xff,0xff};
+    if (memcmp(hudCall, expectedHudCall, sizeof(expectedHudCall))) { status = -2; return; }
+    SIZE_T region = hudCall + 5 - target;
     DWORD previous = 0;
-    if (!VirtualProtect(target, 5, PAGE_EXECUTE_READWRITE, &previous)) { status = -3; return; }
+    if (!VirtualProtect(target, region, PAGE_EXECUTE_READWRITE, &previous)) { status = -3; return; }
     target[0] = 0xe9;
     *reinterpret_cast<LONG*>(target + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&drawLayout) - target - 5);
-    FlushInstructionCache(GetCurrentProcess(), target, 5);
-    DWORD ignored = 0; VirtualProtect(target, 5, previous, &ignored);
+    *reinterpret_cast<LONG*>(hudCall + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&drawHud) - hudCall - 5);
+    FlushInstructionCache(GetCurrentProcess(), target, region);
+    DWORD ignored = 0; VirtualProtect(target, region, previous, &ignored);
     // Only the strategy HUD call sites use the wrong group. Tactical group 104 remains intact.
     const unsigned hudGroups[] = {0x58d561,0x58d570,0x58d57f,0x58d58e,0x58d59d,0x58d5ac,0x58d5bb,
         0x58d5ca,0x58d5d9,0x58d5e8,0x58d6d3,0x58effb,0x58f01e,0x58f038,0x58f053,0x58f070,
