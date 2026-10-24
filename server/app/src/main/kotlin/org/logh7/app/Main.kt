@@ -55,9 +55,19 @@ fun main() {
             try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             throw failure
         }
-        val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store,
-            galaxy = world?.galaxy, navigationStore = navigationStore) }
+        val stockStore = try { if (world == null) null else org.logh7.persistence.FilePlanetStockStore(
+            System.getenv("LOGH7_PLANET_STOCK_FILE")?.let { Path.of(it) }
+                ?: requireNotNull(characterFile) { "World production requires LOGH7_CHARACTERS_FILE or LOGH7_PLANET_STOCK_FILE" }
+                    .resolveSibling("${characterFile.fileName}.planet-stocks")) }
         catch (failure: Throwable) {
+            try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
+            try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
+            throw failure
+        }
+        val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store,
+            galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore) }
+        catch (failure: Throwable) {
+            try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             throw failure
@@ -67,7 +77,9 @@ fun main() {
         val gateway = Gateway(captureDirectory,
             loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
             characterFile,
-            gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope), world = world, navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope))
+            gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope), world = world,
+            navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
+            stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope))
         resources.addFirst(gateway)
         val audit = System.getenv("LOGH7_OPS_AUDIT_FILE")?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)

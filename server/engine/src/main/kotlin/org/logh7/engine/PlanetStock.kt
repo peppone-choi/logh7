@@ -1,0 +1,51 @@
+package org.logh7.engine
+
+import java.util.Collections
+
+data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
+    val supplies: Int, val food: Int, val mineral: Int) {
+    init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0) }
+}
+data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>) {
+    init { require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId }) }
+}
+interface PlanetStockStore : AutoCloseable {
+    fun load(): PlanetStocks?
+    fun save(stocks: PlanetStocks)
+    override fun close() {}
+}
+/** Only the one-game-day supply interval is recovered; quantities and storage cap are local policy. */
+data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumStock: Int = Int.MAX_VALUE) {
+    init { require(suppliesPerDay >= 0 && maximumStock > 0) }
+}
+
+/** World-actor-owned. Lazy settlement gives the same result regardless of query frequency or logins. */
+internal class PlanetProduction(private val galaxy: Galaxy, private val store: PlanetStockStore?,
+    private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1) {
+    private var current = store?.load()?.also { restored ->
+        require(restored.bases.keys == galaxy.bases.map { it.id }.toSet()) { "Inventory bases differ from the world seed" }
+        require(restored.generation <= generation) { "Inventory belongs to a newer session" }
+    }?.let(::detached)
+    private fun detached(stocks: PlanetStocks) = stocks.copy(bases = Collections.unmodifiableMap(LinkedHashMap(stocks.bases)))
+    fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
+    fun settle(generation: Long, seconds: Long): PlanetStocks {
+        require(generation > 0 && seconds in startSeconds..0xffffffffL)
+        val previous = current
+        require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
+        val days = (seconds - startSeconds) / 86400
+        val initial = previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
+            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) })
+        // A non-durable test clock may rewind. Keep stock and the watermark; never produce a day twice.
+        val result = if (days <= initial.producedDays) initial else initial.copy(producedDays = days,
+            bases = initial.bases.mapValues { (_, stock) ->
+                val delta = if (stock.power in 2..3) (days - initial.producedDays) * policy.suppliesPerDay.toLong() else 0
+                stock.copy(supplies = if (stock.supplies >= policy.maximumStock) stock.supplies else
+                    minOf(policy.maximumStock.toLong(), stock.supplies.toLong() + delta).toInt())
+            })
+        if (result == previous) return checkNotNull(previous)
+        val next = detached(result)
+        store?.save(next) // Publish only after durable replacement.
+        current = next
+        return next
+    }
+}

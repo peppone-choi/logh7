@@ -5,7 +5,7 @@ import kotlinx.coroutines.channels.Channel
 import java.util.concurrent.atomic.AtomicReference
 
 data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val session: SessionSnapshot? = null, val rejectedCommands: Long = 0,
-    val navigators: Map<String, Navigator> = emptyMap())
+    val navigators: Map<String, Navigator> = emptyMap(), val planetStocks: PlanetStocks? = null)
 sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
@@ -18,6 +18,7 @@ sealed interface WorldCommand {
     data object Restart : WorldCommand
     data class RequestRestart(val result: CompletableDeferred<Boolean>) : WorldCommand
     data class Navigate(val request: NavigationRequest, val result: CompletableDeferred<NavigationResult>) : WorldCommand
+    data class Stock(val generation: Long, val result: CompletableDeferred<PlanetStocks>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -34,7 +35,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     private val timings: ActorTimings? = null,
     private val metricNanos: () -> Long = System::nanoTime,
     galaxy: Galaxy? = null, private val navigationStore: NavigationStore? = null,
-    navigationPolicy: NavigationPolicy = NavigationPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
+    navigationPolicy: NavigationPolicy = NavigationPolicy(), private val stockStore: PlanetStockStore? = null,
+    productionPolicy: PlanetProductionPolicy = PlanetProductionPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
     private val queue = Channel<Queued>(1024)
@@ -51,6 +53,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         } catch (failure: Exception) { store.close(); throw failure }
     }
     private val initialElapsed = durableState?.elapsed ?: 0L
+    private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
+        durableState?.session?.generation ?: simulation.snapshot().generation) }
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
     /** A commit or post-commit processing failure has blocked further durable mutations. */
@@ -69,6 +73,21 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         var storageFailure: Exception? = null
         try { for (queued in queue) {
             val command = queued.command
+            if (command is WorldCommand.Stock) {
+                try {
+                    check(!storageFailed) { "World storage is unavailable" }
+                    val session = durableState?.session ?: simulation.exportState()
+                    require(session.generation == command.generation) { "Inventory query belongs to a stale session" }
+                    val result = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
+                    state = published.get().copy(planetStocks = result)
+                    published.set(state)
+                    command.result.complete(result)
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if (command is WorldCommand.Navigate) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
@@ -96,7 +115,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     val next = transitionSession(rules, checkNotNull(durableState), command.sessionAction())
                     durability.commit(command.sessionAction(), next)
                     durableState = next.state
-                    published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty()))
+                    published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
+                        planetStocks = production?.snapshot(next.state.session.generation)))
                     if (command is WorldCommand.Join) {
                         if (next.rejected) command.result.completeExceptionally(IllegalArgumentException("Invalid join"))
                         else command.result.complete(checkNotNull(next.admission))
@@ -134,6 +154,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 WorldCommand.Restart -> restart()
                 is WorldCommand.RequestRestart -> restart().also { restartResult = true }
                 is WorldCommand.Navigate -> error("Navigation is handled before session commands")
+                is WorldCommand.Stock -> error("Production is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (command is WorldCommand.Join) command.result.completeExceptionally(failure)
@@ -142,12 +163,13 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 emptyList()
             }
             state = state.copy(revision = state.revision + 1,
-                acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot(), navigators = navigation?.snapshot(simulation.snapshot().generation).orEmpty())
+                acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot(), navigators = navigation?.snapshot(simulation.snapshot().generation).orEmpty(),
+                planetStocks = production?.snapshot(simulation.snapshot().generation))
             published.set(state)
             if (command is WorldCommand.Join && admission != null) command.result.complete(admission)
             if (command is WorldCommand.RequestRestart) command.result.complete(restartResult == true)
             events.forEach(onEvent)
-        } } finally { try { durability?.close() } finally { navigationStore?.close() } }
+        } } finally { try { durability?.close() } finally { try { navigationStore?.close() } finally { stockStore?.close() } } }
     }
     private val ticker = if (ticking) scope.launch {
         val interval = minOf(rules.strategyTickRealMillis, rules.tacticsTickRealMillis)
