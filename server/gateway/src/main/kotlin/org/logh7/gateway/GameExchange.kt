@@ -48,6 +48,7 @@ class GameExchange(
     private val navigation: GameNavigation? = null,
     internal val presence: GamePresence? = null,
     private val onPresence: (List<ByteArray>) -> Unit = {},
+    private val stock: GameStock? = null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -67,6 +68,8 @@ class GameExchange(
     private var publication: Publication? = null
     private var worldInitialized = false
     private var recoveryCheckedAt: Long? = null
+    private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
+        stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || navigation == null) return null
         val now = gameSeconds()
@@ -183,11 +186,18 @@ class GameExchange(
                         check(gameStarted && world != null)
                         val (base, outfit) = org.logh7.protocol.WorldMessages.warehouseQuery(body)
                         require(outfit == 0) { "Outfit warehouses require an owned outfit" }
-                        world.warehouse(base)
+                        if (stock == null) world.warehouse(base) else {
+                            pendingWorld = stocks().thenApply { listOf(world.warehouse(base, it)) }
+                            return null
+                        }
                     }
                     0x031e, 0x0320 -> {
                         check(gameStarted && world != null)
                         val ids = org.logh7.protocol.WorldMessages.baseQuery(body, opcode)
+                        if (opcode == 0x031e && stock != null) {
+                            pendingWorld = stocks().thenApply { listOf(world.conditions(ids, it)) }
+                            return null
+                        }
                         if (opcode == 0x031e) world.conditions(ids) else world.places(ids)
                     }
                     0x0b01 -> {
@@ -255,16 +265,16 @@ class GameExchange(
                             val request = org.logh7.engine.NavigationRequest(identity.account, character.id.toInt(),
                                 if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                 connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2])
-                            pendingWorld = navigation.apply(request).thenApply { result ->
+                            pendingWorld = stocks().thenCompose { stored -> navigation.apply(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 publication = Publication(character, player, true)
                                 listOf(BootstrapMessages.characterId(character),
                                     BootstrapMessages.character(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
                                     BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid)) +
-                                    world?.initialize(player.grid, directory = opcode == 0x0f00).orEmpty() +
+                                    world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body)))
-                            }
+                            } }
                             return null
                         }
                         val messages = listOf(BootstrapMessages.characterId(character),

@@ -53,7 +53,8 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
             } finally { reservations.forEach { it.close() } }
             val candidate = Gateway(directory.resolve("captures"), accounts, directory.resolve("characters.properties"),
                 gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission,
-                world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { EngineGameNavigation(engine, scope) })
+                world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { EngineGameNavigation(engine, scope) },
+                stock = galaxy?.let { EngineGameStock(engine, scope) })
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 metrics.observe("bindRetries", attempt.toLong()); return candidate to ports

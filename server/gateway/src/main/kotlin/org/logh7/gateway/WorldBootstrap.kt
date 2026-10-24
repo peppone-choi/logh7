@@ -6,22 +6,25 @@ import org.logh7.protocol.LoginMessages
 import org.logh7.engine.Flagships
 
 class WorldBootstrap(val galaxy: Galaxy) {
-    fun warehouse(base: Int): ByteArray {
+    fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
         val state = requireNotNull(galaxy.conditions[base]) { "Unknown warehouse base" }
-        return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base, state.supplies, state.food, 100_000))
+        val stored = stocks?.let { checkNotNull(it.bases[base]) }
+        return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base, stored?.supplies ?: state.supplies,
+            stored?.food ?: state.food, stored?.mineral ?: 100_000))
     }
     private fun baseWire(base: org.logh7.engine.GalaxyBase) = WorldMessages.Base(base.id, base.grid,
         base.model, base.kind, base.name, base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
-    fun initialize(grid: Int, directory: Boolean = false): List<ByteArray> {
+    fun initialize(grid: Int, directory: Boolean = false, stocks: org.logh7.engine.PlanetStocks? = null): List<ByteArray> {
         val ids = galaxy.bases.filter { it.grid == grid }.map { it.id }
         return (if (directory) galaxy.bases.chunked(200).map { chunk ->
             LoginMessages.sessionMessage(0x1204, WorldMessages.simpleBases(chunk.map(::baseWire)))
-        } else emptyList()) + listOf(conditions(ids), places(ids))
+        } else emptyList()) + listOf(conditions(ids, stocks), places(ids))
     }
-    fun conditions(ids: List<Int>): ByteArray = LoginMessages.sessionMessage(0x031f,
+    fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
         WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
-            WorldMessages.Condition(it.baseId, it.grid, it.power, it.camp, it.population, it.adultPopulation,
-                it.tax, it.approval, it.peace, it.atmosphere, it.habitability, it.supplies, it.food, it.living)
+            val stored = stocks?.let { state -> checkNotNull(state.bases[it.baseId]) }
+            WorldMessages.Condition(it.baseId, it.grid, stored?.power ?: it.power, stored?.camp ?: it.camp, it.population, it.adultPopulation,
+                it.tax, it.approval, it.peace, it.atmosphere, it.habitability, stored?.supplies ?: it.supplies, it.food, it.living)
         }))
     fun places(ids: List<Int>): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->
