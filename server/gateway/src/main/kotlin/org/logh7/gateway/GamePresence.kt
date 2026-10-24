@@ -34,6 +34,18 @@ class GamePresence {
     }
     @Synchronized fun update(member: Member): Update {
         val previous = members[member.connection]
+        if (previous != null && previous.player.generation == member.player.generation &&
+            previous.player.power == member.player.power && previous.player.grid == member.player.grid) {
+            members[member.connection] = member
+            val before = character(previous)
+            val after = character(member)
+            if (!before.contentEquals(after)) {
+                val changed = BootstrapMessages.changedCharacter(member.character, member.player.pcp,
+                    member.player.mcp, member.player.spotId, member.player.spotOwner)
+                members.values.filter { visible(it, member) }.forEach { send(it, listOf(changed)) }
+            }
+            return Update(peers(member), emptyList())
+        }
         val before = members.values.associate { it.connection to peers(it) }
         val oldPeers = previous?.let(::peers).orEmpty()
         members[member.connection] = member

@@ -39,7 +39,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
     private val queue = Channel<Queued>(1024)
     private val simulation = SessionSimulation(rules, generationStore.current())
-    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy) }
+    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds) }
     private var durableState = durability?.let { store ->
         try {
             val restored = store.load()

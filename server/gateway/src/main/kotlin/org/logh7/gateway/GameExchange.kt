@@ -65,17 +65,39 @@ class GameExchange(
     private var pendingWorld: CompletableFuture<List<ByteArray>>? = null
     private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean)
     private var publication: Publication? = null
+    private var worldInitialized = false
+    private var recoveryCheckedAt: Long? = null
+    internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
+        if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || navigation == null) return null
+        val now = gameSeconds()
+        if (recoveryCheckedAt?.let { now >= it && now - it < 24 } == true) return null
+        recoveryCheckedAt = now
+        val identity = checkNotNull(ticket)
+        val character = checkNotNull(characters.character(identity.account))
+        return recover(character, identity.account)
+    }
+    private fun recover(character: CharacterMessages.Generate, account: String, clockRequest: ByteArray? = null): CompletableFuture<List<ByteArray>> =
+        checkNotNull(navigation).apply(org.logh7.engine.NavigationRequest(account,
+            character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+            connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
+            val player = checkNotNull(result.player) { "CP refresh lost its authenticated session" }
+            if (player != result.previous) publication = Publication(character, player, false)
+            val changed = result.previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
+            clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
+                if (changed) listOf(BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner)) else emptyList()
+        }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED) null else {
             val update = publication.also { publication = null }
+            if (update?.initialize == true) worldInitialized = true
             val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence)) }
             val output = if (update?.initialize == true && shared != null) {
                 val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
                 check(index >= 0)
                 messages.take(index) + shared.peers.map(presence!!::character) + messages.drop(index)
             } else messages + shared?.refresh.orEmpty()
-            handshake.stageAll(output, clearHeader = 0)
+            if (output.isEmpty()) null else handshake.stageAll(output, clearHeader = 0)
         }
     }
     internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
@@ -116,6 +138,14 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0300 -> {
+                        check(gameStarted && body.size == 2)
+                        if (navigation == null) checkNotNull(BootstrapMessages.response(body, gameSeconds())) else {
+                            val character = checkNotNull(characters.character(identity.account))
+                            pendingWorld = recover(character, identity.account, body)
+                            return null
+                        }
+                    }
                     0x0b00, 0x0e00 -> {
                         check(gameStarted && navigation != null && world != null)
                         val character = checkNotNull(characters.character(identity.account))
@@ -127,7 +157,8 @@ class GameExchange(
                         pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), unitId = character.id.toInt() + 1_000_000,
-                            captainCard = dock?.card, place = place, rank = character.rank)).thenApply { result ->
+                            captainCard = dock?.card, place = place, rank = character.rank,
+                            politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
                             val player = result.player ?: result.previous
                             val accepted = result.player != null
                             if (accepted) publication = Publication(character, checkNotNull(player), false)
@@ -170,7 +201,7 @@ class GameExchange(
                         pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), command.grid, character.id.toInt() + 1_000_000,
-                            command.card)).thenApply { result ->
+                            command.card, politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
                             val player = result.player ?: return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(command))
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
@@ -223,7 +254,7 @@ class GameExchange(
                         if (navigation != null) {
                             val request = org.logh7.engine.NavigationRequest(identity.account, character.id.toInt(),
                                 if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
-                                connection, checkNotNull(generation))
+                                connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2])
                             pendingWorld = navigation.apply(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 publication = Publication(character, player, true)

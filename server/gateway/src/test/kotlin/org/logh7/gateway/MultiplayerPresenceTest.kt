@@ -87,4 +87,20 @@ class MultiplayerPresenceTest {
         assertEquals(listOf(10000L), hub.update(own.copy(connection = "new", character = generated.copy(id = 10004),
             player = own.player.copy(characterId = 10004))).peers.map { it.character.id })
     }
+    @Test fun sameGridRecoveryUpdatesOnlyTheChangedPeerAndDoesNotReimportTheRoster() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        val generated = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 30, 1, 1, 1,
+            List(8) { 50 }, 0, 0, 0, 20, 0, 0, "Ship", 1)
+        val member = GamePresence.Member("first", generated,
+            Navigator(1, 10000, Power.EMPIRE, 2487, 100, 200, 1000), {})
+        hub.update(member)
+        hub.update(member.copy(connection = "second", character = generated.copy(id = 10001),
+            player = member.player.copy(characterId = 10001), send = received::add))
+        assertTrue(hub.update(member.copy(player = member.player.copy(cpRecoveryAt = 7200))).refresh.isEmpty())
+        assertTrue(received.isEmpty())
+        assertTrue(hub.update(member.copy(player = member.player.copy(pcp = 175, mcp = 275, cpRecoveryAt = 7200))).refresh.isEmpty())
+        assertEquals(listOf(0x0356), received.single().map(::opcode))
+        assertEquals(10000, ByteBuffer.wrap(received.single().single()).getInt(7))
+    }
 }
