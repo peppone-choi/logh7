@@ -21,17 +21,18 @@ object NavigationMessages {
         require(id > 0 && grid in 0..4999 && base in 0..65535 && mode == 5)
         return Warp(id, card, grid, base, mode)
     }
-    fun accepted(command: Warp, seconds: Long, pcp: Int, mcp: Int): ByteArray {
+    private fun reply(command: Warp, seconds: Long, pcp: Int, mcp: Int): ByteArray {
         require(seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0)
         return LoginMessages.sessionMessage(MessageId.CommandMoveGrid.opcode, ByteBuffer.allocate(31)
             .putInt(seconds.toInt()).putInt(0).putInt(command.characterId).putShort(command.card.toShort())
-            .putInt(pcp).putInt(mcp).putShort(command.grid.toShort()).put(0).putInt(0).putShort(5).array())
+            .putInt(pcp).putInt(mcp).putShort(command.grid.toShort()).put(0).putInt(command.base).putShort(command.mode.toShort()).array())
     }
+    fun accepted(command: Warp, seconds: Long, pcp: Int, mcp: Int): ByteArray = reply(command.copy(base = 0, mode = 5), seconds, pcp, mcp)
     fun moved(command: Warp, seconds: Long, unit: Int, cruise: Int): ByteArray =
         LoginMessages.sessionMessage(MessageId.NotifyMovedGrid.opcode, ByteBuffer.allocate(27)
             .putInt(seconds.toInt()).putInt(command.characterId).putInt(command.grid).putInt(0).putShort(5)
             .put(1).putInt(unit).putInt(cruise).array())
-    fun rejected(command: Warp): ByteArray = accepted(command, 0, 0, 0).also {
+    fun rejected(command: Warp, seconds: Long = 0, pcp: Int = 0, mcp: Int = 0): ByteArray = reply(command, seconds, pcp, mcp).also {
         ByteBuffer.wrap(it).putInt(0, 1) // Existing S2C result field precedes the opcode.
     }
     fun grid(index: Int): ByteArray {

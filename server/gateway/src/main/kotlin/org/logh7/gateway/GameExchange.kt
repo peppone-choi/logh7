@@ -70,6 +70,11 @@ class GameExchange(
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
+    private fun suppliedFuel(result: org.logh7.engine.NavigationResult): List<ByteArray> {
+        if (!result.completedFuel) return emptyList()
+        val player = checkNotNull(result.player ?: result.previous)
+        return listOf(org.logh7.protocol.FuelMessages.supplied(gameSeconds(), player.characterId, player.unitId, player.cruise))
+    }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || navigation == null) return null
         val now = gameSeconds()
@@ -87,7 +92,8 @@ class GameExchange(
             if (player != result.previous) publication = Publication(character, player, false)
             val changed = result.previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
-                if (changed) listOf(BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner)) else emptyList()
+                (if (changed) listOf(BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner)) else emptyList()) +
+                suppliedFuel(result)
         }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
@@ -178,7 +184,7 @@ class GameExchange(
                                 BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
                                 BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
                                 (if (dock != null && accepted) listOf(org.logh7.protocol.PlaceMessages.dockNotification(character.id.toInt(),
-                                    player.baseId, player.mode, seconds)) else emptyList())
+                                    player.baseId, player.mode, seconds)) else emptyList()) + suppliedFuel(result)
                         }
                         return null
                     }
@@ -200,6 +206,23 @@ class GameExchange(
                         }
                         if (opcode == 0x031e) world.conditions(ids) else world.places(ids)
                     }
+                    0x0b02 -> {
+                        check(gameStarted && navigation != null)
+                        val character = checkNotNull(characters.character(identity.account))
+                        val command = org.logh7.protocol.FuelMessages.supply(body)
+                        require(command.characterId == character.id.toInt())
+                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection, checkNotNull(generation), unitId = character.id.toInt() + 1_000_000,
+                            captainCard = command.card, politics = character.abilities[1], administration = character.abilities[2],
+                            supplyFuel = true)).thenApply { result ->
+                            val player = checkNotNull(result.player ?: result.previous) { "Supply lost its authenticated session" }
+                            publication = Publication(character, player, false)
+                            listOf(org.logh7.protocol.FuelMessages.reply(command, gameSeconds(), player.pcp, player.mcp, result.player != null),
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner)) + suppliedFuel(result)
+                        }
+                        return null
+                    }
                     0x0b01 -> {
                         check(gameStarted && navigation != null)
                         val character = checkNotNull(characters.character(identity.account))
@@ -212,14 +235,19 @@ class GameExchange(
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), command.grid, character.id.toInt() + 1_000_000,
                             command.card, politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
-                            val player = result.player ?: return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(command))
+                            val player = result.player ?: run {
+                                val origin = checkNotNull(result.previous) { "Warp lost its authenticated session" }
+                                return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(
+                                    command.copy(grid = origin.grid, base = origin.baseId, mode = origin.mode),
+                                    gameSeconds(), origin.pcp, origin.mcp)) + suppliedFuel(result)
+                            }
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
                             listOf(org.logh7.protocol.NavigationMessages.accepted(command, seconds, player.pcp, player.mcp),
                                 BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
                                 BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
                                 org.logh7.protocol.NavigationMessages.grid(player.grid),
-                                org.logh7.protocol.NavigationMessages.moved(command, seconds, player.unitId, player.cruise))
+                                org.logh7.protocol.NavigationMessages.moved(command, seconds, player.unitId, player.cruise)) + suppliedFuel(result)
                         }
                         return null
                     }

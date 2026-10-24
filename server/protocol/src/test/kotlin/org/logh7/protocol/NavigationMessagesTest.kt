@@ -32,4 +32,11 @@ class NavigationMessagesTest {
         assertFalse(input.hasRemaining())
         assertContentEquals(byteArrayOf(0, 0, 0, 0, 3, 23, 9, -73, 0), NavigationMessages.grid(2487))
     }
+    @Test fun rejectedWarpPreservesTheAuthoritativeOriginAndCpEvenWhenDocked() {
+        val rejected = ByteBuffer.wrap(NavigationMessages.rejected(command.copy(grid = 2487, base = 1049, mode = 4), 42, 123, 456))
+        assertEquals(1, rejected.int)
+        assertEquals(123, rejected.getInt(20)); assertEquals(456, rejected.getInt(24))
+        assertEquals(2487, rejected.getShort(28).toInt()); assertEquals(1049, rejected.getInt(31))
+        assertEquals(4, rejected.getShort(35).toInt())
+    }
 }

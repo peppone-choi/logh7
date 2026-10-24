@@ -68,6 +68,10 @@ messages:
     opcode: 0x0f03
   - name: CommandMoveGrid
     opcode: 0x0b01
+  - name: CommandSupplyFuel
+    opcode: 0x0b02
+  - name: NotifySuppliedFuel
+    opcode: 0x0b0c
   - name: NotifyMovedGrid
     opcode: 0x0b07
   - name: ResponseInformationGrid

@@ -124,7 +124,7 @@ object WorldMessages {
     }
     private fun commands(card: Int) = when (card) {
         0 -> listOf(82, 83)
-        59, 195 -> listOf(43, 45, 60)
+        59, 195 -> listOf(43, 44, 45, 60)
         else -> emptyList()
     }
     /** 0040f9f0: card kind, command list, three raw bit-mask fields. */
