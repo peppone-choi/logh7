@@ -2,6 +2,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "hud_atlas.h"
+#include "planet_info_data.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
     // Known CD model families and variants must not alias unrelated artwork.
@@ -16,6 +17,30 @@ int wmain(int argc, wchar_t** argv) {
         int x = -1, y = -1;
         if (logh::hudIconRect(model, x, y) || x != -1 || y != -1) return 6;
     }
+    // Decoded replies must identify both the selected base and its grid. A
+    // previous target's cache and malformed counts must never populate the UI.
+    unsigned char conditions[4 + 4 * 0x180] = {};
+    conditions[0] = 2;
+    const unsigned id = 1049, grid = 2487, other = 1050;
+    memcpy(conditions + 4, &other, 4);
+    memcpy(conditions + 4 + 8, &grid, 4);
+    memcpy(conditions + 4 + 0x180, &id, 4);
+    memcpy(conditions + 4 + 0x180 + 8, &grid, 4);
+    if (logh::findPlanetCondition(conditions, id, grid) != conditions + 4 + 0x180 ||
+        logh::findPlanetCondition(conditions, id, grid + 1) || logh::findPlanetCondition(conditions, id + 2, grid)) return 7;
+    conditions[0] = 5;
+    if (logh::findPlanetCondition(conditions, id, grid)) return 8;
+    conditions[0] = 0;
+    if (logh::findPlanetCondition(conditions, id, grid)) return 8;
+    unsigned char warehouse[0x300] = {};
+    memcpy(warehouse, &id, 4);
+    if (!logh::matchingPlanetWarehouse(warehouse, id) || logh::matchingPlanetWarehouse(warehouse, other)) return 9;
+    warehouse[4] = 1;
+    if (logh::matchingPlanetWarehouse(warehouse, id)) return 10;
+    warehouse[4] = 0; warehouse[12] = 100;
+    if (logh::matchingPlanetWarehouse(warehouse, id)) return 11;
+    warehouse[12] = 0; warehouse[0x260] = 25;
+    if (logh::matchingPlanetWarehouse(warehouse, id)) return 11;
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));
