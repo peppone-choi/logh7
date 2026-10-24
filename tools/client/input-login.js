@@ -2,7 +2,7 @@
 let testKey = 0;
 let testMouse = null;
 rpc.exports.setkey = function(value) {
-  if(![0,9,13].includes(value))throw new Error('Only release, Tab and Enter are supported');
+  if(![0,9,13,27].includes(value))throw new Error('Only release, Tab, Enter and Escape are supported');
   testKey = value;
 };
 Process.attachModuleObserver({onAdded(module) {
