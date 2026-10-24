@@ -59,7 +59,8 @@ internal class CaptureHandler(private val capture: Capture, private val id: Stri
 }
 
 class Gateway(private val captureDirectory: Path? = null, private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null,
-    private val gameSeconds: () -> Long = { 0 }, private val admission: GameAdmission? = null) : AutoCloseable {
+    private val gameSeconds: () -> Long = { 0 }, private val admission: GameAdmission? = null,
+    private val world: WorldBootstrap? = null, private val navigation: GameNavigation? = null) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
@@ -81,11 +82,13 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                         override fun initChannel(ch: SocketChannel) {
                             clients.add(ch)
                             val generation = admission?.generation
-                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters)
+                            val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, sessionAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation)
                             val updateExchange = UpdateExchange()
                             if (capture != null) ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
                             ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
                             ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
+                                private val waitingFrames = ArrayDeque<ByteArray>()
+                                private var waiting = false
                                 private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null
                                 override fun channelActive(ctx: ChannelHandlerContext) {
                                     if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
@@ -95,14 +98,25 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 }
                                 override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
                                     val payload = ByteArray(msg.readableBytes()); msg.readBytes(payload)
+                                    if (waiting) { check(waitingFrames.size < 128); waitingFrames.addLast(payload); return }
+                                    process(ctx, payload)
+                                }
+                                private fun process(ctx: ChannelHandlerContext, payload: ByteArray) {
                                     if (port != updatePort) {
                                         val (type, data) = Frames.decodePayload(payload)
                                         exchange.acceptOutbound(type, data)?.let { response -> SecureWriter.write(ctx, exchange, response) }
-                                        exchange.takePendingJoin()?.whenComplete { result, failure ->
+                                        val join = exchange.takePendingJoin()
+                                        val operation = exchange.takePendingWorld()
+                                        val pending = join?.thenApply { exchangeResult -> ({ exchange.finishJoinOutbound(exchangeResult) }) }
+                                            ?: operation?.thenApply { messages -> ({ exchange.finishWorld(messages) }) }
+                                        if (pending != null) waiting = true
+                                        pending?.whenComplete { finish, failure ->
                                             ctx.executor().execute {
                                                 if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
                                                 else try {
-                                                    exchange.finishJoinOutbound(result)?.let { response -> SecureWriter.write(ctx, exchange, response) }
+                                                    finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
+                                                    waiting = false
+                                                    while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
                                                 } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
                                             }
                                         }

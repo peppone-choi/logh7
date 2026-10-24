@@ -44,6 +44,8 @@ class GameExchange(
     private val connection: String = java.util.UUID.randomUUID().toString(),
     private val expectedGeneration: Long? = admission?.generation,
     private val characterProvider: () -> CharacterCreation = { characters },
+    private val world: WorldBootstrap? = null,
+    private val navigation: GameNavigation? = null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -58,6 +60,11 @@ class GameExchange(
     private var joinRequested = false
     private var pendingJoin: CompletableFuture<Admission>? = null
     fun takePendingJoin(): CompletableFuture<Admission>? = pendingJoin.also { pendingJoin = null }
+    private var pendingWorld: CompletableFuture<List<ByteArray>>? = null
+    fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
+    internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
+        if (state == State.CLOSED) null else handshake.stageAll(messages, clearHeader = 0)
+    }
     fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running)
     // ByteArray convenience is retained for codec callers. Gateway always writes the bound outbound batch.
@@ -93,6 +100,33 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0b01 -> {
+                        check(gameStarted && navigation != null)
+                        val character = checkNotNull(characters.character(identity.account))
+                        val command = org.logh7.protocol.NavigationMessages.warp(body)
+                        require(command.characterId == character.id.toInt())
+                        require(command.base == 0 || world?.galaxy?.bases?.any {
+                            it.id == command.base && it.grid == command.grid
+                        } == true) { "Warp base is outside the destination system" }
+                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection, checkNotNull(generation), command.grid, character.id.toInt() + 1_000_000,
+                            command.card)).thenApply { result ->
+                            val player = result.player ?: return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(command))
+                            val seconds = gameSeconds()
+                            listOf(org.logh7.protocol.NavigationMessages.accepted(command, seconds, player.pcp, player.mcp),
+                                BootstrapMessages.character(character, player.pcp, player.mcp),
+                                BootstrapMessages.unit(character, player.grid, player.cruise),
+                                org.logh7.protocol.NavigationMessages.grid(player.grid),
+                                org.logh7.protocol.NavigationMessages.moved(command, seconds, player.unitId, player.cruise))
+                        }
+                        return null
+                    }
+                    0x0f08 -> {
+                        check(gameStarted && body.size == 28)
+                        // This local world has no mail yet; finish the client's periodic inbox query.
+                        LoginMessages.sessionMessage(0x0f09, byteArrayOf(0))
+                    }
                     0x0200 -> { check(!gameLoggedIn); gameLoggedIn = true; LobbyMessages.gameLoginOk() }
                     0x1008 -> { check(gameLoggedIn); characters.accept(identity.account, CharacterMessages.generate(body)) }
                     0x1000 -> { check(gameLoggedIn && !gameStarted && body.size == 2); OriginalCharacterMessages.account(characters.fame(identity.account), characters.entries(identity.account)) }
@@ -126,6 +160,20 @@ class GameExchange(
                     0x0f00, 0x0f02 -> {
                         check(gameStarted && body.size == 2)
                         val character = checkNotNull(characters.character(identity.account))
+                        if (navigation != null) {
+                            val request = org.logh7.engine.NavigationRequest(identity.account, character.id.toInt(),
+                                if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                connection, checkNotNull(generation))
+                            pendingWorld = navigation.apply(request).thenApply { result ->
+                                val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
+                                listOf(BootstrapMessages.characterId(character),
+                                    BootstrapMessages.character(character, player.pcp, player.mcp),
+                                    BootstrapMessages.unit(character, player.grid, player.cruise),
+                                    org.logh7.protocol.NavigationMessages.grid(player.grid),
+                                    checkNotNull(BootstrapMessages.response(body)))
+                            }
+                            return null
+                        }
                         val messages = listOf(BootstrapMessages.characterId(character),
                             BootstrapMessages.character(character), BootstrapMessages.unit(character),
                             checkNotNull(BootstrapMessages.response(body)))
@@ -134,7 +182,7 @@ class GameExchange(
                     }
                     else -> {
                         check(gameStarted)
-                        BootstrapMessages.response(body, gameSeconds())
+                        BootstrapMessages.response(body, gameSeconds(), world?.catalogues.orEmpty())
                             ?: error("Unsupported game opcode 0x${opcode.toString(16)}")
                     }
                 }

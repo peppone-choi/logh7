@@ -4,7 +4,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import java.util.concurrent.atomic.AtomicReference
 
-data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val session: SessionSnapshot? = null, val rejectedCommands: Long = 0)
+data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val session: SessionSnapshot? = null, val rejectedCommands: Long = 0,
+    val navigators: Map<String, Navigator> = emptyMap())
 sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
@@ -16,6 +17,7 @@ sealed interface WorldCommand {
     data class Territory(val systems: Map<Power, Int>, val capturedCapitals: Set<Power>) : WorldCommand
     data object Restart : WorldCommand
     data class RequestRestart(val result: CompletableDeferred<Boolean>) : WorldCommand
+    data class Navigate(val request: NavigationRequest, val result: CompletableDeferred<NavigationResult>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -30,11 +32,14 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     private val onEvent: (WorldEvent) -> Unit = {}, private val generationStore: SessionGenerationStore = MemorySessionGenerationStore(),
     private val durability: SessionDurability? = null,
     private val timings: ActorTimings? = null,
-    private val metricNanos: () -> Long = System::nanoTime) : CommandSink, SnapshotSource, AutoCloseable {
+    private val metricNanos: () -> Long = System::nanoTime,
+    galaxy: Galaxy? = null, private val navigationStore: NavigationStore? = null,
+    navigationPolicy: NavigationPolicy = NavigationPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
     private val queue = Channel<Queued>(1024)
     private val simulation = SessionSimulation(rules, generationStore.current())
+    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy) }
     private var durableState = durability?.let { store ->
         try {
             val restored = store.load()
@@ -64,6 +69,21 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         var storageFailure: Exception? = null
         try { for (queued in queue) {
             val command = queued.command
+            if (command is WorldCommand.Navigate) {
+                try {
+                    check(!storageFailed) { "World storage is unavailable" }
+                    val session = durableState?.session ?: simulation.exportState()
+                    val result = navigation?.apply(command.request, session)
+                        ?: NavigationResult(null, rejection = NavigationRejection.DISABLED)
+                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty())
+                    published.set(state)
+                    command.result.complete(result)
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             queued.submittedNanos?.let { submitted ->
                 val dequeued = metricNanos()
                 duration(ActorTiming.QUEUE_AGE, submitted, dequeued)
@@ -76,7 +96,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     val next = transitionSession(rules, checkNotNull(durableState), command.sessionAction())
                     durability.commit(command.sessionAction(), next)
                     durableState = next.state
-                    published.set(next.state.snapshot(rules))
+                    published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty()))
                     if (command is WorldCommand.Join) {
                         if (next.rejected) command.result.completeExceptionally(IllegalArgumentException("Invalid join"))
                         else command.result.complete(checkNotNull(next.admission))
@@ -113,6 +133,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 }
                 WorldCommand.Restart -> restart()
                 is WorldCommand.RequestRestart -> restart().also { restartResult = true }
+                is WorldCommand.Navigate -> error("Navigation is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (command is WorldCommand.Join) command.result.completeExceptionally(failure)
@@ -121,12 +142,12 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 emptyList()
             }
             state = state.copy(revision = state.revision + 1,
-                acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot())
+                acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot(), navigators = navigation?.snapshot(simulation.snapshot().generation).orEmpty())
             published.set(state)
             if (command is WorldCommand.Join && admission != null) command.result.complete(admission)
             if (command is WorldCommand.RequestRestart) command.result.complete(restartResult == true)
             events.forEach(onEvent)
-        } } finally { durability?.close() }
+        } } finally { try { durability?.close() } finally { navigationStore?.close() } }
     }
     private val ticker = if (ticking) scope.launch {
         val interval = minOf(rules.strategyTickRealMillis, rules.tacticsTickRealMillis)

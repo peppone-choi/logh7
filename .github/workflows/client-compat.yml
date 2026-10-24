@@ -1,0 +1,20 @@
+name: client-compat
+on:
+  push:
+    paths: ['client-compat/**', '.github/workflows/client-compat.yml']
+  pull_request:
+    paths: ['client-compat/**', '.github/workflows/client-compat.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build x86 proxy and check rejection outside the supported client
+        shell: pwsh
+        run: ./client-compat/build.ps1 -OutDir "$pwd/work/compat-build"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logh7-client-compat-windows-x86
+          path: work/compat-build/dinput8.dll
