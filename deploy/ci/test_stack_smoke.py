@@ -37,9 +37,11 @@ class SmokeTest(unittest.TestCase):
             self.assertEqual(path.parent, self.smoke.directory)
             values.append(path.read_text())
             self.assertEqual(len(values[-1].strip()), 64)
-            self.assertEqual(path.stat().st_mode & 0o777, 0o640 if name == 'grafana_password' else 0o600)
+            if os.name == 'posix':
+                self.assertEqual(path.stat().st_mode & 0o777, 0o640 if name == 'grafana_password' else 0o600)
         self.assertNotEqual(*values)
-        self.assertEqual(self.smoke.directory.stat().st_mode & 0o777, 0o700)
+        if os.name == 'posix':
+            self.assertEqual(self.smoke.directory.stat().st_mode & 0o777, 0o700)
         command.assert_called_once_with('sudo', 'chgrp', '0', str(self.smoke.directory / 'grafana_password'))
 
     def test_command_failure_does_not_expose_output(self):

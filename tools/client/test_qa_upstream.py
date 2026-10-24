@@ -93,7 +93,7 @@ class UpstreamTests(unittest.TestCase):
         self.assertEqual(argv[0], str(Path('runtime/jdk/bin/java.exe')))
         self.assertEqual(argv[-1], q.MAIN)
         self.assertIn('-Djava.awt.headless=true', argv)
-        self.assertIn('-Duser.home=run/state', argv)
+        self.assertIn('-Duser.home=' + str(Path('run') / 'state'), argv)
         self.assertNotIn('cmd.exe', argv)
 
     def test_inventory_detects_extra_modified_and_symlink(self):

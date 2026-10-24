@@ -37,4 +37,4 @@ schema 1, 모든 `SessionRules` 필드의 SHA-256 fingerprint, 길이 제한 8 M
 
 별도로 생성한 JVM을 다음 다섯 지점에서 `destroyForcibly`로 종료하고 새로운 JVM을 실행했다: append 전, append 후 force 전, force 후 상태 게시 전, checkpoint force 후 rename 전, checkpoint rename 후. 새 프로세스에서 전체 상태 hash와 접속 정리·재입장·후속 advance 후 전체 상태 hash를 비교했다. append 후 force 전 기록이 살아남은 것은 이번 프로세스 종료 관측이며 전원 장애 내구성 보증으로 확대하지 않는다.
 
-로컬 Linux 파일/디렉터리 force와 atomic move를 사용한다. 해당 기능을 제공하지 않는 파일시스템에서는 오류를 숨기지 않고 시작/쓰기를 중단한다. Windows/다른 파일시스템 실행, 실제 전원 장애, 외부 백업·PostgreSQL/WAL/PITR, RPO ≤300초와 RTO, 이벤트 구독자의 부작용/outbox 복구는 미검증 또는 미구현이다. LOGH-43 전체 완료로 처리하지 않는다.
+로컬 Linux 파일/디렉터리 force와 atomic move를 사용한다. 해당 기능을 제공하지 않는 파일시스템에서는 오류를 숨기지 않고 시작/쓰기를 중단한다. 2026-10-24 Windows/JDK 25 검사에서는 디렉터리 동기화용 `FileChannel.open(..., READ)`가 `AccessDeniedException`으로 실패함을 확인했다. 파일 저장 모드의 실행·저장·복구 검사는 Linux 파일시스템에서 수행한다. 다른 파일시스템 실행, 실제 전원 장애, 외부 백업·PostgreSQL/WAL/PITR, RPO ≤300초와 RTO, 이벤트 구독자의 부작용/outbox 복구는 미검증 또는 미구현이다. LOGH-43 전체 완료로 처리하지 않는다.

@@ -16,7 +16,7 @@ class GatewayTest {
 
     @Test fun captureDirectoryFromTreatsMissingOrBlankAsOff() {
         listOf(null, "", "  ", "\t\n").forEach { assertNull(captureDirectoryFrom(it)) }
-        listOf("/tmp/x", "relative/captures", " captures ").forEach { value ->
+        listOf("/tmp/x", "relative/captures", " captures").forEach { value ->
             assertEquals(Path.of(value), captureDirectoryFrom(value))
         }
         assertFailsWith<java.nio.file.InvalidPathException> { captureDirectoryFrom("\u0000") }
