@@ -9,6 +9,8 @@
 #include "hud_atlas.h"
 
 #pragma comment(lib, "advapi32.lib")
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "user32.lib")
 #pragma comment(linker, "/EXPORT:DirectInput8Create=_ForwardDirectInput8Create@20")
 #pragma comment(linker, "/EXPORT:LoghPlanetLayoutStatus=_LoghPlanetLayoutStatus@0")
 
@@ -53,6 +55,29 @@ static bool verifiedClient() {
 
 template<class T> static T& at(void* base, unsigned offset) {
     return *reinterpret_cast<T*>(static_cast<BYTE*>(base) + offset);
+}
+
+#include "planet_info.h"
+
+// Keep the native UTF-16 glyph key through GDI. The CD's Japanese CRT -> ANSI
+// GDI boundary otherwise drops Hangul and misdecodes Japanese on Korean Windows.
+// These three call sites belong only to the synchronous glyph-cache routine.
+static thread_local wchar_t currentGlyph = 0;
+static int __cdecl encodeGlyph(char* destination, const wchar_t* source, size_t capacity) {
+    if (!destination || !source || capacity != 2) return -1;
+    currentGlyph = *source;
+    bool narrow = currentGlyph < 128 || (currentGlyph >= 0xff61 && currentGlyph <= 0xff9f);
+    // Only the native strlen-based half/full-width branch consumes these bytes.
+    // Measurement and rendering below use the actual Unicode glyph, not bytes.
+    destination[0] = currentGlyph < 128 ? static_cast<char>(currentGlyph) : narrow ? '?' : static_cast<char>(0x81);
+    destination[1] = narrow ? 0 : 0x40;
+    return narrow ? 1 : 2;
+}
+static BOOL WINAPI glyphExtent(HDC dc, LPCSTR, int, LPSIZE size) {
+    return GetTextExtentPoint32W(dc, &currentGlyph, 1, size);
+}
+static BOOL WINAPI glyphOutput(HDC dc, int x, int y, UINT options, const RECT* rectangle, LPCSTR, UINT, const INT* spacing) {
+    return ExtTextOutW(dc, x, y, options, rectangle, &currentGlyph, 1, spacing);
 }
 
 // Native 004d21c0 sprite layout. Borrow the existing atlas resource each frame;
@@ -313,6 +338,14 @@ static void install() {
     BYTE* supplied = reinterpret_cast<BYTE*>(0x4bce39);
     const BYTE expectedSupplied[] = {0xe8,0x22,0x3a,0x00,0x00};
     if (memcmp(fuel, expectedFuel, 5) || memcmp(supplied, expectedSupplied, 5)) { status = -2; return; }
+    BYTE* glyph = reinterpret_cast<BYTE*>(0x4b0a97);
+    const BYTE expectedGlyph[] = {0xe8,0xe0,0xed,0x14,0x00};
+    if (memcmp(glyph, expectedGlyph, 5)) { status = -2; return; }
+    const unsigned glyphAddresses[] = {0x4b0c62, 0x4b0cb5, 0x4b0d29};
+    const BYTE expectedGdi[][6] = {{0xff,0x15,0xa0,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}};
+    for (unsigned i = 0; i < 3; ++i)
+        if (memcmp(reinterpret_cast<void*>(glyphAddresses[i]), expectedGdi[i], 6)) { status = -2; return; }
+    if (!installPlanetInformation()) { status = -3; return; }
     SIZE_T region = hudCall + 5 - target;
     DWORD previous = 0;
     if (!VirtualProtect(target, region, PAGE_EXECUTE_READWRITE, &previous)) { status = -3; return; }
@@ -326,6 +359,15 @@ static void install() {
     BYTE call[5] = {0xe8};
     *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&suppliedFuel) - supplied - 5);
     if (!patchBytes(fuel, expectedFuel, jump, 5) || !patchBytes(supplied, expectedSupplied, call, 5)) { status = -3; return; }
+    *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&encodeGlyph) - glyph - 5);
+    if (!patchBytes(glyph, expectedGlyph, call, 5)) { status = -3; return; }
+    for (unsigned i = 0; i < 3; ++i) {
+        auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
+        BYTE replacement[6] = {0xe8,0,0,0,0,0x90};
+        auto function = i ? reinterpret_cast<BYTE*>(&glyphOutput) : reinterpret_cast<BYTE*>(&glyphExtent);
+        *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(function - address - 5);
+        if (!patchBytes(address, expectedGdi[i], replacement, 6)) { status = -3; return; }
+    }
     // Only the strategy HUD call sites use the wrong group. Tactical group 104 remains intact.
     const unsigned hudGroups[] = {0x58d561,0x58d570,0x58d57f,0x58d58e,0x58d59d,0x58d5ac,0x58d5bb,
         0x58d5ca,0x58d5d9,0x58d5e8,0x58d6d3,0x58effb,0x58f01e,0x58f038,0x58f053,0x58f070,
