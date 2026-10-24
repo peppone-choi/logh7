@@ -100,3 +100,57 @@ CD판 로비 초기화 `0x0051ab35..0x0051ab58`은 새 캐릭터 생성·원작 
 `--seconds 300 --ui-control`은 최대 5분 동안 같은 소유 프로세스를 유지한다. 생성된 `OUT/ui-commands.jsonl`에 JSON 한 줄씩 추가하면 `{"click":[760,580]}`, `{"text":"Alpha"}`, `{"key":9}` 또는 `{"stop":true}`를 처리한다. 클릭은 소유 창 내부, 문자는 짧은 합성 ASCII, 키는 Tab(9)·Enter(13)만 지원한다. 파일은 추가만 허용하며 잘못된 명령은 실행기를 실패 처리하고 정리한다. 화면을 확인하며 필요한 입력만 보내고, 끝나면 stop으로 프로세스·오디오 상태를 정리한다. 자동 판단·반복 실행 기능은 없다.
 
 단일 클라이언트 시험은 이 호스트 경로를 사용한다. VM은 멀티플레이 시험에 필요할 때만 사용한다. 다음 서버 작업은 Linear의 최신 상태·의존을 확인한 뒤 이어간다.
+
+## 2026-10-24 실제 접속: 메모리 전용 DirectSound
+
+작성자: 최병호
+
+사용자가 요청한 실제 로컬 접속 시험에서는 `--silent-device`를 명시한다. 과거
+오디오 승인 manifest를 충족했다고 간주하지 않고, `silent-dsound.js`가 정지 상태의
+소유 프로세스에 메모리 전용 DirectSound 장치·버퍼를 설치한다. 실제
+DirectSoundCreate(8)는 호출하지 않는다. PCM 쓰기·재생 상태·커서는 메모리에서만
+처리하고 WinMM 출력·COM 활성화·자식 생성은 거부한다. 예상하지 못한 출력 모듈,
+script 오류·detach는 소유 프로세스를 종료한다. 다른 클라이언트·DLL 조합이나
+모든 Windows 출력 API의 일반적 무음 보장을 검증한 것은 아니다.
+
+대상은 SHA-256 `bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16`의
+CD판 EXE에 한정한다. 실행 직전 EXE 디렉터리와 주입 script를
+다시 해시 대조하며, 이것은 같은 실행의 파일 일관성 검사다. 원격 승인이나 전체
+게임 기능 통과를 뜻하지 않는다. 기본 실행과 `--audible`은 계속 생성 전에 거부한다.
+호스트·사용자 오디오 세션의 볼륨 또는 음소거 설정은 변경하지 않는다.
+
+`TEMP`와 `TMP`는 실행 전에 작업 드라이브의 전용 폴더로 지정한다. 아래는
+이미 준비한 localhost 서버와 `work/` 사본을 사용하는 예다. 원본 복사본 준비,
+서버 계정·캐릭터 파일 설정은 위 절차를 따른다.
+
+```powershell
+$env:TEMP = 'E:\logh7\work\client-login-20261024\tmp'
+$env:TMP = $env:TEMP
+python -B tools/client/run-background.py --source-root $sourceRoot `
+  --instance-root E:\logh7\work\client-login-20261024\run-01\client `
+  --out E:\logh7\work\client-login-20261024\next-run `
+  --dxwrapper-dir E:\Tools\dxwrapper\v1.8.8600.25\unpacked `
+  --seconds 300 --render-capture --upstream-port 47900 `
+  --ui-login --ui-control --silent-device --enable-creation-menu `
+  --test-account qa1024 --test-credential dummy
+```
+
+공유 GUI mutex와 활성 프로세스 1개 제한·kill-on-close Job을 유지한다. 캡처와 입력은
+소유 비활성 데스크톱에만 적용한다. 무해 x86 PE 검사에서는 DirectSound의 메모리
+버퍼 생성·분할 Lock·Play/Stop·복제와 WinMM/COM 거부를 실제 export 호출로 확인한다.
+
+```powershell
+$env:LOGH7_SILENT_AUDIO_TEST = '1'
+python -B -m unittest discover -s tools/client -p 'test_silent_audio*.py' -v
+```
+
+`work/client-login-20261024/run-02`에서 일반 로그인 UI → 신규 생성 → 등록·파일 저장 →
+1024×768 전략 화면을 확인했다. 생성 메뉴는 앞 절의 두 바이트 메모리 호환 패치를
+사용했다. 서버 재시작 뒤 `run-04`에서는 이 패치 없이 계속하기로 같은 캐릭터에
+재접속했다. 두 실행 모두 원본 해시 보존·소유 프로세스 종료·Job 활성 수 0을 확인했다.
+서버 등록 ID는 10000, 합성 이름은 Nova/Pilot, 기함명은 NovaShip이다. `evidence:client`
+
+`run.json.success`는 실행기·첫 패킷·캡처·정리의 성공이며, `full_login_verified`는
+자동 판정하지 않으므로 false로 남는다. 위 흐름의 확인은 저장된 전략 화면,
+서버의 등록·월드 초기화 로그와 캐릭터 파일을 함께 대조한 결과다. 일본어 글자
+깨짐과 일부 NO DATA 표시, 전투·실서비스 데이터 완성은 이번 통과 범위에 포함하지 않는다.

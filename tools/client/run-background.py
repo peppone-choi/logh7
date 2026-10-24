@@ -17,7 +17,8 @@ import time
 import traceback
 import uuid
 
-from audio_session import SessionMute
+from silent_audio import (SilentAudio, TARGET_SHA256, runtime_manifest,
+                          stop_owned_handle, strict_owned_job, verify_runtime_manifest)
 
 from PIL import Image, ImageStat
 import win32api
@@ -141,7 +142,34 @@ def enter_login(desk, pid, script, account, credential):
         time.sleep(0.4)
 
 
-def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy", clicks=(), creation_menu=False, ui_control=False):
+def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy", clicks=(), creation_menu=False, ui_control=False, silent_device=False):
+    # No hardware audio or post-start session-mute fallback in background QA.
+    if audible or not silent_device:
+        print(json.dumps({"status": "WAITING_FOR_BACKGROUND_QA",
+                          "reason": "Use --silent-device for process-local memory-only audio"}), flush=True)
+        return 3
+    import tempfile
+    if Path(tempfile.gettempdir()).drive.casefold() != WORK.drive.casefold():
+        raise ValueError("Set TEMP and TMP on the workspace drive before Frida attachment")
+    overlays = {}
+    if wrapper is not None:
+        overlays['app/d3d8.dll'] = wrapper
+    if dxwrapper_dir is not None:
+        overlays = {'app/d3d8.dll': dxwrapper_dir / 'Stub/d3d8.dll',
+                    'app/dxwrapper.dll': dxwrapper_dir / 'dxwrapper.dll',
+                    'app/dxwrapper.ini': Path(__file__).with_name('dxwrapper.ini')}
+    injected = [Path(__file__).with_name('silent-dsound.js')]
+    if render_capture:
+        injected.append(Path(__file__).with_name('capture-frame.js'))
+    if ui_login:
+        injected.append(Path(__file__).with_name('input-login.js'))
+    if creation_menu:
+        injected.append(Path(__file__).with_name('enable-creation-menu.js'))
+    candidate = (instance_root if instance_root is not None else source) / 'exe/G7MTClient.exe'
+    if hashlib.sha256(candidate.read_bytes()).hexdigest() != TARGET_SHA256:
+        raise ValueError('Unsupported silent-device client hash')
+    # Same-run integrity snapshot; this is not a remote QA approval.
+    expected_runtime = runtime_manifest(candidate, injected, overlays)
     source = source.resolve(strict=True)
     out = out.resolve()
     if not out.is_relative_to(WORK.resolve()) or out == WORK.resolve():
@@ -184,12 +212,17 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             raise ValueError("Copied client already contains d3d8.dll; refusing to overwrite it")
         shutil.copy2(wrapper, destination)
         report["d3d8_wrapper"] = {"path": str(wrapper), "sha256": digest(destination)}
-    desk = process = thread = job = connection = None
+    desk = process = thread = job = connection = gui_mutex = None
+    gui_mutex_held = False
     session = script = None
     audio = None
     upstream = None
     received = bytearray()
     try:
+        gui_mutex = win32event.CreateMutex(None, False, 'Local\\OpenClaw_GUI_TEST_SHARED_PEPPONE_CHOI_PC')
+        gui_mutex_held = win32event.WaitForSingleObject(gui_mutex, 0) in (win32con.WAIT_OBJECT_0, win32con.WAIT_ABANDONED)
+        if not gui_mutex_held:
+            raise RuntimeError('Another owned GUI test holds the shared mutex')
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             listener.listen(1)
@@ -206,19 +239,20 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             startup.dwFlags = win32con.STARTF_USESHOWWINDOW | 0x80  # no startup cursor feedback
             startup.wShowWindow = win32con.SW_SHOWNOACTIVATE
             job = win32job.CreateJobObject(None, report["desktop"] + "_JOB")
-            info = win32job.QueryInformationJobObject(job, win32job.JobObjectExtendedLimitInformation)
-            info["BasicLimitInformation"]["LimitFlags"] = win32job.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-            win32job.SetInformationJobObject(job, win32job.JobObjectExtendedLimitInformation, info)
+            report["strict_job_policy"] = strict_owned_job(job)
             argv = [str(executable), "127.0.0.1", str(port), account]
             if not ui_login:
                 argv.extend(["1", credential])
+            report["verified_runtime_manifest"] = verify_runtime_manifest(executable, expected_runtime, injected)
             process, thread, pid, _ = win32process.CreateProcess(
                 str(executable), subprocess.list2cmdline(argv), None, None, False,
                 win32process.BELOW_NORMAL_PRIORITY_CLASS | win32con.CREATE_SUSPENDED,
                 None, str(executable.parent), startup)
+            report["root_creation_time"] = str(win32process.GetProcessTimes(process)["CreationTime"])
             win32job.AssignProcessToJobObject(job, process)
-            if not audible:
-                audio = SessionMute(pid)
+            audio = SilentAudio(pid, executable, on_failure=lambda: stop_owned_handle(process))
+            report["audio_mode"] = 'memory-only-directsound'
+            report["audio_handshake"] = audio.assert_ready()
             if render_capture:
                 import frida
                 session = frida.attach(pid)
@@ -251,6 +285,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         report["client_exception"] = payload
                 script.on("message", on_message)
                 script.load()
+            if audio is not None:
+                report["audio_handshake_before_resume"] = audio.assert_ready()
             win32process.ResumeThread(thread)
             report["pid"] = pid
             print(json.dumps({"pid": pid, "desktop": report["desktop"], "endpoint": report["endpoint"]}), flush=True)
@@ -267,7 +303,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             login_entered = False
             while time.monotonic() < deadline:
                 if audio is not None:
-                    report["audio"] = audio.poll()
+                    report["audio"] = audio.assert_ready()
                 if not private_active and time.monotonic() >= activate_at:
                     private_active = activate_private(desk, pid)
                     report["private_window_activated"] = private_active
@@ -375,6 +411,19 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             connection.close()
         if upstream is not None:
             upstream.close()
+        if audio is not None:
+            audio.closing = True  # Expected Job termination must not trigger detach failure.
+        # Retained Job contains only this invocation, including children.
+        if job is not None:
+            win32job.TerminateJobObject(job, 0)
+            active = 1  # fail closed even if the cleanup loop never executes
+            cleanup_deadline = time.monotonic() + 5
+            while time.monotonic() < cleanup_deadline:
+                active = win32job.QueryInformationJobObject(job, win32job.JobObjectBasicAccountingInformation)["ActiveProcesses"]
+                if not active:
+                    break
+                time.sleep(.05)
+            report["job_active_after_cleanup"] = active
         # The handles belong to this invocation; never terminate by a borrowed PID.
         if process is not None:
             if win32event.WaitForSingleObject(process, 0) == win32con.WAIT_TIMEOUT:
@@ -386,9 +435,11 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         raise
             win32event.WaitForSingleObject(process, 5000)
             report["process_stopped"] = win32event.WaitForSingleObject(process, 0) == win32con.WAIT_OBJECT_0
-            process.Close()
         if audio is not None:
-            report["audio_restore_errors"] = audio.close()
+            audio.close()
+            report["audio_restore_errors"] = []  # adapter never changes volume/session state
+        if process is not None:
+            process.Close()
         if session is not None:
             try:
                 session.detach()
@@ -399,6 +450,10 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                 handle.Close()
         if desk is not None:
             desk.CloseDesktop()
+        if gui_mutex is not None:
+            if gui_mutex_held:
+                win32event.ReleaseMutex(gui_mutex)
+            gui_mutex.Close()
         if received:
             (out / "first-packet.bin").write_bytes(received)
         report["packet_bytes"] = len(received)
@@ -411,15 +466,17 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                                  for c in report["captures"])
                              and report["complete_first_0x34"] and report.get("process_stopped", False)
                              and report.get("exit_code_before_cleanup") == win32con.STILL_ACTIVE
+                             and report.get("job_active_after_cleanup") == 0
                              and report["source_hash_unchanged"] and "error" not in report
                              and "client_exception" not in report
                              and "render_capture_error" not in report)
         if not audible:
-            report["success"] &= report.get("audio", {}).get("active_while_muted", False)
+            report["success"] &= report.get("audio", {}).get("ready", False)
             report["success"] &= not report.get("audio_restore_errors", [])
         (out / "run.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(report), flush=True)
     return 0 if report["success"] else 2
+
 
 
 if __name__ == "__main__":
@@ -432,7 +489,8 @@ if __name__ == "__main__":
     parser.add_argument("--render-capture", action="store_true", help="Use installed Frida to capture the owned D3D9 backbuffer")
     parser.add_argument("--upstream-port", type=int, help="Forward only to an existing localhost stub on this port")
     parser.add_argument("--dxwrapper-dir", type=Path, help="Verified unpacked dxwrapper bundle, applied only to the work/ copy")
-    parser.add_argument("--audible", action="store_true", help="Leave audio unchanged; default mutes only the owned game's Windows audio sessions")
+    parser.add_argument("--audible", action="store_true", help="Rejected for background QA; memory-only audio requires --silent-device")
+    parser.add_argument("--silent-device", action="store_true", help="Use process-local memory-only DirectSound objects; no real audio device or session is opened")
     parser.add_argument("--ui-login", action="store_true", help="Enter synthetic test credentials in the normal login UI; requires render capture")
     parser.add_argument("--ui-click", action="append", default=[], metavar="SECONDS:X:Y", help="Queue a virtual left click in the owned game window; repeatable, requires --ui-login")
     parser.add_argument("--enable-creation-menu", action="store_true", help="Explicitly enable the CD client's two disabled creation menus in owned process memory")
@@ -463,4 +521,4 @@ if __name__ == "__main__":
             parser.error("Use nonempty printable ASCII test credentials within the documented limits, without spaces")
     raise SystemExit(run(args.source_root, args.out, args.seconds, args.d3d8_wrapper,
                          args.instance_root, args.render_capture, args.upstream_port, args.dxwrapper_dir, args.audible,
-                         args.ui_login, args.test_account, args.test_credential, clicks, args.enable_creation_menu, args.ui_control))
+                         args.ui_login, args.test_account, args.test_credential, clicks, args.enable_creation_menu, args.ui_control, args.silent_device))
