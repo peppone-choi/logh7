@@ -65,6 +65,54 @@ struct HudSprite {
 static_assert(sizeof(HudSprite) == 44, "CD sprite ABI");
 static HudSprite hudSprites[5] = {};
 
+// The CD's 004b49d0 initializes only the character ID in its stack record.
+// Supply the selected captain card and a fully initialized native record to the
+// existing serializer. Balances, eligibility and deadlines remain server-owned.
+struct FuelRequest {
+    unsigned time, wait, character;
+    unsigned short card, padding;
+    unsigned pcp, mcp;
+};
+static_assert(sizeof(FuelRequest) == 24, "CD fuel request ABI");
+static void __cdecl requestFuel() {
+    void* world = *reinterpret_cast<void**>(0x7ccffc);
+    if (!world || !at<BYTE>(world, 0x2a58f8)) return;
+    void* character = at<void*>(world, 8);
+    void* command = *reinterpret_cast<void**>(0xc9e2f8);
+    if (!character || !at<BYTE>(character, 0) || !command || at<int>(command, 0x28) != 44 ||
+        at<void*>(command, 0x1c) != character) return;
+    int power = at<BYTE>(character, 0x28);
+    int card = at<int>(command, 0x20);
+    if ((power != 2 || card != 59) && (power != 3 || card != 195)) return;
+    FuelRequest record = {};
+    record.character = at<unsigned>(character, 0x24);
+    record.card = static_cast<unsigned short>(card);
+    // Internal selector is one greater than the switch case: 0x52 -> 0x0b02.
+    reinterpret_cast<unsigned(__thiscall*)(void*, char, unsigned, const void*)>(0x4b78a0)(world, 0, 0x52, &record);
+}
+
+static void __fastcall suppliedFuel(void* world, void*, void* message) {
+    // 0044c450 has already validated the received count and decoded alignment.
+    if (!at<BYTE>(world, 0x3579cc) && at<BYTE>(world, 0x2a58f8)) {
+        unsigned count = at<BYTE>(message, 12);
+        if (count <= 70) {
+            for (unsigned i = 0; i < count; ++i) {
+                unsigned id = at<unsigned>(message, 16 + i * 8);
+                unsigned cruise = at<unsigned>(message, 20 + i * 8);
+                for (int slot = 0; slot < 600; ++slot) {
+                    BYTE* character = static_cast<BYTE*>(world) + 12 + slot * 0x370;
+                    if (at<BYTE>(character, 0) && at<unsigned>(character, 0x48) == id &&
+                        at<unsigned>(character, 0x318) == id) {
+                        at<float>(character, 0x36c) = static_cast<float>(cruise);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    reinterpret_cast<void(__thiscall*)(void*, void*)>(0x4c0860)(world, message);
+}
+
 static void drawHudIcon(int slot, int atlasX, int atlasY, float x, float y, unsigned color) {
     auto panel = *reinterpret_cast<HudSprite**>(0x9d2ed0);
     if (!panel || !panel->texture || panel->textureWidth != 1024 || panel->textureHeight != 1024) return;
@@ -260,6 +308,11 @@ static void install() {
     BYTE* hudCall = reinterpret_cast<BYTE*>(0x4d7e5f);
     const BYTE expectedHudCall[] = {0xe8,0xac,0xd7,0xff,0xff};
     if (memcmp(hudCall, expectedHudCall, sizeof(expectedHudCall))) { status = -2; return; }
+    BYTE* fuel = reinterpret_cast<BYTE*>(0x4b49d0);
+    const BYTE expectedFuel[] = {0x83,0xec,0x18,0xe8,0xb8};
+    BYTE* supplied = reinterpret_cast<BYTE*>(0x4bce39);
+    const BYTE expectedSupplied[] = {0xe8,0x22,0x3a,0x00,0x00};
+    if (memcmp(fuel, expectedFuel, 5) || memcmp(supplied, expectedSupplied, 5)) { status = -2; return; }
     SIZE_T region = hudCall + 5 - target;
     DWORD previous = 0;
     if (!VirtualProtect(target, region, PAGE_EXECUTE_READWRITE, &previous)) { status = -3; return; }
@@ -268,6 +321,11 @@ static void install() {
     *reinterpret_cast<LONG*>(hudCall + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&drawHud) - hudCall - 5);
     FlushInstructionCache(GetCurrentProcess(), target, region);
     DWORD ignored = 0; VirtualProtect(target, region, previous, &ignored);
+    BYTE jump[5] = {0xe9};
+    *reinterpret_cast<LONG*>(jump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&requestFuel) - fuel - 5);
+    BYTE call[5] = {0xe8};
+    *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&suppliedFuel) - supplied - 5);
+    if (!patchBytes(fuel, expectedFuel, jump, 5) || !patchBytes(supplied, expectedSupplied, call, 5)) { status = -3; return; }
     // Only the strategy HUD call sites use the wrong group. Tactical group 104 remains intact.
     const unsigned hudGroups[] = {0x58d561,0x58d570,0x58d57f,0x58d58e,0x58d59d,0x58d5ac,0x58d5bb,
         0x58d5ca,0x58d5d9,0x58d5e8,0x58d6d3,0x58effb,0x58f01e,0x58f038,0x58f053,0x58f070,

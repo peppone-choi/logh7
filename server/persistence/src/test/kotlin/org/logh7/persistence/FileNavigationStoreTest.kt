@@ -18,12 +18,13 @@ class FileNavigationStoreTest {
             landed = old.copy(baseId = 1049, mode = 0, spotId = 10_490_003)
             store.save(mapOf("pilot" to landed))
         }
-        assertEquals("LOGH7-NAV-3", java.nio.file.Files.readAllLines(path).first())
+        assertEquals("LOGH7-NAV-4", java.nio.file.Files.readAllLines(path).first())
         FileNavigationStore(path).use { assertEquals(landed, it.load().getValue("pilot")) }
     }
     @Test fun replacementSurvivesReopenAndExcludesOtherWriters() {
         val path = directory.resolve("navigation")
-        val player = Navigator(1, 10000, Power.EMPIRE, 2488, 1000, 960, 900, 1, cpRecoveryAt = 12345678, cpPaused = true)
+        val player = Navigator(1, 10000, Power.EMPIRE, 2488, 1000, 960, 900, 1, cpRecoveryAt = 12345678, cpPaused = true,
+            fuelReadyAt = 12691234)
         FileNavigationStore(path).use { store ->
             assertTrue(store.load().isEmpty())
             assertFails { FileNavigationStore(path) }
@@ -44,5 +45,15 @@ class FileNavigationStoreTest {
         val path = directory.resolve("navigation")
         java.nio.file.Files.writeString(path, "LOGH7-NAV-1\npilot\t1\t10000\tEMPIRE\t2488")
         FileNavigationStore(path).use { assertFails { it.load() } }
+    }
+    @Test fun versionThreeMigratesWithoutStartingARefill() {
+        val path = directory.resolve("version-three")
+        java.nio.file.Files.writeString(path, "LOGH7-NAV-3\npilot\t1\t10000\tEMPIRE\t2488\t123\t456\t900\t1\t0\t5\t0\t0\t12345678\t0\n")
+        FileNavigationStore(path).use {
+            val old = it.load().getValue("pilot")
+            assertEquals(12345678, old.cpRecoveryAt); assertNull(old.fuelReadyAt)
+            it.save(mapOf("pilot" to old))
+        }
+        FileNavigationStore(path).use { assertEquals(900, it.load().getValue("pilot").cruise) }
     }
 }

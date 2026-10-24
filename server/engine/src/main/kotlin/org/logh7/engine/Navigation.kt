@@ -9,18 +9,22 @@ import kotlin.math.abs
 /** Local navigation policy where original range, fuel and timing formulas remain unknown. */
 data class NavigationPolicy(val initialCp: Int = 1000, val initialCruise: Int = 1000,
     val maximumRange: Int = 3, val warpCost: Int = 40, val cruiseCost: Int = 100,
-    val maximumCp: Int = 1000, val recoveryBase: Int = 50) {
+    val maximumCp: Int = 1000, val recoveryBase: Int = 50,
+    val maximumCruise: Int = 1000, val fuelSupplyCost: Int = 160) {
     init { require(initialCp in 0..maximumCp && initialCruise >= 100 && maximumRange in 1..10 &&
-        warpCost >= 0 && cruiseCost >= 0 && maximumCp > 0 && recoveryBase >= 0) }
+        warpCost >= 0 && cruiseCost >= 0 && maximumCp > 0 && recoveryBase >= 0 &&
+        maximumCruise >= initialCruise && fuelSupplyCost >= 0) }
 }
 data class Navigator(val generation: Long, val characterId: Int, val power: Power, val grid: Int,
     val pcp: Int, val mcp: Int, val cruise: Int, val moves: Long = 0,
     val baseId: Int = 0, val mode: Int = 5, val spotId: Int = 0, val spotOwner: Int = 0,
-    val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false) {
+    val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
+    val fuelReadyAt: Long? = null) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && (cpRecoveryAt == null || cpRecoveryAt in 0..0xffffffffL) &&
+        (fuelReadyAt == null || fuelReadyAt in 0..0xffffffffL) &&
         (baseId != 0 || (mode == 5 && spotId == 0 && spotOwner == 0))) }
 }
 sealed interface PlaceMove {
@@ -36,13 +40,16 @@ interface NavigationStore : AutoCloseable {
 data class NavigationRequest(val account: String, val characterId: Int, val power: Power,
     val connection: String, val generation: Long, val destination: Int? = null, val unitId: Int? = null,
     val captainCard: Int? = null, val place: PlaceMove? = null, val rank: Int = 20,
-    val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null) {
+    val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null,
+    val supplyFuel: Boolean = false) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
-        (tactical == null || (destination == null && place == null))) }
+        (tactical == null || (destination == null && place == null && !supplyFuel)) &&
+        (!supplyFuel || (destination == null && place == null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED }
-data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null)
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL }
+data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
+    val completedFuel: Boolean = false)
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
@@ -52,7 +59,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
     fun apply(request: NavigationRequest, session: SessionState): NavigationResult {
         var current: Navigator? = null
-        fun reject(reason: NavigationRejection) = NavigationResult(null, previous = current, rejection = reason)
+        var completedFuel = false
+        fun reject(reason: NavigationRejection) = NavigationResult(null, previous = current, rejection = reason, completedFuel = completedFuel)
         val member = session.participants[request.account] ?: return reject(NavigationRejection.SESSION)
         if (session.ended != null || session.generation != request.generation || !member.online || member.connection != request.connection)
             return reject(NavigationRejection.SESSION)
@@ -63,21 +71,39 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val initial = existing ?: Navigator(request.generation, request.characterId, request.power,
             galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise)
         val now = session.gameMillis / 1000
-        val recovered = recover(initial, request, now)
+        val fueled = if (!initial.cpPaused && initial.fuelReadyAt?.let { now >= it } == true)
+            initial.copy(cruise = maxOf(initial.cruise, policy.maximumCruise), fuelReadyAt = null) else initial
+        completedFuel = fueled != initial
+        val recovered = recover(fueled, request, now)
         val before = if (request.tactical != null && request.tactical != recovered.cpPaused)
             recovered.copy(cpPaused = request.tactical, cpRecoveryAt = now) else recovered
         if (existing != before) commit(request.account, before, session.generation)
         current = before
         val destination = request.destination
-        if (destination == null && request.place == null) {
-            return NavigationResult(before, existing)
+        if (destination == null && request.place == null && !request.supplyFuel) {
+            return NavigationResult(before, existing, completedFuel = completedFuel)
         }
         if (before.cpPaused) return reject(NavigationRejection.TACTICAL)
+        if (before.fuelReadyAt != null) return reject(NavigationRejection.SUPPLYING)
+        if (request.supplyFuel) {
+            if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
+            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            if (before.baseId != 0 || before.spotId != 0 || before.mode != 5) return reject(NavigationRejection.EMBARKED)
+            if (before.cruise >= policy.maximumCruise) return reject(NavigationRejection.FUEL_FULL)
+            val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), policy.fuelSupplyCost.toLong(), CpPool.MCP)
+            if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
+            // W68: 48..960 hours. The missing-fuel interpolation is a local policy.
+            val hours = maxOf(48L, ((policy.maximumCruise - before.cruise).toLong() * 960 + policy.maximumCruise - 1) / policy.maximumCruise)
+            val after = before.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
+                fuelReadyAt = Math.addExact(now, hours * 3600))
+            commit(request.account, after, session.generation)
+            return NavigationResult(after, before, completedFuel = completedFuel)
+        }
         if (request.place != null) {
             if (destination != null) return reject(NavigationRejection.BASE)
             val result = movePlace(request, before)
             result.player?.let { commit(request.account, it, session.generation) }
-            return result
+            return result.copy(completedFuel = completedFuel)
         }
         if (before.baseId != 0 || before.spotId != 0) return reject(NavigationRejection.EMBARKED)
         if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
@@ -100,7 +126,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val after = before.copy(grid = destination, pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
             cruise = before.cruise - policy.cruiseCost, moves = Math.addExact(before.moves, 1))
         commit(request.account, after, session.generation)
-        return NavigationResult(after, before)
+        return NavigationResult(after, before, completedFuel = completedFuel)
     }
     /** W27 fixes the interval and offline recovery. Cap and ability formula are provisional. */
     private fun recover(player: Navigator, request: NavigationRequest, now: Long): Navigator {
