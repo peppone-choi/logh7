@@ -10,10 +10,10 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.*
 
-class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics) : AutoCloseable {
+class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics, private val galaxy: Galaxy? = null) : AutoCloseable {
     val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics)
+    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy)
     val access = EngineGameAdmission(engine, scope)
     private val clients = ConcurrentLinkedQueue<SyntheticClient>()
     private val characters = ConcurrentHashMap<String, CharacterMessages.Generate>()
@@ -52,7 +52,8 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
                 reservations.map { it.localPort }
             } finally { reservations.forEach { it.close() } }
             val candidate = Gateway(directory.resolve("captures"), accounts, directory.resolve("characters.properties"),
-                gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission)
+                gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission,
+                world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { EngineGameNavigation(engine, scope) })
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 metrics.observe("bindRetries", attempt.toLong()); return candidate to ports
@@ -112,13 +113,13 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
         current
     }
     data class Joined(val client: SyntheticClient, val accepted: Boolean)
-    fun join(account: String, create: Boolean): Joined {
+    fun join(account: String, create: Boolean, initialize: Boolean = true): Joined {
         val client = game(account, create)
         try {
             val body = client.request(SyntheticClient.opcode(0x0205), 0x0206, "join")
             check(body.size == 7 && body[6].toInt() in 0..1)
             val accepted = body[6] == 0.toByte()
-            if (accepted) bootstrap(client, characters.getValue(account)) else client.expectClosed()
+            if (accepted && initialize) bootstrap(client, characters.getValue(account)) else if (!accepted) client.expectClosed()
             return Joined(client, accepted)
         } catch (failure: Throwable) { client.close(); throw failure }
     }

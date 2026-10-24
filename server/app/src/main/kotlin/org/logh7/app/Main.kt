@@ -68,7 +68,8 @@ fun main() {
         resources.addFirst(ops)
         val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
         val sessionPort = System.getenv("LOGH7_SESSION_PORT")?.toInt() ?: 47903
-        gateway.start(bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress)
+        gateway.start(bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress,
+            additionalBindAddresses = listOfNotNull(System.getenv("LOGH7_HOST_ONLY_ADDRESS")))
         Runtime.getRuntime().addShutdownHook(Thread { closeResources() })
         println("LOGH7 stubs: $bindAddress:47900 / 47902 / $sessionPort; ops: 127.0.0.1:47901; capture: ${captureDirectory?.toAbsolutePath() ?: "off"}")
         CountDownLatch(1).await()
