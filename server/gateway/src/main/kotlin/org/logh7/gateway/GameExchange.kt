@@ -112,16 +112,21 @@ class GameExchange(
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), unitId = character.id.toInt() + 1_000_000,
                             captainCard = dock?.card, place = place, rank = character.rank)).thenApply { result ->
-                            val player = result.player
+                            val player = result.player ?: result.previous
+                            val accepted = result.player != null
                             val seconds = gameSeconds()
-                            val ack = if (dock != null) org.logh7.protocol.PlaceMessages.docked(dock, seconds,
-                                player?.pcp ?: 0, player?.mcp ?: 0, player != null)
-                            else org.logh7.protocol.PlaceMessages.moved(move!!, seconds, player?.pcp ?: 0,
-                                player?.mcp ?: 0, player != null)
-                            if (player == null) listOf(ack) else listOf(ack,
+                            // The CD's 004beaa0 applies ACK coordinates even on a rejection.
+                            // Echo the authoritative origin so denial cannot move its background.
+                            check(player != null) { "Place request lost its authenticated session" }
+                            val ack = if (dock != null) org.logh7.protocol.PlaceMessages.docked(
+                                dock.copy(base = player.baseId, mode = player.mode), seconds, player.pcp, player.mcp, accepted)
+                            else org.logh7.protocol.PlaceMessages.moved(
+                                move!!.copy(spot = player.spotId, owner = if (player.spotId == 0) character.id.toInt() else player.spotOwner),
+                                seconds, player.pcp, player.mcp, accepted)
+                            listOf(ack,
                                 BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
                                 BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
-                                (if (dock != null) listOf(org.logh7.protocol.PlaceMessages.dockNotification(character.id.toInt(),
+                                (if (dock != null && accepted) listOf(org.logh7.protocol.PlaceMessages.dockNotification(character.id.toInt(),
                                     player.baseId, player.mode, seconds)) else emptyList())
                         }
                         return null

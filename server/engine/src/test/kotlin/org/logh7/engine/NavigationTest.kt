@@ -25,9 +25,17 @@ class NavigationTest {
         assertEquals(990, act(PlaceMove.Spot(lobby.id, 0)).player!!.pcp)
         val arrived = act(PlaceMove.Spot(meeting.id, 0)).player!!
         assertEquals(985, arrived.pcp); assertEquals(arrived, store.saved.getValue("pilot"))
-        assertEquals(NavigationRejection.ACCESS, act(PlaceMove.Spot(prison.id, 0)).rejection)
+        val denied = act(PlaceMove.Spot(prison.id, 0))
+        assertEquals(NavigationRejection.ACCESS, denied.rejection)
+        assertEquals(arrived, denied.previous)
+        assertEquals(arrived, store.saved.getValue("pilot"))
         assertEquals(NavigationRejection.SPOT, act(PlaceMove.Spot(1, 0)).rejection)
         assertEquals(NavigationRejection.EMBARKED, act(PlaceMove.Dock(0, 5)).rejection)
+        assertNotNull(act(PlaceMove.Spot(0, 10000)).player)
+        val quay = galaxy.facilities.getValue(1000).single { it.kind == 4 }.spots.single { it.kind == 6 }
+        assertEquals(NavigationRejection.ACCESS, navigation.apply(request.copy(unitId = 42,
+            place = PlaceMove.Spot(quay.id, 0)), session).rejection)
+        assertNotNull(act(PlaceMove.Spot(quay.id, 0)).player)
         assertNotNull(act(PlaceMove.Spot(0, 10000)).player)
         val departed = act(PlaceMove.Dock(0, 5)).player!!
         assertEquals(0, departed.baseId); assertEquals(0, departed.spotId)

@@ -42,7 +42,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     private var players = store?.load().orEmpty().toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
     fun apply(request: NavigationRequest, session: SessionState): NavigationResult {
-        fun reject(reason: NavigationRejection) = NavigationResult(null, rejection = reason)
+        var current: Navigator? = null
+        fun reject(reason: NavigationRejection) = NavigationResult(null, previous = current, rejection = reason)
         val member = session.participants[request.account] ?: return reject(NavigationRejection.SESSION)
         if (session.ended != null || session.generation != request.generation || !member.online || member.connection != request.connection)
             return reject(NavigationRejection.SESSION)
@@ -52,6 +53,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return reject(NavigationRejection.IDENTITY)
         val before = existing ?: Navigator(request.generation, request.characterId, request.power,
             galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise)
+        current = before
         val destination = request.destination
         if (destination == null && request.place == null) {
             if (existing == null) commit(request.account, before, session.generation)
@@ -88,7 +90,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         return NavigationResult(after, before)
     }
     private fun movePlace(request: NavigationRequest, before: Navigator): NavigationResult {
-        fun reject(reason: NavigationRejection) = NavigationResult(null, rejection = reason)
+        fun reject(reason: NavigationRejection) = NavigationResult(null, previous = before, rejection = reason)
         val ownPower = if (before.power == Power.EMPIRE) 2 else 3
         val after: Navigator
         val cost: Long
@@ -124,7 +126,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                         SpotAccess.PUBLIC -> move.owner == 0
                         SpotAccess.GUARDED -> move.owner == 0 && galaxy.conditions.getValue(before.baseId).power == ownPower
                         SpotAccess.RANK -> move.owner == 0 && request.rank <= if (spot.kind == 10) 8 else 13
-                        SpotAccess.PRIVATE -> spot.kind in setOf(6, 13) && move.owner == before.characterId
+                        SpotAccess.PRIVATE -> when (spot.kind) {
+                            // CD room picker sends owner 0 for the quay template. Its owner is
+                            // resolved from the authenticated flagship, never from a client ID.
+                            6 -> move.owner == 0 && request.unitId == before.unitId &&
+                                galaxy.conditions.getValue(before.baseId).power == ownPower
+                            13 -> move.owner == before.characterId
+                            else -> false
+                        }
                     }
                     if (!allowed) return reject(NavigationRejection.ACCESS)
                 }

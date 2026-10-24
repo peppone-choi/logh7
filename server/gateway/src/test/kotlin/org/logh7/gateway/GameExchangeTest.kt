@@ -244,9 +244,13 @@ class GameExchangeTest {
         pending = CompletableFuture()
         game.accept(0x30, encrypted(PlaceMessages.moved(move.copy(spot = 10490019), 0, 0, 0).copyOfRange(4, 30), 6))
         val rejected = assertNotNull(game.takePendingWorld())
-        pending.complete(org.logh7.engine.NavigationResult(null, rejection = org.logh7.engine.NavigationRejection.ACCESS))
-        assertEquals(listOf(0x0e00), opcodes(rejected.join()))
-        assertEquals(1, ByteBuffer.wrap(rejected.join().single()).int)
+        pending.complete(org.logh7.engine.NavigationResult(null, previous = player,
+            rejection = org.logh7.engine.NavigationRejection.ACCESS))
+        assertEquals(listOf(0x0e00, 0x0356, 0x0325), opcodes(rejected.join()))
+        val denied = ByteBuffer.wrap(rejected.join().first())
+        assertEquals(1, denied.int)
+        assertEquals(player.spotId, denied.getInt(22))
+        assertEquals(player.pcp, denied.getInt(14))
         game.close()
     }
     @Test fun goldenCapturedInitialFrameWhenAvailable() {
