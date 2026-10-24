@@ -97,6 +97,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
                                     private val waitingFrames = ArrayDeque<ByteArray>()
                                     private var waiting = false
+                                    private var refreshRequested = false
                                     private val notifications = ArrayDeque<List<ByteArray>>()
                                     private var notificationBytes = 0
                                     override fun userEventTriggered(ctx: ChannelHandlerContext, event: Any) {
@@ -117,7 +118,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                     private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null
                                     override fun channelActive(ctx: ChannelHandlerContext) {
                                         if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
-                                            if (exchange.obsolete()) { exchange.close(); ctx.close() }
+                                            try {
+                                                if (exchange.obsolete()) { exchange.close(); ctx.close() }
+                                                else if (port == sessionPort && ctx.channel().isActive) {
+                                                    if (waiting) refreshRequested = true else refresh(ctx)
+                                                }
+                                            } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
                                         }, 1, 1, java.util.concurrent.TimeUnit.SECONDS)
                                         ctx.fireChannelActive()
                                     }
@@ -134,26 +140,35 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                             val operation = exchange.takePendingWorld()
                                             val pending = join?.thenApply { exchangeResult -> ({ exchange.finishJoinOutbound(exchangeResult) }) }
                                                 ?: operation?.thenApply { messages -> ({ exchange.finishWorld(messages) }) }
-                                            if (pending != null) waiting = true
-                                            pending?.whenComplete { finish, failure ->
-                                                ctx.executor().execute {
-                                                    if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
-                                                    else try {
-                                                        finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
-                                                        waiting = false
-                                                        while (notifications.isNotEmpty() && ctx.channel().isActive) {
-                                                            val messages = notifications.removeFirst(); notificationBytes -= messages.sumOf { it.size }
-                                                            sendNotification(ctx, messages)
-                                                        }
-                                                        while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
-                                                    } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
-                                                }
-                                            }
+                                            if (pending != null) awaitPending(ctx, pending)
                                         } else {
                                             val response = updateExchange.accept(payload)
                                             val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
                                             if (updateExchange.state == UpdateExchange.State.COMPLETE) {
                                                 written.addListener(ChannelFutureListener.CLOSE)
+                                            }
+                                        }
+                                    }
+                                    private fun refresh(ctx: ChannelHandlerContext) {
+                                        refreshRequested = false
+                                        val operation = exchange.refreshWorld() ?: return
+                                        awaitPending(ctx, operation.thenApply { messages -> ({ exchange.finishWorld(messages) }) })
+                                    }
+                                    private fun awaitPending(ctx: ChannelHandlerContext, pending: java.util.concurrent.CompletableFuture<() -> OutboundBatch?>) {
+                                        waiting = true
+                                        pending.whenComplete { finish, failure ->
+                                            ctx.executor().execute {
+                                                if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
+                                                else try {
+                                                    finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
+                                                    waiting = false
+                                                    while (notifications.isNotEmpty() && ctx.channel().isActive) {
+                                                        val messages = notifications.removeFirst(); notificationBytes -= messages.sumOf { it.size }
+                                                        sendNotification(ctx, messages)
+                                                    }
+                                                    while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
+                                                    if (!waiting && refreshRequested && ctx.channel().isActive) refresh(ctx)
+                                                } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
                                             }
                                         }
                                     }

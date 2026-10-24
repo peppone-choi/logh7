@@ -3,6 +3,8 @@ package org.logh7.persistence
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.api.condition.EnabledOnOs
+import org.junit.jupiter.api.condition.OS
 import org.logh7.engine.*
 import org.logh7.gateway.EngineGameAdmission
 import org.logh7.protocol.CharacterMessages
@@ -17,23 +19,31 @@ class FileSessionStoreTest {
     private val rules = SessionRules.load()
     private val fingerprint get() = SessionCodec.fingerprint(rules)
     private val journal get() = directory.resolve("session.journal")
+    @Test @EnabledOnOs(OS.WINDOWS)
+    fun windowsKeepsStrictDirectoryDurabilityUnlessExplicitlySelected() {
+        assertFailsWith<AccessDeniedException> { FileSessionStore(directory, rules).close() }
+        FileSessionStore(directory, rules, directorySync = DirectorySync.FILE_CONTENTS_ONLY).use {
+            assertEquals(DirectorySync.FILE_CONTENTS_ONLY, it.directorySync)
+            assertEquals(0, it.load().revision)
+        }
+    }
     private fun apply(store: FileSessionStore, action: SessionAction): SessionTransition =
         transitionSession(rules, store.load(), action).also { store.commit(action, it) }
     private fun seed(count: Int = 3) {
-        FileSessionStore(directory, rules).use { store -> repeat(count) { apply(store, SessionAction.Advance((it + 1L) * 333)) } }
+        localSessionStore(directory, rules).use { store -> repeat(count) { apply(store, SessionAction.Advance((it + 1L) * 333)) } }
     }
     private fun writeJournal(frames: List<ByteArray>) {
         Files.write(journal, frames.fold(ByteArray(0)) { bytes, frame -> bytes + FileSessionStore.frame(frame) })
     }
     private fun assertBlockedUnchanged(path: Path = journal) {
         val bytes = Files.readAllBytes(path)
-        assertFails { FileSessionStore(directory, rules).close() }
+        assertFails { localSessionStore(directory, rules).close() }
         assertContentEquals(bytes, Files.readAllBytes(path))
     }
     @Test fun checkpointAndWholeJournalReplayMatchFullStateAndSubsequentEvents() {
         val expected: DurableWorldState
         val after: SessionTransition
-        FileSessionStore(directory, rules, 7).use { store ->
+        localSessionStore(directory, rules, 7).use { store ->
             apply(store, SessionAction.Join("original", Power.EMPIRE, true, "c-1", 7))
             apply(store, SessionAction.Join("excluded", Power.ALLIANCE, false, "c-2", 7))
             apply(store, SessionAction.Exclude("excluded"))
@@ -45,7 +55,7 @@ class FileSessionStoreTest {
             expected = store.load()
             after = transitionSession(rules, expected, SessionAction.Advance(3_600_452))
         }
-        FileSessionStore(directory, rules).use { store ->
+        localSessionStore(directory, rules).use { store ->
             assertEquals(expected, store.load())
             assertContentEquals(SessionCodec.worldBytes(expected), SessionCodec.worldBytes(store.load()))
             assertEquals(after, apply(store, SessionAction.Advance(3_600_452)))
@@ -55,17 +65,17 @@ class FileSessionStoreTest {
         Files.write(checkpoint, FileSessionStore.frame(SessionCodec.checkpoint(fingerprint,
             SessionCodec.Checkpoint(0, DurableWorldState(SessionSimulation(rules, 7).exportState()),
                 DurableWorldState(SessionSimulation(rules, 7).exportState())))))
-        FileSessionStore(directory, rules).use { assertEquals(after.state, it.load()) }
+        localSessionStore(directory, rules).use { assertEquals(after.state, it.load()) }
         Files.write(checkpoint, saved)
     }
     @Test fun endedSessionAndScheduledRestartRestoreGenerationWithoutDoubleAdvance() {
         var ended: DurableWorldState
-        FileSessionStore(directory, rules, 9).use { store ->
+        localSessionStore(directory, rules, 9).use { store ->
             apply(store, SessionAction.Advance(333))
             apply(store, SessionAction.Territory(mapOf(Power.EMPIRE to 3, Power.ALLIANCE to 20), emptySet()))
             ended = store.load(); store.checkpoint()
         }
-        FileSessionStore(directory, rules).use { store ->
+        localSessionStore(directory, rules).use { store ->
             assertEquals(ended, store.load())
             assertNotNull(ended.session.ended)
             assertEquals(Admission.ENDED, apply(store, SessionAction.Join("late", Power.EMPIRE, false, "late", 9)).admission)
@@ -76,12 +86,12 @@ class FileSessionStoreTest {
             assertEquals(Admission.STALE_SESSION, apply(store, SessionAction.Join("old", Power.EMPIRE, false, "old", 9)).admission)
             store.checkpoint()
         }
-        FileSessionStore(directory, rules).use { assertEquals(10L, it.load().session.generation) }
+        localSessionStore(directory, rules).use { assertEquals(10L, it.load().session.generation) }
     }
     @Test fun exactAdjacentDuplicateIsIdempotent() {
         seed(); val frames = FileSessionStore.readFrames(journal)
         writeJournal(listOf(frames[0], frames[0], frames[1], frames[1], frames[2]))
-        FileSessionStore(directory, rules).use { assertEquals(3L, it.load().revision); assertEquals(999 * rules.speed, it.load().session.gameMillis) }
+        localSessionStore(directory, rules).use { assertEquals(3L, it.load().revision); assertEquals(999 * rules.speed, it.load().session.gameMillis) }
     }
     @Test fun conflictingDuplicateAndMissingOrReorderedSequenceAreRejected() {
         seed(); val frames = FileSessionStore.readFrames(journal)
@@ -100,7 +110,7 @@ class FileSessionStoreTest {
         val schemaBad = frames[0].clone(); schemaBad[3] = 2
         writeJournal(listOf(schemaBad) + frames.drop(1)); assertBlockedUnchanged()
         Files.write(journal, pristine)
-        assertFails { FileSessionStore(directory, rules.copy(speed = rules.speed + 1)).close() }
+        assertFails { localSessionStore(directory, rules.copy(speed = rules.speed + 1)).close() }
         assertContentEquals(pristine, Files.readAllBytes(journal))
         val entry = SessionCodec.readEntry(fingerprint, frames[0])
         val admissionBad = entry.copy(transition = entry.transition.copy(admission = Admission.FULL))
@@ -112,7 +122,7 @@ class FileSessionStoreTest {
     }
     @Test fun checkpointCutStateAndChecksumAreVerified() {
         seed()
-        FileSessionStore(directory, rules).use { it.checkpoint() }
+        localSessionStore(directory, rules).use { it.checkpoint() }
         val path = directory.resolve("session.checkpoint")
         val original = Files.readAllBytes(path)
         val cp = SessionCodec.readCheckpoint(fingerprint, FileSessionStore.readFrames(path).single())
@@ -130,12 +140,12 @@ class FileSessionStoreTest {
         }
     }
     @Test fun journalWithoutCheckpointAndConcurrentWriterAreRejected() {
-        FileSessionStore(directory, rules).use { assertFails { FileSessionStore(directory, rules).close() } }
-        FileSessionStore(directory, rules).use { assertEquals(0L, it.load().revision) }
+        localSessionStore(directory, rules).use { assertFails { localSessionStore(directory, rules).close() } }
+        localSessionStore(directory, rules).use { assertEquals(0L, it.load().revision) }
         Files.delete(directory.resolve("session.checkpoint")); assertBlockedUnchanged()
     }
     @Test fun checkpointFilesystemFailureKeepsCommittedJournalRecoverable() {
-        FileSessionStore(directory, rules).use { store ->
+        localSessionStore(directory, rules).use { store ->
             apply(store, SessionAction.Advance(333))
             Files.delete(directory.resolve("session.checkpoint")); Files.createDirectory(directory.resolve("session.checkpoint"))
             assertFailsWith<IOException> { store.checkpoint() }
@@ -145,11 +155,11 @@ class FileSessionStoreTest {
         Files.delete(directory.resolve("session.checkpoint"))
         val initial = DurableWorldState(SessionSimulation(rules).exportState())
         Files.write(directory.resolve("session.checkpoint"), FileSessionStore.frame(SessionCodec.checkpoint(fingerprint, SessionCodec.Checkpoint(0, initial, initial))))
-        FileSessionStore(directory, rules).use { assertEquals(333L, it.load().elapsed) }
+        localSessionStore(directory, rules).use { assertEquals(333L, it.load().elapsed) }
     }
     @Test fun actualGatewayAdmissionWaitsForForceAndBootClearsConnectionsDurably() = runBlocking {
         val appended = CountDownLatch(1); val release = CountDownLatch(1)
-        val store = FileSessionStore(directory, rules, failPoint = { point ->
+        val store = localSessionStore(directory, rules, failPoint = { point ->
             if (point == StorePoint.AFTER_APPEND) { appended.countDown(); check(release.await(10, TimeUnit.SECONDS)) }
         })
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -162,13 +172,13 @@ class FileSessionStoreTest {
             assertEquals(Admission.ACCEPTED, withContext(Dispatchers.IO) { future.get(10, TimeUnit.SECONDS) })
             assertEquals(1, engine.snapshot().session!!.online)
             engine.submit(WorldCommand.AdvanceTo(451)); engine.drainAndClose()
-            val recovered = WorldEngine(scope, rules, ticking = false, durability = FileSessionStore(directory, rules))
+            val recovered = WorldEngine(scope, rules, ticking = false, durability = localSessionStore(directory, rules))
             assertEquals(0, recovered.snapshot().session!!.online)
             assertEquals(1, recovered.snapshot().session!!.participants)
             val second = EngineGameAdmission(recovered, scope).join("account", character(), "c-2", 1)
             assertEquals(Admission.ACCEPTED, withContext(Dispatchers.IO) { second.get(10, TimeUnit.SECONDS) })
             recovered.submit(WorldCommand.AdvanceTo(452)); recovered.drainAndClose()
-            FileSessionStore(directory, rules).use {
+            localSessionStore(directory, rules).use {
                 assertEquals(452L, it.load().elapsed)
                 assertEquals(452 * rules.speed, it.load().session.gameMillis)
             }
@@ -177,7 +187,7 @@ class FileSessionStoreTest {
     @Test fun appendFailureProducesZeroSuccessfulAdmissionAndNoStateOrEventsAndLatches() = runBlocking {
         val events = mutableListOf<WorldEvent>()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val store = FileSessionStore(directory, rules, failPoint = { if (it == StorePoint.AFTER_APPEND) throw IOException("Injected force boundary failure") })
+        val store = localSessionStore(directory, rules, failPoint = { if (it == StorePoint.AFTER_APPEND) throw IOException("Injected force boundary failure") })
         val engine = WorldEngine(scope, rules, ticking = false, onEvent = { events += it }, durability = store)
         val before = engine.snapshot()
         try {
@@ -194,7 +204,7 @@ class FileSessionStoreTest {
             assertEquals(before, engine.snapshot()); assertContentEquals(bytes, Files.readAllBytes(journal))
             engine.drainAndClose()
             // An uncertain write may survive even though it was never acknowledged. Replay, never retry in place.
-            FileSessionStore(directory, rules).use { assertEquals(1, it.load().session.participants.size) }
+            localSessionStore(directory, rules).use { assertEquals(1, it.load().session.participants.size) }
         } finally { engine.close(); scope.cancel() }
     }
     private fun character() = CharacterMessages.Generate(0, 1, 2, 0, 0, "Test", "Account", 30,

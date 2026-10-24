@@ -39,7 +39,14 @@ fun main() {
         val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
         val sessionDirectory = System.getenv("LOGH7_SESSION_STORE_DIR")?.let { Path.of(it) }
         val world = System.getenv("LOGH7_WORLD_FILE")?.let { WorldBootstrap(Galaxy.load(Path.of(it))) }
-        val store = sessionDirectory?.let { FileSessionStore(it, rules, initialGeneration = generations.current()) }
+        val directorySync = when (System.getenv("LOGH7_SESSION_DIRECTORY_SYNC")) {
+            null, "required" -> org.logh7.persistence.DirectorySync.REQUIRED
+            "files-only" -> org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY
+            else -> error("LOGH7_SESSION_DIRECTORY_SYNC must be required or files-only")
+        }
+        val store = sessionDirectory?.let { FileSessionStore(it, rules, initialGeneration = generations.current(), directorySync = directorySync) }
+        if (store?.directorySync == org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY)
+            println("Session persistence: forced file contents; directory power-loss durability is OS-managed")
         val navigationStore = try { if (world == null) null else org.logh7.persistence.FileNavigationStore(
             System.getenv("LOGH7_NAVIGATION_FILE")?.let { Path.of(it) }
                 ?: requireNotNull(characterFile) { "World navigation requires LOGH7_CHARACTERS_FILE or LOGH7_NAVIGATION_FILE" }
