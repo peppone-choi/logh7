@@ -11,6 +11,10 @@ static struct PlanetInformation {
     void* popup;
     unsigned character, originGrid, grid, ids[4], count, index, page;
     logh::PlanetSystemIndex systems;
+    logh::PlanetDirectory directory;
+    bool directoryVisible, directoryLocal;
+    unsigned directoryRows[350], directoryCount, directoryPage;
+    ULONGLONG directorySentAt;
     bool conditionsReady, warehouseReady, displayed, timeoutShown;
     ULONGLONG requestedAt, acceptAfter;
     BYTE condition[0x180], warehouse[0x300];
@@ -71,7 +75,14 @@ static void requestPlanetInformation() {
 static void __cdecl receivedPlanetConditions(void* world) {
     taxConditions(world);
     auto& info = planetInformation;
-    if (!info.popup || info.world != world || !info.count) return;
+    if (!info.popup || info.world != world) return;
+    auto response = static_cast<BYTE*>(world) + 0x3facf4;
+    if (info.directoryVisible && response[0] <= 4) {
+        for (unsigned i = 0; i < response[0]; ++i)
+            if (info.directory.accept(response + 4 + i * 0x180)) info.displayed = false;
+        return;
+    }
+    if (!info.count) return;
     auto record = logh::findPlanetCondition(static_cast<BYTE*>(world) + 0x3facf4, info.ids[info.index], info.grid);
     if (record) { memcpy(info.condition, record, sizeof(info.condition)); info.conditionsReady = true; info.displayed = false; }
 }
@@ -106,6 +117,33 @@ static void showPlanetInformation() {
     if (GetTickCount64() - planetInformation.requestedAt >= 5000) planetInformation.timeoutShown = true;
 }
 
+static void updatePlanetDirectory() {
+    auto& info=planetInformation;
+    auto now=GetTickCount64();
+    if (info.directory.pending() && now-info.directorySentAt>=5000) {
+        info.directory.expire();info.displayed=false;
+    }
+    if (info.directory.pending() || now-info.directorySentAt<100) return;
+    struct Query { BYTE count,padding[3];unsigned ids[4]; } query={};
+    query.count=static_cast<BYTE>(info.directory.begin(query.ids));
+    if (!query.count) return;
+    info.directorySentAt=now;
+    reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(info.world,0,0x21,&query);
+}
+
+static bool openDirectoryPlanet(unsigned row) {
+    auto& info=planetInformation;
+    unsigned index=logh::PlanetDirectory::viewRow(info.directoryCount,info.directoryPage,row);
+    if (index==info.directoryCount) return false;
+    auto entry=info.directory.rows[info.directoryRows[index]];
+    if (!selectPlanetSystem(entry.grid)) return false;
+    for (unsigned i=0;i<info.count;++i) if (info.ids[i]==entry.id) {
+        info.index=i;info.directoryVisible=false;info.directory.cancel();
+        requestPlanetInformation();return true;
+    }
+    return false;
+}
+
 static int __cdecl planetInfoMenu(void* gui) {
     updateOutfitInformation(gui);
     if (updateTaxWindow(gui)) return -1;
@@ -118,14 +156,40 @@ static int __cdecl planetInfoMenu(void* gui) {
             at<unsigned>(character, 0x24) != info.character || at<unsigned>(world, 0x2b6a70) != info.originGrid)
             closePlanetInformation();
         else {
+            if (info.directoryVisible) {
+                updatePlanetDirectory();
+                BYTE event[52]={};
+                if (GetTickCount64()>=info.acceptAfter) {
+                    if (reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
+                        (info.popup,0xe,planetDirectoryList,event,0)) {
+                        unsigned row=logh::infoWord(event,28);
+                        if (openDirectoryPlanet(row)) info.acceptAfter=GetTickCount64()+200;
+                    }
+                    if (info.directoryVisible) for (int i=23;i<=28;++i) {
+                        if (!reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
+                            (info.popup,2,planetWidget(i),event,0)) continue;
+                        info.acceptAfter=GetTickCount64()+200;
+                        if (i==26) {closePlanetInformation();break;}
+                        if (i==25) {info.directory.refresh();info.directorySentAt=GetTickCount64();info.displayed=false;}
+                        else if (i==23 && info.directoryPage) {--info.directoryPage;rebuildPlanetDirectory();}
+                        else if (i==24 && (info.directoryPage+1)*logh::PlanetDirectory::pageCapacity<info.directoryCount) {
+                            ++info.directoryPage;rebuildPlanetDirectory();
+                        } else if (i>=27) {info.directoryLocal=i==27;info.directoryPage=0;rebuildPlanetDirectory();}
+                        break;
+                    }
+                }
+                if (info.popup && !info.displayed) showPlanetInformation();
+                return -1;
+            }
             BYTE event[52] = {};
-            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 29; ++index) {
+            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 30; ++index) {
                 if (index > 13 && index < 20) continue;
                 auto widget = planetWidget(index);
                 if (!reinterpret_cast<BYTE(__thiscall*)(void*, int, void*, void*, int)>(0x5015f0)
                     (info.popup, 2, widget, event, 0)) continue;
                 info.acceptAfter = GetTickCount64() + 200;
                 if (index == 26) { closePlanetInformation(); break; }
+                if (index == 30) {info.directoryVisible=true;rebuildPlanetDirectory();break;}
                 if (index <= 13 && static_cast<unsigned>(index - 10) < info.count && info.index != static_cast<unsigned>(index - 10)) {
                     info.index = index - 10; requestPlanetInformation();
                 } else if (index >= 20 && index <= 22) {
@@ -133,7 +197,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                 } else if (index == 23 && info.page) { --info.page; info.displayed = false; }
                 else if (index == 24 && info.page + 1 < planetStockPages()) { ++info.page; info.displayed = false; }
                 else if (index == 25 && info.count) requestPlanetInformation();
-                else if (index >= 27) {
+                else if (index >= 27 && index <= 29) {
                     unsigned target = index == 29 ? info.originGrid : info.systems.adjacent(info.grid, index == 28);
                     if (target != info.grid && selectPlanetSystem(target)) {
                         if (info.count) requestPlanetInformation();
@@ -157,13 +221,16 @@ static int __cdecl planetInfoMenu(void* gui) {
     info.popup = planetWindowRoot; planetWindowTab = 0;
     for (unsigned slot = 0; slot < 350; ++slot) {
         auto base = static_cast<BYTE*>(world) + 0x2eb800 + slot * 0x250;
-        if (at<BYTE>(base, 0) && at<int>(base, 8) == 2) info.systems.add(at<unsigned short>(base, 0x10));
+        if (at<BYTE>(base, 0) && at<int>(base, 8) == 2) {
+            info.systems.add(at<unsigned short>(base, 0x10));
+            info.directory.add(at<unsigned>(world,0x2eb288+slot*4),at<unsigned short>(base,0x10),slot);
+        }
     }
     if (!selectPlanetSystem(grid)) { closePlanetInformation(); return selected; }
     info.acceptAfter = GetTickCount64() + 250;
     reinterpret_cast<void(__thiscall*)(void*, int)>(0x506280)(info.popup, 12);
     reinterpret_cast<void(__thiscall*)(void*, void*)>(0x50beb0)(gui, info.popup);
-    if (info.count) requestPlanetInformation();
+    info.directoryVisible=true;rebuildPlanetDirectory();
     showPlanetInformation();
     return selected;
 }

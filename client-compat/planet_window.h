@@ -11,6 +11,8 @@ static int planetDecorationCount = 0;
 static const char planetPartsPath[] = "/../data/image/window/wakusei_parts.tga";
 static const char planetIconPath[] = "/../data/image/senryaku_panel/senryaku_mainpanel.tga";
 static void* planetIcons[1] = {};
+static void createPlanetDirectory();
+static void renderPlanetDirectory();
 // 00503a70 has 150 sprite slots; exceeding it corrupts the native GUI array.
 static_assert(1 + 4 * 9 + 8 + 1 < 150, "Planet decoration slot budget");
 
@@ -161,6 +163,7 @@ static bool createPlanetWindow(void* manager) {
     planetControl(27, 182, 385, 92, 30, L"< 성계", true);
     planetControl(28, 282, 385, 92, 30, L"성계 >", true);
     planetControl(29, 182, 420, 192, 32, L"현재 위치", true);
+    planetControl(30, 182, 460, 192, 42, L"행성 목록", true);
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col)
         planetControl(40 + row * 4 + col, 352 + col * 110, 234 + row * 26, 105, 24, L"", false);
     for (int col = 0; col < 4; ++col) planetControl(80 + col, 352 + col * 110, 206, 105, 24, L"", false);
@@ -197,6 +200,7 @@ static bool createPlanetWindow(void* manager) {
             (planetWindowRoot, surface, fill, 3, 3, state);
     reinterpret_cast<void(__thiscall*)(void*, void*, float, float, float, float)>(0x502f40)
         (planetWindowRoot, surface, 0.015f, 0.035f, 0.065f, 0.97f);
+    createPlanetDirectory();
     reinterpret_cast<void(__thiscall*)(void*)>(0x503910)(planetWindowRoot);
     reinterpret_cast<void(__thiscall*)(void*, int)>(0x502ea0)(planetWindowRoot, 0);
     return true;
@@ -213,6 +217,7 @@ static void planetName(unsigned id, wchar_t (&name)[13]) {
     if (base) memcpy(name, base + 0x48, 12 * sizeof(wchar_t));
     name[12] = 0;
 }
+#include "planet_directory.h"
 static unsigned planetStockPages() {
     auto& info = planetInformation;
     return (info.warehouse[12] + info.warehouse[0x260] + planetWindowRows - 1) / planetWindowRows;
@@ -223,6 +228,8 @@ static void planetValue(unsigned row, const wchar_t* label, unsigned value, cons
 }
 static void renderPlanetWindow() {
     auto& info = planetInformation;
+    planetDirectoryLayout(info.directoryVisible);
+    if (info.directoryVisible) { renderPlanetDirectory(); return; }
     bool stock = planetWindowTab == 2;
     const int xs[] = {392, 578, 640, 724}, widths[] = {180, 58, 78, 80};
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col) {

@@ -99,6 +99,40 @@ int wmain(int argc, wchar_t** argv) {
     if (logh::findPlanetCondition(conditions, id, grid)) return 8;
     conditions[0] = 0;
     if (logh::findPlanetCondition(conditions, id, grid)) return 8;
+    logh::PlanetDirectory directory;
+    if (!directory.add(id,grid,67) || !directory.add(other,grid,3) ||
+        !directory.add(8000,2015,349) || !directory.add(8001,4000,1) || !directory.add(8002,1000,2) ||
+        directory.add(id,grid,2) || directory.add(0,grid,2) || directory.add(9000,5000,2)) return 40;
+    unsigned queryIds[4]={},view[350]={};
+    if (directory.begin(queryIds)!=4 || directory.pending()!=4 || directory.begin(queryIds) ||
+        directory.queried()!=0 || directory.view(view,true,grid)!=2 ||
+        directory.rows[view[0]].id!=id || directory.rows[view[0]].slot!=67 ||
+        directory.view(view,false,0)!=5 || directory.rows[view[0]].id!=8002) return 41;
+    unsigned char reply[0x180]={};
+    memcpy(reply,&id,4);unsigned wrongGrid=grid+1;memcpy(reply+8,&wrongGrid,4);
+    if (directory.accept(reply)) return 42;
+    memcpy(reply+8,&grid,4);reply[4]=3;reply[0x175]=1;
+    if (!directory.accept(reply) || directory.accept(reply) || directory.rows[0].population!=0 ||
+        directory.rows[0].state!=2 || directory.rows[0].power!=3 || directory.pending()!=3) return 43;
+    directory.expire();
+    if (directory.pending() || directory.queried()!=4 || directory.rows[1].state!=3 ||
+        directory.begin(queryIds)!=1 || queryIds[0]!=8002) return 44;
+    memcpy(reply,&other,4);
+    if (directory.accept(reply)) return 48; // Timed-out rows cannot accept a late reply.
+    directory.cancel();
+    if (directory.pending() || directory.queried()!=4 || directory.received()!=1 ||
+        directory.begin(queryIds)!=1 || queryIds[0]!=8002) return 47;
+    directory.refresh();
+    if (directory.queried() || directory.pending() || directory.begin(queryIds)!=4) return 45;
+    if (logh::PlanetDirectory::viewRow(287,0,0)!=287 || logh::PlanetDirectory::viewRow(287,0,98)!=97 ||
+        logh::PlanetDirectory::viewRow(287,1,1)!=98 || logh::PlanetDirectory::viewRow(287,2,91)!=286 ||
+        logh::PlanetDirectory::viewRow(287,2,92)!=287 || logh::PlanetDirectory::viewRow(287,3,1)!=287 ||
+        logh::PlanetDirectory::viewRow(4,~0u,1)!=4) return 46;
+    logh::PlanetDirectory capacity;
+    for (unsigned i=0;i<350;++i) if (!capacity.add(i+1,i,i)) return 49;
+    if (capacity.add(351,350,0) || capacity.view(view,true,4999) ||
+        capacity.view(view,false,0)!=350 || capacity.rows[view[349]].id!=350 ||
+        logh::PlanetDirectory::viewRow(350,3,56)!=349) return 50;
     unsigned char warehouse[0x300] = {};
     memcpy(warehouse, &id, 4);
     if (!logh::matchingPlanetWarehouse(warehouse, id) || logh::matchingPlanetWarehouse(warehouse, other)) return 9;
