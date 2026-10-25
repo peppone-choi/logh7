@@ -246,6 +246,16 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x032e, 0x0330 -> {
+                        check(gameStarted && world != null && stock != null)
+                        val character = checkNotNull(characters.character(identity.account))
+                        val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
+                        val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
+                        pendingWorld = stocks().thenApply { stored -> listOf(if (party != null)
+                            world.outfitParty(party,character.power,checkNotNull(stored)) else
+                            world.outfitUnit(checkNotNull(unit).id,character.power,checkNotNull(stored),unit.base)) }
+                        return null
+                    }
                     0x032a, 0x032c -> {
                         check(gameStarted && world != null && stock != null)
                         val ids = if (opcode == 0x032a) org.logh7.protocol.OutfitMessages.query(body) else null

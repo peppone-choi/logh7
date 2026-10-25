@@ -8,6 +8,45 @@ import kotlin.test.*
 
 class OutfitStockStoreTest {
     @TempDir lateinit var directory: Path
+    @Test fun activeShipIdsAndRetiredSequenceSurviveAtomicReopening() {
+        val path = directory.resolve("active-ships")
+        val initial = ActiveShips.initialize(stocks())
+        val retired = ActiveShips.reorganize(initial,1,UnitInventory())
+        FilePlanetStockStore(path).use { it.save(retired) }
+        val reopened = FilePlanetStockStore(path).use { it.load()!! }
+        assertEquals(retired,reopened)
+        val new = ActiveShips.reorganize(reopened,1,UnitInventory(mapOf(UnitStack(32) to 1)))
+        assertEquals(2,new.outfits.getValue(1).activeShips!!.values.single().id)
+        assertEquals(3,new.nextShipId)
+        assertEquals(initial.bases,new.bases)
+    }
+    @Test fun version5MigratesShipIdentitiesWithoutRefillingLostStock() {
+        val path = directory.resolve("version5-identities")
+        Files.writeString(path,"LOGH7-STOCK-5\t1\t23\t1\t1\t1\t0\t1\n"+
+            "P\t1000\t2\t0\t1\t2\t3\t-\t-\t-\t-\t;;\n"+
+            "O\t1\t2\tFLEET\t1000\t101\t0\tS32.0.9;T3.0.45;\t1\t99999\n"+
+            "W\t101\t2\tFLEET\t1000\t1\t4\t5\t6\t;;\n")
+        val old = FilePlanetStockStore(path).use { it.load()!! }
+        assertNull(old.outfits.getValue(1).activeShips)
+        val initialized = ActiveShips.initialize(old)
+        assertEquals(9,initialized.outfits.getValue(1).activeShips!!.values.size)
+        assertEquals(99999,initialized.outfits.getValue(1).supplies)
+        assertEquals(old.outfits.getValue(1).units,initialized.outfits.getValue(1).units)
+        FilePlanetStockStore(path).use { it.save(initialized) }
+        FilePlanetStockStore(path).use { assertEquals(initialized,it.load()) }
+    }
+    @Test fun damagedIdentityRecordsAndSequenceFailWithoutResettingTheFile() {
+        val path = directory.resolve("bad-identities")
+        FilePlanetStockStore(path).use { it.save(ActiveShips.initialize(stocks())) }
+        val original = Files.readString(path)
+        val header = original.lineSequence().first()
+        for (bad in listOf(original.replace("1.32.0","1.32.0,1.32.0"),
+            original.replace("1.32.0","1.48.0"), original.replace(header,header.substringBeforeLast('\t')+"\t1"))) {
+            Files.writeString(path,bad)
+            FilePlanetStockStore(path).use { assertFails { it.load() } }
+            assertEquals(bad,Files.readString(path))
+        }
+    }
     private fun stocks() = PlanetStocks(7,23,
         mapOf(1000 to PlanetStock(1000,2,0,123,456,789,units=UnitInventory(mapOf(UnitStack(32) to 2)))),
         mapOf(1 to OutfitStock(1,2,OutfitKind.PATROL,1000,101,10,UnitInventory(mapOf(UnitStack(32) to 1))),
@@ -84,7 +123,7 @@ class OutfitStockStoreTest {
         val value = stocks().copy(outfits=stocks().outfits.mapValues { (id,o) -> o.copy(number=id,supplies=id*1000) },deploymentInitialized=true)
         val path = directory.resolve("version5")
         FilePlanetStockStore(path).use { it.save(value) }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-5\t7\t23\t1\t2\t1\t1\t1\n"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-6\t7\t23\t1\t2\t1\t1\t1\t1\n"))
         FilePlanetStockStore(path).use { assertEquals(value,it.load()) }
     }
     @Test fun oldVersion4KeepsExistingDeploymentWithoutInventingNumbersOrSupplies() {

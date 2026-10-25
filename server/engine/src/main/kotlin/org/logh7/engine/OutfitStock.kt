@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Server identities, independent of the still-unverified native outfit category encoding. */
+/** Native constmsg 83 categories; declaration order is not the wire encoding. */
 enum class OutfitKind(val wire: Int) {
     FLEET(0), PATROL(2), TRANSPORT(1), GROUND(3);
     val warehouseKind: OutfitKind get() = if (this == GROUND) PATROL else this
@@ -16,11 +16,13 @@ enum class LogisticsOffice {
 
 data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val baseId: Int,
     val warehouseId: Int, val commanderId: Int = 0, val units: UnitInventory = UnitInventory(),
-    val number: Int = 0, val supplies: Int = 0) {
+    val number: Int = 0, val supplies: Int = 0,
+    val activeShips: ActiveShipUnits? = if (units.ships.isEmpty()) ActiveShipUnits(emptyList()) else null) {
     init {
         require(id > 0 && power in 2..3 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
         require(number in 0..255 && supplies >= 0)
         require(units.work.isEmpty()) { "An outfit cannot own a production line" }
+        require(activeShips == null || activeShips.quantities() == units.ships) { "Outfit ship identities differ from inventory" }
     }
 }
 
