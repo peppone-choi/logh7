@@ -98,6 +98,8 @@ messages:
     opcode: 0x0356
   - name: CommandMoveBase
     opcode: 0x0b00
+  - name: CommandSwitchMode
+    opcode: 0x0b06
   - name: NotifyMovedBase
     opcode: 0x0b0b
   - name: CommandMoveInstitutionSpot

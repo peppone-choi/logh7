@@ -99,6 +99,31 @@ struct FuelRequest {
     unsigned pcp, mcp;
 };
 static_assert(sizeof(FuelRequest) == 24, "CD fuel request ABI");
+// Strategy command 60 uses 0b06, not the 0b00 docking record. The CD zeroes
+// its captain-card field; fill only that authenticated command's request.
+static unsigned switchModeResume = 0x4b4a06;
+static void __declspec(naked) __cdecl originalSwitchMode(BYTE) {
+    __asm {
+        sub esp, 0x164
+        jmp dword ptr [switchModeResume]
+    }
+}
+static void __cdecl requestDeparture(BYTE mode) {
+    void* world = *reinterpret_cast<void**>(0x7ccffc);
+    void* command = *reinterpret_cast<void**>(0xc9e2f8);
+    if (!world || mode != 5 || !command || at<int>(command, 0x28) != 60) { originalSwitchMode(mode); return; }
+    if (!at<BYTE>(world, 0x2a58f8) || at<BYTE>(world, 0x3579cc)) return;
+    void* character = at<void*>(world, 8);
+    if (!character || !at<BYTE>(character, 0) ||
+        at<void*>(command, 0x1c) != character) return;
+    unsigned card = at<unsigned>(command, 0x20);
+    if (card != (at<BYTE>(character, 0x28) == 2 ? 59u : 195u)) return;
+    BYTE record[0x164] = {};
+    at<unsigned>(record, 4) = at<unsigned>(character, 0x24);
+    at<unsigned short>(record, 8) = static_cast<unsigned short>(card);
+    at<unsigned short>(record, 0x14) = mode;
+    reinterpret_cast<unsigned(__thiscall*)(void*, char, unsigned, const void*)>(0x4b78a0)(world, 0, 0x42, record);
+}
 static void __cdecl requestFuel() {
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     if (!world || !at<BYTE>(world, 0x2a58f8)) return;
@@ -338,6 +363,9 @@ static void install() {
     BYTE* supplied = reinterpret_cast<BYTE*>(0x4bce39);
     const BYTE expectedSupplied[] = {0xe8,0x22,0x3a,0x00,0x00};
     if (memcmp(fuel, expectedFuel, 5) || memcmp(supplied, expectedSupplied, 5)) { status = -2; return; }
+    auto departure = reinterpret_cast<BYTE*>(0x4b4a00);
+    const BYTE expectedDeparture[] = {0x81,0xec,0x64,0x01,0x00,0x00};
+    if (memcmp(departure, expectedDeparture, sizeof(expectedDeparture))) { status = -2; return; }
     BYTE* glyph = reinterpret_cast<BYTE*>(0x4b0a97);
     const BYTE expectedGlyph[] = {0xe8,0xe0,0xed,0x14,0x00};
     if (memcmp(glyph, expectedGlyph, 5)) { status = -2; return; }
@@ -345,7 +373,27 @@ static void install() {
     const BYTE expectedGdi[][6] = {{0xff,0x15,0xa0,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}};
     for (unsigned i = 0; i < 3; ++i)
         if (memcmp(reinterpret_cast<void*>(glyphAddresses[i]), expectedGdi[i], 6)) { status = -2; return; }
+    // Dialog buttons and related card conditions request login errors (103).
+    // Their matching labels are in group 98. Patch only verified call sites,
+    // never the login error catalogue itself.
+    const unsigned dialogGroups[] = {0x56f305, 0x56f39b,
+        0x4f51df, 0x5786bf, 0x57875d, 0x5787fc, 0x578a24,
+        0x57c4fe, 0x57c669, 0x58d3ba};
+    const BYTE oldDialogGroup = 103, newDialogGroup = 98;
+    for (unsigned address : dialogGroups)
+        if (*reinterpret_cast<BYTE*>(address) != oldDialogGroup) { status = -2; return; }
+    // Strategy tabs, selection headings and card descriptions share group 96.
+    // Group 101 contains system/sound settings, not these card labels.
+    const unsigned cardGroups[] = {0x4f5069, 0x4f52a5, 0x4f5344, 0x4f53ed, 0x4f5e62,
+        0x4fcb79, 0x4fcc0c, 0x4fcdb6, 0x4fce80};
+    const BYTE oldCardGroup = 101, newCardGroup = 96;
+    for (unsigned address : cardGroups)
+        if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installPlanetInformation()) { status = -3; return; }
+    for (unsigned address : dialogGroups)
+        if (!patchBytes(reinterpret_cast<void*>(address), &oldDialogGroup, &newDialogGroup, 1)) { status = -3; return; }
+    for (unsigned address : cardGroups)
+        if (!patchBytes(reinterpret_cast<void*>(address), &oldCardGroup, &newCardGroup, 1)) { status = -3; return; }
     SIZE_T region = hudCall + 5 - target;
     DWORD previous = 0;
     if (!VirtualProtect(target, region, PAGE_EXECUTE_READWRITE, &previous)) { status = -3; return; }
@@ -359,6 +407,9 @@ static void install() {
     BYTE call[5] = {0xe8};
     *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&suppliedFuel) - supplied - 5);
     if (!patchBytes(fuel, expectedFuel, jump, 5) || !patchBytes(supplied, expectedSupplied, call, 5)) { status = -3; return; }
+    BYTE departureJump[6] = {0xe9,0,0,0,0,0x90};
+    *reinterpret_cast<LONG*>(departureJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&requestDeparture) - departure - 5);
+    if (!patchBytes(departure, expectedDeparture, departureJump, sizeof(departureJump))) { status = -3; return; }
     *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&encodeGlyph) - glyph - 5);
     if (!patchBytes(glyph, expectedGlyph, call, 5)) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {

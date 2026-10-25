@@ -155,6 +155,32 @@ class GameExchange(
                             return null
                         }
                     }
+                    0x0b06 -> {
+                        check(gameStarted && navigation != null && world != null)
+                        val character = checkNotNull(characters.character(identity.account))
+                        val command = org.logh7.protocol.PlaceMessages.switchMode(body)
+                        val id = character.id.toInt()
+                        require(command.characterId == id && command.units.all { it == id + 1_000_000 } &&
+                            command.characters.all { it == id } && command.units.distinct().size == command.units.size &&
+                            command.characters.distinct().size == command.characters.size)
+                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account, id,
+                            if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection, checkNotNull(generation), unitId = id + 1_000_000, captainCard = command.card,
+                            place = org.logh7.engine.PlaceMove.SwitchMode(command.mode), rank = character.rank,
+                            politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
+                            val player = checkNotNull(result.player ?: result.previous) { "Departure lost its authenticated session" }
+                            val accepted = result.player != null
+                            if (accepted) publication = Publication(character, player, false)
+                            val seconds = gameSeconds()
+                            listOf(org.logh7.protocol.PlaceMessages.switched(command, seconds, player.pcp, player.mcp,
+                                player.mode, player.spotId, if (player.spotId == 0) id else player.spotOwner, accepted),
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
+                                BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
+                                (if (accepted) listOf(org.logh7.protocol.PlaceMessages.dockNotification(id,
+                                    player.baseId, player.mode, seconds)) else emptyList()) + suppliedFuel(result)
+                        }
+                        return null
+                    }
                     0x0b00, 0x0e00 -> {
                         check(gameStarted && navigation != null && world != null)
                         val character = checkNotNull(characters.character(identity.account))
