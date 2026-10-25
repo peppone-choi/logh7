@@ -4,8 +4,21 @@
 #include "hud_atlas.h"
 #include "planet_info_data.h"
 #include "spot_presence.h"
+#include "unicode_text.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
+    // Native chat appends colour controls after its UTF-16 body. The previous
+    // ANSI round trip corrupted Hangul already present in that body.
+    std::wstring body = L"한글 대화 日本語 ABC";
+    std::wstring suffix;
+    if (!logh::japaneseFragment("\b\x05", suffix)) return 14;
+    body += suffix;
+    if (body != L"한글 대화 日本語 ABC\b\x05") return 15;
+    if (!logh::japaneseFragment("\x82\xa0", suffix) || suffix != L"あ") return 16;
+    if (!logh::japaneseFragment("", suffix) || !suffix.empty()) return 17;
+    suffix = L"keep";
+    if (logh::japaneseFragment(nullptr, suffix) || suffix != L"keep" ||
+        logh::japaneseFragment("\x82", suffix) || suffix != L"keep") return 18;
     if (!logh::spotOwnerPresent(10000, 10493414, 10000, 10493414, 10000) ||
         logh::spotOwnerPresent(10000, 10493414, 10001, 10493414, 10000) ||
         logh::spotOwnerPresent(10000, 10493414, 10000, 10493414, 10001) ||
