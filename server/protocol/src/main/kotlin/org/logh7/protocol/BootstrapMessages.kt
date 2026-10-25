@@ -19,14 +19,16 @@ object BootstrapMessages {
         ByteBuffer.allocate(4).putInt(character.id.toInt()).array())
 
     /** 0356 uses a raw flag followed by the same character wire record; 0323 is a query buffer only. */
-    fun changedCharacter(character: CharacterMessages.Generate, pcp: Int, mcp: Int, spot: Int = 0, spotOwner: Int = 0): ByteArray {
-        val query = character(character, pcp, mcp, spot, spotOwner)
+    fun changedCharacter(character: CharacterMessages.Generate, pcp: Int, mcp: Int, spot: Int = 0, spotOwner: Int = 0,
+        returnBase: Int = 0): ByteArray {
+        val query = character(character, pcp, mcp, spot, spotOwner, returnBase)
         return LoginMessages.sessionMessage(0x0356, byteArrayOf(0) + query.copyOfRange(6, query.size))
     }
 
     /** 00417390: wire fields follow the reader, without its 724-byte object padding. */
     fun character(character: CharacterMessages.Generate, pcp: Int = 100, mcp: Int = 100,
-        spot: Int = 0, spotOwner: Int = 0): ByteArray {
+        spot: Int = 0, spotOwner: Int = 0, returnBase: Int = 0): ByteArray {
+        require(returnBase in 0..65535)
         val out = ByteBuffer.allocate(1024)
         fun u8(value: Int) { out.put(value.toByte()) }
         fun string(value: String) {
@@ -39,7 +41,7 @@ object BootstrapMessages {
         out.putInt(Math.multiplyExact(character.age, CharacterMessages.AGE_SECONDS_PER_YEAR))
         u8(character.birthMonth); u8(character.birthDay)
         out.putInt(0).putShort(0) // fame, maximum special abilities
-        out.putInt(0).putInt(spot).putInt(if (spot == 0) character.id.toInt() else spotOwner).putInt(unitId(character))
+        out.putInt(returnBase).putInt(spot).putInt(if (spot == 0) character.id.toInt() else spotOwner).putInt(unitId(character))
         string(character.shipName)
         repeat(3) { out.putInt(0) } // strategy and coup fields
         out.putInt(pcp).putInt(mcp).putInt(0) // local PCP, MCP, evaluation

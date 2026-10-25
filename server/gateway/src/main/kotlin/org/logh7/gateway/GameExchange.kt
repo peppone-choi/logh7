@@ -105,7 +105,7 @@ class GameExchange(
             if (player != result.previous) publication = Publication(character, player, false)
             val changed = result.previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
-                (if (changed) listOf(BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner)) else emptyList()) +
+                (if (changed) listOf(BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase)) else emptyList()) +
                 completedWork(result, character)
         }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
@@ -168,6 +168,23 @@ class GameExchange(
                             return null
                         }
                     }
+                    0x0f1a -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character = checkNotNull(characters.character(identity.account))
+                        val selection = org.logh7.protocol.ReturnBaseMessages.selection(body)
+                        require(selection.character == character.id.toInt())
+                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2],
+                            returnBase = selection.base)).thenApply { result ->
+                            val player = checkNotNull(result.player ?: result.previous) { "Return base selection lost its authenticated session" }
+                            publication = Publication(character, player, false)
+                            listOf(org.logh7.protocol.ReturnBaseMessages.reply(player.characterId, player.returnBase, gameSeconds(), result.player != null),
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase)) +
+                                completedWork(result, character)
+                        }
+                        return null
+                    }
                     0x0b06 -> {
                         check(gameStarted && navigation != null && world != null)
                         val character = checkNotNull(characters.character(identity.account))
@@ -187,7 +204,7 @@ class GameExchange(
                             val seconds = gameSeconds()
                             listOf(org.logh7.protocol.PlaceMessages.switched(command, seconds, player.pcp, player.mcp,
                                 player.mode, player.spotId, if (player.spotId == 0) id else player.spotOwner, accepted),
-                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase),
                                 BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
                                 (if (accepted && !result.completedDock) listOf(org.logh7.protocol.PlaceMessages.dockNotification(id,
                                     player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character)
@@ -222,7 +239,7 @@ class GameExchange(
                                 move!!.copy(spot = player.spotId, owner = if (player.spotId == 0) character.id.toInt() else player.spotOwner),
                                 seconds, player.pcp, player.mcp, accepted)
                             listOf(ack,
-                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase),
                                 BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
                                 (if (dock != null && accepted && player.dockTarget == null && !result.completedDock) listOf(org.logh7.protocol.PlaceMessages.dockNotification(character.id.toInt(),
                                     player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character)
@@ -260,7 +277,7 @@ class GameExchange(
                             val player = checkNotNull(result.player ?: result.previous) { "Supply lost its authenticated session" }
                             publication = Publication(character, player, false)
                             listOf(org.logh7.protocol.FuelMessages.reply(command, gameSeconds(), player.pcp, player.mcp, result.player != null),
-                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner)) + completedWork(result, character)
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase)) + completedWork(result, character)
                         }
                         return null
                     }
@@ -286,7 +303,7 @@ class GameExchange(
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
                             listOf(org.logh7.protocol.NavigationMessages.accepted(command, seconds, player.pcp, player.mcp),
-                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase),
                                 BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
                                 org.logh7.protocol.NavigationMessages.grid(player.grid),
                                 org.logh7.protocol.NavigationMessages.moved(command, seconds, player.unitId, player.cruise)) + completedWork(result, character)
@@ -346,7 +363,7 @@ class GameExchange(
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 publication = Publication(character, player, true)
                                 listOf(BootstrapMessages.characterId(character),
-                                    BootstrapMessages.character(character, player.pcp, player.mcp, player.spotId, player.spotOwner),
+                                    BootstrapMessages.character(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase),
                                     BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid)) +
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +

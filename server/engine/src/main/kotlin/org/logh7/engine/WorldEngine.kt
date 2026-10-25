@@ -92,7 +92,9 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
                     val session = durableState?.session ?: simulation.exportState()
-                    val result = navigation?.apply(command.request, session)
+                    val ownership = if (command.request.returnBase != null)
+                        production?.settle(session.generation, session.gameMillis / 1000) else null
+                    val result = navigation?.apply(command.request, session, ownership)
                         ?: NavigationResult(null, rejection = NavigationRejection.DISABLED)
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty())
                     published.set(state)
