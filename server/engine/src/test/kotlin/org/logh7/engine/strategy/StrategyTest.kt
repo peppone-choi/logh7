@@ -4,6 +4,35 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class StrategyTest {
+    @Test fun checkpointRestoresPendingEventsAndIdsWithoutRecharging() {
+        val definition = command(wait = TableValue.Fixed(8), duration = TableValue.Fixed(48))
+        val catalog = StrategyCatalog(listOf(definition))
+        val permissions = CardPermissions(mapOf("synthetic-card" to setOf(definition.id)))
+        val resolver = CommandResolver { CommandResolution(10, CpPool.PCP, 8, 48, 1) }
+        val first = StrategyPipeline(catalog, permissions, resolver, setOf(definition.id), CpBalance(100, 100))
+        val job = (submit(first, 100) as SubmissionResult.Accepted).job
+        val state = first.checkpoint()
+        val second = StrategyPipeline(catalog, permissions, resolver, setOf(definition.id), first.balance, state)
+        assertEquals(CpBalance(90, 100), second.balance)
+        assertTrue(second.advance(107).isEmpty())
+        assertEquals(listOf(StrategyJobEvent(job.id, JobEventKind.STARTED, 108)), second.advance(108))
+        val running = second.checkpoint()
+        val third = StrategyPipeline(catalog, permissions, resolver, setOf(definition.id), second.balance, running)
+        assertEquals(listOf(StrategyJobEvent(job.id, JobEventKind.COMPLETED, 156)), third.advance(156))
+        assertTrue(third.advance(156).isEmpty())
+        val fourth = StrategyPipeline(catalog, permissions, resolver, setOf(definition.id), third.balance,
+            third.checkpoint(dropCompleted = true))
+        assertTrue(fourth.advance(200).isEmpty())
+        assertEquals(job.id + 1, (submit(fourth, 200) as SubmissionResult.Accepted).job.id)
+        assertEquals(CpBalance(80, 100), fourth.balance)
+        assertFails { StrategyCheckpoint(0, 100, listOf(job)) }
+        assertFails { StrategyCheckpoint(1, 100, listOf(job, job)) }
+        assertFails { StrategyCheckpoint(1, 100, listOf(job.copy(state = JobState.COMPLETED))) }
+        val external = mutableListOf(job)
+        val immutable = StrategyCheckpoint(1, 100, external)
+        external.clear()
+        assertEquals(listOf(job), immutable.jobs)
+    }
     private val definitions = StrategyCatalogLoader.load()
     private fun command(cost: TableValue = TableValue.Fixed(10), wait: TableValue = TableValue.Fixed(0), duration: TableValue = TableValue.Fixed(0)) =
         CommandDefinition("synthetic/test", CommandGroup.PERSONAL, "test", "", "", "", cost, wait, duration, 69, 2, ManualStatus.UNKNOWN, "불명")

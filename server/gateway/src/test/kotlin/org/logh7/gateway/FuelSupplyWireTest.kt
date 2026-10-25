@@ -42,7 +42,7 @@ class FuelSupplyWireTest {
             assertEquals(1, deniedWarp.int); assertEquals(0x0b01, deniedWarp.short.toInt())
             assertEquals(800, deniedWarp.getInt(24)); assertEquals(2488, deniedWarp.getShort(28).toInt())
             assertEquals(started, fixture.engine.snapshot().navigators.getValue(fixture.account(0)))
-            fixture.engine.submit(WorldCommand.AdvanceTo(96 * 3600_000L / 24))
+            fixture.engine.submit(WorldCommand.AdvanceTo(104 * 3600_000L / 24))
             client.send(SyntheticClient.opcode(0x0300))
             var clock = false
             var notification: ByteArray? = null

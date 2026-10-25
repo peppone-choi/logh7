@@ -26,7 +26,7 @@ class FileNavigationStore(private val path: Path) : NavigationStore {
         require(Files.size(path) <= 4_000_000) { "Navigation store is too large" }
         val lines = Files.readAllLines(path)
         val version = lines.firstOrNull()
-        val columns = when (version) { "LOGH7-NAV-1" -> 9; "LOGH7-NAV-2" -> 13; "LOGH7-NAV-3" -> 15; "LOGH7-NAV-4" -> 16
+        val columns = when (version) { "LOGH7-NAV-1" -> 9; "LOGH7-NAV-2" -> 13; "LOGH7-NAV-3" -> 15; "LOGH7-NAV-4" -> 16; "LOGH7-NAV-5" -> 17
             else -> error("Unknown navigation store format") }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
@@ -38,19 +38,20 @@ class FileNavigationStore(private val path: Path) : NavigationStore {
                 if (columns >= 13) f[11].toInt() else 0, if (columns >= 13) f[12].toInt() else 0,
                 if (columns >= 15 && f[13] != "-") f[13].toLong() else null,
                 if (columns >= 15) when (f[14]) { "0" -> false; "1" -> true; else -> error("Invalid CP pause flag") } else false,
-                if (columns == 16 && f[15] != "-") f[15].toLong() else null)
+                if (columns >= 16 && f[15] != "-") f[15].toLong() else null,
+                if (columns >= 17 && f[16] != "-") StrategyCheckpointCodec.decode(f[16]) else null)
             require(players.put(f[0], player) == null) { "Duplicate navigation account" }
         }
         return players
     }
     override fun save(players: Map<String, Navigator>) {
         val bytes = buildString {
-            append("LOGH7-NAV-4\n")
+            append("LOGH7-NAV-5\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
                 append(listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
                     p.moves, p.baseId, p.mode, p.spotId, p.spotOwner, p.cpRecoveryAt ?: "-", if (p.cpPaused) 1 else 0,
-                    p.fuelReadyAt ?: "-").joinToString("\t"))
+                    p.fuelReadyAt ?: "-", p.strategy?.let(StrategyCheckpointCodec::encode) ?: "-").joinToString("\t"))
                 append('\n')
             }
         }.toByteArray(Charsets.UTF_8)
