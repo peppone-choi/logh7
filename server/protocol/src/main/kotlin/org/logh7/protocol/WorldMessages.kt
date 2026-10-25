@@ -163,7 +163,7 @@ object WorldMessages {
     fun cards() = body {
         writeShort(261)
         for (card in 0..260) {
-            val power = when (card) { 54, 59, 39, 44, 47, 50 -> 2; 190, 195, 175, 180, 183, 186 -> 3; else -> 0 }
+            val power = when (card) { 54, 59, 39, 44, 47, 50, 52, 55 -> 2; 190, 195, 175, 180, 183, 186, 188, 191 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0); writeByte(0)
             writeShort(0); writeShort(0); writeByte(0); writeByte(20); writeByte(0)

@@ -267,6 +267,22 @@ static void renderPlanetPlaces() {
     }
     planetCell(84,L"장소 조회 · 이동은 기항 후 장소 메뉴에서 선택");
 }
+static void planetOffice(unsigned row,const wchar_t* label,const logh::PlanetOfficeHolder& holder,bool ready) {
+    auto& info=planetInformation;
+    unsigned power=info.condition[4];
+    planetCell(40+row*4,label);
+    const wchar_t* value=nullptr;
+    if (info.condition[5] || (power!=2 && power!=3)) value=L"해당 없음";
+    else if (!ready) value=GetTickCount64()-info.requestedAt>=5000 ? L"응답 미확인" : L"조회 중";
+    else if (!holder.id) value=L"미임명";
+    wchar_t name[48];
+    if (!value) {
+        _snwprintf_s(name,_countof(name),_TRUNCATE,L"%ls %ls",
+            reinterpret_cast<const wchar_t*>(holder.surname),reinterpret_cast<const wchar_t*>(holder.givenName));
+        value=holder.surname[0] || holder.givenName[0] ? name : L"이름 미확인";
+    }
+    planetCell(41+row*4,value);
+}
 static void renderPlanetWindow() {
     auto& info = planetInformation;
     planetDirectoryLayout(info.directoryVisible);
@@ -334,17 +350,13 @@ static void renderPlanetWindow() {
             planetValue(2, L"성인 인구", logh::infoWord(c, 0x124), L" 명");
             planetCell(52, L"대기"); planetCell(53, c[0x174] ? L"있음" : L"없음");
             planetCell(56, L"거주 가능 여부"); planetCell(57, c[0x175] ? L"가능" : L"불가");
-            planetCell(60,L"통치자");
-            if (c[5] || (power!=2 && power!=3)) planetCell(61,L"해당 없음");
-            else if (!info.governorReady) planetCell(61,GetTickCount64()-info.requestedAt>=5000 ? L"응답 미확인" : L"조회 중");
-            else if (!info.governor.id) planetCell(61,L"미임명");
-            else {
-                wchar_t governorName[48];
-                _snwprintf_s(governorName,_countof(governorName),_TRUNCATE,L"%ls %ls",
-                    reinterpret_cast<const wchar_t*>(info.governor.surname),reinterpret_cast<const wchar_t*>(info.governor.givenName));
-                planetCell(61,info.governor.surname[0] || info.governor.givenName[0] ? governorName : L"이름 미확인");
-            }
-            planetValue(6, L"민심", logh::infoShort(c, 0x150)); planetValue(7, L"치안", logh::infoShort(c, 0x152));
+            auto base=planetBase(info.ids[info.index]);
+            unsigned kind=base ? logh::infoShort(base,0x14) : ~0u;
+            if (kind==1) { planetCell(60,L"통치자");planetCell(61,L"해당 없음"); }
+            else planetOffice(5,L"통치자",info.governor,info.governorReady);
+            planetOffice(6,L"수비대장",info.garrison,info.garrisonReady);
+            planetCell(68,L"거점 구분");planetCell(69,kind==1 ? L"요새" : kind==0 ? L"행성" : L"미확인");
+            planetCell(84,L"민심·치안·세율은 환경·내정에서 확인");
         } else {
             planetValue(1, L"세율", logh::infoShort(c, 0x128), L"%");
             planetValue(2, L"민심", logh::infoShort(c, 0x150)); planetValue(3, L"치안", logh::infoShort(c, 0x152));

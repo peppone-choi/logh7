@@ -11,7 +11,8 @@ fun interface GameAdministration {
     fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> = emptyList()
     fun stationedOutfit(player: Navigator): Int = 0
 }
-class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope) : GameAdministration {
+class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, galaxy: Galaxy) : GameAdministration {
+    private val baseOffices=BaseOfficeCards(galaxy)
     override fun stationedOutfit(player: Navigator): Int {
         if (player.mode != 4 || player.baseId == 0) return 0
         val stocks = engine.snapshot().planetStocks ?: return 0
@@ -34,8 +35,8 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
     override fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> {
         val stocks = engine.snapshot().planetStocks ?: return emptyList()
         if (stocks.generation != generation) return emptyList()
-        val governors = stocks.bases.values.filter { it.governorId == characterId && it.power == power && it.camp == 0 }
-            .sortedBy { it.baseId }.map { org.logh7.protocol.BootstrapMessages.OfficeCard(if (power == 2) 54 else 190,it.baseId) }
+        val appointed = stocks.bases.values.filter { it.power == power }.sortedBy { it.baseId }
+            .flatMap { baseOffices.cards(it,characterId) }
         val commanders = stocks.outfits.values.filter { it.commanderId == characterId && it.power == power }
             .sortedBy { it.id }.map { outfit ->
                 val kind = when (outfit.kind) {
@@ -46,7 +47,7 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
                 } + if (power == 3) 136 else 0
                 org.logh7.protocol.BootstrapMessages.OfficeCard(kind,outfit.id)
             }
-        return (governors + commanders).take(14)
+        return (appointed + commanders).take(14)
     }
     override fun tax(request: TaxRequest): CompletableFuture<TaxResult> {
         val future = CompletableFuture<TaxResult>()

@@ -133,7 +133,7 @@ int wmain(int argc, wchar_t** argv) {
     unsigned governorId=10000;memcpy(governor,&governorId,4);governor[0x7d]=1;
     governor[0x82]='A';governor[0x9c]='B';governor[0x24c]=1;governor[0x250]=54;
     memcpy(governor+0x254,&id,4);
-    logh::PlanetGovernor holder;
+    logh::PlanetOfficeHolder holder;
     if (!holder.accept(governorReply,54,id) || holder.id!=governorId || holder.surname[0]!='A' || holder.givenName[0]!='B') return 58;
     memcpy(governor+0x2d4,governor,0x2d4);
     unsigned secondGovernor=10001;memcpy(governor+0x2d4,&secondGovernor,4);governorReply[2]=2;
@@ -148,6 +148,11 @@ int wmain(int argc, wchar_t** argv) {
     if (!holder.accept(governorReply,54,id) || holder.id) return 62;
     governorReply[2]=65;
     if (holder.accept(governorReply,54,id)) return 63;
+    for (unsigned card : {52u,55u,188u,191u}) {
+        memset(governorReply,0,sizeof(governorReply));governorReply[0]=static_cast<unsigned char>(card);
+        if (!holder.accept(governorReply,card,id) || holder.id) return 65;
+        if (holder.accept(governorReply,card==55?52:55,id)) return 66;
+    }
     logh::PlanetDirectory directory;
     if (!directory.add(id,grid,67) || !directory.add(other,grid,3) ||
         !directory.add(8000,2015,349) || !directory.add(8001,4000,1) || !directory.add(8002,1000,2) ||
