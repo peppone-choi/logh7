@@ -18,6 +18,40 @@ class DockingWireTest {
         repeat(300) { packets += client.receive(); if (code(packets.last()) == end) return packets }
         error("Missing opcode $end")
     }
+    @Test fun reconnectRestoresRemainingDockWaitWithoutChargingOrCompletingIt() = runBlocking<Unit> {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
+            listOf(GalaxyBase(1049, 2487, 60, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 })
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false).use { fixture ->
+            val account = fixture.account(0)
+            val first = fixture.join(account, true, false).client
+            first.send(SyntheticClient.opcode(0x0f00)); through(first, 0x0f01)
+            first.send(PlaceMessages.docked(PlaceMessages.Dock(10000, 59, 1049, 4), 0, 0, 0).copyOfRange(4, 34))
+            through(first, 0x0325)
+            val queued = fixture.engine.snapshot().navigators.getValue(account)
+            first.close(); fixture.awaitState(0, 0, 1)
+            fixture.engine.submit(WorldCommand.AdvanceTo(2 * 3600_000L / 24))
+            val second = fixture.join(account, false, false).client
+            second.send(SyntheticClient.opcode(0x0f00))
+            val restored = through(second, 0x0b00)
+            assertEquals(0x0f01, code(restored[restored.lastIndex - 1]))
+            val ack = ByteBuffer.wrap(restored.last())
+            assertEquals(0, ack.int); assertEquals(21600, ack.getInt(10)); assertEquals(1049, ack.getInt(28))
+            var player = fixture.engine.snapshot().navigators.getValue(account)
+            assertEquals(queued.strategy!!.nextId, player.strategy!!.nextId)
+            assertEquals(queued.dockReadyAt, player.dockReadyAt)
+            assertEquals(915, player.mcp) // One ordinary 2-hour CP recovery; no second 160-point charge.
+            assertEquals(0, player.baseId); assertEquals(5, player.mode)
+            second.send(SyntheticClient.opcode(0x0f02)); through(second, 0x0b00)
+            assertEquals(915, fixture.engine.snapshot().navigators.getValue(account).mcp)
+            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24))
+            through(second, 0x0b0b)
+            player = fixture.engine.snapshot().navigators.getValue(account)
+            assertEquals(1049, player.baseId); assertNull(player.dockTarget)
+            second.send(SyntheticClient.opcode(0x0f02))
+            assertFalse(through(second, 0x0f03).any { code(it) == 0x0b00 })
+        }
+    }
     @Test fun encryptedDockAcknowledgesWaitBeforeArrivalAndDoesNotNotifyTwice() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
             listOf(GalaxyBase(1049, 2487, 60, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)),

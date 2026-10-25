@@ -70,6 +70,14 @@ class GameExchange(
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
+    /** Restore the accepted job, without submitting or charging it a second time. */
+    private fun pendingNavigation(player: org.logh7.engine.Navigator): List<ByteArray> {
+        val target = player.dockTarget ?: return emptyList()
+        val seconds = gameSeconds()
+        return listOf(org.logh7.protocol.PlaceMessages.docked(org.logh7.protocol.PlaceMessages.Dock(
+            player.characterId, if (player.power == org.logh7.engine.Power.EMPIRE) 59 else 195, target, 4),
+            seconds, player.pcp, player.mcp, waitSeconds = maxOf(0, checkNotNull(player.dockReadyAt) - seconds)))
+    }
     private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate): List<ByteArray> {
         if (!result.completedFuel && !result.completedDock) return emptyList()
         val player = checkNotNull(result.player ?: result.previous)
@@ -342,7 +350,7 @@ class GameExchange(
                                     BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid)) +
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
-                                    listOf(checkNotNull(BootstrapMessages.response(body)))
+                                    listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player)
                             } }
                             return null
                         }
