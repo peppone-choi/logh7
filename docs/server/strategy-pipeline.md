@@ -4,6 +4,8 @@
 
 현재 실제 연결 범위는 아래 연료 보급·성계 기항 연결 절을 따른다. 기존 본문은 규칙 단위의 기초 구현 설명이며 81개 명령 전체의 실제 실행 완료를 뜻하지 않는다.
 
+내정·병참의 CP와 자원 효과를 함께 저장하기 위한 [공통 월드 저장 경계](world-state-storage.md)를 추가했다. app에서 선택 가능한 저장소 기반이며, 실제 명령의 권한·결제·효과를 한 번의 커밋에 연결하는 작업은 남아 있다.
+
 전술 게임이 발생한 캐릭터는 CP0을 포함한 모든 전략 커맨드 입력을 거절한다. `submit`의 마지막 필수 인자 `inTacticalGame`은 서버 권위 호출자가 전달하며 기본값은 없다. 역행 시간(`TIME_REVERSED`) 검사 다음, 명령 조회·카드 권한·resolver 호출 전에 `IN_TACTICAL_GAME`을 반환한다. 거절은 잔고·기존 작업·다음 ID·마지막 게임 시각을 변경하지 않는다. `evidence:manual` W p.12. 전술 상태 판정·전술 진입에 따른 기존 WAITING/RUNNING 작업 처리·CP 회복 정지는 미구현이며, `advance`의 기존 동작과 client/wire 연결은 변경하지 않는다.
 
 `engine.strategy`는 기존 `strategy-commands.csv` 81개를 변경 없이 resource로 읽는다. 군별 개수는16/15/8/6/10/12/14다. ID는 군의 고정 영문 키와 원문 명령명이며 행 순서·페이지 이동에 의존하지 않는다. 이것은 client opcode가 아니다. 원문 CP·대기·소요·페이지와07의 상태 표현을 보존한다. 매뉴얼의 구현/미구현/불명/패치와 신규 서버 구현 상태를 혼동하지 않는다. `evidence:manual` W68–74, [명령 표](../manual/07-command-table.md), [기존 데이터 검증](../manual/08-organization-units-data.md).
