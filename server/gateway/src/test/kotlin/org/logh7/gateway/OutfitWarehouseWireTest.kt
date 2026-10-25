@@ -35,8 +35,8 @@ class OutfitWarehouseWireTest {
             val response = query()
             val input = ByteBuffer.wrap(response); input.position(6)
             assertEquals(1049,input.int); assertEquals(1,input.int); assertEquals(0,input.int)
-            assertEquals(1,input.get().toInt()); assertEquals(32,input.short.toInt()); assertEquals(1,input.get().toInt())
-            assertEquals(7,input.short.toInt())
+            assertEquals(1,input.get().toInt()); assertEquals(32,input.short.toInt()); assertEquals(7,input.get().toInt())
+            assertEquals(2100,input.short.toInt())
             assertEquals(1,input.get().toInt()); assertEquals(1003,input.short.toInt()); assertEquals(0,input.get().toInt())
             assertEquals(35,input.short.toInt())
             assertEquals(500,input.int); assertEquals(600,input.int); assertEquals(700,input.int)
@@ -55,4 +55,21 @@ class OutfitWarehouseWireTest {
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,1,40000,2,stocks)).getShort(4).toInt())
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,3,20000,2,stocks)).getShort(4).toInt())
     }
+    @Test fun shipGradesAreAggregatedAsUnitsAndPhysicalBoatsWithoutChangingStoredStacks() {
+        val world = WorldBootstrap(galaxy)
+        val original = snapshot()
+        val units = UnitInventory(mapOf(UnitStack(32,0) to 3,UnitStack(32,3) to 4))
+        val stocks = original.copy(bases=original.bases + (1049 to original.bases.getValue(1049).copy(units=units)),
+            warehouses=original.warehouses + (101 to original.warehouses.getValue(101).copy(units=units)))
+        for (packet in listOf(world.warehouse(1049,stocks),world.outfitWarehouse(1049,1,10000,2,stocks))) {
+            val input = ByteBuffer.wrap(packet); input.position(18)
+            assertEquals(1,input.get().toInt()); assertEquals(32,input.short.toInt())
+            assertEquals(7,input.get().toInt()); assertEquals(2100,input.short.toInt())
+        }
+        assertEquals(mapOf(UnitStack(32,0) to 3,UnitStack(32,3) to 4),stocks.bases.getValue(1049).units.ships)
+        val excessive = stocks.copy(bases=stocks.bases + (1049 to stocks.bases.getValue(1049).copy(
+            units=UnitInventory(mapOf(UnitStack(32) to 219)))))
+        assertFails { world.warehouse(1049,excessive) } // 65700 boats cannot fit the original u16 field.
+    }
+
 }

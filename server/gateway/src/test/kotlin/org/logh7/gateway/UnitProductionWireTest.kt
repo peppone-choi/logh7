@@ -26,9 +26,17 @@ class UnitProductionWireTest {
             fun entries(offset: Int = 0): Map<UnitStack, Int> = buildMap {
                 repeat(input.get().toInt() and 255) { put(UnitStack((input.short.toInt() and 65535) - offset, input.get().toInt() and 255), input.short.toInt() and 65535) }
             }
-            val ships = entries(); val troops = entries(1000)
+            val ships = buildMap {
+                repeat(input.get().toInt() and 255) {
+                    val kind = input.short.toInt() and 65535
+                    val count = input.get().toInt() and 255; val boats = input.short.toInt() and 65535
+                    assertEquals(count*UnitSpecifications.ships.single { it.kind == kind }.number,boats)
+                    put(kind,count)
+                }
+            }
+            val troops = entries(1000)
             val stock = fixture.engine.snapshot().planetStocks!!.bases.getValue(1049)
-            assertEquals(stock.units.ships, ships); assertEquals(stock.units.troops, troops)
+            assertEquals(stock.units.ships.entries.groupBy { it.key.kind }.mapValues { (_, rows) -> rows.sumOf { it.value } }, ships); assertEquals(stock.units.troops, troops)
             assertEquals(5, troops[UnitStack(3)]); assertTrue(ships.isNotEmpty())
             assertEquals(stock.supplies, input.int); assertEquals(stock.food, input.int); assertEquals(stock.mineral, input.int)
             assertContentEquals(first, warehouse())

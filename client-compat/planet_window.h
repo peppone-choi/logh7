@@ -268,11 +268,9 @@ static void renderPlanetWindow() {
         if (!label[0]) _snwprintf_s(label, _countof(label), _TRUNCATE, L"미등록 품목 %u", kind);
         planetCell(40 + row * 4, label);
         const wchar_t* ranks[] = {L"그린", L"노멀", L"베테랑", L"엘리트"};
-        planetCell(41 + row * 4, level < 4 ? ranks[level] : L"?");
-        _snwprintf_s(text, _countof(text), _TRUNCATE, L"%u", quantity); planetCell(42 + row * 4, text);
-        auto spec = static_cast<const BYTE*>(info.world) + 0x2c1a78 + kind * 0x2a8;
-        if (ship && kind < 200 && spec[0] && logh::infoShort(spec, 0x218))
-            _snwprintf_s(text, _countof(text), _TRUNCATE, L"%u", quantity * logh::infoShort(spec, 0x218));
+        planetCell(41 + row * 4, ship ? L"—" : level < 4 ? ranks[level] : L"?");
+        _snwprintf_s(text, _countof(text), _TRUNCATE, L"%u", ship ? level : quantity); planetCell(42 + row * 4, text);
+        if (ship) _snwprintf_s(text, _countof(text), _TRUNCATE, L"%u", quantity);
         else wcscpy_s(text, L"—");
         planetCell(43 + row * 4, text);
     }
