@@ -3,6 +3,7 @@ package org.logh7.gateway
 import org.logh7.engine.Navigator
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.LoginMessages
 import java.nio.ByteBuffer
 
@@ -21,6 +22,19 @@ class GamePresence {
             (viewer.player.baseId != 0 && viewer.player.baseId == other.player.baseId && viewer.player.spotId != 0 &&
                 viewer.player.spotId == other.player.spotId && viewer.player.spotOwner == other.player.spotOwner))
     private fun peers(viewer: Member) = members.values.filter { visible(viewer, it) }.sortedBy { it.character.id }
+    /** Spot zero means one's own ship, not a public room shared by every undocked player. */
+    @Synchronized fun spotChat(connection: String, message: ChatMessages.Spot, seconds: Long): ByteArray {
+        val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
+        require(message.characterId.toLong() == sender.character.id)
+        val packet = ChatMessages.spot(message, seconds)
+        val location = sender.player
+        if (location.baseId != 0 && location.spotId != 0) members.values.filter {
+            it.connection != connection && it.player.generation == location.generation &&
+                it.player.grid == location.grid && it.player.baseId == location.baseId &&
+                it.player.spotId == location.spotId && it.player.spotOwner == location.spotOwner
+        }.forEach { send(it, listOf(packet)) }
+        return packet // The sender's echo uses its own exchange/cipher queue exactly once.
+    }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner)
     private fun refresh(before: List<Member>, after: List<Member>): List<ByteArray> {

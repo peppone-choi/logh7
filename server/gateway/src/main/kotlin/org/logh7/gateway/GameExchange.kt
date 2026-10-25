@@ -277,6 +277,13 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0f1d -> {
+                        check(gameStarted && worldInitialized && presence != null)
+                        val message = org.logh7.protocol.ChatMessages.spot(body)
+                        require(message.characterId.toLong() == checkNotNull(characters.character(identity.account)).id)
+                        if (message.text.isBlank()) return null
+                        presence.spotChat(connection, message, gameSeconds())
+                    }
                     0x0f08 -> {
                         check(gameStarted && body.size == 28)
                         // This local world has no mail yet; finish the client's periodic inbox query.

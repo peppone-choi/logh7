@@ -106,3 +106,5 @@ messages:
     opcode: 0x0e00
   - name: NotifySimpleInformationBase
     opcode: 0x1204
+  - name: CommandSpotChat
+    opcode: 0x0f1d
