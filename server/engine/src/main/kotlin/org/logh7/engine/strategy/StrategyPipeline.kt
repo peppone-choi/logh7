@@ -19,6 +19,26 @@ data class StrategyJob(val id: Long, val command: String, val acceptedAtGameMill
     val startsAtGameMillis: Long, val completesAtGameMillis: Long, val payment: PaymentResult.Paid, val state: JobState)
 enum class JobEventKind { STARTED, COMPLETED }
 data class StrategyJobEvent(val job: Long, val kind: JobEventKind, val gameMillis: Long)
+
+/** Persist with the command's balances and effects, never as an independent job receipt. */
+class StrategyCheckpoint(val nextId: Long = 0, val lastGameMillis: Long = 0, jobs: List<StrategyJob> = emptyList()) {
+    val jobs: List<StrategyJob> = Collections.unmodifiableList(ArrayList(jobs))
+    override fun equals(other: Any?) = other is StrategyCheckpoint && nextId == other.nextId &&
+        lastGameMillis == other.lastGameMillis && jobs == other.jobs
+    override fun hashCode() = 31 * (31 * nextId.hashCode() + lastGameMillis.hashCode()) + jobs.hashCode()
+    init {
+        require(nextId >= 0 && lastGameMillis >= 0 && jobs.size <= 128)
+        require(jobs.map { it.id }.distinct().size == jobs.size)
+        require(jobs.all { it.id in 0 until nextId && it.command.isNotBlank() && it.command.length <= 256 &&
+            it.acceptedAtGameMillis in 0..lastGameMillis && it.startsAtGameMillis >= it.acceptedAtGameMillis &&
+            it.completesAtGameMillis >= it.startsAtGameMillis && it.payment.spent >= 0 &&
+            it.payment.experienceEligibleCp in 0..it.payment.spent &&
+            (if (it.payment.spent == 0L) it.payment.chargedPool == null && !it.payment.substituted else it.payment.chargedPool != null) &&
+            it.payment.experienceEligibleCp == (if (it.payment.substituted) 0 else it.payment.spent) &&
+            (it.state != JobState.RUNNING || it.startsAtGameMillis <= lastGameMillis) &&
+            (it.state != JobState.COMPLETED || it.completesAtGameMillis <= lastGameMillis) })
+    }
+}
 sealed interface SubmissionResult {
     data class Accepted(val job: StrategyJob) : SubmissionResult
     data class Rejected(val reason: StrategyRejection) : SubmissionResult
@@ -26,18 +46,23 @@ sealed interface SubmissionResult {
 
 /** A single writer owns this component. It has no system clock, game effect or network adapter. */
 class StrategyPipeline(private val catalog: StrategyCatalog, private val permissions: CardPermissions,
-    private val resolver: CommandResolver, enabledCommands: Set<String>, initialBalance: CpBalance) {
+    private val resolver: CommandResolver, enabledCommands: Set<String>, initialBalance: CpBalance,
+    checkpoint: StrategyCheckpoint = StrategyCheckpoint()) {
     private val enabled = enabledCommands.toSet()
     var balance = initialBalance; private set
-    private val jobs = mutableListOf<StrategyJob>()
-    private var nextId = 0L
-    private var lastGameMillis = 0L
-    init { require(enabled.all { it in catalog.byId }) }
+    private val jobs = checkpoint.jobs.toMutableList()
+    private var nextId = checkpoint.nextId
+    private var lastGameMillis = checkpoint.lastGameMillis
+    init { require(enabled.all { it in catalog.byId } && jobs.all { it.command in catalog.byId }) }
     fun jobs(): List<StrategyJob> = Collections.unmodifiableList(ArrayList(jobs))
+    /** Applied effects allow completed jobs to be dropped in the same durable transaction. */
+    fun checkpoint(dropCompleted: Boolean = false) = StrategyCheckpoint(nextId, lastGameMillis,
+        if (dropCompleted) jobs.filter { it.state != JobState.COMPLETED } else jobs)
     fun submit(commandId: String, ownedCards: List<String>, gameMillis: Long, inTacticalGame: Boolean): SubmissionResult {
         fun reject(reason: StrategyRejection) = SubmissionResult.Rejected(reason)
         if (gameMillis < lastGameMillis) return reject(StrategyRejection.TIME_REVERSED)
         if (inTacticalGame) return reject(StrategyRejection.IN_TACTICAL_GAME)
+        if (jobs.size >= 128) return reject(StrategyRejection.QUEUE_FULL)
         val definition = catalog.byId[commandId] ?: return reject(StrategyRejection.UNKNOWN_COMMAND)
         if (!permissions.allows(ownedCards.toList(), commandId)) return reject(StrategyRejection.UNAUTHORIZED)
         if (commandId !in enabled) return reject(StrategyRejection.DISABLED)

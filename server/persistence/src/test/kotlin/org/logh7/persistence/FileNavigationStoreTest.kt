@@ -7,6 +7,35 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun boundedCheckpointCodecRoundTripsMaximumCountAndUtf16NameLength() {
+        val payment = org.logh7.engine.strategy.PaymentResult.Paid(org.logh7.engine.strategy.CpBalance(0, 0), null, 0, 0, false)
+        val jobs = List(128) { org.logh7.engine.strategy.StrategyJob(it.toLong(), "艦".repeat(256),
+            0, 0, 0, payment, org.logh7.engine.strategy.JobState.WAITING) }
+        val state = org.logh7.engine.strategy.StrategyCheckpoint(128, 0, jobs)
+        val encoded = StrategyCheckpointCodec.encode(state)
+        assertTrue(encoded.length > 100_000)
+        assertEquals(state, StrategyCheckpointCodec.decode(encoded))
+    }
+    @Test fun pendingSharedWorkAndPaymentSurviveReopenButOldAcknowledgedDeadlinesStayUnchanged() {
+        val path = directory.resolve("jobs")
+        val payment = org.logh7.engine.strategy.PaymentResult.Paid(org.logh7.engine.strategy.CpBalance(680, 0),
+            org.logh7.engine.strategy.CpPool.PCP, 320, 0, true)
+        val job = org.logh7.engine.strategy.StrategyJob(7, "operation/燃料補給", 1000, 2000, 3000,
+            payment, org.logh7.engine.strategy.JobState.WAITING)
+        val p = Navigator(1, 10000, Power.EMPIRE, 2488, 680, 0, 900, fuelReadyAt = 3,
+            strategy = org.logh7.engine.strategy.StrategyCheckpoint(8, 1000, listOf(job)))
+        FileNavigationStore(path).use { it.save(mapOf("pilot" to p)) }
+        FileNavigationStore(path).use { assertEquals(p, it.load().getValue("pilot")) }
+        java.nio.file.Files.writeString(path, "LOGH7-NAV-4\npilot\t1\t10000\tEMPIRE\t2488\t680\t0\t900\t0\t0\t5\t0\t0\t100\t0\t3000\n")
+        FileNavigationStore(path).use {
+            val old = it.load().getValue("pilot")
+            assertEquals(3000, old.fuelReadyAt); assertNull(old.strategy)
+            it.save(mapOf("pilot" to old))
+        }
+        FileNavigationStore(path).use { assertEquals(3000, it.load().getValue("pilot").fuelReadyAt) }
+        assertFails { StrategyCheckpointCodec.decode(StrategyCheckpointCodec.encode(p.strategy!!) + "AAAA") }
+        assertFails { StrategyCheckpointCodec.decode("AA==") }
+    }
     @TempDir lateinit var directory: Path
     @Test fun migratesOldRowsAndPersistsFacilityLocationAcrossReopen() {
         val path = directory.resolve("old-navigation")
@@ -18,7 +47,7 @@ class FileNavigationStoreTest {
             landed = old.copy(baseId = 1049, mode = 0, spotId = 10_490_003)
             store.save(mapOf("pilot" to landed))
         }
-        assertEquals("LOGH7-NAV-4", java.nio.file.Files.readAllLines(path).first())
+        assertEquals("LOGH7-NAV-5", java.nio.file.Files.readAllLines(path).first())
         FileNavigationStore(path).use { assertEquals(landed, it.load().getValue("pilot")) }
     }
     @Test fun replacementSurvivesReopenAndExcludesOtherWriters() {

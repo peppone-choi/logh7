@@ -1,9 +1,6 @@
 package org.logh7.engine
 
-import org.logh7.engine.strategy.CpBalance
-import org.logh7.engine.strategy.CpPayment
-import org.logh7.engine.strategy.CpPool
-import org.logh7.engine.strategy.PaymentResult
+import org.logh7.engine.strategy.*
 import kotlin.math.abs
 
 /** Local navigation policy where original range, fuel and timing formulas remain unknown. */
@@ -13,18 +10,21 @@ data class NavigationPolicy(val initialCp: Int = 1000, val initialCruise: Int = 
     val maximumCruise: Int = 1000, val fuelSupplyCost: Int = 160) {
     init { require(initialCp in 0..maximumCp && initialCruise >= 100 && maximumRange in 1..10 &&
         warpCost >= 0 && cruiseCost >= 0 && maximumCp > 0 && recoveryBase >= 0 &&
-        maximumCruise >= initialCruise && fuelSupplyCost >= 0) }
+        maximumCruise >= initialCruise && fuelSupplyCost == 160) }
 }
 data class Navigator(val generation: Long, val characterId: Int, val power: Power, val grid: Int,
     val pcp: Int, val mcp: Int, val cruise: Int, val moves: Long = 0,
     val baseId: Int = 0, val mode: Int = 5, val spotId: Int = 0, val spotOwner: Int = 0,
     val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
-    val fuelReadyAt: Long? = null) {
+    val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && (cpRecoveryAt == null || cpRecoveryAt in 0..0xffffffffL) &&
         (fuelReadyAt == null || fuelReadyAt in 0..0xffffffffL) &&
+        (strategy == null || (strategy.jobs.size <= 1 && strategy.jobs.isEmpty() == (fuelReadyAt == null) && strategy.jobs.all {
+            it.command == FuelWork.COMMAND && it.state != JobState.COMPLETED &&
+                fuelReadyAt == it.completesAtGameMillis / 1000 && it.completesAtGameMillis % 1000 == 0L })) &&
         (baseId != 0 || (mode == 5 && spotId == 0 && spotOwner == 0))) }
 }
 sealed interface PlaceMove {
@@ -48,7 +48,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
         (!supplyFuel || (destination == null && place == null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL }
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false)
 
@@ -72,9 +72,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val initial = existing ?: Navigator(request.generation, request.characterId, request.power,
             galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise)
         val now = session.gameMillis / 1000
-        val fueled = if (!initial.cpPaused && initial.fuelReadyAt?.let { now >= it } == true)
-            initial.copy(cruise = maxOf(initial.cruise, policy.maximumCruise), fuelReadyAt = null) else initial
-        completedFuel = fueled != initial
+        val fueled = settleWork(initial, now)
+        completedFuel = initial.fuelReadyAt != null && fueled.fuelReadyAt == null
         val recovered = recover(fueled, request, now)
         val before = if (request.tactical != null && request.tactical != recovered.cpPaused)
             recovered.copy(cpPaused = request.tactical, cpRecoveryAt = now) else recovered
@@ -91,12 +90,16 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
             if (before.baseId != 0 || before.spotId != 0 || before.mode != 5) return reject(NavigationRejection.EMBARKED)
             if (before.cruise >= policy.maximumCruise) return reject(NavigationRejection.FUEL_FULL)
-            val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), policy.fuelSupplyCost.toLong(), CpPool.MCP)
-            if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
             // W68: 48..960 hours. The missing-fuel interpolation is a local policy.
             val hours = maxOf(48L, ((policy.maximumCruise - before.cruise).toLong() * 960 + policy.maximumCruise - 1) / policy.maximumCruise)
-            val after = before.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
-                fuelReadyAt = Math.addExact(now, hours * 3600))
+            val pipeline = FuelWork.pipeline(before, policy, hours)
+            val submitted = pipeline.submit(FuelWork.COMMAND, listOf(FuelWork.CAPTAIN), now * 1000, before.cpPaused)
+            if (submitted is SubmissionResult.Rejected) return reject(if (submitted.reason == StrategyRejection.TIME_REVERSED)
+                NavigationRejection.CLOCK else NavigationRejection.CP)
+            val job = (submitted as SubmissionResult.Accepted).job
+            if (job.completesAtGameMillis / 1000 > 0xffffffffL) return reject(NavigationRejection.CLOCK)
+            val after = before.copy(pcp = Math.toIntExact(pipeline.balance.pcp), mcp = Math.toIntExact(pipeline.balance.mcp),
+                fuelReadyAt = job.completesAtGameMillis / 1000, strategy = pipeline.checkpoint())
             commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel)
         }
@@ -128,6 +131,22 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             cruise = before.cruise - policy.cruiseCost, moves = Math.addExact(before.moves, 1))
         commit(request.account, after, session.generation)
         return NavigationResult(after, before, completedFuel = completedFuel)
+    }
+    private fun settleWork(player: Navigator, now: Long): Navigator {
+        if (player.cpPaused) return player
+        val checkpoint = player.strategy
+        if (checkpoint == null) { // Preserve deadlines already acknowledged by pre-job servers.
+            return if (player.fuelReadyAt?.let { now >= it } == true)
+                player.copy(cruise = maxOf(player.cruise, policy.maximumCruise), fuelReadyAt = null) else player
+        }
+        if (checkpoint.jobs.isEmpty() || now * 1000 < checkpoint.lastGameMillis) return player
+        val pipeline = FuelWork.pipeline(player, policy)
+        val events = pipeline.advance(now * 1000)
+        if (events.isEmpty()) return player
+        val completed = events.any { it.kind == JobEventKind.COMPLETED }
+        return player.copy(strategy = pipeline.checkpoint(dropCompleted = true),
+            cruise = if (completed) maxOf(player.cruise, policy.maximumCruise) else player.cruise,
+            fuelReadyAt = if (completed) null else player.fuelReadyAt)
     }
     /** W27 fixes the interval and offline recovery. Cap and ability formula are provisional. */
     private fun recover(player: Navigator, request: NavigationRequest, now: Long): Navigator {
