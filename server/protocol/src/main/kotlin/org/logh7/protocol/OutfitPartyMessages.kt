@@ -8,6 +8,7 @@ import java.nio.ByteBuffer
 object OutfitPartyMessages {
     data class Query(val outfit: Int, val base: Int, val mode: Int)
     data class UnitQuery(val id: Int, val base: Int)
+    data class Member(val id: Int, val kind: Int, val rank: Int, val name: String)
     data class Ships(val kind: Int, val boats: Int, val ids: List<Int>)
     data class Troops(val kind: Int, val grade: Int, val quantity: Int)
     data class UnitInformation(val id: Int, val kind: Int, val grid: Int, val outfit: Int, val base: Int)
@@ -29,14 +30,23 @@ object OutfitPartyMessages {
         val bytes = ByteArrayOutputStream(); DataOutputStream(bytes).use { it.write() }; return bytes.toByteArray()
     }
     fun party(query: Query, power: Int, kind: Int, number: Int, ships: List<Ships>, troops: List<Troops>,
-        supplies: Int, maximumSupplies: Int): ByteArray = body {
+        supplies: Int, maximumSupplies: Int, members: List<Member> = emptyList()): ByteArray = body {
         require(query.outfit > 0 && query.base in 1..65535 && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
         require(ships.size <= 60 && troops.size <= 24 && supplies >= 0 && maximumSupplies >= 0)
         val ids = ships.flatMap { it.ids }
         require(ids.distinct().size == ids.size && ids.all { it > 0 })
         writeInt(query.outfit); writeInt(query.base); writeByte(query.mode)
         writeByte(power); writeByte(0); writeInt(kind); writeInt(number)
-        writeByte(0) // No character memberships are represented by this response yet.
+        require(members.size <= 10 && members.map { it.id }.distinct().size == members.size)
+        writeByte(members.size)
+        for (member in members) {
+            require(member.id > 0 && member.kind in 0..255 && member.rank in 0..255 && member.name.length <= 12 &&
+                member.name.none { it == '\u0000' || it.isSurrogate() })
+            writeInt(member.id); writeByte(member.kind); writeByte(member.rank)
+            if (member.name.isEmpty()) writeByte(0) else {
+                writeByte(member.name.length+1); (member.name+'\u0000').forEach { writeChar(it.code) }
+            }
+        }
         writeByte(ships.size)
         for (ship in ships) {
             require(ship.kind in 0..199 && ship.boats in 0..65535 && ship.ids.size in 1..70)

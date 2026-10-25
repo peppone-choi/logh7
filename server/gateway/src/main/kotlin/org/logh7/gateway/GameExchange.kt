@@ -276,7 +276,7 @@ class GameExchange(
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
                         pendingWorld = stocks().thenApply { stored -> listOf(if (party != null)
-                            world.outfitParty(party,character.power,checkNotNull(stored)) else
+                            world.outfitParty(party,character.power,checkNotNull(stored),characters::characterById) else
                             world.outfitUnit(checkNotNull(unit).id,character.power,checkNotNull(stored),unit.base)) }
                         return null
                     }

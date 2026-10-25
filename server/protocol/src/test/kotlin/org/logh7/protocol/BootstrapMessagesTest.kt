@@ -46,6 +46,24 @@ class BootstrapMessagesTest {
         assertFails { BootstrapMessages.character(character,offices=offices+offices) }
         assertFails { BootstrapMessages.character(character,offices=List(15) { BootstrapMessages.OfficeCard(54,1000+it) }) }
     }
+    @Test fun commanderCardKindsPreserveOutfitTargetsAndTheirFaction() {
+        for (power in 2..3) for (empire in listOf(39,44,47,50)) {
+            val kind=empire + if (power == 3) 136 else 0
+            val officer=character.copy(power=power)
+            val offices=listOf(BootstrapMessages.OfficeCard(kind,70000))
+            val initial=BootstrapMessages.character(officer,offices=offices)
+            val tail=ByteBuffer.wrap(initial,initial.size-7,7)
+            assertEquals(kind,tail.short.toInt()); assertEquals(70000,tail.int)
+            val changed=BootstrapMessages.changedCharacter(officer,1000,1000,offices=offices)
+            // Character defaults are 100 CP; compare a query with the same server balances.
+            assertContentEquals(BootstrapMessages.character(officer,1000,1000,offices=offices).copyOfRange(6,initial.size),
+                changed.copyOfRange(7,changed.size))
+            assertFails { BootstrapMessages.character(officer.copy(power=if (power==2) 3 else 2),offices=offices) }
+        }
+        // Base IDs and outfit IDs are different namespaces even when their numeric target matches.
+        BootstrapMessages.character(character,offices=listOf(BootstrapMessages.OfficeCard(54,1049),BootstrapMessages.OfficeCard(39,1049)))
+        assertFails { BootstrapMessages.OfficeCard(54,70000) }
+    }
     @Test fun clockResponseCarriesUnsignedGameSecondsAndRejectsOverflow() {
         val body = BootstrapMessages.response(byteArrayOf(3, 0), 0xfedcba98L)!!
         assertEquals(0xfedcba98L, ByteBuffer.wrap(body, 6, 4).int.toLong() and 0xffffffffL)
