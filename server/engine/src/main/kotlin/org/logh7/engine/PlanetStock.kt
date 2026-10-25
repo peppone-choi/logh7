@@ -9,7 +9,7 @@ data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
-    val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap()) {
+    val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -30,6 +30,7 @@ data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumSto
 internal class PlanetProduction(private val galaxy: Galaxy, private val store: PlanetStockStore?,
     private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1) {
     private val units = UnitProduction(galaxy, policy.units, policy.economy, policy.maximumStock)
+    private val deployment = InitialOutfitDeployment(galaxy)
     private var current = store?.load()?.also { restored ->
         require(restored.bases.keys == galaxy.bases.map { it.id }.toSet()) { "Inventory bases differ from the world seed" }
         require(restored.generation <= generation) { "Inventory belongs to a newer session" }
@@ -48,8 +49,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val previous = current
         require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
         val days = (seconds - startSeconds) / 86400
-        val initial = previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
-            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) })
+        val initial = deployment.initialize(previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
+            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) }))
         // Upgrade old rows at their existing watermark; never replay already-produced days.
         val initialized = if (initial.bases.values.all { it.economy != null }) initial else initial.copy(bases = initial.bases.mapValues { (id, stock) ->
             if (stock.economy != null) stock else galaxy.conditions.getValue(id).let { base ->

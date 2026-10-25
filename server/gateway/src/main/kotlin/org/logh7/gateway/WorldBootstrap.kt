@@ -4,8 +4,18 @@ import org.logh7.engine.Galaxy
 import org.logh7.protocol.WorldMessages
 import org.logh7.protocol.LoginMessages
 import org.logh7.engine.UnitSpecifications
+import org.logh7.protocol.OutfitMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
+    fun outfits(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks): ByteArray = LoginMessages.sessionMessage(0x032b,
+        OutfitMessages.information(ids.distinct().mapNotNull(stocks.outfits::get).map {
+            OutfitMessages.Definition(it.id,it.kind.wire,it.power,0,it.number)
+        }))
+    fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks): ByteArray =
+        LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
+            (query.grid == -1 || galaxy.bases.single { it.id == outfit.baseId }.grid == query.grid) &&
+                (query.power == 255 || outfit.power == query.power) && (query.camp == 255 || query.camp == 0)
+        }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,0,it.number,it.supplies) }))
     fun outfitWarehouse(base: Int, outfitId: Int, character: Int, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
         val outfit = requireNotNull(stocks.outfits[outfitId]) { "Unknown outfit" }
         require(outfit.baseId == base && outfit.power == power) { "Outfit warehouse identity mismatch" }

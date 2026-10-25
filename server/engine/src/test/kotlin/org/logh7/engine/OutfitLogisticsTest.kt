@@ -33,7 +33,7 @@ class OutfitLogisticsTest {
             mapOf(101 to OutfitWarehouse(101,2,OutfitKind.FLEET,1000,1,UnitInventory(mapOf(ship to 10),mapOf(crew to 50))),
                 102 to OutfitWarehouse(102,2,OutfitKind.PATROL,1000,units=UnitInventory(mapOf(ship to 10),mapOf(crew to 50))),
                 103 to OutfitWarehouse(103,3,OutfitKind.FLEET,1001,4)),
-            mapOf(10 to LogisticsOffice.EMPIRE_FIRST,16 to LogisticsOffice.EMPIRE_SECOND,17 to LogisticsOffice.ALLIANCE_THIRD)))
+            mapOf(10 to LogisticsOffice.EMPIRE_FIRST,16 to LogisticsOffice.EMPIRE_SECOND,17 to LogisticsOffice.ALLIANCE_THIRD),deploymentInitialized=true))
         val powers = (10..18).associateWith { if (it in setOf(14,17)) Power.ALLIANCE else Power.EMPIRE }
         var session = SessionSimulation(rules).also { sim -> powers.forEach { (id,power) -> sim.join("p$id",power,false,"c$id") } }.exportState()
         var now = 0L
