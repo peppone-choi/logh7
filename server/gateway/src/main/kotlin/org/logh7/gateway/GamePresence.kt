@@ -37,6 +37,16 @@ class GamePresence {
     }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner)
+    private fun location(previous: Member?, member: Member, seconds: Long) {
+        if (previous == null) return
+        val old = previous.player; val next = member.player
+        val changedBase = old.baseId != next.baseId || old.mode != next.mode
+        if (!changedBase && old.grid == next.grid && old.cruise == next.cruise) return
+        val messages = listOf(BootstrapMessages.unit(member.character, next.grid, next.cruise, next.baseId, next.mode)) +
+            if (changedBase) listOf(org.logh7.protocol.PlaceMessages.dockNotification(next.characterId,
+                next.baseId, next.mode, seconds, next.spotId, if (next.spotId == 0) next.characterId else next.spotOwner)) else emptyList()
+        members.values.filter { visible(it, member) }.forEach { send(it, messages) }
+    }
     private fun refresh(before: List<Member>, after: List<Member>): List<ByteArray> {
         val remaining = after.map { it.player.unitId }.toSet()
         val leaving = before.map { it.player.unitId }.filter { it !in remaining }
@@ -48,7 +58,7 @@ class GamePresence {
         return removed + LoginMessages.sessionMessage(0x0b09, byteArrayOf(0)) +
             after.map(::character) + LoginMessages.sessionMessage(0x0b0a, byteArrayOf(0))
     }
-    @Synchronized fun update(member: Member): Update {
+    @Synchronized fun update(member: Member, seconds: Long = 0): Update {
         val previous = members[member.connection]
         if (previous != null && previous.player.generation == member.player.generation &&
             previous.player.power == member.player.power && previous.player.grid == member.player.grid &&
@@ -61,6 +71,7 @@ class GamePresence {
                     member.player.mcp, member.player.spotId, member.player.spotOwner)
                 members.values.filter { visible(it, member) }.forEach { send(it, listOf(changed)) }
             }
+            location(previous, member, seconds)
             return Update(peers(member), emptyList())
         }
         val before = members.values.associate { it.connection to peers(it) }
@@ -77,6 +88,7 @@ class GamePresence {
             if (old.map { it.character to it.player } != next.map { it.character to it.player })
                 send(viewer, refresh(old, next))
         }
+        location(previous, member, seconds)
         return Update(newPeers, if (previous != null && (previous.player.grid != member.player.grid ||
             oldPeers.map { it.character.id } != newPeers.map { it.character.id }))
             refresh(oldPeers, newPeers) else emptyList())

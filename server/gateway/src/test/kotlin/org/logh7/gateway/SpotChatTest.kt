@@ -59,8 +59,13 @@ class SpotChatTest {
             first.send(SyntheticClient.opcode(0x0f00)); through(first, 0x0f01)
             val second = fixture.join(fixture.account(1), true, false).client
             second.send(SyntheticClient.opcode(0x0f00)); through(second, 0x0f01); through(first, 0x0b0a)
+            var elapsed = 0L
             fun dock(client: SyntheticClient, id: Int) {
                 client.send(body(PlaceMessages.docked(PlaceMessages.Dock(id, 59, 1049, 4), 0, 0, 0)))
+                through(client, 0x0b00) // Peer unit updates must not stand in for our command's ACK.
+                through(client, 0x0325)
+                elapsed += 8 * 3600_000L / 24
+                kotlinx.coroutines.runBlocking { fixture.engine.submit(WorldCommand.AdvanceTo(elapsed)) }
                 through(client, 0x0b0b)
                 client.send(body(PlaceMessages.moved(PlaceMessages.Move(id, 10490001, 0), 0, 0, 0)))
                 through(client, 0x0e00)
@@ -78,7 +83,7 @@ class SpotChatTest {
             assertFalse(drain(second).any { code(it) == 0x0f1d })
             chat(first, 10000, "Hello 안녕")
             val echoed = through(first, 0x0f1d).last()
-            assertEquals(0, ByteBuffer.wrap(echoed).getInt(6)) // Server clock replaces client time.
+            assertEquals(fixture.engine.snapshot().session!!.gameSeconds.toInt(), ByteBuffer.wrap(echoed).getInt(6)) // Server clock replaces client time.
             assertContentEquals(echoed, through(second, 0x0f1d).last())
             chat(second, 10001, "Reply")
             assertContentEquals(through(second, 0x0f1d).last(), through(first, 0x0f1d).last())
