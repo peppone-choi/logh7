@@ -57,6 +57,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         }
     }
     @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account] }
+    @Synchronized fun registeredCharacters():List<CharacterMessages.Generate> {
+        resolveLottery();return registered.values.sortedBy { it.id }
+    }
     @Synchronized fun characterById(id: Int): CharacterMessages.Generate? {
         resolveLottery()
         return registered.values.singleOrNull { it.id == id.toLong() }

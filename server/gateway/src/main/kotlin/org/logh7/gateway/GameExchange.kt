@@ -255,6 +255,28 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0707 -> {
+                        check(gameStarted && administration!=null && world!=null)
+                        val query=org.logh7.protocol.AppointmentMessages.query(body)
+                        val character=checkNotNull(characters.character(identity.account))
+                        require(query.character==character.id.toInt())
+                        val target=characters.characterById(query.target)
+                        pendingWorld=administration.appointGarrison(org.logh7.engine.GarrisonAppointmentRequest(
+                            identity.account,connection,character.id.toInt(),
+                            if (character.power==2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation),query.base,query.target,query.card,character.rank,target?.rank ?: -1,
+                            target?.power ?: 0,character.abilities[1],character.abilities[2])).thenApply { result ->
+                            val player=checkNotNull(result.player) { "Appointment lost its authenticated actor" }
+                            publication=Publication(character,player,false)
+                            if (result.rejection==null && target!=null) result.targetPlayer?.let { targetPlayer ->
+                                presence?.refreshOffices(target.id.toInt(),targetPlayer.generation,offices(target,targetPlayer),gameSeconds())
+                            }
+                            listOf(org.logh7.protocol.AppointmentMessages.response(query,gameSeconds(),player.pcp,player.mcp,
+                                result.rejection==null,result.changed),characterMessage(character,player,true)) +
+                                result.recovery?.let { completedWork(it.copy(player=player),character) }.orEmpty()
+                        }
+                        return null
+                    }
                     0x0a00 -> {
                         check(gameStarted && administration != null && world != null)
                         val query = org.logh7.protocol.TaxMessages.query(body)
@@ -323,6 +345,16 @@ class GameExchange(
                         pendingWorld = stocks().thenApply { stored -> listOf(if (ids != null) world.outfits(ids,checkNotNull(stored))
                             else world.gridOutfits(checkNotNull(query),checkNotNull(stored))) }
                         return null
+                    }
+                    0x0322 -> {
+                        check(gameStarted && worldInitialized && administration != null)
+                        require(body.size == 6)
+                        val id = java.nio.ByteBuffer.wrap(body).getInt(2)
+                        val actor = checkNotNull(characters.character(identity.account))
+                        val target = checkNotNull(characters.characterById(id))
+                        require(target.power == actor.power) { "Character detail requires friendly affiliation" }
+                        BootstrapMessages.character(target,0,0,
+                            offices=administration.offices(id,target.power,checkNotNull(generation)))
                     }
                     0x034e -> {
                         check(gameStarted && world != null && stock != null)
@@ -415,7 +447,41 @@ class GameExchange(
                     0x1008 -> { check(gameLoggedIn); characters.accept(identity.account, CharacterMessages.generate(body)) }
                     0x1000 -> { check(gameLoggedIn && !gameStarted && body.size == 2); OriginalCharacterMessages.account(characters.fame(identity.account), characters.entries(identity.account)) }
                     0x1200 -> {
-                        check(gameLoggedIn && !gameStarted && OriginalCharacterMessages.catalogueRequest(body))
+                        if(gameStarted) {
+                            check(worldInitialized && world!=null && stock!=null)
+                            val query=org.logh7.protocol.AppointmentDirectoryMessages.query(body)
+                            val character=checkNotNull(characters.character(identity.account))
+                            require(query.character==character.id.toInt())
+                            pendingWorld=stocks().thenApply { stored ->
+                                val inventory=checkNotNull(stored)
+                                val available=if(character.power==2) world.galaxy.bases.filter { base ->
+                                    val held=inventory.bases[base.id]
+                                    base.kind==0 && held?.power==2 && held.camp==0 &&
+                                        held.governorId==character.id.toInt() && held.garrisonCommanderId==0
+                                } else emptyList()
+                                when(query.search) {
+                                    18 -> org.logh7.protocol.AppointmentDirectoryMessages.cards(query,available.size)
+                                    28 -> org.logh7.protocol.AppointmentDirectoryMessages.bases(query,available.map {
+                                        org.logh7.protocol.AppointmentDirectoryMessages.Base(it.id,it.grid,it.name)
+                                    })
+                                    4 -> {
+                                        require(available.isNotEmpty() && (query.base==0 || available.any { it.id==query.base })) { "No appointment authority at selected base" }
+                                        val eligible=characters.registeredCharacters().filter { target ->
+                                            target.id!=character.id && target.power==character.power && target.rank in 2..10 &&
+                                                character.rank<target.rank && administration!!.offices(target.id.toInt(),target.power,
+                                                    checkNotNull(generation)).size<14
+                                        }
+                                        org.logh7.protocol.AppointmentDirectoryMessages.people(query,eligible.map { target ->
+                                            org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,59)+
+                                                administration!!.offices(target.id.toInt(),target.power,checkNotNull(generation)).map { it.kind })
+                                        })
+                                    }
+                                    else -> error("Unsupported appointment directory")
+                                }
+                            }
+                            return null
+                        }
+                        check(gameLoggedIn && OriginalCharacterMessages.catalogueRequest(body))
                         val messages = listOf(LoginMessages.sessionMessage(0x1200, body.copyOfRange(2, body.size)),
                             OriginalCharacterMessages.catalogue(characters.candidates(identity.account)), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
                         return handshake.stageAll(messages, clearHeader = 0)

@@ -20,6 +20,7 @@ sealed interface WorldCommand {
     data class Navigate(val request: NavigationRequest, val result: CompletableDeferred<NavigationResult>) : WorldCommand
     data class Stock(val generation: Long, val result: CompletableDeferred<PlanetStocks>) : WorldCommand
     data class Logistics(val request: LogisticsRequest, val result: CompletableDeferred<LogisticsResult>) : WorldCommand
+    data class AppointGarrison(val request: GarrisonAppointmentRequest,val result: CompletableDeferred<GarrisonAppointmentResult>) : WorldCommand
     data class Tax(val request: TaxRequest, val result: CompletableDeferred<TaxResult>) : WorldCommand
     data class Reorganize(val request: ReorganizationRequest, val result: CompletableDeferred<ReorganizationResult>) : WorldCommand
 }
@@ -133,6 +134,37 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                         planetStocks = production.snapshot(session.generation))
                     published.set(state)
                     command.result.complete(result.copy(recovery = recovered))
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
+            if (command is WorldCommand.AppointGarrison) {
+                try {
+                    check(!storageFailed) { "World storage is unavailable" }
+                    val request = command.request
+                    val session = durableState?.session ?: simulation.exportState()
+                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                        request.connection, request.generation, politics = request.politics, administration = request.administration), session)
+                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
+                    var result = GarrisonAppointment.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
+                    if (result.changed) {
+                        if (worldStateCommitter == null) result = GarrisonAppointmentResult(recovered?.player, inventory, AppointmentRejection.STORAGE)
+                        else {
+                            val before = checkNotNull(recovered?.player)
+                            val after = checkNotNull(result.player)
+                            val prepared = production.prepareReplacement(inventory, checkNotNull(result.stocks))
+                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
+                            navigation.publishCommitted(request.account, before, after)
+                            production.publishCommitted(inventory, prepared)
+                            result = result.copy(stocks = prepared)
+                        }
+                    }
+                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
+                        planetStocks = production.snapshot(session.generation))
+                    published.set(state)
+                    command.result.complete(result.copy(recovery = recovered,targetPlayer=navigation?.snapshot(session.generation)?.values?.singleOrNull { it.characterId==request.target }))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
                     command.result.completeExceptionally(failure)
@@ -274,6 +306,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 is WorldCommand.Navigate -> error("Navigation is handled before session commands")
                 is WorldCommand.Stock -> error("Production is handled before session commands")
                 is WorldCommand.Logistics -> error("Logistics is handled before session commands")
+                is WorldCommand.AppointGarrison -> error("Appointment is handled before session commands")
                 is WorldCommand.Tax -> error("Tax is handled before session commands")
                 is WorldCommand.Reorganize -> error("Reorganization is handled before session commands")
             } } catch (failure: Exception) {

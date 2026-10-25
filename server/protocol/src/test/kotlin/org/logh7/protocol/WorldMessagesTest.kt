@@ -5,6 +5,28 @@ import kotlin.test.*
 import org.junit.jupiter.api.Test
 
 class WorldMessagesTest {
+    @Test fun officeCardsCarryTheParentOfficeThatNativeAppointmentFilteringReads() {
+        val input=ByteBuffer.wrap(WorldMessages.cards())
+        assertEquals(261,input.short.toInt())
+        repeat(261) { kind ->
+            val record=input.position()
+            assertEquals(kind,input.short.toInt())
+            if(kind==55 || kind==54)assertEquals(16,input.get(record+5).toInt())
+            if(kind==55) { assertEquals(2,input.get(record+10).toInt());assertEquals(10,input.get(record+11).toInt()) }
+            input.position(record+6)
+            val parent=input.short.toInt()
+            when(kind) {
+                54 -> assertEquals(6,parent)
+                55 -> assertEquals(54,parent)
+                52 -> assertEquals(51,parent)
+                188 -> assertEquals(187,parent)
+            }
+            input.position(record+18)
+            val count=input.get().toInt() and 255
+            input.position(input.position()+count*2)
+        }
+        assertFalse(input.hasRemaining())
+    }
     @Test fun shipCatalogueSeparatesClassFromModelAndWritesNativeFloats() {
         val ship = WorldMessages.Ship(93, 3, 1014, "Ship", 220, 3200f, 30000f,
             10, 6, 4, 40, 19, 24, 0, 50, 50, 40)

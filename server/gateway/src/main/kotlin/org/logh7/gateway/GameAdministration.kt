@@ -6,6 +6,8 @@ import java.util.concurrent.CompletableFuture
 
 fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
+    fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Appointment is unavailable"))
     fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Reorganization is unavailable"))
     fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> = emptyList()
@@ -13,6 +15,16 @@ fun interface GameAdministration {
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, galaxy: Galaxy) : GameAdministration {
     private val baseOffices=BaseOfficeCards(galaxy)
+    override fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> {
+        val future=CompletableFuture<GarrisonAppointmentResult>()
+        scope.launch {
+            try {
+                val result=CompletableDeferred<GarrisonAppointmentResult>()
+                engine.submit(WorldCommand.AppointGarrison(request,result));future.complete(result.await())
+            } catch (failure: Throwable) { future.completeExceptionally(failure) }
+        }
+        return future
+    }
     override fun stationedOutfit(player: Navigator): Int {
         if (player.mode != 4 || player.baseId == 0) return 0
         val stocks = engine.snapshot().planetStocks ?: return 0
