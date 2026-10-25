@@ -12,14 +12,20 @@ import java.nio.file.StandardCopyOption.*
 import java.nio.file.StandardOpenOption.*
 
 /** Forced file contents and atomic replacement. The OS/filesystem owns directory crash durability. */
-class FileNavigationStore(private val path: Path) : NavigationStore {
+class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : NavigationStore {
     private val channel: FileChannel
     private val lock: java.nio.channels.FileLock
     init {
+        WorldStateOwnership.check(path, worldOwner)
         Files.createDirectories(path.toAbsolutePath().parent)
         channel = FileChannel.open(path.resolveSibling("${path.fileName}.lock"), CREATE, WRITE)
         lock = try { checkNotNull(channel.tryLock()) { "Navigation store is already open" } }
         catch (failure: Throwable) { channel.close(); throw failure }
+        try { WorldStateOwnership.check(path, worldOwner) }
+        catch (failure: Throwable) {
+            try { lock.release() } finally { channel.close() }
+            throw failure
+        }
     }
     override fun load(): Map<String, Navigator> {
         if (!Files.exists(path)) return emptyMap()

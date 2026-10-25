@@ -52,6 +52,8 @@ class FileWorldStateStoreTest {
             it.stockStore.save(inventory.copy(producedDays = 2))
         }
         assertContentEquals(navBytes, Files.readAllBytes(nav)); assertContentEquals(stockBytes, Files.readAllBytes(stock))
+        assertFails { FileNavigationStore(nav).close() }; assertFails { FilePlanetStockStore(stock).close() }
+        assertFails { FileWorldStateStore(directory.resolve("wrong-world"), nav, stock).close() }
         FileWorldStateStore(root, nav, stock).use {
             assertEquals(840, it.navigationStore.load().getValue("pilot").mcp); assertEquals(2, it.stockStore.load()!!.producedDays)
         }

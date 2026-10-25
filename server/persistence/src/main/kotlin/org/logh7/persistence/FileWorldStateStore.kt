@@ -29,8 +29,8 @@ class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? =
         try {
             // Retain legacy locks, including after migration, so an older server cannot
             // concurrently mutate the import sources while this writer is running.
-            legacyNav = legacyNavigation?.let(::FileNavigationStore)
-            legacyStock = legacyStocks?.let(::FilePlanetStockStore)
+            legacyNav = legacyNavigation?.let { FileNavigationStore(it, directory) }
+            legacyStock = legacyStocks?.let { FilePlanetStockStore(it, directory) }
             val pointer = directory.resolve("CURRENT")
             if (Files.exists(pointer)) {
                 require(Files.size(pointer) <= 64) { "Invalid world state pointer size" }
@@ -45,6 +45,10 @@ class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? =
                 players = legacyNav?.load().orEmpty().toMap()
                 stocks = legacyStock?.load()
             }
+            // Bind even before the first commit: configuration loss must fail
+            // closed after a migration attempt, rather than resume old files.
+            legacyNavigation?.let { WorldStateOwnership.claim(it, directory) }
+            legacyStocks?.let { WorldStateOwnership.claim(it, directory) }
         } catch (failure: Throwable) {
             try { close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             throw failure
