@@ -124,6 +124,7 @@ static void __declspec(naked) filterSpot() {
 
 #include "planet_info.h"
 #include "docking_information.h"
+#include "navigation_status.h"
 #include "unicode_text.h"
 #include "peer_notices.h"
 
@@ -259,6 +260,7 @@ static void drawHudIcon(int slot, int atlasX, int atlasY, float x, float y, unsi
 
 static void __fastcall drawHud(void* map, void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x4d5610)(map);
+    drawDockingStatus();
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     if (!world || !at<BYTE>(world, 0x2b6a6c)) return;
     int grid = at<int>(world, 0x2b6a70);
@@ -486,6 +488,7 @@ static void install() {
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installDockingInformation()) { status = -3; return; }
+    if (!installNavigationStatus()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
     if (!patchBytes(spotFilter, expectedSpotFilter, spotJump, sizeof(spotJump))) { status = -3; return; }
