@@ -49,7 +49,8 @@ object AppointmentDirectoryMessages {
                 val person=value.character
                 require(value.cards.size<=16 && value.cards.all { it in 0..260 })
                 out.writeInt(person.id.toInt());out.name(person.surname)
-                out.writeShort(0);out.writeShort(person.rank)
+                // 0055ba80 stores the first u16 at record+0x20; 0057a1f0 reads it as rank.
+                out.writeShort(person.rank);out.writeShort(0)
                 out.writeByte(value.cards.size);value.cards.forEach(out::writeShort)
                 out.writeByte(0);out.writeByte(0) // Detailed unit/base locations are omitted from this personnel directory.
                 val age=person.age.toLong()*CharacterMessages.AGE_SECONDS_PER_YEAR

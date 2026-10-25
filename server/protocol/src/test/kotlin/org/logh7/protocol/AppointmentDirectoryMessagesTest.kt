@@ -42,7 +42,7 @@ class AppointmentDirectoryMessagesTest {
             AppointmentDirectoryMessages.Person(person,listOf(0,59,55))))[1]).position(6)
         assertEquals(1,b.get().toInt());assertEquals(10001,b.int)
         val nameLength=b.get().toInt();assertEquals("Test\u0000",(1..nameLength).map { b.char }.joinToString(""))
-        assertEquals(0,b.short.toInt());assertEquals(10,b.short.toInt());assertEquals(3,b.get().toInt())
+        assertEquals(10,b.short.toInt());assertEquals(0,b.short.toInt());assertEquals(3,b.get().toInt())
         assertEquals(listOf(0,59,55),(1..3).map { b.short.toInt() })
         assertEquals(0,b.get().toInt());assertEquals(0,b.get().toInt());assertEquals(123,b.int)
         assertEquals(70L*CharacterMessages.AGE_SECONDS_PER_YEAR,b.int.toLong() and 0xffffffffL)
