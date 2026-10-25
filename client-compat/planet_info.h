@@ -89,6 +89,7 @@ static void __declspec(naked) planetConditionsCopied() {
     }
 }
 static void __fastcall receivedPlanetWarehouse(void* world, void*, void* message) {
+    outfitWarehouseResponse(world,static_cast<const BYTE*>(message));
     auto& info = planetInformation;
     if (info.popup && info.world == world && info.count &&
         logh::matchingPlanetWarehouse(static_cast<BYTE*>(message), info.ids[info.index])) {
@@ -106,6 +107,7 @@ static void showPlanetInformation() {
 }
 
 static int __cdecl planetInfoMenu(void* gui) {
+    updateOutfitInformation(gui);
     if (updateTaxWindow(gui)) return -1;
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
