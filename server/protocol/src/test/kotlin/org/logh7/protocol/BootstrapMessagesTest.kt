@@ -30,6 +30,22 @@ class BootstrapMessagesTest {
         assertNull(BootstrapMessages.response(byteArrayOf(0x7f, 0)))
         assertFails { BootstrapMessages.response(byteArrayOf(3, 4, 0)) }
     }
+    @Test fun governorCardsKeepTheirBaseInInitialAndChangedRecords() {
+        val offices = listOf(BootstrapMessages.OfficeCard(54,1049))
+        val query = BootstrapMessages.character(character,1000,840,offices=offices)
+        val tail = ByteBuffer.wrap(query,query.size-20,20)
+        assertEquals(3,tail.get().toInt())
+        assertEquals(0,tail.short.toInt()); assertEquals(0,tail.int)
+        assertEquals(59,tail.short.toInt()); assertEquals(1_010_000,tail.int)
+        assertEquals(54,tail.short.toInt()); assertEquals(1049,tail.int); assertEquals(0,tail.get().toInt())
+        val changed = BootstrapMessages.changedCharacter(character,1000,840,offices=offices)
+        assertContentEquals(query.copyOfRange(6,query.size),changed.copyOfRange(7,changed.size))
+        val alliance = BootstrapMessages.character(character.copy(power=3),offices=listOf(BootstrapMessages.OfficeCard(190,1049)))
+        assertEquals(190,ByteBuffer.wrap(alliance,alliance.size-7,2).short.toInt())
+        assertFails { BootstrapMessages.character(character,offices=listOf(BootstrapMessages.OfficeCard(190,1049))) }
+        assertFails { BootstrapMessages.character(character,offices=offices+offices) }
+        assertFails { BootstrapMessages.character(character,offices=List(15) { BootstrapMessages.OfficeCard(54,1000+it) }) }
+    }
     @Test fun clockResponseCarriesUnsignedGameSecondsAndRejectsOverflow() {
         val body = BootstrapMessages.response(byteArrayOf(3, 0), 0xfedcba98L)!!
         assertEquals(0xfedcba98L, ByteBuffer.wrap(body, 6, 4).int.toLong() and 0xffffffffL)

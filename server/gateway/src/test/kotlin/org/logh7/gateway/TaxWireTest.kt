@@ -43,13 +43,23 @@ class TaxWireTest {
         LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false,stockStore=state.stockStore,
             navigationStore=state.navigationStore,worldStateCommitter=state).use { fixture ->
             val client = fixture.join(fixture.account(0),true,false).client
-            client.send(SyntheticClient.opcode(0x0f00)); next(client,0x0f01)
+            client.send(SyntheticClient.opcode(0x0f00))
+            fun verifyCards(message: ByteArray) {
+                val size = if (governor == 0) 14 else 20
+                val tail = ByteBuffer.wrap(message,message.size-size,size)
+                assertEquals(if (governor == 0) 2 else 3,tail.get().toInt())
+                tail.position(tail.position()+12)
+                if (governor != 0) { assertEquals(54,tail.short.toInt()); assertEquals(1049,tail.int) }
+                assertEquals(0,tail.get().toInt()); assertFalse(tail.hasRemaining())
+            }
+            verifyCards(next(client,0x0323)); next(client,0x0f01)
             repeat(2) {
                 client.send(query())
                 val response = ByteBuffer.wrap(next(client,0x0a00))
                 assertEquals(if (governor == 0) 1 else 0,response.int)
                 assertEquals(1000,response.getInt(15))
                 assertEquals(if (governor == 0) 1000 else 840,response.getInt(19))
+                verifyCards(next(client,0x0356))
                 val conditions = next(client,0x031f)
                 assertEquals(if (governor == 0) 20 else 35,ByteBuffer.wrap(conditions).getShort(55).toInt())
                 assertEquals(if (governor == 0) null else 35,state.stocks.bases.getValue(1049).taxRate)

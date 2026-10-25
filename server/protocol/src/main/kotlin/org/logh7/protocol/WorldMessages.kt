@@ -135,6 +135,7 @@ object WorldMessages {
     private fun commands(card: Int) = when (card) {
         0 -> listOf(82, 83)
         59, 195 -> listOf(43, 44, 45, 60)
+        54, 190 -> listOf(30)
         else -> emptyList()
     }
     /** 0040f9f0: card kind, command list, three raw bit-mask fields. */
@@ -154,7 +155,7 @@ object WorldMessages {
     fun cards() = body {
         writeShort(261)
         for (card in 0..260) {
-            val power = when (card) { 59 -> 2; 195 -> 3; else -> 0 }
+            val power = when (card) { 54, 59 -> 2; 190, 195 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0); writeByte(0)
             writeShort(0); writeShort(0); writeByte(0); writeByte(20); writeByte(0)

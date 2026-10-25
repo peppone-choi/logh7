@@ -4,6 +4,9 @@ import java.nio.ByteBuffer
 
 /** evidence:client — initial response readers, with optional external world catalogues. */
 object BootstrapMessages {
+    data class OfficeCard(val kind: Int, val base: Int) {
+        init { require(kind in setOf(54,190) && base in 1..65535) }
+    }
     private fun captainCard(character: CharacterMessages.Generate) = if (character.power == 2) 59 else 195
     private fun cards(): ByteArray {
         val out = ByteBuffer.allocate(128).putShort(3)
@@ -20,15 +23,17 @@ object BootstrapMessages {
 
     /** 0356 uses a raw flag followed by the same character wire record; 0323 is a query buffer only. */
     fun changedCharacter(character: CharacterMessages.Generate, pcp: Int, mcp: Int, spot: Int = 0, spotOwner: Int = 0,
-        returnBase: Int = 0): ByteArray {
-        val query = character(character, pcp, mcp, spot, spotOwner, returnBase)
+        returnBase: Int = 0, offices: List<OfficeCard> = emptyList()): ByteArray {
+        val query = character(character, pcp, mcp, spot, spotOwner, returnBase, offices)
         return LoginMessages.sessionMessage(0x0356, byteArrayOf(0) + query.copyOfRange(6, query.size))
     }
 
     /** 00417390: wire fields follow the reader, without its 724-byte object padding. */
     fun character(character: CharacterMessages.Generate, pcp: Int = 100, mcp: Int = 100,
-        spot: Int = 0, spotOwner: Int = 0, returnBase: Int = 0): ByteArray {
+        spot: Int = 0, spotOwner: Int = 0, returnBase: Int = 0, offices: List<OfficeCard> = emptyList()): ByteArray {
         require(returnBase in 0..65535)
+        require(offices.size <= 14 && offices.map { it.base }.distinct().size == offices.size &&
+            offices.all { it.kind == if (character.power == 2) 54 else 190 })
         val out = ByteBuffer.allocate(1024)
         fun u8(value: Int) { out.put(value.toByte()) }
         fun string(value: String) {
@@ -52,9 +57,10 @@ object BootstrapMessages {
         out.putInt(character.face).putInt(0).putInt(0).putInt(0)
         character.abilities.forEach { out.putShort(it.toShort()).putShort(0) }
         u8(0); u8(100); u8(0) // influence, stamina, special count
-        u8(2)
+        u8(2 + offices.size)
         out.putShort(0).putInt(0) // personal card, no institution restriction
         out.putShort(captainCard(character).toShort()).putInt(unitId(character))
+        offices.forEach { out.putShort(it.kind.toShort()).putInt(it.base) }
         u8(0) // together
         return LoginMessages.sessionMessage(0x0323, out.array().copyOf(out.position()))
     }

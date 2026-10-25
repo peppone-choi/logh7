@@ -10,7 +10,8 @@ import java.nio.ByteBuffer
 /** Friendly grid presence plus people physically sharing a non-ship room. */
 class GamePresence {
     data class Member(val connection: String, val character: CharacterMessages.Generate,
-        val player: Navigator, val send: (List<ByteArray>) -> Unit)
+        val player: Navigator, val send: (List<ByteArray>) -> Unit,
+        val offices: List<BootstrapMessages.OfficeCard> = emptyList())
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
     private fun send(viewer: Member, messages: List<ByteArray>) {
@@ -36,7 +37,7 @@ class GamePresence {
         return packet // The sender's echo uses its own exchange/cipher queue exactly once.
     }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
-        member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase)
+        member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
@@ -68,7 +69,7 @@ class GamePresence {
             val after = character(member)
             if (!before.contentEquals(after)) {
                 val changed = BootstrapMessages.changedCharacter(member.character, member.player.pcp,
-                    member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase)
+                    member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
                 members.values.filter { visible(it, member) }.forEach { send(it, listOf(changed)) }
             }
             location(previous, member, seconds)
