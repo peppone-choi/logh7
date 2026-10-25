@@ -2,12 +2,13 @@
 // All quantities come from fresh decoded server responses. Author: 최병호.
 #pragma once
 #include <stdio.h>
+#include <stdlib.h>
 #include "planet_info_data.h"
 
 static struct PlanetInformation {
     void* world;
     void* popup;
-    unsigned character, grid, ids[4], count, index;
+    unsigned character, grid, ids[4], count, index, page;
     unsigned originalLabels[4];
     int originalBodyHeight;
     bool conditionsReady, warehouseReady, displayed, advancePending;
@@ -54,11 +55,17 @@ static void fitPlanetBody() {
     }
 }
 
+static unsigned planetStockPages() {
+    auto& info = planetInformation;
+    return info.warehouseReady ? (info.warehouse[12] + info.warehouse[0x260] + 8) / 9 : 0;
+}
 static void planetText(const wchar_t* text) {
     auto popup = planetInformation.popup;
     planetLabel(popup, 0x1c, L"행성·요새 정보");
     planetLabel(popup, 0x20, text);
-    planetLabel(popup, 0x24, planetInformation.count > 1 ? L"다음 행성" : planetInformation.count ? L"새로고침" : L"확인");
+    planetLabel(popup, 0x24, planetInformation.page < planetStockPages() ?
+        (planetInformation.page ? L"다음 재고" : L"재고 보기") :
+        planetInformation.count > 1 ? L"다음 행성" : planetInformation.count ? L"새로고침" : L"확인");
     planetLabel(popup, 0x28, L"닫기");
     reinterpret_cast<void(__thiscall*)(void*)>(0x570740)(popup);
     fitPlanetBody();
@@ -67,6 +74,7 @@ static void planetText(const wchar_t* text) {
 static void requestPlanetInformation() {
     auto& info = planetInformation;
     info.conditionsReady = info.warehouseReady = info.displayed = false;
+    info.page = 0;
     info.requestedAt = GetTickCount64();
     info.acceptAfter = info.requestedAt + 200;
     memset(info.condition, 0, sizeof(info.condition));
@@ -132,6 +140,28 @@ static void showPlanetInformation() {
     unsigned power = condition[4];
     const wchar_t* powerName = power == 2 ? L"은하제국" : power == 3 ? L"자유행성동맹" : power == 0 ? L"중립" : L"기타 세력";
     wchar_t text[1024] = {};
+    if (info.page) {
+        _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls - 함선·인원 재고 (%u/%u)\n", title, info.page, planetStockPages());
+        unsigned shipCount = info.warehouse[12], troopCount = info.warehouse[0x260];
+        unsigned first = (info.page - 1) * 9, last = first + 9;
+        for (unsigned row = first; row < last && row < shipCount + troopCount; ++row) {
+            bool ship = row < shipCount;
+            const BYTE* record = info.warehouse + (ship ? 14 + row * 6 : 0x262 + (row - shipCount) * 6);
+            unsigned kind = logh::infoShort(record, 0), level = record[2], quantity = logh::infoShort(record, 4);
+            wchar_t name[64] = {}, line[128];
+            if (kind < (ship ? 179u : 11u)) {
+                auto label = reinterpret_cast<const char*(__thiscall*)(void*, int, int)>(0x522010)
+                    (reinterpret_cast<void*>(0x2217400), ship ? 85 : 86, kind);
+                if (label) MultiByteToWideChar(932, 0, label, -1, name, _countof(name));
+            }
+            if (!name[0]) _snwprintf_s(name, _countof(name), _TRUNCATE, L"미등록 품목 %u", kind);
+            const wchar_t* levels[] = {L"그린", L"노멀", L"베테랑", L"엘리트"};
+            _snwprintf_s(line, _countof(line), _TRUNCATE, L"%ls %ls%ls: %u 유닛\n", ship ? L"함선" : L"인원",
+                name, ship ? L"" : level < 4 ? levels[level] : L"?", quantity);
+            wcscat_s(text, line);
+        }
+        planetText(text); info.displayed = true; return;
+    }
     _snwprintf_s(text, sizeof(text) / sizeof(text[0]), _TRUNCATE,
         L"(%u/%u) %ls\n소속: %ls\n대기: %ls  거주: %ls\n"
         L"인구: %u  성인: %u\n세율: %u%%  민심: %u  치안: %u\n군수물자: %u\n식량: %u  광물: %u",
@@ -161,8 +191,16 @@ static int __cdecl planetInfoMenu(void* gui) {
                 // active desktop's asynchronous global keyboard state.
                 if (!(GetKeyState(VK_LBUTTON) & 0x8000) && !(GetKeyState(VK_RETURN) & 0x8000)) {
                     info.advancePending = false;
-                    info.index = (info.index + 1) % info.count;
-                    requestPlanetInformation();
+                    if (info.page < planetStockPages()) {
+                        ++info.page;
+                        reinterpret_cast<int(__thiscall*)(void*, int)>(0x570340)(info.popup, 4);
+                        at<int>(info.popup, 0xde0) = 1;
+                        info.acceptAfter = GetTickCount64() + 200;
+                        showPlanetInformation();
+                    } else {
+                        info.index = (info.index + 1) % info.count;
+                        requestPlanetInformation();
+                    }
                 }
             } else if (GetTickCount64() < info.acceptAfter) {
                 reinterpret_cast<int(__thiscall*)(void*, int)>(0x570340)(info.popup, 4);

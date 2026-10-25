@@ -3,7 +3,8 @@ package org.logh7.engine
 import java.util.Collections
 
 data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
-    val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null) {
+    val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null,
+    val units: UnitInventory = UnitInventory()) {
     init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0) }
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>) {
@@ -16,16 +17,21 @@ interface PlanetStockStore : AutoCloseable {
 }
 /** Only the supply interval is recovered; quantities, economy formulas and caps are designed policy. */
 data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumStock: Int = Int.MAX_VALUE,
-    val economy: PlanetEconomyPolicy = PlanetEconomyPolicy()) {
+    val economy: PlanetEconomyPolicy = PlanetEconomyPolicy(), val units: UnitProductionPolicy = UnitProductionPolicy()) {
     init { require(suppliesPerDay >= 0 && maximumStock > 0) }
 }
 
 /** World-actor-owned. Lazy settlement gives the same result regardless of query frequency or logins. */
 internal class PlanetProduction(private val galaxy: Galaxy, private val store: PlanetStockStore?,
     private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1) {
+    private val units = UnitProduction(galaxy, policy.units, policy.economy, policy.maximumStock)
     private var current = store?.load()?.also { restored ->
         require(restored.bases.keys == galaxy.bases.map { it.id }.toSet()) { "Inventory bases differ from the world seed" }
         require(restored.generation <= generation) { "Inventory belongs to a newer session" }
+        val terms = ProductionUnits.definitions.associate { it.key to it.hours }
+        require(restored.bases.values.all { stock -> stock.units.work.all { (key, hours) ->
+            terms[key]?.let { hours in 0..it } == true
+        } }) { "Invalid production progress" }
     }?.let(::detached)
     private fun detached(stocks: PlanetStocks) = stocks.copy(bases = Collections.unmodifiableMap(LinkedHashMap(stocks.bases)))
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
@@ -46,7 +52,9 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
             bases = initialized.bases.mapValues { (id, stock) ->
                 var next = stock
-                repeat(Math.toIntExact(days - initialized.producedDays)) { next = next.nextDay(galaxy.conditions.getValue(id), policy) }
+                repeat(Math.toIntExact(days - initialized.producedDays)) {
+                    next = units.advance(next.nextDay(galaxy.conditions.getValue(id), policy), next)
+                }
                 next
             })
         if (result == previous) return checkNotNull(previous)

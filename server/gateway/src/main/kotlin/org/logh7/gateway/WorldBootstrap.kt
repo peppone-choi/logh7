@@ -9,8 +9,10 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
         val state = requireNotNull(galaxy.conditions[base]) { "Unknown warehouse base" }
         val stored = stocks?.let { checkNotNull(it.bases[base]) }
+        fun entries(values: Map<org.logh7.engine.UnitStack, Int>?) = values.orEmpty().entries
+            .sortedWith(compareBy({ it.key.kind }, { it.key.level })).map { WorldMessages.Stock(it.key.kind, it.key.level, it.value) }
         return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base, stored?.supplies ?: state.supplies,
-            stored?.food ?: state.food, stored?.mineral ?: 100_000))
+            stored?.food ?: state.food, stored?.mineral ?: 100_000, entries(stored?.units?.ships), entries(stored?.units?.troops)))
     }
     private fun baseWire(base: org.logh7.engine.GalaxyBase) = WorldMessages.Base(base.id, base.grid,
         base.model, base.kind, base.name, base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
