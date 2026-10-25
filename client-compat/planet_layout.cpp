@@ -123,6 +123,16 @@ static void __declspec(naked) filterSpot() {
 }
 
 #include "planet_info.h"
+#include "unicode_text.h"
+
+// 005035a0 appends chat colour markers through 004eab10. That routine converts
+// the entire existing UTF-16 pool to the host ANSI codepage, then decodes it as
+// Japanese. Preserve the pool and decode only the incoming Japanese fragment.
+static void __cdecl appendTextFragment(void* pool, const char* fragment) {
+    std::wstring decoded;
+    if (pool && logh::japaneseFragment(fragment, decoded))
+        reinterpret_cast<void(__cdecl*)(void*, const wchar_t*)>(0x4eabb0)(pool, decoded.c_str());
+}
 
 // Keep the native UTF-16 glyph key through GDI. The CD's Japanese CRT -> ANSI
 // GDI boundary otherwise drops Hangul and misdecodes Japanese on Korean Windows.
@@ -440,6 +450,9 @@ static void install() {
     BYTE* glyph = reinterpret_cast<BYTE*>(0x4b0a97);
     const BYTE expectedGlyph[] = {0xe8,0xe0,0xed,0x14,0x00};
     if (memcmp(glyph, expectedGlyph, 5)) { status = -2; return; }
+    auto append = reinterpret_cast<BYTE*>(0x5035d3);
+    const BYTE expectedAppend[] = {0xe8,0x38,0x75,0xfe,0xff};
+    if (memcmp(append, expectedAppend, 5)) { status = -2; return; }
     const unsigned glyphAddresses[] = {0x4b0c62, 0x4b0cb5, 0x4b0d29};
     const BYTE expectedGdi[][6] = {{0xff,0x15,0xa0,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}};
     for (unsigned i = 0; i < 3; ++i)
@@ -489,6 +502,8 @@ static void install() {
     if (!patchBytes(departure, expectedDeparture, departureJump, sizeof(departureJump))) { status = -3; return; }
     *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&encodeGlyph) - glyph - 5);
     if (!patchBytes(glyph, expectedGlyph, call, 5)) { status = -3; return; }
+    *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&appendTextFragment) - append - 5);
+    if (!patchBytes(append, expectedAppend, call, 5)) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};
