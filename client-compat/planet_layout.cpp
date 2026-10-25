@@ -7,6 +7,7 @@
 #include <float.h>
 #include <string.h>
 #include "hud_atlas.h"
+#include "spot_presence.h"
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -55,6 +56,70 @@ static bool verifiedClient() {
 
 template<class T> static T& at(void* base, unsigned offset) {
     return *reinterpret_cast<T*>(static_cast<BYTE*>(base) + offset);
+}
+
+// The native spot window supplies both the background portraits (23 slots)
+// and the same-spot roster. Its scan compares only the spot ID; same-faction
+// characters elsewhere in the grid can therefore leak into private rooms.
+static BYTE __cdecl sharedSpot(void* peer) {
+    void* world = *reinterpret_cast<void**>(0x7ccffc);
+    void* own = world ? at<void*>(world, 8) : nullptr;
+    if (!own || !peer || !at<BYTE>(own, 0) || !at<BYTE>(peer, 0)) return 0;
+    return logh::sameSpotOccupant(at<unsigned>(own, 0x24), at<unsigned>(own, 0x40),
+        at<unsigned>(own, 0x44), at<unsigned>(peer, 0x24), at<unsigned>(peer, 0x40),
+        at<unsigned>(peer, 0x44)) ? 1 : 0;
+}
+static unsigned spotAccepted = 0x54ab2b, spotRejected = 0x54aba1;
+static BYTE __cdecl privateSpotOwnerPresent() {
+    void* world = *reinterpret_cast<void**>(0x7ccffc);
+    void* own = world ? at<void*>(world, 8) : nullptr;
+    *reinterpret_cast<unsigned*>(0x788ad0) = ~0u; // native owner-name marker
+    if (!own || !at<BYTE>(own, 0)) return 0;
+    unsigned spot = at<unsigned>(own, 0x40), owner = at<unsigned>(own, 0x44);
+    for (int i = 0; i < 600; ++i) {
+        void* member = static_cast<BYTE*>(world) + 12 + i * 0x370;
+        if (at<BYTE>(member, 0) && logh::spotOwnerPresent(owner, spot,
+            at<unsigned>(member, 0x24), at<unsigned>(member, 0x40), at<unsigned>(member, 0x44))) {
+            *reinterpret_cast<unsigned*>(0x788ad0) = owner;
+            return 1;
+        }
+    }
+    return 0;
+}
+// Hotel/residence visibility requires the room owner to be present. The CD
+// compares the owner's character ID to the room's spot ID, hiding every guest.
+static unsigned privateSpotResume = 0x54aaf2;
+static void __declspec(naked) filterPrivateSpot() {
+    __asm {
+        push eax
+        push ecx
+        push edx
+        call privateSpotOwnerPresent
+        test al, al
+        pop edx
+        setnz dl
+        pop ecx
+        pop eax
+        jmp dword ptr [privateSpotResume]
+    }
+}
+static void __declspec(naked) filterSpot() {
+    __asm {
+        push eax
+        push ecx
+        push edx
+        push esi
+        call sharedSpot
+        add esp, 4
+        test al, al
+        pop edx
+        pop ecx
+        pop eax
+        jz rejected
+        jmp dword ptr [spotAccepted]
+    rejected:
+        jmp dword ptr [spotRejected]
+    }
 }
 
 #include "planet_info.h"
@@ -355,6 +420,12 @@ static void install() {
     BYTE* target = reinterpret_cast<BYTE*>(0x4d68d0);
     const BYTE expected[] = {0x83,0xec,0x58,0x53,0x56};
     if (memcmp(target, expected, sizeof(expected))) { status = -2; return; }
+    auto spotFilter = reinterpret_cast<BYTE*>(0x54ab25);
+    const BYTE expectedSpotFilter[] = {0x39,0x44,0x24,0x14,0x75,0x76};
+    if (memcmp(spotFilter, expectedSpotFilter, sizeof(expectedSpotFilter))) { status = -2; return; }
+    auto privateFilter = reinterpret_cast<BYTE*>(0x54aab6);
+    const BYTE expectedPrivateFilter[] = {0xa1,0xfc,0xcf,0x7c,0};
+    if (memcmp(privateFilter, expectedPrivateFilter, sizeof(expectedPrivateFilter))) { status = -2; return; }
     BYTE* hudCall = reinterpret_cast<BYTE*>(0x4d7e5f);
     const BYTE expectedHudCall[] = {0xe8,0xac,0xd7,0xff,0xff};
     if (memcmp(hudCall, expectedHudCall, sizeof(expectedHudCall))) { status = -2; return; }
@@ -390,6 +461,12 @@ static void install() {
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installPlanetInformation()) { status = -3; return; }
+    BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
+    *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
+    if (!patchBytes(spotFilter, expectedSpotFilter, spotJump, sizeof(spotJump))) { status = -3; return; }
+    BYTE privateJump[5] = {0xe9};
+    *reinterpret_cast<LONG*>(privateJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterPrivateSpot) - privateFilter - 5);
+    if (!patchBytes(privateFilter, expectedPrivateFilter, privateJump, sizeof(privateJump))) { status = -3; return; }
     for (unsigned address : dialogGroups)
         if (!patchBytes(reinterpret_cast<void*>(address), &oldDialogGroup, &newDialogGroup, 1)) { status = -3; return; }
     for (unsigned address : cardGroups)

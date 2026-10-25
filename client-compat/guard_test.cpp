@@ -3,8 +3,25 @@
 #include <windows.h>
 #include "hud_atlas.h"
 #include "planet_info_data.h"
+#include "spot_presence.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
+    if (!logh::spotOwnerPresent(10000, 10493414, 10000, 10493414, 10000) ||
+        logh::spotOwnerPresent(10000, 10493414, 10001, 10493414, 10000) ||
+        logh::spotOwnerPresent(10000, 10493414, 10000, 10493414, 10001) ||
+        logh::spotOwnerPresent(10000, 10493414, 10000, 10490003, 10000) ||
+        logh::spotOwnerPresent(0, 10493414, 0, 10493414, 0) ||
+        logh::spotOwnerPresent(10000, 0, 10000, 0, 10000)) return 13;
+    // Grid visibility includes friendly characters in other private instances.
+    // Neither their background portrait nor their roster entry belongs here.
+    if (!logh::sameSpotOccupant(10000, 10490003, 0, 10001, 10490003, 0) ||
+        !logh::sameSpotOccupant(10000, 10493414, 10000, 10001, 10493414, 10000) ||
+        logh::sameSpotOccupant(10000, 10493414, 10000, 10001, 10493414, 10001) ||
+        logh::sameSpotOccupant(10000, 10490003, 0, 10001, 10490001, 0) ||
+        logh::sameSpotOccupant(10000, 0, 0, 10001, 0, 0) ||
+        logh::sameSpotOccupant(10000, 10490003, 0, 10000, 10490003, 0) ||
+        logh::sameSpotOccupant(0, 10490003, 0, 10001, 10490003, 0) ||
+        logh::sameSpotOccupant(10000, 10490003, 0, 0, 10490003, 0)) return 12;
     // Known CD model families and variants must not alias unrelated artwork.
     const int icons[][3] = {{0,791,0},{61,824,198},{30,791,99},{90,791,297},
         {102,857,330},{110,923,0},{111,956,0},{112,923,33},{115,923,132}};
