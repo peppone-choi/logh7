@@ -4,8 +4,16 @@ import java.nio.ByteBuffer
 
 /** evidence:client — initial response readers, with optional external world catalogues. */
 object BootstrapMessages {
-    data class OfficeCard(val kind: Int, val base: Int) {
-        init { require(kind in setOf(54,190) && base in 1..65535) }
+    data class OfficeCard(val kind: Int, val target: Int) {
+        val power: Int get() = when (kind) {
+            39,44,47,50,54 -> 2
+            175,180,183,186,190 -> 3
+            else -> error("Unsupported office card")
+        }
+        init {
+            require(kind in setOf(39,44,47,50,54,175,180,183,186,190) && target > 0)
+            require(kind !in setOf(54,190) || target <= 65535)
+        }
     }
     private fun captainCard(character: CharacterMessages.Generate) = if (character.power == 2) 59 else 195
     private fun cards(): ByteArray {
@@ -32,8 +40,8 @@ object BootstrapMessages {
     fun character(character: CharacterMessages.Generate, pcp: Int = 100, mcp: Int = 100,
         spot: Int = 0, spotOwner: Int = 0, returnBase: Int = 0, offices: List<OfficeCard> = emptyList()): ByteArray {
         require(returnBase in 0..65535)
-        require(offices.size <= 14 && offices.map { it.base }.distinct().size == offices.size &&
-            offices.all { it.kind == if (character.power == 2) 54 else 190 })
+        require(offices.size <= 14 && offices.map { it.kind to it.target }.distinct().size == offices.size &&
+            offices.all { it.power == character.power })
         val out = ByteBuffer.allocate(1024)
         fun u8(value: Int) { out.put(value.toByte()) }
         fun string(value: String) {
@@ -60,7 +68,7 @@ object BootstrapMessages {
         u8(2 + offices.size)
         out.putShort(0).putInt(0) // personal card, no institution restriction
         out.putShort(captainCard(character).toShort()).putInt(unitId(character))
-        offices.forEach { out.putShort(it.kind.toShort()).putInt(it.base) }
+        offices.forEach { out.putShort(it.kind.toShort()).putInt(it.target) }
         u8(0) // together
         return LoginMessages.sessionMessage(0x0323, out.array().copyOf(out.position()))
     }

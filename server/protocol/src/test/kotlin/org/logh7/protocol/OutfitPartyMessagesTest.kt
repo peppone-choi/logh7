@@ -20,6 +20,29 @@ class OutfitPartyMessagesTest {
         repeat(7) { assertEquals(0,input.get().toInt()) }
         assertFalse(input.hasRemaining())
     }
+    @Test fun memberRecordsUseNativeUtf16NamesAndKeepShipSectionAligned() {
+        val member = OutfitPartyMessages.Member(10000,0,7,"함대司令")
+        val bytes = OutfitPartyMessages.party(OutfitPartyMessages.Query(1,1049,0),2,0,1,
+            listOf(OutfitPartyMessages.Ships(32,300,listOf(9))),emptyList(),123,456,listOf(member))
+        val input = ByteBuffer.wrap(bytes); input.position(19)
+        assertEquals(1,input.get().toInt()); assertEquals(10000,input.int)
+        assertEquals(0,input.get().toInt()); assertEquals(7,input.get().toInt())
+        assertEquals(member.name.length+1,input.get().toInt())
+        assertEquals(member.name+'\u0000',String(CharArray(member.name.length+1) { input.char }))
+        assertEquals(1,input.get().toInt()); assertEquals(32,input.short.toInt())
+        assertEquals(1,input.get().toInt()); assertEquals(300,input.short.toInt())
+        assertEquals(1,input.get().toInt()); assertEquals(9,input.int)
+        fun encode(members: List<OutfitPartyMessages.Member>) = OutfitPartyMessages.party(
+            OutfitPartyMessages.Query(1,1049,0),2,0,1,emptyList(),emptyList(),0,0,members)
+        assertFails { encode(listOf(member,member)) }
+        assertFails { encode((1..11).map { member.copy(id=it) }) }
+        assertFails { encode(listOf(member.copy(name="a".repeat(13)))) }
+        assertFails { encode(listOf(member.copy(name="a\u0000b"))) }
+        assertFails { encode(listOf(member.copy(name="\ud83d\ude00"))) }
+        assertFails { encode(listOf(member.copy(id=0))) }
+        assertFails { encode(listOf(member.copy(rank=256))) }
+        encode(listOf(member.copy(name="a".repeat(12))))
+    }
     @Test fun singleUnitUsesTheOriginalOutfitUnitResponseCountAndFieldPositions() {
         val bytes = OutfitPartyMessages.units(listOf(OutfitPartyMessages.UnitInformation(101,32,2487,1,1049)))
         assertEquals(43,bytes.size)
