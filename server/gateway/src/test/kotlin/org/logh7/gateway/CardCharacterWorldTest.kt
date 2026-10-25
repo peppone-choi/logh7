@@ -32,9 +32,28 @@ class CardCharacterWorldTest {
     }
     @Test fun originalLimitsRejectTruncationInsteadOfReportingVacancies() {
         val manyPeople=stocks.copy(bases=(1..65).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10000+it) })
-        assertFails { world.cardCharacters(54,manyPeople) { character.copy(id=it.toLong()) } }
+        val capacityWorld=WorldBootstrap(Galaxy(galaxy.systems,(1..65).map { galaxy.bases.first().copy(id=it) },galaxy.starts))
+        assertFails { capacityWorld.cardCharacters(54,manyPeople) { character.copy(id=it.toLong()) } }
         val manyBases=stocks.copy(bases=(1..15).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10000) })
-        assertFails { world.cardCharacters(54,manyBases) { character } }
+        assertFails { capacityWorld.cardCharacters(54,manyBases) { character } }
+    }
+
+    @Test fun planetAndFortressGarrisonsUseDifferentOriginalCardsForBothFactions() {
+        val garrisonWorld=WorldBootstrap(Galaxy(galaxy.systems,listOf(
+            galaxy.bases[0].copy(kind=0),galaxy.bases[1].copy(kind=1)),galaxy.starts))
+        for (power in listOf(2,3)) {
+            val offset=if (power==3) 136 else 0
+            val assigned=stocks.copy(bases=stocks.bases.mapValues { (_,base) ->
+                base.copy(power=power,governorId=0,garrisonCommanderId=10000) })
+            for ((card,base) in listOf(55+offset to 1048,52+offset to 1049)) {
+                val response=garrisonWorld.cardCharacters(card,assigned) { character.copy(power=power) }
+                assertEquals(1,response[8].toInt())
+                assertEquals(card,ByteBuffer.wrap(response).getShort(response.size-7).toInt())
+                assertEquals(base,ByteBuffer.wrap(response).getInt(response.size-5))
+            }
+            val empty=garrisonWorld.cardCharacters(54+offset,assigned) { error("Garrison is not a governor") }
+            assertEquals(0,empty[8].toInt())
+        }
     }
 
 }

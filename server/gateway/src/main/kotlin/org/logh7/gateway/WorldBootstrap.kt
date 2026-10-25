@@ -9,21 +9,21 @@ import org.logh7.protocol.OutfitMessages
 import org.logh7.protocol.OutfitPartyMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
-    /** Public governor identities from stored appointments, never the viewer's cards. */
+    private val baseOffices=BaseOfficeCards(galaxy)
+    /** Stored base offices, never inferred from the viewer or a stationed outfit. */
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
-        require(card == 54 || card == 190) { "Unsupported public office roster" }
-        val power = if (card == 54) 2 else 3
-        val appointed = stocks.bases.values.filter { it.power == power && it.camp == 0 && it.governorId != 0 }
-            .groupBy { it.governorId }.toSortedMap()
-        // The CD has no continuation field. Do not silently report an incomplete roster.
-        require(appointed.size <= 64 && appointed.values.all { it.size <= 14 }) { "Office roster exceeds CD capacity" }
-        val records = appointed.map { (id, bases) ->
-            val character = checkNotNull(characterById(id)) { "Appointed governor character is missing" }
-            require(character.power == power) { "Governor faction differs from appointment" }
-            val offices = bases.sortedBy { it.baseId }.map { BootstrapMessages.OfficeCard(card,it.baseId) }
-            // Public projection: private CP/location/return-base fields are redacted.
-            BootstrapMessages.character(character,0,0,offices=offices)
+        require(card in setOf(52,54,55,188,190,191)) { "Unsupported public office roster" }
+        val power=if (card<136) 2 else 3
+        val appointed=stocks.bases.values.filter { it.power==power && it.camp==0 }.flatMap { base ->
+            val id=if (card==54 || card==190) base.governorId else base.garrisonCommanderId
+            baseOffices.cards(base,id).filter { it.kind==card }.map { id to it }
+        }.groupBy({it.first},{it.second}).toSortedMap()
+        require(appointed.size<=64 && appointed.values.all { it.size<=14 }) { "Office roster exceeds CD capacity" }
+        val records=appointed.map { (id,offices) ->
+            val character=checkNotNull(characterById(id)) { "Appointed character is missing" }
+            require(character.power==power) { "Character faction differs from appointment" }
+            BootstrapMessages.character(character,0,0,offices=offices.sortedBy { it.target })
         }
         return org.logh7.protocol.CardCharacterMessages.response(card,records)
     }

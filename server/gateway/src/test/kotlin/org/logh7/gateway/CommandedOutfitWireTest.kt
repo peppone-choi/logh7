@@ -26,7 +26,7 @@ class CommandedOutfitWireTest {
         }
         LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false,stockStore=store).use { fixture ->
             val client = fixture.join(fixture.account(0),true,false).client
-            val administration = EngineGameAdministration(fixture.engine,this)
+            val administration = EngineGameAdministration(fixture.engine,this,galaxy)
             val stationed = Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4)
             assertEquals(1,administration.stationedOutfit(stationed))
             for (outside in listOf(stationed.copy(generation=2),stationed.copy(characterId=10001),

@@ -93,7 +93,7 @@ fun main() {
             gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope), world = world,
             navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
             stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
-            administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope))
+            administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy))
         resources.addFirst(gateway)
         val audit = System.getenv("LOGH7_OPS_AUDIT_FILE")?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)

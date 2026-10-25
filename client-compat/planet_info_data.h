@@ -73,11 +73,11 @@ struct PlanetPlaces {
     }
 };
 // 034f: header card u16/count u8; 64 ordinary 0x2d4 character records.
-struct PlanetGovernor {
+struct PlanetOfficeHolder {
     unsigned id=0;
     uint16_t surname[13]={},givenName[13]={};
     bool accept(const unsigned char* response,unsigned card,unsigned base) {
-        if ((card!=54 && card!=190) || infoShort(response,0)!=card || response[2]>64 || !base) return false;
+        if ((card!=52 && card!=54 && card!=55 && card!=188 && card!=190 && card!=191) || infoShort(response,0)!=card || response[2]>64 || !base) return false;
         const unsigned char* holder=nullptr;
         for (unsigned i=0;i<response[2];++i) {
             auto person=response+4+i*0x2d4;

@@ -14,9 +14,9 @@ static struct PlanetInformation {
     logh::PlanetDirectory directory;
     logh::PlanetPlaces places;
     bool placesReady;
-    logh::PlanetGovernor governor;
-    unsigned governorCard;
-    bool governorSent,governorReady;
+    logh::PlanetOfficeHolder governor,garrison;
+    unsigned governorCard,garrisonCard;
+    bool governorSent,governorReady,garrisonSent,garrisonReady;
     bool directoryVisible, directoryLocal;
     unsigned directoryRows[350], directoryCount, directoryPage;
     ULONGLONG directorySentAt;
@@ -61,7 +61,8 @@ static void requestPlanetInformation() {
     auto& info = planetInformation;
     info.conditionsReady = info.warehouseReady = info.placesReady = info.displayed = false;
     info.places = {};
-    info.governor={};info.governorCard=0;info.governorSent=info.governorReady=false;
+    info.governor={};info.garrison={};info.governorCard=info.garrisonCard=0;
+    info.governorSent=info.governorReady=info.garrisonSent=info.garrisonReady=false;
     info.timeoutShown = false;
     info.page = 0;
     info.requestedAt = GetTickCount64();
@@ -104,8 +105,11 @@ static void __cdecl receivedPlanetPlaces(void* world) {
 static void __cdecl receivedPlanetGovernor(void* world) {
     auto& info=planetInformation;
     if (!info.popup || info.world!=world || info.directoryVisible || !info.count || !info.governorSent) return;
-    if (info.governor.accept(static_cast<const BYTE*>(world)+0x3d4994,info.governorCard,info.ids[info.index])) {
+    if (info.governorSent && info.governor.accept(static_cast<const BYTE*>(world)+0x3d4994,info.governorCard,info.ids[info.index])) {
         info.governorReady=true;info.displayed=false;
+    }
+    if (info.garrisonSent && info.garrison.accept(static_cast<const BYTE*>(world)+0x3d4994,info.garrisonCard,info.ids[info.index])) {
+        info.garrisonReady=true;info.displayed=false;
     }
 }
 static unsigned placesResume=0x4bdd33;
@@ -166,12 +170,22 @@ static void showPlanetInformation() {
 
 static void updatePlanetGovernor() {
     auto& info=planetInformation;
-    if (!info.conditionsReady || info.governorSent) return;
+    if (!info.conditionsReady) return;
     unsigned power=info.condition[4];
     if (info.condition[5] || (power!=2 && power!=3)) return;
-    info.governorCard=power==2 ? 54 : 190;info.governorSent=true;
-    unsigned query=info.governorCard;
-    reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(info.world,0,0x16,&query);
+    auto send=reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0);
+    if (!info.governorSent) {
+        info.governorCard=power==2 ? 54 : 190;info.governorSent=true;
+        unsigned query=info.governorCard;send(info.world,0,0x16,&query);return;
+    }
+    if (!info.governorReady && GetTickCount64()-info.requestedAt<5000) return;
+    if (!info.garrisonSent) {
+        auto base=planetBase(info.ids[info.index]);
+        if (!base) return;
+        info.garrisonCard=(logh::infoShort(base,0x14)==1 ? 52 : 55)+(power==3 ? 136 : 0);
+        info.garrisonSent=true;
+        unsigned query=info.garrisonCard;send(info.world,0,0x16,&query);
+    }
 }
 static void updatePlanetDirectory() {
     auto& info=planetInformation;
@@ -263,7 +277,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                 }
                 break;
             }
-            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady || !info.placesReady || (info.governorSent && !info.governorReady)) &&
+            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady || !info.placesReady || (info.governorSent && !info.governorReady) || (info.garrisonSent && !info.garrisonReady)) &&
                 GetTickCount64() - info.requestedAt >= 5000))) showPlanetInformation();
             return -1;
         }
