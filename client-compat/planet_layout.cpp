@@ -124,7 +124,10 @@ static void __declspec(naked) filterSpot() {
 
 static bool updateTaxWindow(void* gui);
 static void taxConditions(void* world);
+static void updateOutfitInformation(void* manager);
+static void outfitWarehouseResponse(void* world,const BYTE* record);
 #include "planet_info.h"
+#include "outfit_information.h"
 #include "docking_information.h"
 #include "navigation_status.h"
 #include "return_base.h"
@@ -491,6 +494,7 @@ static void install() {
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installPlanetInformation()) { status = -3; return; }
+    if (!installOutfitInformation()) { status = -3; return; }
     if (!installDockingInformation()) { status = -3; return; }
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }

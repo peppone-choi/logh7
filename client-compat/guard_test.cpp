@@ -5,8 +5,33 @@
 #include "planet_info_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
+#include "outfit_info_data.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
+    unsigned char outfitCache[100 * 32] = {};
+    outfitCache[32] = 1; outfitCache[36] = 7;
+    outfitCache[96] = 1; outfitCache[100] = 9;
+    if (logh::outfitListRow(outfitCache, 0) || logh::outfitListRow(outfitCache, 101) ||
+        logh::outfitListRow(outfitCache, 1) != outfitCache + 36 ||
+        logh::outfitListRow(outfitCache, 2) != outfitCache + 100 || logh::outfitListRow(outfitCache, 3)) return 23;
+    unsigned char party[logh::outfitPartyBytes] = {};
+    party[0] = 7; party[4] = 1; party[9] = 2;
+    if (!logh::validOutfitParty(party, 7) || logh::validOutfitParty(party, 9)) return 24;
+    party[0x180] = 1; party[0x186] = 1; party[0x188] = 44; party[0x18a] = 1; party[0x18c] = 1;
+    if (!logh::validOutfitParty(party, 7)) return 24;
+    party[0x18a] = 71;
+    if (logh::validOutfitParty(party, 7)) return 24;
+    party[0x18a] = 1; party[0x4504] = 25;
+    if (logh::validOutfitParty(party, 7)) return 24;
+    logh::OutfitReplyQueue replies;
+    unsigned replyToken = 0;
+    if (!replies.add(7,0,1,false) || !replies.add(7,0,2,false) ||
+        replies.take(9,1,false,replyToken) || !replies.take(7,1,false,replyToken) || replyToken != 1 ||
+        !replies.take(7,1,false,replyToken) || replyToken != 2 || replies.count) return 25;
+    if (!replies.add(7,1,3,true) || replies.take(7,2,true,replyToken) ||
+        replies.take(7,1,false,replyToken) || !replies.take(7,1,true,replyToken) || replyToken != 3) return 25;
+    for (unsigned i = 0; i < 8; ++i) if (!replies.add(7,1,i+4,true)) return 25;
+    if (replies.add(7,1,12,true)) return 25;
     // Native chat appends colour controls after its UTF-16 body. The previous
     // ANSI round trip corrupted Hangul already present in that body.
     std::wstring body = L"한글 대화 日本語 ABC";
