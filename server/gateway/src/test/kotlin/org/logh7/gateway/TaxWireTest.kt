@@ -48,13 +48,14 @@ class TaxWireTest {
                 client.send(query())
                 val response = ByteBuffer.wrap(next(client,0x0a00))
                 assertEquals(if (governor == 0) 1 else 0,response.int)
-                assertEquals(if (governor == 0) 1000 else 680,response.getInt(15))
-                assertEquals(1000,response.getInt(19))
+                assertEquals(1000,response.getInt(15))
+                assertEquals(if (governor == 0) 1000 else 840,response.getInt(19))
                 val conditions = next(client,0x031f)
                 assertEquals(if (governor == 0) 20 else 35,ByteBuffer.wrap(conditions).getShort(55).toInt())
                 assertEquals(if (governor == 0) null else 35,state.stocks.bases.getValue(1049).taxRate)
             }
-            assertEquals(if (governor == 0) 1000 else 680,state.players.getValue("load-000").pcp)
+            assertEquals(1000,state.players.getValue("load-000").pcp)
+            assertEquals(if (governor == 0) 1000 else 840,state.players.getValue("load-000").mcp)
         }
     }
 }
