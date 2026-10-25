@@ -246,6 +246,14 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x032a, 0x032c -> {
+                        check(gameStarted && world != null && stock != null)
+                        val ids = if (opcode == 0x032a) org.logh7.protocol.OutfitMessages.query(body) else null
+                        val query = if (opcode == 0x032c) org.logh7.protocol.OutfitMessages.gridQuery(body) else null
+                        pendingWorld = stocks().thenApply { stored -> listOf(if (ids != null) world.outfits(ids,checkNotNull(stored))
+                            else world.gridOutfits(checkNotNull(query),checkNotNull(stored))) }
+                        return null
+                    }
                     0x0326 -> {
                         check(gameStarted && world != null)
                         val (base, outfit) = org.logh7.protocol.WorldMessages.warehouseQuery(body)

@@ -80,4 +80,33 @@ class OutfitStockStoreTest {
             assertEquals(1000,actual.warehouses.getValue(101).baseId)
         }
     }
+    @Test fun numbersCarriedSuppliesAndDeploymentMarkerSurviveReopening() {
+        val value = stocks().copy(outfits=stocks().outfits.mapValues { (id,o) -> o.copy(number=id,supplies=id*1000) },deploymentInitialized=true)
+        val path = directory.resolve("version5")
+        FilePlanetStockStore(path).use { it.save(value) }
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-5\t7\t23\t1\t2\t1\t1\t1\n"))
+        FilePlanetStockStore(path).use { assertEquals(value,it.load()) }
+    }
+    @Test fun oldVersion4KeepsExistingDeploymentWithoutInventingNumbersOrSupplies() {
+        val path = directory.resolve("version4")
+        Files.writeString(path,"LOGH7-STOCK-4\t1\t0\t1\t1\t1\t0\n" +
+            "P\t1000\t2\t0\t1\t2\t3\t-\t-\t-\t-\t;;\n" +
+            "O\t1\t2\tFLEET\t1000\t101\t10\tS32.0.2;;\n" +
+            "W\t101\t2\tFLEET\t1000\t1\t4\t5\t6\t;;\n")
+        val old = FilePlanetStockStore(path).use { it.load()!! }
+        assertFalse(old.deploymentInitialized)
+        assertEquals(0,old.outfits.getValue(1).number); assertEquals(0,old.outfits.getValue(1).supplies)
+        assertEquals(2,old.outfits.getValue(1).units.ships[UnitStack(32)])
+        FilePlanetStockStore(path).use { it.save(old) }
+        FilePlanetStockStore(path).use { assertEquals(old,it.load()) }
+    }
+    @Test fun patrolAndGroundShareTheSameLocalWarehouseAndCannotCreateParallelCopies() {
+        val value = stocks()
+        val combined = value.copy(outfits=value.outfits + (2 to value.outfits.getValue(2).copy(kind=OutfitKind.GROUND)))
+        val path = directory.resolve("shared")
+        FilePlanetStockStore(path).use { it.save(combined) }
+        FilePlanetStockStore(path).use { assertEquals(combined,it.load()) }
+        assertFails { combined.copy(outfits=combined.outfits + (2 to combined.outfits.getValue(2).copy(warehouseId=102)),
+            warehouses=combined.warehouses + (102 to OutfitWarehouse(102,2,OutfitKind.GROUND,1000))) }
+    }
 }
