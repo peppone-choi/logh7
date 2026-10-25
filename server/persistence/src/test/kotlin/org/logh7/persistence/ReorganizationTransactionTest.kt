@@ -120,4 +120,3 @@ class ReorganizationTransactionTest {
         } finally { engine.drainAndClose() }
     }
 }
-
