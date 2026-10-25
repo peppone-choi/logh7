@@ -89,4 +89,5 @@ fun WorldCommand.sessionAction(): SessionAction = when (this) {
     WorldCommand.Restart, is WorldCommand.RequestRestart -> SessionAction.Restart
     is WorldCommand.Navigate -> error("Navigation uses its own forced store on the world actor")
     is WorldCommand.Stock -> error("Production uses its own forced store on the world actor")
+    is WorldCommand.Logistics -> error("Logistics uses the combined inventory store on the world actor")
 }

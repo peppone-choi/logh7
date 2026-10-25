@@ -17,7 +17,7 @@ class FilePlanetStockStoreTest {
             assertEquals(23, old.producedDays)
             it.save(old)
         }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-3\t1\t23"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-4\t1\t23\t1\t0\t0\t0"))
         FilePlanetStockStore(path).use { assertNull(it.load()!!.bases.getValue(1000).economy) }
     }
     @Test fun exactBalancesAndProductionWatermarkSurviveReopeningAndOtherWritersAreRejected() {

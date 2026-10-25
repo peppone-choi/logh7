@@ -6,6 +6,19 @@ import org.logh7.protocol.LoginMessages
 import org.logh7.engine.UnitSpecifications
 
 class WorldBootstrap(val galaxy: Galaxy) {
+    fun outfitWarehouse(base: Int, outfitId: Int, character: Int, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
+        val outfit = requireNotNull(stocks.outfits[outfitId]) { "Unknown outfit" }
+        require(outfit.baseId == base && outfit.power == power) { "Outfit warehouse identity mismatch" }
+        val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
+        val commandsSharedWarehouse = stocks.outfits.values.any { it.warehouseId == warehouse.id && it.commanderId == character }
+        require(character > 0 && (commandsSharedWarehouse || stocks.logisticsOfficers[character]?.permits(power,outfit.kind) == true)) {
+            "Outfit warehouse access denied"
+        }
+        fun entries(values: Map<org.logh7.engine.UnitStack,Int>) = values.entries
+            .sortedWith(compareBy({ it.key.kind },{ it.key.level })).map { WorldMessages.Stock(it.key.kind,it.key.level,it.value) }
+        return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base,warehouse.supplies,warehouse.food,warehouse.mineral,
+            entries(warehouse.units.ships),entries(warehouse.units.troops),outfitId))
+    }
     fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
         val state = requireNotNull(galaxy.conditions[base]) { "Unknown warehouse base" }
         val stored = stocks?.let { checkNotNull(it.bases[base]) }

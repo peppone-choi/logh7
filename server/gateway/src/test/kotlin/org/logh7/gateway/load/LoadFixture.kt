@@ -10,10 +10,11 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.*
 
-class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics, private val galaxy: Galaxy? = null, ticking: Boolean = true) : AutoCloseable {
+class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics, private val galaxy: Galaxy? = null, ticking: Boolean = true,
+    stockStore: PlanetStockStore? = null) : AutoCloseable {
     val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking)
+    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking, stockStore = stockStore)
     val access = EngineGameAdmission(engine, scope)
     private val clients = ConcurrentLinkedQueue<SyntheticClient>()
     private val characters = ConcurrentHashMap<String, CharacterMessages.Generate>()
