@@ -58,7 +58,8 @@ object Places {
         val capitalEmpire = base.grid == 2487 && base.name == "オーディン"
         val capitalAlliance = base.grid == 2015 && base.name == "ハイネセン"
         val kinds = when {
-            base.kind == 1 -> listOf(1, 4, 9, 11, 13, 17, 21)
+            // The manual's automatic-production table includes ships at fortresses too.
+            base.kind == 1 -> listOf(1, 4, 9, 10, 11, 13, 17, 21)
             BaseCondition.habitable(base) -> (0..17).toList() + listOf(19)
             else -> listOf(0, 1, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 17)
         }

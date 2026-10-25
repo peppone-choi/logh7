@@ -22,30 +22,32 @@ class FilePlanetStockStore(private val path: Path) : PlanetStockStore {
     }
     override fun load(): PlanetStocks? {
         if (!Files.exists(path)) return null
-        require(Files.size(path) <= 200_000) { "Planet stock store is too large" }
+        require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
         val header = lines.firstOrNull()?.split('\t').orEmpty()
-        require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2")) { "Invalid planet stock header" }
-        val columns = if (header[0] == "LOGH7-STOCK-1") 6 else 10
+        require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
+        val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
         for (line in lines.drop(1)) {
             val fields = line.split('\t')
             require(fields.size == columns) { "Invalid planet stock row" }
-            val economy = if (columns == 6 || fields.drop(6).all { it == "-" }) null else
+            val economy = if (columns == 6 || fields.subList(6, 10).all { it == "-" }) null else
                 PlanetEconomy(fields[6].toInt(), fields[7].toInt(), fields[8].toInt(), fields[9].toInt())
             val stock = PlanetStock(fields[0].toInt(), fields[1].toInt(), fields[2].toInt(), fields[3].toInt(),
-                fields[4].toInt(), fields[5].toInt(), economy)
+                fields[4].toInt(), fields[5].toInt(), economy,
+                if (columns >= 11) UnitInventoryCodec.decode(fields[10]) else org.logh7.engine.UnitInventory())
             require(rows.put(stock.baseId, stock) == null) { "Duplicate stock base" }
         }
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
     override fun save(stocks: PlanetStocks) {
         val bytes = buildString {
-            append("LOGH7-STOCK-2\t${stocks.generation}\t${stocks.producedDays}\n")
+            append("LOGH7-STOCK-3\t${stocks.generation}\t${stocks.producedDays}\n")
             stocks.bases.toSortedMap().values.forEach { stock ->
                 val people = stock.economy
                 append(listOf(stock.baseId, stock.power, stock.camp, stock.supplies, stock.food, stock.mineral,
-                    people?.population ?: "-", people?.adults ?: "-", people?.approval ?: "-", people?.peace ?: "-").joinToString("\t"))
+                    people?.population ?: "-", people?.adults ?: "-", people?.approval ?: "-", people?.peace ?: "-",
+                    UnitInventoryCodec.encode(stock.units)).joinToString("\t"))
                 append('\n')
             }
         }.toByteArray(Charsets.UTF_8)

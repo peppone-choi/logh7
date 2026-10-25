@@ -5,11 +5,21 @@ import java.io.DataOutputStream
 
 /** CD readers: 00413050, 004134e0, 004142e0. No native struct padding on the wire. */
 object WorldMessages {
-    /** 0041a870: a real empty ship/troop stock with initial commodity quantities. */
-    fun warehouse(base: Int, supplies: Int, food: Int, mineral: Int) = body {
+    data class Stock(val kind: Int, val level: Int, val quantity: Int)
+    /** 0041a870: kind u16, level u8, quantity u16; native six-byte rows contain one padding byte. */
+    fun warehouse(base: Int, supplies: Int, food: Int, mineral: Int,
+        ships: List<Stock> = emptyList(), troops: List<Stock> = emptyList()) = body {
         require(base > 0 && supplies >= 0 && food >= 0 && mineral >= 0)
+        fun stacks(values: List<Stock>, maximum: Int, kinds: IntRange) {
+            require(values.size <= maximum && values.map { it.kind to it.level }.distinct().size == values.size)
+            writeByte(values.size)
+            values.forEach { value ->
+                require(value.kind in kinds && value.level in 0..3 && value.quantity in 1..65535)
+                writeShort(value.kind); writeByte(value.level); writeShort(value.quantity)
+            }
+        }
         writeInt(base); writeInt(0); writeInt(0)
-        writeByte(0); writeByte(0)
+        stacks(ships, 99, 0..199); stacks(troops, 24, 0..15)
         writeInt(supplies); writeInt(food); writeInt(mineral)
     }
     fun warehouseQuery(message: ByteArray): Pair<Int, Int> {

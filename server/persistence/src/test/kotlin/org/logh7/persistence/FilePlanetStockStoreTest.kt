@@ -17,7 +17,7 @@ class FilePlanetStockStoreTest {
             assertEquals(23, old.producedDays)
             it.save(old)
         }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-2\t1\t23"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-3\t1\t23"))
         FilePlanetStockStore(path).use { assertNull(it.load()!!.bases.getValue(1000).economy) }
     }
     @Test fun exactBalancesAndProductionWatermarkSurviveReopeningAndOtherWritersAreRejected() {
@@ -31,7 +31,7 @@ class FilePlanetStockStoreTest {
         FilePlanetStockStore(path).use { assertEquals(expected, it.load()) }
     }
     @Test fun malformedOrTruncatedStocksNeverResetToInitialBalances() {
-        for ((index, contents) in listOf("", "LOGH7-STOCK-3\t1\t0\n", "LOGH7-STOCK-1\t1\t0\n1000\t2\t0\t123\n",
+        for ((index, contents) in listOf("", "LOGH7-STOCK-4\t1\t0\n", "LOGH7-STOCK-1\t1\t0\n1000\t2\t0\t123\n",
             "LOGH7-STOCK-2\t1\t0\n1000\t2\t0\t1\t2\t3\t100\t101\t70\t80\n",
             "LOGH7-STOCK-2\t1\t0\n1000\t2\t0\t1\t2\t3\t-\t-\t70\t80\n",
             "LOGH7-STOCK-1\t1\t0\n1000\t2\t0\t-1\t0\t0\n",
