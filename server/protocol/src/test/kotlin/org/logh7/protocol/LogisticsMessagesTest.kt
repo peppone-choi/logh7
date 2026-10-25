@@ -12,31 +12,55 @@ class LogisticsMessagesTest {
         .put(2).put(1).stack(32, 3, 65535).put(1).stack(1003, 2, 32768)
         .putInt(55).putInt(66).putInt(77).array()
     private fun assignment() = ByteBuffer.allocate(75).putShort(0x0c0b)
-        .putInt(11).putInt(22).putInt(1).putInt(33).putInt(44).putInt(1049).put(2)
+        .putInt(11).putInt(22).putInt(33).putInt(44).putInt(1049).putInt(700).put(2)
         .put(1).stack(32, 3, 7).put(1).stack(1003, 2, 8).putInt(55)
-        .put(1).stack(40, 1, 9).put(1).stack(1000, 0, 10).putInt(700)
+        .put(1).stack(40, 1, 9).put(1).stack(1000, 0, 10).putInt(77)
         .put(1).stack(56, 0, 11).put(1).stack(1003, 2, 12).putInt(66).array()
 
-    @Test fun nativeReorganizationHasBytePhaseAndFiveByteUnalignedStacks() {
+    @Test fun nativeReorganizationHasByteModeAndSeparateShipAndTroopFields() {
         val result = LogisticsMessages.reorganization(reorganization())
         assertEquals(LogisticsMessages.Header(11,22,33,44),result.header)
-        assertEquals(1,result.phase); assertEquals(1049,result.base); assertEquals(700,result.outfit)
-        assertEquals(2,result.category)
-        assertEquals(listOf(LogisticsMessages.Stack(32,3,65535)),result.moves.ships)
-        // Signed transfer interpretation belongs to the engine, not the lossless wire reader.
-        assertEquals(listOf(LogisticsMessages.Stack(1003,2,32768)),result.moves.troops)
-        assertEquals(listOf(55,66,77),listOf(result.tailFirst,result.tailSecond,result.tailThird))
+        assertEquals(1,result.mode); assertEquals(1049,result.base); assertEquals(700,result.outfit)
+        assertEquals(2,result.kind)
+        assertEquals(listOf(LogisticsMessages.ShipMove(32,3,65535)),result.moves.ships)
+        // Troop delta is signed; ship byte is units, not a grade.
+        assertEquals(listOf(LogisticsMessages.TroopMove(1003,2,-32768)),result.moves.troops)
+        assertEquals(listOf(55,66,77),listOf(result.maxTroops,result.maxCrew,result.supplies))
     }
-    @Test fun assignmentHasIntPhaseAndAllSixListsInTheirOriginalOrder() {
+    @Test fun assignmentHasNoModeAndKeepsAllSixListsAndSupplyFields() {
         val result = LogisticsMessages.assignment(assignment())
         assertEquals(LogisticsMessages.Header(11,22,33,44),result.header)
-        assertEquals(1,result.phase); assertEquals(1049,result.base); assertEquals(2,result.category)
-        assertEquals(7,result.moves.ships.single().quantity); assertEquals(8,result.moves.troops.single().quantity)
-        assertEquals(55,result.baseMetadata)
-        assertEquals(40,result.resultBase.ships.single().kind); assertEquals(10,result.resultBase.troops.single().quantity)
-        assertEquals(700,result.outfit)
-        assertEquals(56,result.resultOutfit.ships.single().kind); assertEquals(12,result.resultOutfit.troops.single().quantity)
-        assertEquals(66,result.tail)
+        assertEquals(1049,result.base); assertEquals(700,result.outfit); assertEquals(2,result.kind)
+        assertEquals(7,result.moves.ships.single().boats); assertEquals(8,result.moves.troops.single().units)
+        assertEquals(55,result.moveSupplies)
+        assertEquals(40,result.resultBase.ships.single().kind); assertEquals(10,result.resultBase.troops.single().units)
+        assertEquals(77,result.resultBaseSupplies)
+        assertEquals(56,result.resultOutfit.ships.single().kind); assertEquals(12,result.resultOutfit.troops.single().units)
+        assertEquals(66,result.resultOutfitSupplies)
+    }
+    @Test fun encodersPreserveIndependentNativeFieldOrder() {
+        val reorg = LogisticsMessages.reorganization(reorganization())
+        val assignment = LogisticsMessages.assignment(assignment())
+        assertContentEquals(reorganization(),LogisticsMessages.encode(reorg))
+        assertContentEquals(assignment(),LogisticsMessages.encode(assignment))
+        val signed = reorg.copy(moves=LogisticsMessages.Moves(
+            listOf(LogisticsMessages.ShipMove(32,-1,300)),
+            listOf(LogisticsMessages.TroopMove(1003,2,-1))))
+        val wire = LogisticsMessages.encode(signed)
+        assertEquals(255,wire[31].toInt() and 255)
+        assertEquals(65535,ByteBuffer.wrap(wire).getShort(38).toInt() and 65535)
+        assertEquals(signed,LogisticsMessages.reorganization(wire))
+        // Result counts use unsigned ranges even where move deltas use signed ones.
+        val large = assignment.copy(resultBase=LogisticsMessages.Inventory(
+            listOf(LogisticsMessages.ShipStock(32,255,65535)),
+            listOf(LogisticsMessages.TroopStock(1003,2,65535))))
+        assertEquals(large,LogisticsMessages.assignment(LogisticsMessages.encode(large)))
+        val returned = large.copy(moves=signed.moves,moveSupplies=-55)
+        val returnedWire = LogisticsMessages.encode(returned)
+        assertEquals(-55,ByteBuffer.wrap(returnedWire).getInt(39))
+        assertEquals(returned,LogisticsMessages.assignment(returnedWire))
+        assertFails { LogisticsMessages.ShipMove(32,128,300) }
+        assertFails { LogisticsMessages.TroopMove(1003,2,32768) }
     }
     @Test fun emptyNativeCommandsHaveDifferentFixedLengths() {
         assertEquals(0,LogisticsMessages.reorganization(ByteBuffer.allocate(42).putShort(0x0c02).array()).moves.ships.size)
