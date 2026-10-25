@@ -102,6 +102,18 @@ object LogisticsMessages {
         out.putInt(value.maxTroops).putInt(value.maxCrew).putInt(value.supplies)
         return out.array()
     }
+    /** Strategic mode-1 acknowledgement. Capacity fields are unused by 004c0030 in this mode;
+     * they are reserved zero here, not client-supplied capacity or a tactical preparation result. */
+    fun reorganizationResponse(query: Reorganization, seconds: Long, pcp: Int, mcp: Int,
+        supplies: Int, accepted: Boolean): ByteArray {
+        require(query.mode == 1 && seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0 && supplies >= 0)
+        val value = query.copy(header = Header(seconds.toInt(), query.header.characterId, pcp, mcp),
+            moves = if (accepted) query.moves else Moves(emptyList(), emptyList()),
+            maxTroops = 0, maxCrew = 0, supplies = supplies)
+        val encoded = encode(value)
+        return LoginMessages.sessionMessage(0x0c02, encoded.copyOfRange(2, encoded.size),
+            if (accepted) 0 else 1)
+    }
     fun encode(value: Assignment): ByteArray {
         val rows = value.moves.ships.size + value.moves.troops.size + value.resultBase.ships.size +
             value.resultBase.troops.size + value.resultOutfit.ships.size + value.resultOutfit.troops.size
