@@ -49,6 +49,18 @@ int wmain(int argc, wchar_t** argv) {
     }
     // Decoded replies must identify both the selected base and its grid. A
     // previous target's cache and malformed counts must never populate the UI.
+    logh::PlanetSystemIndex systems;
+    systems.add(2487); systems.add(7); systems.add(4999); systems.add(2487); systems.add(5000);
+    if (systems.count != 3 || systems.position(2487) != 1 || systems.position(8) != 3 ||
+        systems.adjacent(2487, true) != 4999 || systems.adjacent(7, false) != 4999 ||
+        systems.adjacent(4999, true) != 7 || systems.adjacent(8, true) != 7 ||
+        systems.adjacent(8, false) != 4999) return 19;
+    logh::PlanetSystemIndex emptySystems;
+    if (emptySystems.adjacent(2487, true) != 2487 || emptySystems.adjacent(2487, false) != 2487) return 20;
+    logh::PlanetSystemIndex fullSystems;
+    for (unsigned i = 350; i; --i) fullSystems.add(i);
+    fullSystems.add(4999);
+    if (fullSystems.count != 350 || fullSystems.grids[0] != 1 || fullSystems.grids[349] != 350) return 21;
     unsigned char conditions[4 + 4 * 0x180] = {};
     conditions[0] = 2;
     const unsigned id = 1049, grid = 2487, other = 1050;

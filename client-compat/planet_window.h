@@ -10,16 +10,18 @@ static constexpr unsigned planetWindowRows = 8;
 static int planetDecorationCount = 0;
 static const char planetPartsPath[] = "/../data/image/window/wakusei_parts.tga";
 // 00503a70 has 150 sprite slots; exceeding it corrupts the native GUI array.
-static_assert(11 * 9 + 4 * 9 + 8 < 150, "Planet decoration slot budget");
+static_assert(14 * 6 + 4 * 9 + 8 < 150, "Planet decoration slot budget");
 
 static void planetButtonArt(int x, int y, int width, int height) {
     // Reconstructed read-only browser: use the planet atlas's dark plate.
     // Native font colour is retained, so white labels need a dark background.
     // Keep the original bevel at each edge; crop only the flat centre.
-    const int sourceX[] = {459, 467, 659}, sourceY[] = {264, 272, 306};
-    const int sizesX[] = {8, width - 16, 8}, sizesY[] = {8, height - 16, 8};
+    // Two horizontal bands crop only the flat middle of the 50-pixel plate.
+    // Six pieces preserve all four bevels while leaving room for navigation.
+    const int sourceX[] = {459, 467, 659}, sourceY[] = {264, 314 - (height - height / 2)};
+    const int sizesX[] = {8, width - 16, 8}, sizesY[] = {height / 2, height - height / 2};
     int top = y;
-    for (int row = 0; row < 3; ++row) {
+    for (int row = 0; row < 2; ++row) {
         int left = x;
         for (int col = 0; col < 3; ++col) {
             unsigned sprites[40] = {};
@@ -133,7 +135,7 @@ static bool createPlanetWindow(void* manager) {
     }
     planetControl(0, 184, 91, 610, 24, L"행성·요새", false);
     planetControl(1, 352, 170, 468, 24, L"", false);
-    planetControl(2, 184, 389, 148, 58, L"", false);
+    planetControl(2, 184, 460, 148, 45, L"", false);
     planetControl(3, 184, 126, 148, 24, L"성계 내 행성·요새", false);
     for (int i = 0; i < 4; ++i) planetControl(10 + i, 182, 168 + i * 54, 152, 48, L"", true);
     const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고"};
@@ -142,6 +144,9 @@ static bool createPlanetWindow(void* manager) {
     planetControl(24, 468, 477, 110, 42, L"다음 재고", true);
     planetControl(25, 586, 477, 110, 42, L"새로고침", true);
     planetControl(26, 704, 477, 110, 42, L"닫기", true);
+    planetControl(27, 182, 385, 72, 30, L"< 성계", true);
+    planetControl(28, 262, 385, 72, 30, L"성계 >", true);
+    planetControl(29, 182, 420, 152, 32, L"현재 위치", true);
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col)
         planetControl(40 + row * 4 + col, 352 + col * 110, 234 + row * 26, 105, 24, L"", false);
     for (int col = 0; col < 4; ++col) planetControl(80 + col, 352 + col * 110, 206, 105, 24, L"", false);
@@ -198,11 +203,16 @@ static void renderPlanetWindow() {
         } else planetCell(10 + i, L"—");
         planetEnabled(10 + i, i < info.count);
     }
-    _snwprintf_s(text, _countof(text), _TRUNCATE, L"궤도 순서\n행성·요새 %u곳", info.count); planetCell(2, text);
+    unsigned system = info.systems.position(info.grid);
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"성계 %u / %u\n궤도 순서 · %u곳",
+        system < info.systems.count ? system + 1 : 0, info.systems.count, info.count); planetCell(2, text);
+    planetEnabled(27, info.systems.count > 0);
+    planetEnabled(28, info.systems.count > 0);
+    planetEnabled(29, info.grid != info.originGrid);
     planetEnabled(23, stock && info.warehouseReady && info.page > 0);
     planetEnabled(24, stock && info.warehouseReady && info.page + 1 < planetStockPages());
     planetEnabled(25, info.count > 0);
-    if (!info.count) { planetCell(0, L"행성·요새"); planetCell(1, L"현재 그리드에는 행성이나 요새가 없습니다."); return; }
+    if (!info.count) { planetCell(0, L"행성·요새"); planetCell(1, L"이곳에는 행성이나 요새가 없습니다. 성계를 선택해 주세요."); return; }
     planetName(info.ids[info.index], name);
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
     planetCell(0, text);

@@ -4,6 +4,29 @@
 #include <string.h>
 
 namespace logh {
+// The native base catalogue has at most 350 entries. Keep a sorted, unique
+// system index so next/previous never depends on the server's record order.
+struct PlanetSystemIndex {
+    unsigned grids[350] = {}, count = 0;
+    void add(unsigned grid) {
+        if (grid >= 5000 || count == 350) return;
+        unsigned i = 0;
+        while (i < count && grids[i] < grid) ++i;
+        if (i < count && grids[i] == grid) return;
+        for (unsigned j = count; j > i; --j) grids[j] = grids[j - 1];
+        grids[i] = grid; ++count;
+    }
+    unsigned position(unsigned grid) const {
+        for (unsigned i = 0; i < count; ++i) if (grids[i] == grid) return i;
+        return count;
+    }
+    unsigned adjacent(unsigned grid, bool forward) const {
+        if (!count) return grid;
+        unsigned i = position(grid);
+        if (i == count) return forward ? grids[0] : grids[count - 1];
+        return grids[forward ? (i + 1) % count : (i + count - 1) % count];
+    }
+};
 inline uint32_t infoWord(const unsigned char* record, unsigned offset) {
     uint32_t value;
     memcpy(&value, record + offset, sizeof(value));
