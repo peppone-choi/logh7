@@ -108,3 +108,8 @@ messages:
     opcode: 0x1204
   - name: CommandSpotChat
     opcode: 0x0f1d
+
+  - name: RequestCardCharacter
+    opcode: 0x034e
+  - name: ResponseCardCharacter
+    opcode: 0x034f

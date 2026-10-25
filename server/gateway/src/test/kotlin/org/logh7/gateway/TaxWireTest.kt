@@ -53,6 +53,18 @@ class TaxWireTest {
                 assertEquals(0,tail.get().toInt()); assertFalse(tail.hasRemaining())
             }
             verifyCards(next(client,0x0323)); next(client,0x0f01)
+            client.send(ByteBuffer.allocate(4).putShort(0x034e).putShort(54).array())
+            val roster = next(client,0x034f)
+            assertEquals(54,ByteBuffer.wrap(roster).getShort(6).toInt())
+            assertEquals(if (governor == 0) 0 else 1,roster[8].toInt())
+            if (governor == 0) assertEquals(9,roster.size)
+            else {
+                assertEquals(10000,ByteBuffer.wrap(roster).getInt(9))
+                // Last office is a stored governor card; the final byte is together count.
+                assertEquals(54,ByteBuffer.wrap(roster).getShort(roster.size-7).toInt())
+                assertEquals(1049,ByteBuffer.wrap(roster).getInt(roster.size-5))
+                assertEquals(0,roster.last().toInt())
+            }
             repeat(2) {
                 client.send(query())
                 val response = ByteBuffer.wrap(next(client,0x0a00))

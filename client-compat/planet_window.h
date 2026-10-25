@@ -334,7 +334,16 @@ static void renderPlanetWindow() {
             planetValue(2, L"성인 인구", logh::infoWord(c, 0x124), L" 명");
             planetCell(52, L"대기"); planetCell(53, c[0x174] ? L"있음" : L"없음");
             planetCell(56, L"거주 가능 여부"); planetCell(57, c[0x175] ? L"가능" : L"불가");
-            planetValue(5, L"세율", logh::infoShort(c, 0x128), L"%");
+            planetCell(60,L"통치자");
+            if (c[5] || (power!=2 && power!=3)) planetCell(61,L"해당 없음");
+            else if (!info.governorReady) planetCell(61,GetTickCount64()-info.requestedAt>=5000 ? L"응답 미확인" : L"조회 중");
+            else if (!info.governor.id) planetCell(61,L"미임명");
+            else {
+                wchar_t governorName[48];
+                _snwprintf_s(governorName,_countof(governorName),_TRUNCATE,L"%ls %ls",
+                    reinterpret_cast<const wchar_t*>(info.governor.surname),reinterpret_cast<const wchar_t*>(info.governor.givenName));
+                planetCell(61,info.governor.surname[0] || info.governor.givenName[0] ? governorName : L"이름 미확인");
+            }
             planetValue(6, L"민심", logh::infoShort(c, 0x150)); planetValue(7, L"치안", logh::infoShort(c, 0x152));
         } else {
             planetValue(1, L"세율", logh::infoShort(c, 0x128), L"%");

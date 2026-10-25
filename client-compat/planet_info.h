@@ -14,6 +14,9 @@ static struct PlanetInformation {
     logh::PlanetDirectory directory;
     logh::PlanetPlaces places;
     bool placesReady;
+    logh::PlanetGovernor governor;
+    unsigned governorCard;
+    bool governorSent,governorReady;
     bool directoryVisible, directoryLocal;
     unsigned directoryRows[350], directoryCount, directoryPage;
     ULONGLONG directorySentAt;
@@ -58,6 +61,7 @@ static void requestPlanetInformation() {
     auto& info = planetInformation;
     info.conditionsReady = info.warehouseReady = info.placesReady = info.displayed = false;
     info.places = {};
+    info.governor={};info.governorCard=0;info.governorSent=info.governorReady=false;
     info.timeoutShown = false;
     info.page = 0;
     info.requestedAt = GetTickCount64();
@@ -97,7 +101,26 @@ static void __cdecl receivedPlanetPlaces(void* world) {
         info.placesReady=true;info.displayed=false;
     }
 }
+static void __cdecl receivedPlanetGovernor(void* world) {
+    auto& info=planetInformation;
+    if (!info.popup || info.world!=world || info.directoryVisible || !info.count || !info.governorSent) return;
+    if (info.governor.accept(static_cast<const BYTE*>(world)+0x3d4994,info.governorCard,info.ids[info.index])) {
+        info.governorReady=true;info.displayed=false;
+    }
+}
 static unsigned placesResume=0x4bdd33;
+static void __declspec(naked) planetGovernorCopied() {
+    __asm {
+        pushfd
+        pushad
+        push dword ptr [ebp-0x14]
+        call receivedPlanetGovernor
+        add esp,4
+        popad
+        popfd
+        jmp dword ptr [placesResume]
+    }
+}
 static void __declspec(naked) planetPlacesCopied() {
     __asm {
         pushfd
@@ -141,6 +164,15 @@ static void showPlanetInformation() {
     if (GetTickCount64() - planetInformation.requestedAt >= 5000) planetInformation.timeoutShown = true;
 }
 
+static void updatePlanetGovernor() {
+    auto& info=planetInformation;
+    if (!info.conditionsReady || info.governorSent) return;
+    unsigned power=info.condition[4];
+    if (info.condition[5] || (power!=2 && power!=3)) return;
+    info.governorCard=power==2 ? 54 : 190;info.governorSent=true;
+    unsigned query=info.governorCard;
+    reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(info.world,0,0x16,&query);
+}
 static void updatePlanetDirectory() {
     auto& info=planetInformation;
     auto now=GetTickCount64();
@@ -205,6 +237,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                 if (info.popup && !info.displayed) showPlanetInformation();
                 return -1;
             }
+            updatePlanetGovernor();
             BYTE event[52] = {};
             if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 31; ++index) {
                 if (index > 13 && index < 20) continue;
@@ -230,7 +263,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                 }
                 break;
             }
-            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady || !info.placesReady) &&
+            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady || !info.placesReady || (info.governorSent && !info.governorReady)) &&
                 GetTickCount64() - info.requestedAt >= 5000))) showPlanetInformation();
             return -1;
         }
@@ -260,12 +293,12 @@ static int __cdecl planetInfoMenu(void* gui) {
 }
 
 static bool installPlanetInformation() {
-    const unsigned addresses[] = {0x54bc01, 0x4bae89, 0x4babc2, 0x4baeb4};
-    const BYTE expected[][5] = {{0xe8,0x7a,0x02,0,0}, {0xe9,0xa5,0x2e,0,0}, {0xe8,0x89,0x43,0,0}, {0xe9,0x7a,0x2e,0,0}};
-    const void* functions[] = {&planetInfoMenu, &planetConditionsCopied, &receivedPlanetWarehouse, &planetPlacesCopied};
-    for (unsigned i = 0; i < 4; ++i)
+    const unsigned addresses[] = {0x54bc01, 0x4bae89, 0x4babc2, 0x4baeb4, 0x4bb4bd};
+    const BYTE expected[][5] = {{0xe8,0x7a,0x02,0,0}, {0xe9,0xa5,0x2e,0,0}, {0xe8,0x89,0x43,0,0}, {0xe9,0x7a,0x2e,0,0}, {0xe9,0x71,0x28,0,0}};
+    const void* functions[] = {&planetInfoMenu, &planetConditionsCopied, &receivedPlanetWarehouse, &planetPlacesCopied, &planetGovernorCopied};
+    for (unsigned i = 0; i < 5; ++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]), expected[i], 5)) return false;
-    for (unsigned i = 0; i < 4; ++i) {
+    for (unsigned i = 0; i < 5; ++i) {
         auto target = reinterpret_cast<BYTE*>(addresses[i]);
         BYTE replacement[5]; replacement[0] = expected[i][0];
         *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(static_cast<const BYTE*>(functions[i]) - target - 5);

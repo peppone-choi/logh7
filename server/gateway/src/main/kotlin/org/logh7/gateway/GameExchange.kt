@@ -324,6 +324,13 @@ class GameExchange(
                             else world.gridOutfits(checkNotNull(query),checkNotNull(stored))) }
                         return null
                     }
+                    0x034e -> {
+                        check(gameStarted && world != null && stock != null)
+                        val card = org.logh7.protocol.CardCharacterMessages.query(body)
+                        pendingWorld = stocks().thenApply { stored -> listOf(world.cardCharacters(card,
+                            checkNotNull(stored),characters::characterById)) }
+                        return null
+                    }
                     0x0326 -> {
                         check(gameStarted && world != null)
                         val (base, outfit) = org.logh7.protocol.WorldMessages.warehouseQuery(body)

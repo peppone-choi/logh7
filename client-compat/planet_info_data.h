@@ -72,6 +72,32 @@ struct PlanetPlaces {
         return true;
     }
 };
+// 034f: header card u16/count u8; 64 ordinary 0x2d4 character records.
+struct PlanetGovernor {
+    unsigned id=0;
+    uint16_t surname[13]={},givenName[13]={};
+    bool accept(const unsigned char* response,unsigned card,unsigned base) {
+        if ((card!=54 && card!=190) || infoShort(response,0)!=card || response[2]>64 || !base) return false;
+        const unsigned char* holder=nullptr;
+        for (unsigned i=0;i<response[2];++i) {
+            auto person=response+4+i*0x2d4;
+            if (!infoWord(person,0) || person[0x24c]>16 || person[0x7d]>2) return false;
+            for (unsigned j=0;j<person[0x24c];++j) {
+                auto office=person+0x250+j*8;
+                if (infoShort(office,0)==card && infoWord(office,4)==base) {
+                    if (holder && infoWord(holder,0)!=infoWord(person,0)) return false;
+                    holder=person;
+                }
+            }
+        }
+        id=holder?infoWord(holder,0):0;
+        memset(surname,0,sizeof(surname));memset(givenName,0,sizeof(givenName));
+        if (holder && holder[0x7d]) {
+            memcpy(surname,holder+0x82,24);memcpy(givenName,holder+0x9c,24);
+        }
+        return true;
+    }
+};
 // A row keeps its server ID independently of the native catalogue slot and
 // display/filter order. At most one four-base condition request is outstanding.
 struct PlanetDirectory {
