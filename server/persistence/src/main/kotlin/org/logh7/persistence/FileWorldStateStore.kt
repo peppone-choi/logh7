@@ -9,7 +9,7 @@ import java.nio.file.StandardOpenOption.*
 
 /** Two complete slots, selected by one forced atomic pointer replacement. Author: 최병호. */
 class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? = null,
-    legacyStocks: Path? = null) : AutoCloseable {
+    legacyStocks: Path? = null) : AutoCloseable, WorldStateCommitter {
     private val channel: FileChannel
     private val lock: java.nio.channels.FileLock
     private var legacyNav: FileNavigationStore? = null
@@ -73,7 +73,7 @@ class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? =
     @Synchronized fun loadStocks(): PlanetStocks? { check(!closed); return detached(stocks) }
 
     /** Both after-images become authoritative together; failure publishes neither. */
-    @Synchronized fun saveWorld(navigation: Map<String, Navigator>, inventory: PlanetStocks?) {
+    @Synchronized override fun saveWorld(navigation: Map<String, Navigator>, inventory: PlanetStocks?) {
         check(!closed && !failed) { "World state writer is unavailable" }
         val next = if (active == 0) 1 else 0
         val temporary = directory.resolve("CURRENT.tmp")

@@ -35,7 +35,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
         val header = lines.firstOrNull()?.split('\t').orEmpty()
-        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6")) return loadCurrent(header, lines.drop(1))
+        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7")) return loadCurrent(header, lines.drop(1))
         require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
         val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
@@ -52,7 +52,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
     private fun loadCurrent(header: List<String>, lines: List<String>): PlanetStocks {
-        val identities = header[0] == "LOGH7-STOCK-6"
+        val administration = header[0] == "LOGH7-STOCK-7"
+        val identities = header[0] in setOf("LOGH7-STOCK-6", "LOGH7-STOCK-7")
         val current = header[0] != "LOGH7-STOCK-4"
         require(header.size == if (identities) 9 else if (current) 8 else 7) { "Invalid inventory header" }
         val initialized = if (current) when (header[7]) { "0" -> false; "1" -> true; else -> error("Invalid deployment marker") } else false
@@ -68,11 +69,12 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             val f = line.split('\t')
             when (f[0]) {
                 "P" -> {
-                    require(f.size == 12)
+                    require(f.size == if (administration) 14 else 12)
                     val people = if (f.subList(7, 11).all { it == "-" }) null else
                         PlanetEconomy(f[7].toInt(), f[8].toInt(), f[9].toInt(), f[10].toInt())
                     val base = PlanetStock(f[1].toInt(), f[2].toInt(), f[3].toInt(), f[4].toInt(),
-                        f[5].toInt(), f[6].toInt(), people, UnitInventoryCodec.decode(f[11]))
+                        f[5].toInt(), f[6].toInt(), people, UnitInventoryCodec.decode(f[11]),
+                        if (administration && f[12] != "-") f[12].toInt() else null, if (administration) f[13].toInt() else 0)
                     require(bases.put(base.baseId, base) == null) { "Duplicate stock base" }
                 }
                 "O" -> {
@@ -104,7 +106,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
     }
     override fun save(stocks: PlanetStocks) {
         val bytes = buildString {
-            append(listOf("LOGH7-STOCK-6", stocks.generation, stocks.producedDays, stocks.bases.size,
+            append(listOf("LOGH7-STOCK-7", stocks.generation, stocks.producedDays, stocks.bases.size,
                 stocks.outfits.size, stocks.warehouses.size, stocks.logisticsOfficers.size,
                 if (stocks.deploymentInitialized) 1 else 0, stocks.nextShipId).joinToString("\t"))
             append('\n')
@@ -112,7 +114,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                 val people = stock.economy
                 append(listOf("P", stock.baseId, stock.power, stock.camp, stock.supplies, stock.food, stock.mineral,
                     people?.population ?: "-", people?.adults ?: "-", people?.approval ?: "-", people?.peace ?: "-",
-                    UnitInventoryCodec.encode(stock.units)).joinToString("\t"))
+                    UnitInventoryCodec.encode(stock.units), stock.taxRate ?: "-", stock.governorId).joinToString("\t"))
                 append('\n')
             }
             stocks.outfits.toSortedMap().values.forEach { outfit ->

@@ -85,7 +85,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             val people = stored?.economy
             WorldMessages.Condition(it.baseId, it.grid, stored?.power ?: it.power, stored?.camp ?: it.camp,
                 people?.population ?: it.population, people?.adults ?: it.adultPopulation,
-                it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
+                stored?.taxRate ?: it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
                 stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)
         }))
     fun places(ids: List<Int>): ByteArray = LoginMessages.sessionMessage(0x0321,

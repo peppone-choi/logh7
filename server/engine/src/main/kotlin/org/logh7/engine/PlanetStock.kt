@@ -4,8 +4,9 @@ import java.util.Collections
 
 data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
     val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null,
-    val units: UnitInventory = UnitInventory()) {
-    init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0) }
+    val units: UnitInventory = UnitInventory(), val taxRate: Int? = null, val governorId: Int = 0) {
+    init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0 &&
+        (taxRate == null || taxRate in 0..100) && governorId >= 0 && (governorId == 0 || power in 2..3 && camp == 0)) }
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
@@ -23,6 +24,9 @@ interface PlanetStockStore : AutoCloseable {
     fun load(): PlanetStocks?
     fun save(stocks: PlanetStocks)
     override fun close() {}
+}
+fun interface WorldStateCommitter {
+    fun saveWorld(navigation: Map<String, Navigator>, inventory: PlanetStocks?)
 }
 /** Only the supply interval is recovered; quantities, economy formulas and caps are designed policy. */
 data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumStock: Int = Int.MAX_VALUE,
@@ -79,12 +83,19 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
 
     /** Called only by the world actor after authorization; both sides share one durable replacement. */
     fun replace(expected: PlanetStocks, next: PlanetStocks): PlanetStocks {
+        val result = prepareReplacement(expected, next)
+        store?.save(result)
+        publishCommitted(expected, result)
+        return result
+    }
+    fun prepareReplacement(expected: PlanetStocks, next: PlanetStocks): PlanetStocks {
         check(current === expected) { "Inventory changed during transaction" }
         require(next.generation == expected.generation && next.producedDays == expected.producedDays)
         require(next.bases.keys == expected.bases.keys)
-        val result = detached(next)
-        store?.save(result)
-        current = result
-        return result
+        return detached(next)
+    }
+    fun publishCommitted(expected: PlanetStocks, next: PlanetStocks) {
+        check(current === expected)
+        current = next
     }
 }
