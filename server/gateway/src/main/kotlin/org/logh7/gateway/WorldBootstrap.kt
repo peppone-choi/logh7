@@ -50,6 +50,14 @@ class WorldBootstrap(val galaxy: Galaxy) {
             (query.grid == -1 || galaxy.bases.single { it.id == outfit.baseId }.grid == query.grid) &&
                 (query.power == 255 || outfit.power == query.power) && (query.camp == 255 || query.camp == 0)
         }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,0,it.number,it.supplies) }))
+    private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?) = values.orEmpty().entries
+        .groupBy { it.key.kind }.toSortedMap().map { (kind,stacks) ->
+            val count = stacks.sumOf { it.value.toLong() }
+            val spec = UnitSpecifications.ships.single { it.kind == kind }
+            val boats = Math.multiplyExact(count,spec.number.toLong())
+            require(count in 1..255 && boats in 1..65535) { "Ship stock exceeds native warehouse capacity" }
+            WorldMessages.WarehouseShips(kind,count.toInt(),boats.toInt())
+        }
     fun outfitWarehouse(base: Int, outfitId: Int, character: Int, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
         val outfit = requireNotNull(stocks.outfits[outfitId]) { "Unknown outfit" }
         require(outfit.baseId == base && outfit.power == power) { "Outfit warehouse identity mismatch" }
@@ -61,7 +69,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         fun entries(values: Map<org.logh7.engine.UnitStack,Int>) = values.entries
             .sortedWith(compareBy({ it.key.kind },{ it.key.level })).map { WorldMessages.Stock(it.key.kind,it.key.level,it.value) }
         return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base,warehouse.supplies,warehouse.food,warehouse.mineral,
-            entries(warehouse.units.ships),entries(warehouse.units.troops),outfitId))
+            warehouseShips(warehouse.units.ships),entries(warehouse.units.troops),outfitId))
     }
     fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
         val state = requireNotNull(galaxy.conditions[base]) { "Unknown warehouse base" }
@@ -69,7 +77,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         fun entries(values: Map<org.logh7.engine.UnitStack, Int>?) = values.orEmpty().entries
             .sortedWith(compareBy({ it.key.kind }, { it.key.level })).map { WorldMessages.Stock(it.key.kind, it.key.level, it.value) }
         return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base, stored?.supplies ?: state.supplies,
-            stored?.food ?: state.food, stored?.mineral ?: 100_000, entries(stored?.units?.ships), entries(stored?.units?.troops)))
+            stored?.food ?: state.food, stored?.mineral ?: 100_000, warehouseShips(stored?.units?.ships), entries(stored?.units?.troops)))
     }
     private fun baseWire(base: org.logh7.engine.GalaxyBase) = WorldMessages.Base(base.id, base.grid,
         base.model, base.kind, base.name, base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)

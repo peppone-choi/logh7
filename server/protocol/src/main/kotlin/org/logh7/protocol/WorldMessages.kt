@@ -6,9 +6,10 @@ import java.io.DataOutputStream
 /** CD readers: 00413050, 004134e0, 004142e0. No native struct padding on the wire. */
 object WorldMessages {
     data class Stock(val kind: Int, val level: Int, val quantity: Int)
-    /** 0041a870: kind u16, level u8, quantity u16. Troop IDs are local here, 1000-based on wire. */
+    data class WarehouseShips(val kind: Int, val units: Int, val boats: Int)
+    /** 0041a870/0041aff0: ships carry units/boats; troops carry grade/units. */
     fun warehouse(base: Int, supplies: Int, food: Int, mineral: Int,
-        ships: List<Stock> = emptyList(), troops: List<Stock> = emptyList(), outfit: Int = 0) = body {
+        ships: List<WarehouseShips> = emptyList(), troops: List<Stock> = emptyList(), outfit: Int = 0) = body {
         require(base > 0 && outfit >= 0 && supplies >= 0 && food >= 0 && mineral >= 0)
         fun stacks(values: List<Stock>, maximum: Int, kinds: IntRange, kindOffset: Int = 0) {
             require(values.size <= maximum && values.map { it.kind to it.level }.distinct().size == values.size)
@@ -19,7 +20,13 @@ object WorldMessages {
             }
         }
         writeInt(base); writeInt(outfit); writeInt(0)
-        stacks(ships, 99, 0..199); stacks(troops, 24, 0..15, 1000)
+        require(ships.size <= 99 && ships.map { it.kind }.distinct().size == ships.size)
+        writeByte(ships.size)
+        ships.forEach { ship ->
+            require(ship.kind in 0..199 && ship.units in 1..255 && ship.boats in 1..65535)
+            writeShort(ship.kind); writeByte(ship.units); writeShort(ship.boats)
+        }
+        stacks(troops, 24, 0..15, 1000)
         writeInt(supplies); writeInt(food); writeInt(mineral)
     }
     fun warehouseQuery(message: ByteArray): Pair<Int, Int> {
