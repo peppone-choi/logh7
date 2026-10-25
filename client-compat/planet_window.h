@@ -9,35 +9,28 @@ static constexpr int planetWindowId = 0x71;
 static constexpr unsigned planetWindowRows = 8;
 static int planetDecorationCount = 0;
 static const char planetPartsPath[] = "/../data/image/window/wakusei_parts.tga";
+static const char planetIconPath[] = "/../data/image/senryaku_panel/senryaku_mainpanel.tga";
+static void* planetIcons[1] = {};
 // 00503a70 has 150 sprite slots; exceeding it corrupts the native GUI array.
-static_assert(14 * 6 + 4 * 9 + 8 < 150, "Planet decoration slot budget");
+static_assert(1 + 4 * 9 + 8 + 1 < 150, "Planet decoration slot budget");
 
-static void planetButtonArt(int x, int y, int width, int height) {
-    // Reconstructed read-only browser: use the planet atlas's dark plate.
-    // Native font colour is retained, so white labels need a dark background.
-    // Keep the original bevel at each edge; crop only the flat centre.
-    // Two horizontal bands crop only the flat middle of the 50-pixel plate.
-    // Six pieces preserve all four bevels while leaving room for navigation.
-    const int sourceX[] = {459, 467, 659}, sourceY[] = {264, 314 - (height - height / 2)};
+static void planetButtonArt(void* widget, int width, int height) {
+    // 00502fe0 binds a native sliced background to the control itself.
+    // It follows native hover/press/disabled state, unlike detached sprites.
+    const int sourceX[] = {459, 467, 659};
     const int sizesX[] = {8, width - 16, 8}, sizesY[] = {height / 2, height - height / 2};
-    int top = y;
-    for (int row = 0; row < 2; ++row) {
-        int left = x;
-        for (int col = 0; col < 3; ++col) {
-            unsigned sprites[40] = {};
-            for (unsigned state = 0; state < 4; ++state) {
-                sprites[state * 5] = reinterpret_cast<unsigned>(planetPartsPath);
-                sprites[state * 5 + 1] = sourceX[col]; sprites[state * 5 + 2] = sourceY[row];
-                sprites[state * 5 + 3] = sizesX[col]; sprites[state * 5 + 4] = sizesY[row];
-            }
-            auto piece = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
-                (planetWindowRoot, 2, planetDecorationCount++, sprites);
-            int rect[] = {left, top, 0, sizesX[col], sizesY[row]};
-            reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, piece, rect);
-            reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502eb0)(planetWindowRoot, piece, 1);
-            left += sizesX[col];
+    for (int state = 0; state < 4; ++state) {
+        unsigned sprites[30] = {};
+        // 00506960: state 0 idle, 1 pressed, 2 disabled, 3 pointer-over.
+        int sourceY = state == 3 ? 213 : 264;
+        for (int row = 0; row < 2; ++row) for (int col = 0; col < 3; ++col) {
+            auto part = sprites + (row * 3 + col) * 5;
+            part[0] = reinterpret_cast<unsigned>(planetPartsPath);
+            part[1] = sourceX[col]; part[2] = row ? sourceY + 50 - sizesY[row] : sourceY;
+            part[3] = sizesX[col]; part[4] = sizesY[row];
         }
-        top += sizesY[row];
+        reinterpret_cast<void(__thiscall*)(void*, void*, const void*, int, int, int)>(0x502fe0)
+            (planetWindowRoot, widget, sprites, 3, 2, state);
     }
 }
 
@@ -77,13 +70,19 @@ static void planetEnabled(int index, bool enabled) {
     auto widget = planetWidget(index);
     if (widget) reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x5024e0)(planetWindowRoot, widget, enabled ? 1 : 0);
 }
+static void planetSelected(int index, bool selected) {
+    // Selection changes colour only. Rebinding sliced art here would allocate
+    // resource wrappers repeatedly on every asynchronous response/refresh.
+    auto widget = planetWidget(index);
+    reinterpret_cast<void(__thiscall*)(void*, void*, float, float, float, float)>(0x502f40)
+        (planetWindowRoot, widget, selected ? 0.45f : 1.f, selected ? 0.7f : 1.f, 1.f, 1.f);
+}
 static void planetRect(int index, int x, int y, int width, int height) {
     int rect[] = {x, y, 0, width, height};
     auto widget = planetWidget(index);
     if (widget) reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, widget, rect);
 }
 static void planetControl(int index, int x, int y, int width, int height, const wchar_t* label, bool button) {
-    if (button) planetButtonArt(x, y, width, height);
     auto root = planetWindowRoot;
     auto widget = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
         (root, 1, index, nullptr);
@@ -93,9 +92,21 @@ static void planetControl(int index, int x, int y, int width, int height, const 
     reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x5029e0)(root, widget, button ? 2 : 3);
     planetCell(index, label);
     if (button) {
+        planetButtonArt(widget, width, height);
         reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502b00)(root, widget, 1);
         reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502b30)(root, widget, 1);
     }
+}
+static void planetIcon(unsigned slot, const BYTE* base) {
+    if (slot >= _countof(planetIcons) || !planetIcons[slot]) return;
+    auto icon = planetIcons[slot];
+    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502eb0)(planetWindowRoot, icon, base ? 1 : 0);
+    if (!base) return;
+    int x = 758, y = 0;
+    logh::hudIconRect(logh::infoShort(base, 0x12), x, y);
+    unsigned art[] = {reinterpret_cast<unsigned>(planetIconPath), static_cast<unsigned>(x), static_cast<unsigned>(y), 33, 33};
+    for (int state = 0; state < 4; ++state)
+        reinterpret_cast<void(__thiscall*)(void*, void*, const void*, int)>(0x503920)(planetWindowRoot, icon, art, state);
 }
 static bool createPlanetWindow(void* manager) {
     if (planetWindowManager == manager && planetWindowRoot &&
@@ -116,41 +127,76 @@ static bool createPlanetWindow(void* manager) {
     reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, frame, rect);
     reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x5024e0)(planetWindowRoot, frame, 1);
     reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502eb0)(planetWindowRoot, frame, 1);
-    planetPanelArt(178, 116, 160, 42);
-    planetPanelArt(348, 162, 478, 38);
-    planetPanelArt(348, 202, 478, 30);
-    planetPanelArt(348, 442, 478, 32);
+    planetPanelArt(178, 116, 200, 42);
+    planetPanelArt(388, 162, 438, 38);
+    planetPanelArt(388, 202, 438, 30);
+    planetPanelArt(388, 442, 438, 32);
     for (int row = 0; row < 8; ++row) {
         unsigned lineSprites[40] = {};
         for (unsigned state = 0; state < 4; ++state) {
             lineSprites[state * 5] = reinterpret_cast<unsigned>(planetPartsPath);
             lineSprites[state * 5 + 1] = 51; lineSprites[state * 5 + 2] = 340;
-            lineSprites[state * 5 + 3] = 472; lineSprites[state * 5 + 4] = 2;
+            lineSprites[state * 5 + 3] = 432; lineSprites[state * 5 + 4] = 2;
         }
         auto line = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
             (planetWindowRoot, 2, planetDecorationCount++, lineSprites);
-        int lineRect[] = {351, 258 + row * 26, 0, 472, 2};
+        int lineRect[] = {391, 258 + row * 26, 0, 432, 2};
         reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, line, lineRect);
         reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502eb0)(planetWindowRoot, line, 1);
     }
     planetControl(0, 184, 91, 610, 24, L"행성·요새", false);
-    planetControl(1, 352, 170, 468, 24, L"", false);
-    planetControl(2, 184, 460, 148, 45, L"", false);
-    planetControl(3, 184, 126, 148, 24, L"성계 내 행성·요새", false);
-    for (int i = 0; i < 4; ++i) planetControl(10 + i, 182, 168 + i * 54, 152, 48, L"", true);
+    planetControl(1, 432, 170, 388, 24, L"", false);
+    planetControl(2, 184, 460, 188, 45, L"", false);
+    planetControl(3, 184, 126, 188, 24, L"성계 내 행성·요새", false);
+    for (int i = 0; i < 4; ++i) {
+        planetControl(10 + i, 182, 168 + i * 54, 192, 48, L"", true);
+        planetControl(100 + i, 194, 180 + i * 54, 174, 24, L"", false);
+    }
     const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고"};
-    for (int i = 0; i < 3; ++i) planetControl(20 + i, 350 + i * 158, 116, 150, 42, tabs[i], true);
-    planetControl(23, 350, 477, 110, 42, L"이전 재고", true);
-    planetControl(24, 468, 477, 110, 42, L"다음 재고", true);
-    planetControl(25, 586, 477, 110, 42, L"새로고침", true);
-    planetControl(26, 704, 477, 110, 42, L"닫기", true);
-    planetControl(27, 182, 385, 72, 30, L"< 성계", true);
-    planetControl(28, 262, 385, 72, 30, L"성계 >", true);
-    planetControl(29, 182, 420, 152, 32, L"현재 위치", true);
+    for (int i = 0; i < 3; ++i) planetControl(20 + i, 390 + i * 146, 116, 138, 42, tabs[i], true);
+    planetControl(23, 390, 477, 100, 42, L"이전 재고", true);
+    planetControl(24, 500, 477, 100, 42, L"다음 재고", true);
+    planetControl(25, 610, 477, 100, 42, L"새로고침", true);
+    planetControl(26, 720, 477, 100, 42, L"닫기", true);
+    planetControl(27, 182, 385, 92, 30, L"< 성계", true);
+    planetControl(28, 282, 385, 92, 30, L"성계 >", true);
+    planetControl(29, 182, 420, 192, 32, L"현재 위치", true);
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col)
         planetControl(40 + row * 4 + col, 352 + col * 110, 234 + row * 26, 105, 24, L"", false);
     for (int col = 0; col < 4; ++col) planetControl(80 + col, 352 + col * 110, 206, 105, 24, L"", false);
-    planetControl(84, 352, 448, 468, 23, L"", false);
+    planetControl(84, 392, 448, 428, 23, L"", false);
+    for (unsigned i = 0; i < _countof(planetIcons); ++i) {
+        unsigned art[20] = {};
+        for (unsigned state = 0; state < 4; ++state) {
+            art[state * 5] = reinterpret_cast<unsigned>(planetIconPath);
+            art[state * 5 + 1] = 758; art[state * 5 + 3] = art[state * 5 + 4] = 33;
+        }
+        auto icon = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
+            (planetWindowRoot, 2, planetDecorationCount++, art);
+        int iconRect[] = {392, 164, 0, 33, 33};
+        reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, icon, iconRect);
+        planetIcons[i] = icon;
+    }
+    // Native decoration slots are painted from high to low: allocate the
+    // backing surface last so it stays behind borders and the model icon.
+    // The original frame's centre is transparent. Give the information surface
+    // its own native colour fill so map labels/orbits cannot run through rows.
+    auto surface = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
+        (planetWindowRoot, 2, planetDecorationCount++, nullptr);
+    int surfaceRect[] = {178, 106, 0, 650, 421};
+    reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, surface, surfaceRect);
+    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502eb0)(planetWindowRoot, surface, 1);
+    unsigned fill[45] = {};
+    for (int tile = 0; tile < 9; ++tile) {
+        fill[tile * 5] = reinterpret_cast<unsigned>(planetPartsPath);
+        fill[tile * 5 + 1] = 470; fill[tile * 5 + 2] = 286;
+        fill[tile * 5 + 3] = fill[tile * 5 + 4] = 1;
+    }
+    for (int state = 0; state < 4; ++state)
+        reinterpret_cast<void(__thiscall*)(void*, void*, const void*, int, int, int)>(0x502fe0)
+            (planetWindowRoot, surface, fill, 3, 3, state);
+    reinterpret_cast<void(__thiscall*)(void*, void*, float, float, float, float)>(0x502f40)
+        (planetWindowRoot, surface, 0.015f, 0.035f, 0.065f, 0.97f);
     reinterpret_cast<void(__thiscall*)(void*)>(0x503910)(planetWindowRoot);
     reinterpret_cast<void(__thiscall*)(void*, int)>(0x502ea0)(planetWindowRoot, 0);
     return true;
@@ -178,11 +224,11 @@ static void planetValue(unsigned row, const wchar_t* label, unsigned value, cons
 static void renderPlanetWindow() {
     auto& info = planetInformation;
     bool stock = planetWindowTab == 2;
-    const int xs[] = {352, 584, 650, 734}, widths[] = {226, 60, 78, 80};
+    const int xs[] = {392, 578, 640, 724}, widths[] = {180, 58, 78, 80};
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col) {
         int index = 40 + row * 4 + col;
         planetCell(index, L"");
-        planetRect(index, stock ? xs[col] : (col ? 540 : 352), 234 + row * 26, stock ? widths[col] : 275, 24);
+        planetRect(index, stock ? xs[col] : (col ? 594 : 392), 234 + row * 26, stock ? widths[col] : 216, 24);
     }
     for (int col = 0; col < 4; ++col) {
         planetCell(80 + col, L""); planetRect(80 + col, xs[col], 206, widths[col], 24);
@@ -191,16 +237,17 @@ static void renderPlanetWindow() {
     const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고"};
     for (unsigned tab = 0; tab < 3; ++tab) {
         wchar_t label[24];
-        _snwprintf_s(label, _countof(label), _TRUNCATE, L"%ls%ls", tab == planetWindowTab ? L"> " : L"", tabs[tab]);
+        _snwprintf_s(label, _countof(label), _TRUNCATE, L"%ls", tabs[tab]);
         planetCell(20 + tab, label);
+        planetSelected(20 + tab, tab == planetWindowTab);
     }
     wchar_t text[160], name[13] = {};
     for (unsigned i = 0; i < 4; ++i) {
         if (i < info.count) {
             planetName(info.ids[i], name);
-            _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls%ls", i == info.index ? L"> " : L"", name);
-            planetCell(10 + i, text);
-        } else planetCell(10 + i, L"—");
+            planetCell(100 + i, name);
+        } else planetCell(100 + i, L"—");
+        planetSelected(10 + i, i < info.count && i == info.index);
         planetEnabled(10 + i, i < info.count);
     }
     unsigned system = info.systems.position(info.grid);
@@ -212,7 +259,8 @@ static void renderPlanetWindow() {
     planetEnabled(23, stock && info.warehouseReady && info.page > 0);
     planetEnabled(24, stock && info.warehouseReady && info.page + 1 < planetStockPages());
     planetEnabled(25, info.count > 0);
-    if (!info.count) { planetCell(0, L"행성·요새"); planetCell(1, L"이곳에는 행성이나 요새가 없습니다. 성계를 선택해 주세요."); return; }
+    planetIcon(0, info.count ? planetBase(info.ids[info.index]) : nullptr);
+    if (!info.count) { planetCell(0, L"행성·요새"); planetCell(1, L"거점 없음 · 다른 성계를 선택해 주세요."); return; }
     planetName(info.ids[info.index], name);
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
     planetCell(0, text);
@@ -226,8 +274,8 @@ static void renderPlanetWindow() {
         planetCell(1, text);
     } else planetCell(1, planetWindowTab ? L"통치·자원 현황" : L"소속·거주 환경");
     if (!stock) {
-        planetCell(80, L"항목"); planetRect(80, 352, 206, 180, 24);
-        planetCell(81, L"현재 상태"); planetRect(81, 540, 206, 275, 24);
+        planetCell(80, L"항목"); planetRect(80, 392, 206, 180, 24);
+        planetCell(81, L"현재 상태"); planetRect(81, 594, 206, 216, 24);
         auto c = info.condition;
         unsigned power = c[4];
         planetCell(40, L"소속 세력"); planetCell(41, power == 2 ? L"은하제국" : power == 3 ? L"자유행성동맹" : power == 0 ? L"중립" : L"기타 세력");
