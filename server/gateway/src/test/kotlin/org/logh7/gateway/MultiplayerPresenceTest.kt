@@ -38,6 +38,28 @@ class MultiplayerPresenceTest {
         messages.clear(); hub.update(assigned,28804)
         assertTrue(messages.isEmpty())
     }
+    @Test fun officeRefreshPreservesCurrentLocationBalanceAndIgnoresOldGenerations() {
+        val hub=GamePresence()
+        val ownMessages=mutableListOf<List<ByteArray>>()
+        val peerMessages=mutableListOf<List<ByteArray>>()
+        val person=CharacterMessages.Generate(4,10001,2,0,0,"Target","Pilot",30,1,1,1000001,
+            List(8){50},0,0,0,10,0,0,"Ship",1)
+        val player=Navigator(1,10001,Power.EMPIRE,2487,777,666,555,baseId=1049,mode=4)
+        hub.update(GamePresence.Member("target",person,player,ownMessages::add))
+        hub.update(GamePresence.Member("viewer",person.copy(id=10002),player.copy(characterId=10002),peerMessages::add))
+        ownMessages.clear();peerMessages.clear()
+        val offices=listOf(BootstrapMessages.OfficeCard(55,1049))
+        hub.refreshOffices(10001,2,offices,0)
+        assertTrue(ownMessages.isEmpty());assertTrue(peerMessages.isEmpty())
+        hub.refreshOffices(10001,1,offices,0)
+        val expected=BootstrapMessages.changedCharacter(person,777,666,offices=offices)
+        assertContentEquals(expected,ownMessages.single().single())
+        assertContentEquals(expected,peerMessages.single().single())
+        // The same state update has no extra location/unit notification after refreshing roles.
+        peerMessages.clear()
+        hub.update(GamePresence.Member("target",person,player,ownMessages::add,offices))
+        assertTrue(peerMessages.isEmpty())
+    }
     @Test fun peopleSharingARoomSeeEachOtherAcrossFactionsAndLoseVisibilityOnEitherExit() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()

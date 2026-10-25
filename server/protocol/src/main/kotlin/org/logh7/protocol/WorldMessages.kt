@@ -142,7 +142,8 @@ object WorldMessages {
     private fun commands(card: Int) = when (card) {
         0 -> listOf(82, 83)
         59, 195 -> listOf(43, 44, 45, 60)
-        54, 190 -> listOf(30)
+        54 -> listOf(5,30)
+        190 -> listOf(30)
         39, 44, 47, 50, 175, 180, 183, 186 -> listOf(63)
         else -> emptyList()
     }
@@ -165,8 +166,23 @@ object WorldMessages {
         for (card in 0..260) {
             val power = when (card) { 54, 59, 39, 44, 47, 50, 52, 55 -> 2; 190, 195, 175, 180, 183, 186, 188, 191 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
-            writeByte(power); writeByte(0); writeByte(0)
-            writeShort(0); writeShort(0); writeByte(0); writeByte(20); writeByte(0)
+            writeByte(power); writeByte(0)
+            // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
+            writeByte(when(card) {
+                54,55,190,191 -> 16
+                52,188 -> 15
+                39,175 -> 11
+                44,180 -> 12
+                47,183 -> 13
+                50,186 -> 14
+                else -> 0
+            })
+            // 004c9140: parent appointment-authority card, not a faction ID.
+            writeShort(when(card) { 54 -> 6; 55 -> 54; 52 -> 51; 188 -> 187; else -> 0 }); writeShort(0)
+            val governor=card==54 || card==190
+            val garrison=card in setOf(52,55,188,191)
+            writeByte(if(governor)1 else if(garrison)2 else 0)
+            writeByte(if(governor)1 else if(garrison)10 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)

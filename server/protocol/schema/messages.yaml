@@ -113,3 +113,13 @@ messages:
     opcode: 0x034e
   - name: ResponseCardCharacter
     opcode: 0x034f
+  - name: CommandCardAppointment
+    opcode: 0x0707
+  - name: RequestInformationCharacter
+    opcode: 0x0322
+  - name: NotifySimpleInformationCharacter
+    opcode: 0x1202
+  - name: NotifySimpleInformationCard
+    opcode: 0x1208
+  - name: NotifySimpleInformationCardAvailableBaseSeat
+    opcode: 0x120d
