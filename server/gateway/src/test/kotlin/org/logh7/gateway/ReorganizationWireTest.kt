@@ -61,6 +61,22 @@ class ReorganizationWireTest {
         val state=State(10000)
         fixture(state,"first").use { server ->
             val client=server.join(server.account(0),true,false).client; start(client)
+            val before=state.stocks; val balance=state.players; val saves=state.saves
+            val preview=query(2,0).copy(mode=0,moves=LogisticsMessages.Moves(
+                listOf(LogisticsMessages.ShipMove(32,2,0)),emptyList()))
+            client.send(LogisticsMessages.encode(preview))
+            val packet=client.expect(0x0c02)
+            assertEquals(0,ByteBuffer.wrap(packet).int)
+            val capacity=LogisticsMessages.reorganization(packet.copyOfRange(4,packet.size))
+            assertEquals(0,capacity.mode); assertEquals(10,capacity.maxCrew); assertEquals(0,capacity.maxTroops)
+            assertEquals(1000,capacity.header.mcp); assertTrue(capacity.moves.ships.isEmpty())
+            assertEquals(before,state.stocks); assertEquals(balance,state.players); assertEquals(saves,state.saves)
+            client.send(LogisticsMessages.encode(preview.copy(moves=LogisticsMessages.Moves(
+                listOf(LogisticsMessages.ShipMove(32,3,0)),emptyList()))))
+            val denied=client.receive()
+            assertEquals(0x0c02,ByteBuffer.wrap(denied).getShort(4).toInt())
+            assertEquals(1,ByteBuffer.wrap(denied).int)
+            assertEquals(before,state.stocks); assertEquals(saves,state.saves)
             // Invalid crew must leave no prepared lock, payment, or optimistic roster update.
             response(client,query(crew=9),false,1000)
             assertTrue(state.stocks.outfits.getValue(1).units.ships.isEmpty())

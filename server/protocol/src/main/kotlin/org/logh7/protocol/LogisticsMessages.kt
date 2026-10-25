@@ -114,6 +114,14 @@ object LogisticsMessages {
         return LoginMessages.sessionMessage(0x0c02, encoded.copyOfRange(2, encoded.size),
             if (accepted) 0 else 1)
     }
+    fun reorganizationPreview(query: Reorganization, seconds: Long, pcp: Int, mcp: Int,
+        additionalTroops: Int, crew: Int, supplies: Int, accepted: Boolean): ByteArray {
+        require(query.mode == 0 && seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0 &&
+            additionalTroops >= 0 && crew >= 0 && supplies >= 0)
+        val encoded=encode(query.copy(header=Header(seconds.toInt(),query.header.characterId,pcp,mcp),
+            moves=Moves(emptyList(),emptyList()),maxTroops=additionalTroops,maxCrew=crew,supplies=supplies))
+        return LoginMessages.sessionMessage(0x0c02,encoded.copyOfRange(2,encoded.size),if (accepted) 0 else 1)
+    }
     fun encode(value: Assignment): ByteArray {
         val rows = value.moves.ships.size + value.moves.troops.size + value.resultBase.ships.size +
             value.resultBase.troops.size + value.resultOutfit.ships.size + value.resultOutfit.troops.size

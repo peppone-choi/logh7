@@ -100,6 +100,16 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                             request.generation, request.outfit, LogisticsMode.REORGANIZATION, LogisticsPhase.PREPARE)
                         val reservation = logistics.apply(prepare, session, before, production)
                         reservation.rejection?.let { return@native reject(it) }
+                        if (request.mode == 0) {
+                            try {
+                                return@native ReorganizationResult(before,inventory,
+                                    capacity=Reorganization.capacity(inventory,request.outfit,transfer))
+                            } catch (_: IllegalArgumentException) { return@native reject(LogisticsRejection.STOCK) }
+                            finally {
+                                logistics.apply(prepare.copy(phase=LogisticsPhase.CANCEL,
+                                    reservation=checkNotNull(reservation.reservation)),session,before,production)
+                            }
+                        }
                         val commit = prepare.copy(phase = LogisticsPhase.COMMIT, reservation = checkNotNull(reservation.reservation), transfer = transfer)
                         val preview = logistics.apply(commit, session, before, production, persist = false)
                         if (preview.rejection != null) {

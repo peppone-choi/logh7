@@ -9,10 +9,13 @@ import org.logh7.protocol.OutfitPartyMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
     fun outfitParty(query: OutfitPartyMessages.Query, power: Int, stocks: org.logh7.engine.PlanetStocks,
-        characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate? = { null }): ByteArray {
-        require(query.mode == 0) { "Only the standing outfit roster query is connected" }
+        editor: Int = 0, characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate? = { null }): ByteArray {
+        require(query.mode in 0..1) { "Unsupported outfit roster query mode" }
         val outfit = requireNotNull(stocks.outfits[query.outfit]) { "Unknown outfit" }
         require(outfit.power == power && (query.base == 0 || query.base == outfit.baseId)) { "Outfit identity mismatch" }
+        require(query.mode == 0 || editor > 0 && outfit.commanderId == editor && query.base == outfit.baseId) {
+            "Only the stationed commander may open the editor"
+        }
         val members = if (outfit.commanderId == 0) emptyList() else {
             val commander = checkNotNull(characterById(outfit.commanderId)) { "Outfit commander is missing" }
             require(commander.id == outfit.commanderId.toLong() && commander.power == outfit.power) { "Outfit commander identity mismatch" }

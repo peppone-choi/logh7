@@ -15,7 +15,9 @@ class ReorganizationRequest(val account: String, val connection: String, val cha
         politics in 0..65535 && administration in 0..65535) }
 }
 data class ReorganizationResult(val player: Navigator?, val stocks: PlanetStocks?,
-    val rejection: LogisticsRejection? = null, val changed: Boolean = false, val recovery: NavigationResult? = null)
+    val rejection: LogisticsRejection? = null, val changed: Boolean = false, val recovery: NavigationResult? = null,
+    val capacity: ReorganizationCapacity? = null)
+data class ReorganizationCapacity(val additionalTroops: Int, val crew: Int)
 
 internal object Reorganization {
     const val COST = 160 // constmsg group 0, entry 130: MCP 160; no wait/duration.
@@ -33,11 +35,13 @@ internal object Reorganization {
         for (row in request.ships) {
             // 004c6930 emits zero boats for whole-unit moves. Partial-boat movement is not implemented.
             require(row.units != 0 && row.boats == 0)
-            val source = if (row.units > 0) warehouse.units.ships else outfit.units.ships
-            var remaining = kotlin.math.abs(row.units)
+            // 004c6a70 compares the edited outfit quantity with its baseline.
+            val units = row.units
+            val source = if (units > 0) warehouse.units.ships else outfit.units.ships
+            var remaining = kotlin.math.abs(units)
             for ((stack, count) in source.entries.filter { it.key.kind == row.kind }.sortedBy { it.key.level }) {
                 val moved = minOf(count, remaining)
-                if (moved > 0) ships[stack] = if (row.units > 0) moved else -moved
+                if (moved > 0) ships[stack] = if (units > 0) moved else -moved
                 remaining -= moved
             }
             require(remaining == 0) { "Insufficient ship units" }
@@ -47,5 +51,16 @@ internal object Reorganization {
             UnitStack(row.kind - 1000, row.grade) to row.units
         }
         return UnitTransfer(ships, troops)
+    }
+    fun capacity(stocks: PlanetStocks, outfitId: Int, transfer: UnitTransfer): ReorganizationCapacity {
+        val outfit = stocks.outfits.getValue(outfitId)
+        val units = transfer.apply(stocks.warehouses.getValue(outfit.warehouseId).units,outfit.units).destination
+        val crew = units.ships.entries.sumOf { (stack,count) ->
+            count.toLong()*UnitSpecifications.ships.single { it.kind == stack.kind }
+                .number("必要乗組員ユニット数:必要乗組員ユニット数")
+        }
+        // Additional infantry transport capacity is not reconstructed yet.
+        // Preserve the editor's existing infantry baseline, never invent slots.
+        return ReorganizationCapacity(0,Math.toIntExact(crew))
     }
 }

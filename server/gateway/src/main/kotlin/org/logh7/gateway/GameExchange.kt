@@ -73,6 +73,9 @@ class GameExchange(
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
+    private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
+        BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode,
+            administration?.stationedOutfit(player) ?: 0)
     private fun characterMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator, changed: Boolean = false) =
         if (changed) BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))
         else BootstrapMessages.character(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))
@@ -90,7 +93,7 @@ class GameExchange(
         val seconds = gameSeconds()
         return (if (result.completedFuel) listOf(org.logh7.protocol.FuelMessages.supplied(seconds,
             player.characterId, player.unitId, player.cruise)) else emptyList()) +
-            (if (result.completedDock) listOf(BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
+            (if (result.completedDock) listOf(unitMessage(character, player),
                 org.logh7.protocol.PlaceMessages.dockNotification(player.characterId, player.baseId, player.mode, seconds,
                     player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList())
     }
@@ -119,7 +122,7 @@ class GameExchange(
         if (state == State.CLOSED) null else {
             val update = publication.also { publication = null }
             if (update?.initialize == true) worldInitialized = true
-            val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player)), gameSeconds()) }
+            val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0), gameSeconds()) }
             val output = if (update?.initialize == true && shared != null) {
                 val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
                 check(index >= 0)
@@ -211,7 +214,7 @@ class GameExchange(
                             listOf(org.logh7.protocol.PlaceMessages.switched(command, seconds, player.pcp, player.mcp,
                                 player.mode, player.spotId, if (player.spotId == 0) id else player.spotOwner, accepted),
                                 characterMessage(character, player, true),
-                                BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
+                                unitMessage(character, player)) +
                                 (if (accepted && !result.completedDock) listOf(org.logh7.protocol.PlaceMessages.dockNotification(id,
                                     player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character)
                         }
@@ -246,7 +249,7 @@ class GameExchange(
                                 seconds, player.pcp, player.mcp, accepted)
                             listOf(ack,
                                 characterMessage(character, player, true),
-                                BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
+                                unitMessage(character, player)) +
                                 (if (dock != null && accepted && player.dockTarget == null && !result.completedDock) listOf(org.logh7.protocol.PlaceMessages.dockNotification(character.id.toInt(),
                                     player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character)
                         }
@@ -275,9 +278,8 @@ class GameExchange(
                         val query = org.logh7.protocol.LogisticsMessages.reorganization(body)
                         val character = checkNotNull(characters.character(identity.account))
                         require(query.header.characterId == character.id.toInt())
-                        // The normal command-63 sender uses mode 1. Do not interpret other
-                        // modes as a strategic commit or echo untrusted capacity/balance hints.
-                        require(query.mode == 1) { "Only strategic reorganization is connected" }
+                        // 005313f0 previews in mode 0; 00574ba0 commits in mode 1.
+                        require(query.mode in 0..1) { "Unsupported strategic reorganization mode" }
                         pendingWorld = administration.reorganize(org.logh7.engine.ReorganizationRequest(
                             identity.account, connection, character.id.toInt(),
                             if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
@@ -289,10 +291,16 @@ class GameExchange(
                             publication = Publication(character, player, false)
                             val accepted = result.rejection == null
                             val supplies = if (accepted) checkNotNull(result.stocks).outfits.getValue(query.outfit).supplies else 0
+                            if (query.mode == 0) {
+                                val capacity=result.capacity
+                                return@thenApply listOf(org.logh7.protocol.LogisticsMessages.reorganizationPreview(query,
+                                    gameSeconds(),player.pcp,player.mcp,capacity?.additionalTroops ?: 0,capacity?.crew ?: 0,
+                                    supplies,accepted))
+                            }
                             listOf(org.logh7.protocol.LogisticsMessages.reorganizationResponse(query, gameSeconds(),
                                 player.pcp, player.mcp, supplies, accepted), characterMessage(character, player, true)) +
                                 (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
-                                    query.outfit, query.base, 0), character.power, checkNotNull(result.stocks), characters::characterById),
+                                    query.outfit, query.base, 0), character.power, checkNotNull(result.stocks), characterById=characters::characterById),
                                     world.outfitWarehouse(query.base, query.outfit, character.id.toInt(), character.power, checkNotNull(result.stocks)))
                                 else emptyList()) + result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
                         }
@@ -304,7 +312,7 @@ class GameExchange(
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
                         pendingWorld = stocks().thenApply { stored -> listOf(if (party != null)
-                            world.outfitParty(party,character.power,checkNotNull(stored),characters::characterById) else
+                            world.outfitParty(party,character.power,checkNotNull(stored),character.id.toInt(),characters::characterById) else
                             world.outfitUnit(checkNotNull(unit).id,character.power,checkNotNull(stored),unit.base)) }
                         return null
                     }
@@ -378,7 +386,7 @@ class GameExchange(
                             val seconds = gameSeconds()
                             listOf(org.logh7.protocol.NavigationMessages.accepted(command, seconds, player.pcp, player.mcp),
                                 characterMessage(character, player, true),
-                                BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
+                                unitMessage(character, player),
                                 org.logh7.protocol.NavigationMessages.grid(player.grid),
                                 org.logh7.protocol.NavigationMessages.moved(command, seconds, player.unitId, player.cruise)) + completedWork(result, character)
                         }
@@ -438,7 +446,7 @@ class GameExchange(
                                 publication = Publication(character, player, true)
                                 listOf(BootstrapMessages.characterId(character),
                                     characterMessage(character, player),
-                                    BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode),
+                                    unitMessage(character, player),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid)) +
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player)

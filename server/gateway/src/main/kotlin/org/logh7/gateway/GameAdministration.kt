@@ -9,8 +9,17 @@ fun interface GameAdministration {
     fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Reorganization is unavailable"))
     fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> = emptyList()
+    fun stationedOutfit(player: Navigator): Int = 0
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope) : GameAdministration {
+    override fun stationedOutfit(player: Navigator): Int {
+        if (player.mode != 4 || player.baseId == 0) return 0
+        val stocks = engine.snapshot().planetStocks ?: return 0
+        if (stocks.generation != player.generation) return 0
+        // Designed affiliation: only an unambiguous command at this same base.
+        return stocks.outfits.values.singleOrNull { it.commanderId == player.characterId &&
+            it.power == (if (player.power == Power.EMPIRE) 2 else 3) && it.baseId == player.baseId }?.id ?: 0
+    }
     override fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> {
         val future = CompletableFuture<ReorganizationResult>()
         scope.launch {

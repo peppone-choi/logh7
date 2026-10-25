@@ -31,6 +31,12 @@ class MultiplayerPresenceTest {
         assertEquals(1049, notification.getInt(14))
         messages.clear(); hub.update(arrived, 28802)
         assertTrue(messages.isEmpty())
+        val assigned=arrived.copy(outfit=70000)
+        hub.update(assigned,28803)
+        assertEquals(listOf(0x0325),messages.single().map(::opcode))
+        assertEquals(70000,ByteBuffer.wrap(messages.single().single()).getInt(19))
+        messages.clear(); hub.update(assigned,28804)
+        assertTrue(messages.isEmpty())
     }
     @Test fun peopleSharingARoomSeeEachOtherAcrossFactionsAndLoseVisibilityOnEitherExit() {
         val hub = GamePresence()
