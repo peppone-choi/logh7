@@ -3,7 +3,7 @@ package org.logh7.gateway
 import org.logh7.engine.Galaxy
 import org.logh7.protocol.WorldMessages
 import org.logh7.protocol.LoginMessages
-import org.logh7.engine.Flagships
+import org.logh7.engine.UnitSpecifications
 
 class WorldBootstrap(val galaxy: Galaxy) {
     fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
@@ -48,7 +48,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         0x0306 to WorldMessages.captainCommands(),
         0x0304 to WorldMessages.cards(),
         0x0308 to WorldMessages.powerDirection(),
-        0x030a to WorldMessages.ships(Flagships.definitions.map { ship ->
+        0x030a to WorldMessages.ships(UnitSpecifications.ships.map { ship ->
             WorldMessages.Ship(ship.kind, ship.type, ship.model, ship.name,
                 ship.number("出力:出力"), ship.number("索敵範囲（万km）:索敵範囲（万km）").toFloat(),
                 ship.number("最高速度（km/1G秒）:最高速度（km/1G秒）").toFloat(),
@@ -57,7 +57,16 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 ship.number("ビーム兵装破壊力:ビーム兵装破壊力"),
                 ship.number("ガン兵装破壊力/消費物資:ガン兵装破壊力/消費物資"),
                 ship.number("ミサイル兵装破壊力/消費物資:ミサイル兵装破壊力/消費物資"),
-                ship.number("対空兵装破壊力:対空兵装破壊力"), ship.number("修理消費物資(１隻):修理消費物資(１隻)"))
+                ship.number("対空兵装破壊力:対空兵装破壊力"), ship.number("修理消費物資(１隻):修理消費物資(１隻)"),
+                category = ship.category, number = ship.number, term = ship.number("建造工期:建造工期"),
+                crew = ship.number("必要乗組員ユニット数:必要乗組員ユニット数"),
+                missileConsumption = ship.number("ミサイル兵装破壊力/消費物資:ミサイル兵装破壊力/消費物資", 1),
+                fighterNumber = ship.number("戦闘艇/雷撃艇搭載数:戦闘艇/雷撃艇搭載数"),
+                cargo = ship.number("物資搭載量:物資搭載量"))
+        }),
+        0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->
+            WorldMessages.Crew(crew.kind, crew.type, crew.category, crew.manual.training,
+                crew.manual.groundAttack ?: 0, crew.manual.groundDefense ?: 0)
         }),
     )
 }

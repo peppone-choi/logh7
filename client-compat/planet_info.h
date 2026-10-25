@@ -148,6 +148,8 @@ static void showPlanetInformation() {
             bool ship = row < shipCount;
             const BYTE* record = info.warehouse + (ship ? 14 + row * 6 : 0x262 + (row - shipCount) * 6);
             unsigned kind = logh::infoShort(record, 0), level = record[2], quantity = logh::infoShort(record, 4);
+            // Native crew catalogue IDs start at 1000; constmsg 86 uses local IDs.
+            if (!ship && kind >= 1000 && kind < 1016) kind -= 1000;
             wchar_t name[64] = {}, line[128];
             if (kind < (ship ? 179u : 11u)) {
                 auto label = reinterpret_cast<const char*(__thiscall*)(void*, int, int)>(0x522010)
@@ -156,8 +158,14 @@ static void showPlanetInformation() {
             }
             if (!name[0]) _snwprintf_s(name, _countof(name), _TRUNCATE, L"미등록 품목 %u", kind);
             const wchar_t* levels[] = {L"그린", L"노멀", L"베테랑", L"엘리트"};
-            _snwprintf_s(line, _countof(line), _TRUNCATE, L"%ls %ls%ls: %u 유닛\n", ship ? L"함선" : L"인원",
-                name, ship ? L"" : level < 4 ? levels[level] : L"?", quantity);
+            const wchar_t* rank = level < 4 ? levels[level] : L"?";
+            const BYTE* specification = static_cast<const BYTE*>(info.world) + 0x2c1a78 + kind * 0x2a8;
+            if (ship && kind < 200 && specification[0] && logh::infoShort(specification, 0x218)) {
+                unsigned count = quantity * logh::infoShort(specification, 0x218);
+                _snwprintf_s(line, _countof(line), _TRUNCATE, L"함선 %ls: %u 유닛 (%u척)\n", name, quantity, count);
+            } else {
+                _snwprintf_s(line, _countof(line), _TRUNCATE, L"%ls %ls %ls: %u 유닛\n", ship ? L"함선" : L"인원", name, rank, quantity);
+            }
             wcscat_s(text, line);
         }
         planetText(text); info.displayed = true; return;

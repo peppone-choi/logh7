@@ -23,10 +23,10 @@ class UnitProductionWireTest {
             fixture.engine.submit(WorldCommand.AdvanceTo(5 * 3600000L))
             fun warehouse() = client.request(ByteBuffer.allocate(10).putShort(0x0326).putInt(1049).putInt(0).array(), 0x0327, "warehouse")
             val first = warehouse(); val input = ByteBuffer.wrap(first); input.position(18)
-            fun entries(): Map<UnitStack, Int> = buildMap {
-                repeat(input.get().toInt() and 255) { put(UnitStack(input.short.toInt() and 65535, input.get().toInt() and 255), input.short.toInt() and 65535) }
+            fun entries(offset: Int = 0): Map<UnitStack, Int> = buildMap {
+                repeat(input.get().toInt() and 255) { put(UnitStack((input.short.toInt() and 65535) - offset, input.get().toInt() and 255), input.short.toInt() and 65535) }
             }
-            val ships = entries(); val troops = entries()
+            val ships = entries(); val troops = entries(1000)
             val stock = fixture.engine.snapshot().planetStocks!!.bases.getValue(1049)
             assertEquals(stock.units.ships, ships); assertEquals(stock.units.troops, troops)
             assertEquals(5, troops[UnitStack(3)]); assertTrue(ships.isNotEmpty())

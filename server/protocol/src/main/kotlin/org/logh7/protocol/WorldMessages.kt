@@ -6,20 +6,20 @@ import java.io.DataOutputStream
 /** CD readers: 00413050, 004134e0, 004142e0. No native struct padding on the wire. */
 object WorldMessages {
     data class Stock(val kind: Int, val level: Int, val quantity: Int)
-    /** 0041a870: kind u16, level u8, quantity u16; native six-byte rows contain one padding byte. */
+    /** 0041a870: kind u16, level u8, quantity u16. Troop IDs are local here, 1000-based on wire. */
     fun warehouse(base: Int, supplies: Int, food: Int, mineral: Int,
         ships: List<Stock> = emptyList(), troops: List<Stock> = emptyList()) = body {
         require(base > 0 && supplies >= 0 && food >= 0 && mineral >= 0)
-        fun stacks(values: List<Stock>, maximum: Int, kinds: IntRange) {
+        fun stacks(values: List<Stock>, maximum: Int, kinds: IntRange, kindOffset: Int = 0) {
             require(values.size <= maximum && values.map { it.kind to it.level }.distinct().size == values.size)
             writeByte(values.size)
             values.forEach { value ->
                 require(value.kind in kinds && value.level in 0..3 && value.quantity in 1..65535)
-                writeShort(value.kind); writeByte(value.level); writeShort(value.quantity)
+                writeShort(value.kind + kindOffset); writeByte(value.level); writeShort(value.quantity)
             }
         }
         writeInt(base); writeInt(0); writeInt(0)
-        stacks(ships, 99, 0..199); stacks(troops, 24, 0..15)
+        stacks(ships, 99, 0..199); stacks(troops, 24, 0..15, 1000)
         writeInt(supplies); writeInt(food); writeInt(mineral)
     }
     fun warehouseQuery(message: ByteArray): Pair<Int, Int> {
@@ -173,24 +173,27 @@ object WorldMessages {
     data class Ship(val kind: Int, val type: Int, val model: Int, val name: String,
         val outputPower: Int, val searchRange: Float, val speed: Float,
         val armorFront: Int, val armorSide: Int, val armorBack: Int, val shield: Int, val shieldCapacity: Int,
-        val beam: Int, val gun: Int, val missile: Int, val antiaircraft: Int, val repair: Int)
+        val beam: Int, val gun: Int, val missile: Int, val antiaircraft: Int, val repair: Int,
+        val category: Int = 0, val number: Int = 1, val term: Int = 0, val crew: Int = 0,
+        val missileConsumption: Int = 0, val fighterNumber: Int = 0, val cargo: Int = 0)
     /** 004109a0/00411a60: kind, class and model_file are distinct fields. */
     fun ships(ships: List<Ship>) = body {
         require(ships.size <= 200 && ships.map { it.kind }.distinct().size == ships.size)
         writeByte(ships.size)
         ships.forEach { ship ->
-            require(ship.kind in 0..199 && ship.type in 0..255)
+            require(ship.kind in 0..199 && ship.type in 0..255 && ship.category in 0..255 && ship.number in 1..65535)
             // Native 004f3e30: faction prefix * 1000 + model within faction,
             // not the index into the combined 120-entry file table.
             require(ship.model in 0..49 || ship.model in 1000..1049 ||
                 ship.model in 2000..2009 || ship.model in 3000..3009)
             require(ship.searchRange.isFinite() && ship.searchRange >= 0 && ship.speed.isFinite() && ship.speed > 0)
             require(listOf(ship.outputPower, ship.armorFront, ship.armorSide, ship.armorBack, ship.shield,
-                ship.shieldCapacity, ship.beam, ship.gun, ship.missile, ship.antiaircraft, ship.repair).all { it in 0..65535 })
-            writeShort(ship.kind); writeByte(ship.type); writeByte(0); writeShort(0); writeShort(ship.model)
+                ship.shieldCapacity, ship.beam, ship.gun, ship.missile, ship.antiaircraft, ship.repair,
+                ship.term, ship.crew, ship.missileConsumption, ship.fighterNumber, ship.cargo).all { it in 0..65535 })
+            writeShort(ship.kind); writeByte(ship.type); writeByte(ship.category); writeShort(0); writeShort(ship.model)
             string(ship.name)
-            writeShort(1); writeInt(0) // number, price; no purchase price recovered
-            repeat(5) { writeShort(0) } // resources, cost, term, existence, crew
+            writeShort(ship.number); writeInt(0) // price has not been recovered
+            writeShort(0); writeShort(0); writeShort(ship.term); writeShort(0); writeShort(ship.crew)
             writeShort(ship.outputPower)
             writeFloat(0f); writeFloat(ship.searchRange)
             repeat(13) { writeShort(0) } // sensor profile, evasion, navigation
@@ -199,9 +202,24 @@ object WorldMessages {
             // Weapon counts and arcs remain unresolved; do not invent a combat fit.
             writeByte(0); writeShort(ship.beam); writeByte(0)
             writeByte(0); writeShort(ship.gun); writeByte(0)
-            writeByte(0); writeShort(ship.missile); writeByte(0); writeShort(0)
+            writeByte(0); writeShort(ship.missile); writeByte(0); writeShort(ship.missileConsumption)
             writeByte(0); writeShort(ship.antiaircraft)
-            writeShort(0); writeShort(0); writeShort(0); writeShort(ship.repair); writeShort(0)
+            writeShort(0); writeShort(ship.fighterNumber); writeShort(ship.cargo); writeShort(ship.repair); writeShort(0)
+        }
+    }
+    data class Crew(val kind: Int, val type: Int, val category: Int, val training: Int,
+        val offence: Int, val defence: Int, val speed: Float = 1f, val cargo: Int = 0)
+    /** Native 004121f0/00412770: 22 wire bytes, 24-byte padded records, local kind + 1000. */
+    fun crews(crews: List<Crew>) = body {
+        require(crews.size <= 16 && crews.map { it.kind }.distinct().size == crews.size)
+        writeByte(crews.size)
+        crews.forEach { crew ->
+            require(crew.kind in 0..15 && crew.type in 0..255 && crew.category in 0..255)
+            require(listOf(crew.training, crew.offence, crew.defence, crew.cargo).all { it in 0..65535 })
+            require(crew.speed.isFinite() && crew.speed >= 0)
+            writeShort(1000 + crew.kind); writeByte(crew.type); writeByte(crew.category); writeShort(0)
+            writeShort(crew.training); writeShort(0); writeShort(0); writeFloat(crew.speed)
+            writeShort(crew.offence); writeShort(crew.defence); writeShort(crew.cargo)
         }
     }
 }
