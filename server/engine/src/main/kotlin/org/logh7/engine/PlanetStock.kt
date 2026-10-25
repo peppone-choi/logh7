@@ -9,10 +9,14 @@ data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
-    val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false) {
+    val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false,
+    val nextShipId: Int = 1) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
+        require(nextShipId in 1..1_000_000)
+        val ids = outfits.values.flatMap { it.activeShips?.values.orEmpty() }.map { it.id }
+        require(ids.distinct().size == ids.size && ids.all { it < nextShipId }) { "Invalid active ship identity sequence" }
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -49,8 +53,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val previous = current
         require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
         val days = (seconds - startSeconds) / 86400
-        val initial = deployment.initialize(previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
-            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) }))
+        val initial = ActiveShips.initialize(deployment.initialize(previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
+            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) })))
         // Upgrade old rows at their existing watermark; never replay already-produced days.
         val initialized = if (initial.bases.values.all { it.economy != null }) initial else initial.copy(bases = initial.bases.mapValues { (id, stock) ->
             if (stock.economy != null) stock else galaxy.conditions.getValue(id).let { base ->

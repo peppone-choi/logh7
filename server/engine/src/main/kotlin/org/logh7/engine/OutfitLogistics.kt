@@ -87,7 +87,7 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 val crewKinds = UnitSpecifications.crews.filter { it.power == power && it.type == 3 }.map { it.kind }.toSet()
                 val crew = moved.destination.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
                 if (required != crew) return reject(LogisticsRejection.CREW)
-                stocks.copy(outfits = stocks.outfits + (outfit.id to outfit.copy(units = moved.destination)),
+                ActiveShips.reorganize(stocks, outfit.id, moved.destination).copy(
                     warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.source)))
             }
         } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }

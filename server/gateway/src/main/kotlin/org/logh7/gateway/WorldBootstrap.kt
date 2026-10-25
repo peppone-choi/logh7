@@ -5,8 +5,42 @@ import org.logh7.protocol.WorldMessages
 import org.logh7.protocol.LoginMessages
 import org.logh7.engine.UnitSpecifications
 import org.logh7.protocol.OutfitMessages
+import org.logh7.protocol.OutfitPartyMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
+    fun outfitParty(query: OutfitPartyMessages.Query, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
+        require(query.mode == 0) { "Only the standing outfit roster query is connected" }
+        val outfit = requireNotNull(stocks.outfits[query.outfit]) { "Unknown outfit" }
+        require(outfit.power == power && (query.base == 0 || query.base == outfit.baseId)) { "Outfit identity mismatch" }
+        check(outfit.commanderId == 0) { "Character membership response is not connected" }
+        val units = checkNotNull(outfit.activeShips) { "Active ship identities are not initialized" }
+        val groups = units.values.groupBy { it.stack.kind }.toSortedMap().flatMap { (kind, ships) ->
+            val spec = UnitSpecifications.ships.single { it.kind == kind }
+            ships.sortedBy { it.id }.chunked(70).map { group ->
+                OutfitPartyMessages.Ships(kind,Math.multiplyExact(spec.number,group.size),group.map { it.id })
+            }
+        }
+        val troops = outfit.units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
+            .map { OutfitPartyMessages.Troops(1000+it.key.kind,it.key.level,it.value) }
+        // Capacity per physical ship is a designed interpretation of the manual statistics.
+        // Ground-only units use 1000 supplies per troop unit until their carrier model is connected.
+        val maximum = outfit.units.ships.entries.sumOf { (stack,quantity) ->
+            val spec = UnitSpecifications.ships.single { it.kind == stack.kind }
+            quantity.toLong() * spec.number * spec.number("物資搭載量:物資搭載量")
+        } + if (outfit.units.ships.isEmpty()) outfit.units.troops.values.sumOf { it.toLong()*1000 } else 0L
+        require(maximum <= Int.MAX_VALUE)
+        return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=outfit.baseId),power,
+            outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum.toInt()))
+    }
+    fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
+        val outfit = stocks.outfits.values.singleOrNull { owner -> owner.activeShips?.values?.any { it.id == id } == true }
+        val units = if (outfit == null) emptyList() else {
+            require(outfit.power == power && (base == 0 || base == outfit.baseId)) { "Outfit unit access denied" }
+            val unit = outfit.activeShips!!.values.single { it.id == id }
+            listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,galaxy.bases.single { it.id == outfit.baseId }.grid,outfit.id,outfit.baseId))
+        }
+        return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
+    }
     fun outfits(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks): ByteArray = LoginMessages.sessionMessage(0x032b,
         OutfitMessages.information(ids.distinct().mapNotNull(stocks.outfits::get).map {
             OutfitMessages.Definition(it.id,it.kind.wire,it.power,0,it.number)

@@ -62,7 +62,7 @@ class InitialOutfitDeploymentTest {
     @Test fun freshGenerationResetsDeploymentButSameGenerationRetainsLosses() {
         val deployment = InitialOutfitDeployment(galaxy)
         var saved = deployment.initialize(stocks().copy(producedDays=0))
-        saved = saved.copy(outfits=saved.outfits.mapValues { (_,o) -> o.copy(units=UnitInventory()) })
+        saved = saved.copy(outfits=saved.outfits.mapValues { (_,o) -> o.copy(units=UnitInventory(),activeShips=ActiveShipUnits(emptyList())) })
         val store = object : PlanetStockStore {
             override fun load() = saved
             override fun save(stocks: PlanetStocks) { saved = stocks }
