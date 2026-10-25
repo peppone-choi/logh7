@@ -246,7 +246,7 @@ static void outfitWarehouseResponse(void*,const BYTE* record) {
     ReleaseSRWLockExclusive(&outfitReplyLock);
 }
 static void updateOutfitInformation(void* manager) {
-    auto& state=outfitInformation;if (!state.selected) return;
+    auto& state=outfitInformation;if (!state.world) return;
     auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if (manager!=state.manager || world!=state.world || !own || !at<BYTE>(own,0) ||
         at<unsigned>(own,0x24)!=state.character || at<unsigned>(world,0x2b6a70)!=state.grid ||
@@ -257,6 +257,7 @@ static void updateOutfitInformation(void* manager) {
         ReleaseSRWLockExclusive(&outfitReplyLock);
         state.selected=false;return;
     }
+    if (!state.selected) return;
     if (at<void*>(manager,4+13*4)!=state.root || !at<BYTE>(state.root,4)) {state.selected=false;return;}
     bool changed=false;
     AcquireSRWLockExclusive(&outfitReplyLock);
