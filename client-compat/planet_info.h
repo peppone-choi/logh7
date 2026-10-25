@@ -9,13 +9,37 @@
 static struct PlanetInformation {
     void* world;
     void* popup;
-    unsigned character, grid, ids[4], count, index, page;
+    unsigned character, originGrid, grid, ids[4], count, index, page;
+    logh::PlanetSystemIndex systems;
     bool conditionsReady, warehouseReady, displayed, timeoutShown;
     ULONGLONG requestedAt, acceptAfter;
     BYTE condition[0x180], warehouse[0x300];
 } planetInformation = {};
 
 #include "planet_window.h"
+
+static bool selectPlanetSystem(unsigned grid) {
+    auto& info = planetInformation;
+    unsigned ids[4] = {}, count = 0;
+    const BYTE* bases[4] = {};
+    for (unsigned slot = 0; slot < 350; ++slot) {
+        auto base = static_cast<const BYTE*>(info.world) + 0x2eb800 + slot * 0x250;
+        if (!base[0] || logh::infoWord(base, 8) != 2 || logh::infoShort(base, 0x10) != grid) continue;
+        if (count == 4) return false;
+        float radius; memcpy(&radius, base + 0x34, sizeof(radius));
+        unsigned index = count++;
+        while (index) {
+            float previous; memcpy(&previous, bases[index - 1] + 0x34, sizeof(previous));
+            if (previous <= radius) break;
+            bases[index] = bases[index - 1]; ids[index] = ids[index - 1]; --index;
+        }
+        bases[index] = base;
+        ids[index] = logh::infoWord(static_cast<const BYTE*>(info.world), 0x2eb288 + slot * 4);
+    }
+    info.grid = grid; info.count = count; info.index = info.page = 0;
+    memcpy(info.ids, ids, sizeof(ids));
+    return true;
+}
 
 static void closePlanetInformation() {
     if (planetInformation.popup)
@@ -87,11 +111,11 @@ static int __cdecl planetInfoMenu(void* gui) {
         auto character = world ? at<void*>(world, 8) : nullptr;
         if (world != info.world || !character || !at<BYTE>(character, 0) || !at<BYTE>(world, 0x2a58f8) ||
             at<BYTE>(world, 0x3579cc) || !at<BYTE>(world, 0x2b6a6c) ||
-            at<unsigned>(character, 0x24) != info.character || at<unsigned>(world, 0x2b6a70) != info.grid)
+            at<unsigned>(character, 0x24) != info.character || at<unsigned>(world, 0x2b6a70) != info.originGrid)
             closePlanetInformation();
         else {
             BYTE event[52] = {};
-            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 26; ++index) {
+            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 29; ++index) {
                 if (index > 13 && index < 20) continue;
                 auto widget = planetWidget(index);
                 if (!reinterpret_cast<BYTE(__thiscall*)(void*, int, void*, void*, int)>(0x5015f0)
@@ -105,6 +129,13 @@ static int __cdecl planetInfoMenu(void* gui) {
                 } else if (index == 23 && info.page) { --info.page; info.displayed = false; }
                 else if (index == 24 && info.page + 1 < planetStockPages()) { ++info.page; info.displayed = false; }
                 else if (index == 25 && info.count) requestPlanetInformation();
+                else if (index >= 27) {
+                    unsigned target = index == 29 ? info.originGrid : info.systems.adjacent(info.grid, index == 28);
+                    if (target != info.grid && selectPlanetSystem(target)) {
+                        if (info.count) requestPlanetInformation();
+                        else { info.displayed = false; info.conditionsReady = info.warehouseReady = false; }
+                    }
+                }
                 break;
             }
             if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady) &&
@@ -118,19 +149,13 @@ static int __cdecl planetInfoMenu(void* gui) {
     auto character = at<void*>(world, 8);
     unsigned grid = at<unsigned>(world, 0x2b6a70);
     if (!character || grid >= 5000 || !createPlanetWindow(gui)) return selected;
-    info = {}; info.world = world; info.character = at<unsigned>(character, 0x24); info.grid = grid;
+    info = {}; info.world = world; info.character = at<unsigned>(character, 0x24); info.originGrid = grid;
     info.popup = planetWindowRoot; planetWindowTab = 0;
-    BYTE* bases[4] = {};
     for (unsigned slot = 0; slot < 350; ++slot) {
         auto base = static_cast<BYTE*>(world) + 0x2eb800 + slot * 0x250;
-        if (!at<BYTE>(base, 0) || at<int>(base, 8) != 2 || at<unsigned short>(base, 0x10) != grid) continue;
-        if (info.count == 4) { closePlanetInformation(); return selected; }
-        unsigned index = info.count++;
-        while (index && at<float>(bases[index - 1], 0x34) > at<float>(base, 0x34)) {
-            bases[index] = bases[index - 1]; info.ids[index] = info.ids[index - 1]; --index;
-        }
-        bases[index] = base; info.ids[index] = at<unsigned>(world, 0x2eb288 + slot * 4);
+        if (at<BYTE>(base, 0) && at<int>(base, 8) == 2) info.systems.add(at<unsigned short>(base, 0x10));
     }
+    if (!selectPlanetSystem(grid)) { closePlanetInformation(); return selected; }
     info.acceptAfter = GetTickCount64() + 250;
     reinterpret_cast<void(__thiscall*)(void*, int)>(0x506280)(info.popup, 12);
     reinterpret_cast<void(__thiscall*)(void*, void*)>(0x50beb0)(gui, info.popup);
