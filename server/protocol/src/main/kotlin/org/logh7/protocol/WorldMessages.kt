@@ -8,8 +8,8 @@ object WorldMessages {
     data class Stock(val kind: Int, val level: Int, val quantity: Int)
     /** 0041a870: kind u16, level u8, quantity u16. Troop IDs are local here, 1000-based on wire. */
     fun warehouse(base: Int, supplies: Int, food: Int, mineral: Int,
-        ships: List<Stock> = emptyList(), troops: List<Stock> = emptyList()) = body {
-        require(base > 0 && supplies >= 0 && food >= 0 && mineral >= 0)
+        ships: List<Stock> = emptyList(), troops: List<Stock> = emptyList(), outfit: Int = 0) = body {
+        require(base > 0 && outfit >= 0 && supplies >= 0 && food >= 0 && mineral >= 0)
         fun stacks(values: List<Stock>, maximum: Int, kinds: IntRange, kindOffset: Int = 0) {
             require(values.size <= maximum && values.map { it.kind to it.level }.distinct().size == values.size)
             writeByte(values.size)
@@ -18,7 +18,7 @@ object WorldMessages {
                 writeShort(value.kind + kindOffset); writeByte(value.level); writeShort(value.quantity)
             }
         }
-        writeInt(base); writeInt(0); writeInt(0)
+        writeInt(base); writeInt(outfit); writeInt(0)
         stacks(ships, 99, 0..199); stacks(troops, 24, 0..15, 1000)
         writeInt(supplies); writeInt(food); writeInt(mineral)
     }

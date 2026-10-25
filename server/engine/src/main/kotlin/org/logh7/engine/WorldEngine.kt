@@ -19,6 +19,7 @@ sealed interface WorldCommand {
     data class RequestRestart(val result: CompletableDeferred<Boolean>) : WorldCommand
     data class Navigate(val request: NavigationRequest, val result: CompletableDeferred<NavigationResult>) : WorldCommand
     data class Stock(val generation: Long, val result: CompletableDeferred<PlanetStocks>) : WorldCommand
+    data class Logistics(val request: LogisticsRequest, val result: CompletableDeferred<LogisticsResult>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -57,6 +58,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         durableState?.session?.generation ?: simulation.snapshot().generation) }
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
+    private val logistics = OutfitLogistics(monotonicMillis)
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
     private val worker = scope.launch {
@@ -73,6 +75,22 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         var storageFailure: Exception? = null
         try { for (queued in queue) {
             val command = queued.command
+            if (command is WorldCommand.Logistics) {
+                try {
+                    check(!storageFailed) { "World storage is unavailable" }
+                    val session = durableState?.session ?: simulation.exportState()
+                    val result = logistics.apply(command.request, session,
+                        navigation?.snapshot(session.generation)?.get(command.request.account),
+                        checkNotNull(production) { "World production is disabled" })
+                    state = published.get().copy(planetStocks = production.snapshot(session.generation))
+                    published.set(state)
+                    command.result.complete(result)
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if (command is WorldCommand.Stock) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
@@ -160,6 +178,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 is WorldCommand.RequestRestart -> restart().also { restartResult = true }
                 is WorldCommand.Navigate -> error("Navigation is handled before session commands")
                 is WorldCommand.Stock -> error("Production is handled before session commands")
+                is WorldCommand.Logistics -> error("Logistics is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

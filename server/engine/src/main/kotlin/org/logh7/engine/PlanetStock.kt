@@ -7,8 +7,13 @@ data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
     val units: UnitInventory = UnitInventory()) {
     init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0) }
 }
-data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>) {
-    init { require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId }) }
+data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
+    val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
+    val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap()) {
+    init {
+        require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
+        validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
+    }
 }
 interface PlanetStockStore : AutoCloseable {
     fun load(): PlanetStocks?
@@ -33,7 +38,10 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             terms[key]?.let { hours in 0..it } == true
         } }) { "Invalid production progress" }
     }?.let(::detached)
-    private fun detached(stocks: PlanetStocks) = stocks.copy(bases = Collections.unmodifiableMap(LinkedHashMap(stocks.bases)))
+    private fun detached(stocks: PlanetStocks) = stocks.copy(bases = Collections.unmodifiableMap(LinkedHashMap(stocks.bases)),
+        outfits = Collections.unmodifiableMap(LinkedHashMap(stocks.outfits)),
+        warehouses = Collections.unmodifiableMap(LinkedHashMap(stocks.warehouses)),
+        logisticsOfficers = Collections.unmodifiableMap(LinkedHashMap(stocks.logisticsOfficers)))
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
@@ -62,5 +70,16 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         store?.save(next) // Publish only after durable replacement.
         current = next
         return next
+    }
+
+    /** Called only by the world actor after authorization; both sides share one durable replacement. */
+    fun replace(expected: PlanetStocks, next: PlanetStocks): PlanetStocks {
+        check(current === expected) { "Inventory changed during transaction" }
+        require(next.generation == expected.generation && next.producedDays == expected.producedDays)
+        require(next.bases.keys == expected.bases.keys)
+        val result = detached(next)
+        store?.save(result)
+        current = result
+        return result
     }
 }

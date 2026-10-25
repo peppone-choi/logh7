@@ -249,9 +249,13 @@ class GameExchange(
                     0x0326 -> {
                         check(gameStarted && world != null)
                         val (base, outfit) = org.logh7.protocol.WorldMessages.warehouseQuery(body)
-                        require(outfit == 0) { "Outfit warehouses require an owned outfit" }
-                        if (stock == null) world.warehouse(base) else {
-                            pendingWorld = stocks().thenApply { listOf(world.warehouse(base, it)) }
+                        if (stock == null) {
+                            require(outfit == 0) { "Outfit warehouse storage is disabled" }
+                            world.warehouse(base)
+                        } else {
+                            val character = checkNotNull(characters.character(identity.account))
+                            pendingWorld = stocks().thenApply { listOf(if (outfit == 0) world.warehouse(base, it) else
+                                world.outfitWarehouse(base,outfit,character.id.toInt(),character.power,checkNotNull(it))) }
                             return null
                         }
                     }
