@@ -1,4 +1,5 @@
-// Restore the CD's empty planet/fortress information menu using its own GUI.
+// Temporary planet/warehouse readout in a borrowed command dialog.
+// This is not restoration of the original planet or warehouse screens.
 // All quantities come from fresh decoded server responses. Author: 최병호.
 #pragma once
 #include <stdio.h>
