@@ -2,7 +2,7 @@ package org.logh7.engine
 
 enum class LogisticsMode { ALLOCATION, REORGANIZATION }
 enum class LogisticsPhase { PREPARE, COMMIT, CANCEL }
-enum class LogisticsRejection { SESSION, IDENTITY, OUTFIT, ACCESS, LOCATION, BUSY, PREPARATION, STOCK, CREW }
+enum class LogisticsRejection { SESSION, IDENTITY, OUTFIT, ACCESS, LOCATION, BUSY, PREPARATION, STOCK, CREW, CP, MODE, STORAGE }
 data class LogisticsRequest(val account: String, val connection: String, val characterId: Int,
     val power: Power, val generation: Long, val outfitId: Int, val mode: LogisticsMode,
     val phase: LogisticsPhase, val transfer: UnitTransfer = UnitTransfer(), val supplies: Int = 0,
@@ -20,7 +20,8 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
     private var sequence = 0L
     init { require(leaseMillis in 1..3_600_000) }
 
-    fun apply(request: LogisticsRequest, session: SessionState, player: Navigator?, production: PlanetProduction): LogisticsResult {
+    fun apply(request: LogisticsRequest, session: SessionState, player: Navigator?, production: PlanetProduction,
+        persist: Boolean = true): LogisticsResult {
         fun reject(reason: LogisticsRejection) = LogisticsResult(rejection = reason)
         val now = clock()
         reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
@@ -91,7 +92,9 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                     warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.source)))
             }
         } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }
-        val saved = production.replace(stocks, next)
+        // The native command combines CP and inventory in the common world store.
+        // Preview still runs all reservation, ownership, crew and identity checks.
+        val saved = if (persist) production.replace(stocks, next) else next
         reservations.remove(existing)
         return LogisticsResult(saved)
     }
