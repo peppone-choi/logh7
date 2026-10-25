@@ -23,8 +23,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
         WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
             val stored = stocks?.let { state -> checkNotNull(state.bases[it.baseId]) }
-            WorldMessages.Condition(it.baseId, it.grid, stored?.power ?: it.power, stored?.camp ?: it.camp, it.population, it.adultPopulation,
-                it.tax, it.approval, it.peace, it.atmosphere, it.habitability, stored?.supplies ?: it.supplies, it.food, it.living)
+            val people = stored?.economy
+            WorldMessages.Condition(it.baseId, it.grid, stored?.power ?: it.power, stored?.camp ?: it.camp,
+                people?.population ?: it.population, people?.adults ?: it.adultPopulation,
+                it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
+                stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)
         }))
     fun places(ids: List<Int>): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->

@@ -26,6 +26,12 @@ class PlanetStockWireTest {
             repeat(2) { assertEquals(101000, ByteBuffer.wrap(warehouse()).getInt(20)) }
             val condition = client.request(ByteBuffer.allocate(7).putShort(0x031e).put(1).putInt(1000).array(), 0x031f, "condition")
             assertEquals(101000, ByteBuffer.wrap(condition).getInt(29))
+            val stored = fixture.engine.snapshot().planetStocks!!.bases.getValue(1000)
+            assertEquals(stored.economy!!.population, ByteBuffer.wrap(condition).getInt(47))
+            assertEquals(stored.economy!!.adults, ByteBuffer.wrap(condition).getInt(51))
+            assertEquals(stored.food, ByteBuffer.wrap(condition).getInt(99))
+            assertEquals(stored.food, ByteBuffer.wrap(warehouse()).getInt(24))
+            assertEquals(stored.mineral, ByteBuffer.wrap(warehouse()).getInt(28))
             assertEquals(1, fixture.engine.snapshot().planetStocks!!.producedDays)
             fixture.clock(client)
         }
