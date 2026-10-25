@@ -16,14 +16,14 @@ class PlanetTaxTest {
     @Test fun ownerPaysServerCostAndAnUnchangedRetryDoesNotPayTwice() {
         val accepted = act()
         assertNull(accepted.rejection); assertTrue(accepted.changed)
-        assertEquals(680,accepted.player!!.pcp); assertEquals(1000,accepted.player.mcp)
+        assertEquals(1000,accepted.player!!.pcp); assertEquals(840,accepted.player.mcp)
         assertEquals(35,accepted.stocks!!.bases.getValue(1049).taxRate)
         assertEquals(stocks.bases.getValue(1049).units,accepted.stocks.bases.getValue(1049).units)
         val again = act(p=accepted.player,s=accepted.stocks)
         assertFalse(again.changed); assertEquals(accepted.player,again.player); assertEquals(accepted.stocks,again.stocks)
-        val alternative = act(p=player.copy(pcp=0,mcp=640))
+        val alternative = act(p=player.copy(pcp=320,mcp=0))
         assertNull(alternative.rejection); assertEquals(0,alternative.player!!.pcp); assertEquals(0,alternative.player.mcp)
-        assertEquals(TaxRejection.CP,act(p=player.copy(pcp=319,mcp=639)).rejection)
+        assertEquals(TaxRejection.CP,act(p=player.copy(pcp=319,mcp=159)).rejection)
     }
     @Test fun clientCardCannotGrantOwnershipAndLocationFactionAndSessionAreChecked() {
         assertEquals(TaxRejection.ACCESS,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(governorId=0)))).rejection)

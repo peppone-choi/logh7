@@ -36,15 +36,18 @@ class TaxTransactionTest {
             join(engine)
             val changed = tax(engine)
             assertNull(changed.rejection); assertTrue(changed.changed)
-            assertEquals(680,engine.snapshot().navigators.getValue("pilot").pcp)
+            assertEquals(1000,engine.snapshot().navigators.getValue("pilot").pcp)
+            assertEquals(840,engine.snapshot().navigators.getValue("pilot").mcp)
             assertEquals(35,engine.snapshot().planetStocks!!.bases.getValue(1049).taxRate)
             assertEquals(changed.player,store.loadNavigation()["pilot"])
             assertEquals(changed.stocks,store.loadStocks())
             val repeated = tax(engine)
-            assertNull(repeated.rejection); assertFalse(repeated.changed); assertEquals(680,repeated.player!!.pcp)
+            assertNull(repeated.rejection); assertFalse(repeated.changed)
+            assertEquals(1000,repeated.player!!.pcp); assertEquals(840,repeated.player!!.mcp)
         } finally { engine.drainAndClose() }
         FileWorldStateStore(root).use {
-            assertEquals(680,it.loadNavigation().getValue("pilot").pcp)
+            assertEquals(1000,it.loadNavigation().getValue("pilot").pcp)
+            assertEquals(840,it.loadNavigation().getValue("pilot").mcp)
             assertEquals(35,it.loadStocks()!!.bases.getValue(1049).taxRate)
             assertEquals(10000,it.loadStocks()!!.bases.getValue(1049).governorId)
         }
@@ -65,11 +68,13 @@ class TaxTransactionTest {
             assertEquals(before.navigators,engine.snapshot().navigators)
             assertEquals(before.planetStocks,engine.snapshot().planetStocks)
             assertEquals(1000,store.loadNavigation().getValue("pilot").pcp)
+            assertEquals(1000,store.loadNavigation().getValue("pilot").mcp)
             assertNull(store.loadStocks()!!.bases.getValue(1049).taxRate)
             assertFailsWith<IllegalStateException> { tax(engine) }
         } finally { engine.drainAndClose() }
         FileWorldStateStore(root).use {
             assertEquals(1000,it.loadNavigation().getValue("pilot").pcp)
+            assertEquals(1000,it.loadNavigation().getValue("pilot").mcp)
             assertNull(it.loadStocks()!!.bases.getValue(1049).taxRate)
         }
     }
@@ -83,8 +88,10 @@ class TaxTransactionTest {
             val result = tax(engine)
             assertEquals(TaxRejection.STORAGE,result.rejection)
             assertEquals(1000,result.player!!.pcp)
+            assertEquals(1000,result.player!!.mcp)
             assertNull(result.stocks!!.bases.getValue(1049).taxRate)
             assertEquals(1000,store.loadNavigation().getValue("pilot").pcp)
+            assertEquals(1000,store.loadNavigation().getValue("pilot").mcp)
             assertNull(store.loadStocks()!!.bases.getValue(1049).taxRate)
         } finally { engine.drainAndClose() }
     }
