@@ -10,6 +10,28 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class MultiplayerPresenceTest {
+    @Test fun visiblePeerGetsActualArrivalWithoutAnEarlyBaseChangeOrFuelRefill() {
+        val hub = GamePresence()
+        val messages = mutableListOf<List<ByteArray>>()
+        val character = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Pilot", "One", 30, 1, 1, 1000001,
+            List(8) { 50 }, 0, 0, 0, 20, 0, 0, "Ship", 1)
+        val viewer = GamePresence.Member("viewer", character,
+            Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 900), messages::add)
+        val peer = GamePresence.Member("peer", character.copy(id = 10001), viewer.player.copy(characterId = 10001), {})
+        hub.update(viewer); hub.update(peer); messages.clear()
+        val paying = peer.copy(player = peer.player.copy(mcp = 840))
+        hub.update(paying, 1)
+        assertEquals(listOf(0x0356), messages.flatten().map(::opcode))
+        messages.clear()
+        val arrived = paying.copy(player = paying.player.copy(baseId = 1049, mode = 4))
+        hub.update(arrived, 28801)
+        assertEquals(listOf(0x0325, 0x0b0b), messages.single().map(::opcode))
+        val notification = ByteBuffer.wrap(messages.single().last())
+        assertEquals(28801, notification.getInt(6)); assertEquals(10001, notification.getInt(10))
+        assertEquals(1049, notification.getInt(14))
+        messages.clear(); hub.update(arrived, 28802)
+        assertTrue(messages.isEmpty())
+    }
     @Test fun peopleSharingARoomSeeEachOtherAcrossFactionsAndLoseVisibilityOnEitherExit() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()
@@ -85,6 +107,7 @@ class MultiplayerPresenceTest {
             assertEquals(listOf(0x0b09, 0x0323, 0x0b0a), metOnSecond.map(::opcode))
             val metOnFirst = readThrough(first, 0x0b0a)
             assertEquals(10001, ByteBuffer.wrap(metOnFirst[1]).getInt(6))
+            assertEquals(0x0325, opcode(first.receive())) // The newly visible peer's unit position follows its import.
             assertEquals(960, fixture.engine.snapshot().navigators.getValue(fixture.account(0)).mcp)
 
             second.close()

@@ -26,6 +26,8 @@ class PlaceMessagesTest {
         val response = PlaceMessages.docked(dock, 123, Int.MAX_VALUE, Int.MAX_VALUE)
         assertEquals(34, response.size)
         assertEquals(dock, PlaceMessages.dock(response.copyOfRange(4, response.size)))
+        assertEquals(28800, ByteBuffer.wrap(PlaceMessages.docked(dock, 123, 1000, 840, waitSeconds = 28800)).getInt(10))
+        assertEquals(0, ByteBuffer.wrap(PlaceMessages.docked(dock, 123, 1000, 840, false, 28800)).getInt(10))
         val move = PlaceMessages.Move(10000, 10_490_003, 0)
         val moved = PlaceMessages.moved(move, 123, Int.MAX_VALUE, Int.MAX_VALUE)
         assertEquals(move, PlaceMessages.move(moved.copyOfRange(4, moved.size)))

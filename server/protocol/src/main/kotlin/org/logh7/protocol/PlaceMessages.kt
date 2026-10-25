@@ -57,11 +57,11 @@ object PlaceMessages {
         require(id > 0 && spot >= 0 && owner >= 0)
         return Move(id, spot, owner)
     }
-    fun docked(command: Dock, seconds: Long, pcp: Int, mcp: Int, accepted: Boolean = true): ByteArray {
-        require(seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0)
+    fun docked(command: Dock, seconds: Long, pcp: Int, mcp: Int, accepted: Boolean = true, waitSeconds: Long = 0): ByteArray {
+        require(seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0 && waitSeconds in 0..0xffffffffL)
         require(command.characterId > 0 && command.card in 0..65535 && command.base in 0..65535 && command.mode in 0..5)
         return LoginMessages.sessionMessage(0x0b00, ByteBuffer.allocate(28)
-            .putInt(seconds.toInt()).putInt(0).putInt(command.characterId).putShort(command.card.toShort())
+            .putInt(seconds.toInt()).putInt(if (accepted) waitSeconds.toInt() else 0).putInt(command.characterId).putShort(command.card.toShort())
             .putInt(pcp).putInt(mcp).putInt(command.base).putShort(command.mode.toShort()).array()).also {
                 if (!accepted) ByteBuffer.wrap(it).putInt(0, 1)
             }
@@ -74,9 +74,9 @@ object PlaceMessages {
                 if (!accepted) ByteBuffer.wrap(it).putInt(0, 1)
             }
     }
-    fun dockNotification(character: Int, base: Int, mode: Int, seconds: Long): ByteArray {
-        require(character > 0 && base in 0..65535 && mode in 0..5 && seconds in 0..0xffffffffL)
+    fun dockNotification(character: Int, base: Int, mode: Int, seconds: Long, spot: Int = 0, owner: Int = character): ByteArray {
+        require(character > 0 && base in 0..65535 && mode in 0..5 && seconds in 0..0xffffffffL && spot >= 0 && owner >= 0)
         return LoginMessages.sessionMessage(0x0b0b, ByteBuffer.allocate(27).putInt(seconds.toInt()).putInt(character)
-            .putInt(base).putShort(mode.toShort()).putInt(0).putInt(character).put(1).putInt(character).array())
+            .putInt(base).putShort(mode.toShort()).putInt(spot).putInt(owner).put(1).putInt(character).array())
     }
 }

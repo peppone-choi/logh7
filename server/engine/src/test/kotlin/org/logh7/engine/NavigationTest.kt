@@ -11,9 +11,11 @@ class NavigationTest {
             Power.entries.associateWith { 2487 })
         val store = Store()
         var navigation = Navigation(galaxy, store, NavigationPolicy())
-        val session = SessionSimulation(SessionRules.load()).also { it.join("pilot", Power.EMPIRE, false, "connection") }.exportState()
+        var session = SessionSimulation(SessionRules.load()).also { it.join("pilot", Power.EMPIRE, false, "connection") }.exportState()
         fun act(move: PlaceMove) = navigation.apply(request.copy(unitId = 1010000, captainCard = 59, place = move), session)
         act(PlaceMove.Dock(1000, 4))
+        session = session.copy(gameMillis = session.gameMillis + 8 * 3600_000L)
+        navigation.apply(request, session)
         val port = galaxy.facilities.getValue(1000).single { it.kind == 4 }
         act(PlaceMove.Spot(port.spots.single { it.kind == 0 }.id, 0))
         assertEquals(NavigationRejection.EMBARKED, act(PlaceMove.SwitchMode(5)).rejection)
@@ -41,12 +43,15 @@ class NavigationTest {
             listOf(base), mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015))
         val store = Store()
         val navigation = Navigation(galaxy, store, NavigationPolicy())
-        val session = SessionSimulation(SessionRules.load()).also { it.join("pilot", Power.EMPIRE, false, "connection") }.exportState()
+        var session = SessionSimulation(SessionRules.load()).also { it.join("pilot", Power.EMPIRE, false, "connection") }.exportState()
         fun act(move: PlaceMove) = navigation.apply(request.copy(unitId = 1010000, captainCard = 59, place = move), session)
         navigation.apply(request, session)
         assertEquals(NavigationRejection.BASE, act(PlaceMove.Dock(1234, 0)).rejection)
-        val docked = act(PlaceMove.Dock(1000, 4)).player!!
-        assertEquals(840, docked.mcp); assertEquals(1000, docked.baseId)
+        val pending = act(PlaceMove.Dock(1000, 4)).player!!
+        assertEquals(840, pending.mcp); assertEquals(0, pending.baseId)
+        session = session.copy(gameMillis = session.gameMillis + 8 * 3600_000L)
+        val docked = navigation.apply(request, session).player!!
+        assertEquals(1000, docked.baseId)
         assertEquals(NavigationRejection.EMBARKED,
             navigation.apply(request.copy(destination = 2488, unitId = 1010000, captainCard = 59), session).rejection)
         val office = galaxy.facilities.getValue(1000).single { it.kind == 0 }
