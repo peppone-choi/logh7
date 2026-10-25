@@ -37,6 +37,41 @@ inline unsigned infoShort(const unsigned char* record, unsigned offset) {
     memcpy(&value, record + offset, sizeof(value));
     return value;
 }
+// 004167f0 decoded layout: four 0x2378-byte bases, 36 institutions,
+// twenty 12-byte spots each. Preserve IDs independently of display rows.
+struct PlanetPlaces {
+    struct Row { unsigned institution, institutionKind, spot, spotKind, image; } rows[720] = {};
+    unsigned count = 0, institutions = 0;
+    bool accept(const unsigned char* response, unsigned id) {
+        if (response[0] > 4 || !id) return false;
+        const unsigned char* base = nullptr;
+        for (unsigned i=0;i<response[0];++i) {
+            auto candidate=response+4+i*0x2378;
+            if (infoWord(candidate,0)==id) { base=candidate;break; }
+        }
+        if (!base || base[4]>36) return false;
+        // Validate before changing a previously received snapshot.
+        for (unsigned i=0;i<base[4];++i) {
+            auto facility=base+8+i*0xfc;
+            if (infoShort(facility,0)>38 || !infoWord(facility,4) || facility[8]>20) return false;
+            for (unsigned j=0;j<facility[8];++j) {
+                auto spot=facility+12+j*12;
+                if (infoShort(spot,0)>104 || !infoWord(spot,4) || !infoShort(spot,8)) return false;
+            }
+        }
+        count=0;institutions=base[4];
+        for (unsigned i=0;i<institutions;++i) {
+            auto facility=base+8+i*0xfc;
+            unsigned n=facility[8];
+            for (unsigned j=0;j<(n?n:1);++j) {
+                auto spot=facility+12+j*12;
+                rows[count++]={infoWord(facility,4),infoShort(facility,0),
+                    n?infoWord(spot,4):0,n?infoShort(spot,0):0,n?infoShort(spot,8):0};
+            }
+        }
+        return true;
+    }
+};
 // A row keeps its server ID independently of the native catalogue slot and
 // display/filter order. At most one four-base condition request is outstanding.
 struct PlanetDirectory {

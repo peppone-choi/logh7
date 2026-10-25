@@ -42,7 +42,7 @@ static void createPlanetDirectory() {
 }
 static void planetDirectoryLayout(bool directory) {
     auto root=planetWindowRoot;
-    const int ranges[][2]={{0,3},{10,13},{20,30},{40,71},{80,84},{100,103}};
+    const int ranges[][2]={{0,3},{10,13},{20,31},{40,71},{80,84},{100,103}};
     for (const auto& range:ranges) for (int i=range[0];i<=range[1];++i) {
         bool visible=!directory;
         if (i==0 || i==25 || i==26) visible=true;
@@ -71,7 +71,7 @@ static void planetDirectoryLayout(bool directory) {
     planetRect(23,directory ? 402 : 390,477,100,42);planetRect(24,directory ? 512 : 500,477,100,42);
     planetRect(25,directory ? 622 : 610,477,directory ? 96 : 100,42);
     planetRect(26,directory ? 728 : 720,477,directory ? 96 : 100,42);
-    planetCell(23,directory ? L"이전 목록" : L"이전 재고");planetCell(24,directory ? L"다음 목록" : L"다음 재고");
+    planetCell(23,directory ? L"이전 목록" : L"이전");planetCell(24,directory ? L"다음 목록" : L"다음");
     planetCell(27,directory ? L"현재 성계" : L"< 성계");
     planetCell(28,directory ? L"전체 목록" : L"성계 >");
     reinterpret_cast<void(__thiscall*)(void*)>(0x503910)(root);

@@ -12,6 +12,8 @@ static struct PlanetInformation {
     unsigned character, originGrid, grid, ids[4], count, index, page;
     logh::PlanetSystemIndex systems;
     logh::PlanetDirectory directory;
+    logh::PlanetPlaces places;
+    bool placesReady;
     bool directoryVisible, directoryLocal;
     unsigned directoryRows[350], directoryCount, directoryPage;
     ULONGLONG directorySentAt;
@@ -54,7 +56,8 @@ static void closePlanetInformation() {
 
 static void requestPlanetInformation() {
     auto& info = planetInformation;
-    info.conditionsReady = info.warehouseReady = info.displayed = false;
+    info.conditionsReady = info.warehouseReady = info.placesReady = info.displayed = false;
+    info.places = {};
     info.timeoutShown = false;
     info.page = 0;
     info.requestedAt = GetTickCount64();
@@ -66,6 +69,7 @@ static void requestPlanetInformation() {
     query.count = 1; query.ids[0] = info.ids[info.index];
     auto send = reinterpret_cast<unsigned(__thiscall*)(void*, char, unsigned, const void*)>(0x4b78a0);
     send(info.world, 0, 0x21, &query); // 031e -> 031f conditions
+    send(info.world, 0, 0x22, &query); // 0320 -> 0321 institutions/spots
     unsigned warehouse[] = {query.ids[0], 0};
     send(info.world, 0, 0x17, warehouse); // 0326 -> 0327 warehouse
 }
@@ -85,6 +89,26 @@ static void __cdecl receivedPlanetConditions(void* world) {
     if (!info.count) return;
     auto record = logh::findPlanetCondition(static_cast<BYTE*>(world) + 0x3facf4, info.ids[info.index], info.grid);
     if (record) { memcpy(info.condition, record, sizeof(info.condition)); info.conditionsReady = true; info.displayed = false; }
+}
+static void __cdecl receivedPlanetPlaces(void* world) {
+    auto& info=planetInformation;
+    if (!info.popup || info.world!=world || info.directoryVisible || !info.count) return;
+    if (info.places.accept(static_cast<const BYTE*>(world)+0x3fb2f8,info.ids[info.index])) {
+        info.placesReady=true;info.displayed=false;
+    }
+}
+static unsigned placesResume=0x4bdd33;
+static void __declspec(naked) planetPlacesCopied() {
+    __asm {
+        pushfd
+        pushad
+        push edx
+        call receivedPlanetPlaces
+        add esp,4
+        popad
+        popfd
+        jmp dword ptr [placesResume]
+    }
 }
 static unsigned conditionsResume = 0x4bdd33;
 static void __declspec(naked) planetConditionsCopied() {
@@ -182,7 +206,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                 return -1;
             }
             BYTE event[52] = {};
-            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 30; ++index) {
+            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 31; ++index) {
                 if (index > 13 && index < 20) continue;
                 auto widget = planetWidget(index);
                 if (!reinterpret_cast<BYTE(__thiscall*)(void*, int, void*, void*, int)>(0x5015f0)
@@ -192,8 +216,8 @@ static int __cdecl planetInfoMenu(void* gui) {
                 if (index == 30) {info.directoryVisible=true;rebuildPlanetDirectory();break;}
                 if (index <= 13 && static_cast<unsigned>(index - 10) < info.count && info.index != static_cast<unsigned>(index - 10)) {
                     info.index = index - 10; requestPlanetInformation();
-                } else if (index >= 20 && index <= 22) {
-                    planetWindowTab = index - 20; info.page = 0; info.displayed = false;
+                } else if ((index >= 20 && index <= 22) || index == 31) {
+                    planetWindowTab = index == 31 ? 3 : index - 20; info.page = 0; info.displayed = false;
                 } else if (index == 23 && info.page) { --info.page; info.displayed = false; }
                 else if (index == 24 && info.page + 1 < planetStockPages()) { ++info.page; info.displayed = false; }
                 else if (index == 25 && info.count) requestPlanetInformation();
@@ -206,7 +230,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                 }
                 break;
             }
-            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady) &&
+            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady || !info.placesReady) &&
                 GetTickCount64() - info.requestedAt >= 5000))) showPlanetInformation();
             return -1;
         }
@@ -236,12 +260,12 @@ static int __cdecl planetInfoMenu(void* gui) {
 }
 
 static bool installPlanetInformation() {
-    const unsigned addresses[] = {0x54bc01, 0x4bae89, 0x4babc2};
-    const BYTE expected[][5] = {{0xe8,0x7a,0x02,0,0}, {0xe9,0xa5,0x2e,0,0}, {0xe8,0x89,0x43,0,0}};
-    const void* functions[] = {&planetInfoMenu, &planetConditionsCopied, &receivedPlanetWarehouse};
-    for (unsigned i = 0; i < 3; ++i)
+    const unsigned addresses[] = {0x54bc01, 0x4bae89, 0x4babc2, 0x4baeb4};
+    const BYTE expected[][5] = {{0xe8,0x7a,0x02,0,0}, {0xe9,0xa5,0x2e,0,0}, {0xe8,0x89,0x43,0,0}, {0xe9,0x7a,0x2e,0,0}};
+    const void* functions[] = {&planetInfoMenu, &planetConditionsCopied, &receivedPlanetWarehouse, &planetPlacesCopied};
+    for (unsigned i = 0; i < 4; ++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]), expected[i], 5)) return false;
-    for (unsigned i = 0; i < 3; ++i) {
+    for (unsigned i = 0; i < 4; ++i) {
         auto target = reinterpret_cast<BYTE*>(addresses[i]);
         BYTE replacement[5]; replacement[0] = expected[i][0];
         *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(static_cast<const BYTE*>(functions[i]) - target - 5);
