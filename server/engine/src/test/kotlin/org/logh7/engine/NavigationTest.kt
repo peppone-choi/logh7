@@ -5,6 +5,36 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NavigationTest {
+    @Test fun nativeDepartureRequiresOwnCaptainAndFlagshipQuayAndPersistsBeforeSuccess() {
+        val base = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(base),
+            Power.entries.associateWith { 2487 })
+        val store = Store()
+        var navigation = Navigation(galaxy, store, NavigationPolicy())
+        val session = SessionSimulation(SessionRules.load()).also { it.join("pilot", Power.EMPIRE, false, "connection") }.exportState()
+        fun act(move: PlaceMove) = navigation.apply(request.copy(unitId = 1010000, captainCard = 59, place = move), session)
+        act(PlaceMove.Dock(1000, 4))
+        val port = galaxy.facilities.getValue(1000).single { it.kind == 4 }
+        act(PlaceMove.Spot(port.spots.single { it.kind == 0 }.id, 0))
+        assertEquals(NavigationRejection.EMBARKED, act(PlaceMove.SwitchMode(5)).rejection)
+        val quay = act(PlaceMove.Spot(port.spots.single { it.kind == 6 }.id, 0)).player!!
+        assertEquals(NavigationRejection.CARD, navigation.apply(request.copy(unitId = 1010000,
+            captainCard = 195, place = PlaceMove.SwitchMode(5)), session).rejection)
+        assertEquals(NavigationRejection.UNIT, navigation.apply(request.copy(unitId = 42,
+            captainCard = 59, place = PlaceMove.SwitchMode(5)), session).rejection)
+        assertEquals(NavigationRejection.BASE, act(PlaceMove.SwitchMode(4)).rejection)
+        navigation = Navigation(galaxy, store, NavigationPolicy()) // Reconnect/restart at the quay.
+        store.fail = true
+        assertFailsWith<java.io.IOException> { act(PlaceMove.SwitchMode(5)) }
+        assertEquals(quay, store.saved.getValue("pilot"))
+        store.fail = false
+        val departed = act(PlaceMove.SwitchMode(5)).player!!
+        assertEquals(0, departed.baseId); assertEquals(0, departed.spotId); assertEquals(5, departed.mode)
+        assertEquals(quay.pcp, departed.pcp); assertEquals(quay.mcp, departed.mcp)
+        assertEquals(departed, store.saved.getValue("pilot"))
+        assertEquals(NavigationRejection.BASE, act(PlaceMove.SwitchMode(5)).rejection)
+        assertNotNull(navigation.apply(request.copy(destination = 2488, unitId = 1010000, captainCard = 59), session).player)
+    }
     @Test fun dockingAndRoomMovementRespectParentsAccessCpAndDurableState() {
         val base = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2), GalaxySystem(4, 2015, 4, "Alliance", 3)),

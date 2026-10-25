@@ -30,6 +30,7 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
 sealed interface PlaceMove {
     data class Dock(val baseId: Int, val mode: Int) : PlaceMove
     data class Spot(val id: Int, val owner: Int) : PlaceMove
+    data class SwitchMode(val mode: Int) : PlaceMove
 }
 interface NavigationStore : AutoCloseable {
     fun load(): Map<String, Navigator>
@@ -147,6 +148,21 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val cost: Long
         val pool: CpPool
         when (val move = checkNotNull(request.place)) {
+            is PlaceMove.SwitchMode -> {
+                if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
+                if (request.captainCard != if (ownPower == 2) 59 else 195) return reject(NavigationRejection.CARD)
+                if (move.mode != 5 || before.baseId == 0 || before.mode != 4) return reject(NavigationRejection.BASE)
+                val base = galaxy.conditions[before.baseId] ?: return reject(NavigationRejection.BASE)
+                if (base.grid != before.grid || base.power != ownPower || base.camp != 0) return reject(NavigationRejection.ACCESS)
+                // The CD departs from its flagship quay. A public lobby or another
+                // person's private room must never move this character's ship.
+                if (before.spotId != 0 && (before.spotOwner != 0 ||
+                    galaxy.facilities.getValue(before.baseId).none { facility -> facility.kind == 4 &&
+                        facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
+                    return reject(NavigationRejection.EMBARKED)
+                after = before.copy(baseId = 0, mode = 5, spotId = 0, spotOwner = 0)
+                cost = 0; pool = CpPool.MCP // Same provisional departure policy as the existing Dock(0, 5).
+            }
             is PlaceMove.Dock -> {
                 if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
                 if (request.captainCard != if (ownPower == 2) 59 else 195) return reject(NavigationRejection.CARD)

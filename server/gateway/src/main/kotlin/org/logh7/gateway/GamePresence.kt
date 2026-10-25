@@ -6,7 +6,7 @@ import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.LoginMessages
 import java.nio.ByteBuffer
 
-/** Strategy visibility policy: online members of the same faction in the same grid. */
+/** Friendly grid presence plus people physically sharing a non-ship room. */
 class GamePresence {
     data class Member(val connection: String, val character: CharacterMessages.Generate,
         val player: Navigator, val send: (List<ByteArray>) -> Unit)
@@ -16,8 +16,10 @@ class GamePresence {
         try { viewer.send(messages) } catch (_: Exception) { /* A closed peer cannot fail another player's command. */ }
     }
     private fun visible(viewer: Member, other: Member) = viewer.connection != other.connection &&
-        viewer.player.generation == other.player.generation && viewer.player.power == other.player.power &&
-        viewer.player.grid == other.player.grid
+        viewer.player.generation == other.player.generation && viewer.player.grid == other.player.grid &&
+        (viewer.player.power == other.player.power ||
+            (viewer.player.baseId != 0 && viewer.player.baseId == other.player.baseId && viewer.player.spotId != 0 &&
+                viewer.player.spotId == other.player.spotId && viewer.player.spotOwner == other.player.spotOwner))
     private fun peers(viewer: Member) = members.values.filter { visible(viewer, it) }.sortedBy { it.character.id }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner)
@@ -35,7 +37,8 @@ class GamePresence {
     @Synchronized fun update(member: Member): Update {
         val previous = members[member.connection]
         if (previous != null && previous.player.generation == member.player.generation &&
-            previous.player.power == member.player.power && previous.player.grid == member.player.grid) {
+            previous.player.power == member.player.power && previous.player.grid == member.player.grid &&
+            members.values.filter { it.connection != member.connection }.all { visible(previous, it) == visible(member, it) }) {
             members[member.connection] = member
             val before = character(previous)
             val after = character(member)
@@ -60,7 +63,8 @@ class GamePresence {
             if (old.map { it.character to it.player } != next.map { it.character to it.player })
                 send(viewer, refresh(old, next))
         }
-        return Update(newPeers, if (previous != null && previous.player.grid != member.player.grid)
+        return Update(newPeers, if (previous != null && (previous.player.grid != member.player.grid ||
+            oldPeers.map { it.character.id } != newPeers.map { it.character.id }))
             refresh(oldPeers, newPeers) else emptyList())
     }
     @Synchronized fun remove(connection: String) {

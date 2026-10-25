@@ -10,6 +10,39 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class MultiplayerPresenceTest {
+    @Test fun peopleSharingARoomSeeEachOtherAcrossFactionsAndLoseVisibilityOnEitherExit() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        val character = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 30, 1, 1, 1000001,
+            List(8) { 50 }, 0, 0, 0, 20, 0, 0, "Ship", 1)
+        val own = GamePresence.Member("first", character,
+            Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000, baseId = 1049, mode = 4, spotId = 10490404), received::add)
+        val other = GamePresence.Member("other", character.copy(id = 10001, power = 3, face = 1000008),
+            own.player.copy(characterId = 10001, power = Power.ALLIANCE, spotId = 10490605), {})
+        hub.update(own)
+        assertTrue(hub.update(other).peers.isEmpty())
+        assertTrue(received.isEmpty())
+        val met = other.copy(player = other.player.copy(spotId = own.player.spotId))
+        val joined = hub.update(met)
+        assertEquals(listOf(10000L), joined.peers.map { it.character.id })
+        assertEquals(listOf(0x0b09, 0x0323, 0x0b0a), joined.refresh.map(::opcode))
+        assertEquals(10001, ByteBuffer.wrap(received.single()[1]).getInt(6))
+        assertContentEquals(hub.character(met), received.single()[1]) // Includes that person's actual face ID.
+        received.clear()
+        val left = hub.update(other)
+        assertTrue(left.peers.isEmpty())
+        assertEquals(listOf(0x0b08, 0x0b09, 0x0b0a), left.refresh.map(::opcode))
+        assertEquals(1010001, ByteBuffer.wrap(received.single()[0]).getInt(7))
+        // Identical spot numbers in another base, private owner, generation or grid do not match.
+        for (player in listOf(met.player.copy(baseId = 1050), met.player.copy(spotOwner = 10001),
+            met.player.copy(generation = 2), met.player.copy(grid = 2488))) {
+            assertTrue(hub.update(met.copy(player = player)).peers.isEmpty())
+        }
+        hub.update(met)
+        received.clear()
+        hub.remove("other")
+        assertEquals(1010001, ByteBuffer.wrap(received.single()[0]).getInt(7))
+    }
     @TempDir lateinit var directory: Path
     private fun opcode(bytes: ByteArray) = ByteBuffer.wrap(bytes).getShort(4).toInt() and 65535
     private fun readThrough(client: SyntheticClient, end: Int): List<ByteArray> {

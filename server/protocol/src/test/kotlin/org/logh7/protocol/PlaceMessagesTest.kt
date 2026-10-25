@@ -5,6 +5,22 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class PlaceMessagesTest {
+    @Test fun switchModeUsesItsOwnPackedRecordAndBoundedLists() {
+        val bytes = ByteBuffer.allocate(32).putShort(0x0b06).putInt(999).putInt(10000).putShort(59)
+            .putInt(-1).putInt(-1).putShort(5).put(0).putInt(999).putInt(999).put(0).array()
+        val command = PlaceMessages.SwitchMode(10000, 59, 5)
+        assertEquals(command, PlaceMessages.switchMode(bytes))
+        assertFailsWith<IllegalArgumentException> { PlaceMessages.switchMode(bytes.copyOf(31)) }
+        assertFailsWith<IllegalArgumentException> { PlaceMessages.switchMode(bytes + 0) }
+        assertFailsWith<IllegalArgumentException> { PlaceMessages.switchMode(bytes.copyOf().also { it[22] = 71 }) }
+        assertFailsWith<IllegalArgumentException> { PlaceMessages.switchMode(bytes.copyOf().also { it[31] = 11 }) }
+        val response = PlaceMessages.switched(command, 123, 990, 840, 5, 0, 10000, true)
+        val decoded = PlaceMessages.switchMode(response.copyOfRange(4, response.size))
+        assertEquals(command.copy(units = listOf(1010000), characters = listOf(10000)), decoded)
+        assertEquals(990, ByteBuffer.wrap(response).getInt(16))
+        assertEquals(840, ByteBuffer.wrap(response).getInt(20))
+        assertEquals(1, ByteBuffer.wrap(PlaceMessages.switched(command, 123, 990, 840, 4, 10000807, 0, false)).int)
+    }
     @Test fun fixedMoveReadersIgnoreClientBalancesAndMatchNativeFieldWidths() {
         val dock = PlaceMessages.Dock(10000, 59, 1049, 0)
         val response = PlaceMessages.docked(dock, 123, Int.MAX_VALUE, Int.MAX_VALUE)
