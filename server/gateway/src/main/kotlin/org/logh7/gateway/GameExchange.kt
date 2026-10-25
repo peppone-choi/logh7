@@ -279,7 +279,10 @@ class GameExchange(
                     }
                     0x0f1d -> {
                         check(gameStarted && worldInitialized && presence != null)
-                        presence.spotChat(connection, org.logh7.protocol.ChatMessages.spot(body), gameSeconds())
+                        val message = org.logh7.protocol.ChatMessages.spot(body)
+                        require(message.characterId.toLong() == checkNotNull(characters.character(identity.account)).id)
+                        if (message.text.isBlank()) return null
+                        presence.spotChat(connection, message, gameSeconds())
                     }
                     0x0f08 -> {
                         check(gameStarted && body.size == 28)

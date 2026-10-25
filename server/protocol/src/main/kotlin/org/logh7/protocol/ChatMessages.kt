@@ -6,17 +6,16 @@ import java.nio.ByteBuffer
 object ChatMessages {
     data class Spot(val characterId: Int, val text: String)
     private fun validate(text: String) {
-        require(text.length in 1..65 && text.none { it.isSurrogate() || it.isISOControl() })
-        require(text.isNotBlank())
+        require(text.length <= 65 && text.none { it.isSurrogate() || it.isISOControl() })
     }
     fun spot(message: ByteArray): Spot {
-        require(message.size in 13..141)
+        require(message.size in 11..141)
         val input = ByteBuffer.wrap(message)
         require(input.short.toInt() == 0x0f1d)
         input.int // Client time is never authoritative.
         val character = input.int
         val length = input.get().toInt() and 255
-        require(character > 0 && length in 1..65 && input.remaining() == length * 2)
+        require(character > 0 && length <= 65 && input.remaining() == length * 2)
         val text = CharArray(length) { input.char }.concatToString()
         validate(text)
         return Spot(character, text)

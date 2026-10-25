@@ -18,13 +18,15 @@ class ChatMessagesTest {
         assertEquals(message, ChatMessages.spot(request(packet)))
         val maximum = ChatMessages.Spot(10000, "가".repeat(65))
         assertEquals(maximum, ChatMessages.spot(request(ChatMessages.spot(maximum, 0xffffffffL))))
+        val empty = ChatMessages.Spot(1, "")
+        assertEquals(empty, ChatMessages.spot(request(ChatMessages.spot(empty, 0))))
     }
     @Test fun rejectsMalformedCountsTrailingDataAndInvalidText() {
         val valid = request(ChatMessages.spot(ChatMessages.Spot(1, "A"), 0))
         for (bytes in listOf(valid.copyOf(valid.size - 1), valid + byteArrayOf(0),
             valid.copyOf().also { it[10] = 66 }, valid.copyOf().also { it[0] = 0 }))
             assertFailsWith<IllegalArgumentException> { ChatMessages.spot(bytes) }
-        for (text in listOf("", " ", "A\u0000", "A\nB", "A".repeat(66), "\ud800"))
+        for (text in listOf("A\u0000", "A\nB", "A".repeat(66), "\ud800"))
             assertFailsWith<IllegalArgumentException> { ChatMessages.spot(ChatMessages.Spot(1, text), 0) }
     }
 }

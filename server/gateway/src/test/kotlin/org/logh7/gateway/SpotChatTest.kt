@@ -73,6 +73,9 @@ class SpotChatTest {
             drain(first); drain(second)
             fun chat(client: SyntheticClient, id: Int, text: String) =
                 client.send(body(ChatMessages.spot(ChatMessages.Spot(id, text), 0xffffffffL)))
+            chat(first, 10000, ""); chat(first, 10000, "   ")
+            assertFalse(drain(first).any { code(it) == 0x0f1d }) // Empty input must not disconnect or broadcast.
+            assertFalse(drain(second).any { code(it) == 0x0f1d })
             chat(first, 10000, "Hello 안녕")
             val echoed = through(first, 0x0f1d).last()
             assertEquals(0, ByteBuffer.wrap(echoed).getInt(6)) // Server clock replaces client time.
