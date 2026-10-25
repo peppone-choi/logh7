@@ -28,6 +28,7 @@ class CommandedOutfitWireTest {
             val client = fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00))
             var receivedCards = false
+            var receivedDefinitions = false
             for (ignored in 0..300) {
                 val packet=client.receive(); val opcode=ByteBuffer.wrap(packet).getShort(4).toInt()
                 if (opcode == 0x0323) {
@@ -37,9 +38,14 @@ class CommandedOutfitWireTest {
                     assertEquals(39,tail.short.toInt()); assertEquals(1,tail.int); assertEquals(0,tail.get().toInt())
                     receivedCards=true
                 }
-                if (opcode == 0x0f01) break
+                if (opcode == 0x032b) {
+                    assertEquals(1,packet[6].toInt()); assertEquals(1,ByteBuffer.wrap(packet).getInt(7))
+                    receivedDefinitions=true
+                }
+                if (opcode == 0x0f01) { assertTrue(receivedDefinitions); break }
             }
             assertTrue(receivedCards)
+            assertTrue(receivedDefinitions)
             val query = ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(1049).put(0).array()
             val expected = assertNotNull(CharacterCreation(directory.resolve("characters.properties")).characterById(10000))
             val first = client.request(query,0x032f,"commandedParty")

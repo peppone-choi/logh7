@@ -89,9 +89,13 @@ class WorldBootstrap(val galaxy: Galaxy) {
         base.model, base.kind, base.name, base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
     fun initialize(grid: Int, directory: Boolean = false, stocks: org.logh7.engine.PlanetStocks? = null): List<ByteArray> {
         val ids = galaxy.bases.filter { it.grid == grid }.map { it.id }
+        // 004b76e0 builds the native standing-outfit cache after initialization
+        // completes. A later standalone 032b query only fills its detail slot.
         return (if (directory) galaxy.bases.chunked(200).map { chunk ->
             LoginMessages.sessionMessage(0x1204, WorldMessages.simpleBases(chunk.map(::baseWire)))
-        } else emptyList()) + listOf(conditions(ids, stocks), places(ids))
+        } else emptyList()) + (stocks?.let { state -> listOf(outfits(state.outfits.values
+            .filter { it.baseId in ids }.sortedBy { it.id }.map { it.id }, state)) }.orEmpty()) +
+            listOf(conditions(ids, stocks), places(ids))
     }
     fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
         WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
