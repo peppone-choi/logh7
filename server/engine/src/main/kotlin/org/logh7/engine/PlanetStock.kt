@@ -3,7 +3,7 @@ package org.logh7.engine
 import java.util.Collections
 
 data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
-    val supplies: Int, val food: Int, val mineral: Int) {
+    val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null) {
     init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0) }
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>) {
@@ -14,8 +14,9 @@ interface PlanetStockStore : AutoCloseable {
     fun save(stocks: PlanetStocks)
     override fun close() {}
 }
-/** Only the one-game-day supply interval is recovered; quantities and storage cap are local policy. */
-data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumStock: Int = Int.MAX_VALUE) {
+/** Only the supply interval is recovered; quantities, economy formulas and caps are designed policy. */
+data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumStock: Int = Int.MAX_VALUE,
+    val economy: PlanetEconomyPolicy = PlanetEconomyPolicy()) {
     init { require(suppliesPerDay >= 0 && maximumStock > 0) }
 }
 
@@ -35,12 +36,18 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val days = (seconds - startSeconds) / 86400
         val initial = previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
             galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) })
+        // Upgrade old rows at their existing watermark; never replay already-produced days.
+        val initialized = if (initial.bases.values.all { it.economy != null }) initial else initial.copy(bases = initial.bases.mapValues { (id, stock) ->
+            if (stock.economy != null) stock else galaxy.conditions.getValue(id).let { base ->
+                stock.copy(economy = PlanetEconomy(base.population, base.adultPopulation, base.approval, base.peace))
+            }
+        })
         // A non-durable test clock may rewind. Keep stock and the watermark; never produce a day twice.
-        val result = if (days <= initial.producedDays) initial else initial.copy(producedDays = days,
-            bases = initial.bases.mapValues { (_, stock) ->
-                val delta = if (stock.power in 2..3) (days - initial.producedDays) * policy.suppliesPerDay.toLong() else 0
-                stock.copy(supplies = if (stock.supplies >= policy.maximumStock) stock.supplies else
-                    minOf(policy.maximumStock.toLong(), stock.supplies.toLong() + delta).toInt())
+        val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
+            bases = initialized.bases.mapValues { (id, stock) ->
+                var next = stock
+                repeat(Math.toIntExact(days - initialized.producedDays)) { next = next.nextDay(galaxy.conditions.getValue(id), policy) }
+                next
             })
         if (result == previous) return checkNotNull(previous)
         val next = detached(result)

@@ -117,6 +117,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     val next = transitionSession(rules, checkNotNull(durableState), command.sessionAction())
                     durability.commit(command.sessionAction(), next)
                     durableState = next.state
+                    if (command is WorldCommand.AdvanceTo)
+                        production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
                     published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
                         planetStocks = production?.snapshot(next.state.session.generation)))
                     if (command is WorldCommand.Join) {
@@ -142,6 +144,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
                     elapsed = command.elapsedRealMillis
+                    if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }
@@ -159,6 +162,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 is WorldCommand.Stock -> error("Production is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
+                if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
                 if (command is WorldCommand.Join) command.result.completeExceptionally(failure)
                 state = state.copy(rejectedCommands = state.rejectedCommands + 1)
                 if (command is WorldCommand.RequestRestart) restartResult = false

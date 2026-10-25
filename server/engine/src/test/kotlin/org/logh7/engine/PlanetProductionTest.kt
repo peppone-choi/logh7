@@ -5,6 +5,18 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class PlanetProductionTest {
+    @Test fun clockProducesAndPersistsWithoutAnyInventoryReader() = runBlocking {
+        val store = Store()
+        val advanced = CompletableDeferred<Unit>()
+        val engine = WorldEngine(this, ticking = false, galaxy = galaxy, stockStore = store,
+            onEvent = { if (it is WorldEvent.CpRecovery) advanced.complete(Unit) })
+        engine.submit(WorldCommand.AdvanceTo(3600000))
+        withTimeout(5000) { advanced.await() }
+        assertEquals(1, engine.snapshot().planetStocks!!.producedDays)
+        assertEquals(engine.snapshot().planetStocks, store.saved)
+        assertEquals(100010000, store.saved!!.bases.getValue(1000).economy!!.population)
+        engine.drainAndClose()
+    }
     private val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2), GalaxySystem(4, 2015, 4, "Neutral", 0)),
         listOf(GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f),
             GalaxyBase(1001, 2015, 61, 0, "Neutral", 0, 20f, 86400, 0, 0f, 2f)),
@@ -28,7 +40,8 @@ class PlanetProductionTest {
         val offline = production.settle(1, 5 * 86400L + 1)
         assertEquals(105000, offline.bases.getValue(1000).supplies)
         assertEquals(100000, offline.bases.getValue(1001).supplies)
-        assertEquals(start.bases.getValue(1000).food, offline.bases.getValue(1000).food)
+        assertTrue(start.bases.getValue(1000).food < offline.bases.getValue(1000).food)
+        assertTrue(start.bases.getValue(1000).economy!!.population < offline.bases.getValue(1000).economy!!.population)
         val reopened = PlanetProduction(galaxy, store, 0, PlanetProductionPolicy())
         assertEquals(offline, reopened.settle(1, 5 * 86400L + 1))
         assertEquals(offline, reopened.settle(1, 4 * 86400L))
@@ -66,7 +79,7 @@ class PlanetProductionTest {
         assertFailsWith<IllegalArgumentException> { stock(2) }
         store.fail = true
         engine.submit(WorldCommand.AdvanceTo(7200000))
-        assertFailsWith<java.io.IOException> { stock() }
+        assertFailsWith<IllegalStateException> { stock() }
         assertEquals(101000, engine.snapshot().planetStocks!!.bases.getValue(1000).supplies)
         assertEquals(EngineHealth.STORAGE_FAILED, engine.health())
         assertFailsWith<IllegalStateException> { stock() }
