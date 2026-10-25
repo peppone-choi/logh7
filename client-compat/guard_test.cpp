@@ -99,6 +99,35 @@ int wmain(int argc, wchar_t** argv) {
     if (logh::findPlanetCondition(conditions, id, grid)) return 8;
     conditions[0] = 0;
     if (logh::findPlanetCondition(conditions, id, grid)) return 8;
+    unsigned char placeReply[4+4*0x2378]={};
+    placeReply[0]=2;
+    memcpy(placeReply+4,&other,4);
+    auto placeBase=placeReply+4+0x2378;
+    memcpy(placeBase,&id,4);placeBase[4]=1;
+    auto facility=placeBase+8;
+    unsigned facilityId=10490001,spotId=10490002;
+    memcpy(facility+4,&facilityId,4);facility[8]=1;
+    memcpy(facility+16,&spotId,4);facility[20]=7;
+    logh::PlanetPlaces places;
+    if (!places.accept(placeReply,id) || places.count!=1 || places.institutions!=1 ||
+        places.rows[0].institution!=facilityId || places.rows[0].spot!=spotId || places.rows[0].image!=7 ||
+        places.accept(placeReply,9999)) return 51;
+    facility[8]=21;
+    if (places.accept(placeReply,id) || places.count!=1 || places.rows[0].spot!=spotId) return 52;
+    facility[8]=0;
+    if (!places.accept(placeReply,id) || places.count!=1 || places.rows[0].spot) return 53;
+    placeBase[4]=0;
+    if (!places.accept(placeReply,id) || places.count || places.institutions) return 54;
+    placeBase[4]=36;
+    for (unsigned i=0;i<36;++i) {
+        auto f=placeBase+8+i*0xfc;memcpy(f+4,&facilityId,4);f[8]=20;
+        for (unsigned j=0;j<20;++j) {auto spot=f+12+j*12;memcpy(spot+4,&spotId,4);spot[8]=1;}
+    }
+    if (!places.accept(placeReply,id) || places.count!=720 || places.rows[719].spot!=spotId) return 55;
+    placeBase[4]=37;
+    if (places.accept(placeReply,id) || places.count!=720) return 56;
+    placeReply[0]=5;
+    if (places.accept(placeReply,id)) return 57;
     logh::PlanetDirectory directory;
     if (!directory.add(id,grid,67) || !directory.add(other,grid,3) ||
         !directory.add(8000,2015,349) || !directory.add(8001,4000,1) || !directory.add(8002,1000,2) ||

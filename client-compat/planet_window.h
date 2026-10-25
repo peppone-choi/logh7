@@ -154,10 +154,10 @@ static bool createPlanetWindow(void* manager) {
         planetControl(10 + i, 182, 168 + i * 54, 192, 48, L"", true);
         planetControl(100 + i, 194, 180 + i * 54, 174, 24, L"", false);
     }
-    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고"};
-    for (int i = 0; i < 3; ++i) planetControl(20 + i, 390 + i * 146, 116, 138, 42, tabs[i], true);
-    planetControl(23, 390, 477, 100, 42, L"이전 재고", true);
-    planetControl(24, 500, 477, 100, 42, L"다음 재고", true);
+    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고", L"시설·스폿"};
+    for (int i = 0; i < 4; ++i) planetControl(i==3 ? 31 : 20+i, 390+i*110, 116, 102, 42, tabs[i], true);
+    planetControl(23, 390, 477, 100, 42, L"이전", true);
+    planetControl(24, 500, 477, 100, 42, L"다음", true);
     planetControl(25, 610, 477, 100, 42, L"새로고침", true);
     planetControl(26, 720, 477, 100, 42, L"닫기", true);
     planetControl(27, 182, 385, 92, 30, L"< 성계", true);
@@ -220,17 +220,59 @@ static void planetName(unsigned id, wchar_t (&name)[13]) {
 #include "planet_directory.h"
 static unsigned planetStockPages() {
     auto& info = planetInformation;
+    if (planetWindowTab==3) return (info.places.count+planetWindowRows-1)/planetWindowRows;
     return (info.warehouse[12] + info.warehouse[0x260] + planetWindowRows - 1) / planetWindowRows;
 }
 static void planetValue(unsigned row, const wchar_t* label, unsigned value, const wchar_t* suffix = L"") {
     wchar_t text[48]; _snwprintf_s(text, _countof(text), _TRUNCATE, L"%u%ls", value, suffix);
     planetCell(40 + row * 4, label); planetCell(41 + row * 4, text);
 }
+static void planetPlaceName(unsigned kind, bool spot, wchar_t (&name)[64]) {
+    name[0]=0;
+    if (kind<(spot?105u:39u)) {
+        auto original=reinterpret_cast<const char*(__thiscall*)(void*,int,int)>(0x522010)
+            (reinterpret_cast<void*>(0x2217400),spot?74:73,kind);
+        if (original) MultiByteToWideChar(932,0,original,-1,name,_countof(name));
+    }
+    if (!name[0]) wcscpy_s(name,L"이름 미확인");
+}
+static void renderPlanetPlaces() {
+    auto& info=planetInformation;
+    const int x[]={392,606},width[]={208,208};
+    const wchar_t* headers[]={L"시설",L"스폿"};
+    for (int col=0;col<4;++col) {
+        planetCell(80+col,col<2?headers[col]:L"");
+        if (col<2) planetRect(80+col,x[col],206,width[col],24);
+    }
+    for (unsigned row=0;row<planetWindowRows;++row) for (unsigned col=0;col<4;++col) {
+        int index=40+row*4+col;
+        planetCell(index,L"");
+        if (col<2) planetRect(index,x[col],234+row*26,width[col],24);
+    }
+    if (!info.placesReady) {
+        planetCell(1,GetTickCount64()-info.requestedAt>=5000 ? L"장소 응답을 확인하지 못했습니다." : L"서버에서 장소 조회 중입니다.");
+        return;
+    }
+    wchar_t text[128];
+    unsigned pages=planetStockPages();
+    _snwprintf_s(text,_countof(text),_TRUNCATE,L"시설 %u곳 · 장소 %u행 · %u / %u",
+        info.places.institutions,info.places.count,pages?info.page+1:0,pages);
+    planetCell(1,text);
+    if (!info.places.count) planetCell(40,L"등록된 시설이 없습니다.");
+    for (unsigned row=0;row<planetWindowRows && info.page*planetWindowRows+row<info.places.count;++row) {
+        const auto& entry=info.places.rows[info.page*planetWindowRows+row];
+        wchar_t name[64];planetPlaceName(entry.institutionKind,false,name);planetCell(40+row*4,name);
+        if (entry.spot) planetPlaceName(entry.spotKind,true,name);else wcscpy_s(name,L"등록된 스폿 없음");
+        planetCell(41+row*4,name);
+    }
+    planetCell(84,L"장소 조회 · 이동은 기항 후 장소 메뉴에서 선택");
+}
 static void renderPlanetWindow() {
     auto& info = planetInformation;
     planetDirectoryLayout(info.directoryVisible);
     if (info.directoryVisible) { renderPlanetDirectory(); return; }
     bool stock = planetWindowTab == 2;
+    bool places = planetWindowTab == 3;
     const int xs[] = {392, 578, 640, 724}, widths[] = {180, 58, 78, 80};
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col) {
         int index = 40 + row * 4 + col;
@@ -241,12 +283,12 @@ static void renderPlanetWindow() {
         planetCell(80 + col, L""); planetRect(80 + col, xs[col], 206, widths[col], 24);
     }
     planetCell(84, L"");
-    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고"};
-    for (unsigned tab = 0; tab < 3; ++tab) {
+    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고", L"시설·스폿"};
+    for (unsigned tab = 0; tab < 4; ++tab) {
         wchar_t label[24];
         _snwprintf_s(label, _countof(label), _TRUNCATE, L"%ls", tabs[tab]);
-        planetCell(20 + tab, label);
-        planetSelected(20 + tab, tab == planetWindowTab);
+        planetCell(tab==3 ? 31 : 20+tab, label);
+        planetSelected(tab==3 ? 31 : 20+tab, tab == planetWindowTab);
     }
     wchar_t text[160], name[13] = {};
     for (unsigned i = 0; i < 4; ++i) {
@@ -263,14 +305,15 @@ static void renderPlanetWindow() {
     planetEnabled(27, info.systems.count > 0);
     planetEnabled(28, info.systems.count > 0);
     planetEnabled(29, info.grid != info.originGrid);
-    planetEnabled(23, stock && info.warehouseReady && info.page > 0);
-    planetEnabled(24, stock && info.warehouseReady && info.page + 1 < planetStockPages());
+    planetEnabled(23, (stock ? info.warehouseReady : places && info.placesReady) && info.page > 0);
+    planetEnabled(24, (stock ? info.warehouseReady : places && info.placesReady) && info.page + 1 < planetStockPages());
     planetEnabled(25, info.count > 0);
     planetIcon(0, info.count ? planetBase(info.ids[info.index]) : nullptr);
     if (!info.count) { planetCell(0, L"행성·요새"); planetCell(1, L"거점 없음 · 다른 성계를 선택해 주세요."); return; }
     planetName(info.ids[info.index], name);
-    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, places ? L"시설·스폿" : stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
     planetCell(0, text);
+    if (places) { renderPlanetPlaces(); return; }
     if (!(stock ? info.warehouseReady : info.conditionsReady)) {
         planetCell(1, GetTickCount64() - info.requestedAt >= 5000 ? L"응답을 확인하지 못했습니다. 새로고침해 주세요." : L"서버에서 조회 중입니다.");
         return;
