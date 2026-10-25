@@ -123,6 +123,7 @@ static void __declspec(naked) filterSpot() {
 }
 
 #include "planet_info.h"
+#include "docking_information.h"
 #include "unicode_text.h"
 #include "peer_notices.h"
 
@@ -484,6 +485,7 @@ static void install() {
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installPlanetInformation()) { status = -3; return; }
+    if (!installDockingInformation()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
     if (!patchBytes(spotFilter, expectedSpotFilter, spotJump, sizeof(spotJump))) { status = -3; return; }
