@@ -13,8 +13,8 @@ class UnitWarehouseMessagesTest {
         assertEquals(1, input.get().toInt())
         assertEquals(32, input.short.toInt()); assertEquals(0, input.get().toInt()); assertEquals(3, input.short.toInt())
         assertEquals(2, input.get().toInt())
-        assertEquals(3, input.short.toInt()); assertEquals(0, input.get().toInt()); assertEquals(5, input.short.toInt())
-        assertEquals(0, input.short.toInt()); assertEquals(2, input.get().toInt()); assertEquals(65535, input.short.toInt() and 65535)
+        assertEquals(1003, input.short.toInt()); assertEquals(0, input.get().toInt()); assertEquals(5, input.short.toInt())
+        assertEquals(1000, input.short.toInt()); assertEquals(2, input.get().toInt()); assertEquals(65535, input.short.toInt() and 65535)
         assertEquals(1000, input.int); assertEquals(2000, input.int); assertEquals(3000, input.int)
         assertFalse(input.hasRemaining())
         assertFails { WorldMessages.warehouse(1, 0, 0, 0, troops = listOf(WorldMessages.Stock(16, 0, 1))) }
