@@ -128,6 +128,26 @@ int wmain(int argc, wchar_t** argv) {
     if (places.accept(placeReply,id) || places.count!=720) return 56;
     placeReply[0]=5;
     if (places.accept(placeReply,id)) return 57;
+    unsigned char governorReply[4+64*0x2d4]={};governorReply[0]=54;governorReply[2]=1;
+    auto governor=governorReply+4;
+    unsigned governorId=10000;memcpy(governor,&governorId,4);governor[0x7d]=1;
+    governor[0x82]='A';governor[0x9c]='B';governor[0x24c]=1;governor[0x250]=54;
+    memcpy(governor+0x254,&id,4);
+    logh::PlanetGovernor holder;
+    if (!holder.accept(governorReply,54,id) || holder.id!=governorId || holder.surname[0]!='A' || holder.givenName[0]!='B') return 58;
+    memcpy(governor+0x2d4,governor,0x2d4);
+    unsigned secondGovernor=10001;memcpy(governor+0x2d4,&secondGovernor,4);governorReply[2]=2;
+    if (holder.accept(governorReply,54,id) || holder.id!=governorId) return 64;
+    governorReply[2]=1;
+    if (holder.accept(governorReply,190,id) || holder.id!=governorId) return 59;
+    governor[0x24c]=17;
+    if (holder.accept(governorReply,54,id) || holder.id!=governorId) return 60;
+    governor[0x24c]=1;
+    if (!holder.accept(governorReply,54,other) || holder.id || holder.surname[0]) return 61;
+    governorReply[2]=0;
+    if (!holder.accept(governorReply,54,id) || holder.id) return 62;
+    governorReply[2]=65;
+    if (holder.accept(governorReply,54,id)) return 63;
     logh::PlanetDirectory directory;
     if (!directory.add(id,grid,67) || !directory.add(other,grid,3) ||
         !directory.add(8000,2015,349) || !directory.add(8001,4000,1) || !directory.add(8002,1000,2) ||

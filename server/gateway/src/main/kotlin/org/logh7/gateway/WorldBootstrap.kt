@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.logh7.engine.Galaxy
+import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.WorldMessages
 import org.logh7.protocol.LoginMessages
 import org.logh7.engine.UnitSpecifications
@@ -8,6 +9,24 @@ import org.logh7.protocol.OutfitMessages
 import org.logh7.protocol.OutfitPartyMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
+    /** Public governor identities from stored appointments, never the viewer's cards. */
+    fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
+        characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
+        require(card == 54 || card == 190) { "Unsupported public office roster" }
+        val power = if (card == 54) 2 else 3
+        val appointed = stocks.bases.values.filter { it.power == power && it.camp == 0 && it.governorId != 0 }
+            .groupBy { it.governorId }.toSortedMap()
+        // The CD has no continuation field. Do not silently report an incomplete roster.
+        require(appointed.size <= 64 && appointed.values.all { it.size <= 14 }) { "Office roster exceeds CD capacity" }
+        val records = appointed.map { (id, bases) ->
+            val character = checkNotNull(characterById(id)) { "Appointed governor character is missing" }
+            require(character.power == power) { "Governor faction differs from appointment" }
+            val offices = bases.sortedBy { it.baseId }.map { BootstrapMessages.OfficeCard(card,it.baseId) }
+            // Public projection: private CP/location/return-base fields are redacted.
+            BootstrapMessages.character(character,0,0,offices=offices)
+        }
+        return org.logh7.protocol.CardCharacterMessages.response(card,records)
+    }
     fun outfitParty(query: OutfitPartyMessages.Query, power: Int, stocks: org.logh7.engine.PlanetStocks,
         editor: Int = 0, characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate? = { null }): ByteArray {
         require(query.mode in 0..1) { "Unsupported outfit roster query mode" }
