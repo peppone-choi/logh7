@@ -124,13 +124,19 @@ static void __declspec(naked) filterSpot() {
 
 #include "planet_info.h"
 #include "unicode_text.h"
+#include "peer_notices.h"
 
 // 005035a0 appends chat colour markers through 004eab10. That routine converts
 // the entire existing UTF-16 pool to the host ANSI codepage, then decodes it as
 // Japanese. Preserve the pool and decode only the incoming Japanese fragment.
 static void __cdecl appendTextFragment(void* pool, const char* fragment) {
     std::wstring decoded;
-    if (pool && logh::japaneseFragment(fragment, decoded))
+    bool converted = false;
+    if (fragment && !strcmp(fragment, peerNoticeMarker) && !pendingPeerNotice.empty()) {
+        decoded.swap(pendingPeerNotice);
+        converted = true;
+    } else converted = logh::japaneseFragment(fragment, decoded);
+    if (pool && converted)
         reinterpret_cast<void(__cdecl*)(void*, const wchar_t*)>(0x4eabb0)(pool, decoded.c_str());
 }
 
@@ -453,6 +459,10 @@ static void install() {
     auto append = reinterpret_cast<BYTE*>(0x5035d3);
     const BYTE expectedAppend[] = {0xe8,0x38,0x75,0xfe,0xff};
     if (memcmp(append, expectedAppend, 5)) { status = -2; return; }
+    const unsigned noticeAddresses[] = {0x4c2bc1, 0x4bed3a};
+    const BYTE expectedNotices[][5] = {{0xe8,0x4a,0xf4,0x05,0}, {0xe8,0xd1,0x32,0x06,0}};
+    for (unsigned i = 0; i < 2; ++i)
+        if (memcmp(reinterpret_cast<void*>(noticeAddresses[i]), expectedNotices[i], 5)) { status = -2; return; }
     const unsigned glyphAddresses[] = {0x4b0c62, 0x4b0cb5, 0x4b0d29};
     const BYTE expectedGdi[][6] = {{0xff,0x15,0xa0,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}};
     for (unsigned i = 0; i < 3; ++i)
@@ -504,6 +514,12 @@ static void install() {
     if (!patchBytes(glyph, expectedGlyph, call, 5)) { status = -3; return; }
     *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&appendTextFragment) - append - 5);
     if (!patchBytes(append, expectedAppend, call, 5)) { status = -3; return; }
+    for (unsigned i = 0; i < 2; ++i) {
+        auto address = reinterpret_cast<BYTE*>(noticeAddresses[i]);
+        auto function = i ? reinterpret_cast<BYTE*>(&lookupPeerExit) : reinterpret_cast<BYTE*>(&lookupPeerEntry);
+        *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(function - address - 5);
+        if (!patchBytes(address, expectedNotices[i], call, 5)) { status = -3; return; }
+    }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};
