@@ -7,6 +7,17 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun returnBaseSurvivesReopenAndSixDefaultsToUnset() {
+        val path = directory.resolve("return-base")
+        val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 900, returnBase = 1048)
+        FileNavigationStore(path).use { it.save(mapOf("pilot" to player)) }
+        val seven = java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-7", seven.first())
+        FileNavigationStore(path).use { assertEquals(player, it.load().getValue("pilot")) }
+        java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n" + seven[1].substringBeforeLast('\t') + "\n")
+        FileNavigationStore(path).use { assertEquals(player.copy(returnBase = 0), it.load().getValue("pilot")) }
+        assertFails { player.copy(returnBase = 65536) }
+    }
     @Test fun navigationSixKeepsPendingDockTargetSeparateFromCurrentBase() {
         val path = directory.resolve("dock-job")
         val payment = org.logh7.engine.strategy.PaymentResult.Paid(org.logh7.engine.strategy.CpBalance(1000, 840),
@@ -16,6 +27,8 @@ class FileNavigationStoreTest {
         val pending = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 840, 900,
             strategy = org.logh7.engine.strategy.StrategyCheckpoint(1, 1000, listOf(job)), dockTarget = 1049)
         FileNavigationStore(path).use { it.save(mapOf("pilot" to pending)) }
+        val row = java.nio.file.Files.readAllLines(path)[1].substringBeforeLast('\t')
+        java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n$row\n")
         FileNavigationStore(path).use {
             val restored = it.load().getValue("pilot")
             assertEquals(pending, restored); assertEquals(0, restored.baseId)
@@ -44,7 +57,7 @@ class FileNavigationStoreTest {
         FileNavigationStore(path).use { it.save(mapOf("pilot" to p)) }
         FileNavigationStore(path).use { assertEquals(p, it.load().getValue("pilot")) }
         val navSix = java.nio.file.Files.readAllLines(path)
-        java.nio.file.Files.writeString(path, "LOGH7-NAV-5\n" + navSix[1].substringBeforeLast('\t') + "\n")
+        java.nio.file.Files.writeString(path, "LOGH7-NAV-5\n" + navSix[1].split('\t').take(17).joinToString("\t") + "\n")
         FileNavigationStore(path).use { assertEquals(p, it.load().getValue("pilot")) }
         java.nio.file.Files.writeString(path, "LOGH7-NAV-4\npilot\t1\t10000\tEMPIRE\t2488\t680\t0\t900\t0\t0\t5\t0\t0\t100\t0\t3000\n")
         FileNavigationStore(path).use {
@@ -67,7 +80,7 @@ class FileNavigationStoreTest {
             landed = old.copy(baseId = 1049, mode = 0, spotId = 10_490_003)
             store.save(mapOf("pilot" to landed))
         }
-        assertEquals("LOGH7-NAV-6", java.nio.file.Files.readAllLines(path).first())
+        assertEquals("LOGH7-NAV-7", java.nio.file.Files.readAllLines(path).first())
         FileNavigationStore(path).use { assertEquals(landed, it.load().getValue("pilot")) }
     }
     @Test fun replacementSurvivesReopenAndExcludesOtherWriters() {

@@ -36,7 +36,7 @@ class GamePresence {
         return packet // The sender's echo uses its own exchange/cipher queue exactly once.
     }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
-        member.player.mcp, member.player.spotId, member.player.spotOwner)
+        member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase)
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
@@ -68,7 +68,7 @@ class GamePresence {
             val after = character(member)
             if (!before.contentEquals(after)) {
                 val changed = BootstrapMessages.changedCharacter(member.character, member.player.pcp,
-                    member.player.mcp, member.player.spotId, member.player.spotOwner)
+                    member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase)
                 members.values.filter { visible(it, member) }.forEach { send(it, listOf(changed)) }
             }
             location(previous, member, seconds)

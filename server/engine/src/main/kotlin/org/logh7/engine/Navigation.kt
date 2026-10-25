@@ -16,12 +16,13 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val pcp: Int, val mcp: Int, val cruise: Int, val moves: Long = 0,
     val baseId: Int = 0, val mode: Int = 5, val spotId: Int = 0, val spotOwner: Int = 0,
     val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
-    val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null, val dockTarget: Int? = null) {
+    val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null, val dockTarget: Int? = null,
+    val returnBase: Int = 0) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
-        spotId >= 0 && spotOwner >= 0 && (cpRecoveryAt == null || cpRecoveryAt in 0..0xffffffffL) &&
+        spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && (cpRecoveryAt == null || cpRecoveryAt in 0..0xffffffffL) &&
         (fuelReadyAt == null || fuelReadyAt in 0..0xffffffffL) &&
         (dockTarget == null || dockTarget in 1..65535 && strategy != null && fuelReadyAt == null) &&
         (strategy == null || (strategy.jobs.size <= 1 && strategy.jobs.isEmpty() == (fuelReadyAt == null && dockTarget == null) && strategy.jobs.all {
@@ -48,10 +49,11 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val connection: String, val generation: Long, val destination: Int? = null, val unitId: Int? = null,
     val captainCard: Int? = null, val place: PlaceMove? = null, val rank: Int = 20,
     val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null,
-    val supplyFuel: Boolean = false) {
+    val supplyFuel: Boolean = false, val returnBase: Int? = null) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
         (tactical == null || (destination == null && place == null && !supplyFuel)) &&
-        (!supplyFuel || (destination == null && place == null))) }
+        (!supplyFuel || (destination == null && place == null)) &&
+        (returnBase == null || (returnBase in 0..65535 && destination == null && place == null && !supplyFuel && tactical == null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
     BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING }
@@ -64,7 +66,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     init { require(cpIntervalSeconds in 1..86400) }
     private var players = store?.load().orEmpty().toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
-    fun apply(request: NavigationRequest, session: SessionState): NavigationResult {
+    fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null): NavigationResult {
+        require(stocks == null || stocks.generation == session.generation)
         var current: Navigator? = null
         var completedFuel = false
         var completedDock = false
@@ -88,6 +91,21 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             recovered.copy(cpPaused = request.tactical, cpRecoveryAt = now) else recovered
         if (existing != before) commit(request.account, before, session.generation)
         current = before
+        request.returnBase?.let { target ->
+            if (target != 0) {
+                val condition = galaxy.conditions[target] ?: return reject(NavigationRejection.BASE)
+                if (condition.habitability == 0) return reject(NavigationRejection.BASE)
+                val stock = stocks?.bases?.get(target)
+                if (stocks != null && stock == null) return reject(NavigationRejection.BASE)
+                val power = stock?.power ?: condition.power
+                val camp = stock?.camp ?: condition.camp
+                if (power != (if (before.power == Power.EMPIRE) 2 else 3) || camp != 0)
+                    return reject(NavigationRejection.ACCESS)
+            }
+            val after = before.copy(returnBase = target)
+            if (after != before) commit(request.account, after, session.generation)
+            return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock)
+        }
         val destination = request.destination
         if (destination == null && request.place == null && !request.supplyFuel) {
             return NavigationResult(before, existing, completedFuel = completedFuel, completedDock = completedDock)
