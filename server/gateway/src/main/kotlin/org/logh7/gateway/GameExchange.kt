@@ -49,6 +49,7 @@ class GameExchange(
     internal val presence: GamePresence? = null,
     private val onPresence: (List<ByteArray>) -> Unit = {},
     private val stock: GameStock? = null,
+    private val administration: GameAdministration? = null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -243,6 +244,24 @@ class GameExchange(
                                 BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode)) +
                                 (if (dock != null && accepted && player.dockTarget == null && !result.completedDock) listOf(org.logh7.protocol.PlaceMessages.dockNotification(character.id.toInt(),
                                     player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character)
+                        }
+                        return null
+                    }
+                    0x0a00 -> {
+                        check(gameStarted && administration != null && world != null)
+                        val query = org.logh7.protocol.TaxMessages.query(body)
+                        val character = checkNotNull(characters.character(identity.account))
+                        require(query.character == character.id.toInt())
+                        pendingWorld = administration.tax(org.logh7.engine.TaxRequest(identity.account, connection, query.character,
+                            if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation), query.base, query.rate, query.card, query.mode,
+                            character.abilities[1], character.abilities[2])).thenApply { result ->
+                            val player = checkNotNull(result.player) { "Tax command lost its authenticated character" }
+                            publication = Publication(character, player, false)
+                            listOf(org.logh7.protocol.TaxMessages.response(query, gameSeconds(), player.pcp, player.mcp, result.rejection == null),
+                                BootstrapMessages.changedCharacter(character, player.pcp, player.mcp, player.spotId, player.spotOwner, player.returnBase),
+                                world.conditions(listOf(query.base), result.stocks)) +
+                                result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
                         }
                         return null
                     }

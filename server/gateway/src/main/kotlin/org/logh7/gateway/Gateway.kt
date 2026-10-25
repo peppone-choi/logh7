@@ -61,7 +61,7 @@ internal class CaptureHandler(private val capture: Capture, private val id: Stri
 class Gateway(private val captureDirectory: Path? = null, private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null,
     private val gameSeconds: () -> Long = { 0 }, private val admission: GameAdmission? = null,
     private val world: WorldBootstrap? = null, private val navigation: GameNavigation? = null,
-    private val stock: GameStock? = null) : AutoCloseable {
+    private val stock: GameStock? = null, private val administration: GameAdministration? = null) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
@@ -89,7 +89,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 clients.add(ch)
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
-                                stock = stock, presence = presence, onPresence = { messages ->
+                                stock = stock, administration = administration, presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
                                 val updateExchange = UpdateExchange()

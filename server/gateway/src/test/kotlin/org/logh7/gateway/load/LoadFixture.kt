@@ -11,10 +11,12 @@ import java.nio.file.Path
 import java.util.concurrent.*
 
 class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics, private val galaxy: Galaxy? = null, ticking: Boolean = true,
-    stockStore: PlanetStockStore? = null) : AutoCloseable {
+    stockStore: PlanetStockStore? = null, navigationStore: NavigationStore? = null,
+    worldStateCommitter: WorldStateCommitter? = null) : AutoCloseable {
     val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking, stockStore = stockStore)
+    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,
+        stockStore = stockStore, navigationStore = navigationStore, worldStateCommitter = worldStateCommitter)
     val access = EngineGameAdmission(engine, scope)
     private val clients = ConcurrentLinkedQueue<SyntheticClient>()
     private val characters = ConcurrentHashMap<String, CharacterMessages.Generate>()
@@ -55,7 +57,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
             val candidate = Gateway(directory.resolve("captures"), accounts, directory.resolve("characters.properties"),
                 gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission,
                 world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { EngineGameNavigation(engine, scope) },
-                stock = galaxy?.let { EngineGameStock(engine, scope) })
+                stock = galaxy?.let { EngineGameStock(engine, scope) }, administration = galaxy?.let { EngineGameAdministration(engine, scope) })
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 metrics.observe("bindRetries", attempt.toLong()); return candidate to ports

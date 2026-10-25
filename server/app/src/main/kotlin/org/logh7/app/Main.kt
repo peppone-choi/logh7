@@ -78,7 +78,7 @@ fun main() {
             throw failure
         }
         val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store,
-            galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore) }
+            galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState) }
         catch (failure: Throwable) {
             try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
@@ -92,7 +92,8 @@ fun main() {
             characterFile,
             gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope), world = world,
             navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
-            stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope))
+            stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
+            administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope))
         resources.addFirst(gateway)
         val audit = System.getenv("LOGH7_OPS_AUDIT_FILE")?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)

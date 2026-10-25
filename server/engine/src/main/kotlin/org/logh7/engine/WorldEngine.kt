@@ -20,6 +20,7 @@ sealed interface WorldCommand {
     data class Navigate(val request: NavigationRequest, val result: CompletableDeferred<NavigationResult>) : WorldCommand
     data class Stock(val generation: Long, val result: CompletableDeferred<PlanetStocks>) : WorldCommand
     data class Logistics(val request: LogisticsRequest, val result: CompletableDeferred<LogisticsResult>) : WorldCommand
+    data class Tax(val request: TaxRequest, val result: CompletableDeferred<TaxResult>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -37,7 +38,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     private val metricNanos: () -> Long = System::nanoTime,
     galaxy: Galaxy? = null, private val navigationStore: NavigationStore? = null,
     navigationPolicy: NavigationPolicy = NavigationPolicy(), private val stockStore: PlanetStockStore? = null,
-    productionPolicy: PlanetProductionPolicy = PlanetProductionPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
+    productionPolicy: PlanetProductionPolicy = PlanetProductionPolicy(),
+    private val worldStateCommitter: WorldStateCommitter? = null) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
     private val queue = Channel<Queued>(1024)
@@ -75,6 +77,37 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         var storageFailure: Exception? = null
         try { for (queued in queue) {
             val command = queued.command
+            if (command is WorldCommand.Tax) {
+                try {
+                    check(!storageFailed) { "World storage is unavailable" }
+                    val request = command.request
+                    val session = durableState?.session ?: simulation.exportState()
+                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                        request.connection, request.generation, politics = request.politics, administration = request.administration), session)
+                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
+                    var result = PlanetTax.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
+                    if (result.changed) {
+                        if (worldStateCommitter == null) result = TaxResult(recovered?.player, inventory, TaxRejection.STORAGE)
+                        else {
+                            val before = checkNotNull(recovered?.player)
+                            val after = checkNotNull(result.player)
+                            val prepared = production.prepareReplacement(inventory, checkNotNull(result.stocks))
+                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
+                            navigation.publishCommitted(request.account, before, after)
+                            production.publishCommitted(inventory, prepared)
+                            result = result.copy(stocks = prepared)
+                        }
+                    }
+                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
+                        planetStocks = production.snapshot(session.generation))
+                    published.set(state)
+                    command.result.complete(result.copy(recovery = recovered))
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if (command is WorldCommand.Logistics) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
@@ -179,6 +212,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 is WorldCommand.Navigate -> error("Navigation is handled before session commands")
                 is WorldCommand.Stock -> error("Production is handled before session commands")
                 is WorldCommand.Logistics -> error("Logistics is handled before session commands")
+                is WorldCommand.Tax -> error("Tax is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

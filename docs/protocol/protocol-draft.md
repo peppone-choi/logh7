@@ -93,7 +93,7 @@ msgtype은 `그룹<<8 | 인덱스` 형태의 u16. 표는 (1) 수신 디스패처
 | 0x0900~0x0908 | 혼합 | CommandMakePlan / NotifyCreateOutfit* | 이름표 0x007686e0 base 0x0900 | high |
 | 0x0b00~0x0b0d | 혼합 | CommandMoveBase / NotifyMovedGrid 등 | 이름표 0x0076658c base 0x0b00 | high |
 | 0x0c00~0x0c0c | 혼합 | CommandCompletenessRepair / Reorganization 등 | 이름표 0x00788e04 base 0x0c00 | high |
-| 0x0d?? | 혼합 | CommandChangeTaxRate / CommandInstitution* (15개) | 이름표 0x00764a10 (베이스 미확정) | low |
+| 0x0a00~0x0a0e | 혼합 | CommandChangeTaxRate / CommandInstitution* 등 15개 | 이름표 0x00764a10, 그룹 base 반환 0x00438e30 / 개수 0x00438e40 | high |
 | 0x0e00 | C→S | CommandMoveInstitutionSpot | case 0x0e00 | medium |
 | 0x0f00~0x0f1f | 혼합 | World/Grid Initialize, Mail/Messenger, Chat, SetOption 등 | 이름표 0x00767220 base 0x0f00 (32개) | high |
 | 0x1000~0x1008 | 혼합 | RequestInformationAccount / CharacterCharge 커맨드 | 이름표 0x0075ec90 base 0x1000 | high |

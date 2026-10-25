@@ -279,4 +279,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         store?.save(next)
         players = next
     }
+    fun publishCommitted(account: String, expected: Navigator, next: Navigator) {
+        check(players[account] == expected)
+        players = snapshot(next.generation) + (account to next)
+    }
 }
