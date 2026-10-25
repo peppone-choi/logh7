@@ -69,6 +69,7 @@ static void requestPlanetInformation() {
 // Both callbacks run in the native world dispatcher, after its validated decode
 // and copy, on the game thread. Never reuse an earlier query cache on opening.
 static void __cdecl receivedPlanetConditions(void* world) {
+    taxConditions(world);
     auto& info = planetInformation;
     if (!info.popup || info.world != world || !info.count) return;
     auto record = logh::findPlanetCondition(static_cast<BYTE*>(world) + 0x3facf4, info.ids[info.index], info.grid);
@@ -105,6 +106,7 @@ static void showPlanetInformation() {
 }
 
 static int __cdecl planetInfoMenu(void* gui) {
+    if (updateTaxWindow(gui)) return -1;
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     if (info.popup) {
