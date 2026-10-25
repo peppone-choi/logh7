@@ -11,7 +11,7 @@ import java.nio.ByteBuffer
 class GamePresence {
     data class Member(val connection: String, val character: CharacterMessages.Generate,
         val player: Navigator, val send: (List<ByteArray>) -> Unit,
-        val offices: List<BootstrapMessages.OfficeCard> = emptyList())
+        val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
     private fun send(viewer: Member, messages: List<ByteArray>) {
@@ -42,8 +42,8 @@ class GamePresence {
         if (previous == null) return
         val old = previous.player; val next = member.player
         val changedBase = old.baseId != next.baseId || old.mode != next.mode
-        if (!changedBase && old.grid == next.grid && old.cruise == next.cruise) return
-        val messages = listOf(BootstrapMessages.unit(member.character, next.grid, next.cruise, next.baseId, next.mode)) +
+        if (!changedBase && old.grid == next.grid && old.cruise == next.cruise && previous.outfit == member.outfit) return
+        val messages = listOf(BootstrapMessages.unit(member.character, next.grid, next.cruise, next.baseId, next.mode, member.outfit)) +
             if (changedBase) listOf(org.logh7.protocol.PlaceMessages.dockNotification(next.characterId,
                 next.baseId, next.mode, seconds, next.spotId, if (next.spotId == 0) next.characterId else next.spotOwner)) else emptyList()
         members.values.filter { visible(it, member) }.forEach { send(it, messages) }

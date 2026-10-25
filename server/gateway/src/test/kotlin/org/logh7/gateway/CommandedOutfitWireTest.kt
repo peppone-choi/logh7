@@ -26,6 +26,12 @@ class CommandedOutfitWireTest {
         }
         LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false,stockStore=store).use { fixture ->
             val client = fixture.join(fixture.account(0),true,false).client
+            val administration = EngineGameAdministration(fixture.engine,this)
+            val stationed = Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4)
+            assertEquals(1,administration.stationedOutfit(stationed))
+            for (outside in listOf(stationed.copy(generation=2),stationed.copy(characterId=10001),
+                stationed.copy(power=Power.ALLIANCE),stationed.copy(baseId=1000),stationed.copy(mode=2),
+                stationed.copy(baseId=0,mode=5))) assertEquals(0,administration.stationedOutfit(outside))
             client.send(SyntheticClient.opcode(0x0f00))
             var receivedCards = false
             var receivedDefinitions = false
@@ -71,5 +77,11 @@ class CommandedOutfitWireTest {
         assertFails { world.outfitParty(query,2,stocks) { commander.copy(power=3) } }
         assertFails { world.outfitParty(query,3,stocks) { commander } }
         assertEquals(0x032f,ByteBuffer.wrap(world.outfitParty(query,2,stocks) { commander }).getShort(4).toInt())
+        val editor=query.copy(mode=1)
+        assertFails { world.outfitParty(editor,2,stocks) { commander } }
+        assertFails { world.outfitParty(editor,2,stocks,10001) { commander } }
+        assertFails { world.outfitParty(editor.copy(base=0),2,stocks,10000) { commander } }
+        val reply=world.outfitParty(editor,2,stocks,10000) { commander }
+        assertEquals(1,reply[14].toInt())
     }
 }
