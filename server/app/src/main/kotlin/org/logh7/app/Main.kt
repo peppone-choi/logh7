@@ -47,18 +47,31 @@ fun main() {
         val store = sessionDirectory?.let { FileSessionStore(it, rules, initialGeneration = generations.current(), directorySync = directorySync) }
         if (store?.directorySync == org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY)
             println("Session persistence: forced file contents; directory power-loss durability is OS-managed")
-        val navigationStore = try { if (world == null) null else org.logh7.persistence.FileNavigationStore(
-            System.getenv("LOGH7_NAVIGATION_FILE")?.let { Path.of(it) }
+        val (navigationPath, stockPath) = try { Pair(
+            if (world == null) null else System.getenv("LOGH7_NAVIGATION_FILE")?.let { Path.of(it) }
                 ?: requireNotNull(characterFile) { "World navigation requires LOGH7_CHARACTERS_FILE or LOGH7_NAVIGATION_FILE" }
-                    .resolveSibling("${characterFile.fileName}.navigation")) }
+                    .resolveSibling("${characterFile.fileName}.navigation"),
+            if (world == null) null else System.getenv("LOGH7_PLANET_STOCK_FILE")?.let { Path.of(it) }
+                ?: requireNotNull(characterFile) { "World production requires LOGH7_CHARACTERS_FILE or LOGH7_PLANET_STOCK_FILE" }
+                    .resolveSibling("${characterFile.fileName}.planet-stocks"))
+        } catch (failure: Throwable) {
+            try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
+            throw failure
+        }
+        val worldState = try { System.getenv("LOGH7_WORLD_STATE_DIR")?.let {
+            require(world != null && it.isNotBlank()) { "World state storage requires a world and a nonempty directory" }
+            org.logh7.persistence.FileWorldStateStore(Path.of(it), navigationPath, stockPath)
+        } } catch (failure: Throwable) {
+            try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
+            throw failure
+        }
+        if (worldState != null) resources.addFirst(worldState)
+        val navigationStore = try { worldState?.navigationStore ?: navigationPath?.let { org.logh7.persistence.FileNavigationStore(it) } }
         catch (failure: Throwable) {
             try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             throw failure
         }
-        val stockStore = try { if (world == null) null else org.logh7.persistence.FilePlanetStockStore(
-            System.getenv("LOGH7_PLANET_STOCK_FILE")?.let { Path.of(it) }
-                ?: requireNotNull(characterFile) { "World production requires LOGH7_CHARACTERS_FILE or LOGH7_PLANET_STOCK_FILE" }
-                    .resolveSibling("${characterFile.fileName}.planet-stocks")) }
+        val stockStore = try { worldState?.stockStore ?: stockPath?.let { org.logh7.persistence.FilePlanetStockStore(it) } }
         catch (failure: Throwable) {
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }

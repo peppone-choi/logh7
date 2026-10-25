@@ -15,14 +15,20 @@ import java.nio.file.*
 import java.nio.file.StandardOpenOption.*
 
 /** Forced file contents and atomic replacement; directory power-loss durability is OS-managed. */
-class FilePlanetStockStore(private val path: Path) : PlanetStockStore {
+class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : PlanetStockStore {
     private val channel: FileChannel
     private val lock: java.nio.channels.FileLock
     init {
+        WorldStateOwnership.check(path, worldOwner)
         Files.createDirectories(path.toAbsolutePath().parent)
         channel = FileChannel.open(path.resolveSibling("${path.fileName}.lock"), CREATE, WRITE)
         lock = try { checkNotNull(channel.tryLock()) { "Planet stock store already has a writer" } }
         catch (failure: Exception) { channel.close(); throw failure }
+        try { WorldStateOwnership.check(path, worldOwner) }
+        catch (failure: Throwable) {
+            try { lock.release() } finally { channel.close() }
+            throw failure
+        }
     }
     override fun load(): PlanetStocks? {
         if (!Files.exists(path)) return null
