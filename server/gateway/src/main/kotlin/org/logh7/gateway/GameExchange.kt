@@ -270,6 +270,34 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0c02 -> {
+                        check(gameStarted && administration != null && world != null)
+                        val query = org.logh7.protocol.LogisticsMessages.reorganization(body)
+                        val character = checkNotNull(characters.character(identity.account))
+                        require(query.header.characterId == character.id.toInt())
+                        // The normal command-63 sender uses mode 1. Do not interpret other
+                        // modes as a strategic commit or echo untrusted capacity/balance hints.
+                        require(query.mode == 1) { "Only strategic reorganization is connected" }
+                        pendingWorld = administration.reorganize(org.logh7.engine.ReorganizationRequest(
+                            identity.account, connection, character.id.toInt(),
+                            if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation), query.base, query.outfit, query.kind, query.mode,
+                            query.moves.ships.map { org.logh7.engine.ReorganizationShip(it.kind, it.units, it.boats) },
+                            query.moves.troops.map { org.logh7.engine.ReorganizationTroop(it.kind, it.grade, it.units) },
+                            query.supplies, character.abilities[1], character.abilities[2])).thenApply { result ->
+                            val player = checkNotNull(result.player) { "Reorganization lost its authenticated character" }
+                            publication = Publication(character, player, false)
+                            val accepted = result.rejection == null
+                            val supplies = if (accepted) checkNotNull(result.stocks).outfits.getValue(query.outfit).supplies else 0
+                            listOf(org.logh7.protocol.LogisticsMessages.reorganizationResponse(query, gameSeconds(),
+                                player.pcp, player.mcp, supplies, accepted), characterMessage(character, player, true)) +
+                                (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
+                                    query.outfit, query.base, 0), character.power, checkNotNull(result.stocks), characters::characterById),
+                                    world.outfitWarehouse(query.base, query.outfit, character.id.toInt(), character.power, checkNotNull(result.stocks)))
+                                else emptyList()) + result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
+                        }
+                        return null
+                    }
                     0x032e, 0x0330 -> {
                         check(gameStarted && world != null && stock != null)
                         val character = checkNotNull(characters.character(identity.account))

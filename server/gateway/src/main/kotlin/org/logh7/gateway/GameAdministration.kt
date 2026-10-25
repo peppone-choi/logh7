@@ -6,9 +6,22 @@ import java.util.concurrent.CompletableFuture
 
 fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
+    fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Reorganization is unavailable"))
     fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> = emptyList()
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope) : GameAdministration {
+    override fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> {
+        val future = CompletableFuture<ReorganizationResult>()
+        scope.launch {
+            try {
+                val result = CompletableDeferred<ReorganizationResult>()
+                engine.submit(WorldCommand.Reorganize(request, result))
+                future.complete(result.await())
+            } catch (failure: Throwable) { future.completeExceptionally(failure) }
+        }
+        return future
+    }
     override fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> {
         val stocks = engine.snapshot().planetStocks ?: return emptyList()
         if (stocks.generation != generation) return emptyList()

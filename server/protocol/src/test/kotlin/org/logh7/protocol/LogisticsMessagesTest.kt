@@ -27,6 +27,19 @@ class LogisticsMessagesTest {
         assertEquals(listOf(LogisticsMessages.TroopMove(1003,2,-32768)),result.moves.troops)
         assertEquals(listOf(55,66,77),listOf(result.maxTroops,result.maxCrew,result.supplies))
     }
+    @Test fun strategicReplyUsesAuthoritativeHeaderAndDoesNotEchoCapacityHintsOrRejectedMoves() {
+        val query=LogisticsMessages.reorganization(reorganization())
+        for (accepted in listOf(true,false)) {
+            val bytes=LogisticsMessages.reorganizationResponse(query,0xffffffffL,123,456,789,accepted)
+            assertEquals(if (accepted) 0 else 1,ByteBuffer.wrap(bytes).int)
+            val result=LogisticsMessages.reorganization(bytes.copyOfRange(4,bytes.size))
+            assertEquals(LogisticsMessages.Header(-1,22,123,456),result.header)
+            assertEquals(1,result.mode); assertEquals(0,result.maxTroops); assertEquals(0,result.maxCrew)
+            assertEquals(789,result.supplies)
+            assertEquals(if (accepted) query.moves else LogisticsMessages.Moves(emptyList(),emptyList()),result.moves)
+        }
+        assertFails { LogisticsMessages.reorganizationResponse(query.copy(mode=0),1,1,1,0,true) }
+    }
     @Test fun assignmentHasNoModeAndKeepsAllSixListsAndSupplyFields() {
         val result = LogisticsMessages.assignment(assignment())
         assertEquals(LogisticsMessages.Header(11,22,33,44),result.header)
