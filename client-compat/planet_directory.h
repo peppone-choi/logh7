@@ -122,11 +122,8 @@ static void renderPlanetDirectory() {
         }
         bool ready=row.state==2;
         const wchar_t* queryStatus=row.state==3 ? L"응답 없음" : L"조회 중";
-        const wchar_t* powers[]={L"중립",L"기타",L"은하제국",L"자유행성동맹",L"기타"};
-        const wchar_t* power=ready && row.camp==1 && row.power==2 ? L"제국 반란군" :
-            ready && row.camp==1 && row.power==3 ? L"동맹 반란군" : powers[row.power];
-        planetDirectoryCell(i+1,0,ready ? power : queryStatus);
-        planetDirectoryCell(i+1,4,ready ? row.habitable==0 ? L"불가" : row.habitable==1 ? L"가능" : L"미확인" : L"—");
+        planetDirectoryCell(i+1,0,ready ? logh::planetAffiliation(row.power,row.camp) : queryStatus);
+        planetDirectoryCell(i+1,4,ready ? logh::planetHabitability(row.habitable) : L"—");
         if (ready) _snwprintf_s(text,_countof(text),_TRUNCATE,L"%u.%04u",row.population/10000,row.population%10000);
         else wcscpy_s(text,L"—");
         planetDirectoryCell(i+1,5,text);

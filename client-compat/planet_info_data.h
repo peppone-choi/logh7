@@ -4,6 +4,21 @@
 #include <string.h>
 
 namespace logh {
+// 031f carries owning power and camp separately. The two military powers
+// can have a rebel camp; never discard that distinction in a detail view.
+inline const wchar_t* planetAffiliation(unsigned power, unsigned camp) {
+    if (power>4 || camp>1) return L"미확인";
+    if (camp) return power==2 ? L"제국 반란군" : power==3 ? L"동맹 반란군" : L"기타 반란 진영";
+    return power==2 ? L"은하제국" : power==3 ? L"자유행성동맹" : power==0 ? L"중립" : L"기타 세력";
+}
+// The CD accepts habitability codes 0..3, but only the server's current
+// 0/1 meanings are established. Other values do not prove habitability.
+inline const wchar_t* planetHabitability(unsigned value) {
+    return value==0 ? L"불가" : value==1 ? L"가능" : L"미확인";
+}
+inline const wchar_t* planetAtmosphere(unsigned value) {
+    return value==0 ? L"없음" : value==1 ? L"있음" : L"미확인";
+}
 // The native base catalogue has at most 350 entries. Keep a sorted, unique
 // system index so next/previous never depends on the server's record order.
 struct PlanetSystemIndex {

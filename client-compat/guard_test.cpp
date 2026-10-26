@@ -10,6 +10,17 @@
 #include "planet_tax_data.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
+    if (wcscmp(logh::planetAffiliation(2,0),L"은하제국") ||
+        wcscmp(logh::planetAffiliation(2,1),L"제국 반란군") ||
+        wcscmp(logh::planetAffiliation(3,0),L"자유행성동맹") ||
+        wcscmp(logh::planetAffiliation(3,1),L"동맹 반란군") ||
+        wcscmp(logh::planetAffiliation(5,0),L"미확인") ||
+        wcscmp(logh::planetAffiliation(2,2),L"미확인")) return 75;
+    if (wcscmp(logh::planetHabitability(0),L"불가") ||
+        wcscmp(logh::planetHabitability(1),L"가능") ||
+        wcscmp(logh::planetHabitability(2),L"미확인") ||
+        wcscmp(logh::planetHabitability(3),L"미확인") ||
+        wcscmp(logh::planetAtmosphere(2),L"미확인")) return 76;
     unsigned char taxCharacter[0x360]={};taxCharacter[0x270]=3;
     uint16_t taxCard=190;uint32_t taxFirst=1048,taxLocal=1049;
     memcpy(taxCharacter+0x274,&taxCard,2);memcpy(taxCharacter+0x278,&taxFirst,4);

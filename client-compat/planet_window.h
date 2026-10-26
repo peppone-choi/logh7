@@ -344,12 +344,12 @@ static void renderPlanetWindow() {
         planetCell(81, L"현재 상태"); planetRect(81, 594, 206, 216, 24);
         auto c = info.condition;
         unsigned power = c[4];
-        planetCell(40, L"소속 세력"); planetCell(41, power == 2 ? L"은하제국" : power == 3 ? L"자유행성동맹" : power == 0 ? L"중립" : L"기타 세력");
+        planetCell(40, L"소속 진영"); planetCell(41, logh::planetAffiliation(power,c[5]));
         if (!planetWindowTab) {
             planetValue(1, L"인구", logh::infoWord(c, 0x120), L" 명");
             planetValue(2, L"성인 인구", logh::infoWord(c, 0x124), L" 명");
-            planetCell(52, L"대기"); planetCell(53, c[0x174] ? L"있음" : L"없음");
-            planetCell(56, L"거주 가능 여부"); planetCell(57, c[0x175] ? L"가능" : L"불가");
+            planetCell(52, L"대기"); planetCell(53, logh::planetAtmosphere(c[0x174]));
+            planetCell(56, L"거주 가능 여부"); planetCell(57, logh::planetHabitability(c[0x175]));
             auto base=planetBase(info.ids[info.index]);
             unsigned kind=base ? logh::infoShort(base,0x14) : ~0u;
             auto offices=logh::planetOfficeKinds(base,power,c[5]);

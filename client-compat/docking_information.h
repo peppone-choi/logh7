@@ -66,9 +66,9 @@ static int __fastcall pickerDetails(void* selector, void*, const BYTE* row) {
         return 0;
     }
     unsigned power = condition[4];
-    const wchar_t* powerName = power == 2 ? L"은하제국" : power == 3 ? L"자유행성동맹" : power == 0 ? L"중립" : L"기타 세력";
+    const wchar_t* powerName = logh::planetAffiliation(power,condition[5]);
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls\n소속: %ls\n대기: %ls / 거주: %ls", name, powerName,
-        condition[0x174] ? L"있음" : L"없음", condition[0x175] ? L"가능" : L"불가");
+        logh::planetAtmosphere(condition[0x174]), logh::planetHabitability(condition[0x175]));
     pickerText(selector, 2, text);
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"인구: %u\n성인 인구: %u\n세율: %u%%\n민심: %u / 치안: %u",
         logh::infoWord(condition, 0x120), logh::infoWord(condition, 0x124), logh::infoShort(condition, 0x128),
