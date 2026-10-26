@@ -80,6 +80,7 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                     warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination, supplies = received.toInt())))
             } else {
                 val moved = request.transfer.apply(warehouse.units, outfit.units)
+                OutfitShipLimits.validate(outfit.kind, moved.destination)
                 val required = moved.destination.ships.entries.sumOf { (key, quantity) ->
                     val spec = UnitSpecifications.ships.singleOrNull { it.kind == key.kind }
                         ?: return reject(LogisticsRejection.STOCK)

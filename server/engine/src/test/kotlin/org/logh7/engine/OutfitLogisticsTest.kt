@@ -5,6 +5,44 @@ import kotlin.test.*
 import kotlinx.coroutines.*
 
 class OutfitLogisticsTest {
+    @Test fun anExistingOversizedFormationIsPreservedAndCanReturnToItsLegalLimit() {
+        val f=Fixture()
+        val original=f.store.saved.outfits.getValue(1).copy(
+            units=UnitInventory(mapOf(ship to 61),mapOf(crew to 305)),activeShips=null)
+        f.store.saved=f.store.saved.copy(outfits=f.store.saved.outfits+(1 to original))
+        f.production=PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
+        val request=f.prepare(f.request())
+        assertEquals(61,f.store.saved.outfits.getValue(1).units.ships.getValue(ship))
+        val result=f.act(request.copy(transfer=UnitTransfer(mapOf(ship to -1),mapOf(crew to -5))))
+        assertNull(result.rejection)
+        assertEquals(60,result.stocks!!.outfits.getValue(1).units.ships.getValue(ship))
+        assertEquals(300,result.stocks.outfits.getValue(1).units.troops.getValue(crew))
+        assertEquals(11,result.stocks.warehouses.getValue(101).units.ships.getValue(ship))
+    }
+    @Test fun formationLimitsApplyAcrossGradesAndAnOverLimitCommitPreservesStock() {
+        for ((kind, limit) in listOf(OutfitKind.FLEET to 60, OutfitKind.TRANSPORT to 23,
+                OutfitKind.PATROL to 3, OutfitKind.GROUND to 3)) {
+            val f=Fixture()
+            val warehouse=f.store.saved.warehouses.getValue(101).copy(kind=kind.warehouseKind,
+                outfitId=if (kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT)) 1 else 0,
+                units=UnitInventory(mapOf(ship to limit,ship.copy(level=1) to 2),mapOf(crew to (limit+2)*5)))
+            f.store.saved=f.store.saved.copy(outfits=mapOf(1 to f.store.saved.outfits.getValue(1).copy(kind=kind)),
+                warehouses=mapOf(101 to warehouse))
+            f.production=PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
+            val full=f.act(f.prepare(f.request()).copy(transfer=UnitTransfer(mapOf(ship to limit),mapOf(crew to limit*5))))
+            assertNull(full.rejection,"$kind boundary")
+            val request=f.prepare(f.request())
+            val before=f.store.saved;val writes=f.store.writes
+            val over=f.act(request.copy(transfer=UnitTransfer(mapOf(ship.copy(level=1) to 1),mapOf(crew to 5))))
+            assertEquals(LogisticsRejection.STOCK,over.rejection,"$kind overflow")
+            assertEquals(before,f.store.saved);assertEquals(writes,f.store.writes)
+            // A rejected edit can be corrected by returning units, without losing its reservation.
+            assertNull(f.act(request.copy(transfer=UnitTransfer(mapOf(ship to -1),mapOf(crew to -5)))).rejection)
+            assertEquals(limit-1,f.store.saved.outfits.getValue(1).units.ships.values.sum())
+            assertEquals(limit+2,f.store.saved.outfits.getValue(1).units.ships.values.sum()+
+                f.store.saved.warehouses.getValue(101).units.ships.values.sum())
+        }
+    }
     @Test fun returningCarriersCannotStrandSuppliesAboveTheNewCapacity() {
         val f=Fixture()
         val original=f.store.saved.outfits.getValue(1).copy(

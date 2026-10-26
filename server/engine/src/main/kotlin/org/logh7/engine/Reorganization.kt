@@ -55,6 +55,7 @@ internal object Reorganization {
     fun capacity(stocks: PlanetStocks, outfitId: Int, transfer: UnitTransfer): ReorganizationCapacity {
         val outfit = stocks.outfits.getValue(outfitId)
         val units = transfer.apply(stocks.warehouses.getValue(outfit.warehouseId).units,outfit.units).destination
+        OutfitShipLimits.validate(outfit.kind, units)
         val crew = units.ships.entries.sumOf { (stack,count) ->
             count.toLong()*UnitSpecifications.ships.single { it.kind == stack.kind }
                 .number("必要乗組員ユニット数:必要乗組員ユニット数")
