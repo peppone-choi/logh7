@@ -43,4 +43,14 @@ class ReorganizationTest {
         assertEquals(1,request.ships.size)
         assertFailsWith<UnsupportedOperationException> { (request.ships as MutableList).clear() }
     }
+    @Test fun previewUsesSignedCrewChangesInsteadOfDoublingTheBaseline() {
+        val original=stocks.outfits.getValue(1).copy(units=UnitInventory(mapOf(UnitStack(32,2) to 1),mapOf(UnitStack(3) to 5)))
+        val state=stocks.copy(outfits=mapOf(1 to original))
+        val unchanged=Reorganization.capacity(state,1,UnitTransfer())
+        assertEquals(5,unchanged.crew);assertEquals(0,unchanged.crewDelta)
+        val removed=Reorganization.capacity(state,1,UnitTransfer(ships=mapOf(UnitStack(32,2) to -1),
+            troops=mapOf(UnitStack(3) to -5)))
+        assertEquals(0,removed.crew);assertEquals(-5,removed.crewDelta)
+        assertEquals(original,state.outfits.getValue(1))
+    }
 }

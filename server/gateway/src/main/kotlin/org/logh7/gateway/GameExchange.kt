@@ -338,7 +338,7 @@ class GameExchange(
                             if (query.mode == 0) {
                                 val capacity=result.capacity
                                 return@thenApply listOf(org.logh7.protocol.LogisticsMessages.reorganizationPreview(query,
-                                    gameSeconds(),player.pcp,player.mcp,capacity?.additionalTroops ?: 0,capacity?.crew ?: 0,
+                                    gameSeconds(),player.pcp,player.mcp,capacity?.additionalTroops ?: 0,capacity?.crewDelta ?: 0,
                                     supplies,accepted))
                             }
                             listOf(org.logh7.protocol.LogisticsMessages.reorganizationResponse(query, gameSeconds(),
