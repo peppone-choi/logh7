@@ -81,15 +81,86 @@ static int __fastcall pickerDetails(void* selector, void*, const BYTE* row) {
     } else pickerText(selector, 4, L"선택한 거점의 창고를 조회 중입니다.");
     return 1;
 }
+// The original selector has 23 controls. Its base modes (5 and 17) reuse
+// card-count/rank captions and a character-info button. Keep the native
+// controls; refresh through the same query states as selecting another row.
+static bool basePicker(void* selector) {
+    unsigned kind=at<unsigned>(selector,0x234);
+    return kind==5 || kind==17;
+}
+static bool pickerLabel(void* selector,unsigned index,wchar_t (&text)[128]) {
+    auto element=at<BYTE*>(selector,8+index*4);
+    if (!element || !at<BYTE>(element,8)) return false;
+    unsigned handle=at<unsigned>(element,0xb04);
+    if (handle>=4000) return false;
+    if (!handle) {text[0]=0;return true;}
+    // 004ea8b0's native UTF-16 pool: handle -> entry -> offset/length.
+    int entry=at<int>(reinterpret_cast<void*>(0xbc03a0),handle*4);
+    if (entry<0 || entry>=4000) return false;
+    unsigned start=at<unsigned>(reinterpret_cast<void*>(0xbc51c8),entry*12);
+    unsigned length=at<unsigned>(reinterpret_cast<void*>(0xbc51cc),entry*12);
+    if (length>=_countof(text) || start>=30000 || length>=30000-start) return false;
+    memcpy(text,reinterpret_cast<void*>(0xbd0d48+start*2),length*sizeof(wchar_t));
+    text[length]=0;return true;
+}
+static void __fastcall updateBasePicker(void* selector,void*) {
+    static void* previousRoot=nullptr;
+    static bool applied=false;
+    static wchar_t saved[4][128]={};
+    static constexpr unsigned indices[]={12,13,16,21};
+    auto root=at<BYTE*>(selector,4);
+    if (root!=previousRoot) {previousRoot=root;applied=false;}
+    bool active=root && at<BYTE>(root,4) && basePicker(selector);
+    if (applied && !active) {
+        for (unsigned i=0;i<_countof(indices);++i) pickerText(selector,indices[i],saved[i]);
+        applied=false;
+    }
+    if (active && applied && at<unsigned>(selector,0x238)==4) {
+        BYTE event[52]={};
+        auto refresh=at<void*>(selector,8+21*4);
+        if (reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(root,2,refresh,event,0)) {
+            auto row=reinterpret_cast<const BYTE*(__thiscall*)(void*,int)>(0x576ec0)
+                (static_cast<BYTE*>(selector)+0x244,at<int>(selector,0xb2c));
+            if (row && pickerBase(logh::infoWord(row,8))) {
+                // 00579d60 starts these two fields on a row change; 00579fd0
+                // then queries 031e followed by 0326. No command/CP request.
+                at<unsigned>(selector,0x238)=2;
+                at<unsigned>(selector,0x1584)=0;
+                pickerText(selector,2,L"선택한 거점의 정보를 다시 조회 중입니다.");
+                pickerText(selector,3,L"");pickerText(selector,4,L"");
+            }
+        }
+    }
+    reinterpret_cast<void(__thiscall*)(void*)>(0x5794d0)(selector);
+    root=at<BYTE*>(selector,4);
+    if (!root || !at<BYTE>(root,4) || !basePicker(selector)) return;
+    if (!applied) {
+        for (unsigned i=0;i<_countof(indices);++i) if (!pickerLabel(selector,indices[i],saved[i])) return;
+        const wchar_t* labels[]={L"행성·요새 선택",L"행성·요새",L"선택 조건",L"다시 조회"};
+        for (unsigned i=0;i<_countof(indices);++i) pickerText(selector,indices[i],labels[i]);
+        applied=true;
+    }
+    auto refresh=at<void*>(selector,8+21*4);
+    bool ready=false;
+    if (at<unsigned>(selector,0x238)==4) {
+        auto row=reinterpret_cast<const BYTE*(__thiscall*)(void*,int)>(0x576ec0)
+            (static_cast<BYTE*>(selector)+0x244,at<int>(selector,0xb2c));
+        ready=row && pickerBase(logh::infoWord(row,8));
+    }
+    reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)
+        (root,refresh,ready ? 1 : 0);
+}
 static bool installDockingInformation() {
     const unsigned calls[] = {0x57bc3c, 0x57beae, 0x57d04d, 0x576690, 0x576ab1, 0x576af8, 0x57769c};
     const BYTE expected[][5] = {{0xe8,0x9f,0xd1,0xf4,0xff}, {0xe8,0x2d,0xcf,0xf4,0xff},
         {0xe8,0x8e,0xbd,0xf4,0xff}, {0xe8,0xcb,0x45,0xf7,0xff}, {0xe8,0xaa,0x41,0xf7,0xff},
         {0xe8,0x63,0x41,0xf7,0xff}, {0xe8,0xbf,0x35,0xf7,0xff}};
     const BYTE detail[] = {0x6a,0xff,0x68,0x00,0x6c};
+    const BYTE update[]={0xe8,0xb9,0xc1,0x07,0};
     for (unsigned i = 0; i < _countof(calls); ++i)
         if (memcmp(reinterpret_cast<void*>(calls[i]), expected[i], 5)) return false;
     if (memcmp(reinterpret_cast<void*>(0x57aa90), detail, 5)) return false;
+    if (memcmp(reinterpret_cast<void*>(0x4fd312),update,5)) return false;
     for (unsigned i = 0; i < _countof(calls); ++i) {
         BYTE replacement[5] = {0xe8};
         auto function = i < 3 ? reinterpret_cast<BYTE*>(&pickerNameToken) : reinterpret_cast<BYTE*>(&pickerListText);
@@ -98,5 +169,8 @@ static bool installDockingInformation() {
     }
     BYTE jump[5] = {0xe9};
     *reinterpret_cast<LONG*>(jump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&pickerDetails) - reinterpret_cast<BYTE*>(0x57aa90) - 5);
-    return patchBytes(reinterpret_cast<void*>(0x57aa90), detail, jump, 5);
+    if (!patchBytes(reinterpret_cast<void*>(0x57aa90), detail, jump, 5)) return false;
+    BYTE call[5]={0xe8};
+    *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&updateBasePicker)-reinterpret_cast<BYTE*>(0x4fd312)-5);
+    return patchBytes(reinterpret_cast<void*>(0x4fd312),update,call,5);
 }
