@@ -8,13 +8,15 @@ static unsigned planetWindowTab = 0;
 static constexpr int planetWindowId = 0x71;
 static constexpr unsigned planetWindowRows = 8;
 static int planetDecorationCount = 0;
+// 0: shared, 1: overview, 2: administration, 3: stock/places.
+static BYTE planetDecorationSection[150] = {};
 static const char planetPartsPath[] = "/../data/image/window/wakusei_parts.tga";
 static const char planetIconPath[] = "/../data/image/senryaku_panel/senryaku_mainpanel.tga";
 static void* planetIcons[1] = {};
 static void createPlanetDirectory();
 static void renderPlanetDirectory();
 // 00503a70 has 150 sprite slots; exceeding it corrupts the native GUI array.
-static_assert(1 + 4 * 9 + 8 + 1 < 150, "Planet decoration slot budget");
+static_assert(9 + 8 + 1 + 1 < 150, "Planet decoration slot budget");
 
 static void planetButtonArt(void* widget, int width, int height) {
     // 00502fe0 binds a native sliced background to the control itself.
@@ -36,29 +38,26 @@ static void planetButtonArt(void* widget, int width, int height) {
     }
 }
 
-static void planetPanelArt(int x, int y, int width, int height) {
-    // The original planet atlas contains this bordered information field.
-    const int sx[] = {48, 51, 560}, sy[] = {340, 343, 380};
-    const int widths[] = {3, width - 6, 3}, heights[] = {3, height - 6, 3};
-    int top = y;
-    for (int row = 0; row < 3; ++row) {
-        int left = x;
-        for (int col = 0; col < 3; ++col) {
-            unsigned sprites[40] = {};
-            for (unsigned state = 0; state < 4; ++state) {
-                sprites[state * 5] = reinterpret_cast<unsigned>(planetPartsPath);
-                sprites[state * 5 + 1] = sx[col]; sprites[state * 5 + 2] = sy[row];
-                sprites[state * 5 + 3] = widths[col]; sprites[state * 5 + 4] = heights[row];
-            }
-            auto piece = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
-                (planetWindowRoot, 2, planetDecorationCount++, sprites);
-            int rect[] = {left, top, 0, widths[col], heights[row]};
-            reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, piece, rect);
-            reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502eb0)(planetWindowRoot, piece, 1);
-            left += widths[col];
-        }
-        top += heights[row];
+static void planetPanelArt(int x, int y, int width, int height, BYTE section = 0) {
+    // Stretch the centre through the native sliced-background API. Cropping
+    // a height-sized strip from the atlas reads adjacent, unrelated panels.
+    const int sx[] = {48, 55, 560}, sy[] = {340, 350, 380};
+    const int sizes[] = {3, 1, 3};
+    planetDecorationSection[planetDecorationCount] = section;
+    auto piece = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
+        (planetWindowRoot, 2, planetDecorationCount++, nullptr);
+    int rect[] = {x, y, 0, width, height};
+    reinterpret_cast<void(__thiscall*)(void*, void*, const int*)>(0x502940)(planetWindowRoot, piece, rect);
+    reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x502eb0)(planetWindowRoot, piece, 1);
+    unsigned tiles[45] = {};
+    for (int row=0;row<3;++row) for (int col=0;col<3;++col) {
+        auto tile=tiles+(row*3+col)*5;
+        tile[0]=reinterpret_cast<unsigned>(planetPartsPath);
+        tile[1]=sx[col];tile[2]=sy[row];tile[3]=sizes[col];tile[4]=sizes[row];
     }
+    for (int state=0;state<4;++state)
+        reinterpret_cast<void(__thiscall*)(void*,void*,const void*,int,int,int)>(0x502fe0)
+            (planetWindowRoot,piece,tiles,3,3,state);
 }
 
 static void* planetWidget(int index) {
@@ -116,6 +115,7 @@ static bool createPlanetWindow(void* manager) {
     if (at<void*>(manager, 4 + planetWindowId * 4)) return false;
     planetWindowManager = manager;
     planetDecorationCount = 0;
+    memset(planetDecorationSection, 0, sizeof(planetDecorationSection));
     planetWindowRoot = reinterpret_cast<void*(__thiscall*)(void*, int)>(0x50bb40)(manager, planetWindowId);
     if (!planetWindowRoot) return false;
     static const char framePath[] = "/../data/image/window/wakusei_shousai_window.tga";
@@ -133,6 +133,11 @@ static bool createPlanetWindow(void* manager) {
     planetPanelArt(388, 162, 438, 38);
     planetPanelArt(388, 202, 438, 30);
     planetPanelArt(388, 442, 438, 32);
+    planetPanelArt(388, 234, 438, 110, 1);
+    planetPanelArt(388, 350, 214, 88, 1);
+    planetPanelArt(612, 350, 214, 88, 1);
+    planetPanelArt(388, 234, 214, 204, 2);
+    planetPanelArt(612, 234, 214, 204, 2);
     for (int row = 0; row < 8; ++row) {
         unsigned lineSprites[40] = {};
         for (unsigned state = 0; state < 4; ++state) {
@@ -140,6 +145,7 @@ static bool createPlanetWindow(void* manager) {
             lineSprites[state * 5 + 1] = 51; lineSprites[state * 5 + 2] = 340;
             lineSprites[state * 5 + 3] = 432; lineSprites[state * 5 + 4] = 2;
         }
+        planetDecorationSection[planetDecorationCount] = 3;
         auto line = reinterpret_cast<void*(__thiscall*)(void*, int, int, const void*)>(0x503a10)
             (planetWindowRoot, 2, planetDecorationCount++, lineSprites);
         int lineRect[] = {391, 258 + row * 26, 0, 432, 2};
@@ -283,6 +289,38 @@ static void planetOffice(unsigned row,const wchar_t* label,const logh::PlanetOff
     }
     planetCell(41+row*4,value);
 }
+static void planetFieldRect(unsigned row,int x,int y,int labelWidth,int valueWidth,bool stacked=false) {
+    planetRect(40+row*4,x,y,labelWidth,24);
+    planetRect(41+row*4,stacked?x:x+labelWidth,y+(stacked?28:0),valueWidth,24);
+}
+static void planetInformationPanels() {
+    // These positions use surviving planet panel artwork. They are a new
+    // arrangement, not proof of the original CD planet-screen layout.
+    planetCell(80,planetWindowTab ? L"통치·자원 현황" : L"거점 현황·담당자");
+    planetRect(80,400,206,408,24);planetCell(81,L"");
+    if (!planetWindowTab) {
+        planetFieldRect(0,400,242,98,310);
+        planetFieldRect(1,400,268,98,116);
+        planetFieldRect(2,618,268,98,108);
+        planetFieldRect(3,400,294,98,116);
+        planetFieldRect(4,618,294,98,108);
+        planetFieldRect(7,400,320,98,310);
+        planetFieldRect(5,400,360,190,190,true);
+        planetFieldRect(6,624,360,190,190,true);
+    } else {
+        // The affiliation already appears in the heading. Reserve the left
+        // panel for government and the right for the three resource stocks.
+        planetCell(40,L"");planetCell(41,L"");
+        planetCell(68,L"통치 상태");planetRect(68,400,242,190,24);
+        planetCell(69,L"거점 자원");planetRect(69,624,242,190,24);
+        planetFieldRect(1,400,284,98,92);
+        planetFieldRect(2,400,332,98,92);
+        planetFieldRect(3,400,380,98,92);
+        planetFieldRect(4,624,274,190,190,true);
+        planetFieldRect(5,624,328,190,190,true);
+        planetFieldRect(6,624,382,190,190,true);
+    }
+}
 static void renderPlanetWindow() {
     auto& info = planetInformation;
     planetDirectoryLayout(info.directoryVisible);
@@ -338,7 +376,7 @@ static void renderPlanetWindow() {
         unsigned pages = planetStockPages();
         _snwprintf_s(text, _countof(text), _TRUNCATE, L"재고 조회  ·  %u / %u", pages ? info.page + 1 : 0, pages);
         planetCell(1, text);
-    } else planetCell(1, planetWindowTab ? L"통치·자원 현황" : L"소속·거주 환경");
+    } else planetCell(1,logh::planetAffiliation(info.condition[4],info.condition[5]));
     if (!stock) {
         planetCell(80, L"항목"); planetRect(80, 392, 206, 180, 24);
         planetCell(81, L"현재 상태"); planetRect(81, 594, 206, 216, 24);
@@ -370,6 +408,7 @@ static void renderPlanetWindow() {
             }
             planetCell(84, L"내정 명령은 해당 직무 카드에서 실행합니다.");
         }
+        planetInformationPanels();
         return;
     }
     const wchar_t* headers[] = {L"품목", L"등급", L"유닛", L"척수"};
