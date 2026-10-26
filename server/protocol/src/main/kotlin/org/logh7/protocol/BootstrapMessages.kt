@@ -6,13 +6,13 @@ import java.nio.ByteBuffer
 object BootstrapMessages {
     data class OfficeCard(val kind: Int, val target: Int) {
         val power: Int get() = when (kind) {
-            39,44,47,50,52,54,55 -> 2
-            175,180,183,186,188,190,191 -> 3
+            39,44,47,50,52,54,55,56,57 -> 2
+            175,180,183,186,188,190,191,192,193 -> 3
             else -> error("Unsupported office card")
         }
         init {
-            require(kind in setOf(39,44,47,50,52,54,55,175,180,183,186,188,190,191) && target > 0)
-            require(kind !in setOf(52,54,55,188,190,191) || target <= 65535)
+            require(kind in setOf(39,44,47,50,52,54,55,56,57,175,180,183,186,188,190,191,192,193) && target > 0)
+            require(kind !in setOf(52,54,55,56,57,188,190,191,192,193) || target <= 65535)
         }
     }
     private fun captainCard(character: CharacterMessages.Generate) = if (character.power == 2) 59 else 195

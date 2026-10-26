@@ -352,10 +352,14 @@ static void renderPlanetWindow() {
             planetCell(56, L"거주 가능 여부"); planetCell(57, c[0x175] ? L"가능" : L"불가");
             auto base=planetBase(info.ids[info.index]);
             unsigned kind=base ? logh::infoShort(base,0x14) : ~0u;
-            if (kind==1) { planetCell(60,L"통치자");planetCell(61,L"해당 없음"); }
-            else planetOffice(5,L"통치자",info.governor,info.governorReady);
-            planetOffice(6,L"수비대장",info.garrison,info.garrisonReady);
-            planetCell(68,L"거점 구분");planetCell(69,kind==1 ? L"요새" : kind==0 ? L"행성" : L"미확인");
+            auto offices=logh::planetOfficeKinds(base,power,c[5]);
+            const wchar_t* first=offices.first==56 ? L"제도방위사령관" : offices.first==192 ? L"수도시정관" : L"통치자";
+            const wchar_t* second=offices.second==57 ? L"근위병총감" : offices.second==193 ? L"수도방위지휘관" : L"수비대장";
+            if (!offices.first) { planetCell(60,first);planetCell(61,L"해당 없음"); }
+            else planetOffice(5,first,info.governor,info.governorReady);
+            if (!offices.second) { planetCell(64,second);planetCell(65,L"해당 없음"); }
+            else planetOffice(6,second,info.garrison,info.garrisonReady);
+            planetCell(68,L"거점 구분");planetCell(69,kind==1 ? L"요새" : logh::planetCapitalPower(base) ? L"수도 행성" : kind==0 ? L"행성" : L"미확인");
             planetCell(84,L"민심·치안·세율은 환경·내정에서 확인");
         } else {
             planetValue(1, L"세율", logh::infoShort(c, 0x128), L"%");

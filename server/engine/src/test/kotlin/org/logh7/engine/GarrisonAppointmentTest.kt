@@ -41,7 +41,9 @@ class GarrisonAppointmentTest {
     @Test fun occupiedPostsAndCardCapacityDoNotChargeOrReplaceTheHolder() {
         assertEquals(AppointmentRejection.OCCUPIED,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(garrisonCommanderId=10002)))).rejection)
         val many=stocks.copy(bases=stocks.bases+(1..14).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10001) })
-        val rejected=act(s=many);assertEquals(AppointmentRejection.CAPACITY,rejected.rejection)
+        val extended=Galaxy(galaxy.systems,galaxy.bases+(1..14).map { galaxy.bases.single().copy(id=it) },galaxy.starts)
+        val rejected=GarrisonAppointment.evaluate(extended,request,session,player,many)
+        assertEquals(AppointmentRejection.CAPACITY,rejected.rejection)
         assertEquals(player,rejected.player);assertEquals(many,rejected.stocks)
     }
 }

@@ -37,6 +37,25 @@ inline unsigned infoShort(const unsigned char* record, unsigned offset) {
     memcpy(&value, record + offset, sizeof(value));
     return value;
 }
+struct PlanetOfficeKinds { unsigned first=0, second=0; };
+// Decoded catalogue names are UTF-16, independent of the display locale.
+inline unsigned planetCapitalPower(const unsigned char* base) {
+    if (!base || infoShort(base,0x14)!=0) return 0;
+    const uint16_t odin[]={0x30aa,0x30fc,0x30c7,0x30a3,0x30f3,0};
+    const uint16_t heinessen[]={0x30cf,0x30a4,0x30cd,0x30bb,0x30f3,0};
+    unsigned grid=infoShort(base,0x10);
+    if (grid==2487 && !memcmp(base+0x48,odin,sizeof(odin))) return 2;
+    if (grid==2015 && !memcmp(base+0x48,heinessen,sizeof(heinessen))) return 3;
+    return 0;
+}
+inline PlanetOfficeKinds planetOfficeKinds(const unsigned char* base,unsigned power,unsigned camp) {
+    if (!base || camp || (power!=2 && power!=3)) return {};
+    unsigned capital=planetCapitalPower(base);
+    if (capital) return capital!=power ? PlanetOfficeKinds{} :
+        power==2 ? PlanetOfficeKinds{56,57} : PlanetOfficeKinds{192,193};
+    unsigned offset=power==3 ? 136 : 0;
+    return infoShort(base,0x14)==1 ? PlanetOfficeKinds{0,52+offset} : PlanetOfficeKinds{54+offset,55+offset};
+}
 // 004167f0 decoded layout: four 0x2378-byte bases, 36 institutions,
 // twenty 12-byte spots each. Preserve IDs independently of display rows.
 struct PlanetPlaces {
@@ -77,7 +96,7 @@ struct PlanetOfficeHolder {
     unsigned id=0;
     uint16_t surname[13]={},givenName[13]={};
     bool accept(const unsigned char* response,unsigned card,unsigned base) {
-        if ((card!=52 && card!=54 && card!=55 && card!=188 && card!=190 && card!=191) || infoShort(response,0)!=card || response[2]>64 || !base) return false;
+        if ((card!=52 && card!=54 && card!=55 && card!=56 && card!=57 && card!=188 && card!=190 && card!=191 && card!=192 && card!=193) || infoShort(response,0)!=card || response[2]>64 || !base) return false;
         const unsigned char* holder=nullptr;
         for (unsigned i=0;i<response[2];++i) {
             auto person=response+4+i*0x2d4;

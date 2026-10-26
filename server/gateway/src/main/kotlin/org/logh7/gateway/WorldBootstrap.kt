@@ -13,11 +13,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
     /** Stored base offices, never inferred from the viewer or a stationed outfit. */
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
-        require(card in setOf(52,54,55,188,190,191)) { "Unsupported public office roster" }
+        require(card in setOf(52,54,55,56,57,188,190,191,192,193)) { "Unsupported public office roster" }
         val power=if (card<136) 2 else 3
         val appointed=stocks.bases.values.filter { it.power==power && it.camp==0 }.flatMap { base ->
-            val id=if (card==54 || card==190) base.governorId else base.garrisonCommanderId
-            baseOffices.cards(base,id).filter { it.kind==card }.map { id to it }
+            val id=baseOffices.holders(base)[card] ?: return@flatMap emptyList()
+            listOf(id to BootstrapMessages.OfficeCard(card,base.baseId))
         }.groupBy({it.first},{it.second}).toSortedMap()
         require(appointed.size<=64 && appointed.values.all { it.size<=14 }) { "Office roster exceeds CD capacity" }
         val records=appointed.map { (id,offices) ->

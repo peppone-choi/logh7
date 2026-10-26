@@ -15,6 +15,12 @@ class WorldMessagesTest {
             if(kind in setOf(52,55,188,191)) {
                 assertEquals(10,input.get(record+10).toInt());assertEquals(2,input.get(record+11).toInt())
             }
+            if(kind in setOf(56,57,192,193)) {
+                assertEquals(16,input.get(record+5).toInt())
+                assertEquals(if(kind<136)2 else 3,input.get(record+3).toInt())
+                assertEquals(when(kind) { 56->4;57->3;192->1;else->8 },input.get(record+10).toInt())
+                assertEquals(if(kind==192)1 else 2,input.get(record+11).toInt())
+            }
             input.position(record+6)
             val parent=input.short.toInt()
             when(kind) {
@@ -22,6 +28,10 @@ class WorldMessagesTest {
                 55 -> assertEquals(54,parent)
                 52 -> assertEquals(51,parent)
                 188 -> assertEquals(187,parent)
+                56 -> assertEquals(2,parent)
+                57 -> assertEquals(17,parent)
+                192 -> assertEquals(134,parent)
+                193 -> assertEquals(161,parent)
             }
             input.position(record+18)
             val count=input.get().toInt() and 255

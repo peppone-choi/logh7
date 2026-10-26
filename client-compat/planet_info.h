@@ -171,20 +171,20 @@ static void showPlanetInformation() {
 static void updatePlanetGovernor() {
     auto& info=planetInformation;
     if (!info.conditionsReady) return;
-    unsigned power=info.condition[4];
-    if (info.condition[5] || (power!=2 && power!=3)) return;
+    auto base=planetBase(info.ids[info.index]);
+    auto offices=logh::planetOfficeKinds(base,info.condition[4],info.condition[5]);
     auto send=reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0);
     if (!info.governorSent) {
-        info.governorCard=power==2 ? 54 : 190;info.governorSent=true;
-        unsigned query=info.governorCard;send(info.world,0,0x16,&query);return;
+        info.governorCard=offices.first;info.governorSent=true;
+        if (offices.first) { unsigned query=offices.first;send(info.world,0,0x16,&query);return; }
+        info.governorReady=true;
     }
     if (!info.governorReady && GetTickCount64()-info.requestedAt<5000) return;
     if (!info.garrisonSent) {
-        auto base=planetBase(info.ids[info.index]);
-        if (!base) return;
-        info.garrisonCard=(logh::infoShort(base,0x14)==1 ? 52 : 55)+(power==3 ? 136 : 0);
+        info.garrisonCard=offices.second;
         info.garrisonSent=true;
-        unsigned query=info.garrisonCard;send(info.world,0,0x16,&query);
+        if (offices.second) { unsigned query=offices.second;send(info.world,0,0x16,&query); }
+        else info.garrisonReady=true;
     }
 }
 static void updatePlanetDirectory() {

@@ -22,7 +22,7 @@ internal object GarrisonAppointment {
         if (r.power!=Power.EMPIRE || r.targetCard!=55) return reject(AppointmentRejection.AUTHORITY)
         val base=stocks.bases[r.base] ?: return reject(AppointmentRejection.BASE)
         val seed=galaxy.bases.singleOrNull { it.id==r.base } ?: return reject(AppointmentRejection.BASE)
-        if (seed.kind!=0 || base.power!=2 || base.camp!=0) return reject(AppointmentRejection.BASE)
+        if (seed.kind!=0 || Capital.of(seed)!=null || base.power!=2 || base.camp!=0) return reject(AppointmentRejection.BASE)
         if (base.governorId!=r.characterId) return reject(AppointmentRejection.AUTHORITY)
         if (r.target<=0 || r.target==r.characterId || r.targetPower!=2) return reject(AppointmentRejection.TARGET)
         // Native rank indices: 1 politician; 2 marshal..10 major. Smaller military index is senior.
@@ -30,7 +30,8 @@ internal object GarrisonAppointment {
         if (player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(AppointmentRejection.BUSY)
         if (base.garrisonCommanderId==r.target) return GarrisonAppointmentResult(player,stocks)
         if (base.garrisonCommanderId!=0) return reject(AppointmentRejection.OCCUPIED)
-        val held=stocks.bases.values.sumOf { (if (it.governorId==r.target) 1 else 0)+(if (it.garrisonCommanderId==r.target) 1 else 0) }+
+        val offices=BaseOfficePolicy(galaxy)
+        val held=stocks.bases.values.sumOf { offices.holders(it).values.count { id -> id==r.target } }+
             stocks.outfits.values.count { it.commanderId==r.target }
         if (held>=14) return reject(AppointmentRejection.CAPACITY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),COST.toLong(),CpPool.MCP)
