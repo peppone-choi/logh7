@@ -26,6 +26,7 @@ internal object PlanetTax {
         val power = if (request.power == Power.EMPIRE) 2 else 3
         if (request.card != if (power == 2) 54 else 190) return reject(TaxRejection.CARD)
         val base = stocks.bases[request.base] ?: return reject(TaxRejection.BASE)
+        if (!BaseOfficePolicy(galaxy).ordinaryPlanet(base.baseId)) return reject(TaxRejection.ACCESS)
         if (base.power != power || base.camp != 0 || base.governorId != request.characterId) return reject(TaxRejection.ACCESS)
         val seed = galaxy.conditions[base.baseId] ?: return reject(TaxRejection.BASE)
         if (seed.habitability == 0) return reject(TaxRejection.BASE)

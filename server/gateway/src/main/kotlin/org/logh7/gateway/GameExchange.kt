@@ -454,9 +454,10 @@ class GameExchange(
                             require(query.character==character.id.toInt())
                             pendingWorld=stocks().thenApply { stored ->
                                 val inventory=checkNotNull(stored)
+                                val officePolicy=org.logh7.engine.BaseOfficePolicy(world.galaxy)
                                 val available=if(character.power==2) world.galaxy.bases.filter { base ->
                                     val held=inventory.bases[base.id]
-                                    base.kind==0 && held?.power==2 && held.camp==0 &&
+                                    officePolicy.ordinaryPlanet(base.id) && held?.power==2 && held.camp==0 &&
                                         held.governorId==character.id.toInt() && held.garrisonCommanderId==0
                                 } else emptyList()
                                 when(query.search) {

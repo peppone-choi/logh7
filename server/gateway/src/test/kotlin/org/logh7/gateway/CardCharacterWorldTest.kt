@@ -7,6 +7,25 @@ import org.logh7.protocol.CharacterMessages
 import kotlin.test.*
 
 class CardCharacterWorldTest {
+    @Test fun capitalsExposeOnlyTheirOwnOriginalOfficesAndRegisteredFactionHolders() {
+        val capitalWorld=WorldBootstrap(Galaxy(galaxy.systems+GalaxySystem(4,2015,4,"Alliance",3),listOf(
+            galaxy.bases[0].copy(name="オーディン"),
+            galaxy.bases[1].copy(grid=2015,name="ハイネセン")),galaxy.starts))
+        val assigned=stocks.copy(bases=mapOf(
+            1048 to PlanetStock(1048,2,0,0,0,0,governorId=10010,garrisonCommanderId=10011,
+                capitalDefenseCommanderId=10000,guardInspectorId=10001),
+            1049 to PlanetStock(1049,3,0,0,0,0,governorId=10012,garrisonCommanderId=10013,
+                capitalAdministratorId=10002,capitalDefenseCommanderId=10003)))
+        for((card,id,power) in listOf(Triple(56,10000,2),Triple(57,10001,2),Triple(192,10002,3),Triple(193,10003,3))) {
+            val response=capitalWorld.cardCharacters(card,assigned) { character.copy(id=it.toLong(),power=power) }
+            assertEquals(1,response[8].toInt());assertEquals(id,ByteBuffer.wrap(response).getInt(9))
+            assertEquals(card,ByteBuffer.wrap(response).getShort(response.size-7).toInt())
+            assertEquals(if(power==2)1048 else 1049,ByteBuffer.wrap(response).getInt(response.size-5))
+        }
+        for(card in listOf(54,55,190,191)) assertEquals(0,capitalWorld.cardCharacters(card,assigned) {
+            error("Legacy capital assignments must not become ordinary office cards") }[8].toInt())
+        assertFails { capitalWorld.cardCharacters(56,assigned) { character.copy(power=3) } }
+    }
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
         (1048..1049).map { GalaxyBase(it,2487,80,0,"Home",0,20f,86400,0,0f,2f) },
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))

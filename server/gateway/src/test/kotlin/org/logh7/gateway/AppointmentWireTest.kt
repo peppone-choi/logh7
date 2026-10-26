@@ -42,7 +42,9 @@ class AppointmentWireTest {
     @Test fun encryptedAppointmentNotifiesOnlineTargetAndRetryCannotDuplicateCardsOrPayment()=exercise(10000,10)
     @Test fun forgedGovernorCardCannotAppoint()=exercise(0,10)
     @Test fun clientSuppliedCardCannotBypassStoredTargetRank()=exercise(10000,20)
-    private fun exercise(governor:Int,targetRank:Int) {
+    @Test fun legacyCapitalGovernorHasNoOrdinaryAppointmentDirectoryOrPayment()=exercise(10000,10,true)
+    private fun exercise(governor:Int,targetRank:Int,capital:Boolean=false) {
+        val galaxy=if(capital) Galaxy(galaxy.systems,galaxy.bases.map { it.copy(name="オーディン") },galaxy.starts) else galaxy
         val properties=Properties()
         for(i in 0..1) {
             val person=CharacterMessages.Generate(4,10000L+i,2,0,0,"Pilot$i","Test",30,1,1,1,List(8){50},
@@ -57,8 +59,14 @@ class AppointmentWireTest {
             actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
             val target=fixture.join(fixture.account(1),false,false).client
             target.send(SyntheticClient.opcode(0x0f00));next(target,0x0f01)
-            val accepted=governor==10000 && targetRank==10
-            if(governor!=0) {
+            val accepted=governor==10000 && targetRank==10 && !capital
+            if(capital) {
+                val query=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(18).putShort(123).array()
+                actor.send(query);next(actor,0x1200)
+                assertEquals(0,ByteBuffer.wrap(next(actor,0x1208)).getShort(6).toInt())
+                next(actor,0x1201)
+            }
+            if(governor!=0 && !capital) {
                 fun directoryQuery(search:Int,flags:Int,role:Int=0,base:Int=0)=ByteBuffer.allocate(31)
                     .putShort(0x1200).putInt(10000).putShort(search.toShort()).putShort(flags.toShort()).putShort(role.toShort())
                     .also { it.putInt(25,base) }.array()

@@ -164,12 +164,12 @@ object WorldMessages {
     fun cards() = body {
         writeShort(261)
         for (card in 0..260) {
-            val power = when (card) { 54, 59, 39, 44, 47, 50, 52, 55 -> 2; 190, 195, 175, 180, 183, 186, 188, 191 -> 3; else -> 0 }
+            val power = when (card) { 54, 59, 39, 44, 47, 50, 52, 55,56,57 -> 2; 190, 195, 175, 180, 183, 186, 188, 191,192,193 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0)
             // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
             writeByte(when(card) {
-                54,55,190,191 -> 16
+                54,55,56,57,190,191,192,193 -> 16
                 52,188 -> 15
                 39,175 -> 11
                 44,180 -> 12
@@ -178,12 +178,13 @@ object WorldMessages {
                 else -> 0
             })
             // 004c9140: parent appointment-authority card, not a faction ID.
-            writeShort(when(card) { 54 -> 6; 55 -> 54; 52 -> 51; 188 -> 187; else -> 0 }); writeShort(0)
-            val governor=card==54 || card==190
+            writeShort(when(card) { 54 -> 6; 55 -> 54; 52 -> 51; 56 -> 2; 57 -> 17;
+                188 -> 187; 192 -> 134; 193 -> 161; else -> 0 }); writeShort(0)
+            val governor=card==54 || card==190 || card==192
             val garrison=card in setOf(52,55,188,191)
             // First is the lowest eligible rank (0057a080), not the lowest numeric index.
-            writeByte(if(governor)1 else if(garrison)10 else 0)
-            writeByte(if(governor)1 else if(garrison)2 else 20); writeByte(0)
+            writeByte(when { governor -> 1; garrison -> 10; card==56 -> 4; card==57 -> 3; card==193 -> 8; else -> 0 })
+            writeByte(if(governor)1 else if(garrison || card in setOf(56,57,193))2 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)

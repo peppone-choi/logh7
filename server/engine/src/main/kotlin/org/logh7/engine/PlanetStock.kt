@@ -4,10 +4,14 @@ import java.util.Collections
 
 data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
     val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null,
-    val units: UnitInventory = UnitInventory(), val taxRate: Int? = null, val governorId: Int = 0, val garrisonCommanderId: Int = 0) {
+    val units: UnitInventory = UnitInventory(), val taxRate: Int? = null, val governorId: Int = 0, val garrisonCommanderId: Int = 0,
+    val capitalAdministratorId: Int = 0, val capitalDefenseCommanderId: Int = 0, val guardInspectorId: Int = 0) {
     init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0 &&
         (taxRate == null || taxRate in 0..100) && governorId >= 0 && (governorId == 0 || power in 2..3 && camp == 0) &&
-        garrisonCommanderId >= 0 && (garrisonCommanderId == 0 || power in 2..3 && camp == 0)) }
+        garrisonCommanderId >= 0 && (garrisonCommanderId == 0 || power in 2..3 && camp == 0) &&
+        capitalAdministratorId>=0 && (capitalAdministratorId==0 || power==3 && camp==0) &&
+        capitalDefenseCommanderId>=0 && (capitalDefenseCommanderId==0 || power in 2..3 && camp==0) &&
+        guardInspectorId>=0 && (guardInspectorId==0 || power==2 && camp==0)) }
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
@@ -42,6 +46,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
     private val deployment = InitialOutfitDeployment(galaxy)
     private var current = store?.load()?.also { restored ->
         require(restored.bases.keys == galaxy.bases.map { it.id }.toSet()) { "Inventory bases differ from the world seed" }
+        restored.bases.values.forEach(BaseOfficePolicy(galaxy)::validate)
         require(restored.generation <= generation) { "Inventory belongs to a newer session" }
         val terms = ProductionUnits.definitions.associate { it.key to it.hours }
         require(restored.bases.values.all { stock -> stock.units.work.all { (key, hours) ->

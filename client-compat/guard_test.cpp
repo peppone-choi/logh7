@@ -9,6 +9,22 @@
 #include "appointment_ui_data.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
+    unsigned char capitalBase[0x250]={};
+    const uint16_t odinName[]={0x30aa,0x30fc,0x30c7,0x30a3,0x30f3,0};
+    const uint16_t heinessenName[]={0x30cf,0x30a4,0x30cd,0x30bb,0x30f3,0};
+    uint16_t capitalGrid=2487;memcpy(capitalBase+0x10,&capitalGrid,2);
+    memcpy(capitalBase+0x48,odinName,sizeof(odinName));
+    if (logh::planetOfficeKinds(capitalBase,2,0).first!=56 || logh::planetOfficeKinds(capitalBase,2,0).second!=57 ||
+        logh::planetOfficeKinds(capitalBase,3,0).first || logh::planetOfficeKinds(capitalBase,2,1).second) return 67;
+    capitalGrid=2015;memcpy(capitalBase+0x10,&capitalGrid,2);
+    memcpy(capitalBase+0x48,heinessenName,sizeof(heinessenName));
+    if (logh::planetOfficeKinds(capitalBase,3,0).first!=192 || logh::planetOfficeKinds(capitalBase,3,0).second!=193 ||
+        logh::planetOfficeKinds(capitalBase,2,0).second) return 68;
+    capitalBase[0x48]='X';
+    if (logh::planetCapitalPower(capitalBase) || logh::planetOfficeKinds(capitalBase,3,0).first!=190) return 69;
+    capitalBase[0x14]=1;
+    if (logh::planetOfficeKinds(capitalBase,3,0).first || logh::planetOfficeKinds(capitalBase,3,0).second!=188 ||
+        logh::planetOfficeKinds(capitalBase,0,0).second) return 70;
     if (logh::appointmentInformationCard(12,55,0)!=55 ||
         logh::appointmentInformationCard(14,1049,55)!=55 ||
         logh::appointmentInformationCard(13,999,52)!=52 ||
@@ -157,7 +173,7 @@ int wmain(int argc, wchar_t** argv) {
     if (!holder.accept(governorReply,54,id) || holder.id) return 62;
     governorReply[2]=65;
     if (holder.accept(governorReply,54,id)) return 63;
-    for (unsigned card : {52u,55u,188u,191u}) {
+    for (unsigned card : {52u,55u,56u,57u,188u,191u,192u,193u}) {
         memset(governorReply,0,sizeof(governorReply));governorReply[0]=static_cast<unsigned char>(card);
         if (!holder.accept(governorReply,card,id) || holder.id) return 65;
         if (holder.accept(governorReply,card==55?52:55,id)) return 66;

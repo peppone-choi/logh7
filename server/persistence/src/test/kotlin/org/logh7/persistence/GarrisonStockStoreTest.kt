@@ -15,8 +15,8 @@ class GarrisonStockStoreTest {
         val path=directory.resolve("stocks")
         FilePlanetStockStore(path).use { it.save(stock) }
         val old=Files.readAllLines(path).map { line ->
-            if (line.startsWith("P\t")) line.split('\t').dropLast(1).joinToString("\t")
-            else line.replace("LOGH7-STOCK-8","LOGH7-STOCK-7")
+            if (line.startsWith("P\t")) line.split('\t').take(14).joinToString("\t")
+            else line.replace("LOGH7-STOCK-9","LOGH7-STOCK-7")
         }.joinToString("\n",postfix="\n")
         Files.writeString(path,old)
         FilePlanetStockStore(path).use {
@@ -27,7 +27,7 @@ class GarrisonStockStoreTest {
             assertEquals(old,Files.readString(path))
             it.save(imported)
         }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-8\t"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-9\t"))
         FilePlanetStockStore(path).use { assertEquals(0,it.load()!!.bases.getValue(1049).garrisonCommanderId) }
     }
     @Test fun worldCommitAndReopenKeepGovernorAndGarrisonSeparate() {
@@ -43,7 +43,9 @@ class GarrisonStockStoreTest {
         val path=directory.resolve("stocks")
         FilePlanetStockStore(path).use { it.save(stock) }
         val valid=Files.readString(path)
-        for (bad in listOf(valid.replace("\t10001\n","\n"),valid.replace("\t10001\n","\t-1\n"))) {
+        val truncated=valid.lineSequence().filter { it.isNotEmpty() }.joinToString("\n",postfix="\n") {
+            if(it.startsWith("P\t")) it.split('\t').dropLast(1).joinToString("\t") else it }
+        for (bad in listOf(truncated,valid.replace("\t10001\t","\t-1\t"))) {
             Files.writeString(path,bad)
             FilePlanetStockStore(path).use { assertFails { it.load() } }
             assertEquals(bad,Files.readString(path))
