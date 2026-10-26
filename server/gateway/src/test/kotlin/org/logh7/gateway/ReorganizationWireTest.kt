@@ -10,6 +10,42 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class ReorganizationWireTest {
+    @Test fun allFormationKindsRejectOverLimitPreviewAndCommitWithoutPaymentAndKeepTheBoundaryAfterReconnect() {
+        for ((kind, limit) in listOf(OutfitKind.FLEET to 60,OutfitKind.TRANSPORT to 23,
+                OutfitKind.PATROL to 3,OutfitKind.GROUND to 3)) {
+            val state=State(10000)
+            state.stocks=state.stocks.copy(outfits=mapOf(1 to state.stocks.outfits.getValue(1).copy(kind=kind)),
+                warehouses=mapOf(101 to state.stocks.warehouses.getValue(101).copy(kind=kind.warehouseKind,
+                    outfitId=if (kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT)) 1 else 0,
+                    units=UnitInventory(mapOf(UnitStack(32) to limit+1),mapOf(UnitStack(3) to (limit+1)*5)))))
+            fixture(state,"limit-${kind.name}").use { server ->
+                val client=server.join(server.account(0),true,false).client;start(client)
+                val before=state.stocks;val saves=state.saves
+                val preview=query(limit+1,0).copy(kind=kind.wire,mode=0,
+                    moves=LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(32,limit+1,0)),emptyList()))
+                client.send(LogisticsMessages.encode(preview))
+                val denied=client.receive()
+                assertEquals(0x0c02,ByteBuffer.wrap(denied).getShort(4).toInt())
+                assertEquals(1,ByteBuffer.wrap(denied).int)
+                response(client,query(limit+1,(limit+1)*5).copy(kind=kind.wire),false,1000)
+                assertEquals(before,state.stocks);assertEquals(saves,state.saves)
+                response(client,query(limit,limit*5).copy(kind=kind.wire),true,840)
+                client.expect(0x032f);client.expect(0x0327)
+                val committed=state.stocks;val paid=state.players;val committedSaves=state.saves
+                response(client,query(1,5).copy(kind=kind.wire),false,840)
+                assertEquals(committed,state.stocks);assertEquals(paid,state.players);assertEquals(committedSaves,state.saves)
+            }
+            fixture(state,"reopen-${kind.name}").use { server ->
+                val client=server.join(server.account(0),true,false).client;start(client)
+                assertEquals(limit,state.stocks.outfits.getValue(1).units.ships.values.sum())
+                response(client,query(-1,-5).copy(kind=kind.wire),true,680)
+                client.expect(0x032f);client.expect(0x0327)
+                assertEquals(limit-1,state.stocks.outfits.getValue(1).units.ships.values.sum())
+                assertEquals(limit+1,state.stocks.outfits.getValue(1).units.ships.values.sum()+
+                    state.stocks.warehouses.getValue(101).units.ships.values.sum())
+            }
+        }
+    }
     @TempDir lateinit var directory: Path
     private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
         listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)),
