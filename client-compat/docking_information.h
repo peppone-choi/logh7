@@ -81,12 +81,35 @@ static int __fastcall pickerDetails(void* selector, void*, const BYTE* row) {
     } else pickerText(selector, 4, L"선택한 거점의 창고를 조회 중입니다.");
     return 1;
 }
-// The original selector has 23 controls. Its base modes (5 and 17) reuse
-// card-count/rank captions and a character-info button. Keep the native
-// controls; refresh through the same query states as selecting another row.
+// The original selector has 23 shared controls. Base modes reuse card/rank
+// captions; appointment person mode also keeps the card-count heading.
+// Preserve the native controls and each mode's own actions.
 static bool basePicker(void* selector) {
     unsigned kind=at<unsigned>(selector,0x234);
     return kind==5 || kind==17;
+}
+// The person selector is shared by many commands. Rename captions only for
+// the active appointment target step, never for an arbitrary character list.
+static bool appointmentPersonPicker(void* selector) {
+    if (at<unsigned>(selector,0x234)!=3) return false;
+    auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
+    unsigned authority=*reinterpret_cast<unsigned*>(0xc9eac0);
+    if (!command || (authority!=54 && authority!=2 && authority!=17 && authority!=134 && authority!=161)) return false;
+    auto steps=at<BYTE**>(command,0x10),end=at<BYTE**>(command,0x14);
+    unsigned active=at<unsigned>(command,4);
+    if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;
+    auto step=steps[active];
+    if (!step || at<unsigned>(step,0)!=0x675738 || at<BYTE>(step,0x18)) return false;
+    auto vars=at<BYTE**>(step,0xc),varsEnd=at<BYTE**>(step,0x10);
+    if (!vars || varsEnd<vars || varsEnd-vars>16) return false;
+    for (auto var=vars;var!=varsEnd;++var) {
+        auto name=*var ? at<const char*>(*var,8) : nullptr;
+        if (name && !strcmp(name,"TARGET_SELECT_S_CHARACTER")) return true;
+    }
+    return false;
+}
+static unsigned pickerCaptionContext(void* selector) {
+    return basePicker(selector) ? 1u : appointmentPersonPicker(selector) ? 2u : 0u;
 }
 static bool pickerLabel(void* selector,unsigned index,wchar_t (&text)[128]) {
     auto element=at<BYTE*>(selector,8+index*4);
@@ -103,19 +126,22 @@ static bool pickerLabel(void* selector,unsigned index,wchar_t (&text)[128]) {
     memcpy(text,reinterpret_cast<void*>(0xbd0d48+start*2),length*sizeof(wchar_t));
     text[length]=0;return true;
 }
-static void __fastcall updateBasePicker(void* selector,void*) {
+static void __fastcall updateCommonPicker(void* selector,void*) {
     static void* previousRoot=nullptr;
     static bool applied=false;
+    static unsigned previousContext=0;
+    static unsigned savedCount=0;
     static wchar_t saved[4][128]={};
     static constexpr unsigned indices[]={12,13,16,21};
     auto root=at<BYTE*>(selector,4);
     if (root!=previousRoot) {previousRoot=root;applied=false;}
-    bool active=root && at<BYTE>(root,4) && basePicker(selector);
-    if (applied && !active) {
-        for (unsigned i=0;i<_countof(indices);++i) pickerText(selector,indices[i],saved[i]);
+    unsigned context=root && at<BYTE>(root,4) ? pickerCaptionContext(selector) : 0;
+    bool active=context!=0;
+    if (applied && (!active || context!=previousContext)) {
+        for (unsigned i=0;i<savedCount;++i) pickerText(selector,indices[i],saved[i]);
         applied=false;
     }
-    if (active && applied && at<unsigned>(selector,0x238)==4) {
+    if (active && applied && context==1 && at<unsigned>(selector,0x238)==4) {
         BYTE event[52]={};
         auto refresh=at<void*>(selector,8+21*4);
         if (reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(root,2,refresh,event,0)) {
@@ -133,13 +159,19 @@ static void __fastcall updateBasePicker(void* selector,void*) {
     }
     reinterpret_cast<void(__thiscall*)(void*)>(0x5794d0)(selector);
     root=at<BYTE*>(selector,4);
-    if (!root || !at<BYTE>(root,4) || !basePicker(selector)) return;
+    context=root && at<BYTE>(root,4) ? pickerCaptionContext(selector) : 0;
+    if (!context) return;
     if (!applied) {
-        for (unsigned i=0;i<_countof(indices);++i) if (!pickerLabel(selector,indices[i],saved[i])) return;
-        const wchar_t* labels[]={L"행성·요새 선택",L"행성·요새",L"선택 조건",L"다시 조회"};
-        for (unsigned i=0;i<_countof(indices);++i) pickerText(selector,indices[i],labels[i]);
-        applied=true;
+        unsigned count=context==1 ? 4u : 3u;
+        for (unsigned i=0;i<count;++i) if (!pickerLabel(selector,indices[i],saved[i])) return;
+        const wchar_t* baseLabels[]={L"행성·요새 선택",L"행성·요새",L"선택 조건",L"다시 조회"};
+        const wchar_t* personLabels[]={L"임명 대상 선택",L"임명 후보",L"임명 조건"};
+        auto labels=context==1 ? baseLabels : personLabels;
+        for (unsigned i=0;i<count;++i) pickerText(selector,indices[i],labels[i]);
+        applied=true;previousContext=context;savedCount=count;
     }
+    // Index 21 is a native sort dropdown in person mode, not a refresh action.
+    if (context!=1) return;
     auto refresh=at<void*>(selector,8+21*4);
     bool ready=false;
     if (at<unsigned>(selector,0x238)==4) {
@@ -171,6 +203,6 @@ static bool installDockingInformation() {
     *reinterpret_cast<LONG*>(jump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&pickerDetails) - reinterpret_cast<BYTE*>(0x57aa90) - 5);
     if (!patchBytes(reinterpret_cast<void*>(0x57aa90), detail, jump, 5)) return false;
     BYTE call[5]={0xe8};
-    *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&updateBasePicker)-reinterpret_cast<BYTE*>(0x4fd312)-5);
+    *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&updateCommonPicker)-reinterpret_cast<BYTE*>(0x4fd312)-5);
     return patchBytes(reinterpret_cast<void*>(0x4fd312),update,call,5);
 }
