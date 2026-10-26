@@ -42,7 +42,7 @@ static void createPlanetDirectory() {
 }
 static void planetDirectoryLayout(bool directory) {
     auto root=planetWindowRoot;
-    const int ranges[][2]={{0,3},{10,13},{20,31},{40,71},{80,84},{100,103}};
+    const int ranges[][2]={{0,3},{10,13},{20,32},{40,71},{80,84},{100,103}};
     for (const auto& range:ranges) for (int i=range[0];i<=range[1];++i) {
         bool visible=!directory;
         if (i==0 || i==25 || i==26) visible=true;

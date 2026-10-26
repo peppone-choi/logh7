@@ -6,9 +6,32 @@
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "outfit_info_data.h"
+#include "planet_unit_data.h"
 #include "appointment_ui_data.h"
 #include "planet_tax_data.h"
+static bool planetUnitRowsTest() {
+    unsigned char grid[4+300*12]={},party[logh::outfitPartyBytes]={};
+    unsigned id=11,base=1049;grid[0]=1;
+    memcpy(grid+4,&id,4);grid[8]=0;grid[9]=2;grid[11]=1;
+    logh::PlanetUnitRows rows;
+    if (!rows.grid(grid,2) || rows.candidates!=1 || rows.ids[0]!=id) return false;
+    grid[0]=2;memcpy(grid+16,grid+4,12);
+    if (rows.grid(grid,2) || rows.candidates!=1) return false;
+    grid[0]=1;grid[9]=3;if (rows.grid(grid,2)) return false;grid[9]=2;
+    memcpy(party,&id,4);memcpy(party+4,&base,4);party[9]=2;party[16]=1;
+    party[0x180]=1;party[0x186]=2;party[0x188]=88;party[0x189]=2;party[0x18a]=2;
+    unsigned unit=1;memcpy(party+0x18c,&unit,4);++unit;memcpy(party+0x190,&unit,4);
+    party[0x4504]=1;party[0x4506]=0xe8;party[0x4507]=3;party[0x450a]=5;
+    if (!rows.party(party,id,1048,2) || rows.count) return false;
+    if (!rows.party(party,id,base,2) || rows.count!=1 || rows.rows[0].ships!=2 || rows.rows[0].boats!=600 || rows.rows[0].troops!=5) return false;
+    if (rows.party(party,id,base,2) || rows.count!=1) return false;
+    party[8]=1;if (rows.party(party,id,base,2)) return false;party[8]=0;
+    if (rows.party(party,id,base,3) || rows.party(party,id+1,base,2)) return false;
+    grid[0]=0;
+    return rows.grid(grid,2) && !rows.candidates && !rows.count;
+}
 int wmain(int argc, wchar_t** argv) {
+    if (!planetUnitRowsTest()) return 200;
     if (argc != 2) return 1;
     if (wcscmp(logh::planetAffiliation(2,0),L"은하제국") ||
         wcscmp(logh::planetAffiliation(2,1),L"제국 반란군") ||

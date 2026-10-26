@@ -5,11 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "planet_info_data.h"
+#include "planet_units.h"
 
 static struct PlanetInformation {
     void* world;
     void* popup;
-    unsigned character, originGrid, grid, ids[4], count, index, page;
+    unsigned character, originGrid, grid, ids[4], count, index, page, unitsRevision;
     logh::PlanetSystemIndex systems;
     logh::PlanetDirectory directory;
     logh::PlanetPlaces places;
@@ -51,6 +52,7 @@ static bool selectPlanetSystem(unsigned grid) {
 }
 
 static void closePlanetInformation() {
+    stopPlanetUnits();
     if (planetInformation.popup)
         reinterpret_cast<void(__thiscall*)(void*, int)>(0x502ea0)(planetInformation.popup, 0);
     planetInformation.popup = nullptr;
@@ -58,6 +60,7 @@ static void closePlanetInformation() {
 }
 
 static void requestPlanetInformation() {
+    stopPlanetUnits();
     auto& info = planetInformation;
     info.conditionsReady = info.warehouseReady = info.placesReady = info.displayed = false;
     info.places = {};
@@ -219,6 +222,7 @@ static int __cdecl planetInfoMenu(void* gui) {
     if (updateTaxWindow(gui)) return -1;
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
+    if (!world || !at<BYTE>(world,0x2a58f8)) resetPlanetUnitConnection();
     if (info.popup) {
         auto character = world ? at<void*>(world, 8) : nullptr;
         if (world != info.world || !character || !at<BYTE>(character, 0) || !at<BYTE>(world, 0x2a58f8) ||
@@ -252,19 +256,27 @@ static int __cdecl planetInfoMenu(void* gui) {
                 return -1;
             }
             updatePlanetGovernor();
+            if (planetWindowTab==4 && info.count) {
+                auto own=at<BYTE*>(info.world,8);
+                unsigned power=own ? own[0x28] : 0;
+                if (power==2 || power==3) updatePlanetUnits(info.world,info.ids[info.index],info.grid,power);
+                unsigned revision=planetUnitsRevision();
+                if (revision!=info.unitsRevision) {info.unitsRevision=revision;info.displayed=false;}
+            }
             BYTE event[52] = {};
-            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 31; ++index) {
+            if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 32; ++index) {
                 if (index > 13 && index < 20) continue;
                 auto widget = planetWidget(index);
                 if (!reinterpret_cast<BYTE(__thiscall*)(void*, int, void*, void*, int)>(0x5015f0)
                     (info.popup, 2, widget, event, 0)) continue;
                 info.acceptAfter = GetTickCount64() + 200;
                 if (index == 26) { closePlanetInformation(); break; }
-                if (index == 30) {info.directoryVisible=true;rebuildPlanetDirectory();break;}
+                if (index == 30) {stopPlanetUnits();info.directoryVisible=true;rebuildPlanetDirectory();break;}
                 if (index <= 13 && static_cast<unsigned>(index - 10) < info.count && info.index != static_cast<unsigned>(index - 10)) {
                     info.index = index - 10; requestPlanetInformation();
-                } else if ((index >= 20 && index <= 22) || index == 31) {
-                    planetWindowTab = index == 31 ? 3 : index - 20; info.page = 0; info.displayed = false;
+                } else if ((index >= 20 && index <= 22) || index == 31 || index == 32) {
+                    stopPlanetUnits();
+                    planetWindowTab = index >= 31 ? index-28 : index - 20; info.page = 0; info.displayed = false;
                 } else if (index == 23 && info.page) { --info.page; info.displayed = false; }
                 else if (index == 24 && info.page + 1 < planetStockPages()) { ++info.page; info.displayed = false; }
                 else if (index == 25 && info.count) requestPlanetInformation();
@@ -272,7 +284,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                     unsigned target = index == 29 ? info.originGrid : info.systems.adjacent(info.grid, index == 28);
                     if (target != info.grid && selectPlanetSystem(target)) {
                         if (info.count) requestPlanetInformation();
-                        else { info.displayed = false; info.conditionsReady = info.warehouseReady = false; }
+                        else { stopPlanetUnits();info.displayed = false; info.conditionsReady = info.warehouseReady = false; }
                     }
                 }
                 break;
@@ -310,6 +322,8 @@ static bool installPlanetInformation() {
     const unsigned addresses[] = {0x54bc01, 0x4bae89, 0x4babc2, 0x4baeb4, 0x4bb4bd};
     const BYTE expected[][5] = {{0xe8,0x7a,0x02,0,0}, {0xe9,0xa5,0x2e,0,0}, {0xe8,0x89,0x43,0,0}, {0xe9,0x7a,0x2e,0,0}, {0xe9,0x71,0x28,0,0}};
     const void* functions[] = {&planetInfoMenu, &planetConditionsCopied, &receivedPlanetWarehouse, &planetPlacesCopied, &planetGovernorCopied};
+    const unsigned gridDecoder=0x41c5f0;
+    if (memcmp(reinterpret_cast<void*>(0x66c4b4),&gridDecoder,4)) return false;
     for (unsigned i = 0; i < 5; ++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]), expected[i], 5)) return false;
     for (unsigned i = 0; i < 5; ++i) {
@@ -318,5 +332,6 @@ static bool installPlanetInformation() {
         *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(static_cast<const BYTE*>(functions[i]) - target - 5);
         if (!patchBytes(target, expected[i], replacement, 5)) return false;
     }
-    return true;
+    auto replacement=reinterpret_cast<unsigned>(&decodedPlanetUnitGrid);
+    return patchBytes(reinterpret_cast<void*>(0x66c4b4),&gridDecoder,&replacement,4);
 }

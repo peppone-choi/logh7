@@ -230,6 +230,7 @@ static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41cba0)(record,reader);
     auto p=static_cast<const BYTE*>(record);unsigned id=logh::infoWord(p,0),token=0;
     if (result || !logh::validOutfitParty(p,id)) return result;
+    planetUnitsParty(p);
     AcquireSRWLockExclusive(&outfitReplyLock);
     if (outfitInbox.queue.take(id,logh::infoWord(p,4),false,token) && token==outfitInbox.token) {
         memcpy(outfitInbox.party,p,sizeof(outfitInbox.party));outfitInbox.partyToken=token;

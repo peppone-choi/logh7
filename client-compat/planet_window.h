@@ -160,8 +160,8 @@ static bool createPlanetWindow(void* manager) {
         planetControl(10 + i, 182, 168 + i * 54, 192, 48, L"", true);
         planetControl(100 + i, 194, 180 + i * 54, 174, 24, L"", false);
     }
-    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고", L"시설·스폿"};
-    for (int i = 0; i < 4; ++i) planetControl(i==3 ? 31 : 20+i, 390+i*110, 116, 102, 42, tabs[i], true);
+    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고", L"시설·스폿", L"아군 배치"};
+    for (int i = 0; i < 5; ++i) planetControl(i>=3 ? 28+i : 20+i, 390+i*88, 116, 82, 42, tabs[i], true);
     planetControl(23, 390, 477, 100, 42, L"이전", true);
     planetControl(24, 500, 477, 100, 42, L"다음", true);
     planetControl(25, 610, 477, 100, 42, L"새로고침", true);
@@ -226,6 +226,7 @@ static void planetName(unsigned id, wchar_t (&name)[13]) {
 #include "planet_directory.h"
 static unsigned planetStockPages() {
     auto& info = planetInformation;
+    if (planetWindowTab==4) return planetUnitPages();
     if (planetWindowTab==3) return (info.places.count+planetWindowRows-1)/planetWindowRows;
     return (info.warehouse[12] + info.warehouse[0x260] + planetWindowRows - 1) / planetWindowRows;
 }
@@ -321,28 +322,65 @@ static void planetInformationPanels() {
         planetFieldRect(6,624,382,190,190,true);
     }
 }
+static void renderPlanetUnits() {
+    auto& info=planetInformation;
+    // The decoder thread never writes GUI state. Copy under its own lock.
+    AcquireSRWLockShared(&planetUnitLock);
+    unsigned phase=planetUnitQuery.phase,count=planetUnitQuery.data.count;
+    unsigned processed=planetUnitQuery.data.next,total=planetUnitQuery.data.candidates;
+    logh::PlanetUnitRows::Row rows[8]={};
+    for (unsigned i=0;i<8 && info.page*8+i<count;++i) rows[i]=planetUnitQuery.data.rows[info.page*8+i];
+    ReleaseSRWLockShared(&planetUnitLock);
+    const wchar_t* headers[]={L"상비 부대",L"함선 유닛",L"척수",L"병력 유닛"};
+    for (unsigned col=0;col<4;++col) planetCell(80+col,headers[col]);
+    wchar_t text[128];
+    if (phase!=3) {
+        if (phase==4) planetCell(1,L"배치 응답을 확인하지 못했습니다.");
+        else {
+            _snwprintf_s(text,_countof(text),_TRUNCATE,L"아군 배치 조회 중 · %u / %u 부대",processed,total);
+            planetCell(1,text);
+        }
+        planetCell(84,L"아군 상비 부대 조회 · 창고 재고는 제외");return;
+    }
+    unsigned pages=(count+7)/8;
+    _snwprintf_s(text,_countof(text),_TRUNCATE,L"아군 상비 부대 %u개 · %u / %u",count,pages?info.page+1:0,pages);
+    planetCell(1,text);
+    if (!count) planetCell(40,L"배치된 아군 부대 없음");
+    const wchar_t* kinds[]={L"함대",L"수송함대",L"순찰대",L"지상부대"};
+    for (unsigned i=0;i<8 && info.page*8+i<count;++i) {
+        const auto& row=rows[i];
+        _snwprintf_s(text,_countof(text),_TRUNCATE,L"제%u%ls",row.number,kinds[row.kind]);planetCell(40+i*4,text);
+        const unsigned values[]={row.ships,row.boats,row.troops};
+        for (unsigned col=0;col<3;++col) {
+            _snwprintf_s(text,_countof(text),_TRUNCATE,L"%u",values[col]);planetCell(41+i*4+col,text);
+        }
+    }
+    planetCell(84,L"선택 거점의 아군 상비 부대 · 창고 재고는 제외");
+}
 static void renderPlanetWindow() {
     auto& info = planetInformation;
     planetDirectoryLayout(info.directoryVisible);
     if (info.directoryVisible) { renderPlanetDirectory(); return; }
     bool stock = planetWindowTab == 2;
+    bool units = planetWindowTab == 4;
     bool places = planetWindowTab == 3;
-    const int xs[] = {392, 578, 640, 724}, widths[] = {180, 58, 78, 80};
+    const int xs[] = {392, units ? 574 : 578, units ? 654 : 640, units ? 734 : 724};
+    const int widths[] = {units ? 176 : 180, units ? 74 : 58, units ? 74 : 78, units ? 84 : 80};
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col) {
         int index = 40 + row * 4 + col;
         planetCell(index, L"");
-        planetRect(index, stock ? xs[col] : (col ? 594 : 392), 234 + row * 26, stock ? widths[col] : 216, 24);
+        planetRect(index, stock || units ? xs[col] : (col ? 594 : 392), 234 + row * 26, stock || units ? widths[col] : 216, 24);
     }
     for (int col = 0; col < 4; ++col) {
         planetCell(80 + col, L""); planetRect(80 + col, xs[col], 206, widths[col], 24);
     }
     planetCell(84, L"");
-    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고", L"시설·스폿"};
-    for (unsigned tab = 0; tab < 4; ++tab) {
+    const wchar_t* tabs[] = {L"개요", L"환경·내정", L"창고", L"시설·스폿", L"아군 배치"};
+    for (unsigned tab = 0; tab < 5; ++tab) {
         wchar_t label[24];
         _snwprintf_s(label, _countof(label), _TRUNCATE, L"%ls", tabs[tab]);
-        planetCell(tab==3 ? 31 : 20+tab, label);
-        planetSelected(tab==3 ? 31 : 20+tab, tab == planetWindowTab);
+        planetCell(tab>=3 ? 28+tab : 20+tab, label);
+        planetSelected(tab>=3 ? 28+tab : 20+tab, tab == planetWindowTab);
     }
     wchar_t text[160], name[13] = {};
     for (unsigned i = 0; i < 4; ++i) {
@@ -359,14 +397,15 @@ static void renderPlanetWindow() {
     planetEnabled(27, info.systems.count > 0);
     planetEnabled(28, info.systems.count > 0);
     planetEnabled(29, info.grid != info.originGrid);
-    planetEnabled(23, (stock ? info.warehouseReady : places && info.placesReady) && info.page > 0);
-    planetEnabled(24, (stock ? info.warehouseReady : places && info.placesReady) && info.page + 1 < planetStockPages());
+    planetEnabled(23, (stock ? info.warehouseReady : units ? planetUnitPages()>0 : places && info.placesReady) && info.page > 0);
+    planetEnabled(24, (stock ? info.warehouseReady : units ? planetUnitPages()>0 : places && info.placesReady) && info.page + 1 < planetStockPages());
     planetEnabled(25, info.count > 0);
     planetIcon(0, info.count ? planetBase(info.ids[info.index]) : nullptr);
     if (!info.count) { planetCell(0, L"행성·요새"); planetCell(1, L"거점 없음 · 다른 성계를 선택해 주세요."); return; }
     planetName(info.ids[info.index], name);
-    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, places ? L"시설·스폿" : stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, units ? L"아군 배치" : places ? L"시설·스폿" : stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
     planetCell(0, text);
+    if (units) {renderPlanetUnits();return;}
     if (places) { renderPlanetPlaces(); return; }
     if (!(stock ? info.warehouseReady : info.conditionsReady)) {
         planetCell(1, GetTickCount64() - info.requestedAt >= 5000 ? L"응답을 확인하지 못했습니다. 새로고침해 주세요." : L"서버에서 조회 중입니다.");
