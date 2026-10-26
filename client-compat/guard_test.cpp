@@ -7,8 +7,21 @@
 #include "unicode_text.h"
 #include "outfit_info_data.h"
 #include "appointment_ui_data.h"
+#include "planet_tax_data.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
+    unsigned char taxCharacter[0x360]={};taxCharacter[0x270]=3;
+    uint16_t taxCard=190;uint32_t taxFirst=1048,taxLocal=1049;
+    memcpy(taxCharacter+0x274,&taxCard,2);memcpy(taxCharacter+0x278,&taxFirst,4);
+    memcpy(taxCharacter+0x27c,&taxCard,2);memcpy(taxCharacter+0x280,&taxLocal,4);
+    memcpy(taxCharacter+0x358,&taxLocal,4);
+    if (logh::heldLocalTaxBase(taxCharacter,190)!=1049 || logh::heldLocalTaxBase(taxCharacter,192)) return 71;
+    taxCard=192;memcpy(taxCharacter+0x284,&taxCard,2);memcpy(taxCharacter+0x288,&taxLocal,4);
+    if (logh::heldLocalTaxBase(taxCharacter,192)!=1049 || logh::heldLocalTaxBase(taxCharacter,193)) return 72;
+    memset(taxCharacter+0x358,0,4);
+    if (logh::heldLocalTaxBase(taxCharacter,190)) return 73;
+    memcpy(taxCharacter+0x358,&taxLocal,4);taxCharacter[0x270]=17;
+    if (logh::heldLocalTaxBase(taxCharacter,192)) return 74;
     unsigned char capitalBase[0x250]={};
     const uint16_t odinName[]={0x30aa,0x30fc,0x30c7,0x30a3,0x30f3,0};
     const uint16_t heinessenName[]={0x30cf,0x30a4,0x30cd,0x30bb,0x30f3,0};

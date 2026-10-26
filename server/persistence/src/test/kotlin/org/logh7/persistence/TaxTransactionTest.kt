@@ -8,6 +8,40 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class TaxTransactionTest {
+    @Test fun capitalTaxKeepsOfficePaymentAndRateTogetherAcrossReopenAndFailedCommit()=runBlocking {
+        val capitalGalaxy=Galaxy(listOf(GalaxySystem(3,2015,4,"Home",3)),
+            listOf(GalaxyBase(1177,2015,61,0,"ハイネセン",0,28f,259200,0,0f,2f)),
+            mapOf(Power.EMPIRE to 2015,Power.ALLIANCE to 2015))
+        val capitalPilot=pilot.copy(power=Power.ALLIANCE,grid=2015,baseId=1177)
+        val capitalStocks=PlanetStocks(1,0,mapOf(1177 to PlanetStock(1177,3,0,100,200,300,
+            capitalAdministratorId=10000)),deploymentInitialized=true)
+        val root=directory.resolve("capital-world")
+        val store=FileWorldStateStore(root)
+        store.saveWorld(mapOf("pilot" to capitalPilot),capitalStocks)
+        val engine=WorldEngine(this,rules,ticking=false,galaxy=capitalGalaxy,navigationStore=store.navigationStore,
+            stockStore=store.stockStore,worldStateCommitter=store)
+        val request=query.copy(power=Power.ALLIANCE,base=1177,card=192)
+        try {
+            val joined=CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1))
+            assertEquals(Admission.ACCEPTED,joined.await())
+            assertNull(tax(engine,request).rejection)
+            val paid=engine.snapshot()
+            assertEquals(840,paid.navigators.getValue("pilot").mcp)
+            assertEquals(35,paid.planetStocks!!.bases.getValue(1177).taxRate)
+            assertEquals(10000,paid.planetStocks!!.bases.getValue(1177).capitalAdministratorId)
+            store.beforeSwitch={throw java.io.IOException("capital commit failed")}
+            assertFailsWith<java.io.IOException> {tax(engine,request.copy(rate=40))}
+            assertEquals(paid.navigators,engine.snapshot().navigators)
+            assertEquals(paid.planetStocks,engine.snapshot().planetStocks)
+        } finally {engine.drainAndClose()}
+        FileWorldStateStore(root).use {
+            assertEquals(840,it.loadNavigation().getValue("pilot").mcp)
+            val base=it.loadStocks()!!.bases.getValue(1177)
+            assertEquals(35,base.taxRate);assertEquals(10000,base.capitalAdministratorId)
+            assertEquals(0,base.governorId)
+        }
+    }
     @TempDir lateinit var directory: Path
     private val rules = SessionRules.load()
     private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
