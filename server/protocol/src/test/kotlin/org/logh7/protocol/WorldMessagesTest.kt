@@ -35,6 +35,7 @@ class WorldMessagesTest {
             }
             input.position(record+18)
             val count=input.get().toInt() and 255
+            if(kind==192) { assertEquals(1,count);assertEquals(30,input.getShort(input.position()).toInt()) }
             input.position(input.position()+count*2)
         }
         assertFalse(input.hasRemaining())

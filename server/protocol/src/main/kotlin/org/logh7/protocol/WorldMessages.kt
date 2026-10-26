@@ -143,7 +143,7 @@ object WorldMessages {
         0 -> listOf(82, 83)
         59, 195 -> listOf(43, 44, 45, 60)
         54 -> listOf(5,30)
-        190 -> listOf(30)
+        190,192 -> listOf(30)
         39, 44, 47, 50, 175, 180, 183, 186 -> listOf(63)
         else -> emptyList()
     }

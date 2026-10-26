@@ -1,6 +1,7 @@
 // Rebuild the CD's missing command 30 screen with native widgets and transport.
 // UI layout is reconstructed; authority and payment remain on the server. Author: 최병호.
 #pragma once
+#include "planet_tax_data.h"
 
 static struct PlanetTaxWindow {
     void* manager;
@@ -77,7 +78,7 @@ static bool createTaxWindow() {
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(state.root,frame,1);
     taxControl(0,234,126,550,30,L"행성 세율 변경",false);
     taxControl(1,234,172,550,30,L"",false);
-    taxControl(2,234,218,550,30,L"담당 행성에 정박한 총독·주지사가 실행합니다.",false);
+    taxControl(2,234,218,550,30,L"현재 위치의 행성을 맡은 통치자가 실행합니다.",false);
     taxControl(3,234,268,260,32,L"",false);
     taxControl(4,520,268,260,32,L"",false);
     taxControl(5,234,376,550,30,L"MCP 160 · 부족 시 PCP 320 전액 대용",false);
@@ -93,18 +94,14 @@ static bool createTaxWindow() {
     return true;
 }
 static unsigned heldGovernorBase(void* own, unsigned card) {
-    unsigned count=at<BYTE>(own,0x270);
-    if (count>16) return 0;
-    for (unsigned i=0;i<count;++i)
-        if (at<unsigned short>(own,0x274+i*8)==card) return at<unsigned>(own,0x278+i*8);
-    return 0;
+    return logh::heldLocalTaxBase(static_cast<const BYTE*>(own),card);
 }
 static void closeTaxWindow() {
     if (taxWindow.root) reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(taxWindow.root,0);
     taxWindow.visible=false;
 }
 static BYTE __fastcall dispatchTaxCard(void* manager,void*,int command,unsigned card) {
-    if (command!=30 || (card!=54 && card!=190))
+    if (command!=30 || !logh::civilTaxCard(card))
         return reinterpret_cast<BYTE(__thiscall*)(void*,int,unsigned)>(0x4f93c0)(manager,command,card);
     auto world=*reinterpret_cast<void**>(0x7ccffc);
     auto own=world ? at<void*>(world,8) : nullptr;
@@ -126,7 +123,7 @@ static BYTE __fastcall taxCommandAvailable(void* manager,void*,unsigned command)
     auto world=*reinterpret_cast<void**>(0x7ccffc);
     auto own=world ? at<void*>(world,8) : nullptr;
     return own && *reinterpret_cast<void**>(0x21aa888)==own &&
-        (heldGovernorBase(own,54) || heldGovernorBase(own,190)) ? 1 : 0;
+        (heldGovernorBase(own,54) || heldGovernorBase(own,190) || heldGovernorBase(own,192)) ? 1 : 0;
 }
 static void taxConditions(void* world) {
     auto& state=taxWindow;
@@ -161,7 +158,7 @@ static bool updateTaxWindow(void* gui) {
         closeTaxWindow();return false;
     }
     wchar_t text[180],name[32]={};pickerName(state.base,name);
-    _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls · %ls",name,state.card==54 ? L"행성 총독" : L"주지사");taxText(1,text);
+    _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls · %ls",name,state.card==54 ? L"행성 총독" : state.card==192 ? L"수도시정관" : L"주지사");taxText(1,text);
     if (state.loaded) {
         _snwprintf_s(text,_countof(text),_TRUNCATE,L"현재 세율  %u%%",state.current);taxText(3,text);
         _snwprintf_s(text,_countof(text),_TRUNCATE,L"변경할 세율  %u%%",state.selected);taxText(4,text);

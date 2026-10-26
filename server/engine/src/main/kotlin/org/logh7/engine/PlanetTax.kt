@@ -12,7 +12,7 @@ enum class TaxRejection { SESSION, IDENTITY, ACCESS, CARD, BASE, LOCATION, BUSY,
 data class TaxResult(val player: Navigator?, val stocks: PlanetStocks?, val rejection: TaxRejection? = null,
     val changed: Boolean = false, val recovery: NavigationResult? = null)
 
-/** Governor-only initial connection; missing original economic rules are explicit policy. Author: 최병호. */
+/** Civil planetary offices; capital administrator tax authority is restoration policy. Author: 최병호. */
 internal object PlanetTax {
     const val COST = 160 // Original constmsg group 0, entry 97: MCP 160, no wait or duration.
     fun evaluate(galaxy: Galaxy, request: TaxRequest, session: SessionState, player: Navigator?, stocks: PlanetStocks): TaxResult {
@@ -24,10 +24,10 @@ internal object PlanetTax {
             player.power != request.power || participant.power != request.power) return reject(TaxRejection.IDENTITY)
         if (request.mode != 0) return reject(TaxRejection.MODE)
         val power = if (request.power == Power.EMPIRE) 2 else 3
-        if (request.card != if (power == 2) 54 else 190) return reject(TaxRejection.CARD)
+        if (request.card !in if (power == 2) setOf(54) else setOf(190,192)) return reject(TaxRejection.CARD)
         val base = stocks.bases[request.base] ?: return reject(TaxRejection.BASE)
-        if (!BaseOfficePolicy(galaxy).ordinaryPlanet(base.baseId)) return reject(TaxRejection.ACCESS)
-        if (base.power != power || base.camp != 0 || base.governorId != request.characterId) return reject(TaxRejection.ACCESS)
+        if (base.power != power || base.camp != 0 || BaseOfficePolicy(galaxy).holders(base)[request.card] != request.characterId)
+            return reject(TaxRejection.ACCESS)
         val seed = galaxy.conditions[base.baseId] ?: return reject(TaxRejection.BASE)
         if (seed.habitability == 0) return reject(TaxRejection.BASE)
         if (player.baseId != base.baseId) return reject(TaxRejection.LOCATION)
