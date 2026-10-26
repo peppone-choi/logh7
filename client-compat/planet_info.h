@@ -6,11 +6,16 @@
 #include <stdlib.h>
 #include "planet_info_data.h"
 #include "planet_units.h"
+static bool openStationedOutfit(void* manager,unsigned id,unsigned kind,unsigned power,unsigned number,unsigned base);
+static bool stationedOutfitVisible(void* manager);
+static bool updateStationedOutfit(void* manager);
+static void closeStationedOutfit(void* manager);
+static bool outfitInformationPending();
 
 static struct PlanetInformation {
     void* world;
     void* popup;
-    unsigned character, originGrid, grid, ids[4], count, index, page, unitsRevision;
+    unsigned character, originGrid, grid, ids[4], count, index, page, unitsRevision, unitReturnPage, unitReplyWait;
     logh::PlanetSystemIndex systems;
     logh::PlanetDirectory directory;
     logh::PlanetPlaces places;
@@ -21,7 +26,7 @@ static struct PlanetInformation {
     bool directoryVisible, directoryLocal;
     unsigned directoryRows[350], directoryCount, directoryPage;
     ULONGLONG directorySentAt;
-    bool conditionsReady, warehouseReady, displayed, timeoutShown;
+    bool conditionsReady, warehouseReady, displayed, timeoutShown, detailOpen;
     ULONGLONG requestedAt, acceptAfter;
     BYTE condition[0x180], warehouse[0x300];
 } planetInformation = {};
@@ -53,6 +58,8 @@ static bool selectPlanetSystem(unsigned grid) {
 
 static void closePlanetInformation() {
     stopPlanetUnits();
+    if (planetInformation.detailOpen) closeStationedOutfit(planetWindowManager);
+    planetInformation.detailOpen=false;
     if (planetInformation.popup)
         reinterpret_cast<void(__thiscall*)(void*, int)>(0x502ea0)(planetInformation.popup, 0);
     planetInformation.popup = nullptr;
@@ -230,6 +237,16 @@ static int __cdecl planetInfoMenu(void* gui) {
             at<unsigned>(character, 0x24) != info.character || at<unsigned>(world, 0x2b6a70) != info.originGrid)
             closePlanetInformation();
         else {
+            if (info.detailOpen) {
+                if (updateStationedOutfit(gui)) return -1;
+                info.detailOpen=false;
+                unsigned page=info.unitReturnPage;
+                requestPlanetInformation();info.page=page;
+                info.unitReplyWait=outfitInformationPending() ? 1 : 0;
+                reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(info.popup,12);
+                reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,info.popup);
+                info.acceptAfter=GetTickCount64()+250;
+            }
             if (info.directoryVisible) {
                 updatePlanetDirectory();
                 BYTE event[52]={};
@@ -259,11 +276,36 @@ static int __cdecl planetInfoMenu(void* gui) {
             if (planetWindowTab==4 && info.count) {
                 auto own=at<BYTE*>(info.world,8);
                 unsigned power=own ? own[0x28] : 0;
-                if (power==2 || power==3) updatePlanetUnits(info.world,info.ids[info.index],info.grid,power);
+                bool pending=outfitInformationPending();
+                if (pending && !info.unitReplyWait) {info.unitReplyWait=1;info.displayed=false;}
+                if (info.unitReplyWait && !pending) {info.unitReplyWait=0;info.displayed=false;}
+                if (info.unitReplyWait==1 && GetTickCount64()-info.requestedAt>=5000) {info.unitReplyWait=2;info.displayed=false;}
+                if (!info.unitReplyWait && (power==2 || power==3)) updatePlanetUnits(info.world,info.ids[info.index],info.grid,power);
                 unsigned revision=planetUnitsRevision();
                 if (revision!=info.unitsRevision) {info.unitsRevision=revision;info.displayed=false;}
             }
             BYTE event[52] = {};
+            if (planetWindowTab==4 && GetTickCount64()>=info.acceptAfter) {
+                for (unsigned button=72;button<80;++button) {
+                    if (!reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
+                        (info.popup,2,planetWidget(button),event,0)) continue;
+                    logh::PlanetUnitRows::Row row={};unsigned power=0;
+                    AcquireSRWLockShared(&planetUnitLock);
+                    const auto& q=planetUnitQuery;
+                    unsigned index=info.page*8+button-72;
+                    if (q.active && q.world==info.world && q.base==info.ids[info.index] && q.phase==3 && index<q.data.count) {
+                        row=q.data.rows[index];power=q.power;
+                    }
+                    ReleaseSRWLockShared(&planetUnitLock);
+                    info.acceptAfter=GetTickCount64()+250;
+                    if (row.id && openStationedOutfit(gui,row.id,row.kind,power,row.number,info.ids[info.index])) {
+                        info.detailOpen=true;info.unitReturnPage=info.page;stopPlanetUnits();
+                        reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(info.popup,0);
+                        return -1;
+                    }
+                    break;
+                }
+            }
             if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 32; ++index) {
                 if (index > 13 && index < 20) continue;
                 auto widget = planetWidget(index);

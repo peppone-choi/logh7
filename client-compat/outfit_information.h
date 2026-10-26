@@ -5,7 +5,7 @@
 
 static struct OutfitInformation {
     void* manager; void* root; void* world; void* pages[4]; void* lists[4];
-    unsigned character, grid, id, power, kind, number, token;
+    unsigned character, grid, id, power, kind, number, token, expectedBase;
     bool selected, loaded, warehouseRequested, warehouseLoaded, timeoutShown;
     ULONGLONG sentAt;
     BYTE party[logh::outfitPartyBytes], warehouse[0x300];
@@ -164,6 +164,16 @@ static void __cdecl buildOutfitInformation(void* manager,int kind) {
     outfitInformation.selected=false;
     if (kind!=4) {reinterpret_cast<void(__cdecl*)(void*,int)>(0x54c4b0)(manager,kind);return;}
     auto& state=outfitInformation;
+    // Closed native tab frames retain their sheet links. Reuse the complete
+    // frame in the same context rather than destroy/rebuild it during input.
+    auto currentWorld=*reinterpret_cast<void**>(0x7ccffc);
+    auto currentOwn=currentWorld ? at<void*>(currentWorld,8) : nullptr;
+    bool reusable=currentOwn && state.manager==manager && state.world==currentWorld && state.root &&
+        state.character==at<unsigned>(currentOwn,0x24) && state.grid==at<unsigned>(currentWorld,0x2b6a70) &&
+        at<void*>(manager,4+13*4)==state.root;
+    for (unsigned i=0;i<4 && reusable;++i)
+        reusable=state.pages[i] && at<void*>(manager,4+(14+i)*4)==state.pages[i];
+    if (reusable) return;
     state={};state.manager=manager;state.world=*reinterpret_cast<void**>(0x7ccffc);
     auto own=state.world ? at<void*>(state.world,8) : nullptr;
     if (!own) return;
@@ -212,19 +222,53 @@ static void __cdecl buildOutfitInformation(void* manager,int kind) {
     }
     reinterpret_cast<void(__thiscall*)(void*)>(0x503910)(state.root);
 }
-static int __cdecl selectOutfitInformation(void* manager,int kind) {
-    int row=reinterpret_cast<int(__cdecl*)(void*,int)>(0x54bee0)(manager,kind);
+static bool selectOutfitIdentity(unsigned id,unsigned kind,unsigned power,unsigned number,unsigned base=0) {
     auto& state=outfitInformation;
-    if (kind!=4 || row<1 || !state.root || state.manager!=manager || !state.world) return row;
-    auto definition=logh::outfitListRow(static_cast<BYTE*>(state.world)+0x811fc,row);
-    if (!definition || definition[4]>3 || definition[5]<2 || definition[5]>3) return row;
-    state.id=logh::infoWord(definition,0);state.kind=definition[4];state.power=definition[5];state.number=definition[7];
+    if (!state.root || !state.world || !id || kind>3 || power<2 || power>3 || number>255 || base>65535) return false;
+    state.id=id;state.kind=kind;state.power=power;state.number=number;state.expectedBase=base;
     state.loaded=state.warehouseLoaded=state.warehouseRequested=state.timeoutShown=false;state.selected=true;
     memset(state.party,0,sizeof(state.party));memset(state.warehouse,0,sizeof(state.warehouse));
     if (++outfitToken==0) ++outfitToken;state.token=outfitToken;state.sentAt=GetTickCount64();
     AcquireSRWLockExclusive(&outfitReplyLock);outfitInbox.token=state.token;ReleaseSRWLockExclusive(&outfitReplyLock);
     if (at<BYTE>(at<void*>(state.world,8),0x28)==state.power) requestOutfit(false);
-    renderOutfitInformation();return row;
+    renderOutfitInformation();return true;
+}
+static int __cdecl selectOutfitInformation(void* manager,int kind) {
+    int row=reinterpret_cast<int(__cdecl*)(void*,int)>(0x54bee0)(manager,kind);
+    auto& state=outfitInformation;
+    if (kind!=4 || row<1 || !state.root || state.manager!=manager || !state.world) return row;
+    auto definition=logh::outfitListRow(static_cast<BYTE*>(state.world)+0x811fc,row);
+    if (definition) selectOutfitIdentity(logh::infoWord(definition,0),definition[4],definition[5],definition[7]);
+    return row;
+}
+static bool openStationedOutfit(void* manager,unsigned id,unsigned kind,unsigned power,unsigned number,unsigned base) {
+    auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if (!own || own[0x28]!=power || !base || base>65535 || !id || kind>3 || number>255) return false;
+    buildOutfitInformation(manager,4);
+    if (!selectOutfitIdentity(id,kind,power,number,base)) return false;
+    reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(outfitInformation.root,12);
+    reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(manager,outfitInformation.root);
+    return true;
+}
+static bool stationedOutfitVisible(void* manager) {
+    auto& state=outfitInformation;
+    return state.expectedBase && state.manager==manager && state.root && at<void*>(manager,4+13*4)==state.root && at<BYTE>(state.root,4);
+}
+static bool outfitInformationPending() {
+    AcquireSRWLockShared(&outfitReplyLock);bool pending=outfitInbox.queue.count!=0;
+    ReleaseSRWLockShared(&outfitReplyLock);return pending;
+}
+static bool updateStationedOutfit(void* manager) {
+    if (!stationedOutfitVisible(manager)) return false;
+    // 0054be23 normally ticks this cdecl tab controller for root 13. A direct
+    // planet entry has no native information-menu selection to drive it.
+    reinterpret_cast<void(__cdecl*)(void*)>(0x515950)(outfitInformation.root);
+    return stationedOutfitVisible(manager);
+}
+static void closeStationedOutfit(void* manager) {
+    if (!outfitInformation.expectedBase || outfitInformation.manager!=manager) return;
+    if (stationedOutfitVisible(manager)) reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(outfitInformation.root,0);
+    outfitInformation.selected=false;
 }
 static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41cba0)(record,reader);
@@ -264,7 +308,7 @@ static void updateOutfitInformation(void* manager) {
     AcquireSRWLockExclusive(&outfitReplyLock);
     if (outfitInbox.partyToken==state.token) {
         memcpy(state.party,outfitInbox.party,sizeof(state.party));outfitInbox.partyToken=0;
-        state.loaded=state.party[9]==state.power && logh::infoWord(state.party,12)==state.kind;changed=true;
+        state.loaded=logh::matchingOutfitParty(state.party,state.id,state.power,state.kind,state.expectedBase);changed=true;
     }
     if (outfitInbox.warehouseToken==state.token) {
         memcpy(state.warehouse,outfitInbox.warehouse,sizeof(state.warehouse));outfitInbox.warehouseToken=0;

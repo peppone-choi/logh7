@@ -42,12 +42,13 @@ static void createPlanetDirectory() {
 }
 static void planetDirectoryLayout(bool directory) {
     auto root=planetWindowRoot;
-    const int ranges[][2]={{0,3},{10,13},{20,32},{40,71},{80,84},{100,103}};
+    const int ranges[][2]={{0,3},{10,13},{20,32},{40,79},{80,84},{100,103}};
     for (const auto& range:ranges) for (int i=range[0];i<=range[1];++i) {
         bool visible=!directory;
         if (i==0 || i==25 || i==26) visible=true;
         if (directory && (i==1 || i==23 || i==24 || i==27 || i==28)) visible=true;
         if (i==2 || (directory && i==30)) visible=false;
+        if (i>=72 && i<=79) visible=!directory && planetWindowTab==4;
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(root,planetWidget(i),visible ? 1 : 0);
         // 005025c0 checks +15 (input enabled), not +18 (visible). Hidden
         // detail labels otherwise intercept clicks on the directory below.
