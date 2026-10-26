@@ -8,6 +8,46 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class AppointmentTransactionTest {
+    @Test fun capitalAppointmentsCommitTheirAuthorityPaymentAndOfficeTogetherOrKeepAllThree()=runBlocking {
+        for(rule in CapitalAppointmentPolicy.rules) for(fail in listOf(false,true)) {
+            val base=if(rule.power==2)1049 else 1177
+            val power=if(rule.power==2)Power.EMPIRE else Power.ALLIANCE
+            val g=Galaxy(listOf(GalaxySystem(3,rule.capital.grid,4,"Home",rule.power)),
+                listOf(GalaxyBase(base,rule.capital.grid,80,0,rule.capital.baseName,0,20f,86400,0,0f,2f)),
+                mapOf(Power.EMPIRE to rule.capital.grid,Power.ALLIANCE to rule.capital.grid))
+            val root=directory.resolve("capital-${rule.card}-$fail")
+            val store=FileWorldStateStore(root)
+            val initial=PlanetStocks(1,0,mapOf(base to PlanetStock(base,rule.power,0,100,200,300)),
+                deploymentInitialized=true,nationalOffices=mapOf(rule.authority to 10000))
+            store.saveWorld(mapOf("pilot" to pilot.copy(power=power,grid=rule.capital.grid,baseId=base)),initial)
+            val engine=WorldEngine(this,rules,ticking=false,galaxy=g,navigationStore=store.navigationStore,
+                stockStore=store.stockStore,worldStateCommitter=store)
+            try {
+                val joined=CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join("pilot",power,false,joined,"c",1));assertEquals(Admission.ACCEPTED,joined.await())
+                val request=query.copy(power=power,base=base,targetCard=rule.card,targetPower=rule.power,
+                    actorRank=when(rule.card){192->1;193->5;else->2},targetRank=rule.lowest)
+                val before=engine.snapshot()
+                if(fail) {
+                    store.beforeSwitch={throw java.io.IOException("capital appointment commit failed")}
+                    assertFailsWith<java.io.IOException> {appoint(engine,request)}
+                    assertEquals(before.navigators,engine.snapshot().navigators)
+                    assertEquals(before.planetStocks,engine.snapshot().planetStocks)
+                    assertEquals(EngineHealth.STORAGE_FAILED,engine.health())
+                } else {
+                    assertNull(appoint(engine,request).rejection)
+                    assertEquals(840,engine.snapshot().navigators.getValue("pilot").mcp)
+                    assertEquals(10001,rule.holder(engine.snapshot().planetStocks!!.bases.getValue(base)))
+                    assertFalse(appoint(engine,request).changed)
+                }
+            } finally {engine.drainAndClose()}
+            FileWorldStateStore(root).use {
+                assertEquals(if(fail)1000 else 840,it.loadNavigation().getValue("pilot").mcp)
+                assertEquals(if(fail)0 else 10001,rule.holder(it.loadStocks()!!.bases.getValue(base)))
+                assertEquals(initial.nationalOffices,it.loadStocks()!!.nationalOffices)
+            }
+        }
+    }
     @TempDir lateinit var directory: Path
     private val rules = SessionRules.load()
     private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),

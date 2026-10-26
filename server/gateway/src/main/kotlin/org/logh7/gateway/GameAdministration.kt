@@ -15,6 +15,7 @@ fun interface GameAdministration {
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, galaxy: Galaxy) : GameAdministration {
     private val baseOffices=BaseOfficeCards(galaxy)
+    private val nationalOffices=NationalOfficePolicy(galaxy)
     override fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> {
         val future=CompletableFuture<GarrisonAppointmentResult>()
         scope.launch {
@@ -59,7 +60,9 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
                 } + if (power == 3) 136 else 0
                 org.logh7.protocol.BootstrapMessages.OfficeCard(kind,outfit.id)
             }
-        return (appointed + commanders).take(14)
+        val national=nationalOffices.cards(stocks,characterId,power).map { (card,seat) ->
+            org.logh7.protocol.BootstrapMessages.OfficeCard(card,seat) }
+        return (national + appointed + commanders).take(14)
     }
     override fun tax(request: TaxRequest): CompletableFuture<TaxResult> {
         val future = CompletableFuture<TaxResult>()

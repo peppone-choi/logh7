@@ -5,6 +5,13 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class AppointmentMessagesTest {
+    @Test fun onlyCapitalAppointmentsCanOmitTheBaseChosenByTheOriginalClient() {
+        for(card in listOf(56,57,192,193)) {
+            val value=request().also {ByteBuffer.wrap(it).putInt(22,card).putInt(36,0)}
+            assertEquals(0,AppointmentMessages.query(value).base)
+        }
+        assertFails {AppointmentMessages.query(request().also {ByteBuffer.wrap(it).putInt(36,0)})}
+    }
     private fun request()=ByteBuffer.allocate(40).putShort(0x0707).putInt(-1).putInt(10000)
         .putInt(Int.MAX_VALUE).putInt(Int.MAX_VALUE).putInt(10001).putInt(55)
         .putShort(59).putInt(999).putInt(0).putInt(1049).array()

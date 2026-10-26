@@ -16,13 +16,14 @@ data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
     val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false,
-    val nextShipId: Int = 1) {
+    val nextShipId: Int = 1, val nationalOffices:Map<NationalOffice,Int> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
         require(nextShipId in 1..1_000_000)
         val ids = outfits.values.flatMap { it.activeShips?.values.orEmpty() }.map { it.id }
         require(ids.distinct().size == ids.size && ids.all { it < nextShipId }) { "Invalid active ship identity sequence" }
+        require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -56,7 +57,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
     private fun detached(stocks: PlanetStocks) = stocks.copy(bases = Collections.unmodifiableMap(LinkedHashMap(stocks.bases)),
         outfits = Collections.unmodifiableMap(LinkedHashMap(stocks.outfits)),
         warehouses = Collections.unmodifiableMap(LinkedHashMap(stocks.warehouses)),
-        logisticsOfficers = Collections.unmodifiableMap(LinkedHashMap(stocks.logisticsOfficers)))
+        logisticsOfficers = Collections.unmodifiableMap(LinkedHashMap(stocks.logisticsOfficers)),
+        nationalOffices = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalOffices)))
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)

@@ -257,7 +257,12 @@ class GameExchange(
                     }
                     0x0707 -> {
                         check(gameStarted && administration!=null && world!=null)
-                        val query=org.logh7.protocol.AppointmentMessages.query(body)
+                        val received=org.logh7.protocol.AppointmentMessages.query(body)
+                        // Native capital institution 17 skips the base picker and sends zero.
+                        val query=if(received.base==0) received.copy(base=checkNotNull(
+                            org.logh7.engine.CapitalAppointmentPolicy.rule(received.card)?.let {
+                                org.logh7.engine.CapitalAppointmentPolicy(world.galaxy).base(it)?.id
+                            }) { "Capital appointment has no matching world base" }) else received
                         val character=checkNotNull(characters.character(identity.account))
                         require(query.character==character.id.toInt())
                         val target=characters.characterById(query.target)
@@ -460,20 +465,26 @@ class GameExchange(
                                     officePolicy.ordinaryPlanet(base.id) && held?.power==2 && held.camp==0 &&
                                         held.governorId==character.id.toInt() && held.garrisonCommanderId==0
                                 } else emptyList()
+                                val capitalPolicy=org.logh7.engine.CapitalAppointmentPolicy(world.galaxy)
+                                val capitals=capitalPolicy.vacancies(inventory,character.id.toInt(),character.power,character.rank)
+                                val selected=if(query.role==55)available else capitals.filter { it.rule.card==query.role }.map { it.base }
+                                val capitalRule=org.logh7.engine.CapitalAppointmentPolicy.rule(query.role)
                                 when(query.search) {
-                                    18 -> org.logh7.protocol.AppointmentDirectoryMessages.cards(query,available.size)
-                                    28 -> org.logh7.protocol.AppointmentDirectoryMessages.bases(query,available.map {
+                                    18 -> org.logh7.protocol.AppointmentDirectoryMessages.cards(query,
+                                        (if(available.isEmpty())emptyMap() else mapOf(55 to available.size))+
+                                            capitals.associate { it.rule.card to 1 })
+                                    28 -> org.logh7.protocol.AppointmentDirectoryMessages.bases(query,selected.map {
                                         org.logh7.protocol.AppointmentDirectoryMessages.Base(it.id,it.grid,it.name)
                                     })
                                     4 -> {
-                                        require(available.isNotEmpty() && (query.base==0 || available.any { it.id==query.base })) { "No appointment authority at selected base" }
+                                        require(selected.isNotEmpty() && (query.base==0 || selected.any { it.id==query.base })) { "No appointment authority at selected base" }
                                         val eligible=characters.registeredCharacters().filter { target ->
-                                            target.id!=character.id && target.power==character.power && target.rank in 2..10 &&
-                                                character.rank<target.rank && administration!!.offices(target.id.toInt(),target.power,
+                                            target.id!=character.id && target.power==character.power &&
+                                                (capitalRule?.eligible(character.rank,target.rank) ?: (target.rank in 2..10 && character.rank<target.rank)) && administration!!.offices(target.id.toInt(),target.power,
                                                     checkNotNull(generation)).size<14
                                         }
                                         org.logh7.protocol.AppointmentDirectoryMessages.people(query,eligible.map { target ->
-                                            org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,59)+
+                                            org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,if(target.power==2)59 else 195)+
                                                 administration!!.offices(target.id.toInt(),target.power,checkNotNull(generation)).map { it.kind })
                                         })
                                     }

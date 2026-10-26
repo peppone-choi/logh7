@@ -13,8 +13,8 @@ object AppointmentDirectoryMessages {
         val base=b.getInt(25)
         require(character>0 && when(search) {
             18 -> flags==123 && message.drop(10).all { it==0.toByte() }
-            28 -> role==55
-            4 -> flags==80 && role==55
+            28 -> role in setOf(55,56,57,192,193)
+            4 -> flags==80 && role in setOf(55,56,57,192,193)
             else -> false
         })
         return Query(character,search,flags,role,base,message.copyOfRange(2,message.size))
@@ -62,8 +62,12 @@ object AppointmentDirectoryMessages {
     }
     fun cards(query:Query,remaining:Int):List<ByteArray> {
         require(remaining in 0..255)
-        val b=ByteBuffer.allocate(if(remaining==0)2 else 9).putShort(if(remaining==0)0 else 1)
-        if(remaining>0)b.putShort(55).putInt(0).put(remaining.toByte())
+        return cards(query,if(remaining==0)emptyMap() else mapOf(55 to remaining))
+    }
+    fun cards(query:Query,vacancies:Map<Int,Int>):List<ByteArray> {
+        require(vacancies.size<=5 && vacancies.all { (card,n)->card in setOf(55,56,57,192,193) && n in 1..255 })
+        val b=ByteBuffer.allocate(2+vacancies.size*7).putShort(vacancies.size.toShort())
+        vacancies.toSortedMap().forEach { (card,n)->b.putShort(card.toShort()).putInt(0).put(n.toByte()) }
         return transaction(query,0x1208,b.array())
     }
 }

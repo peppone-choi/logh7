@@ -16,10 +16,14 @@ class WorldMessagesTest {
                 assertEquals(10,input.get(record+10).toInt());assertEquals(2,input.get(record+11).toInt())
             }
             if(kind in setOf(56,57,192,193)) {
-                assertEquals(16,input.get(record+5).toInt())
+                assertEquals(17,input.get(record+5).toInt())
                 assertEquals(if(kind<136)2 else 3,input.get(record+3).toInt())
                 assertEquals(when(kind) { 56->4;57->3;192->1;else->8 },input.get(record+10).toInt())
                 assertEquals(if(kind==192)1 else 2,input.get(record+11).toInt())
+            }
+            if(kind in setOf(2,17,134,161)) {
+                assertEquals(if(kind in setOf(2,17))2 else 3,input.get(record+3).toInt())
+                assertEquals(when(kind){2->0;17->3;134->20;else->23},input.get(record+5).toInt())
             }
             input.position(record+6)
             val parent=input.short.toInt()
@@ -36,6 +40,7 @@ class WorldMessagesTest {
             input.position(record+18)
             val count=input.get().toInt() and 255
             if(kind==192) { assertEquals(1,count);assertEquals(30,input.getShort(input.position()).toInt()) }
+            if(kind in setOf(2,17,134,161)) {assertEquals(1,count);assertEquals(5,input.getShort(input.position()).toInt())}
             input.position(input.position()+count*2)
         }
         assertFalse(input.hasRemaining())
