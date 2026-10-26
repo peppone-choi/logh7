@@ -8,6 +8,8 @@ fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
     fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Appointment is unavailable"))
+    fun resignOffice(request:OfficeResignationRequest):CompletableFuture<OfficeResignationResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Resignation is unavailable"))
     fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Reorganization is unavailable"))
     fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> = emptyList()
@@ -16,6 +18,16 @@ fun interface GameAdministration {
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, galaxy: Galaxy) : GameAdministration {
     private val baseOffices=BaseOfficeCards(galaxy)
     private val nationalOffices=NationalOfficePolicy(galaxy)
+    override fun resignOffice(request:OfficeResignationRequest):CompletableFuture<OfficeResignationResult> {
+        val future=CompletableFuture<OfficeResignationResult>()
+        scope.launch {
+            try {
+                val result=CompletableDeferred<OfficeResignationResult>()
+                engine.submit(WorldCommand.ResignOffice(request,result));future.complete(result.await())
+            } catch(failure:Throwable) {future.completeExceptionally(failure)}
+        }
+        return future
+    }
     override fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> {
         val future=CompletableFuture<GarrisonAppointmentResult>()
         scope.launch {

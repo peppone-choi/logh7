@@ -56,20 +56,38 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
     std::wstring body;
-    if (!appointmentChoice(choice) || !logh::japaneseFragment(original,body)) return;
+    if (!logh::japaneseFragment(original,body)) return;
     auto newline=body.find(L'\n');
-    unsigned length=choice.person[4];
-    if (newline==std::wstring::npos || length<2 || length>13) return;
-    wchar_t person[13]={}, base[32]={};
-    memcpy(person,choice.person+6,length*sizeof(wchar_t));
-    if (person[length-1]!=0 || wcslen(person)!=length-1) return;
-    pickerName(choice.base,base);
-    auto role=reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8cb0)
-        (reinterpret_cast<void*>(0x7cd048),choice.card);
-    std::wstring office;
-    if (!base[0] || !logh::japaneseFragment(role,office) || office.empty()) return;
-    // Preserve the original cost, wait, duration and confirmation question.
-    body=std::wstring(person)+L" → "+std::wstring(base)+L" · "+office+body.substr(newline);
+    if (newline==std::wstring::npos) return;
+    auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
+    if (command && at<unsigned>(command,0x28)==7) {
+        auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+        auto own=world ? at<BYTE*>(world,8) : nullptr;
+        unsigned card=at<unsigned>(command,0x20);
+        if (!own || at<void*>(command,0x1c)!=own || own[0x270]>16 || card>260 || card==0 || card==59 || card==195) return;
+        bool held=false;
+        for (unsigned i=0;i<own[0x270];++i) if (logh::infoShort(own,0x274+i*8)==card) held=true;
+        if (!held) return;
+        auto name=reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8cb0)
+            (reinterpret_cast<void*>(0x7cd048),card);
+        std::wstring office;
+        if (!logh::japaneseFragment(name,office) || office.empty()) return;
+        body=office+L" 직무를 사임합니다."+body.substr(newline);
+    } else {
+        if (!appointmentChoice(choice)) return;
+        unsigned length=choice.person[4];
+        if (length<2 || length>13) return;
+        wchar_t person[13]={}, base[32]={};
+        memcpy(person,choice.person+6,length*sizeof(wchar_t));
+        if (person[length-1]!=0 || wcslen(person)!=length-1) return;
+        pickerName(choice.base,base);
+        auto role=reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8cb0)
+            (reinterpret_cast<void*>(0x7cd048),choice.card);
+        std::wstring office;
+        if (!base[0] || !logh::japaneseFragment(role,office) || office.empty()) return;
+        // Preserve the original cost, wait, duration and confirmation question.
+        body=std::wstring(person)+L" → "+std::wstring(base)+L" · "+office+body.substr(newline);
+    }
     // 005706d0 returns the control directly; 005706c0 returns the GUI manager.
     auto element=reinterpret_cast<void*(__thiscall*)(void*,unsigned)>(0x5706d0)(dialog,5);
     auto manager=reinterpret_cast<void*(__thiscall*)(void*)>(0x5706c0)(dialog);

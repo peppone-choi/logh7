@@ -255,6 +255,23 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0709 -> {
+                        check(gameStarted && administration!=null && world!=null)
+                        val query=org.logh7.protocol.ResignationMessages.query(body)
+                        val character=checkNotNull(characters.character(identity.account))
+                        require(query.character==character.id.toInt())
+                        pendingWorld=administration.resignOffice(org.logh7.engine.OfficeResignationRequest(
+                            identity.account,connection,query.character,
+                            if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation),query.card,character.abilities[1],character.abilities[2])).thenApply { result ->
+                            val player=checkNotNull(result.player) { "Resignation lost its authenticated actor" }
+                            publication=Publication(character,player,false)
+                            listOf(org.logh7.protocol.ResignationMessages.response(query,gameSeconds(),player.pcp,player.mcp,result.rejection==null),
+                                characterMessage(character,player,true))+
+                                result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
+                        }
+                        return null
+                    }
                     0x0707 -> {
                         check(gameStarted && administration!=null && world!=null)
                         val received=org.logh7.protocol.AppointmentMessages.query(body)
