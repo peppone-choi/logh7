@@ -12,7 +12,9 @@ class WorldMessagesTest {
             val record=input.position()
             assertEquals(kind,input.short.toInt())
             if(kind==55 || kind==54)assertEquals(16,input.get(record+5).toInt())
-            if(kind==55) { assertEquals(2,input.get(record+10).toInt());assertEquals(10,input.get(record+11).toInt()) }
+            if(kind in setOf(52,55,188,191)) {
+                assertEquals(10,input.get(record+10).toInt());assertEquals(2,input.get(record+11).toInt())
+            }
             input.position(record+6)
             val parent=input.short.toInt()
             when(kind) {

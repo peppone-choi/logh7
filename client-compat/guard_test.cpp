@@ -6,8 +6,17 @@
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "outfit_info_data.h"
+#include "appointment_ui_data.h"
 int wmain(int argc, wchar_t** argv) {
     if (argc != 2) return 1;
+    if (logh::appointmentInformationCard(12,55,0)!=55 ||
+        logh::appointmentInformationCard(14,1049,55)!=55 ||
+        logh::appointmentInformationCard(13,999,52)!=52 ||
+        logh::appointmentInformationCard(12,0,55) ||
+        logh::appointmentInformationCard(12,261,55) ||
+        logh::appointmentInformationCard(14,55,0) ||
+        logh::appointmentInformationCard(14,55,261) ||
+        logh::appointmentInformationCard(3,55,55)) return 26;
     unsigned char outfitCache[100 * 32] = {};
     outfitCache[32] = 1; outfitCache[36] = 7;
     outfitCache[96] = 1; outfitCache[100] = 9;
