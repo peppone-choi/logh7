@@ -20,26 +20,28 @@ class OutfitLogisticsTest {
         assertEquals(11,result.stocks.warehouses.getValue(101).units.ships.getValue(ship))
     }
     @Test fun formationLimitsApplyAcrossGradesAndAnOverLimitCommitPreservesStock() {
-        for ((kind, limit) in listOf(OutfitKind.FLEET to 60, OutfitKind.TRANSPORT to 23,
-                OutfitKind.PATROL to 3, OutfitKind.GROUND to 3)) {
-            val f=Fixture()
+        for ((kind,movingKind,limit) in listOf(Triple(OutfitKind.FLEET,32,60),Triple(OutfitKind.TRANSPORT,76,20),
+                Triple(OutfitKind.PATROL,32,3),Triple(OutfitKind.GROUND,84,3))) {
+            val f=Fixture();val moving=UnitStack(movingKind)
+            val per=UnitSpecifications.ships.single { it.kind==movingKind }.number("必要乗組員ユニット数:必要乗組員ユニット数")
+            fun crewMove(count:Int)=if (per==0) emptyMap() else mapOf(crew to count*per)
+            val baseline=if (kind==OutfitKind.TRANSPORT) 3 else 0
+            val original=f.store.saved.outfits.getValue(1).copy(kind=kind,activeShips=null,
+                units=if (baseline==0) UnitInventory() else UnitInventory(mapOf(ship to baseline),mapOf(crew to 15)))
             val warehouse=f.store.saved.warehouses.getValue(101).copy(kind=kind.warehouseKind,
                 outfitId=if (kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT)) 1 else 0,
-                units=UnitInventory(mapOf(ship to limit,ship.copy(level=1) to 2),mapOf(crew to (limit+2)*5)))
-            f.store.saved=f.store.saved.copy(outfits=mapOf(1 to f.store.saved.outfits.getValue(1).copy(kind=kind)),
-                warehouses=mapOf(101 to warehouse))
+                units=UnitInventory(mapOf(moving to limit,moving.copy(level=1) to 2),crewMove(limit+2)))
+            f.store.saved=f.store.saved.copy(outfits=mapOf(1 to original),warehouses=mapOf(101 to warehouse))
             f.production=PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
-            val full=f.act(f.prepare(f.request()).copy(transfer=UnitTransfer(mapOf(ship to limit),mapOf(crew to limit*5))))
+            val full=f.act(f.prepare(f.request()).copy(transfer=UnitTransfer(mapOf(moving to limit),crewMove(limit))))
             assertNull(full.rejection,"$kind boundary")
-            val request=f.prepare(f.request())
-            val before=f.store.saved;val writes=f.store.writes
-            val over=f.act(request.copy(transfer=UnitTransfer(mapOf(ship.copy(level=1) to 1),mapOf(crew to 5))))
+            val request=f.prepare(f.request());val before=f.store.saved;val writes=f.store.writes
+            val over=f.act(request.copy(transfer=UnitTransfer(mapOf(moving.copy(level=1) to 1),crewMove(1))))
             assertEquals(LogisticsRejection.STOCK,over.rejection,"$kind overflow")
             assertEquals(before,f.store.saved);assertEquals(writes,f.store.writes)
-            // A rejected edit can be corrected by returning units, without losing its reservation.
-            assertNull(f.act(request.copy(transfer=UnitTransfer(mapOf(ship to -1),mapOf(crew to -5)))).rejection)
-            assertEquals(limit-1,f.store.saved.outfits.getValue(1).units.ships.values.sum())
-            assertEquals(limit+2,f.store.saved.outfits.getValue(1).units.ships.values.sum()+
+            assertNull(f.act(request.copy(transfer=UnitTransfer(mapOf(moving to -1),crewMove(-1)))).rejection)
+            assertEquals(baseline+limit-1,f.store.saved.outfits.getValue(1).units.ships.values.sum())
+            assertEquals(baseline+limit+2,f.store.saved.outfits.getValue(1).units.ships.values.sum()+
                 f.store.saved.warehouses.getValue(101).units.ships.values.sum())
         }
     }
