@@ -172,6 +172,7 @@ static bool createPlanetWindow(void* manager) {
     planetControl(30, 182, 460, 192, 42, L"행성 목록", true);
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col)
         planetControl(40 + row * 4 + col, 352 + col * 110, 234 + row * 26, 105, 24, L"", false);
+    for (int row=0;row<8;++row) planetControl(72+row,392,234+row*26,176,24,L"",true);
     for (int col = 0; col < 4; ++col) planetControl(80 + col, 352 + col * 110, 206, 105, 24, L"", false);
     planetControl(84, 392, 448, 428, 23, L"", false);
     for (unsigned i = 0; i < _countof(planetIcons); ++i) {
@@ -327,13 +328,25 @@ static void renderPlanetUnits() {
     // The decoder thread never writes GUI state. Copy under its own lock.
     AcquireSRWLockShared(&planetUnitLock);
     unsigned phase=planetUnitQuery.phase,count=planetUnitQuery.data.count;
+    if (phase==3) info.page=count ? (info.page<(count+7)/8 ? info.page : (count-1)/8) : 0;
     unsigned processed=planetUnitQuery.data.next,total=planetUnitQuery.data.candidates;
     logh::PlanetUnitRows::Row rows[8]={};
     for (unsigned i=0;i<8 && info.page*8+i<count;++i) rows[i]=planetUnitQuery.data.rows[info.page*8+i];
     ReleaseSRWLockShared(&planetUnitLock);
+    for (unsigned i=0;i<8;++i) {
+        bool row=phase==3 && info.page*8+i<count;
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(72+i),row ? 1 : 0);
+        planetEnabled(72+i,row);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(40+i*4),row ? 0 : 1);
+        planetEnabled(40+i*4,!row);
+    }
     const wchar_t* headers[]={L"상비 부대",L"함선 유닛",L"척수",L"병력 유닛"};
     for (unsigned col=0;col<4;++col) planetCell(80+col,headers[col]);
     wchar_t text[128];
+    if (info.unitReplyWait) {
+        planetCell(1,info.unitReplyWait==2 ? L"이전 부대 조회 응답 미확인" : L"이전 부대 조회 응답을 기다리고 있습니다.");
+        planetCell(84,L"이전 응답 수신 후 배치 목록을 새로 조회합니다.");return;
+    }
     if (phase!=3) {
         if (phase==4) planetCell(1,L"배치 응답을 확인하지 못했습니다.");
         else {
@@ -349,13 +362,13 @@ static void renderPlanetUnits() {
     const wchar_t* kinds[]={L"함대",L"수송함대",L"순찰대",L"지상부대"};
     for (unsigned i=0;i<8 && info.page*8+i<count;++i) {
         const auto& row=rows[i];
-        _snwprintf_s(text,_countof(text),_TRUNCATE,L"제%u%ls",row.number,kinds[row.kind]);planetCell(40+i*4,text);
+        _snwprintf_s(text,_countof(text),_TRUNCATE,L"제%u%ls",row.number,kinds[row.kind]);planetCell(72+i,text);
         const unsigned values[]={row.ships,row.boats,row.troops};
         for (unsigned col=0;col<3;++col) {
             _snwprintf_s(text,_countof(text),_TRUNCATE,L"%u",values[col]);planetCell(41+i*4+col,text);
         }
     }
-    planetCell(84,L"선택 거점의 아군 상비 부대 · 창고 재고는 제외");
+    planetCell(84,L"부대 이름을 선택하면 편성·병력 상세 조회");
 }
 static void renderPlanetWindow() {
     auto& info = planetInformation;

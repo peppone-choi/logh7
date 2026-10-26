@@ -34,6 +34,10 @@ inline bool validOutfitParty(const unsigned char* record, unsigned id) {
     }
     return true;
 }
+inline bool matchingOutfitParty(const unsigned char* record,unsigned id,unsigned power,unsigned kind,unsigned base=0) {
+    return validOutfitParty(record,id) && record[9]==power && infoWord(record,12)==kind &&
+        (!base || infoWord(record,4)==base);
+}
 // Closed/reopened windows may leave earlier replies in flight. Keep their
 // request tokens until receipt so an old same-ID reply cannot satisfy a refresh.
 struct OutfitReplyQueue {

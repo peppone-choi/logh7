@@ -24,6 +24,9 @@ static bool planetUnitRowsTest() {
     party[0x4504]=1;party[0x4506]=0xe8;party[0x4507]=3;party[0x450a]=5;
     if (!rows.party(party,id,1048,2) || rows.count) return false;
     if (!rows.party(party,id,base,2) || rows.count!=1 || rows.rows[0].ships!=2 || rows.rows[0].boats!=600 || rows.rows[0].troops!=5) return false;
+    if (!logh::matchingOutfitParty(party,id,2,0) || !logh::matchingOutfitParty(party,id,2,0,base) ||
+        logh::matchingOutfitParty(party,id,2,0,1048) || logh::matchingOutfitParty(party,id,3,0,base) ||
+        logh::matchingOutfitParty(party,id,2,3,base) || logh::matchingOutfitParty(party,id+1,2,0,base)) return false;
     if (rows.party(party,id,base,2) || rows.count!=1) return false;
     party[8]=1;if (rows.party(party,id,base,2)) return false;party[8]=0;
     if (rows.party(party,id,base,3) || rows.party(party,id+1,base,2)) return false;
