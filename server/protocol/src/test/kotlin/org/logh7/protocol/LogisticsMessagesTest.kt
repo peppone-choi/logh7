@@ -5,6 +5,23 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class LogisticsMessagesTest {
+    @Test fun assignmentReplyDiscardsForgedResultsAndDoesNotDiscloseStockOnRejection() {
+        val query = LogisticsMessages.assignment(assignment())
+        val base = LogisticsMessages.Inventory(listOf(LogisticsMessages.ShipStock(32,2,600)),emptyList())
+        val outfit = LogisticsMessages.Inventory(emptyList(),listOf(LogisticsMessages.TroopStock(1003,1,5)))
+        for (accepted in listOf(true,false)) {
+            val message = LogisticsMessages.assignmentResponse(query,123,100,200,accepted,base,300,outfit,400)
+            assertEquals(if (accepted) 0 else 1,ByteBuffer.wrap(message).int)
+            val reply = LogisticsMessages.assignment(message.copyOfRange(4,message.size))
+            assertEquals(LogisticsMessages.Header(123,22,100,200),reply.header)
+            assertEquals(if (accepted) base else LogisticsMessages.Inventory(emptyList(),emptyList()),reply.resultBase)
+            assertEquals(if (accepted) outfit else LogisticsMessages.Inventory(emptyList(),emptyList()),reply.resultOutfit)
+            assertEquals(if (accepted) 300 else 0,reply.resultBaseSupplies)
+            assertEquals(if (accepted) 400 else 0,reply.resultOutfitSupplies)
+            assertEquals(if (accepted) query.moves else LogisticsMessages.Moves(emptyList(),emptyList()),reply.moves)
+            assertEquals(if (accepted) query.moveSupplies else 0,reply.moveSupplies)
+        }
+    }
     @Test fun reorganizationPreviewPreservesNegativeCrewChangeAndCurrentSupplies() {
         val query=LogisticsMessages.reorganization(ByteBuffer.allocate(42).putShort(0x0c02).array())
         val response=LogisticsMessages.reorganizationPreview(query,1,1000,1000,0,-5,789,true)

@@ -122,6 +122,19 @@ object LogisticsMessages {
             moves=Moves(emptyList(),emptyList()),maxTroops=additionalTroops,maxCrew=crewDelta,supplies=supplies))
         return LoginMessages.sessionMessage(0x0c02,encoded.copyOfRange(2,encoded.size),if (accepted) 0 else 1)
     }
+    /** Never echo client-provided result inventories or balances. */
+    fun assignmentResponse(query: Assignment, seconds: Long, pcp: Int, mcp: Int, accepted: Boolean,
+        base: Inventory = Inventory(emptyList(), emptyList()), baseSupplies: Int = 0,
+        outfit: Inventory = Inventory(emptyList(), emptyList()), outfitSupplies: Int = 0): ByteArray {
+        require(seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0 && baseSupplies >= 0 && outfitSupplies >= 0)
+        val empty = Inventory(emptyList(), emptyList())
+        val encoded = encode(query.copy(header = Header(seconds.toInt(), query.header.characterId, pcp, mcp),
+            moves = if (accepted) query.moves else Moves(emptyList(), emptyList()),
+            moveSupplies = if (accepted) query.moveSupplies else 0,
+            resultBase = if (accepted) base else empty, resultBaseSupplies = if (accepted) baseSupplies else 0,
+            resultOutfit = if (accepted) outfit else empty, resultOutfitSupplies = if (accepted) outfitSupplies else 0))
+        return LoginMessages.sessionMessage(0x0c0b, encoded.copyOfRange(2, encoded.size), if (accepted) 0 else 1)
+    }
     fun encode(value: Assignment): ByteArray {
         val rows = value.moves.ships.size + value.moves.troops.size + value.resultBase.ships.size +
             value.resultBase.troops.size + value.resultOutfit.ships.size + value.resultOutfit.troops.size

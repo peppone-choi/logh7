@@ -24,6 +24,7 @@ sealed interface WorldCommand {
     data class ResignOffice(val request:OfficeResignationRequest,val result:CompletableDeferred<OfficeResignationResult>) : WorldCommand
     data class Tax(val request: TaxRequest, val result: CompletableDeferred<TaxResult>) : WorldCommand
     data class Reorganize(val request: ReorganizationRequest, val result: CompletableDeferred<ReorganizationResult>) : WorldCommand
+    data class AssignStock(val request: StockAssignmentRequest, val result: CompletableDeferred<StockAssignmentResult>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -80,6 +81,60 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         var storageFailure: Exception? = null
         try { for (queued in queue) {
             val command = queued.command
+            if (command is WorldCommand.AssignStock) {
+                try {
+                    check(!storageFailed) { "World storage is unavailable" }
+                    val request = command.request
+                    val session = durableState?.session ?: simulation.exportState()
+                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                        request.connection, request.generation, politics = request.politics, administration = request.administration), session)
+                    val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
+                    val before = recovered?.player
+                    val result = run assignment@{
+                        fun reject(reason: LogisticsRejection) = StockAssignmentResult(before, inventory, reason)
+                        if (before == null) return@assignment reject(LogisticsRejection.IDENTITY)
+                        if (worldStateCommitter == null) return@assignment reject(LogisticsRejection.STORAGE)
+                        val transfer = try { StockAssignment.transfer(request, inventory) }
+                            catch (_: IllegalArgumentException) { return@assignment reject(LogisticsRejection.STOCK) }
+                            catch (_: NoSuchElementException) { return@assignment reject(LogisticsRejection.OUTFIT) }
+                        val prepare = LogisticsRequest(request.account, request.connection, request.characterId, request.power,
+                            request.generation, request.outfit, LogisticsMode.ALLOCATION, LogisticsPhase.PREPARE)
+                        val reservation = logistics.apply(prepare, session, before, production)
+                        reservation.rejection?.let { return@assignment reject(it) }
+                        val commit = prepare.copy(phase = LogisticsPhase.COMMIT, reservation = checkNotNull(reservation.reservation),
+                            transfer = transfer, supplies = request.supplies)
+                        val preview = logistics.apply(commit, session, before, production, persist = false)
+                        if (preview.rejection != null) {
+                            logistics.apply(commit.copy(phase = LogisticsPhase.CANCEL), session, before, production)
+                            return@assignment reject(preview.rejection)
+                        }
+                        val next = checkNotNull(preview.stocks)
+                        try {
+                            StockAssignment.validateReply(next.bases.getValue(request.base).units)
+                            StockAssignment.validateReply(next.warehouses.getValue(next.outfits.getValue(request.outfit).warehouseId).units)
+                        } catch (_: IllegalArgumentException) { return@assignment reject(LogisticsRejection.STOCK) }
+                        if (next == inventory) return@assignment StockAssignmentResult(before, inventory)
+                        val payment = org.logh7.engine.strategy.CpPayment.charge(
+                            org.logh7.engine.strategy.CpBalance(before.pcp.toLong(), before.mcp.toLong()),
+                            StockAssignment.COST.toLong(), org.logh7.engine.strategy.CpPool.MCP)
+                        if (payment !is org.logh7.engine.strategy.PaymentResult.Paid) return@assignment reject(LogisticsRejection.CP)
+                        val after = before.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp))
+                        val prepared = production.prepareReplacement(inventory, next)
+                        worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
+                        navigation.publishCommitted(request.account, before, after)
+                        production.publishCommitted(inventory, prepared)
+                        StockAssignmentResult(after, prepared, changed = true)
+                    }
+                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
+                        planetStocks = production.snapshot(session.generation))
+                    published.set(state)
+                    command.result.complete(result.copy(recovery = recovered))
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if (command is WorldCommand.Reorganize) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
@@ -339,6 +394,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 is WorldCommand.ResignOffice -> error("Resignation is handled before session commands")
                 is WorldCommand.Tax -> error("Tax is handled before session commands")
                 is WorldCommand.Reorganize -> error("Reorganization is handled before session commands")
+                is WorldCommand.AssignStock -> error("Stock assignment is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

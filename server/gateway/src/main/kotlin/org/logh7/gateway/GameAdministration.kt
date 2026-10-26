@@ -12,12 +12,15 @@ fun interface GameAdministration {
         CompletableFuture.failedFuture(UnsupportedOperationException("Resignation is unavailable"))
     fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Reorganization is unavailable"))
+    fun assignStock(request: StockAssignmentRequest): CompletableFuture<StockAssignmentResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Stock assignment is unavailable"))
     fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> = emptyList()
     fun stationedOutfit(player: Navigator): Int = 0
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, galaxy: Galaxy) : GameAdministration {
     private val baseOffices=BaseOfficeCards(galaxy)
     private val nationalOffices=NationalOfficePolicy(galaxy)
+    private val logisticsOffices=LogisticsOfficePolicy(galaxy)
     override fun resignOffice(request:OfficeResignationRequest):CompletableFuture<OfficeResignationResult> {
         val future=CompletableFuture<OfficeResignationResult>()
         scope.launch {
@@ -57,6 +60,16 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         }
         return future
     }
+    override fun assignStock(request: StockAssignmentRequest): CompletableFuture<StockAssignmentResult> {
+        val future = CompletableFuture<StockAssignmentResult>()
+        scope.launch {
+            try {
+                val result = CompletableDeferred<StockAssignmentResult>()
+                engine.submit(WorldCommand.AssignStock(request, result)); future.complete(result.await())
+            } catch (failure: Throwable) { future.completeExceptionally(failure) }
+        }
+        return future
+    }
     override fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> {
         val stocks = engine.snapshot().planetStocks ?: return emptyList()
         if (stocks.generation != generation) return emptyList()
@@ -74,7 +87,9 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
             }
         val national=nationalOffices.cards(stocks,characterId,power).map { (card,seat) ->
             org.logh7.protocol.BootstrapMessages.OfficeCard(card,seat) }
-        return (national + appointed + commanders).take(14)
+        val logistics=logisticsOffices.cards(stocks,characterId,power).map { (card,seat) ->
+            org.logh7.protocol.BootstrapMessages.OfficeCard(card,seat) }
+        return (national + logistics + appointed + commanders).take(14)
     }
     override fun tax(request: TaxRequest): CompletableFuture<TaxResult> {
         val future = CompletableFuture<TaxResult>()
