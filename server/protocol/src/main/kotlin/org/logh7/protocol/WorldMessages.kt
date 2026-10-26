@@ -181,8 +181,9 @@ object WorldMessages {
             writeShort(when(card) { 54 -> 6; 55 -> 54; 52 -> 51; 188 -> 187; else -> 0 }); writeShort(0)
             val governor=card==54 || card==190
             val garrison=card in setOf(52,55,188,191)
-            writeByte(if(governor)1 else if(garrison)2 else 0)
-            writeByte(if(governor)1 else if(garrison)10 else 20); writeByte(0)
+            // First is the lowest eligible rank (0057a080), not the lowest numeric index.
+            writeByte(if(governor)1 else if(garrison)10 else 0)
+            writeByte(if(governor)1 else if(garrison)2 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)

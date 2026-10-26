@@ -132,6 +132,7 @@ static void outfitWarehouseResponse(void* world,const BYTE* record);
 #include "navigation_status.h"
 #include "return_base.h"
 #include "planet_tax.h"
+#include "appointment_information.h"
 #include "unicode_text.h"
 #include "peer_notices.h"
 
@@ -499,6 +500,7 @@ static void install() {
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }
     if (!installTaxWindow()) { status = -3; return; }
+    if (!installAppointmentInformation()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
     if (!patchBytes(spotFilter, expectedSpotFilter, spotJump, sizeof(spotJump))) { status = -3; return; }
