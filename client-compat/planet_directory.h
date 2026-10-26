@@ -55,8 +55,10 @@ static void planetDirectoryLayout(bool directory) {
     }
     for (int i=0;i<planetDecorationCount;++i) {
         auto sprite=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(root,2,i);
+        BYTE section=planetDecorationSection[i];
+        bool tabVisible=!section || section==(planetWindowTab<2 ? planetWindowTab+1 : 3);
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)
-            (root,sprite,(!directory || i==planetDecorationCount-1) ? 1 : 0);
+            (root,sprite,((!directory && tabVisible) || i==planetDecorationCount-1) ? 1 : 0);
     }
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(root,planetDirectoryList,directory ? 1 : 0);
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(root,planetDirectoryList,directory ? 1 : 0);
