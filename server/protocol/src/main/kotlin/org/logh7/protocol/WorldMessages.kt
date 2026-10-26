@@ -142,10 +142,11 @@ object WorldMessages {
     private fun commands(card: Int) = when (card) {
         0 -> listOf(82, 83)
         59, 195 -> listOf(43, 44, 45, 60)
-        54 -> listOf(5,30)
-        2,17,134,161 -> listOf(5)
-        190,192 -> listOf(30)
-        39, 44, 47, 50, 175, 180, 183, 186 -> listOf(63)
+        54 -> listOf(5,7,30)
+        2,17,134,161 -> listOf(5,7)
+        190,192 -> listOf(7,30)
+        39, 44, 47, 50, 175, 180, 183, 186 -> listOf(7,63)
+        52,55,56,57,188,191,193 -> listOf(7)
         else -> emptyList()
     }
     /** 0040f9f0: card kind, command list, three raw bit-mask fields. */

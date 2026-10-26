@@ -39,8 +39,8 @@ class WorldMessagesTest {
             }
             input.position(record+18)
             val count=input.get().toInt() and 255
-            if(kind==192) { assertEquals(1,count);assertEquals(30,input.getShort(input.position()).toInt()) }
-            if(kind in setOf(2,17,134,161)) {assertEquals(1,count);assertEquals(5,input.getShort(input.position()).toInt())}
+            if(kind==192) { assertEquals(2,count);assertEquals(7,input.getShort(input.position()).toInt());assertEquals(30,input.getShort(input.position()+2).toInt()) }
+            if(kind in setOf(2,17,134,161)) {assertEquals(2,count);assertEquals(5,input.getShort(input.position()).toInt());assertEquals(7,input.getShort(input.position()+2).toInt())}
             input.position(input.position()+count*2)
         }
         assertFalse(input.hasRemaining())
