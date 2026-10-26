@@ -5,6 +5,12 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class LogisticsMessagesTest {
+    @Test fun reorganizationPreviewPreservesNegativeCrewChangeAndCurrentSupplies() {
+        val query=LogisticsMessages.reorganization(ByteBuffer.allocate(42).putShort(0x0c02).array())
+        val response=LogisticsMessages.reorganizationPreview(query,1,1000,1000,0,-5,789,true)
+        val decoded=LogisticsMessages.reorganization(response.copyOfRange(4,response.size))
+        assertEquals(-5,decoded.maxCrew);assertEquals(789,decoded.supplies)
+    }
     private fun ByteBuffer.stack(kind: Int, level: Int, quantity: Int): ByteBuffer =
         putShort(kind.toShort()).put(level.toByte()).putShort(quantity.toShort())
     private fun reorganization() = ByteBuffer.allocate(52).putShort(0x0c02)

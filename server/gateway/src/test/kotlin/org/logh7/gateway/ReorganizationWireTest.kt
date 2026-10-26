@@ -69,6 +69,7 @@ class ReorganizationWireTest {
             assertEquals(0,ByteBuffer.wrap(packet).int)
             val capacity=LogisticsMessages.reorganization(packet.copyOfRange(4,packet.size))
             assertEquals(0,capacity.mode); assertEquals(10,capacity.maxCrew); assertEquals(0,capacity.maxTroops)
+            assertEquals(0,capacity.supplies)
             assertEquals(1000,capacity.header.mcp); assertTrue(capacity.moves.ships.isEmpty())
             assertEquals(before,state.stocks); assertEquals(balance,state.players); assertEquals(saves,state.saves)
             client.send(LogisticsMessages.encode(preview.copy(moves=LogisticsMessages.Moves(
@@ -88,6 +89,15 @@ class ReorganizationWireTest {
             assertEquals(mapOf(UnitStack(32,0) to 1,UnitStack(32,1) to 1),units.ships)
             assertEquals(mapOf(UnitStack(3) to 10),units.troops)
             assertTrue(state.stocks.warehouses.getValue(101).units.ships.isEmpty())
+            assertEquals(840,state.players.getValue("load-000").mcp)
+            val committed=state.stocks;val committedSaves=state.saves
+            client.send(LogisticsMessages.encode(query(-1,0).copy(mode=0,
+                moves=LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(32,-1,0)),emptyList()))))
+            val smaller=client.expect(0x0c02)
+            assertEquals(0,ByteBuffer.wrap(smaller).int)
+            val delta=LogisticsMessages.reorganization(smaller.copyOfRange(4,smaller.size))
+            assertEquals(-5,delta.maxCrew);assertEquals(0,delta.supplies)
+            assertEquals(committed,state.stocks);assertEquals(committedSaves,state.saves)
             assertEquals(840,state.players.getValue("load-000").mcp)
         }
         fixture(state,"second").use { server ->

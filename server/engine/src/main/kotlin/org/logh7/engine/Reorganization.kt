@@ -17,7 +17,7 @@ class ReorganizationRequest(val account: String, val connection: String, val cha
 data class ReorganizationResult(val player: Navigator?, val stocks: PlanetStocks?,
     val rejection: LogisticsRejection? = null, val changed: Boolean = false, val recovery: NavigationResult? = null,
     val capacity: ReorganizationCapacity? = null)
-data class ReorganizationCapacity(val additionalTroops: Int, val crew: Int)
+data class ReorganizationCapacity(val additionalTroops: Int, val crew: Int, val crewDelta: Int)
 
 internal object Reorganization {
     const val COST = 160 // constmsg group 0, entry 130: MCP 160; no wait/duration.
@@ -59,8 +59,12 @@ internal object Reorganization {
             count.toLong()*UnitSpecifications.ships.single { it.kind == stack.kind }
                 .number("必要乗組員ユニット数:必要乗組員ユニット数")
         }
+        val crewKinds=UnitSpecifications.crews.filter { it.power==outfit.power && it.type==3 }.map { it.kind }.toSet()
+        val baselineCrew=outfit.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
+        // 0052f700 adds max_crew to the editor's baseline crew. Sending
+        // the absolute requirement doubles its crew limit.
         // Additional infantry transport capacity is not reconstructed yet.
         // Preserve the editor's existing infantry baseline, never invent slots.
-        return ReorganizationCapacity(0,Math.toIntExact(crew))
+        return ReorganizationCapacity(0,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew))
     }
 }

@@ -150,7 +150,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
         0x0304 to WorldMessages.cards(),
         0x0308 to WorldMessages.powerDirection(),
         0x030a to WorldMessages.ships(UnitSpecifications.ships.map { ship ->
-            WorldMessages.Ship(ship.kind, ship.type, ship.model, ship.name,
+            // 004c5d50/00533980 use native +0x21e as the shared 0..19
+            // class index, not the provisional hull-role IDs in ship.type.
+            WorldMessages.Ship(ship.kind, ship.category, ship.model, ship.name,
                 ship.number("出力:出力"), ship.number("索敵範囲（万km）:索敵範囲（万km）").toFloat(),
                 ship.number("最高速度（km/1G秒）:最高速度（km/1G秒）").toFloat(),
                 ship.number("装甲:前"), ship.number("装甲:側"), ship.number("装甲:後"),
@@ -166,7 +168,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 cargo = ship.number("物資搭載量:物資搭載量"))
         }),
         0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->
-            WorldMessages.Crew(crew.kind, crew.type, crew.category, crew.manual.training,
+            WorldMessages.Crew(crew.kind, crew.category, crew.category, crew.manual.training,
                 crew.manual.groundAttack ?: 0, crew.manual.groundDefense ?: 0)
         }),
     )
