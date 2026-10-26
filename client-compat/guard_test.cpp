@@ -22,6 +22,12 @@ static bool planetUnitRowsTest() {
     party[0x180]=1;party[0x186]=2;party[0x188]=88;party[0x189]=2;party[0x18a]=2;
     unsigned unit=1;memcpy(party+0x18c,&unit,4);++unit;memcpy(party+0x190,&unit,4);
     party[0x4504]=1;party[0x4506]=0xe8;party[0x4507]=3;party[0x450a]=5;
+    unsigned carried=123,remaining=333;
+    memcpy(party+0x4598,&carried,4);memcpy(party+0x459c,&remaining,4);
+    if (!logh::validOutfitParty(party,id) || logh::outfitSupplyCapacity(party)!=456) return false;
+    remaining=0x7fffffffu;memcpy(party+0x459c,&remaining,4);
+    if (logh::validOutfitParty(party,id)) return false;
+    remaining=333;memcpy(party+0x459c,&remaining,4);
     if (!rows.party(party,id,1048,2) || rows.count) return false;
     if (!rows.party(party,id,base,2) || rows.count!=1 || rows.rows[0].ships!=2 || rows.rows[0].boats!=600 || rows.rows[0].troops!=5) return false;
     if (!logh::matchingOutfitParty(party,id,2,0) || !logh::matchingOutfitParty(party,id,2,0,base) ||

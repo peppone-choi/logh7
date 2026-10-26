@@ -123,10 +123,10 @@ static void renderOutfitInformation() {
         troops+=logh::infoShort(row,4);
     }
     _snwprintf_s(summary,_countof(summary),_TRUNCATE,L"함선 %u유닛 / %u척 · 병력 %u유닛 · 군수물자 %u / %u",
-        ships,boats,troops,logh::infoWord(p,0x4598),logh::infoWord(p,0x459c));
+        ships,boats,troops,logh::infoWord(p,0x4598),logh::outfitSupplyCapacity(p));
     outfitText(state.root,21,summary);
     const wchar_t* labels[]={L"함선 유닛",L"총 함선",L"병력 유닛",L"군수물자",L"물자 적재 상한"};
-    const unsigned values[]={ships,boats,troops,logh::infoWord(p,0x4598),logh::infoWord(p,0x459c)};
+    const unsigned values[]={ships,boats,troops,logh::infoWord(p,0x4598),logh::outfitSupplyCapacity(p)};
     for (unsigned i=0;i<5;++i) {outfitCell(0,i+1,0,labels[i]);outfitNumber(0,i+1,1,values[i]);}
     wchar_t baseName[13]={}; unsigned base=logh::infoWord(p,4);
     for (unsigned i=0;i<350;++i) if (at<unsigned>(state.world,0x2eb288+i*4)==base) {

@@ -32,7 +32,7 @@ object OutfitPartyMessages {
     fun party(query: Query, power: Int, kind: Int, number: Int, ships: List<Ships>, troops: List<Troops>,
         supplies: Int, maximumSupplies: Int, members: List<Member> = emptyList()): ByteArray = body {
         require(query.outfit > 0 && query.base in 1..65535 && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
-        require(ships.size <= 60 && troops.size <= 24 && supplies >= 0 && maximumSupplies >= 0)
+        require(ships.size <= 60 && troops.size <= 24 && supplies in 0..maximumSupplies)
         val ids = ships.flatMap { it.ids }
         require(ids.distinct().size == ids.size && ids.all { it > 0 })
         writeInt(query.outfit); writeInt(query.base); writeByte(query.mode)
@@ -58,7 +58,8 @@ object OutfitPartyMessages {
             require(troop.kind in 1000..1015 && troop.grade in 0..3 && troop.quantity in 1..65535)
             writeShort(troop.kind); writeByte(troop.grade); writeShort(troop.quantity)
         }
-        writeInt(supplies); writeInt(maximumSupplies); writeShort(0) // No package inventory.
+        // 00533980 adds both native fields: the second is free carrying room.
+        writeInt(supplies); writeInt(maximumSupplies-supplies); writeShort(0) // No package inventory.
         writeByte(0); writeByte(0) // Other packages and troop packages.
         writeByte(0); writeByte(0); writeByte(0) // Empty transport slots and carrying flag.
         writeByte(0); writeByte(0) // No detached ships or troops.

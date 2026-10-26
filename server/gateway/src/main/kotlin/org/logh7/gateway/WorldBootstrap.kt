@@ -54,15 +54,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
         }
         val troops = outfit.units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { OutfitPartyMessages.Troops(1000+it.key.kind,it.key.level,it.value) }
-        // Capacity per physical ship is a designed interpretation of the manual statistics.
-        // Ground-only units use 1000 supplies per troop unit until their carrier model is connected.
-        val maximum = outfit.units.ships.entries.sumOf { (stack,quantity) ->
-            val spec = UnitSpecifications.ships.single { it.kind == stack.kind }
-            quantity.toLong() * spec.number * spec.number("物資搭載量:物資搭載量")
-        } + if (outfit.units.ships.isEmpty()) outfit.units.troops.values.sumOf { it.toLong()*1000 } else 0L
-        require(maximum <= Int.MAX_VALUE)
+        val maximum = org.logh7.engine.OutfitSupplies.capacity(outfit.units)
         return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=outfit.baseId),power,
-            outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum.toInt(),members))
+            outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum,members))
     }
     fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
         val outfit = stocks.outfits.values.singleOrNull { owner -> owner.activeShips?.values?.any { it.id == id } == true }

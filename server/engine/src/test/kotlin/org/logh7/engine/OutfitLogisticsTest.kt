@@ -5,6 +5,18 @@ import kotlin.test.*
 import kotlinx.coroutines.*
 
 class OutfitLogisticsTest {
+    @Test fun returningCarriersCannotStrandSuppliesAboveTheNewCapacity() {
+        val f=Fixture()
+        val original=f.store.saved.outfits.getValue(1).copy(
+            units=UnitInventory(mapOf(ship to 2),mapOf(crew to 10)),supplies=400000,activeShips=null)
+        f.store.saved=f.store.saved.copy(outfits=f.store.saved.outfits+(1 to original))
+        f.production=PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
+        val request=f.prepare(f.request())
+        val before=f.store.saved;val writes=f.store.writes
+        val result=f.act(request.copy(transfer=UnitTransfer(mapOf(ship to -1),mapOf(crew to -5))))
+        assertEquals(LogisticsRejection.STOCK,result.rejection)
+        assertEquals(before,f.store.saved);assertEquals(writes,f.store.writes)
+    }
     private val ship = UnitStack(32)
     private val crew = UnitStack(3)
     private class Store(var saved: PlanetStocks) : PlanetStockStore {
