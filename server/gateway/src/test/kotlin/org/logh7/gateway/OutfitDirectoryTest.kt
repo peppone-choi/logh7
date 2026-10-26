@@ -6,6 +6,17 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class OutfitDirectoryTest {
+    @Test fun partyPublishesCarriedPlusFreeCapacityAndNeverChangesTheStoredCargo() {
+        val original=stocks.outfits.getValue(10).copy(units=UnitInventory(mapOf(UnitStack(32) to 2)),supplies=100000,activeShips=null)
+        val state=ActiveShips.initialize(stocks.copy(outfits=stocks.outfits+(10 to original)))
+        val packet=WorldBootstrap(galaxy).outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(10,1049,0),2,state)
+        val input=ByteBuffer.wrap(packet);input.position(packet.size-17)
+        assertEquals(100000,input.int);assertEquals(356000,input.int)
+        assertEquals(100000,state.outfits.getValue(10).supplies)
+        val overloaded=state.copy(outfits=state.outfits+(10 to state.outfits.getValue(10).copy(supplies=456001)))
+        assertFails { WorldBootstrap(galaxy).outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(10,1049,0),2,overloaded) }
+        assertEquals(456001,overloaded.outfits.getValue(10).supplies)
+    }
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2563,4,"Other",2)),
         listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f),
             GalaxyBase(1050,2563,80,0,"Other",0,20f,86400,0,0f,2f)),

@@ -16,7 +16,8 @@ inline bool validOutfitParty(const unsigned char* record, unsigned id) {
     if (!id || infoWord(record, 0) != id || !infoWord(record, 4) || infoWord(record, 4) > 65535 ||
         record[8] != 0 || record[9] < 2 || record[9] > 3 || infoWord(record, 12) > 3 ||
         infoWord(record, 16) > 255 || record[20] > 10 || record[0x180] > 60 || record[0x4504] > 24 ||
-        infoWord(record, 0x4598) > 0x7fffffffu || infoWord(record, 0x459c) > 0x7fffffffu) return false;
+        infoWord(record, 0x4598) > 0x7fffffffu || infoWord(record, 0x459c) > 0x7fffffffu ||
+        infoWord(record,0x4598)>0x7fffffffu-infoWord(record,0x459c)) return false;
     for (unsigned i = 0; i < record[20]; ++i) {
         auto member = record + 24 + i * 36;
         unsigned length = member[6];
@@ -37,6 +38,9 @@ inline bool validOutfitParty(const unsigned char* record, unsigned id) {
 inline bool matchingOutfitParty(const unsigned char* record,unsigned id,unsigned power,unsigned kind,unsigned base=0) {
     return validOutfitParty(record,id) && record[9]==power && infoWord(record,12)==kind &&
         (!base || infoWord(record,4)==base);
+}
+inline unsigned outfitSupplyCapacity(const unsigned char* record) {
+    return infoWord(record,0x4598)+infoWord(record,0x459c);
 }
 // Closed/reopened windows may leave earlier replies in flight. Keep their
 // request tokens until receipt so an old same-ID reply cannot satisfy a refresh.

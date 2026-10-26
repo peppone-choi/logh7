@@ -5,6 +5,16 @@ import kotlin.test.*
 import org.junit.jupiter.api.Test
 
 class OutfitPartyMessagesTest {
+    @Test fun capacityIsEncodedAsCurrentPlusRemainingAndRejectsOverloadedInventory() {
+        fun encode(current: Int,maximum: Int)=OutfitPartyMessages.party(OutfitPartyMessages.Query(1,1049,0),
+            2,0,1,emptyList(),emptyList(),current,maximum)
+        for (current in listOf(0,100,1000)) {
+            val bytes=encode(current,1000)
+            val input=ByteBuffer.wrap(bytes);input.position(22)
+            assertEquals(current,input.int);assertEquals(1000-current,input.int)
+        }
+        assertFails { encode(1001,1000) };assertFails { encode(-1,1000) }
+    }
     @Test fun partyPreservesRealIdsAndNativeWidthsWithoutCppPadding() {
         val bytes = OutfitPartyMessages.party(OutfitPartyMessages.Query(1,1049,2),2,0,1,
             listOf(OutfitPartyMessages.Ships(32,600,listOf(101,102))),
@@ -16,7 +26,7 @@ class OutfitPartyMessagesTest {
         assertEquals(1,input.get().toInt()); assertEquals(32,input.short.toInt()); assertEquals(2,input.get().toInt())
         assertEquals(600,input.short.toInt()); assertEquals(2,input.get().toInt()); assertEquals(101,input.int); assertEquals(102,input.int)
         assertEquals(1,input.get().toInt()); assertEquals(1003,input.short.toInt()); assertEquals(2,input.get().toInt()); assertEquals(10,input.short.toInt())
-        assertEquals(123,input.int); assertEquals(456,input.int); assertEquals(0,input.short.toInt())
+        assertEquals(123,input.int); assertEquals(333,input.int); assertEquals(0,input.short.toInt())
         repeat(7) { assertEquals(0,input.get().toInt()) }
         assertFalse(input.hasRemaining())
     }
