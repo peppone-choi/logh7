@@ -5,6 +5,18 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class BootstrapMessagesTest {
+    @Test fun assignedLogisticsOfficesCanInitializeAndRefreshTheCharacterWithHeadquartersTargets() {
+        for ((kind,power,target) in listOf(Triple(24,2,104938),Triple(25,2,104938),Triple(150,3,117737))) {
+            val actor=character.copy(power=power)
+            val offices=listOf(BootstrapMessages.OfficeCard(kind,target))
+            val initial=BootstrapMessages.character(actor,1000,1000,offices=offices)
+            val tail=ByteBuffer.wrap(initial,initial.size-7,7)
+            assertEquals(kind,tail.short.toInt());assertEquals(target,tail.int)
+            val changed=BootstrapMessages.changedCharacter(actor,840,840,offices=offices)
+            assertEquals(0x0356,ByteBuffer.wrap(changed).getShort(4).toInt())
+            assertFails { BootstrapMessages.character(actor.copy(power=if(power==2) 3 else 2),offices=offices) }
+        }
+    }
     private val character = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 18, 1, 1,
         1_000_001, listOf(60) + List(7) { 50 }, 0, 0, 0, 20, 3, 0, "AlphaShip", 1)
     @Test fun initialCardTableAndCharacterUseMatchingRoleIds() {

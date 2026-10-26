@@ -5,12 +5,28 @@ enum class OutfitKind(val wire: Int) {
     FLEET(0), PATROL(2), TRANSPORT(1), GROUND(3);
     val warehouseKind: OutfitKind get() = if (this == GROUND) PATROL else this
 }
-enum class LogisticsOffice {
-    EMPIRE_FIRST, EMPIRE_SECOND, ALLIANCE_THIRD;
+enum class LogisticsOffice(val card: Int, val power: Int, val capital: Capital, val facility: Int) {
+    EMPIRE_FIRST(24,2,Capital.EMPIRE,37), EMPIRE_SECOND(25,2,Capital.EMPIRE,37),
+    ALLIANCE_THIRD(150,3,Capital.ALLIANCE,36);
     fun permits(power: Int, kind: OutfitKind): Boolean = when (this) {
         EMPIRE_FIRST -> power == 2 && kind == OutfitKind.FLEET
         EMPIRE_SECOND -> power == 2 && kind != OutfitKind.FLEET
         ALLIANCE_THIRD -> power == 3
+    }
+    companion object { fun of(card: Int) = entries.singleOrNull { it.card == card } }
+}
+
+/** Original group-3 cards and group-73 HQ types; holders come only from stored appointments. */
+class LogisticsOfficePolicy(private val galaxy: Galaxy) {
+    fun seat(office: LogisticsOffice, stocks: PlanetStocks): Int? {
+        val base=galaxy.bases.singleOrNull { Capital.of(it)==office.capital } ?: return null
+        val owner=stocks.bases[base.id] ?: return null
+        if (owner.power!=office.power || owner.camp!=0) return null
+        return galaxy.facilities[base.id]?.singleOrNull { it.kind==office.facility }?.id
+    }
+    fun cards(stocks: PlanetStocks, character: Int, power: Int): List<Pair<Int,Int>> {
+        val office=stocks.logisticsOfficers[character]?.takeIf { it.power==power } ?: return emptyList()
+        return seat(office,stocks)?.let { listOf(office.card to it) }.orEmpty()
     }
 }
 
