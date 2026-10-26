@@ -128,6 +128,7 @@ static void updateOutfitInformation(void* manager);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
 #include "planet_info.h"
 #include "outfit_information.h"
+#include "outfit_warnings.h"
 #include "docking_information.h"
 #include "navigation_status.h"
 #include "return_base.h"
@@ -496,6 +497,7 @@ static void install() {
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }
+    if (!installOutfitWarnings()) { status = -3; return; }
     if (!installDockingInformation()) { status = -3; return; }
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }

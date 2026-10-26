@@ -10,38 +10,71 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class ReorganizationWireTest {
-    @Test fun allFormationKindsRejectOverLimitPreviewAndCommitWithoutPaymentAndKeepTheBoundaryAfterReconnect() {
-        for ((kind, limit) in listOf(OutfitKind.FLEET to 60,OutfitKind.TRANSPORT to 23,
-                OutfitKind.PATROL to 3,OutfitKind.GROUND to 3)) {
+    @Test fun transportRoleOverflowIsRejectedEvenWhenTheTotalFits() {
+        for ((movingKind,baselineKind,baselineCount,overflow) in listOf(
+                listOf(32,76,19,4),listOf(76,32,2,21))) {
             val state=State(10000)
-            state.stocks=state.stocks.copy(outfits=mapOf(1 to state.stocks.outfits.getValue(1).copy(kind=kind)),
+            fun crew(kind:Int)=UnitSpecifications.ships.single { it.kind==kind }
+                .number("必要乗組員ユニット数:必要乗組員ユニット数")
+            val baselineCrew=crew(baselineKind)*baselineCount;val per=crew(movingKind)
+            val original=state.stocks.outfits.getValue(1).copy(kind=OutfitKind.TRANSPORT,activeShips=null,
+                units=UnitInventory(mapOf(UnitStack(baselineKind) to baselineCount),
+                    if (baselineCrew==0) emptyMap() else mapOf(UnitStack(3) to baselineCrew)))
+            state.stocks=state.stocks.copy(outfits=mapOf(1 to original),warehouses=mapOf(101 to
+                state.stocks.warehouses.getValue(101).copy(kind=OutfitKind.TRANSPORT,
+                    units=UnitInventory(mapOf(UnitStack(movingKind) to overflow),
+                        if (per==0) emptyMap() else mapOf(UnitStack(3) to per*overflow)))))
+            fun change(count:Int,mode:Int=1)=query().copy(kind=1,mode=mode,moves=LogisticsMessages.Moves(
+                listOf(LogisticsMessages.ShipMove(movingKind,count,0)),
+                if (mode==0 || per==0) emptyList() else listOf(LogisticsMessages.TroopMove(1003,0,per*count))))
+            fixture(state,"roles-$movingKind").use { server ->
+                val client=server.join(server.account(0),true,false).client;start(client)
+                val before=state.stocks;val paid=state.players;val saves=state.saves
+                client.send(LogisticsMessages.encode(change(overflow,0)))
+                val denied=client.receive();assertEquals(1,ByteBuffer.wrap(denied).int)
+                assertEquals(0x0c02,ByteBuffer.wrap(denied).getShort(4).toInt())
+                response(client,change(overflow),false,1000)
+                assertEquals(before,state.stocks);assertEquals(paid,state.players);assertEquals(saves,state.saves)
+                response(client,change(overflow-1),true,840);client.expect(0x032f);client.expect(0x0327)
+                assertEquals(22,state.stocks.outfits.getValue(1).units.ships.values.sum())
+            }
+        }
+    }
+    @Test fun allFormationKindsRejectOverLimitPreviewAndCommitWithoutPaymentAndKeepTheBoundaryAfterReconnect() {
+        for ((kind,movingKind,limit) in listOf(Triple(OutfitKind.FLEET,32,60),Triple(OutfitKind.TRANSPORT,76,20),
+                Triple(OutfitKind.PATROL,32,3),Triple(OutfitKind.GROUND,84,3))) {
+            val state=State(10000)
+            val per=UnitSpecifications.ships.single { it.kind==movingKind }.number("必要乗組員ユニット数:必要乗組員ユニット数")
+            val baseline=if (kind==OutfitKind.TRANSPORT) 3 else 0
+            val original=state.stocks.outfits.getValue(1).copy(kind=kind,activeShips=null,
+                units=if (baseline==0) UnitInventory() else UnitInventory(mapOf(UnitStack(32) to baseline),mapOf(UnitStack(3) to 15)))
+            fun change(units:Int,mode:Int=1)=query().copy(kind=kind.wire,mode=mode,
+                moves=LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(movingKind,units,0)),
+                    if (mode==0 || per==0) emptyList() else listOf(LogisticsMessages.TroopMove(1003,0,units*per))))
+            state.stocks=state.stocks.copy(outfits=mapOf(1 to original),
                 warehouses=mapOf(101 to state.stocks.warehouses.getValue(101).copy(kind=kind.warehouseKind,
                     outfitId=if (kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT)) 1 else 0,
-                    units=UnitInventory(mapOf(UnitStack(32) to limit+1),mapOf(UnitStack(3) to (limit+1)*5)))))
+                    units=UnitInventory(mapOf(UnitStack(movingKind) to limit+1),
+                        if (per==0) emptyMap() else mapOf(UnitStack(3) to (limit+1)*per)))))
             fixture(state,"limit-${kind.name}").use { server ->
                 val client=server.join(server.account(0),true,false).client;start(client)
                 val before=state.stocks;val saves=state.saves
-                val preview=query(limit+1,0).copy(kind=kind.wire,mode=0,
-                    moves=LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(32,limit+1,0)),emptyList()))
-                client.send(LogisticsMessages.encode(preview))
+                client.send(LogisticsMessages.encode(change(limit+1,0)))
                 val denied=client.receive()
-                assertEquals(0x0c02,ByteBuffer.wrap(denied).getShort(4).toInt())
-                assertEquals(1,ByteBuffer.wrap(denied).int)
-                response(client,query(limit+1,(limit+1)*5).copy(kind=kind.wire),false,1000)
+                assertEquals(0x0c02,ByteBuffer.wrap(denied).getShort(4).toInt());assertEquals(1,ByteBuffer.wrap(denied).int)
+                response(client,change(limit+1),false,1000)
                 assertEquals(before,state.stocks);assertEquals(saves,state.saves)
-                response(client,query(limit,limit*5).copy(kind=kind.wire),true,840)
-                client.expect(0x032f);client.expect(0x0327)
+                response(client,change(limit),true,840);client.expect(0x032f);client.expect(0x0327)
                 val committed=state.stocks;val paid=state.players;val committedSaves=state.saves
-                response(client,query(1,5).copy(kind=kind.wire),false,840)
+                response(client,change(1),false,840)
                 assertEquals(committed,state.stocks);assertEquals(paid,state.players);assertEquals(committedSaves,state.saves)
             }
             fixture(state,"reopen-${kind.name}").use { server ->
                 val client=server.join(server.account(0),true,false).client;start(client)
-                assertEquals(limit,state.stocks.outfits.getValue(1).units.ships.values.sum())
-                response(client,query(-1,-5).copy(kind=kind.wire),true,680)
-                client.expect(0x032f);client.expect(0x0327)
-                assertEquals(limit-1,state.stocks.outfits.getValue(1).units.ships.values.sum())
-                assertEquals(limit+1,state.stocks.outfits.getValue(1).units.ships.values.sum()+
+                assertEquals(baseline+limit,state.stocks.outfits.getValue(1).units.ships.values.sum())
+                response(client,change(-1),true,680);client.expect(0x032f);client.expect(0x0327)
+                assertEquals(baseline+limit-1,state.stocks.outfits.getValue(1).units.ships.values.sum())
+                assertEquals(baseline+limit+1,state.stocks.outfits.getValue(1).units.ships.values.sum()+
                     state.stocks.warehouses.getValue(101).units.ships.values.sum())
             }
         }
