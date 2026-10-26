@@ -5,6 +5,16 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class AppointmentDirectoryMessagesTest {
+    @Test fun multipleCapitalVacanciesRetainTheirOriginalCardAndBaseIdentities() {
+        val q=AppointmentDirectoryMessages.query(request())
+        val b=ByteBuffer.wrap(AppointmentDirectoryMessages.cards(q,mapOf(56 to 1,57 to 1))[1])
+        assertEquals(2,b.getShort(6).toInt());assertEquals(56,b.getShort(8).toInt());assertEquals(57,b.getShort(15).toInt())
+        for(card in listOf(56,57,192,193)) {
+            val raw=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(4).putShort(80).putShort(card.toShort()).array()
+            assertEquals(card,AppointmentDirectoryMessages.query(raw).role)
+        }
+        assertFails {AppointmentDirectoryMessages.cards(q,mapOf(134 to 1))}
+    }
     private fun request()=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(18).putShort(123).array()
     @Test fun nativeCardListHasTargetZeroAndByteVacancyCountBetweenBeginAndEnd() {
         val query=AppointmentDirectoryMessages.query(request())

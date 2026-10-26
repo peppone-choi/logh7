@@ -12,7 +12,8 @@ object AppointmentMessages {
         val target=input.int;val card=input.int
         input.short;input.int // Returned card structure is not client authority.
         val outfit=input.int;val base=input.int
-        require(actor>0 && target>0 && card in 0..260 && base in 1..65535 && outfit==0)
+        require(actor>0 && target>0 && card in 0..260 && base in 0..65535 && outfit==0 &&
+            (base>0 || card in setOf(56,57,192,193)))
         return Query(actor,target,card,outfit,base)
     }
     fun response(q: Query,seconds: Long,pcp: Int,mcp: Int,accepted: Boolean,changed: Boolean): ByteArray {

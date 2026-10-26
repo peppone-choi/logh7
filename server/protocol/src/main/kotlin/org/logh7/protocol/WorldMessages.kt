@@ -143,6 +143,7 @@ object WorldMessages {
         0 -> listOf(82, 83)
         59, 195 -> listOf(43, 44, 45, 60)
         54 -> listOf(5,30)
+        2,17,134,161 -> listOf(5)
         190,192 -> listOf(30)
         39, 44, 47, 50, 175, 180, 183, 186 -> listOf(63)
         else -> emptyList()
@@ -164,12 +165,15 @@ object WorldMessages {
     fun cards() = body {
         writeShort(261)
         for (card in 0..260) {
-            val power = when (card) { 54, 59, 39, 44, 47, 50, 52, 55,56,57 -> 2; 190, 195, 175, 180, 183, 186, 188, 191,192,193 -> 3; else -> 0 }
+            val power = when (card) { 2,17,54,59,39,44,47,50,52,55,56,57 -> 2; 134,161,190,195,175,180,183,186,188,191,192,193 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0)
             // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
             writeByte(when(card) {
-                54,55,56,57,190,191,192,193 -> 16
+                // Card institutions use constmsg group 4, not physical facilities in group 73.
+                2 -> 0; 17 -> 3; 134 -> 20; 161 -> 23
+                54,55,190,191 -> 16
+                56,57,192,193 -> 17
                 52,188 -> 15
                 39,175 -> 11
                 44,180 -> 12
@@ -183,8 +187,8 @@ object WorldMessages {
             val governor=card==54 || card==190 || card==192
             val garrison=card in setOf(52,55,188,191)
             // First is the lowest eligible rank (0057a080), not the lowest numeric index.
-            writeByte(when { governor -> 1; garrison -> 10; card==56 -> 4; card==57 -> 3; card==193 -> 8; else -> 0 })
-            writeByte(if(governor)1 else if(garrison || card in setOf(56,57,193))2 else 20); writeByte(0)
+            writeByte(when { governor || card==134 -> 1; garrison -> 10; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
+            writeByte(if(governor || card==134)1 else if(garrison || card in setOf(2,17,56,57,161,193))2 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)

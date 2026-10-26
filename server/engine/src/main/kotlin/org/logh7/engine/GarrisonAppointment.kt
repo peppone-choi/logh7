@@ -9,7 +9,7 @@ enum class AppointmentRejection { SESSION,IDENTITY,AUTHORITY,TARGET,BASE,RANK,OC
 data class GarrisonAppointmentResult(val player: Navigator?,val stocks: PlanetStocks?,val rejection: AppointmentRejection?=null,
     val changed: Boolean=false,val recovery: NavigationResult?=null,val targetPlayer: Navigator?=null)
 
-/** Empire planet governor -> planetary garrison commander. Other appointment authorities remain separate. */
+/** Stored planetary or national authority, charged with the office change in one world commit. */
 internal object GarrisonAppointment {
     const val COST=160 // CD constmsg group 0 entry 72: MCP 160, immediate.
     fun evaluate(galaxy: Galaxy,r: GarrisonAppointmentRequest,session: SessionState,player: Navigator?,stocks: PlanetStocks): GarrisonAppointmentResult {
@@ -19,24 +19,32 @@ internal object GarrisonAppointment {
             !participant.online || participant.connection!=r.connection) return reject(AppointmentRejection.SESSION)
         if (player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.power!=r.power || participant.power!=r.power) return reject(AppointmentRejection.IDENTITY)
-        if (r.power!=Power.EMPIRE || r.targetCard!=55) return reject(AppointmentRejection.AUTHORITY)
+        val capitalRule=CapitalAppointmentPolicy.rule(r.targetCard)
+        if (capitalRule==null && (r.power!=Power.EMPIRE || r.targetCard!=55)) return reject(AppointmentRejection.AUTHORITY)
         val base=stocks.bases[r.base] ?: return reject(AppointmentRejection.BASE)
         val seed=galaxy.bases.singleOrNull { it.id==r.base } ?: return reject(AppointmentRejection.BASE)
-        if (seed.kind!=0 || Capital.of(seed)!=null || base.power!=2 || base.camp!=0) return reject(AppointmentRejection.BASE)
-        if (base.governorId!=r.characterId) return reject(AppointmentRejection.AUTHORITY)
-        if (r.target<=0 || r.target==r.characterId || r.targetPower!=2) return reject(AppointmentRejection.TARGET)
+        val power=if(r.power==Power.EMPIRE)2 else 3
+        if (seed.kind!=0 || base.power!=power || base.camp!=0 ||
+            if(capitalRule==null) Capital.of(seed)!=null else Capital.of(seed)!=capitalRule.capital)
+            return reject(AppointmentRejection.BASE)
+        if (if(capitalRule==null) base.governorId!=r.characterId else
+            !CapitalAppointmentPolicy(galaxy).authorized(capitalRule,stocks,r.characterId,power))
+            return reject(AppointmentRejection.AUTHORITY)
+        if (r.target<=0 || r.target==r.characterId || r.targetPower!=power) return reject(AppointmentRejection.TARGET)
         // Native rank indices: 1 politician; 2 marshal..10 major. Smaller military index is senior.
-        if (r.actorRank !in 0..20 || r.targetRank !in 2..10 || r.actorRank>=r.targetRank) return reject(AppointmentRejection.RANK)
+        if (if(capitalRule==null) r.actorRank !in 0..20 || r.targetRank !in 2..10 || r.actorRank>=r.targetRank
+            else !capitalRule.eligible(r.actorRank,r.targetRank)) return reject(AppointmentRejection.RANK)
         if (player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(AppointmentRejection.BUSY)
-        if (base.garrisonCommanderId==r.target) return GarrisonAppointmentResult(player,stocks)
-        if (base.garrisonCommanderId!=0) return reject(AppointmentRejection.OCCUPIED)
+        val holder=capitalRule?.holder(base) ?: base.garrisonCommanderId
+        if (holder==r.target) return GarrisonAppointmentResult(player,stocks)
+        if (holder!=0) return reject(AppointmentRejection.OCCUPIED)
         val offices=BaseOfficePolicy(galaxy)
         val held=stocks.bases.values.sumOf { offices.holders(it).values.count { id -> id==r.target } }+
-            stocks.outfits.values.count { it.commanderId==r.target }
+            stocks.outfits.values.count { it.commanderId==r.target }+stocks.nationalOffices.values.count { it==r.target }
         if (held>=14) return reject(AppointmentRejection.CAPACITY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),COST.toLong(),CpPool.MCP)
         if (paid !is PaymentResult.Paid) return reject(AppointmentRejection.CP)
         return GarrisonAppointmentResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),
-            stocks.copy(bases=stocks.bases+(base.baseId to base.copy(garrisonCommanderId=r.target))),changed=true)
+            stocks.copy(bases=stocks.bases+(base.baseId to (capitalRule?.assign(base,r.target) ?: base.copy(garrisonCommanderId=r.target)))),changed=true)
     }
 }

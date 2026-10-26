@@ -13,12 +13,16 @@ class WorldBootstrap(val galaxy: Galaxy) {
     /** Stored base offices, never inferred from the viewer or a stationed outfit. */
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
-        require(card in setOf(52,54,55,56,57,188,190,191,192,193)) { "Unsupported public office roster" }
-        val power=if (card<136) 2 else 3
-        val appointed=stocks.bases.values.filter { it.power==power && it.camp==0 }.flatMap { base ->
+        val national=org.logh7.engine.NationalOffice.of(card)
+        require(national!=null || card in setOf(52,54,55,56,57,188,190,191,192,193)) { "Unsupported public office roster" }
+        val power=national?.power ?: if (card<136) 2 else 3
+        val baseHolders=stocks.bases.values.filter { it.power==power && it.camp==0 }.flatMap { base ->
             val id=baseOffices.holders(base)[card] ?: return@flatMap emptyList()
             listOf(id to BootstrapMessages.OfficeCard(card,base.baseId))
-        }.groupBy({it.first},{it.second}).toSortedMap()
+        }
+        val nationalHolders=if(national!=null && national.active(galaxy,stocks)) stocks.nationalOffices[national]?.let {
+            listOf(it to BootstrapMessages.OfficeCard(card,checkNotNull(national.seat(galaxy)))) }.orEmpty() else emptyList()
+        val appointed=(baseHolders+nationalHolders).groupBy({it.first},{it.second}).toSortedMap()
         require(appointed.size<=64 && appointed.values.all { it.size<=14 }) { "Office roster exceeds CD capacity" }
         val records=appointed.map { (id,offices) ->
             val character=checkNotNull(characterById(id)) { "Appointed character is missing" }

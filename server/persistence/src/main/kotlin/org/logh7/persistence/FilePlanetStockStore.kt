@@ -8,6 +8,7 @@ import org.logh7.engine.OutfitStock
 import org.logh7.engine.OutfitWarehouse
 import org.logh7.engine.OutfitKind
 import org.logh7.engine.LogisticsOffice
+import org.logh7.engine.NationalOffice
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -35,7 +36,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
         val header = lines.firstOrNull()?.split('\t').orEmpty()
-        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9")) return loadCurrent(header, lines.drop(1))
+        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10")) return loadCurrent(header, lines.drop(1))
         require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
         val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
@@ -52,14 +53,15 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
     private fun loadCurrent(header: List<String>, lines: List<String>): PlanetStocks {
-        val capitals = header[0] == "LOGH7-STOCK-9"
-        val garrison = header[0] in setOf("LOGH7-STOCK-8","LOGH7-STOCK-9")
-        val administration = header[0] in setOf("LOGH7-STOCK-7", "LOGH7-STOCK-8","LOGH7-STOCK-9")
-        val identities = header[0] in setOf("LOGH7-STOCK-6", "LOGH7-STOCK-7", "LOGH7-STOCK-8","LOGH7-STOCK-9")
+        val national = header[0]=="LOGH7-STOCK-10"
+        val capitals = national || header[0] == "LOGH7-STOCK-9"
+        val garrison = capitals || header[0] == "LOGH7-STOCK-8"
+        val administration = garrison || header[0] == "LOGH7-STOCK-7"
+        val identities = administration || header[0] == "LOGH7-STOCK-6"
         val current = header[0] != "LOGH7-STOCK-4"
-        require(header.size == if (identities) 9 else if (current) 8 else 7) { "Invalid inventory header" }
+        require(header.size == if(national)10 else if (identities) 9 else if (current) 8 else 7) { "Invalid inventory header" }
         val initialized = if (current) when (header[7]) { "0" -> false; "1" -> true; else -> error("Invalid deployment marker") } else false
-        val counts = header.subList(3,7).map(String::toInt)
+        val counts = header.subList(3,7).map(String::toInt)+(if(national)listOf(header[9].toInt()) else emptyList())
         require(counts[0] in 0..350 && counts.drop(1).all { it in 0..1000 } && lines.size == counts.sum()) {
             "Inventory row count mismatch"
         }
@@ -67,6 +69,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val outfits = linkedMapOf<Int, OutfitStock>()
         val warehouses = linkedMapOf<Int, OutfitWarehouse>()
         val officers = linkedMapOf<Int, LogisticsOffice>()
+        val nationalOffices=linkedMapOf<NationalOffice,Int>()
         for (line in lines) {
             val f = line.split('\t')
             when (f[0]) {
@@ -100,18 +103,24 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     require(f.size == 3)
                     require(officers.put(f[1].toInt(), LogisticsOffice.valueOf(f[2])) == null) { "Duplicate logistics appointment" }
                 }
+                "N" -> {
+                    require(national && f.size==3)
+                    val office=requireNotNull(NationalOffice.of(f[1].toInt())) { "Unknown national office" }
+                    val holder=f[2].toInt();require(holder>0)
+                    require(nationalOffices.put(office,holder)==null) { "Duplicate national office" }
+                }
                 else -> throw IllegalArgumentException("Unknown inventory row")
             }
         }
-        require(listOf(bases.size, outfits.size, warehouses.size, officers.size) == counts) { "Inventory section count mismatch" }
+        require(listOf(bases.size, outfits.size, warehouses.size, officers.size)+(if(national)listOf(nationalOffices.size) else emptyList()) == counts) { "Inventory section count mismatch" }
         return PlanetStocks(header[1].toLong(), header[2].toLong(), bases, outfits, warehouses, officers,initialized,
-            if (identities) header[8].toInt() else 1)
+            if (identities) header[8].toInt() else 1,nationalOffices)
     }
     override fun save(stocks: PlanetStocks) {
         val bytes = buildString {
-            append(listOf("LOGH7-STOCK-9", stocks.generation, stocks.producedDays, stocks.bases.size,
+            append(listOf("LOGH7-STOCK-10", stocks.generation, stocks.producedDays, stocks.bases.size,
                 stocks.outfits.size, stocks.warehouses.size, stocks.logisticsOfficers.size,
-                if (stocks.deploymentInitialized) 1 else 0, stocks.nextShipId).joinToString("\t"))
+                if (stocks.deploymentInitialized) 1 else 0, stocks.nextShipId,stocks.nationalOffices.size).joinToString("\t"))
             append('\n')
             stocks.bases.toSortedMap().values.forEach { stock ->
                 val people = stock.economy
@@ -132,6 +141,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             }
             stocks.logisticsOfficers.toSortedMap().forEach { (character, office) ->
                 append("A\t$character\t${office.name}\n")
+            }
+            stocks.nationalOffices.toSortedMap(compareBy { it.card }).forEach { (office,holder) ->
+                append("N\t${office.card}\t$holder\n")
             }
         }.toByteArray(Charsets.UTF_8)
         require(bytes.size <= 4_000_000) { "Planet stock store is too large" }
