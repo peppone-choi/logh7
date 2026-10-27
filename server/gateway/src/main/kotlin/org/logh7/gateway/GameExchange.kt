@@ -115,7 +115,9 @@ class GameExchange(
             val changed = result.previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed) listOf(characterMessage(character, player, true)) else emptyList()) +
-                completedWork(result, character)
+                completedWork(result, character) +
+                (world?.let { map -> navigation.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
+                    ?.let(::listOf).orEmpty())
         }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {

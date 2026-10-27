@@ -30,7 +30,7 @@ class NavigationRecoveryWireTest {
             fixture.clock(client) // No unsolicited character update before the interval.
             fixture.engine.submit(WorldCommand.AdvanceTo(300000))
             val refreshed = through(client, 0x0356)
-            assertEquals(listOf(0x0356), refreshed.map(::code))
+            assertEquals(listOf(0x0356), refreshed.filter { code(it) != 0x0b0d }.map(::code))
             val message = refreshed.last()
             assertEquals(0, message[6].toInt())
             assertEquals(10000, ByteBuffer.wrap(message).getInt(7))
