@@ -17,12 +17,16 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val baseId: Int = 0, val mode: Int = 5, val spotId: Int = 0, val spotOwner: Int = 0,
     val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
     val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null, val dockTarget: Int? = null,
-    val returnBase: Int = 0, val energy: TacticalEnergy? = null, val motion: TacticalMotion? = null) {
+    val returnBase: Int = 0, val energy: TacticalEnergy? = null, val motion: TacticalMotion? = null,
+    val retreat: TacticalRetreat? = null) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 &&
+        (retreat == null || (cpPaused && baseId == 0 && mode == 5 && motion != null && retreat.destination != grid &&
+            abs(retreat.destination % 100 - grid % 100) <= 1 && abs(retreat.destination / 100 - grid / 100) <= 1 &&
+            energy?.values?.get(1) == TacticalEnergy.WARP_MAX)) &&
         (motion == null || (motion.grid == grid && cpPaused && baseId == 0 && mode == 5 &&
             motion.velocity <= (energy ?: TacticalEnergy.ZERO).values[0] / 100f)) &&
         (cpRecoveryAt == null || cpRecoveryAt in 0..0xffffffffL) &&
@@ -54,24 +58,27 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null,
     val supplyFuel: Boolean = false, val returnBase: Int? = null,
     val energy: TacticalEnergy? = null, val shipKind: Int? = null, val tacticalMove: TacticalMove? = null,
-    val tacticalStop: TacticalStop? = null) {
+    val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
         (tactical == null || (destination == null && place == null && !supplyFuel)) &&
         (!supplyFuel || (destination == null && place == null)) &&
         (returnBase == null || (returnBase in 0..65535 && destination == null && place == null && !supplyFuel && tactical == null)) &&
         (energy == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && shipKind != null)) &&
         (tacticalMove == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && energy == null && shipKind != null)) &&
-        (tacticalStop == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && energy == null && tacticalMove == null && shipKind != null))) }
+        (tacticalStop == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && energy == null && tacticalMove == null && shipKind != null)) &&
+        (tacticalRetreat == null || (tacticalRetreat.size in 1..32 && tacticalRetreat.distinct().size == tacticalRetreat.size &&
+            destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && energy == null &&
+            tacticalMove == null && tacticalStop == null && shipKind != null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY }
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false)
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
-    private val policy: NavigationPolicy, private val cpIntervalSeconds: Long = 7200) {
-    init { require(cpIntervalSeconds in 1..86400) }
+    private val policy: NavigationPolicy, private val cpIntervalSeconds: Long = 7200, private val clockScale: Long = 24) {
+    init { require(cpIntervalSeconds in 1..86400 && clockScale in 1..1000) }
     private var players = store?.load().orEmpty().toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
     fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
@@ -86,6 +93,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (session.ended != null || session.generation != request.generation || !member.online || member.connection != request.connection)
             return reject(NavigationRejection.SESSION)
         if (member.power != request.power) return reject(NavigationRejection.IDENTITY)
+        if (persist) settleRetreats(session, stocks)
         val existing = players[request.account]?.takeIf { it.generation == request.generation }
         if (existing != null && (existing.characterId != request.characterId || existing.power != request.power))
             return reject(NavigationRejection.IDENTITY)
@@ -95,7 +103,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val tactical = request.tactical ?: if(stocks == null) initial.cpPaused else
             TacticalContact.active(galaxy,initial,snapshot(session.generation).values,stocks)
         val ready = if(initial.cpPaused == tactical) initial else initial.copy(cpPaused=tactical,cpRecoveryAt=now,
-            motion=if(tactical)initial.motion else null)
+            motion=if(tactical)initial.motion else null,retreat=if(tactical)initial.retreat else null)
         val fueled = settleWork(ready, now)
         completedFuel = initial.fuelReadyAt != null && fueled.fuelReadyAt == null
         completedDock = initial.dockTarget != null && fueled.dockTarget == null
@@ -105,10 +113,28 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val active = if(stocks == null) player.cpPaused else
                 TacticalContact.active(galaxy,player,snapshot(session.generation).values,stocks)
             return if(active == player.cpPaused) player else player.copy(cpPaused=active,cpRecoveryAt=now,
-                motion=if(active)player.motion else null)
+                motion=if(active)player.motion else null,retreat=if(active)player.retreat else null)
         }
         if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
+        request.tacticalRetreat?.let { units ->
+            if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
+            if (units != listOf(before.unitId)) return reject(NavigationRejection.UNIT)
+            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            val ship = Flagships.find(checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
+            if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+            if (before.retreat != null) return reject(NavigationRejection.BUSY)
+            if (before.energy?.values?.get(1) != TacticalEnergy.WARP_MAX) return reject(NavigationRejection.ENERGY)
+            val pose = before.motion?.pose(now) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
+                snapshot(session.generation).values + before, stocks, galaxy)
+            if (!RetreatRules.outside(pose)) return reject(NavigationRejection.INSIDE_RADAR)
+            val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose)
+                ?: return reject(NavigationRejection.GRID)
+            if (now > 0xffffffffL - 155 * clockScale) return reject(NavigationRejection.CLOCK)
+            val after = before.copy(retreat = TacticalRetreat(target, now, 5 * clockScale, 150 * clockScale))
+            if (persist) commit(request.account, after, session.generation)
+            return NavigationResult(after, before)
+        }
         request.tacticalStop?.let { stop ->
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             // Fleet/base authority is not yet implemented. Never silently stop another commander's units.
@@ -153,7 +179,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     acceptedAt = maxOf(now, motion.startsAt) - TacticalMotion.WAIT_SECONDS,
                     origin = motion.pose(now), velocity = maximum, waypoints = motion.remaining(now))
             }
-            val after = before.copy(energy = energy, motion = motion)
+            val after = before.copy(energy = energy, motion = motion,
+                retreat = if (energy.values[1] == TacticalEnergy.WARP_MAX) before.retreat else null)
             if (persist && after != before) commit(request.account, after, session.generation)
             return NavigationResult(after, before)
         }
@@ -225,6 +252,35 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             cruise = before.cruise - policy.cruiseCost, moves = Math.addExact(before.moves, 1), motion = null))
         if (persist) commit(request.account, after, session.generation)
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock)
+    }
+    /** Runs on clock advances as well as requests, including while the captain is offline. */
+    fun settleRetreats(session: SessionState, stocks: PlanetStocks?) {
+        if (session.ended != null) return
+        val now = session.gameMillis / 1000
+        val next = snapshot(session.generation).toMutableMap()
+        var changed = false
+        for ((account, player) in next.toSortedMap()) {
+            val retreat = player.retreat ?: continue
+            if (!TacticalContact.active(galaxy, player, next.values, stocks)) {
+                next[account] = player.copy(cpPaused = false, motion = null, retreat = null, cpRecoveryAt = now)
+                changed = true
+                continue
+            }
+            if (now < retreat.completesAt) continue
+            val pose = player.motion?.pose(now) ?: continue
+            if (!RetreatRules.outside(pose)) continue
+            val forces = GridForces.collect(galaxy, session.generation, next.values, stocks)
+            if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces)) continue
+            val moved = player.copy(grid = retreat.destination, motion = null, retreat = null,
+                cpRecoveryAt = now, moves = Math.addExact(player.moves, 1))
+            val active = TacticalContact.active(galaxy, moved, next.values, stocks)
+            next[account] = moved.copy(cpPaused = active)
+            changed = true
+        }
+        if (changed) {
+            store?.save(next)
+            players = next.toMap()
+        }
     }
     private fun settleWork(player: Navigator, now: Long): Navigator {
         if (player.cpPaused) return player

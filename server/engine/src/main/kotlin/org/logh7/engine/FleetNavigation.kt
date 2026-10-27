@@ -6,6 +6,8 @@ internal object FleetNavigation {
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?, blocked: (Int) -> Boolean): NavigationResult {
         val players = navigation.snapshot(session.generation)
         val before = players[request.account]
+        // Personal flagship retreat must not transport the commander's unimplemented fleet/CRC selection.
+        if (request.tacticalRetreat != null || before?.retreat != null) return navigation.apply(request, session, stocks)
         val outfit = before?.let { player -> stocks.outfits.values.singleOrNull {
             it.commanderId == player.characterId && it.kind != OutfitKind.GROUND &&
                 it.power == (if (player.power == Power.EMPIRE) 2 else 3) &&

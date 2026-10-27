@@ -7,6 +7,20 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun pendingRetreatReopensWithoutResettingItsDeadlineAndOldNineHasNoRetreat() {
+        val path=directory.resolve("retreat")
+        val pose=TacticalPose(TacticalPoint(-300f,0f),1f)
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(100,50)+List(9){0}),
+            motion=TacticalMotion(2017,100,pose,0f,1f,listOf(pose.position)),
+            retreat=TacticalRetreat(2016,120,120,3600))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-10",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-9\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").retreat)}
+    }
     @Test fun motionKeepsItsScheduleAndPathAcrossReopenAndLegacyEightHasNoMotion() {
         val path=directory.resolve("motion")
         val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(-700f,-180f),0f),0.5f,1f,

@@ -8,5 +8,9 @@ data class TacticalEnergy(val values: List<Int>) {
         require(output >= allocated)
         return output - allocated
     }
-    companion object { val ZERO = TacticalEnergy(List(11) { 0 }) }
+    companion object {
+        /** Native 005123b0 creates the WARP slider with range 0..50. */
+        const val WARP_MAX = 50
+        val ZERO = TacticalEnergy(List(11) { 0 })
+    }
 }

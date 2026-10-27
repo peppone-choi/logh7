@@ -51,7 +51,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
     private val queue = Channel<Queued>(1024)
     private val simulation = SessionSimulation(rules, generationStore.current())
-    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds) }
+    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed) }
     private var durableState = durability?.let { store ->
         try {
             val restored = store.load()
@@ -449,8 +449,10 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     val next = transitionSession(rules, checkNotNull(durableState), command.sessionAction())
                     durability.commit(command.sessionAction(), next)
                     durableState = next.state
-                    if (command is WorldCommand.AdvanceTo)
+                    if (command is WorldCommand.AdvanceTo) {
                         production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
+                        navigation?.settleRetreats(next.state.session, production?.snapshot(next.state.session.generation))
+                    }
                     published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
                         planetStocks = production?.snapshot(next.state.session.generation)))
                     if (command is WorldCommand.Join) {
@@ -475,6 +477,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     require(command.elapsedRealMillis >= elapsed)
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
+                    navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     elapsed = command.elapsedRealMillis
                     if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis

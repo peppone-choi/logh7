@@ -90,6 +90,11 @@ class GameExchange(
         else BootstrapMessages.character(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))
     /** Restore the accepted job, without submitting or charging it a second time. */
     private fun pendingNavigation(player: org.logh7.engine.Navigator): List<ByteArray> {
+        player.retreat?.let { retreat ->
+            return listOf(org.logh7.protocol.TacticalRetreatMessages.reply(
+                org.logh7.protocol.TacticalRetreatMessages.Retreat(player.characterId,listOf(player.unitId)),
+                gameSeconds(),maxOf(0,retreat.startsAt-gameSeconds())))
+        }
         val target = player.dockTarget ?: return emptyList()
         val seconds = gameSeconds()
         return listOf(org.logh7.protocol.PlaceMessages.docked(org.logh7.protocol.PlaceMessages.Dock(
@@ -127,7 +132,9 @@ class GameExchange(
                 it.mode != player.mode || it.spotId != player.spotId || it.spotOwner != player.spotOwner } == true
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
-                (if (relocated) listOf(unitMessage(character, player)) +
+                (if (relocated) (if(previous.cpPaused && previous.grid != player.grid)
+                    listOf(org.logh7.protocol.TacticalRetreatMessages.warped(gameSeconds(),player.grid,listOf(player.unitId))) else emptyList()) +
+                    listOf(unitMessage(character, player)) +
                     (if (previous.grid != player.grid) listOf(org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused),
                         org.logh7.protocol.NavigationMessages.moved(org.logh7.protocol.NavigationMessages.Warp(player.characterId,
                             if(character.power==2)59 else 195,player.grid,0,5),gameSeconds(),player.unitId,player.cruise)) else emptyList()) +
@@ -143,7 +150,9 @@ class GameExchange(
         if (state == State.CLOSED) null else {
             val update = publication.also { publication = null }
             val tactical = update?.let {
-                val changed = deliveredTactics != null && deliveredTactics != it.player.cpPaused && deliveredPlayer?.grid == it.player.grid
+                val changed = deliveredTactics != null &&
+                    (deliveredTactics != it.player.cpPaused && deliveredPlayer?.grid == it.player.grid ||
+                        deliveredTactics == true && deliveredPlayer?.grid != it.player.grid)
                 deliveredTactics = it.player.cpPaused
                 if(changed) listOf(org.logh7.protocol.TacticsMessages.notify(it.player.grid,it.player.cpPaused)) else emptyList()
             }.orEmpty()
@@ -236,6 +245,23 @@ class GameExchange(
                                     org.logh7.protocol.TacticalMoveMessages.Unit(unit.id,unit.direction,pose)),velocity=0f,
                                     direction=unit.direction,waypoints=listOf(pose)),gameSeconds(),0,false))
                             }
+                        }
+                        return null
+                    }
+                    0x0404 -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(characters.character(identity.account))
+                        val retreat=org.logh7.protocol.TacticalRetreatMessages.retreat(body)
+                        require(retreat.character==character.id.toInt())
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
+                            shipKind=character.shipKind,tacticalRetreat=retreat.units)).thenApply {result->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            listOf(org.logh7.protocol.TacticalRetreatMessages.reply(retreat,gameSeconds(),
+                                if(result.player!=null)maxOf(0,checkNotNull(player.retreat).startsAt-gameSeconds()) else 0,
+                                result.player!=null))
                         }
                         return null
                     }
@@ -629,6 +655,29 @@ class GameExchange(
                         return null
                     }
                     0x0336, 0x033a, 0x033e, 0x0348, 0x034a -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val current=checkNotNull(navigation.snapshot()?.navigators?.get(identity.account))
+                        if(!current.cpPaused || deliveredTactics==true && deliveredPlayer?.grid!=current.grid) {
+                            // Position polls already in flight when the clock finishes a retreat are valid.
+                            // Answer them without leaking another battlefield, then deliver the mode transition.
+                            val empty=if(opcode==0x0336) {
+                                require(body.size==4)
+                                val grid=java.nio.ByteBuffer.wrap(body).getShort(2).toInt() and 65535
+                                require(grid in 0..4999)
+                                org.logh7.protocol.TacticsMessages.characters(grid,emptyList())
+                            } else {
+                                org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a)
+                                when(opcode) {
+                                    0x033e -> org.logh7.protocol.TacticsMessages.corps(emptyList())
+                                    0x034a -> org.logh7.protocol.TacticsMessages.basePositions(emptyList())
+                                    0x0348 -> org.logh7.protocol.TacticsMessages.positions(emptyList())
+                                    else -> org.logh7.protocol.TacticsMessages.states(emptyList())
+                                }
+                            }
+                            val character=checkNotNull(characters.character(identity.account))
+                            pendingWorld=recover(character,identity.account).thenApply { listOf(empty)+it }
+                            return null
+                        }
                         val tactical=tactics(identity.account)
                         if(opcode==0x0336) {
                             require(body.size==4 && java.nio.ByteBuffer.wrap(body).getShort(2).toInt()==tactical.grid)
