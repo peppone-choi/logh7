@@ -3,6 +3,7 @@ package org.logh7.persistence
 import org.logh7.engine.NavigationStore
 import org.logh7.engine.Navigator
 import org.logh7.engine.Power
+import org.logh7.engine.TacticalEnergy
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -32,7 +33,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         require(Files.size(path) <= 4_000_000) { "Navigation store is too large" }
         val lines = Files.readAllLines(path)
         val version = lines.firstOrNull()
-        val columns = when (version) { "LOGH7-NAV-1" -> 9; "LOGH7-NAV-2" -> 13; "LOGH7-NAV-3" -> 15; "LOGH7-NAV-4" -> 16; "LOGH7-NAV-5" -> 17; "LOGH7-NAV-6" -> 18; "LOGH7-NAV-7" -> 19
+        val columns = when (version) { "LOGH7-NAV-1" -> 9; "LOGH7-NAV-2" -> 13; "LOGH7-NAV-3" -> 15; "LOGH7-NAV-4" -> 16; "LOGH7-NAV-5" -> 17; "LOGH7-NAV-6" -> 18; "LOGH7-NAV-7" -> 19; "LOGH7-NAV-8" -> 20
             else -> error("Unknown navigation store format") }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
@@ -47,19 +48,21 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                 if (columns >= 16 && f[15] != "-") f[15].toLong() else null,
                 if (columns >= 17 && f[16] != "-") StrategyCheckpointCodec.decode(f[16]) else null,
                 if (columns >= 18 && f[17] != "-") f[17].toInt() else null,
-                if (columns >= 19) f[18].toInt() else 0)
+                if (columns >= 19) f[18].toInt() else 0,
+                if (columns >= 20 && f[19] != "-") TacticalEnergy(f[19].split(',').map(String::toInt)) else null)
             require(players.put(f[0], player) == null) { "Duplicate navigation account" }
         }
         return players
     }
     override fun save(players: Map<String, Navigator>) {
         val bytes = buildString {
-            append("LOGH7-NAV-7\n")
+            append("LOGH7-NAV-8\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
                 append(listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
                     p.moves, p.baseId, p.mode, p.spotId, p.spotOwner, p.cpRecoveryAt ?: "-", if (p.cpPaused) 1 else 0,
-                    p.fuelReadyAt ?: "-", p.strategy?.let(StrategyCheckpointCodec::encode) ?: "-", p.dockTarget ?: "-", p.returnBase).joinToString("\t"))
+                    p.fuelReadyAt ?: "-", p.strategy?.let(StrategyCheckpointCodec::encode) ?: "-", p.dockTarget ?: "-", p.returnBase,
+                    p.energy?.values?.joinToString(",") ?: "-").joinToString("\t"))
                 append('\n')
             }
         }.toByteArray(Charsets.UTF_8)

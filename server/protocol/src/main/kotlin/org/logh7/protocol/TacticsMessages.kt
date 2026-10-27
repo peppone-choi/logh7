@@ -4,6 +4,43 @@ import java.nio.ByteBuffer
 
 /** 0048cb80: u8 state followed by u32 grid, with no native padding. Author: 최병호. */
 object TacticsMessages {
+    data class Control(val character: Int, val unit: Int, val energy: List<Int>) {
+        init { require(character > 0 && unit > 0 && energy.size == 11 && energy.all { it in 0..100 }) }
+    }
+    fun control(message: ByteArray): Control {
+        require(message.size == 31)
+        val input = ByteBuffer.wrap(message)
+        require(input.short.toInt() and 65535 == 0x040c)
+        input.int; input.int // Client time and wait do not choose the server schedule.
+        val character = input.int; val unit = input.int
+        input.short // Reserve is recomputed from the authenticated flagship's output.
+        val beam = input.get().toInt() and 255; val gun = input.get().toInt() and 255
+        val shields = List(6) { input.get().toInt() and 255 }
+        val engine = input.get().toInt() and 255; val warp = input.get().toInt() and 255
+        val sensor = input.get().toInt() and 255
+        return Control(character,unit,listOf(engine,warp,sensor,beam,gun)+shields)
+    }
+    fun controlReply(control: Control, reserve: Int, seconds: Long, accepted: Boolean = true): ByteArray {
+        require(reserve in 0..65535 && seconds in 0..0xffffffffL)
+        val out = ByteBuffer.allocate(29).putInt(seconds.toInt()).putInt(0).putInt(control.character)
+            .putInt(control.unit).putShort(reserve.toShort())
+        out.put(control.energy[3].toByte()).put(control.energy[4].toByte())
+        control.energy.drop(5).forEach {out.put(it.toByte())}
+        control.energy.take(3).forEach {out.put(it.toByte())}
+        return LoginMessages.sessionMessage(0x040c,out.array()).also {if(!accepted)ByteBuffer.wrap(it).putInt(0,1)}
+    }
+    data class Corps(val character: Int, val commandRange: Float, val energy: List<Int>,
+        val shields: List<Int>, val mission: Int = 0, val targetKind: Int = 0, val target: Int = 0,
+        val chief: Boolean = false, val formation: Int = 0, val beam: Int = 0, val gun: Int = 0,
+        val damagedShields: List<Int> = List(6) { 0 }) {
+        init {
+            require(character > 0 && commandRange.isFinite() && commandRange >= 0)
+            require(energy.size == 11 && energy.all { it in 0..127 })
+            require(shields.size == 6 && damagedShields.size == 6 &&
+                (shields + damagedShields + listOf(beam, gun)).all { it in 0..65535 })
+            require(mission in 0..255 && targetKind in 0..255 && target >= 0 && formation in 0..127)
+        }
+    }
     data class Base(val id: Int,val x: Float,val y: Float,val z: Float)
     data class Unit(val id: Int,val kind: Int,val outfit: Int,val character: Int,val supplies: Int,
         val cruise: Float,val destroyed: Int,val x: Float,val y: Float,val z: Float,val direction: Float)
@@ -44,9 +81,23 @@ object TacticsMessages {
         validate(units)
         val out=ByteBuffer.allocate(2+47*units.size).putShort(units.size.toShort())
         units.forEach {u->out.putInt(u.id).put(100).put(0).putInt(u.character)
-            .putFloat(u.x).putFloat(u.y).putFloat(u.z).putFloat(u.direction).putInt(u.id)
-            .putFloat(u.x).putFloat(u.y).putFloat(u.z).putFloat(u.direction).put(1)}
+            .putFloat(u.x).putFloat(u.y).putFloat(u.z).putFloat(u.direction).putInt(0)
+            .putFloat(0f).putFloat(0f).putFloat(0f).putFloat(0f).put(1)}
         return LoginMessages.sessionMessage(0x033b,out.array())
+    }
+    /** 00422d80: 55 wire bytes per corps, versus the native padded 60-byte record. */
+    fun corps(corps: List<Corps>): ByteArray {
+        require(corps.size <= 600 && corps.map { it.character }.distinct().size == corps.size)
+        val out = ByteBuffer.allocate(2 + 55 * corps.size).putShort(corps.size.toShort())
+        corps.forEach { c ->
+            out.putInt(c.character).put(c.mission.toByte()).put(c.targetKind.toByte()).putInt(c.target)
+                .putFloat(c.commandRange).put(if (c.chief) 1 else 0).put(c.formation.toByte())
+            c.energy.forEach { out.put(it.toByte()) }
+            out.putShort(c.beam.toShort()).putShort(c.gun.toShort())
+            c.shields.forEach { out.putShort(it.toShort()) }
+            c.damagedShields.forEach { out.putShort(it.toShort()) }
+        }
+        return LoginMessages.sessionMessage(0x033f, out.array())
     }
     fun positions(units: List<Unit>): ByteArray {
         validate(units)

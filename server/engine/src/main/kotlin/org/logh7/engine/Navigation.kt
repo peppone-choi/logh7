@@ -17,7 +17,7 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val baseId: Int = 0, val mode: Int = 5, val spotId: Int = 0, val spotOwner: Int = 0,
     val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
     val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null, val dockTarget: Int? = null,
-    val returnBase: Int = 0) {
+    val returnBase: Int = 0, val energy: TacticalEnergy? = null) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
@@ -49,14 +49,16 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val connection: String, val generation: Long, val destination: Int? = null, val unitId: Int? = null,
     val captainCard: Int? = null, val place: PlaceMove? = null, val rank: Int = 20,
     val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null,
-    val supplyFuel: Boolean = false, val returnBase: Int? = null) {
+    val supplyFuel: Boolean = false, val returnBase: Int? = null,
+    val energy: TacticalEnergy? = null, val shipKind: Int? = null) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
         (tactical == null || (destination == null && place == null && !supplyFuel)) &&
         (!supplyFuel || (destination == null && place == null)) &&
-        (returnBase == null || (returnBase in 0..65535 && destination == null && place == null && !supplyFuel && tactical == null))) }
+        (returnBase == null || (returnBase in 0..65535 && destination == null && place == null && !supplyFuel && tactical == null)) &&
+        (energy == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && shipKind != null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY }
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false)
 
@@ -99,6 +101,17 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         }
         if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
+        request.energy?.let { energy ->
+            if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
+            if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
+            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            val ship = Flagships.find(checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
+            if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+            if (energy.allocated > ship.number("出力:出力")) return reject(NavigationRejection.ENERGY)
+            val after = before.copy(energy = energy)
+            if (persist && after != before) commit(request.account, after, session.generation)
+            return NavigationResult(after, before)
+        }
         request.returnBase?.let { target ->
             if (target != 0) {
                 val condition = galaxy.conditions[target] ?: return reject(NavigationRejection.BASE)

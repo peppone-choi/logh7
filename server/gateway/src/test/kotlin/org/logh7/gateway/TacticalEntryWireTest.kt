@@ -64,6 +64,16 @@ class TacticalEntryWireTest {
             assertEquals(1,positions.getShort(6).toInt());assertEquals(ids.first(),positions.getInt(8))
             first.send(ByteBuffer.allocate(3).putShort(0x034a).put(0).array())
             assertEquals(7,through(first,0x034b).size)
+            val control=org.logh7.protocol.TacticsMessages.Control(10000,1010000,listOf(40,0,20,60,20)+List(6){20})
+            val request=org.logh7.protocol.TacticsMessages.controlReply(control,0,0)
+            first.send(request.copyOfRange(4,request.size))
+            val controlled=ByteBuffer.wrap(through(first,0x040c))
+            assertEquals(0,controlled.getInt(0));assertEquals(10000,controlled.getInt(14))
+            assertEquals(TacticalEnergy(control.energy),savedPlayers.getValue(fixture.account(0)).energy)
+            first.send(SyntheticClient.opcode(0x0f02))
+            val corps=ByteBuffer.wrap(through(first,0x033f))
+            assertEquals(10000,corps.getInt(8));assertEquals(control.energy,(24..34).map {corps.get(it).toInt()})
+            through(first,0x0f03)
         }
     }
 }

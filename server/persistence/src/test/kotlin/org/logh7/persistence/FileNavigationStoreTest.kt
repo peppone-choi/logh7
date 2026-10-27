@@ -7,14 +7,27 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun tacticalEnergySurvivesReopenAndSevenDefaultsToUnset() {
+        val path=directory.resolve("energy")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(40,0,20,60,20)+List(6){20}))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-8",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-7\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertEquals(player.copy(energy=null),it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace(",60,",",101,")+"\n")
+        FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
     @Test fun returnBaseSurvivesReopenAndSixDefaultsToUnset() {
         val path = directory.resolve("return-base")
         val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 900, returnBase = 1048)
         FileNavigationStore(path).use { it.save(mapOf("pilot" to player)) }
         val seven = java.nio.file.Files.readAllLines(path)
-        assertEquals("LOGH7-NAV-7", seven.first())
+        assertEquals("LOGH7-NAV-8", seven.first())
         FileNavigationStore(path).use { assertEquals(player, it.load().getValue("pilot")) }
-        java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n" + seven[1].substringBeforeLast('\t') + "\n")
+        java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n" + seven[1].split('\t').take(18).joinToString("\t") + "\n")
         FileNavigationStore(path).use { assertEquals(player.copy(returnBase = 0), it.load().getValue("pilot")) }
         assertFails { player.copy(returnBase = 65536) }
     }
@@ -27,7 +40,7 @@ class FileNavigationStoreTest {
         val pending = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 840, 900,
             strategy = org.logh7.engine.strategy.StrategyCheckpoint(1, 1000, listOf(job)), dockTarget = 1049)
         FileNavigationStore(path).use { it.save(mapOf("pilot" to pending)) }
-        val row = java.nio.file.Files.readAllLines(path)[1].substringBeforeLast('\t')
+        val row = java.nio.file.Files.readAllLines(path)[1].split('\t').take(18).joinToString("\t")
         java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n$row\n")
         FileNavigationStore(path).use {
             val restored = it.load().getValue("pilot")
@@ -80,7 +93,7 @@ class FileNavigationStoreTest {
             landed = old.copy(baseId = 1049, mode = 0, spotId = 10_490_003)
             store.save(mapOf("pilot" to landed))
         }
-        assertEquals("LOGH7-NAV-7", java.nio.file.Files.readAllLines(path).first())
+        assertEquals("LOGH7-NAV-8", java.nio.file.Files.readAllLines(path).first())
         FileNavigationStore(path).use { assertEquals(landed, it.load().getValue("pilot")) }
     }
     @Test fun replacementSurvivesReopenAndExcludesOtherWriters() {

@@ -4,6 +4,33 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticsMessagesTest {
+    @Test fun controlAllocationUsesItsDifferentWireOrderAndServerTimeAndReserve() {
+        val control=TacticsMessages.Control(10000,1010000,(1..11).toList())
+        val reply=TacticsMessages.controlReply(control,334,123456)
+        assertEquals(35,reply.size)
+        assertEquals(123456,java.nio.ByteBuffer.wrap(reply).getInt(6))
+        assertEquals(334,java.nio.ByteBuffer.wrap(reply).getShort(22).toInt())
+        assertContentEquals(byteArrayOf(4,5,6,7,8,9,10,11,1,2,3),reply.copyOfRange(24,35))
+        assertEquals(control,TacticsMessages.control(reply.copyOfRange(4,reply.size)))
+        assertEquals(1,java.nio.ByteBuffer.wrap(TacticsMessages.controlReply(control,334,1,false)).getInt(0))
+        assertFailsWith<IllegalArgumentException>{TacticsMessages.control(reply.copyOfRange(4,34))}
+        assertFailsWith<IllegalArgumentException>{control.copy(energy=List(11){101})}
+    }
+    @Test fun nativeCorpsStateUsesCharacterIdentityAndPackedEnergyShieldFields() {
+        val corps=TacticsMessages.Corps(10000,12f,(1..11).toList(),(101..106).toList(),
+            mission=3,targetKind=2,target=42,chief=true,formation=4,beam=120,gun=130,damagedShields=(1..6).toList())
+        val bytes=java.nio.ByteBuffer.wrap(TacticsMessages.corps(listOf(corps)))
+        assertEquals(63,bytes.limit());assertEquals(0x033f,bytes.getShort(4).toInt());assertEquals(1,bytes.getShort(6).toInt())
+        assertEquals(10000,bytes.getInt(8));assertEquals(3,bytes.get(12).toInt());assertEquals(2,bytes.get(13).toInt())
+        assertEquals(42,bytes.getInt(14));assertEquals(12f,bytes.getFloat(18));assertEquals(1,bytes.get(22).toInt())
+        assertEquals(4,bytes.get(23).toInt());assertEquals((1..11).toList(),(24..34).map {bytes.get(it).toInt()})
+        assertEquals(120,bytes.getShort(35).toInt());assertEquals(130,bytes.getShort(37).toInt())
+        assertEquals(101,bytes.getShort(39).toInt());assertEquals(106,bytes.getShort(49).toInt())
+        assertEquals(1,bytes.getShort(51).toInt());assertEquals(6,bytes.getShort(61).toInt())
+        assertFailsWith<IllegalArgumentException>{corps.copy(energy=List(11){128})}
+        assertFailsWith<IllegalArgumentException>{corps.copy(shields=List(5){0})}
+        assertFailsWith<IllegalArgumentException>{TacticsMessages.corps(listOf(corps,corps))}
+    }
     private val unit=TacticsMessages.Unit(42,32,7,10000,9000,800f,2,12f,-3f,20f,1.5f)
     @Test fun nativeTacticalRecordsArePackedWithoutNativeAlignment() {
         val definitions=java.nio.ByteBuffer.wrap(TacticsMessages.definitions(2017,listOf(unit)))
@@ -15,7 +42,8 @@ class TacticsMessagesTest {
         val state=java.nio.ByteBuffer.wrap(TacticsMessages.states(listOf(unit)))
         assertEquals(55,state.limit());assertEquals(42,state.getInt(8));assertEquals(10000,state.getInt(14))
         assertEquals(12f,state.getFloat(18));assertEquals(-3f,state.getFloat(22));assertEquals(20f,state.getFloat(26))
-        assertEquals(1.5f,state.getFloat(30));assertEquals(42,state.getInt(34));assertEquals(1,state.get(54).toInt())
+        assertEquals(1.5f,state.getFloat(30));assertEquals(0,state.getInt(34));assertEquals(1,state.get(54).toInt())
+        assertEquals(0f,state.getFloat(38));assertEquals(0f,state.getFloat(50))
         val position=java.nio.ByteBuffer.wrap(TacticsMessages.positions(listOf(unit)))
         assertEquals(28,position.limit());assertEquals(42,position.getInt(8));assertEquals(1.5f,position.getFloat(24))
         val base=java.nio.ByteBuffer.wrap(TacticsMessages.basePositions(listOf(TacticsMessages.Base(1000,12f,-3f,20f))))

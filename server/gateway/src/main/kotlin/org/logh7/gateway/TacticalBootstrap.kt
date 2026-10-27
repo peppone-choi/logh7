@@ -9,6 +9,12 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     private val people=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==viewer.grid && it.baseId==0}
         .sortedBy {it.characterId}
     val characterIds get()=people.map {it.characterId}
+    val grid get()=viewer.grid
+    val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
+        val spec=UnitSpecifications.ships.single {it.kind==c.shipKind}
+        TacticsMessages.Corps(c.id.toInt(),0f,(p.energy ?: TacticalEnergy.ZERO).values,
+            List(6){spec.number("シールド（旗艦のみ）:容量")})
+    }}
     val bases=galaxy.bases.filter {it.grid==viewer.grid}.map {base->
         val radians=Math.toRadians(base.angle.toDouble())
         TacticsMessages.Base(base.id,(kotlin.math.cos(radians)*base.radius*1000).toFloat(),0f,
@@ -38,5 +44,5 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
     }} + listOf(TacticsMessages.definitions(viewer.grid,units),
-        TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.states(units))
+        TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))
 }

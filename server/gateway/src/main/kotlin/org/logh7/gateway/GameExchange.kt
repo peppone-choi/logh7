@@ -216,6 +216,25 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x040c -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(characters.character(identity.account))
+                        val control=org.logh7.protocol.TacticsMessages.control(body)
+                        require(control.character==character.id.toInt() && control.unit==character.id.toInt()+1_000_000)
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),unitId=control.unit,
+                            captainCard=if(character.power==2)59 else 195,shipKind=character.shipKind,
+                            energy=org.logh7.engine.TacticalEnergy(control.energy))).thenApply { result ->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            val energy=(player.energy ?: org.logh7.engine.TacticalEnergy.ZERO).values
+                            val ship=org.logh7.engine.Flagships.find(character.shipKind)!!
+                            listOf(org.logh7.protocol.TacticsMessages.controlReply(control.copy(energy=energy),
+                                ship.number("出力:出力")-energy.sum(),gameSeconds(),result.player!=null))
+                        }
+                        return null
+                    }
                     0x0300 -> {
                         check(gameStarted && body.size == 2)
                         if (navigation == null) checkNotNull(BootstrapMessages.response(body, gameSeconds())) else {
@@ -567,16 +586,15 @@ class GameExchange(
                         }
                         return null
                     }
-                    0x0336, 0x033a, 0x0348, 0x034a -> {
+                    0x0336, 0x033a, 0x033e, 0x0348, 0x034a -> {
                         val tactical=tactics(identity.account)
                         if(opcode==0x0336) {
-                            require(body.size==4 && java.nio.ByteBuffer.wrap(body).getShort(2).toInt()==
-                                navigation!!.snapshot()!!.navigators.getValue(identity.account).grid)
-                            org.logh7.protocol.TacticsMessages.characters(navigation.snapshot()!!.navigators.getValue(identity.account).grid,
-                                tactical.characterIds)
+                            require(body.size==4 && java.nio.ByteBuffer.wrap(body).getShort(2).toInt()==tactical.grid)
+                            org.logh7.protocol.TacticsMessages.characters(tactical.grid,tactical.characterIds)
                         } else {
                             val ids=org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a).toSet()
                             when(opcode) {
+                                0x033e -> org.logh7.protocol.TacticsMessages.corps(tactical.corps.filter {it.character in ids})
                                 0x034a -> org.logh7.protocol.TacticsMessages.basePositions(tactical.bases.filter {it.id in ids})
                                 0x0348 -> org.logh7.protocol.TacticsMessages.positions(tactical.units.filter {it.id in ids})
                                 else -> org.logh7.protocol.TacticsMessages.states(tactical.units.filter {it.id in ids})
