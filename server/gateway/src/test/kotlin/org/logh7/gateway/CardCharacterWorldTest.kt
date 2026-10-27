@@ -52,7 +52,10 @@ class CardCharacterWorldTest {
     @Test fun originalLimitsRejectTruncationInsteadOfReportingVacancies() {
         val manyPeople=stocks.copy(bases=(1..65).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10000+it) })
         val capacityWorld=WorldBootstrap(Galaxy(galaxy.systems,(1..65).map { galaxy.bases.first().copy(id=it) },galaxy.starts))
-        assertFails { capacityWorld.cardCharacters(54,manyPeople) { character.copy(id=it.toLong()) } }
+        val rejected=capacityWorld.cardCharacters(54,manyPeople) { error("Overflow must fail before resolving people") }
+        assertEquals(1,ByteBuffer.wrap(rejected).int)
+        assertEquals(0,rejected[8].toInt())
+        assertContentEquals(org.logh7.protocol.CardCharacterMessages.response(54,emptyList(),failed=true),rejected)
         val manyBases=stocks.copy(bases=(1..15).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10000) })
         assertFails { capacityWorld.cardCharacters(54,manyBases) { character } }
     }
