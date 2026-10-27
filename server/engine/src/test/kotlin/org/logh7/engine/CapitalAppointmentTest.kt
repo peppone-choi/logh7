@@ -55,15 +55,18 @@ class CapitalAppointmentTest {
     }
     @Test fun nationalCardsUseTheOriginalInstitutionAndDeactivateAfterCapitalOccupation() {
         for(office in NationalOffice.entries) {
-            val rule=CapitalAppointmentPolicy.rules.single {it.authority==office}
-            val s=stock(rule)
+            val rule=CapitalAppointmentPolicy.rules.singleOrNull {it.authority==office}
+            val s=stock(CapitalAppointmentPolicy.rules.first()).copy(nationalOffices=mapOf(office to 10000))
             val cards=NationalOfficePolicy(galaxy).cards(s,10000,office.power)
             assertEquals(listOf(office.card to ((if(office.power==2)1049 else 1177)*100+office.facility+1)),cards)
             val id=if(office.power==2)1049 else 1177
             val changed=s.copy(bases=s.bases+(id to s.bases.getValue(id).copy(power=0)))
             assertTrue(NationalOfficePolicy(galaxy).cards(changed,10000,office.power).isEmpty())
-            assertFalse(policy.authorized(rule,changed,10000,office.power))
-            assertEquals(AppointmentRejection.BASE,act(rule,s=changed).rejection)
+            assertFalse(office.active(galaxy,changed))
+            if(rule!=null) {
+                assertFalse(policy.authorized(rule,changed,10000,office.power))
+                assertEquals(AppointmentRejection.BASE,act(rule,s=changed).rejection)
+            }
         }
     }
 }

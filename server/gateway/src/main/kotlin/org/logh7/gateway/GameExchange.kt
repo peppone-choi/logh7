@@ -576,18 +576,17 @@ class GameExchange(
                                 val capitals=capitalPolicy.vacancies(inventory,character.id.toInt(),character.power,character.rank)
                                 val selected=if(query.role==55)available else capitals.filter { it.rule.card==query.role }.map { it.base }
                                 val capitalRule=org.logh7.engine.CapitalAppointmentPolicy.rule(query.role)
-                                val fleetPolicy=org.logh7.engine.FleetCommanderAppointmentPolicy(world.galaxy)
-                                val fleets=fleetPolicy.available(inventory,character.id.toInt(),character.power,character.rank)
-                                val aidePolicy=org.logh7.engine.FleetAideAppointmentPolicy()
-                                val aideCard=aidePolicy.card(character.power)
-                                val aideFleets=aidePolicy.available(inventory,character.id.toInt(),character.power,character.rank)
-                                val selectedFleets=if(query.role==aideCard)aideFleets else if(query.role==39)fleets else emptyList()
+                                val fleetRoles=org.logh7.engine.FleetOffice.entries.filter {it.power==character.power}
+                                    .associateWith {it.available(world.galaxy,inventory,character.id.toInt(),character.rank)}
+                                val fleetRole=org.logh7.engine.FleetOffice.of(query.role)
+                                val selectedFleets=fleetRoles[fleetRole].orEmpty()
                                 when(query.search) {
                                     18 -> org.logh7.protocol.AppointmentDirectoryMessages.cards(query,
                                         (if(available.isEmpty())emptyMap() else mapOf(55 to available.size))+
                                             capitals.associate { it.rule.card to 1 }+
-                                            (if(fleets.isEmpty())emptyMap() else mapOf(39 to fleets.size))+
-                                            (if(aideFleets.isEmpty())emptyMap() else mapOf(aideCard to aideFleets.size)))
+                                            fleetRoles.filterValues {it.isNotEmpty()}.mapKeys {it.key.card}.mapValues { (card,values)->
+                                                val role=checkNotNull(org.logh7.engine.FleetOffice.of(card))
+                                                values.sumOf {role.seats-role.holders(it).size}.coerceAtMost(255) })
                                     27 -> org.logh7.protocol.AppointmentDirectoryMessages.outfits(query,selectedFleets.map {
                                         org.logh7.protocol.AppointmentDirectoryMessages.Outfit(it.id,it.number,it.kind.wire,
                                             world.baseWire(world.galaxy.bases.single { base -> base.id==it.baseId }))
@@ -596,13 +595,12 @@ class GameExchange(
                                         org.logh7.protocol.AppointmentDirectoryMessages.Base(it.id,it.grid,it.name)
                                     })
                                     4 -> {
-                                        require(if(query.role in setOf(39,43,179)) selectedFleets.isNotEmpty() &&
+                                        require(if(fleetRole!=null) selectedFleets.isNotEmpty() &&
                                             (query.base==0 || selectedFleets.any {it.baseId==query.base}) else
                                             selected.isNotEmpty() && (query.base==0 || selected.any { it.id==query.base })) { "No appointment authority at selected seat" }
                                         val eligible=characters.registeredCharacters().filter { target ->
                                             target.id!=character.id && target.power==character.power &&
-                                                (if(query.role==aideCard) aidePolicy.eligible(character.rank,target.rank,character.power) else
-                                                    if(query.role==39) fleetPolicy.eligible(character.rank,target.rank) else
+                                                (if(fleetRole!=null) fleetRole.eligible(character.rank,target.rank) else
                                                     capitalRule?.eligible(character.rank,target.rank) ?: (target.rank in 2..10 && character.rank<target.rank)) && administration!!.offices(target.id.toInt(),target.power,
                                                     checkNotNull(generation)).size<14
                                         }
