@@ -2,6 +2,7 @@
 #pragma once
 #include "portrait_label.h"
 #include "roster_text.h"
+#include "spot_name.h"
 
 static std::wstring spotCharacterLabel(void* character) {
     std::wstring text,part;
@@ -9,9 +10,7 @@ static std::wstring spotCharacterLabel(void* character) {
         auto name=reinterpret_cast<const wchar_t*>(static_cast<BYTE*>(character)+0xde);
         for (unsigned i=0;i<28 && name[i];++i) text+=name[i];
     } else if (logh::japaneseFragment(reinterpret_cast<const char*>(0x7881d4),part)) text=part;
-    if (logh::japaneseFragment(reinterpret_cast<const char*>(0x788adc),part)) text+=part;
-    auto rank=reinterpret_cast<const char*(__stdcall*)(unsigned)>(0x4c8d70)(at<unsigned short>(character,0xfa));
-    if (logh::japaneseFragment(rank,part)) text+=part;
+    text=logh::spotName(text,at<unsigned short>(character,0xfa));
     if (at<unsigned>(character,0x24)==*reinterpret_cast<unsigned*>(0x788ad0) &&
         logh::japaneseFragment(reinterpret_cast<const char*>(0x788ad8),part)) text+=part;
     return text;
