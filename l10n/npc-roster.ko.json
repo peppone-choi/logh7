@@ -1,0 +1,3607 @@
+{
+  "author": "최병호",
+  "updated": "2026-10-27",
+  "note": "원작 등장인물 비교 후보. VII 등장·초기 배치는 별도 확인.",
+  "characters": [
+    {
+      "name": "라인하르트 폰 로엔그람",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/라인하르트 폰 로엔그람",
+      "mirror": "https://namu.moe/w/라인하르트 폰 로엔그람",
+      "section": "2.1. 로엔그람 왕조 측 인물",
+      "origin": "main"
+    },
+    {
+      "name": "힐데가르트 폰 마린도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/힐데가르트 폰 마린도르프",
+      "mirror": "https://namu.moe/w/힐데가르트 폰 마린도르프",
+      "section": "2.1. 로엔그람 왕조 측 인물",
+      "origin": "main"
+    },
+    {
+      "name": "알렉산더 지크프리트 폰 로엔그람",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/알렉산더 지크프리트 폰 로엔그람",
+      "mirror": "https://namu.moe/w/알렉산더 지크프리트 폰 로엔그람",
+      "section": "2.1. 로엔그람 왕조 측 인물",
+      "origin": "main"
+    },
+    {
+      "name": "그뤼네만",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/그뤼네만",
+      "mirror": "https://namu.moe/w/그뤼네만",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "그레브너",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/그레브너",
+      "mirror": "https://namu.moe/w/그레브너",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "크루젠슈테른",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/크루젠슈테른",
+      "mirror": "https://namu.moe/w/크루젠슈테른",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "글래저",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/글래저",
+      "mirror": "https://namu.moe/w/글래저",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "귄터 키슬링",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/귄터 키슬링",
+      "mirror": "https://namu.moe/w/귄터 키슬링",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "나이트하르트 뮐러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/나이트하르트 뮐러",
+      "mirror": "https://namu.moe/w/나이트하르트 뮐러",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "디트리히 자우켄",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/디트리히 자우켄",
+      "mirror": "https://namu.moe/w/디트리히 자우켄",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "드로이젠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/드로이젠",
+      "mirror": "https://namu.moe/w/드로이젠",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "라첼",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/라첼",
+      "mirror": "https://namu.moe/w/라첼",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "롤프 오토 브라우히치",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/롤프 오토 브라우히치",
+      "mirror": "https://namu.moe/w/롤프 오토 브라우히치",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "마인호프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/마인호프(은하영웅전설)#s-1.1",
+      "mirror": "https://namu.moe/w/마인호프(은하영웅전설)#s-1.1",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "모르트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/모르트",
+      "mirror": "https://namu.moe/w/모르트",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "바겐자일",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/바겐자일",
+      "mirror": "https://namu.moe/w/바겐자일",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "베르너 알트링겐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/베르너 알트링겐",
+      "mirror": "https://namu.moe/w/베르너 알트링겐",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "볼프강 미터마이어",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/볼프강 미터마이어",
+      "mirror": "https://namu.moe/w/볼프강 미터마이어",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "브루노 폰 크납슈타인",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/브루노 폰 크납슈타인",
+      "mirror": "https://namu.moe/w/브루노 폰 크납슈타인",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "슈무데",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/슈무데",
+      "mirror": "https://namu.moe/w/슈무데",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "아달베르트 폰 파렌하이트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/아달베르트 폰 파렌하이트",
+      "mirror": "https://namu.moe/w/아달베르트 폰 파렌하이트",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "아르투르 폰 슈트라이트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/아르투르 폰 슈트라이트",
+      "mirror": "https://namu.moe/w/아르투르 폰 슈트라이트",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "아우구스트 자무엘 바렌",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/아우구스트 자무엘 바렌",
+      "mirror": "https://namu.moe/w/아우구스트 자무엘 바렌",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "아이헨도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/아이헨도르프",
+      "mirror": "https://namu.moe/w/아이헨도르프",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "안톤 페르너",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/안톤 페르너",
+      "mirror": "https://namu.moe/w/안톤 페르너",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "알프레트 그릴파르처",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/알프레트 그릴파르처",
+      "mirror": "https://namu.moe/w/알프레트 그릴파르처",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "알프레트 알로이스 빈클러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/알프레트 알로이스 빈클러",
+      "mirror": "https://namu.moe/w/알프레트 알로이스 빈클러",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "야콥 하우프트만",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/야콥 하우프트만",
+      "mirror": "https://namu.moe/w/야콥 하우프트만",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에르네스트 메크링거",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에르네스트 메크링거",
+      "mirror": "https://namu.moe/w/에르네스트 메크링거",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에른스트 폰 아이제나흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에른스트 폰 아이제나흐",
+      "mirror": "https://namu.moe/w/에른스트 폰 아이제나흐",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에밀 폰 레켄도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에밀 폰 레켄도르프",
+      "mirror": "https://namu.moe/w/에밀 폰 레켄도르프",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오이겐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오이겐(은하영웅전설)",
+      "mirror": "https://namu.moe/w/오이겐(은하영웅전설)",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오스카 폰 로이엔탈",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오스카 폰 로이엔탈",
+      "mirror": "https://namu.moe/w/오스카 폰 로이엔탈",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오토 뵐러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오토 뵐러(은하영웅전설)",
+      "mirror": "https://namu.moe/w/오토 뵐러(은하영웅전설)",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "우드 디터 훔멜",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/우드 디터 훔멜",
+      "mirror": "https://namu.moe/w/우드 디터 훔멜",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "올라우",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/올라우",
+      "mirror": "https://namu.moe/w/올라우",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "울리히 케슬러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/울리히 케슬러(은하영웅전설)",
+      "mirror": "https://namu.moe/w/울리히 케슬러(은하영웅전설)",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "이자크 페르난트 폰 투르나이젠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/이자크 페르난트 폰 투르나이젠",
+      "mirror": "https://namu.moe/w/이자크 페르난트 폰 투르나이젠",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "존넨펠스",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/존넨펠스",
+      "mirror": "https://namu.moe/w/존넨펠스",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "좀바르트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/좀바르트",
+      "mirror": "https://namu.moe/w/좀바르트",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "지크베르트 자이틀리츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/지크베르트 자이틀리츠",
+      "mirror": "https://namu.moe/w/지크베르트 자이틀리츠",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "지크프리트 키르히아이스",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/지크프리트 키르히아이스",
+      "mirror": "https://namu.moe/w/지크프리트 키르히아이스",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "칼 구스타프 켐프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/칼 구스타프 켐프",
+      "mirror": "https://namu.moe/w/칼 구스타프 켐프",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "칼 로베르트 슈타인메츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/칼 로베르트 슈타인메츠",
+      "mirror": "https://namu.moe/w/칼 로베르트 슈타인메츠",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "칼 에두아르트 바이어라인",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/칼 에두아르트 바이어라인",
+      "mirror": "https://namu.moe/w/칼 에두아르트 바이어라인",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "카르나프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/카르나프",
+      "mirror": "https://namu.moe/w/카르나프",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "코르넬리우스 루츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/코르넬리우스 루츠",
+      "mirror": "https://namu.moe/w/코르넬리우스 루츠",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "콘라트 린저",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/콘라트 린저",
+      "mirror": "https://namu.moe/w/콘라트 린저",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "쿠르트 징후버",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/쿠르트 징후버",
+      "mirror": "https://namu.moe/w/쿠르트 징후버",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "테오도르 폰 뤼케",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/테오도르 폰 뤼케",
+      "mirror": "https://namu.moe/w/테오도르 폰 뤼케",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "파울 폰 오베르슈타인",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/파울 폰 오베르슈타인",
+      "mirror": "https://namu.moe/w/파울 폰 오베르슈타인",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "폴커 악셀 폰 부로",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/폴커 악셀 폰 부로",
+      "mirror": "https://namu.moe/w/폴커 악셀 폰 부로",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "프리츠 요제프 비텐펠트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/프리츠 요제프 비텐펠트",
+      "mirror": "https://namu.moe/w/프리츠 요제프 비텐펠트",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "푸세네거",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/푸세네거",
+      "mirror": "https://namu.moe/w/푸세네거",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "한스 에두아르트 베르겐그륀",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/한스 에두아르트 베르겐그륀",
+      "mirror": "https://namu.moe/w/한스 에두아르트 베르겐그륀",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "헬무트 렌넨캄프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/헬무트 렌넨캄프",
+      "mirror": "https://namu.moe/w/헬무트 렌넨캄프",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "호르스트 슐러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/호르스트 슐러",
+      "mirror": "https://namu.moe/w/호르스트 슐러",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "호르스트 진처",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/호르스트 진처",
+      "mirror": "https://namu.moe/w/호르스트 진처",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "호프마이스터",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/호프마이스터",
+      "mirror": "https://namu.moe/w/호프마이스터",
+      "section": "2.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "글룩",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/글룩(은하영웅전설)",
+      "mirror": "https://namu.moe/w/글룩(은하영웅전설)",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "벤첼 폰 하셀바흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/벤첼 폰 하셀바흐",
+      "mirror": "https://namu.moe/w/벤첼 폰 하셀바흐",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "브룩도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/브룩도르프",
+      "mirror": "https://namu.moe/w/브룩도르프",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "브루노 폰 질버베르히",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/브루노 폰 질버베르히",
+      "mirror": "https://namu.moe/w/브루노 폰 질버베르히",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "안톤 힐머 폰 샤프트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/안톤 힐머 폰 샤프트",
+      "mirror": "https://namu.moe/w/안톤 힐머 폰 샤프트",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "오스마이어",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오스마이어",
+      "mirror": "https://namu.moe/w/오스마이어",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "오이겐 리히터",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오이겐 리히터",
+      "mirror": "https://namu.moe/w/오이겐 리히터",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "율리우스 엘스하이머",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/율리우스 엘스하이머",
+      "mirror": "https://namu.moe/w/율리우스 엘스하이머",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "칼 브라케",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/칼 브라케",
+      "mirror": "https://namu.moe/w/칼 브라케",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "프란츠 폰 마린도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/프란츠 폰 마린도르프",
+      "mirror": "https://namu.moe/w/프란츠 폰 마린도르프",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "하이드리히 랑",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/하이드리히 랑",
+      "mirror": "https://namu.moe/w/하이드리히 랑",
+      "section": "2.1.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "그레첸 폰 에어푸르트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/그레첸 폰 에어푸르트",
+      "mirror": "https://namu.moe/w/그레첸 폰 에어푸르트",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "마리카 폰 포이어바흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/마리카 폰 포이어바흐",
+      "mirror": "https://namu.moe/w/마리카 폰 포이어바흐",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "안네로제 폰 그뤼네발트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/안네로제 폰 그뤼네발트",
+      "mirror": "https://namu.moe/w/안네로제 폰 그뤼네발트",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "에밀 폰 젤레",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에밀 폰 젤레",
+      "mirror": "https://namu.moe/w/에밀 폰 젤레",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "에반젤린 미터마이어",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에반젤린 미터마이어",
+      "mirror": "https://namu.moe/w/에반젤린 미터마이어",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "콘라트 폰 모델",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/콘라트 폰 모델",
+      "mirror": "https://namu.moe/w/콘라트 폰 모델",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "클라라",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/클라라(은하영웅전설)",
+      "mirror": "https://namu.moe/w/클라라(은하영웅전설)",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "펠릭스 미터마이어",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/펠릭스 미터마이어",
+      "mirror": "https://namu.moe/w/펠릭스 미터마이어",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "하인리히 람베르츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/하인리히 람베르츠",
+      "mirror": "https://namu.moe/w/하인리히 람베르츠",
+      "section": "2.1.3. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "프리드리히 4세",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/프리드리히 4세(은하영웅전설)",
+      "mirror": "https://namu.moe/w/프리드리히 4세(은하영웅전설)",
+      "section": "2.2.1. 황가",
+      "origin": "main"
+    },
+    {
+      "name": "에르빈 요제프 2세",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에르빈 요제프 2세",
+      "mirror": "https://namu.moe/w/에르빈 요제프 2세",
+      "section": "2.2.1. 황가",
+      "origin": "main"
+    },
+    {
+      "name": "카타린 케트헨 1세",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/카타린 케트헨 1세",
+      "mirror": "https://namu.moe/w/카타린 케트헨 1세",
+      "section": "2.2.1. 황가",
+      "origin": "main"
+    },
+    {
+      "name": "그레고르 폰 뮈켄베르거",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/그레고르 폰 뮈켄베르거",
+      "mirror": "https://namu.moe/w/그레고르 폰 뮈켄베르거",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "놀덴",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/놀덴",
+      "mirror": "https://namu.moe/w/놀덴",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "레믈러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/레믈러",
+      "mirror": "https://namu.moe/w/레믈러",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "슈타덴",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/슈타덴",
+      "mirror": "https://namu.moe/w/슈타덴",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "슈타인호프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/슈타인호프(은하영웅전설)",
+      "mirror": "https://namu.moe/w/슈타인호프(은하영웅전설)",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "안스바흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/안스바흐(은하영웅전설)",
+      "mirror": "https://namu.moe/w/안스바흐(은하영웅전설)",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에렌베르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에렌베르크(은하영웅전설)",
+      "mirror": "https://namu.moe/w/에렌베르크(은하영웅전설)",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "엘라흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/엘라흐",
+      "mirror": "https://namu.moe/w/엘라흐",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오펜하이머",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오펜하이머(은하영웅전설)",
+      "mirror": "https://namu.moe/w/오펜하이머(은하영웅전설)",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오프레서",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오프레서",
+      "mirror": "https://namu.moe/w/오프레서",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "토마 폰 슈톡하우젠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/토마 폰 슈톡하우젠",
+      "mirror": "https://namu.moe/w/토마 폰 슈톡하우젠",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "포겔",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/포겔",
+      "mirror": "https://namu.moe/w/포겔",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "라우디츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/라우디츠",
+      "mirror": "https://namu.moe/w/라우디츠",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "한스 디트리히 폰 젝트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/한스 디트리히 폰 젝트",
+      "mirror": "https://namu.moe/w/한스 디트리히 폰 젝트",
+      "section": "2.2.2. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "겔라흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/겔라흐",
+      "mirror": "https://namu.moe/w/겔라흐",
+      "section": "2.2.3. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "바이츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/바이츠",
+      "mirror": "https://namu.moe/w/바이츠",
+      "section": "2.2.3. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "클라우스 폰 리히텐라데",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/클라우스 폰 리히텐라데",
+      "mirror": "https://namu.moe/w/클라우스 폰 리히텐라데",
+      "section": "2.2.3. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "빌헬름 폰 리텐하임",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/빌헬름 폰 리텐하임",
+      "mirror": "https://namu.moe/w/빌헬름 폰 리텐하임",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "크리스티네 폰 리텐하임",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/크리스티네 폰 리텐하임",
+      "mirror": "https://namu.moe/w/크리스티네 폰 리텐하임",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "자비네 폰 리텐하임",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/자비네 폰 리텐하임",
+      "mirror": "https://namu.moe/w/자비네 폰 리텐하임",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "빌헬름 폰 클롭슈톡",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/빌헬름 폰 클롭슈톡",
+      "mirror": "https://namu.moe/w/빌헬름 폰 클롭슈톡",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "샤이트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/샤이트",
+      "mirror": "https://namu.moe/w/샤이트",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "엘프리데 폰 콜라우슈",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/엘프리데 폰 콜라우슈",
+      "mirror": "https://namu.moe/w/엘프리데 폰 콜라우슈",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "폰 로이엔탈",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/폰 로이엔탈",
+      "mirror": "https://namu.moe/w/폰 로이엔탈",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "레오노라 폰 로이엔탈",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/레오노라 폰 로이엔탈",
+      "mirror": "https://namu.moe/w/레오노라 폰 로이엔탈",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "오이겐 폰 카스트로프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오이겐 폰 카스트로프",
+      "mirror": "https://namu.moe/w/오이겐 폰 카스트로프",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "막시밀리안 폰 카스트로프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/막시밀리안 폰 카스트로프",
+      "mirror": "https://namu.moe/w/막시밀리안 폰 카스트로프",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "엘리자베트 폰 카스트로프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/엘리자베트 폰 카스트로프",
+      "mirror": "https://namu.moe/w/엘리자베트 폰 카스트로프",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "오토 폰 브라운슈바이크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/오토 폰 브라운슈바이크",
+      "mirror": "https://namu.moe/w/오토 폰 브라운슈바이크",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "아말리에 폰 브라운슈바이크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/아말리에 폰 브라운슈바이크",
+      "mirror": "https://namu.moe/w/아말리에 폰 브라운슈바이크",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "엘리자베트 폰 브라운슈바이크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/엘리자베트 폰 브라운슈바이크",
+      "mirror": "https://namu.moe/w/엘리자베트 폰 브라운슈바이크",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "위르겐 오퍼 폰 페크니츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/위르겐 오퍼 폰 페크니츠",
+      "mirror": "https://namu.moe/w/위르겐 오퍼 폰 페크니츠",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "플레겔",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/플레겔",
+      "mirror": "https://namu.moe/w/플레겔",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "히르데스하임",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/히르데스하임",
+      "mirror": "https://namu.moe/w/히르데스하임",
+      "section": "2.2.4. 문벌귀족",
+      "origin": "main"
+    },
+    {
+      "name": "요펜 폰 렘샤이트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/요펜 폰 렘샤이트",
+      "mirror": "https://namu.moe/w/요펜 폰 렘샤이트",
+      "section": "2.2.5. 은하제국 정통정부 구성원",
+      "origin": "main"
+    },
+    {
+      "name": "레오폴트 슈마허",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/레오폴트 슈마허",
+      "mirror": "https://namu.moe/w/레오폴트 슈마허",
+      "section": "2.2.5. 은하제국 정통정부 구성원",
+      "origin": "main"
+    },
+    {
+      "name": "알프레트 폰 란즈베르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/알프레트 폰 란즈베르크",
+      "mirror": "https://namu.moe/w/알프레트 폰 란즈베르크",
+      "section": "2.2.5. 은하제국 정통정부 구성원",
+      "origin": "main"
+    },
+    {
+      "name": "게르하르트 폰 슈테거",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/게르하르트 폰 슈테거",
+      "mirror": "https://namu.moe/w/게르하르트 폰 슈테거",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "그레고르 폰 크룸바흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/그레고르 폰 크룸바흐",
+      "mirror": "https://namu.moe/w/그레고르 폰 크룸바흐",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "돌프 자이데룬",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/돌프 자이데룬",
+      "mirror": "https://namu.moe/w/돌프 자이데룬",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "리하르트 폰 그림멜스하우젠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/리하르트 폰 그림멜스하우젠",
+      "mirror": "https://namu.moe/w/리하르트 폰 그림멜스하우젠",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "루이 해름",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/루이 해름&윈 판덴베르크",
+      "mirror": "https://namu.moe/w/루이 해름&윈 판덴베르크",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "윈 판덴베르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/루이 해름&윈 판덴베르크",
+      "mirror": "https://namu.moe/w/루이 해름&윈 판덴베르크",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "마르티알",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/마르티알",
+      "mirror": "https://namu.moe/w/마르티알",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "모리츠 폰 하제",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/모리츠 폰 하제",
+      "mirror": "https://namu.moe/w/모리츠 폰 하제",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "바르텐베르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/바르텐베르크",
+      "mirror": "https://namu.moe/w/바르텐베르크",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "벤드링",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/벤드링",
+      "mirror": "https://namu.moe/w/벤드링",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "슈미트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/슈미트",
+      "mirror": "https://namu.moe/w/슈미트",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "아벤트로트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/아벤트로트",
+      "mirror": "https://namu.moe/w/아벤트로트",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "알라누스 자이데룬",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/알라누스 자이데룬",
+      "mirror": "https://namu.moe/w/알라누스 자이데룬",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에리히 폰 바르부르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에리히 폰 바르부르크",
+      "mirror": "https://namu.moe/w/에리히 폰 바르부르크",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "요한 고트호르프 폰 베르츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/요한 고트호르프 폰 베르츠",
+      "mirror": "https://namu.moe/w/요한 고트호르프 폰 베르츠",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "코르푸트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/코르푸트",
+      "mirror": "https://namu.moe/w/코르푸트",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "후겐베르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/후겐베르크",
+      "mirror": "https://namu.moe/w/후겐베르크",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "카이트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/카이트",
+      "mirror": "https://namu.moe/w/카이트",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "클라이스트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/클라이스트(은하영웅전설)",
+      "mirror": "https://namu.moe/w/클라이스트(은하영웅전설)",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "칼 폰 라이파이젠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/칼 폰 라이파이젠",
+      "mirror": "https://namu.moe/w/칼 폰 라이파이젠",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "프레스부르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/프레스부르크",
+      "mirror": "https://namu.moe/w/프레스부르크",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "하르스터",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/하르스터",
+      "mirror": "https://namu.moe/w/하르스터",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "하우프트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/하우프트",
+      "mirror": "https://namu.moe/w/하우프트",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "하르트만 베르트람",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/하르트만 베르트람",
+      "mirror": "https://namu.moe/w/하르트만 베르트람",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "헤르만 폰 뤼네부르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/헤르만 폰 뤼네부르크",
+      "mirror": "https://namu.moe/w/헤르만 폰 뤼네부르크",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "헬더",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/헬더",
+      "mirror": "https://namu.moe/w/헬더",
+      "section": "2.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에리히 폰 하르텐베르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/에리히 폰 하르텐베르크",
+      "mirror": "https://namu.moe/w/에리히 폰 하르텐베르크",
+      "section": "2.3.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "요한 디트리히 폰 아이젠푸트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/요한 디트리히 폰 아이젠푸트",
+      "mirror": "https://namu.moe/w/요한 디트리히 폰 아이젠푸트",
+      "section": "2.3.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "칼 마티아스 폰 포르겐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/칼 마티아스 폰 포르겐",
+      "mirror": "https://namu.moe/w/칼 마티아스 폰 포르겐",
+      "section": "2.3.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "콜비츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/콜비츠",
+      "mirror": "https://namu.moe/w/콜비츠",
+      "section": "2.3.2. 문관",
+      "origin": "main"
+    },
+    {
+      "name": "골트슈미트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/골트슈미트",
+      "mirror": "https://namu.moe/w/골트슈미트",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "글레저",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/글레저",
+      "mirror": "https://namu.moe/w/글레저",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "도로테아 폰 샤프하우젠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/도로테아 폰 샤프하우젠",
+      "mirror": "https://namu.moe/w/도로테아 폰 샤프하우젠",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "마르틴 부크홀츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/마르틴 부크홀츠",
+      "mirror": "https://namu.moe/w/마르틴 부크홀츠",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "미하엘 지기스문트 폰 카이저링",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/미하엘 지기스문트 폰 카이저링",
+      "mirror": "https://namu.moe/w/미하엘 지기스문트 폰 카이저링",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "마크달레나 폰 베스트팔레",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/마크달레나 폰 베스트팔레",
+      "mirror": "https://namu.moe/w/마크달레나 폰 베스트팔레",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "베크만",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/베크만",
+      "mirror": "https://namu.moe/w/베크만",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "세바스티안 폰 뮈젤",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/세바스티안 폰 뮈젤",
+      "mirror": "https://namu.moe/w/세바스티안 폰 뮈젤",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "엘리자베트 폰 뤼네부르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/엘리자베트 폰 뤼네부르크",
+      "mirror": "https://namu.moe/w/엘리자베트 폰 뤼네부르크",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "요한나 폰 바젤",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/요한나 폰 바젤",
+      "mirror": "https://namu.moe/w/요한나 폰 바젤",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "주산나 폰 베네뮌데",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/주산나 폰 베네뮌데",
+      "mirror": "https://namu.moe/w/주산나 폰 베네뮌데",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "크리스토프 폰 바젤",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/크리스토프 폰 바젤",
+      "mirror": "https://namu.moe/w/크리스토프 폰 바젤",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "클라리벨 폰 뮈젤",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/클라리벨 폰 뮈젤",
+      "mirror": "https://namu.moe/w/클라리벨 폰 뮈젤",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "헤르크스하이머",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/헤르크스하이머",
+      "mirror": "https://namu.moe/w/헤르크스하이머",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "마르가레테 폰 헤르크스하이머",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/마르가레테 폰 헤르크스하이머",
+      "mirror": "https://namu.moe/w/마르가레테 폰 헤르크스하이머",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "호프만",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/호프만(은하영웅전설)",
+      "mirror": "https://namu.moe/w/호프만(은하영웅전설)",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "후버",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/후버",
+      "mirror": "https://namu.moe/w/후버",
+      "section": "2.3.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "양 웬리",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/양 웬리",
+      "mirror": "https://namu.moe/w/양 웬리",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "main"
+    },
+    {
+      "name": "닐슨",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/닐슨(은하영웅전설)",
+      "mirror": "https://namu.moe/w/닐슨(은하영웅전설)",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "더스티 아텐보로",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/더스티 아텐보로",
+      "mirror": "https://namu.moe/w/더스티 아텐보로",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "라오",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/라오(은하영웅전설)",
+      "mirror": "https://namu.moe/w/라오(은하영웅전설)",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "라이너 블룸하르트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/라이너 블룸하르트",
+      "mirror": "https://namu.moe/w/라이너 블룸하르트",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "루이 마솅고",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/루이 마솅고",
+      "mirror": "https://namu.moe/w/루이 마솅고",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "마리노",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/마리노(은하영웅전설)",
+      "mirror": "https://namu.moe/w/마리노(은하영웅전설)",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "무라이",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/무라이(은하영웅전설)",
+      "mirror": "https://namu.moe/w/무라이(은하영웅전설)",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "바그다슈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/바그다슈",
+      "mirror": "https://namu.moe/w/바그다슈",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "발터 폰 쇤코프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/발터 폰 쇤코프",
+      "mirror": "https://namu.moe/w/발터 폰 쇤코프",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "베른하르트 폰 슈나이더",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/베른하르트 폰 슈나이더",
+      "mirror": "https://namu.moe/w/베른하르트 폰 슈나이더",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "빌리바르트 요아힘 폰 메르카츠",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/빌리바르트 요아힘 폰 메르카츠",
+      "mirror": "https://namu.moe/w/빌리바르트 요아힘 폰 메르카츠",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "살레 아지즈 셰이클리",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/살레 아지즈 셰이클리",
+      "mirror": "https://namu.moe/w/살레 아지즈 셰이클리",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "순 수울",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/순 수울",
+      "mirror": "https://namu.moe/w/순 수울",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "아사도라 샤르티앙",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/아사도라 샤르티앙",
+      "mirror": "https://namu.moe/w/아사도라 샤르티앙",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "알렉스 카젤느",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/알렉스 카젤느",
+      "mirror": "https://namu.moe/w/알렉스 카젤느",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에드윈 피셔",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/에드윈 피셔",
+      "mirror": "https://namu.moe/w/에드윈 피셔",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "올리비에 포플랭",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/올리비에 포플랭",
+      "mirror": "https://namu.moe/w/올리비에 포플랭",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "우노",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/우노#s-3.2.1",
+      "mirror": "https://namu.moe/w/우노#s-3.2.1",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "워렌 휴즈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/워렌 휴즈",
+      "mirror": "https://namu.moe/w/워렌 휴즈",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "율리안 민츠",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/율리안 민츠",
+      "mirror": "https://namu.moe/w/율리안 민츠",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "응웬 반 티우",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/응웬 반 티우",
+      "mirror": "https://namu.moe/w/응웬 반 티우",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "이반 코네프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/이반 코네프(은하영웅전설)",
+      "mirror": "https://namu.moe/w/이반 코네프(은하영웅전설)",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "체이스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/체이스",
+      "mirror": "https://namu.moe/w/체이스",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "카스퍼 린츠",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/카스퍼 린츠",
+      "mirror": "https://namu.moe/w/카스퍼 린츠",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "카테로제 폰 크로이처",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/카테로제 폰 크로이처",
+      "mirror": "https://namu.moe/w/카테로제 폰 크로이처",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "머런빌",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/머런빌&잠체프스키",
+      "mirror": "https://namu.moe/w/머런빌&잠체프스키",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "잠체프스키",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/머런빌&잠체프스키",
+      "mirror": "https://namu.moe/w/머런빌&잠체프스키",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "콜드웰",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/콜드웰",
+      "mirror": "https://namu.moe/w/콜드웰",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "피아지",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/피아지",
+      "mirror": "https://namu.moe/w/피아지",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "필즈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/필즈",
+      "mirror": "https://namu.moe/w/필즈",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "표도르 파트리체프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/표도르 파트리체프",
+      "mirror": "https://namu.moe/w/표도르 파트리체프",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "프레데리카 그린힐",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/프레데리카 그린힐",
+      "mirror": "https://namu.moe/w/프레데리카 그린힐",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "하무디 아슈르",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/하무디 아슈르",
+      "mirror": "https://namu.moe/w/하무디 아슈르",
+      "section": "3.1.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "프란체스크 롬스키",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/프란체스크 롬스키",
+      "mirror": "https://namu.moe/w/프란체스크 롬스키",
+      "section": "3.1.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "오르탕스 밀베르 카젤느",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/오르탕스 밀베르 카젤느",
+      "mirror": "https://namu.moe/w/오르탕스 밀베르 카젤느",
+      "section": "3.1.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "샤를로트 필리스 카젤느",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/샤를로트 필리스 카젤느",
+      "mirror": "https://namu.moe/w/샤를로트 필리스 카젤느",
+      "section": "3.1.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "보리스 코네프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/보리스 코네프",
+      "mirror": "https://namu.moe/w/보리스 코네프",
+      "section": "3.1.3. 협력자",
+      "origin": "main"
+    },
+    {
+      "name": "마리네스크",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/마리네스크",
+      "mirror": "https://namu.moe/w/마리네스크",
+      "section": "3.1.3. 협력자",
+      "origin": "main"
+    },
+    {
+      "name": "칼레 윌록",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/칼레 윌록",
+      "mirror": "https://namu.moe/w/칼레 윌록",
+      "section": "3.1.3. 협력자",
+      "origin": "main"
+    },
+    {
+      "name": "그레드윈 스코트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/그레드윈 스코트",
+      "mirror": "https://namu.moe/w/그레드윈 스코트",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "도슨",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/도슨(은하영웅전설)",
+      "mirror": "https://namu.moe/w/도슨(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "드와이트 그린힐",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/드와이트 그린힐",
+      "mirror": "https://namu.moe/w/드와이트 그린힐",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "라이오넬 모튼",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/라이오넬 모튼",
+      "mirror": "https://namu.moe/w/라이오넬 모튼",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "라자르 로보스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/라자르 로보스",
+      "mirror": "https://namu.moe/w/라자르 로보스",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "랄프 칼센",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/랄프 칼센",
+      "mirror": "https://namu.moe/w/랄프 칼센",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "록웰",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/록웰",
+      "mirror": "https://namu.moe/w/록웰",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "루글랑주",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/루글랑주",
+      "mirror": "https://namu.moe/w/루글랑주",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "르페브르",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/르페브르",
+      "mirror": "https://namu.moe/w/르페브르",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "마리네티",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/마리네티&저니얼",
+      "mirror": "https://namu.moe/w/마리네티&저니얼",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "저니얼",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/마리네티&저니얼",
+      "mirror": "https://namu.moe/w/마리네티&저니얼",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "마스카니",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/마스카니",
+      "mirror": "https://namu.moe/w/마스카니",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "마론",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/마론#s-5.2.2",
+      "mirror": "https://namu.moe/w/마론#s-5.2.2",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "무어",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/무어(은하영웅전설)",
+      "mirror": "https://namu.moe/w/무어(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "베이",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/베이(은하영웅전설)",
+      "mirror": "https://namu.moe/w/베이(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "보로딘",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/보로딘(은하영웅전설)",
+      "mirror": "https://namu.moe/w/보로딘(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "브론즈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/브론즈(은하영웅전설)",
+      "mirror": "https://namu.moe/w/브론즈(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "비올라",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/비올라(은하영웅전설)",
+      "mirror": "https://namu.moe/w/비올라(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "산도르 알라르콘",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/산도르 알라르콘",
+      "mirror": "https://namu.moe/w/산도르 알라르콘",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "시드니 시톨레",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/시드니 시톨레",
+      "mirror": "https://namu.moe/w/시드니 시톨레",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "스톡스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/스톡스",
+      "mirror": "https://namu.moe/w/스톡스",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "아서 린치",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/아서 린치",
+      "mirror": "https://namu.moe/w/아서 린치",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "알 살렘",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/알 살렘",
+      "mirror": "https://namu.moe/w/알 살렘",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "알렉산드르 뷰코크",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/알렉산드르 뷰코크",
+      "mirror": "https://namu.moe/w/알렉산드르 뷰코크",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "야마무라",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/야마무라",
+      "mirror": "https://namu.moe/w/야마무라",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "애플턴",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/애플턴",
+      "mirror": "https://namu.moe/w/애플턴",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "앤드류 포크",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/앤드류 포크",
+      "mirror": "https://namu.moe/w/앤드류 포크",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에드먼드 메서스미스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/에드먼드 메서스미스",
+      "mirror": "https://namu.moe/w/에드먼드 메서스미스",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에머슨",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/에머슨",
+      "mirror": "https://namu.moe/w/에머슨",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "에반스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/에반스(은하영웅전설)",
+      "mirror": "https://namu.moe/w/에반스(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오브리 코클랭",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/오브리 코클랭",
+      "mirror": "https://namu.moe/w/오브리 코클랭",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오스만",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/오스만#s-4.1",
+      "mirror": "https://namu.moe/w/오스만#s-4.1",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "우란푸",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/우란푸(은하영웅전설)",
+      "mirror": "https://namu.moe/w/우란푸(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "자우프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/자우프",
+      "mirror": "https://namu.moe/w/자우프",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "장 로베르 랍",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/장 로베르 랍",
+      "mirror": "https://namu.moe/w/장 로베르 랍",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "찬",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/첸#s-3.1",
+      "mirror": "https://namu.moe/w/첸#s-3.1",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "춘우 지엔",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/춘우 지엔",
+      "mirror": "https://namu.moe/w/춘우 지엔",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "파스톨레",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/파스톨레",
+      "mirror": "https://namu.moe/w/파스톨레",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "파에타",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/파에타",
+      "mirror": "https://namu.moe/w/파에타",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "파이펠",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/파이펠",
+      "mirror": "https://namu.moe/w/파이펠",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "프란츠 발리먼트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/프란츠 발리먼트",
+      "mirror": "https://namu.moe/w/프란츠 발리먼트",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "크리스티앙",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/크리스티앙(은하영웅전설)",
+      "mirror": "https://namu.moe/w/크리스티앙(은하영웅전설)",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "쿠브르슬리",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/쿠브르슬리",
+      "mirror": "https://namu.moe/w/쿠브르슬리",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "호우드",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/호우드",
+      "mirror": "https://namu.moe/w/호우드",
+      "section": "3.2.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "네그로폰테",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/네그로폰테",
+      "mirror": "https://namu.moe/w/네그로폰테",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "로열 샌포드",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/로열 샌포드",
+      "mirror": "https://namu.moe/w/로열 샌포드",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "레이먼드 톨리아티",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/레이먼드 톨리아티",
+      "mirror": "https://namu.moe/w/레이먼드 톨리아티",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "부시아스 아둘라",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/부시아스 아둘라&클로드 몽테이유&그레이엄 에버드 노엘베이커",
+      "mirror": "https://namu.moe/w/부시아스 아둘라&클로드 몽테이유&그레이엄 에버드 노엘베이커",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "클로드 몽테이유",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/부시아스 아둘라&클로드 몽테이유&그레이엄 에버드 노엘베이커",
+      "mirror": "https://namu.moe/w/부시아스 아둘라&클로드 몽테이유&그레이엄 에버드 노엘베이커",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "그레이엄 에버드 노엘베이커",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/부시아스 아둘라&클로드 몽테이유&그레이엄 에버드 노엘베이커",
+      "mirror": "https://namu.moe/w/부시아스 아둘라&클로드 몽테이유&그레이엄 에버드 노엘베이커",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "샤논",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/샤논",
+      "mirror": "https://namu.moe/w/샤논",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "엔리케 마르티노 보르헤스 데 아란테스 에 올리베이라",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/엔리케 마르티노 보르헤스 데 아란테스 에 올리베이라",
+      "mirror": "https://namu.moe/w/엔리케 마르티노 보르헤스 데 아란테스 에 올리베이라",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "욥 트뤼니히트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/욥 트뤼니히트",
+      "mirror": "https://namu.moe/w/욥 트뤼니히트",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "월터 아일랜즈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/월터 아일랜즈",
+      "mirror": "https://namu.moe/w/월터 아일랜즈",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "윌리엄 오데츠",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/윌리엄 오데츠",
+      "mirror": "https://namu.moe/w/윌리엄 오데츠",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "제임스 손다이크",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/제임스 손다이크",
+      "mirror": "https://namu.moe/w/제임스 손다이크",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "제시카 에드워즈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/제시카 에드워즈",
+      "mirror": "https://namu.moe/w/제시카 에드워즈",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "조안 레벨로",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/조안 레벨로",
+      "mirror": "https://namu.moe/w/조안 레벨로",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "코넬리아 윈저",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/코넬리아 윈저",
+      "mirror": "https://namu.moe/w/코넬리아 윈저",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "헨슬로",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/헨슬로",
+      "mirror": "https://namu.moe/w/헨슬로",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "황 루이",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/황 루이",
+      "mirror": "https://namu.moe/w/황 루이",
+      "section": "3.2.2. 정치인 및 공무원",
+      "origin": "main"
+    },
+    {
+      "name": "마하일로프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/마하일로프",
+      "mirror": "https://namu.moe/w/마하일로프",
+      "section": "3.2.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "메이어",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/메이어&윌",
+      "mirror": "https://namu.moe/w/메이어&윌",
+      "section": "3.2.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "윌",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/메이어&윌",
+      "mirror": "https://namu.moe/w/메이어&윌",
+      "section": "3.2.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "로자라인 폰 크로이처",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/로자라인 폰 크로이처",
+      "mirror": "https://namu.moe/w/로자라인 폰 크로이처",
+      "section": "3.2.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "크리스토프 디켈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/크리스토프 디켈",
+      "mirror": "https://namu.moe/w/크리스토프 디켈",
+      "section": "3.2.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "피터",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/피터",
+      "mirror": "https://namu.moe/w/피터",
+      "section": "3.2.3. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "이블린 돌튼",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/이블린 돌튼",
+      "mirror": "https://namu.moe/w/이블린 돌튼",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "말콤 와이드본",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/말콤 와이드본",
+      "mirror": "https://namu.moe/w/말콤 와이드본",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "발레리 린 피츠시먼즈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/발레리 린 피츠시먼즈",
+      "mirror": "https://namu.moe/w/발레리 린 피츠시먼즈",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "버나비 코스테아",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/버나비 코스테아",
+      "mirror": "https://namu.moe/w/버나비 코스테아",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "볼리",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/볼리(은하영웅전설)",
+      "mirror": "https://namu.moe/w/볼리(은하영웅전설)",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "색스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/색스(은하영웅전설)",
+      "mirror": "https://namu.moe/w/색스(은하영웅전설)",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "싱클레어 셀레브레제",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/싱클레어 셀레브레제",
+      "mirror": "https://namu.moe/w/싱클레어 셀레브레제",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "알프레드 로자스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/알프레드 로자스",
+      "mirror": "https://namu.moe/w/알프레드 로자스",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "오토 프랑크 폰 반샤페",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/오토 프랑크 폰 반샤페",
+      "mirror": "https://namu.moe/w/오토 프랑크 폰 반샤페",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "윌렘 홀랜드",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/윌렘 홀랜드",
+      "mirror": "https://namu.moe/w/윌렘 홀랜드",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "제닝스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/제닝스",
+      "mirror": "https://namu.moe/w/제닝스",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "창 타오",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/창 타오",
+      "mirror": "https://namu.moe/w/창 타오",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "칼 폰 데어 데켄",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/칼 폰 데어 데켄",
+      "mirror": "https://namu.moe/w/칼 폰 데어 데켄",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "파커스트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/파커스트",
+      "mirror": "https://namu.moe/w/파커스트",
+      "section": "3.3.1. 군인",
+      "origin": "main"
+    },
+    {
+      "name": "미리암 로자스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/미리암 로자스",
+      "mirror": "https://namu.moe/w/미리암 로자스",
+      "section": "3.3.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "엔디 듀크레이",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/엔디 듀크레이",
+      "mirror": "https://namu.moe/w/엔디 듀크레이",
+      "section": "3.3.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "존 마틴",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/존 마틴(은하영웅전설)",
+      "mirror": "https://namu.moe/w/존 마틴(은하영웅전설)",
+      "section": "3.3.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "크리스토프 폰 쾨펜힐러",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/크리스토프 폰 쾨펜힐러",
+      "mirror": "https://namu.moe/w/크리스토프 폰 쾨펜힐러",
+      "section": "3.3.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "패트릭 아텐보로",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/패트릭 아텐보로",
+      "mirror": "https://namu.moe/w/패트릭 아텐보로",
+      "section": "3.3.2. 민간인",
+      "origin": "main"
+    },
+    {
+      "name": "레오폴드 라프",
+      "faction": "other",
+      "page": "https://namu.wiki/w/레오폴드 라프",
+      "mirror": "https://namu.moe/w/레오폴드 라프",
+      "section": "4.1. 정치인",
+      "origin": "main"
+    },
+    {
+      "name": "아드리안 루빈스키",
+      "faction": "other",
+      "page": "https://namu.wiki/w/아드리안 루빈스키",
+      "mirror": "https://namu.moe/w/아드리안 루빈스키",
+      "section": "4.1. 정치인",
+      "origin": "main"
+    },
+    {
+      "name": "니콜라스 볼텍",
+      "faction": "other",
+      "page": "https://namu.wiki/w/니콜라스 볼텍",
+      "mirror": "https://namu.moe/w/니콜라스 볼텍",
+      "section": "4.1. 정치인",
+      "origin": "main"
+    },
+    {
+      "name": "루퍼트 케셀링크",
+      "faction": "other",
+      "page": "https://namu.wiki/w/루퍼트 케셀링크",
+      "mirror": "https://namu.moe/w/루퍼트 케셀링크",
+      "section": "4.1. 정치인",
+      "origin": "main"
+    },
+    {
+      "name": "나폴레옹 앙트완느 드 오트테르",
+      "faction": "other",
+      "page": "https://namu.wiki/w/나폴레옹 앙트완느 드 오트테르",
+      "mirror": "https://namu.moe/w/나폴레옹 앙트완느 드 오트테르",
+      "section": "4.2. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "도미니크 생피에르",
+      "faction": "other",
+      "page": "https://namu.wiki/w/도미니크 생피에르",
+      "mirror": "https://namu.moe/w/도미니크 생피에르",
+      "section": "4.2. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "밸런타인 카우프",
+      "faction": "other",
+      "page": "https://namu.wiki/w/밸런타인 카우프&오히긴스",
+      "mirror": "https://namu.moe/w/밸런타인 카우프&오히긴스",
+      "section": "4.2. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "오히긴스",
+      "faction": "other",
+      "page": "https://namu.wiki/w/밸런타인 카우프&오히긴스",
+      "mirror": "https://namu.moe/w/밸런타인 카우프&오히긴스",
+      "section": "4.2. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "보멜",
+      "faction": "other",
+      "page": "https://namu.wiki/w/보멜",
+      "mirror": "https://namu.moe/w/보멜",
+      "section": "4.2. 일반인",
+      "origin": "main"
+    },
+    {
+      "name": "그로테발",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "그리센벡",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "구스만",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "구텐존",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "나이세바흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "니멜러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "니드호그",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "디터스도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "드레벤츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "딕켈",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "라이블",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "라프트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "레머",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "레폴트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "로이슈너",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "리츨",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "마르크그라프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "마이포허",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "마르비히",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "슈바메르",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "하우슈르도",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "마트회퍼",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "만",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "모르간",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "단크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "하펜",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "베스트팔레",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "보렌",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "부크스테퓌데",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "뷘체",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "뷰젠휘터",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "브렌타노",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "첼벨",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "쉴러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "슈라이어",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "슈트라우스",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "슐츠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "암스도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "알렉산더 바르트하우저",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "우드",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "요크브",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "호르터",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "위르겐스",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "잔더스",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "잠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "캄후버",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "쿠르트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "쿠를리히",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "크라이버",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "크라프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "토니오",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "파우만",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "파트리켄",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "페르데베르트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "홀츠바우어",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "할버슈타트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "미첼 슈마허",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "랄프 슈마허",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.1",
+      "section": "2.1.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "제페르트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.2",
+      "section": "2.1.2. 문관",
+      "origin": "minor"
+    },
+    {
+      "name": "베른하임",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.2",
+      "section": "2.1.2. 문관",
+      "origin": "minor"
+    },
+    {
+      "name": "한스 슈텔처",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1.3",
+      "section": "2.1.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "람스도르프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.1",
+      "section": "2.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "쿨리히",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.1",
+      "section": "2.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "크라이머",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.1",
+      "section": "2.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "룸프, 빌헬미, 노이쾰른, 킬만젝, 플레겔",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.2",
+      "section": "2.2.2. 문관",
+      "origin": "minor"
+    },
+    {
+      "name": "아벤트 폰 클라인겔트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "section": "2.2.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "몬타크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "section": "2.2.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "칼 폰 클라인겔트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "section": "2.2.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "클라인겔트 자작",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "section": "2.2.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "바그너",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "section": "2.2.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "테레제 바그너",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "section": "2.2.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "피아 폰 클라인겔트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.3",
+      "section": "2.2.3. 일반인",
+      "origin": "minor"
+    },
+    {
+      "name": "라트부르흐",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.4",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.4",
+      "section": "2.2.4. 은하제국 정통정부 각료",
+      "origin": "minor"
+    },
+    {
+      "name": "셰츨러",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.4",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.4",
+      "section": "2.2.4. 은하제국 정통정부 각료",
+      "origin": "minor"
+    },
+    {
+      "name": "호징거",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2.4",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2.4",
+      "section": "2.2.4. 은하제국 정통정부 각료",
+      "origin": "minor"
+    },
+    {
+      "name": "뷰링그",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "section": "2.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "샤미쇼",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "section": "2.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "에멜리히",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "section": "2.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "프레벨",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "section": "2.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "그나이스터",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.1",
+      "section": "2.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "호덴",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "section": "2.3.2. 문관",
+      "origin": "minor"
+    },
+    {
+      "name": "샤헨",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "section": "2.3.2. 문관",
+      "origin": "minor"
+    },
+    {
+      "name": "올렌부르크",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "section": "2.3.2. 문관",
+      "origin": "minor"
+    },
+    {
+      "name": "카르테너",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.2",
+      "section": "2.3.2. 문관",
+      "origin": "minor"
+    },
+    {
+      "name": "요안느 폰 클롭슈톡",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.3.3",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.3.3",
+      "section": "2.3.3. 민간인",
+      "origin": "minor"
+    },
+    {
+      "name": "빌렌슈타인 공작",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.5",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.5",
+      "section": "2.5. 민간인",
+      "origin": "minor"
+    },
+    {
+      "name": "란 호",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "돌만",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "할바흐",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "제프린",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "크라프트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "크로네커",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "루이시코프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "바운스골",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "데슈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "블러드조",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "에다",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "피터 리머",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "더글라스 베이트만",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "가티",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "리버모어",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "듀드네이",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "보포트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "브레첼리",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "비로라이넨",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "코네프",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "클레멘테",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "코널리",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "캐벗",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2.1",
+      "section": "3.2.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "그로브너",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "굿윈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "네이스미스 워드",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "안드라슈",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "휴 외르스테드",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "올레빈스키",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "문가이",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "램지 워츠",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "매튜슨",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "몬샤르망",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "앳킨스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "스퍼리어",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "페르난데스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "히스",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "카퍼필드",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "페이건",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "하테",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "민츠",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.1",
+      "section": "3.3.1. 군인",
+      "origin": "minor"
+    },
+    {
+      "name": "윌마 반 크로프트",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.2",
+      "section": "3.3.2. 민간인",
+      "origin": "minor"
+    },
+    {
+      "name": "아델레이드 애쉬비",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.2",
+      "section": "3.3.2. 민간인",
+      "origin": "minor"
+    },
+    {
+      "name": "루신다 애쉬비",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.3.2",
+      "section": "3.3.2. 민간인",
+      "origin": "minor"
+    },
+    {
+      "name": "제이시",
+      "faction": "other",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-4",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-4",
+      "section": "4. 페잔 자치령",
+      "origin": "minor"
+    },
+    {
+      "name": "클라젠",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2",
+      "section": "manual",
+      "origin": "minor"
+    },
+    {
+      "name": "그라이프스",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/그라이프스",
+      "mirror": "https://namu.moe/w/그라이프스",
+      "section": "manual",
+      "origin": "manual"
+    },
+    {
+      "name": "아흐메드",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/아흐메드",
+      "mirror": "https://namu.moe/w/아흐메드",
+      "section": "manual",
+      "origin": "manual"
+    },
+    {
+      "name": "타난차이",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/타난차이",
+      "mirror": "https://namu.moe/w/타난차이",
+      "section": "manual",
+      "origin": "manual"
+    },
+    {
+      "name": "첸",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/첸",
+      "mirror": "https://namu.moe/w/첸",
+      "section": "manual",
+      "origin": "manual"
+    },
+    {
+      "name": "코나리",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/코나리",
+      "mirror": "https://namu.moe/w/코나리",
+      "section": "manual",
+      "origin": "manual"
+    },
+    {
+      "name": "제노",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/제노(은하영웅전설)",
+      "mirror": "https://namu.moe/w/제노(은하영웅전설)",
+      "section": "3.1.1.",
+      "origin": "main"
+    },
+    {
+      "name": "루비치",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1",
+      "section": "2.1. 로엔그람 왕조 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "라베날트",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1",
+      "section": "2.1. 로엔그람 왕조 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "구스타프 이자크 켐프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1",
+      "section": "2.1. 로엔그람 왕조 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "칼 프란츠 켐프",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.1",
+      "section": "2.1. 로엔그람 왕조 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "파울스",
+      "faction": "empire",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-2.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-2.2",
+      "section": "2.2. 기타 제국 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "토다",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.1",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.1",
+      "section": "3.1. 양 웬리 측 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "니콜스키",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2",
+      "section": "3.2. 기타 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "에이런 두멕",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2",
+      "section": "3.2. 기타 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "보네",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2",
+      "section": "3.2. 기타 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "카플랑",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2",
+      "section": "3.2. 기타 인물",
+      "origin": "minor"
+    },
+    {
+      "name": "이븐 샤마",
+      "faction": "alliance",
+      "page": "https://namu.wiki/w/은하영웅전설/기타 등장인물#s-3.2",
+      "mirror": "https://namu.moe/w/은하영웅전설/기타 등장인물#s-3.2",
+      "section": "3.2. 기타 인물",
+      "origin": "minor"
+    }
+  ]
+}

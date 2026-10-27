@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self' file: data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'">
+<title>LOGH7 · NPC 캐릭터 대조실</title>
+<style>
+*{box-sizing:border-box}body{margin:0;color:#e4e9ef;background:#111820;font:14px/1.55 'Malgun Gothic',sans-serif}button,input,select,textarea{font:inherit}button{cursor:pointer;border:1px solid #526274;border-radius:5px;background:#243445;color:#eef4fa;padding:7px 12px}button:hover{background:#33495e}button:disabled{opacity:.45;cursor:default}button.primary{background:#315f83}header{padding:20px 28px;border-bottom:1px solid #33414e;background:#172330}h1{font-size:22px;margin:0 0 4px}header p{margin:3px 0;color:#b3c1cf}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}.status{color:#92d5b4}main{display:grid;grid-template-columns:265px minmax(340px,1fr) minmax(400px,1.2fr);gap:18px;padding:20px;max-width:1800px;margin:auto}section{min-width:0}h2{font-size:16px;margin:0 0 12px;color:#b4cde0}.panel{padding:16px;border:1px solid #33414e;border-radius:7px;background:#18232d}label{display:block;color:#aebdcb;margin:8px 0 4px}input,select,textarea{width:100%;padding:7px 9px;color:#edf4fa;border:1px solid #475767;border-radius:4px;background:#101922}textarea{resize:vertical;min-height:64px}.people{display:flex;flex-direction:column;gap:6px;max-height:680px;overflow:auto;margin-top:12px}.person{text-align:left;display:flex;gap:10px;align-items:center;padding:8px;width:100%}.person.active{border-color:#87c4f3;background:#2c4559}.person img{width:32px;height:40px;object-fit:contain}.person small{display:block;color:#abc1d2}.emptyface{width:32px;height:40px;background:#32414f;text-align:center;padding-top:7px;flex-shrink:0}.minor{font-size:12px;color:#9eb0c0}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.stats label{font-size:12px}.identity{display:flex;gap:15px;align-items:center}.identity img{width:96px;height:120px;object-fit:contain;image-rendering:auto}.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px;max-height:690px;overflow:auto;margin-top:12px}.portrait{padding:6px 2px;text-align:center;font-size:11px}.portrait img{display:block;width:64px;height:80px;object-fit:contain;margin:0 auto 4px}.portrait.selected{border-color:#90dcaf;background:#284c43}.portrait.used{border-color:#b78d52}.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}.error{color:#ffb3a8;white-space:pre-wrap}.posts{font-size:12px;color:#b1bdc8;white-space:pre-line}#editor[hidden]{display:none}footer{padding:10px 24px 24px;color:#a8b7c5}#portrait-preview{display:none}.badge{border:1px solid #586675;padding:1px 6px;border-radius:4px;font-size:11px;color:#dfc68b}@media(max-width:1150px){main{grid-template-columns:230px 1fr}.facepanel{grid-column:1/-1}.gallery{max-height:420px}}@media(max-width:680px){main{display:block}section{margin-bottom:18px}.people{max-height:240px}.stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+<style>
+.comparison{display:grid;grid-template-columns:130px 1fr;gap:16px;margin:12px 0;padding:12px;background:#101922;border-radius:6px}.comparison #portrait-preview{width:120px;height:160px}.references{display:flex;gap:8px;flex-wrap:wrap}.reference{padding:4px;max-width:115px;font-size:11px;overflow-wrap:anywhere}.reference img{display:block;width:96px;height:100px;object-fit:contain}.reference.active{border-color:#90dcaf}.reference-large{display:block;width:100%;height:210px;object-fit:contain;margin-bottom:8px}a{color:#a9d3f4;overflow-wrap:anywhere}.reference-large[hidden]{display:none}.reference-label{font-size:11px;overflow-wrap:anywhere}.reference-missing{color:#b6a98d;font-size:12px}@media(max-width:680px){.comparison{grid-template-columns:100px 1fr}.comparison #portrait-preview{width:96px;height:128px}}
+</style>
+<header>
+  <h1>LOGH7 <span style="color:#83b3d9">/</span> NPC 캐릭터 대조실</h1>
+  <p>한글 인물 후보·위키 참고 이미지와 CD 얼굴을 대조하고, 이름·능력·배치의 작업 초안을 저장합니다.</p>
+  <p class="minor">얼굴의 이름은 미확정입니다. 빈 능력치는 미확인 값이며 0과 구분합니다. JSON은 편집용이며 서버에 자동 적용되지 않습니다.</p>
+  <div class="toolbar"><button id="export" class="primary">JSON 저장</button><button id="import">JSON 불러오기</button><input id="file" type="file" accept=".json,application/json" hidden><span id="status" class="status" role="status"></span></div>
+  <div id="error" class="error" role="alert"></div>
+</header>
+<main>
+  <section class="panel"><h2>01 / 인물 목록</h2>
+    <input id="search" aria-label="인물 검색" placeholder="이름·직책 검색">
+    <label for="faction-filter">진영</label><select id="faction-filter"><option value="">전체</option><option value="empire">제국</option><option value="alliance">동맹</option><option value="other">기타</option></select>
+    <label for="roster-filter">등재 근거</label><select id="roster-filter"><option value="">전체</option><option value="manual">매뉴얼 초기 담당자</option><option value="candidate">추가 후보 · VII 등장 미확인</option></select>
+    <label for="reference-filter">참고 이미지</label><select id="reference-filter"><option value="">전체</option><option value="yes">이미지 있음</option><option value="no">이미지 없음</option></select>
+    <div class="toolbar"><button id="add">인물 추가</button><span id="count" class="minor"></span></div><div id="people" class="people"></div>
+  </section>
+  <section class="panel"><h2>02 / 인물 정보 <span class="badge">편집 초안</span></h2>
+    <form id="editor" hidden>
+      <strong id="holder"></strong>
+      <div class="comparison"><div><span class="minor">게임 얼굴</span><img id="portrait-preview" alt="선택한 게임 얼굴"><div id="face-label" class="minor"></div><button type="button" id="clear-face">얼굴 해제</button></div><div><span class="minor">위키 문서 이미지 후보</span><img id="reference-large" class="reference-large" alt="선택한 위키 참고 이미지" hidden><div id="reference-label" class="reference-label"></div><div id="references" class="references"></div><p id="reference-note" class="reference-missing"></p><a id="wiki-source" target="_blank" rel="noopener noreferrer" hidden>인물 출처 문서 ↗</a></div></div>
+      <label for="name">이름 (한국어 이름으로 편집 가능)</label><input id="name" maxlength="200" required>
+      <div id="name-note" class="minor"></div>
+      <div class="split"><div><label for="faction">진영</label><select id="faction"><option value="empire">제국</option><option value="alliance">동맹</option><option value="other">기타</option></select></div><div><label for="rank">계급</label><input id="rank" maxlength="200"></div></div>
+      <p id="posts" class="posts"></p>
+      <div class="split"><div><label for="location">배치·상주 장소 (메모)</label><input id="location" maxlength="1000"></div><div><label for="ai_profile">AI 행동 프로필 (메모)</label><input id="ai_profile" maxlength="1000" placeholder="미지정"></div></div>
+      <label for="face-status">얼굴 매칭 근거</label><div class="split"><select id="face-status"><option value="unknown">미확인</option><option value="guess">추정·육안 대조</option><option value="manual">매뉴얼·공식 자료</option><option value="client">클라이언트 관찰</option></select><input id="face-source" aria-label="얼굴 근거 출처" placeholder="파일·페이지·관찰 기록"></div>
+      <label>능력 8종 <span class="minor">0..65535는 인물 상세 패킷 표현 범위이며 원작 규칙 상한은 미확인</span></label><div id="stats" class="stats"></div>
+      <label for="abilities-status">입력한 능력치 전체의 근거</label><div class="split"><select id="abilities-status"><option value="unknown">미확인</option><option value="guess">운영 설계값·추정</option><option value="manual">매뉴얼·공식 자료</option><option value="client">클라이언트 관찰</option></select><input id="abilities-source" aria-label="능력치 근거 출처" placeholder="수치 출처 또는 설계 이유"></div>
+      <label for="notes">메모</label><textarea id="notes" maxlength="4000"></textarea>
+      <div class="toolbar"><button type="submit" class="primary">변경 적용</button><button type="button" id="delete">인물 삭제</button></div>
+    </form>
+  </section>
+  <section class="panel facepanel"><h2>03 / 얼굴 선택</h2><p class="minor">얼굴 아래 숫자는 얼굴 ID입니다. 원작 인물 ID와는 다릅니다. 같은 얼굴의 중복 배정은 차단합니다.</p>
+    <select id="face-filter" aria-label="얼굴 진영 필터"><option value="current">선택한 인물의 진영</option><option value="empire">제국</option><option value="alliance">동맹</option><option value="other">기타·공용</option><option value="all">전체</option></select>
+    <div id="gallery" class="gallery"></div>
+  </section>
+</main>
+<footer>작성자: 최병호 · 로컬 파일 전용 · 매뉴얼 명단은 전체 원작 인물 목록이 아닙니다. 새로고침·종료 전에 JSON을 저장하세요. 얼굴·능력 근거는 각각 기록하며 서로의 확정 근거로 쓰지 않습니다.</footer>
+<script id="payload" type="application/json">/*PAYLOAD*/</script>
+<script>/*APPLICATION*/</script>
+</html>
