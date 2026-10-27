@@ -27,14 +27,14 @@ internal object FleetCommanderAppointment {
         val outfit=stocks.outfits[r.outfit] ?: return reject(AppointmentRejection.TARGET)
         if (outfit.power!=2 || outfit.kind!=OutfitKind.FLEET) return reject(AppointmentRejection.TARGET)
         if (r.base!=0 && r.base!=outfit.baseId || !policy.friendly(stocks,outfit)) return reject(AppointmentRejection.BASE)
-        if (r.target<=0 || r.target==r.characterId || r.targetPower!=2) return reject(AppointmentRejection.TARGET)
+        if (r.target<=0 || r.target==r.characterId || r.targetPower!=2 || outfit.aideId==r.target) return reject(AppointmentRejection.TARGET)
         if (!policy.eligible(r.actorRank,r.targetRank)) return reject(AppointmentRejection.RANK)
         if (player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(AppointmentRejection.BUSY)
         if (outfit.commanderId==r.target) return GarrisonAppointmentResult(player,stocks)
         if (outfit.commanderId!=0) return reject(AppointmentRejection.OCCUPIED)
         val offices=BaseOfficePolicy(galaxy)
         val held=stocks.bases.values.sumOf { offices.holders(it).values.count { id -> id==r.target } }+
-            stocks.outfits.values.count { it.commanderId==r.target }+
+            stocks.outfits.values.sumOf { (if(it.commanderId==r.target)1 else 0)+(if(it.aideId==r.target)1 else 0) }+
             stocks.nationalOffices.values.count { it==r.target }+
             if (r.target in stocks.logisticsOfficers) 1 else 0
         if (held>=14) return reject(AppointmentRejection.CAPACITY)

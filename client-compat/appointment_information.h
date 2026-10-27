@@ -8,7 +8,7 @@ struct AppointmentChoice { unsigned card=0, base=0, outfit=0, character=0; const
 static bool appointmentChoice(AppointmentChoice& choice) {
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     unsigned authority=*reinterpret_cast<unsigned*>(0xc9eac0);
-    if (!command || (authority!=54 && authority!=2 && authority!=17 && authority!=134 && authority!=161)) return false;
+    if (!command || (authority!=54 && authority!=2 && authority!=17 && authority!=134 && authority!=161 && authority!=39 && authority!=175)) return false;
     auto steps=at<BYTE**>(command,0x10), end=at<BYTE**>(command,0x14);
     unsigned active=at<unsigned>(command,4);
     if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;
@@ -55,7 +55,7 @@ static bool appointmentChoice(AppointmentChoice& choice) {
             choice.base=id;
         }
     }
-    bool validSeat=choice.card==39 ? choice.outfit>0 && choice.seat && logh::infoWord(choice.seat,4)==choice.outfit :
+    bool validSeat=(choice.card==39 || choice.card==43 || choice.card==179) ? choice.outfit>0 && choice.seat && logh::infoWord(choice.seat,4)==choice.outfit :
         choice.outfit==0 && choice.base>0 && choice.base<=65535;
     return choice.card>0 && choice.card<=260 && validSeat &&
         choice.character>0 && choice.person && logh::infoWord(choice.person,0)==choice.character;

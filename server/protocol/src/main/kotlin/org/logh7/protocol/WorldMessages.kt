@@ -145,7 +145,9 @@ object WorldMessages {
         54 -> listOf(5,7,30)
         2,17,134,161 -> listOf(5,7)
         190,192 -> listOf(7,30)
-        39, 44, 47, 50, 175, 180, 183, 186 -> listOf(7,63)
+        39,175 -> listOf(5,7,63)
+        43,179 -> listOf(7)
+        44, 47, 50, 180, 183, 186 -> listOf(7,63)
         52,55,56,57,188,191,193 -> listOf(7)
         24,25,150 -> listOf(67)
         else -> emptyList()
@@ -167,7 +169,7 @@ object WorldMessages {
     fun cards() = body {
         writeShort(261)
         for (card in 0..260) {
-            val power = when (card) { 2,17,24,25,54,59,39,44,47,50,52,55,56,57 -> 2; 134,150,161,190,195,175,180,183,186,188,191,192,193 -> 3; else -> 0 }
+            val power = when (card) { 2,17,24,25,54,59,39,43,44,47,50,52,55,56,57 -> 2; 134,150,161,190,195,175,179,180,183,186,188,191,192,193 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0)
             // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
@@ -178,20 +180,20 @@ object WorldMessages {
                 54,55,190,191 -> 16
                 56,57,192,193 -> 17
                 52,188 -> 15
-                39,175 -> 11
+                39,43,175,179 -> 11
                 44,180 -> 12
                 47,183 -> 13
                 50,186 -> 14
                 else -> 0
             })
             // 004c9140: parent appointment-authority card, not a faction ID.
-            writeShort(when(card) { 54 -> 6; 55 -> 54; 52 -> 51; 56 -> 2; 39,57 -> 17;
+            writeShort(when(card) { 43 -> 39; 179 -> 175; 54 -> 6; 55 -> 54; 52 -> 51; 56 -> 2; 39,57 -> 17;
                 188 -> 187; 192 -> 134; 193 -> 161; 24,25 -> 22; 150 -> 147; else -> 0 }); writeShort(0)
             val governor=card==54 || card==190 || card==192
             val garrison=card in setOf(52,55,188,191)
             // First is the lowest eligible rank (0057a080), not the lowest numeric index.
-            writeByte(when { governor || card==134 -> 1; garrison -> 10; card in setOf(24,150) -> 4; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
-            writeByte(if(governor || card==134)1 else if(garrison || card in setOf(2,17,24,25,39,150,56,57,161,193))2 else 20); writeByte(0)
+            writeByte(when { governor || card==134 -> 1; garrison -> 10; card in setOf(24,150) -> 4; card in setOf(43,179) -> 12; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
+            writeByte(if(governor || card==134)1 else if(garrison || card in setOf(2,17,24,25,39,43,179,150,56,57,161,193))2 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)

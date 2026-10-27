@@ -23,14 +23,14 @@ class NationalOfficeStoreTest {
         val path=directory.resolve("stocks")
         FilePlanetStockStore(path).use {it.save(stocks)}
         val old=Files.readAllLines(path).filterNot {it.startsWith("N\t")}.mapIndexed {i,line ->
-            if(i==0)line.split('\t').take(9).joinToString("\t").replace("STOCK-10","STOCK-9") else line }
+            if(i==0)line.split('\t').take(9).joinToString("\t").replace("STOCK-11","STOCK-9") else line }
         Files.write(path,old)
         FilePlanetStockStore(path).use {store ->
             val value=store.load()!!
             assertEquals(stocks.copy(nationalOffices=emptyMap()),value)
             assertEquals(old,Files.readAllLines(path));store.save(value)
         }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-10\t"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-11\t"))
     }
     @Test fun duplicateUnknownNegativeAndUncountedNationalRowsFailWithoutRewrite() {
         val path=directory.resolve("stocks")

@@ -578,12 +578,17 @@ class GameExchange(
                                 val capitalRule=org.logh7.engine.CapitalAppointmentPolicy.rule(query.role)
                                 val fleetPolicy=org.logh7.engine.FleetCommanderAppointmentPolicy(world.galaxy)
                                 val fleets=fleetPolicy.available(inventory,character.id.toInt(),character.power,character.rank)
+                                val aidePolicy=org.logh7.engine.FleetAideAppointmentPolicy()
+                                val aideCard=aidePolicy.card(character.power)
+                                val aideFleets=aidePolicy.available(inventory,character.id.toInt(),character.power,character.rank)
+                                val selectedFleets=if(query.role==aideCard)aideFleets else if(query.role==39)fleets else emptyList()
                                 when(query.search) {
                                     18 -> org.logh7.protocol.AppointmentDirectoryMessages.cards(query,
                                         (if(available.isEmpty())emptyMap() else mapOf(55 to available.size))+
                                             capitals.associate { it.rule.card to 1 }+
-                                            if(fleets.isEmpty())emptyMap() else mapOf(39 to fleets.size))
-                                    27 -> org.logh7.protocol.AppointmentDirectoryMessages.outfits(query,fleets.map {
+                                            (if(fleets.isEmpty())emptyMap() else mapOf(39 to fleets.size))+
+                                            (if(aideFleets.isEmpty())emptyMap() else mapOf(aideCard to aideFleets.size)))
+                                    27 -> org.logh7.protocol.AppointmentDirectoryMessages.outfits(query,selectedFleets.map {
                                         org.logh7.protocol.AppointmentDirectoryMessages.Outfit(it.id,it.number,it.kind.wire,
                                             world.baseWire(world.galaxy.bases.single { base -> base.id==it.baseId }))
                                     })
@@ -591,12 +596,13 @@ class GameExchange(
                                         org.logh7.protocol.AppointmentDirectoryMessages.Base(it.id,it.grid,it.name)
                                     })
                                     4 -> {
-                                        require(if(query.role==39) fleets.isNotEmpty() &&
-                                            (query.base==0 || fleets.any {it.baseId==query.base}) else
+                                        require(if(query.role in setOf(39,43,179)) selectedFleets.isNotEmpty() &&
+                                            (query.base==0 || selectedFleets.any {it.baseId==query.base}) else
                                             selected.isNotEmpty() && (query.base==0 || selected.any { it.id==query.base })) { "No appointment authority at selected seat" }
                                         val eligible=characters.registeredCharacters().filter { target ->
                                             target.id!=character.id && target.power==character.power &&
-                                                (if(query.role==39) fleetPolicy.eligible(character.rank,target.rank) else
+                                                (if(query.role==aideCard) aidePolicy.eligible(character.rank,target.rank,character.power) else
+                                                    if(query.role==39) fleetPolicy.eligible(character.rank,target.rank) else
                                                     capitalRule?.eligible(character.rank,target.rank) ?: (target.rank in 2..10 && character.rank<target.rank)) && administration!!.offices(target.id.toInt(),target.power,
                                                     checkNotNull(generation)).size<14
                                         }

@@ -17,7 +17,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
         val national=org.logh7.engine.NationalOffice.of(card)
         val logistics=org.logh7.engine.LogisticsOffice.of(card)
-        require(national!=null || logistics!=null || card in setOf(39,52,54,55,56,57,188,190,191,192,193)) { "Unsupported public office roster" }
+        require(national!=null || logistics!=null || card in setOf(39,43,179,52,54,55,56,57,188,190,191,192,193)) { "Unsupported public office roster" }
         val power=national?.power ?: logistics?.power ?: if (card<136) 2 else 3
         val baseHolders=stocks.bases.values.filter { it.power==power && it.camp==0 }.flatMap { base ->
             val id=baseOffices.holders(base)[card] ?: return@flatMap emptyList()
@@ -31,7 +31,10 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val fleetHolders=if(card==39) stocks.outfits.values.filter {
             it.power==2 && it.kind==org.logh7.engine.OutfitKind.FLEET && it.commanderId>0
         }.map { it.commanderId to BootstrapMessages.OfficeCard(39,it.id) } else emptyList()
-        val appointed=(baseHolders+nationalHolders+logisticsHolders+fleetHolders).groupBy({it.first},{it.second}).toSortedMap()
+        val aideHolders=if(card in setOf(43,179)) stocks.outfits.values.filter {
+            it.power==power && it.kind==org.logh7.engine.OutfitKind.FLEET && it.aideId>0
+        }.map {it.aideId to BootstrapMessages.OfficeCard(card,it.id)} else emptyList()
+        val appointed=(baseHolders+nationalHolders+logisticsHolders+fleetHolders+aideHolders).groupBy({it.first},{it.second}).toSortedMap()
         require(appointed.size<=64 && appointed.values.all { it.size<=14 }) { "Office roster exceeds CD capacity" }
         val records=appointed.map { (id,offices) ->
             val character=checkNotNull(characterById(id)) { "Appointed character is missing" }
@@ -52,11 +55,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
             (outfit.commanderId == editor && query.base == outfit.baseId || allocator && query.base == 0)) {
             "Only the stationed commander or authorized allocator may open the editor"
         }
-        val members = if (outfit.commanderId == 0) emptyList() else {
-            val commander = checkNotNull(characterById(outfit.commanderId)) { "Outfit commander is missing" }
-            require(commander.id == outfit.commanderId.toLong() && commander.power == outfit.power) { "Outfit commander identity mismatch" }
+        val members = listOf(outfit.commanderId,outfit.aideId).filter {it>0}.map {id ->
+            val commander = checkNotNull(characterById(id)) { "Outfit member is missing" }
+            require(commander.id == id.toLong() && commander.power == outfit.power) { "Outfit member identity mismatch" }
             // Same kind (0), rank and display surname as the current 0323 character record.
-            listOf(OutfitPartyMessages.Member(outfit.commanderId,0,commander.rank,commander.surname))
+            OutfitPartyMessages.Member(id,0,commander.rank,commander.surname)
         }
         val units = checkNotNull(outfit.activeShips) { "Active ship identities are not initialized" }
         val groups = units.values.groupBy { it.stack.kind }.toSortedMap().flatMap { (kind, ships) ->
