@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalMotionTest {
+    @Test fun initialDeploymentKeepsBothSidesInsideNativeRadarWithoutOverlappingUnits() {
+        val positions=Power.entries.flatMap {power-> (0..599).map {TacticalDeployment.formation(it,power).position}}
+        assertEquals(1200,positions.distinct().size)
+        assertTrue(positions.all {kotlin.math.hypot(it.x,it.y)<250})
+    }
     @Test fun serverScheduleInterpolatesPathWithoutOvershootingAndKeepsFinalDirection() {
         val origin=TacticalPose(TacticalPoint(0f,0f),1.2f)
         val motion=TacticalMotion(2017,100,origin,0.5f,2.4f,
@@ -39,13 +44,14 @@ class TacticalMotionTest {
         assertNull(store.state.getValue("pilot").motion)
         val after=navigation.apply(request,session,stocks).player!!
         val motion=after.motion!!
-        assertEquals(TacticalPoint(-700f,-180f),motion.origin.position)
+        assertEquals(TacticalPoint(-180f,-95f),motion.origin.position)
         assertEquals(600,after.pcp);assertEquals(600,after.mcp)
         navigation=Navigation(galaxy,store,NavigationPolicy())
         assertEquals(motion,navigation.snapshot(1).getValue("pilot").motion)
         val later=session.copy(gameMillis=session.gameMillis+15000)
         val next=navigation.apply(request,later,stocks).player!!.motion!!
-        assertEquals(TacticalPoint(-695f,-180f),next.origin.position)
+        val expectedX=-180f+(-600f+180f)*5f/kotlin.math.hypot(-600f+180f,-180f+95f)
+        assertEquals(expectedX,next.origin.position.x,0.0001f)
         val reduced=navigation.apply(request.copy(tacticalMove=null,unitId=1010000,
             energy=TacticalEnergy.ZERO),later,stocks).player!!
         assertEquals(0f,reduced.motion!!.velocity)

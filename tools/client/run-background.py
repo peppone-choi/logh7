@@ -294,6 +294,9 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         report["login_failure_code"] = payload["code"]
                     elif payload.get("type") == "client-exception":
                         report["client_exception"] = payload
+                    elif payload.get("type") == "render-trace":
+                        with (out / "render-trace.jsonl").open("a", encoding="utf-8") as trace:
+                            trace.write(json.dumps(payload) + "\n")
                 script.on("message", on_message)
                 script.load()
             if audio is not None:
@@ -381,6 +384,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             finally:
                                 script.exports_sync.setkey(0)
                                 win32gui.PostMessage(target, win32con.WM_KEYUP, code, 3 << 30)
+                        elif action == {"traceQuads": True}:
+                            script.exports_sync.tracequads()
                         elif action == {"stop": True}:
                             deadline = time.monotonic()
                         else:

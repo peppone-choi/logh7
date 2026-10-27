@@ -143,6 +143,7 @@ static void updateCharacterInformation(void* manager);
 #include "input_editor.h"
 #include "peer_notices.h"
 #include "unit_presence.h"
+#include "tactical_radar.h"
 
 // The surviving message catalogue ends before tactical HUD group 119.
 // Supply the two known titles only when the native lookup reports NO TABLE;
@@ -573,6 +574,7 @@ static void install() {
         *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&tacticalHudTitle) - address - 5);
         if (!patchBytes(address, expectedTacticalTitles[i], call, 5)) { status = -3; return; }
     }
+    if (!installTacticalRadar()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};

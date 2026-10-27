@@ -37,12 +37,12 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val indices=mutableMapOf<Int,Int>()
         sources.sortedBy {it.id}.map {u->
             val index=indices[u.power] ?: 0;indices[u.power]=index+1
-            val x=(if(u.power==2)700f else -700f)+(index/10)*30f
+            val initial=TacticalDeployment.formation(index,if(u.power==2)Power.EMPIRE else Power.ALLIANCE)
             val pose=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
                 ?.pose(snapshot.session?.gameSeconds ?: 0)
             TacticsMessages.Unit(u.id,u.kind,u.outfit,u.character,u.supplies,u.cruise,u.destroyed,
-                pose?.position?.x ?: x,pose?.position?.y ?: (index%10-4.5f)*40f,0f,
-                pose?.direction ?: if(u.power==2)Math.PI.toFloat() else 0f)
+                pose?.position?.x ?: initial.position.x,pose?.position?.y ?: initial.position.y,0f,
+                pose?.direction ?: initial.direction)
         }.also {require(it.size<=600)}
     }
     fun resume() = people.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)}

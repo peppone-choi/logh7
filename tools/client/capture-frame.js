@@ -13,6 +13,31 @@ rpc.exports.recapture = function() { done = false; };
 setInterval(()=>rpc.exports.recapture(),2000);
 let gameWindow = ptr(0);
 let frameNotified = false;
+let quadTraceFrames = 0;
+let quadTraceRows = [];
+const quadTraceSeen = new Set();
+rpc.exports.tracequads = function() {
+  if(gameWindow.isNull() || quadTraceFrames)throw new Error('Owned renderer must be ready and idle');
+  quadTraceRows=[];quadTraceSeen.clear();quadTraceFrames=3;
+};
+// A bounded, read-only observation in the existing capture session. Separate
+// temporary Frida sessions can disrupt the resident capture/audio guards.
+function hookQuadTrace(device) {
+  Interceptor.attach(device.readPointer().add(72*4).readPointer(),{onEnter(args){
+    if(!quadTraceFrames || !args[0].equals(device) || quadTraceRows.length>=64)return;
+    if(args[1].toUInt32()!==6 || args[2].toUInt32()!==2 || args[4].toUInt32()!==28 || args[3].isNull())return;
+    const vertices=[0,1,2,3].map(i=>{
+      const p=args[3].add(i*28);return [p.readFloat(),p.add(4).readFloat(),p.add(20).readFloat(),p.add(24).readFloat()];
+    });
+    if(!vertices.flat().every(Number.isFinite))return;
+    const xs=vertices.map(v=>v[0]),ys=vertices.map(v=>v[1]);
+    const bounds=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
+    if(bounds[2]-bounds[0]<100 || bounds[3]-bounds[1]<100)return;
+    const caller=this.returnAddress.toString(),key=JSON.stringify([bounds,caller]);
+    if(quadTraceSeen.has(key))return;quadTraceSeen.add(key);
+    quadTraceRows.push({bounds,vertices,caller});
+  }});
+}
 const failures = new Set();
 function reportFailure(name, hr) {
   if(!failures.has(name)){failures.add(name);send({type:'capture-status',event:name+': '+hr.toString(16)});}
@@ -88,10 +113,13 @@ function hook8(object) {
   Interceptor.attach(create,{onEnter(args){this.out=args[6];gameWindow=args[3];},onLeave(ret){
     if(ret.toInt32()!==0)return;
     const device=this.out.readPointer();
+    hookQuadTrace(device);
     try{fixWindowedReset(device);}catch(e){send({type:'capture-error',message:String(e)});}
     const present=device.readPointer().add(15*4).readPointer();
     send({type:'capture-status',event:'D3D8 device hooked'});
     Interceptor.attach(present,{onEnter(args){
+      if(quadTraceFrames && args[0].equals(device) && --quadTraceFrames===0)
+        send({type:'render-trace',quads:quadTraceRows});
       if(!frameNotified){send({type:'capture-status',event:'D3D8 Present reached'});frameNotified=true;}
       try{capture8(args[0]);}catch(e){send({type:'capture-error',message:String(e)});done=true;}
     }});

@@ -60,6 +60,13 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
 
 /** Same provisional formation for initialization and a first authoritative move origin. */
 object TacticalDeployment {
+    /** Native radar uses a radius of 250; keep every initial unit inside it. */
+    fun formation(index: Int, power: Power): TacticalPose {
+        require(index in 0..599)
+        val side = if (power == Power.EMPIRE) 1 else -1
+        return TacticalPose(TacticalPoint(side * (180f - index / 20 * 4f), (index % 20 - 9.5f) * 10f),
+            if (power == Power.EMPIRE) Math.PI.toFloat() else 0f)
+    }
     fun initial(unit: Int, power: Power, grid: Int, players: Collection<Navigator>, stocks: PlanetStocks?, galaxy: Galaxy): TacticalPose {
         val wirePower = if (power == Power.EMPIRE) 2 else 3
         val ids = (players.filter { it.power == power && it.grid == grid && it.baseId == 0 }.map { it.unitId } +
@@ -67,7 +74,6 @@ object TacticalDeployment {
                 .flatMap { it.activeShips?.values.orEmpty().map { ship -> ship.id } }).distinct().sorted()
         val index = ids.indexOf(unit)
         require(index >= 0)
-        return TacticalPose(TacticalPoint((if (power == Power.EMPIRE) 700f else -700f) + (index / 10) * 30f,
-            (index % 10 - 4.5f) * 40f), if (power == Power.EMPIRE) Math.PI.toFloat() else 0f)
+        return formation(index, power)
     }
 }
