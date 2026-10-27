@@ -585,7 +585,16 @@ class GameExchange(
                                 publication = Publication(character, origin, false)
                                 return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(
                                     command.copy(grid = origin.grid, base = origin.baseId, mode = origin.mode),
-                                    gameSeconds(), origin.pcp, origin.mcp)) + completedWork(result, character)
+                                    gameSeconds(), origin.pcp, origin.mcp)) +
+                                    // The CD's warp ACK handler is empty. Its command chain
+                                    // waits for 0b07 even when entry fails; restore the actual
+                                    // position so the next card command can be selected.
+                                    (if (origin.baseId == 0 && origin.mode == 5) listOf(
+                                        characterMessage(character, origin, true), unitMessage(character, origin),
+                                        org.logh7.protocol.NavigationMessages.grid(origin.grid),
+                                        org.logh7.protocol.NavigationMessages.moved(command.copy(grid = origin.grid),
+                                            gameSeconds(), origin.unitId, origin.cruise)) else emptyList()) +
+                                    completedWork(result, character)
                             }
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()

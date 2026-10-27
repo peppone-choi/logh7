@@ -29,12 +29,12 @@ object GridEntryRules {
 
     fun evaluate(grid: GridState, entry: GridEntry): GridEntryVerdict {
         require(entry.units >= 1)
-        require(grid.presences.all { it.units in 0..MAX_UNITS_PER_CAMP })
+        require(grid.presences.all { it.units >= 0 })
         require(grid.presences.map { it.camp }.distinct().size == grid.presences.size)
-        require(grid.presences.size <= MAX_CAMPS)
 
         if (grid.kind == GridKind.IMPASSABLE) return GridEntryVerdict.IMPASSABLE_GRID
         if (grid.terrain != GridTerrain.NONE) return GridEntryVerdict.TERRAIN_BLOCKED
+        if (grid.presences.size > MAX_CAMPS) return GridEntryVerdict.CAMP_LIMIT
 
         val own = grid.presences.find { it.camp == entry.camp }
         if (own == null && grid.presences.size >= MAX_CAMPS) return GridEntryVerdict.CAMP_LIMIT
