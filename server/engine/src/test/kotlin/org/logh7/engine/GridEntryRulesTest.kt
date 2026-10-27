@@ -18,7 +18,7 @@ class GridEntryRulesTest {
 
     private fun entry(units: Int = 1, camp: Camp = empire, solo: Boolean = false) = GridEntry(camp, units, solo)
 
-    // SPEC §6 순서와 같은 28개 시험. 한 시험 안의 추가 단언은 동일 계약의 경계/우선순위다.
+    // SPEC §6과 저장된 초과 병력의 경계 조건. 추가 단언은 동일 계약의 경계/우선순위다.
     @Test fun emptySpaceAllowsThreeHundredUnits() {
         assertEquals(GridEntryVerdict.ALLOWED, GridEntryRules.evaluate(grid(), entry(300)))
     }
@@ -162,8 +162,8 @@ class GridEntryRulesTest {
         }
     }
 
-    @Test fun presenceUnitsMustBeWithinZeroAndThreeHundredBeforeAnyVerdict() {
-        for (units in listOf(-1, 301, Int.MIN_VALUE, Int.MAX_VALUE)) {
+    @Test fun presenceUnitsMustBeNonnegativeBeforeAnyVerdict() {
+        for (units in listOf(-1, Int.MIN_VALUE)) {
             assertFailsWith<IllegalArgumentException> {
                 GridEntryRules.evaluate(grid(presence(empire, units)), entry())
             }
@@ -181,12 +181,18 @@ class GridEntryRulesTest {
         }
     }
 
-    @Test fun moreThanTwoExistingCampsIsInvalidRatherThanACampLimitVerdict() {
-        val threeCamps = grid(presence(empire), presence(alliance), presence(rebels))
-        assertFailsWith<IllegalArgumentException> { GridEntryRules.evaluate(threeCamps, entry()) }
-        assertFailsWith<IllegalArgumentException> {
-            GridEntryRules.evaluate(threeCamps.copy(kind = GridKind.IMPASSABLE), entry())
+    @Test fun overfullStoredCampRejectsEntryWithoutThrowing() {
+        for (units in listOf(301, Int.MAX_VALUE)) {
+            assertEquals(GridEntryVerdict.UNIT_LIMIT,
+                GridEntryRules.evaluate(grid(presence(empire, units)), entry()))
         }
+    }
+
+    @Test fun moreThanTwoStoredCampsRejectsEntryWithoutThrowing() {
+        val threeCamps = grid(presence(empire), presence(alliance), presence(rebels))
+        assertEquals(GridEntryVerdict.CAMP_LIMIT, GridEntryRules.evaluate(threeCamps, entry()))
+        assertEquals(GridEntryVerdict.IMPASSABLE_GRID,
+            GridEntryRules.evaluate(threeCamps.copy(kind = GridKind.IMPASSABLE), entry()))
     }
 
     @Test fun repeatedEvaluationIsDeterministicAndDoesNotMutateInputs() {

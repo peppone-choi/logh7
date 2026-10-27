@@ -16,15 +16,10 @@ internal object GridForceReport {
             if (count > 0 && abs(grid % 100 - viewer.grid % 100) <= 7 && abs(grid / 100 - viewer.grid / 100) <= 7)
                 units[grid] = (units[grid] ?: 0L) + count
         }
-        snapshot.navigators.values.filter { it.generation == viewer.generation && it.power == viewer.power }
-            .forEach { add(it.grid, 1L) }
-        val ground = UnitSpecifications.crews.filter { it.category != 19 }.map { it.kind }.toSet()
-        snapshot.planetStocks?.takeIf { it.generation == viewer.generation }?.outfits?.values
-            ?.filter { it.power == power }?.forEach { outfit ->
-                val base = galaxy.bases.single { it.id == outfit.baseId }
-                add(base.grid, outfit.units.ships.values.sumOf { it.toLong() } +
-                    outfit.units.troops.filterKeys { it.kind in ground }.values.sumOf { it.toLong() })
-            }
+        GridForces.collect(galaxy, viewer.generation, snapshot.navigators.values,
+            snapshot.planetStocks?.takeIf { it.generation == viewer.generation }).forEach { (grid, forces) ->
+            forces.filter { it.camp == Camp(viewer.power, false) }.forEach { add(grid, it.units) }
+        }
         // The native importer converts a zero count to one. Never send fake units.
         return if (units.isEmpty()) null else GridForceMessages.search(seconds, viewer.characterId, power, 0,
             units.mapValues { it.value.coerceAtMost(65535).toInt() })

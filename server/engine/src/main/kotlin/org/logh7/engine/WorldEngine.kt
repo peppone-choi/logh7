@@ -422,11 +422,12 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
                     val session = durableState?.session ?: simulation.exportState()
-                    val ownership = if (command.request.returnBase != null)
+                    val ownership = if (command.request.returnBase != null || command.request.destination != null)
                         production?.settle(session.generation, session.gameMillis / 1000) else null
                     val result = navigation?.apply(command.request, session, ownership)
                         ?: NavigationResult(null, rejection = NavigationRejection.DISABLED)
-                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty())
+                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
+                        planetStocks = production?.snapshot(session.generation))
                     published.set(state)
                     command.result.complete(result)
                 } catch (failure: Exception) {

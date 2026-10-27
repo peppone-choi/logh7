@@ -148,9 +148,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val warp = WarpPreconditions.evaluate(WarpContext(before.cruise, galaxy.kind(destination) == GridKind.STAR_SYSTEM,
             maxOf(dx, dy) == 1))
         if (warp != WarpDecision.ALLOWED || before.cruise < policy.cruiseCost) return reject(NavigationRejection.CRUISE)
-        val present = snapshot(session.generation).values.filter { it.grid == destination }.groupBy { it.power }
-        val entry = GridEntryRules.evaluate(GridState(galaxy.kind(destination), GridTerrain.NONE, false,
-            present.map { (power, units) -> CampPresence(Camp(power, false), units.size, false, true, false) }),
+        val forces = GridForces.collect(galaxy, session.generation, snapshot(session.generation).values, stocks)
+        val entry = GridEntryRules.evaluate(GridForces.state(galaxy, destination, forces),
             GridEntry(Camp(before.power, false), 1, true))
         if (entry != GridEntryVerdict.ALLOWED) return reject(NavigationRejection.GRID)
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), policy.warpCost.toLong(), CpPool.MCP)
