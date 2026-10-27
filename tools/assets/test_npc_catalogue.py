@@ -14,6 +14,20 @@ def image():
 
 
 class NpcCatalogueTests(unittest.TestCase):
+    def test_expanded_candidates_preserve_manual_placement_and_unknown_values(self):
+        from npc_catalogue import expanded_roster
+        root = Path(__file__).resolve().parents[2]
+        rows = expanded_roster(root / 'docs/manual/data/initial-card-holders.csv')['characters']
+        self.assertEqual(len(rows), 450)
+        self.assertEqual(sum(bool(c['manual_holder']) for c in rows), 70)
+        self.assertEqual(len({c['name'] for c in rows}), len(rows))
+        self.assertTrue(any(c['name'] == '양 웬리' for c in rows))
+        mer = next(c for c in rows if c['name'] == '빌리바르트 요아힘 폰 메르카츠')
+        self.assertEqual(mer['faction'], 'empire')
+        self.assertTrue(mer['posts'])
+        self.assertTrue(all(c['face_id'] is None and all(v is None for v in c['abilities'].values()) for c in rows))
+        validate(dict(schema=1, characters=rows), [])
+
     def test_review_roster_is_korean_without_assigning_unrecovered_data(self):
         root = Path(__file__).resolve().parents[2]
         rows = manual_roster(root / 'docs/manual/data/initial-card-holders.csv')['characters']

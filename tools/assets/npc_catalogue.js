@@ -18,6 +18,11 @@
         const t = c.name_translation;
         check(t && ['adopted', 'pending'].includes(t.status) && ['japanese', 'korean', 'source', 'note'].every(k => typeof t[k] === 'string' && t[k].length <= 4000), '한글 이름의 표기 출처를 확인하세요.');
       }
+      if (Object.hasOwn(c, 'wiki')) {
+        const w = c.wiki;
+        check(w && ['page', 'mirror', 'section'].every(k => typeof w[k] === 'string' && w[k].length <= 2000) && w.page.startsWith('https://namu.wiki/w/') && w.mirror.startsWith('https://namu.moe/w/'), '위키 출처 주소를 확인하세요.');
+        check(!Object.hasOwn(w, 'reference_name') || typeof w.reference_name === 'string' && w.reference_name.length <= 200, '참고 인물 이름을 확인하세요.');
+      }
       check(Array.isArray(c.posts) && c.posts.length <= 100, '직책 출처를 확인하세요.');
       for (const p of c.posts) check(p && ['post', 'unit', 'department', 'source'].every(k => typeof p[k] === 'string' && p[k].length <= 1000), '직책 출처를 확인하세요.');
       check(c.face_id === null || Number.isInteger(c.face_id) && faces.has(c.face_id), '확인된 얼굴 ID가 아닙니다.');
@@ -37,7 +42,7 @@
     return doc;
   }
   if (typeof document === 'undefined') { module.exports = {validate}; return; }
-  const {portraits, catalogue: initial} = JSON.parse(document.getElementById('payload').textContent);
+  const {portraits, catalogue: initial, references = {}} = JSON.parse(document.getElementById('payload').textContent);
   let catalogue = validate(initial, portraits), selected = null, currentFace = null;
   let dirty = false, formDirty = false;
   const $ = id => document.getElementById(id);
@@ -45,10 +50,12 @@
   const picture = p => { const img = document.createElement('img'); img.src = p.image; img.alt = `얼굴 ${p.face_id ?? p.key}`; img.loading = 'lazy'; return img; };
   const face = id => portraits.find(p => p.face_id === id && id !== null);
   const person = () => catalogue.characters.find(c => c.key === selected);
+  const referenceFor = c => c.wiki ? references[c.wiki.reference_name ?? c.name] : undefined;
   function message(value = '') { $('error').textContent = value; }
   function status() {
     const mapped = catalogue.characters.filter(c => c.face_id !== null).length;
-    $('status').textContent = `${catalogue.characters.length}명 · 얼굴 연결 ${mapped}명 · ${dirty || formDirty ? '저장하지 않은 변경 있음' : '불러온 상태'}`;
+    const withReference = catalogue.characters.filter(c => referenceFor(c)?.images.length).length;
+    $('status').textContent = `${catalogue.characters.length}명 · 참고 이미지 ${withReference}명 · 얼굴 연결 ${mapped}명 · ${dirty || formDirty ? '저장하지 않은 변경 있음' : '불러온 상태'}`;
   }
   abilities.forEach((key, i) => {
     const box = document.createElement('div'), label = text('label', labels[i]); label.htmlFor = key;
@@ -56,16 +63,20 @@
     box.append(label, input); $('stats').append(box);
   });
   function list() {
-    const query = $('search').value.toLocaleLowerCase(), faction = $('faction-filter').value;
+    const query = $('search').value.toLocaleLowerCase(), faction = $('faction-filter').value, origin = $('roster-filter').value, ref = $('reference-filter').value;
     $('people').replaceChildren();
-    const rows = catalogue.characters.filter(c => (!faction || faction === c.faction) &&
+    const rows = catalogue.characters.filter(c => (!faction || faction === c.faction) && (!origin || (origin === 'manual' ? !!c.manual_holder : !c.manual_holder)) &&
+      (!ref || (ref === 'yes' ? !!referenceFor(c)?.images.length : !referenceFor(c)?.images.length)) &&
       `${c.name} ${c.manual_holder} ${c.posts.map(p => p.post + p.unit).join(' ')}`.toLocaleLowerCase().includes(query));
     $('count').textContent = `${rows.length}명`;
     for (const c of rows) {
       const button = text('button', '', `person${selected === c.key ? ' active' : ''}`), p = face(c.face_id);
       button.dataset.key = c.key;
-      button.append(p ? picture(p) : text('span', '?', 'emptyface'));
-      const body = document.createElement('span'); body.append(text('span', c.name || '(이름 없음)'), text('small', `${factions[c.faction]} · ${c.face_id === null ? '얼굴 미지정' : 'ID ' + c.face_id}${c.name_translation?.status === 'pending' ? ' · 표기 확인 대기' : ''}`));
+      const reference = referenceFor(c)?.images[0];
+      if (p) button.append(picture(p));
+      else if (reference) { const img = document.createElement('img'); img.src = reference.path; img.alt = `${c.name} 위키 참고`; img.loading = 'lazy'; button.append(img); }
+      else button.append(text('span', '?', 'emptyface'));
+      const body = document.createElement('span'); body.append(text('span', c.name || '(이름 없음)'), text('small', `${factions[c.faction]} · ${c.manual_holder ? '초기 담당자' : '추가 후보'} · ${c.face_id === null ? '얼굴 미지정' : 'ID ' + c.face_id}${c.name_translation?.status === 'pending' ? ' · 표기 확인 대기' : ''}`));
       button.append(body); button.onclick = () => choose(c.key); $('people').append(button);
     }
     status();
@@ -75,6 +86,26 @@
     $('portrait-preview').style.display = p ? 'block' : 'none';
     if (p) $('portrait-preview').src = p.image;
     $('face-label').textContent = p ? `얼굴 ID ${p.face_id} / ${p.group}:${p.index}` : '얼굴 미지정';
+  }
+  function referenceImages(c) {
+    $('references').replaceChildren(); $('reference-large').hidden = true;
+    $('reference-large').removeAttribute('src'); $('reference-label').textContent = '';
+    $('wiki-source').hidden = !c.wiki;
+    if (c.wiki) $('wiki-source').href = c.wiki.page;
+    const reference = referenceFor(c), images = reference?.images ?? [];
+    $('reference-note').textContent = images.length ? '다른 인물·작품·시기의 이미지가 섞일 수 있습니다. 게임 얼굴은 육안으로 선택하세요.' : reference?.status === 'unavailable' ? '문서 수집 실패 · 출처 문서에서 직접 확인하세요. 이름은 계속 관리할 수 있습니다.' : '로컬 참고 이미지 없음 · 출처 문서에서 확인하거나 이미지 없이 이름만 관리할 수 있습니다.';
+    function select(item, button) {
+      $('reference-large').src = item.path; $('reference-large').hidden = false;
+      $('reference-label').textContent = item.label;
+      for (const b of $('references').children) b.classList.toggle('active', b === button);
+    }
+    for (const item of images) {
+      const button = text('button', '', 'reference'); button.type = 'button';
+      const img = document.createElement('img'); img.src = item.path; img.alt = item.label; img.loading = 'lazy';
+      button.append(img); button.title = `${item.label}\n${reference.page}\n${item.image_url}`;
+      button.onclick = () => select(item, button); $('references').append(button);
+      if (images[0] === item) select(item, button);
+    }
   }
   function gallery() {
     const filter = $('face-filter').value;
@@ -101,7 +132,8 @@
     for (const k of ['name', 'faction', 'rank', 'location', 'ai_profile', 'notes']) $(k).value = c[k];
     for (const k of abilities) $(k).value = c.abilities[k] ?? '';
     for (const k of ['face', 'abilities']) { $(k + '-status').value = c[k + '_evidence'].status; $(k + '-source').value = c[k + '_evidence'].source; }
-    $('holder').textContent = c.manual_holder ? `매뉴얼: ${c.manual_holder}` : '직접 추가한 인물';
+    $('holder').textContent = c.manual_holder ? `매뉴얼: ${c.manual_holder}` : c.wiki ? '추가 인물 후보 · VII 등장·초기 배치 미확인' : '직접 추가한 인물';
+    referenceImages(c);
     const translation = c.name_translation;
     $('name-note').textContent = translation ? `초기 한글 표기: ${translation.korean} · ${translation.status === 'pending' ? '확인 대기 / ' + translation.note : '용어집·나무위키 기준'} · 출처: ${translation.source}` : '';
     $('posts').textContent = c.posts.map(p => `${p.department} / ${p.unit} ${p.post} · ${p.source}`).join('\n');
@@ -129,14 +161,14 @@
     gallery(); status();
   };
   $('clear-face').onclick = () => { currentFace = null; $('face-status').value = 'unknown'; $('face-source').value = ''; formDirty = true; preview(); gallery(); status(); };
-  $('search').oninput = list; $('faction-filter').onchange = list; $('face-filter').onchange = gallery;
+  $('search').oninput = list; $('faction-filter').onchange = list; $('roster-filter').onchange = list; $('reference-filter').onchange = list; $('face-filter').onchange = gallery;
   $('add').onclick = () => {
     if (!apply()) return;
     let i = 1; while (catalogue.characters.some(c => c.key === `custom-${i}`)) i++;
     selected = `custom-${i}`;
     catalogue.characters.push({key: selected, faction: $('faction-filter').value || 'empire', name: '새 인물', manual_holder: '', posts: [], face_id: null,
       face_evidence: {status: 'unknown', source: ''}, abilities: Object.fromEntries(abilities.map(k => [k, null])), abilities_evidence: {status: 'unknown', source: ''}, rank: '', location: '', ai_profile: '', notes: ''});
-    dirty = true; $('search').value = ''; show();
+    dirty = true; $('search').value = ''; $('roster-filter').value = ''; $('reference-filter').value = ''; show();
   };
   $('delete').onclick = () => {
     if (!person() || !window.confirm(`${person().name} 인물을 이 편집 초안에서 삭제할까요?`)) return;

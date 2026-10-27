@@ -1,9 +1,9 @@
 name: assets
 on:
   push:
-    paths: ['tools/assets/**', 'l10n/npc-names.ko.json', 'tools/client/probe-model-loader.*', 'tools/client/test_model_probe.py', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
+    paths: ['tools/assets/**', 'l10n/npc-*.json', 'tools/client/probe-model-loader.*', 'tools/client/test_model_probe.py', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
   pull_request:
-    paths: ['tools/assets/**', 'l10n/npc-names.ko.json', 'tools/client/probe-model-loader.*', 'tools/client/test_model_probe.py', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
+    paths: ['tools/assets/**', 'l10n/npc-*.json', 'tools/client/probe-model-loader.*', 'tools/client/test_model_probe.py', 'tools/l10n/msgdat.py', '.github/workflows/assets.yml']
 permissions:
   contents: read
 jobs:

@@ -9,6 +9,7 @@ import csv
 import json
 from pathlib import Path
 import re
+import shutil
 import struct
 import zlib
 
@@ -19,6 +20,7 @@ TABLES = (('oem', 0, 200, 'empire'), ('oam', 200, 150, 'alliance'),
           ('o', 350, 100, 'other'))
 WORK = Path(__file__).resolve().parents[2] / 'work'
 NAMES = Path(__file__).resolve().parents[2] / 'l10n/npc-names.ko.json'
+ROSTER = Path(__file__).resolve().parents[2] / 'l10n/npc-roster.ko.json'
 RANKS = dict(zip(('元帥', '上級大将', '大将', '中将', '少将', '准将', '大佐', '中佐', '少佐'),
                  ('원수', '상급대장', '대장', '중장', '소장', '준장', '대령', '중령', '소령')))
 
@@ -157,6 +159,20 @@ def manual_roster(path):
     return dict(schema=1, characters=list(people.values()))
 
 
+def expanded_roster(manual):
+    """Keep manual placement/faction; add wiki candidates without invented stats."""
+    document = manual_roster(manual)
+    people = {c['name']: c for c in document['characters']}
+    for entry in json.loads(ROSTER.read_text(encoding='utf-8'))['characters']:
+        name = entry['name']
+        if name not in people:
+            people[name] = blank_character(f"wiki-{len(people) + 1:03}", entry['faction'], name)
+        people[name]['wiki'] = {k: entry[k] for k in ('page', 'mirror', 'section')}
+        people[name]['wiki']['reference_name'] = name
+    document['characters'] = list(people.values())
+    return document
+
+
 def validate(document, portraits):
     """Unverified values stay null; byte limits are wire limits, not game rules."""
     def require(condition, message):
@@ -182,6 +198,14 @@ def validate(document, portraits):
             require(type(translation) is dict and translation.get('status') in ('adopted', 'pending') and
                     all(type(translation.get(k)) is str and len(translation[k]) <= 4000
                         for k in ('japanese', 'korean', 'source', 'note')), 'Invalid name translation')
+        if 'wiki' in row:
+            wiki = row['wiki']
+            require(type(wiki) is dict and all(type(wiki.get(k)) is str and len(wiki[k]) <= 2000
+                    for k in ('page', 'mirror', 'section')), 'Invalid wiki reference')
+            require(wiki['page'].startswith('https://namu.wiki/w/') and
+                    wiki['mirror'].startswith('https://namu.moe/w/'), 'Invalid wiki source URL')
+            require('reference_name' not in wiki or type(wiki['reference_name']) is str and
+                    len(wiki['reference_name']) <= 200, 'Invalid reference name')
         require(type(row.get('posts')) is list and len(row['posts']) <= 100, 'Invalid posts')
         for post in row['posts']:
             require(type(post) is dict and all(type(post.get(k)) is str and len(post[k]) <= 1000
@@ -214,6 +238,7 @@ def main():
     parser.add_argument('--manual', type=Path, default=Path(__file__).resolve().parents[2] /
                         'docs/manual/data/initial-card-holders.csv')
     parser.add_argument('--catalogue', type=Path, help='Previously exported JSON to reload')
+    parser.add_argument('--references', type=Path, help='npc_wiki.py cache directory (optional)')
     parser.add_argument('--output', type=Path, required=True, help='New directory under work/')
     args = parser.parse_args()
     destination = args.output.resolve()
@@ -224,15 +249,34 @@ def main():
         parser.error('Output directory already exists; use a new directory')
     portraits = extract(args.face_dir.resolve(strict=True))
     document = (json.loads(args.catalogue.read_text(encoding='utf-8-sig'))
-                if args.catalogue else manual_roster(args.manual))
+                if args.catalogue else expanded_roster(args.manual))
     validate(document, portraits)
     template = Path(__file__).with_name('npc_catalogue.html').read_text(encoding='utf-8')
     script = Path(__file__).with_name('npc_catalogue.js').read_text(encoding='utf-8')
-    payload = json.dumps(dict(portraits=portraits, catalogue=document), ensure_ascii=False)
+    references = {}
+    files = {}
+    if args.references:
+        cache = args.references.resolve(strict=True)
+        source = json.loads((cache / 'references.json').read_text(encoding='utf-8'))
+        for name, reference in source['references'].items():
+            copied = dict(reference, images=[])
+            for item in reference['images']:
+                path = (cache / item['path']).resolve(strict=True)
+                if not path.is_relative_to(cache / 'images') or path.suffix not in ('.png', '.jpg', '.webp'):
+                    raise ValueError('Reference image must stay inside cache/images')
+                target = 'reference-images/' + path.name
+                files[target] = path
+                copied['images'].append(dict(item, path=target))
+            references[name] = copied
+    payload = json.dumps(dict(portraits=portraits, catalogue=document, references=references), ensure_ascii=False)
     # Keep user text from terminating the inert JSON script element.
     payload = payload.replace('&', '\\u0026').replace('<', '\\u003c').replace('>', '\\u003e')
     rendered = template.replace('/*APPLICATION*/', script).replace('/*PAYLOAD*/', payload)
     destination.mkdir(parents=True)
+    if files:
+        (destination / 'reference-images').mkdir()
+        for target, source in files.items():
+            shutil.copyfile(source, destination / target)
     (destination / 'index.html').write_text(rendered, encoding='utf-8')
     (destination / 'catalogue.json').write_text(json.dumps(document, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     metadata = [{k: v for k, v in p.items() if k != 'image'} for p in portraits]
