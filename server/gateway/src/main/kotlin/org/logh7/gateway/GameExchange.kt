@@ -363,8 +363,8 @@ class GameExchange(
                                 val base = stocks.bases.getValue(query.base)
                                 val warehouse = stocks.warehouses.getValue(stocks.outfits.getValue(query.outfit).warehouseId)
                                 org.logh7.protocol.LogisticsMessages.assignmentResponse(query,gameSeconds(),player.pcp,player.mcp,true,
-                                    world.assignmentInventory(base.units),base.supplies,
-                                    world.assignmentInventory(warehouse.units),warehouse.supplies)
+                                    world.assignmentInventory(base.units,base.spareShips),base.supplies,
+                                    world.assignmentInventory(warehouse.units,warehouse.spareShips),warehouse.supplies)
                             } else org.logh7.protocol.LogisticsMessages.assignmentResponse(query,gameSeconds(),player.pcp,player.mcp,false)
                             listOf(reply,characterMessage(character,player,true)) +
                                 (if (accepted) listOf(world.warehouse(query.base,result.stocks),

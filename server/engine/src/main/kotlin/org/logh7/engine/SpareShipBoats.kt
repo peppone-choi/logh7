@@ -14,9 +14,37 @@ class SpareShipBoats(values: Map<UnitStack, Int> = emptyMap()) {
 internal object ReplacementBoats {
     /** A remainder occupies one selectable native unit, while retaining its physical boat count. */
     fun selectable(warehouse: OutfitWarehouse): UnitInventory {
-        val ships=warehouse.units.ships.toMutableMap()
-        for (stack in warehouse.spareShips.values.keys) ships[stack]=Math.addExact(ships[stack] ?: 0,1)
-        return UnitInventory(ships,warehouse.units.troops)
+        return selectable(warehouse.units,warehouse.spareShips)
+    }
+    fun selectable(units: UnitInventory,spare: SpareShipBoats): UnitInventory {
+        val ships=units.ships.toMutableMap()
+        for (stack in spare.values.keys) ships[stack]=Math.addExact(ships[stack] ?: 0,1)
+        return UnitInventory(ships,units.troops,units.work)
+    }
+
+    data class StoredTransfer(val source: UnitInventory,val destination: UnitInventory,
+        val sourceSpare: SpareShipBoats,val destinationSpare: SpareShipBoats)
+
+    /** Storage-to-storage movement preserves grade and the actual boats of the last selectable unit. */
+    fun moveStored(source: UnitInventory,sourceSpare: SpareShipBoats,destination: UnitInventory,
+        destinationSpare: SpareShipBoats,transfer: UnitTransfer): StoredTransfer {
+        val moved=transfer.apply(selectable(source,sourceSpare),selectable(destination,destinationSpare))
+        val left=source.ships.toMutableMap();val right=destination.ships.toMutableMap()
+        val leftSpare=sourceSpare.values.toMutableMap();val rightSpare=destinationSpare.values.toMutableMap()
+        for ((stack,delta) in transfer.ships) {
+            val from=if(delta>0)left else right;val to=if(delta>0)right else left
+            val fromSpare=if(delta>0)leftSpare else rightSpare;val toSpare=if(delta>0)rightSpare else leftSpare
+            val size=UnitSpecifications.ships.single {it.kind==stack.kind}.number
+            val count=kotlin.math.abs(delta);val full=from[stack] ?: 0;val used=minOf(full,count)
+            if(full==used)from.remove(stack) else from[stack]=full-used
+            var boats=used.toLong()*size
+            if(count>used) {require(count-used==1);boats+=requireNotNull(fromSpare.remove(stack))}
+            val received=(to[stack] ?: 0).toLong()*size+(toSpare[stack] ?: 0)+boats
+            if(received/size==0L)to.remove(stack) else to[stack]=Math.toIntExact(received/size)
+            if(received%size==0L)toSpare.remove(stack) else toSpare[stack]=(received%size).toInt()
+        }
+        return StoredTransfer(UnitInventory(left,moved.source.troops,source.work),
+            UnitInventory(right,moved.destination.troops,destination.work),SpareShipBoats(leftSpare),SpareShipBoats(rightSpare))
     }
 
     /** Move whole selectable units, including an understrength final unit, without refilling it. */

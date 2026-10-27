@@ -17,6 +17,23 @@ class UnderstrengthReorganizationTest {
         s.warehouses.getValue(101).let {it.units.ships.values.sum()*300+it.spareShips.values.values.sum()}
     private fun transfer(s:PlanetStocks,n:Int)=Reorganization.transfer(ReorganizationRequest(
         "pilot","c",11,Power.EMPIRE,1,1049,1,0,1,listOf(ReorganizationShip(32,n)),emptyList()),s)
+    @Test fun storageTransfersCombineRemaindersWithoutChangingPhysicalBoatsOrGrades() {
+        val other=ship.copy(level=2)
+        val source=UnitInventory(mapOf(ship to 1),work=mapOf("S32" to 2))
+        val destination=UnitInventory(mapOf(other to 2))
+        val moved=ReplacementBoats.moveStored(source,SpareShipBoats(mapOf(ship to 123)),
+            destination,SpareShipBoats(mapOf(ship to 177)),UnitTransfer(mapOf(ship to 2)))
+        assertTrue(moved.source.ships.isEmpty());assertTrue(moved.sourceSpare.values.isEmpty())
+        assertEquals(mapOf(ship to 2,other to 2),moved.destination.ships)
+        assertTrue(moved.destinationSpare.values.isEmpty())
+        assertEquals(mapOf("S32" to 2),moved.source.work)
+        val reversed=ReplacementBoats.moveStored(moved.source,moved.sourceSpare,moved.destination,
+            moved.destinationSpare,UnitTransfer(mapOf(other to -1)))
+        assertEquals(mapOf(other to 1),reversed.source.ships)
+        assertEquals(mapOf(ship to 2,other to 1),reversed.destination.ships)
+        assertFails {ReplacementBoats.moveStored(UnitInventory(),SpareShipBoats(),UnitInventory(),
+            SpareShipBoats(),UnitTransfer(mapOf(ship to 1)))}
+    }
     @Test fun fullAndRemainderUnitsKeepActualBoatsAndGradesAcrossReturnAndPreview() {
         val before=initial()
         val after=ReplacementBoats.reorganize(before,1,transfer(before,2))

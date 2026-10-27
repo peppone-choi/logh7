@@ -61,6 +61,32 @@ class StockAssignmentWireTest {
         if (accepted) {client.expect(0x0327);client.expect(0x0327)}
         return decoded
     }
+    @Test fun returnsRemainderToBaseAndAssignsItAgainAfterReopenWithoutRefilling() {
+        val state=State();val stack=UnitStack(32,2)
+        state.stocks=state.stocks.copy(bases=state.stocks.bases.mapValues {(_,b)->b.copy(units=UnitInventory())},
+            warehouses=state.stocks.warehouses.mapValues {(_,w)->w.copy(spareShips=SpareShipBoats(mapOf(stack to 123)))})
+        fixture(state,"partial-return").use {server ->
+            val client=server.join(server.account(0),true,false).client;start(client)
+            val reply=response(client,query(-1,0,0),true,840)
+            assertEquals(listOf(LogisticsMessages.ShipStock(32,1,123)),reply.resultBase.ships)
+            assertTrue(reply.resultOutfit.ships.isEmpty())
+            assertEquals(123,state.stocks.bases.getValue(1049).spareShips.values[stack])
+            assertTrue(state.stocks.bases.getValue(1049).units.ships.isEmpty())
+            assertTrue(state.stocks.warehouses.getValue(101).spareShips.values.isEmpty())
+        }
+        fixture(state,"partial-assign").use {server ->
+            val client=server.join(server.account(0),true,false).client;start(client)
+            val before=state.stocks;val saves=state.saves
+            response(client,query(2,0,0),false,840)
+            assertEquals(before,state.stocks);assertEquals(saves,state.saves)
+            val reply=response(client,query(1,0,0),true,680)
+            assertEquals(listOf(LogisticsMessages.ShipStock(32,1,123)),reply.resultOutfit.ships)
+            assertTrue(reply.resultBase.ships.isEmpty())
+            assertTrue(state.stocks.bases.getValue(1049).spareShips.values.isEmpty())
+            assertEquals(123,state.stocks.warehouses.getValue(101).spareShips.values[stack])
+            assertEquals(1,state.stocks.nextShipId)
+        }
+    }
     @Test fun assignsAndReturnsRealStocksWithPaymentAndPreservedLevelsAfterServerReopen() {
         val state=State()
         fixture(state,"first").use { server ->

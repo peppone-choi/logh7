@@ -8,6 +8,23 @@ import kotlin.test.*
 
 class OutfitStockStoreTest {
     @TempDir lateinit var directory: Path
+    @Test fun baseRemaindersRoundTripAndLegacyThirteenNeverInventsThem() {
+        val initial=ActiveShips.initialize(stocks())
+        val base=initial.bases.values.first()
+        val expected=initial.copy(bases=initial.bases+(base.baseId to base.copy(
+            spareShips=SpareShipBoats(mapOf(UnitStack(32,2) to 177)))))
+        val path=directory.resolve("base-partial")
+        FilePlanetStockStore(path).use {it.save(expected)}
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+        val current=Files.readString(path)
+        val legacy=current.replace("STOCK-14","STOCK-13").lineSequence().filter {it.isNotEmpty()}
+            .joinToString("\n",postfix="\n") {if(it.startsWith("P\t"))it.substringBeforeLast('\t') else it}
+        Files.writeString(path,legacy)
+        FilePlanetStockStore(path).use {assertEquals(initial,it.load())}
+        Files.writeString(path,current.lineSequence().filter {it.isNotEmpty()}.joinToString("\n",postfix="\n") {
+            if(it.startsWith("P\t"))it.substringBeforeLast('\t') else it})
+        FilePlanetStockStore(path).use {assertFails {it.load()}}
+    }
     @Test fun partialActiveUnitsAndUnpackedReplacementsSurviveWithoutLegacyRefill() {
         val initial=ActiveShips.initialize(stocks())
         val outfit=initial.outfits.getValue(1)
@@ -22,9 +39,9 @@ class OutfitStockStoreTest {
         Files.writeString(path,current.replace("1.32.0.123","1.32.0"))
         FilePlanetStockStore(path).use {assertFails {it.load()}}
         Files.writeString(path,current)
-        val old=Files.readString(path).replace("LOGH7-STOCK-13","LOGH7-STOCK-12")
+        val old=Files.readString(path).replace("LOGH7-STOCK-14","LOGH7-STOCK-12")
             .lineSequence().filter {it.isNotEmpty()}.joinToString("\n",postfix="\n") {line ->
-                if(line.startsWith("W\t"))line.substringBeforeLast('\t') else line.replace("1.32.0.123","1.32.0")
+                if(line.startsWith("P\t"))line.substringBeforeLast('\t') else if(line.startsWith("W\t"))line.substringBeforeLast('\t') else line.replace("1.32.0.123","1.32.0")
             }
         Files.writeString(path,old)
         FilePlanetStockStore(path).use {
@@ -153,7 +170,7 @@ class OutfitStockStoreTest {
         val value = stocks().copy(outfits=stocks().outfits.mapValues { (id,o) -> o.copy(number=id,supplies=id*1000) },deploymentInitialized=true)
         val path = directory.resolve("version5")
         FilePlanetStockStore(path).use { it.save(value) }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-13\t7\t23\t1\t2\t1\t1\t1\t1\t0\n"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-14\t7\t23\t1\t2\t1\t1\t1\t1\t0\n"))
         FilePlanetStockStore(path).use { assertEquals(value,it.load()) }
     }
     @Test fun oldVersion4KeepsExistingDeploymentWithoutInventingNumbersOrSupplies() {

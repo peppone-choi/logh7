@@ -5,7 +5,7 @@ import java.util.Collections
 data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
     val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null,
     val units: UnitInventory = UnitInventory(), val taxRate: Int? = null, val governorId: Int = 0, val garrisonCommanderId: Int = 0,
-    val capitalAdministratorId: Int = 0, val capitalDefenseCommanderId: Int = 0, val guardInspectorId: Int = 0) {
+    val capitalAdministratorId: Int = 0, val capitalDefenseCommanderId: Int = 0, val guardInspectorId: Int = 0, val spareShips: SpareShipBoats = SpareShipBoats()) {
     init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0 &&
         (taxRate == null || taxRate in 0..100) && governorId >= 0 && (governorId == 0 || power in 2..3 && camp == 0) &&
         garrisonCommanderId >= 0 && (garrisonCommanderId == 0 || power in 2..3 && camp == 0) &&

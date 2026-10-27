@@ -79,13 +79,13 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 request.transfer.troops.keys.any { key -> ProductionUnits.definitions.none { !it.ship && it.kind == key.kind && it.power == power } })
                 return reject(LogisticsRejection.STOCK)
             if (request.mode == LogisticsMode.ALLOCATION) {
-                val moved = request.transfer.apply(base.units, warehouse.units)
+                val moved = ReplacementBoats.moveStored(base.units,base.spareShips,warehouse.units,warehouse.spareShips,request.transfer)
                 val remaining = base.supplies.toLong() - request.supplies
                 val received = warehouse.supplies.toLong() + request.supplies
                 if (remaining !in 0..Int.MAX_VALUE.toLong() || received !in 0..Int.MAX_VALUE.toLong())
                     return reject(LogisticsRejection.STOCK)
-                stocks.copy(bases = stocks.bases + (base.baseId to base.copy(units = moved.source, supplies = remaining.toInt())),
-                    warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination, supplies = received.toInt())))
+                stocks.copy(bases = stocks.bases + (base.baseId to base.copy(units = moved.source, spareShips = moved.sourceSpare, supplies = remaining.toInt())),
+                    warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination, spareShips = moved.destinationSpare, supplies = received.toInt())))
             } else {
                 val reorganized=ReplacementBoats.reorganize(stocks,outfit.id,request.transfer)
                 val destination=reorganized.outfits.getValue(outfit.id)
