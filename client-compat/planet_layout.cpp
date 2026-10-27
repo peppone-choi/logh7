@@ -136,6 +136,7 @@ static void outfitWarehouseResponse(void* world,const BYTE* record);
 #include "planet_tax.h"
 #include "appointment_information.h"
 #include "unicode_text.h"
+#include "input_editor.h"
 #include "peer_notices.h"
 
 // 005035a0 appends chat colour markers through 004eab10. That routine converts
@@ -500,6 +501,7 @@ static void install() {
     if (!installOutfitInformation()) { status = -3; return; }
     if (!installOutfitWarnings()) { status = -3; return; }
     if (!installOutfitEditor()) { status = -3; return; }
+    if (!installInputEditor()) { status = -3; return; }
     if (!installDockingInformation()) { status = -3; return; }
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }
