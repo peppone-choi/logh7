@@ -26,8 +26,8 @@ CD판 버전 131 클라이언트 `data\` 아래 자산을 확장자별로 정리
 | `.dat` (g7sw.dat, GFWR) | 1 | `GFWR` (dword 0x52574647) | 금칙어, UTF-16LE | `0x005232d0` (GFWR::load) | 검토 필요 (금칙어 목록) | docs/l10n/text-format.md:37, docs/re/function-map.md:102 | high |
 | `.mdx` | 406 | 첫 dword가 과거 힙 주소 형태 (`0x01d0xxxx` 등) | 3D 모델 (직렬화 포인터 포함) | `0x004d15f0` (모델 로드), `0x004d16e0` (해제), 재배치 `0x005f6230` / `0x005f61d0` | 아니오 (텍스처 참조 문자열만 관찰) | docs/re/binary-inventory.md:88, docs/re/galaxy-map.md:141, tools/client/probe-model-loader.js:8-9 | high (관찰된 행성·요새·Null_galaxy 레이아웃 한정) |
 | `.mds` | 12 | `.mdx`와 같은 주소형 첫 dword | 모델 (비압축 mesh 배열, MDX 렌더 스트림과 다름) | UNKNOWN (클라이언트에 `.MDS` 문자열만 확인) | 아니오 (UNKNOWN) | docs/re/binary-inventory.md:88, docs/re/galaxy-map.md:141 | medium |
-| `.tcf` | 7 | 앞부분 cp932 농담 문구, 이후 고엔트로피(약 7.5) | 얼굴 이미지 묶음 (압축 또는 인코딩) | UNKNOWN | UNKNOWN (이미지 내 텍스트 미측정) | docs/re/binary-inventory.md:86, docs/l10n/text-format.md:77 | low (용도), 형식 미해결 |
-| `.hed` (`tcf.hed`) | 1 | 0으로 시작하는 u32 쌍 목록 | `.tcf` 인덱스 (offset, size) | UNKNOWN | 아니오 | docs/re/binary-inventory.md:86-87 | medium |
+| `.tcf` | 7 | 50바이트 머리말 + 비압축 팔레트 TGA 연속 | 얼굴 이미지 묶음 | `0x005924c0`, ID 선택 `0x00592c30` | 이름·능력 수치표는 확인되지 않음 | [NPC 얼굴 분석](npc-character-catalogue.md), tools/assets/npc_catalogue.py | high (CD 원작 계열 3개 추출·7개 TGA 레코드 조회) |
+| `.hed` (`tcf.hed`) | 1 | 원작 계열은 LE u32 offset/size 쌍, 제너레이트 계열은 나이 변형 배열 | `.tcf` 인덱스 | `0x005924c0` | 아니오 | [NPC 얼굴 분석](npc-character-catalogue.md) | high (원작 계열 450슬롯) |
 | `.tga` | 661 | 표준 TGA 헤더 | UI·배경·모델 텍스처 | UNKNOWN | 일부 가능 (이미지 내 일본어, 미측정) | docs/re/binary-inventory.md:89, docs/l10n/text-format.md:17, docs/l10n/text-format.md:71 | medium |
 | `.bmp` | 995 | 표준 BMP 헤더 | UI·배경, 행성 텍스처 `pNNN.bmp` | UNKNOWN | 일부 가능 (미측정) | docs/re/binary-inventory.md:89, tools/assets/asset_repro.py:142 | medium |
 | `.jpg` / `.png` | 45 / 16 | 표준 헤더 | 이미지 | UNKNOWN | 미측정 | docs/re/binary-inventory.md:89 | medium |
@@ -69,7 +69,7 @@ MDX 렌더 스트림과 섞으면 안 되는 비압축 mesh 배열이라는 기�
 
 ### TCF / HED
 
-`tcf.hed`가 (offset, size) u32 쌍 목록이라는 정적 관찰만 있다. `.tcf` 본문의 압축/인코딩 방식, 이미지 형식, 로더 VA는 UNKNOWN이다(docs/l10n/text-format.md:77). E-027이 배너 인코딩을 cp932로 정정했다(docs/re/2026-09-27_reverse-logh7-client-triage-report.md:62, docs/re/binary-inventory.md:86).
+2026-10-27에 기존 로더 내보내기와 CD 원본을 대조해, 50바이트 머리말 뒤 비압축 팔레트 TGA가 연속됨을 확인했다. `00592c30`이 얼굴 ID를 계열·슬롯으로 나누고 `005924c0`이 HED의 offset/size를 읽는다. 원작 계열 `oem/oam/o` 291장의 추출·파일 끝까지 일치 검사를 통과했다. 공용·나이 변형이 있어 이미지 수를 NPC 인원수로 취급하지 않는다. 제너레이트 HED는 나이별 offset/size 배열이므로 전체를 원작의 단순 쌍 인덱스로 해석하지 않는다. 형식·번호·도구와 한계는 [NPC 얼굴 분석](npc-character-catalogue.md)을 따른다. 이전 미해결 기록은 당시 조사 범위다. `evidence:client`
 
 ### TGA / BMP / JPG / PNG
 
@@ -82,8 +82,8 @@ MDX 렌더 스트림과 섞으면 안 되는 비압축 mesh 배열이라는 기�
 ## 남은 UNKNOWN
 
 - `.mds` 레이아웃과 로더 VA
-- `.tcf` 본문 압축/인코딩, 얼굴 이미지 형식, `.tcf`/`.hed` 로더 VA
+- 얼굴 ID↔이름↔원래 능력치의 전체 대응표와 제너레이트 HED 전체 추출 도구
 - MDX 재질·애니메이션·노드 변환, 관찰 범위 밖 MDX 변형
 - TGA/BMP/JPG/PNG 로더 VA와 이미지 내 일본어 규모
 - 요약 표 개수가 G7UPD040514 적용 전후 중 어느 기준인지
-- 이번 작업은 원본 파일·클라이언트를 조회하거나 실행하지 않았다(NOT_RUN). 모든 값은 위 저장소 근거를 인용한 것이다.
+- 최초 색인은 원본 파일·클라이언트를 조회하거나 실행하지 않았다(NOT_RUN). TCF/HED 항목만 2026-10-27에 원본 파일을 읽어 갱신했으며 게임은 실행하지 않았다.
