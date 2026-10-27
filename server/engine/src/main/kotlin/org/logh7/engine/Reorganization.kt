@@ -17,7 +17,8 @@ class ReorganizationRequest(val account: String, val connection: String, val cha
 data class ReorganizationResult(val player: Navigator?, val stocks: PlanetStocks?,
     val rejection: LogisticsRejection? = null, val changed: Boolean = false, val recovery: NavigationResult? = null,
     val capacity: ReorganizationCapacity? = null)
-data class ReorganizationCapacity(val additionalTroops: Int, val crew: Int, val crewDelta: Int)
+data class ReorganizationCapacity(val additionalTroops: Int, val crew: Int, val crewDelta: Int,
+    val ships: List<ReorganizationShip>)
 
 internal object Reorganization {
     const val COST = 160 // constmsg group 0, entry 130: MCP 160; no wait/duration.
@@ -62,6 +63,8 @@ internal object Reorganization {
         // the absolute requirement doubles its crew limit.
         // Additional infantry transport capacity is not reconstructed yet.
         // Preserve the editor's existing infantry baseline, never invent slots.
-        return ReorganizationCapacity(0,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew))
+        val ships=checkNotNull(projected.activeShips).values.groupBy { it.stack.kind }.toSortedMap()
+            .map { (kind,units) -> ReorganizationShip(kind,units.size,units.sumOf { it.boats }) }
+        return ReorganizationCapacity(0,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew),ships)
     }
 }

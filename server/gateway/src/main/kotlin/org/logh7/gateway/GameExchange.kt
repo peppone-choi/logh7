@@ -455,7 +455,8 @@ class GameExchange(
                                 val capacity=result.capacity
                                 return@thenApply listOf(org.logh7.protocol.LogisticsMessages.reorganizationPreview(query,
                                     gameSeconds(),player.pcp,player.mcp,capacity?.additionalTroops ?: 0,capacity?.crewDelta ?: 0,
-                                    supplies,accepted))
+                                    supplies,accepted,capacity?.ships.orEmpty().map {
+                                        org.logh7.protocol.LogisticsMessages.ShipStock(it.kind,it.units,it.boats) }))
                             }
                             listOf(org.logh7.protocol.LogisticsMessages.reorganizationResponse(query, gameSeconds(),
                                 player.pcp, player.mcp, supplies, accepted), characterMessage(character, player, true)) +

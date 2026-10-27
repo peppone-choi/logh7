@@ -48,9 +48,11 @@ class ReorganizationTest {
         val state=stocks.copy(outfits=mapOf(1 to original))
         val unchanged=Reorganization.capacity(state,1,UnitTransfer())
         assertEquals(5,unchanged.crew);assertEquals(0,unchanged.crewDelta)
+        assertEquals(listOf(ReorganizationShip(32,1,300)),unchanged.ships)
         val removed=Reorganization.capacity(state,1,UnitTransfer(ships=mapOf(UnitStack(32,2) to -1),
             troops=mapOf(UnitStack(3) to -5)))
         assertEquals(0,removed.crew);assertEquals(-5,removed.crewDelta)
+        assertTrue(removed.ships.isEmpty())
         assertEquals(original,state.outfits.getValue(1))
     }
 }

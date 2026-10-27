@@ -115,11 +115,15 @@ object LogisticsMessages {
             if (accepted) 0 else 1)
     }
     fun reorganizationPreview(query: Reorganization, seconds: Long, pcp: Int, mcp: Int,
-        additionalTroops: Int, crewDelta: Int, supplies: Int, accepted: Boolean): ByteArray {
+        additionalTroops: Int, crewDelta: Int, supplies: Int, accepted: Boolean, ships: List<ShipStock>): ByteArray {
         require(query.mode == 0 && seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0 &&
             additionalTroops >= 0 && supplies >= 0)
+        require(query.mode == 0 && ships.all { it.units in 1..127 })
+        // 005340b0 replaces editor totals from these absolute projected rows.
+        // Request deltas (or an empty list) would erase its unit/boat summary.
+        val totals=if (accepted) ships.map { ShipMove(it.kind,it.units,it.boats) } else emptyList()
         val encoded=encode(query.copy(header=Header(seconds.toInt(),query.header.characterId,pcp,mcp),
-            moves=Moves(emptyList(),emptyList()),maxTroops=additionalTroops,maxCrew=crewDelta,supplies=supplies))
+            moves=Moves(totals,emptyList()),maxTroops=additionalTroops,maxCrew=crewDelta,supplies=supplies))
         return LoginMessages.sessionMessage(0x0c02,encoded.copyOfRange(2,encoded.size),if (accepted) 0 else 1)
     }
     /** Never echo client-provided result inventories or balances. */
