@@ -78,7 +78,7 @@ object BootstrapMessages {
     /** 00419ca0: one local flagship unit; its grid and resource values are provisional. */
     fun unit(character: CharacterMessages.Generate, grid: Int = 2550, cruise: Int = 10_000,
         baseId: Int = 0, mode: Int = 5, outfit: Int = 0): ByteArray {
-        require(outfit >= 0 && (outfit == 0 || baseId > 0 && mode == 4))
+        require(outfit >= 0 && (outfit == 0 || baseId > 0 && mode == 4 || baseId == 0 && mode == 5))
         val out = ByteBuffer.allocate(64)
         out.putShort(1).putInt(unitId(character)).putShort(character.shipKind.toShort()).put(mode.toByte())
         out.putInt(grid).putInt(outfit).putInt(0).put(0) // grid, outfit, boarding ship, troop count

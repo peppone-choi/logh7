@@ -33,7 +33,8 @@ internal object Supplement {
         val owner=stocks.bases.getValue(outfit.baseId)
         if(outfit.power!=power || owner.power!=power || owner.camp!=0 || outfit.commanderId!=r.characterId)
             return reject(LogisticsRejection.ACCESS)
-        if(r.base!=outfit.baseId || r.kind!=outfit.kind.wire || p.baseId!=outfit.baseId || p.cpPaused ||
+        if(r.base!=outfit.baseId || (outfit.position?.baseId ?: outfit.baseId)!=outfit.baseId ||
+            r.kind!=outfit.kind.wire || p.baseId!=outfit.baseId || p.cpPaused ||
             p.dockTarget!=null || p.fuelReadyAt!=null) return reject(LogisticsRejection.LOCATION)
         val active=outfit.activeShips ?: return reject(LogisticsRejection.STOCK)
         if(r.units.size>1 || r.units.values.any {it.isEmpty()} ||

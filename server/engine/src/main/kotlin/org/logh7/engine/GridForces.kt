@@ -2,6 +2,9 @@ package org.logh7.engine
 
 /** Shared deployed-force accounting for map reports and movement. Author: 최병호. */
 object GridForces {
+    private val ground = UnitSpecifications.crews.filter { it.category != 19 }.map { it.kind }.toSet()
+    fun units(outfit: OutfitStock): Long = outfit.units.ships.values.sumOf { it.toLong() } +
+        outfit.units.troops.filterKeys { it.kind in ground }.values.sumOf { it.toLong() }
     data class Force(val camp: Camp, val units: Long = 0, val nonSolo: Boolean = false,
         val ship: Boolean = false, val base: Boolean = false)
 
@@ -21,9 +24,13 @@ object GridForces {
             else -> null
         }
         navigators.filter { it.generation == generation }.forEach {
-            add(it.grid, Force(Camp(it.power, false), 1, ship = true))
+            val player = it
+            val grouped = stocks?.outfits?.values?.any { outfit ->
+                player.characterId in outfit.members() && outfit.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
+                    outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
+            } == true
+            add(it.grid, Force(Camp(it.power, false), 1, nonSolo = grouped, ship = true))
         }
-        val bases = galaxy.bases.associateBy { it.id }
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)
             val initial = galaxy.conditions.getValue(base.id)
@@ -31,12 +38,11 @@ object GridForces {
                 add(base.grid, Force(it, base = true))
             }
         }
-        val ground = UnitSpecifications.crews.filter { it.category != 19 }.map { it.kind }.toSet()
         stocks?.outfits?.values?.forEach { outfit ->
             val ships = outfit.units.ships.values.sumOf { it.toLong() }
-            val troops = outfit.units.troops.filterKeys { it.kind in ground }.values.sumOf { it.toLong() }
-            if (ships + troops > 0) add(bases.getValue(outfit.baseId).grid,
-                Force(checkNotNull(camp(outfit.power)), ships + troops, nonSolo = true, ship = ships > 0))
+            val count = units(outfit)
+            if (count > 0) add(outfit.positionIn(galaxy).grid,
+                Force(checkNotNull(camp(outfit.power)), count, nonSolo = true, ship = ships > 0))
         }
         return result.mapValues { it.value.values.toList() }
     }

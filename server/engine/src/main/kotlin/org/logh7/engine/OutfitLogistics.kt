@@ -20,6 +20,13 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
     private var sequence = 0L
     init { require(leaseMillis in 1..3_600_000) }
 
+    fun blocksMovement(session: SessionState, outfit: Int): Boolean {
+        val now = clock()
+        reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
+            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection } != false }
+        return reservations.any { it.request.mode == LogisticsMode.REORGANIZATION && it.request.outfitId == outfit }
+    }
+
     fun blocksSupply(session: SessionState, stocks: PlanetStocks, outfits: Set<Int>): Boolean {
         val now = clock()
         reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
@@ -58,7 +65,8 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
             if (!allowed) return reject(LogisticsRejection.ACCESS)
         } else {
             if (outfit.commanderId != request.characterId) return reject(LogisticsRejection.ACCESS)
-            if (player.baseId != outfit.baseId || player.dockTarget != null || player.fuelReadyAt != null || player.cpPaused)
+            if (player.baseId != outfit.baseId || (outfit.position?.baseId ?: outfit.baseId) != outfit.baseId ||
+                player.dockTarget != null || player.fuelReadyAt != null || player.cpPaused)
                 return reject(LogisticsRejection.LOCATION)
             if (request.supplies != 0) return reject(LogisticsRejection.STOCK)
         }

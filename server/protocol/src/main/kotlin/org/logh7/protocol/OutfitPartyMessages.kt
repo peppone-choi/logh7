@@ -31,7 +31,7 @@ object OutfitPartyMessages {
     }
     fun party(query: Query, power: Int, kind: Int, number: Int, ships: List<Ships>, troops: List<Troops>,
         supplies: Int, maximumSupplies: Int, members: List<Member> = emptyList()): ByteArray = body {
-        require(query.outfit > 0 && query.base in 1..65535 && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
+        require(query.outfit > 0 && query.base in 0..65535 && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
         require(ships.size <= 60 && troops.size <= 24 && supplies in 0..maximumSupplies)
         val ids = ships.flatMap { it.ids }
         require(ids.distinct().size == ids.size && ids.all { it > 0 })
@@ -68,8 +68,8 @@ object OutfitPartyMessages {
         require(units.size <= 70 && units.map { it.id }.distinct().size == units.size)
         writeByte(units.size)
         for (unit in units) {
-            require(unit.id > 0 && unit.kind in 0..199 && unit.grid in 0..4999 && unit.outfit > 0 && unit.base in 1..65535)
-            writeInt(unit.id); writeShort(unit.kind); writeByte(4) // Stationed at the outfit's base.
+            require(unit.id > 0 && unit.kind in 0..199 && unit.grid in 0..4999 && unit.outfit > 0 && unit.base in 0..65535)
+            writeInt(unit.id); writeShort(unit.kind); writeByte(if(unit.base==0)5 else 4)
             writeInt(unit.grid); writeInt(unit.outfit); writeInt(0); writeByte(0) // No boarding ship / attached troop instances.
             writeInt(unit.base); writeByte(100); writeByte(0) // Initial morale, no rebellion.
             writeShort(0); writeShort(0) // No damage or destruction mechanics yet.

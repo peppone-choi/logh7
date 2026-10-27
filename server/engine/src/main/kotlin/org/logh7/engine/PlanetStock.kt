@@ -47,6 +47,9 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
     private val deployment = InitialOutfitDeployment(galaxy)
     private var current = store?.load()?.also { restored ->
         require(restored.bases.keys == galaxy.bases.map { it.id }.toSet()) { "Inventory bases differ from the world seed" }
+        require(restored.outfits.values.all { outfit -> outfit.position?.let { position ->
+            position.baseId == 0 || galaxy.bases.single { it.id == position.baseId }.grid == position.grid
+        } != false }) { "Restored outfit position differs from its current base" }
         restored.bases.values.forEach(BaseOfficePolicy(galaxy)::validate)
         require(restored.generation <= generation) { "Inventory belongs to a newer session" }
         val terms = ProductionUnits.definitions.associate { it.key to it.hours }
@@ -100,6 +103,9 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         check(current === expected) { "Inventory changed during transaction" }
         require(next.generation == expected.generation && next.producedDays == expected.producedDays)
         require(next.bases.keys == expected.bases.keys)
+        require(next.outfits.values.all { outfit -> outfit.position?.let { position ->
+            position.baseId == 0 || galaxy.bases.single { it.id == position.baseId }.grid == position.grid
+        } != false }) { "Outfit position differs from its current base" }
         return detached(next)
     }
     fun publishCommitted(expected: PlanetStocks, next: PlanetStocks) {

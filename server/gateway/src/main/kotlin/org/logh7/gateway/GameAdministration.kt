@@ -23,7 +23,7 @@ fun interface GameAdministration {
     fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> = emptyList()
     fun stationedOutfit(player: Navigator): Int = 0
 }
-class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, galaxy: Galaxy) : GameAdministration {
+class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, private val galaxy: Galaxy) : GameAdministration {
     private val baseOffices=BaseOfficeCards(galaxy)
     private val nationalOffices=NationalOfficePolicy(galaxy)
     private val logisticsOffices=LogisticsOfficePolicy(galaxy)
@@ -58,12 +58,13 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         return future
     }
     override fun stationedOutfit(player: Navigator): Int {
-        if (player.mode != 4 || player.baseId == 0) return 0
+        if (player.mode !in 4..5) return 0
         val stocks = engine.snapshot().planetStocks ?: return 0
         if (stocks.generation != player.generation) return 0
-        // Designed affiliation: one unambiguous fleet office at this same base.
+        // One unambiguous fleet office at the actual deployment, including space.
         return stocks.outfits.values.singleOrNull { player.characterId in it.members() &&
-            it.power == (if (player.power == Power.EMPIRE) 2 else 3) && it.baseId == player.baseId }?.id ?: 0
+            it.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
+                it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId } }?.id ?: 0
     }
     override fun supplementOutfit(request: SupplementRequest): CompletableFuture<SupplementResult> {
         val future = CompletableFuture<SupplementResult>()
