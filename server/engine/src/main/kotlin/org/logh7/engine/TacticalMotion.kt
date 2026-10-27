@@ -10,6 +10,14 @@ data class TacticalPoint(val x: Float, val y: Float) {
 data class TacticalPose(val position: TacticalPoint, val direction: Float) {
     init { require(direction.isFinite()) }
 }
+
+data class TacticalStop(val units: List<Int>, val bases: List<Int> = emptyList()) {
+    init {
+        require(units.size <= 32 && bases.size <= 32 && (units.isNotEmpty() || bases.isNotEmpty()))
+        require(units.all { it > 0 } && units.distinct().size == units.size)
+        require(bases.all { it in 1..65535 } && bases.distinct().size == bases.size)
+    }
+}
 data class TacticalMove(val units: List<Int>, val velocity: Float, val direction: Float, val waypoints: List<TacticalPoint>) {
     init {
         require(units.size in 1..32 && units.all { it > 0 } && units.distinct().size == units.size)

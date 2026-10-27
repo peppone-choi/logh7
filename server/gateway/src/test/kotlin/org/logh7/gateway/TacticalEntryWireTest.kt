@@ -111,6 +111,26 @@ class TacticalEntryWireTest {
             assertEquals(10000,corps.getInt(8));assertEquals(control.energy,(24..34).map {corps.get(it).toInt()})
             through(first,0x0f03)
             assertContentEquals(moved,through(first,0x0400))
+            fun stop(units:List<Int>,bases:List<Int> = emptyList()):ByteArray {
+                val packet=org.logh7.protocol.TacticalStopMessages.reply(
+                    org.logh7.protocol.TacticalStopMessages.Stop(10000,units,bases),0)
+                first.send(packet.copyOfRange(4,packet.size))
+                return through(first,0x040a)
+            }
+            assertEquals(1,ByteBuffer.wrap(stop(listOf(1010001))).int)
+            assertEquals(savedMotion,savedPlayers.getValue(fixture.account(0)).motion)
+            assertEquals(1,ByteBuffer.wrap(stop(listOf(1010000),listOf(1049))).int)
+            assertEquals(savedMotion,savedPlayers.getValue(fixture.account(0)).motion)
+            assertEquals(0,ByteBuffer.wrap(stop(listOf(1010000))).int)
+            val stopped=through(first,0x0400)
+            assertEquals(0,ByteBuffer.wrap(stopped).getInt(10))
+            assertContentEquals(stopped,through(second,0x0400))
+            assertEquals(0f,org.logh7.protocol.TacticalMoveMessages.move(stopped.copyOfRange(4,stopped.size)).velocity)
+            val stationary=savedPlayers.getValue(fixture.account(0)).motion!!
+            assertEquals(savedMotion.pose(stationary.acceptedAt),stationary.origin)
+            assertEquals(stationary.origin,stationary.pose(stationary.acceptedAt+10000))
+            first.send(SyntheticClient.opcode(0x0f02));through(first,0x0f03)
+            assertContentEquals(stopped,through(first,0x0400))
         }
     }
 }

@@ -53,13 +53,15 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val captainCard: Int? = null, val place: PlaceMove? = null, val rank: Int = 20,
     val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null,
     val supplyFuel: Boolean = false, val returnBase: Int? = null,
-    val energy: TacticalEnergy? = null, val shipKind: Int? = null, val tacticalMove: TacticalMove? = null) {
+    val energy: TacticalEnergy? = null, val shipKind: Int? = null, val tacticalMove: TacticalMove? = null,
+    val tacticalStop: TacticalStop? = null) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
         (tactical == null || (destination == null && place == null && !supplyFuel)) &&
         (!supplyFuel || (destination == null && place == null)) &&
         (returnBase == null || (returnBase in 0..65535 && destination == null && place == null && !supplyFuel && tactical == null)) &&
         (energy == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && shipKind != null)) &&
-        (tacticalMove == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && energy == null && shipKind != null))) }
+        (tacticalMove == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && energy == null && shipKind != null)) &&
+        (tacticalStop == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null && energy == null && tacticalMove == null && shipKind != null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
     BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY }
@@ -107,6 +109,21 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         }
         if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
+        request.tacticalStop?.let { stop ->
+            if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
+            // Fleet/base authority is not yet implemented. Never silently stop another commander's units.
+            if (stop.units != listOf(before.unitId) || stop.bases.isNotEmpty()) return reject(NavigationRejection.UNIT)
+            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            val ship = Flagships.find(checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
+            if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+            if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
+            val pose = before.motion?.pose(now) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
+                snapshot(session.generation).values + before, stocks, galaxy)
+            // Retain an authoritative stationary pose; null would restore the initial deployment on reconnect.
+            val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)))
+            if (persist) commit(request.account, after, session.generation)
+            return NavigationResult(after, before)
+        }
         request.tacticalMove?.let { move ->
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             if (move.units != listOf(before.unitId)) return reject(NavigationRejection.UNIT)

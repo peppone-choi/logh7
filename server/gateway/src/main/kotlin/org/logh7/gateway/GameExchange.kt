@@ -239,6 +239,23 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x040a -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(characters.character(identity.account))
+                        val stop=org.logh7.protocol.TacticalStopMessages.stop(body)
+                        require(stop.character==character.id.toInt())
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
+                            shipKind=character.shipKind,tacticalStop=org.logh7.engine.TacticalStop(stop.units,stop.bases))).thenApply {result->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            listOf(org.logh7.protocol.TacticalStopMessages.reply(stop,gameSeconds(),result.player!=null)) +
+                                (if(result.player!=null) TacticalMotionMessages.reply(player,gameSeconds())?.let(::listOf).orEmpty()
+                                    else emptyList())
+                        }
+                        return null
+                    }
                     0x040c -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(characters.character(identity.account))

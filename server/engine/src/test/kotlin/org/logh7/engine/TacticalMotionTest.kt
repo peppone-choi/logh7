@@ -52,10 +52,26 @@ class TacticalMotionTest {
         val next=navigation.apply(request,later,stocks).player!!.motion!!
         val expectedX=-180f+(-600f+180f)*5f/kotlin.math.hypot(-600f+180f,-180f+95f)
         assertEquals(expectedX,next.origin.position.x,0.0001f)
+        val stopRequest=request.copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(1010000)))
+        val movingTime=later.copy(gameMillis=later.gameMillis+15000)
+        val currentPose=next.pose(movingTime.gameMillis/1000)
+        assertEquals(NavigationRejection.UNIT,navigation.apply(stopRequest.copy(tacticalStop=TacticalStop(listOf(1010001))),movingTime,stocks).rejection)
+        assertEquals(NavigationRejection.UNIT,navigation.apply(stopRequest.copy(tacticalStop=TacticalStop(listOf(1010000),listOf(1000))),movingTime,stocks).rejection)
+        assertEquals(NavigationRejection.CARD,navigation.apply(stopRequest.copy(captainCard=59),movingTime,stocks).rejection)
+        val stopped=navigation.apply(stopRequest,movingTime,stocks).player!!
+        assertEquals(0f,stopped.motion!!.velocity)
+        assertEquals(currentPose,stopped.motion!!.pose(movingTime.gameMillis/1000))
+        navigation=Navigation(galaxy,store,NavigationPolicy())
+        assertEquals(currentPose,navigation.snapshot(1).getValue("pilot").motion!!.pose(movingTime.gameMillis/1000+1000))
+        assertEquals(600,stopped.pcp);assertEquals(600,stopped.mcp)
+        assertEquals(pilot.energy,stopped.energy)
+        // A new move starts at the stopped location, not the old deployment or destination.
+        val resumed=navigation.apply(request,movingTime,stocks).player!!.motion!!
+        assertEquals(currentPose,resumed.origin)
         val reduced=navigation.apply(request.copy(tacticalMove=null,unitId=1010000,
-            energy=TacticalEnergy.ZERO),later,stocks).player!!
+            energy=TacticalEnergy.ZERO),movingTime,stocks).player!!
         assertEquals(0f,reduced.motion!!.velocity)
-        assertEquals(next.origin.position,reduced.motion!!.pose(later.gameMillis/1000+100).position)
+        assertEquals(currentPose.position,reduced.motion!!.pose(movingTime.gameMillis/1000+100).position)
         store.state=store.state-"enemy";navigation=Navigation(galaxy,store,NavigationPolicy())
         assertEquals(NavigationRejection.TACTICAL,navigation.apply(request,later,stocks).rejection)
         assertNull(store.state.getValue("pilot").motion)
