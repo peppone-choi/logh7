@@ -13,7 +13,9 @@ static bool appointmentChoice(AppointmentChoice& choice) {
     unsigned active=at<unsigned>(command,4);
     if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;
     auto confirmation=steps[active];
-    if (!confirmation || at<unsigned>(confirmation,0)!=0x675780 || at<unsigned>(confirmation,0x48)!=5) return false;
+    unsigned operation=at<unsigned>(command,0x28);
+    if ((operation!=5 && operation!=6) || !confirmation || at<unsigned>(confirmation,0)!=0x675780 ||
+        at<unsigned>(confirmation,0x48)!=operation) return false;
     for (unsigned i=0;i<active;++i) {
         auto step=steps[i];
         if (!step || !at<BYTE>(step,0x18)) continue;
@@ -55,8 +57,9 @@ static bool appointmentChoice(AppointmentChoice& choice) {
             choice.base=id;
         }
     }
-    bool validSeat=((choice.card>=39 && choice.card<=43) || (choice.card>=175 && choice.card<=179)) ? choice.outfit>0 && choice.seat && logh::infoWord(choice.seat,4)==choice.outfit :
-        choice.outfit==0 && choice.base>0 && choice.base<=65535;
+    bool dismissal=at<unsigned>(command,0x28)==6;
+    bool validSeat=dismissal || (((choice.card>=39 && choice.card<=43) || (choice.card>=175 && choice.card<=179)) ? choice.outfit>0 && choice.seat && logh::infoWord(choice.seat,4)==choice.outfit :
+        choice.outfit==0 && choice.base>0 && choice.base<=65535);
     return choice.card>0 && choice.card<=260 && validSeat &&
         choice.character>0 && choice.person && logh::infoWord(choice.person,0)==choice.character;
 }
@@ -89,6 +92,13 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
         wchar_t person[13]={}, base[32]={};
         memcpy(person,choice.person+6,length*sizeof(wchar_t));
         if (person[length-1]!=0 || wcslen(person)!=length-1) return;
+        auto role=reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8cb0)
+            (reinterpret_cast<void*>(0x7cd048),choice.card);
+        std::wstring office;
+        if (!logh::japaneseFragment(role,office) || office.empty()) return;
+        if (command && at<unsigned>(command,0x28)==6) {
+            body=std::wstring(person)+L" · "+office+L" 직무에서 해임합니다."+body.substr(newline);
+        } else {
         std::wstring seat;
         if (choice.outfit) {
             auto name=reinterpret_cast<const char*(__thiscall*)(void*,const void*)>(0x4c90c0)
@@ -98,12 +108,10 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
             pickerName(choice.base,base);
             seat=base;
         }
-        auto role=reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8cb0)
-            (reinterpret_cast<void*>(0x7cd048),choice.card);
-        std::wstring office;
-        if (seat.empty() || !logh::japaneseFragment(role,office) || office.empty()) return;
+        if (seat.empty()) return;
         // Preserve the original cost, wait, duration and confirmation question.
         body=std::wstring(person)+L" → "+seat+L" · "+office+body.substr(newline);
+        }
     }
     // 005706d0 returns the control directly; 005706c0 returns the GUI manager.
     auto element=reinterpret_cast<void*(__thiscall*)(void*,unsigned)>(0x5706d0)(dialog,5);

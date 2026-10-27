@@ -15,7 +15,7 @@ object AppointmentDirectoryMessages {
             18 -> flags==123 && message.drop(10).all { it==0.toByte() }
             28 -> role in setOf(55,56,57,192,193)
             27 -> flags==80 && (role in 39..43 || role in 175..179)
-            4 -> flags==80 && (role in 39..43 || role in 175..179 || role in setOf(55,56,57,192,193))
+            4,5 -> flags==80 && (role in 39..43 || role in 175..179 || role in setOf(55,56,57,192,193))
             else -> false
         })
         return Query(character,search,flags,role,base,message.copyOfRange(2,message.size))
