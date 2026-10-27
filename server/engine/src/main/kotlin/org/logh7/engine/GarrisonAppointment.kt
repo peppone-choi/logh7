@@ -4,7 +4,7 @@ import org.logh7.engine.strategy.*
 
 data class GarrisonAppointmentRequest(val account: String,val connection: String,val characterId: Int,val power: Power,
     val generation: Long,val base: Int,val target: Int,val targetCard: Int,val actorRank: Int,val targetRank: Int,
-    val targetPower: Int,val politics: Int=50,val administration: Int=50)
+    val targetPower: Int,val politics: Int=50,val administration: Int=50,val outfit: Int=0)
 enum class AppointmentRejection { SESSION,IDENTITY,AUTHORITY,TARGET,BASE,RANK,OCCUPIED,CAPACITY,BUSY,CP,STORAGE }
 data class GarrisonAppointmentResult(val player: Navigator?,val stocks: PlanetStocks?,val rejection: AppointmentRejection?=null,
     val changed: Boolean=false,val recovery: NavigationResult?=null,val targetPlayer: Navigator?=null)
@@ -19,6 +19,8 @@ internal object GarrisonAppointment {
             !participant.online || participant.connection!=r.connection) return reject(AppointmentRejection.SESSION)
         if (player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.power!=r.power || participant.power!=r.power) return reject(AppointmentRejection.IDENTITY)
+        if (r.targetCard==39) return FleetCommanderAppointment.evaluate(galaxy,r,player,stocks)
+        if (r.outfit!=0) return reject(AppointmentRejection.TARGET)
         val capitalRule=CapitalAppointmentPolicy.rule(r.targetCard)
         if (capitalRule==null && (r.power!=Power.EMPIRE || r.targetCard!=55)) return reject(AppointmentRejection.AUTHORITY)
         val base=stocks.bases[r.base] ?: return reject(AppointmentRejection.BASE)

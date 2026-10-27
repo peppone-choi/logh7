@@ -5,6 +5,18 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class AppointmentMessagesTest {
+    @Test fun fleetAppointmentsUseTheOutfitAsCardTargetAndSuppressFailedOrRepeatedUnitChanges() {
+        val raw=request().also { ByteBuffer.wrap(it).putInt(22,39).putInt(32,200).putInt(36,0) }
+        val query=AppointmentMessages.query(raw)
+        assertEquals(AppointmentMessages.Query(10000,10001,39,200,0),query)
+        for((accepted,changed) in listOf(true to true,true to false,false to false)) {
+            val b=ByteBuffer.wrap(AppointmentMessages.response(query.copy(base=1049),123,1000,840,accepted,changed))
+            assertEquals(if(changed)200 else 0,b.getInt(32))
+            assertEquals(if(changed)200 else 0,b.getInt(36))
+            assertEquals(1049,b.getInt(40))
+        }
+        assertFails {AppointmentMessages.query(raw.copyOf().also {ByteBuffer.wrap(it).putInt(32,0)})}
+    }
     @Test fun onlyCapitalAppointmentsCanOmitTheBaseChosenByTheOriginalClient() {
         for(card in listOf(56,57,192,193)) {
             val value=request().also {ByteBuffer.wrap(it).putInt(22,card).putInt(36,0)}

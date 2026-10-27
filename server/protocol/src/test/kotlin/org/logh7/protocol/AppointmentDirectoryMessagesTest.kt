@@ -5,6 +5,19 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class AppointmentDirectoryMessagesTest {
+    @Test fun fleetVacanciesCarryAvailabilityIdentityAndTheActualBase() {
+        val q=AppointmentDirectoryMessages.query(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
+            .putShort(27).putShort(80).putShort(39).array())
+        val base=WorldMessages.Base(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)
+        val packets=AppointmentDirectoryMessages.outfits(q,listOf(AppointmentDirectoryMessages.Outfit(200,1,0,base)))
+        assertEquals(listOf(0x1200,0x120c,0x1201),packets.map {ByteBuffer.wrap(it).getShort(4).toInt()})
+        val b=ByteBuffer.wrap(packets[1]).position(6)
+        assertEquals(1,b.get().toInt());assertEquals(1,b.get().toInt());assertEquals(200,b.int)
+        assertEquals(1,b.get().toInt());assertEquals(0,b.get().toInt());assertEquals(1,b.get().toInt())
+        assertEquals(1049,b.int);assertEquals(2487,b.short.toInt());assertEquals(0,b.short.toInt())
+        val count=b.get().toInt();assertEquals("Home\u0000",(1..count).map {b.char}.joinToString(""))
+        assertFalse(b.hasRemaining())
+    }
     @Test fun multipleCapitalVacanciesRetainTheirOriginalCardAndBaseIdentities() {
         val q=AppointmentDirectoryMessages.query(request())
         val b=ByteBuffer.wrap(AppointmentDirectoryMessages.cards(q,mapOf(56 to 1,57 to 1))[1])

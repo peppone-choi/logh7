@@ -4,7 +4,7 @@
 #include "appointment_ui_data.h"
 #include "unicode_text.h"
 
-struct AppointmentChoice { unsigned card=0, base=0, character=0; const BYTE* person=nullptr; };
+struct AppointmentChoice { unsigned card=0, base=0, outfit=0, character=0; const BYTE* person=nullptr; const BYTE* seat=nullptr; };
 static bool appointmentChoice(AppointmentChoice& choice) {
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     unsigned authority=*reinterpret_cast<unsigned*>(0xc9eac0);
@@ -26,6 +26,7 @@ static bool appointmentChoice(AppointmentChoice& choice) {
             unsigned* selected=nullptr;
             if (!strcmp(name,"TARGET_SELECT_S_CARD")) selected=&choice.card;
             else if (!strcmp(name,"TARGET_SELECT_S_CARD_BASE")) selected=&choice.base;
+            else if (!strcmp(name,"TARGET_SELECT_S_CARD_OUTFIT")) selected=&choice.outfit;
             else if (!strcmp(name,"TARGET_SELECT_S_CHARACTER")) selected=&choice.character;
             if (!selected) continue;
             if (*selected || at<unsigned>(*var,0x14)!=1) return false;
@@ -34,6 +35,12 @@ static bool appointmentChoice(AppointmentChoice& choice) {
             if (!node || node==head) return false;
             *selected=at<unsigned>(node,12);
             if (selected==&choice.character) choice.person=at<BYTE*>(node,20);
+            if (selected==&choice.outfit) {
+                // Outfit selectors keep the row index as value; the actual ID is in the selected record.
+                choice.seat=at<BYTE*>(node,20);
+                if (!choice.seat) return false;
+                choice.outfit=logh::infoWord(choice.seat,4);
+            }
         }
     }
     if (!choice.base && (choice.card==56 || choice.card==57 || choice.card==192 || choice.card==193)) {
@@ -48,7 +55,9 @@ static bool appointmentChoice(AppointmentChoice& choice) {
             choice.base=id;
         }
     }
-    return choice.card>0 && choice.card<=260 && choice.base>0 && choice.base<=65535 &&
+    bool validSeat=choice.card==39 ? choice.outfit>0 && choice.seat && logh::infoWord(choice.seat,4)==choice.outfit :
+        choice.outfit==0 && choice.base>0 && choice.base<=65535;
+    return choice.card>0 && choice.card<=260 && validSeat &&
         choice.character>0 && choice.person && logh::infoWord(choice.person,0)==choice.character;
 }
 
@@ -80,13 +89,21 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
         wchar_t person[13]={}, base[32]={};
         memcpy(person,choice.person+6,length*sizeof(wchar_t));
         if (person[length-1]!=0 || wcslen(person)!=length-1) return;
-        pickerName(choice.base,base);
+        std::wstring seat;
+        if (choice.outfit) {
+            auto name=reinterpret_cast<const char*(__thiscall*)(void*,const void*)>(0x4c90c0)
+                (reinterpret_cast<void*>(0x7cd048),choice.seat+4);
+            if (!logh::japaneseFragment(name,seat)) return;
+        } else {
+            pickerName(choice.base,base);
+            seat=base;
+        }
         auto role=reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8cb0)
             (reinterpret_cast<void*>(0x7cd048),choice.card);
         std::wstring office;
-        if (!base[0] || !logh::japaneseFragment(role,office) || office.empty()) return;
+        if (seat.empty() || !logh::japaneseFragment(role,office) || office.empty()) return;
         // Preserve the original cost, wait, duration and confirmation question.
-        body=std::wstring(person)+L" → "+std::wstring(base)+L" · "+office+body.substr(newline);
+        body=std::wstring(person)+L" → "+seat+L" · "+office+body.substr(newline);
     }
     // 005706d0 returns the control directly; 005706c0 returns the GUI manager.
     auto element=reinterpret_cast<void*(__thiscall*)(void*,unsigned)>(0x5706d0)(dialog,5);

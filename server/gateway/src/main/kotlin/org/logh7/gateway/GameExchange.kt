@@ -267,7 +267,7 @@ class GameExchange(
                             val player=checkNotNull(result.player) { "Resignation lost its authenticated actor" }
                             publication=Publication(character,player,false)
                             listOf(org.logh7.protocol.ResignationMessages.response(query,gameSeconds(),player.pcp,player.mcp,result.rejection==null),
-                                characterMessage(character,player,true))+
+                                characterMessage(character,player,true),unitMessage(character,player))+
                                 result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
                         }
                         return null
@@ -276,7 +276,7 @@ class GameExchange(
                         check(gameStarted && administration!=null && world!=null)
                         val received=org.logh7.protocol.AppointmentMessages.query(body)
                         // Native capital institution 17 skips the base picker and sends zero.
-                        val query=if(received.base==0) received.copy(base=checkNotNull(
+                        val query=if(received.base==0 && received.outfit==0) received.copy(base=checkNotNull(
                             org.logh7.engine.CapitalAppointmentPolicy.rule(received.card)?.let {
                                 org.logh7.engine.CapitalAppointmentPolicy(world.galaxy).base(it)?.id
                             }) { "Capital appointment has no matching world base" }) else received
@@ -287,13 +287,16 @@ class GameExchange(
                             identity.account,connection,character.id.toInt(),
                             if (character.power==2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             checkNotNull(generation),query.base,query.target,query.card,character.rank,target?.rank ?: -1,
-                            target?.power ?: 0,character.abilities[1],character.abilities[2])).thenApply { result ->
+                            target?.power ?: 0,character.abilities[1],character.abilities[2],query.outfit)).thenApply { result ->
                             val player=checkNotNull(result.player) { "Appointment lost its authenticated actor" }
                             publication=Publication(character,player,false)
                             if (result.rejection==null && target!=null) result.targetPlayer?.let { targetPlayer ->
-                                presence?.refreshOffices(target.id.toInt(),targetPlayer.generation,offices(target,targetPlayer),gameSeconds())
+                                presence?.refreshOffices(target.id.toInt(),targetPlayer.generation,offices(target,targetPlayer),gameSeconds(),
+                                    administration.stationedOutfit(targetPlayer))
                             }
-                            listOf(org.logh7.protocol.AppointmentMessages.response(query,gameSeconds(),player.pcp,player.mcp,
+                            val resolved=if(query.outfit>0 && result.rejection==null) query.copy(
+                                base=checkNotNull(result.stocks).outfits.getValue(query.outfit).baseId) else query
+                            listOf(org.logh7.protocol.AppointmentMessages.response(resolved,gameSeconds(),player.pcp,player.mcp,
                                 result.rejection==null,result.changed),characterMessage(character,player,true)) +
                                 result.recovery?.let { completedWork(it.copy(player=player),character) }.orEmpty()
                         }
@@ -573,18 +576,28 @@ class GameExchange(
                                 val capitals=capitalPolicy.vacancies(inventory,character.id.toInt(),character.power,character.rank)
                                 val selected=if(query.role==55)available else capitals.filter { it.rule.card==query.role }.map { it.base }
                                 val capitalRule=org.logh7.engine.CapitalAppointmentPolicy.rule(query.role)
+                                val fleetPolicy=org.logh7.engine.FleetCommanderAppointmentPolicy(world.galaxy)
+                                val fleets=fleetPolicy.available(inventory,character.id.toInt(),character.power,character.rank)
                                 when(query.search) {
                                     18 -> org.logh7.protocol.AppointmentDirectoryMessages.cards(query,
                                         (if(available.isEmpty())emptyMap() else mapOf(55 to available.size))+
-                                            capitals.associate { it.rule.card to 1 })
+                                            capitals.associate { it.rule.card to 1 }+
+                                            if(fleets.isEmpty())emptyMap() else mapOf(39 to fleets.size))
+                                    27 -> org.logh7.protocol.AppointmentDirectoryMessages.outfits(query,fleets.map {
+                                        org.logh7.protocol.AppointmentDirectoryMessages.Outfit(it.id,it.number,it.kind.wire,
+                                            world.baseWire(world.galaxy.bases.single { base -> base.id==it.baseId }))
+                                    })
                                     28 -> org.logh7.protocol.AppointmentDirectoryMessages.bases(query,selected.map {
                                         org.logh7.protocol.AppointmentDirectoryMessages.Base(it.id,it.grid,it.name)
                                     })
                                     4 -> {
-                                        require(selected.isNotEmpty() && (query.base==0 || selected.any { it.id==query.base })) { "No appointment authority at selected base" }
+                                        require(if(query.role==39) fleets.isNotEmpty() &&
+                                            (query.base==0 || fleets.any {it.baseId==query.base}) else
+                                            selected.isNotEmpty() && (query.base==0 || selected.any { it.id==query.base })) { "No appointment authority at selected seat" }
                                         val eligible=characters.registeredCharacters().filter { target ->
                                             target.id!=character.id && target.power==character.power &&
-                                                (capitalRule?.eligible(character.rank,target.rank) ?: (target.rank in 2..10 && character.rank<target.rank)) && administration!!.offices(target.id.toInt(),target.power,
+                                                (if(query.role==39) fleetPolicy.eligible(character.rank,target.rank) else
+                                                    capitalRule?.eligible(character.rank,target.rank) ?: (target.rank in 2..10 && character.rank<target.rank)) && administration!!.offices(target.id.toInt(),target.power,
                                                     checkNotNull(generation)).size<14
                                         }
                                         org.logh7.protocol.AppointmentDirectoryMessages.people(query,eligible.map { target ->

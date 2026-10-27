@@ -115,13 +115,15 @@ class GamePresence {
             oldPeers.map { it.character.id } != newPeers.map { it.character.id }))
             refresh(oldPeers, newPeers) else emptyList())
     }
-    @Synchronized fun refreshOffices(characterId: Int,generation: Long,offices: List<BootstrapMessages.OfficeCard>,seconds: Long) {
+    @Synchronized fun refreshOffices(characterId: Int,generation: Long,offices: List<BootstrapMessages.OfficeCard>,seconds: Long,outfit: Int?=null) {
         val previous=members.values.singleOrNull { it.character.id.toInt()==characterId && it.player.generation==generation } ?: return
-        val next=previous.copy(offices=offices)
+        val next=previous.copy(offices=offices,outfit=outfit ?: previous.outfit)
         val player=next.player
         val updated=update(next,seconds)
         send(next,listOf(BootstrapMessages.changedCharacter(next.character,player.pcp,player.mcp,player.spotId,
-            player.spotOwner,player.returnBase,offices))+updated.refresh)
+            player.spotOwner,player.returnBase,offices))+
+            (if(next.outfit!=previous.outfit) listOf(BootstrapMessages.unit(next.character,player.grid,player.cruise,
+                player.baseId,player.mode,next.outfit)) else emptyList())+updated.refresh)
     }
     @Synchronized fun remove(connection: String) {
         val leaving = members[connection] ?: return
