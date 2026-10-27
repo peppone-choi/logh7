@@ -114,4 +114,69 @@ class FleetNavigationTest {
         assertEquals(OutfitPosition(2487,1000),state.stocks.outfits.getValue(1).position)
         assertEquals(result.player,state.players["pilot"])
     }
+    private fun addAide(state: State, cruise: Int = 1000) {
+        val fleet = state.stocks.outfits.getValue(1)
+        state.stocks = state.stocks.copy(outfits = state.stocks.outfits + (1 to fleet.copy(aideId = 10001)))
+        state.players = state.players + ("aide" to state.players.getValue("pilot").copy(characterId = 10001,
+            pcp = 800, mcp = 600, cruise = cruise))
+    }
+    @Test fun offlineAideFollowsDepartureWarpAndReloadWithoutPayingTheCommandersCp() {
+        val state = state(); addAide(state)
+        val cp = state.players.getValue("aide")
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2488))
+        val aide = state.players.getValue("aide")
+        assertEquals(2488,aide.grid); assertEquals(0,aide.baseId); assertEquals(5,aide.mode)
+        assertEquals(0,aide.spotId); assertEquals(900,aide.cruise); assertEquals(2,aide.moves)
+        assertEquals(cp.pcp,aide.pcp); assertEquals(cp.mcp,aide.mcp)
+        assertEquals(15L,GridForces.collect(galaxy,1,state.players.values,state.stocks)
+            .getValue(2488).single {it.camp.power==Power.ALLIANCE}.units)
+        apply(state,request)
+        assertEquals(aide,state.players.getValue("aide"))
+    }
+    @Test fun memberInPublicRoomOrDifferentGridOrAmbiguousOutfitIsNotTeleported() {
+        for (scenario in 0..2) {
+            val state = state(); addAide(state)
+            val aide = state.players.getValue("aide")
+            if(scenario==0) {
+                val publicSpot=galaxy.facilities.getValue(1000).flatMap {it.spots}.first {it.access==SpotAccess.PUBLIC}
+                state.players=state.players+("aide" to aide.copy(spotId=publicSpot.id))
+            } else if(scenario==1) state.players=state.players+("aide" to aide.copy(grid=2488,baseId=0,mode=5,spotId=0))
+            else state.stocks=state.stocks.copy(outfits=state.stocks.outfits+
+                (2 to OutfitStock(2,3,OutfitKind.PATROL,1000,20,commanderId=10001)),
+                warehouses=state.stocks.warehouses+(20 to OutfitWarehouse(20,3,OutfitKind.PATROL,1000)))
+            val before=state.players.getValue("aide")
+            apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
+            assertEquals(before,state.players.getValue("aide"))
+        }
+    }
+    @Test fun memberFuelAndDestinationCapacityAreCheckedForTheWholeGroup() {
+        for(lowFuel in listOf(false,true)) {
+            val state=state();addAide(state,if(lowFuel)50 else 1000)
+            apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
+            if(!lowFuel) state.stocks=state.stocks.copy(outfits=state.stocks.outfits+
+                (2 to OutfitStock(2,3,OutfitKind.PATROL,1001,20,units=UnitInventory(mapOf(UnitStack(89) to 286)))),
+                warehouses=state.stocks.warehouses+(20 to OutfitWarehouse(20,3,OutfitKind.PATROL,1001)))
+            val before=state.players.toMap()
+            assertEquals(if(lowFuel)NavigationRejection.CRUISE else NavigationRejection.GRID,
+                apply(state,request.copy(destination=2488)).single().rejection)
+            assertEquals(before,state.players)
+        }
+    }
+    @Test fun dockCompletionMovesOfflineMemberAndAtomicFailureMovesNobody() {
+        val state=state();addAide(state)
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
+        val before=state.players.toMap();state.fail=true
+        assertFailsWith<java.io.IOException> {apply(state,request.copy(destination=2488))}
+        assertEquals(before,state.players)
+        state.fail=false
+        apply(state,request.copy(place=PlaceMove.Dock(1000,4)))
+        val late=session.copy(gameMillis=session.gameMillis+8*3600_000L)
+        val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
+        val production=PlanetProduction(galaxy,state.inventory,SessionRules.load().startSeconds,PlanetProductionPolicy())
+        FleetNavigation.apply(request,late,galaxy,navigation,production,
+            production.settle(1,late.gameMillis/1000),state.commit) {false}
+        assertEquals(1000,state.players.getValue("aide").baseId)
+        assertEquals(4,state.players.getValue("aide").mode)
+        assertEquals(600,state.players.getValue("aide").mcp)
+    }
 }
