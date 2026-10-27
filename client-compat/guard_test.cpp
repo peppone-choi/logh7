@@ -5,6 +5,7 @@
 #include "planet_info_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
+#include "input_text.h"
 #include "outfit_info_data.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
@@ -40,6 +41,19 @@ static bool planetUnitRowsTest() {
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
 int wmain(int argc, wchar_t** argv) {
+    std::wstring inputResult=L"unchanged";
+    if (!logh::inputFragment("ABC 123",inputResult) || inputResult!=L"ABC 123") return 201;
+    if (logh::inputFragment("\x81",inputResult,949) || inputResult!=L"ABC 123") return 202;
+    if (!logh::inputFragment("\x93\xfa\x96\x7b",inputResult,932) || inputResult!=L"日本") return 203;
+    for (unsigned value=0xac00;value<=0xd7a3;++value) {
+        wchar_t syllable[]={static_cast<wchar_t>(value),0};
+        char bytes[8]={};BOOL replaced=FALSE;
+        int length=WideCharToMultiByte(949,WC_NO_BEST_FIT_CHARS,syllable,-1,bytes,sizeof(bytes),nullptr,&replaced);
+        if (length!=3 || replaced || !logh::inputFragment(bytes,inputResult,949) || inputResult!=syllable) return 204;
+    }
+    if (logh::inputPrintableByte('A')!=1 || logh::inputPrintableByte('9')!=1 ||
+        logh::inputPrintableByte('\n') || logh::inputPrintableByte(0)) return 205;
+    if (GetACP()==949 && (logh::inputPrintableByte(0xb0) || logh::inputPrintableByte(0xa1))) return 206;
     if (!planetUnitRowsTest()) return 200;
     if (argc != 2) return 1;
     if (wcscmp(logh::planetAffiliation(2,0),L"은하제국") ||
