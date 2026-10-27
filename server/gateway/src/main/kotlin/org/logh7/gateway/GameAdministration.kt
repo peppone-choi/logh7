@@ -8,6 +8,8 @@ fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
     fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Appointment is unavailable"))
+    fun dismissOffice(request:OfficeDismissalRequest):CompletableFuture<OfficeDismissalResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Dismissal is unavailable"))
     fun resignOffice(request:OfficeResignationRequest):CompletableFuture<OfficeResignationResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Resignation is unavailable"))
     fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
@@ -37,6 +39,16 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
             try {
                 val result=CompletableDeferred<GarrisonAppointmentResult>()
                 engine.submit(WorldCommand.AppointGarrison(request,result));future.complete(result.await())
+            } catch (failure: Throwable) { future.completeExceptionally(failure) }
+        }
+        return future
+    }
+    override fun dismissOffice(request: OfficeDismissalRequest): CompletableFuture<OfficeDismissalResult> {
+        val future=CompletableFuture<OfficeDismissalResult>()
+        scope.launch {
+            try {
+                val result=CompletableDeferred<OfficeDismissalResult>()
+                engine.submit(WorldCommand.DismissOffice(request,result));future.complete(result.await())
             } catch (failure: Throwable) { future.completeExceptionally(failure) }
         }
         return future

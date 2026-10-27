@@ -115,7 +115,10 @@ static bool appointmentPersonPicker(void* selector) {
     return false;
 }
 static unsigned pickerCaptionContext(void* selector) {
-    return basePicker(selector) ? 1u : appointmentPersonPicker(selector) ? 2u : 0u;
+    if (basePicker(selector)) return 1u;
+    if (!appointmentPersonPicker(selector)) return 0u;
+    auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
+    return command && at<unsigned>(command,0x28)==6 ? 3u : 2u;
 }
 static bool pickerLabel(void* selector,unsigned index,wchar_t (&text)[128]) {
     auto element=at<BYTE*>(selector,8+index*4);
@@ -172,7 +175,8 @@ static void __fastcall updateCommonPicker(void* selector,void*) {
         for (unsigned i=0;i<count;++i) if (!pickerLabel(selector,indices[i],saved[i])) return;
         const wchar_t* baseLabels[]={L"행성·요새 선택",L"행성·요새",L"선택 조건",L"다시 조회"};
         const wchar_t* personLabels[]={L"임명 대상 선택",L"임명 후보",L"임명 조건"};
-        auto labels=context==1 ? baseLabels : personLabels;
+        const wchar_t* dismissalLabels[]={L"해임 대상 선택",L"현재 담당자",L"해임 조건"};
+        auto labels=context==1 ? baseLabels : context==3 ? dismissalLabels : personLabels;
         for (unsigned i=0;i<count;++i) pickerText(selector,indices[i],labels[i]);
         applied=true;previousContext=context;savedCount=count;
     }

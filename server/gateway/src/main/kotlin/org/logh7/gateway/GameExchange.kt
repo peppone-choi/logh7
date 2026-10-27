@@ -302,6 +302,29 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0708 -> {
+                        check(gameStarted && administration!=null && world!=null)
+                        val query=org.logh7.protocol.DismissalMessages.query(body)
+                        val character=checkNotNull(characters.character(identity.account))
+                        require(query.character==character.id.toInt())
+                        val target=characters.characterById(query.target)
+                        pendingWorld=administration.dismissOffice(org.logh7.engine.OfficeDismissalRequest(
+                            identity.account,connection,query.character,
+                            if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation),query.target,query.card,character.rank,target?.power ?: 0,
+                            character.abilities[1],character.abilities[2])).thenApply { result ->
+                            val player=checkNotNull(result.player) { "Dismissal lost its authenticated actor" }
+                            publication=Publication(character,player,false)
+                            if(result.changed && target!=null) result.targetPlayer?.let { targetPlayer ->
+                                presence?.refreshOffices(target.id.toInt(),targetPlayer.generation,offices(target,targetPlayer),gameSeconds(),
+                                    administration.stationedOutfit(targetPlayer))
+                            }
+                            listOf(org.logh7.protocol.DismissalMessages.response(query,gameSeconds(),player.pcp,player.mcp,result.changed),
+                                characterMessage(character,player,true),unitMessage(character,player))+
+                                result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
+                        }
+                        return null
+                    }
                     0x0a00 -> {
                         check(gameStarted && administration != null && world != null)
                         val query = org.logh7.protocol.TaxMessages.query(body)
@@ -580,13 +603,20 @@ class GameExchange(
                                     .associateWith {it.available(world.galaxy,inventory,character.id.toInt(),character.rank)}
                                 val fleetRole=org.logh7.engine.FleetOffice.of(query.role)
                                 val selectedFleets=fleetRoles[fleetRole].orEmpty()
+                                val dismissals=org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
+                                    .available(inventory,character.id.toInt(),character.power,character.rank)
                                 when(query.search) {
-                                    18 -> org.logh7.protocol.AppointmentDirectoryMessages.cards(query,
-                                        (if(available.isEmpty())emptyMap() else mapOf(55 to available.size))+
+                                    18 -> {
+                                        // Native appointment and dismissal use the identical first query.
+                                        val vacancies=(if(available.isEmpty())emptyMap() else mapOf(55 to available.size))+
                                             capitals.associate { it.rule.card to 1 }+
                                             fleetRoles.filterValues {it.isNotEmpty()}.mapKeys {it.key.card}.mapValues { (card,values)->
                                                 val role=checkNotNull(org.logh7.engine.FleetOffice.of(card))
-                                                values.sumOf {role.seats-role.holders(it).size}.coerceAtMost(255) })
+                                                values.sumOf {role.seats-role.holders(it).size}.coerceAtMost(255) }
+                                        val held=dismissals.groupingBy {it.card}.eachCount()
+                                        org.logh7.protocol.AppointmentDirectoryMessages.cards(query,
+                                            (vacancies.keys+held.keys).associateWith {maxOf(vacancies[it] ?: 0,held[it] ?: 0).coerceAtMost(255)})
+                                    }
                                     27 -> org.logh7.protocol.AppointmentDirectoryMessages.outfits(query,selectedFleets.map {
                                         org.logh7.protocol.AppointmentDirectoryMessages.Outfit(it.id,it.number,it.kind.wire,
                                             world.baseWire(world.galaxy.bases.single { base -> base.id==it.baseId }))
@@ -608,6 +638,15 @@ class GameExchange(
                                             org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,if(target.power==2)59 else 195)+
                                                 administration!!.offices(target.id.toInt(),target.power,checkNotNull(generation)).map { it.kind })
                                         })
+                                    }
+                                    5 -> {
+                                        val ids=dismissals.filter {it.card==query.role}.map {it.target}.toSet()
+                                        org.logh7.protocol.AppointmentDirectoryMessages.people(query,
+                                            characters.registeredCharacters().filter {it.id.toInt() in ids && it.power==character.power}.map {target ->
+                                                org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
+                                                    listOf(0,if(target.power==2)59 else 195)+
+                                                        administration!!.offices(target.id.toInt(),target.power,checkNotNull(generation)).map {it.kind})
+                                            })
                                     }
                                     else -> error("Unsupported appointment directory")
                                 }
