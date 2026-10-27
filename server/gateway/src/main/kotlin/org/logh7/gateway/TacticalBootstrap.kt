@@ -17,8 +17,9 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     }}
     val bases=galaxy.bases.filter {it.grid==viewer.grid}.map {base->
         val radians=Math.toRadians(base.angle.toDouble())
-        TacticsMessages.Base(base.id,(kotlin.math.cos(radians)*base.radius*1000).toFloat(),0f,
-            (kotlin.math.sin(radians)*base.radius*1000).toFloat())
+        // 004c4240 imports wire x/y into native world x/z; wire z is not the map plane.
+        TacticsMessages.Base(base.id,(kotlin.math.cos(radians)*base.radius*1000).toFloat(),
+            (kotlin.math.sin(radians)*base.radius*1000).toFloat(),0f)
     }
     val units: List<TacticsMessages.Unit> = run {
         data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,val destroyed:Int=0)
@@ -37,10 +38,14 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         sources.sortedBy {it.id}.map {u->
             val index=indices[u.power] ?: 0;indices[u.power]=index+1
             val x=(if(u.power==2)700f else -700f)+(index/10)*30f
+            val pose=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
+                ?.pose(snapshot.session?.gameSeconds ?: 0)
             TacticsMessages.Unit(u.id,u.kind,u.outfit,u.character,u.supplies,u.cruise,u.destroyed,
-                x,0f,(index%10-4.5f)*40f,if(u.power==2)Math.PI.toFloat() else 0f)
+                pose?.position?.x ?: x,pose?.position?.y ?: (index%10-4.5f)*40f,0f,
+                pose?.direction ?: if(u.power==2)Math.PI.toFloat() else 0f)
         }.also {require(it.size<=600)}
     }
+    fun resume() = people.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)}
     fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
     }} + listOf(TacticsMessages.definitions(viewer.grid,units),

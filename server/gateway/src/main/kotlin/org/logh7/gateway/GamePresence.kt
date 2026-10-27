@@ -64,6 +64,10 @@ class GamePresence {
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
+        if (old.motion != next.motion) TacticalMotionMessages.reply(next,seconds)?.let { packet ->
+            members.values.filter {it.connection!=member.connection && it.player.generation==next.generation &&
+                it.player.grid==next.grid && it.player.baseId==0 && it.player.cpPaused}.forEach {send(it,listOf(packet))}
+        }
         val changedBase = old.baseId != next.baseId || old.mode != next.mode
         if (!changedBase && old.grid == next.grid && old.cruise == next.cruise && previous.outfit == member.outfit) return
         val messages = listOf(BootstrapMessages.unit(member.character, next.grid, next.cruise, next.baseId, next.mode, member.outfit)) +

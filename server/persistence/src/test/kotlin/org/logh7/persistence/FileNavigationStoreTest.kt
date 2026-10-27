@@ -7,6 +7,26 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun motionKeepsItsScheduleAndPathAcrossReopenAndLegacyEightHasNoMotion() {
+        val path=directory.resolve("motion")
+        val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(-700f,-180f),0f),0.5f,1f,
+            listOf(TacticalPoint(-600f,-180f),TacticalPoint(-600f,0f)))
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,motion=motion,
+            energy=TacticalEnergy(listOf(50)+List(10){0}))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player,"peer" to player.copy(characterId=10001,motion=null)))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-9",lines.first())
+        FileNavigationStore(path).use {
+            val saved=it.load();assertEquals(player,saved.getValue("pilot"));assertNull(saved.getValue("peer").motion)
+            assertEquals(motion.pose(120),saved.getValue("pilot").motion!!.pose(120))
+        }
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-8\n"+lines.drop(1).joinToString("\n"){it.substringBeforeLast('\t')}+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").motion)}
+        val encoded=TacticalMotionCodec.encode(motion)
+        assertEquals(motion,TacticalMotionCodec.decode(encoded))
+        assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode(encoded+"A")}
+        assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode("!".repeat(60))}
+    }
     @Test fun tacticalEnergySurvivesReopenAndSevenDefaultsToUnset() {
         val path=directory.resolve("energy")
         val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,

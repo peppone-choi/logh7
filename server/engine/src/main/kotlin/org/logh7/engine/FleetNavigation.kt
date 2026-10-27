@@ -36,7 +36,7 @@ internal object FleetNavigation {
         val moved = followers.mapValues { (_, player) -> player.copy(grid = after.grid, baseId = after.baseId,
             mode = after.mode, spotId = 0, spotOwner = 0, cruise = player.cruise - cruiseCost,
             cpPaused = after.cpPaused, cpRecoveryAt = if(player.cpPaused != after.cpPaused)session.gameMillis/1000 else player.cpRecoveryAt,
-            moves = Math.addExact(player.moves, 1)) }
+            moves = Math.addExact(player.moves, 1), motion = null) }
         val prepared = production.prepareReplacement(stocks,
             stocks.copy(outfits = stocks.outfits + (outfit.id to outfit.copy(position = position))))
         val next = players + moved + (request.account to after)

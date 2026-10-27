@@ -216,6 +216,29 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0400 -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(characters.character(identity.account))
+                        val move=org.logh7.protocol.TacticalMoveMessages.move(body)
+                        require(move.character==character.id.toInt() && move.waypoints.all {it.z==0f})
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
+                            shipKind=character.shipKind,tacticalMove=org.logh7.engine.TacticalMove(move.units.map {it.id},
+                                move.velocity,move.direction,move.waypoints.map {org.logh7.engine.TacticalPoint(it.x,it.y)}))).thenApply {result->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            if(result.player!=null) listOf(checkNotNull(TacticalMotionMessages.reply(player,gameSeconds()))) else {
+                                val unit=TacticalBootstrap(checkNotNull(navigation.snapshot()),world.galaxy,player,characters::characterById)
+                                    .units.single {it.id==player.unitId}
+                                val pose=org.logh7.protocol.TacticalMoveMessages.Point(unit.x,unit.y,0f)
+                                listOf(org.logh7.protocol.TacticalMoveMessages.reply(move.copy(units=listOf(
+                                    org.logh7.protocol.TacticalMoveMessages.Unit(unit.id,unit.direction,pose)),velocity=0f,
+                                    direction=unit.direction,waypoints=listOf(pose)),gameSeconds(),0,false))
+                            }
+                        }
+                        return null
+                    }
                     0x040c -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(characters.character(identity.account))
@@ -231,7 +254,9 @@ class GameExchange(
                             val energy=(player.energy ?: org.logh7.engine.TacticalEnergy.ZERO).values
                             val ship=org.logh7.engine.Flagships.find(character.shipKind)!!
                             listOf(org.logh7.protocol.TacticsMessages.controlReply(control.copy(energy=energy),
-                                ship.number("出力:出力")-energy.sum(),gameSeconds(),result.player!=null))
+                                ship.number("出力:出力")-energy.sum(),gameSeconds(),result.player!=null)) +
+                                (if(player.motion!=result.previous?.motion)TacticalMotionMessages.reply(player,gameSeconds())?.let(::listOf).orEmpty()
+                                    else emptyList())
                         }
                         return null
                     }
@@ -876,14 +901,15 @@ class GameExchange(
                             pendingWorld = stocks().thenCompose { stored -> navigation.apply(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 publication = Publication(character, player, true)
+                                val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(navigation.snapshot()),
+                                    world.galaxy,player,characters::characterById) else null
                                 listOf(BootstrapMessages.characterId(character),
                                     characterMessage(character, player),
                                     unitMessage(character, player),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused)) +
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
-                                    (if(player.cpPaused && world!=null) TacticalBootstrap(checkNotNull(navigation.snapshot()),world.galaxy,
-                                        player,characters::characterById).initialize() else emptyList()) +
-                                    listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player)
+                                    tactical?.initialize().orEmpty() +
+                                    listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player) + tactical?.resume().orEmpty()
                             } }
                             return null
                         }
