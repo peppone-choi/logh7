@@ -483,6 +483,13 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0f1c -> {
+                        check(gameStarted && worldInitialized && presence != null)
+                        val message = org.logh7.protocol.ChatMessages.grid(body)
+                        require(message.characterId.toLong() == checkNotNull(characters.character(identity.account)).id)
+                        if (message.text.isBlank()) return null
+                        presence.gridChat(connection, message, gameSeconds())
+                    }
                     0x0f1d -> {
                         check(gameStarted && worldInitialized && presence != null)
                         val message = org.logh7.protocol.ChatMessages.spot(body)

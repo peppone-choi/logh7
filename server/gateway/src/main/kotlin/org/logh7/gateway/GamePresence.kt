@@ -36,6 +36,21 @@ class GamePresence {
         }.forEach { send(it, listOf(packet)) }
         return packet // The sender's echo uses its own exchange/cipher queue exactly once.
     }
+    @Synchronized fun gridChat(connection: String, message: ChatMessages.Grid, seconds: Long): ByteArray {
+        val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
+        require(message.characterId.toLong() == sender.character.id)
+        val packet = ChatMessages.grid(message, seconds)
+        members.values.filter { other ->
+            other.connection != connection && other.player.generation == sender.player.generation &&
+                other.player.grid == sender.player.grid && when (message.cast) {
+                    0 -> true
+                    1 -> other.player.power == sender.player.power
+                    2 -> sender.outfit > 0 && other.outfit == sender.outfit && other.player.power == sender.player.power
+                    else -> false
+                }
+        }.forEach { send(it, listOf(packet)) }
+        return packet
+    }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
     private fun location(previous: Member?, member: Member, seconds: Long) {

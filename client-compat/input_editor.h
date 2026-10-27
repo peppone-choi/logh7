@@ -11,6 +11,19 @@ static const wchar_t* __cdecl decodeInputText(const char* text) {
 static int __cdecl inputPrintableByte(unsigned value) {
     return logh::inputPrintableByte(value);
 }
+static const wchar_t* __cdecl chatCastLabel(const char* text) {
+    // The factory already narrowed its UTF-16 literals through MFC's ACP.
+    // Some Japanese characters become '?' on CP949; compare that same
+    // conversion before decoding, rather than comparing the lossy result.
+    const wchar_t* original[]={L"全体",L"艦隊",L"同陣営"};
+    const wchar_t* korean[]={L"전체",L"함대",L"동진영"};
+    for (unsigned i=0;i<3;++i) {
+        char narrowed[32];
+        if (text && WideCharToMultiByte(CP_ACP,0,original[i],-1,narrowed,sizeof(narrowed),nullptr,nullptr)>0 &&
+            !strcmp(text,narrowed)) return korean[i];
+    }
+    return decodeInputText(text);
+}
 static BYTE __fastcall updateImeEvent(void* ime, void*, void* scratch) {
     // WM_CHAR also invokes this updater. A retained result must only be
     // consumed by the fresh WM_IME_COMPOSITION event that set this flag.
@@ -31,9 +44,10 @@ static void __declspec(naked) consumedImeResult() {
     }
 }
 static bool installInputEditor() {
-    const unsigned addresses[] = {0x508092,0x508137,0x4fff69,0x4ffb84};
+    const unsigned addresses[] = {0x508092,0x508137,0x4fff69,0x4ffb84,0x516e3b,0x516e5a,0x51603f};
     const BYTE expected[][5] = {{0xe8,0xc9,0x2b,0xfe,0xff},{0xe8,0x24,0x2b,0xfe,0xff},
-        {0xe8,0x7b,0x0e,0x10,0},{0xe8,0x97,0xfc,0xff,0xff}};
+        {0xe8,0x7b,0x0e,0x10,0},{0xe8,0x97,0xfc,0xff,0xff},
+        {0xe8,0x20,0x3e,0xfd,0xff},{0xe8,0x01,0x3e,0xfd,0xff},{0xe8,0x1c,0x4c,0xfd,0xff}};
     // Korean IME may commit without a preceding composition string. The CD's
     // fresh-result branch discards everything except a Japanese full-width
     // space, then inserts a literal space. Consume the actual result instead.
@@ -48,11 +62,11 @@ static bool installInputEditor() {
     if (memcmp(reinterpret_cast<void*>(0x4ff9fd),oldResult,sizeof(oldResult)) ||
         memcmp(reinterpret_cast<void*>(0x4ffa18),oldArgument,sizeof(oldArgument)) ||
         memcmp(reinterpret_cast<void*>(0x4e72be),oldReturn,sizeof(oldReturn))) return false;
-    for (unsigned i=0;i<4;++i)
+    for (unsigned i=0;i<7;++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
-    for (unsigned i=0;i<4;++i) {
+    for (unsigned i=0;i<7;++i) {
         BYTE call[5]={0xe8};
-        auto function=i==3?reinterpret_cast<BYTE*>(&updateImeEvent):
+        auto function=i==6?reinterpret_cast<BYTE*>(&chatCastLabel):i==3?reinterpret_cast<BYTE*>(&updateImeEvent):
             i==2?reinterpret_cast<BYTE*>(&inputPrintableByte):reinterpret_cast<BYTE*>(&decodeInputText);
         *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(function-reinterpret_cast<BYTE*>(addresses[i])-5);
         if (!patchBytes(reinterpret_cast<void*>(addresses[i]),expected[i],call,5)) return false;
