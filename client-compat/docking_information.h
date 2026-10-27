@@ -100,7 +100,7 @@ static bool appointmentPersonPicker(void* selector) {
     if (at<unsigned>(selector,0x234)!=3) return false;
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     unsigned authority=*reinterpret_cast<unsigned*>(0xc9eac0);
-    if (!command || (authority!=54 && authority!=2 && authority!=17 && authority!=134 && authority!=161 && authority!=39 && authority!=175)) return false;
+    if (!command || (authority!=54 && authority!=2 && authority!=17 && authority!=134 && authority!=161 && authority!=39 && authority!=175 && authority!=3 && authority!=169 && authority!=171)) return false;
     auto steps=at<BYTE**>(command,0x10),end=at<BYTE**>(command,0x14);
     unsigned active=at<unsigned>(command,4);
     if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;

@@ -16,7 +16,7 @@ class CapitalStockStoreTest {
         val path=directory.resolve("stocks")
         FilePlanetStockStore(path).use { it.save(stocks) }
         val old=Files.readAllLines(path).joinToString("\n",postfix="\n") {
-            if(it.startsWith("P\t")) it.split('\t').take(15).joinToString("\t") else it.split('\t').take(9).joinToString("\t").replace("STOCK-11","STOCK-8") }
+            if(it.startsWith("P\t")) it.split('\t').take(15).joinToString("\t") else it.split('\t').take(9).joinToString("\t").replace("STOCK-12","STOCK-8") }
         Files.writeString(path,old)
         FilePlanetStockStore(path).use {
             val loaded=it.load()!!
@@ -25,7 +25,7 @@ class CapitalStockStoreTest {
             assertTrue(loaded.bases.values.all { b -> b.capitalAdministratorId==0 && b.capitalDefenseCommanderId==0 && b.guardInspectorId==0 })
             assertEquals(old,Files.readString(path));it.save(loaded)
         }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-11\t"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-12\t"))
     }
     @Test fun pairedWorldSlotsRetainAllDistinctCapitalAndLegacyHolders() {
         val root=directory.resolve("world")

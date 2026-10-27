@@ -123,7 +123,7 @@ class OutfitStockStoreTest {
         val value = stocks().copy(outfits=stocks().outfits.mapValues { (id,o) -> o.copy(number=id,supplies=id*1000) },deploymentInitialized=true)
         val path = directory.resolve("version5")
         FilePlanetStockStore(path).use { it.save(value) }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-11\t7\t23\t1\t2\t1\t1\t1\t1\t0\n"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-12\t7\t23\t1\t2\t1\t1\t1\t1\t0\n"))
         FilePlanetStockStore(path).use { assertEquals(value,it.load()) }
     }
     @Test fun oldVersion4KeepsExistingDeploymentWithoutInventingNumbersOrSupplies() {

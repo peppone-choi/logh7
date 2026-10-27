@@ -16,7 +16,7 @@ class GarrisonStockStoreTest {
         FilePlanetStockStore(path).use { it.save(stock) }
         val old=Files.readAllLines(path).map { line ->
             if (line.startsWith("P\t")) line.split('\t').take(14).joinToString("\t")
-            else line.split('\t').take(9).joinToString("\t").replace("LOGH7-STOCK-11","LOGH7-STOCK-7")
+            else line.split('\t').take(9).joinToString("\t").replace("LOGH7-STOCK-12","LOGH7-STOCK-7")
         }.joinToString("\n",postfix="\n")
         Files.writeString(path,old)
         FilePlanetStockStore(path).use {
@@ -27,7 +27,7 @@ class GarrisonStockStoreTest {
             assertEquals(old,Files.readString(path))
             it.save(imported)
         }
-        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-11\t"))
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-12\t"))
         FilePlanetStockStore(path).use { assertEquals(0,it.load()!!.bases.getValue(1049).garrisonCommanderId) }
     }
     @Test fun worldCommitAndReopenKeepGovernorAndGarrisonSeparate() {

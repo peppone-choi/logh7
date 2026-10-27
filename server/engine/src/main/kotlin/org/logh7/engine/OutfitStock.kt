@@ -34,11 +34,14 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
     val warehouseId: Int, val commanderId: Int = 0, val units: UnitInventory = UnitInventory(),
     val number: Int = 0, val supplies: Int = 0,
     val activeShips: ActiveShipUnits? = if (units.ships.isEmpty()) ActiveShipUnits(emptyList()) else null,
-    val aideId: Int = 0) {
+    val aideId: Int = 0, val staff: FleetStaff = FleetStaff()) {
     init {
         require(id > 0 && power in 2..3 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
         require(number in 0..255 && supplies >= 0)
         require(aideId >= 0 && (aideId == 0 || kind == OutfitKind.FLEET && aideId != commanderId))
+        require(staff.members.isEmpty() || kind==OutfitKind.FLEET)
+        val people=listOf(commanderId,aideId).filter {it>0}+staff.members
+        require(people.distinct().size==people.size)
         require(units.work.isEmpty()) { "An outfit cannot own a production line" }
         require(activeShips == null || activeShips.quantities() == units.ships) { "Outfit ship identities differ from inventory" }
     }
