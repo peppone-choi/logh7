@@ -21,6 +21,8 @@ TABLES = (('oem', 0, 200, 'empire'), ('oam', 200, 150, 'alliance'),
 WORK = Path(__file__).resolve().parents[2] / 'work'
 NAMES = Path(__file__).resolve().parents[2] / 'l10n/npc-names.ko.json'
 ROSTER = Path(__file__).resolve().parents[2] / 'l10n/npc-roster.ko.json'
+MATCHES = Path(__file__).resolve().parents[2] / 'l10n/npc-face-matches.json'
+NAME_PARTS = Path(__file__).resolve().parents[2] / 'l10n/npc-name-parts.ko.json'
 RANKS = dict(zip(('元帥', '上級大将', '大将', '中将', '少将', '准将', '大佐', '中佐', '少佐'),
                  ('원수', '상급대장', '대장', '중장', '소장', '준장', '대령', '중령', '소령')))
 
@@ -116,12 +118,16 @@ def extract(face_dir):
     return portraits
 
 
+def blank_name_parts():
+    return dict(surname=None, given_name=None, order='unknown', status='pending', source='', note='')
+
+
 def blank_character(key, faction, name=''):
     return dict(key=key, faction=faction, name=name, manual_holder='', posts=[],
                 face_id=None, face_evidence=dict(status='unknown', source=''),
                 abilities={key: None for key in ABILITIES},
                 abilities_evidence=dict(status='unknown', source=''),
-                rank='', location='', ai_profile='', notes='')
+                rank='', location='', ai_profile='', notes='', name_parts=blank_name_parts())
 
 
 def manual_roster(path):
@@ -169,6 +175,14 @@ def expanded_roster(manual):
             people[name] = blank_character(f"wiki-{len(people) + 1:03}", entry['faction'], name)
         people[name]['wiki'] = {k: entry[k] for k in ('page', 'mirror', 'section')}
         people[name]['wiki']['reference_name'] = name
+    for entry in json.loads(NAME_PARTS.read_text(encoding='utf-8'))['names']:
+        people[entry['name']]['name_parts'] = {k: v for k, v in entry.items() if k != 'name'}
+    for match in json.loads(MATCHES.read_text(encoding='utf-8'))['matches']:
+        person = people[match['name']]
+        person['face_id'] = match['face_id']
+        person['face_evidence'] = dict(status='guess', source=(
+            'OVA 그림 직접 대조 · 높은 확신 · ' + match['source'] + ' · ' + match['features']))
+        person['face_comparison'] = {k: v for k, v in match.items() if k != 'name'}
     document['characters'] = list(people.values())
     return document
 
@@ -193,6 +207,19 @@ def validate(document, portraits):
         require(row.get('faction') in ('empire', 'alliance', 'other'), 'Invalid faction')
         for field in ('name', 'manual_holder', 'rank', 'location', 'ai_profile', 'notes'):
             require(type(row.get(field)) is str and len(row[field]) <= 4000, f'Invalid {field}')
+        if 'name_parts' in row:
+            parts = row['name_parts']
+            require(type(parts) is dict and parts.get('order') in ('unknown', 'given_first', 'family_first') and
+                    parts.get('status') in ('pending', 'reviewed'), 'Invalid name parts')
+            for field in ('surname', 'given_name'):
+                value = parts.get(field)
+                require(field in parts and (value is None or type(value) is str and 1 <= len(value) <= 12 and value.strip() and
+                        not any(ch == '\x00' or 0xd800 <= ord(ch) <= 0xdfff or ord(ch) > 0xffff for ch in value)),
+                        'Name fields must be null or 1..12 BMP characters (wire limit)')
+            require(all(type(parts.get(k)) is str and len(parts[k]) <= 2000 for k in ('source', 'note')),
+                    'Invalid name-part source')
+            require(parts['status'] != 'reviewed' or parts['surname'] and parts['given_name'] and
+                    parts['order'] != 'unknown' and parts['source'].strip(), 'Reviewed name parts need both fields, order and source')
         if 'name_translation' in row:
             translation = row['name_translation']
             require(type(translation) is dict and translation.get('status') in ('adopted', 'pending') and
@@ -216,6 +243,18 @@ def validate(document, portraits):
             require(faces[face]['faction'] == row['faction'], 'Portrait faction mismatch')
             require(face not in assigned, 'Duplicate portrait assignment')
             assigned.add(face)
+        if 'face_comparison' in row:
+            comparison = row['face_comparison']
+            require(type(comparison) is dict and type(comparison.get('face_id')) is int and
+                    comparison['face_id'] == face and comparison.get('edition') == 'OVA' and
+                    comparison.get('confidence') == 'high', 'Stale or invalid OVA comparison')
+            require(all(type(comparison.get(k)) is str and len(comparison[k]) <= 2000
+                    for k in ('source', 'image_url', 'image_label', 'edition_caption', 'features')),
+                    'Invalid comparison source')
+            require(comparison['source'].startswith('https://namu.wiki/w/') and
+                    comparison['image_url'].startswith('https://i.namu.wiki/i/') and
+                    comparison['edition_caption'] == 'OVA' and comparison['features'].strip(),
+                    'Expected a reviewed OVA image and visual features')
         abilities = row.get('abilities')
         require(type(abilities) is dict and set(abilities) == set(ABILITIES), 'Expected eight abilities')
         require(all(v is None or type(v) is int and 0 <= v <= 65535

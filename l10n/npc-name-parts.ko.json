@@ -1,0 +1,431 @@
+{
+  "schema": 1,
+  "author": "최병호",
+  "updated": "2026-10-27",
+  "note": "한글 성·이름 분리. 표시명과 별도 보존하며 원작 서버의 개별 입력값 복원이 아님.",
+  "names": [
+    {
+      "name": "라인하르트 폰 로엔그람",
+      "surname": "폰 로엔그람",
+      "given_name": "라인하르트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/라인하르트 폰 로엔그람",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "양 웬리",
+      "surname": "양",
+      "given_name": "웬리",
+      "order": "family_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/양 웬리",
+      "note": ""
+    },
+    {
+      "name": "지크프리트 키르히아이스",
+      "surname": "키르히아이스",
+      "given_name": "지크프리트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/지크프리트 키르히아이스",
+      "note": ""
+    },
+    {
+      "name": "볼프강 미터마이어",
+      "surname": "미터마이어",
+      "given_name": "볼프강",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/볼프강 미터마이어",
+      "note": ""
+    },
+    {
+      "name": "오스카 폰 로이엔탈",
+      "surname": "폰 로이엔탈",
+      "given_name": "오스카",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/오스카 폰 로이엔탈",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "파울 폰 오베르슈타인",
+      "surname": "폰 오베르슈타인",
+      "given_name": "파울",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/파울 폰 오베르슈타인",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "율리안 민츠",
+      "surname": "민츠",
+      "given_name": "율리안",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/율리안 민츠",
+      "note": ""
+    },
+    {
+      "name": "발터 폰 쇤코프",
+      "surname": "폰 쇤코프",
+      "given_name": "발터",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/발터 폰 쇤코프",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "안네로제 폰 그뤼네발트",
+      "surname": "폰 그뤼네발트",
+      "given_name": "안네로제",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/안네로제 폰 그뤼네발트",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "힐데가르트 폰 마린도르프",
+      "surname": "폰 마린도르프",
+      "given_name": "힐데가르트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/힐데가르트 폰 마린도르프",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "프리츠 요제프 비텐펠트",
+      "surname": "비텐펠트",
+      "given_name": "프리츠 요제프",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/프리츠 요제프 비텐펠트",
+      "note": ""
+    },
+    {
+      "name": "나이트하르트 뮐러",
+      "surname": "뮐러",
+      "given_name": "나이트하르트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/나이트하르트 뮐러",
+      "note": ""
+    },
+    {
+      "name": "울리히 케슬러",
+      "surname": "케슬러",
+      "given_name": "울리히",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/울리히 케슬러(은하영웅전설)",
+      "note": ""
+    },
+    {
+      "name": "에르네스트 메크링거",
+      "surname": "메크링거",
+      "given_name": "에르네스트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/에르네스트 메크링거",
+      "note": ""
+    },
+    {
+      "name": "코르넬리우스 루츠",
+      "surname": "루츠",
+      "given_name": "코르넬리우스",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/코르넬리우스 루츠",
+      "note": ""
+    },
+    {
+      "name": "아우구스트 자무엘 바렌",
+      "surname": "바렌",
+      "given_name": "아우구스트 자무엘",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/아우구스트 자무엘 바렌",
+      "note": ""
+    },
+    {
+      "name": "아달베르트 폰 파렌하이트",
+      "surname": "폰 파렌하이트",
+      "given_name": "아달베르트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/아달베르트 폰 파렌하이트",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "칼 로베르트 슈타인메츠",
+      "surname": "슈타인메츠",
+      "given_name": "칼 로베르트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/칼 로베르트 슈타인메츠",
+      "note": ""
+    },
+    {
+      "name": "에른스트 폰 아이제나흐",
+      "surname": "폰 아이제나흐",
+      "given_name": "에른스트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/에른스트 폰 아이제나흐",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "헬무트 렌넨캄프",
+      "surname": "렌넨캄프",
+      "given_name": "헬무트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/헬무트 렌넨캄프",
+      "note": ""
+    },
+    {
+      "name": "칼 구스타프 켐프",
+      "surname": "켐프",
+      "given_name": "칼 구스타프",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/칼 구스타프 켐프",
+      "note": ""
+    },
+    {
+      "name": "빌리바르트 요아힘 폰 메르카츠",
+      "surname": "폰 메르카츠",
+      "given_name": "빌리바르트 요아힘",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/빌리바르트 요아힘 폰 메르카츠",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "프레데리카 그린힐",
+      "surname": "그린힐",
+      "given_name": "프레데리카",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/프레데리카 그린힐",
+      "note": ""
+    },
+    {
+      "name": "알렉스 카젤느",
+      "surname": "카젤느",
+      "given_name": "알렉스",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/알렉스 카젤느",
+      "note": ""
+    },
+    {
+      "name": "더스티 아텐보로",
+      "surname": "아텐보로",
+      "given_name": "더스티",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/더스티 아텐보로",
+      "note": ""
+    },
+    {
+      "name": "에드윈 피셔",
+      "surname": "피셔",
+      "given_name": "에드윈",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/에드윈 피셔",
+      "note": ""
+    },
+    {
+      "name": "표도르 파트리체프",
+      "surname": "파트리체프",
+      "given_name": "표도르",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/표도르 파트리체프",
+      "note": ""
+    },
+    {
+      "name": "올리비에 포플랭",
+      "surname": "포플랭",
+      "given_name": "올리비에",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/올리비에 포플랭",
+      "note": ""
+    },
+    {
+      "name": "이반 코네프",
+      "surname": "코네프",
+      "given_name": "이반",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/이반 코네프(은하영웅전설)",
+      "note": ""
+    },
+    {
+      "name": "알렉산드르 뷰코크",
+      "surname": "뷰코크",
+      "given_name": "알렉산드르",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/알렉산드르 뷰코크",
+      "note": ""
+    },
+    {
+      "name": "욥 트뤼니히트",
+      "surname": "트뤼니히트",
+      "given_name": "욥",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/욥 트뤼니히트",
+      "note": ""
+    },
+    {
+      "name": "조안 레벨로",
+      "surname": "레벨로",
+      "given_name": "조안",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/조안 레벨로",
+      "note": ""
+    },
+    {
+      "name": "아드리안 루빈스키",
+      "surname": "루빈스키",
+      "given_name": "아드리안",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/아드리안 루빈스키",
+      "note": ""
+    },
+    {
+      "name": "니콜라스 볼텍",
+      "surname": "볼텍",
+      "given_name": "니콜라스",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/니콜라스 볼텍",
+      "note": ""
+    },
+    {
+      "name": "루퍼트 케셀링크",
+      "surname": "케셀링크",
+      "given_name": "루퍼트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/루퍼트 케셀링크",
+      "note": ""
+    },
+    {
+      "name": "도미니크 생피에르",
+      "surname": "생피에르",
+      "given_name": "도미니크",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/도미니크 생피에르",
+      "note": ""
+    },
+    {
+      "name": "클라우스 폰 리히텐라데",
+      "surname": "폰 리히텐라데",
+      "given_name": "클라우스",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/클라우스 폰 리히텐라데",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "오토 폰 브라운슈바이크",
+      "surname": "폰 브라운슈바이크",
+      "given_name": "오토",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/오토 폰 브라운슈바이크",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "빌헬름 폰 리텐하임",
+      "surname": "폰 리텐하임",
+      "given_name": "빌헬름",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/빌헬름 폰 리텐하임",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "카테로제 폰 크로이처",
+      "surname": "폰 크로이처",
+      "given_name": "카테로제",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/카테로제 폰 크로이처",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "보리스 코네프",
+      "surname": "코네프",
+      "given_name": "보리스",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/보리스 코네프",
+      "note": ""
+    },
+    {
+      "name": "드와이트 그린힐",
+      "surname": "그린힐",
+      "given_name": "드와이트",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/드와이트 그린힐",
+      "note": ""
+    },
+    {
+      "name": "앤드류 포크",
+      "surname": "포크",
+      "given_name": "앤드류",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/앤드류 포크",
+      "note": ""
+    },
+    {
+      "name": "안톤 힐머 폰 샤프트",
+      "surname": "폰 샤프트",
+      "given_name": "안톤 힐머",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/안톤 힐머 폰 샤프트",
+      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+    },
+    {
+      "name": "제시카 에드워즈",
+      "surname": "에드워즈",
+      "given_name": "제시카",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/제시카 에드워즈",
+      "note": ""
+    },
+    {
+      "name": "시드니 시톨레",
+      "surname": "시톨레",
+      "given_name": "시드니",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/시드니 시톨레",
+      "note": ""
+    },
+    {
+      "name": "라자르 로보스",
+      "surname": "로보스",
+      "given_name": "라자르",
+      "order": "given_first",
+      "status": "reviewed",
+      "source": "https://namu.wiki/w/라자르 로보스",
+      "note": ""
+    }
+  ]
+}
