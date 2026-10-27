@@ -136,6 +136,7 @@ static void outfitWarehouseResponse(void* world,const BYTE* record);
 #include "planet_tax.h"
 #include "appointment_information.h"
 #include "unicode_text.h"
+#include "spot_labels.h"
 #include "input_editor.h"
 #include "peer_notices.h"
 
@@ -502,6 +503,7 @@ static void install() {
     if (!installOutfitWarnings()) { status = -3; return; }
     if (!installOutfitEditor()) { status = -3; return; }
     if (!installInputEditor()) { status = -3; return; }
+    if (!installSpotLabels()) { status = -3; return; }
     if (!installDockingInformation()) { status = -3; return; }
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }

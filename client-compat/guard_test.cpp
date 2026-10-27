@@ -6,6 +6,7 @@
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
+#include "portrait_label.h"
 #include "outfit_info_data.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
@@ -41,6 +42,10 @@ static bool planetUnitRowsTest() {
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
 int wmain(int argc, wchar_t** argv) {
+    if (logh::portraitLineBreak(L"가나다라마바사아")!=L"가나다라마바사아" ||
+        logh::portraitLineBreak(L"가나다라마바사아／大将")!=L"가나다라마바사아\n／大将" ||
+        logh::portraitLineBreak(L"123456789012345가")!=L"123456789012345\n가" ||
+        logh::portraitLineBreak(L"日本 ABC 한글／少佐")!=L"日本 ABC 한글／\n少佐") return 211;
     std::wstring inputResult=L"unchanged";
     if (!logh::inputFragment("ABC 123",inputResult) || inputResult!=L"ABC 123") return 201;
     if (logh::inputFragment("\x81",inputResult,949) || inputResult!=L"ABC 123") return 202;
