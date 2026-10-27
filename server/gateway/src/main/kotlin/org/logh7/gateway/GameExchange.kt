@@ -67,6 +67,7 @@ class GameExchange(
     private var pendingWorld: CompletableFuture<List<ByteArray>>? = null
     private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean)
     private var publication: Publication? = null
+    private var deliveredPlayer: org.logh7.engine.Navigator? = null
     private var worldInitialized = false
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
@@ -111,11 +112,21 @@ class GameExchange(
             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
             connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
             val player = checkNotNull(result.player) { "CP refresh lost its authenticated session" }
-            if (player != result.previous) publication = Publication(character, player, false)
-            val changed = result.previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
+            val previous = deliveredPlayer ?: result.previous
+            if (player != previous) publication = Publication(character, player, false)
+            val changed = previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
+            val relocated = previous?.let { it.grid != player.grid || it.baseId != player.baseId ||
+                it.mode != player.mode || it.spotId != player.spotId || it.spotOwner != player.spotOwner } == true
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
-                (if (changed) listOf(characterMessage(character, player, true)) else emptyList()) +
-                completedWork(result, character) +
+                (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
+                (if (relocated) listOf(unitMessage(character, player)) +
+                    (if (previous.grid != player.grid) listOf(org.logh7.protocol.NavigationMessages.grid(player.grid),
+                        org.logh7.protocol.NavigationMessages.moved(org.logh7.protocol.NavigationMessages.Warp(player.characterId,
+                            if(character.power==2)59 else 195,player.grid,0,5),gameSeconds(),player.unitId,player.cruise)) else emptyList()) +
+                    (if (previous.baseId != player.baseId || previous.mode != player.mode) listOf(
+                        org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
+                            gameSeconds(),player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList())
+                else completedWork(result, character)) +
                 (world?.let { map -> navigation.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
                     ?.let(::listOf).orEmpty())
         }
@@ -123,6 +134,7 @@ class GameExchange(
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED) null else {
             val update = publication.also { publication = null }
+            if (update != null) deliveredPlayer = update.player
             if (update?.initialize == true) worldInitialized = true
             val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0), gameSeconds()) }
             val output = if (update?.initialize == true && shared != null) {

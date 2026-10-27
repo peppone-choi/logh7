@@ -283,4 +283,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         check(players[account] == expected)
         players = snapshot(next.generation) + (account to next)
     }
+    fun publishCommitted(expected: Map<String, Navigator>, next: Map<String, Navigator>, generation: Long) {
+        check(snapshot(generation) == expected)
+        require(next.values.all { it.generation == generation })
+        players = next.toMap()
+    }
 }
