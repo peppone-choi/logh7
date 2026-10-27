@@ -144,6 +144,18 @@ static void updateCharacterInformation(void* manager);
 #include "peer_notices.h"
 #include "unit_presence.h"
 
+// The surviving message catalogue ends before tactical HUD group 119.
+// Supply the two known titles only when the native lookup reports NO TABLE;
+// preserve a future complete catalogue and every other lookup unchanged.
+static const char* __fastcall tacticalHudTitle(void* table, void*, unsigned group, unsigned index) {
+    const char* text = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
+        (table, group, index);
+    if (!text || strcmp(text, "NO TABLE") || group != 119) return text;
+    if (index == 0) return "\x83\x52\x83\x7d\x83\x93\x83\x68\x83\x70\x83\x6c\x83\x8b";
+    if (index == 1) return "\x83\x8c\x81\x5b\x83\x5f\x81\x5b";
+    return text;
+}
+
 // 005035a0 appends chat colour markers through 004eab10. That routine converts
 // the entire existing UTF-16 pool to the host ANSI codepage, then decodes it as
 // Japanese. Preserve the pool and decode only the incoming Japanese fragment.
@@ -482,6 +494,10 @@ static void install() {
     const BYTE expectedNotices[][5] = {{0xe8,0x4a,0xf4,0x05,0}, {0xe8,0xd1,0x32,0x06,0}};
     for (unsigned i = 0; i < 2; ++i)
         if (memcmp(reinterpret_cast<void*>(noticeAddresses[i]), expectedNotices[i], 5)) { status = -2; return; }
+    const unsigned tacticalTitleAddresses[] = {0x513181, 0x513855};
+    const BYTE expectedTacticalTitles[][5] = {{0xe8,0x8a,0xee,0,0}, {0xe8,0xb6,0xe7,0,0}};
+    for (unsigned i = 0; i < 2; ++i)
+        if (memcmp(reinterpret_cast<void*>(tacticalTitleAddresses[i]), expectedTacticalTitles[i], 5)) { status = -2; return; }
     const unsigned glyphAddresses[] = {0x4b0c62, 0x4b0cb5, 0x4b0d29};
     const BYTE expectedGdi[][6] = {{0xff,0x15,0xa0,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}};
     for (unsigned i = 0; i < 3; ++i)
@@ -552,6 +568,11 @@ static void install() {
         *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(function - address - 5);
         if (!patchBytes(address, expectedNotices[i], call, 5)) { status = -3; return; }
     }
+    for (unsigned i = 0; i < 2; ++i) {
+        auto address = reinterpret_cast<BYTE*>(tacticalTitleAddresses[i]);
+        *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&tacticalHudTitle) - address - 5);
+        if (!patchBytes(address, expectedTacticalTitles[i], call, 5)) { status = -3; return; }
+    }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};
@@ -559,7 +580,7 @@ static void install() {
         *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(function - address - 5);
         if (!patchBytes(address, expectedGdi[i], replacement, 6)) { status = -3; return; }
     }
-    // Only the strategy HUD call sites use the wrong group. Tactical group 104 remains intact.
+    // Correct the strategy HUD group only at its verified call sites.
     const unsigned hudGroups[] = {0x58d561,0x58d570,0x58d57f,0x58d58e,0x58d59d,0x58d5ac,0x58d5bb,
         0x58d5ca,0x58d5d9,0x58d5e8,0x58d6d3,0x58effb,0x58f01e,0x58f038,0x58f053,0x58f070,
         0x58f085,0x58f0e3,0x58f24c,0x58f339,0x58f38d};
