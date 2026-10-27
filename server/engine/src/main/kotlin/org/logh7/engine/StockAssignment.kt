@@ -21,13 +21,14 @@ data class StockAssignmentResult(val player: Navigator?, val stocks: PlanetStock
 internal object StockAssignment {
     const val COST = 160 // Web manual, logistics command table: MCP 160, no wait.
     /** Until native paging is recovered, never commit a result that its reply cannot represent. */
-    fun validateReply(units: UnitInventory) {
-        val ships = units.ships.entries.groupBy { it.key.kind }
-        require(ships.size <= 99 && units.troops.size <= 24)
-        for ((kind, stacks) in ships) {
-            val count = stacks.sumOf { it.value.toLong() }
+    fun validateReply(units: UnitInventory, spare: SpareShipBoats = SpareShipBoats()) {
+        val kinds=(units.ships.keys+spare.values.keys).map {it.kind}.toSet()
+        require(kinds.size <= 99 && units.troops.size <= 24)
+        for (kind in kinds) {
             val number = UnitSpecifications.ships.single { it.kind == kind }.number.toLong()
-            require(count in 1..255 && count * number in 1..65535)
+            val boats=units.ships.filterKeys {it.kind==kind}.values.sumOf {it.toLong()}*number+
+                spare.values.filterKeys {it.kind==kind}.values.sumOf {it.toLong()}
+            require((boats+number-1)/number in 1..255 && boats in 1..65535)
         }
         require(units.troops.all { (stack, count) -> stack.kind in 0..15 && stack.level in 0..3 && count in 1..65535 })
     }
@@ -36,11 +37,13 @@ internal object StockAssignment {
         require(request.base == outfit.baseId && request.kind == outfit.kind.wire)
         require(request.ships.map { it.kind }.distinct().size == request.ships.size &&
             request.troops.map { it.kind to it.grade }.distinct().size == request.troops.size)
-        val source = stocks.bases.getValue(request.base).units
-        val destination = stocks.warehouses.getValue(outfit.warehouseId).units
+        val base=stocks.bases.getValue(request.base)
+        val warehouse=stocks.warehouses.getValue(outfit.warehouseId)
+        val source = ReplacementBoats.selectable(base.units,base.spareShips)
+        val destination = ReplacementBoats.selectable(warehouse)
         val ships = linkedMapOf<UnitStack, Int>()
         for (row in request.ships) {
-            require(row.units != 0 && row.boats == 0) { "Only whole-unit assignment is implemented" }
+            require(row.units != 0 && row.boats == 0) { "Only selectable-unit assignment is supported" }
             var remaining = kotlin.math.abs(row.units)
             val available = if (row.units > 0) source.ships else destination.ships
             for ((stack, count) in available.entries.filter { it.key.kind == row.kind }.sortedBy { it.key.level }) {

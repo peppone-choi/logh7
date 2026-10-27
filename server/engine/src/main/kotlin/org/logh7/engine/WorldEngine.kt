@@ -26,6 +26,7 @@ sealed interface WorldCommand {
     data class Tax(val request: TaxRequest, val result: CompletableDeferred<TaxResult>) : WorldCommand
     data class Reorganize(val request: ReorganizationRequest, val result: CompletableDeferred<ReorganizationResult>) : WorldCommand
     data class SupplyOutfit(val request: CompletenessSupplyRequest, val result: CompletableDeferred<CompletenessSupplyResult>) : WorldCommand
+    data class SupplementOutfit(val request: SupplementRequest, val result: CompletableDeferred<SupplementResult>) : WorldCommand
     data class AssignStock(val request: StockAssignmentRequest, val result: CompletableDeferred<StockAssignmentResult>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
@@ -112,8 +113,9 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                         }
                         val next = checkNotNull(preview.stocks)
                         try {
-                            StockAssignment.validateReply(next.bases.getValue(request.base).units)
-                            StockAssignment.validateReply(next.warehouses.getValue(next.outfits.getValue(request.outfit).warehouseId).units)
+                            StockAssignment.validateReply(next.bases.getValue(request.base).units,next.bases.getValue(request.base).spareShips)
+                            StockAssignment.validateReply(next.warehouses.getValue(next.outfits.getValue(request.outfit).warehouseId).units,
+                                next.warehouses.getValue(next.outfits.getValue(request.outfit).warehouseId).spareShips)
                         } catch (_: IllegalArgumentException) { return@assignment reject(LogisticsRejection.STOCK) }
                         if (next == inventory) return@assignment StockAssignmentResult(before, inventory)
                         val payment = org.logh7.engine.strategy.CpPayment.charge(
@@ -126,6 +128,39 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                         navigation.publishCommitted(request.account, before, after)
                         production.publishCommitted(inventory, prepared)
                         StockAssignmentResult(after, prepared, changed = true)
+                    }
+                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
+                        planetStocks = production.snapshot(session.generation))
+                    published.set(state)
+                    command.result.complete(result.copy(recovery = recovered))
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
+            if (command is WorldCommand.SupplementOutfit) {
+                try {
+                    check(!storageFailed) { "World storage is unavailable" }
+                    val request = command.request
+                    val session = durableState?.session ?: simulation.exportState()
+                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                        request.connection, request.generation, politics = request.politics, administration = request.administration), session)
+                    val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
+                    var result = Supplement.evaluate(request, session, recovered?.player, inventory)
+                    if (result.rejection == null && logistics.blocksSupply(session, inventory, setOf(request.outfit)))
+                        result = SupplementResult(recovered?.player, inventory, LogisticsRejection.BUSY)
+                    if (result.changed) {
+                        if (worldStateCommitter == null) result = SupplementResult(recovered?.player, inventory, LogisticsRejection.STORAGE)
+                        else {
+                            val before = checkNotNull(recovered?.player)
+                            val after = checkNotNull(result.player)
+                            val prepared = production.prepareReplacement(inventory, checkNotNull(result.stocks))
+                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
+                            navigation.publishCommitted(request.account, before, after)
+                            production.publishCommitted(inventory, prepared)
+                            result = result.copy(stocks = prepared)
+                        }
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
@@ -461,6 +496,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 is WorldCommand.ResignOffice -> error("Resignation is handled before session commands")
                 is WorldCommand.Tax -> error("Tax is handled before session commands")
                 is WorldCommand.SupplyOutfit -> error("Supply is handled before session commands")
+                is WorldCommand.SupplementOutfit -> error("Supplement is handled before session commands")
                 is WorldCommand.Reorganize -> error("Reorganization is handled before session commands")
                 is WorldCommand.AssignStock -> error("Stock assignment is handled before session commands")
             } } catch (failure: Exception) {

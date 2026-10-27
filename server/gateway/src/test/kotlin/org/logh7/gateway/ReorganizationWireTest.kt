@@ -10,6 +10,38 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class ReorganizationWireTest {
+    @Test fun warehouseRemainderCanBeCommissionedAndReturnedAfterReconnectWithoutRefilling() {
+        val state=State(10000)
+        val stack=UnitStack(32)
+        val w=state.stocks.warehouses.getValue(101)
+        state.stocks=state.stocks.copy(warehouses=mapOf(101 to w.copy(
+            units=UnitInventory(troops=mapOf(UnitStack(3) to 10)),
+            spareShips=SpareShipBoats(mapOf(stack to 123)))))
+        fixture(state,"partial-first").use {server ->
+            val client=server.join(server.account(0),true,false).client;start(client)
+            val before=state.stocks;val saves=state.saves
+            client.send(LogisticsMessages.encode(query(1,0).copy(mode=0,
+                moves=LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(32,1,0)),emptyList()))))
+            val packet=client.expect(0x0c02)
+            assertEquals(3,LogisticsMessages.reorganization(packet.copyOfRange(4,packet.size)).maxCrew)
+            assertEquals(before,state.stocks);assertEquals(saves,state.saves)
+            response(client,query(1,5),false,1000)
+            assertEquals(before,state.stocks);assertEquals(saves,state.saves)
+            response(client,query(1,3),true,840);client.expect(0x032f);client.expect(0x0327)
+            assertEquals(123,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+            assertTrue(state.stocks.warehouses.getValue(101).spareShips.values.isEmpty())
+        }
+        fixture(state,"partial-reopen").use {server ->
+            val client=server.join(server.account(0),true,false).client;start(client)
+            assertEquals(123,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+            response(client,query(-1,-3),true,680);client.expect(0x032f);client.expect(0x0327)
+            assertTrue(state.stocks.outfits.getValue(1).activeShips!!.values.isEmpty())
+            assertTrue(state.stocks.warehouses.getValue(101).units.ships.isEmpty())
+            assertEquals(123,state.stocks.warehouses.getValue(101).spareShips.values[stack])
+            assertEquals(10,state.stocks.warehouses.getValue(101).units.troops[UnitStack(3)])
+            assertEquals(2,state.stocks.nextShipId)
+        }
+    }
     @Test fun transportRoleOverflowIsRejectedEvenWhenTheTotalFits() {
         for ((movingKind,baselineKind,baselineCount,overflow) in listOf(
                 listOf(32,76,19,4),listOf(76,32,2,21))) {

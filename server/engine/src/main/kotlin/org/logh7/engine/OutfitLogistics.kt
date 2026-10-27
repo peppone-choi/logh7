@@ -79,27 +79,22 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 request.transfer.troops.keys.any { key -> ProductionUnits.definitions.none { !it.ship && it.kind == key.kind && it.power == power } })
                 return reject(LogisticsRejection.STOCK)
             if (request.mode == LogisticsMode.ALLOCATION) {
-                val moved = request.transfer.apply(base.units, warehouse.units)
+                val moved = ReplacementBoats.moveStored(base.units,base.spareShips,warehouse.units,warehouse.spareShips,request.transfer)
                 val remaining = base.supplies.toLong() - request.supplies
                 val received = warehouse.supplies.toLong() + request.supplies
                 if (remaining !in 0..Int.MAX_VALUE.toLong() || received !in 0..Int.MAX_VALUE.toLong())
                     return reject(LogisticsRejection.STOCK)
-                stocks.copy(bases = stocks.bases + (base.baseId to base.copy(units = moved.source, supplies = remaining.toInt())),
-                    warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination, supplies = received.toInt())))
+                stocks.copy(bases = stocks.bases + (base.baseId to base.copy(units = moved.source, spareShips = moved.sourceSpare, supplies = remaining.toInt())),
+                    warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination, spareShips = moved.destinationSpare, supplies = received.toInt())))
             } else {
-                val moved = request.transfer.apply(warehouse.units, outfit.units)
-                OutfitShipLimits.validate(outfit.kind, moved.destination)
-                val required = moved.destination.ships.entries.sumOf { (key, quantity) ->
-                    val spec = UnitSpecifications.ships.singleOrNull { it.kind == key.kind }
-                        ?: return reject(LogisticsRejection.STOCK)
-                    quantity.toLong() * spec.number("必要乗組員ユニット数:必要乗組員ユニット数")
-                }
+                val reorganized=ReplacementBoats.reorganize(stocks,outfit.id,request.transfer)
+                val destination=reorganized.outfits.getValue(outfit.id)
+                val required=ReplacementBoats.crewRequired(destination)
                 val crewKinds = UnitSpecifications.crews.filter { it.power == power && it.type == 3 }.map { it.kind }.toSet()
-                val crew = moved.destination.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
+                val crew = destination.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
                 if (required != crew) return reject(LogisticsRejection.CREW)
-                if (outfit.supplies > OutfitSupplies.capacity(moved.destination)) return reject(LogisticsRejection.STOCK)
-                ActiveShips.reorganize(stocks, outfit.id, moved.destination).copy(
-                    warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.source)))
+                if (outfit.supplies > OutfitSupplies.capacity(destination.units)) return reject(LogisticsRejection.STOCK)
+                reorganized
             }
         } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }
         // The native command combines CP and inventory in the common world store.

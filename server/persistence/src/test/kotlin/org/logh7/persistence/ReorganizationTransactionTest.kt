@@ -29,6 +29,32 @@ class ReorganizationTransactionTest {
     private suspend fun act(engine: WorldEngine, request: ReorganizationRequest = query()): ReorganizationResult {
         val result=CompletableDeferred<ReorganizationResult>(); engine.submit(WorldCommand.Reorganize(request,result)); return result.await()
     }
+    @Test fun remainderStrengthAndRetiredIdentitySurviveDiskReopenAndReturn() = runBlocking<Unit> {
+        val root=directory.resolve("partial-world")
+        val store=FileWorldStateStore(root)
+        val initial=inventory();val warehouse=initial.warehouses.getValue(101)
+        store.saveWorld(mapOf("pilot" to pilot),initial.copy(warehouses=mapOf(101 to warehouse.copy(
+            units=UnitInventory(troops=mapOf(UnitStack(3) to 10)),
+            spareShips=SpareShipBoats(mapOf(UnitStack(32) to 123))))))
+        var engine=WorldEngine(this,rules,ticking=false,galaxy=galaxy,navigationStore=store.navigationStore,
+            stockStore=store.stockStore,worldStateCommitter=store)
+        try {
+            join(engine);val result=act(engine,query(1,3));assertNull(result.rejection)
+            assertEquals(123,store.loadStocks()!!.outfits.getValue(1).activeShips!!.values.single().boats)
+        } finally {engine.drainAndClose()}
+        val reopened=FileWorldStateStore(root)
+        engine=WorldEngine(this,rules,ticking=false,galaxy=galaxy,navigationStore=reopened.navigationStore,
+            stockStore=reopened.stockStore,worldStateCommitter=reopened)
+        try {
+            join(engine);val result=act(engine,query(-1,-3));assertNull(result.rejection)
+            assertEquals(680,result.player!!.mcp)
+            val saved=assertNotNull(reopened.loadStocks())
+            assertTrue(saved.outfits.getValue(1).activeShips!!.values.isEmpty())
+            assertTrue(saved.warehouses.getValue(101).units.ships.isEmpty())
+            assertEquals(123,saved.warehouses.getValue(101).spareShips.values[UnitStack(32)])
+            assertEquals(2,saved.nextShipId)
+        } finally {engine.drainAndClose()}
+    }
     @Test fun mixedShipLevelsCrewAndPaymentCommitTogetherAndSurviveReopen() = runBlocking<Unit> {
         val root=directory.resolve("world"); val store=FileWorldStateStore(root)
         store.saveWorld(mapOf("pilot" to pilot),inventory())
