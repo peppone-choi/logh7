@@ -184,8 +184,10 @@ static void __fastcall updateCommonPicker(void* selector,void*) {
         applied=true;previousContext=context;savedCount=count;
     }
     if (context==4) {
-        auto row=reinterpret_cast<const BYTE*(__thiscall*)(void*,int)>(0x576ec0)
+        auto item=reinterpret_cast<const BYTE*(__thiscall*)(void*,int)>(0x576ec0)
             (static_cast<BYTE*>(selector)+0x244,at<int>(selector,0xb2c));
+        // The list item stores the 120b payload pointer at +0x10.
+        auto row=item ? *reinterpret_cast<const BYTE* const*>(item+0x10) : nullptr;
         auto name=supplyOutfitName(row);
         if (name.empty()) {
             pickerText(selector,2,L"보급할 아군 부대를 선택하세요.");
