@@ -4,7 +4,9 @@
 
 static void __cdecl setSpotPortraitLabel(void* pool,const char* fallback,void* character) {
     if (!pool) return;
-    if (!character || !at<BYTE>(character,0)) {
+    // Native slots retain the character through their departure fade, even
+    // after world membership clears its active byte. Keep its embedded name.
+    if (!character) {
         reinterpret_cast<void(__cdecl*)(void*,const char*,int)>(0x4eaaf0)(pool,fallback,-1);
         return;
     }
