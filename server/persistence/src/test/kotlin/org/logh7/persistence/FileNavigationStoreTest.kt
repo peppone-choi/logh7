@@ -51,7 +51,9 @@ class FileNavigationStoreTest {
         FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
         java.nio.file.Files.writeString(path,"LOGH7-NAV-7\n"+lines[1].substringBeforeLast('\t')+"\n")
         FileNavigationStore(path).use {assertEquals(player.copy(energy=null),it.load().getValue("pilot"))}
-        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace(",60,",",101,")+"\n")
+        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace(",60,",",130,")+"\n")
+        FileNavigationStore(path).use {assertEquals(130,it.load().getValue("pilot").energy!!.values[3])}
+        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace(",60,",",131,")+"\n")
         FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
     }
     @Test fun returnBaseSurvivesReopenAndSixDefaultsToUnset() {
@@ -115,6 +117,19 @@ class FileNavigationStoreTest {
         FileNavigationStore(path).use { assertEquals(3000, it.load().getValue("pilot").fuelReadyAt) }
         assertFails { StrategyCheckpointCodec.decode(StrategyCheckpointCodec.encode(p.strategy!!) + "AAAA") }
         assertFails { StrategyCheckpointCodec.decode("AA==") }
+    }
+    @Test fun chargeAnchorPersistsWithLegacyOptionalColumnsAndRejectsCorruptWork() {
+        val path=directory.resolve("charge-navigation")
+        val player=Navigator(1,10000,Power.EMPIRE,2487,1000,960,900,cpPaused=true,
+            charge=org.logh7.engine.TacticalCharge(1000,12001,6001,24))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-11",lines.first());assertEquals(23,lines[1].split('\t').size)
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-10\n"+lines[1].split('\t').take(22).joinToString("\t")+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").charge)}
+        java.nio.file.Files.writeString(path,lines[0]+"\n"+lines[1].substringBeforeLast('\t')+"\t1000,24001,0,24\n")
+        FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
     }
     @TempDir lateinit var directory: Path
     @Test fun migratesOldRowsAndPersistsFacilityLocationAcrossReopen() {

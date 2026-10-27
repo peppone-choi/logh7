@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 /** 0048cb80: u8 state followed by u32 grid, with no native padding. Author: 최병호. */
 object TacticsMessages {
     data class Control(val character: Int, val unit: Int, val energy: List<Int>) {
-        init { require(character > 0 && unit > 0 && energy.size == 11 && energy.all { it in 0..100 }) }
+        init { require(character > 0 && unit > 0 && energy.size == 11 && energy.all { it in 0..255 }) }
     }
     fun control(message: ByteArray): Control {
         require(message.size == 31)
@@ -35,7 +35,7 @@ object TacticsMessages {
         val damagedShields: List<Int> = List(6) { 0 }) {
         init {
             require(character > 0 && commandRange.isFinite() && commandRange >= 0)
-            require(energy.size == 11 && energy.all { it in 0..127 })
+            require(energy.size == 11 && energy.all { it in 0..255 })
             require(shields.size == 6 && damagedShields.size == 6 &&
                 (shields + damagedShields + listOf(beam, gun)).all { it in 0..65535 })
             require(mission in 0..255 && targetKind in 0..255 && target >= 0 && formation in 0..127)

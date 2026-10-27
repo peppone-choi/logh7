@@ -142,6 +142,9 @@ class GameExchange(
                         org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
                             gameSeconds(),player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList())
                 else completedWork(result, character)) +
+                (if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid)
+                    listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
+                    else emptyList()) +
                 (world?.let { map -> navigation.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
                     ?.let(::listOf).orEmpty())
         }

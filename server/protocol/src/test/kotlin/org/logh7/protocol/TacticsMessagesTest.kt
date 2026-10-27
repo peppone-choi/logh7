@@ -4,6 +4,15 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticsMessagesTest {
+    @Test fun beamSlider130IsAnUnsignedWireByteInControlAndCorps() {
+        val energy=List(11){if(it==3)130 else 0}
+        val control=TacticsMessages.Control(10000,1010000,energy)
+        val packet=TacticsMessages.controlReply(control,270,100)
+        assertEquals(130,packet[24].toInt() and 255)
+        assertEquals(control,TacticsMessages.control(packet.copyOfRange(4,packet.size)))
+        val corps=TacticsMessages.corps(listOf(TacticsMessages.Corps(10000,0f,energy,List(6){0})))
+        assertEquals(130,corps[27].toInt() and 255)
+    }
     @Test fun controlAllocationUsesItsDifferentWireOrderAndServerTimeAndReserve() {
         val control=TacticsMessages.Control(10000,1010000,(1..11).toList())
         val reply=TacticsMessages.controlReply(control,334,123456)
@@ -14,7 +23,7 @@ class TacticsMessagesTest {
         assertEquals(control,TacticsMessages.control(reply.copyOfRange(4,reply.size)))
         assertEquals(1,java.nio.ByteBuffer.wrap(TacticsMessages.controlReply(control,334,1,false)).getInt(0))
         assertFailsWith<IllegalArgumentException>{TacticsMessages.control(reply.copyOfRange(4,34))}
-        assertFailsWith<IllegalArgumentException>{control.copy(energy=List(11){101})}
+        assertFailsWith<IllegalArgumentException>{control.copy(energy=List(11){256})}
     }
     @Test fun nativeCorpsStateUsesCharacterIdentityAndPackedEnergyShieldFields() {
         val corps=TacticsMessages.Corps(10000,12f,(1..11).toList(),(101..106).toList(),
@@ -27,7 +36,7 @@ class TacticsMessagesTest {
         assertEquals(120,bytes.getShort(35).toInt());assertEquals(130,bytes.getShort(37).toInt())
         assertEquals(101,bytes.getShort(39).toInt());assertEquals(106,bytes.getShort(49).toInt())
         assertEquals(1,bytes.getShort(51).toInt());assertEquals(6,bytes.getShort(61).toInt())
-        assertFailsWith<IllegalArgumentException>{corps.copy(energy=List(11){128})}
+        assertFailsWith<IllegalArgumentException>{corps.copy(energy=List(11){256})}
         assertFailsWith<IllegalArgumentException>{corps.copy(shields=List(5){0})}
         assertFailsWith<IllegalArgumentException>{TacticsMessages.corps(listOf(corps,corps))}
     }

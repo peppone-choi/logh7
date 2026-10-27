@@ -12,8 +12,12 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     val grid get()=viewer.grid
     val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
         val spec=UnitSpecifications.ships.single {it.kind==c.shipKind}
+        val energy=p.energy ?: TacticalEnergy.ZERO
+        val charge=if(p.cpPaused) p.charge?.levels(snapshot.session?.gameSeconds ?: 0,energy) else null
         TacticsMessages.Corps(c.id.toInt(),0f,(p.energy ?: TacticalEnergy.ZERO).values,
-            List(6){spec.number("シールド（旗艦のみ）:容量")})
+            List(6){spec.number("シールド（旗艦のみ）:容量")},
+            beam=if(spec.number("ビーム兵装破壊力:ビーム兵装破壊力")>0) charge?.first ?: 0 else 0,
+            gun=if(spec.number("ガン兵装破壊力/消費物資:ガン兵装破壊力/消費物資")>0) charge?.second ?: 0 else 0)
     }}
     val bases=galaxy.bases.filter {it.grid==viewer.grid}.map {base->
         val radians=Math.toRadians(base.angle.toDouble())
