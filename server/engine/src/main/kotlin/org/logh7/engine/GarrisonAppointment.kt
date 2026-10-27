@@ -20,6 +20,7 @@ internal object GarrisonAppointment {
         if (player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.power!=r.power || participant.power!=r.power) return reject(AppointmentRejection.IDENTITY)
         if (r.targetCard==39) return FleetCommanderAppointment.evaluate(galaxy,r,player,stocks)
+        if (r.targetCard in setOf(43,179)) return FleetAideAppointment.evaluate(galaxy,r,player,stocks)
         if (r.outfit!=0) return reject(AppointmentRejection.TARGET)
         val capitalRule=CapitalAppointmentPolicy.rule(r.targetCard)
         if (capitalRule==null && (r.power!=Power.EMPIRE || r.targetCard!=55)) return reject(AppointmentRejection.AUTHORITY)
@@ -42,7 +43,8 @@ internal object GarrisonAppointment {
         if (holder!=0) return reject(AppointmentRejection.OCCUPIED)
         val offices=BaseOfficePolicy(galaxy)
         val held=stocks.bases.values.sumOf { offices.holders(it).values.count { id -> id==r.target } }+
-            stocks.outfits.values.count { it.commanderId==r.target }+stocks.nationalOffices.values.count { it==r.target }
+            stocks.outfits.values.sumOf { (if(it.commanderId==r.target)1 else 0)+(if(it.aideId==r.target)1 else 0) }+
+            stocks.nationalOffices.values.count { it==r.target }+(if(r.target in stocks.logisticsOfficers)1 else 0)
         if (held>=14) return reject(AppointmentRejection.CAPACITY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),COST.toLong(),CpPool.MCP)
         if (paid !is PaymentResult.Paid) return reject(AppointmentRejection.CP)

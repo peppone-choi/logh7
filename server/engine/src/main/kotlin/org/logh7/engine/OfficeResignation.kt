@@ -18,7 +18,7 @@ internal object OfficeResignation {
         if(player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.power!=r.power || participant.power!=r.power) return reject(ResignationRejection.IDENTITY)
         val power=if(r.power==Power.EMPIRE)2 else 3
-        if(r.card !in setOf(2,17,39,44,47,50,52,54,55,56,57,134,161,175,180,183,186,188,190,191,192,193))
+        if(r.card !in setOf(2,17,39,43,44,47,50,52,54,55,56,57,134,161,175,179,180,183,186,188,190,191,192,193))
             return reject(ResignationRejection.CARD)
         val policy=BaseOfficePolicy(galaxy)
         val bases=stocks.bases.values.filter {it.power==power && policy.holders(it)[r.card]==r.characterId}
@@ -26,7 +26,8 @@ internal object OfficeResignation {
             stocks.nationalOffices[it]==r.characterId}
         val outfits=stocks.outfits.values.filter { outfit ->
             val kind=when(outfit.kind) {OutfitKind.FLEET->39;OutfitKind.TRANSPORT->44;OutfitKind.PATROL->47;OutfitKind.GROUND->50}
-            outfit.power==power && outfit.commanderId==r.characterId && kind+(if(power==3)136 else 0)==r.card
+            outfit.power==power && (outfit.commanderId==r.characterId && kind+(if(power==3)136 else 0)==r.card ||
+                outfit.kind==OutfitKind.FLEET && outfit.aideId==r.characterId && r.card==(if(power==2)43 else 179))
         }
         val count=bases.size+outfits.size+(if(national==null)0 else 1)
         if(count==0) return reject(ResignationRejection.AUTHORITY)
@@ -36,7 +37,8 @@ internal object OfficeResignation {
         if(paid !is PaymentResult.Paid) return reject(ResignationRejection.CP)
         val replacement=when {
             national!=null -> stocks.copy(nationalOffices=stocks.nationalOffices-national)
-            outfits.isNotEmpty() -> outfits.single().let {stocks.copy(outfits=stocks.outfits+(it.id to it.copy(commanderId=0)))}
+            outfits.isNotEmpty() -> outfits.single().let {stocks.copy(outfits=stocks.outfits+(it.id to
+                if(r.card in setOf(43,179))it.copy(aideId=0) else it.copy(commanderId=0)))}
             else -> bases.single().let {base ->
                 val cleared=when(r.card) {
                     54,190->base.copy(governorId=0)

@@ -45,8 +45,8 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         if (player.mode != 4 || player.baseId == 0) return 0
         val stocks = engine.snapshot().planetStocks ?: return 0
         if (stocks.generation != player.generation) return 0
-        // Designed affiliation: only an unambiguous command at this same base.
-        return stocks.outfits.values.singleOrNull { it.commanderId == player.characterId &&
+        // Designed affiliation: one unambiguous command/aide office at this same base.
+        return stocks.outfits.values.singleOrNull { (it.commanderId == player.characterId || it.aideId == player.characterId) &&
             it.power == (if (player.power == Power.EMPIRE) 2 else 3) && it.baseId == player.baseId }?.id ?: 0
     }
     override fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> {
@@ -89,7 +89,9 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
             org.logh7.protocol.BootstrapMessages.OfficeCard(card,seat) }
         val logistics=logisticsOffices.cards(stocks,characterId,power).map { (card,seat) ->
             org.logh7.protocol.BootstrapMessages.OfficeCard(card,seat) }
-        return (national + logistics + appointed + commanders).take(14)
+        val aides=stocks.outfits.values.filter {it.aideId==characterId && it.power==power}.sortedBy {it.id}
+            .map {org.logh7.protocol.BootstrapMessages.OfficeCard(if(power==2)43 else 179,it.id)}
+        return (national + logistics + appointed + commanders + aides).take(14)
     }
     override fun tax(request: TaxRequest): CompletableFuture<TaxResult> {
         val future = CompletableFuture<TaxResult>()
