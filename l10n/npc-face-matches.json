@@ -1,0 +1,217 @@
+{
+  "schema": 1,
+  "author": "최병호",
+  "reviewed": "2026-10-27",
+  "note": "OVA 열의 그림과 게임 얼굴을 직접 대조한 높은 확신의 시각적 식별. 원작 서버 DB 대응표를 확보한 것은 아니므로 evidence:guess로 유지한다.",
+  "matches": [
+    {
+      "name": "라인하르트 폰 로엔그람",
+      "face_id": 112,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/라인하르트 폰 로엔그람",
+      "image_url": "https://i.namu.wiki/i/_Ek71ybh5lHzmN2hpoHVzW-U73T4NUOpUKHwTHyoX7PKHM7MIXT9wGzsZrfq3ufJiR0lfOZYvqM1tiff55Rxm1bRIGa0qBsc4COdlrsql0bhhMygL4p9KUt7p53509n3rhqJjMglWhw29U-pzdASRg.webp",
+      "image_label": "Reinhard.von.Loh...",
+      "edition_caption": "OVA",
+      "features": "금발의 길고 굽은 앞머리, 푸른 눈, 가늘고 뾰족한 턱과 제국 군복."
+    },
+    {
+      "name": "지크프리트 키르히아이스",
+      "face_id": 26,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/지크프리트 키르히아이스",
+      "image_url": "https://i.namu.wiki/i/3TOjzzKgDggZQK9ruWrGXYEUcOHbXW2I8MlJ93vqvSUFKLFTeqyFEbAeoSuMntZdXiNeHoznRuUQw6lLrZyTEyQ5lUvi2kouOKCVC5pEjwmPuNA6Qhnyhj51UJDeBtN6TLnS-8r7Xs3OScCIIRF7gQ.webp",
+      "image_label": "attachment/f0047...",
+      "edition_caption": "OVA",
+      "features": "짧고 굽은 붉은 앞머리, 푸른 눈, 온화한 눈매와 제국 군복."
+    },
+    {
+      "name": "파울 폰 오베르슈타인",
+      "face_id": 20,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/파울 폰 오베르슈타인",
+      "image_url": "https://i.namu.wiki/i/3BwvkOeS3zFjDwUpc-nANiTLrwF7yqPOrjEZo2giHANLXppgJIgRmi4psHGF6VzrQeP_V8FuzWIL4-rY0Gtdc35-5XYj2lY8RG8I4v1OaYgPBs07BJDB-_vHBg-DPuPNKC8wQH4xfIZs5a2wLCS5EA.webp",
+      "image_label": "ㄱ8",
+      "edition_caption": "OVA",
+      "features": "갈색 머리의 이마 부근 흰 띠, 가운데 가르마, 창백하고 긴 얼굴과 가는 눈매."
+    },
+    {
+      "name": "볼프강 미터마이어",
+      "face_id": 105,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/볼프강 미터마이어",
+      "image_url": "https://i.namu.wiki/i/wqydwgJ-xV8XAD6RMTTp0dWHwoSXavcGDgwxB4rf5azxk4iDu-cWt7dkz6EF9lrOAoqVODsBs8A2k9tUG9NolhjobsnPmzgvf3YSoVyF_IHH9mh_sF2iecdzMItBWejfwLobV6T9x-ODEJpT7Foo7A.webp",
+      "image_label": "ㅂ5",
+      "edition_caption": "OVA",
+      "features": "황금빛 주황색의 풍성한 짧은 머리, 이마 가운데 갈라지는 앞머리, 짙은 눈썹과 젊은 얼굴."
+    },
+    {
+      "name": "아달베르트 폰 파렌하이트",
+      "face_id": 87,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/아달베르트 폰 파렌하이트",
+      "image_url": "https://i.namu.wiki/i/ixLP4vAatvVH_BKEvFiVjVRn-ifwkO-reeo3DUrob1jTYABcS_k_o9KEc7DxiLvK5x_HKlykbWEqcDmb9wwwGcPLzgE-7FR1N_fnkXZjvAEsOk5s4m-cMsmPvjWyVQD8HLJq2dR9jSrRlJqh3HRllA.webp",
+      "image_label": "은하영웅전설 OVA.아달베르트...",
+      "edition_caption": "OVA",
+      "features": "은백색의 긴 옆머리와 굽은 앞머리, 창백한 피부, 가늘고 긴 얼굴."
+    },
+    {
+      "name": "에르네스트 메크링거",
+      "face_id": 107,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/에르네스트 메크링거",
+      "image_url": "https://i.namu.wiki/i/atSWQKJXaUN7xd3Rm-PE5ilCUM-zRbeThKMycZR4_3jn3hgGlhQloF6mY_vq9YfMOTQ83PB4XAbHdYPA3hFrfAGbzfJh2HDHW4Ck7J8EW0Rc3UGQ6VAxHJjxMsTNUF26goq-Km1afszz2rU2JTcJNw.webp",
+      "image_label": "Ernest Mecklinge...",
+      "edition_caption": "OVA",
+      "features": "검은색 단발에 가까운 긴 머리, 가운데 가르마, 가늘고 양끝이 내려가는 콧수염."
+    },
+    {
+      "name": "안톤 힐머 폰 샤프트",
+      "face_id": 48,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/안톤 힐머 폰 샤프트",
+      "image_url": "https://i.namu.wiki/i/pQoOkwYmdE8hxSeZTvxdjVUkmw93zzn4R3dcjN1rBjskcqueOhK_iMlWjqzpd0gbsgJHWSuzXFBUXtGSwJLZhu6mhWqLUXxli8ShbYI_8K-uNCt6uOrpkAHNnaVrDl-rPkmpO00VLxxqcrSrdiMC-w.webp",
+      "image_label": "294px-Schaft (DV...",
+      "edition_caption": "OVA",
+      "features": "대머리, 매우 굵고 위로 솟은 적갈색 눈썹, 양쪽으로 크게 벌어진 같은 색 콧수염."
+    },
+    {
+      "name": "오스카 폰 로이엔탈",
+      "face_id": 124,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/오스카 폰 로이엔탈",
+      "image_url": "https://i.namu.wiki/i/FDG6kJo7kGDeLSH5u2O1dVUTvfK7CfhNqH6TZ73sa4V_HU-AuQj-b5jz3cfdd0dGqYXe-CT2OFWOd5KoHQ9qo4jQaQHNooXm_A8L-tBTidB6AjT8JWDup5c_afm_XEscnsW6MOvFaujzmhoslvzkLQ.webp",
+      "image_label": "은하영웅전설 OVA.오스카 폰...",
+      "edition_caption": "OVA",
+      "features": "짙은 옆가르마 머리와 이마로 굽는 앞머리, 낮은 눈썹, 좁고 각진 얼굴."
+    },
+    {
+      "name": "힐데가르트 폰 마린도르프",
+      "face_id": 10001,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/힐데가르트 폰 마린도르프",
+      "image_url": "https://i.namu.wiki/i/sjqN_ubMJXPH88RHISlwwHl7-AVPl2RTDRa3AtfbbcDUKclIP2oZnRiBoJViHvoQVX87d21e2LHeXGYO58KJxTLRtv_RS9MUMYAkp8hDtcLAWv5FVOX6AlEEoHWA2Mo10UdUTVBznj1dTRSAGLLwTA.webp",
+      "image_label": "Hildegard von Ma...",
+      "edition_caption": "OVA",
+      "features": "금갈색의 짧은 머리와 둥글게 굽는 앞머리, 녹색 계열 눈, 붉은색 깃의 민간 복장."
+    },
+    {
+      "name": "양 웬리",
+      "face_id": 100074,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/양 웬리",
+      "image_url": "https://i.namu.wiki/i/gbs2jtJF1ci_S1ejcttaFchEfAfx3ti7Pw319dFVZoJxVsOMKbyg6xrkygUPTu0O9x4Wc6cT0CScWt41ecpC8VOPtp-hVoC4gXZrEn_M1BqcvhfuLiocIBqUOfKhbO8tMRTGYIqjuAgYhGUBTQvf5Q.webp",
+      "image_label": "yang old",
+      "edition_caption": "OVA",
+      "features": "짙은 청흑색의 흐트러진 앞머리, 동맹 베레모, 온화하고 둥근 눈매."
+    },
+    {
+      "name": "율리안 민츠",
+      "face_id": 100069,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/율리안 민츠",
+      "image_url": "https://i.namu.wiki/i/1HveqD6Y2_Jh1yZoErSj8CkUk0EHt6JIO87iBQm0faYfltSPdmB0cv0lfllfm3db5OFVpw-5z25xvDPGLbiQIObo0XarOObek_zEFiGmk62sZWl2Z-CjF2t3_5N-QPJElzciuwLFLAtb-IZzxtc2sw.webp",
+      "image_label": "attachment/율리안 민...",
+      "edition_caption": "OVA",
+      "features": "밝은 금회색의 짧고 가지런한 앞머리, 베레모, 작은 코와 소년형 얼굴."
+    },
+    {
+      "name": "프레데리카 그린힐",
+      "face_id": 110001,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/프레데리카 그린힐",
+      "image_url": "https://i.namu.wiki/i/jKI6m53XrEufOoT59INi-V3y7WKYVVJIvK6IHe_h4iA0TRbYIbtEG_xrkTp9KDtNk54fWBkRKFMKzK9tApRojDlIXq36gOUj73ocdZ5fNNewEAdwgjPrPIgmDRTjTDK5RyoKFh9IF20OhPBFS0aJyQ.webp",
+      "image_label": "Frederica ova",
+      "edition_caption": "OVA",
+      "features": "금갈색의 짧은 물결 머리, 가운데 갈라진 앞머리, 동맹 베레모와 둥근 눈."
+    },
+    {
+      "name": "카테로제 폰 크로이처",
+      "face_id": 110002,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/카테로제 폰 크로이처",
+      "image_url": "https://i.namu.wiki/i/O5J910Ou2_R1gAldvzOVO3t-Q7CJjmGP_4ySBdWvJj6j9TNe1Kjrts4iBiRS9yc4qDdRr3FJ3NiJlrGg1oXWkadgKgMmtfpWBgdUSzu9RiiW_iCXJPqjteDujT-Q_2GssiYio-wGpUbksrzEcdU8RQ.webp",
+      "image_label": "attachment/카테로제 ...",
+      "edition_caption": "OVA",
+      "features": "주황빛의 긴 물결 머리, 이마 위 크게 굽는 앞머리, 날카로운 눈매."
+    },
+    {
+      "name": "제시카 에드워즈",
+      "face_id": 110004,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/제시카 에드워즈",
+      "image_url": "https://i.namu.wiki/i/Mv5eyPZCbFMKPCTJ-9unIBiB6dOwh0HV9LxAzLAqjteyZ6EXm2RQq7NI_jonXbZHEfr6d_K5uZ-P90xIv75N7-8mYIT5OsWnULuQ5DqK1bEPbmVFLp517iyO9kCNq_THOcRQ3gX-q9sjvSyGwfF7CA.webp",
+      "image_label": "은하영웅전설 OVA.제시카 에...",
+      "edition_caption": "OVA",
+      "features": "금발의 짧고 굽은 단발, 가운데 갈라지는 앞머리, 길쭉하고 온화한 얼굴."
+    },
+    {
+      "name": "시드니 시톨레",
+      "face_id": 100032,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/시드니 시톨레",
+      "image_url": "https://i.namu.wiki/i/1hElt0wzjCL5hzHovXBxIjy6O-VHcc5P43VnqYQLDBw0Cj47jtZlj3FLrXKUNqOlHtFF-kTSEvHevo9SKjkFLp0LI264bw9B__C8yHcyVS0hLbnPNqCWdC8VoDCaOA6QXinHbzHTqh9I7z_bBsnb4w.webp",
+      "image_label": "attachment/e0003...",
+      "edition_caption": "OVA",
+      "features": "짙은 피부색, 양옆으로 굽는 회백색 머리, 굵은 흰 눈썹과 넓은 얼굴."
+    },
+    {
+      "name": "라자르 로보스",
+      "face_id": 100083,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/라자르 로보스",
+      "image_url": "https://i.namu.wiki/i/OgQWuZBXZZHNkzWX9ZG57MFwBrWRr-ANHYyVqMv5Y_VvvPZLSb2krZAiAIu6R3rRUr8E07E53exVICl1zzWhqJsm6SuijtaTB-5nwrqCRddquI8ab62yOCmFLefAh7tlWWSJjPzoeEBTo0WyWd-ktA.webp",
+      "image_label": "attachment/라자르 로...",
+      "edition_caption": "OVA",
+      "features": "벗겨진 이마 양옆의 흰 머리, 굵은 흰 콧수염, 살집이 있는 노년 얼굴."
+    },
+    {
+      "name": "알렉산드르 뷰코크",
+      "face_id": 100059,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/알렉산드르 뷰코크",
+      "image_url": "https://i.namu.wiki/i/9qi2UiO8VcL8kWYhYxf7SYPGQmi6BbNP2pKIfdHwbtUfkqvzt8D-3L4FaYX35Lbn8j3NLbymc9AogjJXEQDt1AImtjug5GIgZaX2MnmnIWTos9Eo3kOc9wRj0S3-Q3IpYGa__lkQDTVYf7BAA9yGCQ.webp",
+      "image_label": "attachment/e0003...",
+      "edition_caption": "OVA",
+      "features": "뒤로 물러난 회백색 머리, 깊은 이마·볼 주름, 수염 없는 온화한 노년 얼굴."
+    },
+    {
+      "name": "욥 트뤼니히트",
+      "face_id": 100043,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/욥 트뤼니히트",
+      "image_url": "https://i.namu.wiki/i/4IIbqxfMAEO-iYYaQJ-Bx_qjRzVqC7x7b7Znf_iCHGFPVeIee7sA5nSBF_rbTIUcmV45AxlP2z6jyww8jeUYRBFBIXTufGr573yeFVwxgGdFclyWSN91kH9YN5z9kVjNIoIhW7OxeF5Y22uZrIAbIg.webp",
+      "image_label": "욥 트뤼니히트",
+      "edition_caption": "OVA",
+      "features": "뒤로 빗어 넘긴 밝은 갈색 머리, 넓은 이마, 가는 눈매와 웃는 입, 민간 정장."
+    },
+    {
+      "name": "아드리안 루빈스키",
+      "face_id": 200003,
+      "edition": "OVA",
+      "confidence": "high",
+      "source": "https://namu.wiki/w/아드리안 루빈스키",
+      "image_url": "https://i.namu.wiki/i/usW8D6tJAj6PhFR4HXAqNweiMSkFU17qNBOEFYLj_WDJM86Az_V8518pbx_5fhHaRwv7hpRk2l13cdi6PrnXLQUVVYYszMhEEwDwHWoNf9p2h4zRwX30xG8gTssUqZlo7QmnxcoFfua9JyEPNSSvSg.webp",
+      "image_label": "attachment/92s",
+      "edition_caption": "OVA",
+      "features": "대머리, 짙은 피부색, 굵은 어두운 눈썹, 넓은 턱과 깊은 얼굴 주름."
+    }
+  ]
+}

@@ -25,8 +25,27 @@ class NpcCatalogueTests(unittest.TestCase):
         mer = next(c for c in rows if c['name'] == '빌리바르트 요아힘 폰 메르카츠')
         self.assertEqual(mer['faction'], 'empire')
         self.assertTrue(mer['posts'])
-        self.assertTrue(all(c['face_id'] is None and all(v is None for v in c['abilities'].values()) for c in rows))
-        validate(dict(schema=1, characters=rows), [])
+        assigned = [c for c in rows if c['face_id'] is not None]
+        self.assertEqual(len(assigned), 19)
+        self.assertEqual(len({c['face_id'] for c in assigned}), 19)
+        self.assertTrue(all(c['face_evidence']['status'] == 'guess' and
+                            c['face_comparison']['edition_caption'] == 'OVA' for c in assigned))
+        self.assertEqual(next(c for c in rows if c['name'] == '양 웬리')['face_id'], 100074)
+        self.assertEqual(next(c for c in rows if c['name'] == '라인하르트 폰 로엔그람')['face_id'], 112)
+        self.assertTrue(all(all(v is None for v in c['abilities'].values()) for c in rows))
+        self.assertEqual(sum(c['face_id'] is None for c in rows), 431)
+        validate(dict(schema=1, characters=rows), [dict(face_id=c['face_id'], faction=c['faction']) for c in assigned])
+
+    def test_ova_comparison_cannot_survive_a_different_face_or_edition(self):
+        from npc_catalogue import expanded_roster
+        root = Path(__file__).resolve().parents[2]
+        c = next(c for c in expanded_roster(root / 'docs/manual/data/initial-card-holders.csv')['characters'] if c.get('face_comparison'))
+        faces = [dict(face_id=c['face_id'], faction=c['faction'])]
+        for field, value in [('face_id', 999), ('edition', 'DNT'), ('edition_caption', 'DNT'), ('image_url', 'javascript:alert(1)')]:
+            bad = copy.deepcopy(c)
+            bad['face_comparison'][field] = value
+            with self.assertRaises(ValueError):
+                validate(dict(schema=1, characters=[bad]), faces)
 
     def test_review_roster_is_korean_without_assigning_unrecovered_data(self):
         root = Path(__file__).resolve().parents[2]

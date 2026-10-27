@@ -31,6 +31,11 @@
         check(!assigned.has(c.face_id), '같은 얼굴을 여러 인물에 배정할 수 없습니다.');
         assigned.add(c.face_id);
       }
+      if (Object.hasOwn(c, 'face_comparison')) {
+        const m = c.face_comparison;
+        check(m && Number.isInteger(m.face_id) && m.face_id === c.face_id && m.edition === 'OVA' && m.confidence === 'high', '얼굴이 바뀌었거나 OVA 대조 형식이 잘못됐습니다.');
+        check(['source', 'image_url', 'image_label', 'edition_caption', 'features'].every(k => typeof m[k] === 'string' && m[k].length <= 2000) && m.source.startsWith('https://namu.wiki/w/') && m.image_url.startsWith('https://i.namu.wiki/i/') && m.edition_caption === 'OVA' && m.features.trim(), 'OVA 대조 이미지와 판본·특징 근거를 확인하세요.');
+      }
       check(c.abilities && Object.keys(c.abilities).sort().join() === [...abilities].sort().join(), '능력 8종이 필요합니다.');
       check(abilities.every(k => c.abilities[k] === null || Number.isInteger(c.abilities[k]) && c.abilities[k] >= 0 && c.abilities[k] <= 65535), '능력은 빈 값 또는 0..65535 정수여야 합니다.');
       for (const [key, populated] of [['face_evidence', c.face_id !== null], ['abilities_evidence', abilities.some(k => c.abilities[k] !== null)]]) {
@@ -63,10 +68,11 @@
     box.append(label, input); $('stats').append(box);
   });
   function list() {
-    const query = $('search').value.toLocaleLowerCase(), faction = $('faction-filter').value, origin = $('roster-filter').value, ref = $('reference-filter').value;
+    const query = $('search').value.toLocaleLowerCase(), faction = $('faction-filter').value, origin = $('roster-filter').value, ref = $('reference-filter').value, match = $('match-filter').value;
     $('people').replaceChildren();
     const rows = catalogue.characters.filter(c => (!faction || faction === c.faction) && (!origin || (origin === 'manual' ? !!c.manual_holder : !c.manual_holder)) &&
       (!ref || (ref === 'yes' ? !!referenceFor(c)?.images.length : !referenceFor(c)?.images.length)) &&
+      (!match || (match === 'ova' ? !!c.face_comparison : c.face_id === null)) &&
       `${c.name} ${c.manual_holder} ${c.posts.map(p => p.post + p.unit).join(' ')}`.toLocaleLowerCase().includes(query));
     $('count').textContent = `${rows.length}명`;
     for (const c of rows) {
@@ -76,7 +82,7 @@
       if (p) button.append(picture(p));
       else if (reference) { const img = document.createElement('img'); img.src = reference.path; img.alt = `${c.name} 위키 참고`; img.loading = 'lazy'; button.append(img); }
       else button.append(text('span', '?', 'emptyface'));
-      const body = document.createElement('span'); body.append(text('span', c.name || '(이름 없음)'), text('small', `${factions[c.faction]} · ${c.manual_holder ? '초기 담당자' : '추가 후보'} · ${c.face_id === null ? '얼굴 미지정' : 'ID ' + c.face_id}${c.name_translation?.status === 'pending' ? ' · 표기 확인 대기' : ''}`));
+      const body = document.createElement('span'); body.append(text('span', c.name || '(이름 없음)'), text('small', `${factions[c.faction]} · ${c.manual_holder ? '초기 담당자' : '추가 후보'} · ${c.face_id === null ? '얼굴 미지정' : 'ID ' + c.face_id}${c.face_comparison ? ' · OVA 대조' : ''}${c.name_translation?.status === 'pending' ? ' · 표기 확인 대기' : ''}`));
       button.append(body); button.onclick = () => choose(c.key); $('people').append(button);
     }
     status();
@@ -86,6 +92,8 @@
     $('portrait-preview').style.display = p ? 'block' : 'none';
     if (p) $('portrait-preview').src = p.image;
     $('face-label').textContent = p ? `얼굴 ID ${p.face_id} / ${p.group}:${p.index}` : '얼굴 미지정';
+    const comparison = person()?.face_comparison;
+    $('face-review').textContent = comparison?.face_id === currentFace ? `OVA 육안 대조 · 높은 확신\n${comparison.features}` : '';
   }
   function referenceImages(c) {
     $('references').replaceChildren(); $('reference-large').hidden = true;
@@ -93,10 +101,11 @@
     $('wiki-source').hidden = !c.wiki;
     if (c.wiki) $('wiki-source').href = c.wiki.page;
     const reference = referenceFor(c), images = reference?.images ?? [];
+    const preferred = images.find(i => i.image_url === c.face_comparison?.image_url) ?? images[0];
     $('reference-note').textContent = images.length ? '다른 인물·작품·시기의 이미지가 섞일 수 있습니다. 게임 얼굴은 육안으로 선택하세요.' : reference?.status === 'unavailable' ? '문서 수집 실패 · 출처 문서에서 직접 확인하세요. 이름은 계속 관리할 수 있습니다.' : '로컬 참고 이미지 없음 · 출처 문서에서 확인하거나 이미지 없이 이름만 관리할 수 있습니다.';
     function select(item, button) {
       $('reference-large').src = item.path; $('reference-large').hidden = false;
-      $('reference-label').textContent = item.label;
+      $('reference-label').textContent = `${item.image_url === c.face_comparison?.image_url ? 'OVA 확인 · 대조에 사용한 그림 / ' : '판본 미분류 / '}${item.label}`;
       for (const b of $('references').children) b.classList.toggle('active', b === button);
     }
     for (const item of images) {
@@ -104,7 +113,7 @@
       const img = document.createElement('img'); img.src = item.path; img.alt = item.label; img.loading = 'lazy';
       button.append(img); button.title = `${item.label}\n${reference.page}\n${item.image_url}`;
       button.onclick = () => select(item, button); $('references').append(button);
-      if (images[0] === item) select(item, button);
+      if (preferred === item) select(item, button);
     }
   }
   function gallery() {
@@ -145,6 +154,7 @@
     const next = structuredClone(person());
     for (const k of ['name', 'faction', 'rank', 'location', 'ai_profile', 'notes']) next[k] = $(k).value;
     next.face_id = currentFace;
+    if (next.face_comparison?.face_id !== currentFace) delete next.face_comparison;
     for (const k of abilities) next.abilities[k] = $(k).value === '' ? null : Number($(k).value);
     for (const k of ['face', 'abilities']) next[k + '_evidence'] = {status: $(k + '-status').value, source: $(k + '-source').value};
     const revised = {...catalogue, characters: catalogue.characters.map(c => c.key === selected ? next : c)};
@@ -161,14 +171,14 @@
     gallery(); status();
   };
   $('clear-face').onclick = () => { currentFace = null; $('face-status').value = 'unknown'; $('face-source').value = ''; formDirty = true; preview(); gallery(); status(); };
-  $('search').oninput = list; $('faction-filter').onchange = list; $('roster-filter').onchange = list; $('reference-filter').onchange = list; $('face-filter').onchange = gallery;
+  $('search').oninput = list; $('faction-filter').onchange = list; $('roster-filter').onchange = list; $('reference-filter').onchange = list; $('match-filter').onchange = list; $('face-filter').onchange = gallery;
   $('add').onclick = () => {
     if (!apply()) return;
     let i = 1; while (catalogue.characters.some(c => c.key === `custom-${i}`)) i++;
     selected = `custom-${i}`;
     catalogue.characters.push({key: selected, faction: $('faction-filter').value || 'empire', name: '새 인물', manual_holder: '', posts: [], face_id: null,
       face_evidence: {status: 'unknown', source: ''}, abilities: Object.fromEntries(abilities.map(k => [k, null])), abilities_evidence: {status: 'unknown', source: ''}, rank: '', location: '', ai_profile: '', notes: ''});
-    dirty = true; $('search').value = ''; $('roster-filter').value = ''; $('reference-filter').value = ''; show();
+    dirty = true; $('search').value = ''; $('roster-filter').value = ''; $('reference-filter').value = ''; $('match-filter').value = ''; show();
   };
   $('delete').onclick = () => {
     if (!person() || !window.confirm(`${person().name} 인물을 이 편집 초안에서 삭제할까요?`)) return;
@@ -195,5 +205,5 @@
     } catch (error) { message(error.message); }
   };
   window.addEventListener('beforeunload', event => { if (dirty || formDirty) { event.preventDefault(); event.returnValue = ''; } });
-  selected = catalogue.characters[0]?.key ?? null; show();
+  selected = catalogue.characters.find(c => c.face_comparison)?.key ?? catalogue.characters[0]?.key ?? null; show();
 })();

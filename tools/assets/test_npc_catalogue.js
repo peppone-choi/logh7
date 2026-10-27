@@ -23,4 +23,11 @@ const duplicate = {...structuredClone(row), key: 'two'};
 assert.throws(() => validate({schema: 1, characters: [row, duplicate]}, faces));
 row.faction = 'alliance';
 assert.throws(() => validate(doc, faces));
+row.faction = 'empire';
+row.face_comparison = {face_id: 1, edition: 'OVA', confidence: 'high', edition_caption: 'OVA', source: 'https://namu.wiki/w/Test', image_url: 'https://i.namu.wiki/i/test.webp', image_label: 'Test', features: 'Distinctive visual features'};
+validate(doc, faces);
+for (const [field, value] of [['face_id', 2], ['edition', 'DNT'], ['edition_caption', 'DNT'], ['image_url', 'javascript:alert(1)']]) {
+  const bad = structuredClone(doc); bad.characters[0].face_comparison[field] = value;
+  assert.throws(() => validate(bad, faces));
+}
 console.log('NPC JSON validation passed: null/zero, provenance, ranges, duplicate faces, factions.');
