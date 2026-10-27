@@ -171,7 +171,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
         0x0306 to WorldMessages.captainCommands(),
         0x0304 to WorldMessages.cards(),
         0x0308 to WorldMessages.powerDirection(),
+        0x0310 to WorldMessages.armaments(org.logh7.engine.TacticalArmaments.profiles),
         0x030a to WorldMessages.ships(UnitSpecifications.ships.map { ship ->
+            val beam = org.logh7.engine.TacticalArmaments.mount(ship, org.logh7.engine.TacticalWeapon.BEAM)
+            val gun = org.logh7.engine.TacticalArmaments.mount(ship, org.logh7.engine.TacticalWeapon.GUN)
+            val missile = org.logh7.engine.TacticalArmaments.mount(ship, org.logh7.engine.TacticalWeapon.MISSILE)
             // 004c5d50/00533980 use native +0x21e as the shared 0..19
             // class index, not the provisional hull-role IDs in ship.type.
             WorldMessages.Ship(ship.kind, ship.category, ship.model, ship.name,
@@ -187,7 +191,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 crew = ship.number("必要乗組員ユニット数:必要乗組員ユニット数"),
                 missileConsumption = ship.number("ミサイル兵装破壊力/消費物資:ミサイル兵装破壊力/消費物資", 1),
                 fighterNumber = ship.number("戦闘艇/雷撃艇搭載数:戦闘艇/雷撃艇搭載数"),
-                cargo = ship.number("物資搭載量:物資搭載量"))
+                cargo = ship.number("物資搭載量:物資搭載量"),
+                beamArms = beam.profile, beamAngles = beam.angles, gunArms = gun.profile, gunAngles = gun.angles,
+                missileArms = missile.profile, missileAngles = missile.angles)
         }),
         0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->
             WorldMessages.Crew(crew.kind, crew.category, crew.category, crew.manual.training,
