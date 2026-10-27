@@ -1,5 +1,6 @@
 // Restore the native editor's initial tab and unit labels. Author: 최병호.
 #pragma once
+#include "outfit_editor_labels.h"
 static void __fastcall outfitEditorReady(void* editor, void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x530e70)(editor);
     int mode=at<int>(editor,0x2c4);
@@ -36,6 +37,7 @@ static bool installOutfitEditor() {
         if (memcmp(reinterpret_cast<void*>(address),oldBoatLabel,sizeof(oldBoatLabel))) return false;
     for (unsigned i=0;i<_countof(balanceCalls);++i)
         if (memcmp(reinterpret_cast<void*>(balanceCalls[i]),oldBalanceCalls[i],5)) return false;
+    if (!installOutfitEditorLabels(false)) return false;
     if (!patchBytes(reinterpret_cast<void*>(0x5320dd),oldSupplyName,supplyName,sizeof(oldSupplyName))) return false;
     for (unsigned address:labels)
         if (!patchBytes(reinterpret_cast<void*>(address),oldLabel,unitLabel,sizeof(oldLabel))) return false;
@@ -50,5 +52,5 @@ static bool installOutfitEditor() {
     BYTE call[5]={0xe8};
     *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&outfitEditorReady)-
         reinterpret_cast<BYTE*>(0x52de7a)-5);
-    return patchBytes(reinterpret_cast<void*>(0x52de7a),ready,call,sizeof(call));
+    return installOutfitEditorLabels(true) && patchBytes(reinterpret_cast<void*>(0x52de7a),ready,call,sizeof(call));
 }
