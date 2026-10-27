@@ -3,6 +3,7 @@
 #pragma once
 #include <stdlib.h>
 #include "roster_text.h"
+#include "supply_ui_data.h"
 
 static const BYTE* pickerBase(unsigned id) {
     auto world = *reinterpret_cast<BYTE**>(0x7ccffc);
@@ -116,6 +117,7 @@ static bool appointmentPersonPicker(void* selector) {
 }
 static unsigned pickerCaptionContext(void* selector) {
     if (basePicker(selector)) return 1u;
+    if (at<unsigned>(selector,0x234)==7 && supplyCommandContext()) return 4u;
     if (!appointmentPersonPicker(selector)) return 0u;
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     return command && at<unsigned>(command,0x28)==6 ? 3u : 2u;
@@ -176,9 +178,29 @@ static void __fastcall updateCommonPicker(void* selector,void*) {
         const wchar_t* baseLabels[]={L"행성·요새 선택",L"행성·요새",L"선택 조건",L"다시 조회"};
         const wchar_t* personLabels[]={L"임명 대상 선택",L"임명 후보",L"임명 조건"};
         const wchar_t* dismissalLabels[]={L"해임 대상 선택",L"현재 담당자",L"해임 조건"};
-        auto labels=context==1 ? baseLabels : context==3 ? dismissalLabels : personLabels;
+        const wchar_t* supplyLabels[]={L"보급 대상 선택",L"아군 부대",L"보급 조건"};
+        auto labels=context==1 ? baseLabels : context==3 ? dismissalLabels : context==4 ? supplyLabels : personLabels;
         for (unsigned i=0;i<count;++i) pickerText(selector,indices[i],labels[i]);
         applied=true;previousContext=context;savedCount=count;
+    }
+    if (context==4) {
+        auto item=reinterpret_cast<const BYTE*(__thiscall*)(void*,int)>(0x576ec0)
+            (static_cast<BYTE*>(selector)+0x244,at<int>(selector,0xb2c));
+        // The list item stores the 120b payload pointer at +0x10.
+        auto row=item ? *reinterpret_cast<const BYTE* const*>(item+0x10) : nullptr;
+        auto name=supplyOutfitName(row);
+        if (name.empty()) {
+            pickerText(selector,2,L"보급할 아군 부대를 선택하세요.");
+            pickerText(selector,3,L"");pickerText(selector,4,L"");
+        } else {
+            pickerText(selector,2,name.c_str());
+            wchar_t text[256];
+            unsigned current=logh::infoWord(row,0), room=logh::infoWord(row,4);
+            _snwprintf_s(text,_countof(text),_TRUNCATE,L"군수물자: %u\n적재 여유: %u\n적재 상한: %llu",
+                current,room,static_cast<unsigned long long>(current)+room);
+            pickerText(selector,3,text);
+            pickerText(selector,4,L"보급량은 보유 물자와 대상 부대의 적재 여유에 따라 정해집니다.");
+        }
     }
     // Index 21 is a native sort dropdown in person mode, not a refresh action.
     if (context!=1) return;

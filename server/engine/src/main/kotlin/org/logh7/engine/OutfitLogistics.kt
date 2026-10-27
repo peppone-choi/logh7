@@ -20,6 +20,14 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
     private var sequence = 0L
     init { require(leaseMillis in 1..3_600_000) }
 
+    fun blocksSupply(session: SessionState, stocks: PlanetStocks, outfits: Set<Int>): Boolean {
+        val now = clock()
+        reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
+            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection } != false }
+        val warehouses = outfits.mapNotNull { stocks.outfits[it]?.warehouseId }.toSet()
+        return reservations.any { it.request.mode == LogisticsMode.ALLOCATION || it.warehouse in warehouses }
+    }
+
     fun apply(request: LogisticsRequest, session: SessionState, player: Navigator?, production: PlanetProduction,
         persist: Boolean = true): LogisticsResult {
         fun reject(reason: LogisticsRejection) = LogisticsResult(rejection = reason)

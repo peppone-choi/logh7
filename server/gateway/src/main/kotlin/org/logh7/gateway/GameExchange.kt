@@ -373,6 +373,32 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0c01 -> {
+                        check(gameStarted && world != null && administration != null)
+                        val query = org.logh7.protocol.CompletenessSupplyMessages.query(body)
+                        val character = checkNotNull(characters.character(identity.account))
+                        require(query.character == character.id.toInt()) { "Supply character mismatch" }
+                        pendingWorld = administration.supplyOutfit(org.logh7.engine.CompletenessSupplyRequest(identity.account,
+                            connection, character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation), query.from, query.to, character.abilities[1], character.abilities[2])).thenApply { result ->
+                            val player = checkNotNull(result.player) { "Supply lost its authenticated character" }
+                            publication = Publication(character, player, false)
+                            val accepted = result.rejection == null
+                            val stored = checkNotNull(result.stocks)
+                            fun units(id: Int) = if (!accepted) emptyList() else
+                                org.logh7.engine.OutfitSupplies.distribution(stored.outfits.getValue(id)).map { (unit, amount) ->
+                                    org.logh7.protocol.CompletenessSupplyMessages.UnitSupply(unit, amount) }
+                            listOf(org.logh7.protocol.CompletenessSupplyMessages.response(query, gameSeconds(), player.pcp, player.mcp,
+                                if (accepted) stored.outfits.getValue(query.to).supplies else 0,
+                                units(query.from), units(query.to), accepted), characterMessage(character, player, true)) +
+                                (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(query.from, 0, 0),
+                                    character.power, stored, characterById = characters::characterById),
+                                    world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(query.to, 0, 0),
+                                        character.power, stored, characterById = characters::characterById)) else emptyList()) +
+                                result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
+                        }
+                        return null
+                    }
                     0x0c02 -> {
                         check(gameStarted && administration != null && world != null)
                         val query = org.logh7.protocol.LogisticsMessages.reorganization(body)
@@ -559,6 +585,25 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if (org.logh7.protocol.SupplyDirectoryMessages.matches(body)) {
+                                val query=org.logh7.protocol.SupplyDirectoryMessages.query(body)
+                                val character=checkNotNull(characters.character(identity.account))
+                                require(query.character==character.id.toInt())
+                                pendingWorld=stocks().thenApply { stored ->
+                                    val inventory=checkNotNull(stored)
+                                    val source=inventory.outfits.values.singleOrNull { it.commanderId==character.id.toInt() &&
+                                        it.kind==org.logh7.engine.OutfitKind.TRANSPORT && it.power==character.power &&
+                                        world.galaxy.bases.single { base->base.id==it.baseId }.grid==query.grid }
+                                    val base=source?.let { inventory.bases.getValue(it.baseId) }
+                                    val allowed=if(source==null || base?.power!=character.power || base.camp!=0) emptyList() else
+                                        inventory.outfits.values.filter { it.id!=source.id && it.baseId==source.baseId && it.power==character.power }
+                                            .sortedBy { it.id }.map { outfit -> org.logh7.protocol.SupplyDirectoryMessages.Outfit(outfit.id,
+                                                outfit.kind.wire,outfit.number,outfit.supplies,org.logh7.engine.OutfitSupplies.capacity(outfit.units),
+                                                world.baseWire(world.galaxy.bases.single { it.id==outfit.baseId })) }
+                                    org.logh7.protocol.SupplyDirectoryMessages.response(query,allowed)
+                                }
+                                return null
+                            }
                             if (org.logh7.protocol.LogisticsDirectoryMessages.matches(body)) {
                                 val query=org.logh7.protocol.LogisticsDirectoryMessages.query(body)
                                 val character=checkNotNull(characters.character(identity.account))

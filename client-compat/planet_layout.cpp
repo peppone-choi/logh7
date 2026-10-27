@@ -136,6 +136,7 @@ static void updateCharacterInformation(void* manager);
 #include "return_base.h"
 #include "planet_tax.h"
 #include "appointment_information.h"
+#include "supply_selector.h"
 #include "unicode_text.h"
 #include "spot_labels.h"
 #include "character_information.h"
@@ -513,6 +514,7 @@ static void install() {
     if (!installReturnSettings()) { status = -3; return; }
     if (!installTaxWindow()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
+    if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
