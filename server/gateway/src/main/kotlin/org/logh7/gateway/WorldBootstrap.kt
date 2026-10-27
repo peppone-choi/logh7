@@ -80,7 +80,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val units = if (outfit == null) emptyList() else {
             require(outfit.power == power && (base == 0 || base == outfit.baseId)) { "Outfit unit access denied" }
             val unit = outfit.activeShips!!.values.single { it.id == id }
-            listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,galaxy.bases.single { it.id == outfit.baseId }.grid,outfit.id,outfit.baseId))
+            listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,galaxy.bases.single { it.id == outfit.baseId }.grid,outfit.id,outfit.baseId,
+                org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id)))
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
     }

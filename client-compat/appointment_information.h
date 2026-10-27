@@ -72,7 +72,11 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
     auto newline=body.find(L'\n');
     if (newline==std::wstring::npos) return;
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
-    if (command && at<unsigned>(command,0x28)==7) {
+    if (const BYTE* supplied=selectedSupplyOutfit()) {
+        auto name=supplyOutfitName(supplied);
+        if (name.empty()) return;
+        body=name+L"에 군수물자를 보급합니다."+body.substr(newline);
+    } else if (command && at<unsigned>(command,0x28)==7) {
         auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
         auto own=world ? at<BYTE*>(world,8) : nullptr;
         unsigned card=at<unsigned>(command,0x20);

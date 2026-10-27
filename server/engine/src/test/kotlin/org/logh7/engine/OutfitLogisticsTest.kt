@@ -5,6 +5,21 @@ import kotlin.test.*
 import kotlinx.coroutines.*
 
 class OutfitLogisticsTest {
+    @Test fun supplyRespectsPreparedWarehouseLocksAndReleasesDisconnectedOrExpiredOwners() {
+        val f=Fixture()
+        val prepared=f.prepare(f.request())
+        assertTrue(f.logistics.blocksSupply(f.session,f.store.saved,setOf(1)))
+        assertFalse(f.logistics.blocksSupply(f.session,f.store.saved,setOf(4)))
+        assertNull(f.act(prepared.copy(phase=LogisticsPhase.CANCEL)).rejection)
+        assertFalse(f.logistics.blocksSupply(f.session,f.store.saved,setOf(1)))
+        f.prepare(f.request(10,mode=LogisticsMode.ALLOCATION))
+        assertTrue(f.logistics.blocksSupply(f.session,f.store.saved,setOf(4)))
+        f.now=120_001
+        assertFalse(f.logistics.blocksSupply(f.session,f.store.saved,setOf(4)))
+        f.prepare(f.request())
+        val offline=f.session.copy(participants=f.session.participants.mapValues { (_,p)->p.copy(online=false) })
+        assertFalse(f.logistics.blocksSupply(offline,f.store.saved,setOf(1)))
+    }
     @Test fun anExistingOversizedFormationIsPreservedAndCanReturnToItsLegalLimit() {
         val f=Fixture()
         val original=f.store.saved.outfits.getValue(1).copy(
