@@ -68,10 +68,18 @@ class GameExchange(
     private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean)
     private var publication: Publication? = null
     private var deliveredPlayer: org.logh7.engine.Navigator? = null
+    private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
+    private fun tactics(account: String): TacticalBootstrap {
+        check(gameStarted && worldInitialized)
+        val snapshot=checkNotNull(navigation?.snapshot())
+        val player=checkNotNull(snapshot.navigators[account])
+        require(player.cpPaused && player.generation==generation) { "Tactical data is outside the current battlefield" }
+        return TacticalBootstrap(snapshot,checkNotNull(world).galaxy,player,characters::characterById)
+    }
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
     private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
@@ -120,7 +128,7 @@ class GameExchange(
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
                 (if (relocated) listOf(unitMessage(character, player)) +
-                    (if (previous.grid != player.grid) listOf(org.logh7.protocol.NavigationMessages.grid(player.grid),
+                    (if (previous.grid != player.grid) listOf(org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused),
                         org.logh7.protocol.NavigationMessages.moved(org.logh7.protocol.NavigationMessages.Warp(player.characterId,
                             if(character.power==2)59 else 195,player.grid,0,5),gameSeconds(),player.unitId,player.cruise)) else emptyList()) +
                     (if (previous.baseId != player.baseId || previous.mode != player.mode) listOf(
@@ -134,6 +142,11 @@ class GameExchange(
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED) null else {
             val update = publication.also { publication = null }
+            val tactical = update?.let {
+                val changed = deliveredTactics != null && deliveredTactics != it.player.cpPaused && deliveredPlayer?.grid == it.player.grid
+                deliveredTactics = it.player.cpPaused
+                if(changed) listOf(org.logh7.protocol.TacticsMessages.notify(it.player.grid,it.player.cpPaused)) else emptyList()
+            }.orEmpty()
             if (update != null) deliveredPlayer = update.player
             if (update?.initialize == true) worldInitialized = true
             val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0), gameSeconds()) }
@@ -141,12 +154,32 @@ class GameExchange(
                 val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
                 check(index >= 0)
                 messages.take(index) + shared.peers.flatMap { listOf(presence!!.character(it),presence.unit(it)) } + messages.drop(index)
-            } else messages + shared?.refresh.orEmpty()
-            if (output.isEmpty()) null else handshake.stageAll(output, clearHeader = 0)
+            } else messages + tacticalPresence(shared?.refresh.orEmpty())
+            if (output.isEmpty() && tactical.isEmpty()) null else handshake.stageAll(output + tactical, clearHeader = 0)
         }
     }
     internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
-        if (state == State.CLOSED || !gameStarted || obsolete()) null else handshake.stageAll(messages, clearHeader = 0)
+        if (state == State.CLOSED || !gameStarted || obsolete()) null else handshake.stageAll(tacticalPresence(messages), clearHeader = 0)
+    }
+    private fun tacticalPresence(messages: List<ByteArray>): List<ByteArray> {
+        if (messages.isEmpty() || !worldInitialized) return messages
+        val account = ticket?.account ?: return messages
+        val snapshot = navigation?.snapshot() ?: return messages
+        val player = snapshot.navigators[account] ?: return messages
+        if (!player.cpPaused || world == null) return messages
+        fun opcode(message: ByteArray) = java.nio.ByteBuffer.wrap(message).getShort(4).toInt() and 65535
+        // 0b09 clears the native character cache; 0325 replaces the entire unit list.
+        // A strategy presence transaction containing one peer would discard the battlefield
+        // definitions while leaving 033b's unit states live (004c32a0 then imports stale data).
+        if (messages.any { opcode(it) == 0x0b09 }) {
+            // Native 0b0a also rebuilds live models (004c32a0(1)); use the native
+            // tactical transition instead, then answer its 0f02 initialization request.
+            return listOf(org.logh7.protocol.TacticsMessages.notify(player.grid, true))
+        }
+        if (messages.none { opcode(it) == 0x0325 }) return messages
+        val units = TacticalBootstrap(snapshot, world.galaxy, player, characters::characterById).units
+        return messages.filterNot { opcode(it) == 0x0325 } +
+            org.logh7.protocol.TacticsMessages.definitions(player.grid, units)
     }
     fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running)
@@ -534,6 +567,22 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0336, 0x033a, 0x0348, 0x034a -> {
+                        val tactical=tactics(identity.account)
+                        if(opcode==0x0336) {
+                            require(body.size==4 && java.nio.ByteBuffer.wrap(body).getShort(2).toInt()==
+                                navigation!!.snapshot()!!.navigators.getValue(identity.account).grid)
+                            org.logh7.protocol.TacticsMessages.characters(navigation.snapshot()!!.navigators.getValue(identity.account).grid,
+                                tactical.characterIds)
+                        } else {
+                            val ids=org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a).toSet()
+                            when(opcode) {
+                                0x034a -> org.logh7.protocol.TacticsMessages.basePositions(tactical.bases.filter {it.id in ids})
+                                0x0348 -> org.logh7.protocol.TacticsMessages.positions(tactical.units.filter {it.id in ids})
+                                else -> org.logh7.protocol.TacticsMessages.states(tactical.units.filter {it.id in ids})
+                            }
+                        }
+                    }
                     0x034e -> {
                         check(gameStarted && world != null && stock != null)
                         val card = org.logh7.protocol.CardCharacterMessages.query(body)
@@ -603,7 +652,7 @@ class GameExchange(
                                     // position so the next card command can be selected.
                                     (if (origin.baseId == 0 && origin.mode == 5) listOf(
                                         characterMessage(character, origin, true), unitMessage(character, origin),
-                                        org.logh7.protocol.NavigationMessages.grid(origin.grid),
+                                        org.logh7.protocol.NavigationMessages.grid(origin.grid,origin.cpPaused),
                                         org.logh7.protocol.NavigationMessages.moved(command.copy(grid = origin.grid),
                                             gameSeconds(), origin.unitId, origin.cruise)) else emptyList()) +
                                     completedWork(result, character)
@@ -613,7 +662,7 @@ class GameExchange(
                             listOf(org.logh7.protocol.NavigationMessages.accepted(command, seconds, player.pcp, player.mcp),
                                 characterMessage(character, player, true),
                                 unitMessage(character, player),
-                                org.logh7.protocol.NavigationMessages.grid(player.grid),
+                                org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused),
                                 org.logh7.protocol.NavigationMessages.moved(command, seconds, player.unitId, player.cruise)) + completedWork(result, character)
                         }
                         return null
@@ -812,8 +861,10 @@ class GameExchange(
                                 listOf(BootstrapMessages.characterId(character),
                                     characterMessage(character, player),
                                     unitMessage(character, player),
-                                    org.logh7.protocol.NavigationMessages.grid(player.grid)) +
+                                    org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused)) +
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
+                                    (if(player.cpPaused && world!=null) TacticalBootstrap(checkNotNull(navigation.snapshot()),world.galaxy,
+                                        player,characters::characterById).initialize() else emptyList()) +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player)
                             } }
                             return null

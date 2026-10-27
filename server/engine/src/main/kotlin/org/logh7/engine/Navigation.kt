@@ -84,12 +84,19 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val initial = existing ?: Navigator(request.generation, request.characterId, request.power,
             galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise)
         val now = session.gameMillis / 1000
-        val fueled = settleWork(initial, now)
+        val tactical = request.tactical ?: if(stocks == null) initial.cpPaused else
+            TacticalContact.active(galaxy,initial,snapshot(session.generation).values,stocks)
+        val ready = if(initial.cpPaused == tactical) initial else initial.copy(cpPaused=tactical,cpRecoveryAt=now)
+        val fueled = settleWork(ready, now)
         completedFuel = initial.fuelReadyAt != null && fueled.fuelReadyAt == null
         completedDock = initial.dockTarget != null && fueled.dockTarget == null
         val recovered = recover(fueled, request, now)
-        val before = if (request.tactical != null && request.tactical != recovered.cpPaused)
-            recovered.copy(cpPaused = request.tactical, cpRecoveryAt = now) else recovered
+        val before = recovered
+        fun contact(player: Navigator): Navigator {
+            val active = if(stocks == null) player.cpPaused else
+                TacticalContact.active(galaxy,player,snapshot(session.generation).values,stocks)
+            return if(active == player.cpPaused) player else player.copy(cpPaused=active,cpRecoveryAt=now)
+        }
         if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
         request.returnBase?.let { target ->
@@ -134,7 +141,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         }
         if (request.place != null) {
             if (destination != null) return reject(NavigationRejection.BASE)
-            val result = movePlace(request, before, now)
+            val moved = movePlace(request, before, now)
+            val result = moved.copy(player=moved.player?.let(::contact))
             if (persist) result.player?.let { commit(request.account, it, session.generation) }
             return result.copy(completedFuel = completedFuel, completedDock = completedDock)
         }
@@ -155,8 +163,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (entry != GridEntryVerdict.ALLOWED) return reject(NavigationRejection.GRID)
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), policy.warpCost.toLong(), CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
-        val after = before.copy(grid = destination, pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
-            cruise = before.cruise - policy.cruiseCost, moves = Math.addExact(before.moves, 1))
+        val after = contact(before.copy(grid = destination, pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
+            cruise = before.cruise - policy.cruiseCost, moves = Math.addExact(before.moves, 1)))
         if (persist) commit(request.account, after, session.generation)
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock)
     }

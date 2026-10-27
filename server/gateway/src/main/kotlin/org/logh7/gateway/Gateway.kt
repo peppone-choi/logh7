@@ -159,7 +159,10 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         waiting = true
                                         pending.whenComplete { finish, failure ->
                                             ctx.executor().execute {
-                                                if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
+                                                if (!ctx.channel().isActive || failure != null) {
+                                                    if(failure != null) System.err.println("gateway async: ${failure.cause?.message ?: failure.message}")
+                                                    try { exchange.close() } finally { ctx.close() }
+                                                }
                                                 else try {
                                                     finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
                                                     waiting = false
@@ -169,7 +172,10 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                     }
                                                     while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
                                                     if (!waiting && refreshRequested && ctx.channel().isActive) refresh(ctx)
-                                                } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
+                                                } catch (failure: Exception) {
+                                                    System.err.println("gateway outbound: ${failure.message}")
+                                                    try { exchange.close() } finally { ctx.close() }
+                                                }
                                             }
                                         }
                                     }

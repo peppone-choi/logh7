@@ -48,7 +48,7 @@ object GridForces {
     }
 
     fun state(galaxy: Galaxy, grid: Int, forces: Map<Int, List<Force>>): GridState =
-        GridState(galaxy.kind(grid), GridTerrain.NONE, false, forces[grid].orEmpty().map {
+        GridState(galaxy.kind(grid), GridTerrain.NONE, TacticalContact.contested(forces[grid].orEmpty()), forces[grid].orEmpty().map {
             // Capacity decisions need only distinguish counts above 300. Keep the
             // full Long total in collect(), including for native map reports.
             CampPresence(it.camp, it.units.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), it.nonSolo, it.ship, it.base)
