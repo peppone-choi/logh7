@@ -2,12 +2,43 @@
 // Author: 최병호.
 #pragma once
 #include "spot_presence.h"
+#include "character_cards.h"
 static void* characterInformationManager=nullptr;
 static void* characterInformationWorld=nullptr;
 static struct SpotInformationWindow {
     void* manager; void* world; void* root;
     unsigned own, target, spot, owner;
+    logh::CharacterCards cards;
+    bool cardsValid;
 } spotInformationWindow={};
+static void renderCharacterCards(void* manager,const logh::CharacterCards& cards,bool valid,void* character) {
+    auto page=at<void*>(manager,4+17*4);
+    auto sheet=page ? reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(page,2,0) : nullptr;
+    if (!sheet) return;
+    std::wstring text;
+    if (!valid) text=L"직무 권한 정보를 표시할 수 없습니다.\n";
+    else if (!cards.count) text=L"표시할 직무 권한 카드가 없습니다.\n";
+    for (unsigned i=0;valid && i<cards.count;++i) {
+        const auto& card=cards.rows[i];
+        std::wstring line;
+        if (card.kind==0) line=L"개인";
+        else if (card.kind==59 || card.kind==195) line=L"함장";
+        else {
+            auto name=reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8cb0)
+                (reinterpret_cast<void*>(0x7cd048),card.kind);
+            if (!logh::japaneseFragment(name,line) || line.empty()) line=L"이름 미확인";
+        }
+        if (card.target) {
+            wchar_t base[32]={};
+            if (logh::characterCardBase(card.kind)) pickerName(card.target,base);
+            if (base[0]) line+=std::wstring(L" · ")+base;
+            else if ((card.kind==59 || card.kind==195) && card.target==at<unsigned>(character,0x48)) line+=L" · 기함";
+            else line+=L" · 대상 정보 미수신";
+        }
+        text+=line+L"\n";
+    }
+    reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560)(page,sheet,text.c_str());
+}
 static void* currentSpotInformationTarget(void* world,unsigned id) {
     if (!world || !id) return nullptr;
     auto own=at<void*>(world,8);
@@ -37,7 +68,14 @@ static void updateCharacterInformation(void* manager) {
         !currentSpotInformationTarget(world,state.target)) {
         reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(state.root,0);
         *reinterpret_cast<BYTE*>(0x2221dfc)=0;
-        state={};
+        state={};return;
+    }
+    auto peer=currentSpotInformationTarget(world,state.target);
+    logh::CharacterCards cards;
+    bool valid=logh::CharacterCards::read(peer,0x370,cards);
+    if (valid!=state.cardsValid || (valid && !cards.same(state.cards))) {
+        renderCharacterCards(manager,cards,valid,peer);
+        state.cards=cards;state.cardsValid=valid;
     }
 }
 static void __fastcall spotCharacterInformation(void* context,void*) {
@@ -60,7 +98,10 @@ static void __fastcall spotCharacterInformation(void* context,void*) {
             *reinterpret_cast<BYTE*>(0x2221dfc)=1;
             auto own=at<void*>(world,8);
             spotInformationWindow={manager,world,root,at<unsigned>(own,0x24),at<unsigned>(character,0x24),
-                at<unsigned>(own,0x40),at<unsigned>(own,0x44)};
+                at<unsigned>(own,0x40),at<unsigned>(own,0x44),{},false};
+            auto& state=spotInformationWindow;
+            state.cardsValid=logh::CharacterCards::read(character,0x370,state.cards);
+            renderCharacterCards(manager,state.cards,state.cardsValid,character);
         }
     }
     reinterpret_cast<void(__thiscall*)(void*)>(0x546850)(context);
