@@ -14,7 +14,8 @@ object AppointmentDirectoryMessages {
         require(character>0 && when(search) {
             18 -> flags==123 && message.drop(10).all { it==0.toByte() }
             28 -> role in setOf(55,56,57,192,193)
-            4 -> flags==80 && role in setOf(55,56,57,192,193)
+            27 -> flags==80 && role==39
+            4 -> flags==80 && role in setOf(39,55,56,57,192,193)
             else -> false
         })
         return Query(character,search,flags,role,base,message.copyOfRange(2,message.size))
@@ -40,6 +41,21 @@ object AppointmentDirectoryMessages {
         return transaction(query,0x120d,bytes.toByteArray())
     }
     data class Person(val character:CharacterMessages.Generate,val cards:List<Int>)
+    data class Outfit(val id:Int,val number:Int,val kind:Int,val base:WorldMessages.Base)
+    /** 00562890: byte count; availability flag, outfit identity, number/kind, optional base. */
+    fun outfits(query:Query,values:List<Outfit>):List<ByteArray> {
+        require(query.search==27 && values.size<=180 && values.distinctBy {it.id}.size==values.size)
+        val bytes=java.io.ByteArrayOutputStream()
+        java.io.DataOutputStream(bytes).use { out ->
+            out.writeByte(values.size)
+            for(value in values) {
+                require(value.id>0 && value.number in 0..255 && value.kind in 0..3)
+                out.writeByte(1);out.writeInt(value.id);out.writeByte(value.number);out.writeByte(value.kind)
+                out.write(WorldMessages.simpleBases(listOf(value.base)))
+            }
+        }
+        return transaction(query,0x120c,bytes.toByteArray())
+    }
     fun people(query:Query,values:List<Person>):List<ByteArray> {
         require(values.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
@@ -65,7 +81,7 @@ object AppointmentDirectoryMessages {
         return cards(query,if(remaining==0)emptyMap() else mapOf(55 to remaining))
     }
     fun cards(query:Query,vacancies:Map<Int,Int>):List<ByteArray> {
-        require(vacancies.size<=5 && vacancies.all { (card,n)->card in setOf(55,56,57,192,193) && n in 1..255 })
+        require(vacancies.size<=6 && vacancies.all { (card,n)->card in setOf(39,55,56,57,192,193) && n in 1..255 })
         val b=ByteBuffer.allocate(2+vacancies.size*7).putShort(vacancies.size.toShort())
         vacancies.toSortedMap().forEach { (card,n)->b.putShort(card.toShort()).putInt(0).put(n.toByte()) }
         return transaction(query,0x1208,b.array())
