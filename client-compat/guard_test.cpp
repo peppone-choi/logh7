@@ -9,6 +9,7 @@
 #include "portrait_label.h"
 #include "roster_text.h"
 #include "spot_name.h"
+#include "character_cards.h"
 #include "outfit_info_data.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
@@ -44,6 +45,27 @@ static bool planetUnitRowsTest() {
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
 int wmain(int argc, wchar_t** argv) {
+    unsigned char cardRecord[0x370]={};logh::CharacterCards cardRows;
+    if (!logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows) || cardRows.count) return 215;
+    cardRecord[0x270]=2;cardRecord[0x27c]=190;
+    unsigned cardBase=2015;memcpy(cardRecord+0x280,&cardBase,4);
+    if (!logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows) || cardRows.count!=2 ||
+        cardRows.rows[1].kind!=190 || cardRows.rows[1].target!=2015) return 216;
+    auto savedCards=cardRows;
+    cardRecord[0x270]=17;
+    if (logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows) || !cardRows.same(savedCards)) return 217;
+    cardRecord[0x270]=2;cardRecord[0x27c]=5;cardRecord[0x27d]=1;
+    if (logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows) ||
+        logh::CharacterCards::read(cardRecord,0x280,cardRows) ||
+        logh::CharacterCards::read(nullptr,sizeof(cardRecord),cardRows)) return 218;
+    cardRecord[0x27c]=0;cardRecord[0x27d]=0;memset(cardRecord+0x280,0,4);
+    if (logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows)) return 219;
+    cardRecord[0x274]=190;cardRecord[0x27c]=190;memcpy(cardRecord+0x280,&cardBase,4);
+    if (!logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows) || cardRows.same(savedCards)) return 220;
+    cardRecord[0x270]=16;
+    for (unsigned i=0;i<16;++i) {unsigned short kind=static_cast<unsigned short>(i);memcpy(cardRecord+0x274+i*8,&kind,2);}
+    if (!logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows) || cardRows.count!=16 ||
+        !logh::characterCardBase(190) || logh::characterCardBase(195) || logh::characterCardBase(0)) return 221;
     if (logh::spotName(L"양",7)!=L"양준장" ||
         logh::spotName(L"트류니히트",1)!=L"정치가 트류니히트" ||
         logh::spotName(L"병사",20)!=L"병사이등병" ||
