@@ -350,6 +350,20 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             finally:
                                 script.exports_sync.setmouse(x, y, False)
                             time.sleep(0.15) # Allow a release frame before another queued click.
+                        elif "drag" in action:
+                            points = action["drag"]
+                            if not isinstance(points, list) or len(points) != 4 or not all(type(v) is int and 0 <= v <= 4095 for v in points):
+                                raise ValueError("Drag requires four bounded owned-window coordinates")
+                            x, y, end_x, end_y = points
+                            script.exports_sync.setmouse(x, y, True)
+                            try:
+                                time.sleep(0.3)
+                                for step in range(1, 13):
+                                    script.exports_sync.movemouse(round(x + (end_x-x)*step/12), round(y + (end_y-y)*step/12))
+                                    time.sleep(0.05)
+                            finally:
+                                script.exports_sync.setmouse(end_x, end_y, False)
+                            time.sleep(0.15)
                         elif "text" in action:
                             value = action["text"]
                             if not isinstance(value, str) or not 1 <= len(value) <= 30 or not all(32 <= ord(char) < 127 for char in value):

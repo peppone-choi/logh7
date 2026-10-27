@@ -10,13 +10,20 @@ Process.attachModuleObserver({onAdded(module) {
   const clientToScreen=new NativeFunction(module.getExportByName('ClientToScreen'),'int',['pointer','pointer'],'stdcall');
   const clientRect=new NativeFunction(module.getExportByName('GetClientRect'),'int',['pointer','pointer'],'stdcall');
   const post=new NativeFunction(module.getExportByName('PostMessageW'),'int',['pointer','uint','uint','int'],'stdcall');
-  rpc.exports.setmouse=function(x,y,down) {
+  function mousePosition(x,y) {
     if(gameWindow.isNull())throw new Error('Owned game window is not ready');
     const rect=Memory.alloc(16);
     if(!clientRect(gameWindow,rect) || !Number.isInteger(x) || !Number.isInteger(y) || x<0 || y<0 || x>=rect.add(8).readS32() || y>=rect.add(12).readS32())
       throw new Error('Virtual mouse must remain within the owned game window');
-    testMouse={x,y};testKey=down?1:0;
-    const position=(y<<16)|x;
+    testMouse={x,y};
+    return (y<<16)|x;
+  }
+  rpc.exports.movemouse=function(x,y) {
+    const position=mousePosition(x,y);
+    if(!post(gameWindow,0x200,testKey===1?1:0,position))throw new Error('Cannot queue owned mouse movement');
+  };
+  rpc.exports.setmouse=function(x,y,down) {
+    const position=mousePosition(x,y);testKey=down?1:0;
     if(!post(gameWindow,0x200,down?1:0,position) || !post(gameWindow,down?0x201:0x202,down?1:0,position))
       throw new Error('Cannot queue owned mouse message');
   };
