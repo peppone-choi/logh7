@@ -23,13 +23,22 @@ class ReorganizationWireTest {
             client.send(LogisticsMessages.encode(query(1,0).copy(mode=0,
                 moves=LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(32,1,0)),emptyList()))))
             val packet=client.expect(0x0c02)
-            assertEquals(3,LogisticsMessages.reorganization(packet.copyOfRange(4,packet.size)).maxCrew)
+            val projected=LogisticsMessages.reorganization(packet.copyOfRange(4,packet.size))
+            assertEquals(3,projected.maxCrew)
+            assertEquals(listOf(LogisticsMessages.ShipMove(32,1,123)),projected.moves.ships)
             assertEquals(before,state.stocks);assertEquals(saves,state.saves)
             response(client,query(1,5),false,1000)
             assertEquals(before,state.stocks);assertEquals(saves,state.saves)
             response(client,query(1,3),true,840);client.expect(0x032f);client.expect(0x0327)
             assertEquals(123,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
             assertTrue(state.stocks.warehouses.getValue(101).spareShips.values.isEmpty())
+            val committed=state.stocks;val committedSaves=state.saves
+            client.send(LogisticsMessages.encode(query().copy(mode=0,
+                moves=LogisticsMessages.Moves(emptyList(),emptyList()))))
+            val initial=client.expect(0x0c02)
+            val totals=LogisticsMessages.reorganization(initial.copyOfRange(4,initial.size))
+            assertEquals(listOf(LogisticsMessages.ShipMove(32,1,123)),totals.moves.ships)
+            assertEquals(committed,state.stocks);assertEquals(committedSaves,state.saves)
         }
         fixture(state,"partial-reopen").use {server ->
             val client=server.join(server.account(0),true,false).client;start(client)
@@ -171,7 +180,7 @@ class ReorganizationWireTest {
             val capacity=LogisticsMessages.reorganization(packet.copyOfRange(4,packet.size))
             assertEquals(0,capacity.mode); assertEquals(10,capacity.maxCrew); assertEquals(0,capacity.maxTroops)
             assertEquals(0,capacity.supplies)
-            assertEquals(1000,capacity.header.mcp); assertTrue(capacity.moves.ships.isEmpty())
+            assertEquals(1000,capacity.header.mcp); assertEquals(listOf(LogisticsMessages.ShipMove(32,2,600)),capacity.moves.ships)
             assertEquals(before,state.stocks); assertEquals(balance,state.players); assertEquals(saves,state.saves)
             client.send(LogisticsMessages.encode(preview.copy(moves=LogisticsMessages.Moves(
                 listOf(LogisticsMessages.ShipMove(32,3,0)),emptyList()))))
@@ -198,6 +207,7 @@ class ReorganizationWireTest {
             assertEquals(0,ByteBuffer.wrap(smaller).int)
             val delta=LogisticsMessages.reorganization(smaller.copyOfRange(4,smaller.size))
             assertEquals(-5,delta.maxCrew);assertEquals(0,delta.supplies)
+            assertEquals(listOf(LogisticsMessages.ShipMove(32,1,300)),delta.moves.ships)
             assertEquals(committed,state.stocks);assertEquals(committedSaves,state.saves)
             assertEquals(840,state.players.getValue("load-000").mcp)
         }

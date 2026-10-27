@@ -24,9 +24,11 @@ class LogisticsMessagesTest {
     }
     @Test fun reorganizationPreviewPreservesNegativeCrewChangeAndCurrentSupplies() {
         val query=LogisticsMessages.reorganization(ByteBuffer.allocate(42).putShort(0x0c02).array())
-        val response=LogisticsMessages.reorganizationPreview(query,1,1000,1000,0,-5,789,true)
+        val response=LogisticsMessages.reorganizationPreview(query,1,1000,1000,0,-5,789,true,listOf(LogisticsMessages.ShipStock(32,2,580)))
         val decoded=LogisticsMessages.reorganization(response.copyOfRange(4,response.size))
         assertEquals(-5,decoded.maxCrew);assertEquals(789,decoded.supplies)
+        assertEquals(listOf(LogisticsMessages.ShipMove(32,2,580)),decoded.moves.ships)
+        assertTrue(decoded.moves.troops.isEmpty())
     }
     private fun ByteBuffer.stack(kind: Int, level: Int, quantity: Int): ByteBuffer =
         putShort(kind.toShort()).put(level.toByte()).putShort(quantity.toShort())
