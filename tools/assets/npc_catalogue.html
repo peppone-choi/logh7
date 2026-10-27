@@ -33,9 +33,11 @@
       <label for="name">전체 표시명</label><input id="name" maxlength="200" required>
       <div id="name-note" class="minor"></div>
       <div class="split"><div><label for="surname">성 · surname</label><input id="surname" maxlength="12" placeholder="미확인"></div><div><label for="given-name">이름 · givenName</label><input id="given-name" maxlength="12" placeholder="미확인"></div></div>
+      <label for="name-prefix">표시용 접두사 · 성 앞</label><input id="name-prefix" maxlength="40" placeholder="폰 등 · 시스템 성·이름에서 제외">
       <div class="split"><div><label for="name-order">전체 표시 순서</label><select id="name-order"><option value="unknown">미확인</option><option value="given_first">이름 → 성</option><option value="family_first">성 → 이름</option></select></div><div><label for="name-parts-status">성·이름 분리 검토</label><select id="name-parts-status"><option value="pending">확인 대기</option><option value="reviewed">분리 검토 완료</option></select></div></div>
       <label for="name-parts-source">성·이름 분리 출처</label><input id="name-parts-source" maxlength="2000" placeholder="성명 표기 출처 또는 직접 확인한 근거">
       <p id="name-parts-note" class="minor"></p><button id="name-from-parts" type="button">성·이름을 전체 표시명에 반영</button>
+      <p id="name-aliases" class="minor"></p>
       <div class="split"><div><label for="faction">진영</label><select id="faction"><option value="empire">제국</option><option value="alliance">동맹</option><option value="other">기타</option></select></div><div><label for="rank">계급</label><input id="rank" maxlength="200"></div></div>
       <p id="posts" class="posts"></p>
       <div class="split"><div><label for="location">배치·상주 장소 (메모)</label><input id="location" maxlength="1000"></div><div><label for="ai_profile">AI 행동 프로필 (메모)</label><input id="ai_profile" maxlength="1000" placeholder="미지정"></div></div>

@@ -4,7 +4,26 @@
   const abilities = ['leadership', 'politics', 'administration', 'intelligence', 'command', 'mobility', 'attack', 'defense'];
   const labels = ['통솔', '정치', '운영', '정보', '지휘', '기동', '공격', '방어'];
   const factions = {empire: '제국', alliance: '동맹', other: '기타'};
-  const blankNameParts = () => ({surname: null, given_name: null, order: 'unknown', status: 'pending', source: '', note: ''});
+  const blankNameParts = () => ({surname: null, given_name: null, prefix: '', order: 'unknown', status: 'pending', source: '', note: ''});
+  function migrateNameParts(doc) {
+    const result = structuredClone(doc);
+    if (!Array.isArray(result?.characters)) return result;
+    for (const c of result.characters) {
+      const n = c?.name_parts;
+      if (!n || typeof n !== 'object' || Array.isArray(n) || Object.hasOwn(n, 'prefix')) continue;
+      n.prefix = '';
+      if (typeof n.surname === 'string' && n.surname.startsWith('폰 ') && n.surname.slice(2).trim()) {
+        n.prefix = '폰'; n.surname = n.surname.slice(2);
+        if (n.note === '폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인.') n.note = '폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.';
+      }
+    }
+    return result;
+  }
+  function nameText(n) {
+    const family = [n.prefix ?? '', n.surname];
+    const parts = n.order === 'family_first' ? [...family, n.given_name] : n.order === 'given_first' ? [n.given_name, ...family] : [];
+    return parts.filter(Boolean).join(' ');
+  }
   function validate(doc, portraits) {
     const check = (ok, message) => { if (!ok) throw Error(message); };
     check(doc && doc.schema === 1 && Array.isArray(doc.characters) && doc.characters.length <= 2000, 'schema=1의 인물 목록이 필요합니다.');
@@ -18,7 +37,10 @@
       if (Object.hasOwn(c, 'name_parts')) {
         const n = c.name_parts;
         check(n && ['unknown', 'given_first', 'family_first'].includes(n.order) && ['pending', 'reviewed'].includes(n.status), '성·이름의 순서와 검토 상태를 확인하세요.');
+        check(!Object.hasOwn(n, 'prefix') || typeof n.prefix === 'string' && n.prefix.length <= 40 && !/[\u0000\ud800-\udfff]/.test(n.prefix), '표시용 접두사는 40자 이내 BMP 문자여야 합니다.');
+        check(!Object.hasOwn(n, 'aliases') || Array.isArray(n.aliases) && n.aliases.length <= 20 && n.aliases.every(a => typeof a === 'string' && a.trim() && a.length <= 200 && !/[\u0000\ud800-\udfff]/.test(a)), '옛 이름·다른 표기는 200자 이내 문자 목록이어야 합니다.');
         check(['surname', 'given_name'].every(k => n[k] === null || typeof n[k] === 'string' && n[k].trim().length && n[k].length <= 12 && !/[\u0000\ud800-\udfff]/.test(n[k])), '성·이름은 빈 값 또는 각 12자 이내 BMP 문자여야 합니다.');
+        check(!Object.hasOwn(n, 'prefix') || !(n.surname ?? '').startsWith('폰 '), '폰은 시스템 성에서 빼고 표시용 접두사에 입력하세요.');
         check(['source', 'note'].every(k => typeof n[k] === 'string' && n[k].length <= 2000), '성·이름 분리 출처를 확인하세요.');
         check(n.status !== 'reviewed' || n.surname && n.given_name && n.order !== 'unknown' && n.source.trim(), '분리 검토 완료에는 성·이름·표시 순서·출처가 필요합니다.');
       }
@@ -54,9 +76,9 @@
     }
     return doc;
   }
-  if (typeof document === 'undefined') { module.exports = {validate}; return; }
+  if (typeof document === 'undefined') { module.exports = {validate, migrateNameParts, nameText}; return; }
   const {portraits, catalogue: initial, references = {}} = JSON.parse(document.getElementById('payload').textContent);
-  let catalogue = validate(initial, portraits), selected = null, currentFace = null;
+  let catalogue = validate(migrateNameParts(initial), portraits), selected = null, currentFace = null;
   let dirty = false, formDirty = false;
   const $ = id => document.getElementById(id);
   const text = (tag, value, cls) => { const el = document.createElement(tag); el.textContent = value; if (cls) el.className = cls; return el; };
@@ -82,7 +104,7 @@
     const rows = catalogue.characters.filter(c => (!faction || faction === c.faction) && (!origin || (origin === 'manual' ? !!c.manual_holder : !c.manual_holder)) &&
       (!ref || (ref === 'yes' ? !!referenceFor(c)?.images.length : !referenceFor(c)?.images.length)) &&
       (!match || (match === 'ova' ? !!c.face_comparison : c.face_id === null)) &&
-      `${c.name} ${c.manual_holder} ${c.name_parts?.surname ?? ''} ${c.name_parts?.given_name ?? ''} ${c.posts.map(p => p.post + p.unit).join(' ')}`.toLocaleLowerCase().includes(query));
+      `${c.name} ${c.manual_holder} ${c.name_parts?.surname ?? ''} ${c.name_parts?.given_name ?? ''} ${(c.name_parts?.aliases ?? []).join(' ')} ${c.posts.map(p => p.post + p.unit).join(' ')}`.toLocaleLowerCase().includes(query));
     $('count').textContent = `${rows.length}명`;
     for (const c of rows) {
       const button = text('button', '', `person${selected === c.key ? ' active' : ''}`), p = face(c.face_id);
@@ -127,8 +149,9 @@
   }
   function namePartsPreview() {
     const surname = $('surname').value, given = $('given-name').value, order = $('name-order').value;
-    const combined = order === 'family_first' ? [surname, given] : order === 'given_first' ? [given, surname] : [];
-    $('name-parts-note').textContent = `성 ${surname.length}/12 · 이름 ${given.length}/12 · ${combined.length ? '조합: ' + combined.filter(Boolean).join(' ') : '표시 순서 미확인'}${person()?.name_parts?.note ? ' · ' + person().name_parts.note : ''}`;
+    const combined = nameText({surname, given_name: given, prefix: $('name-prefix').value, order});
+    $('name-parts-note').textContent = `성 ${surname.length}/12 · 이름 ${given.length}/12 · ${order !== 'unknown' ? '표시명 조합: ' + combined : '표시 순서 미확인'}${person()?.name_parts?.note ? ' · ' + person().name_parts.note : ''}`;
+    $('name-aliases').textContent = person()?.name_parts?.aliases?.length ? '옛 이름·다른 표기: ' + person().name_parts.aliases.join(' / ') : '';
   }
   function gallery() {
     const filter = $('face-filter').value;
@@ -155,6 +178,7 @@
     for (const k of ['name', 'faction', 'rank', 'location', 'ai_profile', 'notes']) $(k).value = c[k];
     const n = c.name_parts ?? blankNameParts();
     $('surname').value = n.surname ?? ''; $('given-name').value = n.given_name ?? '';
+    $('name-prefix').value = n.prefix ?? '';
     $('name-order').value = n.order; $('name-parts-status').value = n.status; $('name-parts-source').value = n.source;
     namePartsPreview();
     for (const k of abilities) $(k).value = c.abilities[k] ?? '';
@@ -171,7 +195,7 @@
     if (!$('editor').reportValidity()) return false;
     const next = structuredClone(person());
     for (const k of ['name', 'faction', 'rank', 'location', 'ai_profile', 'notes']) next[k] = $(k).value;
-    next.name_parts = {...(next.name_parts ?? blankNameParts()), surname: $('surname').value || null, given_name: $('given-name').value || null,
+    next.name_parts = {...(next.name_parts ?? blankNameParts()), surname: $('surname').value || null, given_name: $('given-name').value || null, prefix: $('name-prefix').value,
       order: $('name-order').value, status: $('name-parts-status').value, source: $('name-parts-source').value};
     next.face_id = currentFace;
     if (next.face_comparison?.face_id !== currentFace) delete next.face_comparison;
@@ -186,8 +210,7 @@
   $('name-from-parts').onclick = () => {
     const order = $('name-order').value;
     if (order === 'unknown') { message('이름과 성의 표시 순서를 먼저 선택하세요.'); return; }
-    const parts = order === 'family_first' ? [$('surname').value, $('given-name').value] : [$('given-name').value, $('surname').value];
-    $('name').value = parts.filter(Boolean).join(' '); formDirty = true; namePartsPreview(); status();
+    $('name').value = nameText({surname: $('surname').value, given_name: $('given-name').value, prefix: $('name-prefix').value, order}); formDirty = true; namePartsPreview(); status();
   };
   $('editor').onsubmit = event => { event.preventDefault(); if (apply()) show(); };
   $('faction').onchange = () => {
@@ -225,7 +248,7 @@
     const file = $('file').files[0]; $('file').value = ''; if (!file) return;
     try {
       if (file.size > 8 * 1024 * 1024) throw Error('JSON 파일은 8 MiB 이하여야 합니다.');
-      const incoming = validate(JSON.parse((await file.text()).replace(/^\uFEFF/, '')), portraits);
+      const incoming = validate(migrateNameParts(JSON.parse((await file.text()).replace(/^\uFEFF/, ''))), portraits);
       if ((dirty || formDirty) && !window.confirm('저장하지 않은 변경을 버리고 JSON을 불러올까요?')) return;
       catalogue = incoming; selected = catalogue.characters[0]?.key ?? null; dirty = false; formDirty = false; message(); show();
     } catch (error) { message(error.message); }

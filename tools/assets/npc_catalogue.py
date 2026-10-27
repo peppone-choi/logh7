@@ -6,6 +6,7 @@ This tool does not change a running server or claim to recover original stats.
 import argparse
 import base64
 import csv
+import copy
 import json
 from pathlib import Path
 import re
@@ -119,7 +120,25 @@ def extract(face_dir):
 
 
 def blank_name_parts():
-    return dict(surname=None, given_name=None, order='unknown', status='pending', source='', note='')
+    return dict(surname=None, given_name=None, prefix='', order='unknown', status='pending', source='', note='')
+
+
+def migrate_name_parts(document):
+    """Upgrade old exports without changing display names, faces or abilities."""
+    result = copy.deepcopy(document)
+    if not isinstance(result, dict) or not isinstance(result.get('characters'), list):
+        return result
+    for row in result['characters']:
+        parts = row.get('name_parts') if isinstance(row, dict) else None
+        if not isinstance(parts, dict) or 'prefix' in parts:
+            continue
+        parts['prefix'] = ''
+        surname = parts.get('surname')
+        if isinstance(surname, str) and surname.startswith('폰 ') and surname[2:].strip():
+            parts['prefix'], parts['surname'] = '폰', surname[2:]
+            if parts.get('note') == '폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인.':
+                parts['note'] = '폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.'
+    return result
 
 
 def blank_character(key, faction, name=''):
@@ -211,11 +230,22 @@ def validate(document, portraits):
             parts = row['name_parts']
             require(type(parts) is dict and parts.get('order') in ('unknown', 'given_first', 'family_first') and
                     parts.get('status') in ('pending', 'reviewed'), 'Invalid name parts')
+            prefix = parts.get('prefix', '')
+            require(type(prefix) is str and len(prefix) <= 40 and
+                    not any(ch == '\x00' or ord(ch) > 0xffff or 0xd800 <= ord(ch) <= 0xdfff for ch in prefix),
+                    'Invalid display-only name prefix')
+            aliases = parts.get('aliases', [])
+            require(type(aliases) is list and len(aliases) <= 20 and
+                    all(type(a) is str and a.strip() and len(a) <= 200 and
+                        not any(ch == '\x00' or ord(ch) > 0xffff or 0xd800 <= ord(ch) <= 0xdfff for ch in a)
+                        for a in aliases), 'Invalid name aliases')
             for field in ('surname', 'given_name'):
                 value = parts.get(field)
                 require(field in parts and (value is None or type(value) is str and 1 <= len(value) <= 12 and value.strip() and
                         not any(ch == '\x00' or 0xd800 <= ord(ch) <= 0xdfff or ord(ch) > 0xffff for ch in value)),
                         'Name fields must be null or 1..12 BMP characters (wire limit)')
+            require('prefix' not in parts or not (parts['surname'] or '').startswith('폰 '),
+                    'Store von in prefix, not system surname')
             require(all(type(parts.get(k)) is str and len(parts[k]) <= 2000 for k in ('source', 'note')),
                     'Invalid name-part source')
             require(parts['status'] != 'reviewed' or parts['surname'] and parts['given_name'] and
@@ -287,7 +317,7 @@ def main():
     if destination.exists():
         parser.error('Output directory already exists; use a new directory')
     portraits = extract(args.face_dir.resolve(strict=True))
-    document = (json.loads(args.catalogue.read_text(encoding='utf-8-sig'))
+    document = (migrate_name_parts(json.loads(args.catalogue.read_text(encoding='utf-8-sig')))
                 if args.catalogue else expanded_roster(args.manual))
     validate(document, portraits)
     template = Path(__file__).with_name('npc_catalogue.html').read_text(encoding='utf-8')

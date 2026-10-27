@@ -45,13 +45,17 @@ class NpcCatalogueTests(unittest.TestCase):
         by_name = {c['name']: c['name_parts'] for c in rows}
         self.assertEqual((by_name['양 웬리']['surname'], by_name['양 웬리']['given_name'], by_name['양 웬리']['order']), ('양', '웬리', 'family_first'))
         self.assertEqual(by_name['지크프리트 키르히아이스']['given_name'], '지크프리트')
-        self.assertEqual(by_name['라인하르트 폰 로엔그람']['surname'], '폰 로엔그람')
+        self.assertEqual(by_name['라인하르트 폰 로엔그람']['surname'], '로엔그람')
+        self.assertEqual(by_name['라인하르트 폰 로엔그람']['prefix'], '폰')
+        self.assertEqual(by_name['라인하르트 폰 로엔그람']['aliases'], ['라인하르트 폰 뮈젤', '라인하르트 폰 뮤젤'])
+        self.assertEqual(sum(bool(c['name_parts']['prefix']) for c in reviewed), 14)
         self.assertEqual(by_name['빌리바르트 요아힘 폰 메르카츠']['given_name'], '빌리바르트 요아힘')
         self.assertIsNone(by_name['무라이']['given_name'])
         for c in reviewed:
             p = c['name_parts']
-            parts = [p['surname'], p['given_name']] if p['order'] == 'family_first' else [p['given_name'], p['surname']]
-            self.assertEqual(' '.join(parts), c['name'])
+            family = [p['prefix'], p['surname']]
+            parts = family + [p['given_name']] if p['order'] == 'family_first' else [p['given_name']] + family
+            self.assertEqual(' '.join(filter(None, parts)), c['name'])
         c = blank_character('wire', 'empire', 'Display name remains independent')
         c['name_parts']['surname'] = 'A' * 12
         validate(dict(schema=1, characters=[c]), [])
@@ -59,6 +63,34 @@ class NpcCatalogueTests(unittest.TestCase):
             c['name_parts']['surname'] = invalid
             with self.assertRaises(ValueError):
                 validate(dict(schema=1, characters=[c]), [])
+
+    def test_legacy_von_prefix_migration_preserves_other_data_and_explicit_prefix(self):
+        from npc_catalogue import migrate_name_parts
+        c = blank_character('legacy', 'empire', '라인하르트 폰 로엔그람')
+        c['name_parts'] = dict(surname='폰 로엔그람', given_name='라인하르트', order='given_first', status='reviewed', source='검토', note='직접 남긴 메모')
+        c['abilities']['attack'] = 0
+        c['abilities_evidence'] = dict(status='guess', source='검사 수치')
+        original = dict(schema=1, characters=[c])
+        migrated = migrate_name_parts(original)
+        parts = migrated['characters'][0]['name_parts']
+        self.assertEqual((parts['surname'], parts['prefix'], parts['note']), ('로엔그람', '폰', '직접 남긴 메모'))
+        self.assertEqual(c['name_parts']['surname'], '폰 로엔그람')
+        self.assertNotIn('prefix', c['name_parts'])
+        self.assertEqual(migrated['characters'][0]['name'], c['name'])
+        self.assertEqual(migrated['characters'][0]['abilities']['attack'], 0)
+        validate(migrated, [])
+        self.assertEqual(migrate_name_parts(migrated), migrated)
+        parts['aliases'] = ['라인하르트 폰 뮈젤', '라인하르트 폰 뮤젤']
+        validate(migrated, [])
+        self.assertEqual(migrate_name_parts(migrated)['characters'][0]['name_parts']['aliases'], parts['aliases'])
+        for invalid in ('not a list', ['\x00'], ['A' * 201], ['\U0001f600'], [' '], ['A'] * 21):
+            bad = copy.deepcopy(migrated)
+            bad['characters'][0]['name_parts']['aliases'] = invalid
+            with self.assertRaises(ValueError):
+                validate(bad, [])
+        parts['surname'] = '폰 로엔그람'
+        with self.assertRaises(ValueError):
+            validate(migrated, [])
 
     def test_ova_comparison_cannot_survive_a_different_face_or_edition(self):
         from npc_catalogue import expanded_roster
