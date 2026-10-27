@@ -21,7 +21,7 @@ class ReturnBaseWireTest {
     private fun select(client: SyntheticClient, base: Int): List<ByteArray> {
         val packet = ReturnBaseMessages.reply(10000, base, 0)
         client.send(packet.copyOfRange(4, packet.size))
-        return through(client, 0x0356)
+        return through(client, 0x0356).filter { code(it) != 0x0b0d } // Independent periodic map snapshots.
     }
     @Test fun selectionDenialsReconnectAndCpUpdatesKeepAuthoritativeReturnPlanet() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2), GalaxySystem(4, 2015, 4, "Alliance", 3)),
