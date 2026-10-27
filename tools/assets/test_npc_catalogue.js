@@ -1,7 +1,7 @@
 /* Import validation protects reviewed assignments and unknown values. Author: 최병호. */
 'use strict';
 const assert = require('node:assert/strict');
-const {validate} = require('./npc_catalogue.js');
+const {validate, migrateNameParts, nameText} = require('./npc_catalogue.js');
 const keys = ['leadership', 'politics', 'administration', 'intelligence', 'command', 'mobility', 'attack', 'defense'];
 const row = {key: 'one', faction: 'empire', name: 'Test', manual_holder: '', posts: [], face_id: null,
   face_evidence: {status: 'unknown', source: ''}, abilities: Object.fromEntries(keys.map(k => [k, null])),
@@ -38,4 +38,18 @@ for (const value of ['A'.repeat(13), '\u0000', '\u{1f600}', '   ', '']) {
 }
 row.name_parts.status = 'reviewed';
 assert.throws(() => validate(doc, faces));
+row.name_parts = {surname: '폰 로엔그람', given_name: '라인하르트', order: 'given_first', status: 'reviewed', source: '검토', note: '직접 남긴 메모'};
+const migrated = migrateNameParts(doc), n = migrated.characters[0].name_parts;
+assert.equal(n.surname, '로엔그람'); assert.equal(n.prefix, '폰'); assert.equal(n.note, '직접 남긴 메모');
+assert.equal(nameText(n), '라인하르트 폰 로엔그람');
+assert.equal(nameText({surname:'양', given_name:'웬리', prefix:'', order:'family_first'}), '양 웬리');
+assert.equal(row.name_parts.surname, '폰 로엔그람'); assert.equal(Object.hasOwn(row.name_parts,'prefix'),false);
+assert.deepEqual(migrateNameParts(migrated),migrated); validate(migrated,faces);
+n.aliases = ['라인하르트 폰 뮈젤', '라인하르트 폰 뮤젤']; validate(migrated, faces);
+assert.deepEqual(migrateNameParts(migrated).characters[0].name_parts.aliases, n.aliases);
+for (const invalid of ['not a list', ['\u0000'], ['A'.repeat(201)], ['\u{1f600}'], [' '], Array(21).fill('A')]) {
+  const bad = structuredClone(migrated); bad.characters[0].name_parts.aliases = invalid;
+  assert.throws(() => validate(bad, faces));
+}
+n.surname = '폰 로엔그람'; assert.throws(()=>validate(migrated,faces));
 console.log('NPC JSON validation passed: null/zero, provenance, ranges, duplicate faces, factions.');

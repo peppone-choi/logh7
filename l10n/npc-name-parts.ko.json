@@ -6,12 +6,14 @@
   "names": [
     {
       "name": "라인하르트 폰 로엔그람",
-      "surname": "폰 로엔그람",
+      "surname": "로엔그람",
       "given_name": "라인하르트",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/라인하르트 폰 로엔그람",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "옛 성은 뮈젤(Müsel, ミューゼル). 뮤젤은 검색용 표기 변형이다. 로엔그람 백작가 계승 전후를 같은 인물로 관리한다. VII 매뉴얼 p.60의 초기 담당자 표기가 로엔그람 중장이므로 기본 성은 로엔그람을 유지한다. 폰은 표시용 접두사로 분리한다.",
+      "aliases": ["라인하르트 폰 뮈젤", "라인하르트 폰 뮤젤"],
+      "prefix": "폰"
     },
     {
       "name": "양 웬리",
@@ -20,7 +22,8 @@
       "order": "family_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/양 웬리",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "지크프리트 키르히아이스",
@@ -29,7 +32,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/지크프리트 키르히아이스",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "볼프강 미터마이어",
@@ -38,25 +42,28 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/볼프강 미터마이어",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "오스카 폰 로이엔탈",
-      "surname": "폰 로이엔탈",
+      "surname": "로이엔탈",
       "given_name": "오스카",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/오스카 폰 로이엔탈",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "파울 폰 오베르슈타인",
-      "surname": "폰 오베르슈타인",
+      "surname": "오베르슈타인",
       "given_name": "파울",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/파울 폰 오베르슈타인",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "율리안 민츠",
@@ -65,34 +72,38 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/율리안 민츠",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "발터 폰 쇤코프",
-      "surname": "폰 쇤코프",
+      "surname": "쇤코프",
       "given_name": "발터",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/발터 폰 쇤코프",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "안네로제 폰 그뤼네발트",
-      "surname": "폰 그뤼네발트",
+      "surname": "그뤼네발트",
       "given_name": "안네로제",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/안네로제 폰 그뤼네발트",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "힐데가르트 폰 마린도르프",
-      "surname": "폰 마린도르프",
+      "surname": "마린도르프",
       "given_name": "힐데가르트",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/힐데가르트 폰 마린도르프",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "프리츠 요제프 비텐펠트",
@@ -101,7 +112,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/프리츠 요제프 비텐펠트",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "나이트하르트 뮐러",
@@ -110,7 +122,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/나이트하르트 뮐러",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "울리히 케슬러",
@@ -119,7 +132,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/울리히 케슬러(은하영웅전설)",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "에르네스트 메크링거",
@@ -128,7 +142,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/에르네스트 메크링거",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "코르넬리우스 루츠",
@@ -137,7 +152,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/코르넬리우스 루츠",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "아우구스트 자무엘 바렌",
@@ -146,16 +162,18 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/아우구스트 자무엘 바렌",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "아달베르트 폰 파렌하이트",
-      "surname": "폰 파렌하이트",
+      "surname": "파렌하이트",
       "given_name": "아달베르트",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/아달베르트 폰 파렌하이트",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "칼 로베르트 슈타인메츠",
@@ -164,16 +182,18 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/칼 로베르트 슈타인메츠",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "에른스트 폰 아이제나흐",
-      "surname": "폰 아이제나흐",
+      "surname": "아이제나흐",
       "given_name": "에른스트",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/에른스트 폰 아이제나흐",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "헬무트 렌넨캄프",
@@ -182,7 +202,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/헬무트 렌넨캄프",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "칼 구스타프 켐프",
@@ -191,16 +212,18 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/칼 구스타프 켐프",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "빌리바르트 요아힘 폰 메르카츠",
-      "surname": "폰 메르카츠",
+      "surname": "메르카츠",
       "given_name": "빌리바르트 요아힘",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/빌리바르트 요아힘 폰 메르카츠",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "프레데리카 그린힐",
@@ -209,7 +232,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/프레데리카 그린힐",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "알렉스 카젤느",
@@ -218,7 +242,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/알렉스 카젤느",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "더스티 아텐보로",
@@ -227,7 +252,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/더스티 아텐보로",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "에드윈 피셔",
@@ -236,7 +262,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/에드윈 피셔",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "표도르 파트리체프",
@@ -245,7 +272,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/표도르 파트리체프",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "올리비에 포플랭",
@@ -254,7 +282,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/올리비에 포플랭",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "이반 코네프",
@@ -263,7 +292,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/이반 코네프(은하영웅전설)",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "알렉산드르 뷰코크",
@@ -272,7 +302,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/알렉산드르 뷰코크",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "욥 트뤼니히트",
@@ -281,7 +312,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/욥 트뤼니히트",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "조안 레벨로",
@@ -290,7 +322,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/조안 레벨로",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "아드리안 루빈스키",
@@ -299,7 +332,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/아드리안 루빈스키",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "니콜라스 볼텍",
@@ -308,7 +342,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/니콜라스 볼텍",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "루퍼트 케셀링크",
@@ -317,7 +352,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/루퍼트 케셀링크",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "도미니크 생피에르",
@@ -326,43 +362,48 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/도미니크 생피에르",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "클라우스 폰 리히텐라데",
-      "surname": "폰 리히텐라데",
+      "surname": "리히텐라데",
       "given_name": "클라우스",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/클라우스 폰 리히텐라데",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "오토 폰 브라운슈바이크",
-      "surname": "폰 브라운슈바이크",
+      "surname": "브라운슈바이크",
       "given_name": "오토",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/오토 폰 브라운슈바이크",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "빌헬름 폰 리텐하임",
-      "surname": "폰 리텐하임",
+      "surname": "리텐하임",
       "given_name": "빌헬름",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/빌헬름 폰 리텐하임",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "카테로제 폰 크로이처",
-      "surname": "폰 크로이처",
+      "surname": "크로이처",
       "given_name": "카테로제",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/카테로제 폰 크로이처",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "보리스 코네프",
@@ -371,7 +412,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/보리스 코네프",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "드와이트 그린힐",
@@ -380,7 +422,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/드와이트 그린힐",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "앤드류 포크",
@@ -389,16 +432,18 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/앤드류 포크",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "안톤 힐머 폰 샤프트",
-      "surname": "폰 샤프트",
+      "surname": "샤프트",
       "given_name": "안톤 힐머",
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/안톤 힐머 폰 샤프트",
-      "note": "폰은 성 쪽에 보존한 편집 규칙. 원작 wire 입력 표기는 미확인."
+      "note": "폰은 표시용 접두사로 별도 보존하며 시스템 성·이름에서 제외한다.",
+      "prefix": "폰"
     },
     {
       "name": "제시카 에드워즈",
@@ -407,7 +452,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/제시카 에드워즈",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "시드니 시톨레",
@@ -416,7 +462,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/시드니 시톨레",
-      "note": ""
+      "note": "",
+      "prefix": ""
     },
     {
       "name": "라자르 로보스",
@@ -425,7 +472,8 @@
       "order": "given_first",
       "status": "reviewed",
       "source": "https://namu.wiki/w/라자르 로보스",
-      "note": ""
+      "note": "",
+      "prefix": ""
     }
   ]
 }
