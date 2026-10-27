@@ -8,6 +8,7 @@ import argparse
 import ctypes
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import socket
@@ -142,7 +143,7 @@ def enter_login(desk, pid, script, account, credential):
         time.sleep(0.4)
 
 
-def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy", clicks=(), creation_menu=False, ui_control=False, silent_device=False):
+def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=False, upstream_port=None, dxwrapper_dir=None, audible=False, ui_login=False, account="ginei00", credential="dummy", clicks=(), creation_menu=False, ui_control=False, silent_device=False, gui_group=None, manual_login=False):
     # No hardware audio or post-start session-mute fallback in background QA.
     if audible or not silent_device:
         print(json.dumps({"status": "WAITING_FOR_BACKGROUND_QA",
@@ -214,15 +215,25 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
         report["d3d8_wrapper"] = {"path": str(wrapper), "sha256": digest(destination)}
     desk = process = thread = job = connection = gui_mutex = None
     gui_mutex_held = False
+    gui_lease = None
     session = script = None
     audio = None
     upstream = None
     received = bytearray()
     try:
-        gui_mutex = win32event.CreateMutex(None, False, 'Local\\OpenClaw_GUI_TEST_SHARED_PEPPONE_CHOI_PC')
-        gui_mutex_held = win32event.WaitForSingleObject(gui_mutex, 0) in (win32con.WAIT_OBJECT_0, win32con.WAIT_ABANDONED)
-        if not gui_mutex_held:
-            raise RuntimeError('Another owned GUI test holds the shared mutex')
+        if gui_group is None:
+            from qa_gui_group import assert_no_gui_group
+            assert_no_gui_group()
+            gui_mutex = win32event.CreateMutex(None, False, 'Local\\OpenClaw_GUI_TEST_SHARED_PEPPONE_CHOI_PC')
+            gui_mutex_held = win32event.WaitForSingleObject(gui_mutex, 0) in (win32con.WAIT_OBJECT_0, win32con.WAIT_ABANDONED)
+            if not gui_mutex_held:
+                raise RuntimeError('Another owned GUI test holds the shared mutex')
+        else:
+            from qa_gui_group import GuiTestGroup
+            if not isinstance(gui_group, GuiTestGroup):
+                raise TypeError('Expected a live owned GUI group')
+            gui_lease = gui_group.claim(instance)
+            report['gui_group_owner'] = os.getpid()
         with socket.socket() as listener:
             listener.bind(("127.0.0.1", 0))
             listener.listen(1)
@@ -301,16 +312,18 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             activate_at = time.monotonic() + 3
             private_active = False
             login_entered = False
-            while time.monotonic() < deadline:
+            while time.monotonic() < deadline and (gui_group is None or not gui_group.stopping()):
                 if audio is not None:
                     report["audio"] = audio.assert_ready()
                 if not private_active and time.monotonic() >= activate_at:
                     private_active = activate_private(desk, pid)
                     report["private_window_activated"] = private_active
                 if ui_login and private_active and not login_entered:
-                    enter_login(desk, pid, script, account, credential)
+                    if not manual_login:
+                        enter_login(desk, pid, script, account, credential)
                     login_entered = True
-                    report["ui_login_entered"] = True
+                    report["ui_login_entered"] = not manual_login
+                    report["manual_login"] = manual_login
                 if next_click is not None and time.monotonic() - started_at >= next_click[0]:
                     at, x, y = next_click
                     script.exports_sync.setmouse(x, y, True)
@@ -454,6 +467,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
             if gui_mutex_held:
                 win32event.ReleaseMutex(gui_mutex)
             gui_mutex.Close()
+        if gui_lease is not None:
+            gui_lease.close()
         if received:
             (out / "first-packet.bin").write_bytes(received)
         report["packet_bytes"] = len(received)

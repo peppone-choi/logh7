@@ -126,7 +126,7 @@ class GameExchange(
             val output = if (update?.initialize == true && shared != null) {
                 val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
                 check(index >= 0)
-                messages.take(index) + shared.peers.map(presence!!::character) + messages.drop(index)
+                messages.take(index) + shared.peers.flatMap { listOf(presence!!.character(it),presence.unit(it)) } + messages.drop(index)
             } else messages + shared?.refresh.orEmpty()
             if (output.isEmpty()) null else handshake.stageAll(output, clearHeader = 0)
         }

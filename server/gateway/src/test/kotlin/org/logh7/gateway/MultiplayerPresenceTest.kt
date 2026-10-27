@@ -75,7 +75,7 @@ class MultiplayerPresenceTest {
         val met = other.copy(player = other.player.copy(spotId = own.player.spotId))
         val joined = hub.update(met)
         assertEquals(listOf(10000L), joined.peers.map { it.character.id })
-        assertEquals(listOf(0x0b09, 0x0323, 0x0b0a), joined.refresh.map(::opcode))
+        assertEquals(listOf(0x0b09, 0x0323, 0x0325, 0x0b0a), joined.refresh.map(::opcode))
         assertEquals(10001, ByteBuffer.wrap(received.single()[1]).getInt(6))
         assertContentEquals(hub.character(met), received.single()[1]) // Includes that person's actual face ID.
         received.clear()
@@ -121,8 +121,10 @@ class MultiplayerPresenceTest {
             val second = fixture.join(fixture.account(1), create = true, initialize = false).client
             assertEquals(listOf(10001L, 10000L), initialize(second))
             val joined = readThrough(first, 0x0b0a)
-            assertEquals(listOf(0x0b09, 0x0323, 0x0b0a), joined.map(::opcode))
+            assertEquals(listOf(0x0b09, 0x0323, 0x0325, 0x0b0a), joined.map(::opcode))
             assertEquals(10001, ByteBuffer.wrap(joined[1]).getInt(6))
+            assertEquals(1010001,ByteBuffer.wrap(joined[2]).getInt(8))
+            assertEquals(2487,ByteBuffer.wrap(joined[2]).getInt(15))
 
             val leftOnFirst = warp(first, 10000, 2488)
             assertEquals(listOf(0x0b08, 0x0b09, 0x0b0a), leftOnFirst.map(::opcode))
@@ -132,7 +134,7 @@ class MultiplayerPresenceTest {
             assertEquals(2487, fixture.engine.snapshot().navigators.getValue(fixture.account(1)).grid)
 
             val metOnSecond = warp(second, 10001, 2488)
-            assertEquals(listOf(0x0b09, 0x0323, 0x0b0a), metOnSecond.map(::opcode))
+            assertEquals(listOf(0x0b09, 0x0323, 0x0325, 0x0b0a), metOnSecond.map(::opcode))
             val metOnFirst = readThrough(first, 0x0b0a)
             assertEquals(10001, ByteBuffer.wrap(metOnFirst[1]).getInt(6))
             assertEquals(0x0325, opcode(first.receive())) // The newly visible peer's unit position follows its import.
