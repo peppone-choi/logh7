@@ -8,6 +8,7 @@
 #include "input_text.h"
 #include "portrait_label.h"
 #include "roster_text.h"
+#include "spot_name.h"
 #include "outfit_info_data.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
@@ -43,6 +44,12 @@ static bool planetUnitRowsTest() {
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
 int wmain(int argc, wchar_t** argv) {
+    if (logh::spotName(L"양",7)!=L"양준장" ||
+        logh::spotName(L"트류니히트",1)!=L"정치가 트류니히트" ||
+        logh::spotName(L"병사",20)!=L"병사이등병" ||
+        logh::spotName(L"미상",255)!=L"미상" ||
+        logh::spotName(L"미상",21)!=L"미상" ||
+        logh::spotName(L"",7)!=L"준장") return 214;
     std::wstring roster=L"unchanged";
     auto stored=logh::storedRosterText(L"한글日本ABC손님／二等兵※");
     if (!logh::rosterText(stored.c_str(),roster) || roster!=L"한글日本ABC손님／二等兵※") return 212;
