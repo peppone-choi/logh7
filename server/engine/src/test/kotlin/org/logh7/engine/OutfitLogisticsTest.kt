@@ -5,6 +5,25 @@ import kotlin.test.*
 import kotlinx.coroutines.*
 
 class OutfitLogisticsTest {
+    @Test fun understrengthWarehouseUnitNeedsOnlyItsActualCrewAndConservesBoatsOnCommit() {
+        val f=Fixture()
+        val warehouse=f.store.saved.warehouses.getValue(101)
+        f.store.saved=f.store.saved.copy(warehouses=f.store.saved.warehouses+(101 to warehouse.copy(
+            units=UnitInventory(troops=mapOf(crew to 50)),spareShips=SpareShipBoats(mapOf(ship to 123)))))
+        f.production=PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
+        val request=f.prepare(f.request())
+        val before=f.store.saved
+        val transfer=UnitTransfer(mapOf(ship to 1),mapOf(crew to 5))
+        assertEquals(LogisticsRejection.CREW,f.act(request.copy(transfer=transfer)).rejection)
+        assertEquals(before,f.store.saved)
+        val result=f.act(request.copy(transfer=UnitTransfer(mapOf(ship to 1),mapOf(crew to 3))))
+        assertNull(result.rejection)
+        val after=assertNotNull(result.stocks)
+        assertEquals(123,after.outfits.getValue(1).activeShips!!.values.single().boats)
+        assertEquals(3,after.outfits.getValue(1).units.troops[crew])
+        assertEquals(47,after.warehouses.getValue(101).units.troops[crew])
+        assertTrue(after.warehouses.getValue(101).spareShips.values.isEmpty())
+    }
     @Test fun supplyRespectsPreparedWarehouseLocksAndReleasesDisconnectedOrExpiredOwners() {
         val f=Fixture()
         val prepared=f.prepare(f.request())

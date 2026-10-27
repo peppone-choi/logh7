@@ -87,22 +87,14 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 stocks.copy(bases = stocks.bases + (base.baseId to base.copy(units = moved.source, supplies = remaining.toInt())),
                     warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination, supplies = received.toInt())))
             } else {
-                val moved = request.transfer.apply(warehouse.units, outfit.units)
-                OutfitShipLimits.validate(outfit.kind, moved.destination)
-                val required = moved.destination.ships.entries.sumOf { (key, quantity) ->
-                    val spec = UnitSpecifications.ships.singleOrNull { it.kind == key.kind }
-                        ?: return reject(LogisticsRejection.STOCK)
-                    quantity.toLong() * spec.number("必要乗組員ユニット数:必要乗組員ユニット数")
-                }
+                val reorganized=ReplacementBoats.reorganize(stocks,outfit.id,request.transfer)
+                val destination=reorganized.outfits.getValue(outfit.id)
+                val required=ReplacementBoats.crewRequired(destination)
                 val crewKinds = UnitSpecifications.crews.filter { it.power == power && it.type == 3 }.map { it.kind }.toSet()
-                val crew = moved.destination.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
+                val crew = destination.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
                 if (required != crew) return reject(LogisticsRejection.CREW)
-                if (outfit.supplies > OutfitSupplies.capacity(moved.destination)) return reject(LogisticsRejection.STOCK)
-                val reorganized=ActiveShips.reorganize(stocks, outfit.id, moved.destination)
-                val retained=checkNotNull(reorganized.outfits.getValue(outfit.id).activeShips).values.map {it.id}.toSet()
-                val removed=checkNotNull(outfit.activeShips).values.filter {it.id !in retained}
-                reorganized.copy(warehouses = stocks.warehouses + (warehouse.id to
-                    ReplacementBoats.correctReturns(warehouse.copy(units=moved.source),removed)))
+                if (outfit.supplies > OutfitSupplies.capacity(destination.units)) return reject(LogisticsRejection.STOCK)
+                reorganized
             }
         } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }
         // The native command combines CP and inventory in the common world store.

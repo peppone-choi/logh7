@@ -33,11 +33,11 @@ internal object Reorganization {
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         val ships = linkedMapOf<UnitStack, Int>()
         for (row in request.ships) {
-            // 004c6930 emits zero boats for whole-unit moves. Partial-boat movement is not implemented.
+            // 004c6930 emits zero boats for whole-unit moves. An understrength unit keeps its stored boats; splitting an active unit is not supported.
             require(row.units != 0 && row.boats == 0)
             // 004c6a70 compares the edited outfit quantity with its baseline.
             val units = row.units
-            val source = if (units > 0) warehouse.units.ships else outfit.units.ships
+            val source = if (units > 0) ReplacementBoats.selectable(warehouse).ships else outfit.units.ships
             var remaining = kotlin.math.abs(units)
             for ((stack, count) in source.entries.filter { it.key.kind == row.kind }.sortedBy { it.key.level }) {
                 val moved = minOf(count, remaining)
@@ -54,12 +54,8 @@ internal object Reorganization {
     }
     fun capacity(stocks: PlanetStocks, outfitId: Int, transfer: UnitTransfer): ReorganizationCapacity {
         val outfit = stocks.outfits.getValue(outfitId)
-        val units = transfer.apply(stocks.warehouses.getValue(outfit.warehouseId).units,outfit.units).destination
-        OutfitShipLimits.validate(outfit.kind, units)
-        val crew = units.ships.entries.sumOf { (stack,count) ->
-            count.toLong()*UnitSpecifications.ships.single { it.kind == stack.kind }
-                .number("必要乗組員ユニット数:必要乗組員ユニット数")
-        }
+        val projected=ReplacementBoats.reorganize(stocks,outfitId,transfer).outfits.getValue(outfitId)
+        val crew = ReplacementBoats.crewRequired(projected)
         val crewKinds=UnitSpecifications.crews.filter { it.power==outfit.power && it.type==3 }.map { it.kind }.toSet()
         val baselineCrew=outfit.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
         // 0052f700 adds max_crew to the editor's baseline crew. Sending

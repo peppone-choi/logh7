@@ -68,8 +68,9 @@ class SupplementTest {
             initial.copy(outfits=initial.outfits+(1 to initial.outfits.getValue(1).copy(commanderId=10001)))).rejection)
     }
     @Test fun returningAnUnderstrengthUnitCannotManufactureNewBoats() {
-        val returned=OutfitWarehouse(101,2,OutfitKind.FLEET,1049,1,UnitInventory(mapOf(ship to 1)))
-        val corrected=ReplacementBoats.correctReturns(returned,listOf(ActiveShipUnit(1,ship,123)))
+        val returned=ReplacementBoats.reorganize(stocks(boats=123,warehouseShips=false),1,
+            UnitTransfer(mapOf(ship to -1)))
+        val corrected=returned.warehouses.getValue(101)
         assertTrue(corrected.units.ships.isEmpty());assertEquals(123,corrected.spareShips.values[ship])
         val depleted=ReplacementBoats.take(corrected,32,100)
         assertEquals(23,depleted.spareShips.values[ship]);assertFails {ReplacementBoats.take(depleted,32,24)}
