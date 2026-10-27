@@ -56,7 +56,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
         (returnBase == null || (returnBase in 0..65535 && destination == null && place == null && !supplyFuel && tactical == null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING }
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false)
 
@@ -66,7 +66,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     init { require(cpIntervalSeconds in 1..86400) }
     private var players = store?.load().orEmpty().toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
-    fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null): NavigationResult {
+    fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
+        persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true): NavigationResult {
         require(stocks == null || stocks.generation == session.generation)
         var current: Navigator? = null
         var completedFuel = false
@@ -89,7 +90,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val recovered = recover(fueled, request, now)
         val before = if (request.tactical != null && request.tactical != recovered.cpPaused)
             recovered.copy(cpPaused = request.tactical, cpRecoveryAt = now) else recovered
-        if (existing != before) commit(request.account, before, session.generation)
+        if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
         request.returnBase?.let { target ->
             if (target != 0) {
@@ -103,7 +104,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     return reject(NavigationRejection.ACCESS)
             }
             val after = before.copy(returnBase = target)
-            if (after != before) commit(request.account, after, session.generation)
+            if (persist && after != before) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock)
         }
         val destination = request.destination
@@ -128,13 +129,13 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (job.completesAtGameMillis / 1000 > 0xffffffffL) return reject(NavigationRejection.CLOCK)
             val after = before.copy(pcp = Math.toIntExact(pipeline.balance.pcp), mcp = Math.toIntExact(pipeline.balance.mcp),
                 fuelReadyAt = job.completesAtGameMillis / 1000, strategy = pipeline.checkpoint())
-            commit(request.account, after, session.generation)
+            if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock)
         }
         if (request.place != null) {
             if (destination != null) return reject(NavigationRejection.BASE)
             val result = movePlace(request, before, now)
-            result.player?.let { commit(request.account, it, session.generation) }
+            if (persist) result.player?.let { commit(request.account, it, session.generation) }
             return result.copy(completedFuel = completedFuel, completedDock = completedDock)
         }
         if (before.baseId != 0 || before.spotId != 0) return reject(NavigationRejection.EMBARKED)
@@ -150,13 +151,13 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (warp != WarpDecision.ALLOWED || before.cruise < policy.cruiseCost) return reject(NavigationRejection.CRUISE)
         val forces = GridForces.collect(galaxy, session.generation, snapshot(session.generation).values, stocks)
         val entry = GridEntryRules.evaluate(GridForces.state(galaxy, destination, forces),
-            GridEntry(Camp(before.power, false), 1, true))
+            GridEntry(Camp(before.power, false), movingUnits, soloShip))
         if (entry != GridEntryVerdict.ALLOWED) return reject(NavigationRejection.GRID)
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), policy.warpCost.toLong(), CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
         val after = before.copy(grid = destination, pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
             cruise = before.cruise - policy.cruiseCost, moves = Math.addExact(before.moves, 1))
-        commit(request.account, after, session.generation)
+        if (persist) commit(request.account, after, session.generation)
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock)
     }
     private fun settleWork(player: Navigator, now: Long): Navigator {

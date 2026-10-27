@@ -30,11 +30,19 @@ class LogisticsOfficePolicy(private val galaxy: Galaxy) {
     }
 }
 
+/** Current deployment is independent of the permanent supply depot. Author: 최병호. */
+data class OutfitPosition(val grid: Int, val baseId: Int = 0) {
+    init { require(grid in 0..4999 && baseId in 0..65535) }
+}
+
+fun OutfitStock.positionIn(galaxy: Galaxy): OutfitPosition = position ?:
+    OutfitPosition(galaxy.bases.single { it.id == baseId }.grid, baseId)
+
 data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val baseId: Int,
     val warehouseId: Int, val commanderId: Int = 0, val units: UnitInventory = UnitInventory(),
     val number: Int = 0, val supplies: Int = 0,
     val activeShips: ActiveShipUnits? = if (units.ships.isEmpty()) ActiveShipUnits(emptyList()) else null,
-    val aideId: Int = 0, val staff: FleetStaff = FleetStaff()) {
+    val aideId: Int = 0, val staff: FleetStaff = FleetStaff(), val position: OutfitPosition? = null) {
     init {
         require(id > 0 && power in 2..3 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
         require(number in 0..255 && supplies >= 0)
@@ -43,6 +51,7 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
         val people=listOf(commanderId,aideId).filter {it>0}+staff.members
         require(people.distinct().size==people.size)
         require(units.work.isEmpty()) { "An outfit cannot own a production line" }
+        require(position == null || kind != OutfitKind.GROUND || position.baseId != 0)
         require(activeShips == null || activeShips.quantities() == units.ships) { "Outfit ship identities differ from inventory" }
     }
 }
@@ -70,6 +79,7 @@ internal fun validateOutfitStocks(bases: Map<Int, PlanetStock>, outfits: Map<Int
     require(officers.keys.all { it > 0 })
     require(officers.values.distinct().size == officers.size) { "A logistics office has multiple holders" }
     require(outfits.all { (id, outfit) -> id == outfit.id && outfit.baseId in bases &&
+        (outfit.position == null || outfit.position.baseId == 0 || outfit.position.baseId in bases) &&
         warehouses[outfit.warehouseId]?.let { it.power == outfit.power && it.kind.warehouseKind == outfit.kind.warehouseKind && it.baseId == outfit.baseId &&
             (it.outfitId == 0 || it.outfitId == outfit.id) } == true })
     outfits.values.groupBy { it.warehouseId }.values.forEach { members ->

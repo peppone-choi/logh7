@@ -76,11 +76,14 @@ class BootstrapMessagesTest {
         BootstrapMessages.character(character,offices=listOf(BootstrapMessages.OfficeCard(54,1049),BootstrapMessages.OfficeCard(39,1049)))
         assertFails { BootstrapMessages.OfficeCard(54,70000) }
     }
-    @Test fun flagshipAffiliationOccupiesTheNativeOutfitFieldOnlyWhenStationed() {
+    @Test fun flagshipAffiliationOccupiesTheNativeOutfitFieldWhenStationedOrInSpace() {
         val packet=ByteBuffer.wrap(BootstrapMessages.unit(character,2487,1000,1049,4,70000))
         assertEquals(70000,packet.getInt(19))
         assertEquals(0,ByteBuffer.wrap(BootstrapMessages.unit(character)).getInt(19))
-        assertFails { BootstrapMessages.unit(character,2487,1000,0,5,70000) }
+        val space=ByteBuffer.wrap(BootstrapMessages.unit(character,2488,900,0,5,70000))
+        assertEquals(70000,space.getInt(19));assertEquals(5,space.get(14).toInt())
+        assertEquals(2488,space.getInt(15));assertEquals(0,space.getInt(28))
+        assertFails { BootstrapMessages.unit(character,2487,1000,0,4,70000) }
         assertFails { BootstrapMessages.unit(character,2487,1000,1049,2,70000) }
     }
     @Test fun clockResponseCarriesUnsignedGameSecondsAndRejectsOverflow() {

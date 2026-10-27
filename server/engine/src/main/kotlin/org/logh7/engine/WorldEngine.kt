@@ -43,7 +43,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     private val durability: SessionDurability? = null,
     private val timings: ActorTimings? = null,
     private val metricNanos: () -> Long = System::nanoTime,
-    galaxy: Galaxy? = null, private val navigationStore: NavigationStore? = null,
+    private val galaxy: Galaxy? = null, private val navigationStore: NavigationStore? = null,
     navigationPolicy: NavigationPolicy = NavigationPolicy(), private val stockStore: PlanetStockStore? = null,
     productionPolicy: PlanetProductionPolicy = PlanetProductionPolicy(),
     private val worldStateCommitter: WorldStateCommitter? = null) : CommandSink, SnapshotSource, AutoCloseable {
@@ -422,10 +422,11 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
                     val session = durableState?.session ?: simulation.exportState()
-                    val ownership = if (command.request.returnBase != null || command.request.destination != null)
-                        production?.settle(session.generation, session.gameMillis / 1000) else null
-                    val result = navigation?.apply(command.request, session, ownership)
-                        ?: NavigationResult(null, rejection = NavigationRejection.DISABLED)
+                    val ownership = production?.settle(session.generation, session.gameMillis / 1000)
+                    val result = if (navigation != null && production != null && ownership != null && galaxy != null)
+                        FleetNavigation.apply(command.request, session, galaxy, navigation, production, ownership, worldStateCommitter) { outfit ->
+                            logistics.blocksMovement(session, outfit)
+                        } else NavigationResult(null, rejection = NavigationRejection.DISABLED)
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production?.snapshot(session.generation))
                     published.set(state)

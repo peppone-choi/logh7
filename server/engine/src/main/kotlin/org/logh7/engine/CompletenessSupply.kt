@@ -33,7 +33,8 @@ internal object CompletenessSupply {
         if (from.power != power || to.power != power || from.kind != OutfitKind.TRANSPORT || from.commanderId != r.characterId)
             return reject(LogisticsRejection.ACCESS)
         val base = stocks.bases.getValue(from.baseId)
-        if (base.power != power || base.camp != 0 || from.baseId != to.baseId || player.baseId != from.baseId)
+        if (base.power != power || base.camp != 0 || from.baseId != to.baseId || player.baseId != from.baseId ||
+            (from.position?.baseId ?: from.baseId) != from.baseId || (to.position?.baseId ?: to.baseId) != to.baseId)
             return reject(LogisticsRejection.LOCATION)
         if (player.cpPaused || player.fuelReadyAt != null || player.dockTarget != null)
             return reject(LogisticsRejection.BUSY)

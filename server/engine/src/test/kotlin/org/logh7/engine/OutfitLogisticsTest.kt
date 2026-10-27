@@ -27,16 +27,21 @@ class OutfitLogisticsTest {
     @Test fun supplyRespectsPreparedWarehouseLocksAndReleasesDisconnectedOrExpiredOwners() {
         val f=Fixture()
         val prepared=f.prepare(f.request())
+        assertTrue(f.logistics.blocksMovement(f.session,1))
+        assertFalse(f.logistics.blocksMovement(f.session,4))
         assertTrue(f.logistics.blocksSupply(f.session,f.store.saved,setOf(1)))
         assertFalse(f.logistics.blocksSupply(f.session,f.store.saved,setOf(4)))
         assertNull(f.act(prepared.copy(phase=LogisticsPhase.CANCEL)).rejection)
+        assertFalse(f.logistics.blocksMovement(f.session,1))
         assertFalse(f.logistics.blocksSupply(f.session,f.store.saved,setOf(1)))
         f.prepare(f.request(10,mode=LogisticsMode.ALLOCATION))
+        assertFalse(f.logistics.blocksMovement(f.session,1))
         assertTrue(f.logistics.blocksSupply(f.session,f.store.saved,setOf(4)))
         f.now=120_001
         assertFalse(f.logistics.blocksSupply(f.session,f.store.saved,setOf(4)))
         f.prepare(f.request())
         val offline=f.session.copy(participants=f.session.participants.mapValues { (_,p)->p.copy(online=false) })
+        assertFalse(f.logistics.blocksMovement(offline,1))
         assertFalse(f.logistics.blocksSupply(offline,f.store.saved,setOf(1)))
     }
     @Test fun anExistingOversizedFormationIsPreservedAndCanReturnToItsLegalLimit() {

@@ -7,6 +7,7 @@ import org.logh7.protocol.LoginMessages
 import org.logh7.engine.UnitSpecifications
 import org.logh7.engine.FleetOffice
 import org.logh7.engine.members
+import org.logh7.engine.positionIn
 import org.logh7.protocol.OutfitMessages
 import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.LogisticsMessages
@@ -48,12 +49,13 @@ class WorldBootstrap(val galaxy: Galaxy) {
         editor: Int = 0, characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate? = { null }): ByteArray {
         require(query.mode in 0..1) { "Unsupported outfit roster query mode" }
         val outfit = requireNotNull(stocks.outfits[query.outfit]) { "Unknown outfit" }
-        require(outfit.power == power && (query.base == 0 || query.base == outfit.baseId)) { "Outfit identity mismatch" }
+        val position = outfit.positionIn(galaxy)
+        require(outfit.power == power && (query.base == 0 || query.base == position.baseId)) { "Outfit identity mismatch" }
         val owner=stocks.bases.getValue(outfit.baseId)
         val allocator=editor>0 && stocks.logisticsOfficers[editor]?.permits(power,outfit.kind)==true &&
             owner.power==power && owner.camp==0
         require(query.mode == 0 || editor > 0 &&
-            (outfit.commanderId == editor && query.base == outfit.baseId || allocator && query.base == 0)) {
+            (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId || allocator && query.base == 0)) {
             "Only the stationed commander or authorized allocator may open the editor"
         }
         val members = outfit.members().map {id ->
@@ -71,15 +73,16 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val troops = outfit.units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { OutfitPartyMessages.Troops(1000+it.key.kind,it.key.level,it.value) }
         val maximum = org.logh7.engine.OutfitSupplies.capacity(outfit.units)
-        return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=outfit.baseId),power,
+        return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=if(query.mode==1)outfit.baseId else position.baseId),power,
             outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum,members))
     }
     fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
         val outfit = stocks.outfits.values.singleOrNull { owner -> owner.activeShips?.values?.any { it.id == id } == true }
         val units = if (outfit == null) emptyList() else {
-            require(outfit.power == power && (base == 0 || base == outfit.baseId)) { "Outfit unit access denied" }
+            val position = outfit.positionIn(galaxy)
+            require(outfit.power == power && (base == 0 || base == position.baseId)) { "Outfit unit access denied" }
             val unit = outfit.activeShips!!.values.single { it.id == id }
-            listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,galaxy.bases.single { it.id == outfit.baseId }.grid,outfit.id,outfit.baseId,
+            listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,position.baseId,
                 org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id)))
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
@@ -90,7 +93,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         }))
     fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks): ByteArray =
         LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
-            (query.grid == -1 || galaxy.bases.single { it.id == outfit.baseId }.grid == query.grid) &&
+            (query.grid == -1 || outfit.positionIn(galaxy).grid == query.grid) &&
                 (query.power == 255 || outfit.power == query.power) && (query.camp == 255 || query.camp == 0)
         }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,0,it.number,it.supplies) }))
     private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?,
@@ -137,8 +140,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
         // completes. A later standalone 032b query only fills its detail slot.
         return (if (directory) galaxy.bases.chunked(200).map { chunk ->
             LoginMessages.sessionMessage(0x1204, WorldMessages.simpleBases(chunk.map(::baseWire)))
-        } else emptyList()) + (stocks?.let { state -> listOf(outfits(state.outfits.values
-            .filter { it.baseId in ids }.sortedBy { it.id }.map { it.id }, state)) }.orEmpty()) +
+        } else emptyList()) + (stocks?.let { state -> state.outfits.values
+            .filter { it.positionIn(galaxy).grid == grid }.sortedBy { it.id }.map { it.id }
+            .chunked(100).ifEmpty { listOf(emptyList()) }.map { outfits(it,state) } }.orEmpty()) +
             listOf(conditions(ids, stocks), places(ids))
     }
     fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
