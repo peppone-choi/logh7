@@ -56,6 +56,10 @@ messages:
     opcode: 0x0206
   - name: ResponseInformationCharacter
     opcode: 0x0323
+  - name: RequestInformationDisplayCharacter
+    opcode: 0x0354
+  - name: ResponseInformationDisplayCharacter
+    opcode: 0x0355
   - name: ResponseInformationUnit
     opcode: 0x0325
   - name: RequestWorldInitialize

@@ -23,6 +23,12 @@ class GamePresence {
             (viewer.player.baseId != 0 && viewer.player.baseId == other.player.baseId && viewer.player.spotId != 0 &&
                 viewer.player.spotId == other.player.spotId && viewer.player.spotOwner == other.player.spotOwner))
     private fun peers(viewer: Member) = members.values.filter { visible(viewer, it) }.sortedBy { it.character.id }
+    /** Public profiles follow the same live visibility boundary as the strategy character cache. */
+    @Synchronized fun detail(connection: String, id: Int): Member? {
+        val viewer = members[connection] ?: return null
+        return members.values.singleOrNull { it.character.id == id.toLong() &&
+            it.player.generation == viewer.player.generation && (it.connection == connection || visible(viewer, it)) }
+    }
     /** Spot zero means one's own ship, not a public room shared by every undocked player. */
     @Synchronized fun spotChat(connection: String, message: ChatMessages.Spot, seconds: Long): ByteArray {
         val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
