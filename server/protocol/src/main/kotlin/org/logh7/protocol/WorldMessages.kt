@@ -212,7 +212,16 @@ object WorldMessages {
         val armorFront: Int, val armorSide: Int, val armorBack: Int, val shield: Int, val shieldCapacity: Int,
         val beam: Int, val gun: Int, val missile: Int, val antiaircraft: Int, val repair: Int,
         val category: Int = 0, val number: Int = 1, val term: Int = 0, val crew: Int = 0,
-        val missileConsumption: Int = 0, val fighterNumber: Int = 0, val cargo: Int = 0)
+        val missileConsumption: Int = 0, val fighterNumber: Int = 0, val cargo: Int = 0,
+        val beamArms: Int = 0, val beamAngles: Int = 0, val gunArms: Int = 0, val gunAngles: Int = 0,
+        val missileArms: Int = 0, val missileAngles: Int = 0, val antiaircraftArms: Int = 0)
+    /** 00412eb0/004c5140: fixed 27 profiles, eight signed short samples each, no count/padding. */
+    fun armaments(profiles: List<List<Int>>): ByteArray {
+        require(profiles.size == 27 && profiles.all { it.size == 8 && it.all { value -> value in Short.MIN_VALUE..Short.MAX_VALUE } })
+        return java.nio.ByteBuffer.allocate(432).also { out ->
+            profiles.forEach { profile -> profile.forEach { out.putShort(it.toShort()) } }
+        }.array()
+    }
     /** 004109a0/00411a60: kind, class and model_file are distinct fields. */
     fun ships(ships: List<Ship>) = body {
         require(ships.size <= 200 && ships.map { it.kind }.distinct().size == ships.size)
@@ -224,6 +233,12 @@ object WorldMessages {
             require(ship.model in 0..49 || ship.model in 1000..1049 ||
                 ship.model in 2000..2009 || ship.model in 3000..3009)
             require(ship.searchRange.isFinite() && ship.searchRange >= 0 && ship.speed.isFinite() && ship.speed > 0)
+            // 004c7820: 0xff means absent; 0..26 indexes the separate 0311 ability table.
+            // A zero profile index is NOT a zero weapon count.
+            require(listOf(ship.beamArms, ship.gunArms, ship.missileArms)
+                .all { it in 0..26 || it == 255 })
+            require(ship.antiaircraftArms in 0..255) // Its lookup path is not yet recovered.
+            require(listOf(ship.beamAngles, ship.gunAngles, ship.missileAngles).all { it in 0..63 })
             require(listOf(ship.outputPower, ship.armorFront, ship.armorSide, ship.armorBack, ship.shield,
                 ship.shieldCapacity, ship.beam, ship.gun, ship.missile, ship.antiaircraft, ship.repair,
                 ship.term, ship.crew, ship.missileConsumption, ship.fighterNumber, ship.cargo).all { it in 0..65535 })
@@ -236,11 +251,11 @@ object WorldMessages {
             repeat(13) { writeShort(0) } // sensor profile, evasion, navigation
             writeFloat(ship.speed); writeFloat(1f) // turning rate is provisional
             listOf(ship.armorFront, ship.armorBack, ship.armorSide, ship.shield, ship.shieldCapacity).forEach(::writeShort)
-            // Weapon counts and arcs remain unresolved; do not invent a combat fit.
-            writeByte(0); writeShort(ship.beam); writeByte(0)
-            writeByte(0); writeShort(ship.gun); writeByte(0)
-            writeByte(0); writeShort(ship.missile); writeByte(0); writeShort(ship.missileConsumption)
-            writeByte(0); writeShort(ship.antiaircraft)
+            // Profile assignments and six-sector masks are separate from destructive power.
+            writeByte(ship.beamArms); writeShort(ship.beam); writeByte(ship.beamAngles)
+            writeByte(ship.gunArms); writeShort(ship.gun); writeByte(ship.gunAngles)
+            writeByte(ship.missileArms); writeShort(ship.missile); writeByte(ship.missileAngles); writeShort(ship.missileConsumption)
+            writeByte(ship.antiaircraftArms); writeShort(ship.antiaircraft)
             writeShort(0); writeShort(ship.fighterNumber); writeShort(ship.cargo); writeShort(ship.repair); writeShort(0)
         }
     }

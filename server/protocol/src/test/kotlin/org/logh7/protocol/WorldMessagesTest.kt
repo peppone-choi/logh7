@@ -77,6 +77,31 @@ class WorldMessagesTest {
         assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(model = 120))) }
         assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(model = 51))) }
     }
+    @Test fun armamentProfilesAndShipSectorMasksAreIndependentFromWeaponPower() {
+        val profiles = List(27) { row -> List(8) { column -> row * 8 + column - 100 } }
+        val table = ByteBuffer.wrap(WorldMessages.armaments(profiles))
+        assertEquals(432, table.remaining())
+        repeat(216) { assertEquals(it - 100, table.short.toInt()) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.armaments(profiles.dropLast(1)) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.armaments(profiles + listOf(profiles.first())) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.armaments(profiles.toMutableList().also { it[0] = listOf(1) }) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.armaments(List(27) { List(8) { 32768 } }) }
+        val ship = WorldMessages.Ship(93, 3, 1014, "Ship", 220, 3200f, 30000f,
+            10, 6, 4, 40, 19, 24, 0, 50, 50, 40,
+            beamArms = 26, beamAngles = 0x21, gunArms = 255, gunAngles = 0,
+            missileArms = 2, missileAngles = 0x3f, antiaircraftArms = 3)
+        val wire = ByteBuffer.wrap(WorldMessages.ships(listOf(ship)))
+        assertEquals(117, wire.limit())
+        assertEquals(26, wire.get(90).toInt() and 255); assertEquals(24, wire.getShort(91).toInt())
+        assertEquals(0x21, wire.get(93).toInt()); assertEquals(255, wire.get(94).toInt() and 255)
+        assertEquals(2, wire.get(98).toInt()); assertEquals(50, wire.getShort(99).toInt())
+        assertEquals(0x3f, wire.get(101).toInt()); assertEquals(3, wire.get(104).toInt())
+        for (invalid in listOf(ship.copy(beamArms = 27), ship.copy(gunArms = -1),
+            ship.copy(missileArms = 254), ship.copy(antiaircraftArms = 256), ship.copy(beamAngles = 64),
+            ship.copy(gunAngles = -1), ship.copy(missileAngles = 255))) {
+            assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(invalid)) }
+        }
+    }
     @Test fun baseStatePreservesSeparateFactionFieldsAndEnvironmentAtNativeWireOffsets() {
         val state = WorldMessages.Condition(1049, 2487, 2, 0, 100_000_000, 60_000_000, 20,
             70, 80, 1, 1, 100_000, 1_000_000, 1_000_000)
