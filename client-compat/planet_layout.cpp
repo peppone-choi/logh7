@@ -141,6 +141,7 @@ static void updateCharacterInformation(void* manager);
 #include "character_information.h"
 #include "input_editor.h"
 #include "peer_notices.h"
+#include "unit_presence.h"
 
 // 005035a0 appends chat colour markers through 004eab10. That routine converts
 // the entire existing UTF-16 pool to the host ANSI codepage, then decodes it as
@@ -512,6 +513,7 @@ static void install() {
     if (!installReturnSettings()) { status = -3; return; }
     if (!installTaxWindow()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
+    if (!installUnitPresence()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
     if (!patchBytes(spotFilter, expectedSpotFilter, spotJump, sizeof(spotJump))) { status = -3; return; }
