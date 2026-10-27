@@ -408,6 +408,31 @@ class GameExchange(
                         BootstrapMessages.character(target,0,0,
                             offices=administration.offices(id,target.power,checkNotNull(generation)))
                     }
+                    0x0354 -> {
+                        check(gameStarted && worldInitialized && world != null && presence != null)
+                        val id = org.logh7.protocol.CharacterInformationMessages.query(body)
+                        // Read storage first, then resolve current visibility: a pending lookup must
+                        // not publish the former room's opponent after either participant leaves.
+                        pendingWorld = stocks().thenApply { stored ->
+                            val target = presence.detail(connection, id)
+                            val profile = target?.let { member ->
+                                val player = member.player
+                                val outfit = stored?.outfits?.get(member.outfit)?.takeIf { it.power == member.character.power }
+                                val outfitBase = outfit?.let { unit -> world.galaxy.bases.singleOrNull { it.id == unit.baseId } }
+                                val charged = member.offices.mapNotNull { card ->
+                                    world.galaxy.bases.singleOrNull { it.id == card.target }?.let {
+                                        org.logh7.protocol.CharacterInformationMessages.ChargedBase(card.kind, world.baseWire(it)) }
+                                }.take(5) // Native structure has only five charged-base slots.
+                                org.logh7.protocol.CharacterInformationMessages.Profile(member.character, player.grid,
+                                    player.baseId, player.spotId, if (player.spotId == 0) id else player.spotOwner,
+                                    listOf(0, if (member.character.power == 2) 59 else 195) + member.offices.map { it.kind },
+                                    if (outfit != null && outfitBase != null) org.logh7.protocol.LogisticsDirectoryMessages.Outfit(
+                                        outfit.id, outfit.kind.wire, outfit.number, world.baseWire(outfitBase)) else null, charged)
+                            }
+                            listOf(org.logh7.protocol.CharacterInformationMessages.response(id, profile))
+                        }
+                        return null
+                    }
                     0x034e -> {
                         check(gameStarted && world != null && stock != null)
                         val card = org.logh7.protocol.CardCharacterMessages.query(body)
