@@ -1,4 +1,4 @@
-// Keep the live local character's unit state in sync with its authoritative 0325 reply.
+// Keep live local and peer unit state in sync with authoritative 0325 replies.
 // Author: 최병호.
 #pragma once
 
@@ -30,7 +30,8 @@ static BYTE __fastcall availableChatInput(void* manager,void*,void* element) {
 }
 
 // Unit replies can precede the enter-grid character import. Keep a short,
-// bounded inbox and consume a record only for a matching live peer slot.
+// bounded inbox for matching live peer slots. A grid transition can import the
+// same character twice, so keep recent replies through both native imports.
 static struct {void* world;struct Row {unsigned id;ULONGLONG until;BYTE unit[0x58];} rows[600];} pendingPeerUnits={};
 static bool publishPeerUnit(void* world,unsigned id,const BYTE* unit) {
     auto own=world ? at<BYTE*>(world,8) : nullptr;
@@ -58,7 +59,7 @@ static void __fastcall receivedUnitInformation(void* world,void*,int mode,void* 
         if(at<BYTE>(world,0x2a58f8))apply(world,0,nullptr,unit);
         return;
     }
-    if(publishPeerUnit(world,id,unit))return;
+    publishPeerUnit(world,id,unit);
     if(pendingPeerUnits.world!=world) {pendingPeerUnits={};pendingPeerUnits.world=world;}
     auto now=GetTickCount64();
     decltype(pendingPeerUnits)::Row* selected=nullptr;
@@ -72,7 +73,7 @@ static void __fastcall importedPeerCharacter(void* world,void*,int mode,void* ch
     unsigned id=logh::infoWord(static_cast<const BYTE*>(character),0x24);
     auto now=GetTickCount64();
     for(auto& row:pendingPeerUnits.rows)if(row.id==id && row.until>=now) {
-        if(publishPeerUnit(world,id,row.unit))row.id=0;
+        publishPeerUnit(world,id,row.unit);
         return;
     }
 }
