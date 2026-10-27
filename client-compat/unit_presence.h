@@ -29,17 +29,52 @@ static BYTE __fastcall availableChatInput(void* manager,void*,void* element) {
     return reinterpret_cast<BYTE(__thiscall*)(void*,void*)>(0x5025c0)(manager,element);
 }
 
+// Unit replies can precede the enter-grid character import. Keep a short,
+// bounded inbox and consume a record only for a matching live peer slot.
+static struct {void* world;struct Row {unsigned id;ULONGLONG until;BYTE unit[0x58];} rows[600];} pendingPeerUnits={};
+static bool publishPeerUnit(void* world,unsigned id,const BYTE* unit) {
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(!own || own!=static_cast<BYTE*>(world)+0xc || !at<BYTE>(own,0) ||
+        !id || at<unsigned>(own,0x48)==id)return false;
+    BYTE* peer=nullptr;
+    for(unsigned i=1;i<600;++i) {
+        auto row=static_cast<BYTE*>(world)+0xc+i*0x370;
+        if(at<BYTE>(row,0) && at<unsigned>(row,0x48)==id) {
+            if(peer)return false;
+            peer=row;
+        }
+    }
+    // Native mode setters affect the local HUD; copy only the peer's unit.
+    if(peer)memcpy(peer+0x318,unit,0x58);
+    return peer!=nullptr;
+}
 static void __fastcall receivedUnitInformation(void* world,void*,int mode,void* character,const BYTE* unit) {
     auto apply=reinterpret_cast<void(__thiscall*)(void*,int,void*,const BYTE*)>(0x4c2c80);
     apply(world,mode,character,unit);
-    // The original 0325 handler imports this unit into its query buffer (mode 1).
-    // The chat panel reads the separate live character's unit fields at +0x318.
-    // Mode 0 is the native importer for that local slot; never publish another ship there.
-    auto own=world ? at<BYTE*>(world,8) : nullptr;
-    if (mode!=1 || character || !unit || !own || own!=static_cast<BYTE*>(world)+0xc ||
-        !at<BYTE>(world,0x2a58f8) || !at<BYTE>(own,0) || !at<unsigned>(own,0x48) ||
-        at<unsigned>(own,0x48)!=logh::infoWord(unit,0)) return;
-    apply(world,0,nullptr,unit);
+    if(mode!=1 || character || !unit || !world)return;
+    unsigned id=logh::infoWord(unit,0);
+    auto own=at<BYTE*>(world,8);
+    if(own && own==static_cast<BYTE*>(world)+0xc && at<BYTE>(own,0) && at<unsigned>(own,0x48)==id) {
+        if(at<BYTE>(world,0x2a58f8))apply(world,0,nullptr,unit);
+        return;
+    }
+    if(publishPeerUnit(world,id,unit))return;
+    if(pendingPeerUnits.world!=world) {pendingPeerUnits={};pendingPeerUnits.world=world;}
+    auto now=GetTickCount64();
+    decltype(pendingPeerUnits)::Row* selected=nullptr;
+    for(auto& row:pendingPeerUnits.rows)if(row.id==id) {selected=&row;break;}
+    if(!selected)for(auto& row:pendingPeerUnits.rows)if(!row.id || row.until<now) {selected=&row;break;}
+    if(selected) {selected->id=id;selected->until=now+5000;memcpy(selected->unit,unit,0x58);}
+}
+static void __fastcall importedPeerCharacter(void* world,void*,int mode,void* character,const BYTE* unit) {
+    reinterpret_cast<void(__thiscall*)(void*,int,void*,const BYTE*)>(0x4c2c80)(world,mode,character,unit);
+    if(mode!=2 || !character || pendingPeerUnits.world!=world)return;
+    unsigned id=logh::infoWord(static_cast<const BYTE*>(character),0x24);
+    auto now=GetTickCount64();
+    for(auto& row:pendingPeerUnits.rows)if(row.id==id && row.until>=now) {
+        if(publishPeerUnit(world,id,row.unit))row.id=0;
+        return;
+    }
 }
 
 static bool installUnitPresence() {
@@ -47,10 +82,15 @@ static bool installUnitPresence() {
     const BYTE expected[]={0xe8,0x07,0x7b,0,0};
     BYTE replacement[5]={0xe8};
     *reinterpret_cast<LONG*>(replacement+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&receivedUnitInformation)-target-5);
+    auto imported=reinterpret_cast<BYTE*>(0x4c2bab);
+    const BYTE importExpected[]={0xe8,0xd0,0,0,0};
+    BYTE importReplacement[5]={0xe8};
+    *reinterpret_cast<LONG*>(importReplacement+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&importedPeerCharacter)-imported-5);
     auto chat=reinterpret_cast<BYTE*>(0x516db0);
     const BYTE chatExpected[]={0xe8,0x0b,0xb8,0xfe,0xff};
     BYTE chatReplacement[5]={0xe8};
     *reinterpret_cast<LONG*>(chatReplacement+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&availableChatInput)-chat-5);
-    if (memcmp(target,expected,5) || memcmp(chat,chatExpected,5)) return false;
-    return patchBytes(target,expected,replacement,5) && patchBytes(chat,chatExpected,chatReplacement,5);
+    if (memcmp(target,expected,5) || memcmp(imported,importExpected,5) || memcmp(chat,chatExpected,5)) return false;
+    return patchBytes(target,expected,replacement,5) && patchBytes(imported,importExpected,importReplacement,5) &&
+        patchBytes(chat,chatExpected,chatReplacement,5);
 }

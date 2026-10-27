@@ -59,6 +59,8 @@ class GamePresence {
     }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
+    fun unit(member: Member) = BootstrapMessages.unit(member.character,member.player.grid,member.player.cruise,
+        member.player.baseId,member.player.mode,member.outfit)
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
@@ -78,7 +80,7 @@ class GamePresence {
         // 0356 only updates existing slots. Enter-grid transactions import newly seen characters.
         // Do not resend the viewer's own character: a queued notification must not roll back its CP.
         return removed + LoginMessages.sessionMessage(0x0b09, byteArrayOf(0)) +
-            after.map(::character) + LoginMessages.sessionMessage(0x0b0a, byteArrayOf(0))
+            after.flatMap { listOf(character(it),unit(it)) } + LoginMessages.sessionMessage(0x0b0a, byteArrayOf(0))
     }
     @Synchronized fun update(member: Member, seconds: Long = 0): Update {
         val previous = members[member.connection]
