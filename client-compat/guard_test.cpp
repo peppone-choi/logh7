@@ -10,6 +10,7 @@
 #include "roster_text.h"
 #include "spot_name.h"
 #include "character_cards.h"
+#include "character_info_data.h"
 #include "outfit_info_data.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
@@ -45,6 +46,44 @@ static bool planetUnitRowsTest() {
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
 int wmain(int argc, wchar_t** argv) {
+    BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
+    unsigned profileId=10001;memcpy(profile,&profileId,4);memcpy(snapshot+0x24,&profileId,4);
+    profile[4]=2;profile[6]='A';profile[0x20]=3;profile[0x6a]=7;profile[0x60]=88;
+    profile[0x69]=97;snapshot[0x1ae]=19;snapshot[0x270]=2;snapshot[0x274]=195;
+    memset(profile+0x6e,0xcc,26); // Unwritten payload behind an empty title.
+    if (!logh::validCharacterProfile(profile,sizeof(profile),profileId) ||
+        !logh::applyCharacterProfile(profile,sizeof(profile),snapshot,sizeof(snapshot)) ||
+        snapshot[0xde]!='A' || snapshot[0xfa]!=7 || snapshot[0x28]!=3 ||
+        logh::infoShort(snapshot,0x1ac)!=88 || snapshot[0x1cd]!=97 ||
+        snapshot[0x1ae]!=19 || snapshot[0x270]!=2 || snapshot[0x274]!=195 || snapshot[0xfe]) return 222;
+    if (logh::validCharacterProfile(nullptr,sizeof(profile),profileId) ||
+        logh::validCharacterProfile(profile,sizeof(profile)-1,profileId) ||
+        logh::validCharacterProfile(profile,sizeof(profile),profileId+1) ||
+        logh::applyCharacterProfile(profile,sizeof(profile),snapshot,sizeof(snapshot)-1)) return 223;
+    profile[0x90]=17;
+    if (logh::validCharacterProfile(profile,sizeof(profile),profileId)) return 224;
+    profile[0x90]=16;profile[0xb2]=1;profile[0xb4]=1;profile[0xba]=1;profile[0xbc]=1;profile[0xe0]=5;
+    for (unsigned i=0;i<5;++i) profile[0xe8+i*0x28]=1;
+    if (!logh::validCharacterProfile(profile,sizeof(profile),profileId)) return 225;
+    profile[0xe0]=6;
+    if (logh::validCharacterProfile(profile,sizeof(profile),profileId)) return 226;
+    profile[0xe0]=5;profile[0xb2]=2;
+    if (logh::validCharacterProfile(profile,sizeof(profile),profileId)) return 227;
+    profile[0xb2]=1;profile[4]=14;
+    if (logh::validCharacterProfile(profile,sizeof(profile),profileId)) return 228;
+    profile[4]=0;profile[0x20]=0;profile[0x6a]=255;
+    if (!logh::validCharacterProfile(profile,sizeof(profile),profileId) ||
+        logh::applyCharacterProfile(profile,sizeof(profile),snapshot,sizeof(snapshot))) return 229;
+    // The CD decoder leaves absent optional outfit fields untouched on reused objects.
+    profile[0xb2]=0;profile[0xba]=255;
+    if (!logh::validCharacterProfile(profile,sizeof(profile),profileId)) return 231;
+    profile[0xb2]=1;
+    if (logh::validCharacterProfile(profile,sizeof(profile),profileId)) return 232;
+    logh::OutfitReplyQueue profileQueue;unsigned oldToken=0;
+    if (!profileQueue.add(profileId,0,1,false) || !profileQueue.add(profileId,0,2,false) ||
+        profileQueue.take(profileId+1,0,false,oldToken) ||
+        !profileQueue.take(profileId,0,false,oldToken) || oldToken!=1 ||
+        !profileQueue.take(profileId,0,false,oldToken) || oldToken!=2) return 230;
     unsigned char cardRecord[0x370]={};logh::CharacterCards cardRows;
     if (!logh::CharacterCards::read(cardRecord,sizeof(cardRecord),cardRows) || cardRows.count) return 215;
     cardRecord[0x270]=2;cardRecord[0x27c]=190;
