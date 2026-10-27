@@ -126,6 +126,7 @@ static bool updateTaxWindow(void* gui);
 static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
+static void updateCharacterInformation(void* manager);
 #include "planet_info.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"
@@ -137,6 +138,7 @@ static void outfitWarehouseResponse(void* world,const BYTE* record);
 #include "appointment_information.h"
 #include "unicode_text.h"
 #include "spot_labels.h"
+#include "character_information.h"
 #include "input_editor.h"
 #include "peer_notices.h"
 
@@ -504,6 +506,7 @@ static void install() {
     if (!installOutfitEditor()) { status = -3; return; }
     if (!installInputEditor()) { status = -3; return; }
     if (!installSpotLabels()) { status = -3; return; }
+    if (!installCharacterInformation()) { status = -3; return; }
     if (!installDockingInformation()) { status = -3; return; }
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }
