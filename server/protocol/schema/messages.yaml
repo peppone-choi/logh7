@@ -78,6 +78,8 @@ messages:
     opcode: 0x0b0c
   - name: NotifyMovedGrid
     opcode: 0x0b07
+  - name: NotifySearch
+    opcode: 0x0b0d
   - name: ResponseInformationGrid
     opcode: 0x0317
   - name: ResponseStaticInformationGridType
