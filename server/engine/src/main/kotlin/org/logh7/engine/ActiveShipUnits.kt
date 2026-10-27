@@ -3,8 +3,9 @@ package org.logh7.engine
 import java.util.Collections
 
 /** Commissioned unit identity, not a ship-kind ID or a personal flagship ID. Author: 최병호. */
-data class ActiveShipUnit(val id: Int, val stack: UnitStack) {
-    init { require(id in 1..999_999) }
+data class ActiveShipUnit(val id: Int, val stack: UnitStack,
+    val boats: Int = UnitSpecifications.ships.single { it.kind == stack.kind }.number) {
+    init { require(id in 1..999_999 && boats in 0..UnitSpecifications.ships.single { it.kind == stack.kind }.number) }
 }
 
 class ActiveShipUnits(values: List<ActiveShipUnit>) {

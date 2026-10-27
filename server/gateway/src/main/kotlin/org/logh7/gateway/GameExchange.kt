@@ -399,6 +399,40 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0c05 -> {
+                        check(gameStarted && world!=null && administration!=null)
+                        val query=org.logh7.protocol.SupplementMessages.query(body)
+                        val character=checkNotNull(characters.character(identity.account))
+                        require(query.header.characterId==character.id.toInt())
+                        require(query.units.map {it.kind}.distinct().size==query.units.size) { "Duplicate supplement kind" }
+                        pendingWorld=administration.supplementOutfit(org.logh7.engine.SupplementRequest(identity.account,connection,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation),query.base,query.outfit,query.kind,query.mode,
+                            query.units.associate {it.kind to it.ids},query.supplies,character.abilities[1],character.abilities[2])).thenApply {result ->
+                            val player=checkNotNull(result.player);val accepted=result.rejection==null
+                            publication=Publication(character,player,false)
+                            val stored=checkNotNull(result.stocks);val outfit=stored.outfits[query.outfit]
+                            val inventory=if(accepted) {
+                                val value=checkNotNull(outfit)
+                                val ships=checkNotNull(value.activeShips).values.groupBy {it.stack.kind}.toSortedMap().map {(kind,units) ->
+                                    org.logh7.protocol.LogisticsMessages.ShipStock(kind,units.size,units.sumOf {it.boats})
+                                }
+                                org.logh7.protocol.LogisticsMessages.Inventory(ships,
+                                    value.units.troops.entries.sortedWith(compareBy({it.key.kind},{it.key.level})).map {
+                                        org.logh7.protocol.LogisticsMessages.TroopStock(1000+it.key.kind,it.key.level,it.value) })
+                            } else org.logh7.protocol.LogisticsMessages.Inventory(emptyList(),emptyList())
+                            listOf(org.logh7.protocol.SupplementMessages.response(query,gameSeconds(),player.pcp,player.mcp,accepted,
+                                result.troops.map {org.logh7.protocol.LogisticsMessages.TroopMove(1000+it.key.kind,it.key.level,it.value)},
+                                result.supplies,inventory,outfit?.supplies ?: 0,result.maxCrew,
+                                outfit?.let {org.logh7.engine.OutfitSupplies.capacity(it.units)} ?: 0))+
+                                (if(query.mode==1)listOf(characterMessage(character,player,true)) else emptyList())+
+                                (if(accepted && query.mode==1)listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
+                                    query.outfit,query.base,0),character.power,stored,characterById=characters::characterById),
+                                    world.outfitWarehouse(query.base,query.outfit,character.id.toInt(),character.power,stored)) else emptyList())+
+                                result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
+                        }
+                        return null
+                    }
                     0x0c02 -> {
                         check(gameStarted && administration != null && world != null)
                         val query = org.logh7.protocol.LogisticsMessages.reorganization(body)
@@ -585,6 +619,23 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.SupplementDirectoryMessages.matches(body)) {
+                                val query=org.logh7.protocol.SupplementDirectoryMessages.query(body)
+                                val character=checkNotNull(characters.character(identity.account))
+                                require(query.character==character.id.toInt())
+                                pendingWorld=stocks().thenApply {stored ->
+                                    val inventory=checkNotNull(stored)
+                                    val source=inventory.outfits.values.singleOrNull {it.commanderId==character.id.toInt() && it.power==character.power}
+                                    val owner=source?.let {inventory.bases.getValue(it.baseId)}
+                                    val units=if(source==null || owner?.power!=character.power || owner.camp!=0) emptyList() else
+                                        checkNotNull(source.activeShips).values.filter {it.stack.kind==query.kind}.sortedBy {it.id}.map {
+                                            org.logh7.protocol.SupplementDirectoryMessages.Unit(it.id,it.stack.kind,
+                                                org.logh7.engine.UnitSpecifications.ships.single {spec->spec.kind==it.stack.kind}.number-it.boats)
+                                        }.filter {it.destroyed>0}
+                                    org.logh7.protocol.SupplementDirectoryMessages.response(query,units)
+                                }
+                                return null
+                            }
                             if (org.logh7.protocol.SupplyDirectoryMessages.matches(body)) {
                                 val query=org.logh7.protocol.SupplyDirectoryMessages.query(body)
                                 val character=checkNotNull(characters.character(identity.account))

@@ -98,8 +98,11 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 val crew = moved.destination.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
                 if (required != crew) return reject(LogisticsRejection.CREW)
                 if (outfit.supplies > OutfitSupplies.capacity(moved.destination)) return reject(LogisticsRejection.STOCK)
-                ActiveShips.reorganize(stocks, outfit.id, moved.destination).copy(
-                    warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.source)))
+                val reorganized=ActiveShips.reorganize(stocks, outfit.id, moved.destination)
+                val retained=checkNotNull(reorganized.outfits.getValue(outfit.id).activeShips).values.map {it.id}.toSet()
+                val removed=checkNotNull(outfit.activeShips).values.filter {it.id !in retained}
+                reorganized.copy(warehouses = stocks.warehouses + (warehouse.id to
+                    ReplacementBoats.correctReturns(warehouse.copy(units=moved.source),removed)))
             }
         } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }
         // The native command combines CP and inventory in the common world store.

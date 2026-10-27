@@ -19,11 +19,17 @@ static bool installOutfitEditor() {
     const BYTE ready[]={0xe8,0xf1,0x2f,0,0};
     const unsigned labels[]={0x531c5b,0x531c70};
     const BYTE oldLabel[]={0x6a,0x22},unitLabel[]={0x6a,0x21};
+    const unsigned supplementLabels[]={0x531db4,0x531df3};
+    const BYTE oldBoatLabel[]={0x6a,0x1f},boatLabel[]={0x6a,0x1e};
     if (memcmp(reinterpret_cast<void*>(0x52de7a),ready,sizeof(ready))) return false;
     for (unsigned address:labels)
         if (memcmp(reinterpret_cast<void*>(address),oldLabel,sizeof(oldLabel))) return false;
+    for (unsigned address:supplementLabels)
+        if (memcmp(reinterpret_cast<void*>(address),oldBoatLabel,sizeof(oldBoatLabel))) return false;
     for (unsigned address:labels)
         if (!patchBytes(reinterpret_cast<void*>(address),oldLabel,unitLabel,sizeof(oldLabel))) return false;
+    for (unsigned address:supplementLabels)
+        if (!patchBytes(reinterpret_cast<void*>(address),oldBoatLabel,boatLabel,sizeof(boatLabel))) return false;
     BYTE call[5]={0xe8};
     *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&outfitEditorReady)-
         reinterpret_cast<BYTE*>(0x52de7a)-5);

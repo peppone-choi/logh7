@@ -64,9 +64,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
         }
         val units = checkNotNull(outfit.activeShips) { "Active ship identities are not initialized" }
         val groups = units.values.groupBy { it.stack.kind }.toSortedMap().flatMap { (kind, ships) ->
-            val spec = UnitSpecifications.ships.single { it.kind == kind }
             ships.sortedBy { it.id }.chunked(70).map { group ->
-                OutfitPartyMessages.Ships(kind,Math.multiplyExact(spec.number,group.size),group.map { it.id })
+                OutfitPartyMessages.Ships(kind,group.sumOf {it.boats},group.map { it.id })
             }
         }
         val troops = outfit.units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
@@ -94,13 +93,15 @@ class WorldBootstrap(val galaxy: Galaxy) {
             (query.grid == -1 || galaxy.bases.single { it.id == outfit.baseId }.grid == query.grid) &&
                 (query.power == 255 || outfit.power == query.power) && (query.camp == 255 || query.camp == 0)
         }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,0,it.number,it.supplies) }))
-    private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?) = values.orEmpty().entries
-        .groupBy { it.key.kind }.toSortedMap().map { (kind,stacks) ->
+    private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?,
+        spare: Map<org.logh7.engine.UnitStack,Int> = emptyMap()) = (values.orEmpty().keys+spare.keys).map {it.kind}.distinct().sorted().map { kind ->
+            val stacks=values.orEmpty().entries.filter {it.key.kind==kind}
             val count = stacks.sumOf { it.value.toLong() }
             val spec = UnitSpecifications.ships.single { it.kind == kind }
-            val boats = Math.multiplyExact(count,spec.number.toLong())
-            require(count in 1..255 && boats in 1..65535) { "Ship stock exceeds native warehouse capacity" }
-            WorldMessages.WarehouseShips(kind,count.toInt(),boats.toInt())
+            val boats = Math.multiplyExact(count,spec.number.toLong())+spare.filterKeys {it.kind==kind}.values.sumOf {it.toLong()}
+            val slots=(boats+spec.number-1)/spec.number
+            require(slots in 1..255 && boats in 1..65535) { "Ship stock exceeds native warehouse capacity" }
+            WorldMessages.WarehouseShips(kind,slots.toInt(),boats.toInt())
         }
     fun assignmentInventory(units: org.logh7.engine.UnitInventory) = LogisticsMessages.Inventory(
         warehouseShips(units.ships).map { LogisticsMessages.ShipStock(it.kind,it.units,it.boats) },
@@ -117,7 +118,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         fun entries(values: Map<org.logh7.engine.UnitStack,Int>) = values.entries
             .sortedWith(compareBy({ it.key.kind },{ it.key.level })).map { WorldMessages.Stock(it.key.kind,it.key.level,it.value) }
         return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base,warehouse.supplies,warehouse.food,warehouse.mineral,
-            warehouseShips(warehouse.units.ships),entries(warehouse.units.troops),outfitId))
+            warehouseShips(warehouse.units.ships,warehouse.spareShips.values),entries(warehouse.units.troops),outfitId))
     }
     fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
         val state = requireNotNull(galaxy.conditions[base]) { "Unknown warehouse base" }

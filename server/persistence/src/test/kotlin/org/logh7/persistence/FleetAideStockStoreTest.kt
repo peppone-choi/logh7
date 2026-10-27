@@ -16,7 +16,8 @@ class FleetAideStockStoreTest {
         FilePlanetStockStore(path).use {it.save(stock)}
         val current=Files.readString(path)
         val old=current.lineSequence().filter {it.isNotEmpty()}.joinToString("\n",postfix="\n") {
-            if(it.startsWith("O\t"))it.split('\t').dropLast(2).joinToString("\t") else it.replace("STOCK-12","STOCK-10")
+            if(it.startsWith("O\t"))it.split('\t').dropLast(2).joinToString("\t")
+            else if(it.startsWith("W\t"))it.substringBeforeLast('\t') else it.replace("STOCK-13","STOCK-10")
         }
         Files.writeString(path,old)
         FilePlanetStockStore(path).use {assertEquals(stock.outfits.getValue(200).copy(aideId=0),it.load()!!.outfits[200])}

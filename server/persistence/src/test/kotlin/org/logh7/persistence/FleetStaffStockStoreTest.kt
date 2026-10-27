@@ -18,7 +18,8 @@ class FleetStaffStockStoreTest {
         val text=Files.readString(path)
         FilePlanetStockStore(path).use {assertEquals(full,it.load())}
         val old=text.lineSequence().filter {it.isNotEmpty()}.joinToString("\n",postfix="\n") {
-            if(it.startsWith("O\t"))it.split('\t').dropLast(1).joinToString("\t") else it.replace("STOCK-12","STOCK-11")
+            if(it.startsWith("O\t"))it.split('\t').dropLast(1).joinToString("\t")
+            else if(it.startsWith("W\t"))it.substringBeforeLast('\t') else it.replace("STOCK-13","STOCK-11")
         }
         Files.writeString(path,old)
         FilePlanetStockStore(path).use {assertEquals(full.copy(outfits=mapOf(200 to full.outfits.getValue(200).copy(staff=FleetStaff()))),it.load())}

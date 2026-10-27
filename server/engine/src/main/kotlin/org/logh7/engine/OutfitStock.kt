@@ -48,11 +48,13 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
 }
 
 data class OutfitWarehouse(val id: Int, val power: Int, val kind: OutfitKind, val baseId: Int, val outfitId: Int = 0,
-    val units: UnitInventory = UnitInventory(), val supplies: Int = 0, val food: Int = 0, val mineral: Int = 0) {
+    val units: UnitInventory = UnitInventory(), val supplies: Int = 0, val food: Int = 0, val mineral: Int = 0,
+    val spareShips: SpareShipBoats = SpareShipBoats()) {
     init {
         require(id > 0 && power in 2..3 && baseId in 1..65535 && supplies >= 0 && food >= 0 && mineral >= 0)
         require(if (kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT)) outfitId > 0 else outfitId == 0)
         require(units.work.isEmpty()) { "An outfit warehouse cannot own a production line" }
+        require(spareShips.values.keys.all { stack -> ProductionUnits.definitions.any { it.ship && it.kind==stack.kind && it.power==power } })
     }
 }
 
