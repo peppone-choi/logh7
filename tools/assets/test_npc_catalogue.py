@@ -36,6 +36,30 @@ class NpcCatalogueTests(unittest.TestCase):
         self.assertEqual(sum(c['face_id'] is None for c in rows), 431)
         validate(dict(schema=1, characters=rows), [dict(face_id=c['face_id'], faction=c['faction']) for c in assigned])
 
+    def test_separate_names_preserve_cultural_order_compound_given_name_and_wire_limit(self):
+        from npc_catalogue import expanded_roster
+        root = Path(__file__).resolve().parents[2]
+        rows = expanded_roster(root / 'docs/manual/data/initial-card-holders.csv')['characters']
+        reviewed = [c for c in rows if c['name_parts']['status'] == 'reviewed']
+        self.assertEqual(len(reviewed), 47)
+        by_name = {c['name']: c['name_parts'] for c in rows}
+        self.assertEqual((by_name['양 웬리']['surname'], by_name['양 웬리']['given_name'], by_name['양 웬리']['order']), ('양', '웬리', 'family_first'))
+        self.assertEqual(by_name['지크프리트 키르히아이스']['given_name'], '지크프리트')
+        self.assertEqual(by_name['라인하르트 폰 로엔그람']['surname'], '폰 로엔그람')
+        self.assertEqual(by_name['빌리바르트 요아힘 폰 메르카츠']['given_name'], '빌리바르트 요아힘')
+        self.assertIsNone(by_name['무라이']['given_name'])
+        for c in reviewed:
+            p = c['name_parts']
+            parts = [p['surname'], p['given_name']] if p['order'] == 'family_first' else [p['given_name'], p['surname']]
+            self.assertEqual(' '.join(parts), c['name'])
+        c = blank_character('wire', 'empire', 'Display name remains independent')
+        c['name_parts']['surname'] = 'A' * 12
+        validate(dict(schema=1, characters=[c]), [])
+        for invalid in ('A' * 13, '\x00', '\U0001f600', '   ', ''):
+            c['name_parts']['surname'] = invalid
+            with self.assertRaises(ValueError):
+                validate(dict(schema=1, characters=[c]), [])
+
     def test_ova_comparison_cannot_survive_a_different_face_or_edition(self):
         from npc_catalogue import expanded_roster
         root = Path(__file__).resolve().parents[2]

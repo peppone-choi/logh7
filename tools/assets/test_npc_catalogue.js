@@ -30,4 +30,12 @@ for (const [field, value] of [['face_id', 2], ['edition', 'DNT'], ['edition_capt
   const bad = structuredClone(doc); bad.characters[0].face_comparison[field] = value;
   assert.throws(() => validate(bad, faces));
 }
+row.name_parts = {surname: 'A'.repeat(12), given_name: null, order: 'unknown', status: 'pending', source: '', note: ''};
+validate(doc, faces);
+for (const value of ['A'.repeat(13), '\u0000', '\u{1f600}', '   ', '']) {
+  const bad = structuredClone(doc); bad.characters[0].name_parts.surname = value;
+  assert.throws(() => validate(bad, faces));
+}
+row.name_parts.status = 'reviewed';
+assert.throws(() => validate(doc, faces));
 console.log('NPC JSON validation passed: null/zero, provenance, ranges, duplicate faces, factions.');
