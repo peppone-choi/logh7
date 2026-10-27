@@ -1,15 +1,9 @@
-// Only the background-portrait text setter in CD strategy spots. Author: 최병호.
+// Unicode names in CD strategy spot portraits and roster rows. Author: 최병호.
 #pragma once
 #include "portrait_label.h"
+#include "roster_text.h"
 
-static void __cdecl setSpotPortraitLabel(void* pool,const char* fallback,void* character) {
-    if (!pool) return;
-    // Native slots retain the character through their departure fade, even
-    // after world membership clears its active byte. Keep its embedded name.
-    if (!character) {
-        reinterpret_cast<void(__cdecl*)(void*,const char*,int)>(0x4eaaf0)(pool,fallback,-1);
-        return;
-    }
+static std::wstring spotCharacterLabel(void* character) {
     std::wstring text,part;
     if (at<BYTE>(character,0xa1)) {
         auto name=reinterpret_cast<const wchar_t*>(static_cast<BYTE*>(character)+0xde);
@@ -20,7 +14,17 @@ static void __cdecl setSpotPortraitLabel(void* pool,const char* fallback,void* c
     if (logh::japaneseFragment(rank,part)) text+=part;
     if (at<unsigned>(character,0x24)==*reinterpret_cast<unsigned*>(0x788ad0) &&
         logh::japaneseFragment(reinterpret_cast<const char*>(0x788ad8),part)) text+=part;
-    text=logh::portraitLineBreak(text);
+    return text;
+}
+static void __cdecl setSpotPortraitLabel(void* pool,const char* fallback,void* character) {
+    if (!pool) return;
+    // Native slots retain the character through their departure fade, even
+    // after world membership clears its active byte. Keep its embedded name.
+    if (!character) {
+        reinterpret_cast<void(__cdecl*)(void*,const char*,int)>(0x4eaaf0)(pool,fallback,-1);
+        return;
+    }
+    auto text=logh::portraitLineBreak(spotCharacterLabel(character));
     reinterpret_cast<void(__cdecl*)(void*,const wchar_t*,int)>(0x4ea8b0)(pool,text.c_str(),-1);
 }
 static void __declspec(naked) spotPortraitLabel() {
@@ -37,10 +41,34 @@ static void __declspec(naked) spotPortraitLabel() {
         ret
     }
 }
+static void* __cdecl constructSpotRow(void* string,void* character,const char* fallback) {
+    std::string stored=character ? logh::storedRosterText(spotCharacterLabel(character)) : std::string();
+    return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(0x64c144)
+        (string,stored.empty() ? fallback : stored.c_str());
+}
+static void __declspec(naked) spotRowConstructor() {
+    __asm {
+        // The caller's saved roster-entry pointer is at stack +0x14,
+        // below five row arguments, the ctor argument and our return address.
+        mov eax, dword ptr [esp+0x30]
+        mov eax, dword ptr [eax]
+        push dword ptr [esp+4]
+        push eax
+        push ecx
+        call constructSpotRow
+        add esp, 0xc
+        ret 4
+    }
+}
 static bool installSpotLabels() {
-    const BYTE expected[]={0xe8,0x99,0x0b,0xfa,0xff};
-    BYTE call[5]={0xe8};
-    *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&spotPortraitLabel)-
-        reinterpret_cast<BYTE*>(0x549f52)-5);
-    return patchBytes(reinterpret_cast<void*>(0x549f52),expected,call,sizeof(call));
+    const unsigned addresses[]={0x549f52,0x54adc1};
+    const BYTE expected[][5]={{0xe8,0x99,0x0b,0xfa,0xff},{0xe8,0x7e,0x13,0x10,0}};
+    BYTE* functions[]={reinterpret_cast<BYTE*>(&spotPortraitLabel),reinterpret_cast<BYTE*>(&spotRowConstructor)};
+    for (unsigned i=0;i<2;++i) if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
+    for (unsigned i=0;i<2;++i) {
+        BYTE call[5]={0xe8};
+        *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(functions[i]-reinterpret_cast<BYTE*>(addresses[i])-5);
+        if (!patchBytes(reinterpret_cast<void*>(addresses[i]),expected[i],call,sizeof(call))) return false;
+    }
+    return true;
 }

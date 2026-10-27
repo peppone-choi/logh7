@@ -2,6 +2,7 @@
 // Author: 최병호.
 #pragma once
 #include <stdlib.h>
+#include "roster_text.h"
 
 static const BYTE* pickerBase(unsigned id) {
     auto world = *reinterpret_cast<BYTE**>(0x7ccffc);
@@ -30,6 +31,11 @@ static const char* __fastcall pickerNameToken(void*, void*, unsigned id) {
 }
 static const wchar_t* __cdecl pickerListText(const char* text) {
     static thread_local wchar_t name[32];
+    if (logh::markedRosterText(text)) {
+        static thread_local std::wstring row;
+        if (!logh::rosterText(text,row)) row.clear();
+        return row.c_str();
+    }
     if (text && !strncmp(text, baseLabelPrefix, sizeof(baseLabelPrefix) - 1)) {
         const char* digits = text + sizeof(baseLabelPrefix) - 1;
         unsigned id = 0, count = 0;
