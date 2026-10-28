@@ -25,11 +25,13 @@ internal object TacticalMotionMessages {
     }
     fun npc(unit:Int,motion:org.logh7.engine.TacticalMotion,seconds:Long,character:Int=0):ByteArray {
         if(motion.rotation!=null)return formation(mapOf(unit to motion),seconds,character).last()
+        // A zero-engine path retains its destinations in storage, but the native renderer
+        // needs a stationary pose to retire the previous movement plan.
         val pose=motion.pose(seconds)
         fun point(p:org.logh7.engine.TacticalPoint)=TacticalMoveMessages.Point(p.x,p.y,0f)
         return TacticalMoveMessages.reply(TacticalMoveMessages.Move(character,
-            listOf(TacticalMoveMessages.Unit(unit,pose.direction,point(pose.position))),motion.velocity,motion.direction,
-            motion.remaining(seconds).map(::point),motion.parallel),seconds,if(motion.velocity==0f)0 else maxOf(0,motion.startsAt-seconds))
+            listOf(TacticalMoveMessages.Unit(unit,pose.direction,point(pose.position))),motion.velocity,if(motion.velocity==0f)pose.direction else motion.direction,
+            (if(motion.velocity==0f)listOf(pose.position) else motion.remaining(seconds)).map(::point),motion.parallel),seconds,if(motion.velocity==0f)0 else maxOf(0,motion.startsAt-seconds))
     }
     fun reply(player: Navigator, seconds: Long): ByteArray? {
         val motion = player.motion?.takeIf { it.grid == player.grid && player.cpPaused } ?: return null
@@ -37,7 +39,8 @@ internal object TacticalMotionMessages {
         fun point(p: org.logh7.engine.TacticalPoint) = TacticalMoveMessages.Point(p.x, p.y, 0f)
         return TacticalMoveMessages.reply(TacticalMoveMessages.Move(player.characterId,
             listOf(TacticalMoveMessages.Unit(player.unitId, pose.direction, point(pose.position))), motion.velocity,
-            motion.direction, motion.remaining(seconds).map(::point),motion.parallel), seconds,
+            if(motion.velocity==0f)pose.direction else motion.direction,
+            (if(motion.velocity==0f)listOf(pose.position) else motion.remaining(seconds)).map(::point),motion.parallel), seconds,
             if (motion.velocity == 0f) 0 else maxOf(0, motion.startsAt - seconds))
     }
 }
