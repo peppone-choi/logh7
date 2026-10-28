@@ -90,6 +90,19 @@ class NpcTacticsTest {
         assertEquals(6,state.stocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.sequence)
         assertEquals(6400,state.stocks.outfits.getValue(1).supplies)
     }
+    @Test fun disabledSurvivorsCannotFireAndOnlyHealthyBoatsConsumeAmmunition() {
+        for(disabled in listOf(150,300)) {
+            val state=state();val outfit=state.stocks.outfits.getValue(1)
+            state.stocks=state.stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(
+                outfit.activeShips!!.values.map {it.copy(damaged=disabled)}))))
+            val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+            val moves=mutableListOf<TacticalMovement>()
+            settle(now,nav,stock,state,moves)
+            val hits=settle(now+480,nav,stock,state,moves)
+            assertEquals(if(disabled==300)0 else 3,hits.size)
+            assertEquals(10000-(300-disabled)*6,state.stocks.outfits.getValue(1).supplies)
+        }
+    }
     @Test fun damagedOutfitMovesOutsideRadarPreparesAndExitsToLegalAdjacentGrid() {
         val state=state(75);val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state);val moves=mutableListOf<TacticalMovement>()
         settle(now,nav,stock,state,moves)

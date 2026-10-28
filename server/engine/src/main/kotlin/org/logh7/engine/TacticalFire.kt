@@ -156,14 +156,11 @@ internal object TacticalCombat {
         var departed:Navigator?=null
         val hit = if(victim.regular!=null) {
             val (outfit,unit)=victim.regular
-            val remaining=maxOf(0,unit.boats-damage)
-            val ships=ActiveShipUnits(outfit.activeShips!!.values.map {
-                if(it.id==targetId)it.copy(boats=remaining,damaged=minOf(it.damaged,remaining)) else it})
-            val units=UnitInventory(ships.quantities(),outfit.units.troops)
-            inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to outfit.copy(
-                activeShips=ships,units=units,supplies=minOf(outfit.supplies,OutfitSupplies.capacity(units)))))
-            TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-remaining,
-                damaged=victim.spec.number-remaining+minOf(unit.damaged,remaining))
+            val changed=TacticalLosses.apply(outfit,unit.id,damage)
+            val survivor=changed.activeShips!!.values.single {it.id==targetId}
+            inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to changed))
+            TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-survivor.boats,
+                damaged=survivor.unavailable)
         } else {
             val (victimAccount,defender)=checkNotNull(victim.personal)
             val hull=checkNotNull(defender.hull).settle(seconds,defender.energy ?: TacticalEnergy.ZERO)

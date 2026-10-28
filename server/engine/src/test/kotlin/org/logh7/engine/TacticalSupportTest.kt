@@ -196,4 +196,23 @@ class TacticalSupportTest {
         assertFalse(out.single().cancelled)
         assertEquals(mapOf(1 to 0,2 to 10000),OutfitSupplies.distribution(s.stocks.outfits.getValue(1)))
     }
+    @Test fun combatGeneratedDamageCanBeRepairedWithoutRestoringDestroyedBoatsOrLostCargo() {
+        val s=state(repair=true)
+        val own=s.stocks.outfits.getValue(1)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(supplies=13000,activeShips=ActiveShipUnits(
+            own.activeShips!!.values.map {if(it.id==2)it.copy(damaged=0,supplies=3000) else it}))))
+        val victim=checkNotNull(TacticalCombat.target(2,2488,Power.ALLIANCE,s.stocks,galaxy,s.players))
+        val hit=TacticalCombat.strike(session,galaxy,s.players.toMutableMap(),s.stocks,99,2488,1,now,2,TacticalWeapon.BEAM,
+            TacticalWeaponMount(0,63,68,0),100,TacticalPose(TacticalPoint(0f,2f),0f),victim)
+        s.stocks=hit.first
+        val damaged=s.stocks.outfits.getValue(1).activeShips!!.values.last()
+        assertTrue(damaged.damaged>0);assertEquals(248,damaged.boats);assertEquals(2976,damaged.supplies)
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        assertNotNull(accept(s,nav,p,request(TacticalSupportAction.REPAIR,2)).player)
+        val out=mutableListOf<TacticalSupportResult>();settle(s,nav,p,now+120,out)
+        val repaired=s.stocks.outfits.getValue(1).activeShips!!.values.last()
+        assertEquals(0,repaired.damaged);assertEquals(damaged.boats,repaired.boats);assertEquals(damaged.supplies,repaired.supplies)
+        assertEquals(52,out.single().damaged)
+        assertEquals(9860,s.stocks.outfits.getValue(1).activeShips!!.values.first().supplies)
+    }
 }

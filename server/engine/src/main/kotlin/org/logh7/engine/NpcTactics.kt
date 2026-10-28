@@ -136,16 +136,16 @@ internal object NpcTactics {
                 if(firing.retreat!=null || now<firing.nextFireAt || firing.sequence>Long.MAX_VALUE-3)continue
                 for(weapon in TacticalWeapon.entries) {
                     outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
-                    if(unit.boats==0)break
+                    if(unit.boats<=unit.damaged)break
                     val pose=initial(unit,outfit,position.grid,now,players,stocks,galaxy)
                     val mount=TacticalArmaments.mount(spec,weapon)
-                    val cost=if(weapon==TacticalWeapon.BEAM)0 else maxOf(1,mount.consumption)*unit.boats
+                    val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                     if(mount.power==0 || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                     val victim=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.firstOrNull {
                         TacticalArmaments.effectiveness(mount,pose,it.pose.position)>0} ?: continue
                     val effect=TacticalArmaments.effectiveness(mount,pose,victim.pose.position)
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
-                        weapon,mount.copy(power=((mount.power.toLong()*unit.boats+spec.number-1)/spec.number).toInt()),effect,pose,
+                        weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,pose,
                         checkNotNull(TacticalCombat.target(victim.id,position.grid,power(outfit),stocks,galaxy,players)))
                     stocks=resolved.first;impacts+=resolved.second
                     outfit=stocks.outfits.getValue(outfitId)

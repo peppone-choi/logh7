@@ -52,7 +52,8 @@ class GamePresence {
                     val leave=impact.departed?.let {
                         listOf(org.logh7.protocol.TacticalRetreatMessages.warped(impact.hit.seconds,it.grid,listOf(it.unitId)))
                     }.orEmpty()
-                    val cargo=if(impact.weapon!=org.logh7.engine.TacticalWeapon.BEAM && snapshot!=null && galaxy!=null && characterById!=null) {
+                    val cargo=if((impact.weapon!=org.logh7.engine.TacticalWeapon.BEAM || impact.hit.target in 1..999999) &&
+                        snapshot!=null && galaxy!=null && characterById!=null) {
                         val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
                         listOf(org.logh7.protocol.TacticsMessages.definitions(impact.hit.grid,tactical.units),
                             org.logh7.protocol.TacticsMessages.corps(tactical.corps))

@@ -101,7 +101,7 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 val crewKinds = UnitSpecifications.crews.filter { it.power == power && it.type == 3 }.map { it.kind }.toSet()
                 val crew = destination.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
                 if (required != crew) return reject(LogisticsRejection.CREW)
-                if (outfit.supplies > OutfitSupplies.capacity(destination.units)) return reject(LogisticsRejection.STOCK)
+                if (outfit.supplies > OutfitSupplies.capacity(destination)) return reject(LogisticsRejection.STOCK)
                 reorganized
             }
         } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }

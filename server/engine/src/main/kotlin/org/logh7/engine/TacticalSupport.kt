@@ -152,7 +152,7 @@ internal object TacticalSupportOperations {
         if(personal!=null)return if(order.action==TacticalSupportAction.SUPPLY)personal.supplies<10000 else personal.hull!!.hp<100
         val target=ship(order.target,stocks) ?: return false
         return if(order.action==TacticalSupportAction.SUPPLY)
-            OutfitSupplies.distribution(target.outfit).getValue(order.target)<OutfitSupplies.unitCapacity(target.unit.stack.kind)
+            OutfitSupplies.distribution(target.outfit).getValue(order.target)<OutfitSupplies.unitCapacity(target.unit)
             else target.unit.damaged>0
     }
     fun advance(session: SessionState, galaxy: Galaxy, players: MutableMap<String,Navigator>, initial: PlanetStocks,
@@ -192,7 +192,7 @@ internal object TacticalSupportOperations {
                 targetSupplies=balances.getValue(order.target); damaged=target.unit.damaged
                 val cost=UnitSpecifications.ships.single {it.kind==target.unit.stack.kind}.number("修理消費物資(１隻):修理消費物資(１隻)")
                 val amount=if(order.action==TacticalSupportAction.SUPPLY)
-                    minOf(available,OutfitSupplies.unitCapacity(target.unit.stack.kind)-targetSupplies)
+                    minOf(available,OutfitSupplies.unitCapacity(target.unit)-targetSupplies)
                     else if(cost>0)minOf(damaged,available/cost)*cost else 0
                 if(amount>0) {
                     if(source.outfit.id==target.outfit.id) {

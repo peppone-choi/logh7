@@ -70,7 +70,7 @@ internal object Supplement {
         }
         if(required>0 && current+moved.values.sumOf {it.toLong()}==0L) return reject(LogisticsRejection.CREW)
         val cargo=outfit.supplies.toLong()+r.supplies;val stockCargo=warehouse.supplies.toLong()-r.supplies
-        if(cargo !in 0..OutfitSupplies.capacity(outfit.units).toLong() || stockCargo !in 0..Int.MAX_VALUE.toLong())
+        if(cargo !in 0..OutfitSupplies.capacity(outfit.copy(activeShips=ActiveShipUnits(restored))).toLong() || stockCargo !in 0..Int.MAX_VALUE.toLong())
             return reject(LogisticsRejection.STOCK)
         val nextOutfit=outfit.copy(activeShips=ActiveShipUnits(restored),
             units=UnitInventory(outfit.units.ships,troops),supplies=cargo.toInt())
