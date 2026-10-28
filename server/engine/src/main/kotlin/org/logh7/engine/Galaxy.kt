@@ -34,6 +34,12 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
         require(starts.keys == Power.entries.toSet() && starts.values.all { it in locations })
         cells = MutableList(5000) { defaultCell }.also { values -> systems.forEach { values[it.grid] = it.kind } }.toList()
     }
+    /** Room identities and backgrounds follow the saved owner after conquest. */
+    fun facilitiesAt(baseId: Int, stocks: PlanetStocks? = null): List<PlanetFacility> {
+        val original = facilities.getValue(baseId)
+        val power = stocks?.let { checkNotNull(it.bases[baseId]).power } ?: return original
+        return Places.forBase(bases.single { it.id == baseId }, power)
+    }
     fun kind(grid: Int): GridKind = when {
         grid !in cells.indices -> GridKind.IMPASSABLE
         cells[grid] >= 3 -> GridKind.STAR_SYSTEM

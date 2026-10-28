@@ -397,7 +397,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
                 if (before.spotId != 0 && (before.spotOwner != 0 ||
-                    galaxy.facilities.getValue(before.baseId).none { facility -> facility.kind == 4 &&
+                    galaxy.facilitiesAt(before.baseId, stocks).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
                 after = before.copy(baseId = 0, mode = 5, spotId = 0, spotOwner = 0)
@@ -430,7 +430,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             }
             is PlaceMove.Spot -> {
                 if (before.baseId == 0) return reject(NavigationRejection.BASE)
-                val facilities = galaxy.facilities.getValue(before.baseId)
+                val condition = galaxy.conditions.getValue(before.baseId)
+                val stored = stocks?.bases?.get(before.baseId)
+                val friendly = (stored?.power ?: condition.power) == ownPower &&
+                    (stored?.camp ?: condition.camp) == 0
+                val facilities = galaxy.facilitiesAt(before.baseId, stocks)
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
                 if (move.id == 0) {
                     if (move.owner != before.characterId || before.spotId == 0) return reject(NavigationRejection.SPOT)
@@ -440,13 +444,13 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     val allowed = when (spot.access) {
                         SpotAccess.CLOSED -> false
                         SpotAccess.PUBLIC -> move.owner == 0
-                        SpotAccess.GUARDED -> move.owner == 0 && galaxy.conditions.getValue(before.baseId).power == ownPower
+                        SpotAccess.GUARDED -> move.owner == 0 && friendly
                         SpotAccess.RANK -> move.owner == 0 && request.rank <= if (spot.kind == 10) 8 else 13
                         SpotAccess.PRIVATE -> when (spot.kind) {
                             // CD room picker sends owner 0 for the quay template. Its owner is
                             // resolved from the authenticated flagship, never from a client ID.
                             6 -> move.owner == 0 && request.unitId == before.unitId &&
-                                galaxy.conditions.getValue(before.baseId).power == ownPower
+                                friendly
                             13 -> move.owner == before.characterId
                             else -> false
                         }

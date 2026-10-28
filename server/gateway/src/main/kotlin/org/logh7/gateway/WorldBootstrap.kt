@@ -132,6 +132,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun outfitWarehouse(base: Int, outfitId: Int, character: Int, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
         val outfit = requireNotNull(stocks.outfits[outfitId]) { "Unknown outfit" }
         require(outfit.baseId == base && outfit.power == power) { "Outfit warehouse identity mismatch" }
+        val owner = stocks.bases.getValue(base)
+        require(owner.power == power && owner.camp == 0) { "Outfit warehouse base access denied" }
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         val commandsSharedWarehouse = stocks.outfits.values.any { it.warehouseId == warehouse.id && it.commanderId == character }
         require(character > 0 && (commandsSharedWarehouse || stocks.logisticsOfficers[character]?.permits(power,outfit.kind) == true)) {
@@ -161,7 +163,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         } else emptyList()) + (stocks?.let { state -> state.outfits.values
             .filter { it.positionIn(galaxy).grid == grid }.sortedBy { it.id }.map { it.id }
             .chunked(100).ifEmpty { listOf(emptyList()) }.map { outfits(it,state) } }.orEmpty()) +
-            listOf(conditions(ids, stocks), places(ids))
+            listOf(conditions(ids, stocks), places(ids, stocks))
     }
     fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
         WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
@@ -172,9 +174,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 stored?.taxRate ?: it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
                 stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)
         }))
-    fun places(ids: List<Int>): ByteArray = LoginMessages.sessionMessage(0x0321,
+    fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->
-            WorldMessages.BaseInstitutions(base.id, galaxy.facilities.getValue(base.id).map { facility ->
+            WorldMessages.BaseInstitutions(base.id, galaxy.facilitiesAt(base.id, stocks).map { facility ->
                 WorldMessages.Institution(facility.kind, facility.id, facility.spots.map {
                     WorldMessages.Spot(it.kind, it.id, it.image)
                 })

@@ -914,8 +914,10 @@ class GameExchange(
                     0x031e, 0x0320 -> {
                         check(gameStarted && world != null)
                         val ids = org.logh7.protocol.WorldMessages.baseQuery(body, opcode)
-                        if (opcode == 0x031e && stock != null) {
-                            pendingWorld = stocks().thenApply { listOf(world.conditions(ids, it)) }
+                        if (stock != null) {
+                            pendingWorld = stocks().thenApply {
+                                listOf(if (opcode == 0x031e) world.conditions(ids, it) else world.places(ids, it))
+                            }
                             return null
                         }
                         if (opcode == 0x031e) world.conditions(ids) else world.places(ids)
