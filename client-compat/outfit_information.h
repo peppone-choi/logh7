@@ -7,13 +7,16 @@ static struct OutfitInformation {
     void* manager; void* root; void* world; void* pages[4]; void* lists[4];
     unsigned character, grid, id, power, kind, number, token, expectedBase;
     bool selected, loaded, warehouseRequested, warehouseLoaded, timeoutShown;
-    ULONGLONG sentAt;
+    ULONGLONG sentAt, groundSentAt, groundAcceptAfter;
+    unsigned groundArmed, groundPending;
+    const wchar_t* groundMessage;
     BYTE party[logh::outfitPartyBytes], warehouse[0x300];
 } outfitInformation = {};
 static SRWLOCK outfitReplyLock = SRWLOCK_INIT;
 static struct OutfitInbox {
     logh::OutfitReplyQueue queue;
     unsigned token, partyToken, warehouseToken, character, grid; void* world;
+    unsigned groundCharacter, groundOutfit, groundAction, groundReply;
     BYTE party[logh::outfitPartyBytes], warehouse[0x300];
 } outfitInbox = {};
 static unsigned outfitToken = 0;
@@ -87,6 +90,100 @@ static bool requestOutfit(bool warehouse) {
         (state.world,0,warehouse ? 0x17 : 0x10,query);
     return true;
 }
+// Ground commands are reconstructed controls on the existing native tab frame.
+// The second click confirms the whole-outfit operation; changing selection cancels it.
+static bool outfitGroundAccess() {
+    auto& state=outfitInformation;
+    auto own=state.world ? at<BYTE*>(state.world,8) : nullptr;
+    return state.loaded && own && at<unsigned>(own,0x358)==logh::infoWord(state.party,4) && outfitWarehouseAccess();
+}
+static void buildOutfitGroundControls() {
+    auto& state=outfitInformation;
+    for(int n=0;n<2;++n) {
+        int x=16+n*202,y=450,width=192,height=26,decoration=30+n*6;
+        const int sx[]={459,467,659},widths[]={8,width-16,8};int top=y;
+        for(int row=0;row<2;++row) {
+            int h=height/2,left=x;
+            for(int col=0;col<3;++col) {
+                unsigned art[40]={};
+                for(int i=0;i<4;++i) {
+                    art[i*5]=reinterpret_cast<unsigned>(planetPartsPath);
+                    art[i*5+1]=sx[col];art[i*5+2]=row ? 314-h : 264;art[i*5+3]=widths[col];art[i*5+4]=h;
+                }
+                auto piece=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(state.root,2,decoration++,art);
+                outfitBox(state.root,piece,left,top,widths[col],h);left+=widths[col];
+            }
+            top+=h;
+        }
+        auto button=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(state.root,1,22+n,nullptr);
+        outfitBox(state.root,button,x,y,width,height);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5029e0)(state.root,button,2);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502b00)(state.root,button,1);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502b30)(state.root,button,1);
+    }
+    auto message=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(state.root,1,24,nullptr);
+    outfitBox(state.root,message,16,478,660,22);
+    reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5029e0)(state.root,message,3);
+}
+static void updateOutfitGroundControls() {
+    auto& state=outfitInformation;auto now=GetTickCount64();
+    unsigned reply=0;
+    AcquireSRWLockExclusive(&outfitReplyLock);
+    if(outfitInbox.groundCharacter==state.character && outfitInbox.groundOutfit==state.id &&
+        outfitInbox.groundAction==state.groundPending)reply=outfitInbox.groundReply;
+    outfitInbox.groundReply=0;
+    ReleaseSRWLockExclusive(&outfitReplyLock);
+    if(reply && state.groundPending) {
+        state.groundPending=0;state.groundArmed=0;
+        state.groundMessage=L"서버 응답을 받았습니다. 최신 편성을 조회합니다.";
+        requestOutfit(false);
+    }
+    if(state.groundPending && now-state.groundSentAt>=10000) {
+        state.groundPending=0;state.groundArmed=0;
+        state.groundMessage=L"실행 결과를 확인하지 못했습니다. CP와 현재 상태를 확인하십시오.";
+        requestOutfit(false);
+    }
+    bool enabled=outfitGroundAccess() && !state.groundPending && !at<BYTE>(state.world,0x3579cc);
+    outfitText(state.root,22,state.groundArmed==0x40 ? L"육전대 출격 확정" : L"육전대 출격 · MCP 80");
+    outfitText(state.root,23,state.groundArmed==0x41 ? L"육전대 철수 확정" : L"육전대 철수 · MCP 80");
+    outfitText(state.root,24,state.groundMessage ? state.groundMessage :
+        enabled ? L"전체 병력을 대상으로 합니다. 버튼을 다시 누르면 실행합니다." : L"같은 아군 거점에 정박한 부대의 지휘관만 실행할 수 있습니다.");
+    BYTE event[52]={};
+    for(int n=0;n<2;++n) {
+        auto button=outfitWidget(state.root,1,22+n);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(state.root,button,enabled ? 1 : 0);
+        if(!enabled || now<state.groundAcceptAfter || !reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(state.root,2,button,event,0))continue;
+        unsigned action=0x40+n;state.groundAcceptAfter=now+250;
+        if(state.groundArmed!=action) {
+            state.groundArmed=action;state.groundMessage=action==0x40 ?
+                L"전 육전대를 현재 거점에 주둔시킵니다. 다시 눌러 확정하십시오." :
+                L"현재 거점의 전 육전대를 함정에 태웁니다. 다시 눌러 확정하십시오.";
+        } else {
+            BYTE record[36]={};at<unsigned>(record,4)=state.character;at<unsigned>(record,16)=state.id;
+            // Count zero is the explicit whole-outfit extension. Opaque native values stay empty.
+            state.groundPending=action;state.groundSentAt=now;state.groundArmed=0;
+            state.groundMessage=L"서버에 전체 승하선을 요청했습니다.";
+            AcquireSRWLockExclusive(&outfitReplyLock);
+            outfitInbox.groundCharacter=state.character;outfitInbox.groundOutfit=state.id;
+            outfitInbox.groundAction=action;outfitInbox.groundReply=0;
+            ReleaseSRWLockExclusive(&outfitReplyLock);
+            // Native selectors 0x40/0x41 have no queued response ID. Serialize this
+            // stack record immediately, as fuel/departure do, without retaining its pointer.
+            reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,action,record);
+        }
+        break;
+    }
+}
+static void receivedOutfitGround(void* world,void* record,unsigned flags,unsigned action) {
+    reinterpret_cast<void(__thiscall*)(void*,void*,unsigned)>(action==0x40 ? 0x4c00c0 : 0x4c0130)(world,record,flags);
+    AcquireSRWLockExclusive(&outfitReplyLock);
+    if(outfitInbox.world==world && outfitInbox.groundAction==action &&
+        outfitInbox.groundCharacter==at<unsigned>(record,4) && outfitInbox.groundOutfit==at<unsigned>(record,16))
+        outfitInbox.groundReply=1;
+    ReleaseSRWLockExclusive(&outfitReplyLock);
+}
+static void __fastcall receivedOutfitUnload(void* world,void*,void* record,unsigned flags) {receivedOutfitGround(world,record,flags,0x40);}
+static void __fastcall receivedOutfitLoad(void* world,void*,void* record,unsigned flags) {receivedOutfitGround(world,record,flags,0x41);}
 static void renderOutfitInformation() {
     auto& state=outfitInformation;
     if (!state.root || !state.id) return;
@@ -205,7 +302,7 @@ static void __cdecl buildOutfitInformation(void* manager,int kind) {
         (manager,13,700,505,L"부대 정보",-1,reinterpret_cast<void*>(0x22166fc),-24516,labels,4,-1,ids,0);
     state.root=at<void*>(manager,4+13*4);
     auto surface=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(state.root,2,20,nullptr);
-    outfitBox(state.root,surface,10,44,680,449);
+    outfitBox(state.root,surface,10,44,680,400);
     unsigned fill[45]={};
     for (unsigned i=0;i<9;++i) {
         fill[i*5]=reinterpret_cast<unsigned>(planetPartsPath);
@@ -220,6 +317,7 @@ static void __cdecl buildOutfitInformation(void* manager,int kind) {
         outfitBox(state.root,control,16,48+i*26,660,24);
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5029e0)(state.root,control,3);
     }
+    buildOutfitGroundControls();
     reinterpret_cast<void(__thiscall*)(void*)>(0x503910)(state.root);
 }
 static bool selectOutfitIdentity(unsigned id,unsigned kind,unsigned power,unsigned number,unsigned base=0) {
@@ -227,6 +325,7 @@ static bool selectOutfitIdentity(unsigned id,unsigned kind,unsigned power,unsign
     if (!state.root || !state.world || !id || kind>3 || power<2 || power>3 || number>255 || base>65535) return false;
     state.id=id;state.kind=kind;state.power=power;state.number=number;state.expectedBase=base;
     state.loaded=state.warehouseLoaded=state.warehouseRequested=state.timeoutShown=false;state.selected=true;
+    state.groundArmed=state.groundPending=0;state.groundMessage=nullptr;state.groundAcceptAfter=GetTickCount64()+250;
     memset(state.party,0,sizeof(state.party));memset(state.warehouse,0,sizeof(state.warehouse));
     if (++outfitToken==0) ++outfitToken;state.token=outfitToken;state.sentAt=GetTickCount64();
     AcquireSRWLockExclusive(&outfitReplyLock);outfitInbox.token=state.token;ReleaseSRWLockExclusive(&outfitReplyLock);
@@ -295,7 +394,7 @@ static void updateOutfitInformation(void* manager) {
     auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if (manager!=state.manager || world!=state.world || !own || !at<BYTE>(own,0) ||
         at<unsigned>(own,0x24)!=state.character || at<unsigned>(world,0x2b6a70)!=state.grid ||
-        !at<BYTE>(world,0x2a58f8) || at<BYTE>(world,0x3579cc)) {
+        !at<BYTE>(world,0x2a58f8) || (at<BYTE>(world,0x3579cc) && !state.groundPending)) {
         AcquireSRWLockExclusive(&outfitReplyLock);
         outfitInbox.queue={};outfitInbox.token=outfitInbox.partyToken=outfitInbox.warehouseToken=0;
         outfitInbox.world=nullptr;
@@ -318,15 +417,16 @@ static void updateOutfitInformation(void* manager) {
     if (state.loaded && !state.warehouseRequested && outfitWarehouseAccess()) state.warehouseRequested=requestOutfit(true);
     if (!state.loaded && !state.timeoutShown && GetTickCount64()-state.sentAt>=5000) {state.timeoutShown=true;changed=true;}
     if (changed) renderOutfitInformation();
+    updateOutfitGroundControls();
 }
 static bool installOutfitInformation() {
-    const unsigned addresses[]={0x54bcac,0x54bcde,0x54bd2f};
-    const BYTE expected[][5]={{0xe8,0xff,7,0,0},{0xe8,0xcd,7,0,0},{0xe8,0xac,1,0,0}};
-    const void* functions[]={&buildOutfitInformation,&buildOutfitInformation,&selectOutfitInformation};
+    const unsigned addresses[]={0x54bcac,0x54bcde,0x54bd2f,0x4bcc68,0x4bcc9f};
+    const BYTE expected[][5]={{0xe8,0xff,7,0,0},{0xe8,0xcd,7,0,0},{0xe8,0xac,1,0,0},{0xe8,0x53,0x34,0,0},{0xe8,0x8c,0x34,0,0}};
+    const void* functions[]={&buildOutfitInformation,&buildOutfitInformation,&selectOutfitInformation,&receivedOutfitUnload,&receivedOutfitLoad};
     const unsigned decoder=0x41cba0;
     if (memcmp(reinterpret_cast<void*>(0x66c4a0),&decoder,4)) return false;
-    for (unsigned i=0;i<3;++i) if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
-    for (unsigned i=0;i<3;++i) {
+    for (unsigned i=0;i<_countof(addresses);++i) if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
+    for (unsigned i=0;i<_countof(addresses);++i) {
         BYTE patch[5]={0xe8};*reinterpret_cast<LONG*>(patch+1)=static_cast<LONG>(static_cast<const BYTE*>(functions[i])-reinterpret_cast<BYTE*>(addresses[i])-5);
         if (!patchBytes(reinterpret_cast<void*>(addresses[i]),expected[i],patch,5)) return false;
     }
