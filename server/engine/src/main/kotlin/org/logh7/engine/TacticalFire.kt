@@ -57,7 +57,7 @@ internal object TacticalCombat {
     }
 
     fun accept(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
-        stocks: PlanetStocks, committer: WorldStateCommitter?, scale: Long): NavigationResult {
+        stocks: PlanetStocks, committer: WorldStateCommitter?, scale: Long, persist:Boolean=true): NavigationResult {
         val preview = navigation.apply(request.copy(tacticalShoot = null), session, stocks, persist = false)
         val player = preview.player ?: return preview
         fun reject(reason: NavigationRejection) = NavigationResult(null, player, reason)
@@ -85,7 +85,7 @@ internal object TacticalCombat {
         val sequence = (player.fire?.sequence ?: 0) + 1
         val next = player.copy(attack = null, charge = charge, fire = TacticalFire(sequence,
             TacticalPendingFire(sequence, player.grid, ship.kind, shoot.target, now, now + 5 * scale, weapon), player.fire?.last))
-        navigation.saveReplacement(players, players + (request.account to next), session.generation)
+        if(persist)navigation.saveReplacement(players, players + (request.account to next), session.generation)
         return NavigationResult(next, player)
     }
 
@@ -216,7 +216,7 @@ internal object TacticalCombat {
             }
         }
         if(due.isEmpty() && players==original && !npcPolicy.enabled && stocks.outfits.values.none {
-            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null}==true})return emptyList()
+            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         var inventory = stocks
         val impacts = mutableListOf<TacticalImpact>()
@@ -256,6 +256,7 @@ internal object TacticalCombat {
             }
             players[account] = next
         }
+        if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts)
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         val movements=mutableListOf<TacticalMovement>()
         if(npcPolicy.enabled && session.ended==null) {

@@ -52,7 +52,7 @@ internal object TacticalFleetAttack {
             val motion=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion ?:
                 TacticalMotion(player.grid,now,pose,0f,pose.direction,listOf(pose.position))
             val state=u.tactical?.takeIf {it.motion.grid==player.grid} ?: NpcTacticalState(motion,now,now)
-            inventory=replace(inventory,current,u.copy(tactical=state,motionCommander=player.characterId,attack=order?.let {TacticalUnitAttack(player.characterId,it)}))
+            inventory=replace(inventory,current,u.copy(tactical=state,motionCommander=player.characterId,attack=order?.let {TacticalUnitAttack(player.characterId,it)},shot=null))
         }
         var next=if(player.unitId in command.units)player.copy(attack=order,
             fire=if(command.mode==0)player.fire?.copy(pending=null) else player.fire) else player
@@ -93,7 +93,7 @@ internal object TacticalFleetAttack {
                 outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                 val state=checkNotNull(unit.tactical)
                 val mount=TacticalArmaments.mount(spec,weapon)
-                val cost=if(weapon==TacticalWeapon.BEAM)0 else maxOf(1,mount.consumption)*unit.boats
+                val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                 if(mount.power==0 || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now)
                 val victim=ids.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,power,stocks,galaxy,players)
@@ -114,7 +114,7 @@ internal object TacticalFleetAttack {
         return stocks
     }
 
-    private fun pose(target:TacticalCombat.Target,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose =
+    internal fun pose(target:TacticalCombat.Target,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose =
         target.personal?.second?.let {it.motion?.pose(now) ?: TacticalDeployment.initial(it.unitId,it.power,it.grid,players.values,stocks,galaxy)}
             ?: target.regular!!.let {(o,u)->u.tactical?.motion?.pose(now) ?: TacticalDeployment.initial(u.id,
                 if(o.power==2)Power.EMPIRE else Power.ALLIANCE,o.positionIn(galaxy).grid,players.values,stocks,galaxy)}

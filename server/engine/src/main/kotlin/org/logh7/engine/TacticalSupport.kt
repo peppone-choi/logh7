@@ -102,7 +102,7 @@ internal object TacticalSupportOperations {
             val state=current.unit.tactical?.copy(motion=motion,nextDecisionAt=now,nextFireAt=now,target=0,retreat=null)
                 ?: NpcTacticalState(motion,now,now)
             motions[current.unit.id]=motion
-            next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0,attack=null))
+            next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0,attack=null,shot=null))
         }
         if(player.unitId in command.units)motions[player.unitId]=checkNotNull(player.motion)
         if(sources.isNotEmpty())player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
@@ -139,7 +139,7 @@ internal object TacticalSupportOperations {
             val cost=UnitSpecifications.ships.single {it.kind==kind}.number("修理消費物資(１隻):修理消費物資(１隻)")
             if(cost<=0 || OutfitSupplies.distribution(source.outfit).getValue(command.unit)<cost)return reject(NavigationRejection.SUPPLY)
         }
-        val next=replace(stocks,source,source.unit.copy(support=order,attack=null))
+        val next=replace(stocks,source,source.unit.copy(support=order,attack=null,shot=null))
         player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)

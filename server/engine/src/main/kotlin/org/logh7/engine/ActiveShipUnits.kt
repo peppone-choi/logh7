@@ -7,11 +7,12 @@ data class ActiveShipUnit(val id: Int, val stack: UnitStack,
     val boats: Int = UnitSpecifications.ships.single { it.kind == stack.kind }.number,
     val tactical: NpcTacticalState? = null, val supplies: Int? = null,
     val damaged: Int = 0, val support: TacticalSupportOrder? = null, val motionCommander: Int = 0,
-    val attack:TacticalUnitAttack?=null) {
+    val attack:TacticalUnitAttack?=null,val shot:TacticalUnitShot?=null) {
     /** Native damage is cumulative unavailable boats: destroyed plus surviving damaged boats. */
     val unavailable: Int get() = UnitSpecifications.ships.single {it.kind==stack.kind}.number - boats + damaged
     init { require(id in 1..999_999 && boats in 0..UnitSpecifications.ships.single { it.kind == stack.kind }.number &&
-        motionCommander>=0 && (motionCommander==0 || tactical!=null) && (attack==null || tactical!=null) && damaged in 0..boats && (support == null || support.target != id) &&
+        motionCommander>=0 && (motionCommander==0 || tactical!=null) && (attack==null || tactical!=null) &&
+        (shot==null || tactical!=null && attack==null) && damaged in 0..boats && (support == null || support.target != id) &&
         (supplies == null || supplies in 0..OutfitSupplies.unitCapacity(stack.kind))) }
 }
 

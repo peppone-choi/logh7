@@ -75,7 +75,7 @@ internal object NpcTactics {
                     val state=unit.tactical ?: continue
                     if(position.baseId==0 && state.motion.grid==position.grid && unit.motionCommander!=0 &&
                         unit.motionCommander==outfit.commanderId)continue
-                    val next=if(position.baseId!=0 || state.motion.grid!=position.grid)unit.copy(tactical=null,motionCommander=0,attack=null) else {
+                    val next=if(position.baseId!=0 || state.motion.grid!=position.grid)unit.copy(tactical=null,motionCommander=0,attack=null,shot=null) else {
                         if(state.motion.velocity==0f && state.target==0 && state.retreat==null && unit.motionCommander==0)continue
                         val motion=stationary(position.grid,now,state.motion.pose(now))
                         movements+=TacticalMovement(session.generation,unit.id,position.grid,now,motion,audience(session,position.grid,players))
@@ -165,7 +165,7 @@ internal object NpcTactics {
                 val count=GridForces.units(outfit).toInt().coerceAtLeast(1)
                 if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(power(outfit),false),count,false))==GridEntryVerdict.ALLOWED) {
                     stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),
-                        activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null,motionCommander=0,attack=null)}))))
+                        activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null)}))))
                     current.forEach {u->movements+=TacticalMovement(session.generation,u.id,position.grid,now,null,
                         audience(session,position.grid,players),withdrawal.destination)}
                 }

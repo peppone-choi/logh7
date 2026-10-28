@@ -293,8 +293,12 @@ class GameExchange(
                                 shoot.units,shoot.arms,shoot.targetKind,shoot.target))).thenApply { result ->
                             val player = checkNotNull(result.player ?: result.previous)
                             publication = Publication(character,player,false)
-                            val wait = if(result.player != null) checkNotNull(player.fire?.pending).let {it.firesAt-it.acceptedAt} else 0
-                            listOf(org.logh7.protocol.TacticalAttackMessages.reply(shoot,gameSeconds(),wait,result.player != null))
+                            val shot=navigation.snapshot()?.planetStocks?.outfits?.values?.asSequence()
+                                ?.flatMap {it.activeShips?.values.orEmpty().asSequence()}?.firstOrNull {it.id in shoot.units}?.shot
+                            val wait = if(result.player == null) 0 else if(player.unitId in shoot.units)
+                                checkNotNull(player.fire?.pending).let {it.firesAt-it.acceptedAt}
+                                else checkNotNull(shot).let {it.firesAt-it.acceptedAt}
+                            listOf(org.logh7.protocol.TacticalAttackMessages.reply(shoot,gameSeconds(),wait,result.player != null)) + commandCorps(identity.account)
                         }
                         return null
                     }

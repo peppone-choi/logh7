@@ -481,6 +481,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         else if (command.request.tacticalAttack != null)
                             TacticalCombat.attack(command.request,session,galaxy,navigation,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
+                        else if(command.request.tacticalShoot?.units?.any {it in 1..999999}==true)
+                            TacticalFleetShoot.accept(command.request,session,galaxy,navigation,production,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else if (command.request.tacticalShoot != null)
                             TacticalCombat.accept(command.request,session,galaxy,navigation,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)

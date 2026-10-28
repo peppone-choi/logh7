@@ -57,9 +57,31 @@ class FilePlanetStockStoreTest {
         assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-20"))
         FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
         val text=Files.readString(path)
+        Files.writeString(path,text.replace("10000~2~100~220~340","-"))
+        FilePlanetStockStore(path).use {assertFails {it.load()}}
         Files.writeString(path,text.replace("10000~2~100~220~340","10000~2~100~220~200"))
         FilePlanetStockStore(path).use {assertFails {it.load()}}
         Files.writeString(path,text.replace("LOGH7-STOCK-20","LOGH7-STOCK-19"))
+        FilePlanetStockStore(path).use {assertFails {it.load()}}
+    }
+    @Test fun pendingRegularShotRetainsWeaponTargetAndIssueTimeAndRejectsCorruption() {
+        val path=directory.resolve("fleet-shot")
+        val pose=TacticalPose(TacticalPoint(0f,0f),0f)
+        val motion=TacticalMotion(2488,100,pose,0f,0f,listOf(pose.position))
+        val stack=UnitStack(32)
+        val ship=ActiveShipUnit(1,stack,tactical=NpcTacticalState(motion,100,100),supplies=8000,
+            motionCommander=10000,shot=TacticalUnitShot(10000,TacticalWeapon.MISSILE,99,100,220))
+        val expected=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),
+            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
+                units=UnitInventory(mapOf(stack to 1)),supplies=8000,activeShips=ActiveShipUnits(listOf(ship)),position=OutfitPosition(2488))),
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),deploymentInitialized=true,nextShipId=2)
+        FilePlanetStockStore(path).use {it.save(expected)}
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-21"))
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+        val text=Files.readString(path)
+        Files.writeString(path,text.replace("10000~2~99~100~220","10000~2~99~100~90"))
+        FilePlanetStockStore(path).use {assertFails {it.load()}}
+        Files.writeString(path,text.replace("LOGH7-STOCK-21","LOGH7-STOCK-20"))
         FilePlanetStockStore(path).use {assertFails {it.load()}}
     }
 }
