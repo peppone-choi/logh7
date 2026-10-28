@@ -14,6 +14,8 @@ fun interface GameAdministration {
         CompletableFuture.failedFuture(UnsupportedOperationException("Resignation is unavailable"))
     fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Reorganization is unavailable"))
+    fun transferGround(request:GroundTransferRequest):CompletableFuture<GroundTransferResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Ground transfer is unavailable"))
     fun supplementOutfit(request: SupplementRequest): CompletableFuture<SupplementResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Supplement is unavailable"))
     fun supplyOutfit(request: CompletenessSupplyRequest): CompletableFuture<CompletenessSupplyResult> =
@@ -65,6 +67,16 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         return stocks.outfits.values.singleOrNull { player.characterId in it.members() &&
             it.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
                 it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId } }?.id ?: 0
+    }
+    override fun transferGround(request: GroundTransferRequest): CompletableFuture<GroundTransferResult> {
+        val future = CompletableFuture<GroundTransferResult>()
+        scope.launch {
+            try {
+                val result = CompletableDeferred<GroundTransferResult>()
+                engine.submit(WorldCommand.TransferGround(request, result)); future.complete(result.await())
+            } catch (failure: Throwable) { future.completeExceptionally(failure) }
+        }
+        return future
     }
     override fun supplementOutfit(request: SupplementRequest): CompletableFuture<SupplementResult> {
         val future = CompletableFuture<SupplementResult>()

@@ -918,6 +918,35 @@ class GameExchange(
                         }
                         if (opcode == 0x031e) world.conditions(ids) else world.places(ids)
                     }
+                    0x0b04,0x0b05 -> {
+                        check(gameStarted && worldInitialized && administration!=null && world!=null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val command=org.logh7.protocol.GroundTransferMessages.command(body)
+                        require(command.character==character.id.toInt())
+                        // Only the explicit whole-outfit path is supported. Unknown native values
+                        // cannot silently become a quantity or an individual unit ID.
+                        if(command.values.isNotEmpty()) {
+                            val p=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                            return handshake.stageAll(listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),p.pcp,p.mcp,false)),clearHeader=0)
+                        }
+                        pendingWorld=administration.transferGround(org.logh7.engine.GroundTransferRequest(identity.account,connection,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation),command.outfit,
+                            if(opcode==0x0b05)org.logh7.engine.GroundTransferAction.LOAD else org.logh7.engine.GroundTransferAction.UNLOAD,
+                            character.abilities[1],character.abilities[2])).thenApply {result->
+                            val player=checkNotNull(result.player ?: result.recovery?.previous)
+                            publication=Publication(character,player,false)
+                            val accepted=result.rejection==null
+                            val stored=checkNotNull(result.stocks ?: navigation?.snapshot()?.planetStocks)
+                            val outfit=stored.outfits[command.outfit]
+                            listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),player.pcp,player.mcp,accepted),
+                                characterMessage(character,player,true))+
+                                (if(accepted && outfit!=null)listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
+                                    outfit.id,0,0),character.power,stored,characterById=characters::characterById)) else emptyList())+
+                                result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
+                        }
+                        return null
+                    }
                     0x0b02 -> {
                         check(gameStarted && navigation != null)
                         val character = checkNotNull(currentCharacter(identity.account))
