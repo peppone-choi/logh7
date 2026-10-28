@@ -58,8 +58,8 @@ class GamePresence {
         members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
                 // 0325 replaces the complete native definition cache, including unrelated combatants.
-                val units=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById).units
-                send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,units)))
+                val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
+                send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)))
             }
     }
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
@@ -115,7 +115,7 @@ class GamePresence {
                         snapshot!=null && galaxy!=null && characterById!=null &&
                         snapshot.navigators.values.any {it.characterId==viewer.character.id.toInt() && it.cpPaused}) {
                         val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
-                        listOf(org.logh7.protocol.TacticsMessages.definitions(impact.hit.grid,tactical.units),
+                        listOf(org.logh7.protocol.TacticsMessages.definitions(impact.hit.grid,tactical.units,tactical.groundDefinitions),
                             org.logh7.protocol.TacticsMessages.corps(tactical.corps))
                     } else emptyList()
                     send(viewer,listOf(packet)+leave+cargo)

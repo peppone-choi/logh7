@@ -15,16 +15,18 @@ class TacticalSupportWireTest {
     @Test fun repairCommanderRequestConsumesSuppliesAndUpdatesBothEncryptedPeers()=encounter(true)
     private fun encounter(repair:Boolean)=runBlocking {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
-            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f),
+                GalaxyBase(1001,2488,80,0,"Battle",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val now=SessionRules.load().startSeconds
         fun motion(y:Float)=TacticalMotion(2488,now,TacticalPose(TacticalPoint(0f,y),0f),0f,0f,listOf(TacticalPoint(0f,y)))
         var savedPlayers=(0..1).associate {i->"load-00$i" to Navigator(1,10000+i,Power.EMPIRE,2488,1000,1000,900,
             cpPaused=true,supplies=if(i==0)400 else 1000,hull=FlagshipHull(0,now,hp=if(i==0)40 else 100),motion=motion(0.5f-i*0.25f))}
         val kind=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith(if(repair)"工作艦" else "輸送艦")}.kind
         val stack=UnitStack(kind);val enemy=UnitStack(119)
-        var savedStocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),
+        val ground=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=1),ActiveGroundUnit(3,UnitStack(1),base=1001)))
+        var savedStocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100),1001 to PlanetStock(1001,2,0,0,0,0)),
             outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
-                units=UnitInventory(mapOf(stack to 1)),supplies=10000,
+                units=UnitInventory(mapOf(stack to 1),ground.quantities()),supplies=10000,activeGround=ground,
                 activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack,supplies=10000,
                     tactical=NpcTacticalState(motion(0f),now,now)))),position=OutfitPosition(2488)),
                 2 to OutfitStock(2,3,OutfitKind.FLEET,1000,20,units=UnitInventory(mapOf(enemy to 1)),
@@ -71,10 +73,23 @@ class TacticalSupportWireTest {
                 assertEquals(1,result.getInt(6));assertEquals(target,result.getInt(10));assertEquals(remaining,result.getInt(14))
                 if(repair)assertEquals(0,result.getShort(18).toInt()) else assertEquals(10000,result.getInt(18))
                 val definitions=ByteBuffer.wrap(through(c,0x0325))
-                assertEquals(4,definitions.getShort(6).toInt())
-                val offsets=(0 until 4).associate {i->val offset=8+i*42;definitions.getInt(offset) to offset}
-                assertEquals(setOf(1,99,1010000,1010001),offsets.keys)
-                assertEquals(remaining,definitions.getInt(offsets.getValue(1)+30))
+                assertEquals(6,definitions.getShort(6).toInt())
+                // 00419ca0: variable troop list precedes the rest of each record.
+                var cursor=8
+                val offsets=buildMap {
+                    repeat(6) {
+                        val offset=cursor;put(definitions.getInt(offset),offset)
+                        cursor+=42+4*(definitions.get(offset+19).toInt() and 255)
+                    }
+                }
+                assertEquals(definitions.limit(),cursor)
+                assertEquals(setOf(1,2,3,99,1010000,1010001),offsets.keys)
+                val carrier=offsets.getValue(1)
+                assertEquals(1,definitions.get(carrier+19).toInt());assertEquals(2,definitions.getInt(carrier+20))
+                assertEquals(remaining,definitions.getInt(carrier+34))
+                assertEquals(10,definitions.get(offsets.getValue(2)+6).toInt())
+                assertEquals(1,definitions.getInt(offsets.getValue(2)+15));assertEquals(0,definitions.getInt(offsets.getValue(2)+20))
+                assertEquals(4,definitions.get(offsets.getValue(3)+6).toInt());assertEquals(1001,definitions.getInt(offsets.getValue(3)+20))
                 assertEquals(if(repair)400 else 10000,definitions.getInt(offsets.getValue(target)+30))
                 assertEquals(0,definitions.getShort(offsets.getValue(target)+26).toInt())
             }
