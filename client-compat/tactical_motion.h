@@ -29,7 +29,7 @@ static void receivedTacticalMotion(void* world,void* message,BYTE pending,bool p
             for (unsigned j=0;j<600;++j) {
                 auto model=reinterpret_cast<BYTE*>(0x7db3c8)+j*0xb4c;
                 if (at<BYTE>(model,0) && at<unsigned>(model,4)==origins.units[0].id) {
-                    at<BYTE>(model,9)=0;at<unsigned>(model,0x14)=0;at<unsigned>(model,0x1c)=0;break;
+                    logh::applyStationaryTacticalPose(unit,model,origins.units[0]);break;
                 }
             }
         }

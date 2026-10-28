@@ -97,9 +97,30 @@ static bool planetUnitRowsTest() {
     grid[0]=0;
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
+static bool stationaryTacticalPoseTest() {
+    BYTE unit[0x9ec],model[0xb4c];memset(unit,0xcc,sizeof(unit));memset(model,0xcc,sizeof(model));
+    const logh::TacticalMoveOrigins::Origin origin={1010000,2.9f,1.5f,-8.5f};
+    memcpy(unit+4,&origin.id,4);memcpy(model+4,&origin.id,4);
+    if (!logh::applyStationaryTacticalPose(unit,model,origin)) return false;
+    const float pose[]={1.5f,0,-8.5f,0,2.9f,0};
+    if (memcmp(unit+0x14,pose,sizeof(pose)) || memcmp(model+0x85c,pose,sizeof(pose)) ||
+        memcmp(model+0x88c,pose,sizeof(pose)) || unit[0x60] || unit[0x62] ||
+        model[9] || model[10] || model[11]) return false;
+    for(unsigned i=0x10;i<0x20;++i) if(model[i]) return false;
+    // Preserve formation flags, other unit state, and neighboring render data.
+    if (model[8]!=0xcc || model[12]!=0xcc || model[0x85b]!=0xcc || model[0x874]!=0xcc ||
+        model[0x88b]!=0xcc || model[0x8a4]!=0xcc || unit[0x61]!=0xcc) return false;
+    BYTE before[sizeof(model)];++model[4];memcpy(before,model,sizeof(model));
+    if(logh::applyStationaryTacticalPose(unit,model,origin) || memcmp(before,model,sizeof(model))) return false;
+    model[4]=unit[4];model[0]=0;
+    return !logh::applyStationaryTacticalPose(unit,model,origin) &&
+        !logh::applyStationaryTacticalPose(nullptr,model,origin) &&
+        !logh::applyStationaryTacticalPose(unit,nullptr,origin);
+}
 int wmain(int argc, wchar_t** argv) {
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
+    if (!stationaryTacticalPoseTest()) return 83;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
     unsigned profileId=10001;memcpy(profile,&profileId,4);memcpy(snapshot+0x24,&profileId,4);
     profile[4]=2;profile[6]='A';profile[0x20]=3;profile[0x6a]=7;profile[0x60]=88;

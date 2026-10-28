@@ -30,4 +30,20 @@ struct TacticalMoveOrigins {
         count=n;return true;
     }
 };
+// A zero-length stationary snapshot must also retire the previous render plan.
+// 004ca620 reads its baseline even with zero steps; 004ca2e0 may then rotate
+// the unit back toward that old baseline unless its active flag is cleared.
+inline bool applyStationaryTacticalPose(unsigned char* unit, unsigned char* model,
+    const TacticalMoveOrigins::Origin& origin) {
+    if (!unit || !model) return false;
+    unsigned unitId, modelId;memcpy(&unitId,unit+4,4);memcpy(&modelId,model+4,4);
+    if (!unit[0] || !model[0] || unitId!=origin.id || modelId!=origin.id) return false;
+    const float pose[]={origin.x,0,origin.y,0,origin.direction,0};
+    memcpy(unit+0x14,pose,sizeof(pose));unit[0x60]=0;unit[0x62]=0;
+    memcpy(model+0x85c,pose,sizeof(pose));
+    memcpy(model+0x88c,pose,sizeof(pose));
+    model[9]=0;model[10]=0;model[11]=0;
+    memset(model+0x10,0,16);
+    return true;
+}
 }
