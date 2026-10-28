@@ -7,6 +7,19 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun commandRangeReopensWithoutRefillAndLegacyFifteenHasNoRangeHistory() {
+        val path=directory.resolve("command-range")
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,960,900,cpPaused=true,
+            commandRange=TacticalCommandRange(100,2.5f,70,85))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-16",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-15\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").commandRange)}
+        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace("100,2.5,70,85","100,NaN,70,85")+"\n")
+        FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
     @Test fun automaticAttackCadenceReopensAndLegacyFourteenHasNoOrder() {
         val path=directory.resolve("automatic")
         val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,hull=FlagshipHull(89,100),

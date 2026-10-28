@@ -36,7 +36,7 @@ internal object TacticalFleetMotion {
             (unit.tactical?.motion?.takeIf {it.grid==player.grid}?.pose(now) ?:
                 TacticalDeployment.initial(id,player.power,player.grid,players.values,stocks,galaxy)).also {pose ->
                     if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
-                        TacticalSupportRules.COMMAND_RANGE)return reject(NavigationRejection.RANGE)
+                        checkNotNull(player.commandRange).radius(now))return reject(NavigationRejection.RANGE)
                 }
         }}
         if(player.unitId in command.units && command.velocity>(player.energy ?: TacticalEnergy.ZERO).values[0]/100f)
@@ -61,6 +61,7 @@ internal object TacticalFleetMotion {
                 current.activeShips!!.values.map {if(it.id==unit.id)updated else it}))))
         }
         if(player.unitId in motions)player=player.copy(motion=motions.getValue(player.unitId))
+        if(ships.isNotEmpty())player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)
         navigation.publishCommitted(players,players+(request.account to player),session.generation)

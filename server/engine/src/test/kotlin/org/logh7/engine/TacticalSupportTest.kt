@@ -35,7 +35,8 @@ class TacticalSupportTest {
     private fun production(s:State)=PlanetProduction(galaxy,s.inventory,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
     private fun request(action:TacticalSupportAction,target:Int)=NavigationRequest("pilot",10000,Power.EMPIRE,"current",1,
         shipKind=0,tacticalSupport=TacticalSupport(action,1,target))
-    private fun accept(s:State,nav:Navigation,p:PlanetProduction,r:NavigationRequest)=TacticalSupportOperations.accept(r,session,galaxy,nav,p,p.snapshot(1)!!,s.commit,24)
+    private fun accept(s:State,nav:Navigation,p:PlanetProduction,r:NavigationRequest,at:Long=now)=
+        TacticalSupportOperations.accept(r,session.copy(gameMillis=at*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit,24)
     private fun settle(s:State,nav:Navigation,p:PlanetProduction,at:Long,out:MutableList<TacticalSupportResult>)=
         TacticalCombat.settle(session.copy(gameMillis=at*1000),galaxy,nav,p,s.commit,onSupport=out::add)
 
@@ -76,7 +77,8 @@ class TacticalSupportTest {
         val stop=command.copy(tacticalSupport=null,tacticalStop=TacticalStop(listOf(1)))
         assertEquals(NavigationRejection.CARD,TacticalSupportOperations.stop(stop.copy(tacticalStop=TacticalStop(listOf(99))),
             session,galaxy,nav,p,p.snapshot(1)!!,s.commit).rejection)
-        assertNotNull(TacticalSupportOperations.stop(stop,session,galaxy,nav,p,p.snapshot(1)!!,s.commit).player)
+        assertEquals(NavigationRejection.RANGE,TacticalSupportOperations.stop(stop,session,galaxy,nav,p,p.snapshot(1)!!,s.commit).rejection)
+        assertNotNull(TacticalSupportOperations.stop(stop,session.copy(gameMillis=(now+8)*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit).player)
         val out=mutableListOf<TacticalSupportResult>();settle(s,nav,p,now+240,out)
         assertTrue(out.isEmpty());assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
         assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().support)
@@ -113,7 +115,7 @@ class TacticalSupportTest {
         assertEquals(250,unit.boats);assertEquals(28,unit.damaged)
         assertEquals(0,s.stocks.outfits.getValue(1).supplies)
         assertEquals(78,out.single().damaged)
-        assertEquals(NavigationRejection.SUPPLY,accept(s,nav,p,request(TacticalSupportAction.REPAIR,2)).rejection)
+        assertEquals(NavigationRejection.SUPPLY,accept(s,nav,p,request(TacticalSupportAction.REPAIR,2),now+320).rejection)
     }
 
     @Test fun repairCostsManualSuppliesAndNeverRecreatesDestroyedBoats() {
@@ -182,5 +184,16 @@ class TacticalSupportTest {
         assertTrue(out.single().cancelled)
         assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
         assertEquals(400,s.players.getValue("pilot").supplies)
+    }
+    @Test fun acceptedSupportCompletesOutsideCommandRangeButNewCommandsNeedRegrowth() {
+        val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        val request=request(TacticalSupportAction.SUPPLY,2)
+        assertNotNull(accept(s,nav,p,request).player)
+        assertEquals(0f,s.players.getValue("pilot").commandRange!!.radius(now))
+        val previous=nav.snapshot(1)
+        nav.saveReplacement(previous,previous.mapValues {(_,v)->v.copy(motion=ai(100f).motion)},1)
+        val out=mutableListOf<TacticalSupportResult>();settle(s,nav,p,now+120,out)
+        assertFalse(out.single().cancelled)
+        assertEquals(mapOf(1 to 0,2 to 10000),OutfitSupplies.distribution(s.stocks.outfits.getValue(1)))
     }
 }

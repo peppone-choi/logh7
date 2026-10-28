@@ -44,6 +44,7 @@ static void __fastcall importedTacticalUnits(void* world,void*,BYTE announce) {
         if (unit) at<unsigned>(unit,0x950)=at<unsigned>(row,0x4c);
     }
     applyTacticalLabels(world);
+    applyTacticalCommandRange(world);
 }
 static bool installTacticalSupport() {
     auto repair=reinterpret_cast<BYTE*>(0x4bc4fd),supply=reinterpret_cast<BYTE*>(0x4bc53a);

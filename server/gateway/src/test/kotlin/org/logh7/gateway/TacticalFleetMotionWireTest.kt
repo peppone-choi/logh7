@@ -56,6 +56,10 @@ class TacticalFleetMotionWireTest {
                 assertEquals(0,ack.int);assertEquals(10000,ack.getInt(14));assertEquals(1,ack.getInt(19))
                 assertEquals(0f,ack.getFloat(27));assertEquals(0f,ack.getFloat(31));assertEquals(5,ack.getInt(10))
             }
+            val crc=ByteBuffer.wrap(through(clients[0],0x033f) {
+                val b=ByteBuffer.wrap(it);b.getShort(6).toInt()==2 && b.getInt(8)==10000 && b.getFloat(18)==0f
+            })
+            assertEquals(10001,crc.getInt(63)) // Keep the other corps in the native replacement cache.
             assertEquals(10000,savedStocks.outfits.getValue(1).activeShips!!.values.single().motionCommander)
             fixture.engine.submit(WorldCommand.AdvanceTo(500)) // Twelve G-seconds: seven units after the five-second wait.
             clients[1].close();fixture.awaitState(online=1,connections=1,participants=2)
@@ -67,10 +71,14 @@ class TacticalFleetMotionWireTest {
             }
             val stop=org.logh7.protocol.TacticalStopMessages.reply(org.logh7.protocol.TacticalStopMessages.Stop(10000,listOf(1)),0)
             clients[0].send(stop.copyOfRange(4,stop.size))
+            assertEquals(1,ByteBuffer.wrap(through(clients[0],0x040a)).int)
+            assertEquals(1f,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.velocity)
+            fixture.engine.submit(WorldCommand.AdvanceTo(14000)) // CRC has grown back to the maximum.
+            clients[0].send(stop.copyOfRange(4,stop.size))
             for(c in clients) {
                 assertEquals(0,ByteBuffer.wrap(through(c,0x040a)).int)
                 val stopped=ByteBuffer.wrap(through(c,0x0400) {ByteBuffer.wrap(it).getInt(19)==1})
-                assertEquals(0f,stopped.getFloat(39));assertEquals(7f,stopped.getFloat(31))
+                assertEquals(0f,stopped.getFloat(39));assertEquals(20f,stopped.getFloat(31))
             }
             assertEquals(0f,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.velocity)
             assertEquals(10000,savedStocks.outfits.getValue(1).supplies)

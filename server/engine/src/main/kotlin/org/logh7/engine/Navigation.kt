@@ -19,7 +19,8 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null, val dockTarget: Int? = null,
     val returnBase: Int = 0, val energy: TacticalEnergy? = null, val motion: TacticalMotion? = null,
     val retreat: TacticalRetreat? = null, val charge: TacticalCharge? = null, val fire: TacticalFire? = null,
-    val supplies: Int = 10_000, val hull: FlagshipHull? = null, val attack: TacticalAttackOrder? = null) {
+    val supplies: Int = 10_000, val hull: FlagshipHull? = null, val attack: TacticalAttackOrder? = null,
+    val commandRange:TacticalCommandRange?=null) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
@@ -27,6 +28,7 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && supplies in 0..10_000 &&
         (hull == null || Flagships.find(hull.kind)?.power == if(power==Power.EMPIRE)2 else 3) &&
         (charge == null || cpPaused && baseId == 0 && mode == 5) &&
+        (commandRange == null || cpPaused && baseId == 0 && mode == 5) &&
         (attack == null || cpPaused && baseId == 0 && mode == 5 && hull != null) &&
         (fire?.pending == null || cpPaused && baseId == 0 && mode == 5 && fire.pending.grid == grid) &&
         (retreat == null || (cpPaused && baseId == 0 && mode == 5 && motion != null && retreat.destination != grid &&
@@ -65,8 +67,9 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val energy: TacticalEnergy? = null, val shipKind: Int? = null, val tacticalMove: TacticalMove? = null,
     val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null,
     val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null,
-    val tacticalSupport: TacticalSupport? = null) {
+    val tacticalSupport: TacticalSupport? = null, val commandAbility:Int?=null) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
+        (commandAbility==null || commandAbility in 0..32767) &&
         (tacticalSupport == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null &&
             energy == null && tacticalMove == null && tacticalStop == null && tacticalRetreat == null && tacticalShoot == null && tacticalAttack == null)) &&
         (tacticalAttack == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null &&
@@ -124,6 +127,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val tactical = if(wounded) false else request.tactical ?: if(stocks == null) initial.cpPaused else
             TacticalContact.active(galaxy,initial,snapshot(session.generation).values,stocks)
         val ready = (if(initial.cpPaused == tactical) initial else initial.copy(cpPaused=tactical,cpRecoveryAt=now,
+            commandRange=if(tactical)TacticalCommandRange(now,command=request.commandAbility ?: 50) else null,
             motion=if(tactical)initial.motion else null,retreat=if(tactical)initial.retreat else null,
             charge=if(tactical)initial.charge else null,
             attack=if(tactical)initial.attack else null,
@@ -132,7 +136,13 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     it.energy?.values?.let { values -> values[3]>0 || values[4]>0 }==true)
                     it.copy(charge=TacticalCharge(now, clockScale=clockScale)) else it
             }
-        val fueled = settleWork(ready, now)
+        // Legacy tactical saves have no CRC history. Migrate once at full radius;
+        // new tactical entry above starts at zero and reconnect never refills it.
+        val ranged=if(ready.cpPaused && ready.baseId==0) ready.copy(commandRange=
+            ready.commandRange?.let {if(request.commandAbility!=null && request.commandAbility!=it.command)
+                it.settle(now,request.commandAbility) else it}
+                ?: TacticalCommandRange(now,TacticalCommandRange.MAXIMUM,request.commandAbility ?: 50)) else ready
+        val fueled = settleWork(ranged, now)
         completedFuel = initial.fuelReadyAt != null && fueled.fuelReadyAt == null
         completedDock = initial.dockTarget != null && fueled.dockTarget == null
         val recovered = recover(fueled, request, now)
@@ -141,6 +151,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val active = if(stocks == null) player.cpPaused else
                 TacticalContact.active(galaxy,player,snapshot(session.generation).values,stocks)
             return if(active == player.cpPaused) player else player.copy(cpPaused=active,cpRecoveryAt=now,
+                commandRange=if(active)TacticalCommandRange(now,command=request.commandAbility ?: 50) else null,
                 motion=if(active)player.motion else null,retreat=if(active)player.retreat else null,
                 charge=if(active)player.charge else null,
                 attack=if(active)player.attack else null,
@@ -304,7 +315,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         for ((account, player) in next.toSortedMap()) {
             val retreat = player.retreat ?: continue
             if (!TacticalContact.active(galaxy, player, next.values, stocks)) {
-                next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null,
+                next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null,commandRange=null,
                     attack=null,fire=player.fire?.copy(pending=null),cpRecoveryAt = now)
                 changed = true
                 continue
@@ -314,11 +325,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (!RetreatRules.outside(pose)) continue
             val forces = GridForces.collect(galaxy, session.generation, next.values, stocks)
             if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces)) continue
-            val moved = player.copy(grid = retreat.destination, motion = null, retreat = null, charge = null,
+            val moved = player.copy(grid = retreat.destination, motion = null, retreat = null, charge = null,commandRange=null,
                 attack=null,fire=player.fire?.copy(pending=null),
                 cpRecoveryAt = now, moves = Math.addExact(player.moves, 1))
             val active = TacticalContact.active(galaxy, moved, next.values, stocks)
-            next[account] = moved.copy(cpPaused = active)
+            next[account] = moved.copy(cpPaused = active,commandRange=if(active)TacticalCommandRange(now,
+                command=player.commandRange?.command ?: 50) else null)
             changed = true
         }
         if (changed) {

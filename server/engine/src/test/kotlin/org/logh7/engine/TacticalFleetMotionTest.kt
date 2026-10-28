@@ -49,10 +49,11 @@ class TacticalFleetMotionTest {
         TacticalCombat.settle(session.copy(gameMillis=(now+10)*1000),galaxy,nav,p,s.commit,npcPolicy=NpcTacticalPolicy())
         assertEquals(motions,s.stocks.outfits.getValue(1).activeShips!!.values.associate {it.id to it.tactical!!.motion})
         val stop=request().copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(1,2)))
-        val stopped=TacticalSupportOperations.stop(stop,session.copy(gameMillis=(now+10)*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit)
+        assertEquals(NavigationRejection.RANGE,TacticalSupportOperations.stop(stop,session.copy(gameMillis=(now+10)*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit).rejection)
+        val stopped=TacticalSupportOperations.stop(stop,session.copy(gameMillis=(now+320)*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit)
         assertNotNull(stopped.player)
         for((id,motion) in stopped.tacticalMotions) {
-            assertEquals(0f,motion.velocity);assertEquals(motions.getValue(id).pose(now+10),motion.pose(now+100))
+            assertEquals(0f,motion.velocity);assertEquals(motions.getValue(id).pose(now+320),motion.pose(now+400))
         }
         assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
         assertEquals(250,s.stocks.outfits.getValue(1).activeShips!!.values.last().boats)
@@ -66,7 +67,7 @@ class TacticalFleetMotionTest {
         assertNotNull(s.players.getValue("pilot").motion)
         assertEquals(10000,s.stocks.outfits.getValue(1).activeShips!!.values.first().motionCommander)
         val stop=request().copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(1,1010000)))
-        assertNotNull(TacticalSupportOperations.stop(stop,session,galaxy,nav,p,p.snapshot(1)!!,s.commit).player)
+        assertNotNull(TacticalSupportOperations.stop(stop,session.copy(gameMillis=(now+8)*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit).player)
         assertEquals(0f,s.players.getValue("pilot").motion!!.velocity)
     }
     @Test fun failedSaveStaleSessionAndOutsideCommandRangeCannotPublishMovement() {
@@ -88,5 +89,17 @@ class TacticalFleetMotionTest {
         TacticalCombat.settle(session.copy(gameMillis=(now+10)*1000),galaxy,nav,p,s.commit,npcPolicy=NpcTacticalPolicy())
         val units=s.stocks.outfits.getValue(1).activeShips!!.values
         assertTrue(units.all {it.motionCommander==0 && it.tactical!!.motion.velocity==0f})
+    }
+    @Test fun newTacticalEntryStartsAtZeroAndPersonalMovementDoesNotConsumeFleetRange() {
+        val s=state();s.players=s.players.mapValues {(_,p)->p.copy(cpPaused=false,motion=null)}
+        var nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        val identity=request().copy(tacticalMove=null,commandAbility=50)
+        val entered=nav.apply(identity,session,s.stocks).player!!
+        assertEquals(0f,entered.commandRange!!.radius(now))
+        nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        assertEquals(5f,nav.snapshot(1).getValue("pilot").commandRange!!.radius(now+80))
+        val personal=identity.copy(tacticalMove=TacticalMove(listOf(entered.unitId),1f,0f,listOf(TacticalPoint(0f,10f))))
+        assertNotNull(nav.apply(personal,session,s.stocks).player)
+        assertEquals(entered.commandRange,nav.snapshot(1).getValue("pilot").commandRange)
     }
 }

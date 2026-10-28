@@ -14,7 +14,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}
         val energy=p.energy ?: TacticalEnergy.ZERO
         val charge=if(p.cpPaused) p.charge?.levels(snapshot.session?.gameSeconds ?: 0,energy) else null
-        TacticsMessages.Corps(c.id.toInt(),0f,(p.energy ?: TacticalEnergy.ZERO).values,
+        TacticsMessages.Corps(c.id.toInt(),p.commandRange?.radius(snapshot.session?.gameSeconds ?: 0) ?: 0f,(p.energy ?: TacticalEnergy.ZERO).values,
             p.hull?.settle(snapshot.session?.gameSeconds ?: 0,energy)?.levels()
                 ?: List(6){spec.number("シールド（旗艦のみ）:容量")},
             beam=if(spec.number("ビーム兵装破壊力:ビーム兵装破壊力")>0) charge?.first ?: 0 else 0,

@@ -37,6 +37,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         val version = lines.firstOrNull()
         val columns = when (version) { "LOGH7-NAV-1" -> 9; "LOGH7-NAV-2" -> 13; "LOGH7-NAV-3" -> 15; "LOGH7-NAV-4" -> 16; "LOGH7-NAV-5" -> 17; "LOGH7-NAV-6" -> 18; "LOGH7-NAV-7" -> 19; "LOGH7-NAV-8" -> 20; "LOGH7-NAV-9" -> 21; "LOGH7-NAV-10" -> 22; "LOGH7-NAV-11" -> 23; "LOGH7-NAV-12" -> 24; "LOGH7-NAV-13" -> 25; "LOGH7-NAV-14" -> 26
             "LOGH7-NAV-15" -> 27
+            "LOGH7-NAV-16" -> 28
             else -> error("Unknown navigation store format") }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
@@ -65,13 +66,17 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                 if (columns >= 26 && f[25] != "-") FlagshipHullCodec.decode(f[25]) else null,
                 if (columns >= 27 && f[26] != "-") f[26].split(',').also {require(it.size==4)}.let {
                     org.logh7.engine.TacticalAttackOrder(it[0].toInt(),it[1].toLong(),it[2].toLong(),it[3].toLong())
+                } else null,
+                if(columns>=28 && f[27]!="-")f[27].split(',').also {require(it.size==4)}.let {
+                    org.logh7.engine.TacticalCommandRange(it[0].toLong(),it[1].toFloat(),it[2].toInt(),it[3].toInt())
                 } else null)
             require(players.put(f[0], player) == null) { "Duplicate navigation account" }
         }
         return players
     }
     override fun save(players: Map<String, Navigator>) {
-        val attacks = players.values.any {it.attack != null}
+        val ranges=players.values.any {it.commandRange!=null}
+        val attacks = ranges || players.values.any {it.attack != null}
         val hulls = attacks || players.values.any {it.hull != null}
         val supplies = hulls || players.values.any { it.supplies != 10_000 || it.fire?.pending?.weapon?.let { w -> w != org.logh7.engine.TacticalWeapon.BEAM } == true }
         val fires = supplies || players.values.any { it.fire != null }
@@ -79,7 +84,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         val retreats = charges || players.values.any { it.retreat != null }
         val motions = retreats || players.values.any { it.motion != null }
         val bytes = buildString {
-            append(if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
+            append(if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
                 append((listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
@@ -98,6 +103,9 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                     (if (hulls) listOf(p.hull?.let(FlagshipHullCodec::encode) ?: "-") else emptyList()) +
                     (if (attacks) listOf(p.attack?.let {
                         listOf(it.mode,it.acceptedAt,it.startsAt,it.nextAt).joinToString(",")
+                    } ?: "-") else emptyList()) +
+                    (if(ranges)listOf(p.commandRange?.let {
+                        listOf(it.at,it.radius,it.command,it.stamina).joinToString(",")
                     } ?: "-") else emptyList())).joinToString("\t"))
                 append('\n')
             }

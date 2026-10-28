@@ -3,9 +3,9 @@ package org.logh7.engine
 import kotlin.math.hypot
 
 enum class TacticalSupportAction { REPAIR, SUPPLY }
-/** Provisional fixed radius shared by native commandability and server validation. */
+/** Shared provisional maximum; current commandability uses durable CRC growth. */
 object TacticalSupportRules {
-    const val COMMAND_RANGE = 20f
+    const val COMMAND_RANGE = TacticalCommandRange.MAXIMUM
     // 004c76e0/004f1180: six full-circle extents of 1; boundary itself is excluded.
     const val SUPPORT_RANGE = 1.0
 }
@@ -45,7 +45,7 @@ internal object TacticalSupportOperations {
         return pose(target,player.grid,now,players.values,stocks,galaxy).position
     }
     private fun eligible(source: Ship, player: Navigator, order: TacticalSupportOrder, now: Long,
-        players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy): Boolean {
+        players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy,commandRadius:Float?=null): Boolean {
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5 || player.grid!=order.grid ||
             player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats==0 || source.unit.id==order.target ||
             source.outfit.commanderId!=player.characterId || source.outfit.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
@@ -56,7 +56,7 @@ internal object TacticalSupportOperations {
         val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
         val commander=(player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
             players.values,stocks,galaxy)).position
-        if(hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>TacticalSupportRules.COMMAND_RANGE)return false
+        if(commandRadius!=null && hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>commandRadius)return false
         return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<TacticalSupportRules.SUPPORT_RANGE
     }
     private fun replace(stocks: PlanetStocks, source: Ship, unit: ActiveShipUnit): PlanetStocks =
@@ -76,7 +76,7 @@ internal object TacticalSupportOperations {
         val selected=checkNotNull(request.tacticalStop)
         val preview=if(own.unitId in selected.units) navigation.apply(request.copy(
             tacticalStop=TacticalStop(listOf(own.unitId))),session,stocks,persist=false) else identity
-        val player=preview.player ?: return preview
+        var player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
@@ -90,9 +90,14 @@ internal object TacticalSupportOperations {
         val now=session.gameMillis/1000
         if(now>0xffffffffL-TacticalMotion.WAIT_SECONDS)return reject(NavigationRejection.CLOCK)
         val motions=linkedMapOf<Int,TacticalMotion>()
+        val commander=(player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
+            navigation.snapshot(session.generation).values,stocks,galaxy)).position
+        val radius=checkNotNull(player.commandRange).radius(now)
         for(source in sources) {
             val current=ship(source.unit.id,next)!!
             val location=pose(current,player.grid,now,navigation.snapshot(session.generation).values,stocks,galaxy)
+            if(hypot((location.position.x-commander.x).toDouble(),(location.position.y-commander.y).toDouble())>radius)
+                return reject(NavigationRejection.RANGE)
             val motion=TacticalMotion(player.grid,now,location,0f,location.direction,listOf(location.position))
             val state=current.unit.tactical?.copy(motion=motion,nextDecisionAt=now,nextFireAt=now,target=0,retreat=null)
                 ?: NpcTacticalState(motion,now,now)
@@ -100,6 +105,7 @@ internal object TacticalSupportOperations {
             next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0))
         }
         if(player.unitId in command.units)motions[player.unitId]=checkNotNull(player.motion)
+        if(sources.isNotEmpty())player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
         val players=navigation.snapshot(session.generation)
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)
@@ -114,7 +120,7 @@ internal object TacticalSupportOperations {
     fun accept(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?, scale: Long): NavigationResult {
         val preview=navigation.apply(request.copy(tacticalSupport=null),session,stocks,persist=false)
-        val player=preview.player ?: return preview
+        var player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         val command=checkNotNull(request.tacticalSupport)
@@ -125,7 +131,7 @@ internal object TacticalSupportOperations {
         if(now>0xffffffffL-5*scale)return reject(NavigationRejection.CLOCK)
         val order=TacticalSupportOrder(command.action,player.characterId,command.target,player.grid,now,now+5*scale)
         val players=navigation.snapshot(session.generation)
-        if(!eligible(source,player,order,now,players,stocks,galaxy))return reject(NavigationRejection.TARGET)
+        if(!eligible(source,player,order,now,players,stocks,galaxy,player.commandRange?.radius(now)))return reject(NavigationRejection.TARGET)
         if(OutfitSupplies.distribution(source.outfit).getValue(command.unit)==0)return reject(NavigationRejection.SUPPLY)
         if(!needed(order,players,stocks))return reject(NavigationRejection.TARGET)
         if(order.action==TacticalSupportAction.REPAIR) {
@@ -134,6 +140,7 @@ internal object TacticalSupportOperations {
             if(cost<=0 || OutfitSupplies.distribution(source.outfit).getValue(command.unit)<cost)return reject(NavigationRejection.SUPPLY)
         }
         val next=replace(stocks,source,source.unit.copy(support=order))
+        player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)
         navigation.publishCommitted(players,players+(request.account to player),session.generation)
