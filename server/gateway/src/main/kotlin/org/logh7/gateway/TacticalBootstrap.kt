@@ -44,14 +44,18 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             val index=indices[u.power] ?: 0;indices[u.power]=index+1
             val initial=TacticalDeployment.formation(index,if(u.power==2)Power.EMPIRE else Power.ALLIANCE)
             val pose=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
-                ?.pose(snapshot.session?.gameSeconds ?: 0)
+                ?.pose(snapshot.session?.gameSeconds ?: 0) ?: stocks.outfits[u.outfit]?.activeShips?.values
+                ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0)
             TacticsMessages.Unit(u.id,u.kind,u.outfit,u.character,u.supplies,u.cruise,u.destroyed,
                 pose?.position?.x ?: initial.position.x,pose?.position?.y ?: initial.position.y,0f,
                 pose?.direction ?: initial.direction,
                 damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else 0)
         }.also {require(it.size<=600)}
     }
-    fun resume() = people.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)}
+    fun resume() = people.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
+        snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
+            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid}
+                ?.let {TacticalMotionMessages.npc(u.id,it,snapshot.session?.gameSeconds ?: 0)}}}
     fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
     }} + listOf(TacticsMessages.definitions(viewer.grid,units),

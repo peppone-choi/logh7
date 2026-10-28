@@ -5,6 +5,12 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalMoveMessagesTest {
+    @Test fun serverOwnedNpcMoveUsesCharacterZeroButClientCannotSubmitIt() {
+        val npc=move.copy(character=0,units=listOf(move.units.single().copy(id=1)))
+        val packet=TacticalMoveMessages.reply(npc,100,5)
+        assertEquals(0,ByteBuffer.wrap(packet).getInt(14));assertEquals(1,ByteBuffer.wrap(packet).getInt(19))
+        assertFailsWith<IllegalArgumentException>{TacticalMoveMessages.move(packet.drop(4).toByteArray())}
+    }
     private val move = TacticalMoveMessages.Move(10000,
         listOf(TacticalMoveMessages.Unit(1010000, 1.5f, TacticalMoveMessages.Point(12f, -3f, 20f))),
         2f, -0.5f, listOf(TacticalMoveMessages.Point(100f, 4f, -200f)))

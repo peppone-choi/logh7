@@ -13,7 +13,7 @@ object TacticalMoveMessages {
     data class Move(val character: Int, val units: List<Unit>, val velocity: Float,
         val direction: Float, val waypoints: List<Point>) {
         init {
-            require(character > 0 && units.size in 1..32 && units.map { it.id }.distinct().size == units.size)
+            require(character >= 0 && units.size in 1..32 && units.map { it.id }.distinct().size == units.size)
             require(velocity.isFinite() && velocity >= 0 && direction.isFinite() && waypoints.size in 1..32)
         }
     }
@@ -25,6 +25,7 @@ object TacticalMoveMessages {
         require(input.short.toInt() and 65535 == 0x0400)
         input.int; input.int
         val character = input.int
+        require(character>0) // Character zero is reserved for server-owned NPC movement, never a client request.
         val count = input.get().toInt() and 255
         require(count in 1..32 && input.remaining() >= count * 20 + 9) { "Invalid move unit count" }
         fun point() = Point(input.float, input.float, input.float)

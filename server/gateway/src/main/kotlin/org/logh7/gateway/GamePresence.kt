@@ -14,6 +14,12 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
+        val packet=if(event.destination!=null)org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,checkNotNull(event.destination),listOf(event.unit))
+            else checkNotNull(TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds))
+        members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
+            .forEach {send(it,listOf(packet))}
+    }
     /** Every committed shot is queued separately, including while an exchange awaits another command. */
     @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact) {
         val packet = org.logh7.protocol.TacticalAttackMessages.hit(impact.hit.seconds,impact.source,

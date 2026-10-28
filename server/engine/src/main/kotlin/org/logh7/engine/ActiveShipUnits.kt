@@ -4,7 +4,8 @@ import java.util.Collections
 
 /** Commissioned unit identity, not a ship-kind ID or a personal flagship ID. Author: 최병호. */
 data class ActiveShipUnit(val id: Int, val stack: UnitStack,
-    val boats: Int = UnitSpecifications.ships.single { it.kind == stack.kind }.number) {
+    val boats: Int = UnitSpecifications.ships.single { it.kind == stack.kind }.number,
+    val tactical: NpcTacticalState? = null) {
     init { require(id in 1..999_999 && boats in 0..UnitSpecifications.ships.single { it.kind == stack.kind }.number) }
 }
 

@@ -37,7 +37,7 @@ interface SnapshotSource {
 }
 
 /** Only this actor owns and mutates world state. */
-class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load(), ticking: Boolean = true,
+class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = SessionRules.load(), ticking: Boolean = true,
     monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val onEvent: (WorldEvent) -> Unit = {}, private val generationStore: SessionGenerationStore = MemorySessionGenerationStore(),
     private val durability: SessionDurability? = null,
@@ -46,11 +46,17 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     private val galaxy: Galaxy? = null, private val navigationStore: NavigationStore? = null,
     navigationPolicy: NavigationPolicy = NavigationPolicy(), private val stockStore: PlanetStockStore? = null,
     productionPolicy: PlanetProductionPolicy = PlanetProductionPolicy(),
-    private val worldStateCommitter: WorldStateCommitter? = null) : CommandSink, SnapshotSource, AutoCloseable {
+    private val worldStateCommitter: WorldStateCommitter? = null,
+    private val npcPolicy:NpcTacticalPolicy=NpcTacticalPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
     private val queue = Channel<Queued>(1024)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
+    private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
+    fun observeMovements(observer:(TacticalMovement)->Unit):AutoCloseable {
+        movementObservers+=observer
+        return AutoCloseable {movementObservers.remove(observer)}
+    }
     /** Register before accepting gateway clients; reconnects bootstrap from durable unit state. */
     fun observeCombat(observer: (TacticalImpact) -> Unit): AutoCloseable {
         combatObservers += observer
@@ -65,11 +71,15 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     }
     private fun settleCombat(session: SessionState, base: WorldSnapshot) {
         if (navigation == null || production == null || galaxy == null) return
-        val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter)
-        if (impacts.isEmpty()) return
+        val movements=mutableListOf<TacticalMovement>()
+        val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add)
+        if (impacts.isEmpty() && movements.isEmpty()) return
         // Publish this committed transaction before a later movement/retreat save can fail.
         published.set(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         publishCombat(impacts)
+        for(movement in movements)for(observer in movementObservers)try {observer(movement)}
+        catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
     }
     private val simulation = SessionSimulation(rules, generationStore.current())
     private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed) }

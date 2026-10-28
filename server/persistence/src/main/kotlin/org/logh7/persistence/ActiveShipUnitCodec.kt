@@ -9,17 +9,18 @@ internal object ActiveShipUnitCodec {
     fun encode(units: ActiveShipUnits?): String = when {
         units == null -> "-"
         units.values.isEmpty() -> "0"
-        else -> units.values.joinToString(",") { "${it.id}.${it.stack.kind}.${it.stack.level}.${it.boats}" }
+        else -> units.values.joinToString(",") { "${it.id}.${it.stack.kind}.${it.stack.level}.${it.boats}"+
+            (it.tactical?.let {s->"."+NpcTacticalCodec.encode(s)} ?: "") }
     }
-    fun decode(value: String, legacyFull: Boolean = true): ActiveShipUnits? = when (value) {
+    fun decode(value: String, legacyFull: Boolean = true, tactics:Boolean=false): ActiveShipUnits? = when (value) {
         "-" -> null
         "0" -> ActiveShipUnits(emptyList())
         else -> ActiveShipUnits(value.split(',').map { token ->
             val fields = token.split('.')
-            require(fields.size == 4 || legacyFull && fields.size == 3) { "Invalid active ship record" }
+            require(fields.size == 4 || legacyFull && fields.size == 3 || tactics && fields.size==5) { "Invalid active ship record" }
             val stack=UnitStack(fields[1].toInt(),fields[2].toInt())
             if(fields.size==3) ActiveShipUnit(fields[0].toInt(),stack)
-            else ActiveShipUnit(fields[0].toInt(),stack,fields[3].toInt())
+            else ActiveShipUnit(fields[0].toInt(),stack,fields[3].toInt(),if(fields.size==5)NpcTacticalCodec.decode(fields[4]) else null)
         })
     }
 }

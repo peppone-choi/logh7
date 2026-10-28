@@ -40,9 +40,9 @@ data class TacticalFire(val sequence: Long, val pending: TacticalPendingFire? = 
  * policy. No random retry, login or query can duplicate an accepted shot.
  */
 internal object TacticalCombat {
-    private data class Target(val regular:Pair<OutfitStock,ActiveShipUnit>?=null,
+    internal data class Target(val regular:Pair<OutfitStock,ActiveShipUnit>?=null,
         val personal:Pair<String,Navigator>?=null,val spec:ShipSpecification)
-    private fun target(id:Int,grid:Int,power:Power,stocks:PlanetStocks,galaxy:Galaxy,
+    internal fun target(id:Int,grid:Int,power:Power,stocks:PlanetStocks,galaxy:Galaxy,
         players:Map<String,Navigator>):Target? {
         if(id>1_000_000) {
             val victim=players.entries.singleOrNull { (_,p)->p.unitId==id && p.grid==grid && p.baseId==0 &&
@@ -136,9 +136,53 @@ internal object TacticalCombat {
         val source = player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId, player.power, player.grid, players, stocks, galaxy)
         val target = victim.personal?.second?.let {p -> p.motion?.pose(now) ?:
             TacticalDeployment.initial(p.unitId,p.power,p.grid,players,stocks,galaxy)} ?: victim.regular!!.let {
-            TacticalDeployment.initial(it.second.id,if(it.first.power==2)Power.EMPIRE else Power.ALLIANCE,
+            it.second.tactical?.takeIf {t->t.motion.grid==player.grid}?.motion?.pose(now) ?: TacticalDeployment.initial(it.second.id,if(it.first.power==2)Power.EMPIRE else Power.ALLIANCE,
                 player.grid,players,stocks,galaxy)}
         return TacticalArmaments.effectiveness(mount, source, target.position)
+    }
+
+    internal fun strike(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,stocks:PlanetStocks,
+        source:Int,grid:Int,sequence:Long,seconds:Long,targetId:Int,weapon:TacticalWeapon,
+        mount:TacticalWeaponMount,effect:Int,origin:TacticalPose,victim:Target):Pair<PlanetStocks,TacticalImpact> {
+        var inventory=stocks
+        val divisor = 100L * maxOf(1, victim.spec.number("装甲:前"))
+        val damage = ((mount.power.toLong()*effect+divisor-1)/divisor).coerceAtLeast(1).toInt()
+        val audience = players.mapNotNull { (viewerAccount, viewer) ->
+            val member=session.participants[viewerAccount]
+            if(viewer.grid!=grid || viewer.baseId!=0 || !viewer.cpPaused ||
+                member?.online!=true || member.power!=viewer.power) null
+            else member.connection?.let {viewer.characterId to it}
+        }.toMap()
+        var departed:Navigator?=null
+        val hit = if(victim.regular!=null) {
+            val (outfit,unit)=victim.regular
+            val remaining=maxOf(0,unit.boats-damage)
+            val ships=ActiveShipUnits(outfit.activeShips!!.values.map {
+                if(it.id==targetId)it.copy(boats=remaining) else it})
+            val units=UnitInventory(ships.quantities(),outfit.units.troops)
+            inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to outfit.copy(
+                activeShips=ships,units=units,supplies=minOf(outfit.supplies,OutfitSupplies.capacity(units)))))
+            TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-remaining)
+        } else {
+            val (victimAccount,defender)=checkNotNull(victim.personal)
+            val hull=checkNotNull(defender.hull).settle(seconds,defender.energy ?: TacticalEnergy.ZERO)
+            val pose=defender.motion?.pose(seconds) ?:
+                TacticalDeployment.initial(defender.unitId,defender.power,defender.grid,players.values,inventory,galaxy)
+            val angle=kotlin.math.atan2(origin.position.x-pose.position.x,origin.position.y-pose.position.y)-pose.direction
+            val circle=2*Math.PI
+            val face=kotlin.math.floor(((angle+Math.PI/6)%circle+circle)%circle/(Math.PI/3)).toInt().coerceIn(0,5)
+            val absorbed=minOf(damage,hull.levels()[face])
+            val hp=hull.hp-(damage-absorbed)
+            val shields=hull.shields.toMutableList().also {it[face]-=absorbed*100*hull.clockScale}
+            val lost=FlagshipHull.capacity(hull.kind)-(shields[face]/(100*hull.clockScale)).toInt()
+            if(hp<=0) {
+                departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory)
+                players[victimAccount]=departed
+            } else players[victimAccount]=defender.copy(hull=hull.copy(hp=hp,shields=shields))
+            TacticalHit(sequence,grid,seconds,targetId,if(hp<=0)1 else 0,
+                if(hp<hull.hp || hull.hp<100)1 else 0,face,lost)
+        }
+        return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed)
     }
 
     private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks) {
@@ -149,7 +193,8 @@ internal object TacticalCombat {
     }
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
-        committer: WorldStateCommitter?): List<TacticalImpact> {
+        committer: WorldStateCommitter?, npcPolicy:NpcTacticalPolicy = NpcTacticalPolicy(enabled=false),
+        scale:Long=24,onMovement:(TacticalMovement)->Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
@@ -169,7 +214,7 @@ internal object TacticalCombat {
                 due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
             }
         }
-        if(due.isEmpty() && players==original)return emptyList()
+        if(due.isEmpty() && players==original && !npcPolicy.enabled)return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         var inventory = stocks
         val impacts = mutableListOf<TacticalImpact>()
@@ -190,45 +235,12 @@ internal object TacticalCombat {
                 val mount = TacticalArmaments.mount(spec, shot.weapon)
                 val effect = effectiveness(player, mount, victim, shot.firesAt, players.values, inventory, galaxy)
                 if (effect > 0 && ready(charge, shot.weapon) && player.supplies >= supplyCost(mount, shot.weapon)) {
-                    val divisor = 100L * maxOf(1, victim.spec.number("装甲:前"))
-                    val damage = ((mount.power.toLong()*effect+divisor-1)/divisor).coerceAtLeast(1).toInt()
-                    val audience = players.mapNotNull { (viewerAccount, viewer) ->
-                        val member=session.participants[viewerAccount]
-                        if(viewer.grid!=shot.grid || viewer.baseId!=0 || !viewer.cpPaused ||
-                            member?.online!=true || member.power!=viewer.power) null
-                        else member.connection?.let {viewer.characterId to it}
-                    }.toMap()
-                    var departed:Navigator?=null
-                    val hit = if(victim.regular!=null) {
-                        val (outfit,unit)=victim.regular
-                        val remaining=maxOf(0,unit.boats-damage)
-                        val ships=ActiveShipUnits(outfit.activeShips!!.values.map {
-                            if(it.id==shot.target)it.copy(boats=remaining) else it})
-                        val units=UnitInventory(ships.quantities(),outfit.units.troops)
-                        inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to outfit.copy(
-                            activeShips=ships,units=units,supplies=minOf(outfit.supplies,OutfitSupplies.capacity(units)))))
-                        TacticalHit(shot.sequence,shot.grid,shot.firesAt,shot.target,victim.spec.number-remaining)
-                    } else {
-                        val (victimAccount,defender)=checkNotNull(victim.personal)
-                        val hull=checkNotNull(defender.hull).settle(shot.firesAt,defender.energy ?: TacticalEnergy.ZERO)
-                        val origin=player.motion?.pose(shot.firesAt) ?:
-                            TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,inventory,galaxy)
-                        val pose=defender.motion?.pose(shot.firesAt) ?:
-                            TacticalDeployment.initial(defender.unitId,defender.power,defender.grid,players.values,inventory,galaxy)
-                        val angle=kotlin.math.atan2(origin.position.x-pose.position.x,origin.position.y-pose.position.y)-pose.direction
-                        val circle=2*Math.PI
-                        val face=kotlin.math.floor(((angle+Math.PI/6)%circle+circle)%circle/(Math.PI/3)).toInt().coerceIn(0,5)
-                        val absorbed=minOf(damage,hull.levels()[face])
-                        val hp=hull.hp-(damage-absorbed)
-                        val shields=hull.shields.toMutableList().also {it[face]-=absorbed*100*hull.clockScale}
-                        val lost=FlagshipHull.capacity(hull.kind)-(shields[face]/(100*hull.clockScale)).toInt()
-                        if(hp<=0) {
-                            departed=FlagshipRecovery.defeated(defender,shot.firesAt,galaxy,inventory)
-                            players[victimAccount]=departed
-                        } else players[victimAccount]=defender.copy(hull=hull.copy(hp=hp,shields=shields))
-                        TacticalHit(shot.sequence,shot.grid,shot.firesAt,shot.target,if(hp<=0)1 else 0,
-                            if(hp<hull.hp || hull.hp<100)1 else 0,face,lost)
-                    }
+                    val origin=player.motion?.pose(shot.firesAt) ?: TacticalDeployment.initial(player.unitId,
+                        player.power,player.grid,players.values,inventory,galaxy)
+                    val resolved=strike(session,galaxy,players,inventory,player.unitId,shot.grid,shot.sequence,
+                        shot.firesAt,shot.target,shot.weapon,mount,effect,origin,victim)
+                    inventory=resolved.first
+                    val hit=resolved.second.hit
                     val spent = when(shot.weapon) {
                         TacticalWeapon.BEAM -> checkNotNull(charge).copy(beam = 0)
                         TacticalWeapon.GUN -> checkNotNull(charge).copy(gun = 0)
@@ -237,16 +249,22 @@ internal object TacticalCombat {
                     next = next.copy(charge = spent, supplies = player.supplies - supplyCost(mount, shot.weapon),
                         attack=player.attack?.copy(nextAt=shot.firesAt+5*(charge?.clockScale ?: player.hull!!.clockScale)),
                         fire = fire.copy(pending = null, last = hit))
-                    impacts += TacticalImpact(session.generation,player.unitId,shot.weapon,hit,audience,departed)
+                    impacts += resolved.second
                 }
             }
             players[account] = next
         }
+        val movements=mutableListOf<TacticalMovement>()
+        if(npcPolicy.enabled && session.ended==null) {
+            inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)
+        }
         clearFinishedOrders(players,galaxy,inventory)
+        if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
         checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(players, prepared)
         navigation.publishCommitted(original, players, session.generation)
         production.publishCommitted(stocks, prepared)
+        movements.forEach(onMovement)
         return impacts
     }
 }

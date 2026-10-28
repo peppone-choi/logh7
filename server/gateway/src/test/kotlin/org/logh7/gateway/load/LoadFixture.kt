@@ -14,11 +14,12 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     stockStore: PlanetStockStore? = null, navigationStore: NavigationStore? = null,
     worldStateCommitter: WorldStateCommitter? = null,
     private val navigationDecorator: (GameNavigation) -> GameNavigation = { it },
-    private val powerByIndex: (Int) -> Int = {2}) : AutoCloseable {
+    private val powerByIndex: (Int) -> Int = {2},npcTactics:Boolean=false) : AutoCloseable {
     val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,
-        stockStore = stockStore, navigationStore = navigationStore, worldStateCommitter = worldStateCommitter)
+        stockStore = stockStore, navigationStore = navigationStore, worldStateCommitter = worldStateCommitter,
+        npcPolicy=NpcTacticalPolicy(enabled=npcTactics))
     val access = EngineGameAdmission(engine, scope)
     private val clients = ConcurrentLinkedQueue<SyntheticClient>()
     private val characters = ConcurrentHashMap<String, CharacterMessages.Generate>()
