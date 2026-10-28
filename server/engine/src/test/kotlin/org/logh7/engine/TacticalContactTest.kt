@@ -4,6 +4,19 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalContactTest {
+    @Test fun survivingHostileGroundUnitsRetainBattleAndZeroInventoryEndsIt() {
+        val battle=pilot.copy(grid=2017,cpPaused=true)
+        val crew=UnitSpecifications.crews.first {it.category!=19}
+        val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,1,units=UnitInventory(troops=mapOf(UnitStack(crew.kind) to 1)),
+            position=OutfitPosition(2017))
+        val inventory=stocks.copy(outfits=mapOf(1 to outfit),warehouses=mapOf(1 to OutfitWarehouse(1,2,OutfitKind.FLEET,1000,1)))
+        val players=mutableMapOf("pilot" to battle)
+        TacticalContact.endUncontested(galaxy,players,inventory,100)
+        assertTrue(players.getValue("pilot").cpPaused)
+        TacticalContact.endUncontested(galaxy,players,inventory.copy(outfits=emptyMap(),warehouses=emptyMap()),101)
+        assertFalse(players.getValue("pilot").cpPaused)
+        assertEquals(101L,players.getValue("pilot").cpRecoveryAt)
+    }
     @Test fun energyRequiresOwnFlagshipActiveBattleAndOutputBudgetAndPersistsWithoutCpCharge() {
         val store=object:NavigationStore {
             var state=mapOf("pilot" to pilot,"enemy" to pilot.copy(characterId=10001,power=Power.EMPIRE))

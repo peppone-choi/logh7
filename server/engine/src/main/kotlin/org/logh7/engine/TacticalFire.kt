@@ -183,11 +183,12 @@ internal object TacticalCombat {
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed)
     }
 
-    private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks) {
+    private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks,now:Long) {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
         // Hostile bases/ground troops can retain tactical contact but are never auto-fire targets.
         for((account,p) in players.toMap()) if(p.attack!=null &&
             ids.none {target(it,p.grid,p.power,stocks,galaxy,players)!=null})players[account]=p.copy(attack=null)
+        TacticalContact.endUncontested(galaxy,players,stocks,now)
     }
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
@@ -197,7 +198,7 @@ internal object TacticalCombat {
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
         val stocks = checkNotNull(production.snapshot(session.generation))
-        clearFinishedOrders(players,galaxy,stocks)
+        clearFinishedOrders(players,galaxy,stocks,now)
         val movements=mutableListOf<TacticalMovement>()
         var inventory=if(session.ended==null)TacticalMotionProgress.advance(session,galaxy,players,stocks,movements) else stocks
         data class Due(val account:String,val shot:TacticalPendingFire,val automatic:Boolean=false)
@@ -261,7 +262,7 @@ internal object TacticalCombat {
         }
         val support=mutableListOf<TacticalSupportResult>()
         inventory=TacticalSupportOperations.advance(session,galaxy,players,inventory,support)
-        clearFinishedOrders(players,galaxy,inventory)
+        clearFinishedOrders(players,galaxy,inventory,now)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
         checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(players, prepared)

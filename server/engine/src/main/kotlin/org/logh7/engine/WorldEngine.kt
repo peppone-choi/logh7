@@ -65,6 +65,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         for(result in results)for(observer in supportObservers)try {observer(result)}
         catch(failure:Exception){System.err.println("Tactical support delivery failed: ${failure.javaClass.simpleName}")}
     }
+    private val tacticalEndObservers=java.util.concurrent.CopyOnWriteArrayList<(TacticalEnd)->Unit>()
+    fun observeTacticalEnds(observer:(TacticalEnd)->Unit):AutoCloseable {
+        tacticalEndObservers+=observer
+        return AutoCloseable {tacticalEndObservers.remove(observer)}
+    }
     fun observeMovements(observer:(TacticalMovement)->Unit):AutoCloseable {
         movementObservers+=observer
         return AutoCloseable {movementObservers.remove(observer)}
@@ -83,6 +88,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private fun settleCombat(session: SessionState, base: WorldSnapshot) {
         if (navigation == null || production == null || galaxy == null) return
+        val before=navigation.snapshot(session.generation)
         val movements=mutableListOf<TacticalMovement>()
         val support=mutableListOf<TacticalSupportResult>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
@@ -93,6 +99,16 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         publishSupport(support)
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
+        // Deliver committed damage before leaving the winner's native battlefield. A defeated
+        // flagship changes grid and already has its own departure/return notification.
+        for((account,player) in navigation.snapshot(session.generation)) {
+            val old=before[account] ?: continue
+            val connection=session.participants[account]?.connection ?: continue
+            if(!old.cpPaused || player.cpPaused || old.grid!=player.grid)continue
+            val event=TacticalEnd(session.generation,player.characterId,player.grid,connection)
+            for(observer in tacticalEndObservers)try {observer(event)}
+            catch(failure:Exception){System.err.println("Tactical end delivery failed: ${failure.javaClass.simpleName}")}
+        }
     }
     private val simulation = SessionSimulation(rules, generationStore.current())
     private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed) }

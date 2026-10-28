@@ -12,11 +12,22 @@ class TacticalCombatTest {
         assertEquals(1,TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),hostileBase,nav,stock,state.commit).size)
         assertNull(state.players.getValue("pilot").attack)
         assertTrue(TacticalContact.active(hostileBase,state.players.getValue("pilot"),state.players.values,state.stocks))
+        assertTrue(state.players.getValue("pilot").cpPaused)
         val departed=state();val moved=Navigation(galaxy,departed.nav,NavigationPolicy());val inventory=production(departed)
         TacticalCombat.attack(command,session,galaxy,moved,inventory.snapshot(1)!!,departed.commit,24)
         val before=inventory.snapshot(1)!!
         inventory.replace(before,before.copy(outfits=before.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2487))}))
+        departed.fail=true
+        assertFailsWith<java.io.IOException> {
+            TacticalCombat.settle(session.copy(gameMillis=(now+1)*1000),galaxy,moved,inventory,departed.commit)
+        }
+        assertTrue(moved.snapshot(1).getValue("pilot").cpPaused)
+        departed.fail=false
         assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+1)*1000),galaxy,moved,inventory,departed.commit).isEmpty())
+        assertFalse(departed.players.getValue("pilot").cpPaused)
+        assertEquals(now+1,departed.players.getValue("pilot").cpRecoveryAt)
+        assertNull(departed.players.getValue("pilot").motion)
+        assertNull(departed.players.getValue("pilot").charge)
         assertNull(departed.players.getValue("pilot").attack)
         assertNull(Navigation(galaxy,departed.nav,NavigationPolicy()).snapshot(1).getValue("pilot").attack)
     }
@@ -170,6 +181,8 @@ class TacticalCombatTest {
         TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)
         assertEquals(0,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
         assertEquals(0,GridForces.units(state.stocks.outfits.getValue(1)))
+        assertFalse(nav.snapshot(1).getValue("pilot").cpPaused)
+        assertEquals(now+120,nav.snapshot(1).getValue("pilot").cpRecoveryAt)
         assertFalse(TacticalContact.active(galaxy,nav.snapshot(1).getValue("pilot"),nav.snapshot(1).values,state.stocks))
         val other=state();val stopped=Navigation(galaxy,other.nav,NavigationPolicy());val stock=production(other)
         TacticalCombat.accept(request,session,galaxy,stopped,stock.snapshot(1)!!,other.commit,24)
@@ -190,7 +203,9 @@ class TacticalCombatTest {
         TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)
         val player=nav.snapshot(1).getValue("pilot")
         assertNull(player.fire!!.pending);assertNull(player.fire.last)
-        assertEquals(24000,player.charge!!.beam)
+        assertNull(player.charge)
+        assertFalse(player.cpPaused)
+        assertEquals(now+120,player.cpRecoveryAt)
         assertEquals(300,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
         val point=TacticalPoint(180f,-93f)
         state.players=before.mapValues {(_,p)->p.copy(motion=TacticalMotion(2488,now,TacticalPose(point,0f),

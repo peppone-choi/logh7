@@ -67,6 +67,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val channels = mutableListOf<Channel>()
     private val clients = DefaultChannelGroup(GlobalEventExecutor.INSTANCE, true)
     private val closed = AtomicBoolean()
+    private var tacticalEndSubscription: AutoCloseable? = null
     private var combatSubscription: AutoCloseable? = null
     private var movementSubscription: AutoCloseable? = null
     private var supportSubscription: AutoCloseable? = null
@@ -79,6 +80,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
+        tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
@@ -207,6 +209,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        tacticalEndSubscription?.close()
         combatSubscription?.close()
         movementSubscription?.close()
         supportSubscription?.close()

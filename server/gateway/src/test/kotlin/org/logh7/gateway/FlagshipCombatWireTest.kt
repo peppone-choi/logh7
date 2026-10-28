@@ -58,6 +58,13 @@ class FlagshipCombatWireTest {
             val exit=through(clients[1],0x0f1f)
             assertEquals(0,exit[6].toInt());assertEquals(2488,ByteBuffer.wrap(exit).getInt(7))
             assertEquals(1010001,ByteBuffer.wrap(through(clients[0],0x0425)).getInt(21))
+            // No winner clock poll: the committed kill publishes damage before battle end.
+            val won=through(clients[0],0x0f1f)
+            assertEquals(0,won[6].toInt());assertEquals(2488,ByteBuffer.wrap(won).getInt(7))
+            val winner=savedPlayers.getValue("load-000")
+            assertFalse(winner.cpPaused);assertEquals(now+120,winner.cpRecoveryAt)
+            assertNull(winner.attack);assertNull(winner.motion);assertNull(winner.charge)
+
             val returned=savedPlayers.getValue("load-001")
             assertEquals(1000,returned.baseId);assertEquals(93,returned.hull!!.kind)
             clients[1].send(SyntheticClient.opcode(0x0300))

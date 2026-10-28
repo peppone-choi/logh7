@@ -10,6 +10,23 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class MultiplayerPresenceTest {
+    @Test fun tacticalEndOnlyReachesTheMatchingLiveBattlefieldConnection() {
+        val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
+        val person=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,
+            List(8){50},0,0,0,20,0,0,"Ship",1)
+        val player=Navigator(1,10000,Power.EMPIRE,2488,1000,1000,900,cpPaused=true)
+        val viewer=GamePresence.Member("viewer",person,player,received::add)
+        hub.update(viewer);received.clear()
+        val end=TacticalEnd(1,10000,2488,"viewer")
+        for(stale in listOf(end.copy(generation=2),end.copy(character=10001),end.copy(grid=2487),end.copy(connection="old")))
+            hub.tacticalEnd(stale)
+        assertTrue(received.isEmpty())
+        hub.tacticalEnd(end)
+        val packet=received.single().single()
+        assertEquals(0x0f1f,opcode(packet));assertEquals(0,packet[6].toInt())
+        hub.update(viewer.copy(player=player.copy(cpPaused=false)));received.clear()
+        hub.tacticalEnd(end);assertTrue(received.isEmpty())
+    }
     @Test fun waypointAccountingDoesNotRestartPeerPathButReplacementAndStopStillArrive() {
         val hub=GamePresence()
         val received=mutableListOf<List<ByteArray>>()

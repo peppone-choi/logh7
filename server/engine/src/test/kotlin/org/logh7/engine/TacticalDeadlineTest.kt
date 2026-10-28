@@ -86,7 +86,7 @@ class TacticalDeadlineTest {
             cpPaused=true,hull=FlagshipHull(0,start),energy=TacticalEnergy(listOf(100)+List(10){0}),
             motion=TacticalMotion(2488,start,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
                 listOf(TacticalPoint(0f,10f)),turnRate=1f)))
-        private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,0,0,0)),deploymentInitialized=true)
+        private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
             listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
