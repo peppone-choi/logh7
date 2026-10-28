@@ -1,11 +1,11 @@
-// Hooks only the four verified tactical guidance lookups. Author: 최병호.
+// Hooks only the verified tactical guidance lookups. Author: 최병호.
 #pragma once
 #include "tactical_notice_data.h"
-static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08};
+static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08, 0x50f6b3, 0x50f426};
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);
-    return logh::tacticalNoticeFallback(group, index, original);
+    return logh::tacticalNoticeFallback(group, index, original, *reinterpret_cast<const BYTE*>(0x221669c));
 }
 static void tacticalNoticeCall(unsigned address, BYTE (&bytes)[5], const void* function) {
     bytes[0] = 0xe8;

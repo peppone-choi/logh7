@@ -345,9 +345,10 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         control_offset = end + 1
                         if len(action) != 1:
                             raise ValueError("Expected one UI command")
-                        if "click" in action:
-                            x, y = action["click"]
-                            script.exports_sync.setmouse(x, y, True)
+                        if "click" in action or "ctrlClick" in action:
+                            control = "ctrlClick" in action
+                            x, y = action["ctrlClick" if control else "click"]
+                            script.exports_sync.setmouse(x, y, True, 1, control)
                             try:
                                 time.sleep(0.3)
                             finally:

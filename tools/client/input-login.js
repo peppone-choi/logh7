@@ -1,10 +1,12 @@
 // Loaded with capture-frame.js only for the owned original client's UI test.
 let testKey = 0;
+let testControl = false;
 let testMouse = null;
 let testMouseDelta = {x:0,y:0};
 rpc.exports.setkey = function(value) {
   if(![0,8,9,13,27,67,68,88].includes(value))throw new Error('Only release, Backspace, Tab, Enter, Escape and tactical C/D/X are supported');
   testKey = value;
+  testControl = false;
 };
 Process.attachModuleObserver({onAdded(module) {
   if(module.name.toLowerCase() !== 'user32.dll')return;
@@ -24,14 +26,16 @@ Process.attachModuleObserver({onAdded(module) {
       testMouseDelta.x+=x-testMouse.x;testMouseDelta.y+=y-testMouse.y;
     }
     const position=mousePosition(x,y);
-    if(!post(gameWindow,0x200,[1,2].includes(testKey)?testKey:0,position))throw new Error('Cannot queue owned mouse movement');
+    const keys=([1,2].includes(testKey)?testKey:0)|(testControl?8:0);
+    if(!post(gameWindow,0x200,keys,position))throw new Error('Cannot queue owned mouse movement');
   };
-  rpc.exports.setmouse=function(x,y,down,button=1) {
+  rpc.exports.setmouse=function(x,y,down,button=1,control=false) {
     if(button==null)button=1; // Frida supplies a null binary argument to legacy three-argument calls.
     if(![1,2].includes(button))throw new Error('Only owned left/right mouse buttons are supported');
-    const position=mousePosition(x,y);testKey=down?button:0;testMouseDelta={x:0,y:0};
+    const position=mousePosition(x,y);testControl=down && control===true;testKey=down?button:0;testMouseDelta={x:0,y:0};
     const message=button===1?(down?0x201:0x202):(down?0x204:0x205);
-    if(!post(gameWindow,0x200,down?button:0,position) || !post(gameWindow,message,down?button:0,position))
+    const keys=(down?button:0)|(testControl?8:0);
+    if(!post(gameWindow,0x200,keys,position) || !post(gameWindow,message,keys,position))
       throw new Error('Cannot queue owned mouse message');
   };
   Interceptor.attach(module.getExportByName('GetCursorPos'),{
@@ -45,7 +49,7 @@ Process.attachModuleObserver({onAdded(module) {
   for(const name of ['GetAsyncKeyState','GetKeyState']) {
     Interceptor.attach(module.getExportByName(name),{
       onEnter(args){this.key=args[0].toUInt32();},
-      onLeave(ret){ret.replace(testKey!==0 && this.key===testKey ? ptr(0x8000) : ptr(0));}
+      onLeave(ret){ret.replace((testKey!==0 && this.key===testKey) || (testControl && [17,162].includes(this.key)) ? ptr(0x8000) : ptr(0));}
     });
   }
   // The galaxy view detects mouse edges through GetKeyboardState, whereas
@@ -57,6 +61,7 @@ Process.attachModuleObserver({onAdded(module) {
       if(this.keys.isNull())return;
       this.keys.writeByteArray(new Uint8Array(256));
       if(testKey!==0)this.keys.add(testKey).writeU8(0x80);
+      if(testControl){this.keys.add(17).writeU8(0x80);this.keys.add(162).writeU8(0x80);}
       ret.replace(1);
     }
   });
