@@ -27,8 +27,8 @@ static void applyTacticalLabels(void* world) {
                     (reinterpret_cast<void*>(0x2217400),85,kind);
                 if (value) MultiByteToWideChar(932,0,value,-1,type,_countof(type));
             }
-            if (type[0]) _snwprintf_s(label,_countof(label),_TRUNCATE,L"%s #%u",type,id);
-            else _snwprintf_s(label,_countof(label),_TRUNCATE,L"함정 #%u",id);
+            if (type[0]) _snwprintf_s(label,_countof(label),_TRUNCATE,L"%s",type);
+            else _snwprintf_s(label,_countof(label),_TRUNCATE,L"함정");
         }
         memcpy(unit+0x6bc,label,sizeof(label));
     }
