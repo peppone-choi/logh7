@@ -74,11 +74,11 @@ class TacticalFleetMotionTest {
         assertEquals(1,s.players.getValue("pilot").motion!!.reportedWaypoints)
         assertEquals(1,s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.motion.reportedWaypoints)
         events.clear();val before=s.stocks;val players=s.players;s.fail=true
-        assertFailsWith<java.io.IOException>{tick(10)}
+        assertFailsWith<java.io.IOException>{tick(12)} // Translation plus both native turns.
         assertTrue(events.isEmpty());assertEquals(before,s.stocks);assertEquals(players,s.players)
         s.fail=false;nav=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
         tick(8);assertTrue(events.isEmpty())
-        tick(10);assertEquals(2,events.size);assertTrue(events.all {it.waypoint==-1 && it.motion!!.velocity==0f})
+        tick(12);assertEquals(2,events.size);assertTrue(events.all {it.waypoint==-1 && it.motion!!.velocity==0f})
         assertEquals(TacticalPose(TacticalPoint(3f,2f),1.2f),events.single {it.unit==1}.motion!!.pose(now+100))
         assertEquals(range,s.players.getValue("pilot").commandRange)
         assertEquals(10000,s.stocks.outfits.getValue(1).supplies)

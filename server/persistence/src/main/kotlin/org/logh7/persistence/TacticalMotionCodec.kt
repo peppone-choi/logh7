@@ -12,37 +12,40 @@ import org.logh7.engine.TacticalManeuver
 internal object TacticalMotionCodec {
     fun encode(motion: TacticalMotion): String {
         val flags=(if(motion.parallel)1 else 0) or (if(motion.reportedWaypoints>0)2 else 0) or
-            (motion.rotation?.let {if(it.kind==TacticalManeuver.TURN)4 else 8} ?: 0)
-        val extra=(if(flags==0)0 else 1)+(if(motion.reportedWaypoints>0)1 else 0)+(motion.rotation?.let {9+4*it.selection.size} ?: 0)
+            (motion.rotation?.let {if(it.kind==TacticalManeuver.TURN)4 else 8} ?: 0) or (if(motion.turnRate>0f)16 else 0)
+        val extra=(if(flags==0)0 else 1)+(if(motion.reportedWaypoints>0)1 else 0)+(motion.rotation?.let {9+4*it.selection.size} ?: 0)+
+            (if(flags and 16!=0)4 else 0)
         val out = ByteBuffer.allocate(33 + 8 * motion.waypoints.size+extra).putInt(motion.grid).putLong(motion.acceptedAt)
             .putFloat(motion.origin.position.x).putFloat(motion.origin.position.y).putFloat(motion.origin.direction)
             .putFloat(motion.velocity).putFloat(motion.direction).put(motion.waypoints.size.toByte())
         motion.waypoints.forEach { out.putFloat(it.x).putFloat(it.y) }
         if(flags!=0)out.put(flags.toByte())
         if(flags and 2!=0)out.put(motion.reportedWaypoints.toByte())
+        if(flags and 16!=0)out.putFloat(motion.turnRate)
         motion.rotation?.let {r->out.putInt(r.leader).putInt(r.wait.toInt()).put(r.selection.size.toByte());r.selection.forEach(out::putInt)}
         return Base64.getUrlEncoder().withoutPadding().encodeToString(out.array())
     }
     fun decode(value: String): TacticalMotion {
-        require(value.length in 55..388)
+        require(value.length in 55..394)
         val input = ByteBuffer.wrap(Base64.getUrlDecoder().decode(value))
-        require(input.remaining() in 41..291)
+        require(input.remaining() in 41..295)
         val grid = input.int; val time = input.long
         val origin = TacticalPose(TacticalPoint(input.float, input.float), input.float)
         val velocity = input.float; val direction = input.float
         val count = input.get().toInt() and 255
-        require(count in 1..32 && input.remaining() in count*8..count*8+139)
+        require(count in 1..32 && input.remaining() in count*8..count*8+143)
         val points=List(count) {TacticalPoint(input.float,input.float)}
-        val flags=if(input.hasRemaining())input.get().toInt().also {require(it in 1..15 && it and 12!=12)} else 0
-        require(input.remaining()>=(if(flags and 2!=0)1 else 0)+(if(flags and 12!=0)13 else 0))
+        val flags=if(input.hasRemaining())input.get().toInt().also {require(it in 1..31 && it and 12!=12)} else 0
+        require(input.remaining()>=(if(flags and 2!=0)1 else 0)+(if(flags and 12!=0)13 else 0)+(if(flags and 16!=0)4 else 0))
         val reported=if(flags and 2!=0)input.get().toInt().also {require(it in 1 until count)} else 0
+        val turnRate=if(flags and 16!=0)input.float else 0f
         val rotation=if(flags and 12!=0) {
             val leader=input.int;val wait=input.int.toLong() and 0xffffffffL;val size=input.get().toInt() and 255
             require(size in 1..32 && input.remaining()==size*4)
             TacticalRotation(if(flags and 4!=0)TacticalManeuver.TURN else TacticalManeuver.REVERSE,leader,wait,List(size){input.int})
         } else null
         require(!input.hasRemaining())
-        return TacticalMotion(grid, time, origin, velocity, direction, points,flags and 1!=0,reported,rotation)
+        return TacticalMotion(grid, time, origin, velocity, direction, points,flags and 1!=0,reported,rotation,turnRate)
             .also { require(encode(it) == value) }
     }
 }

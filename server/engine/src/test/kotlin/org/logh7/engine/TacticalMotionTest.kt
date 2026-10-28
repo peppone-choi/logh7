@@ -4,6 +4,38 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalMotionTest {
+    @Test fun nativeScheduleTurnsBeforeTranslationAndFinalFacingAndResumesDuringTurn() {
+        val origin=TacticalPose(TacticalPoint(0f,0f),0f)
+        val legacy=TacticalMotion(2017,100,origin,1f,0f,listOf(TacticalPoint(0f,10f),origin.position))
+        val motion=legacy.copy(turnRate=TacticalMotion.NATIVE_TURN_RATE)
+        assertEquals(origin,motion.pose(105))
+        assertEquals(TacticalPoint(0f,10f),motion.pose(115).position)
+        assertEquals(1,motion.completedWaypoints(115))
+        assertEquals(TacticalPoint(0f,10f),motion.pose(116).position)
+        assertEquals(1f,kotlin.math.abs(motion.pose(116).direction),0.00001f)
+        assertEquals(TacticalPoint(0f,9f),legacy.pose(116).position)
+        assertEquals(listOf(origin.position),motion.remaining(116))
+        // The return translation has finished, but the final in-place turn has not.
+        assertEquals(origin.position,motion.pose(129).position)
+        assertEquals(1,motion.completedWaypoints(129))
+        assertEquals(origin,motion.pose(133));assertEquals(2,motion.completedWaypoints(133))
+        val resumed=motion.copy(acceptedAt=111,origin=motion.pose(116),waypoints=motion.remaining(116))
+        for(time in 117L..134L) {
+            assertEquals(motion.pose(time).position.x,resumed.pose(time).position.x,0.00001f)
+            assertEquals(motion.pose(time).position.y,resumed.pose(time).position.y,0.00001f)
+            assertEquals(motion.pose(time).direction,resumed.pose(time).direction,0.00001f)
+        }
+        val parallel=motion.copy(parallel=true)
+        assertEquals(TacticalPoint(0f,9f),parallel.pose(116).position)
+        assertEquals(0f,parallel.pose(116).direction)
+        val wrapped=motion.copy(origin=origin.copy(direction=3.1f),direction=-3.1f,
+            waypoints=listOf(TacticalPoint(-0.4158f,-10f)))
+        // Crossing +/-pi takes the short arc, leaving most of this G-second to move.
+        assertTrue(kotlin.math.hypot(wrapped.pose(106).position.x,wrapped.pose(106).position.y) in 0.90f..0.94f)
+        assertEquals(-3.1f,wrapped.pose(106).direction,0.0001f)
+        assertFailsWith<IllegalArgumentException>{motion.copy(turnRate=Float.NaN)}
+        assertFailsWith<IllegalArgumentException>{motion.copy(turnRate=-1f)}
+    }
     @Test fun waypointArrivalIncludesExactBoundariesSkipsZeroLengthPointsAndKeepsStationaryPathsIdle() {
         val origin=TacticalPose(TacticalPoint(0f,0f),0.4f)
         val motion=TacticalMotion(2017,100,origin,0.5f,1f,
@@ -80,7 +112,10 @@ class TacticalMotionTest {
         assertEquals(motion,navigation.snapshot(1).getValue("pilot").motion)
         val later=session.copy(gameMillis=session.gameMillis+15000)
         val next=navigation.apply(request,later,stocks).player!!.motion!!
-        val expectedX=-180f+(-600f+180f)*5f/kotlin.math.hypot(-600f+180f,-180f+95f)
+        val delta=kotlin.math.atan2(-420.0,-85.0)-Math.PI/2
+        val firstTurn=kotlin.math.abs(kotlin.math.atan2(kotlin.math.sin(delta),kotlin.math.cos(delta)))
+        val travel=((10.0-firstTurn)*0.5).toFloat() // Ten moving G-seconds include the initial turn.
+        val expectedX=-180f+(-600f+180f)*travel/kotlin.math.hypot(-600f+180f,-180f+95f)
         assertEquals(expectedX,next.origin.position.x,0.0001f)
         val stopRequest=request.copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(1010000)))
         val movingTime=later.copy(gameMillis=later.gameMillis+15000)

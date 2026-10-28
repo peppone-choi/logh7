@@ -7,6 +7,37 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun angularScheduleReopensAndLegacyMotionRetainsItsLinearMeaning() {
+        val legacy=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
+            listOf(TacticalPoint(0f,10f),TacticalPoint(0f,0f)))
+        val old=TacticalMotionCodec.encode(legacy)
+        val oldBytes=java.util.Base64.getUrlDecoder().decode(old)
+        assertEquals(49,oldBytes.size) // Historical header + two points, no trailer.
+        assertEquals(0f,TacticalMotionCodec.decode(old).turnRate)
+        assertEquals(TacticalPoint(0f,9f),TacticalMotionCodec.decode(old).pose(116).position)
+        val motion=legacy.copy(turnRate=1f)
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,1000,900,cpPaused=true,motion=motion,
+            energy=TacticalEnergy(listOf(100)+List(10){0}))
+        val path=directory.resolve("angular-motion")
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        FileNavigationStore(path).use {
+            val restored=it.load().getValue("pilot").motion!!
+            assertEquals(motion,restored);assertEquals(TacticalPoint(0f,10f),restored.pose(116).position)
+        }
+        val maximum=motion.copy(waypoints=List(32){TacticalPoint(0f,it.toFloat())},reportedWaypoints=31,parallel=true)
+        val encoded=TacticalMotionCodec.encode(maximum)
+        assertEquals(295,java.util.Base64.getUrlDecoder().decode(encoded).size)
+        assertEquals(maximum,TacticalMotionCodec.decode(encoded))
+        val raw=java.util.Base64.getUrlDecoder().decode(TacticalMotionCodec.encode(motion))
+        fun reject(bytes:ByteArray)=assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode(
+            java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes))}
+        reject(raw.dropLast(1).toByteArray());reject(raw+0.toByte())
+        for(rate in listOf(0f,-1f,Float.NaN,Float.POSITIVE_INFINITY)) {
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putFloat(it.size-4,rate)})
+        }
+        reject(raw.copyOf().also {it[49]=32}) // Unknown option bit.
+        assertEquals(old,TacticalMotionCodec.encode(TacticalMotionCodec.decode(old)))
+    }
     @Test fun pendingFormationRotationReopensWithLeaderAndRemainingWait() {
         for(kind in TacticalManeuver.entries) {
             val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(2f,3f),0.4f),0f,1f,

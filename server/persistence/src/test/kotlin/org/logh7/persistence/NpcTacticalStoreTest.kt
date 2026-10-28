@@ -7,6 +7,15 @@ import java.nio.file.*
 import kotlin.test.*
 
 class NpcTacticalStoreTest {
+    @Test fun angularFleetMotionSurvivesTheNestedStockCodec() {
+        val motion=TacticalMotion(2488,100,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
+            listOf(TacticalPoint(0f,10f),TacticalPoint(0f,0f)),turnRate=1f)
+        val unit=ActiveShipUnit(1,UnitStack(32),tactical=NpcTacticalState(motion,100,100),motionCommander=10000)
+        val encoded=ActiveShipUnitCodec.encode(ActiveShipUnits(listOf(unit)))
+        val restored=ActiveShipUnitCodec.decode(encoded,tactics=true,cargo=true,support=true,commanded=true)!!.values.single()
+        assertEquals(unit,restored)
+        assertEquals(TacticalPoint(0f,10f),restored.tactical!!.motion.pose(116).position)
+    }
     @Test fun pendingRotationSurvivesNestedStockMotion() {
         for(kind in TacticalManeuver.entries) {
             val motion=TacticalMotion(2488,100,TacticalPose(TacticalPoint(0f,1f),0f),0f,1f,

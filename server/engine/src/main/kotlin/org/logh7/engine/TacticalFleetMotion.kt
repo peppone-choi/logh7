@@ -65,7 +65,7 @@ internal object TacticalFleetMotion {
                 val x=it.x+(pose.position.x-anchor.x);val y=it.y+(pose.position.y-anchor.y)
                 if(kotlin.math.abs(x)>100000 || kotlin.math.abs(y)>100000)return reject(NavigationRejection.RANGE)
                 TacticalPoint(x,y)
-            },command.parallel)}
+            },command.parallel,turnRate=TacticalMotion.NATIVE_TURN_RATE)}
         var next=stocks
         for((outfit,unit) in ships) {
             val current=next.outfits.getValue(outfit.id)

@@ -214,7 +214,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 TacticalDeployment.initial(before.unitId, before.power, before.grid,
                     snapshot(session.generation).values + before, stocks, galaxy)
             val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
-                move.velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel))
+                move.velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel,
+                turnRate=TacticalMotion.NATIVE_TURN_RATE))
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before)
         }

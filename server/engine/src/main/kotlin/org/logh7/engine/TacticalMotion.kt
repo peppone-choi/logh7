@@ -40,17 +40,19 @@ data class TacticalMove(val units: List<Int>, val velocity: Float, val direction
  */
 data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: TacticalPose,
     val velocity: Float, val direction: Float, val waypoints: List<TacticalPoint>,val parallel:Boolean=false,
-    val reportedWaypoints:Int=0,val rotation:TacticalRotation?=null) {
+    val reportedWaypoints:Int=0,val rotation:TacticalRotation?=null,val turnRate:Float=0f) {
     init {
         require(grid in 0..4999 && acceptedAt in 0..0xffffffffL - WAIT_SECONDS)
         require(velocity.isFinite() && velocity in 0f..1f && direction.isFinite() && waypoints.size in 1..32)
         require(reportedWaypoints in waypoints.indices)
+        require(turnRate.isFinite() && turnRate in 0f..1000f && (rotation==null || turnRate==0f))
         require(rotation==null || (!parallel && reportedWaypoints==0 && waypoints.size==1 && velocity==0f && acceptedAt<=0xffffffffL-rotation.wait))
     }
     val startsAt get() = acceptedAt + (rotation?.wait ?: WAIT_SECONDS)
     fun completedWaypoints(seconds:Long):Int {
         require(seconds in 0..0xffffffffL)
         if(rotation!=null)return if(seconds>=startsAt)1 else 0
+        if(turnRate>0f)return turningProgress(seconds).completed
         if(seconds<=startsAt || velocity==0f)return 0
         var distance=(seconds-startsAt)*velocity.toDouble()
         var from=origin.position
@@ -63,6 +65,7 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
     }
     fun remaining(seconds: Long): List<TacticalPoint> {
         require(seconds in 0..0xffffffffL)
+        if(turnRate>0f)return waypoints.drop(turningProgress(seconds).completed.coerceAtMost(waypoints.lastIndex))
         var distance = maxOf(0, seconds - startsAt) * velocity.toDouble()
         var from = origin.position
         for ((index, target) in waypoints.withIndex()) {
@@ -76,6 +79,7 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
     fun pose(seconds: Long): TacticalPose {
         require(seconds in 0..0xffffffffL)
         if(rotation!=null)return if(seconds<startsAt)origin else TacticalPose(waypoints.single(),direction)
+        if(turnRate>0f)return turningProgress(seconds).pose
         if (seconds <= startsAt || velocity == 0f) return origin
         var distance = (seconds - startsAt) * velocity.toDouble()
         var from = origin.position
@@ -90,7 +94,42 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
         }
         return TacticalPose(from, if(parallel)origin.direction else direction)
     }
-    companion object { const val WAIT_SECONDS = 5L }
+    private data class Progress(val pose:TacticalPose,val completed:Int)
+    /** Native normal paths turn before each translation, then to the final facing.
+     * A zero rate explicitly retains the historical linear schedule of saved paths.
+     */
+    private fun turningProgress(seconds:Long):Progress {
+        if(seconds<=startsAt || velocity==0f)return Progress(origin,0)
+        var time=(seconds-startsAt).toDouble()
+        var pose=origin
+        fun delta(target:Float)=kotlin.math.atan2(kotlin.math.sin(target.toDouble()-pose.direction),
+            kotlin.math.cos(target.toDouble()-pose.direction))
+        for((index,target) in waypoints.withIndex()) {
+            val dx=target.x.toDouble()-pose.position.x;val dy=target.y.toDouble()-pose.position.y
+            val length=hypot(dx,dy)
+            val facing=if(parallel || length==0.0)pose.direction else atan2(dx,dy).toFloat()
+            if(!parallel && length>0.0) {
+                val angle=delta(facing);val duration=kotlin.math.abs(angle)/turnRate
+                if(time<duration)return Progress(pose.copy(direction=(pose.direction+angle*time/duration).toFloat()),index)
+                time-=duration;pose=pose.copy(direction=facing)
+            }
+            val duration=length/velocity
+            if(time<duration)return Progress(TacticalPose(TacticalPoint((pose.position.x+dx*time/duration).toFloat(),
+                (pose.position.y+dy*time/duration).toFloat()),facing),index)
+            time-=duration;pose=TacticalPose(target,facing)
+        }
+        if(!parallel) {
+            val angle=delta(direction);val duration=kotlin.math.abs(angle)/turnRate
+            if(time<duration)return Progress(pose.copy(direction=(pose.direction+angle*time/duration).toFloat()),waypoints.lastIndex)
+            pose=pose.copy(direction=direction)
+        }
+        return Progress(pose,waypoints.size)
+    }
+    companion object {
+        const val WAIT_SECONDS = 5L
+        // Matches WorldMessages' provisional native angular rate, radians/G-second.
+        const val NATIVE_TURN_RATE = 1f
+    }
 }
 
 /** Same provisional formation for initialization and a first authoritative move origin. */
