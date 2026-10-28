@@ -146,6 +146,7 @@ static void updateCharacterInformation(void* manager);
 #include "tactical_labels.h"
 #include "tactical_command_range.h"
 #include "tactical_support.h"
+#include "tactical_motion.h"
 #include "tactical_radar.h"
 
 // The surviving message catalogue ends before tactical HUD group 119.
@@ -537,6 +538,7 @@ static void install() {
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }
     if (!installTacticalSupport()) { status = -3; return; }
+    if (!installTacticalMotion()) { status = -3; return; }
     if (!installTacticalLabels()) { status = -3; return; }
     if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};

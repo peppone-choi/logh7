@@ -16,6 +16,27 @@
 #include "appointment_ui_data.h"
 #include "planet_tax_data.h"
 #include "tactical_support_data.h"
+#include "tactical_motion_data.h"
+static bool tacticalMotionOriginsTest() {
+    BYTE message[0x41c]={};message[12]=1;message[0x298]=1;
+    unsigned id=3;float x=1,y=-8,angle=0.7f;
+    memcpy(message+16,&id,4);memcpy(message+20,&angle,4);
+    memcpy(message+24,&x,4);memcpy(message+28,&y,4);
+    memcpy(message+0x294,&angle,4);memcpy(message+0x29c,&x,4);memcpy(message+0x2a0,&y,4);
+    logh::TacticalMoveOrigins origins;
+    if (!origins.read(message) || !origins.stationary || origins.count!=1 || origins.units[0].direction!=angle) return false;
+    message[4]=1;if (!origins.read(message) || origins.stationary) return false;message[4]=0;
+    float speed=0.5f;memcpy(message+0x290,&speed,4);
+    if (!origins.read(message) || origins.stationary) return false;
+    message[12]=33;if (origins.read(message) || origins.count) return false;
+    message[12]=2;memcpy(message+36,message+16,20);if (origins.read(message)) return false;
+    message[12]=1;message[0x298]=33;if (origins.read(message)) return false;
+    message[0x298]=1;unsigned nan=0x7fc00000;memcpy(message+24,&nan,4);
+    if (origins.read(message)) return false;
+    memcpy(message+24,&x,4);memcpy(message+32,&x,4);if (origins.read(message)) return false;
+    memset(message+32,0,4);x=100001;memcpy(message+24,&x,4);
+    return !origins.read(message);
+}
 static bool planetUnitRowsTest() {
     unsigned char grid[4+300*12]={},party[logh::outfitPartyBytes]={};
     unsigned id=11,base=1049;grid[0]=1;
@@ -47,6 +68,7 @@ static bool planetUnitRowsTest() {
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
 int wmain(int argc, wchar_t** argv) {
+    if (!tacticalMotionOriginsTest()) return 81;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
     unsigned profileId=10001;memcpy(profile,&profileId,4);memcpy(snapshot+0x24,&profileId,4);
     profile[4]=2;profile[6]='A';profile[0x20]=3;profile[0x6a]=7;profile[0x60]=88;
