@@ -12,6 +12,7 @@
 #include "character_cards.h"
 #include "character_info_data.h"
 #include "outfit_info_data.h"
+#include "ground_info_data.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
 #include "planet_tax_data.h"
@@ -148,7 +149,29 @@ static bool tacticalWaypointOrderTest() {
     return !logh::applyTacticalWaypointOrder(unit,model) && !logh::applyTacticalWaypointOrder(nullptr,model) &&
         !logh::applyTacticalWaypointOrder(unit,nullptr);
 }
+static bool groundLocationPageTest() {
+    unsigned char wire[4+70*88]={};wire[0]=2;
+    auto set=[&](unsigned row,unsigned field,unsigned value){memcpy(wire+4+row*88+field,&value,4);};
+    unsigned short kind=1000;
+    for(unsigned i=0;i<2;++i){set(i,0,100+i);memcpy(wire+4+i*88+4,&kind,2);set(i,8,2487);set(i,12,1);}
+    wire[4+6]=10;set(0,16,1);wire[4+88+6]=4;set(1,64,1049);
+    logh::GroundPage page;
+    if(!page.read(wire,1,99) || page.count!=2 || page.last()!=101 || !page.matches(wire) ||
+        page.read(wire,2,99) || page.read(wire,1,100))return false;
+    auto samePage=page;samePage.rows[7]=255;
+    if(!page.same(samePage))return false; // Decoder padding cannot reset a native scroll position.
+    samePage.rows[16]=2;if(page.same(samePage))return false;
+    samePage=page;samePage.count=1;if(page.same(samePage))return false;
+    set(1,0,100);if(page.read(wire,1,99) || page.last()!=101)return false;set(1,0,101);
+    set(0,64,1049);if(page.matches(wire) || page.read(wire,1,99))return false;set(0,64,0);
+    set(0,16,100);if(page.read(wire,1,99))return false;set(0,16,1);
+    wire[0]=71;if(page.read(wire,1,99))return false;
+    wire[0]=1;wire[4+6]=0;set(0,16,0);
+    if(!page.read(wire,1,99) || page.count!=1)return false;
+    wire[0]=0;return page.read(wire,1,999999) && !page.count && !page.last();
+}
 int wmain(int argc, wchar_t** argv) {
+    if (!groundLocationPageTest()) return 85;
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
     if (!stationaryTacticalPoseTest()) return 83;
@@ -300,6 +323,12 @@ int wmain(int argc, wchar_t** argv) {
     if (!logh::validOutfitParty(party, 7) || logh::validOutfitParty(party, 9)) return 24;
     party[0x180] = 1; party[0x186] = 1; party[0x188] = 44; party[0x18a] = 1; party[0x18c] = 1;
     if (!logh::validOutfitParty(party, 7)) return 24;
+    unsigned char sameParty[logh::outfitPartyBytes];memcpy(sameParty,party,sizeof(party));
+    sameParty[11]=255;sameParty[0x183]=255;sameParty[0x187]=255;sameParty[0x1a0]=255;
+    if(!logh::sameOutfitParty(party,sameParty))return 86;
+    sameParty[0x18c]=2;if(logh::sameOutfitParty(party,sameParty))return 86;
+    memcpy(sameParty,party,sizeof(party));sameParty[0x4598]=1;
+    if(logh::sameOutfitParty(party,sameParty))return 86;
     party[0x18a] = 71;
     if (logh::validOutfitParty(party, 7)) return 24;
     party[0x18a] = 1; party[0x4504] = 25;

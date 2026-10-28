@@ -87,4 +87,39 @@ class GroundTransferWireTest {
         }
     }
 
+    @Test fun alliedViewerPagesPhysicalGroundUnitsAndObservesCommittedBoardingOnTheNextPoll() {
+        val state=State();val outfit=state.stocks.outfits.getValue(1)
+        val troops=ActiveGroundUnits((2..73).map {id->ActiveGroundUnit(id,UnitStack(0),
+            carrier=if(id==2)1 else 0,base=if(id==2)0 else if(id==3)1050 else 1049)})
+        state.stocks=state.stocks.copy(outfits=state.stocks.outfits+(1 to outfit.copy(
+            units=UnitInventory(outfit.units.ships,troops.quantities()),activeGround=troops)),nextShipId=74)
+        // More marines than boarding slots is valid ashore; loading all must fail atomically.
+        LoadFixture(directory.resolve("viewers"),2,LoadMetrics(),galaxy,ticking=false,
+            stockStore=state.stockStore,navigationStore=state.navigationStore,worldStateCommitter=state).use {server->
+            val commander=server.join(server.account(0),true,false).client;start(commander)
+            val viewer=server.join(server.account(1),true,false).client;start(viewer)
+            fun expect(c:SyntheticClient,op:Int):ByteArray {
+                repeat(300){val raw=c.receive();if(ByteBuffer.wrap(raw).getShort(4).toInt()==op)return raw}
+                error("Missing reply $op")
+            }
+            fun page(cursor:Int):List<Triple<Int,Int,Int>> {
+                viewer.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(cursor).put(2).array())
+                val marker=ByteBuffer.wrap(expect(viewer,0x032f))
+                assertEquals(1,marker.getInt(6));assertEquals(cursor,marker.getInt(10));assertEquals(2,marker.get(14).toInt())
+                val b=ByteBuffer.wrap(expect(viewer,0x0331));b.position(6);val count=b.get().toInt() and 255
+                return List(count) {
+                    val id=b.int;b.short;b.get();b.int;assertEquals(1,b.int);val carrier=b.int
+                    assertEquals(0,b.get().toInt());val base=b.int;b.position(b.position()+18);Triple(id,carrier,base)
+                }.also {assertFalse(b.hasRemaining())}
+            }
+            val first=page(0);assertEquals(70,first.size);assertEquals(Triple(2,1,0),first.first())
+            assertEquals(Triple(3,0,1050),first[1]);assertEquals(listOf(72,73),page(71).map {it.first});assertTrue(page(73).isEmpty())
+            assertEquals(0,state.saves)
+            commander.send(query(GroundTransferMessages.Action.UNLOAD));expect(commander,0x0b04);expect(commander,0x0356);expect(commander,0x032f)
+            assertEquals(Triple(2,0,1049),page(0).first());assertEquals(Triple(3,0,1050),page(0)[1])
+            assertEquals(920,state.players.getValue("load-000").mcp);assertEquals(1,state.saves)
+        }
+        assertFails {WorldBootstrap(galaxy).outfitGround(OutfitPartyMessages.Query(1,0,2),3,state.stocks)}
+    }
+
 }

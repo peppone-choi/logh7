@@ -76,6 +76,23 @@ class WorldBootstrap(val galaxy: Galaxy) {
         return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=if(query.mode==1)outfit.baseId else position.baseId),power,
             outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum,members))
     }
+    /** Explicit revival query mode 2: original 0331 rows, at most 70 ground identities after the cursor.
+     * No command or CP mutation; actual saved carriers, remote bases and unresolved legacy locations survive. */
+    fun outfitGround(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks):List<ByteArray> {
+        require(query.mode==2 && query.base in 0..999999)
+        val outfit=requireNotNull(stocks.outfits[query.outfit])
+        require(outfit.power==power) {"Ground location access denied"}
+        val position=outfit.positionIn(galaxy)
+        val rows=outfit.activeGround?.values.orEmpty().filter {it.id>query.base}.sortedBy {it.id}.take(70).map {u->
+            val grid=if(u.base>0)galaxy.bases.single {it.id==u.base}.grid else position.grid
+            OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,grid,outfit.id,u.base,carrier=u.carrier,
+                mode=if(u.carrier>0)10 else if(u.base>0)if(u.origin>0)9 else 4 else 0)
+        }
+        // Echo the extension identity/cursor before 0331, including an empty page. This
+        // prevents an unrelated or delayed native unit reply from satisfying the page.
+        return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,outfit.kind.wire,
+            outfit.number,emptyList(),emptyList(),0,0)),LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
+    }
     fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
         val outfit = stocks.outfits.values.singleOrNull { owner -> owner.activeShips?.values?.any { it.id == id } == true }
         val units = if (outfit == null) emptyList() else {

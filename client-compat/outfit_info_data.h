@@ -39,6 +39,28 @@ inline bool matchingOutfitParty(const unsigned char* record,unsigned id,unsigned
     return validOutfitParty(record,id) && record[9]==power && infoWord(record,12)==kind &&
         (!base || infoWord(record,4)==base);
 }
+// Compare decoded fields only: unused native array slots and structure padding
+// are not stable across replies and must not force a scrolling sheet rebuild.
+inline bool sameOutfitParty(const unsigned char* a,const unsigned char* b) {
+    const unsigned words[]={0,4,12,16,0x4598,0x459c},bytes[]={8,9,20,0x180,0x4504};
+    for(unsigned offset : words)if(infoWord(a,offset)!=infoWord(b,offset))return false;
+    for(unsigned offset : bytes)if(a[offset]!=b[offset])return false;
+    if(a[20]>10 || a[0x180]>60 || a[0x4504]>24)return false;
+    for(unsigned i=0;i<a[20];++i) {
+        auto x=a+24+i*36;auto y=b+24+i*36;
+        if(memcmp(x,y,7) || x[6]>13 || memcmp(x+8,y+8,x[6]*2))return false;
+    }
+    for(unsigned i=0;i<a[0x180];++i) {
+        auto x=a+0x184+i*0x120;auto y=b+0x184+i*0x120;
+        if(infoShort(x,0)!=infoShort(y,0) || x[2]!=y[2] || infoShort(x,4)!=infoShort(y,4) ||
+            x[6]!=y[6] || x[6]>70 || memcmp(x+8,y+8,x[6]*4))return false;
+    }
+    for(unsigned i=0;i<a[0x4504];++i) {
+        auto x=a+0x4506+i*6;auto y=b+0x4506+i*6;
+        if(infoShort(x,0)!=infoShort(y,0) || x[2]!=y[2] || infoShort(x,4)!=infoShort(y,4))return false;
+    }
+    return true;
+}
 inline unsigned outfitSupplyCapacity(const unsigned char* record) {
     return infoWord(record,0x4598)+infoWord(record,0x459c);
 }
