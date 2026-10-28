@@ -142,6 +142,7 @@ static void updateCharacterInformation(void* manager);
 #include "character_information.h"
 #include "input_editor.h"
 #include "peer_notices.h"
+#include "tactical_notices.h"
 #include "unit_presence.h"
 #include "tactical_labels.h"
 #include "tactical_command_range.h"
@@ -170,7 +171,7 @@ static void __cdecl appendTextFragment(void* pool, const char* fragment) {
     if (fragment && !strcmp(fragment, peerNoticeMarker) && !pendingPeerNotice.empty()) {
         decoded.swap(pendingPeerNotice);
         converted = true;
-    } else converted = logh::japaneseFragment(fragment, decoded);
+    } else converted = logh::tacticalNoticeFragment(fragment, decoded) || logh::japaneseFragment(fragment, decoded);
     if (pool && converted)
         reinterpret_cast<void(__cdecl*)(void*, const wchar_t*)>(0x4eabb0)(pool, decoded.c_str());
 }
@@ -469,6 +470,7 @@ static void __fastcall drawLayout(void* map, void*, char) {
 static void install() {
     if (InterlockedCompareExchange(&status, 1, 0)) return;
     if (!verifiedClient()) { status = -1; return; }
+    if (!verifyTacticalNotices()) { status = -2; return; }
     BYTE* target = reinterpret_cast<BYTE*>(0x4d68d0);
     const BYTE expected[] = {0x83,0xec,0x58,0x53,0x56};
     if (memcmp(target, expected, sizeof(expected))) { status = -2; return; }
@@ -539,6 +541,7 @@ static void install() {
     if (!installUnitPresence()) { status = -3; return; }
     if (!installTacticalSupport()) { status = -3; return; }
     if (!installTacticalMotion()) { status = -3; return; }
+    if (!installTacticalNotices()) { status = -3; return; }
     if (!installTacticalLabels()) { status = -3; return; }
     if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};

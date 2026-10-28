@@ -17,6 +17,30 @@
 #include "planet_tax_data.h"
 #include "tactical_support_data.h"
 #include "tactical_motion_data.h"
+#include "tactical_notice_data.h"
+static bool tacticalNoticesTest() {
+    const char* missing = "NO DATA";
+    const char* valid = "existing guidance";
+    size_t count; const auto rows = logh::tacticalNotices(count);
+    for (size_t i = 0; i < count; ++i) {
+        if (logh::tacticalNoticeFallback(118, rows[i].index, missing) != rows[i].marker ||
+            logh::tacticalNoticeFallback(118, rows[i].index, "NO TABLE") != rows[i].marker ||
+            logh::tacticalNoticeFallback(118, rows[i].index, valid) != valid ||
+            logh::tacticalNoticeFallback(117, rows[i].index, missing) != missing ||
+            logh::tacticalNoticeFallback(118, rows[i].index, nullptr)) return false;
+    }
+    if (logh::tacticalNoticeFallback(118, 0, missing) != missing ||
+        logh::tacticalNoticeFallback(118, 60, missing) != missing) return false;
+    std::wstring decoded = L"unchanged";
+    if (logh::tacticalNoticeFragment(missing, decoded) || decoded != L"unchanged" ||
+        logh::tacticalNoticeFragment(nullptr, decoded)) return false;
+    const std::string mixed = std::string("[5]\x90\xed\x8a\xcd ") + rows[0].marker + rows[2].marker + "!";
+    if (!logh::tacticalNoticeFragment(mixed.c_str(), decoded) ||
+        decoded != std::wstring(L"[5]戦艦 ") + rows[0].text + rows[2].text + L"!") return false;
+    const std::string invalid = std::string("\x81") + rows[0].marker;
+    decoded = L"unchanged";
+    return !logh::tacticalNoticeFragment(invalid.c_str(), decoded) && decoded == L"unchanged";
+}
 static bool tacticalMotionOriginsTest() {
     BYTE message[0x41c]={};message[12]=1;message[0x298]=1;
     unsigned id=3;float x=1,y=-8,angle=0.7f;
@@ -69,6 +93,7 @@ static bool planetUnitRowsTest() {
 }
 int wmain(int argc, wchar_t** argv) {
     if (!tacticalMotionOriginsTest()) return 81;
+    if (!tacticalNoticesTest()) return 82;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
     unsigned profileId=10001;memcpy(profile,&profileId,4);memcpy(snapshot+0x24,&profileId,4);
     profile[4]=2;profile[6]='A';profile[0x20]=3;profile[0x6a]=7;profile[0x60]=88;
