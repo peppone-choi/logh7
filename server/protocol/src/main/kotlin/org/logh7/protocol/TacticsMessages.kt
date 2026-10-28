@@ -68,7 +68,7 @@ object TacticsMessages {
     }
     data class Unit(val id: Int,val kind: Int,val outfit: Int,val character: Int,val supplies: Int,
         val cruise: Float,val destroyed: Int,val x: Float,val y: Float,val z: Float,val direction: Float,val damaged: Int = 0,
-        val mode:Int=6,val base:Int=0)
+        val mode:Int=6,val base:Int=0,val troops:List<Int> = emptyList())
     fun notify(grid: Int, active: Boolean): ByteArray {
         require(grid in 0..4999)
         return LoginMessages.sessionMessage(0x0f1f,ByteBuffer.allocate(5).put(if(active)1 else 0).putInt(grid).array())
@@ -82,22 +82,33 @@ object TacticsMessages {
         require(input.remaining()==count*4)
         return List(count){input.int}.also {require(it.all {id->id>0} && it.distinct().size==it.size)}
     }
-    /** On-base ground identities have no 033b spaceship state or 3D ship model. */
-    data class GroundDefinition(val id:Int,val kind:Int,val outfit:Int,val base:Int)
+    /** Ground identities have no 033b spaceship state or 3D ship model, even aboard. */
+    data class GroundDefinition(val id:Int,val kind:Int,val outfit:Int,val base:Int,val carrier:Int=0)
     fun definitions(grid: Int, units: List<Unit>, ground:List<GroundDefinition> = emptyList()): ByteArray {
         val ids=units.map {it.id}+ground.map {it.id}
         require(grid in 0..4999 && ids.size<=600 && ids.distinct().size==ids.size)
-        val out=ByteBuffer.allocate(2+42*ids.size).putShort(ids.size.toShort())
+        // Native 00419ca0 has space for ten IDs per carrier. This is a format bound,
+        // not evidence of the original gameplay capacity or a reason to truncate a roster.
+        require(units.all {it.troops.size<=10 && it.troops.distinct().size==it.troops.size})
+        val ships=units.associateBy {it.id}
+        val passengers=ground.filter {it.carrier!=0}.groupBy {it.carrier}
+        require(passengers.all {(id,roster)->ships[id]?.let {ship ->
+            roster.all {it.outfit==ship.outfit} && ship.troops.toSet()==roster.map {it.id}.toSet()
+        }==true})
+        require(units.all {ship->ship.troops.toSet()==passengers[ship.id].orEmpty().map {it.id}.toSet()})
+        val out=ByteBuffer.allocate(2+42*ids.size+4*units.sumOf {it.troops.size}).putShort(ids.size.toShort())
         units.forEach {u->
             require(u.id>0 && u.kind in 0..199 && u.outfit>=0 && u.supplies>=0 && u.destroyed in 0..65535 && u.damaged in 0..65535)
             require(u.mode in 4..7 && u.base in 0..65535 && (u.base>0)==(u.mode in 4..5))
             // 00419ca0: boarding_ship, troop_units count/list, THEN base.
-            out.putInt(u.id).putShort(u.kind.toShort()).put(u.mode.toByte()).putInt(grid).putInt(u.outfit).putInt(0).put(0)
-                .putInt(u.base).put(100).put(0).putShort(u.damaged.toShort()).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
+            out.putInt(u.id).putShort(u.kind.toShort()).put(u.mode.toByte()).putInt(grid).putInt(u.outfit).putInt(0).put(u.troops.size.toByte())
+            u.troops.forEach(out::putInt)
+            out.putInt(u.base).put(100).put(0).putShort(u.damaged.toShort()).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
         }
         ground.forEach {u ->
-            require(u.id>0 && u.kind in 1000..1015 && u.outfit>0 && u.base in 1..65535)
-            out.putInt(u.id).putShort(u.kind.toShort()).put(4).putInt(grid).putInt(u.outfit).putInt(0).put(0)
+            require(u.id>0 && u.kind in 1000..1015 && u.outfit>0 && u.base in 0..65535 && u.carrier>=0 &&
+                (u.base>0)!=(u.carrier>0))
+            out.putInt(u.id).putShort(u.kind.toShort()).put(if(u.carrier==0)4 else 10).putInt(grid).putInt(u.outfit).putInt(u.carrier).put(0)
                 .putInt(u.base).put(100).put(0).putShort(0).putShort(0).putInt(0).putInt(0).putFloat(0f)
         }
         return LoginMessages.sessionMessage(0x0325,out.array())

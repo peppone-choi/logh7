@@ -35,4 +35,33 @@ class GroundBootstrapTest {
         assertEquals(1,states.getShort(6).toInt());assertEquals(1010000,states.getInt(8))
         assertEquals(listOf(2),TacticalBootstrap(snapshot,galaxy,viewer.copy(grid=2488)){person}.groundDefinitions.map {it.id})
     }
+    @Test fun aboardTroopsFollowTheirCarrierAcrossGridsWithoutBecomingShipsOrBaseDefenders() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2),GalaxySystem(4,2488,4,"Away",2)),
+            listOf(GalaxyBase(1049,2487,80,0,"Here",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val viewer=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true)
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32))))
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=1),
+            ActiveGroundUnit(3,UnitStack(1),base=1049),ActiveGroundUnit(4,UnitStack(0))))
+        val outfit=OutfitStock(1,2,OutfitKind.FLEET,1049,10,10000,
+            units=UnitInventory(ships=ships.quantities(),troops=troops.quantities()),position=OutfitPosition(2487),
+            activeShips=ships,activeGround=troops)
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),mapOf(1 to outfit),
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1)),nextShipId=5)
+        val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,250,0,0,emptyMap(),1,1,null),planetStocks=stocks)
+        val here=TacticalBootstrap(snapshot,galaxy,viewer){null}
+        assertEquals(listOf(2),here.units.single().troops)
+        assertEquals(listOf(TacticsMessages.GroundDefinition(2,1000,1,0,1),
+            TacticsMessages.GroundDefinition(3,1001,1,1049)),here.groundDefinitions)
+        assertEquals(1000,here.baseInformation.single().stamina)
+        val packets=here.initialize().associateBy {ByteBuffer.wrap(it).getShort(4).toInt()}
+        assertEquals(3,ByteBuffer.wrap(packets.getValue(0x0325)).getShort(6).toInt())
+        assertEquals(1,ByteBuffer.wrap(packets.getValue(0x033b)).getShort(6).toInt())
+        val moved=snapshot.copy(planetStocks=stocks.copy(outfits=mapOf(1 to outfit.copy(position=OutfitPosition(2488)))))
+        val oldGrid=TacticalBootstrap(moved,galaxy,viewer){null}
+        assertEquals(listOf(3),oldGrid.groundDefinitions.map {it.id});assertTrue(oldGrid.units.isEmpty())
+        val newGrid=TacticalBootstrap(moved,galaxy,viewer.copy(grid=2488)){null}
+        assertEquals(listOf(2),newGrid.units.single().troops);assertEquals(listOf(2),newGrid.groundDefinitions.map {it.id})
+        newGrid.initialize();oldGrid.initialize()
+        assertEquals(troops,moved.planetStocks!!.outfits.getValue(1).activeGround)
+    }
 }

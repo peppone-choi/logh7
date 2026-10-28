@@ -26,4 +26,34 @@ class GroundDefinitionMessagesTest {
         assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,emptyList(),listOf(ground.copy(kind=32)))}
         assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship),List(600){ground.copy(id=it+2)})}
     }
+    @Test fun carrierAndPassengerRowsUseReciprocalIdsAndPreserveVariableRowBoundaries() {
+        val ship=TacticsMessages.Unit(1,32,7,10000,25,100f,0,0f,0f,0f,0f,troops=listOf(2,3))
+        val ground=listOf(TacticsMessages.GroundDefinition(2,1000,7,0,1),TacticsMessages.GroundDefinition(3,1001,7,0,1))
+        val packet=ByteBuffer.wrap(TacticsMessages.definitions(2487,listOf(ship),ground))
+        assertEquals(142,packet.limit());assertEquals(3,packet.getShort(6).toInt())
+        assertEquals(2,packet.get(27).toInt());assertEquals(2,packet.getInt(28));assertEquals(3,packet.getInt(32))
+        assertEquals(0,packet.getInt(36));assertEquals(25,packet.getInt(46));assertEquals(100f,packet.getFloat(54))
+        for((index,id) in listOf(2,3).withIndex()) {
+            val row=58+42*index
+            assertEquals(id,packet.getInt(row));assertEquals(10,packet.get(row+6).toInt())
+            assertEquals(1,packet.getInt(row+15));assertEquals(0,packet.get(row+19).toInt());assertEquals(0,packet.getInt(row+20))
+        }
+    }
+    @Test fun danglingCrossOutfitAndUnreciprocatedBoardingAreRejected() {
+        val ship=TacticsMessages.Unit(1,32,7,10000,0,0f,0,0f,0f,0f,0f,troops=listOf(2))
+        val ground=TacticsMessages.GroundDefinition(2,1000,7,0,1)
+        assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,emptyList(),listOf(ground))}
+        assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship),emptyList())}
+        assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship.copy(troops=emptyList())),listOf(ground))}
+        assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship),listOf(ground.copy(outfit=8)))}
+        assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship),listOf(ground.copy(base=1049)))}
+        assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship.copy(troops=listOf(2,2))),listOf(ground))}
+    }
+    @Test fun tenTroopWireLimitIsEnforcedWithoutSilentlyDiscardingTheEleventh() {
+        val troops=(2..11).map {TacticsMessages.GroundDefinition(it,1000,7,0,1)}
+        val ship=TacticsMessages.Unit(1,32,7,10000,0,0f,0,0f,0f,0f,0f,troops=troops.map {it.id})
+        assertEquals(510,TacticsMessages.definitions(2487,listOf(ship),troops).size)
+        assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship.copy(troops=(2..12).toList())),
+            troops+TacticsMessages.GroundDefinition(12,1000,7,0,1))}
+    }
 }

@@ -10,11 +10,6 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         .sortedBy {it.characterId}
     val characterIds get()=people.map {it.characterId}
     val grid get()=viewer.grid
-    val groundDefinitions=snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
-        outfit.activeGround?.values.orEmpty().filter {unit ->
-            unit.base>0 && galaxy.bases.any {it.id==unit.base && it.grid==viewer.grid}
-        }.sortedBy {it.id}.map {unit -> TacticsMessages.GroundDefinition(unit.id,1000+unit.stack.kind,outfit.id,unit.base)}
-    }
     val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
         val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}
         val energy=p.energy ?: TacticalEnergy.ZERO
@@ -60,8 +55,17 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 pose?.direction ?: initial.direction,
                 damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else
                     stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0,
-                mode=u.posture?.mode?.wire ?: TacticalShipMode.SAILING.wire,base=u.posture?.base ?: 0)
+                mode=u.posture?.mode?.wire ?: TacticalShipMode.SAILING.wire,base=u.posture?.base ?: 0,
+                troops=stocks.outfits[u.outfit]?.activeGround?.values.orEmpty().filter {it.carrier==u.id}.sortedBy {it.id}.map {it.id})
         }.also {require(it.size<=600)}
+    }
+    val groundDefinitions=snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
+        val carriers=units.filter {it.outfit==outfit.id && it.destroyed<UnitSpecifications.ships.single {s->s.kind==it.kind}.number}
+            .map {it.id}.toSet()
+        outfit.activeGround?.values.orEmpty().filter {unit ->
+            (unit.base>0 && galaxy.bases.any {it.id==unit.base && it.grid==viewer.grid}) ||
+                (unit.carrier>0 && unit.carrier in carriers)
+        }.sortedBy {it.id}.map {unit -> TacticsMessages.GroundDefinition(unit.id,1000+unit.stack.kind,outfit.id,unit.base,unit.carrier)}
     }
     private fun rotations():List<ByteArray> {
         data class Entry(val id:Int,val character:Int,val motion:TacticalMotion)
