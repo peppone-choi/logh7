@@ -17,10 +17,10 @@ data class TacticalWeaponMount(val profile: Int, val angles: Int, val power: Int
 /** Designed replacement for lost server range tables, not original balance data. Author: 최병호.
  * Manual destructive power and absent weapons remain authoritative. Profile IDs and arcs
  * are assigned here for native initialization and the server range evaluator below.
- * Issuing attacks and applying damage in the world actor are not connected yet.
+ * Personal beam fire uses this evaluator; native range-preview equivalence is still unverified.
  */
 object TacticalArmaments {
-    const val RANGE_STEP = 50.0 // Provisional map units per sample; verify native preview before combat release.
+    const val RANGE_STEP = 1.0 // 004c7820 stores sample-count radii; 004f1180 compares them directly to map distance.
     val profiles: List<List<Int>> = List(27) { index -> when(index) {
         0 -> listOf(100, 100, 85, 65, 40, 15, 0, 0) // beam: medium range
         1 -> listOf(100, 85, 50, 10, 0, 0, 0, 0) // gun: close range
@@ -41,8 +41,8 @@ object TacticalArmaments {
             TacticalWeapon.MISSILE -> 0x3f
         }, power, if (weapon == TacticalWeapon.BEAM) 0 else ship.number(column, 1))
     }
-    /** Relative direction: sector zero is centered on heading; boundaries belong to the next sector.
-     * This sector convention and range scale are design policy pending native preview comparison.
+    /** Native heading zero faces positive wire y (native z), not positive wire x.
+     * Full six-sector boundary equivalence remains pending native preview comparison.
      */
     fun effectiveness(mount: TacticalWeaponMount, origin: TacticalPose, target: TacticalPoint): Int {
         if (mount.profile == 255) return 0
@@ -51,7 +51,7 @@ object TacticalArmaments {
         val distance = hypot(dx, dy)
         if (distance == 0.0 || distance >= 8 * RANGE_STEP) return 0
         val circle = 2 * PI
-        val angle = ((atan2(dy, dx) - origin.direction + PI / 6) % circle + circle) % circle
+        val angle = ((atan2(dx, dy) - origin.direction + PI / 6) % circle + circle) % circle
         val sector = floor(angle / (PI / 3)).toInt().coerceIn(0, 5)
         if (mount.angles and (1 shl sector) == 0) return 0
         return profiles[mount.profile][floor(distance / RANGE_STEP).toInt()]

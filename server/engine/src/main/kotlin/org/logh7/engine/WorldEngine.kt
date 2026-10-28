@@ -423,8 +423,14 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     check(!storageFailed) { "World storage is unavailable" }
                     val session = durableState?.session ?: simulation.exportState()
                     val ownership = production?.settle(session.generation, session.gameMillis / 1000)
+                    if (navigation != null && production != null && galaxy != null)
+                        TacticalCombat.settle(session, galaxy, navigation, production, worldStateCommitter)
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
-                        FleetNavigation.apply(command.request, session, galaxy, navigation, production, ownership, worldStateCommitter) { outfit ->
+                        if (command.request.tacticalShoot != null)
+                            TacticalCombat.accept(command.request,session,galaxy,navigation,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
+                        else FleetNavigation.apply(command.request, session, galaxy, navigation, production,
+                            checkNotNull(production.snapshot(session.generation)), worldStateCommitter) { outfit ->
                             logistics.blocksMovement(session, outfit)
                         } else NavigationResult(null, rejection = NavigationRejection.DISABLED)
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
@@ -451,6 +457,8 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     durableState = next.state
                     if (command is WorldCommand.AdvanceTo) {
                         production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
+                        if (navigation != null && production != null && galaxy != null)
+                            TacticalCombat.settle(next.state.session, galaxy, navigation, production, worldStateCommitter)
                         navigation?.settleRetreats(next.state.session, production?.snapshot(next.state.session.generation))
                     }
                     published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
@@ -477,9 +485,11 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     require(command.elapsedRealMillis >= elapsed)
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
+                    if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
+                    if (navigation != null && production != null && galaxy != null)
+                        TacticalCombat.settle(simulation.exportState(), galaxy, navigation, production, worldStateCommitter)
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     elapsed = command.elapsedRealMillis
-                    if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }

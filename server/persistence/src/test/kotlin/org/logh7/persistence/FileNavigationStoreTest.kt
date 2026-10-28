@@ -7,6 +7,22 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun pendingAndCompletedBeamSurviveReopenAndLegacyElevenHasNoPendingFire() {
+        val path=directory.resolve("beam")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            fire=TacticalFire(2,TacticalPendingFire(2,2017,89,7,100,220),TacticalHit(1,2017,90,8,34)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-12",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-11\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").fire)}
+        val fired=player.copy(fire=player.fire!!.copy(pending=null,last=TacticalHit(2,2017,220,7,300)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to fired))}
+        FileNavigationStore(path).use {assertEquals(fired,it.load().getValue("pilot"))}
+        assertFailsWith<IllegalArgumentException>{TacticalFireCodec.decode("1;1,2017,89,7,100,99;-")}
+        assertFailsWith<IllegalArgumentException>{TacticalFireCodec.decode("1;-;2,2017,100,7,300")}
+    }
     @Test fun pendingRetreatReopensWithoutResettingItsDeadlineAndOldNineHasNoRetreat() {
         val path=directory.resolve("retreat")
         val pose=TacticalPose(TacticalPoint(-300f,0f),1f)

@@ -1,0 +1,122 @@
+package org.logh7.engine
+
+import org.junit.jupiter.api.Test
+import kotlin.test.*
+
+class TacticalCombatTest {
+    private val rules = SessionRules.load()
+    private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
+        listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+    private val session = SessionSimulation(rules).also {it.join("pilot",Power.ALLIANCE,false,"c")}.exportState()
+    private val now = session.gameMillis / 1000
+    private val request = NavigationRequest("pilot",10000,Power.ALLIANCE,"c",1,captainCard=195,shipKind=89,
+        tacticalShoot=TacticalShoot(listOf(1010000),0,1,1))
+    private class State(var players: Map<String,Navigator>, var stocks: PlanetStocks) {
+        var fail = false
+        val nav = object:NavigationStore {
+            override fun load() = players
+            override fun save(players:Map<String,Navigator>) { if(fail)throw java.io.IOException("disk");this@State.players=players }
+        }
+        val inventory = object:PlanetStockStore {
+            override fun load() = stocks
+            override fun save(stocks:PlanetStocks) {this@State.stocks=stocks}
+        }
+        val commit = WorldStateCommitter { players,stocks ->
+            if(fail)throw java.io.IOException("disk")
+            this.players=players.toMap();this.stocks=checkNotNull(stocks)
+        }
+    }
+    private fun state(boats:Int=300): State {
+        val point = TacticalPoint(180f,-97f)
+        val player = Navigator(1,10000,Power.ALLIANCE,2488,1000,960,900,cpPaused=true,
+            energy=TacticalEnergy(List(11){if(it==3)100 else 0}),charge=TacticalCharge(now,24000),
+            motion=TacticalMotion(2488,now,TacticalPose(point,0f),0f,0f,listOf(point)))
+        val stack = UnitStack(32)
+        return State(mapOf("pilot" to player), PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),
+            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1000,10,
+                units=UnitInventory(mapOf(stack to 1)),activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack,boats))),
+                position=OutfitPosition(2488))),
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),deploymentInitialized=true,nextShipId=2))
+    }
+    private fun production(state:State) = PlanetProduction(galaxy,state.inventory,rules.startSeconds,PlanetProductionPolicy()).also {
+        it.settle(1,now)
+    }
+    @Test fun pendingBeamSurvivesReloadAndSettlesOnceWithChargeAndActualLossInOneCommit() {
+        val state = state()
+        var nav = Navigation(galaxy,state.nav,NavigationPolicy())
+        var production = production(state)
+        val accepted = TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24).player!!
+        assertEquals(now+120,accepted.fire!!.pending!!.firesAt)
+        assertEquals(24000,accepted.charge!!.beam)
+        assertEquals(NavigationRejection.BUSY,TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24).rejection)
+        nav = Navigation(galaxy,state.nav,NavigationPolicy());production = production(state)
+        TacticalCombat.settle(session.copy(gameMillis=(now+119)*1000),galaxy,nav,production,state.commit)
+        assertNotNull(nav.snapshot(1).getValue("pilot").fire!!.pending)
+        val old = nav.snapshot(1);val inventory=production.snapshot(1)
+        state.fail=true
+        assertFailsWith<java.io.IOException> {TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)}
+        assertEquals(old,nav.snapshot(1));assertSame(inventory,production.snapshot(1));state.fail=false
+        TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)
+        val fired=nav.snapshot(1).getValue("pilot")
+        assertEquals(0,fired.charge!!.beam);assertNull(fired.fire!!.pending)
+        val losses = fired.fire.last!!.destroyed
+        assertTrue(losses > 0)
+        assertEquals(300-losses,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+        assertEquals(1000,fired.pcp);assertEquals(960,fired.mcp);assertEquals(900,fired.cruise)
+        nav=Navigation(galaxy,state.nav,NavigationPolicy());production=production(state)
+        val saved=state.stocks
+        TacticalCombat.settle(session.copy(gameMillis=(now+500)*1000),galaxy,nav,production,state.commit)
+        assertEquals(saved,state.stocks);assertEquals(fired,nav.snapshot(1).getValue("pilot"))
+    }
+    @Test fun forgedIdentityForeignUnitFriendlyOrMissingTargetUnsupportedWeaponsAndUnchargedBeamAreRejected() {
+        val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stocks=production(state).snapshot(1)!!
+        fun reject(request:NavigationRequest,reason:NavigationRejection) {
+            assertEquals(reason,TacticalCombat.accept(request,session,galaxy,nav,stocks,state.commit,24).rejection)
+        }
+        reject(request.copy(connection="stale"),NavigationRejection.SESSION)
+        reject(request.copy(characterId=10001),NavigationRejection.IDENTITY)
+        reject(request.copy(captainCard=59),NavigationRejection.CARD)
+        reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(units=listOf(1))),NavigationRejection.UNIT)
+        reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(arms=1)),NavigationRejection.WEAPON)
+        reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(targetKind=2)),NavigationRejection.WEAPON)
+        reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(target=2)),NavigationRejection.TARGET)
+        reject(request.copy(shipKind=0),NavigationRejection.UNIT)
+        state.players=state.players.mapValues {(_,p)->p.copy(charge=TacticalCharge(now))}
+        assertEquals(NavigationRejection.ENERGY,TacticalCombat.accept(request,session,galaxy,
+            Navigation(galaxy,state.nav,NavigationPolicy()),stocks,state.commit,24).rejection)
+    }
+    @Test fun destructionRetainsWreckIdentityWithoutKeepingEnemyContactAliveAndStopCancelsPendingShot() {
+        val state=state(1);val nav=Navigation(galaxy,state.nav,NavigationPolicy());val production=production(state)
+        TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24)
+        TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)
+        assertEquals(0,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+        assertEquals(0,GridForces.units(state.stocks.outfits.getValue(1)))
+        assertFalse(TacticalContact.active(galaxy,nav.snapshot(1).getValue("pilot"),nav.snapshot(1).values,state.stocks))
+        val other=state();val stopped=Navigation(galaxy,other.nav,NavigationPolicy());val stock=production(other)
+        TacticalCombat.accept(request,session,galaxy,stopped,stock.snapshot(1)!!,other.commit,24)
+        val stop=stopped.apply(request.copy(tacticalShoot=null,tacticalStop=TacticalStop(listOf(1010000),emptyList())),session,stock.snapshot(1))
+        assertNull(stop.player!!.fire!!.pending)
+        TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,stopped,stock,other.commit)
+        assertEquals(300,other.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+    }
+    @Test fun failedAcceptanceAndTargetLeavingBeforeExecutionCannotSpendOrPublishDamage() {
+        val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val production=production(state)
+        val before=nav.snapshot(1)
+        state.fail=true
+        assertFailsWith<java.io.IOException>{TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24)}
+        assertEquals(before,nav.snapshot(1));state.fail=false
+        TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24)
+        val stocks=production.snapshot(1)!!
+        production.replace(stocks,stocks.copy(outfits=stocks.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2487))}))
+        TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)
+        val player=nav.snapshot(1).getValue("pilot")
+        assertNull(player.fire!!.pending);assertNull(player.fire.last)
+        assertEquals(24000,player.charge!!.beam)
+        assertEquals(300,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+        val point=TacticalPoint(180f,-93f)
+        state.players=before.mapValues {(_,p)->p.copy(motion=TacticalMotion(2488,now,TacticalPose(point,0f),
+            0f,0f,listOf(point)))}
+        assertEquals(NavigationRejection.RANGE,TacticalCombat.accept(request,session,galaxy,
+            Navigation(galaxy,state.nav,NavigationPolicy()),stocks,state.commit,24).rejection)
+    }
+}

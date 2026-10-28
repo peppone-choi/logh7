@@ -5,6 +5,13 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalAttackMessagesTest {
+    @Test fun hitNotificationMatchesPackedNativeReaderAndCarriesAbsoluteLosses() {
+        val bytes=TacticalAttackMessages.hit(0x01020304,1010000,0,7,123)
+        assertEquals("00000000042601020304000f69500001000000070000007bff000064",bytes.joinToString(""){"%02x".format(it)})
+        assertEquals(28,bytes.size)
+        assertFailsWith<IllegalArgumentException>{TacticalAttackMessages.hit(0,1,3,7,1)}
+        assertFailsWith<IllegalArgumentException>{TacticalAttackMessages.hit(0,1,0,7,301)}
+    }
     // Independent bytes in native writer order; not produced by the codec under test.
     private fun request(opcode: Int, units: List<Int>, shoot: Boolean = false): ByteArray =
         ByteBuffer.allocate(20 + units.size * 4 + if (shoot) 1 else 0)

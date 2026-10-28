@@ -71,6 +71,17 @@ class GameExchange(
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
     private var recoveryCheckedAt: Long? = null
+    private val deliveredFire = mutableMapOf<Int,Long>()
+    private fun fireUpdates(player: org.logh7.engine.Navigator): List<ByteArray> {
+        if (!worldInitialized || !player.cpPaused || deliveredTactics != true) return emptyList()
+        return navigation?.snapshot()?.navigators?.values.orEmpty().mapNotNull { source ->
+            val hit = source.fire?.last ?: return@mapNotNull null
+            if(source.generation != player.generation || hit.grid != player.grid ||
+                hit.sequence <= (deliveredFire[source.unitId] ?: 0)) return@mapNotNull null
+            deliveredFire[source.unitId] = hit.sequence
+            org.logh7.protocol.TacticalAttackMessages.hit(hit.seconds,source.unitId,0,hit.target,hit.destroyed)
+        }
+    }
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
     private fun tactics(account: String): TacticalBootstrap {
@@ -145,6 +156,7 @@ class GameExchange(
                 (if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid)
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
+                fireUpdates(player) +
                 (world?.let { map -> navigation.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
                     ?.let(::listOf).orEmpty())
         }
@@ -228,6 +240,23 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0406 -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character = checkNotNull(characters.character(identity.account))
+                        val shoot = org.logh7.protocol.TacticalAttackMessages.shoot(body)
+                        require(shoot.character == character.id.toInt())
+                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
+                            shipKind=character.shipKind,tacticalShoot=org.logh7.engine.TacticalShoot(
+                                shoot.units,shoot.arms,shoot.targetKind,shoot.target))).thenApply { result ->
+                            val player = checkNotNull(result.player ?: result.previous)
+                            publication = Publication(character,player,false)
+                            val wait = if(result.player != null) checkNotNull(player.fire?.pending).let {it.firesAt-it.acceptedAt} else 0
+                            listOf(org.logh7.protocol.TacticalAttackMessages.reply(shoot,gameSeconds(),wait,result.player != null))
+                        }
+                        return null
+                    }
                     0x0400 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(characters.character(identity.account))
@@ -972,6 +1001,10 @@ class GameExchange(
                                 publication = Publication(character, player, true)
                                 val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(navigation.snapshot()),
                                     world.galaxy,player,characters::characterById) else null
+                                deliveredFire.clear()
+                                navigation.snapshot()?.navigators?.values.orEmpty().forEach { p ->
+                                    p.fire?.last?.let { deliveredFire[p.unitId] = it.sequence }
+                                }
                                 listOf(BootstrapMessages.characterId(character),
                                     characterMessage(character, player),
                                     unitMessage(character, player),

@@ -4,6 +4,14 @@ import java.nio.ByteBuffer
 
 /** Native 004944a0/0049ca30 (0405), 0049cf90 (0406). Author: 최병호. */
 object TacticalAttackMessages {
+    /** 004a61b0 reads 22 packed bytes; 004c0df0 consumes absolute cumulative losses. */
+    fun hit(seconds: Long, source: Int, arms: Int, target: Int, destroyed: Int): ByteArray {
+        require(seconds in 0..0xffffffffL && source > 0 && target > 0 && arms in 0..2 && destroyed in 1..300)
+        return LoginMessages.sessionMessage(0x0426, ByteBuffer.allocate(22).putInt(seconds.toInt()).putInt(source)
+            // This path models destroyed boats only. Native damage=0 leaves the separate damage counter unchanged.
+            .put(arms.toByte()).put(1).putInt(target).putShort(0).putShort(destroyed.toShort())
+            .put(255.toByte()).putShort(0).put(100).array())
+    }
     data class Attack(val character: Int, val units: List<Int>, val targetKind: Int, val target: Int) {
         init { validate(character, units, targetKind, target) }
     }

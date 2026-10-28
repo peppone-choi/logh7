@@ -57,7 +57,7 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
             val dy = target.y.toDouble() - from.y
             val length = hypot(dx, dy)
             if (distance < length) return TacticalPose(TacticalPoint((from.x + dx * distance / length).toFloat(),
-                (from.y + dy * distance / length).toFloat()), atan2(dy, dx).toFloat())
+                (from.y + dy * distance / length).toFloat()), atan2(dx, dy).toFloat())
             distance -= length
             from = target
         }
@@ -73,7 +73,7 @@ object TacticalDeployment {
         require(index in 0..599)
         val side = if (power == Power.EMPIRE) 1 else -1
         return TacticalPose(TacticalPoint(side * (180f - index / 20 * 4f), (index % 20 - 9.5f) * 10f),
-            if (power == Power.EMPIRE) Math.PI.toFloat() else 0f)
+            if (power == Power.EMPIRE) (-Math.PI / 2).toFloat() else (Math.PI / 2).toFloat())
     }
     fun initial(unit: Int, power: Power, grid: Int, players: Collection<Navigator>, stocks: PlanetStocks?, galaxy: Galaxy): TacticalPose {
         val wirePower = if (power == Power.EMPIRE) 2 else 3

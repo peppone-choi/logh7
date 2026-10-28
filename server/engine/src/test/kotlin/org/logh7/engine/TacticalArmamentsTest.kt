@@ -28,14 +28,21 @@ class TacticalArmamentsTest {
         val gun = TacticalArmaments.mount(ship, TacticalWeapon.GUN)
         val missile = TacticalArmaments.mount(ship, TacticalWeapon.MISSILE)
         val origin = TacticalPose(TacticalPoint(0f, 0f), 0f)
-        assertTrue(TacticalArmaments.effectiveness(gun, origin, TacticalPoint(25f, 0f)) > 0)
-        assertEquals(0, TacticalArmaments.effectiveness(gun, origin, TacticalPoint(200f, 0f)))
-        assertTrue(TacticalArmaments.effectiveness(beam, origin, TacticalPoint(250f, 0f)) > 0)
-        assertEquals(0, TacticalArmaments.effectiveness(beam, origin, TacticalPoint(300f, 0f)))
-        assertTrue(TacticalArmaments.effectiveness(missile, origin, TacticalPoint(-399f, 0f)) > 0)
-        assertEquals(0, TacticalArmaments.effectiveness(missile, origin, TacticalPoint(400f, 0f)))
-        assertEquals(0, TacticalArmaments.effectiveness(beam, origin, TacticalPoint(-25f, 0f)))
-        assertTrue(TacticalArmaments.effectiveness(beam, origin.copy(direction = Math.PI.toFloat()), TacticalPoint(-25f, 0f)) > 0)
+        assertTrue(TacticalArmaments.effectiveness(gun, origin, TacticalPoint(0f, 0.5f)) > 0)
+        assertEquals(0, TacticalArmaments.effectiveness(gun, origin, TacticalPoint(0f, 4f)))
+        assertTrue(TacticalArmaments.effectiveness(beam, origin, TacticalPoint(0f, 5f)) > 0)
+        assertEquals(0, TacticalArmaments.effectiveness(beam, origin, TacticalPoint(0f, 6f)))
+        assertTrue(TacticalArmaments.effectiveness(missile, origin, TacticalPoint(0f, -7.99f)) > 0)
+        assertEquals(0, TacticalArmaments.effectiveness(missile, origin, TacticalPoint(0f, 8f)))
+        assertEquals(0, TacticalArmaments.effectiveness(beam, origin, TacticalPoint(0f, -0.5f)))
+        assertTrue(TacticalArmaments.effectiveness(beam, origin.copy(direction = Math.PI.toFloat()), TacticalPoint(0f, -0.5f)) > 0)
         assertEquals(0, TacticalArmaments.effectiveness(beam, origin, origin.position))
+        for(power in Power.entries) {
+            val pose=TacticalDeployment.formation(0,power)
+            val other=TacticalDeployment.formation(0,if(power==Power.EMPIRE)Power.ALLIANCE else Power.EMPIRE)
+            val direction=kotlin.math.atan2((other.position.x-pose.position.x).toDouble(),
+                (other.position.y-pose.position.y).toDouble()).toFloat()
+            assertEquals(direction,pose.direction)
+        }
     }
 }

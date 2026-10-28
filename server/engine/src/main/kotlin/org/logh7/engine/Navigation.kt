@@ -18,13 +18,14 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
     val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null, val dockTarget: Int? = null,
     val returnBase: Int = 0, val energy: TacticalEnergy? = null, val motion: TacticalMotion? = null,
-    val retreat: TacticalRetreat? = null, val charge: TacticalCharge? = null) {
+    val retreat: TacticalRetreat? = null, val charge: TacticalCharge? = null, val fire: TacticalFire? = null) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 &&
         (charge == null || cpPaused && baseId == 0 && mode == 5) &&
+        (fire?.pending == null || cpPaused && baseId == 0 && mode == 5 && fire.pending.grid == grid) &&
         (retreat == null || (cpPaused && baseId == 0 && mode == 5 && motion != null && retreat.destination != grid &&
             abs(retreat.destination % 100 - grid % 100) <= 1 && abs(retreat.destination / 100 - grid / 100) <= 1 &&
             energy?.values?.get(1) == TacticalEnergy.WARP_MAX)) &&
@@ -59,8 +60,11 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null,
     val supplyFuel: Boolean = false, val returnBase: Int? = null,
     val energy: TacticalEnergy? = null, val shipKind: Int? = null, val tacticalMove: TacticalMove? = null,
-    val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null) {
+    val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null,
+    val tacticalShoot: TacticalShoot? = null) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
+        (tacticalShoot == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null &&
+            energy == null && tacticalMove == null && tacticalStop == null && tacticalRetreat == null && shipKind != null)) &&
         (tactical == null || (destination == null && place == null && !supplyFuel)) &&
         (!supplyFuel || (destination == null && place == null)) &&
         (returnBase == null || (returnBase in 0..65535 && destination == null && place == null && !supplyFuel && tactical == null)) &&
@@ -72,7 +76,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
             tacticalMove == null && tacticalStop == null && shipKind != null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR }
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR, WEAPON, TARGET }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false)
 
@@ -105,7 +109,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             TacticalContact.active(galaxy,initial,snapshot(session.generation).values,stocks)
         val ready = (if(initial.cpPaused == tactical) initial else initial.copy(cpPaused=tactical,cpRecoveryAt=now,
             motion=if(tactical)initial.motion else null,retreat=if(tactical)initial.retreat else null,
-            charge=if(tactical)initial.charge else null)).let {
+            charge=if(tactical)initial.charge else null,
+            fire=if(tactical)initial.fire else initial.fire?.copy(pending=null))).let {
                 if(it.cpPaused && it.baseId==0 && it.charge==null &&
                     it.energy?.values?.let { values -> values[3]>0 || values[4]>0 }==true)
                     it.copy(charge=TacticalCharge(now, clockScale=clockScale)) else it
@@ -120,7 +125,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 TacticalContact.active(galaxy,player,snapshot(session.generation).values,stocks)
             return if(active == player.cpPaused) player else player.copy(cpPaused=active,cpRecoveryAt=now,
                 motion=if(active)player.motion else null,retreat=if(active)player.retreat else null,
-                charge=if(active)player.charge else null)
+                charge=if(active)player.charge else null,
+                fire=if(active)player.fire else player.fire?.copy(pending=null))
         }
         if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
@@ -153,7 +159,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val pose = before.motion?.pose(now) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy)
             // Retain an authoritative stationary pose; null would restore the initial deployment on reconnect.
-            val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)))
+            val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)),
+                fire = before.fire?.copy(pending = null))
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before)
         }
@@ -272,7 +279,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         for ((account, player) in next.toSortedMap()) {
             val retreat = player.retreat ?: continue
             if (!TacticalContact.active(galaxy, player, next.values, stocks)) {
-                next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null, cpRecoveryAt = now)
+                next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null,
+                    fire=player.fire?.copy(pending=null),cpRecoveryAt = now)
                 changed = true
                 continue
             }
@@ -282,6 +290,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val forces = GridForces.collect(galaxy, session.generation, next.values, stocks)
             if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces)) continue
             val moved = player.copy(grid = retreat.destination, motion = null, retreat = null, charge = null,
+                fire=player.fire?.copy(pending=null),
                 cpRecoveryAt = now, moves = Math.addExact(player.moves, 1))
             val active = TacticalContact.active(galaxy, moved, next.values, stocks)
             next[account] = moved.copy(cpPaused = active)
@@ -414,6 +423,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     fun publishCommitted(account: String, expected: Navigator, next: Navigator) {
         check(players[account] == expected)
         players = snapshot(next.generation) + (account to next)
+    }
+    fun saveReplacement(expected: Map<String, Navigator>, next: Map<String, Navigator>, generation: Long) {
+        check(snapshot(generation) == expected)
+        store?.save(next)
+        publishCommitted(expected, next, generation)
     }
     fun publishCommitted(expected: Map<String, Navigator>, next: Map<String, Navigator>, generation: Long) {
         check(snapshot(generation) == expected)
