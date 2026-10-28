@@ -210,9 +210,9 @@ class GameExchange(
             return listOf(org.logh7.protocol.TacticsMessages.notify(player.grid, true))
         }
         if (messages.none { opcode(it) == 0x0325 }) return messages
-        val units = TacticalBootstrap(snapshot, world.galaxy, player, characters::characterById).units
+        val tactical = TacticalBootstrap(snapshot, world.galaxy, player, characters::characterById)
         return messages.filterNot { opcode(it) == 0x0325 } +
-            org.logh7.protocol.TacticsMessages.definitions(player.grid, units)
+            org.logh7.protocol.TacticsMessages.definitions(player.grid, tactical.units,tactical.groundDefinitions)
     }
     fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running)

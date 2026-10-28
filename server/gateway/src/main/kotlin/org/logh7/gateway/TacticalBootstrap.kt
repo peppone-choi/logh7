@@ -10,6 +10,11 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         .sortedBy {it.characterId}
     val characterIds get()=people.map {it.characterId}
     val grid get()=viewer.grid
+    val groundDefinitions=snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
+        outfit.activeGround?.values.orEmpty().filter {unit ->
+            unit.base>0 && galaxy.bases.any {it.id==unit.base && it.grid==viewer.grid}
+        }.sortedBy {it.id}.map {unit -> TacticsMessages.GroundDefinition(unit.id,1000+unit.stack.kind,outfit.id,unit.base)}
+    }
     val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
         val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}
         val energy=p.energy ?: TacticalEnergy.ZERO
@@ -106,6 +111,6 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
     }} + listOf(TacticsMessages.baseInformation(bases.map {TacticsMessages.BaseInformation(it)}),
-        TacticsMessages.definitions(viewer.grid,units),
+        TacticsMessages.definitions(viewer.grid,units,groundDefinitions),
         TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))
 }

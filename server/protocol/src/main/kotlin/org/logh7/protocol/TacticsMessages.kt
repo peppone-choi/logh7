@@ -82,14 +82,23 @@ object TacticsMessages {
         require(input.remaining()==count*4)
         return List(count){input.int}.also {require(it.all {id->id>0} && it.distinct().size==it.size)}
     }
-    fun definitions(grid: Int, units: List<Unit>): ByteArray {
-        require(grid in 0..4999 && units.size<=600 && units.map {it.id}.distinct().size==units.size)
-        val out=ByteBuffer.allocate(2+42*units.size).putShort(units.size.toShort())
+    /** On-base ground identities have no 033b spaceship state or 3D ship model. */
+    data class GroundDefinition(val id:Int,val kind:Int,val outfit:Int,val base:Int)
+    fun definitions(grid: Int, units: List<Unit>, ground:List<GroundDefinition> = emptyList()): ByteArray {
+        val ids=units.map {it.id}+ground.map {it.id}
+        require(grid in 0..4999 && ids.size<=600 && ids.distinct().size==ids.size)
+        val out=ByteBuffer.allocate(2+42*ids.size).putShort(ids.size.toShort())
         units.forEach {u->
             require(u.id>0 && u.kind in 0..199 && u.outfit>=0 && u.supplies>=0 && u.destroyed in 0..65535 && u.damaged in 0..65535)
             require(u.mode in 4..7 && u.base in 0..65535 && (u.base>0)==(u.mode in 4..5))
-            out.putInt(u.id).putShort(u.kind.toShort()).put(u.mode.toByte()).putInt(grid).putInt(u.outfit).putInt(u.base).put(0)
-                .putInt(0).put(100).put(0).putShort(u.damaged.toShort()).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
+            // 00419ca0: boarding_ship, troop_units count/list, THEN base.
+            out.putInt(u.id).putShort(u.kind.toShort()).put(u.mode.toByte()).putInt(grid).putInt(u.outfit).putInt(0).put(0)
+                .putInt(u.base).put(100).put(0).putShort(u.damaged.toShort()).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
+        }
+        ground.forEach {u ->
+            require(u.id>0 && u.kind in 1000..1015 && u.outfit>0 && u.base in 1..65535)
+            out.putInt(u.id).putShort(u.kind.toShort()).put(4).putInt(grid).putInt(u.outfit).putInt(0).put(0)
+                .putInt(u.base).put(100).put(0).putShort(0).putShort(0).putInt(0).putInt(0).putFloat(0f)
         }
         return LoginMessages.sessionMessage(0x0325,out.array())
     }

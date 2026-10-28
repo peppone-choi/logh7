@@ -45,7 +45,8 @@ class TacticsMessagesTest {
         for(mode in 4..7) {
             val base=if(mode in 4..5)1049 else 0
             val bytes=java.nio.ByteBuffer.wrap(TacticsMessages.definitions(2017,listOf(unit.copy(mode=mode,base=base))))
-            assertEquals(mode,bytes.get(14).toInt());assertEquals(base,bytes.getInt(23))
+            assertEquals(mode,bytes.get(14).toInt());assertEquals(base,bytes.getInt(28))
+            assertEquals(0,bytes.getInt(23));assertEquals(0,bytes.get(27).toInt())
             assertFailsWith<IllegalArgumentException>{TacticsMessages.definitions(2017,listOf(unit.copy(mode=mode,base=if(base==0)1049 else 0)))}
         }
     }
