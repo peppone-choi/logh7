@@ -64,4 +64,19 @@ class GroundUnitStoreTest {
         assertFailsWith<IllegalArgumentException> {ActiveGroundUnitCodec.decode("2~0~0~0~0,2~0~0~0~0")}
         assertFailsWith<IllegalArgumentException> {ActiveGroundUnitCodec.decode("")}
     }
+    @Test fun groundOrdersAndReturnCarrierSurviveReopeningAndOldFormatRejectsNewFields() {
+        val initial=ActiveShips.initialize(legacy());val outfit=initial.outfits.getValue(1)
+        val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1000,100,700)
+        val path=directory.resolve("deployments")
+        for(unit in listOf(ActiveGroundUnit(2,troop,carrier=1,order=order),
+            ActiveGroundUnit(2,troop,base=1000,origin=1),
+            ActiveGroundUnit(2,troop,base=1000,origin=1,order=order.copy(action=TacticalGroundAction.WITHDRAW)))) {
+            val expected=initial.copy(outfits=mapOf(1 to outfit.copy(activeGround=ActiveGroundUnits(listOf(unit,ActiveGroundUnit(3,troop))))))
+            FilePlanetStockStore(path).use {it.save(expected)}
+            assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-25\t"))
+            repeat(2){FilePlanetStockStore(path).use {store->assertEquals(expected,store.load());store.save(expected)}}
+            val text=Files.readString(path);Files.writeString(path,text.replace("LOGH7-STOCK-25","LOGH7-STOCK-24"))
+            FilePlanetStockStore(path).use {assertFails {it.load()}}
+        }
+    }
 }

@@ -68,8 +68,10 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null,
     val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null,
     val tacticalSupport: TacticalSupport? = null, val commandAbility:Int?=null,
-    val tacticalPosture:TacticalPostureChange?=null) {
-    init { require((tacticalPosture==null || (destination==null && place==null && !supplyFuel && returnBase==null &&
+    val tacticalPosture:TacticalPostureChange?=null,val tacticalGround:TacticalGroundCommand?=null) {
+    init { require((tacticalGround==null || (destination==null && place==null && !supplyFuel && returnBase==null && tactical==null &&
+        energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null && tacticalShoot==null && tacticalAttack==null &&
+        tacticalSupport==null && tacticalPosture==null && shipKind!=null)) && (tacticalPosture==null || (destination==null && place==null && !supplyFuel && returnBase==null &&
         tactical==null && energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
         tacticalShoot==null && tacticalAttack==null && tacticalSupport==null && shipKind!=null)) &&
         politics in 0..65535 && administration in 0..65535 &&
@@ -95,7 +97,7 @@ enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_G
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false, val supportReadyAt: Long? = null,
     val supportNotifications: List<TacticalSupportResult> = emptyList(),
-    val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null)
+    val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null,val groundReadyAt:Long?=null)
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,

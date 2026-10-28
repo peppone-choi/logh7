@@ -104,6 +104,7 @@ internal object TacticalSupportOperations {
             motions[current.unit.id]=motion
             next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0,attack=null,shot=null,posture=current.unit.posture?.copy(order=null)))
         }
+        next=TacticalGroundOperations.cancel(next,command.units)
         if(player.unitId in command.units)motions[player.unitId]=checkNotNull(player.motion)
         if(sources.isNotEmpty())player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
         val players=navigation.snapshot(session.generation)

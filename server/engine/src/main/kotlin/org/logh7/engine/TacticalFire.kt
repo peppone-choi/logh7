@@ -193,7 +193,7 @@ internal object TacticalCombat {
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
         committer: WorldStateCommitter?, npcPolicy:NpcTacticalPolicy = NpcTacticalPolicy(enabled=false),
-        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {}): List<TacticalImpact> {
+        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {},onGround:(TacticalGroundResult)->Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
@@ -216,7 +216,7 @@ internal object TacticalCombat {
             }
         }
         if(due.isEmpty() && players.values.none {it.posture?.order!=null} && players==original && inventory==stocks && !npcPolicy.enabled && stocks.outfits.values.none {
-            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true})return emptyList()
+            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true || it.activeGround?.values?.any {u->u.order!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         val impacts = mutableListOf<TacticalImpact>()
         for ((account, scheduled, automatic) in due) {
@@ -264,6 +264,8 @@ internal object TacticalCombat {
         inventory=TacticalSupportOperations.advance(session,galaxy,players,inventory,support)
         val postures=mutableListOf<TacticalPostureResult>()
         inventory=TacticalPostureOperations.advance(session,galaxy,players,inventory,postures)
+        val ground=mutableListOf<TacticalGroundResult>()
+        inventory=TacticalGroundOperations.advance(session,galaxy,players,inventory,ground)
         clearFinishedOrders(players,galaxy,inventory,now)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
@@ -273,6 +275,7 @@ internal object TacticalCombat {
         movements.forEach(onMovement)
         support.forEach(onSupport)
         postures.forEach(onPosture)
+        ground.forEach(onGround)
         return impacts
     }
 }

@@ -83,7 +83,7 @@ object TacticsMessages {
         return List(count){input.int}.also {require(it.all {id->id>0} && it.distinct().size==it.size)}
     }
     /** Ground identities have no 033b spaceship state or 3D ship model, even aboard. */
-    data class GroundDefinition(val id:Int,val kind:Int,val outfit:Int,val base:Int,val carrier:Int=0)
+    data class GroundDefinition(val id:Int,val kind:Int,val outfit:Int,val base:Int,val carrier:Int=0,val deployed:Boolean=false)
     fun definitions(grid: Int, units: List<Unit>, ground:List<GroundDefinition> = emptyList()): ByteArray {
         val ids=units.map {it.id}+ground.map {it.id}
         require(grid in 0..4999 && ids.size<=600 && ids.distinct().size==ids.size)
@@ -107,8 +107,8 @@ object TacticsMessages {
         }
         ground.forEach {u ->
             require(u.id>0 && u.kind in 1000..1015 && u.outfit>0 && u.base in 0..65535 && u.carrier>=0 &&
-                (u.base>0)!=(u.carrier>0))
-            out.putInt(u.id).putShort(u.kind.toShort()).put(if(u.carrier==0)4 else 10).putInt(grid).putInt(u.outfit).putInt(u.carrier).put(0)
+                (u.base>0)!=(u.carrier>0) && (!u.deployed || u.base>0))
+            out.putInt(u.id).putShort(u.kind.toShort()).put(if(u.carrier>0)10 else if(u.deployed)9 else 4).putInt(grid).putInt(u.outfit).putInt(u.carrier).put(0)
                 .putInt(u.base).put(100).put(0).putShort(0).putShort(0).putInt(0).putInt(0).putFloat(0f)
         }
         return LoginMessages.sessionMessage(0x0325,out.array())

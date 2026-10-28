@@ -53,6 +53,21 @@ object TacticalGroundMessages {
     fun reply(command:Posture,seconds:Long,wait:Long,accepted:Boolean=true)=reply(0x0411,command.character,command.units,
         ByteBuffer.allocate(5).put(command.kind.toByte()).putInt(command.base).array(),seconds,wait,accepted)
 
+    /** Native 004a6b40 reader / 004a6c80 formatter: 17 packed bytes, not the padded 20-byte object. */
+    fun movedTroop(seconds:Long,withdraw:Boolean,carrier:Int,troop:Int,base:Int):ByteArray {
+        require(seconds in 0..0xffffffffL && carrier>0 && troop>0 && base>0)
+        return LoginMessages.sessionMessage(0x0429,ByteBuffer.allocate(17).putInt(seconds.toInt())
+            .put(if(withdraw)1 else 0).putInt(carrier).putInt(troop).putInt(base).array())
+    }
+
+    /** 004a6d50 / 004a6e30: update the existing base object's stamina (004c12b0).
+     * A 0345 cache replacement alone does not update an already created native base bar. */
+    fun baseDefenseChanged(seconds:Long,base:Int,stamina:Int):ByteArray {
+        require(seconds in 0..0xffffffffL && base>0 && stamina in 0..30000)
+        return LoginMessages.sessionMessage(0x042a,ByteBuffer.allocate(10).putInt(seconds.toInt())
+            .putInt(base).putShort(stamina.toShort()).array())
+    }
+
     /** Native NotifySortie: one unit leaves the base into anchored mode (004c1a80). */
     fun sortieCompleted(seconds:Long,base:Int,unit:PostureUnit):ByteArray {
         require(seconds in 0..0xffffffffL && base>0)

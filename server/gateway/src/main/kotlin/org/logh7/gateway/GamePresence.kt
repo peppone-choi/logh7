@@ -29,6 +29,27 @@ class GamePresence {
             repeat(units) { motionPaths[connection to input.getInt(19+it*20)]=points }
         }
     }
+    @Synchronized fun ground(event:org.logh7.engine.TacticalGroundResult,snapshot:org.logh7.engine.WorldSnapshot,
+        galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
+        val order=event.order
+        members.values.filter {it.player.generation==event.generation && it.player.grid==order.grid &&
+            event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer ->
+            val packet=if(event.cancelled)listOf(org.logh7.protocol.TacticalGroundMessages.reply(
+                org.logh7.protocol.TacticalGroundMessages.Command(
+                    if(order.action==org.logh7.engine.TacticalGroundAction.DEPLOY)org.logh7.protocol.TacticalGroundMessages.Action.DEPLOY
+                    else org.logh7.protocol.TacticalGroundMessages.Action.WITHDRAW,order.character,listOf(order.carrier)),event.seconds,0,false))
+            else {
+                val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
+                listOf(org.logh7.protocol.TacticsMessages.definitions(order.grid,tactical.units,tactical.groundDefinitions),
+                    org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
+                    org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,order.base,
+                        tactical.baseInformation.single {it.position.id==order.base}.stamina))+
+                    event.troops.map {troop->org.logh7.protocol.TacticalGroundMessages.movedTroop(event.seconds,
+                        order.action==org.logh7.engine.TacticalGroundAction.WITHDRAW,order.carrier,troop,order.base)}
+            }
+            send(viewer,packet)
+        }
+    }
     @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult) {
         val ids=event.units.keys.toList()
         val packet=if(event.cancelled && event.sortie)org.logh7.protocol.TacticalGroundMessages.reply(

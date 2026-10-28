@@ -56,4 +56,20 @@ class GroundDefinitionMessagesTest {
         assertFailsWith<IllegalArgumentException> {TacticsMessages.definitions(2487,listOf(ship.copy(troops=(2..12).toList())),
             troops+TacticsMessages.GroundDefinition(12,1000,7,0,1))}
     }
+    @Test fun deployedGroundAndCompletionNotificationMatchTheNativePackedFields() {
+        val packet=ByteBuffer.wrap(TacticsMessages.definitions(2487,emptyList(),listOf(TacticsMessages.GroundDefinition(2,1000,7,1049,deployed=true))))
+        assertEquals(9,packet.get(14).toInt());assertEquals(0,packet.getInt(23));assertEquals(1049,packet.getInt(28))
+        for(withdraw in listOf(false,true)) {
+            val moved=ByteBuffer.wrap(TacticalGroundMessages.movedTroop(700,withdraw,1,2,1049))
+            assertEquals(23,moved.limit());assertEquals(0x0429,moved.getShort(4).toInt());assertEquals(700,moved.getInt(6))
+            assertEquals(if(withdraw)1 else 0,moved.get(10).toInt());assertEquals(1,moved.getInt(11))
+            assertEquals(2,moved.getInt(15));assertEquals(1049,moved.getInt(19))
+        }
+    }
+    @Test fun existingBaseDefenseUsesANativeUnsignedShortNotification() {
+        val changed=ByteBuffer.wrap(TacticalGroundMessages.baseDefenseChanged(700,1049,17000))
+        assertEquals(16,changed.limit());assertEquals(0x042a,changed.getShort(4).toInt())
+        assertEquals(700,changed.getInt(6));assertEquals(1049,changed.getInt(10));assertEquals(17000,changed.getShort(14).toInt())
+        assertFailsWith<IllegalArgumentException>{TacticalGroundMessages.baseDefenseChanged(700,1049,30001)}
+    }
 }

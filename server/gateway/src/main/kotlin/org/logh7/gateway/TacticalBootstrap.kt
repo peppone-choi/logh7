@@ -65,7 +65,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         outfit.activeGround?.values.orEmpty().filter {unit ->
             (unit.base>0 && galaxy.bases.any {it.id==unit.base && it.grid==viewer.grid}) ||
                 (unit.carrier>0 && unit.carrier in carriers)
-        }.sortedBy {it.id}.map {unit -> TacticsMessages.GroundDefinition(unit.id,1000+unit.stack.kind,outfit.id,unit.base,unit.carrier)}
+        }.sortedBy {it.id}.map {unit -> TacticsMessages.GroundDefinition(unit.id,1000+unit.stack.kind,outfit.id,unit.base,unit.carrier,unit.origin>0)}
     }
     private fun rotations():List<ByteArray> {
         data class Entry(val id:Int,val character:Int,val motion:TacticalMotion)
@@ -93,7 +93,13 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 else TacticalGroundMessages.reply(TacticalGroundMessages.Posture(order.character,ids,order.mode.wire,order.base),
                     now,(order.readyAt-now).coerceAtLeast(0))}}
     }
-    fun resume() = postureOrders()+rotations()+people.filter {it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
+    private fun groundOrders():List<ByteArray> = snapshot.planetStocks!!.outfits.values.flatMap {o->
+        o.activeGround?.values.orEmpty().mapNotNull {it.order}.filter {it.grid==viewer.grid}
+    }.distinct().map {order->TacticalGroundMessages.reply(TacticalGroundMessages.Command(
+        if(order.action==TacticalGroundAction.DEPLOY)TacticalGroundMessages.Action.DEPLOY else TacticalGroundMessages.Action.WITHDRAW,
+        order.character,listOf(order.carrier)),snapshot.session?.gameSeconds ?: 0,
+        (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}
+    fun resume() = groundOrders()+postureOrders()+rotations()+people.filter {it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
         snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation==null}
                 ?.let {TacticalMotionMessages.npc(u.id,it,snapshot.session?.gameSeconds ?: 0)}}} +

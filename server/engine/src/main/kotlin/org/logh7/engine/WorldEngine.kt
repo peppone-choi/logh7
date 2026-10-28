@@ -56,6 +56,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
+    private val groundObservers=java.util.concurrent.CopyOnWriteArrayList<(TacticalGroundResult)->Unit>()
+    fun observeGround(observer:(TacticalGroundResult)->Unit):AutoCloseable {
+        groundObservers+=observer;return AutoCloseable {groundObservers.remove(observer)}
+    }
     private val postureObservers=java.util.concurrent.CopyOnWriteArrayList<(TacticalPostureResult)->Unit>()
     fun observePostures(observer:(TacticalPostureResult)->Unit):AutoCloseable {
         postureObservers+=observer
@@ -97,12 +101,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val movements=mutableListOf<TacticalMovement>()
         val support=mutableListOf<TacticalSupportResult>()
         val postures=mutableListOf<TacticalPostureResult>()
+        val ground=mutableListOf<TacticalGroundResult>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add)
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         publishCombat(impacts)
         publishSupport(support)
+        for(event in ground)for(observer in groundObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Tactical ground delivery failed: ${failure.javaClass.simpleName}")}
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
         for(event in postures)for(observer in postureObservers)try {observer(event)}
@@ -154,7 +161,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             }
         val postureDeadlines=snapshot.navigators.values.mapNotNull {it.posture?.order?.readyAt} +
             snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().mapNotNull {it.posture?.order?.readyAt}}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines).minOrNull()
+        val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -518,8 +526,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val ownership = production?.settle(session.generation, session.gameMillis / 1000)
                     settleCombat(session,published.get())
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
+                        TacticalGroundOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalPostureOperations.guard(command.request,session,navigation,
-                            checkNotNull(production.snapshot(session.generation))) ?: if(command.request.tacticalPosture!=null)
+                            checkNotNull(production.snapshot(session.generation))) ?: if(command.request.tacticalGround!=null)
+                            TacticalGroundOperations.accept(command.request,session,galaxy,navigation,production,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
+                        else if(command.request.tacticalPosture!=null)
                             TacticalPostureOperations.accept(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else if (command.request.tacticalStop?.units?.any {it in 1..999999}==true)
