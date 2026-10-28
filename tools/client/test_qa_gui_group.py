@@ -22,6 +22,15 @@ class GuiTestGroupTest(unittest.TestCase):
             first = group.claim('first-client'); first.close()
             with self.assertRaises(RuntimeError): group.claim('FIRST-CLIENT')
 
+    def test_reconnect_reclaims_only_released_copy_and_retains_two_copy_limit(self):
+        with GuiTestGroup(reusable=True) as group:
+            first, second = group.claim('first-client'), group.claim('second-client')
+            with self.assertRaises(RuntimeError): group.claim('FIRST-CLIENT')
+            first.close()
+            resumed = group.claim('FIRST-CLIENT')
+            with self.assertRaises(RuntimeError): group.claim('third-client')
+            resumed.close(); second.close()
+
     def test_other_process_cannot_acquire_gui_mutex(self):
         with GuiTestGroup():
             code = ('import win32event;h=win32event.CreateMutex(None,False,' + repr(NAME) + ');'

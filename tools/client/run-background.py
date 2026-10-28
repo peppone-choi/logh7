@@ -352,8 +352,13 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             try:
                                 time.sleep(0.3)
                             finally:
-                                script.exports_sync.setmouse(x, y, False)
-                            time.sleep(0.15) # Allow a release frame before another queued click.
+                                try:
+                                    # Keep Ctrl down through the mouse-up frame, as a real chord does.
+                                    script.exports_sync.setmouse(x, y, False, 1, control)
+                                    time.sleep(0.15)
+                                finally:
+                                    if control:
+                                        script.exports_sync.setkey(0)
                         elif "drag" in action or "rightDrag" in action:
                             button = 2 if "rightDrag" in action else 1
                             points = action["rightDrag" if button == 2 else "drag"]
@@ -386,6 +391,18 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             finally:
                                 script.exports_sync.setkey(0)
                                 win32gui.PostMessage(target, win32con.WM_KEYUP, code, 3 << 30)
+                        elif "hover" in action:
+                            point = action["hover"]
+                            if not isinstance(point, list) or len(point) != 2 or not all(type(v) is int and 0 <= v <= 4095 for v in point):
+                                raise ValueError("Hover requires two bounded owned-window coordinates")
+                            x, y = point
+                            script.exports_sync.movemouse(x, y)
+                        elif action == {"reconnect": True}:
+                            if gui_group is None:
+                                raise ValueError("Reconnect requires the coordinated multiplayer runner")
+                            report["reconnect_requested"] = True
+                            deadline = 0
+                            break
                         elif action == {"traceQuads": True}:
                             script.exports_sync.tracequads()
                         elif action == {"stop": True}:

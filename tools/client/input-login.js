@@ -32,7 +32,7 @@ Process.attachModuleObserver({onAdded(module) {
   rpc.exports.setmouse=function(x,y,down,button=1,control=false) {
     if(button==null)button=1; // Frida supplies a null binary argument to legacy three-argument calls.
     if(![1,2].includes(button))throw new Error('Only owned left/right mouse buttons are supported');
-    const position=mousePosition(x,y);testControl=down && control===true;testKey=down?button:0;testMouseDelta={x:0,y:0};
+      const position=mousePosition(x,y);testControl=control===true;testKey=down?button:0;testMouseDelta={x:0,y:0};
     const message=button===1?(down?0x201:0x202):(down?0x204:0x205);
     const keys=(down?button:0)|(testControl?8:0);
     if(!post(gameWindow,0x200,keys,position) || !post(gameWindow,message,keys,position))
