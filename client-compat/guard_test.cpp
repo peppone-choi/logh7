@@ -117,10 +117,42 @@ static bool stationaryTacticalPoseTest() {
         !logh::applyStationaryTacticalPose(nullptr,model,origin) &&
         !logh::applyStationaryTacticalPose(unit,nullptr,origin);
 }
+static bool tacticalWaypointOrderTest() {
+    BYTE unit[0x9ec]={},model[0xb4c]={};unit[0]=model[0]=1;
+    auto put=[](BYTE* p,unsigned offset,unsigned value){memcpy(p+offset,&value,4);};
+    put(unit,4,3);put(model,4,3);put(unit,0x10c,4);put(model,0x1c,7);
+    put(model,0x14,4);put(model,0x18,3);put(unit,0x410,2);put(unit,0x6c,42);unit[0x414]=1;
+    for(unsigned i=0;i<7;++i)put(model,0x20+i*4,i%2 ? 2 : 3);
+    for(unsigned i=0;i<3;++i) {
+        float x=i%2 ? -12.0f : 26.0f,z=i%2 ? -65.0f : 101.0f;
+        memcpy(unit+0x128+i*24,&x,4);memcpy(unit+0x130+i*24,&z,4);
+        memcpy(model+0x534+(i*2+1)*12,&x,4);memcpy(model+0x53c+(i*2+1)*12,&z,4);
+    }
+    if(!logh::applyTacticalWaypointOrder(unit,model) || unit[0x414] || model[0x18]!=5 || unit[0x6c] || model[0x14]!=4) return false;
+    // The repeated A must select translation 3, and an older B must not rewind it.
+    put(unit,0x410,1);unit[0x414]=1;
+    if(!logh::applyTacticalWaypointOrder(unit,model) || model[0x18]!=5) return false;
+    for(unsigned i=1;i<7;i+=2)put(model,0x20+i*4,4); // Parallel translation steps.
+    put(unit,0x410,2);unit[0x414]=1;
+    if(!logh::applyTacticalWaypointOrder(unit,model)) return false;
+    BYTE before[sizeof(model)];memcpy(before,model,sizeof(model));
+    put(unit,0x410,0xffffffffu);unit[0x414]=1;
+    if(logh::applyTacticalWaypointOrder(unit,model) || !unit[0x414] || memcmp(before,model,sizeof(model))) return false;
+    put(unit,0x410,2);put(unit,0x10c,5);
+    if(logh::applyTacticalWaypointOrder(unit,model) || !unit[0x414]) return false;
+    put(unit,0x10c,4);put(model,4,99);
+    if(logh::applyTacticalWaypointOrder(unit,model)) return false;
+    put(model,4,3);put(model,0x1c,66);
+    if(logh::applyTacticalWaypointOrder(unit,model)) return false;
+    put(model,0x1c,7);put(model,0x534+5*12,0); // Stale/different render plan.
+    return !logh::applyTacticalWaypointOrder(unit,model) && !logh::applyTacticalWaypointOrder(nullptr,model) &&
+        !logh::applyTacticalWaypointOrder(unit,nullptr);
+}
 int wmain(int argc, wchar_t** argv) {
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
     if (!stationaryTacticalPoseTest()) return 83;
+    if (!tacticalWaypointOrderTest()) return 84;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
     unsigned profileId=10001;memcpy(profile,&profileId,4);memcpy(snapshot+0x24,&profileId,4);
     profile[4]=2;profile[6]='A';profile[0x20]=3;profile[0x6a]=7;profile[0x60]=88;

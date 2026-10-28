@@ -41,10 +41,17 @@ static void __fastcall receivedNormalMotion(void* world,void*,void* message,BYTE
 static void __fastcall receivedParallelMotion(void* world,void*,void* message,BYTE pending) {
     receivedTacticalMotion(world,message,pending,true);
 }
+static void __cdecl interpolateTacticalPath(void* unit,void* model,float elapsed,void* pose) {
+    logh::applyTacticalWaypointOrder(static_cast<BYTE*>(unit),static_cast<BYTE*>(model));
+    reinterpret_cast<void(__cdecl*)(void*,void*,float,void*)>(0x4ca620)(unit,model,elapsed,pose);
+}
 static bool installTacticalMotion() {
     const unsigned sites[]={0x4b8faf,0x4b901a,0x4bb606,0x4bb69d};
     const BYTE expected[4][5]={{0xe8,0x3c,0x59,0,0},{0xe8,1,0x63,0,0},
         {0xe8,0xe5,0x32,0,0},{0xe8,0x7e,0x3c,0,0}};
+    auto interpolation=reinterpret_cast<BYTE*>(0x4ca43b);
+    const BYTE interpolationExpected[]={0xe8,0xe0,1,0,0};
+    if (memcmp(interpolation,interpolationExpected,5)) return false;
     for (unsigned i=0;i<4;++i) if (memcmp(reinterpret_cast<void*>(sites[i]),expected[i],5)) return false;
     for (unsigned i=0;i<4;++i) {
         auto site=reinterpret_cast<BYTE*>(sites[i]);BYTE jump[5]={0xe8};
@@ -52,5 +59,7 @@ static bool installTacticalMotion() {
         *reinterpret_cast<LONG*>(jump+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(target)-site-5);
         if (!patchBytes(site,expected[i],jump,5)) return false;
     }
-    return true;
+    BYTE jump[5]={0xe8};
+    *reinterpret_cast<LONG*>(jump+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&interpolateTacticalPath)-interpolation-5);
+    return patchBytes(interpolation,interpolationExpected,jump,5);
 }

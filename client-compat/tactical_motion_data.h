@@ -46,4 +46,34 @@ inline bool applyStationaryTacticalPose(unsigned char* unit, unsigned char* mode
     memset(model+0x10,0,16);
     return true;
 }
+// 004ca620 searches goals by coordinates, so A->B->A selects the first A again.
+// Match the acknowledged path ordinal to the ordered translation steps instead.
+inline bool applyTacticalWaypointOrder(unsigned char* unit,unsigned char* model) {
+    if (!unit || !model || !unit[0] || !model[0] || !unit[0x414]) return false;
+    unsigned id,modelId,index,points,count,phase,desired;
+    memcpy(&id,unit+4,4);memcpy(&modelId,model+4,4);memcpy(&index,unit+0x410,4);
+    memcpy(&points,unit+0x10c,4);memcpy(&count,model+0x1c,4);
+    memcpy(&phase,model+0x14,4);memcpy(&desired,model+0x18,4);
+    if (!id || id!=modelId || points<2 || points>33 || index>=points-1 || !count || count>65 ||
+        phase>count || desired>=count) return false;
+    unsigned translations=0,target=count;
+    for (unsigned step=0;step<count;++step) {
+        unsigned kind;memcpy(&kind,model+0x20+step*4,4);
+        if (kind<1 || kind>4) return false;
+        if (kind!=2 && kind!=4) continue;
+        if (translations>=points-1) return false;
+        float x,z,gx,gz;
+        memcpy(&x,unit+0x128+translations*24,4);memcpy(&z,unit+0x130+translations*24,4);
+        memcpy(&gx,model+0x534+step*12,4);memcpy(&gz,model+0x53c+step*12,4);
+        if (!_finite(x) || !_finite(z) || x!=gx || z!=gz) return false;
+        if (translations==index) target=step;
+        ++translations;
+    }
+    if (translations!=points-1 || target==count) return false;
+    // A delayed/duplicate acknowledgement cannot revoke progress already granted.
+    if (target<desired) target=desired;
+    memcpy(model+0x18,&target,4);unit[0x414]=0;
+    if (phase<=target) memset(unit+0x6c,0,4);
+    return true;
+}
 }
