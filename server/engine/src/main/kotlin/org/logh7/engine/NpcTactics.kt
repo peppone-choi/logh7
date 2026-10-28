@@ -143,8 +143,11 @@ internal object NpcTactics {
                     stocks=resolved.first;impacts+=resolved.second
                     outfit=stocks.outfits.getValue(outfitId)
                     firing=firing.copy(nextFireAt=now+5*scale,sequence=firing.sequence+1)
-                    unit=unit.copy(tactical=firing)
-                    stocks=replace(stocks,outfit.copy(supplies=outfit.supplies-cost),unit)
+                    // Debit this firing unit, not whichever unit bulk ID-order storage fills last.
+                    // Beam-only fire leaves a legacy allocation untouched until a cargo change occurs.
+                    if(cost>0)outfit=OutfitSupplies.change(outfit,id,-cost)
+                    unit=outfit.activeShips!!.values.single {it.id==id}.copy(tactical=firing)
+                    stocks=replace(stocks,outfit,unit)
                 }
             }
             outfit=stocks.outfits.getValue(outfitId)

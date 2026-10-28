@@ -4,6 +4,29 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NpcTacticsTest {
+    @Test fun twoNpcUnitsSpendTheirOwnPersistedCargoInsteadOfDrainingAnotherUnit() {
+        val state=state()
+        val original=state.stocks.outfits.getValue(1)
+        val point=TacticalPoint(-178f,-95f)
+        val heading=(-Math.PI/2).toFloat()
+        val ai=NpcTacticalState(TacticalMotion(2488,now,TacticalPose(point,heading),0f,heading,listOf(point)),now,now)
+        val stack=UnitStack(32)
+        val outfit=OutfitSupplies.withBalances(original.copy(units=UnitInventory(mapOf(stack to 2)),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack,tactical=ai),ActiveShipUnit(2,stack,tactical=ai)))),
+            mapOf(1 to 5000,2 to 5000))
+        state.stocks=state.stocks.copy(outfits=mapOf(1 to outfit),nextShipId=3)
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        val hits=settle(now,nav,stock,state,mutableListOf())
+        assertEquals(6,hits.size)
+        assertEquals(mapOf(1 to 3,2 to 3),hits.groupingBy {it.source}.eachCount())
+        val saved=state.stocks.outfits.getValue(1)
+        assertEquals(6400,saved.supplies)
+        assertEquals(mapOf(1 to 3200,2 to 3200),OutfitSupplies.distribution(saved))
+        assertEquals(listOf(3200,3200),saved.activeShips!!.values.map {it.supplies})
+        assertTrue(settle(now,nav,stock,state,mutableListOf()).isEmpty())
+        assertEquals(saved,state.stocks.outfits.getValue(1))
+    }
+
     @Test fun autonomousUnitsFightEachOtherAndEmptyAmmoStillAllowsBeamOnly() {
         val state=state();val empire=state.stocks.outfits.getValue(1);val allianceKind=ProductionUnits.definitions.first {it.ship && it.power==3 && it.name=="戦艦Ⅰ"}.kind
         fun ai(x:Float,direction:Float)=NpcTacticalState(TacticalMotion(2488,now,TacticalPose(TacticalPoint(x,-95f),direction),
