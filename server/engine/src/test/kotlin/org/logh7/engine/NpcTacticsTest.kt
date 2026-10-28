@@ -86,7 +86,8 @@ class NpcTacticsTest {
         assertTrue(state.players.getValue("pilot").hull!!.levels().any {it<FlagshipHull.capacity(89)})
         assertTrue(settle(now+480,nav,stock,state,moves).isEmpty())
         nav=Navigation(galaxy,state.nav,NavigationPolicy())
-        assertEquals(3,settle(now+600,nav,stock,state,moves).size)
+        assertTrue(settle(now+600,nav,stock,state,moves).isEmpty())
+        assertEquals(3,settle(now+960,nav,stock,state,moves).size)
         assertEquals(6,state.stocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.sequence)
         assertEquals(6400,state.stocks.outfits.getValue(1).supplies)
     }

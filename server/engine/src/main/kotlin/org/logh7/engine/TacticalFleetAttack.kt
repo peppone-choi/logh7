@@ -89,12 +89,13 @@ internal object TacticalFleetAttack {
             if(ids.none {TacticalCombat.target(it,position.grid,power,stocks,galaxy,players)!=null}) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue
             }
+            if(command.order.mode==1 && !TacticalReload.salvoReady(unit,now,scale))continue
             for(weapon in TacticalWeapon.entries) {
                 outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                 val state=checkNotNull(unit.tactical)
                 val mount=TacticalArmaments.mount(spec,weapon)
                 val cost=TacticalFleetShoot.cost(unit,mount,weapon)
-                if(mount.power==0 || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
+                if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now)
                 val victim=ids.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,power,stocks,galaxy,players)
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
@@ -108,6 +109,7 @@ internal object TacticalFleetAttack {
                 if(cost>0)outfit=OutfitSupplies.change(outfit,id,-cost)
                 unit=outfit.activeShips!!.values.single {it.id==id}
                 stocks=replace(stocks,outfit,unit.copy(tactical=state.copy(sequence=state.sequence+1),
+                    reload=(unit.reload ?: TacticalReload()).fired(weapon,now,scale),
                     attack=command.copy(order=command.order.copy(nextAt=now+5*scale))))
             }
         }

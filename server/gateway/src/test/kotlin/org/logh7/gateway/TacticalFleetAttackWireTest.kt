@@ -43,7 +43,7 @@ class TacticalFleetAttackWireTest {
             val clients=(0..1).map {i->fixture.join(fixture.account(i),true,false).client.also {c ->
                 c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01)
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
-            }}
+            }}.toMutableList()
             clients[1].send(command(10001,2));assertEquals(1,ByteBuffer.wrap(through(clients[1],0x0405)).int)
             clients[0].send(command(10000,2))
             val accepted=ByteBuffer.wrap(through(clients[0],0x0405))
@@ -57,13 +57,24 @@ class TacticalFleetAttackWireTest {
                 assertEquals(4,cargo.getShort(6).toInt())
                 assertEquals(OutfitSupplies.distribution(savedStocks.outfits.getValue(1)).getValue(1),cargo.getInt(38))
             }
+            val reloading=savedStocks.outfits.getValue(1).activeShips!!.values.single().reload
+            assertEquals(TacticalReload(now+360,now+480,now+600),reloading)
+            clients[1].close();fixture.awaitState(online=1,connections=1,participants=2)
+            clients[1]=fixture.join(fixture.account(1),false,false).client.also {c ->
+                c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01)
+                c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
+                val resume=ByteBuffer.wrap(through(c,0x0405))
+                assertEquals(10000,resume.getInt(14));assertEquals(1,resume.getInt(19))
+            }
+            assertEquals(reloading,savedStocks.outfits.getValue(1).activeShips!!.values.single().reload)
             fixture.engine.submit(WorldCommand.AdvanceTo(14000))
             clients[0].send(command(10000,0));assertEquals(0,ByteBuffer.wrap(through(clients[0],0x0405)).int)
             assertNull(savedStocks.outfits.getValue(1).activeShips!!.values.single().attack)
+            assertEquals(reloading,savedStocks.outfits.getValue(1).activeShips!!.values.single().reload)
             val stopped=savedStocks
             fixture.engine.submit(WorldCommand.AdvanceTo(20000))
             clients[0].send(SyntheticClient.opcode(0x0300));through(clients[0],0x0301)
-            assertEquals(stopped.outfits.getValue(2).units,savedStocks.outfits.getValue(2).units)
+            assertEquals(stopped.outfits,savedStocks.outfits)
         }
     }
 }

@@ -75,6 +75,18 @@ class TacticalFleetShootTest {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertEquals(NavigationRejection.SUPPLY,shoot(s,nav,p,TacticalWeapon.MISSILE).rejection)
     }
+    @Test fun manualShotRejectsReloadingWithoutResettingCargoOrderOrOtherWeaponReadiness() {
+        val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
+        assertNotNull(shoot(s,nav,p).player);assertEquals(1,advance(s,nav,p,now+120).size)
+        val saved=s.stocks;val players=s.players
+        assertEquals(TacticalReload(now+360),saved.outfits.getValue(1).activeShips!!.values.last().reload)
+        nav=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
+        assertEquals(NavigationRejection.ENERGY,shoot(s,nav,p,at=now+121).rejection)
+        assertEquals(saved,s.stocks);assertEquals(players,s.players)
+        assertNotNull(shoot(s,nav,p,at=now+360).player)
+        assertEquals(1,advance(s,nav,p,now+480).size)
+        assertEquals(TacticalReload(now+720),s.stocks.outfits.getValue(1).activeShips!!.values.last().reload)
+    }
     @Test fun mixedSelectionCannotPartiallyCommitAndFailedFireCannotPublishOrDuplicateDamage() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val before=s.stocks;val players=s.players

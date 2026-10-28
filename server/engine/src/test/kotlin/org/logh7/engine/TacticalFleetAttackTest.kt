@@ -52,11 +52,36 @@ class TacticalFleetAttackTest {
         val boats=s.stocks.outfits.getValue(2).activeShips!!.values.single().boats
         assertTrue(boats<300)
         nav=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
-        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+240)*1000),galaxy,nav,p,s.commit).isNotEmpty())
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+240)*1000),galaxy,nav,p,s.commit).isEmpty())
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+360)*1000),galaxy,nav,p,s.commit).isNotEmpty())
         assertTrue(s.stocks.outfits.getValue(2).activeShips!!.values.single().boats<boats)
-        assertNotNull(attack(s,nav,p,mode=0,at=now+320).player)
+        assertNotNull(attack(s,nav,p,mode=0,at=now+400).player)
         assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.last().attack)
         assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+500)*1000),galaxy,nav,p,s.commit).isEmpty())
+    }
+    @Test fun salvoWaitsForAllFittedWeaponsWhileContinuousFiresEachReadyWeaponAfterReopen() {
+        for(mode in listOf(1,2)) {
+            val s=state();val outfit=s.stocks.outfits.getValue(1)
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(supplies=15000,activeShips=ActiveShipUnits(
+                outfit.activeShips!!.values.map {if(it.id==2)it.copy(supplies=5000,reload=TacticalReload(now+240,now+360,now+480)) else it}))))
+            var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
+            assertNotNull(attack(s,nav,p,mode=mode).player)
+            for(elapsed in listOf(120L,240L,360L,480L)) {
+                nav=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
+                val hits=TacticalCombat.settle(session.copy(gameMillis=(now+elapsed)*1000),galaxy,nav,p,s.commit)
+                val expected=if(mode==1) {if(elapsed==480L)TacticalWeapon.entries else emptyList()} else when(elapsed) {
+                    240L->listOf(TacticalWeapon.BEAM);360L->listOf(TacticalWeapon.GUN)
+                    480L->listOf(TacticalWeapon.BEAM,TacticalWeapon.MISSILE);else->emptyList()
+                }
+                assertEquals(expected,hits.map {it.weapon})
+                val saved=s.stocks
+                assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+elapsed)*1000),galaxy,nav,p,s.commit).isEmpty())
+                assertEquals(saved,s.stocks)
+            }
+            val reload=s.stocks.outfits.getValue(1).activeShips!!.values.last().reload!!
+            assertEquals(now+720,reload.beam);assertEquals(now+960,reload.missile)
+            assertEquals(now+if(mode==1)840 else 720,reload.gun)
+        }
     }
     @Test fun mixedCommandIsAtomicAndForeignOrUnchargedUnitsRejectEverything() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)

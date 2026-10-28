@@ -253,7 +253,7 @@ internal object TacticalCombat {
             }
             players[account] = next
         }
-        if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts)
+        if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts,scale)
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         val movements=mutableListOf<TacticalMovement>()
         if(npcPolicy.enabled && session.ended==null) {

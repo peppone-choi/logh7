@@ -8,6 +8,30 @@ import kotlin.test.*
 
 class FilePlanetStockStoreTest {
     @TempDir lateinit var directory: Path
+    @Test fun weaponReloadSurvivesIdleAttackAndPendingShotAndRejectsInvalidDeadlines() {
+        val path=directory.resolve("reload")
+        val point=TacticalPoint(0f,0f)
+        val state=NpcTacticalState(TacticalMotion(2488,100,TacticalPose(point,0f),0f,0f,listOf(point)),100,100)
+        val stack=UnitStack(32);val reload=TacticalReload(340,460,580)
+        val unit=ActiveShipUnit(1,stack,tactical=state,supplies=8000,reload=reload)
+        for(ship in listOf(unit.copy(tactical=null),
+            unit.copy(motionCommander=10000,attack=TacticalUnitAttack(10000,TacticalAttackOrder(1,100,220,340))),
+            unit.copy(shot=TacticalUnitShot(10000,TacticalWeapon.GUN,99,100,220)))) {
+            val expected=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),
+                outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
+                    units=UnitInventory(mapOf(stack to 1)),supplies=8000,activeShips=ActiveShipUnits(listOf(ship)),position=OutfitPosition(2488))),
+                warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),deploymentInitialized=true,nextShipId=2)
+            FilePlanetStockStore(path).use {it.save(expected)}
+            val text=Files.readString(path);assertTrue(text.startsWith("LOGH7-STOCK-22"))
+            FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+            for(corrupt in listOf("-1~460~580","340~4294967296~580","340~580","-")) {
+                Files.writeString(path,text.replace("340~460~580",corrupt))
+                FilePlanetStockStore(path).use {assertFails {it.load()}}
+            }
+            Files.writeString(path,text.replace("LOGH7-STOCK-22","LOGH7-STOCK-21"))
+            FilePlanetStockStore(path).use {assertFails {it.load()}}
+        }
+    }
     @Test fun oldStocksRetainTheirBalancesAndDayWithoutInventingPastPopulationChanges() {
         val path = directory.resolve("old")
         Files.writeString(path, "LOGH7-STOCK-1\t1\t23\n1000\t2\t0\t123\t456\t789\n")

@@ -10,20 +10,22 @@ internal object ActiveShipUnitCodec {
         units == null -> "-"
         units.values.isEmpty() -> "0"
         else -> units.values.joinToString(",") { "${it.id}.${it.stack.kind}.${it.stack.level}.${it.boats}"+
-            if(it.shot!=null) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}.${it.motionCommander}.-.${checkNotNull(it.shot).let {a->listOf(a.commander,a.weapon.wire,a.target,a.acceptedAt,a.firesAt).joinToString("~")}}"
+            if(it.reload!=null) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}.${it.motionCommander}.${it.attack?.let {a->listOf(a.commander,a.order.mode,a.order.acceptedAt,a.order.startsAt,a.order.nextAt).joinToString("~")} ?: "-"}.${it.shot?.let {a->listOf(a.commander,a.weapon.wire,a.target,a.acceptedAt,a.firesAt).joinToString("~")} ?: "-"}.${checkNotNull(it.reload).let {a->listOf(a.beam,a.gun,a.missile).joinToString("~")}}"
+            else if(it.shot!=null) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}.${it.motionCommander}.-.${checkNotNull(it.shot).let {a->listOf(a.commander,a.weapon.wire,a.target,a.acceptedAt,a.firesAt).joinToString("~")}}"
             else if(it.attack!=null) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}.${it.motionCommander}.${checkNotNull(it.attack).let {a->listOf(a.commander,a.order.mode,a.order.acceptedAt,a.order.startsAt,a.order.nextAt).joinToString("~")}}"
             else if(it.motionCommander!=0) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}.${it.motionCommander}"
             else if(it.support!=null || it.damaged>0) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}"
             else if(it.supplies!=null) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies}"
             else (it.tactical?.let {s->"."+NpcTacticalCodec.encode(s)} ?: "") }
     }
-    fun decode(value: String, legacyFull: Boolean = true, tactics:Boolean=false, cargo:Boolean=false, support:Boolean=false, commanded:Boolean=false, attacks:Boolean=false, shots:Boolean=false): ActiveShipUnits? = when (value) {
+    fun decode(value: String, legacyFull: Boolean = true, tactics:Boolean=false, cargo:Boolean=false, support:Boolean=false, commanded:Boolean=false, attacks:Boolean=false, shots:Boolean=false, reloads:Boolean=false): ActiveShipUnits? = when (value) {
         "-" -> null
         "0" -> ActiveShipUnits(emptyList())
         else -> ActiveShipUnits(value.split(',').map { token ->
             val fields = token.split('.')
-            require(fields.size == 4 || legacyFull && fields.size == 3 || tactics && fields.size==5 || cargo && fields.size==6 || support && fields.size==8 || commanded && fields.size==9 || attacks && fields.size==10 || shots && fields.size==11) { "Invalid active ship record" }
+            require(fields.size == 4 || legacyFull && fields.size == 3 || tactics && fields.size==5 || cargo && fields.size==6 || support && fields.size==8 || commanded && fields.size==9 || attacks && fields.size==10 || shots && fields.size==11 || reloads && fields.size==12) { "Invalid active ship record" }
             require(fields.size!=10 || fields[9]!="-") { "Empty attack field in attack record" }
+            require(fields.size!=11 || fields[10]!="-") { "Empty shot field in shot record" }
             val stack=UnitStack(fields[1].toInt(),fields[2].toInt())
             if(fields.size==3) ActiveShipUnit(fields[0].toInt(),stack)
             else ActiveShipUnit(fields[0].toInt(),stack,fields[3].toInt(),
@@ -35,9 +37,11 @@ internal object ActiveShipUnitCodec {
                 if(fields.size>=10 && fields[9]!="-")fields[9].split('~').also {require(it.size==5)}.let {
                     org.logh7.engine.TacticalUnitAttack(it[0].toInt(),org.logh7.engine.TacticalAttackOrder(
                         it[1].toInt(),it[2].toLong(),it[3].toLong(),it[4].toLong()))} else null,
-                if(fields.size==11)fields[10].split('~').also {require(it.size==5)}.let {
+                if(fields.size>=11 && fields[10]!="-")fields[10].split('~').also {require(it.size==5)}.let {
                     org.logh7.engine.TacticalUnitShot(it[0].toInt(),org.logh7.engine.TacticalWeapon.entries.single {w->w.wire==it[1].toInt()},
-                        it[2].toInt(),it[3].toLong(),it[4].toLong())} else null).also {
+                        it[2].toInt(),it[3].toLong(),it[4].toLong())} else null,
+                if(fields.size==12)fields[11].split('~').also {require(it.size==3)}.let {
+                    org.logh7.engine.TacticalReload(it[0].toLong(),it[1].toLong(),it[2].toLong())} else null).also {
                 require(fields.size!=5 || fields[4]!="-") { "Empty NPC field in legacy record" }
                 require(fields.size!=6 || fields[5]!="-") { "Empty cargo field in cargo record" }
             }

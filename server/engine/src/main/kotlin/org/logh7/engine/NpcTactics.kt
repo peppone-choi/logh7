@@ -140,7 +140,7 @@ internal object NpcTactics {
                     val pose=initial(unit,outfit,position.grid,now,players,stocks,galaxy)
                     val mount=TacticalArmaments.mount(spec,weapon)
                     val cost=TacticalFleetShoot.cost(unit,mount,weapon)
-                    if(mount.power==0 || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
+                    if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                     val victim=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.firstOrNull {
                         TacticalArmaments.effectiveness(mount,pose,it.pose.position)>0} ?: continue
                     val effect=TacticalArmaments.effectiveness(mount,pose,victim.pose.position)
@@ -153,7 +153,8 @@ internal object NpcTactics {
                     // Debit this firing unit, not whichever unit bulk ID-order storage fills last.
                     // Beam-only fire leaves a legacy allocation untouched until a cargo change occurs.
                     if(cost>0)outfit=OutfitSupplies.change(outfit,id,-cost)
-                    unit=outfit.activeShips!!.values.single {it.id==id}.copy(tactical=firing)
+                    unit=outfit.activeShips!!.values.single {it.id==id}.copy(tactical=firing,
+                        reload=(unit.reload ?: TacticalReload()).fired(weapon,now,scale))
                     stocks=replace(stocks,outfit,unit)
                 }
             }

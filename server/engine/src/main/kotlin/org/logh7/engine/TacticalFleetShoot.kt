@@ -46,6 +46,7 @@ internal object TacticalFleetShoot {
                 TacticalDeployment.initial(id,player.power,player.grid,players.values,stocks,galaxy)
             val mount=TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},weapon)
             if(mount.power==0)return reject(NavigationRejection.WEAPON)
+            if(!TacticalReload.canFire(u,weapon,now+5*scale,scale) || !(u.reload?.ready(weapon,now) ?: true))return reject(NavigationRejection.ENERGY)
             if(OutfitSupplies.distribution(o).getValue(id)<cost(u,mount,weapon))return reject(NavigationRejection.SUPPLY)
             if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
                 checkNotNull(player.commandRange).radius(now) || TacticalArmaments.effectiveness(mount,pose,
@@ -75,7 +76,7 @@ internal object TacticalFleetShoot {
     }
 
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
-        impacts:MutableList<TacticalImpact>):PlanetStocks {
+        impacts:MutableList<TacticalImpact>,scale:Long=24):PlanetStocks {
         var stocks=original
         val now=session.gameMillis/1000
         for(outfitId in original.outfits.keys.sorted()) for(id in original.outfits.getValue(outfitId).activeShips?.values.orEmpty()
@@ -101,14 +102,15 @@ internal object TacticalFleetShoot {
             val origin=state.motion.pose(now)
             val effect=TacticalArmaments.effectiveness(mount,origin,TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position)
             val cost=cost(unit,mount,shot.weapon)
-            if(effect==0 || mount.power==0 || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
+            if(effect==0 || mount.power==0 || !TacticalReload.canFire(unit,shot.weapon,now,scale) || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
             val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,shot.target,shot.weapon,
                 mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,origin,victim)
             stocks=resolved.first;impacts+=resolved.second
             outfit=stocks.outfits.getValue(outfitId)
             if(cost>0)outfit=OutfitSupplies.change(outfit,id,-cost)
             unit=outfit.activeShips!!.values.single {it.id==id}
-            stocks=replace(stocks,outfit,unit.copy(tactical=state.copy(sequence=state.sequence+1)))
+            stocks=replace(stocks,outfit,unit.copy(tactical=state.copy(sequence=state.sequence+1),
+                reload=(unit.reload ?: TacticalReload()).fired(shot.weapon,now,scale)))
         }
         return stocks
     }
