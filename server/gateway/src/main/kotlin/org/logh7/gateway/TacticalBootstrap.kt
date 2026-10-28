@@ -120,8 +120,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(shot.commander,listOf(u.id),shot.weapon.wire,1,shot.target),
                     now,(shot.firesAt-now).coerceAtLeast(0))
             }} }
-    fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
-        BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
+    fun initialize(offices:(CharacterMessages.Generate,Navigator)->List<BootstrapMessages.OfficeCard> = {_,_->emptyList()}): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
+        BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,offices(c,p))
     }} + listOf(TacticsMessages.baseInformation(baseInformation),
         TacticsMessages.definitions(viewer.grid,units,groundDefinitions),
         TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))

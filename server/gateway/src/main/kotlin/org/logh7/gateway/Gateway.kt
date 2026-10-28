@@ -70,6 +70,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var tacticalEndSubscription: AutoCloseable? = null
     private var combatSubscription: AutoCloseable? = null
     private var movementSubscription: AutoCloseable? = null
+    private var occupationSubscription:AutoCloseable?=null
     private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
     private var postureSubscription:AutoCloseable? = null
@@ -89,6 +90,10 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         combatSubscription = presence?.let { p -> navigation!!.observeCombat { impact ->
             navigation.snapshot()?.let { snapshot -> p.combat(impact,snapshot,world!!.galaxy,currentCharacters()::characterById) }
+        }}
+        occupationSubscription=presence?.let {p->navigation!!.observeOccupations {event->
+            navigation.snapshot()?.let {snapshot->p.occupation(event,snapshot,world!!,currentCharacters()::characterById,
+                {id,power,generation->administration?.offices(id,power,generation).orEmpty()})}
         }}
         groundBattleSubscription=presence?.let {p->navigation!!.observeGroundBattles {event->
             navigation.snapshot()?.let {snapshot->p.groundBattle(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
@@ -222,7 +227,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         tacticalEndSubscription?.close()
         combatSubscription?.close()
         movementSubscription?.close()
-        groundSubscription?.close();groundBattleSubscription?.close()
+        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close()
         postureSubscription?.close()
         supportSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }

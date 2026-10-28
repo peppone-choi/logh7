@@ -57,6 +57,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
+    private val occupationObservers=java.util.concurrent.CopyOnWriteArrayList<(BaseOccupation)->Unit>()
+    fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable {
+        occupationObservers+=observer;return AutoCloseable {occupationObservers.remove(observer)}
+    }
     private val groundBattleObservers=java.util.concurrent.CopyOnWriteArrayList<(GroundBattleResult)->Unit>()
     fun observeGroundBattles(observer:(GroundBattleResult)->Unit):AutoCloseable {
         groundBattleObservers+=observer;return AutoCloseable {groundBattleObservers.remove(observer)}
@@ -108,8 +112,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val postures=mutableListOf<TacticalPostureResult>()
         val ground=mutableListOf<TacticalGroundResult>()
         val groundBattles=mutableListOf<GroundBattleResult>()
+        val occupations=mutableListOf<BaseOccupation>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add)
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         publishCombat(impacts)
@@ -118,6 +123,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         catch(failure:Exception){System.err.println("Tactical ground delivery failed: ${failure.javaClass.simpleName}")}
         for(event in groundBattles)for(observer in groundBattleObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("Ground battle delivery failed: ${failure.javaClass.simpleName}")}
+        for(event in occupations)for(observer in occupationObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Occupation delivery failed: ${failure.javaClass.simpleName}")}
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
         for(event in postures)for(observer in postureObservers)try {observer(event)}

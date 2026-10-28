@@ -1205,7 +1205,7 @@ class GameExchange(
                                     unitMessage(character, player),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused)) +
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
-                                    tactical?.initialize().orEmpty() +
+                                    tactical?.initialize(::offices).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player) + tactical?.resume().orEmpty()
                             } }
                             return null

@@ -66,6 +66,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         logisticsOfficers = Collections.unmodifiableMap(LinkedHashMap(stocks.logisticsOfficers)),
         nationalOffices = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalOffices)),
         groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)))
+    val maximumStock: Int get() = policy.maximumStock
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)

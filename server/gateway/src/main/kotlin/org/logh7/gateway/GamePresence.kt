@@ -29,6 +29,48 @@ class GamePresence {
             repeat(units) { motionPaths[connection to input.getInt(19+it*20)]=points }
         }
     }
+    @Synchronized fun occupation(event:org.logh7.engine.BaseOccupation,snapshot:org.logh7.engine.WorldSnapshot,
+        world:WorldBootstrap,characterById:(Int)->CharacterMessages.Generate?,
+        offices:(Int,Int,Long)->List<BootstrapMessages.OfficeCard>) {
+        val stocks=snapshot.planetStocks ?: return
+        if(stocks.generation!=event.generation)return
+        // Snapshot the audience before updating membership; room departures mutate visibility.
+        val audience=members.values.filter {it.player.generation==event.generation &&
+            event.recipients[it.character.id.toInt()]==it.connection}.toList()
+        for(previous in audience) {
+            val player=snapshot.navigators.values.singleOrNull {it.characterId==previous.character.id.toInt() &&
+                it.generation==event.generation} ?: continue
+            val cards=offices(player.characterId,previous.character.power,event.generation)
+            val member=previous.copy(player=player,offices=cards)
+            val updated=update(member,event.seconds)
+            val packets=mutableListOf(world.conditions(listOf(event.base),stocks),world.places(listOf(event.base),stocks))
+            if(cards!=previous.offices || player.returnBase!=previous.player.returnBase || player.baseId!=previous.player.baseId) {
+                packets+=BootstrapMessages.changedCharacter(member.character,player.pcp,player.mcp,player.spotId,
+                    player.spotOwner,player.returnBase,cards)
+            }
+            val expelled=event.expelled.values.any {it.characterId==player.characterId}
+            if(expelled) {
+                packets+=unit(member)
+                packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,0,5,event.seconds)
+                packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,player.cpPaused)
+            } else if(player.grid==event.grid && previous.player.cpPaused) {
+                val tactical=TacticalBootstrap(snapshot,world.galaxy,player,characterById)
+                packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,event.power,0)
+                // Imported definitions and states retain real zero-boat identities; no fake weapon hit.
+                packets+=event.expelled.values.mapNotNull {p->characterById(p.characterId)?.let {c->
+                    BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,
+                        offices(p.characterId,c.power,event.generation))}}
+                packets+=org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)
+                packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
+                packets+=org.logh7.protocol.TacticsMessages.states(tactical.units)
+                packets+=org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation)
+            }
+            if(previous.player.cpPaused && !player.cpPaused && !expelled)
+                packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,false)
+            GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
+            send(member,packets+updated.refresh)
+        }
+    }
     @Synchronized fun groundBattle(event:org.logh7.engine.GroundBattleResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
