@@ -14,8 +14,9 @@ data class NpcTacticalState(val motion:TacticalMotion,val nextDecisionAt:Long,va
 }
 /** Committed autonomous movement/exit and audience. Character zero is server-controlled wire metadata. */
 data class TacticalMovement(val generation:Long,val unit:Int,val grid:Int,val seconds:Long,
-    val motion:TacticalMotion?,val recipients:Map<Int,String>,val destination:Int?=null) {
-    init { require(generation>0 && unit in 1..999999 && grid in 0..4999 && seconds in 0..0xffffffffL &&
+    val motion:TacticalMotion?,val recipients:Map<Int,String>,val destination:Int?=null,
+    val character:Int=0,val stopped:Boolean=false) {
+    init { require(character>=0 && (!stopped || character>0 && motion?.velocity==0f) && generation>0 && unit in 1..999999 && grid in 0..4999 && seconds in 0..0xffffffffL &&
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()} &&
         ((motion!=null && destination==null && motion.grid==grid) || (motion==null && destination in 0..4999))) }
 }
@@ -72,15 +73,21 @@ internal object NpcTactics {
             if(position.baseId!=0 || outfit.members().isNotEmpty()) {
                 for(unit in outfit.activeShips?.values.orEmpty()) {
                     val state=unit.tactical ?: continue
-                    val next=if(position.baseId!=0 || state.motion.grid!=position.grid)unit.copy(tactical=null) else {
-                        if(state.motion.velocity==0f && state.target==0 && state.retreat==null)continue
+                    if(position.baseId==0 && state.motion.grid==position.grid && unit.motionCommander!=0 &&
+                        unit.motionCommander==outfit.commanderId)continue
+                    val next=if(position.baseId!=0 || state.motion.grid!=position.grid)unit.copy(tactical=null,motionCommander=0) else {
+                        if(state.motion.velocity==0f && state.target==0 && state.retreat==null && unit.motionCommander==0)continue
                         val motion=stationary(position.grid,now,state.motion.pose(now))
                         movements+=TacticalMovement(session.generation,unit.id,position.grid,now,motion,audience(session,position.grid,players))
-                        unit.copy(tactical=state.copy(motion=motion,nextDecisionAt=now+scale,target=0,retreat=null))
+                        unit.copy(tactical=state.copy(motion=motion,nextDecisionAt=now+scale,target=0,retreat=null),motionCommander=0)
                     }
                     stocks=replace(stocks,stocks.outfits.getValue(outfitId),next)
                 }
                 continue
+            }
+            if(outfit.activeShips?.values?.any {it.motionCommander!=0}==true) {
+                outfit=outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(motionCommander=0)}))
+                stocks=stocks.copy(outfits=stocks.outfits+(outfitId to outfit))
             }
             val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
             if(live.isEmpty())continue
@@ -158,7 +165,7 @@ internal object NpcTactics {
                 val count=GridForces.units(outfit).toInt().coerceAtLeast(1)
                 if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(power(outfit),false),count,false))==GridEntryVerdict.ALLOWED) {
                     stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),
-                        activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null)}))))
+                        activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null,motionCommander=0)}))))
                     current.forEach {u->movements+=TacticalMovement(session.generation,u.id,position.grid,now,null,
                         audience(session,position.grid,players),withdrawal.destination)}
                 }

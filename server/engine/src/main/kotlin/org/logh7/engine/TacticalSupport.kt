@@ -71,22 +71,35 @@ internal object TacticalSupportOperations {
 
     fun stop(request:NavigationRequest,session:SessionState,galaxy:Galaxy,navigation:Navigation,
         production:PlanetProduction,stocks:PlanetStocks,committer:WorldStateCommitter?):NavigationResult {
-        val preview=navigation.apply(request.copy(tacticalStop=null),session,stocks,persist=false)
+        val identity=navigation.apply(request.copy(tacticalStop=null),session,stocks,persist=false)
+        val own=identity.player ?: return identity
+        val selected=checkNotNull(request.tacticalStop)
+        val preview=if(own.unitId in selected.units) navigation.apply(request.copy(
+            tacticalStop=TacticalStop(listOf(own.unitId))),session,stocks,persist=false) else identity
         val player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         val command=checkNotNull(request.tacticalStop)
         if(command.bases.isNotEmpty())return reject(NavigationRejection.UNIT)
-        val sources=command.units.map {ship(it,stocks) ?: return reject(NavigationRejection.UNIT)}
+        val sources=command.units.filter {it!=player.unitId}.map {ship(it,stocks) ?: return reject(NavigationRejection.UNIT)}
         if(sources.any {it.outfit.commanderId!=player.characterId ||
             it.outfit.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
             it.outfit.positionIn(galaxy)!=OutfitPosition(player.grid)})return reject(NavigationRejection.CARD)
         var next=stocks
+        val now=session.gameMillis/1000
+        if(now>0xffffffffL-TacticalMotion.WAIT_SECONDS)return reject(NavigationRejection.CLOCK)
+        val motions=linkedMapOf<Int,TacticalMotion>()
         for(source in sources) {
             val current=ship(source.unit.id,next)!!
-            next=replace(next,current,current.unit.copy(support=null))
+            val location=pose(current,player.grid,now,navigation.snapshot(session.generation).values,stocks,galaxy)
+            val motion=TacticalMotion(player.grid,now,location,0f,location.direction,listOf(location.position))
+            val state=current.unit.tactical?.copy(motion=motion,nextDecisionAt=now,nextFireAt=now,target=0,retreat=null)
+                ?: NpcTacticalState(motion,now,now)
+            motions[current.unit.id]=motion
+            next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0))
         }
+        if(player.unitId in command.units)motions[player.unitId]=checkNotNull(player.motion)
         val players=navigation.snapshot(session.generation)
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)
@@ -95,7 +108,7 @@ internal object TacticalSupportOperations {
         val notifications=sources.mapNotNull {source->source.unit.support?.let {
             cancelled(session,source,it,players).let {event->event.copy(recipients=event.recipients.filterValues {it!=request.connection})}
         }}
-        return NavigationResult(player,preview.previous,supportNotifications=notifications)
+        return NavigationResult(player,preview.previous,supportNotifications=notifications,tacticalMotions=motions)
     }
 
     fun accept(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,

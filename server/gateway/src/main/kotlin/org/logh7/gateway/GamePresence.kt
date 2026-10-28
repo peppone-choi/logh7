@@ -30,9 +30,10 @@ class GamePresence {
     }
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
         val packet=if(event.destination!=null)org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,checkNotNull(event.destination),listOf(event.unit))
-            else checkNotNull(TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds))
+            else checkNotNull(TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds,event.character))
         members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
-            .forEach {send(it,listOf(packet))}
+            .forEach {send(it,(if(event.stopped)listOf(org.logh7.protocol.TacticalStopMessages.reply(
+                org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet)}
     }
     /** Every committed shot is queued separately, including while an exchange awaits another command. */
     @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact) {

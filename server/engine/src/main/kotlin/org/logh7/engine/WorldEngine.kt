@@ -469,6 +469,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         if (command.request.tacticalStop?.units?.any {it in 1..999999}==true)
                             TacticalSupportOperations.stop(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter)
+                        else if(command.request.tacticalMove?.units?.any {it in 1..999999}==true)
+                            TacticalFleetMotion.move(command.request,session,galaxy,navigation,production,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter)
                         else if (command.request.tacticalSupport != null)
                             TacticalSupportOperations.accept(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
@@ -486,6 +489,17 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         planetStocks = production?.snapshot(session.generation))
                     published.set(state)
                     publishSupport(result.supportNotifications)
+                    result.player?.let {player ->
+                        val recipients=session.participants.filter {(_,member)->member.online && member.connection!=command.request.connection}
+                            .mapNotNull {(account,member)->state.navigators[account]?.takeIf {
+                                it.grid==player.grid && it.baseId==0 && it.cpPaused}?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
+                        for((id,motion) in result.tacticalMotions.filterKeys {it in 1..999999}) {
+                            val event=TacticalMovement(session.generation,id,player.grid,session.gameMillis/1000,motion,recipients,
+                                character=player.characterId,stopped=command.request.tacticalStop!=null)
+                            for(observer in movementObservers)try {observer(event)}
+                            catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
+                        }
+                    }
                     command.result.complete(result)
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

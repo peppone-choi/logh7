@@ -10,23 +10,25 @@ internal object ActiveShipUnitCodec {
         units == null -> "-"
         units.values.isEmpty() -> "0"
         else -> units.values.joinToString(",") { "${it.id}.${it.stack.kind}.${it.stack.level}.${it.boats}"+
-            if(it.support!=null || it.damaged>0) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}"
+            if(it.motionCommander!=0) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}.${it.motionCommander}"
+            else if(it.support!=null || it.damaged>0) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies ?: "-"}.${it.damaged}.${it.support?.let(TacticalSupportCodec::encode) ?: "-"}"
             else if(it.supplies!=null) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies}"
             else (it.tactical?.let {s->"."+NpcTacticalCodec.encode(s)} ?: "") }
     }
-    fun decode(value: String, legacyFull: Boolean = true, tactics:Boolean=false, cargo:Boolean=false, support:Boolean=false): ActiveShipUnits? = when (value) {
+    fun decode(value: String, legacyFull: Boolean = true, tactics:Boolean=false, cargo:Boolean=false, support:Boolean=false, commanded:Boolean=false): ActiveShipUnits? = when (value) {
         "-" -> null
         "0" -> ActiveShipUnits(emptyList())
         else -> ActiveShipUnits(value.split(',').map { token ->
             val fields = token.split('.')
-            require(fields.size == 4 || legacyFull && fields.size == 3 || tactics && fields.size==5 || cargo && fields.size==6 || support && fields.size==8) { "Invalid active ship record" }
+            require(fields.size == 4 || legacyFull && fields.size == 3 || tactics && fields.size==5 || cargo && fields.size==6 || support && fields.size==8 || commanded && fields.size==9) { "Invalid active ship record" }
             val stack=UnitStack(fields[1].toInt(),fields[2].toInt())
             if(fields.size==3) ActiveShipUnit(fields[0].toInt(),stack)
             else ActiveShipUnit(fields[0].toInt(),stack,fields[3].toInt(),
                 if(fields.size>=5 && fields[4]!="-")NpcTacticalCodec.decode(fields[4]) else null,
                 if(fields.size>=6 && fields[5]!="-")fields[5].toInt() else null,
-                if(fields.size==8)fields[6].toInt() else 0,
-                if(fields.size==8 && fields[7]!="-")TacticalSupportCodec.decode(fields[7]) else null).also {
+                if(fields.size>=8)fields[6].toInt() else 0,
+                if(fields.size>=8 && fields[7]!="-")TacticalSupportCodec.decode(fields[7]) else null,
+                if(fields.size==9)fields[8].toInt().also {require(it>0)} else 0).also {
                 require(fields.size!=5 || fields[4]!="-") { "Empty NPC field in legacy record" }
                 require(fields.size!=6 || fields[5]!="-") { "Empty cargo field in cargo record" }
             }

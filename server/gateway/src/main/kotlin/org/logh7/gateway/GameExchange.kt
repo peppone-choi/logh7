@@ -300,7 +300,11 @@ class GameExchange(
                                 move.velocity,move.direction,move.waypoints.map {org.logh7.engine.TacticalPoint(it.x,it.y)}))).thenApply {result->
                             val player=checkNotNull(result.player ?: result.previous)
                             publication=Publication(character,player,false)
-                            if(result.player!=null) listOf(checkNotNull(TacticalMotionMessages.reply(player,gameSeconds()))) else {
+                            if(result.player!=null) {
+                                if(result.tacticalMotions.isNotEmpty())result.tacticalMotions.map {(id,motion)->
+                                    TacticalMotionMessages.npc(id,motion,gameSeconds(),player.characterId)}
+                                else listOf(checkNotNull(TacticalMotionMessages.reply(player,gameSeconds())))
+                            } else {
                                 val unit=TacticalBootstrap(checkNotNull(navigation.snapshot()),world.galaxy,player,characters::characterById)
                                     .units.single {it.id==player.unitId}
                                 val pose=org.logh7.protocol.TacticalMoveMessages.Point(unit.x,unit.y,0f)
@@ -340,8 +344,11 @@ class GameExchange(
                             val player=checkNotNull(result.player ?: result.previous)
                             publication=Publication(character,player,false)
                             listOf(org.logh7.protocol.TacticalStopMessages.reply(stop,gameSeconds(),result.player!=null)) +
-                                (if(result.player!=null) TacticalMotionMessages.reply(player,gameSeconds())?.let(::listOf).orEmpty()
-                                    else emptyList())
+                                (if(result.player!=null) {
+                                    if(result.tacticalMotions.isNotEmpty())result.tacticalMotions.map {(id,motion)->
+                                        TacticalMotionMessages.npc(id,motion,gameSeconds(),player.characterId)}
+                                    else TacticalMotionMessages.reply(player,gameSeconds())?.let(::listOf).orEmpty()
+                                } else emptyList())
                         }
                         return null
                     }

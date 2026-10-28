@@ -62,4 +62,21 @@ class UnitSupplyStoreTest {
         assertFailsWith<IllegalArgumentException> {ActiveShipUnitCodec.decode("1.32.0.300.-.-1",tactics=true,cargo=true)}
         assertFailsWith<IllegalArgumentException> {ActiveShipUnitCodec.decode("1.32.0.300.-.9999999",tactics=true,cargo=true)}
     }
+
+    @Test fun stockNineteenPreservesPlayerMotionOwnershipAndRejectsOlderHeader() {
+        val stack=UnitStack(32);val point=TacticalPoint(0f,0f)
+        val motion=TacticalMotion(2488,100,TacticalPose(point,0f),1f,0f,listOf(TacticalPoint(10f,0f)))
+        val unit=ActiveShipUnit(1,stack,tactical=NpcTacticalState(motion,100,100),supplies=500,motionCommander=10000)
+        val expected=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,1,2,3)),
+            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
+                units=UnitInventory(mapOf(stack to 1)),supplies=500,activeShips=ActiveShipUnits(listOf(unit)),position=OutfitPosition(2488))),
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),deploymentInitialized=true,nextShipId=2)
+        val path=directory.resolve("commanded")
+        FilePlanetStockStore(path).use {it.save(expected)}
+        val text=Files.readString(path);assertTrue(text.startsWith("LOGH7-STOCK-19\t"))
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+        Files.writeString(path,text.replace("LOGH7-STOCK-19","LOGH7-STOCK-18"))
+        assertFailsWith<IllegalArgumentException> {FilePlanetStockStore(path).use {it.load()}}
+        assertFailsWith<IllegalArgumentException> {unit.copy(tactical=null)}
+    }
 }
