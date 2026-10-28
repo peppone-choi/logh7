@@ -49,6 +49,18 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
         require(rotation==null || (!parallel && reportedWaypoints==0 && waypoints.size==1 && velocity==0f && acceptedAt<=0xffffffffL-rotation.wait))
     }
     val startsAt get() = acceptedAt + (rotation?.wait ?: WAIT_SECONDS)
+    /** First integer game second whose durable progress differs from the last report. */
+    internal val nextProgressAt: Long? by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        if(rotation==null && velocity==0f || completedWaypoints(0xffffffffL)<=reportedWaypoints) null
+        else {
+            var low=startsAt;var high=0xffffffffL
+            while(low<high) {
+                val middle=low+(high-low)/2
+                if(completedWaypoints(middle)>reportedWaypoints)high=middle else low=middle+1
+            }
+            low
+        }
+    }
     fun completedWaypoints(seconds:Long):Int {
         require(seconds in 0..0xffffffffL)
         if(rotation!=null)return if(seconds>=startsAt)1 else 0

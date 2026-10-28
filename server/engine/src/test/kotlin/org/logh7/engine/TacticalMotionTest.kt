@@ -4,6 +4,22 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalMotionTest {
+    @Test fun nextProgressDeadlineMatchesPoseScheduleIncludingRotationsAndLegacyZeroLengthPaths() {
+        val p=TacticalPose(TacticalPoint(0f,0f),0f)
+        val m=TacticalMotion(2488,100,p,1f,0f,listOf(TacticalPoint(0f,10f),TacticalPoint(0f,0f)),turnRate=1f)
+        assertEquals(115L,m.nextProgressAt)
+        val reported=m.copy(reportedWaypoints=1)
+        val end=reported.nextProgressAt!!
+        assertEquals(132L,end)
+        assertEquals(1,reported.completedWaypoints(end-1));assertEquals(2,reported.completedWaypoints(end))
+        assertNull(m.copy(velocity=0f).nextProgressAt)
+        assertEquals(106L,m.copy(waypoints=listOf(p.position),turnRate=0f).nextProgressAt)
+        assertEquals(125L,m.copy(turnRate=0f,reportedWaypoints=1).nextProgressAt)
+        assertNull(m.copy(acceptedAt=0xffffffffL-5).nextProgressAt)
+        val turn=m.copy(velocity=0f,turnRate=0f,waypoints=listOf(p.position),
+            rotation=TacticalRotation(TacticalManeuver.TURN,1010000,240))
+        assertEquals(340L,turn.nextProgressAt)
+    }
     @Test fun nativeScheduleTurnsBeforeTranslationAndFinalFacingAndResumesDuringTurn() {
         val origin=TacticalPose(TacticalPoint(0f,0f),0f)
         val legacy=TacticalMotion(2017,100,origin,1f,0f,listOf(TacticalPoint(0f,10f),origin.position))

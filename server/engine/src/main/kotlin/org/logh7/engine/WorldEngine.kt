@@ -38,7 +38,7 @@ interface SnapshotSource {
 
 /** Only this actor owns and mutates world state. */
 class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = SessionRules.load(), ticking: Boolean = true,
-    monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val onEvent: (WorldEvent) -> Unit = {}, private val generationStore: SessionGenerationStore = MemorySessionGenerationStore(),
     private val durability: SessionDurability? = null,
     private val timings: ActorTimings? = null,
@@ -49,8 +49,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val worldStateCommitter: WorldStateCommitter? = null,
     private val npcPolicy:NpcTacticalPolicy=NpcTacticalPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
-        val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
+        val backpressured: Boolean = false, val scheduledTickNanos: Long? = null,
+        val applied: CompletableDeferred<Unit>? = null)
     private val queue = Channel<Queued>(1024)
+    private val tickPulse = Channel<Unit>(Channel.CONFLATED)
+    private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
     private val supportObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalSupportResult) -> Unit>()
@@ -85,7 +88,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
             npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
-        published.set(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
+        publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         publishCombat(impacts)
         publishSupport(support)
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
@@ -108,12 +111,33 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         durableState?.session?.generation ?: simulation.snapshot().generation) }
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
+    private var elapsed = initialElapsed
     private val logistics = OutfitLogistics(monotonicMillis)
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
+    private fun publish(snapshot:WorldSnapshot) {
+        published.set(snapshot)
+        val session=durableState?.session ?: simulation.exportState()
+        val personal=snapshot.navigators.values.asSequence().filter {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.hull!=null}
+            .mapNotNull {it.motion?.takeIf {m->m.grid==it.grid}}
+        val ships=snapshot.planetStocks?.takeIf {it.generation==session.generation}?.outfits?.values.orEmpty().asSequence()
+            .flatMap {outfit->
+                val position=galaxy?.let {outfit.positionIn(it)}
+                if(position==null || position.baseId!=0)emptySequence() else
+                    outfit.activeShips?.values.orEmpty().asSequence().filter {
+                        it.boats>0 && (it.motionCommander==0 || it.motionCommander==outfit.commanderId)
+                    }.mapNotNull {it.tactical?.motion?.takeIf {m->m.grid==position.grid}}
+            }
+        val deadline=(personal+ships).mapNotNull {it.nextProgressAt}.minOrNull()
+        tacticalTickAt.set(deadline?.let {
+            val remaining=maxOf(0,it*1000-session.gameMillis)
+            val currentElapsed=durableState?.elapsed ?: elapsed
+            Math.addExact(origin,Math.addExact(currentElapsed-initialElapsed,(remaining+rules.speed-1)/rules.speed))
+        })
+        tickPulse.trySend(Unit)
+    }
     private val worker = scope.launch {
         var state = published.get()
-        var elapsed = 0L
         var restartAt: Long? = null
         fun restart(): List<WorldEvent> {
             val snapshot = simulation.snapshot()
@@ -123,7 +147,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             return listOf(WorldEvent.Restarted(generation))
         }
         var storageFailure: Exception? = null
-        try { for (queued in queue) {
+        try { for (queued in queue) { try {
             val command = queued.command
             if (command is WorldCommand.AssignStock) {
                 try {
@@ -172,7 +196,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result.copy(recovery = recovered))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -205,7 +229,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result.copy(recovery = recovered))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -238,7 +262,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result.copy(recovery = recovered))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -299,7 +323,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result.copy(recovery = recovered))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -330,7 +354,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result.copy(recovery = recovered,targetPlayer=navigation?.snapshot(session.generation)?.values?.singleOrNull { it.characterId==request.target }))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -361,7 +385,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result.copy(recovery = recovered,targetPlayer=navigation?.snapshot(session.generation)?.values?.singleOrNull { it.characterId==request.target }))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -390,7 +414,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         }
                     }
                     state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))
-                    published.set(state);command.result.complete(result.copy(recovery=recovered))
+                    publish(state);command.result.complete(result.copy(recovery=recovered))
                 } catch(failure:Exception) {
                     if(failure is java.io.IOException) {storageFailed=true;storageFailure=failure}
                     command.result.completeExceptionally(failure)
@@ -420,7 +444,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result.copy(recovery = recovered))
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -436,7 +460,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         navigation?.snapshot(session.generation)?.get(command.request.account),
                         checkNotNull(production) { "World production is disabled" })
                     state = published.get().copy(planetStocks = production.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result)
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -451,7 +475,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     require(session.generation == command.generation) { "Inventory query belongs to a stale session" }
                     val result = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
                     state = published.get().copy(planetStocks = result)
-                    published.set(state)
+                    publish(state)
                     command.result.complete(result)
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
@@ -493,7 +517,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         } else NavigationResult(null, rejection = NavigationRejection.DISABLED)
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production?.snapshot(session.generation))
-                    published.set(state)
+                    publish(state)
                     publishSupport(result.supportNotifications)
                     result.player?.let {player ->
                         val recipients=session.participants.filter {(_,member)->member.online && member.connection!=command.request.connection}
@@ -533,7 +557,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         settleCombat(next.state.session,next.state.snapshot(rules))
                         navigation?.settleRetreats(next.state.session, production?.snapshot(next.state.session.generation))
                     }
-                    published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
+                    publish(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
                         planetStocks = production?.snapshot(next.state.session.generation)))
                     if (command is WorldCommand.Join) {
                         if (next.rejected) command.result.completeExceptionally(IllegalArgumentException("Invalid join"))
@@ -557,10 +581,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     require(command.elapsedRealMillis >= elapsed)
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
+                    elapsed = command.elapsedRealMillis
                     if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot()))
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
-                    elapsed = command.elapsedRealMillis
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }
@@ -596,31 +620,39 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             state = state.copy(revision = state.revision + 1,
                 acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot(), navigators = navigation?.snapshot(simulation.snapshot().generation).orEmpty(),
                 planetStocks = production?.snapshot(simulation.snapshot().generation))
-            published.set(state)
+            publish(state)
             if (command is WorldCommand.Join && admission != null) command.result.complete(admission)
             if (command is WorldCommand.RequestRestart) command.result.complete(restartResult == true)
             events.forEach(onEvent)
-        } } finally { try { durability?.close() } finally { try { navigationStore?.close() } finally { stockStore?.close() } } }
+        } finally { queued.applied?.complete(Unit) } } } finally { try { durability?.close() } finally { try { navigationStore?.close() } finally { stockStore?.close() } } }
     }
     private val ticker = if (ticking) scope.launch {
         val interval = minOf(rules.strategyTickRealMillis, rules.tacticsTickRealMillis)
+        var regularAt=Math.addExact(origin,interval)
         while (isActive) {
+            val now=monotonicMillis()
+            val wakeAt=if(storageFailed)regularAt else minOf(regularAt,tacticalTickAt.get() ?: regularAt)
+            val wait=maxOf(0,wakeAt-now)
             val scheduled = if (timings == null) null else try {
-                Math.addExact(metricNanos(), Math.multiplyExact(interval, 1_000_000L))
+                Math.addExact(metricNanos(), Math.multiplyExact(wait, 1_000_000L))
             } catch (_: ArithmeticException) { observe { clockRegression() }; null }
-            delay(interval)
+            if(wait>0 && withTimeoutOrNull(wait) {tickPulse.receive();true}==true)continue
             scheduled?.let { duration(ActorTiming.TICK_WAKE_LAG, it, metricNanos()) }
-            enqueue(WorldCommand.AdvanceTo(Math.addExact(initialElapsed, monotonicMillis() - origin)), scheduled)
+            val applied=CompletableDeferred<Unit>()
+            enqueue(WorldCommand.AdvanceTo(Math.addExact(initialElapsed, monotonicMillis() - origin)), scheduled,applied)
+            applied.await() // A slow commit cannot queue multiple overdue deadline ticks.
+            val after=monotonicMillis()
+            if(after>=regularAt)regularAt=Math.addExact(after,interval-(after-origin)%interval)
         }
     } else null
     override suspend fun submit(command: WorldCommand) {
         enqueue(if (command is WorldCommand.Territory) command.copy(systems = command.systems.toMap(), capturedCapitals = command.capturedCapitals.toSet()) else command)
     }
-    private suspend fun enqueue(command: WorldCommand, scheduledTickNanos: Long? = null) {
-        if (timings == null) { queue.send(Queued(command)); return }
+    private suspend fun enqueue(command: WorldCommand, scheduledTickNanos: Long? = null, applied:CompletableDeferred<Unit>? = null) {
+        if (timings == null) { queue.send(Queued(command,applied=applied)); return }
         currentCoroutineContext().ensureActive()
         val submitted = metricNanos()
-        val queued = Queued(command, submitted, scheduledTickNanos = scheduledTickNanos)
+        val queued = Queued(command, submitted, scheduledTickNanos = scheduledTickNanos,applied=applied)
         val sent = queue.trySend(queued)
         if (!sent.isSuccess) queue.send(queued.copy(backpressured = !sent.isClosed))
         duration(ActorTiming.SEND_WAIT, submitted, metricNanos())
