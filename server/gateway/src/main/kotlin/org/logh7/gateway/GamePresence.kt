@@ -29,6 +29,21 @@ class GamePresence {
             repeat(units) { motionPaths[connection to input.getInt(19+it*20)]=points }
         }
     }
+    @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult) {
+        val ids=event.units.keys.toList()
+        val packet=if(event.cancelled)org.logh7.protocol.TacticalGroundMessages.reply(
+            org.logh7.protocol.TacticalGroundMessages.Posture(event.character,ids,event.mode.wire,event.base),event.seconds,0,false)
+        else org.logh7.protocol.TacticalGroundMessages.postureChanged(event.seconds,event.mode.wire,event.base,
+            event.units.map {(id,pose)->org.logh7.protocol.TacticalGroundMessages.PostureUnit(id,pose.direction,
+                pose.position.x,pose.position.y,0f)},event.spot,event.spotOwner)
+        members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
+            event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer->
+                val frozen=if(event.cancelled)emptyList() else event.units.map {(id,pose)->
+                    TacticalMotionMessages.npc(id,org.logh7.engine.TacticalMotion(event.grid,event.seconds,pose,0f,pose.direction,
+                        listOf(pose.position)),event.seconds,event.character)}
+                send(viewer,frozen+packet)
+            }
+    }
     @Synchronized fun support(event:org.logh7.engine.TacticalSupportResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.reply(

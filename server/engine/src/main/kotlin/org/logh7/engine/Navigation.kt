@@ -67,8 +67,12 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val energy: TacticalEnergy? = null, val shipKind: Int? = null, val tacticalMove: TacticalMove? = null,
     val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null,
     val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null,
-    val tacticalSupport: TacticalSupport? = null, val commandAbility:Int?=null) {
-    init { require(politics in 0..65535 && administration in 0..65535 &&
+    val tacticalSupport: TacticalSupport? = null, val commandAbility:Int?=null,
+    val tacticalPosture:TacticalPostureChange?=null) {
+    init { require((tacticalPosture==null || (destination==null && place==null && !supplyFuel && returnBase==null &&
+        tactical==null && energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
+        tacticalShoot==null && tacticalAttack==null && tacticalSupport==null && shipKind!=null)) &&
+        politics in 0..65535 && administration in 0..65535 &&
         (commandAbility==null || commandAbility in 0..32767) &&
         (tacticalSupport == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null &&
             energy == null && tacticalMove == null && tacticalStop == null && tacticalRetreat == null && tacticalShoot == null && tacticalAttack == null)) &&
@@ -91,7 +95,7 @@ enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_G
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false, val supportReadyAt: Long? = null,
     val supportNotifications: List<TacticalSupportResult> = emptyList(),
-    val tacticalMotions: Map<Int,TacticalMotion> = emptyMap())
+    val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null)
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
@@ -195,7 +199,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 snapshot(session.generation).values + before, stocks, galaxy)
             // Retain an authoritative stationary pose; null would restore the initial deployment on reconnect.
             val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)),
-                attack = null, fire = before.fire?.copy(pending = null))
+                attack = null, fire = before.fire?.copy(pending = null),posture=before.posture?.copy(order=null))
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before)
         }

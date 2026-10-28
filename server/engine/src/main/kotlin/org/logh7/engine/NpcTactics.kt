@@ -45,7 +45,7 @@ internal object NpcTactics {
         it.power!=power(outfit) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now) ?:
             TacticalDeployment.initial(p.unitId,p.power,grid,players.values,stocks,galaxy))} +
         stocks.outfits.values.filter {it.power!=outfit.power && it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}}
+            o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}}
 
     private fun replace(stocks:PlanetStocks,outfit:OutfitStock,unit:ActiveShipUnit):PlanetStocks {
         val ships=ActiveShipUnits(outfit.activeShips!!.values.map {if(it.id==unit.id)unit else it})
@@ -93,7 +93,7 @@ internal object NpcTactics {
                 outfit=outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(motionCommander=0)}))
                 stocks=stocks.copy(outfits=stocks.outfits+(outfitId to outfit))
             }
-            val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
+            val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
             if(live.isEmpty())continue
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy)
             val retreat=live.mapNotNull {it.tactical?.takeIf {s->s.motion.grid==position.grid}?.retreat}.minByOrNull {it.acceptedAt}

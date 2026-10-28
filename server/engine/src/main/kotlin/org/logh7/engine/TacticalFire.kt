@@ -52,7 +52,7 @@ internal object TacticalCombat {
         }
         return stocks.outfits.values.asSequence().filter {it.power != if(power==Power.EMPIRE)2 else 3}
             .filter {it.positionIn(galaxy)==OutfitPosition(grid)}
-            .mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id && it.boats>0}?.let {o to it}}
+            .mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id && it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}?.let {o to it}}
             .singleOrNull()?.let {Target(regular=it,spec=UnitSpecifications.ships.single {s->s.kind==it.second.stack.kind})}
     }
 
@@ -193,7 +193,7 @@ internal object TacticalCombat {
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
         committer: WorldStateCommitter?, npcPolicy:NpcTacticalPolicy = NpcTacticalPolicy(enabled=false),
-        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {}): List<TacticalImpact> {
+        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
@@ -215,8 +215,8 @@ internal object TacticalCombat {
                 due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
             }
         }
-        if(due.isEmpty() && players==original && inventory==stocks && !npcPolicy.enabled && stocks.outfits.values.none {
-            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null}==true})return emptyList()
+        if(due.isEmpty() && players.values.none {it.posture?.order!=null} && players==original && inventory==stocks && !npcPolicy.enabled && stocks.outfits.values.none {
+            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         val impacts = mutableListOf<TacticalImpact>()
         for ((account, scheduled, automatic) in due) {
@@ -262,6 +262,8 @@ internal object TacticalCombat {
         }
         val support=mutableListOf<TacticalSupportResult>()
         inventory=TacticalSupportOperations.advance(session,galaxy,players,inventory,support)
+        val postures=mutableListOf<TacticalPostureResult>()
+        inventory=TacticalPostureOperations.advance(session,galaxy,players,inventory,postures)
         clearFinishedOrders(players,galaxy,inventory,now)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
@@ -270,6 +272,7 @@ internal object TacticalCombat {
         production.publishCommitted(stocks, prepared)
         movements.forEach(onMovement)
         support.forEach(onSupport)
+        postures.forEach(onPosture)
         return impacts
     }
 }

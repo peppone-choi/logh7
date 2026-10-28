@@ -10,6 +10,19 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredPostureAloneSchedulesCompletionBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,postureDeadline=true)
+        val events=mutableListOf<TacticalPostureResult>();rig.engine.observePostures(events::add)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent();assertTrue(events.isEmpty())
+            assertNotNull(rig.players.getValue("pilot").posture!!.order)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(listOf(rig.start+15),events.map {it.seconds})
+            assertEquals(TacticalShipMode.BATTLE,rig.players.getValue("pilot").posture!!.mode)
+            assertNull(rig.players.getValue("pilot").posture!!.order)
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun completionBetweenRegularTicksIsCommittedAtItsFirstGameSecond() = runTest {
         val rig=Rig(this,testScheduler)
         val moves=mutableListOf<TacticalMovement>()
@@ -78,14 +91,15 @@ class TacticalDeadlineTest {
             assertFailsWith<IllegalStateException>{rig.engine.synchronizeTime()}
         } finally {rig.engine.drainAndClose()}
     }
-    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null) {
+    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
         var players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2488,1000,1000,1000,
             cpPaused=true,hull=FlagshipHull(0,start),energy=TacticalEnergy(listOf(100)+List(10){0}),
             motion=TacticalMotion(2488,start,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
-                listOf(TacticalPoint(0f,10f)),turnRate=1f)))
+                listOf(TacticalPoint(0f,10f)),turnRate=1f).let {if(postureDeadline)it.copy(velocity=0f) else it},
+            posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
             listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})

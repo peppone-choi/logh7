@@ -102,7 +102,7 @@ internal object TacticalSupportOperations {
             val state=current.unit.tactical?.copy(motion=motion,nextDecisionAt=now,nextFireAt=now,target=0,retreat=null)
                 ?: NpcTacticalState(motion,now,now)
             motions[current.unit.id]=motion
-            next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0,attack=null,shot=null))
+            next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0,attack=null,shot=null,posture=current.unit.posture?.copy(order=null)))
         }
         if(player.unitId in command.units)motions[player.unitId]=checkNotNull(player.motion)
         if(sources.isNotEmpty())player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))

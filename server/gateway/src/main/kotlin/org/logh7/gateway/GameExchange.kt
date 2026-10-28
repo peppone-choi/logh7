@@ -249,6 +249,26 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0411 -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val command=org.logh7.protocol.TacticalGroundMessages.posture(body)
+                        require(command.character==character.id.toInt())
+                        val mode=org.logh7.engine.TacticalShipMode.entries.singleOrNull {it.wire==command.kind}
+                        if(mode==null || (command.base>0)!=mode.requiresBase || command.base>65535)
+                            return handshake.stageAll(listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),0,false)),clearHeader=0)
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
+                            tacticalPosture=org.logh7.engine.TacticalPostureChange(command.units,mode,command.base))).thenApply {result->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            val now=gameSeconds()
+                            listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,now,
+                                result.postureReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))+commandCorps(identity.account)
+                        }
+                        return null
+                    }
                     0x0413,0x0414 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(currentCharacter(identity.account))
