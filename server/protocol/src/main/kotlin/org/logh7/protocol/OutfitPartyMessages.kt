@@ -11,7 +11,8 @@ object OutfitPartyMessages {
     data class Member(val id: Int, val kind: Int, val rank: Int, val name: String)
     data class Ships(val kind: Int, val boats: Int, val ids: List<Int>)
     data class Troops(val kind: Int, val grade: Int, val quantity: Int)
-    data class UnitInformation(val id: Int, val kind: Int, val grid: Int, val outfit: Int, val base: Int, val supplies: Int = 0)
+    data class UnitInformation(val id: Int, val kind: Int, val grid: Int, val outfit: Int, val base: Int, val supplies: Int = 0,
+        val damaged:Int=0,val destroyed:Int=0)
     fun query(bytes: ByteArray): Query {
         require(bytes.size == 11)
         val input = ByteBuffer.wrap(bytes)
@@ -72,7 +73,8 @@ object OutfitPartyMessages {
             writeInt(unit.id); writeShort(unit.kind); writeByte(if(unit.base==0)5 else 4)
             writeInt(unit.grid); writeInt(unit.outfit); writeInt(0); writeByte(0) // No boarding ship / attached troop instances.
             writeInt(unit.base); writeByte(100); writeByte(0) // Initial morale, no rebellion.
-            writeShort(0); writeShort(0) // No damage or destruction mechanics yet.
+            require(unit.damaged in 0..65535 && unit.destroyed in 0..unit.damaged)
+            writeShort(unit.damaged); writeShort(unit.destroyed)
             require(unit.supplies >= 0)
             writeInt(unit.supplies); writeInt(0); writeFloat(0f) // Mobilization and cruising not assigned yet.
         }

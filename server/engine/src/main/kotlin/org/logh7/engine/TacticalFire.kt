@@ -162,7 +162,8 @@ internal object TacticalCombat {
             val units=UnitInventory(ships.quantities(),outfit.units.troops)
             inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to outfit.copy(
                 activeShips=ships,units=units,supplies=minOf(outfit.supplies,OutfitSupplies.capacity(units)))))
-            TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-remaining)
+            TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-remaining,
+                damaged=victim.spec.number-remaining+minOf(unit.damaged,remaining))
         } else {
             val (victimAccount,defender)=checkNotNull(victim.personal)
             val hull=checkNotNull(defender.hull).settle(seconds,defender.energy ?: TacticalEnergy.ZERO)

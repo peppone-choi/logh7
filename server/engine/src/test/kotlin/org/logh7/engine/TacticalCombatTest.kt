@@ -59,6 +59,7 @@ class TacticalCombatTest {
         assertNull(charged.snapshot(1).getValue("pilot").fire);assertEquals(300,stock.snapshot(1)!!.outfits.getValue(1).activeShips!!.values.single().boats)
         state.fail=false
         val hits=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,charged,stock,state.commit)
+        assertTrue(hits.all {it.hit.damaged==it.hit.destroyed})
         assertEquals(TacticalWeapon.entries,hits.map {it.weapon});assertEquals(listOf(1L,2L,3L),hits.map {it.hit.sequence})
         assertEquals(9998,charged.snapshot(1).getValue("pilot").supplies)
         assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+240)*1000),galaxy,charged,stock,state.commit).isEmpty())

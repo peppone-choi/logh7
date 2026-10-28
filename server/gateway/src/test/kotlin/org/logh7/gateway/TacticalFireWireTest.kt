@@ -64,7 +64,7 @@ class TacticalFireWireTest {
                 assertEquals(1010000,ByteBuffer.wrap(hit).getInt(10))
                 assertEquals(1,ByteBuffer.wrap(hit).getInt(16))
                 assertEquals(weapon.wire,hit[14].toInt())
-                assertEquals(0,ByteBuffer.wrap(hit).getShort(20).toInt())
+                assertEquals(losses,ByteBuffer.wrap(hit).getShort(20).toInt())
                 assertEquals(losses,ByteBuffer.wrap(hit).getShort(22).toInt())
             }
             val fired=savedPlayers.getValue("load-000")
@@ -82,7 +82,7 @@ class TacticalFireWireTest {
                 val input=ByteBuffer.wrap(clients[0].receive())
                 val opcode=input.getShort(4).toInt()
                 if(opcode==0x0325 && input.getShort(6).toInt()==3 && input.getInt(8)==1) {
-                    assertEquals(0,input.getShort(34).toInt())
+                    assertEquals(losses,input.getShort(34).toInt())
                     assertEquals(losses,input.getShort(36).toInt())
                     assertEquals(fired.supplies,input.getInt(38+42))
                     restored=true

@@ -214,7 +214,8 @@ object WorldMessages {
         val category: Int = 0, val number: Int = 1, val term: Int = 0, val crew: Int = 0,
         val missileConsumption: Int = 0, val fighterNumber: Int = 0, val cargo: Int = 0,
         val beamArms: Int = 0, val beamAngles: Int = 0, val gunArms: Int = 0, val gunAngles: Int = 0,
-        val missileArms: Int = 0, val missileAngles: Int = 0, val antiaircraftArms: Int = 0)
+        val missileArms: Int = 0, val missileAngles: Int = 0, val antiaircraftArms: Int = 0,
+        val commandRange:Float=0f)
     /** 00412eb0/004c5140: fixed 27 profiles, eight signed short samples each, no count/padding. */
     fun armaments(profiles: List<List<Int>>): ByteArray {
         require(profiles.size == 27 && profiles.all { it.size == 8 && it.all { value -> value in Short.MIN_VALUE..Short.MAX_VALUE } })
@@ -233,6 +234,7 @@ object WorldMessages {
             require(ship.model in 0..49 || ship.model in 1000..1049 ||
                 ship.model in 2000..2009 || ship.model in 3000..3009)
             require(ship.searchRange.isFinite() && ship.searchRange >= 0 && ship.speed.isFinite() && ship.speed > 0)
+            require(ship.commandRange.isFinite() && ship.commandRange>=0)
             // 004c7820: 0xff means absent; 0..26 indexes the separate 0311 ability table.
             // A zero profile index is NOT a zero weapon count.
             require(listOf(ship.beamArms, ship.gunArms, ship.missileArms)
@@ -247,7 +249,8 @@ object WorldMessages {
             writeShort(ship.number); writeInt(0) // price has not been recovered
             writeShort(0); writeShort(0); writeShort(ship.term); writeShort(0); writeShort(ship.crew)
             writeShort(ship.outputPower)
-            writeFloat(0f); writeFloat(ship.searchRange)
+            // 004c32a0 reads constmsg +0x254 as maximum CRC; zero clamps the original to 1.6.
+            writeFloat(ship.commandRange); writeFloat(ship.searchRange)
             repeat(13) { writeShort(0) } // sensor profile, evasion, navigation
             writeFloat(ship.speed); writeFloat(1f) // turning rate is provisional
             listOf(ship.armorFront, ship.armorBack, ship.armorSide, ship.shield, ship.shieldCapacity).forEach(::writeShort)

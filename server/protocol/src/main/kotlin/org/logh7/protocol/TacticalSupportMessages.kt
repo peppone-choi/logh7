@@ -30,7 +30,7 @@ object TacticalSupportMessages {
         }
     }
 
-    /** Absolute remaining supplies and damaged count, not the number repaired in this action. */
+    /** Absolute supplies and unavailable boats (destroyed + still damaged), not repairs performed. */
     fun repaired(unit: Int, target: Int, supplies: Int, damaged: Int): ByteArray {
         require(unit > 0 && target > 0 && supplies >= 0 && damaged in 0..65535)
         return LoginMessages.sessionMessage(0x042d, ByteBuffer.allocate(14)

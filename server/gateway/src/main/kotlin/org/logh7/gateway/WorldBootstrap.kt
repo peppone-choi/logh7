@@ -83,7 +83,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             require(outfit.power == power && (base == 0 || base == position.baseId)) { "Outfit unit access denied" }
             val unit = outfit.activeShips!!.values.single { it.id == id }
             listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,position.baseId,
-                org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id)))
+                org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id),unit.unavailable,
+                UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number-unit.boats))
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
     }
@@ -193,7 +194,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 fighterNumber = ship.number("戦闘艇/雷撃艇搭載数:戦闘艇/雷撃艇搭載数"),
                 cargo = ship.number("物資搭載量:物資搭載量"),
                 beamArms = beam.profile, beamAngles = beam.angles, gunArms = gun.profile, gunAngles = gun.angles,
-                missileArms = missile.profile, missileAngles = missile.angles)
+                missileArms = missile.profile, missileAngles = missile.angles,
+                commandRange=if(ship.number==1)org.logh7.engine.TacticalSupportRules.COMMAND_RANGE else 0f)
         }),
         0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->
             WorldMessages.Crew(crew.kind, crew.category, crew.category, crew.manual.training,

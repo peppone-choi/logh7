@@ -112,7 +112,7 @@ class TacticalSupportTest {
         val unit=s.stocks.outfits.getValue(1).activeShips!!.values.last()
         assertEquals(250,unit.boats);assertEquals(28,unit.damaged)
         assertEquals(0,s.stocks.outfits.getValue(1).supplies)
-        assertEquals(28,out.single().damaged)
+        assertEquals(78,out.single().damaged)
         assertEquals(NavigationRejection.SUPPLY,accept(s,nav,p,request(TacticalSupportAction.REPAIR,2)).rejection)
     }
 
@@ -123,7 +123,7 @@ class TacticalSupportTest {
             val out=mutableListOf<TacticalSupportResult>();settle(s,nav,p,now+120,out)
             val cost=UnitSpecifications.ships.single {it.kind==if(target==2)32 else 0}.number("修理消費物資(１隻):修理消費物資(１隻)")
             assertEquals(10000-cost*(if(target==2)30 else 1),s.stocks.outfits.getValue(1).supplies)
-            assertEquals(0,out.single().damaged)
+            assertEquals(if(target==2)50 else 0,out.single().damaged)
             if(target==2) {
                 val unit=s.stocks.outfits.getValue(1).activeShips!!.values.last()
                 assertEquals(250,unit.boats);assertEquals(0,unit.damaged)
@@ -154,6 +154,9 @@ class TacticalSupportTest {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertEquals(NavigationRejection.TARGET,accept(s,nav,p,request(TacticalSupportAction.REPAIR,2)).rejection)
         assertEquals(NavigationRejection.TARGET,accept(s,nav,p,request(TacticalSupportAction.SUPPLY,99)).rejection)
+        val far=state().also {it.players=it.players.mapValues {(_,v)->v.copy(motion=ai(100f).motion)}}
+        val farNav=Navigation(galaxy,far.nav,NavigationPolicy());val farStock=production(far)
+        assertEquals(NavigationRejection.TARGET,accept(far,farNav,farStock,request(TacticalSupportAction.SUPPLY,2)).rejection)
         assertEquals(NavigationRejection.SESSION,accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2).copy(connection="stale")).rejection)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
         val current=p.snapshot(1)!!

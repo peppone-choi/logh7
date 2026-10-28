@@ -62,6 +62,10 @@ class OutfitPartyMessagesTest {
         assertEquals(1049,b.int); assertEquals(100,b.get().toInt()); assertEquals(0,b.get().toInt())
         assertEquals(0,b.short.toInt()); assertEquals(0,b.short.toInt()); assertEquals(0,b.int); assertEquals(0,b.int); assertEquals(0f,b.float)
         assertFalse(b.hasRemaining())
+        val damaged=ByteBuffer.wrap(OutfitPartyMessages.units(listOf(
+            OutfitPartyMessages.UnitInformation(101,32,2487,1,0,400,80,50))))
+        assertEquals(80,damaged.getShort(27).toInt());assertEquals(50,damaged.getShort(29).toInt())
+        assertFails {OutfitPartyMessages.units(listOf(OutfitPartyMessages.UnitInformation(101,32,2487,1,0,damaged=30,destroyed=50)))}
     }
     @Test fun requestsRequireExactLengthsAndRepliesRejectNativeOverrunsAndDuplicateIds() {
         val query = ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(1049).put(255.toByte()).array()

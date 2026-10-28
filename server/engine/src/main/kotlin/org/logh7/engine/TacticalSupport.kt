@@ -3,6 +3,8 @@ package org.logh7.engine
 import kotlin.math.hypot
 
 enum class TacticalSupportAction { REPAIR, SUPPLY }
+/** Provisional fixed radius shared by native commandability and server validation. */
+object TacticalSupportRules { const val COMMAND_RANGE = 20f }
 data class TacticalSupport(val action: TacticalSupportAction, val unit: Int, val target: Int)
 data class TacticalSupportOrder(val action: TacticalSupportAction, val character: Int, val target: Int,
     val grid: Int, val acceptedAt: Long, val readyAt: Long) {
@@ -49,6 +51,9 @@ internal object TacticalSupportOperations {
         if(spec.type!=(if(order.action==TacticalSupportAction.REPAIR)11 else 12))return false
         val to=targetPoint(order.target,player,now,players,stocks,galaxy) ?: return false
         val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
+        val commander=(player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
+            players.values,stocks,galaxy)).position
+        if(hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>TacticalSupportRules.COMMAND_RANGE)return false
         return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<=RANGE
     }
     private fun replace(stocks: PlanetStocks, source: Ship, unit: ActiveShipUnit): PlanetStocks =
@@ -183,6 +188,8 @@ internal object TacticalSupportOperations {
                     }
                 }
                 targetSupplies=OutfitSupplies.distribution(ship(order.target,stocks)!!.outfit).getValue(order.target)
+                // 004c15a0 subtracts this wire counter from the commissioned maximum, not survivors.
+                damaged+=UnitSpecifications.ships.single {it.kind==target.unit.stack.kind}.number-target.unit.boats
             }
             val remaining=OutfitSupplies.distribution(ship(id,stocks)!!.outfit).getValue(id)
             results+=TacticalSupportResult(session.generation,order.grid,order.action,id,order.target,remaining,targetSupplies,damaged,

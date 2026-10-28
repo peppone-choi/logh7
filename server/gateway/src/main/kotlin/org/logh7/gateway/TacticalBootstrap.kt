@@ -50,7 +50,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 pose?.position?.x ?: initial.position.x,pose?.position?.y ?: initial.position.y,0f,
                 pose?.direction ?: initial.direction,
                 damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else
-                    stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.damaged ?: 0)
+                    stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0)
         }.also {require(it.size<=600)}
     }
     fun resume() = people.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +

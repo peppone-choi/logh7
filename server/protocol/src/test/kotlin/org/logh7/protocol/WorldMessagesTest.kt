@@ -58,7 +58,7 @@ class WorldMessagesTest {
     }
     @Test fun shipCatalogueSeparatesClassFromModelAndWritesNativeFloats() {
         val ship = WorldMessages.Ship(93, 3, 1014, "Ship", 220, 3200f, 30000f,
-            10, 6, 4, 40, 19, 24, 0, 50, 50, 40)
+            10, 6, 4, 40, 19, 24, 0, 50, 50, 40,commandRange=20f)
         val input = ByteBuffer.wrap(WorldMessages.ships(listOf(ship)))
         assertEquals(117, input.limit())
         assertEquals(1, input.get().toInt()); assertEquals(93, input.short.toInt())
@@ -68,7 +68,7 @@ class WorldMessagesTest {
         assertEquals(1, input.short.toInt()); assertEquals(0, input.int)
         repeat(5) { assertEquals(0, input.short.toInt()) }
         assertEquals(220, input.short.toInt())
-        assertEquals(0f, input.float); assertEquals(3200f, input.float)
+        assertEquals(20f, input.float); assertEquals(3200f, input.float)
         repeat(13) { input.short }
         assertEquals(30000f, input.float); assertEquals(1f, input.float)
         assertEquals(listOf(10, 4, 6, 40, 19), List(5) { input.short.toInt() })
@@ -76,6 +76,8 @@ class WorldMessagesTest {
         assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship, ship)) }
         assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(model = 120))) }
         assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(model = 51))) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(commandRange = -1f))) }
+        assertFailsWith<IllegalArgumentException> { WorldMessages.ships(listOf(ship.copy(commandRange = Float.NaN))) }
     }
     @Test fun armamentProfilesAndShipSectorMasksAreIndependentFromWeaponPower() {
         val profiles = List(27) { row -> List(8) { column -> row * 8 + column - 100 } }
