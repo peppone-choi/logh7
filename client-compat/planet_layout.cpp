@@ -143,6 +143,7 @@ static void updateCharacterInformation(void* manager);
 #include "input_editor.h"
 #include "peer_notices.h"
 #include "unit_presence.h"
+#include "tactical_labels.h"
 #include "tactical_support.h"
 #include "tactical_radar.h"
 
@@ -535,6 +536,7 @@ static void install() {
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }
     if (!installTacticalSupport()) { status = -3; return; }
+    if (!installTacticalLabels()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
     if (!patchBytes(spotFilter, expectedSpotFilter, spotJump, sizeof(spotJump))) { status = -3; return; }
