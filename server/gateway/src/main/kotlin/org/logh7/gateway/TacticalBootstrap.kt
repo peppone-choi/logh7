@@ -21,10 +21,9 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             gun=if(spec.number("ガン兵装破壊力/消費物資:ガン兵装破壊力/消費物資")>0) charge?.second ?: 0 else 0)
     }}
     val bases=galaxy.bases.filter {it.grid==viewer.grid}.map {base->
-        val radians=Math.toRadians(base.angle.toDouble())
+        val point=TacticalBasePosition.at(base,snapshot.session?.gameSeconds ?: 0)
         // 004c4240 imports wire x/y into native world x/z; wire z is not the map plane.
-        TacticsMessages.Base(base.id,(kotlin.math.cos(radians)*base.radius*1000).toFloat(),
-            (kotlin.math.sin(radians)*base.radius*1000).toFloat(),0f)
+        TacticsMessages.Base(base.id,point.x,point.y,0f)
     }
     val units: List<TacticsMessages.Unit> = run {
         data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,

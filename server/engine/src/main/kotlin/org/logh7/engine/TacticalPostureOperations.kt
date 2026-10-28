@@ -22,22 +22,22 @@ internal object TacticalPostureOperations {
         o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)}}.singleOrNull()
     private fun replace(stocks:PlanetStocks,s:Ship,unit:ActiveShipUnit)=stocks.copy(outfits=stocks.outfits+
         (s.outfit.id to s.outfit.copy(activeShips=ActiveShipUnits(s.outfit.activeShips!!.values.map {if(it.id==unit.id)unit else it}))))
-    private fun basePoint(base:GalaxyBase):TacticalPoint {
-        val angle=Math.toRadians(base.angle.toDouble())
-        return TacticalPoint((kotlin.math.cos(angle)*base.radius*1000).toFloat(),(kotlin.math.sin(angle)*base.radius*1000).toFloat())
-    }
-    private fun target(mode:TacticalShipMode,base:Int,grid:Int,power:Power,point:TacticalPoint,galaxy:Galaxy,stocks:PlanetStocks):Boolean {
+    private fun target(mode:TacticalShipMode,base:Int,grid:Int,power:Power,point:TacticalPoint,galaxy:Galaxy,stocks:PlanetStocks,seconds:Long):Boolean {
         if(!mode.requiresBase)return base==0
         val b=galaxy.bases.singleOrNull {it.id==base && it.grid==grid} ?: return false
         val stock=stocks.bases[base] ?: return false
         if(mode==TacticalShipMode.STATIONED && (stock.camp!=0 || stock.power!=if(power==Power.EMPIRE)2 else 3))return false
-        val at=basePoint(b)
+        val at=TacticalBasePosition.at(b,seconds)
         // Replacement policy: local proximity using the base's displayed diameter, minimum one unit.
         return hypot((point.x-at.x).toDouble(),(point.y-at.y).toDouble())<=maxOf(1.0,b.diameter.toDouble())
     }
-    private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
-        s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now) ?:
+    private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose {
+        val posture=s.unit.posture?.takeIf {it.grid==grid && it.mode==TacticalShipMode.STATIONED}
+        val base=posture?.let {state->galaxy.bases.singleOrNull {it.id==state.base && it.grid==grid}}
+        if(base!=null)return TacticalPose(TacticalBasePosition.at(base,now),s.unit.tactical?.motion?.origin?.direction ?: 0f)
+        return s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now) ?:
             TacticalDeployment.initial(s.unit.id,if(s.outfit.power==2)Power.EMPIRE else Power.ALLIANCE,grid,players,stocks,galaxy)
+    }
     private fun pose(p:Navigator,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
         p.motion?.pose(now) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players,stocks,galaxy)
     private fun owned(s:Ship,p:Navigator,galaxy:Galaxy)=s.unit.boats>0 && s.outfit.commanderId==p.characterId &&
@@ -94,7 +94,7 @@ internal object TacticalPostureOperations {
             val at=if(source==null)pose(player,now,players.values,stocks,galaxy) else pose(source,player.grid,now,players.values,stocks,galaxy)
             if(source!=null && !command.sortie && hypot((at.position.x-centre.x).toDouble(),(at.position.y-centre.y).toDouble())>radius)
                 return reject(NavigationRejection.RANGE)
-            if(!target(command.mode,targetBase,player.grid,player.power,at.position,galaxy,stocks))return reject(NavigationRejection.BASE)
+            if(!target(command.mode,targetBase,player.grid,player.power,at.position,galaxy,stocks,now))return reject(NavigationRejection.BASE)
             val due=if(command.sortie)now+(5L+20L*(index+1))*scale else ready
             val changed=current.copy(order=TacticalPostureOrder(player.characterId,command.mode,targetBase,now,due))
             if(source==null)player=player.copy(posture=changed,attack=null,fire=player.fire?.copy(pending=null))
@@ -122,7 +122,7 @@ internal object TacticalPostureOperations {
             if(order.readyAt>now && context)continue
             val at=pose(p,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context &&
-                target(order.mode,order.base,p.grid,p.power,at.position,galaxy,stocks)
+                target(order.mode,order.base,p.grid,p.power,at.position,galaxy,stocks,minOf(now,order.readyAt))
             val stopped=TacticalMotion(p.grid,now,at,0f,at.direction,listOf(at.position))
             val changed=if(valid)TacticalPosture(p.grid,order.mode,order.base) else state.copy(order=null)
             var next=p.copy(posture=changed)
@@ -139,7 +139,7 @@ internal object TacticalPostureOperations {
             if(order.readyAt>now && context)continue
             val at=pose(s,state.grid,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context && p!=null &&
-                target(order.mode,order.base,state.grid,p.power,at.position,galaxy,stocks)
+                target(order.mode,order.base,state.grid,p.power,at.position,galaxy,stocks,minOf(now,order.readyAt))
             val changed=if(valid)TacticalPosture(state.grid,order.mode,order.base) else state.copy(order=null)
             var unit=s.unit.copy(posture=changed)
             if(valid) {

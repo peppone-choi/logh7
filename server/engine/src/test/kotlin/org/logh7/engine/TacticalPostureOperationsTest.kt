@@ -149,4 +149,25 @@ class TacticalPostureOperationsTest {
         assertEquals(NavigationRejection.UNIT,accept(s,n,p,request().copy(tacticalPosture=command.copy(units=listOf(1010000)))).rejection)
         assertEquals(before,s.stocks);assertEquals(0,s.saves)
     }
+    @Test fun nonzeroRadiusUsesTheCurrentOrbitAndRechecksItsScheduledCompletionPosition() {
+        for(cycle in listOf(86400,1000)) {
+            val moving=Galaxy(galaxy.systems,galaxy.bases.map {it.copy(radius=20f,cycle=cycle)},galaxy.starts)
+            val s=state()
+            val at=TacticalBasePosition.at(moving.bases.first(),now)
+            fun located(offset:Float)=TacticalMotion(2487,now,TacticalPose(TacticalPoint(at.x,at.y+offset),0f),0f,0f,
+                listOf(TacticalPoint(at.x,at.y+offset)))
+            s.players=s.players.mapValues {(_,v)->v.copy(motion=located(-.5f))}
+            val own=s.stocks.outfits.getValue(1)
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(activeShips=ActiveShipUnits(own.activeShips!!.values.map {
+                it.copy(tactical=NpcTacticalState(located(.5f),now,now))}))))
+            val n=Navigation(moving,s.nav,NavigationPolicy())
+            val p=PlanetProduction(moving,s.inventory,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+            assertNotNull(TacticalPostureOperations.accept(request(TacticalShipMode.ANCHORED,1000,listOf(1)),
+                session,moving,n,p,p.snapshot(1)!!,s.commit,24).player)
+            val out=mutableListOf<TacticalPostureResult>()
+            TacticalCombat.settle(session.copy(gameMillis=(now+480)*1000),moving,n,p,s.commit,onPosture=out::add)
+            assertEquals(cycle==1000,out.single().cancelled)
+            assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().posture!!.order)
+        }
+    }
 }
