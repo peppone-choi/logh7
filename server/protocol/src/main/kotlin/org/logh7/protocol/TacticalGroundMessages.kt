@@ -68,6 +68,14 @@ object TacticalGroundMessages {
             .putInt(base).putShort(stamina.toShort()).array())
     }
 
+    /** 004aa320 reader / 004aa410 formatter: base u32, power u8, camp u8.
+     * 004beba0 applies this to the existing tactical base's allegiance. No clock field. */
+    fun occupationFinished(base:Int,power:Int,camp:Int):ByteArray {
+        require(base in 1..65535 && power in 0..4 && camp in 0..1)
+        return LoginMessages.sessionMessage(0x0442,ByteBuffer.allocate(6).putInt(base)
+            .put(power.toByte()).put(camp.toByte()).array())
+    }
+
     /** Native NotifySortie: one unit leaves the base into anchored mode (004c1a80). */
     fun sortieCompleted(seconds:Long,base:Int,unit:PostureUnit):ByteArray {
         require(seconds in 0..0xffffffffL && base>0)

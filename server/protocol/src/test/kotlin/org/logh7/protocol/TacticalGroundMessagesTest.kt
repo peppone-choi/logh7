@@ -86,4 +86,20 @@ class TacticalGroundMessagesTest {
         assertFailsWith<IllegalArgumentException>{TacticalGroundMessages.postureChanged(0,6,1049,listOf(unit),-1,0)}
         assertFailsWith<IllegalArgumentException>{TacticalGroundMessages.postureChanged(0,6,1049,listOf(unit),0,-1)}
     }
+    @Test fun occupationUsesSixPackedBytesWithoutClockOrPadding() {
+        assertContentEquals(bytes("000000000442000004190300"),
+            TacticalGroundMessages.occupationFinished(1049,3,0))
+        assertContentEquals(bytes("0000000004420000ffff0401"),
+            TacticalGroundMessages.occupationFinished(65535,4,1))
+        for(base in listOf(-1,0,65536)) assertFailsWith<IllegalArgumentException> {
+            TacticalGroundMessages.occupationFinished(base,2,0)
+        }
+        for(power in listOf(-1,5,256)) assertFailsWith<IllegalArgumentException> {
+            TacticalGroundMessages.occupationFinished(1049,power,0)
+        }
+        for(camp in listOf(-1,2,256)) assertFailsWith<IllegalArgumentException> {
+            TacticalGroundMessages.occupationFinished(1049,2,camp)
+        }
+    }
+
 }
