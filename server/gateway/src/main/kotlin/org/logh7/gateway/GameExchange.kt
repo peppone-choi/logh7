@@ -70,6 +70,7 @@ class GameExchange(
     private var deliveredPlayer: org.logh7.engine.Navigator? = null
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
+    private var tacticalResumeGrid: Int? = null
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
@@ -799,7 +800,21 @@ class GameExchange(
                             when(opcode) {
                                 0x033e -> org.logh7.protocol.TacticsMessages.corps(tactical.corps.filter {it.character in ids})
                                 0x034a -> org.logh7.protocol.TacticsMessages.basePositions(tactical.bases.filter {it.id in ids})
-                                0x0348 -> org.logh7.protocol.TacticsMessages.positions(tactical.units.filter {it.id in ids})
+                                0x0348 -> {
+                                    val units=tactical.units.filter {it.id in ids}
+                                    val positions=org.logh7.protocol.TacticsMessages.positions(units)
+                                    // The CD can receive the bootstrap paths before 004c32a0 creates
+                                    // live units; 004be8f0 then ignores them. Its first nonempty
+                                    // 0348 poll comes from the live tactical update (004b6e00).
+                                    // Replay once from this fresh snapshot, not the earlier bootstrap.
+                                    if(tacticalResumeGrid==tactical.grid && units.isNotEmpty()) {
+                                        tacticalResumeGrid=null
+                                        val messages=listOf(positions)+tactical.resume()
+                                        presence?.observeMotions(connection,messages)
+                                        return handshake.stageAll(messages,clearHeader=0)
+                                    }
+                                    positions
+                                }
                                 else -> org.logh7.protocol.TacticsMessages.states(tactical.units.filter {it.id in ids})
                             }
                         }
@@ -1081,6 +1096,7 @@ class GameExchange(
                                 publication = Publication(character, player, true)
                                 val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(navigation.snapshot()),
                                     world.galaxy,player,characters::characterById) else null
+                                tacticalResumeGrid=tactical?.grid
                                 listOf(BootstrapMessages.characterId(character),
                                     characterMessage(character, player),
                                     unitMessage(character, player),

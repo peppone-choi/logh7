@@ -43,7 +43,7 @@ class TacticalFleetMotionWireTest {
         fun command(character:Int):ByteArray {
             val packet=org.logh7.protocol.TacticalMoveMessages.reply(org.logh7.protocol.TacticalMoveMessages.Move(character,
                 listOf(org.logh7.protocol.TacticalMoveMessages.Unit(1,0f,org.logh7.protocol.TacticalMoveMessages.Point(999f,999f,0f))),
-                1f,0f,listOf(3f,8f,20f).map {org.logh7.protocol.TacticalMoveMessages.Point(0f,it,0f)},parallel),0,0)
+                1f,0f,listOf(3f,9.5f,20f).map {org.logh7.protocol.TacticalMoveMessages.Point(0f,it,0f)},parallel),0,0)
             return packet.copyOfRange(4,packet.size)
         }
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=stock,
@@ -78,6 +78,14 @@ class TacticalFleetMotionWireTest {
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
                 val resume=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1})
                 assertEquals(if(parallel)3.5f else 7f,resume.getFloat(31));assertEquals(0,resume.getInt(10))
+                fixture.engine.submit(WorldCommand.AdvanceTo(600)) // Import delay: another two G-seconds.
+                val query=ByteBuffer.allocate(8).putShort(0x0348).putShort(1).putInt(1).array()
+                c.send(query);through(c,0x0349)
+                val live=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1})
+                assertEquals(if(parallel)4.5f else 9f,live.getFloat(31));assertEquals(0,live.getInt(10))
+                // Unit 1 is the last saved path; the next poll must not replay again.
+                c.send(query)
+                assertEquals(0x0349,ByteBuffer.wrap(c.receive()).getShort(4).toInt())
             }
             fixture.engine.submit(WorldCommand.AdvanceTo(1000)) // Both have passed the second point; reconnect got only the last two.
             clients.forEachIndexed {i,c ->
