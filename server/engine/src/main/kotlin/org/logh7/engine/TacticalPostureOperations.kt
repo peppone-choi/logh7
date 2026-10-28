@@ -28,8 +28,11 @@ internal object TacticalPostureOperations {
         val stock=stocks.bases[base] ?: return false
         if(mode==TacticalShipMode.STATIONED && (stock.camp!=0 || stock.power!=if(power==Power.EMPIRE)2 else 3))return false
         val at=TacticalBasePosition.at(b,seconds)
-        // Replacement policy: local proximity using the base's displayed diameter, minimum one unit.
-        return hypot((point.x-at.x).toDouble(),(point.y-at.y).toDouble())<=maxOf(1.0,b.diameter.toDouble())
+        // Native 004b3700 excludes destinations within the planet's radius 5 + unit radius .25.
+        // Replacement policy: admit its reachable perimeter with .25 docking margin; diameter alone
+        // can otherwise require a destination the original movement editor refuses to accept.
+        val radius=maxOf(1.0,b.diameter.toDouble(),if(b.kind==0)5.5 else 0.5)
+        return hypot((point.x-at.x).toDouble(),(point.y-at.y).toDouble())<=radius
     }
     private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose {
         val posture=s.unit.posture?.takeIf {it.grid==grid && it.mode==TacticalShipMode.STATIONED}

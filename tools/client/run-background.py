@@ -391,6 +391,15 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             finally:
                                 script.exports_sync.setkey(0)
                                 win32gui.PostMessage(target, win32con.WM_KEYUP, code, 3 << 30)
+                        elif "wheel" in action:
+                            delta = action["wheel"]
+                            if type(delta) is not int or delta == 0 or abs(delta) > 1200 or delta % 120 != 0:
+                                raise ValueError("Wheel requires one to ten bounded owned-device notches")
+                            target = owned_view(desk, pid)
+                            x, y = win32gui.ClientToScreen(target, (512, 384))
+                            win32gui.PostMessage(target, win32con.WM_MOUSEWHEEL,
+                                                 (delta & 0xffff) << 16, (y << 16) | (x & 0xffff))
+                            time.sleep(0.15)
                         elif "hover" in action:
                             point = action["hover"]
                             if not isinstance(point, list) or len(point) != 2 or not all(type(v) is int and 0 <= v <= 4095 for v in point):

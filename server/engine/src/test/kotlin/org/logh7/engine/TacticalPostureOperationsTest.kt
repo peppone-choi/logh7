@@ -78,6 +78,30 @@ class TacticalPostureOperationsTest {
         assertEquals(NavigationRejection.BASE,accept(far,Navigation(galaxy,far.nav,NavigationPolicy()),production(far),
             request(TacticalShipMode.ANCHORED,1000,listOf(1010000))).rejection)
     }
+    @Test fun reachablePlanetPerimeterAcceptsMixedDockingButOutsideAndFortressDoNotGainUnlimitedRange() {
+        for(mode in listOf(TacticalShipMode.ANCHORED,TacticalShipMode.STATIONED))
+            for((kind,distance,allowed) in listOf(Triple(0,5.5f,true),Triple(0,5.501f,false),Triple(1,5.5f,false))) {
+                val local=Galaxy(galaxy.systems,galaxy.bases.map {if(it.id==1000)it.copy(kind=kind) else it},galaxy.starts)
+                val s=state()
+                s.players=s.players.mapValues {(_,p)->p.copy(motion=motion(distance))}
+                val own=s.stocks.outfits.getValue(1)
+                s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(activeShips=ActiveShipUnits(own.activeShips!!.values.map {
+                    if(it.id==1)it.copy(tactical=it.tactical!!.copy(motion=motion(distance))) else it
+                }))))
+                val n=Navigation(local,s.nav,NavigationPolicy())
+                val production=PlanetProduction(local,s.inventory,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+                val result=TacticalPostureOperations.accept(request(mode,1000,listOf(1010000,1)),session,local,n,production,
+                    production.snapshot(1)!!,s.commit,24)
+                if(!allowed) {
+                    assertEquals(NavigationRejection.BASE,result.rejection);assertEquals(0,s.saves)
+                } else {
+                    assertNull(result.rejection);assertEquals(now+240,result.postureReadyAt)
+                    val out=mutableListOf<TacticalPostureResult>()
+                    TacticalCombat.settle(session.copy(gameMillis=(now+240)*1000),local,n,production,s.commit,onPosture=out::add)
+                    assertEquals(2,out.size);assertTrue(out.all {!it.cancelled && it.mode==mode})
+                }
+            }
+    }
     @Test fun stopClearsThePendingMixedOrderAndCommandGatePreventsRacingMovement() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         accept(s,n,p)
