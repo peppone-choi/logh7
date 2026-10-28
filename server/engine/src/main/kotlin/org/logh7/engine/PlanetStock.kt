@@ -21,8 +21,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
         require(nextShipId in 1..1_000_000)
-        val ids = outfits.values.flatMap { it.activeShips?.values.orEmpty() }.map { it.id }
-        require(ids.distinct().size == ids.size && ids.all { it < nextShipId }) { "Invalid active ship identity sequence" }
+        val ids = outfits.values.flatMap { it.activeShips?.values.orEmpty().map {u->u.id} + it.activeGround?.values.orEmpty().map {u->u.id} }
+        require(ids.distinct().size == ids.size && ids.all { it < nextShipId }) { "Invalid active unit identity sequence" }
+        require(outfits.values.all {it.activeGround?.values.orEmpty().all {u->u.base==0 || u.base in bases}}) {"Unknown ground base"}
         require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
     }
 }

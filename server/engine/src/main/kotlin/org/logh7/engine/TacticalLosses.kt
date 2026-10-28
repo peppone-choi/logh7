@@ -22,10 +22,10 @@ internal object TacticalLosses {
             attack=if(remaining==0)null else unit.attack,shot=if(remaining==0)null else unit.shot,
             motionCommander=if(remaining==0)0 else unit.motionCommander)
         val roster=ActiveShipUnits(ships.values.map {if(it.id==id)next else it})
-        // Troops are already pooled at outfit level, so survivors retain them collectively.
-        // The original nonzero evacuation threshold is unknown; zero carriers cannot retain troops.
-        val troops=if(roster.values.any {it.boats>0})outfit.units.troops else emptyMap()
+        // Keep deployed troops ashore. Aboard losses still use the replacement zero-carrier
+        // threshold; the original nonzero evacuation threshold is unknown.
+        val (troops,ground)=GroundUnits.afterLoss(outfit,roster)
         val inventory=UnitInventory(roster.quantities(),troops)
-        return OutfitSupplies.withBalances(outfit.copy(activeShips=roster,units=inventory),balances+(id to cargo))
+        return OutfitSupplies.withBalances(outfit.copy(activeShips=roster,units=inventory,activeGround=ground),balances+(id to cargo))
     }
 }

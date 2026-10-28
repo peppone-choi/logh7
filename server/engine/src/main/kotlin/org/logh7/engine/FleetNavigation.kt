@@ -22,7 +22,7 @@ internal object FleetNavigation {
                     facility.kind == 4 && facility.spots.any { it.id == player.spotId && it.kind == 6 }
                 })
         }
-        val units = (GridForces.units(outfit) + 1 + followers.size).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val units = (GridForces.mobileUnits(outfit) + 1 + followers.size).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val preview = navigation.apply(request, session, stocks, persist = false, movingUnits = units, soloShip = false)
         val after = preview.player ?: preview.previous ?: return preview
         val position = OutfitPosition(after.grid, after.baseId)

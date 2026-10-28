@@ -44,7 +44,7 @@ object ActiveShips {
     }
     fun initialize(stocks: PlanetStocks): PlanetStocks {
         val missing = stocks.outfits.values.filter { it.activeShips == null }.sortedBy { it.id }
-        if (missing.isEmpty()) return stocks
+        if (missing.isEmpty()) return GroundUnits.initialize(stocks)
         missing.forEach { checkCapacity(it.units) }
         val count = missing.sumOf { it.units.ships.values.sumOf(Int::toLong) }
         require(count <= 1_000_000L - stocks.nextShipId) { "Active ship identity space exhausted" }
@@ -58,7 +58,7 @@ object ActiveShips {
             }
             outfits[outfit.id] = outfit.copy(activeShips = ActiveShipUnits(ships))
         }
-        return stocks.copy(outfits = outfits, nextShipId = cursor)
+        return GroundUnits.initialize(stocks.copy(outfits = outfits, nextShipId = cursor))
     }
 
     fun reorganize(stocks: PlanetStocks, outfitId: Int, inventory: UnitInventory): PlanetStocks {
@@ -78,7 +78,10 @@ object ActiveShips {
                 repeat(quantity - retained.size) { add(ActiveShipUnit(cursor++, stack)) }
             }
         }
-        val changed = outfit.copy(units = inventory, activeShips = ActiveShipUnits(units))
+        val roster=ActiveShipUnits(units)
+        val (ground,next)=GroundUnits.reorganize(outfit,inventory,roster,cursor)
+        cursor=next
+        val changed = outfit.copy(units = inventory, activeShips = roster,activeGround=ground)
         return stocks.copy(outfits = stocks.outfits + (outfitId to changed), nextShipId = cursor)
     }
 }

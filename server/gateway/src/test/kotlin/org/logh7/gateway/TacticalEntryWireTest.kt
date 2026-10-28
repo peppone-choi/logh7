@@ -74,8 +74,10 @@ class TacticalEntryWireTest {
             first.send(ByteBuffer.allocate(7).putShort(0x034a).put(1).putInt(1049).array())
             val basePosition=ByteBuffer.wrap(through(first,0x034b))
             assertEquals(1049,basePosition.getInt(7))
-            assertEquals(0f,basePosition.getFloat(11),0.0001f)
-            assertEquals(20000f,basePosition.getFloat(15));assertEquals(0f,basePosition.getFloat(19))
+            // Frozen clock is a whole orbit; native angle 90 projects radius 20 onto wire x.
+            assertEquals(0,SessionRules.load().startSeconds%86400)
+            assertEquals(20f,basePosition.getFloat(11),0.0001f)
+            assertEquals(0f,basePosition.getFloat(15),0.0001f);assertEquals(0f,basePosition.getFloat(19))
             val control=org.logh7.protocol.TacticsMessages.Control(10000,1010000,listOf(40,0,20,60,20)+List(6){20})
             val request=org.logh7.protocol.TacticsMessages.controlReply(control,0,0)
             first.send(request.copyOfRange(4,request.size))
