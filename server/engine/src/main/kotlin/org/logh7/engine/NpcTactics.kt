@@ -37,12 +37,12 @@ internal object NpcTactics {
         else member.connection?.let {p.characterId to it}
     }.toMap()
     private fun initial(unit:ActiveShipUnit,outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,
-        stocks:PlanetStocks,galaxy:Galaxy):TacticalPose=unit.tactical?.takeIf {it.motion.grid==grid}?.motion?.pose(now)
+        stocks:PlanetStocks,galaxy:Galaxy):TacticalPose=unit.tactical?.takeIf {it.motion.grid==grid}?.motion?.pose(now,unit.posture,galaxy)
         ?: TacticalDeployment.initial(unit.id,power(outfit),grid,players.values,stocks,galaxy)
 
     private fun contacts(outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,
         galaxy:Galaxy):List<Contact> = players.values.filter {it.grid==grid && it.baseId==0 && it.cpPaused &&
-        it.power!=power(outfit) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now) ?:
+        it.power!=power(outfit) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy) ?:
             TacticalDeployment.initial(p.unitId,p.power,grid,players.values,stocks,galaxy))} +
         stocks.outfits.values.filter {it.power!=outfit.power && it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}}
@@ -81,7 +81,7 @@ internal object NpcTactics {
                         unit.motionCommander==outfit.commanderId)continue
                     val next=if(position.baseId!=0 || state.motion.grid!=position.grid)unit.copy(tactical=null,motionCommander=0,attack=null,shot=null) else {
                         if(state.motion.velocity==0f && state.target==0 && state.retreat==null && unit.motionCommander==0)continue
-                        val motion=stationary(position.grid,now,state.motion.pose(now))
+                        val motion=stationary(position.grid,now,state.motion.pose(now,unit.posture,galaxy))
                         movements+=TacticalMovement(session.generation,unit.id,position.grid,now,motion,audience(session,position.grid,players))
                         unit.copy(tactical=state.copy(motion=motion,nextDecisionAt=now+scale,target=0,retreat=null),motionCommander=0)
                     }
@@ -166,7 +166,7 @@ internal object NpcTactics {
             outfit=stocks.outfits.getValue(outfitId)
             val current=outfit.activeShips!!.values.filter {it.boats>0}
             if(withdrawal!=null && now>=withdrawal.completesAt && current.all {u->
-                    u.tactical?.let {it.retreat==withdrawal && RetreatRules.outside(it.motion.pose(now))}==true}) {
+                    u.tactical?.let {it.retreat==withdrawal && RetreatRules.outside(it.motion.pose(now,u.posture,galaxy))}==true}) {
                 val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
                 val count=GridForces.units(outfit).toInt().coerceAtLeast(1)
                 if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(power(outfit),false),count,false))==GridEntryVerdict.ALLOWED) {

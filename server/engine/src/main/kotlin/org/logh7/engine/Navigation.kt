@@ -177,7 +177,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
             if (before.retreat != null) return reject(NavigationRejection.BUSY)
             if (before.energy?.values?.get(1) != TacticalEnergy.WARP_MAX) return reject(NavigationRejection.ENERGY)
-            val pose = before.motion?.pose(now) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
+            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy)
             if (!RetreatRules.outside(pose)) return reject(NavigationRejection.INSIDE_RADAR)
             val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose)
@@ -195,7 +195,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
             if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
-            val pose = before.motion?.pose(now) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
+            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy)
             // Retain an authoritative stationary pose; null would restore the initial deployment on reconnect.
             val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)),
@@ -214,7 +214,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val maximum = (before.energy ?: TacticalEnergy.ZERO).values[0] / 100f
             if (move.velocity > maximum) return reject(NavigationRejection.ENERGY)
             if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
-            val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now) ?:
+            val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now,before.posture,galaxy) ?:
                 TacticalDeployment.initial(before.unitId, before.power, before.grid,
                     snapshot(session.generation).values + before, stocks, galaxy)
             val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
@@ -235,7 +235,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val maximum = energy.values[0] / 100f*(if(motion.parallel)0.5f else 1f)
                 if (motion.grid != before.grid || motion.velocity <= maximum) motion else motion.copy(
                     acceptedAt = maxOf(now, motion.startsAt) - TacticalMotion.WAIT_SECONDS,
-                    origin = motion.pose(now), velocity = maximum, waypoints = motion.remaining(now),reportedWaypoints=0)
+                    origin = motion.pose(now,before.posture,galaxy), velocity = maximum, waypoints = motion.remaining(now),reportedWaypoints=0)
             }
             val charge = if(before.charge!=null || energy.values[3]>0 || energy.values[4]>0)
                 (before.charge ?: TacticalCharge(now, clockScale=clockScale)).settle(now, before.energy ?: TacticalEnergy.ZERO) else null
@@ -329,7 +329,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 continue
             }
             if (now < retreat.completesAt) continue
-            val pose = player.motion?.pose(now) ?: continue
+            val pose = player.motion?.pose(now,player.posture,galaxy) ?: continue
             if (!RetreatRules.outside(pose)) continue
             val forces = GridForces.collect(galaxy, session.generation, next.values, stocks)
             if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces)) continue

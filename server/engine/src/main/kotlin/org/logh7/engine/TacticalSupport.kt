@@ -31,13 +31,13 @@ internal object TacticalSupportOperations {
     private fun ship(id: Int, stocks: PlanetStocks): Ship? = stocks.outfits.values.mapNotNull {o ->
         o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)} }.singleOrNull()
     private fun pose(s: Ship, grid: Int, now: Long, players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy) =
-        s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now) ?:
+        s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy) ?:
             TacticalDeployment.initial(s.unit.id,if(s.outfit.power==2)Power.EMPIRE else Power.ALLIANCE,grid,players,stocks,galaxy)
     private fun targetPoint(id: Int, player: Navigator, now: Long, players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy): TacticalPoint? {
         if(id>1_000_000) {
             val target=players.values.singleOrNull {it.unitId==id && it.grid==player.grid && it.power==player.power &&
                 it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null} ?: return null
-            return (target.motion?.pose(now) ?: TacticalDeployment.initial(id,target.power,target.grid,players.values,stocks,galaxy)).position
+            return (target.motion?.pose(now,target.posture,galaxy) ?: TacticalDeployment.initial(id,target.power,target.grid,players.values,stocks,galaxy)).position
         }
         val target=ship(id,stocks) ?: return null
         if(target.unit.boats==0 || target.outfit.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
@@ -54,7 +54,7 @@ internal object TacticalSupportOperations {
         if(spec.type!=(if(order.action==TacticalSupportAction.REPAIR)11 else 12))return false
         val to=targetPoint(order.target,player,now,players,stocks,galaxy) ?: return false
         val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
-        val commander=(player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
+        val commander=(player.motion?.pose(now,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
             players.values,stocks,galaxy)).position
         if(commandRadius!=null && hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>commandRadius)return false
         return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<TacticalSupportRules.SUPPORT_RANGE
@@ -90,7 +90,7 @@ internal object TacticalSupportOperations {
         val now=session.gameMillis/1000
         if(now>0xffffffffL-TacticalMotion.WAIT_SECONDS)return reject(NavigationRejection.CLOCK)
         val motions=linkedMapOf<Int,TacticalMotion>()
-        val commander=(player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
+        val commander=(player.motion?.pose(now,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
             navigation.snapshot(session.generation).values,stocks,galaxy)).position
         val radius=checkNotNull(player.commandRange).radius(now)
         for(source in sources) {

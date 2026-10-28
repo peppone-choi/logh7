@@ -168,6 +168,12 @@ class TacticalPostureOperationsTest {
             TacticalCombat.settle(session.copy(gameMillis=(now+480)*1000),moving,n,p,s.commit,onPosture=out::add)
             assertEquals(cycle==1000,out.single().cancelled)
             assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().posture!!.order)
+            if(cycle==86400) {
+                val unit=s.stocks.outfits.getValue(1).activeShips!!.values.first()
+                assertEquals(now+240,unit.tactical!!.motion.acceptedAt)
+                assertEquals(unit.tactical.motion.pose(now+480,unit.posture,moving),out.single().units.getValue(1))
+                assertTrue(out.single().units.getValue(1).position.x>at.x)
+            }
         }
     }
 }

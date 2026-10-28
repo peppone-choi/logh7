@@ -8,6 +8,32 @@ import kotlin.test.*
 
 class TacticalPostureStoreTest {
     @TempDir lateinit var directory:Path
+    @Test fun anchorReferenceClockAndOffsetSurviveBothStoresAndProjectAfterReopening() {
+        val base=GalaxyBase(1049,2017,60,0,"Base",0,20f,1000,0,0f,2f)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2017,4,"Base",2)),listOf(base),Power.entries.associateWith {2017})
+        val posture=TacticalPosture(2017,TacticalShipMode.ANCHORED,1049)
+        val origin=TacticalPose(TacticalPoint(2f,23f),.4f)
+        val motion=TacticalMotion(2017,0,origin,0f,.4f,listOf(origin.position))
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,1000,900,cpPaused=true,posture=posture,motion=motion)
+        val nav=directory.resolve("anchor-nav")
+        FileNavigationStore(nav).use {it.save(mapOf("pilot" to player))}
+        FileNavigationStore(nav).use {
+            val restored=it.load().getValue("pilot")
+            assertEquals(player,restored)
+            assertEquals(22f,restored.motion!!.pose(250,restored.posture,galaxy).position.x,.00001f)
+        }
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),posture=posture,tactical=NpcTacticalState(motion,0,0))))
+        val outfit=OutfitStock(1,2,OutfitKind.PATROL,1049,10,10000,UnitInventory(ships=ships.quantities()),activeShips=ships)
+        val stock=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),mapOf(1 to outfit),
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1049)),nextShipId=2)
+        val path=directory.resolve("anchor-stock")
+        FilePlanetStockStore(path).use {it.save(stock)}
+        FilePlanetStockStore(path).use {
+            val restored=it.load()!!.outfits.getValue(1).activeShips!!.values.single()
+            assertEquals(motion,restored.tactical!!.motion)
+            assertEquals(-17f,restored.tactical!!.motion.pose(500,restored.posture,galaxy).position.y,.00001f)
+        }
+    }
     private val pending=TacticalPosture(2017,TacticalShipMode.ANCHORED,1049,
         TacticalPostureOrder(10000,TacticalShipMode.STATIONED,1049,100,340))
     @Test fun currentAndPendingPosturesReopenForPersonalAndCommissionedShipsWithoutAdvancingTheOrder() {

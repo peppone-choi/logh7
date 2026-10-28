@@ -6,6 +6,26 @@ import org.logh7.protocol.*
 import kotlin.test.*
 
 class TacticalPostureBootstrapTest {
+    @Test fun anchoredReconnectProjectsBothSourcesAndDoesNotReplayAnObsoleteMotionOrigin() {
+        val base=GalaxyBase(1049,2487,60,0,"Base",0,20f,1000,0,0f,2f)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Base",2)),listOf(base),Power.entries.associateWith {2487})
+        val person=CharacterMessages.Generate(0,10000,2,0,0,"Alpha","Pilot",30,1,1,0,List(8){50},0,0,0,20,0,0,"Ship",0)
+        val posture=TacticalPosture(2487,TacticalShipMode.ANCHORED,1049)
+        val origin=TacticalPose(TacticalPoint(2f,23f),.4f)
+        val motion=TacticalMotion(2487,0,origin,0f,.4f,listOf(origin.position))
+        val viewer=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true,posture=posture,motion=motion)
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),posture=posture,tactical=NpcTacticalState(motion,0,0))))
+        val outfit=OutfitStock(1,2,OutfitKind.PATROL,1049,10,10000,UnitInventory(ships=ships.quantities()),
+            activeShips=ships,position=OutfitPosition(2487))
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),mapOf(1 to outfit),
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1049)),nextShipId=2)
+        val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,250,0,0,emptyMap(),1,1,null),
+            navigators=mapOf("pilot" to viewer),planetStocks=stocks)
+        val bootstrap=TacticalBootstrap(snapshot,galaxy,viewer){person}
+        assertEquals(2,bootstrap.units.size)
+        for(unit in bootstrap.units) {assertEquals(22f,unit.x,.00001f);assertEquals(3f,unit.y,.00001f)}
+        assertTrue(bootstrap.resume().none {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0400})
+    }
     @Test fun storedCurrentPostureIsProjectedForBothShipSourcesWithoutApplyingAPendingTarget() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
             listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})

@@ -24,7 +24,7 @@ internal object TacticalFleetMotion {
             (if(it==TacticalManeuver.REVERSE)10L else 5L)*clockScale,command.units)}
         if(rotation!=null && now>0xffffffffL-rotation.wait)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
-        val own=player.motion?.takeIf {it.grid==player.grid}?.pose(now) ?:
+        val own=player.motion?.takeIf {it.grid==player.grid}?.pose(now,player.posture,galaxy) ?:
             TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
         val regular=command.units.filter {it!=player.unitId}
         val ships=regular.map {id ->
@@ -39,7 +39,7 @@ internal object TacticalFleetMotion {
         }
         val poses=command.units.associateWith {id->if(id==player.unitId)own else {
             val unit=ships.single {it.second.id==id}.second
-            (unit.tactical?.motion?.takeIf {it.grid==player.grid}?.pose(now) ?:
+            (unit.tactical?.motion?.takeIf {it.grid==player.grid}?.pose(now,unit.posture,galaxy) ?:
                 TacticalDeployment.initial(id,player.power,player.grid,players.values,stocks,galaxy)).also {pose ->
                     if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
                         checkNotNull(player.commandRange).radius(now))return reject(NavigationRejection.RANGE)

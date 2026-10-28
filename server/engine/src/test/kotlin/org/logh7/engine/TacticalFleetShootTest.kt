@@ -4,6 +4,24 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalFleetShootTest {
+    @Test fun firingAfterOrbitalDriftUsesProjectedCommanderShooterAndTargetPoses() {
+        val at=now+1000;val timed=session.copy(gameMillis=at*1000)
+        val moving=Galaxy(galaxy.systems,galaxy.bases.map {it.copy(grid=2488,radius=20f,cycle=1000)},galaxy.starts)
+        val base=moving.bases.single();val posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,base.id)
+        fun anchored(at:Long,offset:Float):TacticalMotion {
+            val point=TacticalBasePosition.at(base,at).let {TacticalPoint(it.x,it.y+offset)}
+            return TacticalMotion(2488,at,TacticalPose(point,0f),0f,0f,listOf(point))
+        }
+        val s=state();s.players=s.players.mapValues {(_,v)->v.copy(posture=posture,motion=anchored(at-750,.5f))}
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits.mapValues {(_,o)->o.copy(activeShips=ActiveShipUnits(o.activeShips!!.values.map {
+            it.copy(posture=posture,tactical=NpcTacticalState(anchored(at-if(it.id==99)250 else 500,if(it.id==99)2f else .8f),at,at))}))})
+        val n=Navigation(moving,s.nav,NavigationPolicy())
+        val p=PlanetProduction(moving,s.inventory,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,at)}
+        val command=request(listOf(2)).copy(tacticalMove=null,tacticalShoot=TacticalShoot(listOf(2),TacticalWeapon.BEAM.wire,1,99))
+        assertNotNull(TacticalFleetShoot.accept(command,timed,moving,n,p,p.snapshot(1)!!,s.commit,24).player)
+        val hits=TacticalCombat.settle(session.copy(gameMillis=(at+120)*1000),moving,n,p,s.commit)
+        assertEquals(1,hits.size);assertEquals(2,hits.single().source);assertEquals(99,hits.single().hit.target)
+    }
     private val rules=SessionRules.load()
     private val session=SessionSimulation(rules).also {it.join("pilot",Power.EMPIRE,false,"current")}.exportState()
     private val now=session.gameMillis/1000

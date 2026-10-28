@@ -4,6 +4,22 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalBasePositionTest {
+    @Test fun anchoredPoseRetainsItsWorldOffsetAndStopRebasingDoesNotLoseTheOrbit() {
+        val b=base(20f,1000)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Base",2)),listOf(b),Power.entries.associateWith {2487})
+        val origin=TacticalPose(TacticalPoint(2f,23f),.4f)
+        val motion=TacticalMotion(2487,0,origin,0f,.4f,listOf(origin.position))
+        val anchored=TacticalPosture(2487,TacticalShipMode.ANCHORED,b.id)
+        val quarter=motion.pose(250,anchored,galaxy)
+        assertEquals(22f,quarter.position.x,.00001f);assertEquals(3f,quarter.position.y,.00001f)
+        val stopped=TacticalMotion(2487,250,quarter,0f,quarter.direction,listOf(quarter.position))
+        assertEquals(motion.pose(500,anchored,galaxy).position.x,stopped.pose(500,anchored,galaxy).position.x,.00001f)
+        assertEquals(motion.pose(500,anchored,galaxy).position.y,stopped.pose(500,anchored,galaxy).position.y,.00001f)
+        assertEquals(origin,motion.pose(250,anchored.copy(grid=2488),galaxy))
+        assertEquals(origin,motion.pose(250,anchored.copy(base=999),galaxy))
+        assertEquals(origin,motion.pose(250,TacticalPosture(2487),galaxy))
+        assertEquals(TacticalBasePosition.at(b,250),motion.pose(250,anchored.copy(mode=TacticalShipMode.STATIONED),galaxy).position)
+    }
     private fun base(radius:Float,cycle:Int=86400,angle:Float=0f,direction:Int=0,kind:Int=0)=
         GalaxyBase(1048,2487,60,kind,"Base",0,radius,cycle,direction,angle,2f)
     @Test fun capturedNativeBaseCoordinatesAtTheCapturedGameClockMatchExactly() {

@@ -19,3 +19,14 @@ object TacticalBasePosition {
         return TacticalPoint((sin(angle.toDouble())*base.radius).toFloat(),(cos(angle.toDouble())*base.radius).toFloat())
     }
 }
+
+/** A stored stopped world pose retains its offset from the base at its accepted clock. */
+fun TacticalMotion.pose(seconds:Long,posture:TacticalPosture?,galaxy:Galaxy):TacticalPose {
+    val sampled=pose(seconds)
+    val state=posture?.takeIf {it.grid==grid && it.mode.requiresBase} ?: return sampled
+    val base=galaxy.bases.singleOrNull {it.id==state.base && it.grid==grid} ?: return sampled
+    val current=TacticalBasePosition.at(base,seconds)
+    if(state.mode==TacticalShipMode.STATIONED)return sampled.copy(position=current)
+    val origin=TacticalBasePosition.at(base,acceptedAt)
+    return sampled.copy(position=TacticalPoint(sampled.position.x+(current.x-origin.x),sampled.position.y+(current.y-origin.y)))
+}

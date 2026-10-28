@@ -4,6 +4,26 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalSupportTest {
+    @Test fun supplyUsesCurrentOrbitalPositionsForCommanderSourceAndTargetAfterIndependentAnchorTimes() {
+        val at=now+1000;val timed=session.copy(gameMillis=at*1000)
+        val moving=Galaxy(galaxy.systems,galaxy.bases.map {it.copy(grid=2488,radius=20f,cycle=1000)},galaxy.starts)
+        val base=moving.bases.single();val posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,base.id)
+        fun anchored(at:Long,offset:Float):TacticalMotion {
+            val point=TacticalBasePosition.at(base,at).let {TacticalPoint(it.x,it.y+offset)}
+            return TacticalMotion(2488,at,TacticalPose(point,0f),0f,0f,listOf(point))
+        }
+        val s=state();s.players=s.players.mapValues {(_,v)->v.copy(posture=posture,motion=anchored(at-750,.5f))}
+        val own=s.stocks.outfits.getValue(1)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(activeShips=ActiveShipUnits(own.activeShips!!.values.map {
+            it.copy(posture=posture,tactical=NpcTacticalState(anchored(at-if(it.id==1)250 else 500,if(it.id==1)0f else .8f),at,at))}))))
+        val n=Navigation(moving,s.nav,NavigationPolicy())
+        val p=PlanetProduction(moving,s.inventory,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,at)}
+        assertNotNull(TacticalSupportOperations.accept(request(TacticalSupportAction.SUPPLY,2),timed,moving,n,p,p.snapshot(1)!!,s.commit,24).player)
+        val out=mutableListOf<TacticalSupportResult>()
+        TacticalCombat.settle(session.copy(gameMillis=(at+120)*1000),moving,n,p,s.commit,onSupport=out::add)
+        assertFalse(out.single().cancelled);assertEquals(10000,out.single().targetSupplies)
+        assertEquals(0,OutfitSupplies.distribution(s.stocks.outfits.getValue(1)).getValue(1))
+    }
     private val rules=SessionRules.load()
     private val session=SessionSimulation(rules).also {it.join("pilot",Power.EMPIRE,false,"current")}.exportState()
     private val now=session.gameMillis/1000

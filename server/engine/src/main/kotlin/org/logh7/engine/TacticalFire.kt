@@ -133,10 +133,10 @@ internal object TacticalCombat {
 
     private fun effectiveness(player: Navigator, mount: TacticalWeaponMount, victim: Target, now: Long,
         players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy): Int {
-        val source = player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId, player.power, player.grid, players, stocks, galaxy)
-        val target = victim.personal?.second?.let {p -> p.motion?.pose(now) ?:
+        val source = player.motion?.pose(now,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId, player.power, player.grid, players, stocks, galaxy)
+        val target = victim.personal?.second?.let {p -> p.motion?.pose(now,p.posture,galaxy) ?:
             TacticalDeployment.initial(p.unitId,p.power,p.grid,players,stocks,galaxy)} ?: victim.regular!!.let {
-            it.second.tactical?.takeIf {t->t.motion.grid==player.grid}?.motion?.pose(now) ?: TacticalDeployment.initial(it.second.id,if(it.first.power==2)Power.EMPIRE else Power.ALLIANCE,
+            it.second.tactical?.takeIf {t->t.motion.grid==player.grid}?.motion?.pose(now,it.second.posture,galaxy) ?: TacticalDeployment.initial(it.second.id,if(it.first.power==2)Power.EMPIRE else Power.ALLIANCE,
                 player.grid,players,stocks,galaxy)}
         return TacticalArmaments.effectiveness(mount, source, target.position)
     }
@@ -164,7 +164,7 @@ internal object TacticalCombat {
         } else {
             val (victimAccount,defender)=checkNotNull(victim.personal)
             val hull=checkNotNull(defender.hull).settle(seconds,defender.energy ?: TacticalEnergy.ZERO)
-            val pose=defender.motion?.pose(seconds) ?:
+            val pose=defender.motion?.pose(seconds,defender.posture,galaxy) ?:
                 TacticalDeployment.initial(defender.unitId,defender.power,defender.grid,players.values,inventory,galaxy)
             val angle=kotlin.math.atan2(origin.position.x-pose.position.x,origin.position.y-pose.position.y)-pose.direction
             val circle=2*Math.PI
@@ -236,7 +236,7 @@ internal object TacticalCombat {
                 val mount = TacticalArmaments.mount(spec, shot.weapon)
                 val effect = effectiveness(player, mount, victim, shot.firesAt, players.values, inventory, galaxy)
                 if (effect > 0 && ready(charge, shot.weapon) && player.supplies >= supplyCost(mount, shot.weapon)) {
-                    val origin=player.motion?.pose(shot.firesAt) ?: TacticalDeployment.initial(player.unitId,
+                    val origin=player.motion?.pose(shot.firesAt,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId,
                         player.power,player.grid,players.values,inventory,galaxy)
                     val resolved=strike(session,galaxy,players,inventory,player.unitId,shot.grid,shot.sequence,
                         shot.firesAt,shot.target,shot.weapon,mount,effect,origin,victim)

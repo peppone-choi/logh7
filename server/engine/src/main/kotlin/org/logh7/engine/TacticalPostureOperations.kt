@@ -35,11 +35,11 @@ internal object TacticalPostureOperations {
         val posture=s.unit.posture?.takeIf {it.grid==grid && it.mode==TacticalShipMode.STATIONED}
         val base=posture?.let {state->galaxy.bases.singleOrNull {it.id==state.base && it.grid==grid}}
         if(base!=null)return TacticalPose(TacticalBasePosition.at(base,now),s.unit.tactical?.motion?.origin?.direction ?: 0f)
-        return s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now) ?:
+        return s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy) ?:
             TacticalDeployment.initial(s.unit.id,if(s.outfit.power==2)Power.EMPIRE else Power.ALLIANCE,grid,players,stocks,galaxy)
     }
     private fun pose(p:Navigator,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
-        p.motion?.pose(now) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players,stocks,galaxy)
+        p.motion?.pose(now,p.posture,galaxy) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players,stocks,galaxy)
     private fun owned(s:Ship,p:Navigator,galaxy:Galaxy)=s.unit.boats>0 && s.outfit.commanderId==p.characterId &&
         s.outfit.power==(if(p.power==Power.EMPIRE)2 else 3) && s.outfit.positionIn(galaxy)==OutfitPosition(p.grid)
     private fun audience(session:SessionState,grid:Int,players:Map<String,Navigator>)=session.participants.mapNotNull {(a,m)->
@@ -123,13 +123,14 @@ internal object TacticalPostureOperations {
             val at=pose(p,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context &&
                 target(order.mode,order.base,p.grid,p.power,at.position,galaxy,stocks,minOf(now,order.readyAt))
-            val stopped=TacticalMotion(p.grid,now,at,0f,at.direction,listOf(at.position))
+            val stopped=TacticalMotion(p.grid,if(order.mode.requiresBase)minOf(now,order.readyAt) else now,at,0f,at.direction,listOf(at.position))
             val changed=if(valid)TacticalPosture(p.grid,order.mode,order.base) else state.copy(order=null)
             var next=p.copy(posture=changed)
             if(valid)next=next.copy(motion=stopped,retreat=null,attack=null,fire=next.fire?.copy(pending=null))
             if(valid && order.mode==TacticalShipMode.STATIONED)next=next.copy(baseId=order.base,mode=4,cpPaused=false,
                 cpRecoveryAt=now,motion=null,charge=null,commandRange=null,fire=next.fire?.copy(pending=null),spotId=0,spotOwner=0)
-            players[account]=next;results+=event(p.unitId,state.grid,order,at,!valid)
+            players[account]=next;results+=event(p.unitId,state.grid,order,
+                if(valid)stopped.pose(now,changed,galaxy) else at,!valid)
         }
         val due=stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty()}.filter {it.posture?.order!=null}.map {it.id}
         for(id in due) {
@@ -143,11 +144,12 @@ internal object TacticalPostureOperations {
             val changed=if(valid)TacticalPosture(state.grid,order.mode,order.base) else state.copy(order=null)
             var unit=s.unit.copy(posture=changed)
             if(valid) {
-                val motion=TacticalMotion(state.grid,now,at,0f,at.direction,listOf(at.position))
+                val motion=TacticalMotion(state.grid,if(order.mode.requiresBase)minOf(now,order.readyAt) else now,at,0f,at.direction,listOf(at.position))
                 unit=unit.copy(tactical=s.unit.tactical?.copy(motion=motion,nextDecisionAt=now,target=0,retreat=null) ?: NpcTacticalState(motion,now,now),
                     motionCommander=order.character,attack=null,shot=null,support=null)
             }
-            stocks=replace(stocks,s,unit);results+=event(id,state.grid,order,at,!valid).copy(
+            stocks=replace(stocks,s,unit);results+=event(id,state.grid,order,
+                if(valid)checkNotNull(unit.tactical).motion.pose(now,changed,galaxy) else at,!valid).copy(
                 sortie=state.mode==TacticalShipMode.STATIONED && order.mode==TacticalShipMode.ANCHORED)
         }
         return stocks
