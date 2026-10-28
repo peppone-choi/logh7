@@ -15,8 +15,9 @@ data class NpcTacticalState(val motion:TacticalMotion,val nextDecisionAt:Long,va
 /** Committed autonomous movement/exit and audience. Character zero is server-controlled wire metadata. */
 data class TacticalMovement(val generation:Long,val unit:Int,val grid:Int,val seconds:Long,
     val motion:TacticalMotion?,val recipients:Map<Int,String>,val destination:Int?=null,
-    val character:Int=0,val stopped:Boolean=false) {
-    init { require(character>=0 && (!stopped || character>0 && motion?.velocity==0f) && generation>0 && unit in 1..999999 && grid in 0..4999 && seconds in 0..0xffffffffL &&
+    val character:Int=0,val stopped:Boolean=false,val waypoint:Int?=null) {
+    init { require(character>=0 && (waypoint==null || waypoint in -1..31) && (!stopped || character>0 && motion?.velocity==0f) && generation>0 &&
+        (unit in 1..999999 || waypoint!=null && unit>=1000000) && grid in 0..4999 && seconds in 0..0xffffffffL &&
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()} &&
         ((motion!=null && destination==null && motion.grid==grid) || (motion==null && destination in 0..4999))) }
 }

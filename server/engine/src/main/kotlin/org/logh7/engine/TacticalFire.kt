@@ -198,6 +198,8 @@ internal object TacticalCombat {
         val now=session.gameMillis/1000
         val stocks = checkNotNull(production.snapshot(session.generation))
         clearFinishedOrders(players,galaxy,stocks)
+        val movements=mutableListOf<TacticalMovement>()
+        var inventory=if(session.ended==null)TacticalMotionProgress.advance(session,galaxy,players,stocks,movements) else stocks
         data class Due(val account:String,val shot:TacticalPendingFire,val automatic:Boolean=false)
         val due=original.mapNotNull { (account,p)->p.fire?.pending?.takeIf {it.firesAt<=now}?.let {Due(account,it)} }.toMutableList()
         if(session.ended==null) for((account,p) in players.toMap()) {
@@ -212,10 +214,9 @@ internal object TacticalCombat {
                 due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
             }
         }
-        if(due.isEmpty() && players==original && !npcPolicy.enabled && stocks.outfits.values.none {
+        if(due.isEmpty() && players==original && inventory==stocks && !npcPolicy.enabled && stocks.outfits.values.none {
             it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
-        var inventory = stocks
         val impacts = mutableListOf<TacticalImpact>()
         for ((account, scheduled, automatic) in due) {
             val player = players.getValue(account)
@@ -255,7 +256,6 @@ internal object TacticalCombat {
         }
         if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts,scale)
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
-        val movements=mutableListOf<TacticalMovement>()
         if(npcPolicy.enabled && session.ended==null) {
             inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)
         }

@@ -4,6 +4,15 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalMotionTest {
+    @Test fun waypointArrivalIncludesExactBoundariesSkipsZeroLengthPointsAndKeepsStationaryPathsIdle() {
+        val origin=TacticalPose(TacticalPoint(0f,0f),0.4f)
+        val motion=TacticalMotion(2017,100,origin,0.5f,1f,
+            listOf(TacticalPoint(0f,0f),TacticalPoint(3f,4f),TacticalPoint(3f,4f),TacticalPoint(6f,8f)))
+        assertEquals(0,motion.completedWaypoints(105));assertEquals(1,motion.completedWaypoints(106))
+        assertEquals(1,motion.completedWaypoints(114));assertEquals(3,motion.completedWaypoints(115))
+        assertEquals(4,motion.completedWaypoints(125));assertEquals(0,motion.copy(velocity=0f).completedWaypoints(200))
+        assertFailsWith<IllegalArgumentException>{motion.copy(reportedWaypoints=4)}
+    }
     @Test fun personalParallelMovementAndEngineReductionKeepFacingAndHalfSpeed() {
         val rules=SessionRules.load();val session=SessionSimulation(rules).also {it.join("pilot",Power.EMPIRE,false,"c")}.exportState()
         val now=session.gameMillis/1000

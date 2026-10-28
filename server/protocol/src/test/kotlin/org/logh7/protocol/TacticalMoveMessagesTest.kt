@@ -5,6 +5,16 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalMoveMessagesTest {
+    @Test fun nativeMovedNotificationHasPackedSignedRouteAndAuthoritativePose() {
+        val point=TacticalMoveMessages.Point(1.25f,-8f,0f)
+        val b=ByteBuffer.wrap(TacticalMoveMessages.moved(0xffffffffL,1010000,-0.7f,point,-1))
+        assertEquals(31,b.limit());assertEquals(0x423,b.getShort(4).toInt());assertEquals(-1,b.getInt(6))
+        assertEquals(1010000,b.getInt(10));assertEquals(-0.7f,b.getFloat(14));assertEquals(1.25f,b.getFloat(18))
+        assertEquals(-8f,b.getFloat(22));assertEquals(0f,b.getFloat(26));assertEquals(-1,b.get(30).toInt())
+        assertEquals(31,TacticalMoveMessages.moved(0,1,0f,point,31).last().toInt())
+        assertFailsWith<IllegalArgumentException>{TacticalMoveMessages.moved(0,1,0f,point,32)}
+        assertFailsWith<IllegalArgumentException>{TacticalMoveMessages.moved(0,1,0f,point,-2)}
+    }
     @Test fun serverOwnedNpcMoveUsesCharacterZeroButClientCannotSubmitIt() {
         val npc=move.copy(character=0,units=listOf(move.units.single().copy(id=1)))
         val packet=TacticalMoveMessages.reply(npc,100,5)

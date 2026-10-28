@@ -180,11 +180,18 @@ class GameExchange(
                 check(index >= 0)
                 messages.take(index) + shared.peers.flatMap { listOf(presence!!.character(it),presence.unit(it)) } + messages.drop(index)
             } else messages + tacticalPresence(shared?.refresh.orEmpty())
-            if (output.isEmpty() && tactical.isEmpty()) null else handshake.stageAll(output + tactical, clearHeader = 0)
+            if (output.isEmpty() && tactical.isEmpty()) null else {
+                presence?.observeMotions(connection,output+tactical)
+                handshake.stageAll(output + tactical, clearHeader = 0)
+            }
         }
     }
     internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
-        if (state == State.CLOSED || !gameStarted || obsolete()) null else handshake.stageAll(tacticalPresence(messages), clearHeader = 0)
+        if (state == State.CLOSED || !gameStarted || obsolete()) null else {
+            val output=tacticalPresence(messages)
+            presence?.observeMotions(connection,output)
+            handshake.stageAll(output, clearHeader = 0)
+        }
     }
     private fun tacticalPresence(messages: List<ByteArray>): List<ByteArray> {
         if (messages.isEmpty() || !worldInitialized) return messages

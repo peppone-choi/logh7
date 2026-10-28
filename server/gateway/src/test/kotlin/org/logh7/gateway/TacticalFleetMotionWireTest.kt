@@ -43,7 +43,7 @@ class TacticalFleetMotionWireTest {
         fun command(character:Int):ByteArray {
             val packet=org.logh7.protocol.TacticalMoveMessages.reply(org.logh7.protocol.TacticalMoveMessages.Move(character,
                 listOf(org.logh7.protocol.TacticalMoveMessages.Unit(1,0f,org.logh7.protocol.TacticalMoveMessages.Point(999f,999f,0f))),
-                1f,0f,listOf(org.logh7.protocol.TacticalMoveMessages.Point(0f,20f,0f)),parallel),0,0)
+                1f,0f,listOf(3f,8f,20f).map {org.logh7.protocol.TacticalMoveMessages.Point(0f,it,0f)},parallel),0,0)
             return packet.copyOfRange(4,packet.size)
         }
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=stock,
@@ -67,6 +67,11 @@ class TacticalFleetMotionWireTest {
             assertEquals(10001,crc.getInt(63)) // Keep the other corps in the native replacement cache.
             assertEquals(10000,savedStocks.outfits.getValue(1).activeShips!!.values.single().motionCommander)
             fixture.engine.submit(WorldCommand.AdvanceTo(500)) // Twelve G-seconds: seven units after the five-second wait.
+            for(c in clients) {
+                val progress=through(c,0x0423) {ByteBuffer.wrap(it).getInt(10)==1}
+                assertEquals(1,progress[30].toInt())
+            }
+            assertEquals(1,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.reportedWaypoints)
             clients[1].close();fixture.awaitState(online=1,connections=1,participants=2)
             clients[1]=fixture.join(fixture.account(1),false,false).client.also {c ->
                 c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01)
@@ -74,11 +79,21 @@ class TacticalFleetMotionWireTest {
                 val resume=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1})
                 assertEquals(if(parallel)3.5f else 7f,resume.getFloat(31));assertEquals(0,resume.getInt(10))
             }
+            fixture.engine.submit(WorldCommand.AdvanceTo(1000)) // Both have passed the second point; reconnect got only the last two.
+            clients.forEachIndexed {i,c ->
+                val progress=through(c,0x0423) {ByteBuffer.wrap(it).getInt(10)==1}
+                assertEquals(if(i==0)2 else 1,progress[30].toInt())
+            }
             val stop=org.logh7.protocol.TacticalStopMessages.reply(org.logh7.protocol.TacticalStopMessages.Stop(10000,listOf(1)),0)
             clients[0].send(stop.copyOfRange(4,stop.size))
             assertEquals(1,ByteBuffer.wrap(through(clients[0],0x040a)).int)
             assertEquals(if(parallel)0.5f else 1f,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.velocity)
             fixture.engine.submit(WorldCommand.AdvanceTo(14000)) // CRC has grown back to the maximum.
+            for(c in clients) {
+                val arrived=ByteBuffer.wrap(through(c,0x0423) {ByteBuffer.wrap(it).getInt(10)==1})
+                assertEquals(-1,arrived.get(30).toInt());assertEquals(20f,arrived.getFloat(22));assertEquals(0f,arrived.getFloat(14))
+            }
+            assertEquals(0f,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.velocity)
             clients[0].send(stop.copyOfRange(4,stop.size))
             for(c in clients) {
                 assertEquals(0,ByteBuffer.wrap(through(c,0x040a)).int)

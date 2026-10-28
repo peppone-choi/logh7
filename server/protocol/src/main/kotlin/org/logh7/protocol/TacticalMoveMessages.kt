@@ -4,6 +4,12 @@ import java.nio.ByteBuffer
 
 /** Native 00492930/0049a5d0: packed CommandMoveShip records. Author: 최병호. */
 object TacticalMoveMessages {
+    /** 004a5870/004bf870: no padding after the signed waypoint index; -1 means finished. */
+    fun moved(seconds:Long,unit:Int,direction:Float,position:Point,waypoint:Int):ByteArray {
+        require(seconds in 0..0xffffffffL && unit>0 && direction.isFinite() && position.z==0f && waypoint in -1..31)
+        return LoginMessages.sessionMessage(0x0423,ByteBuffer.allocate(25).putInt(seconds.toInt()).putInt(unit)
+            .putFloat(direction).putFloat(position.x).putFloat(position.y).putFloat(position.z).put(waypoint.toByte()).array())
+    }
     data class Point(val x: Float, val y: Float, val z: Float) {
         init { require(listOf(x, y, z).all(Float::isFinite)) }
     }

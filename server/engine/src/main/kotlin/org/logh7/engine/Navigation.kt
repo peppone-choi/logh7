@@ -228,7 +228,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val maximum = energy.values[0] / 100f*(if(motion.parallel)0.5f else 1f)
                 if (motion.grid != before.grid || motion.velocity <= maximum) motion else motion.copy(
                     acceptedAt = maxOf(now, motion.startsAt) - TacticalMotion.WAIT_SECONDS,
-                    origin = motion.pose(now), velocity = maximum, waypoints = motion.remaining(now))
+                    origin = motion.pose(now), velocity = maximum, waypoints = motion.remaining(now),reportedWaypoints=0)
             }
             val charge = if(before.charge!=null || energy.values[3]>0 || energy.values[4]>0)
                 (before.charge ?: TacticalCharge(now, clockScale=clockScale)).settle(now, before.energy ?: TacticalEnergy.ZERO) else null

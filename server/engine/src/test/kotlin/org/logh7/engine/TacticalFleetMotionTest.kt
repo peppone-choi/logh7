@@ -4,6 +4,30 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalFleetMotionTest {
+    @Test fun waypointProgressAndCompletionCommitBeforeNotificationAndSurviveReloadWithoutRepeating() {
+        val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
+        val command=TacticalMove(listOf(1,1010000),1f,1.2f,listOf(TacticalPoint(0f,2f),TacticalPoint(3f,2f)))
+        assertNotNull(move(s,nav,p,request().copy(tacticalMove=command)).player)
+        val range=s.players.getValue("pilot").commandRange
+        val events=mutableListOf<TacticalMovement>()
+        fun tick(offset:Long)=TacticalCombat.settle(session.copy(gameMillis=(now+offset)*1000),galaxy,nav,p,s.commit,
+            onMovement=events::add)
+        tick(6);assertTrue(events.isEmpty())
+        tick(7);assertEquals(setOf(1,1010000),events.map {it.unit}.toSet())
+        assertTrue(events.all {it.waypoint==1 && it.recipients==mapOf(10000 to "current")})
+        assertEquals(1,s.players.getValue("pilot").motion!!.reportedWaypoints)
+        assertEquals(1,s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.motion.reportedWaypoints)
+        events.clear();val before=s.stocks;val players=s.players;s.fail=true
+        assertFailsWith<java.io.IOException>{tick(10)}
+        assertTrue(events.isEmpty());assertEquals(before,s.stocks);assertEquals(players,s.players)
+        s.fail=false;nav=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
+        tick(8);assertTrue(events.isEmpty())
+        tick(10);assertEquals(2,events.size);assertTrue(events.all {it.waypoint==-1 && it.motion!!.velocity==0f})
+        assertEquals(TacticalPose(TacticalPoint(3f,2f),1.2f),events.single {it.unit==1}.motion!!.pose(now+100))
+        assertEquals(range,s.players.getValue("pilot").commandRange)
+        assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
+        events.clear();tick(30);assertTrue(events.isEmpty())
+    }
     private val rules=SessionRules.load()
     private val session=SessionSimulation(rules).also {it.join("pilot",Power.EMPIRE,false,"current")}.exportState()
     private val now=session.gameMillis/1000

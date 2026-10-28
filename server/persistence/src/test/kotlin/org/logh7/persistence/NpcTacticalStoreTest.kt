@@ -10,7 +10,8 @@ class NpcTacticalStoreTest {
     @TempDir lateinit var directory:Path
     @Test fun parallelFleetMotionSurvivesTheNestedStockCodec() {
         val point=TacticalPoint(1f,2f)
-        val motion=TacticalMotion(2488,100,TacticalPose(point,0.4f),0.5f,0.4f,listOf(TacticalPoint(30f,2f)),parallel=true)
+        val motion=TacticalMotion(2488,100,TacticalPose(point,0.4f),0.5f,0.4f,
+            listOf(TacticalPoint(20f,2f),TacticalPoint(30f,2f)),parallel=true,reportedWaypoints=1)
         val unit=ActiveShipUnit(1,UnitStack(32),tactical=NpcTacticalState(motion,100,100),motionCommander=10000)
         val encoded=ActiveShipUnitCodec.encode(ActiveShipUnits(listOf(unit)))
         assertEquals(unit,ActiveShipUnitCodec.decode(encoded,tactics=true,cargo=true,support=true,commanded=true)!!.values.single())

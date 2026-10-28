@@ -7,6 +7,22 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun waypointPermissionsSurviveFileReopenAndRejectMissingOrOutOfRangeProgress() {
+        val path=directory.resolve("waypoint-progress")
+        val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0.4f),0.5f,1f,
+            List(32){TacticalPoint(it.toFloat(),0f)},parallel=true,reportedWaypoints=31)
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,1000,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(100)+List(10){0}),motion=motion)
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        val raw=java.util.Base64.getUrlDecoder().decode(TacticalMotionCodec.encode(motion))
+        assertEquals(291,raw.size)
+        fun encoded(bytes:ByteArray)=java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode(encoded(raw.dropLast(1).toByteArray()))}
+        for(bad in listOf(0,32,255))assertFailsWith<IllegalArgumentException>{
+            TacticalMotionCodec.decode(encoded(raw.copyOf().also {it[it.lastIndex]=bad.toByte()}))
+        }
+    }
     @Test fun commandRangeReopensWithoutRefillAndLegacyFifteenHasNoRangeHistory() {
         val path=directory.resolve("command-range")
         val player=Navigator(1,10000,Power.EMPIRE,2017,1000,960,900,cpPaused=true,

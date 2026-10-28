@@ -14,6 +14,21 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    private val motionPaths = java.util.concurrent.ConcurrentHashMap<Pair<String,Int>,Int>()
+    /** Track the path actually queued for each native client, including truncated reconnect paths. */
+    internal fun observeMotions(connection:String,messages:List<ByteArray>) {
+        messages.forEach { packet ->
+            if(packet.size<48)return@forEach
+            val input=ByteBuffer.wrap(packet)
+            if(input.getInt(0)!=0 || (input.getShort(4).toInt() and 65535) !in listOf(0x0400,0x0402))return@forEach
+            val units=input.get(18).toInt() and 255
+            val countOffset=27+units*20
+            if(units !in 1..32 || countOffset>=packet.size)return@forEach
+            val points=input.get(countOffset).toInt() and 255
+            if(points !in 1..32 || packet.size!=countOffset+1+points*12)return@forEach
+            repeat(units) { motionPaths[connection to input.getInt(19+it*20)]=points }
+        }
+    }
     @Synchronized fun support(event:org.logh7.engine.TacticalSupportResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.reply(
@@ -29,12 +44,25 @@ class GamePresence {
             }
     }
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
-        val packet=if(event.destination!=null)org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,checkNotNull(event.destination),listOf(event.unit))
-            else checkNotNull(TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds,event.character))
         members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
-            .forEach {send(it,(if(event.stopped)listOf(org.logh7.protocol.TacticalStopMessages.reply(
-                org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet)}
+            .forEach { viewer ->
+                val packet=if(event.destination!=null)
+                    org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,checkNotNull(event.destination),listOf(event.unit))
+                else if(event.waypoint!=null)checkNotNull(event.motion).let {motion ->
+                    val pose=motion.pose(event.seconds)
+                    val original=checkNotNull(event.waypoint)
+                    val count=motionPaths[viewer.connection to event.unit] ?: motion.waypoints.size
+                    val index=if(original<0)original else original-(motion.waypoints.size-count)
+                    // A reconnect snapshot can already be ahead of this queued progress notification.
+                    if(index<0 && original>=0)return@forEach
+                    org.logh7.protocol.TacticalMoveMessages.moved(event.seconds,event.unit,pose.direction,
+                        org.logh7.protocol.TacticalMoveMessages.Point(pose.position.x,pose.position.y,0f),index)
+                } else TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds,event.character)
+                send(viewer,(if(event.stopped)listOf(org.logh7.protocol.TacticalStopMessages.reply(
+                    org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet)
+            }
     }
+
     /** Every committed shot is queued separately, including while an exchange awaits another command. */
     @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact,
         snapshot:org.logh7.engine.WorldSnapshot?=null,galaxy:org.logh7.engine.Galaxy?=null,
@@ -180,6 +208,7 @@ class GamePresence {
                 player.baseId,player.mode,next.outfit,player.supplies,if(player.hull?.hp?.let {it<100}==true)1 else 0)) else emptyList())+updated.refresh)
     }
     @Synchronized fun remove(connection: String) {
+        motionPaths.keys.removeIf { it.first==connection }
         val leaving = members[connection] ?: return
         val affected = members.values.filter { visible(it, leaving) }.associateWith(::peers)
         members.remove(connection)
