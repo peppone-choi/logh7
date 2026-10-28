@@ -14,6 +14,13 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    /** Every committed shot is queued separately, including while an exchange awaits another command. */
+    @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact) {
+        val packet = org.logh7.protocol.TacticalAttackMessages.hit(impact.hit.seconds,impact.source,
+            impact.weapon.wire,impact.hit.target,impact.hit.destroyed)
+        members.values.filter { viewer -> viewer.player.generation == impact.generation &&
+            impact.recipients[viewer.character.id.toInt()] == viewer.connection }.forEach { send(it,listOf(packet)) }
+    }
     private fun send(viewer: Member, messages: List<ByteArray>) {
         try { viewer.send(messages) } catch (_: Exception) { /* A closed peer cannot fail another player's command. */ }
     }

@@ -56,16 +56,18 @@ class TacticalCombatTest {
         state.fail=true
         assertFailsWith<java.io.IOException> {TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)}
         assertEquals(old,nav.snapshot(1));assertSame(inventory,production.snapshot(1));state.fail=false
-        TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)
+        val impacts=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,production,state.commit)
         val fired=nav.snapshot(1).getValue("pilot")
         assertEquals(0,fired.charge!!.beam);assertNull(fired.fire!!.pending)
         val losses = fired.fire.last!!.destroyed
+        assertEquals(fired.fire.last,impacts.single().hit)
+        assertEquals(mapOf(10000 to "c"),impacts.single().recipients)
         assertTrue(losses > 0)
         assertEquals(300-losses,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
         assertEquals(1000,fired.pcp);assertEquals(960,fired.mcp);assertEquals(900,fired.cruise)
         nav=Navigation(galaxy,state.nav,NavigationPolicy());production=production(state)
         val saved=state.stocks
-        TacticalCombat.settle(session.copy(gameMillis=(now+500)*1000),galaxy,nav,production,state.commit)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+500)*1000),galaxy,nav,production,state.commit).isEmpty())
         assertEquals(saved,state.stocks);assertEquals(fired,nav.snapshot(1).getValue("pilot"))
     }
     @Test fun forgedIdentityForeignUnitFriendlyOrMissingTargetUnsupportedWeaponsAndUnchargedBeamAreRejected() {
@@ -118,5 +120,25 @@ class TacticalCombatTest {
             0f,0f,listOf(point)))}
         assertEquals(NavigationRejection.RANGE,TacticalCombat.accept(request,session,galaxy,
             Navigation(galaxy,state.nav,NavigationPolicy()),stocks,state.commit,24).rejection)
+    }
+    @Test fun acceptedFireContinuesOfflineAndAudienceIncludesBothPowersOnlyAtAuthenticatedCurrentConnections() {
+        val state=state();val pilot=state.players.getValue("pilot")
+        state.players+=mapOf("enemy" to pilot.copy(characterId=10001,power=Power.EMPIRE,motion=null,charge=null),
+            "friend" to pilot.copy(characterId=10002,motion=null,charge=null),
+            "stale" to pilot.copy(characterId=10003,motion=null,charge=null),
+            "outside" to pilot.copy(characterId=10004,grid=2487,motion=null,charge=null),
+            "no-connection" to pilot.copy(characterId=10005,motion=null,charge=null))
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy());val production=production(state)
+        TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24)
+        val firing=session.copy(gameMillis=(now+120)*1000,participants=session.participants+
+            mapOf("pilot" to session.participants.getValue("pilot").copy(online=false,connection=null),
+                "enemy" to Participant(Power.EMPIRE,false,connection="enemy-current"),
+                "friend" to Participant(Power.ALLIANCE,false,connection="friend-current"),
+                "stale" to Participant(Power.EMPIRE,false,connection="wrong-power"),
+                "outside" to Participant(Power.ALLIANCE,false,connection="other-grid"),
+                "no-connection" to Participant(Power.ALLIANCE,false)))
+        val impact=TacticalCombat.settle(firing,galaxy,nav,production,state.commit).single()
+        assertEquals(mapOf(10001 to "enemy-current",10002 to "friend-current"),impact.recipients)
+        assertTrue(impact.hit.destroyed>0)
     }
 }

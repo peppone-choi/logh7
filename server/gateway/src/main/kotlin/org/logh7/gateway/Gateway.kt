@@ -67,6 +67,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val channels = mutableListOf<Channel>()
     private val clients = DefaultChannelGroup(GlobalEventExecutor.INSTANCE, true)
     private val closed = AtomicBoolean()
+    private var combatSubscription: AutoCloseable? = null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
     fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress,
@@ -76,6 +77,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
+        combatSubscription = presence?.let { navigation!!.observeCombat(it::combat) }
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         val capture = captureDirectory?.let(::Capture)
@@ -197,6 +199,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        combatSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
         finally { try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() } }
     }

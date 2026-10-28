@@ -10,6 +10,25 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class MultiplayerPresenceTest {
+    @Test fun committedImpactsReachBothPowersInOrderButNeverAnOldConnectionOrGeneration() {
+        val hub=GamePresence()
+        val received=(0..4).associateWith {mutableListOf<List<ByteArray>>()}
+        val person=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,
+            List(8){50},0,0,0,20,0,0,"Ship",1)
+        for(i in 0..4) {
+            val connection=listOf("own","enemy","stale","future","outside")[i]
+            val power=if(i==1)Power.ALLIANCE else Power.EMPIRE
+            hub.update(GamePresence.Member(connection,person.copy(id=10000L+i,power=if(i==1)3 else 2),
+                Navigator(if(i==3)2 else 1,10000+i,power,if(i==4)2487 else 2488,1000,1000,900,cpPaused=true),
+                received.getValue(i)::add))
+        }
+        received.values.forEach {it.clear()}
+        val audience=mapOf(10000 to "own",10001 to "enemy",10002 to "new-connection",10003 to "future")
+        for((sequence,target) in listOf(1L to 1,2L to 21))hub.combat(TacticalImpact(1,1010000,TacticalWeapon.BEAM,
+            TacticalHit(sequence,2488,120*sequence,target,2),audience))
+        for(i in 0..1)assertEquals(listOf(1,21),received.getValue(i).flatten().map {ByteBuffer.wrap(it).getInt(16)})
+        for(i in 2..4)assertTrue(received.getValue(i).isEmpty())
+    }
     @Test fun visiblePeerGetsActualArrivalWithoutAnEarlyBaseChangeOrFuelRefill() {
         val hub = GamePresence()
         val messages = mutableListOf<List<ByteArray>>()

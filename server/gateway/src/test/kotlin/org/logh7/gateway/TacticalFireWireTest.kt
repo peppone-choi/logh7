@@ -58,7 +58,6 @@ class TacticalFireWireTest {
             assertTrue(losses>0);assertNull(fire.pending)
             assertEquals(300-losses,inventory.outfits.getValue(1).activeShips!!.values.single().boats)
             for(client in clients) {
-                client.send(SyntheticClient.opcode(0x0300))
                 val hit=through(client,0x0426)
                 assertEquals(1010000,ByteBuffer.wrap(hit).getInt(10))
                 assertEquals(1,ByteBuffer.wrap(hit).getInt(16))

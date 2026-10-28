@@ -11,6 +11,11 @@ data class TacticalPendingFire(val sequence: Long, val grid: Int, val shipKind: 
 data class TacticalHit(val sequence: Long, val grid: Int, val seconds: Long, val target: Int, val destroyed: Int) {
     init { require(sequence > 0 && grid in 0..4999 && seconds in 0..0xffffffffL && target in 1..999999 && destroyed in 1..300) }
 }
+/** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: 최병호. */
+data class TacticalImpact(val generation: Long, val source: Int, val weapon: TacticalWeapon, val hit: TacticalHit,
+    val recipients: Map<Int,String>) {
+    init { require(generation > 0 && source > 0 && recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }
+}
 data class TacticalFire(val sequence: Long, val pending: TacticalPendingFire? = null, val last: TacticalHit? = null) {
     init { require(sequence > 0 && (pending == null || pending.sequence == sequence) &&
         (last == null || last.sequence <= sequence) && (pending == null || last == null || last.sequence < sequence)) }
@@ -65,14 +70,15 @@ internal object TacticalCombat {
     }
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
-        committer: WorldStateCommitter?) {
+        committer: WorldStateCommitter?): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val due = original.entries.filter { it.value.fire?.pending?.firesAt?.let { at -> at <= session.gameMillis / 1000 } == true }
             .sortedWith(compareBy({it.value.fire!!.pending!!.firesAt}, {it.value.unitId}))
-        if (due.isEmpty()) return
+        if (due.isEmpty()) return emptyList()
         val stocks = checkNotNull(production.snapshot(session.generation))
         val players = original.toMutableMap()
         var inventory = stocks
+        val impacts = mutableListOf<TacticalImpact>()
         for ((account, _) in due) {
             val player = players.getValue(account)
             val fire = checkNotNull(player.fire)
@@ -99,8 +105,15 @@ internal object TacticalCombat {
                     val units = UnitInventory(ships.quantities(), outfit.units.troops)
                     inventory = inventory.copy(outfits = inventory.outfits + (outfit.id to outfit.copy(
                         activeShips = ships, units = units, supplies = minOf(outfit.supplies, OutfitSupplies.capacity(units)))))
-                    next = next.copy(charge = charge.copy(beam = 0), fire = fire.copy(pending = null,
-                        last = TacticalHit(shot.sequence, shot.grid, shot.firesAt, shot.target, hull.number - remaining)))
+                    val hit = TacticalHit(shot.sequence, shot.grid, shot.firesAt, shot.target, hull.number - remaining)
+                    next = next.copy(charge = charge.copy(beam = 0), fire = fire.copy(pending = null, last = hit))
+                    val audience = players.mapNotNull { (account, viewer) ->
+                        val member = session.participants[account]
+                        if (viewer.grid != shot.grid || viewer.baseId != 0 || !viewer.cpPaused ||
+                            member?.online != true || member.power != viewer.power) null
+                        else member.connection?.let { viewer.characterId to it }
+                    }.toMap()
+                    impacts += TacticalImpact(session.generation,player.unitId,TacticalWeapon.BEAM,hit,audience)
                 }
             }
             players[account] = next
@@ -109,5 +122,6 @@ internal object TacticalCombat {
         checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(players, prepared)
         navigation.publishCommitted(original, players, session.generation)
         production.publishCommitted(stocks, prepared)
+        return impacts
     }
 }

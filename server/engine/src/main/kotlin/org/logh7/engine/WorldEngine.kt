@@ -50,6 +50,27 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null)
     private val queue = Channel<Queued>(1024)
+    private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
+    /** Register before accepting gateway clients; reconnects bootstrap from durable unit state. */
+    fun observeCombat(observer: (TacticalImpact) -> Unit): AutoCloseable {
+        combatObservers += observer
+        return AutoCloseable { combatObservers.remove(observer) }
+    }
+    private fun publishCombat(impacts: List<TacticalImpact>) {
+        for (impact in impacts) for (observer in combatObservers) try { observer(impact) }
+        catch (failure: Exception) {
+            // Delivery cannot roll back an already committed shot or poison durable world storage.
+            System.err.println("Combat delivery failed: ${failure.javaClass.simpleName}")
+        }
+    }
+    private fun settleCombat(session: SessionState, base: WorldSnapshot) {
+        if (navigation == null || production == null || galaxy == null) return
+        val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter)
+        if (impacts.isEmpty()) return
+        // Publish this committed transaction before a later movement/retreat save can fail.
+        published.set(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
+        publishCombat(impacts)
+    }
     private val simulation = SessionSimulation(rules, generationStore.current())
     private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed) }
     private var durableState = durability?.let { store ->
@@ -423,8 +444,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     check(!storageFailed) { "World storage is unavailable" }
                     val session = durableState?.session ?: simulation.exportState()
                     val ownership = production?.settle(session.generation, session.gameMillis / 1000)
-                    if (navigation != null && production != null && galaxy != null)
-                        TacticalCombat.settle(session, galaxy, navigation, production, worldStateCommitter)
+                    settleCombat(session,published.get())
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
                         if (command.request.tacticalShoot != null)
                             TacticalCombat.accept(command.request,session,galaxy,navigation,
@@ -457,8 +477,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     durableState = next.state
                     if (command is WorldCommand.AdvanceTo) {
                         production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
-                        if (navigation != null && production != null && galaxy != null)
-                            TacticalCombat.settle(next.state.session, galaxy, navigation, production, worldStateCommitter)
+                        settleCombat(next.state.session,next.state.snapshot(rules))
                         navigation?.settleRetreats(next.state.session, production?.snapshot(next.state.session.generation))
                     }
                     published.set(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
@@ -486,8 +505,7 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
                     if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
-                    if (navigation != null && production != null && galaxy != null)
-                        TacticalCombat.settle(simulation.exportState(), galaxy, navigation, production, worldStateCommitter)
+                    settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot()))
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     elapsed = command.elapsedRealMillis
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
