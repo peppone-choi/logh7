@@ -792,6 +792,32 @@ class GameExchange(
                             pendingWorld=recover(character,identity.account).thenApply { listOf(empty)+it }
                             return null
                         }
+                        if(opcode==0x0348) {
+                            val ids=org.logh7.protocol.TacticsMessages.queryIds(body,opcode).toSet()
+                            // 0349 has no timestamp: its coordinates must describe the committed
+                            // current time, rather than the previous periodic tick.
+                            pendingWorld=navigation.synchronizeTime().thenCompose {
+                                val latest=checkNotNull(navigation.snapshot()?.navigators?.get(identity.account))
+                                if(!latest.cpPaused || deliveredTactics==true && deliveredPlayer?.grid!=latest.grid) {
+                                    val character=checkNotNull(currentCharacter(identity.account))
+                                    recover(character,identity.account).thenApply {
+                                        listOf(org.logh7.protocol.TacticsMessages.positions(emptyList()))+it
+                                    }
+                                } else {
+                                    val tactical=tactics(identity.account)
+                                    val units=tactical.units.filter {it.id in ids}
+                                    val positions=org.logh7.protocol.TacticsMessages.positions(units)
+                                    // The native bootstrap can precede live unit creation. Replay
+                                    // once after the first nonempty live poll, using the same sample.
+                                    val messages=if(tacticalResumeGrid==tactical.grid && units.isNotEmpty()) {
+                                        tacticalResumeGrid=null
+                                        listOf(positions)+tactical.resume()
+                                    } else listOf(positions)
+                                    CompletableFuture.completedFuture(messages)
+                                }
+                            }
+                            return null
+                        }
                         val tactical=tactics(identity.account)
                         if(opcode==0x0336) {
                             require(body.size==4 && java.nio.ByteBuffer.wrap(body).getShort(2).toInt()==tactical.grid)
@@ -801,21 +827,6 @@ class GameExchange(
                             when(opcode) {
                                 0x033e -> org.logh7.protocol.TacticsMessages.corps(tactical.corps.filter {it.character in ids})
                                 0x034a -> org.logh7.protocol.TacticsMessages.basePositions(tactical.bases.filter {it.id in ids})
-                                0x0348 -> {
-                                    val units=tactical.units.filter {it.id in ids}
-                                    val positions=org.logh7.protocol.TacticsMessages.positions(units)
-                                    // The CD can receive the bootstrap paths before 004c32a0 creates
-                                    // live units; 004be8f0 then ignores them. Its first nonempty
-                                    // 0348 poll comes from the live tactical update (004b6e00).
-                                    // Replay once from this fresh snapshot, not the earlier bootstrap.
-                                    if(tacticalResumeGrid==tactical.grid && units.isNotEmpty()) {
-                                        tacticalResumeGrid=null
-                                        val messages=listOf(positions)+tactical.resume()
-                                        presence?.observeMotions(connection,messages)
-                                        return handshake.stageAll(messages,clearHeader=0)
-                                    }
-                                    positions
-                                }
                                 else -> org.logh7.protocol.TacticsMessages.states(tactical.units.filter {it.id in ids})
                             }
                         }
