@@ -5,6 +5,11 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class BootstrapMessagesTest {
+    @Test fun personalUnitUsesSavedSuppliesAndRejectsNegativeOrOverCapacity() {
+        assertEquals(9998,ByteBuffer.wrap(BootstrapMessages.unit(character,supplies=9998)).getInt(38))
+        assertFailsWith<IllegalArgumentException>{BootstrapMessages.unit(character,supplies=-1)}
+        assertFailsWith<IllegalArgumentException>{BootstrapMessages.unit(character,supplies=10001)}
+    }
     @Test fun assignedLogisticsOfficesCanInitializeAndRefreshTheCharacterWithHeadquartersTargets() {
         for ((kind,power,target) in listOf(Triple(24,2,104938),Triple(25,2,104938),Triple(150,3,117737))) {
             val actor=character.copy(power=power)

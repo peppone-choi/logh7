@@ -79,7 +79,7 @@ class TacticalCombatTest {
         reject(request.copy(characterId=10001),NavigationRejection.IDENTITY)
         reject(request.copy(captainCard=59),NavigationRejection.CARD)
         reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(units=listOf(1))),NavigationRejection.UNIT)
-        reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(arms=1)),NavigationRejection.WEAPON)
+        reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(arms=3)),NavigationRejection.WEAPON)
         reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(targetKind=2)),NavigationRejection.WEAPON)
         reject(request.copy(tacticalShoot=request.tacticalShoot!!.copy(target=2)),NavigationRejection.TARGET)
         reject(request.copy(shipKind=0),NavigationRejection.UNIT)
@@ -141,4 +141,43 @@ class TacticalCombatTest {
         assertEquals(mapOf(10001 to "enemy-current",10002 to "friend-current"),impact.recipients)
         assertTrue(impact.hit.destroyed>0)
     }
+    @Test fun gunAndMissilePersistTheirWeaponSpendSuppliesOnceAndDoNotConsumeOtherCharge() {
+        for (weapon in listOf(TacticalWeapon.GUN,TacticalWeapon.MISSILE)) {
+            val state=state()
+            state.players=state.players.mapValues { (_,p)->p.copy(supplies=1,charge=TacticalCharge(now,24000,24000)) }
+            var nav=Navigation(galaxy,state.nav,NavigationPolicy());var stocks=production(state)
+            val shot=request.copy(tacticalShoot=request.tacticalShoot!!.copy(arms=weapon.wire))
+            val accepted=TacticalCombat.accept(shot,session,galaxy,nav,stocks.snapshot(1)!!,state.commit,24).player!!
+            assertEquals(weapon,accepted.fire!!.pending!!.weapon)
+            assertEquals(1,accepted.supplies)
+            nav=Navigation(galaxy,state.nav,NavigationPolicy());stocks=production(state)
+            val due=session.copy(gameMillis=(now+120)*1000)
+            state.fail=true
+            assertFailsWith<java.io.IOException>{TacticalCombat.settle(due,galaxy,nav,stocks,state.commit)}
+            assertEquals(1,nav.snapshot(1).getValue("pilot").supplies)
+            assertEquals(300,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+            state.fail=false
+            val impact=TacticalCombat.settle(due,galaxy,nav,stocks,state.commit).single()
+            assertEquals(weapon,impact.weapon)
+            val fired=nav.snapshot(1).getValue("pilot")
+            assertEquals(0,fired.supplies);assertEquals(24000,fired.charge!!.beam)
+            assertEquals(if(weapon==TacticalWeapon.GUN)0L else 24000L,fired.charge.gun)
+            assertTrue(impact.hit.destroyed>0)
+            assertTrue(TacticalCombat.settle(due,galaxy,nav,stocks,state.commit).isEmpty())
+            assertEquals(NavigationRejection.SUPPLY,TacticalCombat.accept(shot,due,galaxy,nav,stocks.snapshot(1)!!,state.commit,24).rejection)
+        }
+    }
+    @Test fun missileNeedsNoBeamOrGunChargeButGunDoesAndCancelledMissileDoesNotSpend() {
+        val state=state();state.players=state.players.mapValues {(_,p)->p.copy(charge=null)}
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stocks=production(state)
+        val gun=request.copy(tacticalShoot=request.tacticalShoot!!.copy(arms=1))
+        assertEquals(NavigationRejection.ENERGY,TacticalCombat.accept(gun,session,galaxy,nav,stocks.snapshot(1)!!,state.commit,24).rejection)
+        val missile=request.copy(tacticalShoot=request.tacticalShoot!!.copy(arms=2))
+        assertNotNull(TacticalCombat.accept(missile,session,galaxy,nav,stocks.snapshot(1)!!,state.commit,24).player)
+        val stop=nav.apply(request.copy(tacticalShoot=null,tacticalStop=TacticalStop(listOf(1010000),emptyList())),session,stocks.snapshot(1))
+        assertNull(stop.player!!.fire!!.pending)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,stocks,state.commit).isEmpty())
+        assertEquals(10000,nav.snapshot(1).getValue("pilot").supplies)
+    }
+
 }

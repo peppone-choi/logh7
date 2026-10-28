@@ -84,7 +84,7 @@ class GameExchange(
         administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
     private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode,
-            administration?.stationedOutfit(player) ?: 0)
+            administration?.stationedOutfit(player) ?: 0,player.supplies)
     private fun characterMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator, changed: Boolean = false) =
         if (changed) BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))
         else BootstrapMessages.character(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))

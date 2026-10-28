@@ -7,6 +7,20 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun gunAndMissilePendingAndSuppliesSurviveReopenWithoutChangingLegacyBeam() {
+        val path=directory.resolve("ammunition")
+        for(weapon in listOf(TacticalWeapon.GUN,TacticalWeapon.MISSILE)) {
+            val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,supplies=9999,
+                fire=TacticalFire(1,TacticalPendingFire(1,2017,89,7,100,220,weapon)))
+            FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+            val lines=java.nio.file.Files.readAllLines(path)
+            assertEquals("LOGH7-NAV-13",lines.first())
+            FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+            java.nio.file.Files.writeString(path,lines.joinToString("\n").replace("\t9999","\t-1")+"\n")
+            FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+        }
+        assertFailsWith<IllegalArgumentException>{TacticalFireCodec.decode("1;1,2017,89,7,100,220,3;-")}
+    }
     @Test fun pendingAndCompletedBeamSurviveReopenAndLegacyElevenHasNoPendingFire() {
         val path=directory.resolve("beam")
         val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,

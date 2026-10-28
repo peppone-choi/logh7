@@ -67,7 +67,7 @@ class GamePresence {
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
     fun unit(member: Member) = BootstrapMessages.unit(member.character,member.player.grid,member.player.cruise,
-        member.player.baseId,member.player.mode,member.outfit)
+        member.player.baseId,member.player.mode,member.outfit,member.player.supplies)
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
@@ -77,7 +77,7 @@ class GamePresence {
         }
         val changedBase = old.baseId != next.baseId || old.mode != next.mode
         if (!changedBase && old.grid == next.grid && old.cruise == next.cruise && previous.outfit == member.outfit) return
-        val messages = listOf(BootstrapMessages.unit(member.character, next.grid, next.cruise, next.baseId, next.mode, member.outfit)) +
+        val messages = listOf(BootstrapMessages.unit(member.character, next.grid, next.cruise, next.baseId, next.mode, member.outfit,next.supplies)) +
             if (changedBase) listOf(org.logh7.protocol.PlaceMessages.dockNotification(next.characterId,
                 next.baseId, next.mode, seconds, next.spotId, if (next.spotId == 0) next.characterId else next.spotOwner)) else emptyList()
         members.values.filter { visible(it, member) }.forEach { send(it, messages) }
@@ -136,7 +136,7 @@ class GamePresence {
         send(next,listOf(BootstrapMessages.changedCharacter(next.character,player.pcp,player.mcp,player.spotId,
             player.spotOwner,player.returnBase,offices))+
             (if(next.outfit!=previous.outfit) listOf(BootstrapMessages.unit(next.character,player.grid,player.cruise,
-                player.baseId,player.mode,next.outfit)) else emptyList())+updated.refresh)
+                player.baseId,player.mode,next.outfit,player.supplies)) else emptyList())+updated.refresh)
     }
     @Synchronized fun remove(connection: String) {
         val leaving = members[connection] ?: return

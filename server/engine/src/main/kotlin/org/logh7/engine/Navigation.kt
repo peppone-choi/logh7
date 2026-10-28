@@ -18,12 +18,13 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
     val fuelReadyAt: Long? = null, val strategy: StrategyCheckpoint? = null, val dockTarget: Int? = null,
     val returnBase: Int = 0, val energy: TacticalEnergy? = null, val motion: TacticalMotion? = null,
-    val retreat: TacticalRetreat? = null, val charge: TacticalCharge? = null, val fire: TacticalFire? = null) {
+    val retreat: TacticalRetreat? = null, val charge: TacticalCharge? = null, val fire: TacticalFire? = null,
+    val supplies: Int = 10_000) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
-        spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 &&
+        spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && supplies in 0..10_000 &&
         (charge == null || cpPaused && baseId == 0 && mode == 5) &&
         (fire?.pending == null || cpPaused && baseId == 0 && mode == 5 && fire.pending.grid == grid) &&
         (retreat == null || (cpPaused && baseId == 0 && mode == 5 && motion != null && retreat.destination != grid &&
@@ -76,7 +77,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
             tacticalMove == null && tacticalStop == null && shipKind != null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR, WEAPON, TARGET }
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR, WEAPON, TARGET, SUPPLY }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false)
 
