@@ -15,6 +15,7 @@
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
 #include "planet_tax_data.h"
+#include "tactical_support_data.h"
 static bool planetUnitRowsTest() {
     unsigned char grid[4+300*12]={},party[logh::outfitPartyBytes]={};
     unsigned id=11,base=1049;grid[0]=1;
@@ -370,6 +371,12 @@ int wmain(int argc, wchar_t** argv) {
     if (logh::matchingPlanetWarehouse(warehouse, id)) return 11;
     warehouse[12] = 0; warehouse[0x260] = 25;
     if (logh::matchingPlanetWarehouse(warehouse, id)) return 11;
+    unsigned normal=999;
+    if (!logh::repairedNormal(300,250,50,normal) || normal!=250 ||
+        !logh::repairedNormal(300,250,78,normal) || normal!=222 ||
+        !logh::repairedNormal(1,1,0,normal) || normal!=1 ||
+        logh::repairedNormal(300,250,0,normal) || logh::repairedNormal(300,250,301,normal) ||
+        logh::repairedNormal(0,0,0,normal)) return 80;
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));

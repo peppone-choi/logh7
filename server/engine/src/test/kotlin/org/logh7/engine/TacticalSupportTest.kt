@@ -21,11 +21,11 @@ class TacticalSupportTest {
         val kind=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith(if(repair)"工作艦" else "輸送艦")}.kind
         val stack=UnitStack(kind);val target=UnitStack(32);val enemy=UnitStack(ProductionUnits.definitions.first {it.ship && it.power==3}.kind)
         val player=Navigator(1,10000,Power.EMPIRE,2488,1000,1000,900,cpPaused=true,supplies=400,
-            hull=FlagshipHull(0,now,hp=40),motion=ai(10f).motion)
+            hull=FlagshipHull(0,now,hp=40),motion=ai(0.5f).motion)
         val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
             units=UnitInventory(mapOf(stack to 1,target to 1)),supplies=10000,
             activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack,tactical=ai(0f),supplies=10000),
-                ActiveShipUnit(2,target,250,ai(8f),supplies=0,damaged=30))),position=OutfitPosition(2488))
+                ActiveShipUnit(2,target,250,ai(0.8f),supplies=0,damaged=30))),position=OutfitPosition(2488))
         return State(mapOf("pilot" to player),PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),
             outfits=mapOf(1 to outfit,2 to OutfitStock(2,3,OutfitKind.FLEET,1000,20,
                 units=UnitInventory(mapOf(enemy to 1)),activeShips=ActiveShipUnits(listOf(ActiveShipUnit(99,enemy))),position=OutfitPosition(2488))),
@@ -165,5 +165,22 @@ class TacticalSupportTest {
         assertTrue(out.single().cancelled);assertEquals(10000,out.single().character)
         assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().support)
         assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
+    }
+
+    @Test fun nativeSupportRadiusExcludesBoundaryAndCancelsWhenTargetLeaves() {
+        for(y in listOf(1f,1.01f)) {
+            val s=state().also {it.players=it.players.mapValues {(_,v)->v.copy(motion=ai(y).motion)}}
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+            assertEquals(NavigationRejection.TARGET,accept(s,nav,p,request(TacticalSupportAction.SUPPLY,1010000)).rejection)
+        }
+        val s=state().also {it.players=it.players.mapValues {(_,v)->v.copy(motion=ai(0.999f).motion)}}
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,1010000)).player)
+        val current=nav.snapshot(1).mapValues {(_,v)->v.copy(motion=ai(1f).motion)}
+        nav.saveReplacement(nav.snapshot(1),current,1)
+        val out=mutableListOf<TacticalSupportResult>();settle(s,nav,p,now+120,out)
+        assertTrue(out.single().cancelled)
+        assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
+        assertEquals(400,s.players.getValue("pilot").supplies)
     }
 }

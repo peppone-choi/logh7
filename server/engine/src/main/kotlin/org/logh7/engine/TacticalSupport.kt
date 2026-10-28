@@ -4,7 +4,11 @@ import kotlin.math.hypot
 
 enum class TacticalSupportAction { REPAIR, SUPPLY }
 /** Provisional fixed radius shared by native commandability and server validation. */
-object TacticalSupportRules { const val COMMAND_RANGE = 20f }
+object TacticalSupportRules {
+    const val COMMAND_RANGE = 20f
+    // 004c76e0/004f1180: six full-circle extents of 1; boundary itself is excluded.
+    const val SUPPORT_RANGE = 1.0
+}
 data class TacticalSupport(val action: TacticalSupportAction, val unit: Int, val target: Int)
 data class TacticalSupportOrder(val action: TacticalSupportAction, val character: Int, val target: Int,
     val grid: Int, val acceptedAt: Long, val readyAt: Long) {
@@ -20,10 +24,9 @@ data class TacticalSupportResult(val generation: Long, val grid: Int, val action
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()})}
 }
 
-/** Replacement policy: same-power, adjacent formation units (20 map units), five real seconds.
+/** Replacement policy: same-power units within the native support radius, five real seconds.
  * The support ship must belong to the authenticated fleet commander at acceptance and execution. */
 internal object TacticalSupportOperations {
-    private const val RANGE = 20.0
     private data class Ship(val outfit: OutfitStock, val unit: ActiveShipUnit)
     private fun ship(id: Int, stocks: PlanetStocks): Ship? = stocks.outfits.values.mapNotNull {o ->
         o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)} }.singleOrNull()
@@ -54,7 +57,7 @@ internal object TacticalSupportOperations {
         val commander=(player.motion?.pose(now) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
             players.values,stocks,galaxy)).position
         if(hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>TacticalSupportRules.COMMAND_RANGE)return false
-        return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<=RANGE
+        return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<TacticalSupportRules.SUPPORT_RANGE
     }
     private fun replace(stocks: PlanetStocks, source: Ship, unit: ActiveShipUnit): PlanetStocks =
         stocks.copy(outfits=stocks.outfits+(source.outfit.id to source.outfit.copy(activeShips=ActiveShipUnits(
