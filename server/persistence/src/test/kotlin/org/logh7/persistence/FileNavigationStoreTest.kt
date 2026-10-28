@@ -7,6 +7,28 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun pendingFormationRotationReopensWithLeaderAndRemainingWait() {
+        for(kind in TacticalManeuver.entries) {
+            val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(2f,3f),0.4f),0f,1f,
+                listOf(TacticalPoint(-3f,2f)),rotation=TacticalRotation(kind,1010000,240,List(32){1010000+it}))
+            val player=Navigator(1,10000,Power.EMPIRE,2017,1000,1000,900,cpPaused=true,motion=motion)
+            val path=directory.resolve("rotation-$kind")
+            FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+            FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+            val raw=java.util.Base64.getUrlDecoder().decode(TacticalMotionCodec.encode(motion))
+            assertEquals(179,raw.size)
+            fun reject(bytes:ByteArray)=assertFailsWith<IllegalArgumentException> {
+                TacticalMotionCodec.decode(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes))
+            }
+            reject(raw.dropLast(1).toByteArray());reject(raw+0.toByte())
+            reject(raw.copyOf().also {it[41]=12}) // Both mutually exclusive maneuver bits.
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putInt(42,0)})
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putInt(46,0)})
+            reject(raw.copyOf().also {it[50]=0})
+            reject(raw.copyOf().also {it[50]=33})
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putInt(55,1010000)})
+        }
+    }
     @Test fun waypointPermissionsSurviveFileReopenAndRejectMissingOrOutOfRangeProgress() {
         val path=directory.resolve("waypoint-progress")
         val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0.4f),0.5f,1f,

@@ -200,6 +200,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return NavigationResult(after, before)
         }
         request.tacticalMove?.let { move ->
+            // Formation rotations require the actor's joint navigation/stock transaction.
+            if(move.maneuver!=null)return reject(NavigationRejection.DISABLED)
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             if (move.units != listOf(before.unitId)) return reject(NavigationRejection.UNIT)
             if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)

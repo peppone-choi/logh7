@@ -10,13 +10,13 @@ internal object TacticalMotionProgress {
             if(completed<=motion.reportedWaypoints)return motion
             val next=if(completed==motion.waypoints.size) {
                 val pose=motion.pose(now)
-                motion.copy(origin=pose,velocity=0f,direction=pose.direction,waypoints=listOf(pose.position),reportedWaypoints=0)
+                motion.copy(origin=pose,velocity=0f,direction=pose.direction,waypoints=listOf(pose.position),reportedWaypoints=0,rotation=null)
             } else motion.copy(reportedWaypoints=completed)
             val audience=players.mapNotNull {(account,p)->session.participants[account]?.takeIf {
                 it.online && it.power==p.power && p.grid==motion.grid && p.baseId==0 && p.cpPaused
             }?.connection?.let {p.characterId to it}}.toMap()
             events+=TacticalMovement(session.generation,unit,motion.grid,now,next,audience,character=character,
-                waypoint=if(next.velocity==0f)-1 else completed)
+                waypoint=if(next.velocity==0f)-1 else completed,turned=motion.rotation?.kind==TacticalManeuver.REVERSE)
             return next
         }
         for((account,player) in players.toMap()) {

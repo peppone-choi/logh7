@@ -53,9 +53,20 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                     stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0)
         }.also {require(it.size<=600)}
     }
-    fun resume() = people.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
+    private fun rotations():List<ByteArray> {
+        data class Entry(val id:Int,val character:Int,val motion:TacticalMotion)
+        val entries=people.mapNotNull {p->p.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(p.unitId,p.characterId,it)}} +
+            snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
+                o.activeShips?.values.orEmpty().filter {it.boats>0 && it.motionCommander==o.commanderId}.mapNotNull {u->
+                    u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(u.id,u.motionCommander,it)}
+                }}
+        return entries.groupBy {Triple(it.character,it.motion.acceptedAt,it.motion.rotation)}.values.flatMap {group ->
+            TacticalMotionMessages.formation(group.associate {it.id to it.motion},snapshot.session?.gameSeconds ?: 0,group.first().character)
+        }
+    }
+    fun resume() = rotations()+people.filter {it.motion?.rotation==null}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
         snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid}
+            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation==null}
                 ?.let {TacticalMotionMessages.npc(u.id,it,snapshot.session?.gameSeconds ?: 0)}}} +
         snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().mapNotNull {u ->u.support?.takeIf {it.grid==viewer.grid}?.let {order ->

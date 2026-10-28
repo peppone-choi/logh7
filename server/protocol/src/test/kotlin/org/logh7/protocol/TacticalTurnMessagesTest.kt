@@ -5,6 +5,13 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalTurnMessagesTest {
+    @Test fun turnedNotificationIsExactlyTimeUnitAndDirection() {
+        val packet=ByteBuffer.wrap(TacticalTurnMessages.turned(0xffffffffL,1010000,-1.25f))
+        assertEquals(18,packet.remaining());assertEquals(0,packet.int);assertEquals(0x0424,packet.short.toInt())
+        assertEquals(-1,packet.int);assertEquals(1010000,packet.int);assertEquals(-1.25f,packet.float)
+        assertFailsWith<IllegalArgumentException>{TacticalTurnMessages.turned(0,0,0f)}
+        assertFailsWith<IllegalArgumentException>{TacticalTurnMessages.turned(0,1,Float.NaN)}
+    }
     private fun command(reverse:Boolean,count:Int=2)=TacticalTurnMessages.Command(10000,
         List(count) {TacticalTurnMessages.Unit(it+1,it/10f)},if(reverse)null else -1.25f,if(reverse)255 else 0)
     @Test fun readsIndependentPackedRecordsWithDifferentTurnAndReverseTails() {

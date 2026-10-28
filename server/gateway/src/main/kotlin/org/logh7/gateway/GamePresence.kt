@@ -46,7 +46,12 @@ class GamePresence {
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
         members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
-                val packet=if(event.destination!=null)
+                if(event.formation.isNotEmpty()) {
+                    send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
+                    return@forEach
+                }
+                val packet=if(event.turned)org.logh7.protocol.TacticalTurnMessages.turned(event.seconds,event.unit,checkNotNull(event.motion).direction)
+                else if(event.destination!=null)
                     org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,checkNotNull(event.destination),listOf(event.unit))
                 else if(event.waypoint!=null)checkNotNull(event.motion).let {motion ->
                     val pose=motion.pose(event.seconds)
@@ -140,7 +145,7 @@ class GamePresence {
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
-        if (old.motion != next.motion) TacticalMotionMessages.reply(next,seconds)?.let { packet ->
+        if (old.motion != next.motion && next.motion?.rotation==null) TacticalMotionMessages.reply(next,seconds)?.let { packet ->
             members.values.filter {it.connection!=member.connection && it.player.generation==next.generation &&
                 it.player.grid==next.grid && it.player.baseId==0 && it.player.cpPaused}.forEach {send(it,listOf(packet))}
         }

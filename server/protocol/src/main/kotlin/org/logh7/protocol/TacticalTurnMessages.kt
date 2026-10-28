@@ -4,6 +4,11 @@ import java.nio.ByteBuffer
 
 /** Native 00493030/00493c70 writers and 0049b040/0049c020 readers. Author: 최병호. */
 object TacticalTurnMessages {
+    /** 004bf970: a committed reverse uses the native in-place rotation executor. */
+    fun turned(seconds:Long,unit:Int,direction:Float):ByteArray {
+        require(seconds in 0..0xffffffffL && unit>0 && direction.isFinite())
+        return LoginMessages.sessionMessage(0x0424,ByteBuffer.allocate(12).putInt(seconds.toInt()).putInt(unit).putFloat(direction).array())
+    }
     data class Unit(val id:Int,val direction:Float) {
         init { require(id>0 && direction.isFinite()) }
     }

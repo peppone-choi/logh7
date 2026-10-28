@@ -309,6 +309,25 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0401,0x0403 -> {
+                        check(gameStarted && worldInitialized && navigation!=null && world!=null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val turn=org.logh7.protocol.TacticalTurnMessages.command(body)
+                        require(turn.character==character.id.toInt())
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
+                            shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalMove=org.logh7.engine.TacticalMove(
+                                turn.units.map {it.id},0f,turn.direction ?: 0f,listOf(org.logh7.engine.TacticalPoint(0f,0f)),
+                                maneuver=if(turn.reverse)org.logh7.engine.TacticalManeuver.REVERSE else org.logh7.engine.TacticalManeuver.TURN))).thenApply {result ->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            (if(result.player==null)listOf(org.logh7.protocol.TacticalTurnMessages.reply(turn,gameSeconds(),0,false))
+                                else TacticalMotionMessages.formation(result.tacticalMotions,gameSeconds(),player.characterId))+
+                                commandCorps(identity.account)
+                        }
+                        return null
+                    }
                     0x0400,0x0402 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(currentCharacter(identity.account))

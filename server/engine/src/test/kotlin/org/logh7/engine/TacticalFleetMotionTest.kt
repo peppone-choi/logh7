@@ -4,6 +4,62 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalFleetMotionTest {
+    @Test fun rotationsKeepFirstSelectedAnchorWaitAtomicallyAndResumeWithoutDuplicateCompletion() {
+        for(kind in TacticalManeuver.entries) {
+            val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
+            val command=TacticalMove(listOf(2,1,1010000),0f,(Math.PI/2).toFloat(),listOf(TacticalPoint(999f,999f)),maneuver=kind)
+            val request=request().copy(tacticalMove=command)
+            val accepted=TacticalFleetMotion.move(request,session,galaxy,nav,p,p.snapshot(1)!!,s.commit,24)
+            assertNotNull(accepted.player)
+            val wait=if(kind==TacticalManeuver.TURN)120L else 240L
+            for((id,motion) in accepted.tacticalMotions) {
+                assertEquals(TacticalRotation(kind,2,wait,command.units),motion.rotation)
+                assertEquals(motion.origin,motion.pose(now+wait-1))
+                assertEquals(0,motion.completedWaypoints(now+wait-1))
+                assertEquals(1,motion.completedWaypoints(now+wait))
+                if(kind==TacticalManeuver.REVERSE) {
+                    assertEquals(motion.origin.position,motion.pose(now+wait).position)
+                    assertEquals(Math.PI.toFloat(),kotlin.math.abs(motion.direction),0.00001f)
+                } else {
+                    assertEquals((Math.PI/2).toFloat(),motion.direction)
+                    assertEquals(0.8f,motion.waypoints.single().y,0.00001f)
+                    assertEquals(when(id){2->0f;1->-0.8f;else->-0.3f},motion.waypoints.single().x,0.00001f)
+                }
+            }
+            val before=s.stocks;val players=s.players;val events=mutableListOf<TacticalMovement>()
+            s.fail=true
+            assertFailsWith<java.io.IOException> {TacticalCombat.settle(session.copy(gameMillis=(now+wait)*1000),galaxy,nav,p,s.commit,onMovement=events::add)}
+            assertEquals(before,s.stocks);assertEquals(players,s.players);assertTrue(events.isEmpty())
+            s.fail=false;nav=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
+            TacticalCombat.settle(session.copy(gameMillis=(now+wait)*1000),galaxy,nav,p,s.commit,onMovement=events::add)
+            assertEquals(setOf(1,2,1010000),events.map {it.unit}.toSet())
+            assertTrue(events.all {it.waypoint==-1 && it.motion!!.rotation==null})
+            assertTrue(events.all {it.turned==(kind==TacticalManeuver.REVERSE)})
+            assertEquals(accepted.player.commandRange,s.players.getValue("pilot").commandRange)
+            assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
+            TacticalCombat.settle(session.copy(gameMillis=(now+wait+1)*1000),galaxy,nav,p,s.commit,onMovement=events::add)
+            assertEquals(3,events.size)
+        }
+    }
+    @Test fun pendingRotationsCanBeStoppedAndOutOfRangeCommandsDoNotCommit() {
+        for(kind in TacticalManeuver.entries) {
+            val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+            val r=request().copy(tacticalMove=TacticalMove(listOf(1,2,1010000),0f,1f,listOf(TacticalPoint(0f,0f)),maneuver=kind))
+            assertNotNull(TacticalFleetMotion.move(r,session,galaxy,nav,p,p.snapshot(1)!!,s.commit,24).player)
+            val stop=r.copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(1,2,1010000)))
+            val stopped=TacticalSupportOperations.stop(stop,session.copy(gameMillis=(now+16)*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit)
+            assertNotNull(stopped.player);assertTrue(stopped.tacticalMotions.values.all {it.rotation==null})
+            val events=mutableListOf<TacticalMovement>()
+            TacticalCombat.settle(session.copy(gameMillis=(now+300)*1000),galaxy,nav,p,s.commit,onMovement=events::add)
+            assertTrue(events.isEmpty());assertEquals(0f,s.players.getValue("pilot").motion!!.direction)
+            val denied=state();denied.players=denied.players.mapValues {(_,v)->v.copy(commandRange=TacticalCommandRange(now))}
+            val deniedNav=Navigation(galaxy,denied.nav,NavigationPolicy());val deniedProduction=production(denied)
+            val before=denied.stocks
+            assertEquals(NavigationRejection.RANGE,TacticalFleetMotion.move(r,session,galaxy,deniedNav,deniedProduction,
+                deniedProduction.snapshot(1)!!,denied.commit,24).rejection)
+            assertEquals(before,denied.stocks)
+        }
+    }
     @Test fun waypointProgressAndCompletionCommitBeforeNotificationAndSurviveReloadWithoutRepeating() {
         val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
         val command=TacticalMove(listOf(1,1010000),1f,1.2f,listOf(TacticalPoint(0f,2f),TacticalPoint(3f,2f)))

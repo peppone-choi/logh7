@@ -469,9 +469,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         if (command.request.tacticalStop?.units?.any {it in 1..999999}==true)
                             TacticalSupportOperations.stop(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter)
-                        else if(command.request.tacticalMove?.units?.any {it in 1..999999}==true)
+                        else if(command.request.tacticalMove?.let {it.maneuver!=null || it.units.any {id->id in 1..999999}}==true)
                             TacticalFleetMotion.move(command.request,session,galaxy,navigation,production,
-                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter)
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else if (command.request.tacticalSupport != null)
                             TacticalSupportOperations.accept(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
@@ -499,9 +499,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         val recipients=session.participants.filter {(_,member)->member.online && member.connection!=command.request.connection}
                             .mapNotNull {(account,member)->state.navigators[account]?.takeIf {
                                 it.grid==player.grid && it.baseId==0 && it.cpPaused}?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
-                        for((id,motion) in result.tacticalMotions.filterKeys {it in 1..999999}) {
+                        val formation=result.tacticalMotions.takeIf {it.values.any {m->m.rotation!=null}}.orEmpty()
+                        val deliveries=if(formation.isEmpty())result.tacticalMotions.filterKeys {it in 1..999999}
+                            else formation.entries.take(1).associate {it.key to it.value}
+                        for((id,motion) in deliveries) {
                             val event=TacticalMovement(session.generation,id,player.grid,session.gameMillis/1000,motion,recipients,
-                                character=player.characterId,stopped=command.request.tacticalStop!=null)
+                                character=player.characterId,stopped=command.request.tacticalStop!=null,formation=formation)
                             for(observer in movementObservers)try {observer(event)}
                             catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
                         }

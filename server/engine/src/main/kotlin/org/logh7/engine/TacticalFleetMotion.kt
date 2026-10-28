@@ -5,7 +5,8 @@ import kotlin.math.hypot
 /** Commander-controlled regular ships share the durable per-unit motion with NPCs. Author: 최병호. */
 internal object TacticalFleetMotion {
     fun move(request:NavigationRequest,session:SessionState,galaxy:Galaxy,navigation:Navigation,
-        production:PlanetProduction,stocks:PlanetStocks,committer:WorldStateCommitter?):NavigationResult {
+        production:PlanetProduction,stocks:PlanetStocks,committer:WorldStateCommitter?,clockScale:Long=1):NavigationResult {
+        require(clockScale in 1..86400)
         val preview=navigation.apply(request.copy(tacticalMove=null),session,stocks,persist=false)
         var player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
@@ -14,9 +15,14 @@ internal object TacticalFleetMotion {
         if(player.hull?.woundedUntil?.let {it>session.gameMillis/1000}==true)return reject(NavigationRejection.WOUNDED)
         if(request.captainCard!=if(player.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
         val command=checkNotNull(request.tacticalMove)
+        if(player.unitId in command.units && (player.hull==null ||
+            Flagships.find(player.hull.kind)?.power!=if(player.power==Power.EMPIRE)2 else 3))return reject(NavigationRejection.UNIT)
         if(command.units.distinct().size!=command.units.size)return reject(NavigationRejection.UNIT)
         val now=session.gameMillis/1000
         if(now>0xffffffffL-TacticalMotion.WAIT_SECONDS)return reject(NavigationRejection.CLOCK)
+        val rotation=command.maneuver?.let {TacticalRotation(it,command.units.first(),
+            (if(it==TacticalManeuver.REVERSE)10L else 5L)*clockScale,command.units)}
+        if(rotation!=null && now>0xffffffffL-rotation.wait)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
         val own=player.motion?.takeIf {it.grid==player.grid}?.pose(now) ?:
             TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
@@ -39,11 +45,21 @@ internal object TacticalFleetMotion {
                         checkNotNull(player.commandRange).radius(now))return reject(NavigationRejection.RANGE)
                 }
         }}
-        if(player.unitId in command.units && command.velocity>(player.energy ?: TacticalEnergy.ZERO).values[0]/100f)
+        if(command.maneuver==null && player.unitId in command.units && command.velocity>(player.energy ?: TacticalEnergy.ZERO).values[0]/100f)
             return reject(NavigationRejection.ENERGY)
         // 004c8110 anchors offsets to the first selected unit, not the formation centroid.
         val anchor=poses.getValue(command.units.first()).position
-        val motions=poses.mapValues {(_,pose)->TacticalMotion(player.grid,now,pose,
+        val motions=poses.mapValues {(_,pose)->if(rotation!=null) {
+            val direction=if(rotation.kind==TacticalManeuver.REVERSE)
+                kotlin.math.atan2(kotlin.math.sin(pose.direction.toDouble()+Math.PI),kotlin.math.cos(pose.direction.toDouble()+Math.PI)).toFloat()
+                else command.direction
+            val delta=direction.toDouble()-poses.getValue(command.units.first()).direction
+            val dx=pose.position.x-anchor.x;val dy=pose.position.y-anchor.y
+            val x=if(rotation.kind==TacticalManeuver.REVERSE)pose.position.x else (anchor.x+dx*kotlin.math.cos(delta)+dy*kotlin.math.sin(delta)).toFloat()
+            val y=if(rotation.kind==TacticalManeuver.REVERSE)pose.position.y else (anchor.y-dx*kotlin.math.sin(delta)+dy*kotlin.math.cos(delta)).toFloat()
+            if(kotlin.math.abs(x)>100000 || kotlin.math.abs(y)>100000)return reject(NavigationRejection.RANGE)
+            TacticalMotion(player.grid,now,pose,0f,direction,listOf(TacticalPoint(x,y)),rotation=rotation)
+        } else TacticalMotion(player.grid,now,pose,
             command.velocity*(if(command.parallel)0.5f else 1f),if(command.parallel)pose.direction else command.direction,
             command.waypoints.map {
                 val x=it.x+(pose.position.x-anchor.x);val y=it.y+(pose.position.y-anchor.y)

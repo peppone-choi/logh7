@@ -18,10 +18,20 @@ data class TacticalStop(val units: List<Int>, val bases: List<Int> = emptyList()
         require(bases.all { it in 1..65535 } && bases.distinct().size == bases.size)
     }
 }
-data class TacticalMove(val units: List<Int>, val velocity: Float, val direction: Float, val waypoints: List<TacticalPoint>,val parallel:Boolean=false) {
+enum class TacticalManeuver { TURN, REVERSE }
+
+/** Group leader is retained so reconnect never turns a formation into independent rotations. */
+data class TacticalRotation(val kind:TacticalManeuver,val leader:Int,val wait:Long,val selection:List<Int> = listOf(leader)) {
+    init {require(leader>0 && wait in 1..0xffffffffL && selection.size in 1..32 && selection.first()==leader &&
+        selection.all {it>0} && selection.distinct().size==selection.size)}
+}
+
+data class TacticalMove(val units: List<Int>, val velocity: Float, val direction: Float, val waypoints: List<TacticalPoint>,val parallel:Boolean=false,
+    val maneuver:TacticalManeuver?=null) {
     init {
         require(units.size in 1..32 && units.all { it > 0 } && units.distinct().size == units.size)
         require(velocity.isFinite() && velocity in 0f..1f && direction.isFinite() && waypoints.size in 1..32)
+        require(maneuver==null || !parallel && waypoints.size==1)
     }
 }
 /** Parametric movement survives restart without writing interpolated positions on every tick.
@@ -30,15 +40,17 @@ data class TacticalMove(val units: List<Int>, val velocity: Float, val direction
  */
 data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: TacticalPose,
     val velocity: Float, val direction: Float, val waypoints: List<TacticalPoint>,val parallel:Boolean=false,
-    val reportedWaypoints:Int=0) {
+    val reportedWaypoints:Int=0,val rotation:TacticalRotation?=null) {
     init {
         require(grid in 0..4999 && acceptedAt in 0..0xffffffffL - WAIT_SECONDS)
         require(velocity.isFinite() && velocity in 0f..1f && direction.isFinite() && waypoints.size in 1..32)
         require(reportedWaypoints in waypoints.indices)
+        require(rotation==null || (!parallel && reportedWaypoints==0 && waypoints.size==1 && velocity==0f && acceptedAt<=0xffffffffL-rotation.wait))
     }
-    val startsAt get() = acceptedAt + WAIT_SECONDS
+    val startsAt get() = acceptedAt + (rotation?.wait ?: WAIT_SECONDS)
     fun completedWaypoints(seconds:Long):Int {
         require(seconds in 0..0xffffffffL)
+        if(rotation!=null)return if(seconds>=startsAt)1 else 0
         if(seconds<=startsAt || velocity==0f)return 0
         var distance=(seconds-startsAt)*velocity.toDouble()
         var from=origin.position
@@ -63,6 +75,7 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
     }
     fun pose(seconds: Long): TacticalPose {
         require(seconds in 0..0xffffffffL)
+        if(rotation!=null)return if(seconds<startsAt)origin else TacticalPose(waypoints.single(),direction)
         if (seconds <= startsAt || velocity == 0f) return origin
         var distance = (seconds - startsAt) * velocity.toDouble()
         var from = origin.position

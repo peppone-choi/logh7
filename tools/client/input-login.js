@@ -20,7 +20,7 @@ Process.attachModuleObserver({onAdded(module) {
     return (y<<16)|x;
   }
   rpc.exports.movemouse=function(x,y) {
-    if(testKey===2 && testMouse) {
+    if([1,2].includes(testKey) && testMouse) {
       testMouseDelta.x+=x-testMouse.x;testMouseDelta.y+=y-testMouse.y;
     }
     const position=mousePosition(x,y);
