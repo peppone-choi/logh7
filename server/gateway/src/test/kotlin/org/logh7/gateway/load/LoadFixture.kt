@@ -13,7 +13,8 @@ import java.util.concurrent.*
 class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics, private val galaxy: Galaxy? = null, ticking: Boolean = true,
     stockStore: PlanetStockStore? = null, navigationStore: NavigationStore? = null,
     worldStateCommitter: WorldStateCommitter? = null,
-    private val navigationDecorator: (GameNavigation) -> GameNavigation = { it }) : AutoCloseable {
+    private val navigationDecorator: (GameNavigation) -> GameNavigation = { it },
+    private val powerByIndex: (Int) -> Int = {2}) : AutoCloseable {
     val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,
@@ -108,7 +109,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
         } catch (failure: Throwable) { game.close(); throw failure }
     }
     private fun create(client: SyntheticClient, index: Int): CharacterMessages.Generate = metrics.measure("create") {
-        var current = CharacterMessages.Generate(0, 0, 2, 0, 0, "Load%03d".format(index), "Test", 30,
+        var current = CharacterMessages.Generate(0, 0, powerByIndex(index), if(powerByIndex(index)==3)3 else 0, 0, "Load%03d".format(index), "Test", 30,
             1, 1, 1, List(8) { 0 }, 0, 0, 0, 0, 0, 0, "", 0)
         for (category in 0..4) {
             current = current.copy(category = category, shipName = if (category >= 3) "Ship%03d".format(index) else "")

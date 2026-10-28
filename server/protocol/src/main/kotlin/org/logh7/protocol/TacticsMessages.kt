@@ -43,7 +43,7 @@ object TacticsMessages {
     }
     data class Base(val id: Int,val x: Float,val y: Float,val z: Float)
     data class Unit(val id: Int,val kind: Int,val outfit: Int,val character: Int,val supplies: Int,
-        val cruise: Float,val destroyed: Int,val x: Float,val y: Float,val z: Float,val direction: Float)
+        val cruise: Float,val destroyed: Int,val x: Float,val y: Float,val z: Float,val direction: Float,val damaged: Int = 0)
     fun notify(grid: Int, active: Boolean): ByteArray {
         require(grid in 0..4999)
         return LoginMessages.sessionMessage(0x0f1f,ByteBuffer.allocate(5).put(if(active)1 else 0).putInt(grid).array())
@@ -61,9 +61,9 @@ object TacticsMessages {
         require(grid in 0..4999 && units.size<=600 && units.map {it.id}.distinct().size==units.size)
         val out=ByteBuffer.allocate(2+42*units.size).putShort(units.size.toShort())
         units.forEach {u->
-            require(u.id>0 && u.kind in 0..199 && u.outfit>=0 && u.supplies>=0 && u.destroyed in 0..65535)
+            require(u.id>0 && u.kind in 0..199 && u.outfit>=0 && u.supplies>=0 && u.destroyed in 0..65535 && u.damaged in 0..65535)
             out.putInt(u.id).putShort(u.kind.toShort()).put(5).putInt(grid).putInt(u.outfit).putInt(0).put(0)
-                .putInt(0).put(100).put(0).putShort(0).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
+                .putInt(0).put(100).put(0).putShort(u.damaged.toShort()).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
         }
         return LoginMessages.sessionMessage(0x0325,out.array())
     }

@@ -17,9 +17,21 @@ class GamePresence {
     /** Every committed shot is queued separately, including while an exchange awaits another command. */
     @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact) {
         val packet = org.logh7.protocol.TacticalAttackMessages.hit(impact.hit.seconds,impact.source,
-            impact.weapon.wire,impact.hit.target,impact.hit.destroyed)
+            impact.weapon.wire,impact.hit.target,impact.hit.destroyed,
+            impact.hit.damaged,impact.hit.shieldFace,impact.hit.shieldDamage)
         members.values.filter { viewer -> viewer.player.generation == impact.generation &&
-            impact.recipients[viewer.character.id.toInt()] == viewer.connection }.forEach { send(it,listOf(packet)) }
+            impact.recipients[viewer.character.id.toInt()] == viewer.connection }.forEach { viewer ->
+                if (impact.departed?.characterId==viewer.character.id.toInt()) {
+                    // 004c96c0 requires a living own flagship while rendering any tactical unit.
+                    // Leave the victim's view before destroying that native anchor; bootstrap returns the replacement.
+                    send(viewer,listOf(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false)))
+                } else {
+                    val leave=impact.departed?.let {
+                        listOf(org.logh7.protocol.TacticalRetreatMessages.warped(impact.hit.seconds,it.grid,listOf(it.unitId)))
+                    }.orEmpty()
+                    send(viewer,listOf(packet)+leave)
+                }
+            }
     }
     private fun send(viewer: Member, messages: List<ByteArray>) {
         try { viewer.send(messages) } catch (_: Exception) { /* A closed peer cannot fail another player's command. */ }
@@ -66,8 +78,8 @@ class GamePresence {
     }
     fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
-    fun unit(member: Member) = BootstrapMessages.unit(member.character,member.player.grid,member.player.cruise,
-        member.player.baseId,member.player.mode,member.outfit,member.player.supplies)
+    fun unit(member: Member) = BootstrapMessages.unit(member.character.copy(shipKind=member.player.hull?.kind ?: member.character.shipKind),member.player.grid,member.player.cruise,
+        member.player.baseId,member.player.mode,member.outfit,member.player.supplies,if(member.player.hull?.hp?.let {it<100}==true)1 else 0)
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
@@ -77,7 +89,7 @@ class GamePresence {
         }
         val changedBase = old.baseId != next.baseId || old.mode != next.mode
         if (!changedBase && old.grid == next.grid && old.cruise == next.cruise && previous.outfit == member.outfit) return
-        val messages = listOf(BootstrapMessages.unit(member.character, next.grid, next.cruise, next.baseId, next.mode, member.outfit,next.supplies)) +
+        val messages = listOf(BootstrapMessages.unit(member.character.copy(shipKind=member.player.hull?.kind ?: member.character.shipKind), next.grid, next.cruise, next.baseId, next.mode, member.outfit,next.supplies,if(next.hull?.hp?.let {it<100}==true)1 else 0)) +
             if (changedBase) listOf(org.logh7.protocol.PlaceMessages.dockNotification(next.characterId,
                 next.baseId, next.mode, seconds, next.spotId, if (next.spotId == 0) next.characterId else next.spotOwner)) else emptyList()
         members.values.filter { visible(it, member) }.forEach { send(it, messages) }
@@ -135,8 +147,8 @@ class GamePresence {
         val updated=update(next,seconds)
         send(next,listOf(BootstrapMessages.changedCharacter(next.character,player.pcp,player.mcp,player.spotId,
             player.spotOwner,player.returnBase,offices))+
-            (if(next.outfit!=previous.outfit) listOf(BootstrapMessages.unit(next.character,player.grid,player.cruise,
-                player.baseId,player.mode,next.outfit,player.supplies)) else emptyList())+updated.refresh)
+            (if(next.outfit!=previous.outfit) listOf(BootstrapMessages.unit(next.character.copy(shipKind=player.hull?.kind ?: next.character.shipKind),player.grid,player.cruise,
+                player.baseId,player.mode,next.outfit,player.supplies,if(player.hull?.hp?.let {it<100}==true)1 else 0)) else emptyList())+updated.refresh)
     }
     @Synchronized fun remove(connection: String) {
         val leaving = members[connection] ?: return

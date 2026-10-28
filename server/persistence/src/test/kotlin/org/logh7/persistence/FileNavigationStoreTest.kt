@@ -7,6 +7,20 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun hullInjuryAndPersonalHitsReopenInFourteenAndLegacyThirteenRemainsUnset() {
+        val path=directory.resolve("hull")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            hull=FlagshipHull(89,100,hp=75,shields=List(6){123L}),
+            fire=TacticalFire(2,last=TacticalHit(2,2017,100,1010001,0,1,3,20)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-14",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-13\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").hull)}
+        assertFailsWith<IllegalArgumentException>{FlagshipHullCodec.decode("89,100,0,0,24,0,0,0,0,0,0")}
+        assertFailsWith<IllegalArgumentException>{FlagshipHullCodec.decode("89,100,100,0,24,-1,0,0,0,0,0")}
+    }
     @Test fun gunAndMissilePendingAndSuppliesSurviveReopenWithoutChangingLegacyBeam() {
         val path=directory.resolve("ammunition")
         for(weapon in listOf(TacticalWeapon.GUN,TacticalWeapon.MISSILE)) {

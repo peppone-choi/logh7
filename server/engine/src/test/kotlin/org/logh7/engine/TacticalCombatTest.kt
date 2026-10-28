@@ -180,4 +180,46 @@ class TacticalCombatTest {
         assertEquals(10000,nav.snapshot(1).getValue("pilot").supplies)
     }
 
+    @Test fun personalShieldDamagePersistsAndFatalOverflowReturnsInDestroyerWithoutGhostFire() {
+        val state=state()
+        val victimPoint=TacticalPoint(180f,-95f)
+        val victim=state.players.getValue("pilot").copy(characterId=10001,power=Power.EMPIRE,returnBase=1000,
+            energy=TacticalEnergy.ZERO,charge=null,hull=FlagshipHull(0,now),
+            motion=TacticalMotion(2488,now,TacticalPose(victimPoint,Math.PI.toFloat()),0f,Math.PI.toFloat(),listOf(victimPoint)))
+        state.players+= "victim" to victim
+        val duel=session.copy(participants=session.participants+("victim" to Participant(Power.EMPIRE,false,connection="v")))
+        var nav=Navigation(galaxy,state.nav,NavigationPolicy());var stock=production(state)
+        val shot=request.copy(tacticalShoot=request.tacticalShoot!!.copy(target=victim.unitId))
+        assertNotNull(TacticalCombat.accept(shot,duel,galaxy,nav,stock.snapshot(1)!!,state.commit,24).player)
+        val first=TacticalCombat.settle(duel.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit).single()
+        assertEquals(victim.unitId,first.hit.target);assertEquals(0,first.hit.destroyed);assertEquals(0,first.hit.damaged)
+        assertEquals(0,first.hit.shieldFace);assertTrue(first.hit.shieldDamage>0);assertNull(first.departed)
+        val defended=nav.snapshot(1).getValue("victim")
+        assertEquals(100,defended.hull!!.hp)
+        assertTrue(defended.hull!!.levels()[0]<FlagshipHull.capacity(0))
+        nav=Navigation(galaxy,state.nav,NavigationPolicy());assertEquals(defended,nav.snapshot(1).getValue("victim"))
+        state.players=state.players.mapValues { (account,p)->if(account=="victim")p.copy(
+            hull=p.hull!!.copy(hp=1,shields=List(6){0L}),
+            fire=TacticalFire(1,TacticalPendingFire(1,2488,0,1010000,now+120,now+1000))) else
+            p.copy(charge=TacticalCharge(now+120,24000)) }
+        nav=Navigation(galaxy,state.nav,NavigationPolicy());stock=production(state)
+        val nextSession=duel.copy(gameMillis=(now+120)*1000)
+        assertNotNull(TacticalCombat.accept(shot,nextSession,galaxy,nav,stock.snapshot(1)!!,state.commit,24).player)
+        val before=nav.snapshot(1);val stored=state.stocks
+        state.fail=true
+        assertFailsWith<java.io.IOException>{TacticalCombat.settle(duel.copy(gameMillis=(now+240)*1000),galaxy,nav,stock,state.commit)}
+        assertEquals(before,nav.snapshot(1));assertEquals(stored,state.stocks);state.fail=false
+        val fatal=TacticalCombat.settle(duel.copy(gameMillis=(now+240)*1000),galaxy,nav,stock,state.commit).single()
+        assertEquals(1,fatal.hit.destroyed);assertEquals(1,fatal.hit.damaged)
+        val returned=nav.snapshot(1).getValue("victim")
+        assertEquals(returned,fatal.departed);assertEquals(2487,returned.grid);assertEquals(1000,returned.baseId)
+        assertEquals(4,returned.mode);assertFalse(returned.cpPaused);assertNull(returned.fire);assertNull(returned.motion)
+        assertEquals(3,returned.hull!!.kind);assertEquals(now+240+86400,returned.hull!!.woundedUntil)
+        assertEquals(0,returned.supplies);assertEquals(setOf(10000,10001),fatal.recipients.keys)
+        assertTrue(TacticalCombat.settle(duel.copy(gameMillis=(now+1200)*1000),galaxy,nav,stock,state.commit).isEmpty())
+        val exit=NavigationRequest("victim",10001,Power.EMPIRE,"v",1,place=PlaceMove.SwitchMode(5),shipKind=3,unitId=1010001,captainCard=59)
+        assertEquals(NavigationRejection.WOUNDED,nav.apply(exit,duel.copy(gameMillis=(now+300)*1000),stock.snapshot(1)).rejection)
+        assertNotNull(nav.apply(exit,duel.copy(gameMillis=(now+240+86400)*1000),stock.snapshot(1)).player)
+    }
+
 }

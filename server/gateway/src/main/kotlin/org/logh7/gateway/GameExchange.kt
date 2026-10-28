@@ -82,9 +82,15 @@ class GameExchange(
     }
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
+    private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
+        player.hull?.let { hull -> org.logh7.engine.Flagships.find(hull.kind)?.let {
+            character.copy(shipKind=it.kind,shipType=it.type) } } ?: character
+    private fun currentCharacter(account:String):CharacterMessages.Generate? = characters.character(account)?.let { character ->
+        navigation?.snapshot()?.navigators?.get(account)?.let {flagshipCharacter(character,it)} ?: character
+    }
     private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
-        BootstrapMessages.unit(character, player.grid, player.cruise, player.baseId, player.mode,
-            administration?.stationedOutfit(player) ?: 0,player.supplies)
+        BootstrapMessages.unit(flagshipCharacter(character,player), player.grid, player.cruise, player.baseId, player.mode,
+            administration?.stationedOutfit(player) ?: 0,player.supplies,if(player.hull?.hp?.let {it<100}==true)1 else 0)
     private fun characterMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator, changed: Boolean = false) =
         if (changed) BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))
         else BootstrapMessages.character(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))
@@ -117,13 +123,13 @@ class GameExchange(
         if (recoveryCheckedAt?.let { now >= it && now - it < 24 } == true) return null
         recoveryCheckedAt = now
         val identity = checkNotNull(ticket)
-        val character = checkNotNull(characters.character(identity.account))
+        val character = checkNotNull(currentCharacter(identity.account))
         return recover(character, identity.account)
     }
     private fun recover(character: CharacterMessages.Generate, account: String, clockRequest: ByteArray? = null): CompletableFuture<List<ByteArray>> =
         checkNotNull(navigation).apply(org.logh7.engine.NavigationRequest(account,
             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
-            connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
+            connection, checkNotNull(generation), shipKind=character.shipKind, politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
             val player = checkNotNull(result.player) { "CP refresh lost its authenticated session" }
             val previous = deliveredPlayer ?: result.previous
             if (player != previous) publication = Publication(character, player, false)
@@ -230,7 +236,7 @@ class GameExchange(
                 when (opcode) {
                     0x0406 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         val shoot = org.logh7.protocol.TacticalAttackMessages.shoot(body)
                         require(shoot.character == character.id.toInt())
                         pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
@@ -247,7 +253,7 @@ class GameExchange(
                     }
                     0x0400 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         val move=org.logh7.protocol.TacticalMoveMessages.move(body)
                         require(move.character==character.id.toInt() && move.waypoints.all {it.z==0f})
                         pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
@@ -270,7 +276,7 @@ class GameExchange(
                     }
                     0x0404 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         val retreat=org.logh7.protocol.TacticalRetreatMessages.retreat(body)
                         require(retreat.character==character.id.toInt())
                         pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
@@ -287,7 +293,7 @@ class GameExchange(
                     }
                     0x040a -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         val stop=org.logh7.protocol.TacticalStopMessages.stop(body)
                         require(stop.character==character.id.toInt())
                         pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
@@ -304,7 +310,7 @@ class GameExchange(
                     }
                     0x040c -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         val control=org.logh7.protocol.TacticsMessages.control(body)
                         require(control.character==character.id.toInt() && control.unit==character.id.toInt()+1_000_000)
                         pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
@@ -326,14 +332,14 @@ class GameExchange(
                     0x0300 -> {
                         check(gameStarted && body.size == 2)
                         if (navigation == null) checkNotNull(BootstrapMessages.response(body, gameSeconds())) else {
-                            val character = checkNotNull(characters.character(identity.account))
+                            val character = checkNotNull(currentCharacter(identity.account))
                             pendingWorld = recover(character, identity.account, body)
                             return null
                         }
                     }
                     0x0f1a -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         val selection = org.logh7.protocol.ReturnBaseMessages.selection(body)
                         require(selection.character == character.id.toInt())
                         pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
@@ -350,7 +356,7 @@ class GameExchange(
                     }
                     0x0b06 -> {
                         check(gameStarted && navigation != null && world != null)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         val command = org.logh7.protocol.PlaceMessages.switchMode(body)
                         val id = character.id.toInt()
                         require(command.characterId == id && command.units.all { it == id + 1_000_000 } &&
@@ -376,7 +382,7 @@ class GameExchange(
                     }
                     0x0b00, 0x0e00 -> {
                         check(gameStarted && navigation != null && world != null)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         val dock = if (opcode == 0x0b00) org.logh7.protocol.PlaceMessages.dock(body) else null
                         val move = if (opcode == 0x0e00) org.logh7.protocol.PlaceMessages.move(body) else null
                         require((dock?.characterId ?: move!!.characterId) == character.id.toInt())
@@ -412,7 +418,7 @@ class GameExchange(
                     0x0709 -> {
                         check(gameStarted && administration!=null && world!=null)
                         val query=org.logh7.protocol.ResignationMessages.query(body)
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         require(query.character==character.id.toInt())
                         pendingWorld=administration.resignOffice(org.logh7.engine.OfficeResignationRequest(
                             identity.account,connection,query.character,
@@ -434,7 +440,7 @@ class GameExchange(
                             org.logh7.engine.CapitalAppointmentPolicy.rule(received.card)?.let {
                                 org.logh7.engine.CapitalAppointmentPolicy(world.galaxy).base(it)?.id
                             }) { "Capital appointment has no matching world base" }) else received
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         require(query.character==character.id.toInt())
                         val target=characters.characterById(query.target)
                         pendingWorld=administration.appointGarrison(org.logh7.engine.GarrisonAppointmentRequest(
@@ -459,7 +465,7 @@ class GameExchange(
                     0x0708 -> {
                         check(gameStarted && administration!=null && world!=null)
                         val query=org.logh7.protocol.DismissalMessages.query(body)
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         require(query.character==character.id.toInt())
                         val target=characters.characterById(query.target)
                         pendingWorld=administration.dismissOffice(org.logh7.engine.OfficeDismissalRequest(
@@ -482,7 +488,7 @@ class GameExchange(
                     0x0a00 -> {
                         check(gameStarted && administration != null && world != null)
                         val query = org.logh7.protocol.TaxMessages.query(body)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         require(query.character == character.id.toInt())
                         pendingWorld = administration.tax(org.logh7.engine.TaxRequest(identity.account, connection, query.character,
                             if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
@@ -500,7 +506,7 @@ class GameExchange(
                     0x0c0b -> {
                         check(gameStarted && administration != null && world != null)
                         val query = org.logh7.protocol.LogisticsMessages.assignment(body)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         require(query.header.characterId == character.id.toInt())
                         pendingWorld = administration.assignStock(org.logh7.engine.StockAssignmentRequest(
                             identity.account,connection,character.id.toInt(),
@@ -530,7 +536,7 @@ class GameExchange(
                     0x0c01 -> {
                         check(gameStarted && world != null && administration != null)
                         val query = org.logh7.protocol.CompletenessSupplyMessages.query(body)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         require(query.character == character.id.toInt()) { "Supply character mismatch" }
                         pendingWorld = administration.supplyOutfit(org.logh7.engine.CompletenessSupplyRequest(identity.account,
                             connection, character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
@@ -556,7 +562,7 @@ class GameExchange(
                     0x0c05 -> {
                         check(gameStarted && world!=null && administration!=null)
                         val query=org.logh7.protocol.SupplementMessages.query(body)
-                        val character=checkNotNull(characters.character(identity.account))
+                        val character=checkNotNull(currentCharacter(identity.account))
                         require(query.header.characterId==character.id.toInt())
                         require(query.units.map {it.kind}.distinct().size==query.units.size) { "Duplicate supplement kind" }
                         pendingWorld=administration.supplementOutfit(org.logh7.engine.SupplementRequest(identity.account,connection,
@@ -590,7 +596,7 @@ class GameExchange(
                     0x0c02 -> {
                         check(gameStarted && administration != null && world != null)
                         val query = org.logh7.protocol.LogisticsMessages.reorganization(body)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         require(query.header.characterId == character.id.toInt())
                         // 005313f0 previews in mode 0; 00574ba0 commits in mode 1.
                         require(query.mode in 0..1) { "Unsupported strategic reorganization mode" }
@@ -623,7 +629,7 @@ class GameExchange(
                     }
                     0x032e, 0x0330 -> {
                         check(gameStarted && world != null && stock != null)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
                         pendingWorld = stocks().thenApply { stored -> listOf(if (party != null)
@@ -643,7 +649,7 @@ class GameExchange(
                         check(gameStarted && worldInitialized && administration != null)
                         require(body.size == 6)
                         val id = java.nio.ByteBuffer.wrap(body).getInt(2)
-                        val actor = checkNotNull(characters.character(identity.account))
+                        val actor = checkNotNull(currentCharacter(identity.account))
                         val target = checkNotNull(characters.characterById(id))
                         require(target.power == actor.power) { "Character detail requires friendly affiliation" }
                         BootstrapMessages.character(target,0,0,
@@ -694,7 +700,7 @@ class GameExchange(
                                     else -> org.logh7.protocol.TacticsMessages.states(emptyList())
                                 }
                             }
-                            val character=checkNotNull(characters.character(identity.account))
+                            val character=checkNotNull(currentCharacter(identity.account))
                             pendingWorld=recover(character,identity.account).thenApply { listOf(empty)+it }
                             return null
                         }
@@ -726,7 +732,7 @@ class GameExchange(
                             require(outfit == 0) { "Outfit warehouse storage is disabled" }
                             world.warehouse(base)
                         } else {
-                            val character = checkNotNull(characters.character(identity.account))
+                            val character = checkNotNull(currentCharacter(identity.account))
                             pendingWorld = stocks().thenApply { listOf(if (outfit == 0) world.warehouse(base, it) else
                                 world.outfitWarehouse(base,outfit,character.id.toInt(),character.power,checkNotNull(it))) }
                             return null
@@ -743,7 +749,7 @@ class GameExchange(
                     }
                     0x0b02 -> {
                         check(gameStarted && navigation != null)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         val command = org.logh7.protocol.FuelMessages.supply(body)
                         require(command.characterId == character.id.toInt())
                         pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
@@ -760,7 +766,7 @@ class GameExchange(
                     }
                     0x0b01 -> {
                         check(gameStarted && navigation != null)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         val command = org.logh7.protocol.NavigationMessages.warp(body)
                         require(command.characterId == character.id.toInt())
                         require(command.base == 0 || world?.galaxy?.bases?.any {
@@ -799,14 +805,14 @@ class GameExchange(
                     0x0f1c -> {
                         check(gameStarted && worldInitialized && presence != null)
                         val message = org.logh7.protocol.ChatMessages.grid(body)
-                        require(message.characterId.toLong() == checkNotNull(characters.character(identity.account)).id)
+                        require(message.characterId.toLong() == checkNotNull(currentCharacter(identity.account)).id)
                         if (message.text.isBlank()) return null
                         presence.gridChat(connection, message, gameSeconds())
                     }
                     0x0f1d -> {
                         check(gameStarted && worldInitialized && presence != null)
                         val message = org.logh7.protocol.ChatMessages.spot(body)
-                        require(message.characterId.toLong() == checkNotNull(characters.character(identity.account)).id)
+                        require(message.characterId.toLong() == checkNotNull(currentCharacter(identity.account)).id)
                         if (message.text.isBlank()) return null
                         presence.spotChat(connection, message, gameSeconds())
                     }
@@ -823,7 +829,7 @@ class GameExchange(
                             check(worldInitialized && world!=null && stock!=null)
                             if(org.logh7.protocol.SupplementDirectoryMessages.matches(body)) {
                                 val query=org.logh7.protocol.SupplementDirectoryMessages.query(body)
-                                val character=checkNotNull(characters.character(identity.account))
+                                val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
                                 pendingWorld=stocks().thenApply {stored ->
                                     val inventory=checkNotNull(stored)
@@ -840,7 +846,7 @@ class GameExchange(
                             }
                             if (org.logh7.protocol.SupplyDirectoryMessages.matches(body)) {
                                 val query=org.logh7.protocol.SupplyDirectoryMessages.query(body)
-                                val character=checkNotNull(characters.character(identity.account))
+                                val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
                                 pendingWorld=stocks().thenApply { stored ->
                                     val inventory=checkNotNull(stored)
@@ -859,7 +865,7 @@ class GameExchange(
                             }
                             if (org.logh7.protocol.LogisticsDirectoryMessages.matches(body)) {
                                 val query=org.logh7.protocol.LogisticsDirectoryMessages.query(body)
-                                val character=checkNotNull(characters.character(identity.account))
+                                val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
                                 pendingWorld=stocks().thenApply { stored ->
                                     val inventory=checkNotNull(stored)
@@ -883,7 +889,7 @@ class GameExchange(
                                 return null
                             }
                             val query=org.logh7.protocol.AppointmentDirectoryMessages.query(body)
-                            val character=checkNotNull(characters.character(identity.account))
+                            val character=checkNotNull(currentCharacter(identity.account))
                             require(query.character==character.id.toInt())
                             pendingWorld=stocks().thenApply { stored ->
                                 val inventory=checkNotNull(stored)
@@ -964,7 +970,7 @@ class GameExchange(
                     0x1006 -> { check(gameLoggedIn && !gameStarted); characters.apply(identity.account, OriginalCharacterMessages.application(body)) }
                     0x0205 -> {
                         check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         if (admission != null) {
                             joining = true; joinRequested = true
                             pendingJoin = admission.join(identity.account, character, connection, checkNotNull(generation))
@@ -975,15 +981,15 @@ class GameExchange(
                     }
                     0x0203 -> {
                         check(gameStarted && body.size == 2)
-                        BootstrapMessages.characterId(checkNotNull(characters.character(identity.account)))
+                        BootstrapMessages.characterId(checkNotNull(currentCharacter(identity.account)))
                     }
                     0x0f00, 0x0f02 -> {
                         check(gameStarted && body.size == 2)
-                        val character = checkNotNull(characters.character(identity.account))
+                        val character = checkNotNull(currentCharacter(identity.account))
                         if (navigation != null) {
                             val request = org.logh7.engine.NavigationRequest(identity.account, character.id.toInt(),
                                 if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
-                                connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2])
+                                connection, checkNotNull(generation), shipKind=character.shipKind, politics = character.abilities[1], administration = character.abilities[2])
                             pendingWorld = stocks().thenCompose { stored -> navigation.apply(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 publication = Publication(character, player, true)
@@ -1013,7 +1019,7 @@ class GameExchange(
                 }
             } else when (opcode) {
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
-                0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.characters(if (admission?.running == false) null else characters.character(identity.account)) }
+                0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.characters(if (admission?.running == false) null else currentCharacter(identity.account)) }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2); LobbyMessages.sessions(admission?.running != false) }
                 0x2009 -> {
                     check(lobbyLoggedIn)

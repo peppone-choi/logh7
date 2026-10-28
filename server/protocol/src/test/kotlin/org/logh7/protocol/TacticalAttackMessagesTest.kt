@@ -5,6 +5,14 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalAttackMessagesTest {
+    @Test fun personalShieldOnlyAndFatalHitsUseAbsoluteFieldsWithoutInventingDestroyedBoats() {
+        val shield=java.nio.ByteBuffer.wrap(TacticalAttackMessages.hit(100,1010000,0,1010001,0,0,4,12))
+        assertEquals(1010001,shield.getInt(16));assertEquals(0,shield.getShort(20).toInt())
+        assertEquals(0,shield.getShort(22).toInt());assertEquals(4,shield.get(24).toInt());assertEquals(12,shield.getShort(25).toInt())
+        val dead=java.nio.ByteBuffer.wrap(TacticalAttackMessages.hit(100,1010000,1,1010001,1,1,0,20))
+        assertEquals(1,dead.getShort(20).toInt());assertEquals(1,dead.getShort(22).toInt())
+        assertFailsWith<IllegalArgumentException>{TacticalAttackMessages.hit(100,1010000,0,1010001,0)}
+    }
     @Test fun hitNotificationMatchesPackedNativeReaderAndCarriesAbsoluteLosses() {
         val bytes=TacticalAttackMessages.hit(0x01020304,1010000,0,7,123)
         assertEquals("00000000042601020304000f69500001000000070000007bff000064",bytes.joinToString(""){"%02x".format(it)})

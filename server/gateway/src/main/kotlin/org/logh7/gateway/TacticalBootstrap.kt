@@ -11,11 +11,12 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     val characterIds get()=people.map {it.characterId}
     val grid get()=viewer.grid
     val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
-        val spec=UnitSpecifications.ships.single {it.kind==c.shipKind}
+        val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}
         val energy=p.energy ?: TacticalEnergy.ZERO
         val charge=if(p.cpPaused) p.charge?.levels(snapshot.session?.gameSeconds ?: 0,energy) else null
         TacticsMessages.Corps(c.id.toInt(),0f,(p.energy ?: TacticalEnergy.ZERO).values,
-            List(6){spec.number("シールド（旗艦のみ）:容量")},
+            p.hull?.settle(snapshot.session?.gameSeconds ?: 0,energy)?.levels()
+                ?: List(6){spec.number("シールド（旗艦のみ）:容量")},
             beam=if(spec.number("ビーム兵装破壊力:ビーム兵装破壊力")>0) charge?.first ?: 0 else 0,
             gun=if(spec.number("ガン兵装破壊力/消費物資:ガン兵装破壊力/消費物資")>0) charge?.second ?: 0 else 0)
     }}
@@ -30,7 +31,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val stocks=checkNotNull(snapshot.planetStocks)
         val sources=people.mapNotNull {p->characterById(p.characterId)?.let {c->
             val fleet=stocks.outfits.values.singleOrNull {p.characterId in it.members() && it.positionIn(galaxy)==OutfitPosition(p.grid)}
-            Source(p.unitId,c.shipKind,fleet?.id ?: 0,p.characterId,c.power,p.supplies,p.cruise.toFloat())
+            Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,c.power,p.supplies,p.cruise.toFloat())
         }} + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {fleet->
             val supplies=OutfitSupplies.distribution(fleet)
             checkNotNull(fleet.activeShips).values.map {ship->
@@ -46,7 +47,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 ?.pose(snapshot.session?.gameSeconds ?: 0)
             TacticsMessages.Unit(u.id,u.kind,u.outfit,u.character,u.supplies,u.cruise,u.destroyed,
                 pose?.position?.x ?: initial.position.x,pose?.position?.y ?: initial.position.y,0f,
-                pose?.direction ?: initial.direction)
+                pose?.direction ?: initial.direction,
+                damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else 0)
         }.also {require(it.size<=600)}
     }
     fun resume() = people.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)}
