@@ -30,6 +30,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         // 004c4240 imports wire x/y into native world x/z; wire z is not the map plane.
         TacticsMessages.Base(base.id,point.x,point.y,0f)
     }
+    val baseInformation=bases.map {base -> TacticsMessages.BaseInformation(base,
+        stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),base.id))}
     val units: List<TacticsMessages.Unit> = run {
         data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,
             val destroyed:Int=0,val posture:TacticalPosture?=null)
@@ -110,7 +112,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             }} }
     fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
-    }} + listOf(TacticsMessages.baseInformation(bases.map {TacticsMessages.BaseInformation(it)}),
+    }} + listOf(TacticsMessages.baseInformation(baseInformation),
         TacticsMessages.definitions(viewer.grid,units,groundDefinitions),
         TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))
 }

@@ -863,8 +863,7 @@ class GameExchange(
                             val ids=(if(opcode==0x0344)org.logh7.protocol.TacticsMessages.baseInformationQuery(body)
                                 else org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a)).toSet()
                             when(opcode) {
-                                0x0344 -> org.logh7.protocol.TacticsMessages.baseInformation(tactical.bases.filter {it.id in ids}
-                                    .map {org.logh7.protocol.TacticsMessages.BaseInformation(it)})
+                                0x0344 -> org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation.filter {it.position.id in ids})
                                 0x033e -> org.logh7.protocol.TacticsMessages.corps(tactical.corps.filter {it.character in ids})
                                 0x034a -> org.logh7.protocol.TacticsMessages.basePositions(tactical.bases.filter {it.id in ids})
                                 else -> org.logh7.protocol.TacticsMessages.states(tactical.units.filter {it.id in ids})

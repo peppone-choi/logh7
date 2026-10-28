@@ -20,9 +20,12 @@ class TacticalEntryWireTest {
             mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1049,10,10000,UnitInventory(mapOf(UnitStack(32) to 10)),
                 aideId=10001,position=OutfitPosition(2487)),
                 2 to OutfitStock(2,3,OutfitKind.FLEET,1049,11,500,UnitInventory(mapOf(UnitStack(119) to 10)),
-                    position=OutfitPosition(2487))),
+                    position=OutfitPosition(2487)),
+                3 to OutfitStock(3,3,OutfitKind.GROUND,1049,12,
+                    units=UnitInventory(troops=mapOf(UnitStack(4) to 15)))),
             mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1),
-                11 to OutfitWarehouse(11,3,OutfitKind.FLEET,1049,2)),deploymentInitialized=true))
+                11 to OutfitWarehouse(11,3,OutfitKind.FLEET,1049,2),
+                12 to OutfitWarehouse(12,3,OutfitKind.PATROL,1049)),deploymentInitialized=true))
         val nav=object:NavigationStore {
             override fun load()=savedPlayers
             override fun save(players:Map<String,Navigator>){savedPlayers=players.toMap()}
@@ -54,9 +57,10 @@ class TacticalEntryWireTest {
             // the complete battlefield definition before the 0f03 acknowledgement.
             var definitions=ByteBuffer.wrap(through(first,0x0325))
             while(definitions.getShort(6).toInt()==1) definitions=ByteBuffer.wrap(through(first,0x0325))
-            assertEquals(22,definitions.getShort(6).toInt())
-            val ids=(0 until 22).map {definitions.getInt(8+it*42)}
+            assertEquals(37,definitions.getShort(6).toInt())
+            val ids=(0 until 37).map {definitions.getInt(8+it*42)}
             assertTrue(ids.containsAll(listOf(1010000,1010001)))
+            assertEquals(15,(0 until 37).count {definitions.getShort(12+it*42).toInt()==1004})
             val initialStates=ByteBuffer.wrap(through(first,0x033b))
             assertEquals(22,initialStates.getShort(6).toInt())
             // Native 004c1d20 imports the first TWO wire coordinates into its map plane.
@@ -78,6 +82,12 @@ class TacticalEntryWireTest {
             assertEquals(0,SessionRules.load().startSeconds%86400)
             assertEquals(20f,basePosition.getFloat(11),0.0001f)
             assertEquals(0f,basePosition.getFloat(15),0.0001f);assertEquals(0f,basePosition.getFloat(19))
+            first.send(ByteBuffer.allocate(7).putShort(0x0344).put(1).putInt(1049).array())
+            val defense=ByteBuffer.wrap(through(first,0x0345))
+            assertEquals(1,defense.get(6).toInt());assertEquals(1049,defense.getInt(7))
+            assertEquals(15000,defense.getShort(33).toInt())
+            first.send(ByteBuffer.allocate(7).putShort(0x0344).put(1).putInt(1050).array())
+            assertEquals(7,through(first,0x0345).size) // No data outside this battlefield.
             val control=org.logh7.protocol.TacticsMessages.Control(10000,1010000,listOf(40,0,20,60,20)+List(6){20})
             val request=org.logh7.protocol.TacticsMessages.controlReply(control,0,0)
             first.send(request.copyOfRange(4,request.size))

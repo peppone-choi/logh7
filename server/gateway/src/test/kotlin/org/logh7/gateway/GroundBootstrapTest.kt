@@ -29,6 +29,8 @@ class GroundBootstrapTest {
         val definitions=ByteBuffer.wrap(messages.getValue(0x0325))
         assertEquals(2,definitions.getShort(6).toInt());assertEquals(1,definitions.getInt(50))
         assertEquals(1049,definitions.getInt(70));assertEquals(0,definitions.getInt(65))
+        assertEquals(1000,ByteBuffer.wrap(messages.getValue(0x0345)).getShort(33).toInt())
+        assertEquals(1000,bootstrap.baseInformation.single().stamina)
         val states=ByteBuffer.wrap(messages.getValue(0x033b))
         assertEquals(1,states.getShort(6).toInt());assertEquals(1010000,states.getInt(8))
         assertEquals(listOf(2),TacticalBootstrap(snapshot,galaxy,viewer.copy(grid=2488)){person}.groundDefinitions.map {it.id})
