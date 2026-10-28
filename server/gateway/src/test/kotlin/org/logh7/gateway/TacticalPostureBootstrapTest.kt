@@ -22,6 +22,8 @@ class TacticalPostureBootstrapTest {
             val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,200,0,0,emptyMap(),1,1,null),
                 navigators=mapOf("pilot" to viewer),planetStocks=stock)
             val bootstrap=TacticalBootstrap(snapshot,galaxy,viewer){if(it==10000)person else null}
+            val basePacket=bootstrap.initialize().single {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0345}
+            assertEquals(1,basePacket[6].toInt());assertEquals(1049,java.nio.ByteBuffer.wrap(basePacket).getInt(7))
             assertEquals(setOf(1,1010000),bootstrap.units.map {it.id}.toSet())
             assertTrue(bootstrap.units.all {it.mode==mode.wire && it.base==posture.base})
             val replay=bootstrap.resume().single {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0411}

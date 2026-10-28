@@ -39,6 +39,9 @@ class TacticalPostureWireTest {
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
             }}
             val command=TacticalGroundMessages.Command(TacticalGroundMessages.Action.SORTIE,10000,listOf(1))
+            clients[0].send(ByteBuffer.allocate(11).putShort(0x344).put(2).putInt(1000).putInt(999).array())
+            val bases=ByteBuffer.wrap(through(clients[0],0x0345))
+            assertEquals(1,bases.get(6).toInt());assertEquals(1000,bases.getInt(7));assertEquals(35,bases.capacity())
             clients[0].send(TacticalGroundMessages.reply(command,0,0).drop(4).toByteArray())
             val acknowledgement=ByteBuffer.wrap(through(clients[0],0x0412))
             assertEquals(0,acknowledgement.int);assertEquals(25*24,acknowledgement.getInt(10))

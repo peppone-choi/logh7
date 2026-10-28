@@ -803,7 +803,7 @@ class GameExchange(
                         }
                         return null
                     }
-                    0x0336, 0x033a, 0x033e, 0x0348, 0x034a -> {
+                    0x0336, 0x033a, 0x033e, 0x0344, 0x0348, 0x034a -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val current=checkNotNull(navigation.snapshot()?.navigators?.get(identity.account))
                         if(!current.cpPaused || deliveredTactics==true && deliveredPlayer?.grid!=current.grid) {
@@ -815,8 +815,10 @@ class GameExchange(
                                 require(grid in 0..4999)
                                 org.logh7.protocol.TacticsMessages.characters(grid,emptyList())
                             } else {
-                                org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a)
+                                if(opcode==0x0344)org.logh7.protocol.TacticsMessages.baseInformationQuery(body)
+                                else org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a)
                                 when(opcode) {
+                                    0x0344 -> org.logh7.protocol.TacticsMessages.baseInformation(emptyList())
                                     0x033e -> org.logh7.protocol.TacticsMessages.corps(emptyList())
                                     0x034a -> org.logh7.protocol.TacticsMessages.basePositions(emptyList())
                                     0x0348 -> org.logh7.protocol.TacticsMessages.positions(emptyList())
@@ -858,8 +860,11 @@ class GameExchange(
                             require(body.size==4 && java.nio.ByteBuffer.wrap(body).getShort(2).toInt()==tactical.grid)
                             org.logh7.protocol.TacticsMessages.characters(tactical.grid,tactical.characterIds)
                         } else {
-                            val ids=org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a).toSet()
+                            val ids=(if(opcode==0x0344)org.logh7.protocol.TacticsMessages.baseInformationQuery(body)
+                                else org.logh7.protocol.TacticsMessages.queryIds(body,opcode,byteCount=opcode==0x034a)).toSet()
                             when(opcode) {
+                                0x0344 -> org.logh7.protocol.TacticsMessages.baseInformation(tactical.bases.filter {it.id in ids}
+                                    .map {org.logh7.protocol.TacticsMessages.BaseInformation(it)})
                                 0x033e -> org.logh7.protocol.TacticsMessages.corps(tactical.corps.filter {it.character in ids})
                                 0x034a -> org.logh7.protocol.TacticsMessages.basePositions(tactical.bases.filter {it.id in ids})
                                 else -> org.logh7.protocol.TacticsMessages.states(tactical.units.filter {it.id in ids})

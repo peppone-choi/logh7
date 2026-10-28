@@ -106,6 +106,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             }} }
     fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
-    }} + listOf(TacticsMessages.definitions(viewer.grid,units),
+    }} + listOf(TacticsMessages.baseInformation(bases.map {TacticsMessages.BaseInformation(it)}),
+        TacticsMessages.definitions(viewer.grid,units),
         TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))
 }

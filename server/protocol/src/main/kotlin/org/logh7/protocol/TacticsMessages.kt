@@ -42,6 +42,30 @@ object TacticsMessages {
         }
     }
     data class Base(val id: Int,val x: Float,val y: Float,val z: Float)
+    /** 00424330: 28 wire bytes, 32-byte native record. Defense defaults are provisional. */
+    data class BaseInformation(val position:Base,val antiaircraft:Int=0,val cannonAngle:Int=0,
+        val cannonStart:Long=0,val stamina:Int=100)
+    /** 0040de80: a byte count and up to sixteen base IDs. */
+    fun baseInformationQuery(message:ByteArray):List<Int> {
+        require(message.size in 3..67)
+        val input=ByteBuffer.wrap(message)
+        require(input.short.toInt() and 65535==0x0344)
+        val count=input.get().toInt() and 255
+        require(count<=16 && input.remaining()==count*4)
+        return List(count){input.int}.also {require(it.all {id->id>0} && it.distinct().size==it.size)}
+    }
+    fun baseInformation(bases:List<BaseInformation>):ByteArray {
+        require(bases.size<=16 && bases.map {it.position.id}.distinct().size==bases.size)
+        val out=ByteBuffer.allocate(1+28*bases.size).put(bases.size.toByte())
+        bases.forEach {b->
+            val p=b.position
+            require(p.id>0 && listOf(p.x,p.y,p.z).all(Float::isFinite) && b.antiaircraft>=0 &&
+                b.cannonAngle in 0..65535 && b.cannonStart in 0..0xffffffffL && b.stamina in 0..65535)
+            out.putInt(p.id).putFloat(p.x).putFloat(p.y).putFloat(p.z).putInt(b.antiaircraft)
+                .putShort(b.cannonAngle.toShort()).putInt(b.cannonStart.toInt()).putShort(b.stamina.toShort())
+        }
+        return LoginMessages.sessionMessage(0x0345,out.array())
+    }
     data class Unit(val id: Int,val kind: Int,val outfit: Int,val character: Int,val supplies: Int,
         val cruise: Float,val destroyed: Int,val x: Float,val y: Float,val z: Float,val direction: Float,val damaged: Int = 0,
         val mode:Int=6,val base:Int=0)
