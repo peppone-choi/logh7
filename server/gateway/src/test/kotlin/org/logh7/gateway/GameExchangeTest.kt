@@ -156,6 +156,48 @@ class GameExchangeTest {
         val clockBody = Envelope.decode(LegacyBlowfish(b).decrypt(clockFrame.copyOfRange(8, clockFrame.size)), serverSequence).second
         assertContentEquals(hex("00000000030100015180"), clockBody)
     }
+    @Test fun clockResponseWaitsForTimeCommitBeforeRecoveryAndUsesTheFreshSample() {
+        for(fail in listOf(false,true)) {
+            var now=java.time.Instant.EPOCH
+            val clock=object:java.time.Clock() {
+                override fun getZone()=java.time.ZoneOffset.UTC
+                override fun withZone(zone:java.time.ZoneId):java.time.Clock=this
+                override fun instant()=now
+            }
+            val characters=CharacterCreation(clock=clock,lotteryWindowMillis=1)
+            characters.apply("user",listOf(1001));now=now.plusMillis(1)
+            val sampled=CompletableFuture<Unit>();val calls=mutableListOf<String>();var seconds=0L
+            val player=org.logh7.engine.Navigator(1,1001,org.logh7.engine.Power.EMPIRE,2487,1000,1000,1000)
+            val navigation=object:GameNavigation {
+                override fun synchronizeTime():CompletableFuture<Unit>{calls+="clock";return sampled}
+                override fun apply(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
+                    calls+="navigation"
+                    return CompletableFuture.completedFuture(org.logh7.engine.NavigationResult(player))
+                }
+            }
+            val tickets=SessionTickets()
+            val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
+                Handshake(b,2),characters,gameSeconds={seconds},expectedGeneration=1,connection="owned",navigation=navigation)
+            game.accept(0x34,initial);game.accept(0x36,confirm)
+            val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+            game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+            game.accept(0x30,encrypted(hex("0200"),2));game.accept(0x30,encrypted(hex("0205"),3))
+            assertNull(game.accept(0x30,encrypted(hex("0300"),4)))
+            val operation=assertNotNull(game.takePendingWorld());assertFalse(operation.isDone)
+            assertEquals(listOf("clock"),calls)
+            if(fail) {
+                sampled.completeExceptionally(java.io.IOException("clock save failed"))
+                assertTrue(operation.isCompletedExceptionally);assertEquals(listOf("clock"),calls)
+            } else {
+                seconds=1234;sampled.complete(Unit)
+                val response=operation.join().first()
+                assertEquals(0x0301,ByteBuffer.wrap(response).getShort(4).toInt())
+                assertEquals(1234,ByteBuffer.wrap(response).getInt(6))
+                assertEquals(listOf("clock","navigation"),calls)
+            }
+            game.close()
+        }
+    }
     @Test fun warpWaitsForNavigationPersistenceThenPublishesAuthoritativeState() {
         var now = java.time.Instant.EPOCH
         val clock = object : java.time.Clock() {

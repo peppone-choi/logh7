@@ -1,10 +1,35 @@
 package org.logh7.engine
 import kotlinx.coroutines.*
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class WorldEngineTest {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun clockSampleReadsMonotonicTimeWhenDequeuedRatherThanWhenRequested() = runTest {
+        var now=0L
+        val engine=WorldEngine(this,monotonicMillis={now})
+        try {
+            now=100
+            val sample=async(start=CoroutineStart.UNDISPATCHED){engine.synchronizeTime()}
+            now=200
+            runCurrent()
+            assertEquals(4L,sample.await().session!!.gameSeconds)
+        } finally {engine.drainAndClose()}
+    }
+    @Test fun manuallyDrivenClockSamplingDoesNotAdvanceOrRewindTheControlledTimeline() = runBlocking {
+        var realNow=0L
+        val engine=WorldEngine(this,ticking=false,monotonicMillis={realNow})
+        try {
+            engine.submit(WorldCommand.AdvanceTo(1000))
+            realNow=50_000
+            assertEquals(24L,engine.synchronizeTime().session!!.gameSeconds)
+            realNow=0
+            assertEquals(24L,engine.synchronizeTime().session!!.gameSeconds)
+        } finally {engine.drainAndClose()}
+    }
     @Test fun queueSerializesConcurrentWriters() = runBlocking {
         val engine = WorldEngine(this, ticking = false)
         coroutineScope { repeat(10) { launch { repeat(100) { engine.submit(WorldCommand.Probe) } } } }

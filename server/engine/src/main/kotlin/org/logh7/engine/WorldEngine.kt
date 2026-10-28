@@ -37,7 +37,7 @@ interface SnapshotSource {
 }
 
 /** Only this actor owns and mutates world state. */
-class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = SessionRules.load(), ticking: Boolean = true,
+class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = SessionRules.load(), private val ticking: Boolean = true,
     private val monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000 },
     private val onEvent: (WorldEvent) -> Unit = {}, private val generationStore: SessionGenerationStore = MemorySessionGenerationStore(),
     private val durability: SessionDurability? = null,
@@ -50,7 +50,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val npcPolicy:NpcTacticalPolicy=NpcTacticalPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null,
-        val applied: CompletableDeferred<Unit>? = null)
+        val applied: CompletableDeferred<Unit>? = null, val advanceNow:Boolean=false)
     private val queue = Channel<Queued>(1024)
     private val tickPulse = Channel<Unit>(Channel.CONFLATED)
     private val tacticalTickAt = AtomicReference<Long?>(null)
@@ -148,7 +148,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         }
         var storageFailure: Exception? = null
         try { for (queued in queue) { try {
-            val command = queued.command
+            val command = if(queued.advanceNow) WorldCommand.AdvanceTo(
+                maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
+                    else durableState?.elapsed ?: elapsed)) else queued.command
             if (command is WorldCommand.AssignStock) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
@@ -645,14 +647,22 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if(after>=regularAt)regularAt=Math.addExact(after,interval-(after-origin)%interval)
         }
     } else null
+    /** Serialize a fresh time sample through the same durable path as ordinary ticks. */
+    suspend fun synchronizeTime():WorldSnapshot {
+        val applied=CompletableDeferred<Unit>()
+        enqueue(WorldCommand.AdvanceTo(0),applied=applied,advanceNow=true)
+        applied.await()
+        check(health()==EngineHealth.RUNNING) {"World time could not be committed"}
+        return snapshot()
+    }
     override suspend fun submit(command: WorldCommand) {
         enqueue(if (command is WorldCommand.Territory) command.copy(systems = command.systems.toMap(), capturedCapitals = command.capturedCapitals.toSet()) else command)
     }
-    private suspend fun enqueue(command: WorldCommand, scheduledTickNanos: Long? = null, applied:CompletableDeferred<Unit>? = null) {
-        if (timings == null) { queue.send(Queued(command,applied=applied)); return }
+    private suspend fun enqueue(command: WorldCommand, scheduledTickNanos: Long? = null, applied:CompletableDeferred<Unit>? = null, advanceNow:Boolean=false) {
+        if (timings == null) { queue.send(Queued(command,applied=applied,advanceNow=advanceNow)); return }
         currentCoroutineContext().ensureActive()
         val submitted = metricNanos()
-        val queued = Queued(command, submitted, scheduledTickNanos = scheduledTickNanos,applied=applied)
+        val queued = Queued(command, submitted, scheduledTickNanos = scheduledTickNanos,applied=applied,advanceNow=advanceNow)
         val sent = queue.trySend(queued)
         if (!sent.isSuccess) queue.send(queued.copy(backpressured = !sent.isClosed))
         duration(ActorTiming.SEND_WAIT, submitted, metricNanos())

@@ -1,5 +1,6 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
@@ -61,6 +62,20 @@ class TacticalDeadlineTest {
             advanceTimeBy(1);runCurrent()
             assertEquals(0f,rig.players.getValue("pilot").motion!!.velocity)
             assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+        } finally {rig.engine.drainAndClose()}
+    }
+    @Test fun clockQueryCommitsBetweenPeriodicTicksAndRefusesAStorageFailure() = runTest {
+        val rig=Rig(this,testScheduler)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(100);runCurrent()
+            assertEquals(rig.start,rig.engine.snapshot().session!!.gameSeconds)
+            val sample=async {rig.engine.synchronizeTime()};runCurrent()
+            assertEquals(rig.start+2,sample.await().session!!.gameSeconds)
+            rig.fail=true
+            // Crossing the pending completion forces the world transaction to fail.
+            advanceTimeBy(525);runCurrent()
+            assertFailsWith<IllegalStateException>{rig.engine.synchronizeTime()}
         } finally {rig.engine.drainAndClose()}
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null) {

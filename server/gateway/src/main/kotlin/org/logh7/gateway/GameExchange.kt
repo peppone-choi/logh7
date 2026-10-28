@@ -420,7 +420,8 @@ class GameExchange(
                         check(gameStarted && body.size == 2)
                         if (navigation == null) checkNotNull(BootstrapMessages.response(body, gameSeconds())) else {
                             val character = checkNotNull(currentCharacter(identity.account))
-                            pendingWorld = recover(character, identity.account, body)
+                            // A clock reset must sample the actor now, not its last periodic tick.
+                            pendingWorld = navigation.synchronizeTime().thenCompose {recover(character,identity.account,body)}
                             return null
                         }
                     }
