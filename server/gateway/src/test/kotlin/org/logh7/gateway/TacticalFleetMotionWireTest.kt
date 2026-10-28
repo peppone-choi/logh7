@@ -2,6 +2,8 @@ package org.logh7.gateway
 
 import kotlinx.coroutines.*
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
@@ -11,7 +13,9 @@ import kotlin.test.*
 
 class TacticalFleetMotionWireTest {
     @TempDir lateinit var directory:Path
-    @Test fun fleetMoveUsesAuthoritativeOriginResumesAndStopsForBothPeers()=runBlocking {
+    @ParameterizedTest @ValueSource(booleans=[false,true])
+    fun fleetMoveUsesAuthoritativeOriginResumesAndStopsForBothPeers(parallel:Boolean)=runBlocking {
+        val opcode=if(parallel)0x0402 else 0x0400
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val now=SessionRules.load().startSeconds
@@ -39,7 +43,7 @@ class TacticalFleetMotionWireTest {
         fun command(character:Int):ByteArray {
             val packet=org.logh7.protocol.TacticalMoveMessages.reply(org.logh7.protocol.TacticalMoveMessages.Move(character,
                 listOf(org.logh7.protocol.TacticalMoveMessages.Unit(1,0f,org.logh7.protocol.TacticalMoveMessages.Point(999f,999f,0f))),
-                1f,0f,listOf(org.logh7.protocol.TacticalMoveMessages.Point(0f,20f,0f))),0,0)
+                1f,0f,listOf(org.logh7.protocol.TacticalMoveMessages.Point(0f,20f,0f)),parallel),0,0)
             return packet.copyOfRange(4,packet.size)
         }
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=stock,
@@ -49,12 +53,13 @@ class TacticalFleetMotionWireTest {
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
             }}.toMutableList()
             clients[1].send(command(10001))
-            assertEquals(1,ByteBuffer.wrap(through(clients[1],0x0400) {ByteBuffer.wrap(it).int==1}).int)
+            assertEquals(1,ByteBuffer.wrap(through(clients[1],opcode) {ByteBuffer.wrap(it).int==1}).int)
             clients[0].send(command(10000))
             for(c in clients) {
-                val ack=ByteBuffer.wrap(through(c,0x0400) {ByteBuffer.wrap(it).getInt(19)==1 && ByteBuffer.wrap(it).getInt(14)==10000})
+                val ack=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1 && ByteBuffer.wrap(it).getInt(14)==10000})
                 assertEquals(0,ack.int);assertEquals(10000,ack.getInt(14));assertEquals(1,ack.getInt(19))
                 assertEquals(0f,ack.getFloat(27));assertEquals(0f,ack.getFloat(31));assertEquals(5,ack.getInt(10))
+                assertEquals(if(parallel)0.5f else 1f,ack.getFloat(39))
             }
             val crc=ByteBuffer.wrap(through(clients[0],0x033f) {
                 val b=ByteBuffer.wrap(it);b.getShort(6).toInt()==2 && b.getInt(8)==10000 && b.getFloat(18)==0f
@@ -66,13 +71,13 @@ class TacticalFleetMotionWireTest {
             clients[1]=fixture.join(fixture.account(1),false,false).client.also {c ->
                 c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01)
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
-                val resume=ByteBuffer.wrap(through(c,0x0400) {ByteBuffer.wrap(it).getInt(19)==1})
-                assertEquals(7f,resume.getFloat(31));assertEquals(0,resume.getInt(10))
+                val resume=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1})
+                assertEquals(if(parallel)3.5f else 7f,resume.getFloat(31));assertEquals(0,resume.getInt(10))
             }
             val stop=org.logh7.protocol.TacticalStopMessages.reply(org.logh7.protocol.TacticalStopMessages.Stop(10000,listOf(1)),0)
             clients[0].send(stop.copyOfRange(4,stop.size))
             assertEquals(1,ByteBuffer.wrap(through(clients[0],0x040a)).int)
-            assertEquals(1f,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.velocity)
+            assertEquals(if(parallel)0.5f else 1f,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.velocity)
             fixture.engine.submit(WorldCommand.AdvanceTo(14000)) // CRC has grown back to the maximum.
             clients[0].send(stop.copyOfRange(4,stop.size))
             for(c in clients) {

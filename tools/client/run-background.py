@@ -375,7 +375,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             for char in value:
                                 win32gui.PostMessage(owned_view(desk, pid), win32con.WM_CHAR, ord(char), 0)
                             time.sleep(0.15) # Let the owned view consume text before changing focus.
-                        elif "key" in action and action["key"] in (8, 9, 13, 27, 67, 88):
+                        elif "key" in action and action["key"] in (8, 9, 13, 27, 67, 68, 88):
                             code = action["key"]
                             target = owned_view(desk, pid)
                             script.exports_sync.setkey(code)

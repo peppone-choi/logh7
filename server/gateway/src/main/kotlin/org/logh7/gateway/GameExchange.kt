@@ -302,7 +302,7 @@ class GameExchange(
                         }
                         return null
                     }
-                    0x0400 -> {
+                    0x0400,0x0402 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(currentCharacter(identity.account))
                         val move=org.logh7.protocol.TacticalMoveMessages.move(body)
@@ -311,7 +311,7 @@ class GameExchange(
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalMove=org.logh7.engine.TacticalMove(move.units.map {it.id},
-                                move.velocity,move.direction,move.waypoints.map {org.logh7.engine.TacticalPoint(it.x,it.y)}))).thenApply {result->
+                                move.velocity,move.direction,move.waypoints.map {org.logh7.engine.TacticalPoint(it.x,it.y)},move.parallel))).thenApply {result->
                             val player=checkNotNull(result.player ?: result.previous)
                             publication=Publication(character,player,false)
                             val replies=if(result.player!=null) {

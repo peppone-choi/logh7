@@ -41,15 +41,15 @@ internal object TacticalFleetMotion {
         }}
         if(player.unitId in command.units && command.velocity>(player.energy ?: TacticalEnergy.ZERO).values[0]/100f)
             return reject(NavigationRejection.ENERGY)
-        // Keep offsets around the selected formation centre; one-unit requests are unchanged.
-        val centre=TacticalPoint(poses.values.map {it.position.x.toDouble()}.average().toFloat(),
-            poses.values.map {it.position.y.toDouble()}.average().toFloat())
-        val motions=poses.mapValues {(_,pose)->TacticalMotion(player.grid,now,pose,command.velocity,command.direction,
+        // 004c8110 anchors offsets to the first selected unit, not the formation centroid.
+        val anchor=poses.getValue(command.units.first()).position
+        val motions=poses.mapValues {(_,pose)->TacticalMotion(player.grid,now,pose,
+            command.velocity*(if(command.parallel)0.5f else 1f),if(command.parallel)pose.direction else command.direction,
             command.waypoints.map {
-                val x=it.x+(pose.position.x-centre.x);val y=it.y+(pose.position.y-centre.y)
+                val x=it.x+(pose.position.x-anchor.x);val y=it.y+(pose.position.y-anchor.y)
                 if(kotlin.math.abs(x)>100000 || kotlin.math.abs(y)>100000)return reject(NavigationRejection.RANGE)
                 TacticalPoint(x,y)
-            })}
+            },command.parallel)}
         var next=stocks
         for((outfit,unit) in ships) {
             val current=next.outfits.getValue(outfit.id)

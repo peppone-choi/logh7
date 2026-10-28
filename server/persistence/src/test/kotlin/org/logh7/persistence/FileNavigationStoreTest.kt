@@ -111,6 +111,24 @@ class FileNavigationStoreTest {
         assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode(encoded+"A")}
         assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode("!".repeat(60))}
     }
+    @Test fun parallelMotionReopensHeadingAndRejectsUnknownOrNoncanonicalExtensions() {
+        val path=directory.resolve("parallel")
+        val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0.7f),0.5f,0.7f,
+            listOf(TacticalPoint(20f,0f)),parallel=true)
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,960,900,cpPaused=true,motion=motion,
+            energy=TacticalEnergy(listOf(100)+List(10){0}))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        FileNavigationStore(path).use {assertEquals(motion,it.load().getValue("pilot").motion)}
+        val encoded=TacticalMotionCodec.encode(motion)
+        assertEquals(0.7f,TacticalMotionCodec.decode(encoded).pose(120).direction)
+        val bytes=java.util.Base64.getUrlDecoder().decode(encoded)
+        for(flag in listOf(0,2,255)) {
+            val bad=bytes.copyOf().also {it[it.lastIndex]=flag.toByte()}
+            assertFails {TacticalMotionCodec.decode(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bad))}
+        }
+        val normal=motion.copy(parallel=false)
+        assertEquals(normal,TacticalMotionCodec.decode(TacticalMotionCodec.encode(normal)))
+    }
     @Test fun tacticalEnergySurvivesReopenAndSevenDefaultsToUnset() {
         val path=directory.resolve("energy")
         val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,

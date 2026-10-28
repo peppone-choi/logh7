@@ -4,6 +4,27 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalMotionTest {
+    @Test fun personalParallelMovementAndEngineReductionKeepFacingAndHalfSpeed() {
+        val rules=SessionRules.load();val session=SessionSimulation(rules).also {it.join("pilot",Power.EMPIRE,false,"c")}.exportState()
+        val now=session.gameMillis/1000
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3)),
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val pose=TacticalPose(TacticalPoint(0f,0f),0.7f)
+        var players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true,
+            hull=FlagshipHull(0,now),energy=TacticalEnergy(listOf(100)+List(10){0}),
+            motion=TacticalMotion(2487,now,pose,0f,0.7f,listOf(pose.position))),
+            "enemy" to Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,1000,cpPaused=true,hull=FlagshipHull(89,now)))
+        val store=object:NavigationStore {override fun load()=players;override fun save(next:Map<String,Navigator>){players=next}}
+        val nav=Navigation(galaxy,store,NavigationPolicy());val stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,0,0,0)))
+        val request=NavigationRequest("pilot",10000,Power.EMPIRE,"c",1,captainCard=59,shipKind=0,
+            tacticalMove=TacticalMove(listOf(1010000),1f,2f,listOf(TacticalPoint(100f,0f)),parallel=true))
+        val moving=nav.apply(request,session,stocks).player!!.motion!!
+        assertEquals(0.5f,moving.velocity);assertEquals(0.7f,moving.pose(now+9).direction)
+        val reduced=nav.apply(request.copy(tacticalMove=null,unitId=1010000,energy=TacticalEnergy(listOf(20)+List(10){0})),
+            session.copy(gameMillis=(now+9)*1000),stocks).player!!.motion!!
+        assertTrue(reduced.parallel);assertEquals(0.1f,reduced.velocity);assertEquals(moving.pose(now+9),reduced.origin)
+        assertEquals(0.7f,reduced.pose(now+100).direction)
+    }
     @Test fun initialDeploymentKeepsBothSidesInsideNativeRadarWithoutOverlappingUnits() {
         val positions=Power.entries.flatMap {power-> (0..599).map {TacticalDeployment.formation(it,power).position}}
         assertEquals(1200,positions.distinct().size)

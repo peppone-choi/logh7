@@ -42,6 +42,14 @@ class TacticalMoveMessagesTest {
         assertFailsWith<IllegalArgumentException> { move.copy(units = maximum.units + move.units) }
         assertFailsWith<IllegalArgumentException> { move.copy(waypoints = maximum.waypoints + move.waypoints) }
     }
+    @Test fun parallelMoveUsesItsOwnOpcodeAndTheSameBoundedNativeLayout() {
+        val parallel=move.copy(parallel=true)
+        val packet=TacticalMoveMessages.reply(parallel,123456,5)
+        assertEquals(0x0402,ByteBuffer.wrap(packet).getShort(4).toInt())
+        assertEquals(parallel,TacticalMoveMessages.move(packet.copyOfRange(4,packet.size)))
+        assertEquals(1,ByteBuffer.wrap(TacticalMoveMessages.reply(parallel,123456,0,false)).int)
+        assertEquals(request().size,packet.size-4)
+    }
 
     @Test fun malformedArraysNonFiniteCoordinatesAndInvalidIdentitiesAreRejected() {
         fun rejects(change: (ByteArray) -> ByteArray) {

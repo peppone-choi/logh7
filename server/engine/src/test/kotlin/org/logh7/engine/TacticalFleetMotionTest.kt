@@ -43,8 +43,8 @@ class TacticalFleetMotionTest {
         val result=move(s,nav,p)
         assertNotNull(result.player);assertEquals(setOf(1,2),result.tacticalMotions.keys)
         val motions=s.stocks.outfits.getValue(1).activeShips!!.values.associate {it.id to it.tactical!!.motion}
-        assertEquals(9.6f,motions.getValue(1).waypoints.last().y)
-        assertEquals(10.4f,motions.getValue(2).waypoints.last().y,0.0001f)
+        assertEquals(10f,motions.getValue(1).waypoints.last().y)
+        assertEquals(10.8f,motions.getValue(2).waypoints.last().y,0.0001f)
         assertEquals(setOf(10000),s.stocks.outfits.getValue(1).activeShips!!.values.map {it.motionCommander}.toSet())
         TacticalCombat.settle(session.copy(gameMillis=(now+10)*1000),galaxy,nav,p,s.commit,npcPolicy=NpcTacticalPolicy())
         assertEquals(motions,s.stocks.outfits.getValue(1).activeShips!!.values.associate {it.id to it.tactical!!.motion})
@@ -57,6 +57,22 @@ class TacticalFleetMotionTest {
         }
         assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
         assertEquals(250,s.stocks.outfits.getValue(1).activeShips!!.values.last().boats)
+    }
+    @Test fun parallelMovementKeepsHeadingAtHalfSpeedAndUsesFirstSelectedFormationAnchor() {
+        val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        val command=TacticalMove(listOf(2,1,1010000),1f,2f,listOf(TacticalPoint(10f,0f)),parallel=true)
+        val result=move(s,nav,p,request().copy(tacticalMove=command))
+        assertNotNull(result.player);assertEquals(3,result.tacticalMotions.size)
+        assertEquals(TacticalPoint(10f,0f),result.tacticalMotions.getValue(2).waypoints.last())
+        assertEquals(TacticalPoint(10f,-0.8f),result.tacticalMotions.getValue(1).waypoints.last())
+        for(motion in result.tacticalMotions.values) {
+            assertTrue(motion.parallel);assertEquals(0.5f,motion.velocity)
+            assertEquals(0f,motion.pose(now+9).direction);assertEquals(0f,motion.pose(now+100).direction)
+            val point=motion.pose(now+9).position
+            assertEquals(2f,kotlin.math.hypot(point.x-motion.origin.position.x,point.y-motion.origin.position.y),0.0001f)
+        }
+        assertEquals(0f,result.player!!.commandRange!!.radius(now))
+        assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
     }
     @Test fun mixedFlagshipAndFleetMoveIsOneCommitAndForeignUnitDeniesEverything() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)

@@ -35,7 +35,7 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
             abs(retreat.destination % 100 - grid % 100) <= 1 && abs(retreat.destination / 100 - grid / 100) <= 1 &&
             energy?.values?.get(1) == TacticalEnergy.WARP_MAX)) &&
         (motion == null || (motion.grid == grid && cpPaused && baseId == 0 && mode == 5 &&
-            motion.velocity <= (energy ?: TacticalEnergy.ZERO).values[0] / 100f)) &&
+            motion.velocity <= (energy ?: TacticalEnergy.ZERO).values[0] / 100f*(if(motion.parallel)0.5f else 1f))) &&
         (cpRecoveryAt == null || cpRecoveryAt in 0..0xffffffffL) &&
         (fuelReadyAt == null || fuelReadyAt in 0..0xffffffffL) &&
         (dockTarget == null || dockTarget in 1..65535 && strategy != null && fuelReadyAt == null) &&
@@ -211,7 +211,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now) ?:
                 TacticalDeployment.initial(before.unitId, before.power, before.grid,
                     snapshot(session.generation).values + before, stocks, galaxy)
-            val after = before.copy(motion = TacticalMotion(before.grid, now, origin, move.velocity, move.direction, move.waypoints))
+            val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
+                move.velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel))
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before)
         }
@@ -224,7 +225,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (energy.allocated > ship.number("出力:出力") || energy.values.zip(TacticalEnergy.MAXIMUM).any {it.first>it.second})
                 return reject(NavigationRejection.ENERGY)
             val motion = before.motion?.let { motion ->
-                val maximum = energy.values[0] / 100f
+                val maximum = energy.values[0] / 100f*(if(motion.parallel)0.5f else 1f)
                 if (motion.grid != before.grid || motion.velocity <= maximum) motion else motion.copy(
                     acceptedAt = maxOf(now, motion.startsAt) - TacticalMotion.WAIT_SECONDS,
                     origin = motion.pose(now), velocity = maximum, waypoints = motion.remaining(now))

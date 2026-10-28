@@ -10,7 +10,7 @@ internal object TacticalMotionMessages {
         fun point(p:org.logh7.engine.TacticalPoint)=TacticalMoveMessages.Point(p.x,p.y,0f)
         return TacticalMoveMessages.reply(TacticalMoveMessages.Move(character,
             listOf(TacticalMoveMessages.Unit(unit,pose.direction,point(pose.position))),motion.velocity,motion.direction,
-            motion.remaining(seconds).map(::point)),seconds,if(motion.velocity==0f)0 else maxOf(0,motion.startsAt-seconds))
+            motion.remaining(seconds).map(::point),motion.parallel),seconds,if(motion.velocity==0f)0 else maxOf(0,motion.startsAt-seconds))
     }
     fun reply(player: Navigator, seconds: Long): ByteArray? {
         val motion = player.motion?.takeIf { it.grid == player.grid && player.cpPaused } ?: return null
@@ -18,7 +18,7 @@ internal object TacticalMotionMessages {
         fun point(p: org.logh7.engine.TacticalPoint) = TacticalMoveMessages.Point(p.x, p.y, 0f)
         return TacticalMoveMessages.reply(TacticalMoveMessages.Move(player.characterId,
             listOf(TacticalMoveMessages.Unit(player.unitId, pose.direction, point(pose.position))), motion.velocity,
-            motion.direction, motion.remaining(seconds).map(::point)), seconds,
+            motion.direction, motion.remaining(seconds).map(::point),motion.parallel), seconds,
             if (motion.velocity == 0f) 0 else maxOf(0, motion.startsAt - seconds))
     }
 }

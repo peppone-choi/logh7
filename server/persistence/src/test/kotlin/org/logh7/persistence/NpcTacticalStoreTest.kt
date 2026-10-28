@@ -8,6 +8,13 @@ import kotlin.test.*
 
 class NpcTacticalStoreTest {
     @TempDir lateinit var directory:Path
+    @Test fun parallelFleetMotionSurvivesTheNestedStockCodec() {
+        val point=TacticalPoint(1f,2f)
+        val motion=TacticalMotion(2488,100,TacticalPose(point,0.4f),0.5f,0.4f,listOf(TacticalPoint(30f,2f)),parallel=true)
+        val unit=ActiveShipUnit(1,UnitStack(32),tactical=NpcTacticalState(motion,100,100),motionCommander=10000)
+        val encoded=ActiveShipUnitCodec.encode(ActiveShipUnits(listOf(unit)))
+        assertEquals(unit,ActiveShipUnitCodec.decode(encoded,tactics=true,cargo=true,support=true,commanded=true)!!.values.single())
+    }
     @Test fun stockSixteenReopensMotionCadenceTargetRetreatAndSequenceAndOldFifteenHasNoNpc() {
         val p=TacticalPoint(180f,-95f)
         val state=NpcTacticalState(TacticalMotion(2488,100,TacticalPose(p,0f),1f,0f,listOf(TacticalPoint(-280f,0f))),
