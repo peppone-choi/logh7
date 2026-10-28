@@ -2,17 +2,18 @@ package org.logh7.engine
 
 import kotlin.math.hypot
 
-data class TacticalPostureChange(val units:List<Int>,val mode:TacticalShipMode,val base:Int) {
+data class TacticalPostureChange(val units:List<Int>,val mode:TacticalShipMode,val base:Int,val sortie:Boolean=false) {
     init {require(units.size in 1..32 && units.all {it>0} && units.distinct().size==units.size &&
-        base in 0..65535 && (base>0)==mode.requiresBase)}
+        base in 0..65535 && (if(sortie)mode==TacticalShipMode.ANCHORED && base==0 else (base>0)==mode.requiresBase))}
 }
 /** Committed change; only these connections may receive this generation's notification. Author: 최병호. */
 data class TacticalPostureResult(val generation:Long,val grid:Int,val seconds:Long,val character:Int,
     val mode:TacticalShipMode,val base:Int,val units:Map<Int,TacticalPose>,val recipients:Map<Int,String>,
-    val spot:Int=0,val spotOwner:Int=0,val cancelled:Boolean=false) {
+    val spot:Int=0,val spotOwner:Int=0,val cancelled:Boolean=false,val sortie:Boolean=false) {
     init {require(generation>0 && grid in 0..4999 && seconds in 0..0xffffffffL && character>0 && base in 0..65535 &&
         (base>0)==mode.requiresBase && units.size in 1..32 && units.keys.all {it>0} && spot>=0 && spotOwner>=0 &&
-        recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()})}
+        recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()} &&
+        (!sortie || mode==TacticalShipMode.ANCHORED && units.size==1))}
 }
 
 internal object TacticalPostureOperations {
@@ -69,27 +70,33 @@ internal object TacticalPostureOperations {
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(player.hull?.woundedUntil?.let {it>session.gameMillis/1000}==true)return reject(NavigationRejection.WOUNDED)
         val command=checkNotNull(request.tacticalPosture);val now=session.gameMillis/1000
-        if(now>0xffffffffL-10*scale)return reject(NavigationRejection.CLOCK)
-        val ready=now+10*scale
+        val duration=if(command.sortie)5L+20L*command.units.size else 10L
+        if(now>0xffffffffL-duration*scale)return reject(NavigationRejection.CLOCK)
+        val ready=now+duration*scale
         val players=navigation.snapshot(session.generation)
         val centre=pose(player,now,players.values,stocks,galaxy).position
         val radius=checkNotNull(player.commandRange).radius(now)
         var next=stocks
-        for(id in command.units) {
+        // The manual randomizes ship types. All entries here are ships; a seeded shuffle remains stable after saving.
+        val selected=if(command.sortie)command.units.shuffled(kotlin.random.Random(now xor session.generation)) else command.units
+        for((index,id) in selected.withIndex()) {
             val source=if(id==player.unitId)null else ship(id,next) ?: return reject(NavigationRejection.UNIT)
+            // A docked personal flagship uses strategy departure; this path serves commissioned ship units.
+            if(command.sortie && source==null)return reject(NavigationRejection.UNIT)
             if(source!=null && !owned(source,player,galaxy))return reject(NavigationRejection.CARD)
             val current=(if(source==null)player.posture else source.unit.posture)?.takeIf {it.grid==player.grid}
                 ?: TacticalPosture(player.grid)
-            // Departing a stationed unit uses the separate sortie command (0412).
-            if(current.order!=null || current.mode==TacticalShipMode.STATIONED ||
+            if(current.order!=null || (current.mode==TacticalShipMode.STATIONED)!=command.sortie ||
                 if(source==null)player.retreat!=null else source.unit.support!=null || source.unit.tactical?.retreat!=null)
                 return reject(NavigationRejection.BUSY)
-            if(current.mode==command.mode && current.base==command.base)return reject(NavigationRejection.SAME_GRID)
+            val targetBase=if(command.sortie)current.base else command.base
+            if(current.mode==command.mode && current.base==targetBase)return reject(NavigationRejection.SAME_GRID)
             val at=if(source==null)pose(player,now,players.values,stocks,galaxy) else pose(source,player.grid,now,players.values,stocks,galaxy)
-            if(source!=null && hypot((at.position.x-centre.x).toDouble(),(at.position.y-centre.y).toDouble())>radius)
+            if(source!=null && !command.sortie && hypot((at.position.x-centre.x).toDouble(),(at.position.y-centre.y).toDouble())>radius)
                 return reject(NavigationRejection.RANGE)
-            if(!target(command.mode,command.base,player.grid,player.power,at.position,galaxy,stocks))return reject(NavigationRejection.BASE)
-            val changed=current.copy(order=TacticalPostureOrder(player.characterId,command.mode,command.base,now,ready))
+            if(!target(command.mode,targetBase,player.grid,player.power,at.position,galaxy,stocks))return reject(NavigationRejection.BASE)
+            val due=if(command.sortie)now+(5L+20L*(index+1))*scale else ready
+            val changed=current.copy(order=TacticalPostureOrder(player.characterId,command.mode,targetBase,now,due))
             if(source==null)player=player.copy(posture=changed,attack=null,fire=player.fire?.copy(pending=null))
             else next=replace(next,source,source.unit.copy(posture=changed,attack=null,shot=null))
         }
@@ -140,7 +147,8 @@ internal object TacticalPostureOperations {
                 unit=unit.copy(tactical=s.unit.tactical?.copy(motion=motion,nextDecisionAt=now,target=0,retreat=null) ?: NpcTacticalState(motion,now,now),
                     motionCommander=order.character,attack=null,shot=null,support=null)
             }
-            stocks=replace(stocks,s,unit);results+=event(id,state.grid,order,at,!valid)
+            stocks=replace(stocks,s,unit);results+=event(id,state.grid,order,at,!valid).copy(
+                sortie=state.mode==TacticalShipMode.STATIONED && order.mode==TacticalShipMode.ANCHORED)
         }
         return stocks
     }

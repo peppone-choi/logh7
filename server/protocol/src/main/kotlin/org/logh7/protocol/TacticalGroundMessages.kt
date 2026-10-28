@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 
 /** CD 0049f860 (040f), 0049fd50 (0410), 004a01e0 (0411). Author: 최병호. */
 object TacticalGroundMessages {
-    enum class Action(val opcode:Int) { DEPLOY(0x040f), WITHDRAW(0x0410) }
+    enum class Action(val opcode:Int) { DEPLOY(0x040f), WITHDRAW(0x0410), SORTIE(0x0412) }
     /** Skill is an opaque wire byte. Deployment eligibility belongs to the world actor. */
     data class Command(val action:Action,val character:Int,val units:List<Int>,val skill:Int=0) {
         init {
@@ -52,6 +52,13 @@ object TacticalGroundMessages {
         seconds,wait,accepted)
     fun reply(command:Posture,seconds:Long,wait:Long,accepted:Boolean=true)=reply(0x0411,command.character,command.units,
         ByteBuffer.allocate(5).put(command.kind.toByte()).putInt(command.base).array(),seconds,wait,accepted)
+
+    /** Native NotifySortie: one unit leaves the base into anchored mode (004c1a80). */
+    fun sortieCompleted(seconds:Long,base:Int,unit:PostureUnit):ByteArray {
+        require(seconds in 0..0xffffffffL && base>0)
+        return LoginMessages.sessionMessage(0x0437,ByteBuffer.allocate(28).putInt(seconds.toInt()).putInt(base)
+            .putInt(unit.id).putFloat(unit.direction).putFloat(unit.x).putFloat(unit.y).putFloat(unit.z).array())
+    }
 
     /** 004a79b0/004a7f20: direction precedes x/y/z; the trailer is spot and spot_owner. */
     data class PostureUnit(val id:Int,val direction:Float,val x:Float,val y:Float,val z:Float) {

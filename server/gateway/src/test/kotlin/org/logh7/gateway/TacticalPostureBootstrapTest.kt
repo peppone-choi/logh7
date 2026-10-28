@@ -28,6 +28,17 @@ class TacticalPostureBootstrapTest {
             assertEquals(140,java.nio.ByteBuffer.wrap(replay).getInt(10))
             val restored=TacticalGroundMessages.posture(replay.copyOfRange(4,replay.size))
             assertEquals(setOf(1010000,1),restored.units.toSet());assertEquals(4,restored.kind);assertEquals(1049,restored.base)
+            if(mode==TacticalShipMode.STATIONED) {
+                val leaving=posture.copy(order=pending.copy(mode=TacticalShipMode.ANCHORED))
+                val leavingStock=stock.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(
+                    ships.values.map {it.copy(posture=leaving)}))))
+                val source=viewer.copy(posture=null)
+                val replaySortie=TacticalBootstrap(snapshot.copy(navigators=mapOf("pilot" to source),planetStocks=leavingStock),
+                    galaxy,source){person}.resume().single {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0412}
+                assertEquals(140,java.nio.ByteBuffer.wrap(replaySortie).getInt(10))
+                assertEquals(TacticalGroundMessages.Command(TacticalGroundMessages.Action.SORTIE,10000,listOf(1)),
+                    TacticalGroundMessages.command(replaySortie.copyOfRange(4,replaySortie.size)))
+            }
             // A stale grid-scoped record cannot anchor a ship to a base from its previous grid.
             val stale=posture.copy(grid=2488)
             val otherViewer=viewer.copy(posture=stale)

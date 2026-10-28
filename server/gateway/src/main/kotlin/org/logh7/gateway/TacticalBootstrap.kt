@@ -75,8 +75,13 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                     u.posture?.takeIf {it.grid==viewer.grid}?.order?.takeIf {it.character==o.commanderId}?.let {u.id to it}}}
         val now=snapshot.session?.gameSeconds ?: 0
         return records.groupBy {it.second}.flatMap {(order,entries)->entries.chunked(32).map {group->
-            TacticalGroundMessages.reply(TacticalGroundMessages.Posture(order.character,group.map {it.first},order.mode.wire,order.base),
-                now,(order.readyAt-now).coerceAtLeast(0))}}
+                val ids=group.map {it.first}
+                val sortie=order.mode==TacticalShipMode.ANCHORED && snapshot.planetStocks!!.outfits.values.any {o->
+                    o.activeShips?.values?.any {it.id==ids.first() && it.posture?.mode==TacticalShipMode.STATIONED}==true}
+                if(sortie)TacticalGroundMessages.reply(TacticalGroundMessages.Command(TacticalGroundMessages.Action.SORTIE,order.character,ids),
+                    now,(order.readyAt-now).coerceAtLeast(0))
+                else TacticalGroundMessages.reply(TacticalGroundMessages.Posture(order.character,ids,order.mode.wire,order.base),
+                    now,(order.readyAt-now).coerceAtLeast(0))}}
     }
     fun resume() = postureOrders()+rotations()+people.filter {it.motion?.rotation==null}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
         snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->

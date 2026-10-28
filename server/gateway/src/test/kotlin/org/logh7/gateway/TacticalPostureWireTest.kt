@@ -12,7 +12,48 @@ import kotlin.test.*
 
 class TacticalPostureWireTest {
     @TempDir lateinit var directory:Path
-    @Test fun authenticatedCommandWaitsAndPublishesTheCommittedPostureToBothConnections() = runBlocking {
+    @Test fun authenticatedSortieAcknowledgesAndCompletesAsANativeOneUnitNotification() = runBlocking<Unit> {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Battle",3)),
+            listOf(GalaxyBase(1000,2487,80,0,"Base",0,0f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val now=SessionRules.load().startSeconds
+        var saved=(0..1).associate {i->"load-00$i" to Navigator(1,10000+i,if(i==0)Power.EMPIRE else Power.ALLIANCE,
+            2487,1000,1000,900,cpPaused=true,hull=FlagshipHull(if(i==0)0 else 89,now))}
+        val motion=TacticalMotion(2487,now,TacticalPose(TacticalPoint(0f,0f),0f),0f,0f,listOf(TacticalPoint(0f,0f)))
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),tactical=NpcTacticalState(motion,now,now),
+            posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1000))))
+        val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,10000,UnitInventory(ships=ships.quantities()),
+            activeShips=ships,position=OutfitPosition(2487))
+        var inventory=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,0,0,0)),mapOf(1 to outfit),
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),nextShipId=2)
+        val nav=object:NavigationStore {override fun load()=saved;override fun save(players:Map<String,Navigator>){saved=players}}
+        val stock=object:PlanetStockStore {override fun load()=inventory;override fun save(stocks:PlanetStocks){inventory=stocks}}
+        val commit=WorldStateCommitter {p,s->saved=p.toMap();inventory=checkNotNull(s)}
+        fun through(c:SyntheticClient,opcode:Int):ByteArray {
+            repeat(400){val packet=c.receive();if(ByteBuffer.wrap(packet).getShort(4).toInt()==opcode)return packet}
+            error("Missing opcode $opcode")
+        }
+        LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=stock,
+            worldStateCommitter=commit,powerByIndex={if(it==0)2 else 3}).use {fixture->
+            val clients=(0..1).map {i->fixture.join(fixture.account(i),true,false).client.also {c->
+                c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01)
+                c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
+            }}
+            val command=TacticalGroundMessages.Command(TacticalGroundMessages.Action.SORTIE,10000,listOf(1))
+            clients[0].send(TacticalGroundMessages.reply(command,0,0).drop(4).toByteArray())
+            val acknowledgement=ByteBuffer.wrap(through(clients[0],0x0412))
+            assertEquals(0,acknowledgement.int);assertEquals(25*24,acknowledgement.getInt(10))
+            assertNotNull(inventory.outfits.getValue(1).activeShips!!.values.single().posture!!.order)
+            fixture.engine.submit(WorldCommand.AdvanceTo(25000))
+            for(c in clients) {
+                val packet=ByteBuffer.wrap(through(c,0x0437))
+                assertEquals(34,packet.capacity());assertEquals(1000,packet.getInt(10));assertEquals(1,packet.getInt(14))
+            }
+            assertEquals(TacticalPosture(2487,TacticalShipMode.ANCHORED,1000),inventory.outfits.getValue(1).activeShips!!.values.single().posture)
+            clients[0].send(TacticalGroundMessages.reply(command,0,0).drop(4).toByteArray())
+            assertEquals(1,ByteBuffer.wrap(through(clients[0],0x0412)).int)
+        }
+    }
+    @Test fun authenticatedCommandWaitsAndPublishesTheCommittedPostureToBothConnections() = runBlocking<Unit> {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Battle",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Enemy",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val now=SessionRules.load().startSeconds
@@ -64,5 +105,10 @@ class TacticalPostureWireTest {
         assertEquals(listOf(0x0400,0x042f),received.single().map {ByteBuffer.wrap(it).getShort(4).toInt()})
         received.clear();hub.posture(event.copy(cancelled=true))
         val rejected=ByteBuffer.wrap(received.single().single());assertEquals(0x0411,rejected.getShort(4).toInt());assertEquals(1,rejected.int)
+        received.clear();val sortie=event.copy(mode=TacticalShipMode.ANCHORED,base=1000,sortie=true)
+        hub.posture(sortie)
+        assertEquals(listOf(0x0400,0x0437),received.single().map {ByteBuffer.wrap(it).getShort(4).toInt()})
+        received.clear();hub.posture(sortie.copy(cancelled=true))
+        assertEquals(0x0412,ByteBuffer.wrap(received.single().single()).getShort(4).toInt())
     }
 }

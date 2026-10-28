@@ -460,6 +460,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), cost, pool)
         if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
         return NavigationResult(after.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
+            posture = if(before.baseId!=0 && after.baseId==0)null else after.posture,
             moves = Math.addExact(before.moves, 1)), before)
     }
     private fun commit(account: String, player: Navigator, generation: Long) {

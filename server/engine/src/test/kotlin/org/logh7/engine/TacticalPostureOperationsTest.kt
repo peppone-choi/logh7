@@ -120,4 +120,33 @@ class TacticalPostureOperationsTest {
         assertEquals(TacticalShipMode.BATTLE,s.players.getValue("pilot").posture!!.mode)
         assertTrue(out.single().recipients.isEmpty());assertFalse(out.single().cancelled)
     }
+    @Test fun stationedShipsSortieOneAtATimeAndRestoreTheirSavedSchedule() {
+        val s=state()
+        val own=s.stocks.outfits.getValue(1)
+        s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(activeShips=ActiveShipUnits(own.activeShips!!.values.map {
+            it.copy(posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1000))}))))
+        var n=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
+        val sortie=request(ids=listOf(1,2)).copy(tacticalPosture=TacticalPostureChange(listOf(1,2),TacticalShipMode.ANCHORED,0,true))
+        val accepted=accept(s,n,p,sortie)
+        assertEquals(now+45*24,accepted.postureReadyAt)
+        val due=s.stocks.outfits.getValue(1).activeShips!!.values.map {it.posture!!.order!!.readyAt}.sorted()
+        assertEquals(listOf(now+25*24,now+45*24),due)
+        n=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
+        val out=mutableListOf<TacticalPostureResult>()
+        settle(s,n,p,now+25*24-1,out);assertTrue(out.isEmpty())
+        settle(s,n,p,now+25*24,out);assertEquals(1,out.size);assertTrue(out.single().sortie)
+        assertEquals(1,s.stocks.outfits.getValue(1).activeShips!!.values.count {it.posture!!.mode==TacticalShipMode.STATIONED})
+        settle(s,n,p,now+45*24,out);assertEquals(2,out.size)
+        assertTrue(out.all {it.sortie && !it.cancelled && it.base==1000})
+        assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487,TacticalShipMode.ANCHORED,1000)})
+        settle(s,n,p,now+60*24,out);assertEquals(2,out.size)
+    }
+    @Test fun sortieRejectsSailingUnitsAndMixedPersonalSelectionWithoutSaving() {
+        val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        val before=s.stocks
+        val command=TacticalPostureChange(listOf(1),TacticalShipMode.ANCHORED,0,true)
+        assertEquals(NavigationRejection.BUSY,accept(s,n,p,request(ids=listOf(1)).copy(tacticalPosture=command)).rejection)
+        assertEquals(NavigationRejection.UNIT,accept(s,n,p,request().copy(tacticalPosture=command.copy(units=listOf(1010000)))).rejection)
+        assertEquals(before,s.stocks);assertEquals(0,s.saves)
+    }
 }

@@ -5,6 +5,20 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NavigationTest {
+    @Test fun bothPersonalDepartureCommandsClearThePreviousStationedTacticalPosture() {
+        val base=GalaxyBase(1000,2487,60,0,"Home",0,20f,86400,0,0f,2f)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Empire",2)),listOf(base),Power.entries.associateWith {2487})
+        val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,false,"connection")}.exportState()
+        for(command in listOf(PlaceMove.SwitchMode(5),PlaceMove.Dock(0,5))) {
+            val store=Store()
+            store.saved=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1000,mode=4,
+                posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1000)))
+            val nav=Navigation(galaxy,store,NavigationPolicy())
+            val departed=nav.apply(request.copy(unitId=1010000,captainCard=59,place=command),session).player!!
+            assertNull(departed.posture);assertEquals(0,departed.baseId)
+            assertEquals(departed,Navigation(galaxy,store,NavigationPolicy()).snapshot(1).getValue("pilot"))
+        }
+    }
     @Test fun nativeDepartureRequiresOwnCaptainAndFlagshipQuayAndPersistsBeforeSuccess() {
         val base = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(base),

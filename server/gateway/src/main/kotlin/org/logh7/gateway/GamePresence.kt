@@ -31,8 +31,12 @@ class GamePresence {
     }
     @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult) {
         val ids=event.units.keys.toList()
-        val packet=if(event.cancelled)org.logh7.protocol.TacticalGroundMessages.reply(
+        val packet=if(event.cancelled && event.sortie)org.logh7.protocol.TacticalGroundMessages.reply(
+            org.logh7.protocol.TacticalGroundMessages.Command(org.logh7.protocol.TacticalGroundMessages.Action.SORTIE,event.character,ids),event.seconds,0,false)
+        else if(event.cancelled)org.logh7.protocol.TacticalGroundMessages.reply(
             org.logh7.protocol.TacticalGroundMessages.Posture(event.character,ids,event.mode.wire,event.base),event.seconds,0,false)
+        else if(event.sortie)org.logh7.protocol.TacticalGroundMessages.sortieCompleted(event.seconds,event.base,
+            event.units.entries.single().let {(id,pose)->org.logh7.protocol.TacticalGroundMessages.PostureUnit(id,pose.direction,pose.position.x,pose.position.y,0f)})
         else org.logh7.protocol.TacticalGroundMessages.postureChanged(event.seconds,event.mode.wire,event.base,
             event.units.map {(id,pose)->org.logh7.protocol.TacticalGroundMessages.PostureUnit(id,pose.direction,
                 pose.position.x,pose.position.y,0f)},event.spot,event.spotOwner)

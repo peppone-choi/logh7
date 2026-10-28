@@ -5,6 +5,20 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalGroundMessagesTest {
+    @Test fun sortieUsesCountedCommandAndOneUnitCompletionWithNativeCoordinates() {
+        val request=bytes("0412000000640000007800002710020000000100000002")
+        val command=TacticalGroundMessages.Command(TacticalGroundMessages.Action.SORTIE,10000,listOf(1,2))
+        assertEquals(command,TacticalGroundMessages.command(request))
+        val reply=TacticalGroundMessages.reply(command,100,1080)
+        assertEquals(command,TacticalGroundMessages.command(reply.copyOfRange(4,reply.size)))
+        assertFailsWith<IllegalArgumentException>{TacticalGroundMessages.command(request+0)}
+        assertFailsWith<IllegalArgumentException>{command.copy(skill=1)}
+        val unit=TacticalGroundMessages.PostureUnit(1,-0.5f,1f,2f,3f)
+        assertContentEquals(bytes("000000000437000000640000041900000001bf0000003f8000004000000040400000"),
+            TacticalGroundMessages.sortieCompleted(100,1049,unit))
+        assertFailsWith<IllegalArgumentException>{TacticalGroundMessages.sortieCompleted(100,0,unit)}
+        assertFailsWith<IllegalArgumentException>{TacticalGroundMessages.sortieCompleted(-1,1049,unit)}
+    }
     private fun bytes(hex:String)=java.util.HexFormat.of().parseHex(hex)
     @Test fun nativePackedLayoutsKeepOrderAndHaveNoImplicitBaseOrNativePadding() {
         // Time/wait supplied by the client are ignored; a ground command has no target-base field.
