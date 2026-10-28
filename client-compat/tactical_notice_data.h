@@ -4,6 +4,15 @@
 #include <cstring>
 
 namespace logh {
+inline bool missingTacticalText(const char* text) {
+    return text && (!strcmp(text, "NO DATA") || !strcmp(text, "NO TABLE"));
+}
+inline const wchar_t* tacticalRetreatText(unsigned field, const char* original) {
+    if (!missingTacticalText(original)) return nullptr;
+    if (field == 61) return L"철수 확인";
+    if (field == 40) return L"선택한 함선에 철수 명령을 내리겠습니까?";
+    return nullptr;
+}
 struct TacticalNotice { unsigned index; unsigned motion; const char* marker; const wchar_t* text; };
 inline const TacticalNotice* tacticalNotices(size_t& count) {
     static const TacticalNotice rows[] = {
@@ -15,12 +24,14 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {11, 0, "LOGH7_TACTICAL_WAYPOINT", L"경유지를 추가하거나 이동 경로를 확정하세요.\n"},
         {13, 0, "LOGH7_TACTICAL_TARGET", L"공격할 대상을 선택하세요.\n"},
         {20, 0, "LOGH7_TACTICAL_FIRE_STOP", L"공격 중지 명령을 요청했습니다.\n"},
+        {41, 0, "LOGH7_TACTICAL_RETREAT_CANCEL", L"철수 명령을 취소했습니다.\n"},
+        {42, 0, "LOGH7_TACTICAL_RETREAT_REQUEST", L"철수 명령을 요청했습니다.\n"},
     };
     count = sizeof(rows) / sizeof(rows[0]);
     return rows;
 }
 inline const char* tacticalNoticeFallback(unsigned group, unsigned index, const char* original, unsigned motion = 0) {
-    if (group != 118 || !original || (strcmp(original, "NO DATA") && strcmp(original, "NO TABLE"))) return original;
+    if (group != 118 || !missingTacticalText(original)) return original;
     size_t count; const auto rows = tacticalNotices(count);
     for (size_t i = 0; i < count; ++i)
         if (rows[i].index == index && rows[i].motion && rows[i].motion == motion) return rows[i].marker;

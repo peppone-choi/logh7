@@ -21,6 +21,9 @@
 static bool tacticalNoticesTest() {
     const char* missing = "NO DATA";
     const char* valid = "existing guidance";
+    if (!logh::tacticalRetreatText(61, missing) || !logh::tacticalRetreatText(40, "NO TABLE") ||
+        logh::tacticalRetreatText(61, valid) || logh::tacticalRetreatText(40, nullptr) ||
+        logh::tacticalRetreatText(9, missing) || logh::missingTacticalText("prefix NO DATA")) return false;
     size_t count; const auto rows = logh::tacticalNotices(count);
     for (size_t i = 0; i < count; ++i) {
         if (logh::tacticalNoticeFallback(118, rows[i].index, missing, rows[i].motion) != rows[i].marker ||
