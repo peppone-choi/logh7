@@ -917,7 +917,7 @@ class GameExchange(
                                     val allowed=if(source==null || base?.power!=character.power || base.camp!=0) emptyList() else
                                         inventory.outfits.values.filter { it.id!=source.id && it.baseId==source.baseId && it.power==character.power }
                                             .sortedBy { it.id }.map { outfit -> org.logh7.protocol.SupplyDirectoryMessages.Outfit(outfit.id,
-                                                outfit.kind.wire,outfit.number,outfit.supplies,org.logh7.engine.OutfitSupplies.capacity(outfit.units),
+                                                outfit.kind.wire,outfit.number,outfit.supplies,org.logh7.engine.OutfitSupplies.visibleCapacity(outfit),
                                                 world.baseWire(world.galaxy.bases.single { it.id==outfit.baseId })) }
                                     org.logh7.protocol.SupplyDirectoryMessages.response(query,allowed)
                                 }
