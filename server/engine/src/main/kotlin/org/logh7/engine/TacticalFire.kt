@@ -216,7 +216,7 @@ internal object TacticalCombat {
             }
         }
         if(due.isEmpty() && players==original && !npcPolicy.enabled && stocks.outfits.values.none {
-            it.activeShips?.values?.any {u->u.support!=null}==true})return emptyList()
+            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         var inventory = stocks
         val impacts = mutableListOf<TacticalImpact>()
@@ -256,6 +256,7 @@ internal object TacticalCombat {
             }
             players[account] = next
         }
+        if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         val movements=mutableListOf<TacticalMovement>()
         if(npcPolicy.enabled && session.ended==null) {
             inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)

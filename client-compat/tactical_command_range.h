@@ -28,8 +28,11 @@ static void applyTacticalCommandRange(void* world) {
         }
     }
 }
+static void applyTacticalSupplies(void* world);
 static void __cdecl receivedCommandRange() {
-    applyTacticalCommandRange(*reinterpret_cast<void**>(0x7ccffc));
+    void* world=*reinterpret_cast<void**>(0x7ccffc);
+    applyTacticalCommandRange(world);
+    applyTacticalSupplies(world);
 }
 static void __declspec(naked) commandRangeReceived() {
     __asm {

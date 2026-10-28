@@ -32,10 +32,8 @@ static void __fastcall receivedTacticalSupply(void* world,void*,void* message) {
     if (source) at<unsigned>(source,0x950)=at<unsigned>(message,8);
     if (target) at<unsigned>(target,0x950)=at<unsigned>(message,12);
 }
-static void __fastcall importedTacticalUnits(void* world,void*,BYTE announce) {
-    reinterpret_cast<void(__thiscall*)(void*,BYTE)>(0x4c32a0)(world,announce);
-    // The CD importer initializes damage but omits runtime cargo. Restore by ID from
-    // the complete 0325 definition cache, including after reconnect/reinforcement.
+static void applyTacticalSupplies(void* world) {
+    if (!world || !at<BYTE>(world,0x126718)) return;
     unsigned count=at<unsigned short>(world,0x41a364);
     if (count>600) return;
     for(unsigned i=0;i<count;++i) {
@@ -43,6 +41,12 @@ static void __fastcall importedTacticalUnits(void* world,void*,BYTE announce) {
         auto unit=supportUnit(world,at<unsigned>(row,0));
         if (unit) at<unsigned>(unit,0x950)=at<unsigned>(row,0x4c);
     }
+}
+static void __fastcall importedTacticalUnits(void* world,void*,BYTE announce) {
+    reinterpret_cast<void(__thiscall*)(void*,BYTE)>(0x4c32a0)(world,announce);
+    // The CD importer initializes damage but omits runtime cargo. Restore by ID from
+    // the complete 0325 definition cache, including after reconnect/reinforcement.
+    applyTacticalSupplies(world);
     applyTacticalLabels(world);
     applyTacticalCommandRange(world);
 }

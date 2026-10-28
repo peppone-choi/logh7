@@ -80,6 +80,13 @@ class GameExchange(
         require(player.cpPaused && player.generation==generation) { "Tactical data is outside the current battlefield" }
         return TacticalBootstrap(snapshot,checkNotNull(world).galaxy,player,characters::characterById)
     }
+    private fun commandCorps(account:String):List<ByteArray> {
+        val snapshot=navigation?.snapshot() ?: return emptyList()
+        val player=snapshot.navigators[account] ?: return emptyList()
+        if(!player.cpPaused || player.baseId!=0)return emptyList()
+        return listOf(org.logh7.protocol.TacticsMessages.corps(
+            TacticalBootstrap(snapshot,checkNotNull(world).galaxy,player,characters::characterById).corps))
+    }
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
     private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
@@ -251,7 +258,7 @@ class GameExchange(
                             val now=gameSeconds()
                             listOf(org.logh7.protocol.TacticalSupportMessages.reply(support,now,
                                 result.supportReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null)) +
-                                listOf(org.logh7.protocol.TacticsMessages.corps(tactics(identity.account).corps))
+                                commandCorps(identity.account)
                         }
                         return null
                     }
@@ -267,8 +274,10 @@ class GameExchange(
                                 attack.units,attack.mode,attack.target))).thenApply {result ->
                             val player=checkNotNull(result.player ?: result.previous)
                             publication=Publication(character,player,false)
-                            val wait=if(result.player!=null && attack.mode!=0) player.attack!!.let {it.startsAt-it.acceptedAt} else 0L
-                            listOf(org.logh7.protocol.TacticalAttackMessages.reply(attack,gameSeconds(),wait,result.player!=null))
+                            val order=player.attack ?: navigation.snapshot()?.planetStocks?.outfits?.values?.asSequence()
+                                ?.flatMap {it.activeShips?.values.orEmpty().asSequence()}?.firstOrNull {it.id in attack.units}?.attack?.order
+                            val wait=if(result.player!=null && attack.mode!=0) checkNotNull(order).let {it.startsAt-it.acceptedAt} else 0L
+                            listOf(org.logh7.protocol.TacticalAttackMessages.reply(attack,gameSeconds(),wait,result.player!=null)) + commandCorps(identity.account)
                         }
                         return null
                     }
@@ -313,7 +322,7 @@ class GameExchange(
                                     org.logh7.protocol.TacticalMoveMessages.Unit(unit.id,unit.direction,pose)),velocity=0f,
                                     direction=unit.direction,waypoints=listOf(pose)),gameSeconds(),0,false))
                             }
-                            replies+listOf(org.logh7.protocol.TacticsMessages.corps(tactics(identity.account).corps))
+                            replies+commandCorps(identity.account)
                         }
                         return null
                     }
@@ -351,7 +360,7 @@ class GameExchange(
                                         TacticalMotionMessages.npc(id,motion,gameSeconds(),player.characterId)}
                                     else TacticalMotionMessages.reply(player,gameSeconds())?.let(::listOf).orEmpty()
                                 } else emptyList()) +
-                                listOf(org.logh7.protocol.TacticsMessages.corps(tactics(identity.account).corps))
+                                commandCorps(identity.account)
                         }
                         return null
                     }

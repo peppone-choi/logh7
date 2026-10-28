@@ -36,7 +36,9 @@ class GamePresence {
                 org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet)}
     }
     /** Every committed shot is queued separately, including while an exchange awaits another command. */
-    @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact) {
+    @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact,
+        snapshot:org.logh7.engine.WorldSnapshot?=null,galaxy:org.logh7.engine.Galaxy?=null,
+        characterById:((Int)->CharacterMessages.Generate?)?=null) {
         val packet = org.logh7.protocol.TacticalAttackMessages.hit(impact.hit.seconds,impact.source,
             impact.weapon.wire,impact.hit.target,impact.hit.destroyed,
             impact.hit.damaged,impact.hit.shieldFace,impact.hit.shieldDamage)
@@ -50,7 +52,12 @@ class GamePresence {
                     val leave=impact.departed?.let {
                         listOf(org.logh7.protocol.TacticalRetreatMessages.warped(impact.hit.seconds,it.grid,listOf(it.unitId)))
                     }.orEmpty()
-                    send(viewer,listOf(packet)+leave)
+                    val cargo=if(impact.weapon!=org.logh7.engine.TacticalWeapon.BEAM && snapshot!=null && galaxy!=null && characterById!=null) {
+                        val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
+                        listOf(org.logh7.protocol.TacticsMessages.definitions(impact.hit.grid,tactical.units),
+                            org.logh7.protocol.TacticsMessages.corps(tactical.corps))
+                    } else emptyList()
+                    send(viewer,listOf(packet)+leave+cargo)
                 }
             }
     }

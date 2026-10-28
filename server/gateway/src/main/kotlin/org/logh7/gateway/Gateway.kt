@@ -79,10 +79,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
-        combatSubscription = presence?.let { navigation!!.observeCombat(it::combat) }
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        combatSubscription = presence?.let { p -> navigation!!.observeCombat { impact ->
+            navigation.snapshot()?.let { snapshot -> p.combat(impact,snapshot,world!!.galaxy,currentCharacters()::characterById) }
+        }}
         supportSubscription = presence?.let { p -> navigation!!.observeSupport { result ->
             navigation.snapshot()?.let { snapshot -> p.support(result,snapshot,world!!.galaxy,currentCharacters()::characterById) }
         } }

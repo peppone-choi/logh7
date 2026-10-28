@@ -63,6 +63,11 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 TacticalSupportMessages.reply(TacticalSupportMessages.Command(
                     if(order.action==TacticalSupportAction.REPAIR)TacticalSupportMessages.Action.REPAIR else TacticalSupportMessages.Action.SUPPLY,
                     order.character,u.id,order.target),now,(order.readyAt-now).coerceAtLeast(0))
+            }} } + snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
+            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.attack?.takeIf {it.commander==o.commanderId}?.let {a ->
+                val now=snapshot.session?.gameSeconds ?: 0
+                TacticalAttackMessages.reply(TacticalAttackMessages.Attack(a.commander,listOf(u.id),a.order.mode,0),
+                    now,(a.order.startsAt-now).coerceAtLeast(0))
             }} }
     fun initialize(): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase)
