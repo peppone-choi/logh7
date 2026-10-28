@@ -234,6 +234,23 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0405 -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val attack=org.logh7.protocol.TacticalAttackMessages.attack(body)
+                        require(attack.character==character.id.toInt())
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
+                            shipKind=character.shipKind,tacticalAttack=org.logh7.engine.TacticalAttack(
+                                attack.units,attack.mode,attack.target))).thenApply {result ->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            val wait=if(result.player!=null && attack.mode!=0) player.attack!!.let {it.startsAt-it.acceptedAt} else 0L
+                            listOf(org.logh7.protocol.TacticalAttackMessages.reply(attack,gameSeconds(),wait,result.player!=null))
+                        }
+                        return null
+                    }
                     0x0406 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character = checkNotNull(currentCharacter(identity.account))

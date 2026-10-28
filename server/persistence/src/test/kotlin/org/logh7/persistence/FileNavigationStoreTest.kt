@@ -7,6 +7,19 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun automaticAttackCadenceReopensAndLegacyFourteenHasNoOrder() {
+        val path=directory.resolve("automatic")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,hull=FlagshipHull(89,100),
+            attack=TacticalAttackOrder(2,100,220,460),fire=TacticalFire(3,last=TacticalHit(3,2017,340,7,10)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-15",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-14\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").attack)}
+        assertFailsWith<IllegalArgumentException>{TacticalAttackOrder(0,100,220,460)}
+        assertFailsWith<IllegalArgumentException>{TacticalAttackOrder(2,100,220,219)}
+    }
     @Test fun hullInjuryAndPersonalHitsReopenInFourteenAndLegacyThirteenRemainsUnset() {
         val path=directory.resolve("hull")
         val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,

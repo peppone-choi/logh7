@@ -15,8 +15,9 @@ object TacticalAttackMessages {
             .put(arms.toByte()).put(1).putInt(target).putShort(damaged.toShort()).putShort(destroyed.toShort())
             .put(shieldFace.toByte()).putShort(shieldDamage.toShort()).put(100).array())
     }
-    data class Attack(val character: Int, val units: List<Int>, val targetKind: Int, val target: Int) {
-        init { validate(character, units, targetKind, target) }
+    /** 004b4110 writes attack mode here, unlike Shoot's target-kind byte. */
+    data class Attack(val character: Int, val units: List<Int>, val mode: Int, val target: Int) {
+        init { validate(character, units, mode, target) }
     }
     data class Shoot(val character: Int, val units: List<Int>, val arms: Int, val targetKind: Int, val target: Int) {
         init { validate(character, units, targetKind, target); require(arms in 0..255) }
@@ -56,7 +57,7 @@ object TacticalAttackMessages {
     }
     fun reply(command: Attack, seconds: Long, waitSeconds: Long, accepted: Boolean = true): ByteArray =
         reply(0x0405, command.character, command.units,
-            ByteBuffer.allocate(5).put(command.targetKind.toByte()).putInt(command.target).array(), seconds, waitSeconds, accepted)
+            ByteBuffer.allocate(5).put(command.mode.toByte()).putInt(command.target).array(), seconds, waitSeconds, accepted)
     fun reply(command: Shoot, seconds: Long, waitSeconds: Long, accepted: Boolean = true): ByteArray =
         reply(0x0406, command.character, command.units,
             ByteBuffer.allocate(6).put(command.arms.toByte()).put(command.targetKind.toByte()).putInt(command.target).array(),

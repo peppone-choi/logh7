@@ -4,6 +4,82 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalCombatTest {
+    @Test fun lastEnemyDefeatedOrDepartedClearsAutomaticOrderDurablyEvenWithoutAnotherShot() {
+        val command=request.copy(tacticalShoot=null,tacticalAttack=TacticalAttack(listOf(1010000),2))
+        val hostileBase=Galaxy(galaxy.systems,galaxy.bases.map {it.copy(grid=2488)},galaxy.starts)
+        val state=state(1);val nav=Navigation(hostileBase,state.nav,NavigationPolicy());val stock=production(state)
+        TacticalCombat.attack(command,session,hostileBase,nav,stock.snapshot(1)!!,state.commit,24)
+        assertEquals(1,TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),hostileBase,nav,stock,state.commit).size)
+        assertNull(state.players.getValue("pilot").attack)
+        assertTrue(TacticalContact.active(hostileBase,state.players.getValue("pilot"),state.players.values,state.stocks))
+        val departed=state();val moved=Navigation(galaxy,departed.nav,NavigationPolicy());val inventory=production(departed)
+        TacticalCombat.attack(command,session,galaxy,moved,inventory.snapshot(1)!!,departed.commit,24)
+        val before=inventory.snapshot(1)!!
+        inventory.replace(before,before.copy(outfits=before.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2487))}))
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+1)*1000),galaxy,moved,inventory,departed.commit).isEmpty())
+        assertNull(departed.players.getValue("pilot").attack)
+        assertNull(Navigation(galaxy,departed.nav,NavigationPolicy()).snapshot(1).getValue("pilot").attack)
+    }
+    @Test fun continuousFireChoosesHostileTargetsUsesAllReadyWeaponsAndDoesNotReplaySameTick() {
+        val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        val command=request.copy(tacticalShoot=null,tacticalAttack=TacticalAttack(listOf(1010000),2))
+        val accepted=TacticalCombat.attack(command,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24)
+        assertEquals(now+120,accepted.player!!.attack!!.startsAt)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+119)*1000),galaxy,nav,stock,state.commit).isEmpty())
+        val first=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit)
+        assertEquals(listOf(TacticalWeapon.BEAM,TacticalWeapon.MISSILE),first.map {it.weapon})
+        assertTrue(first.all {it.hit.target==1})
+        assertEquals(9999,nav.snapshot(1).getValue("pilot").supplies)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit).isEmpty())
+        // A process restart reloads the cadence instead of replaying the first volley.
+        val reopened=Navigation(galaxy,state.nav,NavigationPolicy())
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+239)*1000),galaxy,reopened,stock,state.commit).isEmpty())
+        assertEquals(listOf(TacticalWeapon.MISSILE),TacticalCombat.settle(session.copy(gameMillis=(now+240)*1000),
+            galaxy,reopened,stock,state.commit).map {it.weapon})
+        assertEquals(listOf(TacticalWeapon.BEAM,TacticalWeapon.MISSILE),TacticalCombat.settle(session.copy(gameMillis=(now+360)*1000),
+            galaxy,reopened,stock,state.commit).map {it.weapon})
+        val stopped=TacticalCombat.attack(command.copy(tacticalAttack=TacticalAttack(listOf(1010000),0)),
+            session.copy(gameMillis=(now+360)*1000),galaxy,reopened,stock.snapshot(1)!!,state.commit,24)
+        assertNull(stopped.player!!.attack)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+600)*1000),galaxy,reopened,stock,state.commit).isEmpty())
+    }
+    @Test fun salvoWaitsForBothChargesAndFailureCannotPublishAnOrderOrLosses() {
+        val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        val command=request.copy(tacticalShoot=null,tacticalAttack=TacticalAttack(listOf(1010000),1))
+        state.fail=true
+        assertFailsWith<java.io.IOException>{TacticalCombat.attack(command,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24)}
+        assertNull(nav.snapshot(1).getValue("pilot").attack);state.fail=false
+        TacticalCombat.attack(command,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit).isEmpty())
+        state.players=nav.snapshot(1).mapValues {(_,p)->p.copy(charge=TacticalCharge(now,24000,24000),
+            energy=TacticalEnergy(List(11){if(it in 3..4)100 else 0}))}
+        val charged=Navigation(galaxy,state.nav,NavigationPolicy())
+        state.fail=true
+        assertFailsWith<java.io.IOException>{TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,charged,stock,state.commit)}
+        assertNull(charged.snapshot(1).getValue("pilot").fire);assertEquals(300,stock.snapshot(1)!!.outfits.getValue(1).activeShips!!.values.single().boats)
+        state.fail=false
+        val hits=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,charged,stock,state.commit)
+        assertEquals(TacticalWeapon.entries,hits.map {it.weapon});assertEquals(listOf(1L,2L,3L),hits.map {it.hit.sequence})
+        assertEquals(9998,charged.snapshot(1).getValue("pilot").supplies)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+240)*1000),galaxy,charged,stock,state.commit).isEmpty())
+        assertEquals(3,TacticalCombat.settle(session.copy(gameMillis=(now+360)*1000),galaxy,charged,stock,state.commit).size)
+    }
+    @Test fun automaticAttackCannotControlOtherUnitsOrAttackFriendlyOrAbsentTargets() {
+        val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        val command=request.copy(tacticalShoot=null,tacticalAttack=TacticalAttack(listOf(1010000),2))
+        for((invalid,reason) in listOf(command.copy(connection="obsolete") to NavigationRejection.SESSION,
+            command.copy(captainCard=59) to NavigationRejection.CARD,
+            command.copy(tacticalAttack=TacticalAttack(listOf(1),2)) to NavigationRejection.UNIT,
+            command.copy(tacticalAttack=TacticalAttack(listOf(1010000),3)) to NavigationRejection.TARGET,
+            command.copy(tacticalAttack=TacticalAttack(listOf(1010000),2,1)) to NavigationRejection.TARGET)) {
+            assertEquals(reason,TacticalCombat.attack(invalid,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24).rejection)
+        }
+        TacticalCombat.attack(command,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24)
+        state.players=nav.snapshot(1).mapValues {(_,p)->p.copy(power=Power.EMPIRE,hull=FlagshipHull(0,now))}
+        val friendly=Navigation(galaxy,state.nav,NavigationPolicy())
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,friendly,stock,state.commit).isEmpty())
+        assertNull(friendly.snapshot(1).getValue("pilot").fire)
+    }
     private val rules = SessionRules.load()
     private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
         listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})

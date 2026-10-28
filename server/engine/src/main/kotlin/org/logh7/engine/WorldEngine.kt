@@ -446,7 +446,10 @@ class WorldEngine(scope: CoroutineScope, rules: SessionRules = SessionRules.load
                     val ownership = production?.settle(session.generation, session.gameMillis / 1000)
                     settleCombat(session,published.get())
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
-                        if (command.request.tacticalShoot != null)
+                        if (command.request.tacticalAttack != null)
+                            TacticalCombat.attack(command.request,session,galaxy,navigation,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
+                        else if (command.request.tacticalShoot != null)
                             TacticalCombat.accept(command.request,session,galaxy,navigation,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else FleetNavigation.apply(command.request, session, galaxy, navigation, production,

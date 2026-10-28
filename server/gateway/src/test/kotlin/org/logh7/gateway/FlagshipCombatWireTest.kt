@@ -12,7 +12,9 @@ import kotlin.test.*
 
 class FlagshipCombatWireTest {
     @TempDir lateinit var directory:Path
-    @Test fun enemyFlagshipDestructionNotifiesBothAndReturnsVictimInPersistedDestroyer() = runBlocking {
+    @Test fun enemyFlagshipDestructionNotifiesBothAndReturnsVictimInPersistedDestroyer() = duel(false)
+    @Test fun automaticAttackAcknowledgesNativeModeThenNotifiesBothAndReturnsDefeatedPlayer() = duel(true)
+    private fun duel(automatic:Boolean) = runBlocking {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val now=SessionRules.load().startSeconds
@@ -43,8 +45,12 @@ class FlagshipCombatWireTest {
                 c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01)
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
             }}
-            clients[0].send(TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(10000,listOf(1010000),0,1,1010001),0,0).drop(4).toByteArray())
-            assertEquals(0,ByteBuffer.wrap(through(clients[0],0x0406)).int)
+            val command=if(automatic)TacticalAttackMessages.reply(TacticalAttackMessages.Attack(10000,listOf(1010000),2,0),0,0)
+                else TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(10000,listOf(1010000),0,1,1010001),0,0)
+            clients[0].send(command.drop(4).toByteArray())
+            val acknowledgement=ByteBuffer.wrap(through(clients[0],if(automatic)0x0405 else 0x0406))
+            assertEquals(0,acknowledgement.int)
+            if(automatic)assertEquals(120,acknowledgement.getInt(10))
             fixture.engine.submit(WorldCommand.AdvanceTo(5000))
             withTimeout(5000){while(fixture.engine.snapshot().session!!.gameSeconds<now+120)delay(1)}
             val hit=ByteBuffer.wrap(through(clients[0],0x0426))

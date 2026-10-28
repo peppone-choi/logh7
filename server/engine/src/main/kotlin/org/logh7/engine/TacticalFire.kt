@@ -3,6 +3,15 @@ package org.logh7.engine
 /** Personal flagship weapons; fleet/CRC authority remains separate work. Author: 최병호. */
 data class TacticalShoot(val units: List<Int>, val arms: Int, val targetKind: Int, val target: Int)
 
+/** Native 0405 uses its suffix byte as attack mode (0 stop, 1 salvo, 2 continuous).
+ * Salvo waits for every fitted charged weapon; continuous fires each ready weapon.
+ * The cadence and salvo charge gate are replacement-server policy. Author: 최병호. */
+data class TacticalAttack(val units: List<Int>, val mode: Int, val target: Int = 0)
+data class TacticalAttackOrder(val mode: Int, val acceptedAt: Long, val startsAt: Long, val nextAt: Long) {
+    init { require(mode in 1..2 && acceptedAt in 0..0xffffffffL && startsAt in acceptedAt..0xffffffffL &&
+        nextAt in startsAt..0xffffffffL) }
+}
+
 data class TacticalPendingFire(val sequence: Long, val grid: Int, val shipKind: Int, val target: Int,
     val acceptedAt: Long, val firesAt: Long, val weapon: TacticalWeapon = TacticalWeapon.BEAM) {
     init { require(sequence > 0 && grid in 0..4999 && Flagships.find(shipKind) != null && validCombatTarget(target) &&
@@ -74,10 +83,42 @@ internal object TacticalCombat {
         val charge = player.charge?.settle(now, player.energy ?: TacticalEnergy.ZERO)
         if (!ready(charge, weapon)) return reject(NavigationRejection.ENERGY)
         val sequence = (player.fire?.sequence ?: 0) + 1
-        val next = player.copy(charge = charge, fire = TacticalFire(sequence,
+        val next = player.copy(attack = null, charge = charge, fire = TacticalFire(sequence,
             TacticalPendingFire(sequence, player.grid, ship.kind, shoot.target, now, now + 5 * scale, weapon), player.fire?.last))
         navigation.saveReplacement(players, players + (request.account to next), session.generation)
         return NavigationResult(next, player)
+    }
+
+    fun attack(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
+        stocks: PlanetStocks, committer: WorldStateCommitter?, scale: Long): NavigationResult {
+        val preview=navigation.apply(request.copy(tacticalAttack=null),session,stocks,persist=false)
+        val player=preview.player ?: return preview
+        fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
+        if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
+        val command=checkNotNull(request.tacticalAttack)
+        if(command.units!=listOf(player.unitId) || player.hull?.kind!=request.shipKind)return reject(NavigationRejection.UNIT)
+        if(request.captainCard!=if(player.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
+        if(command.mode !in 0..2 || command.target!=0)return reject(NavigationRejection.TARGET)
+        if(command.mode!=0 && (player.retreat!=null || player.fire?.pending!=null))return reject(NavigationRejection.BUSY)
+        val now=session.gameMillis/1000
+        if(now>0xffffffffL-5*scale)return reject(NavigationRejection.CLOCK)
+        val next=player.copy(attack=if(command.mode==0)null else TacticalAttackOrder(command.mode,now,now+5*scale,now+5*scale),
+            fire=if(command.mode==0)player.fire?.copy(pending=null) else player.fire)
+        val players=navigation.snapshot(session.generation)
+        navigation.saveReplacement(players,players+(request.account to next),session.generation)
+        return NavigationResult(next,player)
+    }
+
+    private fun automaticTarget(player:Navigator,weapon:TacticalWeapon,now:Long,players:Map<String,Navigator>,
+        stocks:PlanetStocks,galaxy:Galaxy):Int? {
+        val spec=UnitSpecifications.ships.single {it.kind==player.hull!!.kind}
+        val mount=TacticalArmaments.mount(spec,weapon)
+        if(mount.power==0 || player.supplies<supplyCost(mount,weapon) ||
+            !ready(player.charge?.settle(now,player.energy ?: TacticalEnergy.ZERO),weapon))return null
+        val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
+        return ids.distinct().sorted().firstOrNull {id -> target(id,player.grid,player.power,stocks,galaxy,players)?.let {
+            effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
 
     // CD manual omits later ammunition costs. One supply per flagship shot is explicit replacement policy.
@@ -100,20 +141,46 @@ internal object TacticalCombat {
         return TacticalArmaments.effectiveness(mount, source, target.position)
     }
 
+    private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks) {
+        val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
+        // Hostile bases/ground troops can retain tactical contact but are never auto-fire targets.
+        for((account,p) in players.toMap()) if(p.attack!=null &&
+            ids.none {target(it,p.grid,p.power,stocks,galaxy,players)!=null})players[account]=p.copy(attack=null)
+    }
+
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
         committer: WorldStateCommitter?): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
-        val due = original.entries.filter { it.value.fire?.pending?.firesAt?.let { at -> at <= session.gameMillis / 1000 } == true }
-            .sortedWith(compareBy({it.value.fire!!.pending!!.firesAt}, {it.value.unitId}))
-        if (due.isEmpty()) return emptyList()
-        val stocks = checkNotNull(production.snapshot(session.generation))
         val players = original.toMutableMap()
+        val now=session.gameMillis/1000
+        val stocks = checkNotNull(production.snapshot(session.generation))
+        clearFinishedOrders(players,galaxy,stocks)
+        data class Due(val account:String,val shot:TacticalPendingFire,val automatic:Boolean=false)
+        val due=original.mapNotNull { (account,p)->p.fire?.pending?.takeIf {it.firesAt<=now}?.let {Due(account,it)} }.toMutableList()
+        if(session.ended==null) for((account,p) in players.toMap()) {
+            val order=p.attack ?: continue
+            if(order.nextAt>now || p.retreat!=null || p.hull==null || p.fire?.pending!=null ||
+                p.fire?.sequence==Long.MAX_VALUE || now>0xffffffffL-5*(p.charge?.clockScale ?: p.hull.clockScale))continue
+            val spec=UnitSpecifications.ships.single {it.kind==p.hull.kind}
+            val charge=p.charge?.settle(now,p.energy ?: TacticalEnergy.ZERO)
+            if(order.mode==1 && TacticalWeapon.entries.filter {it!=TacticalWeapon.MISSILE && TacticalArmaments.mount(spec,it).power>0}
+                .any {!ready(charge,it)})continue
+            for(weapon in TacticalWeapon.entries) automaticTarget(p,weapon,now,original,stocks,galaxy)?.let {id ->
+                due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
+            }
+        }
+        if(due.isEmpty() && players==original)return emptyList()
+        due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         var inventory = stocks
         val impacts = mutableListOf<TacticalImpact>()
-        for ((account, _) in due) {
+        for ((account, scheduled, automatic) in due) {
             val player = players.getValue(account)
-            val fire = player.fire ?: continue
-            val shot = fire.pending ?: continue
+            if(automatic && (player.attack==null || player.hull==null || player.fire?.sequence==Long.MAX_VALUE))continue
+            val shot=if(automatic) {
+                val id=automaticTarget(player,scheduled.weapon,now,players,inventory,galaxy) ?: continue
+                scheduled.copy(sequence=(player.fire?.sequence ?: 0)+1,target=id)
+            } else player.fire?.pending?.takeIf {it==scheduled} ?: continue
+            val fire=if(automatic)TacticalFire(shot.sequence,last=player.fire?.last) else checkNotNull(player.fire)
             var next = player.copy(fire = fire.copy(pending = null))
             val victim = target(shot.target, shot.grid, player.power, inventory, galaxy, players)
             if (session.ended == null && player.cpPaused && player.grid == shot.grid && player.baseId == 0 &&
@@ -168,12 +235,14 @@ internal object TacticalCombat {
                         TacticalWeapon.MISSILE -> charge
                     }
                     next = next.copy(charge = spent, supplies = player.supplies - supplyCost(mount, shot.weapon),
+                        attack=player.attack?.copy(nextAt=shot.firesAt+5*(charge?.clockScale ?: player.hull!!.clockScale)),
                         fire = fire.copy(pending = null, last = hit))
                     impacts += TacticalImpact(session.generation,player.unitId,shot.weapon,hit,audience,departed)
                 }
             }
             players[account] = next
         }
+        clearFinishedOrders(players,galaxy,inventory)
         val prepared = production.prepareReplacement(stocks, inventory)
         checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(players, prepared)
         navigation.publishCommitted(original, players, session.generation)

@@ -5,6 +5,14 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalAttackMessagesTest {
+    @Test fun attackModeIsIndependentOfShootTargetKindAndStopCarriesZero() {
+        for(mode in 0..2) {
+            val order=TacticalAttackMessages.Attack(10000,listOf(1010000),mode,0)
+            val wire=TacticalAttackMessages.reply(order,100,if(mode==0)0 else 120)
+            assertEquals(mode,wire[23].toInt())
+            assertEquals(order,TacticalAttackMessages.attack(wire.drop(4).toByteArray()))
+        }
+    }
     @Test fun personalShieldOnlyAndFatalHitsUseAbsoluteFieldsWithoutInventingDestroyedBoats() {
         val shield=java.nio.ByteBuffer.wrap(TacticalAttackMessages.hit(100,1010000,0,1010001,0,0,4,12))
         assertEquals(1010001,shield.getInt(16));assertEquals(0,shield.getShort(20).toInt())

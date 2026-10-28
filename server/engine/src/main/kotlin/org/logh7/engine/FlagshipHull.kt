@@ -38,7 +38,7 @@ internal object FlagshipRecovery {
         val kind=if(player.power==Power.EMPIRE)3 else 93
         return player.copy(grid=home?.grid ?: galaxy.starts.getValue(player.power),baseId=home?.id ?: 0,
             mode=if(home==null)5 else 4,spotId=0,spotOwner=0,cpPaused=false,cpRecoveryAt=seconds,
-            motion=null,retreat=null,charge=null,fire=null,energy=TacticalEnergy.ZERO,
+            motion=null,retreat=null,charge=null,fire=null,attack=null,energy=TacticalEnergy.ZERO,
             fuelReadyAt=null,strategy=null,dockTarget=null,supplies=0,
             hull=FlagshipHull(kind,seconds,woundedUntil=until,clockScale=player.hull?.clockScale ?: 24))
     }
