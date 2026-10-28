@@ -6,7 +6,19 @@ import org.logh7.engine.UnitStack
 
 /** Null denotes a legacy aggregate awaiting commissioning, zero an empty active roster. */
 internal object ActiveShipUnitCodec {
-    fun encode(units: ActiveShipUnits?): String = when {
+    fun encode(units: ActiveShipUnits?): String {
+        val legacy=encodeLegacy(units)
+        if(units==null || units.values.none {it.posture!=null})return legacy
+        return legacy.split(',').zip(units.values).joinToString(",") {(record,unit)->
+            if(unit.posture==null)record else {
+                val fields=record.split('.').toMutableList()
+                val defaults=listOf("-","-","0","-","0","-","-","-")
+                while(fields.size<12)fields.add(defaults[fields.size-4])
+                (fields+TacticalPostureCodec.encode(checkNotNull(unit.posture))).joinToString(".")
+            }
+        }
+    }
+    private fun encodeLegacy(units: ActiveShipUnits?): String = when {
         units == null -> "-"
         units.values.isEmpty() -> "0"
         else -> units.values.joinToString(",") { "${it.id}.${it.stack.kind}.${it.stack.level}.${it.boats}"+
@@ -18,12 +30,12 @@ internal object ActiveShipUnitCodec {
             else if(it.supplies!=null) ".${it.tactical?.let(NpcTacticalCodec::encode) ?: "-"}.${it.supplies}"
             else (it.tactical?.let {s->"."+NpcTacticalCodec.encode(s)} ?: "") }
     }
-    fun decode(value: String, legacyFull: Boolean = true, tactics:Boolean=false, cargo:Boolean=false, support:Boolean=false, commanded:Boolean=false, attacks:Boolean=false, shots:Boolean=false, reloads:Boolean=false): ActiveShipUnits? = when (value) {
+    fun decode(value: String, legacyFull: Boolean = true, tactics:Boolean=false, cargo:Boolean=false, support:Boolean=false, commanded:Boolean=false, attacks:Boolean=false, shots:Boolean=false, reloads:Boolean=false, postures:Boolean=false): ActiveShipUnits? = when (value) {
         "-" -> null
         "0" -> ActiveShipUnits(emptyList())
         else -> ActiveShipUnits(value.split(',').map { token ->
             val fields = token.split('.')
-            require(fields.size == 4 || legacyFull && fields.size == 3 || tactics && fields.size==5 || cargo && fields.size==6 || support && fields.size==8 || commanded && fields.size==9 || attacks && fields.size==10 || shots && fields.size==11 || reloads && fields.size==12) { "Invalid active ship record" }
+            require(fields.size == 4 || legacyFull && fields.size == 3 || tactics && fields.size==5 || cargo && fields.size==6 || support && fields.size==8 || commanded && fields.size==9 || attacks && fields.size==10 || shots && fields.size==11 || reloads && fields.size==12 || postures && fields.size==13) { "Invalid active ship record" }
             require(fields.size!=10 || fields[9]!="-") { "Empty attack field in attack record" }
             require(fields.size!=11 || fields[10]!="-") { "Empty shot field in shot record" }
             val stack=UnitStack(fields[1].toInt(),fields[2].toInt())
@@ -40,8 +52,10 @@ internal object ActiveShipUnitCodec {
                 if(fields.size>=11 && fields[10]!="-")fields[10].split('~').also {require(it.size==5)}.let {
                     org.logh7.engine.TacticalUnitShot(it[0].toInt(),org.logh7.engine.TacticalWeapon.entries.single {w->w.wire==it[1].toInt()},
                         it[2].toInt(),it[3].toLong(),it[4].toLong())} else null,
-                if(fields.size==12)fields[11].split('~').also {require(it.size==3)}.let {
-                    org.logh7.engine.TacticalReload(it[0].toLong(),it[1].toLong(),it[2].toLong())} else null).also {
+                if(fields.size>=12 && fields[11]!="-")fields[11].split('~').also {require(it.size==3)}.let {
+                    org.logh7.engine.TacticalReload(it[0].toLong(),it[1].toLong(),it[2].toLong())} else null,
+                if(fields.size==13)TacticalPostureCodec.decode(fields[12]) else null).also {
+                require(fields.size!=12 || fields[11]!="-") { "Empty reload field in reload record" }
                 require(fields.size!=5 || fields[4]!="-") { "Empty NPC field in legacy record" }
                 require(fields.size!=6 || fields[5]!="-") { "Empty cargo field in cargo record" }
             }

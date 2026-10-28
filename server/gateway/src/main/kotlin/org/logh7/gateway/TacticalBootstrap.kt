@@ -27,16 +27,19 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             (kotlin.math.sin(radians)*base.radius*1000).toFloat(),0f)
     }
     val units: List<TacticsMessages.Unit> = run {
-        data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,val destroyed:Int=0)
+        data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,
+            val destroyed:Int=0,val posture:TacticalPosture?=null)
         val stocks=checkNotNull(snapshot.planetStocks)
         val sources=people.mapNotNull {p->characterById(p.characterId)?.let {c->
             val fleet=stocks.outfits.values.singleOrNull {p.characterId in it.members() && it.positionIn(galaxy)==OutfitPosition(p.grid)}
-            Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,c.power,p.supplies,p.cruise.toFloat())
+            Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,c.power,p.supplies,p.cruise.toFloat(),
+                posture=p.posture?.takeIf {it.grid==viewer.grid})
         }} + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {fleet->
             val supplies=OutfitSupplies.distribution(fleet)
             checkNotNull(fleet.activeShips).values.map {ship->
                 Source(ship.id,ship.stack.kind,fleet.id,fleet.commanderId,fleet.power,supplies.getValue(ship.id),0f,
-                    UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats)
+                    UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats,
+                    ship.posture?.takeIf {it.grid==viewer.grid})
             }
         }
         val indices=mutableMapOf<Int,Int>()
@@ -50,7 +53,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 pose?.position?.x ?: initial.position.x,pose?.position?.y ?: initial.position.y,0f,
                 pose?.direction ?: initial.direction,
                 damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else
-                    stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0)
+                    stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0,
+                mode=u.posture?.mode?.wire ?: TacticalShipMode.SAILING.wire,base=u.posture?.base ?: 0)
         }.also {require(it.size<=600)}
     }
     private fun rotations():List<ByteArray> {

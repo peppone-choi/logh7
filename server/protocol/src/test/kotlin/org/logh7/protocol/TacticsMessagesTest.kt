@@ -41,11 +41,19 @@ class TacticsMessagesTest {
         assertFailsWith<IllegalArgumentException>{TacticsMessages.corps(listOf(corps,corps))}
     }
     private val unit=TacticsMessages.Unit(42,32,7,10000,9000,800f,2,12f,-3f,20f,1.5f)
+    @Test fun unitDefinitionsSeparateSailingFromAnchoringAndRequireBerthTargets() {
+        for(mode in 4..7) {
+            val base=if(mode in 4..5)1049 else 0
+            val bytes=java.nio.ByteBuffer.wrap(TacticsMessages.definitions(2017,listOf(unit.copy(mode=mode,base=base))))
+            assertEquals(mode,bytes.get(14).toInt());assertEquals(base,bytes.getInt(23))
+            assertFailsWith<IllegalArgumentException>{TacticsMessages.definitions(2017,listOf(unit.copy(mode=mode,base=if(base==0)1049 else 0)))}
+        }
+    }
     @Test fun nativeTacticalRecordsArePackedWithoutNativeAlignment() {
         val definitions=java.nio.ByteBuffer.wrap(TacticsMessages.definitions(2017,listOf(unit)))
         assertEquals(50,definitions.limit());assertEquals(1,definitions.getShort(6).toInt())
         assertEquals(42,definitions.getInt(8));assertEquals(32,definitions.getShort(12).toInt())
-        assertEquals(5,definitions.get(14).toInt());assertEquals(2017,definitions.getInt(15))
+        assertEquals(6,definitions.get(14).toInt());assertEquals(2017,definitions.getInt(15))
         assertEquals(7,definitions.getInt(19));assertEquals(2,definitions.getShort(36).toInt())
         assertEquals(9000,definitions.getInt(38));assertEquals(800f,definitions.getFloat(46))
         val state=java.nio.ByteBuffer.wrap(TacticsMessages.states(listOf(unit)))
