@@ -69,6 +69,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val closed = AtomicBoolean()
     private var combatSubscription: AutoCloseable? = null
     private var movementSubscription: AutoCloseable? = null
+    private var supportSubscription: AutoCloseable? = null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
     fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress,
@@ -82,6 +83,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        supportSubscription = presence?.let { p -> navigation!!.observeSupport { result ->
+            navigation.snapshot()?.let { snapshot -> p.support(result,snapshot,world!!.galaxy,currentCharacters()::characterById) }
+        } }
         val capture = captureDirectory?.let(::Capture)
         try {
             for (host in hosts) {
@@ -203,6 +207,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         if (!closed.compareAndSet(false, true)) return
         combatSubscription?.close()
         movementSubscription?.close()
+        supportSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
         finally { try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() } }
     }

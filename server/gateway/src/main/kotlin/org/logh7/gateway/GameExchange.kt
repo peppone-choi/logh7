@@ -234,6 +234,26 @@ class GameExchange(
             val identity = checkNotNull(ticket)
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0413,0x0414 -> {
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val support=org.logh7.protocol.TacticalSupportMessages.command(body)
+                        require(support.character==character.id.toInt())
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),shipKind=character.shipKind,
+                            tacticalSupport=org.logh7.engine.TacticalSupport(
+                                if(support.action==org.logh7.protocol.TacticalSupportMessages.Action.REPAIR)
+                                    org.logh7.engine.TacticalSupportAction.REPAIR else org.logh7.engine.TacticalSupportAction.SUPPLY,
+                                support.unit,support.target))).thenApply {result ->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            publication=Publication(character,player,false)
+                            val now=gameSeconds()
+                            listOf(org.logh7.protocol.TacticalSupportMessages.reply(support,now,
+                                result.supportReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))
+                        }
+                        return null
+                    }
                     0x0405 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(currentCharacter(identity.account))

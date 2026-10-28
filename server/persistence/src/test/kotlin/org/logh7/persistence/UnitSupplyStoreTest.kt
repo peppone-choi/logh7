@@ -9,6 +9,28 @@ import kotlin.test.*
 class UnitSupplyStoreTest {
     @TempDir lateinit var directory: Path
 
+    @Test fun stockEighteenReopensPendingSupportAndDamageAndRejectsOlderSchema() {
+        val stack=UnitStack(32)
+        val order=TacticalSupportOrder(TacticalSupportAction.REPAIR,10000,1010000,2488,100,220)
+        val expected=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,1,2,3)),
+            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
+                units=UnitInventory(mapOf(stack to 2)),supplies=1000,
+                activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack,supplies=1000,support=order),
+                    ActiveShipUnit(2,stack,250,damaged=30))),position=OutfitPosition(2488))),
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),deploymentInitialized=true,nextShipId=3)
+        val path=directory.resolve("support")
+        FilePlanetStockStore(path).use {it.save(expected)}
+        val text=Files.readString(path)
+        assertTrue(text.startsWith("LOGH7-STOCK-18\t"))
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+        Files.writeString(path,text.replace("LOGH7-STOCK-18","LOGH7-STOCK-17"))
+        assertFailsWith<IllegalArgumentException> {FilePlanetStockStore(path).use {it.load()}}
+        val encoded=TacticalSupportCodec.encode(order)
+        assertEquals(order,TacticalSupportCodec.decode(encoded))
+        assertFailsWith<IllegalArgumentException> {TacticalSupportCodec.decode(encoded+"=")}
+        assertFailsWith<IllegalArgumentException> {ActiveShipUnit(1,stack,20,damaged=21)}
+    }
+
     @Test fun unitCargoReopensTogetherWithNpcStateAndLegacyStockDoesNotInventAllocations() {
         val stack=UnitStack(32)
         val point=TacticalPoint(180f,-95f)

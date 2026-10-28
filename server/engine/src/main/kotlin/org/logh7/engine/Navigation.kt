@@ -64,8 +64,11 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val supplyFuel: Boolean = false, val returnBase: Int? = null,
     val energy: TacticalEnergy? = null, val shipKind: Int? = null, val tacticalMove: TacticalMove? = null,
     val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null,
-    val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null) {
+    val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null,
+    val tacticalSupport: TacticalSupport? = null) {
     init { require(politics in 0..65535 && administration in 0..65535 &&
+        (tacticalSupport == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null &&
+            energy == null && tacticalMove == null && tacticalStop == null && tacticalRetreat == null && tacticalShoot == null && tacticalAttack == null)) &&
         (tacticalAttack == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null &&
             energy == null && tacticalMove == null && tacticalStop == null && tacticalRetreat == null && tacticalShoot == null && shipKind != null)) &&
         (tacticalShoot == null || (destination == null && place == null && !supplyFuel && returnBase == null && tactical == null &&
@@ -83,7 +86,8 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
     BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR, WEAPON, TARGET, SUPPLY, WOUNDED }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
-    val completedFuel: Boolean = false, val completedDock: Boolean = false)
+    val completedFuel: Boolean = false, val completedDock: Boolean = false, val supportReadyAt: Long? = null,
+    val supportNotifications: List<TacticalSupportResult> = emptyList())
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,

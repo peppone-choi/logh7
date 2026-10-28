@@ -53,6 +53,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val queue = Channel<Queued>(1024)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
+    private val supportObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalSupportResult) -> Unit>()
+    fun observeSupport(observer:(TacticalSupportResult)->Unit):AutoCloseable {
+        supportObservers+=observer
+        return AutoCloseable {supportObservers.remove(observer)}
+    }
+    private fun publishSupport(results:List<TacticalSupportResult>) {
+        for(result in results)for(observer in supportObservers)try {observer(result)}
+        catch(failure:Exception){System.err.println("Tactical support delivery failed: ${failure.javaClass.simpleName}")}
+    }
     fun observeMovements(observer:(TacticalMovement)->Unit):AutoCloseable {
         movementObservers+=observer
         return AutoCloseable {movementObservers.remove(observer)}
@@ -72,12 +81,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private fun settleCombat(session: SessionState, base: WorldSnapshot) {
         if (navigation == null || production == null || galaxy == null) return
         val movements=mutableListOf<TacticalMovement>()
+        val support=mutableListOf<TacticalSupportResult>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add)
-        if (impacts.isEmpty() && movements.isEmpty()) return
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         published.set(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         publishCombat(impacts)
+        publishSupport(support)
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
     }
@@ -456,7 +466,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val ownership = production?.settle(session.generation, session.gameMillis / 1000)
                     settleCombat(session,published.get())
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
-                        if (command.request.tacticalAttack != null)
+                        if (command.request.tacticalStop?.units?.any {it in 1..999999}==true)
+                            TacticalSupportOperations.stop(command.request,session,galaxy,navigation,production,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter)
+                        else if (command.request.tacticalSupport != null)
+                            TacticalSupportOperations.accept(command.request,session,galaxy,navigation,production,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
+                        else if (command.request.tacticalAttack != null)
                             TacticalCombat.attack(command.request,session,galaxy,navigation,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else if (command.request.tacticalShoot != null)
@@ -469,6 +485,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production?.snapshot(session.generation))
                     published.set(state)
+                    publishSupport(result.supportNotifications)
                     command.result.complete(result)
                 } catch (failure: Exception) {
                     if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

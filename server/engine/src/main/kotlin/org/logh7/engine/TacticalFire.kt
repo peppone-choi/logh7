@@ -158,7 +158,7 @@ internal object TacticalCombat {
             val (outfit,unit)=victim.regular
             val remaining=maxOf(0,unit.boats-damage)
             val ships=ActiveShipUnits(outfit.activeShips!!.values.map {
-                if(it.id==targetId)it.copy(boats=remaining) else it})
+                if(it.id==targetId)it.copy(boats=remaining,damaged=minOf(it.damaged,remaining)) else it})
             val units=UnitInventory(ships.quantities(),outfit.units.troops)
             inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to outfit.copy(
                 activeShips=ships,units=units,supplies=minOf(outfit.supplies,OutfitSupplies.capacity(units)))))
@@ -194,7 +194,7 @@ internal object TacticalCombat {
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
         committer: WorldStateCommitter?, npcPolicy:NpcTacticalPolicy = NpcTacticalPolicy(enabled=false),
-        scale:Long=24,onMovement:(TacticalMovement)->Unit = {}): List<TacticalImpact> {
+        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
@@ -214,7 +214,8 @@ internal object TacticalCombat {
                 due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
             }
         }
-        if(due.isEmpty() && players==original && !npcPolicy.enabled)return emptyList()
+        if(due.isEmpty() && players==original && !npcPolicy.enabled && stocks.outfits.values.none {
+            it.activeShips?.values?.any {u->u.support!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         var inventory = stocks
         val impacts = mutableListOf<TacticalImpact>()
@@ -258,6 +259,8 @@ internal object TacticalCombat {
         if(npcPolicy.enabled && session.ended==null) {
             inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)
         }
+        val support=mutableListOf<TacticalSupportResult>()
+        inventory=TacticalSupportOperations.advance(session,galaxy,players,inventory,support)
         clearFinishedOrders(players,galaxy,inventory)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
@@ -265,6 +268,7 @@ internal object TacticalCombat {
         navigation.publishCommitted(original, players, session.generation)
         production.publishCommitted(stocks, prepared)
         movements.forEach(onMovement)
+        support.forEach(onSupport)
         return impacts
     }
 }

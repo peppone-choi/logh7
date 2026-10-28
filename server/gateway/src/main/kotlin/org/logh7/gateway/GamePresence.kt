@@ -14,6 +14,20 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    @Synchronized fun support(event:org.logh7.engine.TacticalSupportResult,snapshot:org.logh7.engine.WorldSnapshot,
+        galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
+        val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.reply(
+            org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),snapshot.session?.gameSeconds ?: 0)
+            else if(event.action==org.logh7.engine.TacticalSupportAction.REPAIR)
+            org.logh7.protocol.TacticalSupportMessages.repaired(event.unit,event.target,event.supplies,event.damaged)
+            else org.logh7.protocol.TacticalSupportMessages.supplied(event.unit,event.target,event.supplies,event.targetSupplies)
+        members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
+            .forEach { viewer ->
+                // 0325 replaces the complete native definition cache, including unrelated combatants.
+                val units=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById).units
+                send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,units)))
+            }
+    }
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
         val packet=if(event.destination!=null)org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,checkNotNull(event.destination),listOf(event.unit))
             else checkNotNull(TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds))
