@@ -13,7 +13,7 @@ inline const unsigned char* outfitListRow(const unsigned char* cache, unsigned r
     return nullptr;
 }
 inline bool validOutfitParty(const unsigned char* record, unsigned id) {
-    if (!id || infoWord(record, 0) != id || !infoWord(record, 4) || infoWord(record, 4) > 65535 ||
+    if (!id || infoWord(record, 0) != id || infoWord(record, 4) > 65535 ||
         record[8] != 0 || record[9] < 2 || record[9] > 3 || infoWord(record, 12) > 3 ||
         infoWord(record, 16) > 255 || record[20] > 10 || record[0x180] > 60 || record[0x4504] > 24 ||
         infoWord(record, 0x4598) > 0x7fffffffu || infoWord(record, 0x459c) > 0x7fffffffu ||

@@ -321,6 +321,10 @@ int wmain(int argc, wchar_t** argv) {
     unsigned char party[logh::outfitPartyBytes] = {};
     party[0] = 7; party[4] = 1; party[9] = 2;
     if (!logh::validOutfitParty(party, 7) || logh::validOutfitParty(party, 9)) return 24;
+    party[4]=0;
+    if(!logh::validOutfitParty(party,7) || !logh::matchingOutfitParty(party,7,2,0) ||
+        logh::matchingOutfitParty(party,7,2,0,1))return 87;
+    party[4]=1;
     party[0x180] = 1; party[0x186] = 1; party[0x188] = 44; party[0x18a] = 1; party[0x18c] = 1;
     if (!logh::validOutfitParty(party, 7)) return 24;
     unsigned char sameParty[logh::outfitPartyBytes];memcpy(sameParty,party,sizeof(party));

@@ -6,7 +6,7 @@ enum class TacticalGroundAction { DEPLOY, WITHDRAW }
 data class TacticalGroundCommand(val action:TacticalGroundAction,val units:List<Int>,val skill:Int=0) {
     init {require(units.size in 1..32 && units.all {it in 1..999999} && units.distinct().size==units.size && skill in 0..255)}
 }
-/** Manual waiting five seconds plus twenty seconds operation; no casualty/occupation model yet. Author: 최병호. */
+/** Manual waiting five seconds plus twenty seconds operation, separate from automatic ground exchanges. Author: 최병호. */
 data class TacticalGroundOrder(val action:TacticalGroundAction,val character:Int,val grid:Int,val carrier:Int,val base:Int,
     val acceptedAt:Long,val readyAt:Long) {
     init {require(character>0 && grid in 0..4999 && carrier in 1..999999 && base in 1..65535 &&

@@ -42,6 +42,10 @@ class GroundPresenceTest {
             hub.combat(TacticalImpact(1,1010000,weapon,TacticalHit(1,2487,250,1,1),audience),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
             checkDefinitions()
         }
+        hub.groundBattle(GroundBattleResult(1,2487,1049,250,listOf(3),emptyList(),audience),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
+        checkDefinitions()
+        hub.groundBattle(GroundBattleResult(1,2487,1049,250,listOf(3),emptyList(),mapOf(10000 to "old-connection")),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
+        assertTrue(packets.all {it.isEmpty()})
         hub.support(TacticalSupportResult(1,2487,TacticalSupportAction.SUPPLY,1,1010000,100,200,0,
             mapOf(10000 to "old-connection")),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
         assertTrue(packets.all {it.isEmpty()})

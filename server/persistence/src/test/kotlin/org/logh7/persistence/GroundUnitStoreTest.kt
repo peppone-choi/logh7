@@ -79,4 +79,30 @@ class GroundUnitStoreTest {
             FilePlanetStockStore(path).use {assertFails {it.load()}}
         }
     }
+    @Test fun partialGroundStrengthAndBattleClockRoundTripAndOldVersionsCannotSilentlyHeal() {
+        val initial=ActiveShips.initialize(legacy());val old=initial.outfits.getValue(1)
+        val path=directory.resolve("ground-combat")
+        val expected=initial.copy(outfits=mapOf(1 to old.copy(activeGround=ActiveGroundUnits(listOf(
+            ActiveGroundUnit(2,troop,base=1000,strength=731),ActiveGroundUnit(3,troop,carrier=1))))),
+            groundBattles=mapOf(1000 to 12345L))
+        FilePlanetStockStore(path).use {it.save(expected)}
+        val text=Files.readString(path);assertTrue(text.startsWith("LOGH7-STOCK-26\t"))
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+        for(bad in listOf(text.replace("~731","~0"),text.replace("~731","~1001"),
+            text.replace("G\t1000\t12345","G\t9999\t12345"),text.replace("~731","~0731"),
+            text.replace("LOGH7-STOCK-26","LOGH7-STOCK-25"))) {
+            Files.writeString(path,bad)
+            FilePlanetStockStore(path).use {assertFails {it.load()}}
+            assertEquals(bad,Files.readString(path))
+        }
+        assertFails {ActiveGroundUnitCodec.decode("2~0~0~0~1000~0~-~731",deployments=true)}
+    }
+
+    @Test fun groundClockCanBeSavedBeforeLegacyOutfitMigrationWithoutChangingItsRoster() {
+        val expected=legacy().copy(groundBattles=mapOf(1000 to 12345L))
+        val path=directory.resolve("clock-before-migration")
+        FilePlanetStockStore(path).use {it.save(expected)}
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+    }
+
 }

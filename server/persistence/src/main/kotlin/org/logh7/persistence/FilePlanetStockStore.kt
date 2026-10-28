@@ -37,7 +37,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
         val header = lines.firstOrNull()?.split('\t').orEmpty()
-        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10","LOGH7-STOCK-11","LOGH7-STOCK-12","LOGH7-STOCK-13","LOGH7-STOCK-14","LOGH7-STOCK-15","LOGH7-STOCK-16","LOGH7-STOCK-17","LOGH7-STOCK-18","LOGH7-STOCK-19","LOGH7-STOCK-20","LOGH7-STOCK-21","LOGH7-STOCK-22","LOGH7-STOCK-23","LOGH7-STOCK-24","LOGH7-STOCK-25")) return loadCurrent(header, lines.drop(1))
+        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10","LOGH7-STOCK-11","LOGH7-STOCK-12","LOGH7-STOCK-13","LOGH7-STOCK-14","LOGH7-STOCK-15","LOGH7-STOCK-16","LOGH7-STOCK-17","LOGH7-STOCK-18","LOGH7-STOCK-19","LOGH7-STOCK-20","LOGH7-STOCK-21","LOGH7-STOCK-22","LOGH7-STOCK-23","LOGH7-STOCK-24","LOGH7-STOCK-25","LOGH7-STOCK-26")) return loadCurrent(header, lines.drop(1))
         require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
         val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
@@ -54,7 +54,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
     private fun loadCurrent(header: List<String>, lines: List<String>): PlanetStocks {
-        val deployments=header[0]=="LOGH7-STOCK-25"
+        val combat=header[0]=="LOGH7-STOCK-26"
+        val deployments=combat || header[0]=="LOGH7-STOCK-25"
         val grounds=deployments || header[0]=="LOGH7-STOCK-24"
         val postures=grounds || header[0]=="LOGH7-STOCK-23"
         val reloads=postures || header[0]=="LOGH7-STOCK-22"
@@ -75,9 +76,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val administration = garrison || header[0] == "LOGH7-STOCK-7"
         val identities = administration || header[0] == "LOGH7-STOCK-6"
         val current = header[0] != "LOGH7-STOCK-4"
-        require(header.size == if(national)10 else if (identities) 9 else if (current) 8 else 7) { "Invalid inventory header" }
+        require(header.size == if(combat)11 else if(national)10 else if (identities) 9 else if (current) 8 else 7) { "Invalid inventory header" }
         val initialized = if (current) when (header[7]) { "0" -> false; "1" -> true; else -> error("Invalid deployment marker") } else false
-        val counts = header.subList(3,7).map(String::toInt)+(if(national)listOf(header[9].toInt()) else emptyList())
+        val counts = header.subList(3,7).map(String::toInt)+(if(national)listOf(header[9].toInt()) else emptyList())+(if(combat)listOf(header[10].toInt()) else emptyList())
         require(counts[0] in 0..350 && counts.drop(1).all { it in 0..1000 } && lines.size == counts.sum()) {
             "Inventory row count mismatch"
         }
@@ -86,6 +87,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val warehouses = linkedMapOf<Int, OutfitWarehouse>()
         val officers = linkedMapOf<Int, LogisticsOffice>()
         val nationalOffices=linkedMapOf<NationalOffice,Int>()
+        val groundBattles=linkedMapOf<Int,Long>()
         for (line in lines) {
             val f = line.split('\t')
             when (f[0]) {
@@ -110,7 +112,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                             if (inventory.ships.isEmpty()) org.logh7.engine.ActiveShipUnits(emptyList()) else null,
                         if(aides) f[11].toInt() else 0,if(staff)FleetStaffCodec.decode(f[12]) else org.logh7.engine.FleetStaff(),
                         if(positions && f[13]!="-") OutfitPosition(f[13].toInt(),f[14].toInt()) else null,
-                        if(grounds) ActiveGroundUnitCodec.decode(f[15],deployments) else null)
+                        if(grounds) ActiveGroundUnitCodec.decode(f[15],deployments,combat) else null)
                     require(!positions || (f[13]!="-" || f[14]=="-")) { "Incomplete outfit position" }
                     require(outfits.put(outfit.id, outfit) == null) { "Duplicate outfit" }
                 }
@@ -125,6 +127,10 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     require(f.size == 3)
                     require(officers.put(f[1].toInt(), LogisticsOffice.valueOf(f[2])) == null) { "Duplicate logistics appointment" }
                 }
+                "G" -> {
+                    require(combat && f.size==3)
+                    require(groundBattles.put(f[1].toInt(),f[2].toLong())==null) { "Duplicate ground battle clock" }
+                }
                 "N" -> {
                     require(national && f.size==3)
                     val office=requireNotNull(NationalOffice.of(f[1].toInt())) { "Unknown national office" }
@@ -134,13 +140,14 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                 else -> throw IllegalArgumentException("Unknown inventory row")
             }
         }
-        require(listOf(bases.size, outfits.size, warehouses.size, officers.size)+(if(national)listOf(nationalOffices.size) else emptyList()) == counts) { "Inventory section count mismatch" }
+        require(listOf(bases.size, outfits.size, warehouses.size, officers.size)+(if(national)listOf(nationalOffices.size) else emptyList())+(if(combat)listOf(groundBattles.size) else emptyList()) == counts) { "Inventory section count mismatch" }
         return PlanetStocks(header[1].toLong(), header[2].toLong(), bases, outfits, warehouses, officers,initialized,
-            if (identities) header[8].toInt() else 1,nationalOffices)
+            if (identities) header[8].toInt() else 1,nationalOffices,groundBattles)
     }
     override fun save(stocks: PlanetStocks) {
-        val grounds = stocks.outfits.values.any {it.activeGround!=null}
-        val deployments=stocks.outfits.values.any {it.activeGround?.values?.any {u->u.origin!=0 || u.order!=null}==true}
+        val combat=stocks.groundBattles.isNotEmpty() || stocks.outfits.values.any {it.activeGround?.values?.any {u->u.strength!=1000}==true}
+        val grounds = combat || stocks.outfits.values.any {it.activeGround!=null}
+        val deployments=combat || stocks.outfits.values.any {it.activeGround?.values?.any {u->u.origin!=0 || u.order!=null}==true}
         val postures = grounds || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.posture!=null}==true}
         val reloads = postures || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.reload!=null}==true}
         val shots = reloads || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.shot!=null}==true}
@@ -151,9 +158,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val tactics = cargo || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.tactical!=null}==true}
         val positions = tactics || stocks.outfits.values.any { it.position != null }
         val bytes = buildString {
-            append(listOf(if(deployments)"LOGH7-STOCK-25" else if(grounds)"LOGH7-STOCK-24" else if(postures)"LOGH7-STOCK-23" else if(reloads)"LOGH7-STOCK-22" else if(shots)"LOGH7-STOCK-21" else if(attacks)"LOGH7-STOCK-20" else if(commanded)"LOGH7-STOCK-19" else if(support)"LOGH7-STOCK-18" else if(cargo)"LOGH7-STOCK-17" else if(tactics)"LOGH7-STOCK-16" else if(positions)"LOGH7-STOCK-15" else "LOGH7-STOCK-14", stocks.generation, stocks.producedDays, stocks.bases.size,
+            append((listOf(if(combat)"LOGH7-STOCK-26" else if(deployments)"LOGH7-STOCK-25" else if(grounds)"LOGH7-STOCK-24" else if(postures)"LOGH7-STOCK-23" else if(reloads)"LOGH7-STOCK-22" else if(shots)"LOGH7-STOCK-21" else if(attacks)"LOGH7-STOCK-20" else if(commanded)"LOGH7-STOCK-19" else if(support)"LOGH7-STOCK-18" else if(cargo)"LOGH7-STOCK-17" else if(tactics)"LOGH7-STOCK-16" else if(positions)"LOGH7-STOCK-15" else "LOGH7-STOCK-14", stocks.generation, stocks.producedDays, stocks.bases.size,
                 stocks.outfits.size, stocks.warehouses.size, stocks.logisticsOfficers.size,
-                if (stocks.deploymentInitialized) 1 else 0, stocks.nextShipId,stocks.nationalOffices.size).joinToString("\t"))
+                if (stocks.deploymentInitialized) 1 else 0, stocks.nextShipId,stocks.nationalOffices.size)+(if(combat)listOf(stocks.groundBattles.size) else emptyList())).joinToString("\t"))
             append('\n')
             stocks.bases.toSortedMap().values.forEach { stock ->
                 val people = stock.economy
@@ -180,6 +187,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             stocks.logisticsOfficers.toSortedMap().forEach { (character, office) ->
                 append("A\t$character\t${office.name}\n")
             }
+            stocks.groundBattles.toSortedMap().forEach {(base,at)->append("G\t$base\t$at\n")}
             stocks.nationalOffices.toSortedMap(compareBy { it.card }).forEach { (office,holder) ->
                 append("N\t${office.card}\t$holder\n")
             }

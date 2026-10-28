@@ -70,6 +70,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var tacticalEndSubscription: AutoCloseable? = null
     private var combatSubscription: AutoCloseable? = null
     private var movementSubscription: AutoCloseable? = null
+    private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
     private var postureSubscription:AutoCloseable? = null
     private var supportSubscription: AutoCloseable? = null
@@ -88,6 +89,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         combatSubscription = presence?.let { p -> navigation!!.observeCombat { impact ->
             navigation.snapshot()?.let { snapshot -> p.combat(impact,snapshot,world!!.galaxy,currentCharacters()::characterById) }
+        }}
+        groundBattleSubscription=presence?.let {p->navigation!!.observeGroundBattles {event->
+            navigation.snapshot()?.let {snapshot->p.groundBattle(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
         }}
         groundSubscription=presence?.let {p->navigation!!.observeGround {event->
             navigation.snapshot()?.let {snapshot->p.ground(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
@@ -218,7 +222,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         tacticalEndSubscription?.close()
         combatSubscription?.close()
         movementSubscription?.close()
-        groundSubscription?.close()
+        groundSubscription?.close();groundBattleSubscription?.close()
         postureSubscription?.close()
         supportSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }

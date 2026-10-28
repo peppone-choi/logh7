@@ -26,7 +26,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         TacticsMessages.Base(base.id,point.x,point.y,0f)
     }
     val baseInformation=bases.map {base -> TacticsMessages.BaseInformation(base,
-        stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),base.id))}
+        stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}
     val units: List<TacticsMessages.Unit> = run {
         data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,
             val destroyed:Int=0,val posture:TacticalPosture?=null)

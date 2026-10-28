@@ -16,7 +16,8 @@ data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
     val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false,
-    val nextShipId: Int = 1, val nationalOffices:Map<NationalOffice,Int> = emptyMap()) {
+    val nextShipId: Int = 1, val nationalOffices:Map<NationalOffice,Int> = emptyMap(),
+    val groundBattles:Map<Int,Long> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -24,6 +25,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         val ids = outfits.values.flatMap { it.activeShips?.values.orEmpty().map {u->u.id} + it.activeGround?.values.orEmpty().map {u->u.id} }
         require(ids.distinct().size == ids.size && ids.all { it < nextShipId }) { "Invalid active unit identity sequence" }
         require(outfits.values.all {it.activeGround?.values.orEmpty().all {u->u.base==0 || u.base in bases}}) {"Unknown ground base"}
+        require(groundBattles.size<=350 && groundBattles.all {(base,at)->base in bases && at in 0..0xffffffffL})
         require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
     }
 }
@@ -62,7 +64,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         outfits = Collections.unmodifiableMap(LinkedHashMap(stocks.outfits)),
         warehouses = Collections.unmodifiableMap(LinkedHashMap(stocks.warehouses)),
         logisticsOfficers = Collections.unmodifiableMap(LinkedHashMap(stocks.logisticsOfficers)),
-        nationalOffices = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalOffices)))
+        nationalOffices = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalOffices)),
+        groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)))
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)

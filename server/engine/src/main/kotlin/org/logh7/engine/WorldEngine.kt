@@ -57,6 +57,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
+    private val groundBattleObservers=java.util.concurrent.CopyOnWriteArrayList<(GroundBattleResult)->Unit>()
+    fun observeGroundBattles(observer:(GroundBattleResult)->Unit):AutoCloseable {
+        groundBattleObservers+=observer;return AutoCloseable {groundBattleObservers.remove(observer)}
+    }
     private val groundObservers=java.util.concurrent.CopyOnWriteArrayList<(TacticalGroundResult)->Unit>()
     fun observeGround(observer:(TacticalGroundResult)->Unit):AutoCloseable {
         groundObservers+=observer;return AutoCloseable {groundObservers.remove(observer)}
@@ -103,14 +107,17 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val support=mutableListOf<TacticalSupportResult>()
         val postures=mutableListOf<TacticalPostureResult>()
         val ground=mutableListOf<TacticalGroundResult>()
+        val groundBattles=mutableListOf<GroundBattleResult>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add)
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         publishCombat(impacts)
         publishSupport(support)
         for(event in ground)for(observer in groundObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("Tactical ground delivery failed: ${failure.javaClass.simpleName}")}
+        for(event in groundBattles)for(observer in groundBattleObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Ground battle delivery failed: ${failure.javaClass.simpleName}")}
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
         for(event in postures)for(observer in postureObservers)try {observer(event)}
@@ -163,7 +170,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val postureDeadlines=snapshot.navigators.values.mapNotNull {it.posture?.order?.readyAt} +
             snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().mapNotNull {it.posture?.order?.readyAt}}
         val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines).minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed

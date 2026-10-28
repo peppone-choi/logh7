@@ -29,6 +29,17 @@ class GamePresence {
             repeat(units) { motionPaths[connection to input.getInt(19+it*20)]=points }
         }
     }
+    @Synchronized fun groundBattle(event:org.logh7.engine.GroundBattleResult,snapshot:org.logh7.engine.WorldSnapshot,
+        galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
+        members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
+            event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer->
+            val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
+            send(viewer,listOf(org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions),
+                org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
+                org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,event.base,
+                    tactical.baseInformation.single {it.position.id==event.base}.stamina)))
+        }
+    }
     @Synchronized fun ground(event:org.logh7.engine.TacticalGroundResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         val order=event.order

@@ -89,6 +89,7 @@ static bool outfitWarehouseAccess() {
 static bool requestOutfit(bool warehouse) {
     auto& state=outfitInformation;
     unsigned base=warehouse ? logh::infoWord(state.party,4) : 0;
+    if(warehouse && !base)return false;
     AcquireSRWLockExclusive(&outfitReplyLock);
     bool queued=outfitInbox.queue.add(state.id,base,state.token,warehouse);
     ReleaseSRWLockExclusive(&outfitReplyLock);
@@ -195,7 +196,7 @@ static void renderOutfitGroundPage(unsigned start) {
 static bool outfitGroundAccess() {
     auto& state=outfitInformation;
     auto own=state.world ? at<BYTE*>(state.world,8) : nullptr;
-    return state.loaded && own && at<unsigned>(own,0x358)==logh::infoWord(state.party,4) && outfitWarehouseAccess();
+    return state.loaded && logh::infoWord(state.party,4)!=0 && own && at<unsigned>(own,0x358)==logh::infoWord(state.party,4) && outfitWarehouseAccess();
 }
 static void buildOutfitGroundControls() {
     auto& state=outfitInformation;
@@ -339,7 +340,7 @@ static void renderOutfitInformation() {
     for (unsigned i=0;i<350;++i) if (at<unsigned>(state.world,0x2eb288+i*4)==base) {
         memcpy(baseName,static_cast<BYTE*>(state.world)+0x2eb800+i*0x250+0x48,24);break;
     }
-    outfitCell(0,6,0,L"현재 거점");outfitCell(0,6,1,baseName[0] ? baseName : L"이름 미수신");
+    outfitCell(0,6,0,L"현재 거점");outfitCell(0,6,1,!base ? L"우주 항행 중" : baseName[0] ? baseName : L"이름 미수신");
     if (!p[20]) {outfitCell(0,7,0,L"지휘관");outfitCell(0,7,1,L"미임명");}
     for (unsigned i=0;i<p[20];++i) {
         auto member=p+24+i*36;wchar_t memberName[13]={};
@@ -354,7 +355,7 @@ static void renderOutfitInformation() {
         outfitCell(0,7+i,1,rank[0] ? rank : L"계급 미확인");outfitCell(0,7+i,2,L"등록 인물");
     }
     if (!state.warehouseLoaded) {
-        outfitCell(3,1,0,outfitWarehouseAccess() ? L"창고 응답 대기 중" : L"부대 지휘관만 창고를 조회할 수 있습니다.");
+        outfitCell(3,1,0,!logh::infoWord(state.party,4) ? L"정박 후 부대 창고를 조회할 수 있습니다." : outfitWarehouseAccess() ? L"창고 응답 대기 중" : L"부대 지휘관만 창고를 조회할 수 있습니다.");
         return;
     }
     auto w=state.warehouse;
@@ -538,7 +539,7 @@ static void updateOutfitInformation(void* manager) {
         state.warehouseLoaded=true;
     }
     ReleaseSRWLockExclusive(&outfitReplyLock);
-    if (state.loaded && !state.warehouseRequested && outfitWarehouseAccess()) state.warehouseRequested=requestOutfit(true);
+    if (state.loaded && logh::infoWord(state.party,4) && !state.warehouseRequested && outfitWarehouseAccess()) state.warehouseRequested=requestOutfit(true);
     if (!state.loaded && !state.timeoutShown && GetTickCount64()-state.sentAt>=5000) {state.timeoutShown=true;changed=true;}
     changed=updateOutfitGroundPage() || changed;
     if (changed) renderOutfitInformation();

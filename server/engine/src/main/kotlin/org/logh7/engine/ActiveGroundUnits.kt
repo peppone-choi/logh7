@@ -4,9 +4,9 @@ import java.util.Collections
 
 /** Ground identities share the commissioned-unit sequence. Zero carrier/base retains legacy
  * outfit membership without inventing a physical carrier. Author: 최병호. */
-data class ActiveGroundUnit(val id:Int,val stack:UnitStack,val carrier:Int=0,val base:Int=0,val origin:Int=0,val order:TacticalGroundOrder?=null) {
+data class ActiveGroundUnit(val id:Int,val stack:UnitStack,val carrier:Int=0,val base:Int=0,val origin:Int=0,val order:TacticalGroundOrder?=null,val strength:Int=1000) {
     init {
-        require(id in 1..999_999 && GroundUnits.isGround(stack.kind))
+        require(id in 1..999_999 && GroundUnits.isGround(stack.kind) && strength in 1..1000)
         require(carrier in 0..999_999 && base in 0..65535 && (carrier==0 || base==0))
         require(carrier!=id && origin in 0..999999 && origin!=id && (origin==0 || base>0))
         require(order==null || if(order.action==TacticalGroundAction.DEPLOY)carrier==order.carrier && base==0
@@ -48,10 +48,10 @@ object GroundUnits {
             for((stack,count) in wanted.toSortedMap(order)) {
                 // A deployed unit cannot be returned to a warehouse through a fleet slider.
                 val old=previous[stack].orEmpty().sortedWith(compareByDescending<ActiveGroundUnit> {
-                    (it.base!=0 && outfit.kind!=OutfitKind.GROUND || it.order!=null)
+                    (it.base!=0 && outfit.kind!=OutfitKind.GROUND || it.order!=null || it.strength<1000)
                 }.thenBy {it.id})
                 val retained=old.take(count)
-                require(old.drop(count).none {(it.base!=0 && outfit.kind!=OutfitKind.GROUND || it.order!=null)}) {"Deployed ground unit is busy"}
+                require(old.drop(count).none {(it.base!=0 && outfit.kind!=OutfitKind.GROUND || it.order!=null || it.strength<1000)}) {"Deployed ground unit is busy"}
                 require(retained.all {it.carrier==0 || it.carrier in alive}) {"Unload troops before returning their carrier"}
                 addAll(retained)
                 repeat(count-retained.size) {
@@ -60,7 +60,7 @@ object GroundUnits {
                 }
             }
             require(previous.filterKeys {it !in wanted}.values.flatten().none {
-                (it.base!=0 && outfit.kind!=OutfitKind.GROUND || it.order!=null)
+                (it.base!=0 && outfit.kind!=OutfitKind.GROUND || it.order!=null || it.strength<1000)
             }) {"Deployed ground unit is busy"}
         }
         return ActiveGroundUnits(roster) to cursor
