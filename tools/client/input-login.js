@@ -1,6 +1,7 @@
 // Loaded with capture-frame.js only for the owned original client's UI test.
 let testKey = 0;
 let testMouse = null;
+let testMouseDelta = {x:0,y:0};
 rpc.exports.setkey = function(value) {
   if(![0,8,9,13,27,67,88].includes(value))throw new Error('Only release, Backspace, Tab, Enter, Escape and tactical C/X are supported');
   testKey = value;
@@ -19,12 +20,18 @@ Process.attachModuleObserver({onAdded(module) {
     return (y<<16)|x;
   }
   rpc.exports.movemouse=function(x,y) {
+    if(testKey===2 && testMouse) {
+      testMouseDelta.x+=x-testMouse.x;testMouseDelta.y+=y-testMouse.y;
+    }
     const position=mousePosition(x,y);
-    if(!post(gameWindow,0x200,testKey===1?1:0,position))throw new Error('Cannot queue owned mouse movement');
+    if(!post(gameWindow,0x200,[1,2].includes(testKey)?testKey:0,position))throw new Error('Cannot queue owned mouse movement');
   };
-  rpc.exports.setmouse=function(x,y,down) {
-    const position=mousePosition(x,y);testKey=down?1:0;
-    if(!post(gameWindow,0x200,down?1:0,position) || !post(gameWindow,down?0x201:0x202,down?1:0,position))
+  rpc.exports.setmouse=function(x,y,down,button=1) {
+    if(button==null)button=1; // Frida supplies a null binary argument to legacy three-argument calls.
+    if(![1,2].includes(button))throw new Error('Only owned left/right mouse buttons are supported');
+    const position=mousePosition(x,y);testKey=down?button:0;testMouseDelta={x:0,y:0};
+    const message=button===1?(down?0x201:0x202):(down?0x204:0x205);
+    if(!post(gameWindow,0x200,down?button:0,position) || !post(gameWindow,message,down?button:0,position))
       throw new Error('Cannot queue owned mouse message');
   };
   Interceptor.attach(module.getExportByName('GetCursorPos'),{
@@ -73,7 +80,10 @@ function hookMouseDevice(device) {
   Interceptor.attach(address,{onEnter(args){this.owned=mouseDevices.has(args[0].toString());this.size=args[1].toUInt32();this.output=args[2];},onLeave(ret){
     if(!this.owned || this.output.isNull() || ![16,20].includes(this.size))return;
     this.output.writeByteArray(new Uint8Array(this.size));
-    this.output.add(12).writeU8(testKey===1?0x80:0);ret.replace(0);
+    this.output.writeS32(testMouseDelta.x);this.output.add(4).writeS32(testMouseDelta.y);
+    testMouseDelta={x:0,y:0};
+    this.output.add(12).writeU8(testKey===1?0x80:0);
+    this.output.add(13).writeU8(testKey===2?0x80:0);ret.replace(0);
   }});
   send({type:'capture-status',event:'Owned DirectInput mouse state hooked'});
 }
