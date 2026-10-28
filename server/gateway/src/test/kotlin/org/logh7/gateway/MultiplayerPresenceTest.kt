@@ -10,6 +10,38 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class MultiplayerPresenceTest {
+    @Test fun waypointAccountingDoesNotRestartPeerPathButReplacementAndStopStillArrive() {
+        val hub=GamePresence()
+        val received=mutableListOf<List<ByteArray>>()
+        val person=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,
+            List(8){50},0,0,0,20,0,0,"Ship",1)
+        val player=Navigator(1,10000,Power.EMPIRE,2488,1000,1000,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(100)+List(10){0}))
+        val viewer=GamePresence.Member("viewer",person,player,received::add)
+        val peer=GamePresence.Member("peer",person.copy(id=10001),player.copy(characterId=10001),{})
+        hub.update(viewer);hub.update(peer);received.clear()
+        val motion=TacticalMotion(2488,100,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
+            listOf(TacticalPoint(0f,10f),TacticalPoint(0f,0f)),turnRate=TacticalMotion.NATIVE_TURN_RATE)
+        val moving=peer.copy(player=peer.player.copy(motion=motion))
+        hub.update(moving,100)
+        assertEquals(listOf(0x0400),received.flatten().map(::opcode))
+        val initial=received.single().single();hub.observeMotions("viewer",listOf(initial));received.clear()
+        val progress=moving.copy(player=moving.player.copy(motion=motion.copy(reportedWaypoints=1)))
+        hub.update(progress,115)
+        assertTrue(received.isEmpty(),"Accounting alone must preserve the peer's existing native plan")
+        hub.movement(TacticalMovement(generation=1,grid=2488,character=10001,unit=progress.player.unitId,seconds=115,
+            recipients=mapOf(10000 to "viewer"),motion=progress.player.motion,waypoint=0))
+        assertEquals(listOf(0x0423),received.flatten().map(::opcode))
+        assertEquals(0,ByteBuffer.wrap(received.single().single()).get(30).toInt())
+        received.clear()
+        val replacement=progress.copy(player=progress.player.copy(motion=motion.copy(acceptedAt=116,velocity=0.5f)))
+        hub.update(replacement,116)
+        assertEquals(listOf(0x0400),received.flatten().map(::opcode));received.clear()
+        val stopped=replacement.copy(player=replacement.player.copy(motion=motion.copy(acceptedAt=117,velocity=0f,
+            waypoints=listOf(motion.origin.position))))
+        hub.update(stopped,117)
+        assertEquals(listOf(0x0400),received.flatten().map(::opcode))
+    }
     @Test fun committedImpactsReachBothPowersInOrderButNeverAnOldConnectionOrGeneration() {
         val hub=GamePresence()
         val received=(0..4).associateWith {mutableListOf<List<ByteArray>>()}

@@ -145,7 +145,9 @@ class GamePresence {
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
         val old = previous.player; val next = member.player
-        if (old.motion != next.motion && next.motion?.rotation==null) TacticalMotionMessages.reply(next,seconds)?.let { packet ->
+        // Persisted progress is announced by 0423; it must not restart the peer's native path.
+        val changedMotion = old.motion?.copy(reportedWaypoints=0) != next.motion?.copy(reportedWaypoints=0)
+        if (changedMotion && next.motion?.rotation==null) TacticalMotionMessages.reply(next,seconds)?.let { packet ->
             members.values.filter {it.connection!=member.connection && it.player.generation==next.generation &&
                 it.player.grid==next.grid && it.player.baseId==0 && it.player.cpPaused}.forEach {send(it,listOf(packet))}
         }
