@@ -397,6 +397,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                                 raise ValueError("Wheel requires one to ten bounded owned-device notches")
                             target = owned_view(desk, pid)
                             x, y = win32gui.ClientToScreen(target, (512, 384))
+                            script.exports_sync.scrollmouse(delta)
                             win32gui.PostMessage(target, win32con.WM_MOUSEWHEEL,
                                                  (delta & 0xffff) << 16, (y << 16) | (x & 0xffff))
                             time.sleep(0.15)
@@ -416,6 +417,13 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             script.exports_sync.tracequads()
                         elif action == {"traceGraphics": True}:
                             script.exports_sync.tracegraphics()
+                        elif "inspectFortress" in action:
+                            base = action["inspectFortress"]
+                            if type(base) is not int or not 1 <= base <= 65535:
+                                raise ValueError("Fortress inspection requires one bounded base ID")
+                            observed = script.exports_sync.fortressstate(base)
+                            with (out / "fortress-state.jsonl").open("a", encoding="utf-8") as evidence:
+                                evidence.write(json.dumps(observed) + "\n")
                         elif action == {"stop": True}:
                             deadline = time.monotonic()
                         else:

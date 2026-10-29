@@ -8,6 +8,15 @@ class TacticalCommandMessagesTest {
     private fun packet(op:Int,tail:ByteArray)=ByteBuffer.allocate(14+tail.size).putShort(op.toShort()).putLong(-1).putInt(10000).put(tail).array()
     private fun ids(vararg values:Int)=ByteBuffer.allocate(1+4*values.size).put(values.size.toByte()).apply {values.forEach(::putInt)}.array()
     private fun int(value:Int)=ByteBuffer.allocate(4).putInt(value).array()
+    @Test fun cannonWireDegreesBecomeEngineRadiansWhileReplyKeepsNativeDegrees() {
+        for(degrees in listOf(0f,90f,-90f,180f,450f)) {
+            val c=TacticalCommandMessages.command(packet(0x419,
+                ByteBuffer.allocate(8).putInt(1000).putFloat(degrees).array()))
+            assertEquals(Math.toRadians((degrees%360f).toDouble()).toFloat(),c.direction,0.000001f)
+            val reply=TacticalCommandMessages.reply(c,123,5)
+            assertEquals(degrees,ByteBuffer.wrap(reply).getFloat(reply.size-4))
+        }
+    }
     @Test fun everyNewNativeCommandFamilyHasAnIndependentPackedFixture() {
         val fixtures=mapOf(
             0x407 to (int(1010000)+ByteArray(12)+int(1010001)),

@@ -167,6 +167,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "literal_text.h"
 
 #include "tactical_base_ui.h"
+#include "tactical_fortress_menu.h"
 #include "tactical_departure.h"
 #include "environment_shader.h"
 
@@ -616,6 +617,7 @@ static void install() {
     if (!installKoreanResources()) { status = -3; return; }
 
     if (!installTacticalBaseUi()) { status = -3; return; }
+    if (!installFortressCommandMenu()) { status = -3; return; }
     if (!installTacticalDeparture()) { status = -3; return; }
     if (!installDisplayNames()) { status = -3; return; }
     if (!installMailInput()) { status = -3; return; }

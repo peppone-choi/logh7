@@ -14,6 +14,54 @@ Process.setExceptionHandler(function(details) {
 });
 let done = false;
 rpc.exports.recapture = function() { done = false; };
+function tacticalMenuState() {
+  try {
+  const ctx=ptr(0x2215e2c).readPointer();if(ctx.isNull())return null;
+  const manager=ctx.add(12).readPointer();if(manager.isNull())return null;
+  const menu=manager.add(0xd4).readPointer();if(menu.isNull())return null;
+  const slot=menu.add(0x1138).readS32();
+  let x=0,y=0,current=menu;
+  for(let i=0;i<8 && !current.isNull();++i) {
+    x+=current.add(12).readS32();y+=current.add(16).readS32();
+    const parent=current.add(8).readS32();if(parent<0 || parent>=1024)break;
+    current=manager.add(4+parent*4).readPointer();
+  }
+  const widget=slot>=0 && slot<2048 ? manager.add(0x28ca2c+slot*0xf18) : ptr(0);
+  return {initialized:ctx.add(4).readU32(),allowed:manager.add(0x3a0).readU8(),menuActive:menu.add(5).readU8(),slot,
+    widget:widget.isNull()?null:{exists:widget.add(8).readU8(),enabled:widget.add(0x15).readU8(),visible:widget.add(0x18).readU8(),
+      bounds:[x+widget.add(0x20).readS32(),y+widget.add(0x24).readS32(),widget.add(0x2c).readS32(),widget.add(0x30).readS32()]}};
+  } catch(e) {return {error:String(e)};}
+}
+let fortressInputBudget=0;
+const fortressInputEvents=[];
+for(const [address,bytes] of [[0x50f63b,[0xe8,0xb0,0x1f,0xff,0xff]],
+    [0x50f640,[0x84,0xc0,0x74,0x5e]]]) {
+  const site=ptr(address);
+  if(bytes.every((v,i)=>site.add(i).readU8()===v))Interceptor.attach(site,{onEnter() {
+    if(!fortressInputBudget || ptr(0x77a8f8).readU32()!==5 || ptr(0x22166a9).readU8()!==8)return;
+    --fortressInputBudget;
+    const s=this.context.esp;
+    fortressInputEvents.push({site:site.toString(),result:this.context.eax.toUInt32()&255,
+      down:ptr(0x22142b0).readU32(),previous:ptr(0x22142b4).readU32(),
+      current:[ptr(0x22143dc).readS32(),ptr(0x22143e0).readS32()],
+      pressed:[ptr(0x2214408).readS32(),ptr(0x221440c).readS32()],
+      relative:[s.add(0x50).readS32(),s.add(0x54).readS32()]});
+    if(fortressInputEvents.length>32)fortressInputEvents.shift();
+  }});
+}
+rpc.exports.fortressstate = function(id) {
+  if(!Number.isInteger(id) || id<1 || id>65535)throw new Error('Invalid owned fortress ID');
+  const world=ptr(0x7ccffc).readPointer();
+  if(world.isNull() || !world.add(0x126718).readU8())return {base:null,tactical:false};
+  const lookup=new NativeFunction(ptr(0x4c7cd0),'pointer',['pointer','uint','uint8','uint8','uint8','uint8'],'mscdecl');
+  const base=lookup(world.add(0x126718),id,0,255,255,255);
+  fortressInputBudget=32;
+  return {base:base.isNull()?null:{id:base.add(4).readU32(),type:base.add(8).readU8(),owner:base.add(0x8c8).readU32(),
+    kind:base.add(0x8bc).readU16(),charge:[base.add(0x5bc).readU32(),base.add(0x5c0).readU32()]},
+    input:fortressInputEvents.slice(),aimBase:ptr(0x2216674).readU32(),command:ptr(0x22166a9).readU8(),
+    tab:ptr(0x77a8f8).readU32(),mode:ptr(0x2216694).readU32(),
+    fortCount:ptr(0x221666c).readU32(),fortId:ptr(0x2215528).readU32(),selected:ptr(0x2216664).readU32(),menu:tacticalMenuState()};
+};
 // Opt-in, bounded observation of the owned renderer. No return value, resource,
 // shader, declaration or draw argument is replaced by this diagnostic.
 let graphicsTrace = false;

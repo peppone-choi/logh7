@@ -34,7 +34,8 @@ class TacticalBaseMessagesTest {
         val packet=TacticalBaseMessages.fired(100,10000,1000,.75f)
         assertEquals(0,ByteBuffer.wrap(packet).getInt(10))
         val parsed=TacticalCommandMessages.command(packet.drop(4).toByteArray())
-        assertEquals(0x419,parsed.opcode);assertEquals(1000,parsed.base);assertEquals(.75f,parsed.direction)
+        assertEquals(0x419,parsed.opcode);assertEquals(1000,parsed.base);assertEquals(.75f,parsed.direction,0.000001f)
+        assertEquals(Math.toDegrees(.75).toFloat(),ByteBuffer.wrap(packet).getFloat(packet.size-4))
     }
     @Test fun emergencyContainsBaseTargetAndBalancesWithoutATimeWord() {
         val opened=ByteBuffer.wrap(TacticalBaseMessages.emergency(1000,0,321,0))

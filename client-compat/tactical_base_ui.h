@@ -5,7 +5,19 @@ static void __fastcall receivedFortressCharge(void* world,void*,void* message,BY
     // The original ACK handler starts the beam even with a future wait. Its
     // existing pending branch can display that wait without starting the effect.
     if (message && at<unsigned>(message,4)>0) pending=1;
-    reinterpret_cast<void(__thiscall*)(void*,void*,BYTE)>(0x4bfa10)(world,message,pending);
+    BYTE adjusted[20];void* native=message;
+    if(message) {
+        memcpy(adjusted,message,sizeof(adjusted));
+        float degrees=at<float>(message,16);
+        if(_finite(degrees))at<float>(adjusted,16)=static_cast<float>(fmod(degrees,360.0)*0.017453292519943295);
+        native=adjusted;
+    }
+    reinterpret_cast<void(__thiscall*)(void*,void*,BYTE)>(0x4bfa10)(world,native,pending);
+    if(world && message && world==*reinterpret_cast<void**>(0x7ccffc) && at<BYTE>(world,0x126718)) {
+        auto base=reinterpret_cast<BYTE*(__cdecl*)(void*,unsigned,BYTE,BYTE,BYTE,BYTE)>(0x4c7cd0)
+            (static_cast<BYTE*>(world)+0x126718,at<unsigned>(message,12),0,255,255,255);
+        logh::clampFortressCharge(base);
+    }
 }
 static void __cdecl receivedFortressStop(void* world,void* message) {
     if (!world || world!=*reinterpret_cast<void**>(0x7ccffc) || !at<BYTE>(world,0x126718)) return;

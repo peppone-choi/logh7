@@ -47,7 +47,9 @@ object TacticalCommandMessages {
                 kind=input.get().toInt() and 255
             }
             0x040e -> {units=ids();require(input.remaining()==5);kind=input.get().toInt() and 255;target=input.int}
-            0x0419 -> {require(input.remaining()==8);base=input.int;direction=input.float;require(direction.isFinite())}
+            0x0419 -> {require(input.remaining()==8);base=input.int;val degrees=input.float;require(degrees.isFinite())
+                // Native UI uses atan2(dx,dz) * 180/pi; engine poses use radians.
+                direction=Math.toRadians((degrees % 360f).toDouble()).toFloat()}
             0x041b,0x041c -> {base=input.int;units=ids()}
             0x041f -> {require(input.remaining()>=33);base=input.int;velocity=input.float;require(velocity.isFinite() && velocity in 0f..1f)
                 Point(input.float,input.float,input.float) // Ignore proposed current position.

@@ -27,6 +27,18 @@
 #include "session_ending_data.h"
 #include "system_affiliation_data.h"
 #include "environment_shader_data.h"
+#include "tactical_fortress_menu_data.h"
+static bool fortressMenuAuthorityTest() {
+    BYTE own[0x370]={};own[0x270]=1;unsigned base=1040;unsigned short kind=188;
+    memcpy(own+0x274,&kind,2);memcpy(own+0x278,&base,4);
+    if(logh::commandsFortress(own,sizeof(own),base))return false;
+    kind=187;memcpy(own+0x274,&kind,2);
+    if(!logh::commandsFortress(own,sizeof(own),base) || logh::commandsFortress(own,sizeof(own),1041) ||
+       logh::commandsFortress(own,sizeof(own),0) || logh::commandsFortress(own,0x274,base))return false;
+    kind=51;memcpy(own+0x274,&kind,2);
+    if(!logh::commandsFortress(own,sizeof(own),base))return false;
+    own[0x270]=0;return !logh::commandsFortress(own,sizeof(own),base);
+}
 static bool environmentShaderTest() {
     const char source[]="prefix\r\nm4x4 oT0.xy, r0, c12\r\nsuffix";char output[128]={};
     const char expected[]="prefix\r\ndp4 oT0.x, r0, c12\r\ndp4 oT0.y, r0, c13\r\nsuffix";
@@ -114,6 +126,12 @@ static bool tacticalBaseDataTest() {
     logh::TacticalFortressStop::clearCharge(object);
     logh::TacticalFortressStop::clearCharge(object);logh::TacticalFortressStop::clearCharge(nullptr);
     for(unsigned i=0;i<sizeof(object);++i)if(object[i]!=(i>=0x5bc && i<0x5c4 ? 0 : 0xa5))return false;
+    int32_t expired=-118;unsigned positive=840;
+    memcpy(object+0x5bc,&expired,4);memcpy(object+0x5c0,&positive,4);
+    logh::clampFortressCharge(object);logh::clampFortressCharge(nullptr);
+    if(logh::baseMessageWord(object,0x5bc)!=0 || logh::baseMessageWord(object,0x5c0)!=840)return false;
+    memcpy(object+0x5c0,&expired,4);logh::clampFortressCharge(object);
+    if(logh::baseMessageWord(object,0x5c0)!=0 || object[0x5bb]!=0xa5 || object[0x5c4]!=0xa5)return false;
     BYTE record[28]={};unsigned base=1000,target=11;unsigned short unavailable=10,destroyed=5,lost=20;
     memcpy(record+4,&base,4);memcpy(record+12,&target,4);
     record[9]=0x81;record[20]=255;record[24]=35;
@@ -401,6 +419,7 @@ static bool sessionEndingDataTest() {
 }
 int wmain(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
+    if(!fortressMenuAuthorityTest())return 97;
     if (!mailTextTest()) return 252;
     if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;

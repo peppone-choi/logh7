@@ -23,6 +23,13 @@ struct TacticalFortressStop {
         uint32_t zero=0;memcpy(object+0x5bc,&zero,4);memcpy(object+0x5c0,&zero,4);
     }
 };
+inline void clampFortressCharge(unsigned char* object) {
+    if (!object) return;
+    for(unsigned offset=0x5bc;offset<=0x5c0;offset+=4) {
+        int32_t remaining;memcpy(&remaining,object+offset,4);
+        if(remaining<0){uint32_t zero=0;memcpy(object+offset,&zero,4);}
+    }
+}
 struct TacticalBaseDamage {
     unsigned normal=0,alive=0,morale=0,face=255;
     float shield=0;

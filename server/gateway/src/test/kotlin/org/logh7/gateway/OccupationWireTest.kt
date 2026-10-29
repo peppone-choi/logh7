@@ -43,13 +43,18 @@ class OccupationWireTest {
             assertEquals(0,players.getValue("load-001").baseId)
             assertEquals(0,saved.bases.getValue(1000).governorId)
             for((i,client) in clients.withIndex()) {
-                // The query is a barrier behind the queued occupation batch.
+                // Actor publication and this query can reach the channel in either order.
                 client.send(ByteBuffer.allocate(7).putShort(0x031e).put(1).putInt(1000).array())
                 val seen=mutableListOf<ByteArray>();var finished=false
                 repeat(300) {
                     if(!finished) {
-                        val packet=client.receive();seen+=packet
-                        finished=code(packet)==0x031f && seen.any {code(it)==if(i==0)0x0442 else 0x0b0b}
+                        val packet=try {client.receive()} catch(failure:java.net.SocketTimeoutException) {
+                            throw AssertionError("occupation viewer=$i received="+seen.map {code(it).toString(16)},failure)
+                        };seen+=packet
+                        finished=seen.any {code(it)==0x031f && it[11].toInt()==2} &&
+                            seen.any {code(it)==0x0321} && seen.any {code(it)==if(i==0)0x0442 else
+                                org.logh7.protocol.generated.MessageId.NotifySearch.opcode} &&
+                            (i==0 || seen.any {code(it)==0x0f1f && it[6].toInt()==1})
                     }
                 }
                 assertTrue(finished)

@@ -14,7 +14,7 @@ object TacticalBaseMessages {
     fun fired(seconds:Long,character:Int,base:Int,direction:Float):ByteArray {
         require(seconds in 0..0xffffffffL && character>0 && base in 1..65535 && direction.isFinite())
         return LoginMessages.sessionMessage(0x419,ByteBuffer.allocate(20).putInt(seconds.toInt()).putInt(0)
-            .putInt(character).putInt(base).putFloat(direction).array())
+            .putInt(character).putInt(base).putFloat(Math.toDegrees(direction.toDouble()%(2*Math.PI)).toFloat()).array())
     }
     /** Reader 004a8c10: time, base, u8 count, IDs. Native 004bfb70 destroys every listed ship.
      * Only actual complete losses belong here; partial losses use the explicit base-source hit. */

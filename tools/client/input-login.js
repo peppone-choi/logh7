@@ -2,7 +2,12 @@
 let testKey = 0;
 let testControl = false;
 let testMouse = null;
-let testMouseDelta = {x:0,y:0};
+let testMouseDelta = {x:0,y:0,z:0};
+rpc.exports.scrollmouse=function(delta) {
+  if(!Number.isInteger(delta) || !delta || Math.abs(delta)>1200 || delta%120)
+    throw new Error('Only bounded owned-device wheel notches are supported');
+  testMouseDelta.z=Math.max(-1200,Math.min(1200,testMouseDelta.z+delta));
+};
 rpc.exports.setkey = function(value) {
   if(![0,8,9,13,27,67,68,88].includes(value))throw new Error('Only release, Backspace, Tab, Enter, Escape and tactical C/D/X are supported');
   testKey = value;
@@ -32,7 +37,7 @@ Process.attachModuleObserver({onAdded(module) {
   rpc.exports.setmouse=function(x,y,down,button=1,control=false) {
     if(button==null)button=1; // Frida supplies a null binary argument to legacy three-argument calls.
     if(![1,2].includes(button))throw new Error('Only owned left/right mouse buttons are supported');
-      const position=mousePosition(x,y);testControl=control===true;testKey=down?button:0;testMouseDelta={x:0,y:0};
+      const position=mousePosition(x,y);testControl=control===true;testKey=down?button:0;testMouseDelta={x:0,y:0,z:0};
     const message=button===1?(down?0x201:0x202):(down?0x204:0x205);
     const keys=(down?button:0)|(testControl?8:0);
     if(!post(gameWindow,0x200,keys,position) || !post(gameWindow,message,keys,position))
@@ -86,7 +91,7 @@ function hookMouseDevice(device) {
     if(!this.owned || this.output.isNull() || ![16,20].includes(this.size))return;
     this.output.writeByteArray(new Uint8Array(this.size));
     this.output.writeS32(testMouseDelta.x);this.output.add(4).writeS32(testMouseDelta.y);
-    testMouseDelta={x:0,y:0};
+    this.output.add(8).writeS32(testMouseDelta.z);testMouseDelta={x:0,y:0,z:0};
     this.output.add(12).writeU8(testKey===1?0x80:0);
     this.output.add(13).writeU8(testKey===2?0x80:0);ret.replace(0);
   }});

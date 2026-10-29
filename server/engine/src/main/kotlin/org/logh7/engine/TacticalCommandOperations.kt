@@ -10,6 +10,10 @@ internal object TacticalCommandOperations {
     private data class Ship(val outfit:OutfitStock,val unit:ActiveShipUnit)
     private fun ship(id:Int,s:PlanetStocks)=s.outfits.values.mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)}}.singleOrNull()
     private fun wire(p:Navigator)=if(p.power==Power.EMPIRE)2 else 3
+    private fun baseCommander(base:GalaxyBase,owner:PlanetStock,s:PlanetStocks,g:Galaxy):Int =
+        if(base.kind==1)OrganizationalOfficePolicy(g).holders(s,if(owner.power==2)51 else 187)
+            .singleOrNull {it.seat==base.id}?.character ?: 0
+        else owner.capitalDefenseCommanderId.takeIf {it>0} ?: owner.garrisonCommanderId
     private fun audience(session:SessionState,grid:Int,players:Map<String,Navigator>)=session.participants.mapNotNull {(a,m)->
         players[a]?.takeIf {m.online && m.connection!=null && it.grid==grid && (it.cpPaused || it.baseId>0)}
             ?.let {it.characterId to checkNotNull(m.connection)}}.toMap()
@@ -79,7 +83,9 @@ internal object TacticalCommandOperations {
             val owner=s.bases[c.base] ?: return NavigationRejection.BASE
             if(base==null || owner.power!=wire(p) || owner.camp!=0)return NavigationRejection.BASE
             val openSupply=c.opcode==0x41c && s.tacticalCommands.emergencySupplies[c.base]==wire(p)
-            if(c.opcode!=0x422 && !openSupply && owner.garrisonCommanderId!=p.characterId && owner.capitalDefenseCommanderId!=p.characterId)return NavigationRejection.CARD
+            val commandsBase=if(base.kind==1)baseCommander(base,owner,s,g)==p.characterId
+                else owner.garrisonCommanderId==p.characterId || owner.capitalDefenseCommanderId==p.characterId
+            if(c.opcode!=0x422 && !openSupply && !commandsBase)return NavigationRejection.CARD
             if(!TacticalContact.contested(GridForces.collect(g,p.generation,players.values,s)[p.grid].orEmpty()))return NavigationRejection.TACTICAL
         } else if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return NavigationRejection.TACTICAL
         val centre=if(base!=null)basePoint(base,now,s) else pose(p.unitId,p.grid,now,players,s,g)?.position ?: return NavigationRejection.UNIT
@@ -471,7 +477,8 @@ internal object TacticalCommandOperations {
             for((id,state) in stocks.tacticalCommands.fortresses.toMap()) {
                 if(state.motion.velocity==0f || now<=state.reportedAt)continue
                 val owner=stocks.bases[id] ?: continue
-                val commander=owner.capitalDefenseCommanderId.takeIf {it>0} ?: owner.garrisonCommanderId
+                val base=g.bases.singleOrNull {it.id==id} ?: continue
+                val commander=baseCommander(base,owner,stocks,g)
                 val at=state.motion.pose(now)
                 val done=session.ended!=null || commander==0 || state.motion.completedWaypoints(now)==state.motion.waypoints.size
                 if(done)stocks=rebaseBerths(id,now,players,stocks,g)
