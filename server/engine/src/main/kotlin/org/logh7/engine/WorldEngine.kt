@@ -25,6 +25,7 @@ sealed interface WorldCommand {
     data class ResignOffice(val request:OfficeResignationRequest,val result:CompletableDeferred<OfficeResignationResult>) : WorldCommand
     data class Tax(val request: TaxRequest, val result: CompletableDeferred<TaxResult>) : WorldCommand
     data class Budget(val request:BudgetRequest,val result:CompletableDeferred<BudgetResult>) : WorldCommand
+    data class Social(val request:SocialRequest,val result:CompletableDeferred<SocialResult>) : WorldCommand
     data class Reorganize(val request: ReorganizationRequest, val result: CompletableDeferred<ReorganizationResult>) : WorldCommand
     data class SupplyOutfit(val request: CompletenessSupplyRequest, val result: CompletableDeferred<CompletenessSupplyResult>) : WorldCommand
     data class TransferGround(val request: GroundTransferRequest, val result: CompletableDeferred<GroundTransferResult>) : WorldCommand
@@ -675,6 +676,32 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 }
                 continue
             }
+            if(command is WorldCommand.Social) {
+                try {
+                    check(!storageFailed) {"World storage is unavailable"}
+                    val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
+                    val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                        politics=i.politics,administration=i.administration),session)
+                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory)
+                    if(result.changed) {
+                        if(worldStateCommitter==null)result=SocialResult(recovered?.player,inventory,SocialRejection.STORAGE)
+                        else {
+                            val after=checkNotNull(result.player);val before=checkNotNull(recovered?.player)
+                            val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
+                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation)+(i.account to after),prepared)
+                            navigation.publishCommitted(i.account,before,after);production.publishCommitted(inventory,prepared)
+                            result=result.copy(stocks=prepared)
+                        }
+                    }
+                    state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))
+                    publish(state);command.result.complete(result.copy(recovery=recovered))
+                } catch(failure:Exception) {
+                    if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if(command is WorldCommand.Budget) {
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
@@ -914,6 +941,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.ResignOffice -> error("Resignation is handled before session commands")
                 is WorldCommand.Tax -> error("Tax is handled before session commands")
                 is WorldCommand.Budget -> error("Budget is handled before session commands")
+                is WorldCommand.Social -> error("Social is handled before session commands")
                 is WorldCommand.SupplyOutfit -> error("Supply is handled before session commands")
                 is WorldCommand.TransferGround -> error("Ground transfer is handled before session commands")
                 is WorldCommand.SupplementOutfit -> error("Supplement is handled before session commands")

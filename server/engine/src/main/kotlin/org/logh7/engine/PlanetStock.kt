@@ -22,7 +22,8 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val strategic:StrategicState = StrategicState(),
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
     val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
-    val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState(),val budget:BudgetState=BudgetState()) {
+    val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState(),val budget:BudgetState=BudgetState(),
+    val social:SocialState=SocialState()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -36,6 +37,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(flagshipMarket.offers.all {it.base in bases}) {"Unknown flagship exchange base"}
         require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
         require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}
+        require(social.squares.keys.all {it in bases} && social.speeches.values.all {it.base in bases}) {"Unknown social base"}
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -79,7 +81,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)),
         nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)),
         strategic=stocks.strategic.detached(),tacticalCommands=stocks.tacticalCommands.detached(),
-        flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached())
+        flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached(),social=stocks.social.detached())
     val maximumStock: Int get() = policy.maximumStock
     val defaultRemittanceRate:Int get()=policy.tax.remittanceRate
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }

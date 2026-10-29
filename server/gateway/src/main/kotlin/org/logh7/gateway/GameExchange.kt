@@ -1132,6 +1132,32 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.SocialMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.SocialMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
+                                val profile=org.logh7.engine.StrategicPerson(rank=character.rank,
+                                    peerage=org.logh7.engine.Peerage.entries.getOrNull(character.title-1),merit=character.merit,
+                                    influence=character.influence,evaluation=character.evaluation,money=character.money,
+                                    abilities=character.abilities,decorations=character.decorations)
+                                val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),14,0,character.rank,politics=character.abilities[1],administration=character.abilities[2]),
+                                    q.phase,q.ticket,profile)
+                                pendingWorld=administration.social(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    val v=result.view;val last=v?.last
+                                    val view=v?.let {org.logh7.protocol.SocialMessages.View(it.ticket,it.base,it.influence,it.approval,it.wait,
+                                        last?.id ?: 0,last?.at ?: 0,last?.base ?: 0,last?.influenceDelta ?: 0,last?.approvalDelta ?: 0)}
+                                    if(result.changed && v!=null)presence?.refreshSocialBase(world,checkNotNull(result.stocks),v.base)
+                                    org.logh7.protocol.SocialMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        (if(v!=null && v.base>0)listOf(world.conditions(listOf(v.base),result.stocks)) else emptyList())+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
                             if(org.logh7.protocol.BudgetMessages.matches(body)) {
                                 check(administration!=null)
                                 val q=org.logh7.protocol.BudgetMessages.query(body)

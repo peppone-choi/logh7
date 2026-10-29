@@ -16,6 +16,12 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    /** Government approval is public base state; CP/influence peers use ordinary character publication. */
+    @Synchronized fun refreshSocialBase(world:WorldBootstrap,stocks:org.logh7.engine.PlanetStocks,base:Int) {
+        val grid=world.galaxy.bases.single {it.id==base}.grid
+        for(viewer in members.values.filter {it.player.generation==stocks.generation && it.player.grid==grid})
+            send(viewer,listOf(world.conditions(listOf(base),stocks)))
+    }
     /** Money is private to the actual finance office; public 031f has no treasury/rate field. */
     @Synchronized fun budget(event:org.logh7.engine.BudgetChange,world:WorldBootstrap) {
         val s=event.stocks;val offices=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)

@@ -8,6 +8,8 @@ fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
     fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Budget is unavailable"))
+    fun social(request:SocialRequest):CompletableFuture<SocialResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Social command is unavailable"))
     fun strategyAction(request:StrategyActionRequest):CompletableFuture<StrategyActionResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Strategy action is unavailable"))
     fun formOutfit(request:OutfitFormationRequest):CompletableFuture<OutfitFormationResult> =
@@ -32,6 +34,13 @@ fun interface GameAdministration {
     fun stationedOutfit(player: Navigator): Int = 0
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, private val galaxy: Galaxy) : GameAdministration {
+    override fun social(request:SocialRequest):CompletableFuture<SocialResult> {
+        val future=CompletableFuture<SocialResult>()
+        scope.launch {try {
+            val result=CompletableDeferred<SocialResult>();engine.submit(WorldCommand.Social(request,result));future.complete(result.await())
+        } catch(failure:Throwable){future.completeExceptionally(failure)}}
+        return future
+    }
     override fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> {
         val future=CompletableFuture<BudgetResult>()
         scope.launch {try {
