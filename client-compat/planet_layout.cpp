@@ -153,6 +153,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "tactical_notices.h"
 #include "unit_presence.h"
 #include "tactical_labels.h"
+#include "hud_recovery.h"
 #include "tactical_command_range.h"
 #include "tactical_support.h"
 #include "tactical_motion.h"
@@ -555,6 +556,7 @@ static void install() {
     if (!installTacticalMotion()) { status = -3; return; }
     if (!installTacticalNotices()) { status = -3; return; }
     if (!installTacticalLabels()) { status = -3; return; }
+    if (!installHudRecovery()) { status = -3; return; }
     if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
