@@ -129,7 +129,8 @@ class GamePresence {
             else if(event.action==org.logh7.engine.TacticalSupportAction.REPAIR)
             org.logh7.protocol.TacticalSupportMessages.repaired(event.unit,event.target,event.supplies,event.damaged)
             else org.logh7.protocol.TacticalSupportMessages.supplied(event.unit,event.target,event.supplies,event.targetSupplies)
-        members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
+        members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
+            event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
                 // 0325 replaces the complete native definition cache, including unrelated combatants.
                 val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
@@ -160,7 +161,9 @@ class GamePresence {
     }
 
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
-        members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
+        // A committed audience binding can still be live after its viewer changes battlefield.
+        members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
+            event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
                 if(event.formation.isNotEmpty()) {
                     send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
@@ -191,7 +194,9 @@ class GamePresence {
         send(viewer,listOf(org.logh7.protocol.TacticsMessages.notify(event.grid,false)))
     }
 
-    /** Every committed shot is queued separately, including while an exchange awaits another command. */
+    /** Every committed shot is queued separately, including while an exchange awaits another command.
+     * Gateway supplies a current snapshot to reject stale exits after reentry. Without one, the legacy
+     * event/presence contract cannot distinguish a later battle in the same grid. */
     @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact,
         snapshot:org.logh7.engine.WorldSnapshot?=null,galaxy:org.logh7.engine.Galaxy?=null,
         characterById:((Int)->CharacterMessages.Generate?)?=null) {
@@ -200,11 +205,21 @@ class GamePresence {
             impact.hit.damaged,impact.hit.shieldFace,impact.hit.shieldDamage)
         members.values.filter { viewer -> viewer.player.generation == impact.generation &&
             impact.recipients[viewer.character.id.toInt()] == viewer.connection }.forEach { viewer ->
-                if (impact.departed?.characterId==viewer.character.id.toInt()) {
+                val departed=impact.departed?.takeIf {it.characterId==viewer.character.id.toInt()}
+                if (departed!=null) {
+                    // Strategic movement can publish this same transaction's return before its impact.
+                    // A newer return/hull or reentered battle must never receive the old exit.
+                    val current=snapshot?.navigators?.values?.singleOrNull {
+                        it.characterId==departed.characterId && it.generation==impact.generation}
+                    val awaitingReturn=viewer.player.grid==impact.hit.grid && viewer.player.cpPaused
+                    if(departed.generation!=impact.generation || departed.cpPaused ||
+                        (snapshot!=null && current!=departed) ||
+                        (viewer.player!=departed && !awaitingReturn))return@forEach
                     // 004c96c0 requires a living own flagship while rendering any tactical unit.
                     // Leave the victim's view before destroying that native anchor; bootstrap returns the replacement.
                     send(viewer,listOf(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false)))
                 } else {
+                    if(viewer.player.grid!=impact.hit.grid)return@forEach
                     val leave=impact.departed?.let {
                         listOf(org.logh7.protocol.TacticalRetreatMessages.warped(impact.hit.seconds,it.grid,listOf(it.unitId)))
                     }.orEmpty()
