@@ -22,7 +22,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val strategic:StrategicState = StrategicState(),
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
     val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
-    val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState()) {
+    val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState(),val budget:BudgetState=BudgetState()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -35,6 +35,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(nationalTreasuries.all {(power,balance)->power in 2..3 && balance>=0}) { "Invalid national treasury" }
         require(flagshipMarket.offers.all {it.base in bases}) {"Unknown flagship exchange base"}
         require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
+        require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -78,8 +79,9 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)),
         nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)),
         strategic=stocks.strategic.detached(),tacticalCommands=stocks.tacticalCommands.detached(),
-        flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached())
+        flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached())
     val maximumStock: Int get() = policy.maximumStock
+    val defaultRemittanceRate:Int get()=policy.tax.remittanceRate
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
@@ -101,7 +103,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 var next = stock
                 repeat(Math.toIntExact(days - initialized.producedDays)) {
                     val base=galaxy.conditions.getValue(id)
-                    val revenue=PlanetTaxRevenue.assess(next,base,policy.tax)
+                    val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
                     if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
                     val previousDay=next
                     next = units.advance(next.nextDay(base, policy), previousDay)

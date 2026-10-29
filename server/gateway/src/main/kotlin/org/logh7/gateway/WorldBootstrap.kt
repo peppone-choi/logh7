@@ -19,6 +19,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             if(org.logh7.engine.OutfitFormationPolicy.kinds(role.card).isNotEmpty())addAll(listOf(25,26))
             if(role.card in org.logh7.engine.CivicActions.commandingCards)addAll(listOf(52,54,56))
             when(role.card) {
+                8,136->addAll(listOf(16,18))
                 1->addAll(listOf(0,1,2,3,8,9))
                 17,135->addAll(listOf(0,1,2,4))
                 19,160->addAll(listOf(0,1,2))

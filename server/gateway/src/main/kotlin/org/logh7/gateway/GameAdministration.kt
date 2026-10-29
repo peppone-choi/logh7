@@ -6,6 +6,8 @@ import java.util.concurrent.CompletableFuture
 
 fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
+    fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Budget is unavailable"))
     fun strategyAction(request:StrategyActionRequest):CompletableFuture<StrategyActionResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Strategy action is unavailable"))
     fun formOutfit(request:OutfitFormationRequest):CompletableFuture<OutfitFormationResult> =
@@ -30,6 +32,13 @@ fun interface GameAdministration {
     fun stationedOutfit(player: Navigator): Int = 0
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, private val galaxy: Galaxy) : GameAdministration {
+    override fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> {
+        val future=CompletableFuture<BudgetResult>()
+        scope.launch {try {
+            val result=CompletableDeferred<BudgetResult>();engine.submit(WorldCommand.Budget(request,result));future.complete(result.await())
+        } catch(failure:Throwable){future.completeExceptionally(failure)}}
+        return future
+    }
     private val baseOffices=BaseOfficeCards(galaxy)
     private val nationalOffices=NationalOfficePolicy(galaxy)
     private val logisticsOffices=LogisticsOfficePolicy(galaxy)

@@ -16,6 +16,20 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    /** Money is private to the actual finance office; public 031f has no treasury/rate field. */
+    @Synchronized fun budget(event:org.logh7.engine.BudgetChange,world:WorldBootstrap) {
+        val s=event.stocks;val offices=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
+        for(viewer in members.values.filter {it.player.generation==s.generation}) {
+            val base=s.bases[viewer.player.baseId] ?: continue;val power=viewer.character.power
+            if(base.power!=power || base.camp!=0)continue
+            val card=if(power==2)8 else 136;val role=org.logh7.engine.OrganizationOffices.all.getValue(card)
+            if((s.strategic.people[viewer.character.id.toInt()]?.rank ?: viewer.character.rank) !in role.ranks ||
+                offices.holders(s,card).none {it.character==viewer.character.id.toInt()})continue
+            send(viewer,org.logh7.protocol.BudgetMessages.update(viewer.character.id.toInt(),card,
+                org.logh7.protocol.BudgetMessages.View(base.baseId,s.nationalTreasuries[power] ?: 0,base.treasury,
+                    org.logh7.engine.BudgetActions.rate(s,base.baseId,event.defaultRate))))
+        }
+    }
     /** Durable local duties update existing public conditions and authorized stock/party views. */
     @Synchronized fun civic(event:org.logh7.engine.CivicChange,world:WorldBootstrap) {
         for(viewer in members.values.filter {it.player.generation==event.generation}) {

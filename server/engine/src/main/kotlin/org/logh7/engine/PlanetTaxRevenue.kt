@@ -33,7 +33,9 @@ data class PlanetTaxRevenueAssessment(
  * 세율/납입률 구분: docs/manual/07-command-table.md, docs/protocol/planet-tax.md.
  */
 internal object PlanetTaxRevenue {
-    fun assess(stock: PlanetStock, base: BaseCondition, policy: PlanetTaxRevenuePolicy): PlanetTaxRevenueAssessment {
+    fun assess(stock: PlanetStock, base: BaseCondition, policy: PlanetTaxRevenuePolicy,
+        remittanceRate:Int=policy.remittanceRate): PlanetTaxRevenueAssessment {
+        require(remittanceRate in 0..100)
         require(stock.baseId == base.baseId) { "Tax condition belongs to a different base" }
         // Old rows must be initialized by PlanetProduction at their existing watermark first.
         // Falling back to seed population here would silently undo recruitment/starvation.
@@ -43,7 +45,7 @@ internal object PlanetTaxRevenue {
         }
         val income = people.adults.toLong() * policy.incomePerAdultPerDay
         val collected = percentage(income, PlanetTax.effectiveRate(stock, base))
-        val central = percentage(collected, policy.remittanceRate)
+        val central = percentage(collected, remittanceRate)
         // Keep rounding remainder local so splitting cannot create or discard collected money.
         return PlanetTaxRevenueAssessment(income, collected, central, collected - central)
     }

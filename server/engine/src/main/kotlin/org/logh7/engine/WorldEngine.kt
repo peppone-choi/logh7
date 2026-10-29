@@ -24,6 +24,7 @@ sealed interface WorldCommand {
     data class DismissOffice(val request:OfficeDismissalRequest,val result:CompletableDeferred<OfficeDismissalResult>) : WorldCommand
     data class ResignOffice(val request:OfficeResignationRequest,val result:CompletableDeferred<OfficeResignationResult>) : WorldCommand
     data class Tax(val request: TaxRequest, val result: CompletableDeferred<TaxResult>) : WorldCommand
+    data class Budget(val request:BudgetRequest,val result:CompletableDeferred<BudgetResult>) : WorldCommand
     data class Reorganize(val request: ReorganizationRequest, val result: CompletableDeferred<ReorganizationResult>) : WorldCommand
     data class SupplyOutfit(val request: CompletenessSupplyRequest, val result: CompletableDeferred<CompletenessSupplyResult>) : WorldCommand
     data class TransferGround(val request: GroundTransferRequest, val result: CompletableDeferred<GroundTransferResult>) : WorldCommand
@@ -58,6 +59,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val tickPulse = Channel<Unit>(Channel.CONFLATED)
     private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
+    private val budgetObservers=java.util.concurrent.CopyOnWriteArrayList<(BudgetChange)->Unit>()
+    fun observeBudget(observer:(BudgetChange)->Unit):AutoCloseable {
+        budgetObservers+=observer;return AutoCloseable {budgetObservers.remove(observer)}
+    }
     private val civicObservers=java.util.concurrent.CopyOnWriteArrayList<(CivicChange)->Unit>()
     fun observeCivic(observer:(CivicChange)->Unit):AutoCloseable {
         civicObservers+=observer;return AutoCloseable {civicObservers.remove(observer)}
@@ -195,6 +200,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             SessionResults.fromWorld(galaxy,snapshot) else null
         published.set(snapshot.copy(result=result))
         val inventory=snapshot.planetStocks
+        if(inventory!=null && old!=null && old.generation==inventory.generation &&
+            (old.budget!=inventory.budget || old.nationalTreasuries!=inventory.nationalTreasuries ||
+                old.bases.any {(id,b)->b.treasury!=inventory.bases[id]?.treasury})) {
+            val bases=inventory.bases.keys.filter {old.bases[it]?.treasury!=inventory.bases[it]?.treasury ||
+                old.budget.remittanceRates[it]!=inventory.budget.remittanceRates[it]}.toSet()
+            val event=BudgetChange(inventory,bases,production?.defaultRemittanceRate ?: 50)
+            for(observer in budgetObservers)try {observer(event)}
+            catch(failure:Exception){System.err.println("Budget delivery failed: ${failure.javaClass.simpleName}")}
+        }
         if(inventory!=null && old!=null && old.generation==inventory.generation && old.civic!=inventory.civic) {
             val affected=(old.civic.orders.keys+inventory.civic.orders.keys).filter {old.civic.orders[it]!=inventory.civic.orders[it]}
                 .flatMap {id->listOfNotNull(old.civic.orders[id]?.base,inventory.civic.orders[id]?.base)}.toSet()
@@ -661,6 +675,32 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 }
                 continue
             }
+            if(command is WorldCommand.Budget) {
+                try {
+                    check(!storageFailed) {"World storage is unavailable"}
+                    val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
+                    val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                        politics=i.politics,administration=i.administration),session)
+                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    var result=BudgetActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,production.defaultRemittanceRate)
+                    if(result.changed) {
+                        if(worldStateCommitter==null)result=BudgetResult(recovered?.player,inventory,BudgetRejection.STORAGE)
+                        else {
+                            val after=checkNotNull(result.player);val before=checkNotNull(recovered?.player)
+                            val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
+                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation)+(i.account to after),prepared)
+                            navigation.publishCommitted(i.account,before,after);production.publishCommitted(inventory,prepared)
+                            result=result.copy(stocks=prepared)
+                        }
+                    }
+                    state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))
+                    publish(state);command.result.complete(result.copy(recovery=recovered))
+                } catch(failure:Exception) {
+                    if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if (command is WorldCommand.Tax) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
@@ -873,6 +913,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.DismissOffice -> error("Dismissal is handled before session commands")
                 is WorldCommand.ResignOffice -> error("Resignation is handled before session commands")
                 is WorldCommand.Tax -> error("Tax is handled before session commands")
+                is WorldCommand.Budget -> error("Budget is handled before session commands")
                 is WorldCommand.SupplyOutfit -> error("Supply is handled before session commands")
                 is WorldCommand.TransferGround -> error("Ground transfer is handled before session commands")
                 is WorldCommand.SupplementOutfit -> error("Supplement is handled before session commands")
