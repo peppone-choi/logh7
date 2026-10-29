@@ -155,6 +155,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
         durableState?.session?.generation ?: simulation.snapshot().generation) }
+    private val territory=galaxy?.let(::WorldTerritory)
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
     private var elapsed = initialElapsed
@@ -196,7 +197,37 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             return listOf(WorldEvent.Restarted(generation))
         }
         var storageFailure: Exception? = null
+        fun reconcileTerritory() {
+            if(storageFailed)return
+            val session=durableState?.session ?: simulation.exportState()
+            if(session.ended!=null)return
+            val inventory=production?.snapshot(session.generation) ?: return
+            val action=territory?.ending(inventory) ?: return
+            val events=if(durability!=null) {
+                val next=transitionSession(rules,checkNotNull(durableState),action)
+                check(!next.rejected) {"Derived territory result was rejected"}
+                // The world is already committed. A crash before this force is recovered by the
+                // same derivation on the first command; no new movement/join is accepted first.
+                try {durability.commit(action,next)} catch(failure:Exception) {
+                    storageFailure=failure;storageFailed=true;throw failure
+                }
+                durableState=next.state
+                state=next.state.snapshot(rules)
+                next.events
+            } else simulation.updateTerritory(action.systems,action.capitals).also {events->
+                if(events.isNotEmpty())restartAt=Math.addExact(elapsed,rules.restartDelayRealMillis)
+                state=state.copy(revision=Math.addExact(state.revision,1),session=simulation.snapshot())
+            }
+            state=state.copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=inventory)
+            publish(state)
+            events.forEach {event->try {onEvent(event)} catch(failure:Exception) {
+                System.err.println("Session end delivery failed: ${failure.javaClass.simpleName}")
+            }}
+        }
         try { for (queued in queue) { try {
+            try {reconcileTerritory()} catch(failure:Exception) {
+                storageFailure=failure;storageFailed=true
+            }
             val command = if(queued.advanceNow) WorldCommand.AdvanceTo(
                 maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
                     else durableState?.elapsed ?: elapsed)) else queued.command
@@ -570,9 +601,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if (command is WorldCommand.Navigate) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
-                    val session = durableState?.session ?: simulation.exportState()
+                    var session = durableState?.session ?: simulation.exportState()
                     val ownership = production?.settle(session.generation, session.gameMillis / 1000)
                     settleCombat(session,published.get())
+                    reconcileTerritory()
+                    session=durableState?.session ?: simulation.exportState()
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
                         TacticalGroundOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalPostureOperations.guard(command.request,session,navigation,
@@ -647,10 +680,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (command is WorldCommand.AdvanceTo) {
                         production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
                         settleCombat(next.state.session,next.state.snapshot(rules))
-                        navigation?.settleRetreats(next.state.session, production?.snapshot(next.state.session.generation))
+                        reconcileTerritory()
+                        val current=checkNotNull(durableState).session
+                        navigation?.settleRetreats(current, production?.snapshot(current.generation))
                     }
-                    publish(next.state.snapshot(rules).copy(navigators = navigation?.snapshot(next.state.session.generation).orEmpty(),
-                        planetStocks = production?.snapshot(next.state.session.generation)))
+                    val current=checkNotNull(durableState)
+                    publish(current.snapshot(rules).copy(navigators = navigation?.snapshot(current.session.generation).orEmpty(),
+                        planetStocks = production?.snapshot(current.session.generation)))
                     if (command is WorldCommand.Join) {
                         if (next.rejected) command.result.completeExceptionally(IllegalArgumentException("Invalid join"))
                         else command.result.complete(checkNotNull(next.admission))
@@ -676,6 +712,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     elapsed = command.elapsedRealMillis
                     if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot()))
+                    reconcileTerritory()
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
