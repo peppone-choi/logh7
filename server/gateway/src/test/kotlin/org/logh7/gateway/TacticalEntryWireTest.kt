@@ -50,8 +50,9 @@ class TacticalEntryWireTest {
             assertTrue(savedPlayers.getValue(fixture.account(0)).cpPaused)
             val second=fixture.join(fixture.account(1),true,false).client
             second.send(SyntheticClient.opcode(0x0f00));through(second,0x0f01)
-            val transition=ByteBuffer.wrap(through(first,0x0f1f))
-            assertEquals(1,transition.get(6).toInt());assertEquals(2487,transition.getInt(7))
+            // A peer arriving between 0f00 and 0f02 must not start another native
+            // model import before the own-character anchor exists. Strict expect rejects 0f1f.
+            first.request(SyntheticClient.opcode(0x0300),0x0301,"pending tactical bootstrap clock")
             first.send(SyntheticClient.opcode(0x0f02))
             // Initialization first sends the viewer's individual definition, followed by
             // the complete battlefield definition before the 0f03 acknowledgement.
@@ -143,6 +144,10 @@ class TacticalEntryWireTest {
             assertEquals(stationary.origin,stationary.pose(stationary.acceptedAt+10000))
             first.send(SyntheticClient.opcode(0x0f02));through(first,0x0f03)
             assertContentEquals(stopped,through(first,0x0400))
+            // Once 0f02 completed, later peer changes still request a fresh battlefield.
+            second.reset()
+            val transition=ByteBuffer.wrap(through(first,0x0f1f))
+            assertEquals(1,transition.get(6).toInt());assertEquals(2487,transition.getInt(7))
         }
     }
 }

@@ -4,7 +4,7 @@ import kotlin.math.atan2
 import kotlin.math.hypot
 
 /** Autonomous uncommanded ship units, not offline delegation or named original characters. Author: 최병호. */
-data class NpcTacticalPolicy(val enabled:Boolean=true,val sight:Float=500f,val engagementDistance:Float=2f) {
+data class NpcTacticalPolicy(val enabled:Boolean=true,val sight:Float=500f,val engagementDistance:Float=2f,val strategic:Boolean=false) {
     init { require(sight in 8f..1000f && engagementDistance in 1f..3f) }
 }
 data class NpcTacticalState(val motion:TacticalMotion,val nextDecisionAt:Long,val nextFireAt:Long,

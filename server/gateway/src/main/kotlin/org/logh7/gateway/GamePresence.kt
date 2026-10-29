@@ -136,6 +136,34 @@ class GamePresence {
                 send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)))
             }
     }
+    @Synchronized fun strategicMovement(event:org.logh7.engine.NpcStrategicMovement,
+        snapshot:org.logh7.engine.WorldSnapshot,world:WorldBootstrap,characterById:(Int)->CharacterMessages.Generate?) {
+        val audience=members.values.filter {it.player.generation==event.generation &&
+            event.recipients[it.character.id.toInt()]==it.connection}.toList()
+        for(previous in audience) {
+            val player=snapshot.navigators.values.singleOrNull {it.generation==event.generation &&
+                it.characterId==previous.character.id.toInt()} ?: continue
+            val member=previous.copy(player=player)
+            val updated=update(member,event.seconds)
+            val packets=mutableListOf<ByteArray>()
+            GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
+            if(player.grid==event.source && previous.player.cpPaused)event.units.chunked(255).forEach {
+                packets+=org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,event.destination,it)
+            }
+            if(player.grid==event.destination && player.cpPaused) {
+                if(!previous.player.cpPaused)packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,true)
+                else {
+                    val tactical=TacticalBootstrap(snapshot,world.galaxy,player,characterById)
+                    packets+=org.logh7.protocol.TacticsMessages.definitions(player.grid,tactical.units,tactical.groundDefinitions)
+                    packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
+                    packets+=org.logh7.protocol.TacticsMessages.states(tactical.units)
+                    packets+=org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation)
+                }
+            }
+            send(member,packets+updated.refresh)
+        }
+    }
+
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
         members.values.filter {it.player.generation==event.generation && event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->

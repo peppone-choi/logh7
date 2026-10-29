@@ -11,6 +11,7 @@ fun interface GameNavigation {
     fun observeTacticalEnds(observer:(TacticalEnd)->Unit):AutoCloseable = AutoCloseable {}
     fun observeCombat(observer: (TacticalImpact) -> Unit): AutoCloseable = AutoCloseable {}
     fun observeMovements(observer:(TacticalMovement)->Unit):AutoCloseable = AutoCloseable {}
+    fun observeStrategicMovements(observer:(NpcStrategicMovement)->Unit):AutoCloseable = AutoCloseable {}
     fun observeSupport(observer:(TacticalSupportResult)->Unit):AutoCloseable = AutoCloseable {}
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable = AutoCloseable {}
     fun observeGroundBattles(observer:(GroundBattleResult)->Unit):AutoCloseable = AutoCloseable {}
@@ -22,6 +23,7 @@ class EngineGameNavigation(private val engine: WorldEngine, private val scope: C
     override fun observeTacticalEnds(observer:(TacticalEnd)->Unit) = engine.observeTacticalEnds(observer)
     override fun observeCombat(observer: (TacticalImpact) -> Unit) = engine.observeCombat(observer)
     override fun observeMovements(observer:(TacticalMovement)->Unit) = engine.observeMovements(observer)
+    override fun observeStrategicMovements(observer:(NpcStrategicMovement)->Unit) = engine.observeStrategicMovements(observer)
     override fun observeSupport(observer:(TacticalSupportResult)->Unit) = engine.observeSupport(observer)
     override fun observeOccupations(observer:(BaseOccupation)->Unit) = engine.observeOccupations(observer)
     override fun observeGroundBattles(observer:(GroundBattleResult)->Unit) = engine.observeGroundBattles(observer)

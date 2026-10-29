@@ -193,13 +193,14 @@ internal object TacticalCombat {
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
         committer: WorldStateCommitter?, npcPolicy:NpcTacticalPolicy = NpcTacticalPolicy(enabled=false),
-        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {},onGround:(TacticalGroundResult)->Unit = {},onGroundBattle:(GroundBattleResult)->Unit = {},onOccupation:(BaseOccupation)->Unit = {}): List<TacticalImpact> {
+        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {},onGround:(TacticalGroundResult)->Unit = {},onGroundBattle:(GroundBattleResult)->Unit = {},onOccupation:(BaseOccupation)->Unit = {},onStrategicMovement:(NpcStrategicMovement)->Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
         val stocks = checkNotNull(production.snapshot(session.generation))
         clearFinishedOrders(players,galaxy,stocks,now)
         val movements=mutableListOf<TacticalMovement>()
+        val strategicMovements=mutableListOf<NpcStrategicMovement>()
         var inventory=if(session.ended==null)TacticalMotionProgress.advance(session,galaxy,players,stocks,movements) else stocks
         data class Due(val account:String,val shot:TacticalPendingFire,val automatic:Boolean=false)
         val due=original.mapNotNull { (account,p)->p.fire?.pending?.takeIf {it.firesAt<=now}?.let {Due(account,it)} }.toMutableList()
@@ -258,6 +259,7 @@ internal object TacticalCombat {
         if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts,scale)
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         if(npcPolicy.enabled && session.ended==null) {
+            if(npcPolicy.strategic)inventory=NpcStrategy.advance(session,galaxy,players,inventory,strategicMovements)
             inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)
         }
         val support=mutableListOf<TacticalSupportResult>()
@@ -276,6 +278,7 @@ internal object TacticalCombat {
         checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(players, prepared)
         navigation.publishCommitted(original, players, session.generation)
         production.publishCommitted(stocks, prepared)
+        strategicMovements.forEach(onStrategicMovement)
         movements.forEach(onMovement)
         support.forEach(onSupport)
         postures.forEach(onPosture)

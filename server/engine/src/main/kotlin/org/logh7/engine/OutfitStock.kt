@@ -43,7 +43,7 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
     val number: Int = 0, val supplies: Int = 0,
     val activeShips: ActiveShipUnits? = if (units.ships.isEmpty()) ActiveShipUnits(emptyList()) else null,
     val aideId: Int = 0, val staff: FleetStaff = FleetStaff(), val position: OutfitPosition? = null,
-    val activeGround:ActiveGroundUnits?=null) {
+    val activeGround:ActiveGroundUnits?=null, val strategy:NpcStrategicState?=null) {
     init {
         require(id > 0 && power in 2..3 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
         require(number in 0..255 && supplies >= 0)

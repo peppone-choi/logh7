@@ -65,11 +65,12 @@ class GameExchange(
     private var pendingJoin: CompletableFuture<Admission>? = null
     fun takePendingJoin(): CompletableFuture<Admission>? = pendingJoin.also { pendingJoin = null }
     private var pendingWorld: CompletableFuture<List<ByteArray>>? = null
-    private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean)
+    private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean,val stage:Int=0)
     private var publication: Publication? = null
     private var deliveredPlayer: org.logh7.engine.Navigator? = null
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
+    private var tacticalInitializationPending = false
     private var endingPrepared=false
     internal fun sessionEndingAvailable():Boolean {
         if(state!=State.AUTHENTICATED || !gameStarted || !worldInitialized || ticket?.purpose!=SessionTickets.Purpose.GAME)return false
@@ -191,7 +192,10 @@ class GameExchange(
                 if(changed) listOf(org.logh7.protocol.TacticsMessages.notify(it.player.grid,it.player.cpPaused)) else emptyList()
             }.orEmpty()
             if (update != null) deliveredPlayer = update.player
-            if (update?.initialize == true) worldInitialized = true
+            if (update?.initialize == true) {
+                worldInitialized = true
+                tacticalInitializationPending = update.player.cpPaused && update.stage != 0x0f02
+            }
             val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0), gameSeconds()) }
             val output = if (update?.initialize == true && shared != null) {
                 val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
@@ -207,8 +211,10 @@ class GameExchange(
     internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED || !gameStarted || obsolete() || sessionEndingAvailable()) null else {
             val output=tacticalPresence(messages)
-            presence?.observeMotions(connection,output)
-            handshake.stageAll(output, clearHeader = 0)
+            if(output.isEmpty())null else {
+                presence?.observeMotions(connection,output)
+                handshake.stageAll(output, clearHeader = 0)
+            }
         }
     }
     private fun tacticalPresence(messages: List<ByteArray>): List<ByteArray> {
@@ -222,6 +228,9 @@ class GameExchange(
         // A strategy presence transaction containing one peer would discard the battlefield
         // definitions while leaving 033b's unit states live (004c32a0 then imports stale data).
         if (messages.any { opcode(it) == 0x0b09 }) {
+            // A second transition while 0f00 is still loading can rebuild with a null
+            // own-character pointer (004b5bb0). The forthcoming 0f02 snapshot includes peers.
+            if (tacticalInitializationPending) return emptyList()
             // Native 0b0a also rebuilds live models (004c32a0(1)); use the native
             // tactical transition instead, then answer its 0f02 initialization request.
             return listOf(org.logh7.protocol.TacticsMessages.notify(player.grid, true))
@@ -1219,7 +1228,7 @@ class GameExchange(
                                 connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])
                             pendingWorld = stocks().thenCompose { stored -> navigation.apply(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
-                                publication = Publication(character, player, true)
+                                publication = Publication(character, player, true,opcode)
                                 val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(navigation.snapshot()),
                                     world.galaxy,player,characters::characterById) else null
                                 tacticalResumeGrid=tactical?.grid

@@ -70,6 +70,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var tacticalEndSubscription: AutoCloseable? = null
     private var combatSubscription: AutoCloseable? = null
     private var movementSubscription: AutoCloseable? = null
+    private var strategicMovementSubscription: AutoCloseable? = null
     private var occupationSubscription:AutoCloseable?=null
     private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
@@ -88,6 +89,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
+            navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
+        }}
         combatSubscription = presence?.let { p -> navigation!!.observeCombat { impact ->
             navigation.snapshot()?.let { snapshot -> p.combat(impact,snapshot,world!!.galaxy,currentCharacters()::characterById) }
         }}
@@ -234,6 +238,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         tacticalEndSubscription?.close()
         combatSubscription?.close()
         movementSubscription?.close()
+        strategicMovementSubscription?.close()
         groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close()
         postureSubscription?.close()
         supportSubscription?.close()

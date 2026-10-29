@@ -61,6 +61,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable {
         occupationObservers+=observer;return AutoCloseable {occupationObservers.remove(observer)}
     }
+    private val strategicMovementObservers=java.util.concurrent.CopyOnWriteArrayList<(NpcStrategicMovement)->Unit>()
+    fun observeStrategicMovements(observer:(NpcStrategicMovement)->Unit):AutoCloseable {
+        strategicMovementObservers+=observer;return AutoCloseable {strategicMovementObservers.remove(observer)}
+    }
     private val groundBattleObservers=java.util.concurrent.CopyOnWriteArrayList<(GroundBattleResult)->Unit>()
     fun observeGroundBattles(observer:(GroundBattleResult)->Unit):AutoCloseable {
         groundBattleObservers+=observer;return AutoCloseable {groundBattleObservers.remove(observer)}
@@ -108,18 +112,21 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         if (navigation == null || production == null || galaxy == null) return
         val before=navigation.snapshot(session.generation)
         val movements=mutableListOf<TacticalMovement>()
+        val strategicMovements=mutableListOf<NpcStrategicMovement>()
         val support=mutableListOf<TacticalSupportResult>()
         val postures=mutableListOf<TacticalPostureResult>()
         val ground=mutableListOf<TacticalGroundResult>()
         val groundBattles=mutableListOf<GroundBattleResult>()
         val occupations=mutableListOf<BaseOccupation>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add)
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         // Reconcile durable capital/session endings before observers can start a native
         // forced-undock transition that cannot finish once gameplay requests are frozen.
         afterCommit()
+        for(event in strategicMovements)for(observer in strategicMovementObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("NPC strategic movement delivery failed: ${failure.javaClass.simpleName}")}
         publishCombat(impacts)
         publishSupport(support)
         for(event in ground)for(observer in groundObservers)try {observer(event)}
