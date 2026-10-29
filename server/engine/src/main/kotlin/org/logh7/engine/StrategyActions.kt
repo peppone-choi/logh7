@@ -45,7 +45,7 @@ data class StrategyActionRequest(val account:String,val connection:String,val ch
 data class StrategicIdentity(val id:Int,val power:Int,val rank:Int,val origin:Int,val abilities:List<Int>) {
     init {require(id>0 && power in 2..3 && rank in 0..20 && abilities.size==8 && abilities.all {it in 0..255})}
 }
-enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET }
+enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET,CREW }
 data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:StrategyActionRejection?=null,
     val changed:Boolean=false,val recovery:NavigationResult?=null,val readyAt:Long=0,
     val navigators:Map<String,Navigator> = emptyMap())

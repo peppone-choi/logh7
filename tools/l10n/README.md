@@ -116,3 +116,14 @@ try { & ./gradlew.bat :gateway:test --tests org.logh7.gateway.KoreanLocalization
 ```
 
 `build.ps1`은 DLL과 guard를 함께 빌드/실행한다. 생성 문자열 전부의 Unicode 복원, 원문 불일치 시 거부, Windows 리소스의 작은 버퍼/DBCS 경계를 guard에서 확인한다. Gradle 검사는 실제 생성 단계·코덱·파일 재개방을 사용하며 실제 IME나 두 클라이언트 검증을 대신하지 않는다.
+
+두 번째 묶음(작성: 최병호, 2026-10-29)은 `E:/logh7/work/korean-stage2-wt`에 있다. 위 명령의 작업 경로/출력 경로만 새 작업 폴더로 바꾸고 새 출력 디렉터리를 쓴다. 현재 `work/catalog-stage2-02/coverage.json`은 고정 UI 137개를 포함한 4,843개·누락 0이다. Python 30개가 통과했으며 두 검사가 실제 CD의 표시 전용 CALL과 문자열 인자 전용 서식을 추가 대조한다. x86 guard의 새 이름 복원 검사는 아직 실행하지 않았다. 이미지 후보는 첫 묶음을 유지하며 이 작업에서 변경하지 않았다.
+
+```powershell
+Set-Location 'E:/logh7/work/korean-stage2-wt'
+& 'C:/Users/user/AppData/Local/Programs/Python/Python311/python.exe' -X utf8 -B -m unittest discover -s tools/l10n -p 'test_*.py' -v
+# 아래 빌드/실행은 메인 담당만 수행한다.
+& ./client-compat/build.ps1 -OutDir 'E:/logh7/work/korean-stage2-wt/work/korean-stage2-review'
+```
+
+미선정 정적 후보 원문/VA는 이 작업 폴더의 `work/remaining-static-stage2-01.json`이다. 원본과 일치하는 기존 후보 372개 중 이번 고정 UI에 없는 281개를 보존했으며 개발자 진단을 포함한다. 실제 화면/직접 오류창과 UTF-16 리터럴의 전체 누락 수를 뜻하지 않는다. 저작물 원문을 담은 이 파일은 `work/` 밖으로 옮기거나 커밋하지 않는다.

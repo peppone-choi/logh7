@@ -30,6 +30,7 @@ sealed interface WorldCommand {
     data class SupplementOutfit(val request: SupplementRequest, val result: CompletableDeferred<SupplementResult>) : WorldCommand
     data class AssignStock(val request: StockAssignmentRequest, val result: CompletableDeferred<StockAssignmentResult>) : WorldCommand
     data class StrategyAction(val request:StrategyActionRequest,val result:CompletableDeferred<StrategyActionResult>) : WorldCommand
+    data class FormOutfit(val request:OutfitFormationRequest,val result:CompletableDeferred<OutfitFormationResult>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -181,6 +182,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val origin = monotonicMillis()
     private var elapsed = initialElapsed
     private val logistics = OutfitLogistics(monotonicMillis)
+    private val formations=OutfitFormationService(monotonicMillis)
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
     private fun publish(snapshot:WorldSnapshot) {
@@ -263,6 +265,42 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val command = if(queued.advanceNow) WorldCommand.AdvanceTo(
                 maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
                     else durableState?.elapsed ?: elapsed)) else queued.command
+            if(command is WorldCommand.FormOutfit) {
+                try {
+                    check(!storageFailed) {"World storage is unavailable"}
+                    val r=command.request;val i=r.identity
+                    val session=durableState?.session ?: simulation.exportState()
+                    val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                        politics=i.politics,administration=i.administration),session)
+                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    val before=recovered?.player
+                    val base=r.base.takeIf {it>0} ?: before?.baseId ?: 0
+                    val scope=inventory.outfits.values.filter {it.baseId==base}.map {it.id}.toSet()+
+                        (if(r.phase==FormationPhase.DELETE)setOf(r.target) else emptySet())
+                    var result=if(r.phase!=FormationPhase.CANCEL && logistics.blocksSupply(session,inventory,scope))
+                        OutfitFormationResult(before,inventory,StrategyActionRejection.BUSY,base=base)
+                    else formations.evaluate(checkNotNull(galaxy),r.copy(identity=i.copy(
+                        navigators=checkNotNull(navigation).snapshot(session.generation))),session,before,inventory)
+                    if(result.changed) {
+                        if(worldStateCommitter==null)result=OutfitFormationResult(before,inventory,StrategyActionRejection.STORAGE,base=base)
+                        else {
+                            val after=checkNotNull(result.player)
+                            val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
+                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation)+(i.account to after),prepared)
+                            navigation.publishCommitted(i.account,checkNotNull(before),after)
+                            production.publishCommitted(inventory,prepared)
+                            formations.complete(r)
+                            result=result.copy(stocks=prepared)
+                        }
+                    }
+                    state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))
+                    publish(state);command.result.complete(result.copy(recovery=recovered))
+                } catch(failure:Exception) {
+                    if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if(command is WorldCommand.StrategyAction) {
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
@@ -313,6 +351,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val before = recovered?.player
                     val result = run assignment@{
                         fun reject(reason: LogisticsRejection) = StockAssignmentResult(before, inventory, reason)
+                        if(formations.blocksBase(session,request.base))return@assignment reject(LogisticsRejection.BUSY)
                         if (before == null) return@assignment reject(LogisticsRejection.IDENTITY)
                         if (worldStateCommitter == null) return@assignment reject(LogisticsRejection.STORAGE)
                         val transfer = try { StockAssignment.transfer(request, inventory) }
@@ -642,10 +681,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
                     val session = durableState?.session ?: simulation.exportState()
-                    val result = logistics.apply(command.request, session,
+                    val inventory=checkNotNull(production) { "World production is disabled" }
+                    val base=inventory.snapshot(session.generation)?.outfits?.get(command.request.outfitId)?.baseId ?: 0
+                    val result = if(command.request.mode==LogisticsMode.ALLOCATION && command.request.phase!=LogisticsPhase.CANCEL &&
+                        formations.blocksBase(session,base))LogisticsResult(rejection=LogisticsRejection.BUSY)
+                    else logistics.apply(command.request, session,
                         navigation?.snapshot(session.generation)?.get(command.request.account),
-                        checkNotNull(production) { "World production is disabled" })
-                    state = published.get().copy(planetStocks = production.snapshot(session.generation))
+                        inventory)
+                    state = published.get().copy(planetStocks = inventory.snapshot(session.generation))
                     publish(state)
                     command.result.complete(result)
                 } catch (failure: Exception) {
@@ -818,6 +861,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.Reorganize -> error("Reorganization is handled before session commands")
                 is WorldCommand.AssignStock -> error("Stock assignment is handled before session commands")
                 is WorldCommand.StrategyAction -> error("Strategy action is handled before session commands")
+                is WorldCommand.FormOutfit -> error("Outfit formation is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

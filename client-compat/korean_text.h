@@ -39,6 +39,28 @@ inline const char* koreanStaticResource(const char* original) {
     if (address>0xffffffffu) return original;
     return koreanResource(65535,static_cast<unsigned>(address>>16),static_cast<unsigned>(address&0xffff),original);
 }
+// These five original formats contain only narrow string arguments. Never
+// walk arbitrary printf arguments (integers/doubles/wide strings differ).
+struct KoreanStringFormat { uintptr_t address; uint64_t hash; unsigned bytes,arguments; };
+static constexpr KoreanStringFormat koreanStringFormats[]={
+    {0x76ccf4,0x11aa7f4d5bedd4d5ULL,4,2},
+    {0x771e08,0x07b53d07b4815e69ULL,2,1},
+    {0x788a24,0xd8588373263ac73bULL,5,2},
+    {0x78c40c,0x7f64b1e64970ca8aULL,28,3},
+    {0x7887d0,0x98e0ee7f12a6a7fcULL,24,3}
+};
+inline unsigned koreanFormatStringArguments(uintptr_t address,const char* format) {
+    if (!format) return 0;
+    for (const auto& row:koreanStringFormats) {
+        if (row.address!=address) continue;
+        if (strlen(format)!=row.bytes) return 0;
+        uint64_t hash=14695981039346656037ULL;
+        for (const auto* p=reinterpret_cast<const unsigned char*>(format);*p;++p)
+            hash=(hash^*p)*1099511628211ULL;
+        return hash==row.hash ? row.arguments : 0;
+    }
+    return 0;
+}
 inline void restoreKoreanGlyphs(wchar_t* text) {
     if (!text) return;
     for (; *text; ++text) {

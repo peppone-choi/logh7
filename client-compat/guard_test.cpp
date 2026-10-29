@@ -59,6 +59,43 @@ static bool tacticalWeaponSelectionTest() {
     selection.clear();if (selection.targetKind(2,1)!=1) return false;
     selection.select(0x24);selection.select(0);return selection.targetKind(2,1)==1;
 }
+static bool displayNameTest() {
+    std::string stored="unchanged";
+    std::wstring decoded;
+    const wchar_t* sample=L"한글日本ABC %／※";
+    if (!logh::storeDisplayName(sample,stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=sample) return false;
+    if (!logh::storeDisplayName(L"",stored) || !logh::japaneseFragment(stored.c_str(),decoded) || !decoded.empty()) return false;
+    for (unsigned ch=0xac00;ch<=0xd7a3;++ch) {
+        wchar_t name[]={static_cast<wchar_t>(ch),0};
+        if (!logh::storeDisplayName(name,stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=name) return false;
+    }
+    std::wstring maximum(27,L'힣'),tooLong(28,L'힣');
+    if (!logh::storeDisplayName(maximum.c_str(),stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=maximum) return false;
+    std::string saved=stored;
+    wchar_t bad[]={0xd800,L'A',0};
+    if (logh::storeDisplayName(tooLong.c_str(),stored) || logh::storeDisplayName(bad,stored) ||
+        logh::storeDisplayName(nullptr,stored) || stored!=saved) return false;
+    std::wstring literal=L"\x1eL7U:AC00\x1f";
+    if (!logh::storeDisplayName(literal.c_str(),stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=literal) return false;
+    if (!logh::storeDisplayName(L"주인 한글",stored)) return false;
+    auto second=stored;
+    if (!logh::storeDisplayName(L"손님日本",stored)) return false;
+    std::string joined=second+" / "+stored;
+    if (!logh::japaneseFragment(joined.c_str(),decoded) || decoded!=L"주인 한글 / 손님日本") return false;
+    for (const auto* malformed:{L"\x1eL7U:0000\x1f",L"\x1eL7U:D800\x1f",L"\x1eL7U:AC0\x1f",L"\x1eL7U:ZZZZ\x1f",L"\x1eL7U:AC00"}) {
+        std::wstring text=L"\x1eL7U:AC00\x1f";text+=malformed;auto before=text;
+        if (logh::restoreDisplayNames(text) || text!=before) return false;
+    }
+    wchar_t buffer[64]={};wcscpy_s(buffer,L"\x1eL7U:AC00\x1f");buffer[63]=L'Z';
+    if (!logh::restoreDisplayNames(buffer) || wcscmp(buffer,L"가") || buffer[63]!=L'Z') return false;
+    if (logh::koreanFormatStringArguments(0x76ccf4,"%s%s")!=2 ||
+        logh::koreanFormatStringArguments(0x771e08,"%s")!=1 ||
+        logh::koreanFormatStringArguments(0x788a24,"%s %s")!=2 ||
+        logh::koreanFormatStringArguments(0x76ccf4,"%d%s") ||
+        logh::koreanFormatStringArguments(0x1234,"%s%s") ||
+        logh::koreanFormatStringArguments(0x76ccf4,nullptr)) return false;
+    return true;
+}
 static bool tacticalNoticesTest() {
     const char* missing = "NO DATA";
     const char* valid = "existing guidance";
@@ -243,6 +280,7 @@ static bool sessionEndingDataTest() {
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 int wmain(int argc, wchar_t** argv) {
+    if (!displayNameTest()) return 250;
     const char* battleship="\x90\xed\x8a\xcd";
     const char* translated=logh::koreanResource(85,0,battleship);
     std::wstring korean;

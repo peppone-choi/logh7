@@ -21,7 +21,8 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val groundBattles:Map<Int,Long> = emptyMap(), val nationalTreasuries:Map<Int,Long> = emptyMap(),
     val strategic:StrategicState = StrategicState(),
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
-    val flagshipMarket:FlagshipMarketState=FlagshipMarketState()) {
+    val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
+    val outfitSequence:OutfitSequence=OutfitSequence()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)

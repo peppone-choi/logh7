@@ -1132,6 +1132,53 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.OutfitFormationMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.OutfitFormationMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account))
+                                require(q.character==character.id.toInt())
+                                val request=org.logh7.engine.OutfitFormationRequest(org.logh7.engine.StrategyActionRequest(
+                                    identity.account,connection,q.character,
+                                    if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),q.command,q.card,character.rank,
+                                    politics=character.abilities[1],administration=character.abilities[2]),
+                                    org.logh7.engine.FormationPhase.entries[q.phase],q.base,
+                                    org.logh7.engine.OutfitKind.entries.single {it.wire==q.kind},q.target,q.unit,q.amount)
+                                pendingWorld=administration.formOutfit(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val inventory=checkNotNull(result.stocks)
+                                    val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    if(result.changed) {
+                                        for(id in result.affected.filter {it!=q.character})currentCharacterById(id)?.let {target ->
+                                            navigation?.snapshot()?.navigators?.values?.singleOrNull {it.characterId==id}?.let {targetPlayer ->
+                                                presence?.refreshCharacter(target,targetPlayer,offices(target,targetPlayer),gameSeconds(),
+                                                    administration.stationedOutfit(targetPlayer))
+                                            }
+                                        }
+                                        presence?.refreshOutfits(world,inventory,player.grid,connection)
+                                    }
+                                    val directory=result.rejection==null && !result.changed && q.phase !in setOf(3,4,6)
+                                    val rows=if(directory)result.items.map {item ->
+                                        val name=if(q.command==26)inventory.outfits.getValue(item.code).let {
+                                            "${when(it.kind){org.logh7.engine.OutfitKind.FLEET->"함대";org.logh7.engine.OutfitKind.TRANSPORT->"수송";
+                                                org.logh7.engine.OutfitKind.PATROL->"순찰";org.logh7.engine.OutfitKind.GROUND->"육전"}} ${it.number}"
+                                        } else org.logh7.engine.OutfitFormationPolicy.stack(item.code).let {(troop,stack) ->
+                                            val label=if(troop)org.logh7.engine.UnitSpecifications.crews.single {it.kind==stack.kind}.manual.unit
+                                                else org.logh7.engine.UnitSpecifications.ships.single {it.kind==stack.kind}.name
+                                            "${KoreanDisplayNames.catalogue(label).take(8)} ${stack.level}급"
+                                        }
+                                        org.logh7.protocol.OutfitFormationMessages.Row(item.code,name.take(12),item.available,item.selected)
+                                    } else null
+                                    org.logh7.protocol.OutfitFormationMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,
+                                        result.changed,if(result.changed)result.outfit else result.lease,result.base,result.supplies,result.crew,rows)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        (if(result.changed)listOf(world.outfits(listOf(result.outfit),inventory),
+                                            world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory),
+                                            world.warehouse(result.base,inventory)) else emptyList())+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
                             if(org.logh7.protocol.StrategyActionMessages.matches(body)) {
                                 check(administration!=null)
                                 val query=org.logh7.protocol.StrategyActionMessages.query(body)

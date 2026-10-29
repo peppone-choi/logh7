@@ -161,6 +161,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "tactical_weapon.h"
 #include "tactical_radar.h"
 #include "korean_resources.h"
+#include "display_hooks.h"
 
 #include "tactical_base_ui.h"
 
@@ -609,6 +610,7 @@ static void install() {
     if (!installKoreanResources()) { status = -3; return; }
 
     if (!installTacticalBaseUi()) { status = -3; return; }
+    if (!installDisplayNames()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};

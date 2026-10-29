@@ -15,7 +15,8 @@ import org.logh7.protocol.LogisticsMessages
 class WorldBootstrap(val galaxy: Galaxy) {
     private val officeCards=org.logh7.engine.OrganizationOffices.all.mapValues {(_,role)->
         val commands=buildList {
-            addAll(WorldMessages.commandsForCard(role.card))
+            addAll(WorldMessages.commandsForCard(role.card).filter {it !in 25..26})
+            if(org.logh7.engine.OutfitFormationPolicy.kinds(role.card).isNotEmpty())addAll(listOf(25,26))
             when(role.card) {
                 1->addAll(listOf(0,1,2,3,8,9))
                 17,135->addAll(listOf(0,1,2,4))
@@ -58,7 +59,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun outfitParty(query: OutfitPartyMessages.Query, power: Int, stocks: org.logh7.engine.PlanetStocks,
         editor: Int = 0, characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate? = { null }): ByteArray {
         require(query.mode in 0..1) { "Unsupported outfit roster query mode" }
-        val outfit = requireNotNull(stocks.outfits[query.outfit]) { "Unknown outfit" }
+        val outfit = stocks.outfits[query.outfit] ?: return LoginMessages.sessionMessage(0x032f,
+            OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0))
         val position = outfit.positionIn(galaxy)
         require(outfit.power == power && (query.base == 0 || query.base == position.baseId)) { "Outfit identity mismatch" }
         val owner=stocks.bases.getValue(outfit.baseId)
@@ -90,7 +92,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
      * No command or CP mutation; actual saved carriers, remote bases and unresolved legacy locations survive. */
     fun outfitGround(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks):List<ByteArray> {
         require(query.mode==2 && query.base in 0..999999)
-        val outfit=requireNotNull(stocks.outfits[query.outfit])
+        val outfit=stocks.outfits[query.outfit] ?: return listOf(LoginMessages.sessionMessage(0x032f,
+            OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0)),
+            LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(emptyList())))
         require(outfit.power==power) {"Ground location access denied"}
         val position=outfit.positionIn(galaxy)
         val rows=outfit.activeGround?.values.orEmpty().filter {it.id>query.base}.sortedBy {it.id}.take(70).map {u->
@@ -140,7 +144,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
         units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { LogisticsMessages.TroopStock(1000+it.key.kind,it.key.level,it.value) })
     fun outfitWarehouse(base: Int, outfitId: Int, character: Int, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
-        val outfit = requireNotNull(stocks.outfits[outfitId]) { "Unknown outfit" }
+        val outfit = stocks.outfits[outfitId] ?: return LoginMessages.sessionMessage(0x0327,
+            WorldMessages.warehouse(base,0,0,0,outfit=outfitId))
         require(outfit.baseId == base && outfit.power == power) { "Outfit warehouse identity mismatch" }
         val owner = stocks.bases.getValue(base)
         require(owner.power == power && owner.camp == 0) { "Outfit warehouse base access denied" }

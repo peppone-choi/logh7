@@ -8,6 +8,8 @@ fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
     fun strategyAction(request:StrategyActionRequest):CompletableFuture<StrategyActionResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Strategy action is unavailable"))
+    fun formOutfit(request:OutfitFormationRequest):CompletableFuture<OutfitFormationResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Formation is unavailable"))
     fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Appointment is unavailable"))
     fun dismissOffice(request:OfficeDismissalRequest):CompletableFuture<OfficeDismissalResult> =
@@ -31,6 +33,16 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
     private val baseOffices=BaseOfficeCards(galaxy)
     private val nationalOffices=NationalOfficePolicy(galaxy)
     private val logisticsOffices=LogisticsOfficePolicy(galaxy)
+    override fun formOutfit(request:OutfitFormationRequest):CompletableFuture<OutfitFormationResult> {
+        val future=CompletableFuture<OutfitFormationResult>()
+        scope.launch {
+            try {
+                val result=CompletableDeferred<OutfitFormationResult>()
+                engine.submit(WorldCommand.FormOutfit(request,result));future.complete(result.await())
+            } catch(failure:Throwable){future.completeExceptionally(failure)}
+        }
+        return future
+    }
     override fun strategyAction(request:StrategyActionRequest):CompletableFuture<StrategyActionResult> {
         val future=CompletableFuture<StrategyActionResult>()
         scope.launch {

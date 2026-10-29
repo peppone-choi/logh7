@@ -94,7 +94,7 @@ class CatalogueTest(unittest.TestCase):
         self.assertFalse([row for row in missing if row['file']=='constmsg.dat'])
         self.assertFalse(missing)
         self.assertEqual(1437,sum(0<row.get('table',0)<65533 for row in rows))
-        self.assertEqual(116,sum(row.get('table')==65535 for row in rows))
+        self.assertEqual(137,sum(row.get('table')==65535 for row in rows))
         self.assertEqual(124,sum(row.get('table')==65533 for row in rows))
         self.assertEqual(20,len(coverage))
         self.assertEqual(0,coverage['messages_com_0.dat']['untranslated'])

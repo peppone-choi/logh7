@@ -3,6 +3,7 @@
 #pragma once
 #include "korean_text.h"
 #include "korean_windows.h"
+#include "display_text.h"
 
 static int (WINAPI* originalKoreanLoadString)(HINSTANCE,UINT,LPSTR,int)=nullptr;
 static int WINAPI loadKoreanWindowsString(HINSTANCE instance,UINT id,LPSTR buffer,int capacity) {
@@ -18,19 +19,24 @@ static BYTE koreanDecodeTrampoline[8+5];
 static BYTE koreanLoadTrampoline[10+5];
 static BYTE koreanFormatTrampoline[8+5];
 static const void* koreanFormatResume=koreanFormatTrampoline;
-static const char* __cdecl translateStaticKoreanText(const char* text) {
+static const char* __cdecl translateStaticKoreanText(const char* text,const char** arguments) {
+    const unsigned count=logh::koreanFormatStringArguments(reinterpret_cast<uintptr_t>(text),text);
+    for (unsigned i=0;i<count;++i) arguments[i]=logh::koreanStaticResource(arguments[i]);
     return logh::koreanStaticResource(text);
 }
 static void __declspec(naked) formatKoreanStaticText() {
     // 646616 is cdecl (CString*, format, ...). Change only the format pointer,
-    // retain the caller's argument stack, registers, flags and native FormatV.
+    // The five verified all-string formats may also localize exact static
+    // argument pointers; heap/player strings and other varargs stay unchanged.
     __asm {
         pushfd
         pushad
         mov eax, dword ptr [esp+44]
+        lea edx, dword ptr [esp+48]
+        push edx
         push eax
         call translateStaticKoreanText
-        add esp, 4
+        add esp, 8
         mov dword ptr [esp+44], eax
         popad
         popfd
@@ -80,6 +86,7 @@ static wchar_t* __cdecl decodeKoreanResource(const char* text) {
     // locale. Only our private replacement glyphs are remapped after decoding.
     auto wide = reinterpret_cast<wchar_t*(__cdecl*)(const char*)>(koreanDecodeTrampoline+0)(logh::koreanStaticResource(text));
     logh::restoreKoreanGlyphs(wide);
+    logh::restoreDisplayNames(wide);
     return wide;
 }
 static bool installKoreanResources() {

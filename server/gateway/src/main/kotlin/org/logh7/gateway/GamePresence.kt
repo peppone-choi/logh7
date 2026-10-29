@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.logh7.engine.Navigator
+import org.logh7.engine.positionIn
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.ChatMessages
@@ -440,6 +441,15 @@ class GamePresence {
             player.spotOwner,player.returnBase,offices))+
             (if(next.outfit!=previous.outfit) listOf(BootstrapMessages.unit(next.character.copy(shipKind=player.hull?.kind ?: next.character.shipKind),player.grid,player.cruise,
                 player.baseId,player.mode,next.outfit,player.supplies,if(player.hull?.hp?.let {it<100}==true)1 else 0)) else emptyList())+updated.refresh)
+    }
+    /** Existing native directory refresh; no guessed original create/delete notification. */
+    @Synchronized fun refreshOutfits(world:WorldBootstrap,stocks:org.logh7.engine.PlanetStocks,grid:Int,except:String) {
+        for(viewer in members.values.filter {it.connection!=except && it.player.generation==stocks.generation && it.player.grid==grid}) {
+            val power=viewer.character.power
+            val ids=stocks.outfits.values.filter {it.power==power && it.positionIn(world.galaxy).grid==grid}.map {it.id}
+            send(viewer,ids.chunked(100).map {world.outfits(it,stocks)}+
+                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks))
+        }
     }
     @Synchronized fun remove(connection: String) {
         motionPaths.keys.removeIf { it.first==connection }
