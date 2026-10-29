@@ -5,7 +5,7 @@ import kotlinx.coroutines.channels.Channel
 import java.util.concurrent.atomic.AtomicReference
 
 data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val session: SessionSnapshot? = null, val rejectedCommands: Long = 0,
-    val navigators: Map<String, Navigator> = emptyMap(), val planetStocks: PlanetStocks? = null)
+    val navigators: Map<String, Navigator> = emptyMap(), val planetStocks: PlanetStocks? = null, val result:SessionResult?=null)
 sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
@@ -163,7 +163,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
     private fun publish(snapshot:WorldSnapshot) {
-        published.set(snapshot)
+        val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
+            SessionResults.fromWorld(galaxy,snapshot) else null
+        published.set(snapshot.copy(result=result))
         val session=durableState?.session ?: simulation.exportState()
         val personal=snapshot.navigators.values.asSequence().filter {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.hull!=null}
             .mapNotNull {it.motion?.takeIf {m->m.grid==it.grid}}

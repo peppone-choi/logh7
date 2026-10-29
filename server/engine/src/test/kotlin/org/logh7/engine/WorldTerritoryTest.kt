@@ -115,6 +115,10 @@ class WorldTerritoryTest {
         assertEquals(2,inventory.value.bases.getValue(1004).power)
         assertEquals(EndReason.CAPITAL_CAPTURED,engine.snapshot().session!!.ended!!.reason)
         assertEquals(1,saved)
+        val report=assertNotNull(engine.snapshot().result)
+        assertEquals(engine.snapshot().session!!.ended,report.end)
+        assertEquals(SessionGrade.LIMITED,report.powers.getValue(Power.EMPIRE).grade)
+        assertEquals(SessionGrade.DEFEAT,report.powers.getValue(Power.ALLIANCE).grade)
         assertTrue(store.actions[0] is SessionAction.Advance)
         assertTrue(store.actions[1] is SessionAction.Territory)
     }
@@ -125,6 +129,6 @@ class WorldTerritoryTest {
         assertEquals(Admission.ENDED,join.await())
         assertEquals(EndReason.SYSTEMS_REDUCED,engine.snapshot().session!!.ended!!.reason)
         engine.submit(WorldCommand.AdvanceTo(rules.restartDelayRealMillis));engine.drainAndClose()
-        assertEquals(2,engine.snapshot().session!!.generation);assertNull(engine.snapshot().session!!.ended)
+        assertEquals(2,engine.snapshot().session!!.generation);assertNull(engine.snapshot().session!!.ended);assertNull(engine.snapshot().result)
     }
 }
