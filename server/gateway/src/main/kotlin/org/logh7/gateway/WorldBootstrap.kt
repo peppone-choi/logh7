@@ -17,6 +17,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val commands=buildList {
             addAll(WorldMessages.commandsForCard(role.card).filter {it !in 25..26})
             if(org.logh7.engine.OutfitFormationPolicy.kinds(role.card).isNotEmpty())addAll(listOf(25,26))
+            if(role.card in org.logh7.engine.CivicActions.commandingCards)addAll(listOf(52,54,56))
             when(role.card) {
                 1->addAll(listOf(0,1,2,3,8,9))
                 17,135->addAll(listOf(0,1,2,4))

@@ -23,12 +23,16 @@ object StrategyActionMessages {
         val personnel=command in setOf(0,1,2,3,4,8,9)
         val operation=command in 22..24
         val market=command==96
+        val civic=command in setOf(52,54,55,56)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,48,50,53,61,84,85,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,48,50,52,53,54,55,56,61,84,85,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
         require(!preview || personnel || command==24 || market)
         if(!operation && !market)require(argument==0 && amount==0)
-        if(personnel)require((preview || target>0) && (command in setOf(3,4) || value==0) &&
+        if(civic)require(!preview && value in 0..2 && base==0 && argument==0 && amount==0 &&
+            card in setOf(39,44,47,50,59,175,180,183,186,195) &&
+            (if(command==55)target==0 && card in setOf(59,195) else value!=0 || target>0))
+        else if(personnel)require((preview || target>0) && (command in setOf(3,4) || value==0) &&
             (if(command in setOf(8,9))base in 0..65535 else base==0))
         else if(operation)require((preview || target in 0..4999) && if(command==22)value in 0..2 && amount>0 && argument in 0..127 && base==0
             else value==0 && amount==0 && argument==0 && (if(command==24)!preview && base>0 || preview && base==0 else base==0))
@@ -42,10 +46,19 @@ object StrategyActionMessages {
             if(personnel || operation || market)target else 0,base,value,preview,amount,argument)
     }
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
-    fun response(q:Query,status:Int,changed:Boolean?=null):List<ByteArray> {
+    data class CivicStatus(val phase:Int,val outfit:Int,val base:Int,val readyAt:Long,val effect:Int)
+    fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null):List<ByteArray> {
         require(status in 0..65535)
         val payload=q.raw.copyOf();ByteBuffer.wrap(payload).putShort(10,status.toShort())
         if(!q.preview && changed!=null)payload[16]=(if(changed)2 else 3).toByte()
+        if(civic!=null && status==0) {
+            require(q.command in setOf(52,54,55,56) && civic.phase in -1..5 && civic.outfit>=0 && civic.base in 0..65535 &&
+                civic.readyAt in 0..0xffffffffL && civic.effect in 0..65535)
+            val buffer=ByteBuffer.wrap(payload)
+            payload[16]=(if(civic.phase<0)3 else 10+civic.phase).toByte()
+            buffer.putInt(12,civic.outfit);buffer.putInt(17,civic.readyAt.toInt());buffer.putShort(21,civic.effect.toShort())
+            buffer.putInt(23,civic.base)
+        }
         return listOf(LoginMessages.sessionMessage(0x1200,payload),LoginMessages.sessionMessage(0x1201,byteArrayOf()))
     }
     fun candidates(q:Query,characters:List<AppointmentDirectoryMessages.Person>):List<ByteArray> {

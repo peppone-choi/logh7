@@ -69,7 +69,7 @@ class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? =
     private fun detached(value: PlanetStocks?) = value?.copy(bases = value.bases.toMap(), outfits = value.outfits.toMap(),
         warehouses = value.warehouses.toMap(), logisticsOfficers = value.logisticsOfficers.toMap(),
         strategic=value.strategic.detached(),tacticalCommands=value.tacticalCommands.detached(),
-        flagshipMarket=value.flagshipMarket.detached())
+        flagshipMarket=value.flagshipMarket.detached(),civic=value.civic.detached())
 
     @Synchronized fun loadNavigation(): Map<String, Navigator> { check(!closed); return players.toMap() }
     @Synchronized fun loadStocks(): PlanetStocks? { check(!closed); return detached(stocks) }

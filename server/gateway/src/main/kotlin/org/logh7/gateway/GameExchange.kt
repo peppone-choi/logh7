@@ -1231,7 +1231,8 @@ class GameExchange(
                                     checkNotNull(generation),query.command,query.card,character.rank,query.outfit,
                                     character.abilities[1],character.abilities[2],query.target,query.base,query.value,
                                     identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),id.power,
-                                        id.rank,id.origin,id.abilities.toList())},amount=query.amount.toLong(),argument=query.argument)).thenApply {result ->
+                                    id.rank,id.origin,id.abilities.toList())},amount=query.amount.toLong(),argument=query.argument,
+                                    requestToken=java.nio.ByteBuffer.wrap(query.raw).getShort(27).toInt() and 65535)).thenApply {result ->
                                     val player=checkNotNull(result.player)
                                     val updated=checkNotNull(currentCharacter(identity.account))
                                     publication=Publication(updated,player,false)
@@ -1243,8 +1244,20 @@ class GameExchange(
                                                 administration.stationedOutfit(targetPlayer))
                                         }
                                     }
-                                    org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
+                                    val civic=if(query.command in org.logh7.engine.CivicActions.supported)
+                                        org.logh7.protocol.StrategyActionMessages.CivicStatus(result.civic?.phase?.ordinal ?: -1,
+                                            result.civic?.outfit ?: 0,result.civic?.base ?: player.baseId,
+                                            result.civic?.readyAt ?: 0,result.civic?.effect ?: 0) else null
+                                    val civicOutfit=result.civic?.outfit?.let {result.stocks?.outfits?.get(it)}?.takeIf {outfit ->
+                                        outfit.power==character.power && outfit.members().all {currentCharacterById(it)?.power==character.power}}
+                                    org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,civic)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        (if(civic!=null && civic.base>0)listOf(world.conditions(listOf(civic.base),result.stocks))+
+                                            (if(result.stocks?.bases?.get(civic.base)?.let {it.power==character.power && it.camp==0}==true)
+                                                listOf(world.warehouse(civic.base,result.stocks)) else emptyList())+
+                                            (if(civicOutfit!=null)
+                                                listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(civicOutfit.id,0,0),
+                                                    character.power,checkNotNull(result.stocks),character.id.toInt(),::currentCharacterById)) else emptyList()) else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }
                                 return null

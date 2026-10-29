@@ -58,6 +58,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val tickPulse = Channel<Unit>(Channel.CONFLATED)
     private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
+    private val civicObservers=java.util.concurrent.CopyOnWriteArrayList<(CivicChange)->Unit>()
+    fun observeCivic(observer:(CivicChange)->Unit):AutoCloseable {
+        civicObservers+=observer;return AutoCloseable {civicObservers.remove(observer)}
+    }
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
     private val occupationObservers=java.util.concurrent.CopyOnWriteArrayList<(BaseOccupation)->Unit>()
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable {
@@ -176,7 +180,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
-        durableState?.session?.generation ?: simulation.snapshot().generation) }
+        durableState?.session?.generation ?: simulation.snapshot().generation,{generation->navigation?.snapshot(generation)?.values}) }
     private val territory=galaxy?.let(::WorldTerritory)
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
@@ -186,9 +190,18 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
     private fun publish(snapshot:WorldSnapshot) {
+        val old=published.get().planetStocks
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
             SessionResults.fromWorld(galaxy,snapshot) else null
         published.set(snapshot.copy(result=result))
+        val inventory=snapshot.planetStocks
+        if(inventory!=null && old!=null && old.generation==inventory.generation && old.civic!=inventory.civic) {
+            val affected=(old.civic.orders.keys+inventory.civic.orders.keys).filter {old.civic.orders[it]!=inventory.civic.orders[it]}
+                .flatMap {id->listOfNotNull(old.civic.orders[id]?.base,inventory.civic.orders[id]?.base)}.toSet()
+            val event=CivicChange(inventory.generation,inventory,affected)
+            for(observer in civicObservers)try {observer(event)}
+            catch(failure:Exception){System.err.println("Civic delivery failed: ${failure.javaClass.simpleName}")}
+        }
         val session=durableState?.session ?: simulation.exportState()
         val personal=snapshot.navigators.values.asSequence().filter {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.hull!=null}
             .mapNotNull {it.motion?.takeIf {m->m.grid==it.grid}}
@@ -212,7 +225,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val aiDeadlines=snapshot.planetStocks?.let {stocks->snapshot.navigators.mapNotNull {(account,p)->
             if(TacticalOfflineAi.eligible(session,account,p,stocks))maxOf(session.gameMillis/1000+rules.speed,
                 stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0) else null}}.orEmpty()
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -311,7 +325,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
                         navigators=checkNotNull(navigation).snapshot(session.generation)),session,recovered?.player,inventory)
-                    if(result.rejection==null && request.outfit>0 && logistics.blocksSupply(session,inventory,setOf(request.outfit)))
+                    val civicReadOrCancel=request.command in CivicActions.supported && request.value!=0
+                    if(!civicReadOrCancel && result.rejection==null && request.outfit>0 && logistics.blocksSupply(session,inventory,setOf(request.outfit)))
                         result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.BUSY)
                     if(result.rejection==null && request.command==24 && request.card !in setOf(30,171) &&
                         logistics.blocksSupply(session,inventory,setOf(request.base)))
@@ -762,6 +777,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             checkNotNull(production.snapshot(session.generation)), worldStateCommitter) { outfit ->
                             logistics.blocksMovement(session, outfit)
                         } else NavigationResult(null, rejection = NavigationRejection.DISABLED)
+                    // Revalidate local duties immediately after committed movement, including spot
+                    // departures. A failed invalidation blocks later commands; restart sees the saved departure.
+                    production?.settle(session.generation,session.gameMillis/1000)
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production?.snapshot(session.generation))
                     publish(state)

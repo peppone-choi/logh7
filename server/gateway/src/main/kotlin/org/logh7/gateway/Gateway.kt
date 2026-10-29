@@ -77,6 +77,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var postureSubscription:AutoCloseable? = null
     private var tacticalCommandSubscription:AutoCloseable? = null
     private var supportSubscription: AutoCloseable? = null
+    private var civicSubscription:AutoCloseable?=null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
     fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress,
@@ -88,6 +89,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         val presence = if (world != null && navigation != null) GamePresence() else null
         tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
+        civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
@@ -247,6 +249,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         postureSubscription?.close()
         tacticalCommandSubscription?.close()
         supportSubscription?.close()
+        civicSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
         finally { try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() } }
     }

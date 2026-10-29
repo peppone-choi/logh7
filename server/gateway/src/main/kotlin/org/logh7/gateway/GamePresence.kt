@@ -2,6 +2,7 @@ package org.logh7.gateway
 
 import org.logh7.engine.Navigator
 import org.logh7.engine.positionIn
+import org.logh7.engine.members
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.ChatMessages
@@ -15,6 +16,25 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    /** Durable local duties update existing public conditions and authorized stock/party views. */
+    @Synchronized fun civic(event:org.logh7.engine.CivicChange,world:WorldBootstrap) {
+        for(viewer in members.values.filter {it.player.generation==event.generation}) {
+            val visible=event.bases.filter {base->world.galaxy.bases.single {it.id==base}.grid==viewer.player.grid}
+            if(visible.isEmpty())continue
+            val packets=visible.chunked(4).map {world.conditions(it,event.stocks)}.toMutableList()
+            for(base in visible.filter {it==viewer.player.baseId && event.stocks.bases.getValue(it).let {b->b.power==viewer.character.power && b.camp==0}})
+                packets+=world.warehouse(base,event.stocks)
+            for(outfit in event.stocks.outfits.values.filter {it.baseId in visible && viewer.character.id.toInt() in it.members() &&
+                it.power==viewer.character.power}) {
+                val characters=members.values.associateBy {it.character.id.toInt()}
+                // Offline member names require the ordinary query path; don't synthesize them.
+                if(outfit.members().all {it in characters})packets+=world.outfitParty(
+                    org.logh7.protocol.OutfitPartyMessages.Query(outfit.id,0,0),viewer.character.power,event.stocks,
+                    characterById={characters[it]?.character})
+            }
+            send(viewer,packets)
+        }
+    }
     private val motionPaths = java.util.concurrent.ConcurrentHashMap<Pair<String,Int>,Int>()
     /** Track the path actually queued for each native client, including truncated reconnect paths. */
     internal fun observeMotions(connection:String,messages:List<ByteArray>) {

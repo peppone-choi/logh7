@@ -22,7 +22,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val strategic:StrategicState = StrategicState(),
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
     val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
-    val outfitSequence:OutfitSequence=OutfitSequence()) {
+    val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -34,6 +34,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
         require(nationalTreasuries.all {(power,balance)->power in 2..3 && balance>=0}) { "Invalid national treasury" }
         require(flagshipMarket.offers.all {it.base in bases}) {"Unknown flagship exchange base"}
+        require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -53,7 +54,8 @@ data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumSto
 
 /** World-actor-owned. Lazy settlement gives the same result regardless of query frequency or logins. */
 internal class PlanetProduction(private val galaxy: Galaxy, private val store: PlanetStockStore?,
-    private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1) {
+    private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1,
+    private val civicPlayers:(Long)->Collection<Navigator>? = {null}) {
     private val units = UnitProduction(galaxy, policy.units, policy.economy, policy.maximumStock)
     private val deployment = InitialOutfitDeployment(galaxy)
     private var current = store?.load()?.also { restored ->
@@ -76,7 +78,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)),
         nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)),
         strategic=stocks.strategic.detached(),tacticalCommands=stocks.tacticalCommands.detached(),
-        flagshipMarket=stocks.flagshipMarket.detached())
+        flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached())
     val maximumStock: Int get() = policy.maximumStock
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
@@ -107,7 +109,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 }
                 next
             }, nationalTreasuries=national)
-        val settled=StrategyActions.settle(result,seconds,galaxy)
+        val settled=CivicActions.settle(galaxy,StrategyActions.settle(result,seconds,galaxy),seconds,civicPlayers(generation))
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.

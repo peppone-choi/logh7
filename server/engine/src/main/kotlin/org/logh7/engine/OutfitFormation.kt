@@ -139,7 +139,8 @@ object OutfitFormationPolicy {
         if(ships.values.any {it.damaged>0 || it.support!=null || it.shot!=null || it.attack!=null || it.reload!=null ||
                 it.tactical?.retreat!=null || it.posture?.order!=null} || ground.any {it.order!=null || it.strength<1000 ||
                 it.base==0 && it.carrier==0 || it.base>0 && it.base!=r.base} || outfit.strategy?.destination!=null ||
-            stocks.strategic.suppressions.any {it.outfit==outfit.id} || stocks.strategic.operations.any {it.live && outfit.id in it.outfits} ||
+            stocks.strategic.suppressions.any {it.outfit==outfit.id} || stocks.civic.active.any {it.outfit==outfit.id} ||
+            stocks.strategic.operations.any {it.live && outfit.id in it.outfits} ||
             stocks.tacticalCommands.orders.any {it.command.units.any {id->id in removed} || it.command.target in removed} ||
             stocks.tacticalCommands.air.values.any {it.source in removed || it.target in removed})return reject(StrategyActionRejection.BUSY)
         val members=outfit.members().toSet()+stocks.strategic.offices.filter {

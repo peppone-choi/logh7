@@ -10,10 +10,10 @@ static struct StrategyDirectory {
 static unsigned strategyRequestToken=0;
 static bool operationStrategy(unsigned command) {return command>=22 && command<=24;}
 static bool personnelStrategy(unsigned command) {return command<=4 || command==8 || command==9;}
-static bool armyStrategy(unsigned command) {return command==48 || command==50 || command==53;}
+static bool armyStrategy(unsigned command) {return command==48 || command==50 || command==52 || command==53 || command==54 || command==56;}
 static bool outfitStrategy(unsigned command,unsigned card) {return armyStrategy(command) || (command==61 && card!=59 && card!=195);}
 static bool strategyActionCommand(unsigned command) {
-    return personnelStrategy(command) || operationStrategy(command) || command==25 || command==26 || armyStrategy(command) || command==61 || command==84 || command==85 || command==96;
+    return personnelStrategy(command) || operationStrategy(command) || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96;
 }
 static const wchar_t* strategyActionName(unsigned command) {
     switch(command) {
@@ -23,6 +23,7 @@ static const wchar_t* strategyActionName(unsigned command) {
     case 25:return L"부대 결성";case 26:return L"부대 해산";
     case 48:return L"육전 훈련";case 50:return L"육전 전술 훈련";
     case 53:return L"무력 진압";case 84:return L"퇴역";case 85:return L"지원";
+    case 52:return L"경계 출동";case 54:return L"분열행진";case 55:return L"특별경비";case 56:return L"징발";
     case 61:return L"완전수리";case 96:return L"기함 구매 · 교환";
     default:return L"전략 명령";
     }
@@ -56,13 +57,15 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
 #include "outfit_formation.h"
+#include "civic_actions.h"
 static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if(!own || !at<BYTE>(own,0) || at<void*>(manager,0x18) || *reinterpret_cast<void**>(0x21aa888)!=own || !createTaxWindow())return 0;
     logh::CharacterCards cards;if(!logh::CharacterCards::read(own,0x370,cards))return 0;
     bool held=false;for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)held=true;
     unsigned formationValues[4]={};unsigned formationCount=formationKinds(card,formationValues);
-    if(!held || (formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
+    bool civicCard=card==59 || card==195 || card==39 || card==44 || card==47 || card==50 || card==175 || card==180 || card==183 || card==186;
+    if(!held || (civicCommand(command) ? !civicCard || command==55 && card!=59 && card!=195 : formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
         (command==84 ? card!=0 : card!=59 && card!=195)))return 0;
     closePlanetInformation();auto& state=taxWindow;
     state.world=world;state.character=at<unsigned>(own,0x24);state.card=card;
@@ -71,14 +74,18 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     state.strategyAmount=1;state.strategyArgument=0;state.strategyToken=0;
     state.visible=true;state.loaded=true;state.pending=false;strategyDirectory={};
     formationWindow={};if(formationStrategy(command))formationWindow.kind=formationValues[0];
+    civicWindow={-1,0,0,0,GetTickCount64()};
     state.acceptAfter=GetTickCount64()+250;state.message=L"실행을 누르면 서버가 권한·위치·CP를 확인합니다.";
     unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
     if(outfitStrategy(command,card) && count)state.strategyOutfit=outfits[0];
     if(command==61 && card!=59 && card!=195)for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)state.strategyOutfit=cards.rows[i].target;
+    if(civicArmy(command) && card!=59 && card!=195)for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)state.strategyOutfit=cards.rows[i].target;
+    if(civicCommand(command))updateCivicAction();
     if(formationStrategy(command))drawOutfitFormation();
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(state.root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(state.manager,state.root);
     if(personnelStrategy(command) || command==24 || command==96)sendStrategyAction(true);
+    if(civicCommand(command))sendCivicAction(2);
     return 1;
 }
 static void strategyNextBase(int direction) {
@@ -187,6 +194,7 @@ static bool updateStrategyAction(void*) {
         !at<BYTE>(world,0x2b6a6c) || at<BYTE>(world,0x3579cc)) {closeTaxWindow();return false;}
     if(operationStrategy(state.strategyCommand))return updateStrategyOperation();
     if(formationStrategy(state.strategyCommand))return updateOutfitFormation();
+    if(civicCommand(state.strategyCommand))return updateCivicAction();
     if(state.strategyCommand==96)return updateFlagshipMarket();
     unsigned command=state.strategyCommand;unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
     if(command==61 && state.card!=59 && state.card!=195) {
@@ -247,7 +255,8 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
         auto& state=taxWindow;
         if(state.visible && state.strategyActive && state.pending && at<unsigned>(record,0)==state.character &&
             at<unsigned short>(record,6)==state.strategyCommand && at<unsigned short>(record,32)==state.strategyToken) {
-            if(at<BYTE>(record,16)==1)strategyDirectory.receiving=true;
+            if(civicCommand(state.strategyCommand))readCivicAction(record);
+            else if(at<BYTE>(record,16)==1)strategyDirectory.receiving=true;
             else {
                 state.pending=false;
                 unsigned responseStatus=at<unsigned short>(record,10);
