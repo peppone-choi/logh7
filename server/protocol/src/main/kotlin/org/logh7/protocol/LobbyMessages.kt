@@ -9,9 +9,11 @@ object LobbyMessages {
     fun loginOk() = LoginMessages.sessionMessage(0x2001, byteArrayOf(0, 0, 0))
     fun noCharacters() = LoginMessages.sessionMessage(0x2004, byteArrayOf(0))
     /** 0043fd60: session information, next-session count, entry state, charged character summary. */
-    fun characters(character: CharacterMessages.Generate?): ByteArray {
+    fun characters(character: CharacterMessages.Generate?,
+        information:SessionEndingMessages.Session?=null,evaluation:SessionEndingMessages.Evaluation?=null): ByteArray {
+        require(evaluation==null || information?.ending!=null)
         if (character == null) return noCharacters()
-        val out = ByteBuffer.allocate(512)
+        val out = ByteBuffer.allocate(1024)
         fun u8(value: Int) { out.put(value.toByte()) }
         fun string(value: String) {
             require(value.length <= 12)
@@ -19,7 +21,7 @@ object LobbyMessages {
             u8(value.length + 1); (value + '\u0000').forEach(out::putChar)
         }
         u8(1)
-        val session = sessions()
+        val session = sessions(information=information)
         out.put(session, 8, session.size - 8) // shared InformationSession record, excluding result/count
         u8(0); u8(2); u8(1) // no next session, existing-character entry state, one charged character
         out.putInt(character.id.toInt()); u8(character.power); u8(0); u8(if (character.generated) 1 else 0)
@@ -27,11 +29,14 @@ object LobbyMessages {
         out.putInt(Math.multiplyExact(character.age, CharacterMessages.AGE_SECONDS_PER_YEAR)); u8(0)
         character.abilities.forEach { out.putShort(it.toShort()) }
         string(character.surname); string(character.givenName); string(character.surname); string(""); string(character.shipName)
-        u8(character.origin); u8(character.rank); out.putInt(character.face); u8(0) // no ending
+        u8(character.origin); u8(character.rank); out.putInt(character.face); u8(if(evaluation==null)0 else 1)
+        evaluation?.let {out.put(SessionEndingMessages.evaluation(it))}
         return LoginMessages.sessionMessage(0x2004, out.array().copyOf(out.position()))
     }
-    fun sessions(selectable: Boolean = true): ByteArray {
+    fun sessions(selectable: Boolean = true,information:SessionEndingMessages.Session?=null): ByteArray {
         if (!selectable) return LoginMessages.sessionMessage(0x2006, byteArrayOf(0, 0))
+        if(information!=null) return LoginMessages.sessionMessage(0x2006,
+            byteArrayOf(0,1)+SessionEndingMessages.information(information))
         val output = ByteBuffer.allocate(128)
         output.put(0).put(1) // result, session count
         output.putShort(LOCAL_SESSION_ID.toShort()).put(1) // selectable session status (client accepts 1 or 2)

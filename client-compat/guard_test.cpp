@@ -189,6 +189,18 @@ static bool sessionEndingDataTest() {
     record[0x3d8]=3;if(data.read(record))return false;record[0x3d8]=2;
     if(data.read(nullptr) || data.read(record,0x433))return false;
     record[0x40a]=255;if(!data.read(record) || data.sides[0].grade!=255)return false;
+    BYTE lobby[0x6d8]={};lobby[0]=1;
+    memcpy(lobby+4,record+0x2e8,0x14c);memcpy(lobby+0x2a4,&id,4);lobby[0x2a8]=2;
+    lobby[0x2a0]=2;lobby[0x2a1]=1;lobby[0x358]=1;
+    if(!data.readLobby(lobby,sizeof(lobby),0) || data.character!=id || data.sides[0].grade!=255 || data.total.planets!=16)return false;
+    if(data.readLobby(lobby,0x36b,0) || data.readLobby(lobby,sizeof(lobby),1) || data.readLobby(nullptr,0,0))return false;
+    lobby[0]=2;memcpy(lobby+0x36c+4,lobby+4,0x368);
+    lobby[0x36c+0x2a8]=3;
+    if(!data.readLobby(lobby,sizeof(lobby),1) || data.power!=3)return false;
+    for(unsigned offset:{0u,0x2a0u,0x2a1u,0x358u}) {
+        BYTE before=lobby[offset];lobby[offset]=4;
+        if(data.readLobby(lobby,sizeof(lobby),0))return false;lobby[offset]=before;
+    }
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 int wmain(int argc, wchar_t** argv) {

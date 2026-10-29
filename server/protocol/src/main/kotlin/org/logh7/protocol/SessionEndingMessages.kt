@@ -20,10 +20,20 @@ object SessionEndingMessages {
     fun ended(character:CharacterMessages.Generate,evaluation:Evaluation,session:Session,
         pcp:Int,mcp:Int,spot:Int=0,spotOwner:Int=0,returnBase:Int=0,
         offices:List<BootstrapMessages.OfficeCard> = emptyList()):ByteArray {
-        require(session.powers.map {it.power}.toSet()==setOf(2,3) && session.powers.size==2)
         val prefix=BootstrapMessages.character(character,pcp,mcp,spot,spotOwner,returnBase,offices)
-        val out=ByteBuffer.allocate(prefix.size+1024)
-        out.put(prefix,6,prefix.size-6)
+        val body=prefix.copyOfRange(6,prefix.size)+evaluation(evaluation)+information(session)
+        return LoginMessages.sessionMessage(0x035a,body)
+    }
+    /** Shared charged-character ending, also present in lobby 2004. No native padding. */
+    fun evaluation(value:Evaluation):ByteArray {
+        val values=listOf(value.previousEvaluation,value.finalEvaluation,value.previousFame,value.finalFame)
+        require(values.all {it in 0..0xffffffffL} && value.friendship in 0..255)
+        return ByteBuffer.allocate(17).also {out->values.forEach {out.putInt(it.toInt())};out.put(value.friendship.toByte())}.array()
+    }
+    /** Shared InformationSession record used by 035a, 2004 and 2006. */
+    fun information(session:Session):ByteArray {
+        require(session.powers.map {it.power}.toSet()==setOf(2,3) && session.powers.size==2)
+        val out=ByteBuffer.allocate(1024)
         fun u8(value:Int) {require(value in 0..255);out.put(value.toByte())}
         fun u16(value:Int) {require(value in 0..65535);out.putShort(value.toShort())}
         fun u32(value:Long) {require(value in 0..0xffffffffL);out.putInt(value.toInt())}
@@ -37,8 +47,6 @@ object SessionEndingMessages {
         fun statistics(value:Statistics) {
             u16(value.planets);u16(value.fortresses);u32(value.population);u32(value.ships);u32(value.troops)
         }
-        u32(evaluation.previousEvaluation);u32(evaluation.finalEvaluation)
-        u32(evaluation.previousFame);u32(evaluation.finalFame);u8(evaluation.friendship)
         u16(session.id);u8(session.state);string(session.name,12);string(session.beginDay,64);u32(session.gameSeconds)
         // Exactly two regular-power records, no count or native alignment bytes.
         session.powers.sortedBy {it.power}.forEach {power->
@@ -52,6 +60,6 @@ object SessionEndingMessages {
         }
         u8(if(session.ending==null)0 else 1)
         session.ending?.let(::statistics)
-        return LoginMessages.sessionMessage(0x035a,out.array().copyOf(out.position()))
+        return out.array().copyOf(out.position())
     }
 }

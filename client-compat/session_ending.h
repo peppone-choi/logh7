@@ -2,7 +2,7 @@
 // The 035a handler otherwise only hides the HUD. Author: 최병호.
 #pragma once
 #include "session_ending_data.h"
-static struct {void* world=nullptr;void* root=nullptr;void* gui=nullptr;bool active=false;ULONGLONG acceptAfter=0;logh::SessionEndingData data;} sessionEnding;
+static struct {void* world=nullptr;void* root=nullptr;void* gui=nullptr;bool active=false;bool lobby=false;ULONGLONG acceptAfter=0;logh::SessionEndingData data;} sessionEnding;
 // Reuse allocated table labels. Native lookup does not bounds-check categories/slots;
 // its button table has only 120 slots, and 108..110 belong to the directory scrollbar.
 static constexpr int endingControl(int id) {return id==132 ? 26 : 40+id-110;}
@@ -59,8 +59,8 @@ static bool showSessionEnding(void* gui) {
         endingText(128+static_cast<int>(i),x,414,294,text);
     }
     endingText(130,184,450,640,L"평가·명성 보상은 아직 확정되지 않았습니다.");
-    endingText(131,184,486,520,L"다음 세션 준비 후 다시 접속해 주세요.");
-    endingText(132,720,477,100,L"게임 종료",true);
+    endingText(131,184,486,520,sessionEnding.lobby ? L"종료된 세션의 저장된 결과입니다." : L"다음 세션 준비 후 다시 접속해 주세요.");
+    endingText(132,720,477,100,sessionEnding.lobby ? L"돌아가기" : L"게임 종료",true);
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);
     sessionEnding.root=root;sessionEnding.gui=gui;sessionEnding.acceptAfter=GetTickCount64()+500;return true;
@@ -76,7 +76,7 @@ static bool updateSessionEnding(void* gui) {
     if(!sessionEnding.active)return false;
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
     auto own=world ? at<BYTE*>(world,8) : nullptr;
-    if(world!=sessionEnding.world || !own || at<unsigned>(own,0x24)!=sessionEnding.data.character) {
+    if(world!=sessionEnding.world || (!sessionEnding.lobby && (!own || at<unsigned>(own,0x24)!=sessionEnding.data.character))) {
         if(sessionEnding.root && sessionEnding.gui==gui)reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(sessionEnding.root,0);
         sessionEnding={};return false;
     }
@@ -86,6 +86,10 @@ static bool updateSessionEnding(void* gui) {
     BYTE event[52]={};
     if(sessionEnding.root && GetTickCount64()>=sessionEnding.acceptAfter && reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
         (sessionEnding.root,2,planetWidget(endingControl(132)),event,0)) {
+        if(sessionEnding.lobby) {
+            reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(sessionEnding.root,0);
+            sessionEnding={};return true;
+        }
         HWND window=GetActiveWindow();DWORD owner=0;if(window)GetWindowThreadProcessId(window,&owner);
         if(owner==GetCurrentProcessId())PostMessageW(window,WM_CLOSE,0,0);
     }
@@ -97,9 +101,41 @@ static bool updateSessionEnding(void* gui) {
 static void __cdecl sessionEndingFrame(void* gui) {
     if(!updateSessionEnding(gui))reinterpret_cast<void(__cdecl*)(void*)>(0x54bb50)(gui);
 }
+// The native charged-character picker disables rows when session status is not 1/2.
+// Ended rows open this read-only local view, never request a playable server ticket.
+static unsigned __fastcall lobbyEndingFrame(void* controller,void*) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto gui=at<void*>(controller,12);
+    if(sessionEnding.active && sessionEnding.lobby) {
+        if(at<unsigned>(controller,4)==0x2a && updateSessionEnding(gui))return 0;
+        if(sessionEnding.root)reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(sessionEnding.root,0);
+        sessionEnding={};
+    }
+    if(world && gui && at<unsigned>(controller,4)==0x2a) {
+        auto root=at<void*>(gui,4+0x35*4);
+        if(root)for(unsigned i=0;i<2;++i) {
+            logh::SessionEndingData data;
+            if(!data.readLobby(world+0x35975c,0x6d8,i))continue;
+            auto widget=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(root,1,2+i);
+            if(!widget)continue;
+            reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(root,widget,1);
+            BYTE event[52]={};
+            if(reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(root,2,widget,event,0)) {
+                sessionEnding={};sessionEnding.world=world;sessionEnding.data=data;sessionEnding.active=true;sessionEnding.lobby=true;
+                updateSessionEnding(gui);return 0;
+            }
+        }
+    }
+    return reinterpret_cast<unsigned(__thiscall*)(void*)>(0x51a370)(controller);
+}
 static bool installSessionEnding() {
-    const BYTE expected[]={0xe8,0x17,0xcc,0xff,0xff};BYTE call[5]={0xe8};
-    auto address=reinterpret_cast<BYTE*>(0x54ef34);
-    *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&sessionEndingFrame)-address-5);
-    return patchBytes(address,expected,call,5);
+    const unsigned addresses[]={0x54ef34,0x4b698a};
+    const BYTE expected[][5]={{0xe8,0x17,0xcc,0xff,0xff},{0xe8,0xe1,0x39,0x06,0x00}};
+    const void* functions[]={&sessionEndingFrame,&lobbyEndingFrame};
+    for(unsigned i=0;i<2;++i)if(memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5))return false;
+    for(unsigned i=0;i<2;++i) {
+        BYTE call[5]={0xe8};auto address=reinterpret_cast<BYTE*>(addresses[i]);
+        *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(static_cast<const BYTE*>(functions[i])-address-5);
+        if(!patchBytes(address,expected[i],call,5))return false;
+    }
+    return true;
 }

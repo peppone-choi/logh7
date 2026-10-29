@@ -12,6 +12,16 @@ struct SessionEndingData {
     static EndingStatistics statistics(const unsigned char* p) {
         return {infoShort(p,0),infoShort(p,2),infoWord(p,4),infoWord(p,8),infoWord(p,12)};
     }
+    // Decoded lobby 2004: up to two 0x36c-byte records, each including a charged character.
+    // Its InformationSession at +4 has the same padded layout as 035a at +0x2e8.
+    bool readLobby(const unsigned char* p,size_t length,unsigned index) {
+        if(!p || !p[0] || p[0]>2 || index>=p[0] || length<(index+1)*0x36c)return false;
+        auto q=p+index*0x36c;
+        if(q[0x2a0]!=2 || q[0x2a1]!=1 || q[0x358]>1)return false;
+        unsigned char record[0x434]={};
+        memcpy(record,q+0x2a4,4);record[4]=q[0x2a8];memcpy(record+0x2e8,q+4,0x14c);
+        return read(record);
+    }
     bool read(const unsigned char* p,size_t length=0x434) {
         if(!p || length!=0x434 || !infoWord(p,0) || (p[4]!=2 && p[4]!=3) ||
             p[0x2ea]<3 || p[0x2ea]>5 || p[0x2eb]>13 || p[0x420]>1)return false;

@@ -11,9 +11,15 @@ internal object SessionEndingReport {
     private fun flag(value:Boolean?)=when(value){true->1;false->0;null->255}
     fun message(world:WorldSnapshot,character:CharacterMessages.Generate,player:Navigator,
         registered:List<CharacterMessages.Generate>,offices:List<BootstrapMessages.OfficeCard>):ByteArray {
-        val result=checkNotNull(world.result);val session=checkNotNull(world.session)
-        require(player.generation==session.generation && result.end==session.ended && character.id==player.characterId.toLong())
+        val session=checkNotNull(world.session)
+        require(player.generation==session.generation && character.id==player.characterId.toLong())
         require(character.power in 2..3 && player.power==if(character.power==2)Power.EMPIRE else Power.ALLIANCE)
+        // No award is granted here. The compatibility result panel labels evaluation/fame as pending.
+        return SessionEndingMessages.ended(character,SessionEndingMessages.Evaluation(0,0,0,0,0),session(world,registered),
+            player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices)
+    }
+    fun session(world:WorldSnapshot,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
+        val result=checkNotNull(world.result);require(result.end==checkNotNull(world.session).ended)
         val powers=Power.entries.map {side->
             val power=if(side==Power.EMPIRE)2 else 3
             val report=result.powers.getValue(side)
@@ -26,10 +32,7 @@ internal object SessionEndingReport {
                     statistics(report.statistics)))
         }
         val status=when(result.end.reason){EndReason.CAPITAL_CAPTURED->3;EndReason.SYSTEMS_REDUCED->4;EndReason.TIME_LIMIT->5}
-        val ending=SessionEndingMessages.Session(LobbyMessages.LOCAL_SESSION_ID,status,LobbyMessages.LOCAL_SESSION_NAME,
+        return SessionEndingMessages.Session(LobbyMessages.LOCAL_SESSION_ID,status,LobbyMessages.LOCAL_SESSION_NAME,
             "",result.end.gameSeconds,powers,statistics(result.total))
-        // No award is granted here. The compatibility result panel labels evaluation/fame as pending.
-        return SessionEndingMessages.ended(character,SessionEndingMessages.Evaluation(0,0,0,0,0),ending,
-            player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices)
     }
 }

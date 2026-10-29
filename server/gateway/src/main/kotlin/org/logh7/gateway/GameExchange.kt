@@ -1247,7 +1247,18 @@ class GameExchange(
                 }
             } else when (opcode) {
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
-                0x2003 -> { check(lobbyLoggedIn && body.size == 2); LobbyMessages.characters(if (admission?.running == false) null else currentCharacter(identity.account)) }
+                0x2003 -> {
+                    check(lobbyLoggedIn && body.size==2)
+                    val character=characters.character(identity.account)
+                    val snapshot=navigation?.snapshot()
+                    // Lobby accounts may inspect their own ended character without joining,
+                    // changing CP/navigation, or obtaining a playable ended-session ticket.
+                    if(characters!==characterProvider())LobbyMessages.noCharacters()
+                    else if(character!=null && snapshot?.result!=null && snapshot.session?.generation==admission?.generation)
+                        LobbyMessages.characters(character,SessionEndingReport.session(snapshot,characters.registeredCharacters()),
+                            org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0))
+                    else LobbyMessages.characters(if(admission?.running==false)null else character)
+                }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2); LobbyMessages.sessions(admission?.running != false) }
                 0x2009 -> {
                     check(lobbyLoggedIn)
