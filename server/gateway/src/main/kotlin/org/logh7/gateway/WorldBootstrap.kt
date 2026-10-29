@@ -163,7 +163,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             stored?.food ?: state.food, stored?.mineral ?: 100_000, warehouseShips(stored?.units?.ships,stored?.spareShips?.values.orEmpty()), entries(stored?.units?.troops)))
     }
     internal fun baseWire(base: org.logh7.engine.GalaxyBase) = WorldMessages.Base(base.id, base.grid,
-        base.model, base.kind, base.name, base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
+        base.model, base.kind, KoreanDisplayNames.base(base.name), base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
     fun initialize(grid: Int, directory: Boolean = false, stocks: org.logh7.engine.PlanetStocks? = null): List<ByteArray> {
         val ids = galaxy.bases.filter { it.grid == grid }.map { it.id }
         // 004b76e0 builds the native standing-outfit cache after initialization
@@ -214,7 +214,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             val missile = org.logh7.engine.TacticalArmaments.mount(ship, org.logh7.engine.TacticalWeapon.MISSILE)
             // 004c5d50/00533980 use native +0x21e as the shared 0..19
             // class index, not the provisional hull-role IDs in ship.type.
-            WorldMessages.Ship(ship.kind, ship.category, ship.model, ship.name,
+            WorldMessages.Ship(ship.kind, ship.category, ship.model, KoreanDisplayNames.catalogue(ship.name),
                 ship.number("出力:出力"), ship.number("索敵範囲（万km）:索敵範囲（万km）").toFloat(),
                 ship.number("最高速度（km/1G秒）:最高速度（km/1G秒）").toFloat(),
                 ship.number("装甲:前"), ship.number("装甲:側"), ship.number("装甲:後"),

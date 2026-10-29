@@ -209,7 +209,7 @@ class StockAssignmentWireTest {
                 if(permitted) {
                     assertEquals(1049,reply.getInt(7))
                     assertEquals(2487,reply.getShort(11).toInt())
-                    assertEquals("オーディン\u0000", String(ByteArray(reply.get(15).toInt()*2).also { reply.position(16);reply.get(it) }, Charsets.UTF_16BE))
+                    assertEquals("오딘\u0000", String(ByteArray(reply.get(15).toInt()*2).also { reply.position(16);reply.get(it) }, Charsets.UTF_16BE))
                 }
                 client.expect(0x1201)
                 assertEquals(before,state.stocks);assertEquals(saves,state.saves)

@@ -6,6 +6,7 @@
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
+#include "korean_windows.h"
 #include "portrait_label.h"
 #include "roster_text.h"
 #include "spot_name.h"
@@ -205,6 +206,30 @@ static bool sessionEndingDataTest() {
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 int wmain(int argc, wchar_t** argv) {
+    const char* battleship="\x90\xed\x8a\xcd";
+    const char* translated=logh::koreanResource(85,0,battleship);
+    std::wstring korean;
+    if (translated==battleship || !logh::japaneseFragment(translated,korean) || korean!=L"전함" ||
+        strcmp(logh::koreanResource(85,0,"modified catalogue"),"modified catalogue") ||
+        logh::koreanResource(999,0,battleship)!=battleship ||
+        logh::koreanResource(85,0,nullptr)!=nullptr) return 82;
+    const char* error="\x83\x47\x83\x89\x81\x5b";
+    if (!logh::japaneseFragment(logh::koreanResource(65535,0x78,0x6ab4,error),korean) || korean!=L"오류" ||
+        logh::koreanStaticResource(error)!=error ||
+        !logh::japaneseFragment(logh::koreanResource(65534,0,0,"NO TABLE"),korean) || korean!=L"명령 패널") return 82;
+    char windowsString[128];memset(windowsString,0x7f,sizeof(windowsString));
+    if (logh::copyKoreanWindowsString(57344,windowsString,sizeof(windowsString),949)<=0 ||
+        !logh::inputFragment(windowsString,korean) || korean!=L"은하영웅전설 VII" ||
+        logh::copyKoreanWindowsString(57344,windowsString,2,949)!=0 || windowsString[0] ||
+        logh::copyKoreanWindowsString(57344,windowsString,3,949)!=2 || windowsString[2] ||
+        logh::copyKoreanWindowsString(999,windowsString,sizeof(windowsString),949)!=-1 ||
+        logh::copyKoreanWindowsString(57344,windowsString,sizeof(windowsString),932)!=-1) return 82;
+    // A genuine resource translation cannot leak its private codepoints into
+    // Unicode render text, and malformed Japanese bytes still fail strictly.
+    for (const auto& row:logh::koreanResources) {
+        if (!logh::japaneseFragment(row.text,korean)) return 83;
+        for (wchar_t ch:korean) if(ch>=0xe000 && ch<=0xf8ff) return 83;
+    }
     logh::SystemAffiliation territory;
     unsigned territoryIds[]={1048,1049,1050};
     if (territory.affiliation(territoryIds,3,2487)!=10 ||
@@ -349,7 +374,17 @@ int wmain(int argc, wchar_t** argv) {
     memcpy(capitalBase+0x48,heinessenName,sizeof(heinessenName));
     if (logh::planetOfficeKinds(capitalBase,3,0).first!=192 || logh::planetOfficeKinds(capitalBase,3,0).second!=193 ||
         logh::planetOfficeKinds(capitalBase,2,0).second) return 68;
-    capitalBase[0x48]='X';
+    const uint16_t odinKoName[]={0xc624,0xb518,0};
+    const uint16_t heinessenKoName[]={0xd558,0xc774,0xb124,0xc13c,0};
+    memcpy(capitalBase+0x48,odinKoName,sizeof(odinKoName));
+    if(logh::planetCapitalPower(capitalBase)) return 212;
+    capitalGrid=2487;memcpy(capitalBase+0x10,&capitalGrid,2);
+    if(logh::planetOfficeKinds(capitalBase,2,0).first!=56) return 213;
+    memcpy(capitalBase+0x48,heinessenKoName,sizeof(heinessenKoName));
+    if(logh::planetCapitalPower(capitalBase)) return 214;
+    capitalGrid=2015;memcpy(capitalBase+0x10,&capitalGrid,2);
+    if(logh::planetOfficeKinds(capitalBase,3,0).first!=192 || logh::planetOfficeKinds(capitalBase,3,0).second!=193) return 215;
+    capitalBase[0x48]='X';capitalBase[0x49]=0;
     if (logh::planetCapitalPower(capitalBase) || logh::planetOfficeKinds(capitalBase,3,0).first!=190) return 69;
     capitalBase[0x14]=1;
     if (logh::planetOfficeKinds(capitalBase,3,0).first || logh::planetOfficeKinds(capitalBase,3,0).second!=188 ||

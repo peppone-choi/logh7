@@ -154,10 +154,12 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "unit_presence.h"
 #include "tactical_labels.h"
 #include "hud_recovery.h"
+#include "hud_text.h"
 #include "tactical_command_range.h"
 #include "tactical_support.h"
 #include "tactical_motion.h"
 #include "tactical_radar.h"
+#include "korean_resources.h"
 
 // The surviving message catalogue ends before tactical HUD group 119.
 // Supply the two known titles only when the native lookup reports NO TABLE;
@@ -166,8 +168,7 @@ static const char* __fastcall tacticalHudTitle(void* table, void*, unsigned grou
     const char* text = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);
     if (!text || strcmp(text, "NO TABLE") || group != 119) return text;
-    if (index == 0) return "\x83\x52\x83\x7d\x83\x93\x83\x68\x83\x70\x83\x6c\x83\x8b";
-    if (index == 1) return "\x83\x8c\x81\x5b\x83\x5f\x81\x5b";
+    if (index < 2) return logh::koreanResource(65534,0,index,text);
     return text;
 }
 
@@ -557,6 +558,7 @@ static void install() {
     if (!installTacticalNotices()) { status = -3; return; }
     if (!installTacticalLabels()) { status = -3; return; }
     if (!installHudRecovery()) { status = -3; return; }
+    if (!installHudText()) { status = -3; return; }
     if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
@@ -600,6 +602,7 @@ static void install() {
         if (!patchBytes(address, expectedTacticalTitles[i], call, 5)) { status = -3; return; }
     }
     if (!installTacticalRadar()) { status = -3; return; }
+    if (!installKoreanResources()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};

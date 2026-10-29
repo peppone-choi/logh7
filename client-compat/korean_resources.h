@@ -1,0 +1,131 @@
+// Native lookup -> native ANSI formatting -> native UTF-16 pool.
+// Author: 최병호. Original EXE hash and complete instructions are checked first.
+#pragma once
+#include "korean_text.h"
+#include "korean_windows.h"
+
+static int (WINAPI* originalKoreanLoadString)(HINSTANCE,UINT,LPSTR,int)=nullptr;
+static int WINAPI loadKoreanWindowsString(HINSTANCE instance,UINT id,LPSTR buffer,int capacity) {
+    if (instance==GetModuleHandleW(nullptr)) {
+        const int copied=logh::copyKoreanWindowsString(id,buffer,capacity,GetACP());
+        if (copied>=0) return copied;
+    }
+    return originalKoreanLoadString(instance,id,buffer,capacity);
+}
+
+static BYTE koreanLookupTrampoline[11];
+static BYTE koreanDecodeTrampoline[8+5];
+static BYTE koreanLoadTrampoline[10+5];
+static BYTE koreanFormatTrampoline[8+5];
+static const void* koreanFormatResume=koreanFormatTrampoline;
+static const char* __cdecl translateStaticKoreanText(const char* text) {
+    return logh::koreanStaticResource(text);
+}
+static void __declspec(naked) formatKoreanStaticText() {
+    // 646616 is cdecl (CString*, format, ...). Change only the format pointer,
+    // retain the caller's argument stack, registers, flags and native FormatV.
+    __asm {
+        pushfd
+        pushad
+        mov eax, dword ptr [esp+44]
+        push eax
+        call translateStaticKoreanText
+        add esp, 4
+        mov dword ptr [esp+44], eax
+        popad
+        popfd
+        jmp dword ptr [koreanFormatResume]
+    }
+}
+static void translateMessagePointers(void* table, unsigned kind, unsigned variant) {
+    if (table != reinterpret_cast<void*>(0x2217400)) return;
+    for (const auto& metadata : logh::koreanMessageTables) {
+        if (!metadata.id || metadata.kind!=kind || metadata.variant!=variant) continue;
+        // 522310 stores one native HFWR table per kind, with separate index
+        // and string-pointer arrays for the nine speech variants. The original
+        // backing allocation stays owned by the client and is never rewritten.
+        const auto block=reinterpret_cast<const BYTE*>(table)+0x298c+kind*152;
+        if (*reinterpret_cast<const unsigned*>(block)!=metadata.groups ||
+            *reinterpret_cast<const unsigned*>(block+4)!=metadata.strings) return;
+        const auto indices=*reinterpret_cast<const unsigned*const*>(block+8+variant*4);
+        auto pointers=*reinterpret_cast<const char***>(const_cast<BYTE*>(block)+0x2c+variant*4);
+        if (!indices || !pointers || indices[0] || indices[metadata.groups-1]!=metadata.strings) return;
+        for (unsigned g=0;g+1<metadata.groups;++g) {
+            if (indices[g]>indices[g+1] || indices[g+1]>metadata.strings) return;
+        }
+        for (unsigned g=0;g+1<metadata.groups;++g) {
+            for (unsigned i=0;i<indices[g+1]-indices[g];++i) {
+                auto& original=pointers[indices[g]+i];
+                original=logh::koreanResource(metadata.id,g,i,original);
+            }
+        }
+        return;
+    }
+}
+static int __fastcall loadKoreanMessages(void* table, void*, const char* filename, unsigned variant, unsigned kind) {
+    const auto result=reinterpret_cast<int(__thiscall*)(void*,const char*,unsigned,unsigned)>(koreanLoadTrampoline+0)
+        (table,filename,variant,kind);
+    if (result>0) translateMessagePointers(table,kind,variant);
+    return result;
+}
+static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned group, unsigned index) {
+    const auto original = reinterpret_cast<const char*(__thiscall*)(void*,unsigned,unsigned)>(koreanLookupTrampoline+0)
+        (table,group,index);
+    // Verified CD constmsg instance; other message tables keep their own
+    // indices. Identical Japanese words may mean a name or a count unit.
+    return table == reinterpret_cast<void*>(0x2217400) ? logh::koreanResource(group,index,original) : original;
+}
+static wchar_t* __cdecl decodeKoreanResource(const char* text) {
+    // Keep the original allocator/lifetime, error handling, and Japanese CRT
+    // locale. Only our private replacement glyphs are remapped after decoding.
+    auto wide = reinterpret_cast<wchar_t*(__cdecl*)(const char*)>(koreanDecodeTrampoline+0)(logh::koreanStaticResource(text));
+    logh::restoreKoreanGlyphs(wide);
+    return wide;
+}
+static bool installKoreanResources() {
+    // Verified CD LoadStringA IAT slot. Other modules retain their resources.
+    auto stringImport=reinterpret_cast<void**>(0x66b4fc);
+    const auto expectedLoadString=GetProcAddress(GetModuleHandleW(L"user32.dll"),"LoadStringA");
+    if (!expectedLoadString || *stringImport!=reinterpret_cast<void*>(expectedLoadString)) return false;
+    originalKoreanLoadString=reinterpret_cast<decltype(originalKoreanLoadString)>(expectedLoadString);
+    const BYTE lookup[] = {0x8b,0x81,0x74,0x29,0,0}; // mov eax,[ecx+2974]
+    const BYTE decode[] = {0x53,0x56,0x57,0x68,0xfc,0xe3,0x76,0}; // pushes, Japanese address
+    const BYTE load[] = {0x55,0x8b,0xec,0x6a,0xff,0x68,0xf8,0x48,0x66,0}; // complete prologue instructions
+    const BYTE format[] = {0x8b,0x4c,0x24,0x04,0x8d,0x44,0x24,0x0c}; // mov ecx,[esp+4]; lea eax,[esp+c]
+    if (memcmp(reinterpret_cast<void*>(0x522010),lookup,sizeof(lookup)) ||
+        memcmp(reinterpret_cast<void*>(0x4eac60),decode,sizeof(decode)) ||
+        memcmp(reinterpret_cast<void*>(0x522310),load,sizeof(load)) ||
+        memcmp(reinterpret_cast<void*>(0x646616),format,sizeof(format))) return false;
+    struct Entry { unsigned address; const BYTE* expected; size_t bytes; BYTE* trampoline; const void* replacement; };
+    const Entry entries[] = {
+        {0x522010,lookup,sizeof(lookup),koreanLookupTrampoline,reinterpret_cast<const void*>(&lookupKoreanResource)},
+        {0x4eac60,decode,sizeof(decode),koreanDecodeTrampoline,reinterpret_cast<const void*>(&decodeKoreanResource)},
+        {0x522310,load,sizeof(load),koreanLoadTrampoline,reinterpret_cast<const void*>(&loadKoreanMessages)},
+        {0x646616,format,sizeof(format),koreanFormatTrampoline,reinterpret_cast<const void*>(&formatKoreanStaticText)}
+    };
+    // Trampolines contain only whole, non-relative instructions followed by a
+    // relative jump. Make their storage executable before redirecting callers.
+    for (const auto& row : entries) {
+        DWORD previous = 0;
+        if (!VirtualProtect(row.trampoline,row.bytes+5,PAGE_EXECUTE_READWRITE,&previous)) return false;
+        memcpy(row.trampoline,row.expected,row.bytes);
+        row.trampoline[row.bytes] = 0xe9;
+        const LONG back = static_cast<LONG>(reinterpret_cast<BYTE*>(row.address+row.bytes)-row.trampoline-row.bytes-5);
+        memcpy(row.trampoline+row.bytes+1,&back,4);
+        FlushInstructionCache(GetCurrentProcess(),row.trampoline,row.bytes+5);
+    }
+    for (const auto& row : entries) {
+        BYTE jump[10]; memset(jump,0x90,sizeof(jump)); jump[0]=0xe9;
+        const LONG offset = static_cast<LONG>(reinterpret_cast<const BYTE*>(row.replacement)-reinterpret_cast<BYTE*>(row.address)-5);
+        memcpy(jump+1,&offset,4);
+        if (!patchBytes(reinterpret_cast<void*>(row.address),row.expected,jump,row.bytes)) return false;
+    }
+    // DirectInput initialization can follow resource initialization. Cover
+    // already-loaded tables as well as subsequent native reloads.
+    for (const auto& row : logh::koreanMessageTables) {
+        if (row.id) translateMessagePointers(reinterpret_cast<void*>(0x2217400),row.kind,row.variant);
+    }
+    const auto replacementLoadString=reinterpret_cast<void*>(&loadKoreanWindowsString);
+    if (!patchBytes(stringImport,&expectedLoadString,&replacementLoadString,sizeof(void*))) return false;
+    return true;
+}

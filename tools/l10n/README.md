@@ -73,3 +73,46 @@ $target = 'E:/logh7/work/<실행 케이스>/client/data/image'
 - 알파의 저장 형식은 보존하고 픽셀별 알파 최솟값/최댓값·완전 투명/불투명 수를 기록한다. 글자 변경으로 알파 내용은 달라질 수 있으므로 배경 픽셀·마스크·기준선·동일 글꼴·스프라이트 좌표의 시각 검수는 별도다.
 - 적용·복구 전 모든 패키지 파일과 대상 파일을 검사한다. 대상이 원본 또는 같은 패키지의 교체본과 다르면 다른 변경을 덮어쓰지 않고 거부한다. 파일별 원자 교체, 처리 중 오류 시 이전 변경 복구, 중단 뒤 혼합 상태 재실행을 지원한다. 프로세스 강제 종료나 전원 장애 시 전체 묶음의 원자성은 보장하지 않는다. 재실행 전 `verify`하고 필요하면 `restore`한다.
 - `display_validated`는 항상 `false`다. 단위검사·백업 성공·복구 성공을 이미지 번역이나 실제 클라이언트 확인 완료로 취급하지 않는다.
+
+## 전체 카탈로그·한국어 TGA 재생성 및 인계 (2026-10-29)
+
+작성: 최병호. 아래 명령은 전담 작업 폴더에서 실행하며 새 출력 폴더만 사용한다. Python/Pillow는 기존 설치를 사용한다. 원본 이미지·게임 파일은 저장소에 넣지 않는다. 번역 구조와 미확인 범위는 [텍스트 문서](../../docs/l10n/text-format.md#7-전체-번역-카탈로그와-네이티브-연결-후보-2026-10-29), [이미지 문서](../../docs/l10n/image-localization.md#원래-저장-형식의-한국어-tga-후보-29개-2026-10-29)에 있다.
+
+```powershell
+Set-Location 'E:/logh7/work/full-korean-localization-wt'
+$python = 'C:/Users/user/AppData/Local/Programs/Python/Python311/python.exe'
+$msg = (Get-ChildItem 'E:/logh7-original/extracted/install' -Recurse -File -Filter constmsg.dat).FullName
+$source = Join-Path (Split-Path (Split-Path $msg)) 'image'
+# 기존 work/catalog-14의 결과는 4,822개, 누락 0. 아래는 새 폴더로 재현한다.
+& $python -X utf8 -B tools/l10n/catalog.py $msg work/catalog-recheck --header client-compat/korean_catalog_data.h
+& $python -X utf8 -B -m unittest discover -s tools/l10n -p 'test_*.py' -v
+# 이미지 생성: 팔레트와 편집 상자 밖 원바이트를 유지한다.
+& $python -X utf8 -B tools/l10n/render_buttons.py $source work/korean-buttons-recheck
+& $python -X utf8 -B tools/l10n/render_atlases.py $source work/korean-atlases-recheck
+& $python -X utf8 -B tools/l10n/render_titles.py $source work/korean-titles-recheck
+& $python -X utf8 -B tools/l10n/bundle_images.py $source work/korean-images-recheck work/korean-buttons-recheck/package work/korean-atlases-recheck/package work/korean-titles-recheck/package
+& $python -X utf8 -B tools/l10n/inventory_images.py $source work/image-inventory-recheck --all
+```
+
+현재 인계용 패키지는 `work/korean-images-01/package`다. 버튼 `01`, 아틀라스 `03`, 타이틀 `02`를 묶었다. 생성기를 다시 실행하면 개선된 중복 팔레트 인덱스 보존 때문에 글자 영역 내부 바이트가 기존 후보와 달라질 수 있으며 새 패키지의 해시를 사용해야 한다. PNG 미리보기는 검토용이고 적용 입력은 TGA다.
+
+```powershell
+# 실행 담당: 클라이언트를 종료하고 본인이 소유한 사본에만 적용한다.
+$package = 'E:/logh7/work/full-korean-localization-wt/work/korean-images-01/package'
+$target = 'E:/logh7/work/<실행 케이스>/client/data/image'
+& $python -X utf8 -B tools/l10n/image_patch.py verify $package
+& $python -X utf8 -B tools/l10n/image_patch.py apply $package $target
+# D-7 CLI로 원래 해상도와 다섯 버튼 상태를 확인한 뒤 종료한다.
+& $python -X utf8 -B tools/l10n/image_patch.py restore $package $target
+```
+
+이 작업에서 `work/korean-image-roundtrip-29/data/image`에 원본 29개를 복사해 적용/복구와 모든 바이트를 확인했다. 실제 게임·서버·DLL은 실행하지 않았다. 통합 담당만 다음 검사를 수행한다(메인 작업 폴더에 병합했다면 경로를 바꾼다).
+
+```powershell
+& ./client-compat/build.ps1 -OutDir 'E:/logh7/work/full-korean-localization-wt/work/korean-build-review'
+$env:GRADLE_USER_HOME = 'E:/Tools/gradle-home'
+Push-Location server
+try { & ./gradlew.bat :gateway:test --tests org.logh7.gateway.KoreanLocalizationTest } finally { Pop-Location }
+```
+
+`build.ps1`은 DLL과 guard를 함께 빌드/실행한다. 생성 문자열 전부의 Unicode 복원, 원문 불일치 시 거부, Windows 리소스의 작은 버퍼/DBCS 경계를 guard에서 확인한다. Gradle 검사는 실제 생성 단계·코덱·파일 재개방을 사용하며 실제 IME나 두 클라이언트 검증을 대신하지 않는다.
