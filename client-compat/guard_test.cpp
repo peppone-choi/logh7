@@ -6,6 +6,7 @@
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
+#include "mail_text.h"
 #include "korean_windows.h"
 #include "dialog_text.h"
 #include "portrait_label.h"
@@ -25,6 +26,38 @@
 #include "tactical_notice_data.h"
 #include "session_ending_data.h"
 #include "system_affiliation_data.h"
+static bool mailTextTest() {
+    std::wstring value=L"unchanged";
+    // Use explicit CP949 bytes for portable source-code compilation.
+    if (!logh::mailInputText("\xc7\xd1\xb1\xdb ABC",128,value,949) || value!=L"한글 ABC") return false;
+    for (unsigned ch=0xac00;ch<=0xd7a3;++ch) {
+        wchar_t source[]={static_cast<wchar_t>(ch),0};char bytes[8]={};
+        if (!WideCharToMultiByte(949,WC_NO_BEST_FIT_CHARS,source,-1,bytes,sizeof(bytes),nullptr,nullptr) ||
+            !logh::mailInputText(bytes,128,value,949) || value!=source) return false;
+    }
+    for (size_t capacity:{logh::mailTitleUnits,logh::mailBodyUnits}) {
+        std::string maximum;
+        for (size_t i=1;i<capacity;++i) maximum+="\xc6\x52"; // CP949 힣.
+        if (!logh::mailInputText(maximum.c_str(),capacity,value,949) || value!=std::wstring(capacity-1,L'힣')) return false;
+        const auto saved=value;maximum+="\xc6\x52";
+        if (logh::mailInputText(maximum.c_str(),capacity,value,949) || value!=saved ||
+            logh::mailInputText("\x81",capacity,value,949) || value!=saved ||
+            logh::mailInputText(nullptr,capacity,value,949) || value!=saved) return false;
+    }
+    if (!logh::mailReplyText(L"한글日本",true,true,value) || value!=L"Re:한글日本" ||
+        !logh::mailReplyText(L"한글\r\n日本\n",false,true,value) || value!=L">한글\r\n>日本\n" ||
+        !logh::mailReplyText(L"\n\n",false,true,value) || value!=L">\n>\n" ||
+        !logh::mailReplyText(L"",false,true,value) || !value.empty() ||
+        !logh::mailReplyText(L"한글\n日本",false,false,value) || value!=L"한글\n日本") return false;
+    std::wstring lines(511,L'\n');
+    if (!logh::mailReplyText(lines.c_str(),false,true,value) || value.size()!=1022) return false;
+    const auto saved=value;
+    wchar_t unterminated[128];for (auto& ch:unterminated) ch=L'가';
+    wchar_t broken[]={0xd800,L'A',0},pair[]={0xd83d,0xde80,0};
+    return !logh::mailWideText(unterminated,128,value) && value==saved &&
+        !logh::mailWideText(broken,128,value) && value==saved &&
+        logh::mailWideText(pair,128,value) && value==pair;
+}
 static bool dialogTextTest() {
     const char* mouse="\x83\x7d\x83\x45\x83\x58\x83\x66\x83\x6f\x83\x43\x83\x58\x82\xcc\x90\xb6\x90\xac\x82\xc9\x8e\xb8\x94\x73\x82\xb5\x82\xdc\x82\xb5\x82\xbd";
     std::wstring text=L"unchanged";
@@ -336,6 +369,7 @@ static bool sessionEndingDataTest() {
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 int wmain(int argc, wchar_t** argv) {
+    if (!mailTextTest()) return 252;
     if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;
     const char* battleship="\x90\xed\x8a\xcd";
