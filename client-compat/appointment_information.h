@@ -8,8 +8,7 @@ struct AppointmentChoice { unsigned card=0, base=0, outfit=0, character=0; const
 static bool appointmentChoice(AppointmentChoice& choice) {
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     unsigned authority=*reinterpret_cast<unsigned*>(0xc9eac0);
-    if (!command || !(authority>=1 && authority<=58 || authority>=68 && authority<=122 ||
-        authority>=132 && authority<=194 || authority>=197 && authority<=256)) return false;
+    if (!command || !logh::appointmentAuthorityCard(authority)) return false;
     auto steps=at<BYTE**>(command,0x10), end=at<BYTE**>(command,0x14);
     unsigned active=at<unsigned>(command,4);
     if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;
@@ -46,10 +45,10 @@ static bool appointmentChoice(AppointmentChoice& choice) {
             }
         }
     }
-    if (!choice.base && (choice.card==56 || choice.card==57 || choice.card==192 || choice.card==193)) {
+    if (!choice.base && logh::appointmentCapitalPower(choice.card)) {
         auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
         if (!world) return false;
-        unsigned power=choice.card==56 || choice.card==57 ? 2 : 3;
+        unsigned power=logh::appointmentCapitalPower(choice.card);
         for (unsigned slot=0;slot<350;++slot) {
             auto base=world+0x2eb800+slot*0x250;
             if (!base[0] || logh::infoWord(base,8)!=2 || logh::planetCapitalPower(base)!=power) continue;

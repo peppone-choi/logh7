@@ -362,6 +362,12 @@ int wmain(int argc, wchar_t** argv) {
         logh::appointmentInformationCard(14,55,0) ||
         logh::appointmentInformationCard(14,55,261) ||
         logh::appointmentInformationCard(3,55,55)) return 26;
+    if (!logh::appointmentAuthorityCard(135) || !logh::appointmentAuthorityCard(1) ||
+        logh::appointmentAuthorityCard(0) || logh::appointmentAuthorityCard(195) ||
+        logh::appointmentCapitalPower(169)!=3 || logh::appointmentCapitalPower(135)!=3 ||
+        logh::appointmentCapitalPower(2)!=2 || logh::appointmentCapitalPower(56)!=2 ||
+        logh::appointmentCapitalPower(193)!=3 || logh::appointmentCapitalPower(54) ||
+        logh::appointmentCapitalPower(175) || logh::appointmentCapitalPower(231)) return 71;
     unsigned char outfitCache[100 * 32] = {};
     outfitCache[32] = 1; outfitCache[36] = 7;
     outfitCache[96] = 1; outfitCache[100] = 9;
