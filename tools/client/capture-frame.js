@@ -34,20 +34,68 @@ function tacticalMenuState() {
 }
 let fortressInputBudget=0;
 const fortressInputEvents=[];
-for(const [address,bytes] of [[0x50f63b,[0xe8,0xb0,0x1f,0xff,0xff]],
-    [0x50f640,[0x84,0xc0,0x74,0x5e]]]) {
-  const site=ptr(address);
-  if(bytes.every((v,i)=>site.add(i).readU8()===v))Interceptor.attach(site,{onEnter() {
-    if(!fortressInputBudget || ptr(0x77a8f8).readU32()!==5 || ptr(0x22166a9).readU8()!==8)return;
-    --fortressInputBudget;
-    const s=this.context.esp;
-    fortressInputEvents.push({site:site.toString(),result:this.context.eax.toUInt32()&255,
-      down:ptr(0x22142b0).readU32(),previous:ptr(0x22142b4).readU32(),
-      current:[ptr(0x22143dc).readS32(),ptr(0x22143e0).readS32()],
-      pressed:[ptr(0x2214408).readS32(),ptr(0x221440c).readS32()],
-      relative:[s.add(0x50).readS32(),s.add(0x54).readS32()]});
-    if(fortressInputEvents.length>32)fortressInputEvents.shift();
-  }});
+function fortressInputArmed() {
+  if(fortressInputBudget<=0 || ptr(0x77a8f8).readU32()!==5 || ptr(0x22166a9).readU8()!==8)return false;
+  const ctx=ptr(0x2215e2c).readPointer();return !ctx.isNull() && ctx.add(4).readU32()===9;
+}
+function fortressInputEdge() {
+  return ptr(0x22142b0).readU32()!==0 && ptr(0x22142b0).readU32()!==ptr(0x22142b4).readU32();
+}
+function recordFortressInput(row) {
+  if(fortressInputBudget<=0)return;
+  --fortressInputBudget;row.at=Date.now();fortressInputEvents.push(row);
+  if(fortressInputEvents.length>32)fortressInputEvents.shift();
+}
+const fortressInputParents=new Map();
+let fortressBlockersInstalled=false;
+function installFortressBlockers() {
+  if(fortressBlockersInstalled)return;
+  const entries=[[0x5015f0,[0x83,0xec,0x20,0x53,0x8b,0x5c,0x24,0x2c]],
+    [0x50c180,[0x83,0xec,8,0x53,0x55,0x56,0x57,0x89]],
+    [0x501d60,[0x83,0xec,0x1c,0x53,0x55,0x56,0x8d,0x44]],
+    [0x4ec2e0,[0x8b,0x44,0x24,0x0c,0x8b,0x4c,0x24,8]]];
+  if(!entries.every(([a,b])=>b.every((v,i)=>ptr(a).add(i).readU8()===v)))return;
+  fortressBlockersInstalled=true;
+  Interceptor.attach(ptr(0x5015f0),{
+    onEnter(args) {
+      const caller=this.returnAddress.toUInt32();
+      if(![0x50f640,0x50f5ee].includes(caller) || !fortressInputArmed() || !fortressInputEdge())return;
+      this.thread=this.threadId;this.previous=fortressInputParents.get(this.thread);
+      this.row={site:'0x5015f0',caller:'0x'+caller.toString(16),event:args[0].toUInt32(),peek:args[3].toUInt32(),
+        menu:this.context.ecx.readU32(),widget:args[1].toString(),
+        widgetFlags:args[1].isNull()?null:[args[1].add(8).readU8(),args[1].add(0x15).readU8(),args[1].add(0x18).readU8()],
+        down:ptr(0x22142b0).readU32(),previous:ptr(0x22142b4).readU32(),
+        current:[ptr(0x22143dc).readS32(),ptr(0x22143e0).readS32()],
+        pressed:[ptr(0x2214408).readS32(),ptr(0x221440c).readS32()],overlap:[]};
+      this.output=args[2];fortressInputParents.set(this.thread,this.row);
+    },
+    onLeave(ret) {
+      if(!this.row)return;
+      this.row.result=ret.toUInt32()&255;
+      this.row.coordinates=this.output.isNull()?null:[0,4,8,12].map(i=>this.output.add(i).readS32());
+      fortressInputParents.set(this.thread,this.previous);recordFortressInput(this.row);
+    }
+  });
+  for(const address of [0x50c180,0x501d60])Interceptor.attach(ptr(address),{
+    onEnter(args) {
+      this.parent=fortressInputParents.get(this.threadId);if(!this.parent)return;
+      const point=p=>p.isNull()?null:[p.readS32(),p.add(4).readS32()];
+      this.row={site:'0x'+address.toString(16),current:point(args[3]),left:point(args[2]),right:point(args[1])};
+    },
+    onLeave(ret) {
+      if(this.row && this.parent.overlap.length<8){this.row.blocked=ret.toUInt32()&255;this.parent.overlap.push(this.row);}
+    }
+  });
+  Interceptor.attach(ptr(0x4ec2e0),{
+    onEnter(args) {
+      if(this.returnAddress.toUInt32()!==0x50f60f || !fortressInputArmed() || !fortressInputEdge())return;
+      this.output=args[2];this.row={site:'0x4ec2e0',screen:[args[0].toInt32(),args[1].toInt32()],
+        origin:[0,4,8].map(i=>ptr(0x2215530).add(i).readFloat())};
+    },
+    onLeave() {
+      if(!this.row)return;this.row.target=[0,4,8].map(i=>this.output.add(i).readFloat());recordFortressInput(this.row);
+    }
+  });
 }
 rpc.exports.fortressstate = function(id) {
   if(!Number.isInteger(id) || id<1 || id>65535)throw new Error('Invalid owned fortress ID');
@@ -55,10 +103,23 @@ rpc.exports.fortressstate = function(id) {
   if(world.isNull() || !world.add(0x126718).readU8())return {base:null,tactical:false};
   const lookup=new NativeFunction(ptr(0x4c7cd0),'pointer',['pointer','uint','uint8','uint8','uint8','uint8'],'mscdecl');
   const base=lookup(world.add(0x126718),id,0,255,255,255);
+  if(!base.isNull())installFortressBlockers();
   fortressInputBudget=32;
+  const ships=[];
+  for(let i=0;i<600 && ships.length<32;++i) {
+    const unit=world.add(0x12671c+i*0x9ec);
+    if(!unit.readU8() || unit.add(8).readU8()!==1)continue;
+    ships.push({id:unit.add(4).readU32(),kind:unit.add(0x8bc).readU16(),
+      normal:unit.add(0x8d4).readU32(),alive:unit.add(0x8d8).readU32(),supplies:unit.add(0x950).readU32(),
+      pose:[0x14,0x18,0x1c].map(i=>unit.add(i).readFloat())});
+  }
+  const display=ptr(0x22293fc).readPointer();
   return {base:base.isNull()?null:{id:base.add(4).readU32(),type:base.add(8).readU8(),owner:base.add(0x8c8).readU32(),
+    pose:[0x14,0x18,0x1c].map(i=>base.add(i).readFloat()),
     kind:base.add(0x8bc).readU16(),charge:[base.add(0x5bc).readU32(),base.add(0x5c0).readU32()]},
-    input:fortressInputEvents.slice(),aimBase:ptr(0x2216674).readU32(),command:ptr(0x22166a9).readU8(),
+    projection:{viewport:display.isNull()?null:[display.add(0x2a4c8).readU32(),display.add(0x2a4cc).readU32()],
+      scale:[ptr(0x2229970).readFloat(),ptr(0x2229984).readFloat()],matrix:Array.from({length:16},(_,i)=>ptr(0x2229674+i*4).readFloat())},
+    ships,input:fortressInputEvents.slice(),aimBase:ptr(0x2216674).readU32(),command:ptr(0x22166a9).readU8(),
     tab:ptr(0x77a8f8).readU32(),mode:ptr(0x2216694).readU32(),
     fortCount:ptr(0x221666c).readU32(),fortId:ptr(0x2215528).readU32(),selected:ptr(0x2216664).readU32(),menu:tacticalMenuState()};
 };
