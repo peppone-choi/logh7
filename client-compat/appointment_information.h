@@ -1,4 +1,4 @@
-// Keep the native office information renderer, but bind the selected card.
+// Native confirmation details: selected office/card and current warp cost policy.
 // Author: 최병호.
 #pragma once
 #include "appointment_ui_data.h"
@@ -64,14 +64,33 @@ static bool appointmentChoice(AppointmentChoice& choice) {
         choice.character>0 && choice.person && logh::infoWord(choice.person,0)==choice.character;
 }
 
+// Native 00581c80 selects confirmation 0x2b. The CD help predates the 80 -> 40
+// MCP patch and its distance multiplier does not describe the current server policy.
+static bool isWarpConfirmation(BYTE* command) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if (!command || !own || at<unsigned>(command,0x28)!=0x2b || at<void*>(command,0x1c)!=own) return false;
+    unsigned card=at<unsigned>(command,0x20);
+    if (card!=59 && card!=195) return false;
+    auto steps=at<BYTE**>(command,0x10),end=at<BYTE**>(command,0x14);
+    unsigned active=at<unsigned>(command,4);
+    if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;
+    auto confirmation=steps[active];
+    return confirmation && at<unsigned>(confirmation,0)==0x675780 && at<unsigned>(confirmation,0x48)==0x2b;
+}
+
 static void __fastcall appointmentConfirmation(void* dialog, void*, const char* original) {
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
     std::wstring body;
+    auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
+    if (isWarpConfirmation(command)) {
+        // Mirrors current NavigationPolicy defaults; distance-dependent costs remain unfinished.
+        body=L"선택한 그리드로 워프합니다.\nMCP 40 · 부족하면 PCP 80 전액 대용\n항속 소비: 100\n실행하시겠습니까?";
+    } else {
     if (!logh::japaneseFragment(original,body)) return;
     auto newline=body.find(L'\n');
     if (newline==std::wstring::npos) return;
-    auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     if (const BYTE* supplied=selectedSupplyOutfit()) {
         auto name=supplyOutfitName(supplied);
         if (name.empty()) return;
@@ -116,6 +135,7 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
         // Preserve the original cost, wait, duration and confirmation question.
         body=std::wstring(person)+L" → "+seat+L" · "+office+body.substr(newline);
         }
+    }
     }
     // 005706d0 returns the control directly; 005706c0 returns the GUI manager.
     auto element=reinterpret_cast<void*(__thiscall*)(void*,unsigned)>(0x5706d0)(dialog,5);
