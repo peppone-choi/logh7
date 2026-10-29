@@ -17,6 +17,7 @@ fun interface GameNavigation {
     fun observeGroundBattles(observer:(GroundBattleResult)->Unit):AutoCloseable = AutoCloseable {}
     fun observeGround(observer:(TacticalGroundResult)->Unit):AutoCloseable = AutoCloseable {}
     fun observePostures(observer:(TacticalPostureResult)->Unit):AutoCloseable = AutoCloseable {}
+    fun observeTacticalCommands(observer:(TacticalCommandResult)->Unit):AutoCloseable = AutoCloseable {}
 }
 
 class EngineGameNavigation(private val engine: WorldEngine, private val scope: CoroutineScope) : GameNavigation {
@@ -29,6 +30,7 @@ class EngineGameNavigation(private val engine: WorldEngine, private val scope: C
     override fun observeGroundBattles(observer:(GroundBattleResult)->Unit) = engine.observeGroundBattles(observer)
     override fun observeGround(observer:(TacticalGroundResult)->Unit) = engine.observeGround(observer)
     override fun observePostures(observer:(TacticalPostureResult)->Unit) = engine.observePostures(observer)
+    override fun observeTacticalCommands(observer:(TacticalCommandResult)->Unit) = engine.observeTacticalCommands(observer)
     override fun snapshot() = engine.snapshot()
     override fun synchronizeTime():CompletableFuture<Unit> {
         val future=CompletableFuture<Unit>()

@@ -122,11 +122,12 @@ class TacticalMotionTest {
         assertNull(store.state.getValue("pilot").motion)
         val after=navigation.apply(request,session,stocks).player!!
         val motion=after.motion!!
+        assertEquals(session.gameMillis/1000+120,motion.startsAt)
         assertEquals(TacticalPoint(-180f,-95f),motion.origin.position)
         assertEquals(600,after.pcp);assertEquals(600,after.mcp)
         navigation=Navigation(galaxy,store,NavigationPolicy())
         assertEquals(motion,navigation.snapshot(1).getValue("pilot").motion)
-        val later=session.copy(gameMillis=session.gameMillis+15000)
+        val later=session.copy(gameMillis=session.gameMillis+130000)
         val next=navigation.apply(request,later,stocks).player!!.motion!!
         val delta=kotlin.math.atan2(-420.0,-85.0)-Math.PI/2
         val firstTurn=kotlin.math.abs(kotlin.math.atan2(kotlin.math.sin(delta),kotlin.math.cos(delta)))
@@ -134,7 +135,7 @@ class TacticalMotionTest {
         val expectedX=-180f+(-600f+180f)*travel/kotlin.math.hypot(-600f+180f,-180f+95f)
         assertEquals(expectedX,next.origin.position.x,0.0001f)
         val stopRequest=request.copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(1010000)))
-        val movingTime=later.copy(gameMillis=later.gameMillis+15000)
+        val movingTime=later.copy(gameMillis=later.gameMillis+130000)
         val currentPose=next.pose(movingTime.gameMillis/1000)
         assertEquals(NavigationRejection.UNIT,navigation.apply(stopRequest.copy(tacticalStop=TacticalStop(listOf(1010001))),movingTime,stocks).rejection)
         assertEquals(NavigationRejection.UNIT,navigation.apply(stopRequest.copy(tacticalStop=TacticalStop(listOf(1010000),listOf(1000))),movingTime,stocks).rejection)

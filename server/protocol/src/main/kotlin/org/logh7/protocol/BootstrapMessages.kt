@@ -5,16 +5,15 @@ import java.nio.ByteBuffer
 /** evidence:client — initial response readers, with optional external world catalogues. */
 object BootstrapMessages {
     data class OfficeCard(val kind: Int, val target: Int) {
-        val power: Int get() = when (kind) {
-            2,3,17,24,25,39,40,41,42,43,44,47,50,52,54,55,56,57 -> 2
-            134,150,161,169,171,175,176,177,178,179,180,183,186,188,190,191,192,193 -> 3
-            else -> error("Unsupported office card")
-        }
+        val power: Int get() = OfficeCardKinds.power(kind)
         init {
-            require(kind in setOf(2,3,17,24,25,39,40,41,42,43,44,47,50,52,54,55,56,57,134,150,161,169,171,175,176,177,178,179,180,183,186,188,190,191,192,193) && target > 0)
+            require((OfficeCardKinds.isOffice(kind) || OfficeCardKinds.isFief(kind) || OfficeCardKinds.isPeerage(kind)) &&
+                if(OfficeCardKinds.isPeerage(kind))target==0 else target>0)
             require(kind !in setOf(52,54,55,56,57,188,190,191,192,193) || target <= 65535)
         }
     }
+    fun peerageTitle(character:CharacterMessages.Generate)=listOf("공작","후작","백작","자작","남작","제국기사")
+        .getOrNull(character.title-1).orEmpty()
     private fun captainCard(character: CharacterMessages.Generate) = if (character.power == 2) 59 else 195
     private fun cards(): ByteArray {
         val out = ByteBuffer.allocate(128).putShort(3)
@@ -57,14 +56,18 @@ object BootstrapMessages {
         out.putInt(returnBase).putInt(spot).putInt(if (spot == 0) character.id.toInt() else spotOwner).putInt(unitId(character))
         string(character.shipName)
         repeat(3) { out.putInt(0) } // strategy and coup fields
-        out.putInt(pcp).putInt(mcp).putInt(0) // local PCP, MCP, evaluation
+        require(character.merit in 0..0xffffffffL && character.evaluation in 0..0xffffffffL &&
+            character.money in 0..0xffffffffL && character.influence in 0..100 && character.decorations.all {it in 0..127})
+        out.putInt(pcp).putInt(mcp).putInt(character.evaluation.toInt())
         out.putShort(0); repeat(6) { u8(0) }; u8(1) // mail, AI switches, online
-        out.putInt(0).put(ByteArray(16)); u8(0); u8(1) // money, decorations, arrested, parentage count
+        val decorations=ByteArray(16)
+        character.decorations.forEach {index->decorations[index/8]=(decorations[index/8].toInt() or (1 shl (index%8))).toByte()}
+        out.putInt(character.money.toInt()).put(decorations); u8(0); u8(1)
         u8(1); string(character.surname); string(character.givenName); string(character.surname)
-        out.putShort(character.origin.toShort()).putShort(character.rank.toShort()); string("")
-        out.putInt(character.face).putInt(0).putInt(0).putInt(0)
+        out.putShort(character.origin.toShort()).putShort(character.rank.toShort()); string(peerageTitle(character))
+        out.putInt(character.face).putInt(character.merit.toInt()).putInt(0).putInt(0)
         character.abilities.forEach { out.putShort(it.toShort()).putShort(0) }
-        u8(0); u8(100); u8(0) // influence, stamina, special count
+        u8(character.influence); u8(100); u8(0)
         u8(2 + offices.size)
         out.putShort(0).putInt(0) // personal card, no institution restriction
         out.putShort(captainCard(character).toShort()).putInt(unitId(character))

@@ -21,7 +21,6 @@ internal object TacticalFleetShoot {
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
-        if(player.retreat!=null)return reject(NavigationRejection.BUSY)
         if(request.captainCard!=if(player.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
         val command=checkNotNull(request.tacticalShoot)
         if(command.units.isEmpty() || command.units.size>32 || command.units.distinct().size!=command.units.size)
@@ -33,21 +32,23 @@ internal object TacticalFleetShoot {
         val players=navigation.snapshot(session.generation)
         val victim=TacticalCombat.target(command.target,player.grid,player.power,stocks,galaxy,players)
             ?: return reject(NavigationRejection.TARGET)
-        val own=player.motion?.pose(now,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
+        val own=player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
         val ships=command.units.filter {it!=player.unitId}.map {id ->
             if(id !in 1..999999)return reject(NavigationRejection.UNIT)
             val(o,u)=stocks.outfits.values.flatMap {o->o.activeShips?.values.orEmpty().filter {it.id==id}.map {o to it}}
                 .singleOrNull() ?: return reject(NavigationRejection.UNIT)
-            if(o.commanderId!=player.characterId || o.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
+            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
-            if(u.boats<=u.damaged || u.shot!=null || u.support!=null || u.tactical?.retreat!=null)return reject(NavigationRejection.BUSY)
+            if(u.boats<=u.damaged || u.shot!=null || u.support!=null)return reject(NavigationRejection.BUSY)
             if(u.tactical?.sequence==Long.MAX_VALUE)return reject(NavigationRejection.CLOCK)
-            val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy) ?:
+            val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy,stocks) ?:
                 TacticalDeployment.initial(id,player.power,player.grid,players.values,stocks,galaxy)
             val mount=TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},weapon)
             if(mount.power==0)return reject(NavigationRejection.WEAPON)
             if(!TacticalReload.canFire(u,weapon,now+5*scale,scale) || !(u.reload?.ready(weapon,now) ?: true))return reject(NavigationRejection.ENERGY)
             if(OutfitSupplies.distribution(o).getValue(id)<cost(u,mount,weapon))return reject(NavigationRejection.SUPPLY)
+            if(TacticalLineOfFire.blocked(id,player.grid,player.power,pose.position,
+                TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position,now,players.values,stocks,galaxy))return reject(NavigationRejection.RANGE)
             if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
                 checkNotNull(player.commandRange).radius(now) || TacticalArmaments.effectiveness(mount,pose,
                     TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position)==0)return reject(NavigationRejection.RANGE)
@@ -88,8 +89,8 @@ internal object TacticalFleetShoot {
             val position=outfit.positionIn(galaxy)
             val power=if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE
             val commander=players.values.singleOrNull {it.characterId==shot.commander && it.power==power}
-            if(outfit.commanderId!=shot.commander || position.baseId!=0 || state.motion.grid!=position.grid ||
-                unit.boats<=unit.damaged || unit.support!=null || state.retreat!=null || commander==null ||
+            if(TacticalAuthority.commander(outfit,unit,stocks)!=shot.commander || position.baseId!=0 || state.motion.grid!=position.grid ||
+                unit.boats<=unit.damaged || unit.support!=null || commander==null ||
                 commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {
                 stocks=replace(stocks,outfit,unit.copy(shot=null));continue
             }
@@ -99,10 +100,11 @@ internal object TacticalFleetShoot {
             val victim=TacticalCombat.target(shot.target,position.grid,power,stocks,galaxy,players) ?: continue
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val mount=TacticalArmaments.mount(spec,shot.weapon)
-            val origin=state.motion.pose(now,unit.posture,galaxy)
+            val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
             val effect=TacticalArmaments.effectiveness(mount,origin,TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position)
             val cost=cost(unit,mount,shot.weapon)
-            if(effect==0 || mount.power==0 || !TacticalReload.canFire(unit,shot.weapon,now,scale) || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
+            if(effect==0 || stocks.tacticalCommands.confused(id) || TacticalLineOfFire.blocked(id,position.grid,power,origin.position,
+                TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position,now,players.values,stocks,galaxy) || mount.power==0 || !TacticalReload.canFire(unit,shot.weapon,now,scale) || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
             val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,shot.target,shot.weapon,
                 mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,origin,victim)
             stocks=resolved.first;impacts+=resolved.second

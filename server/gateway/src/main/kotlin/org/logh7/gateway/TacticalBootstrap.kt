@@ -11,22 +11,31 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     val characterIds get()=people.map {it.characterId}
     val grid get()=viewer.grid
     val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
+        val state=snapshot.planetStocks!!.tacticalCommands
+        val mission=state.missions[p.characterId]
+        val chief=people.filter {it.power==p.power}.maxWithOrNull(compareBy<Navigator> {
+            -(characterById(it.characterId)?.rank ?: 20)}.thenBy {state.merits[it.characterId] ?: 0}.thenByDescending {it.characterId})
         val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}
         val energy=p.energy ?: TacticalEnergy.ZERO
         val charge=if(p.cpPaused) p.charge?.levels(snapshot.session?.gameSeconds ?: 0,energy) else null
         TacticsMessages.Corps(c.id.toInt(),p.commandRange?.radius(snapshot.session?.gameSeconds ?: 0) ?: 0f,(p.energy ?: TacticalEnergy.ZERO).values,
             p.hull?.settle(snapshot.session?.gameSeconds ?: 0,energy)?.levels()
                 ?: List(6){spec.number("シールド（旗艦のみ）:容量")},
+            mission=mission?.mission ?: 0,targetKind=mission?.targetKind ?: 0,target=mission?.target ?: 0,
+            chief=chief?.characterId==p.characterId,formation=state.formations[p.characterId] ?: 7,
             beam=if(spec.number("ビーム兵装破壊力:ビーム兵装破壊力")>0) charge?.first ?: 0 else 0,
             gun=if(spec.number("ガン兵装破壊力/消費物資:ガン兵装破壊力/消費物資")>0) charge?.second ?: 0 else 0)
     }}
     val bases=galaxy.bases.filter {it.grid==viewer.grid}.map {base->
-        val point=TacticalBasePosition.at(base,snapshot.session?.gameSeconds ?: 0)
+        val point=TacticalBasePosition.at(base,snapshot.session?.gameSeconds ?: 0,snapshot.planetStocks)
         // 004c4240 imports wire x/y into native world x/z; wire z is not the map plane.
         TacticsMessages.Base(base.id,point.x,point.y,0f)
     }
-    val baseInformation=bases.map {base -> TacticsMessages.BaseInformation(base,
-        stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}
+    val baseInformation=bases.map {base ->
+        val cannon=snapshot.planetStocks!!.tacticalCommands.orders.singleOrNull {it.command.base==base.id && it.command.opcode==0x419}
+        TacticsMessages.BaseInformation(base,cannonStart=cannon?.acceptedAt ?: 0,
+            cannonAngle=cannon?.command?.direction?.let {(((it/(2*Math.PI)*65536).toInt()%65536)+65536)%65536} ?: 0,
+            stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}
     val units: List<TacticsMessages.Unit> = run {
         data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,
             val destroyed:Int=0,val posture:TacticalPosture?=null)
@@ -38,7 +47,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         }} + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {fleet->
             val supplies=OutfitSupplies.distribution(fleet)
             checkNotNull(fleet.activeShips).values.map {ship->
-                Source(ship.id,ship.stack.kind,fleet.id,fleet.commanderId,fleet.power,supplies.getValue(ship.id),0f,
+            Source(ship.id,ship.stack.kind,fleet.id,TacticalAuthority.commander(fleet,ship,stocks),fleet.power,supplies.getValue(ship.id),0f,
                     UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats,
                     ship.posture?.takeIf {it.grid==viewer.grid})
             }
@@ -48,16 +57,20 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             val index=indices[u.power] ?: 0;indices[u.power]=index+1
             val initial=TacticalDeployment.formation(index,if(u.power==2)Power.EMPIRE else Power.ALLIANCE)
             val pose=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
-                ?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy) ?: stocks.outfits[u.outfit]?.activeShips?.values
-                ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy)
+                ?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks) ?: stocks.outfits[u.outfit]?.activeShips?.values
+                ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks)
             TacticsMessages.Unit(u.id,u.kind,u.outfit,u.character,u.supplies,u.cruise,u.destroyed,
                 pose?.position?.x ?: initial.position.x,pose?.position?.y ?: initial.position.y,0f,
                 pose?.direction ?: initial.direction,
                 damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else
                     stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0,
                 mode=u.posture?.mode?.wire ?: TacticalShipMode.SAILING.wire,base=u.posture?.base ?: 0,
-                troops=stocks.outfits[u.outfit]?.activeGround?.values.orEmpty().filter {it.carrier==u.id}.sortedBy {it.id}.map {it.id})
-        }.also {require(it.size<=600)}
+                troops=stocks.outfits[u.outfit]?.activeGround?.values.orEmpty().filter {it.carrier==u.id}.sortedBy {it.id}.map {it.id},
+                morale=stocks.tacticalCommands.morale[u.id] ?: 100,confused=stocks.tacticalCommands.confused(u.id))
+        }.let {units->units.map {u->
+            val leader=stocks.tacticalCommands.formationLeaders[u.id]?.let {id->units.singleOrNull {it.id==id}}
+            if(leader==null)u else u.copy(leader=leader.id,leaderX=leader.x,leaderY=leader.y,leaderZ=leader.z,leaderDirection=leader.direction)
+        }}.also {require(it.size<=600)}
     }
     val groundDefinitions=snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
         val carriers=units.filter {it.outfit==outfit.id && it.destroyed<UnitSpecifications.ships.single {s->s.kind==it.kind}.number}
@@ -71,7 +84,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         data class Entry(val id:Int,val character:Int,val motion:TacticalMotion)
         val entries=people.mapNotNull {p->p.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(p.unitId,p.characterId,it)}} +
             snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
-                o.activeShips?.values.orEmpty().filter {it.boats>0 && it.motionCommander==o.commanderId}.mapNotNull {u->
+                o.activeShips?.values.orEmpty().filter {it.boats>0 && it.motionCommander==TacticalAuthority.commander(o,it,snapshot.planetStocks!!)}.mapNotNull {u->
                     u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(u.id,u.motionCommander,it)}
                 }}
         return entries.groupBy {Triple(it.character,it.motion.acceptedAt,it.motion.rotation)}.values.flatMap {group ->
@@ -82,7 +95,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val records=people.mapNotNull {p->p.posture?.takeIf {it.grid==viewer.grid}?.order?.let {p.unitId to it}} +
             snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
                 o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u->
-                    u.posture?.takeIf {it.grid==viewer.grid}?.order?.takeIf {it.character==o.commanderId}?.let {u.id to it}}}
+                    u.posture?.takeIf {it.grid==viewer.grid}?.order?.takeIf {it.character==TacticalAuthority.commander(o,u,snapshot.planetStocks!!)}?.let {u.id to it}}}
         val now=snapshot.session?.gameSeconds ?: 0
         return records.groupBy {it.second}.flatMap {(order,entries)->entries.chunked(32).map {group->
                 val ids=group.map {it.first}
@@ -99,7 +112,10 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         if(order.action==TacticalGroundAction.DEPLOY)TacticalGroundMessages.Action.DEPLOY else TacticalGroundMessages.Action.WITHDRAW,
         order.character,listOf(order.carrier)),snapshot.session?.gameSeconds ?: 0,
         (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}
-    fun resume() = groundOrders()+postureOrders()+rotations()+people.filter {it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
+    fun resume() = snapshot.planetStocks!!.tacticalCommands.orders.filter {it.grid==viewer.grid}.mapNotNull {order->
+        TacticalCommandWire.command(order)?.let {org.logh7.protocol.TacticalCommandMessages.reply(it,snapshot.session?.gameSeconds ?: 0,
+            (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}}+
+        groundOrders()+postureOrders()+rotations()+people.filter {it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
         snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation==null}
                 ?.let {TacticalMotionMessages.npc(u.id,it,snapshot.session?.gameSeconds ?: 0)}}} +
@@ -110,12 +126,12 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                     if(order.action==TacticalSupportAction.REPAIR)TacticalSupportMessages.Action.REPAIR else TacticalSupportMessages.Action.SUPPLY,
                     order.character,u.id,order.target),now,(order.readyAt-now).coerceAtLeast(0))
             }} } + snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.attack?.takeIf {it.commander==o.commanderId}?.let {a ->
+            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.attack?.takeIf {it.commander==TacticalAuthority.commander(o,u,snapshot.planetStocks!!)}?.let {a ->
                 val now=snapshot.session?.gameSeconds ?: 0
                 TacticalAttackMessages.reply(TacticalAttackMessages.Attack(a.commander,listOf(u.id),a.order.mode,0),
                     now,(a.order.startsAt-now).coerceAtLeast(0))
             }} } + snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.shot?.takeIf {it.commander==o.commanderId}?.let {shot ->
+            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.shot?.takeIf {it.commander==TacticalAuthority.commander(o,u,snapshot.planetStocks!!)}?.let {shot ->
                 val now=snapshot.session?.gameSeconds ?: 0
                 TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(shot.commander,listOf(u.id),shot.weapon.wire,1,shot.target),
                     now,(shot.firesAt-now).coerceAtLeast(0))

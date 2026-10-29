@@ -91,6 +91,7 @@ fun WorldCommand.sessionAction(): SessionAction = when (this) {
     is WorldCommand.Stock -> error("Production uses its own forced store on the world actor")
     is WorldCommand.Logistics -> error("Logistics uses the combined inventory store on the world actor")
     is WorldCommand.Tax -> error("Tax uses the combined world store on the world actor")
+    is WorldCommand.StrategyAction -> error("Strategy actions use the combined world store on the world actor")
     is WorldCommand.AppointGarrison -> error("Appointment uses the combined world store on the world actor")
     is WorldCommand.DismissOffice -> error("Dismissal uses the combined world store on the world actor")
     is WorldCommand.ResignOffice -> error("Resignation uses the combined world store on the world actor")

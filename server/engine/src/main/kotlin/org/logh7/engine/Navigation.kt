@@ -68,7 +68,12 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val tacticalStop: TacticalStop? = null, val tacticalRetreat: List<Int>? = null,
     val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null,
     val tacticalSupport: TacticalSupport? = null, val commandAbility:Int?=null,
-    val tacticalPosture:TacticalPostureChange?=null,val tacticalGround:TacticalGroundCommand?=null) {
+    val tacticalPosture:TacticalPostureChange?=null,val tacticalGround:TacticalGroundCommand?=null,
+    val tacticalCommand:TacticalCommand?=null,val tacticalRanks:Map<Int,Int> = emptyMap()) {
+    init {require(tacticalRanks.size<=600 && tacticalRanks.all {(id,v)->id>0 && v>=0})
+        require(tacticalCommand==null || (destination==null && place==null && !supplyFuel && returnBase==null && tactical==null &&
+            energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null && tacticalShoot==null &&
+            tacticalAttack==null && tacticalSupport==null && tacticalPosture==null && tacticalGround==null))}
     init { require((tacticalGround==null || (destination==null && place==null && !supplyFuel && returnBase==null && tactical==null &&
         energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null && tacticalShoot==null && tacticalAttack==null &&
         tacticalSupport==null && tacticalPosture==null && shipKind!=null)) && (tacticalPosture==null || (destination==null && place==null && !supplyFuel && returnBase==null &&
@@ -97,7 +102,8 @@ enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_G
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false, val supportReadyAt: Long? = null,
     val supportNotifications: List<TacticalSupportResult> = emptyList(),
-    val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null,val groundReadyAt:Long?=null)
+    val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null,val groundReadyAt:Long?=null,
+    val commandReadyAt:Long?=null,val commandNotifications:List<TacticalCommandResult> = emptyList())
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
@@ -215,13 +221,13 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
             val maximum = (before.energy ?: TacticalEnergy.ZERO).values[0] / 100f
             if (move.velocity > maximum) return reject(NavigationRejection.ENERGY)
-            if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
+            if (now > 0xffffffffL - 5*clockScale) return reject(NavigationRejection.CLOCK)
             val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now,before.posture,galaxy) ?:
                 TacticalDeployment.initial(before.unitId, before.power, before.grid,
                     snapshot(session.generation).values + before, stocks, galaxy)
             val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
                 move.velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel,
-                turnRate=TacticalMotion.NATIVE_TURN_RATE))
+                turnRate=TacticalMotion.NATIVE_TURN_RATE,waitSeconds=5*clockScale))
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before)
         }
@@ -236,7 +242,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val motion = before.motion?.let { motion ->
                 val maximum = energy.values[0] / 100f*(if(motion.parallel)0.5f else 1f)
                 if (motion.grid != before.grid || motion.velocity <= maximum) motion else motion.copy(
-                    acceptedAt = maxOf(now, motion.startsAt) - TacticalMotion.WAIT_SECONDS,
+                    acceptedAt = maxOf(now, motion.startsAt) - motion.waitSeconds,
                     origin = motion.pose(now,before.posture,galaxy), velocity = maximum, waypoints = motion.remaining(now),reportedWaypoints=0)
             }
             val charge = if(before.charge!=null || energy.values[3]>0 || energy.values[4]>0)

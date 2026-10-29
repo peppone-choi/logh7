@@ -17,7 +17,7 @@ class TacticalFleetAttackWireTest {
         val now=SessionRules.load().startSeconds
         fun motion(y:Float)=TacticalMotion(2488,now,TacticalPose(TacticalPoint(0f,y),0f),0f,0f,listOf(TacticalPoint(0f,y)))
         var savedPlayers=(0..1).associate {i->"load-00$i" to Navigator(1,10000+i,Power.EMPIRE,2488,1000,1000,900,
-            cpPaused=true,supplies=if(i==0)400 else 1000,hull=FlagshipHull(0,now,hp=100),motion=motion(0.5f-i*0.25f))}
+            cpPaused=true,supplies=if(i==0)400 else 1000,hull=FlagshipHull(0,now,hp=100),motion=motion(0.5f-i*0.25f).let {m->val point=TacticalPoint(1f+i,m.origin.position.y);m.copy(origin=m.origin.copy(position=point),waypoints=listOf(point))})}
         val kind=32
         val stack=UnitStack(kind);val enemy=UnitStack(119)
         var savedStocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),

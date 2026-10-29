@@ -27,7 +27,7 @@ internal object TacticalPostureOperations {
         val b=galaxy.bases.singleOrNull {it.id==base && it.grid==grid} ?: return false
         val stock=stocks.bases[base] ?: return false
         if(mode==TacticalShipMode.STATIONED && (stock.camp!=0 || stock.power!=if(power==Power.EMPIRE)2 else 3))return false
-        val at=TacticalBasePosition.at(b,seconds)
+        val at=TacticalBasePosition.at(b,seconds,stocks)
         // Native 004b3700 excludes destinations within the planet's radius 5 + unit radius .25.
         // Replacement policy: admit its reachable perimeter with .25 docking margin; diameter alone
         // can otherwise require a destination the original movement editor refuses to accept.
@@ -37,13 +37,13 @@ internal object TacticalPostureOperations {
     private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose {
         val posture=s.unit.posture?.takeIf {it.grid==grid && it.mode==TacticalShipMode.STATIONED}
         val base=posture?.let {state->galaxy.bases.singleOrNull {it.id==state.base && it.grid==grid}}
-        if(base!=null)return TacticalPose(TacticalBasePosition.at(base,now),s.unit.tactical?.motion?.origin?.direction ?: 0f)
-        return s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy) ?:
+        if(base!=null)return TacticalPose(TacticalBasePosition.at(base,now,stocks),s.unit.tactical?.motion?.origin?.direction ?: 0f)
+        return s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy,stocks) ?:
             TacticalDeployment.initial(s.unit.id,if(s.outfit.power==2)Power.EMPIRE else Power.ALLIANCE,grid,players,stocks,galaxy)
     }
     private fun pose(p:Navigator,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
-        p.motion?.pose(now,p.posture,galaxy) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players,stocks,galaxy)
-    private fun owned(s:Ship,p:Navigator,galaxy:Galaxy)=s.unit.boats>0 && s.outfit.commanderId==p.characterId &&
+        p.motion?.pose(now,p.posture,galaxy,stocks) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players,stocks,galaxy)
+    private fun owned(s:Ship,p:Navigator,galaxy:Galaxy,stocks:PlanetStocks)=s.unit.boats>0 && TacticalAuthority.commander(s.outfit,s.unit,stocks)==p.characterId &&
         s.outfit.power==(if(p.power==Power.EMPIRE)2 else 3) && s.outfit.positionIn(galaxy)==OutfitPosition(p.grid)
     private fun audience(session:SessionState,grid:Int,players:Map<String,Navigator>)=session.participants.mapNotNull {(a,m)->
         players[a]?.takeIf {m.online && m.connection!=null && m.power==it.power && it.generation==session.generation &&
@@ -86,7 +86,7 @@ internal object TacticalPostureOperations {
             val source=if(id==player.unitId)null else ship(id,next) ?: return reject(NavigationRejection.UNIT)
             // A docked personal flagship uses strategy departure; this path serves commissioned ship units.
             if(command.sortie && source==null)return reject(NavigationRejection.UNIT)
-            if(source!=null && !owned(source,player,galaxy))return reject(NavigationRejection.CARD)
+            if(source!=null && !owned(source,player,galaxy,stocks))return reject(NavigationRejection.CARD)
             val current=(if(source==null)player.posture else source.unit.posture)?.takeIf {it.grid==player.grid}
                 ?: TacticalPosture(player.grid)
             if(current.order!=null || (current.mode==TacticalShipMode.STATIONED)!=command.sortie ||
@@ -133,13 +133,13 @@ internal object TacticalPostureOperations {
             if(valid && order.mode==TacticalShipMode.STATIONED)next=next.copy(baseId=order.base,mode=4,cpPaused=false,
                 cpRecoveryAt=now,motion=null,charge=null,commandRange=null,fire=next.fire?.copy(pending=null),spotId=0,spotOwner=0)
             players[account]=next;results+=event(p.unitId,state.grid,order,
-                if(valid)stopped.pose(now,changed,galaxy) else at,!valid)
+                if(valid)stopped.pose(now,changed,galaxy,stocks) else at,!valid)
         }
         val due=stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty()}.filter {it.posture?.order!=null}.map {it.id}
         for(id in due) {
             val s=ship(id,stocks) ?: continue;val state=checkNotNull(s.unit.posture);val order=checkNotNull(state.order)
             val p=commanders.values.singleOrNull {it.characterId==order.character}
-            val context=session.ended==null && p!=null && p.cpPaused && p.baseId==0 && p.grid==state.grid && owned(s,p,galaxy)
+            val context=session.ended==null && p!=null && p.cpPaused && p.baseId==0 && p.grid==state.grid && owned(s,p,galaxy,stocks)
             if(order.readyAt>now && context)continue
             val at=pose(s,state.grid,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context && p!=null &&
@@ -152,7 +152,7 @@ internal object TacticalPostureOperations {
                     motionCommander=order.character,attack=null,shot=null,support=null)
             }
             stocks=replace(stocks,s,unit);results+=event(id,state.grid,order,
-                if(valid)checkNotNull(unit.tactical).motion.pose(now,changed,galaxy) else at,!valid).copy(
+                if(valid)checkNotNull(unit.tactical).motion.pose(now,changed,galaxy,stocks) else at,!valid).copy(
                 sortie=state.mode==TacticalShipMode.STATIONED && order.mode==TacticalShipMode.ANCHORED)
         }
         return stocks

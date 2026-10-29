@@ -35,8 +35,8 @@ internal object GroundBattleOperations {
                         val target=targets[i%targets.size]
                         val offense=checkNotNull(specifications.getValue(attacker.stack.kind).manual.groundAttack)
                         val defense=checkNotNull(specifications.getValue(target.stack.kind).manual.groundDefense)
-                        val amount=(offense.toLong()*(100+20*attacker.stack.level)*attacker.strength /
-                            (maxOf(1,defense).toLong()*(100+20*target.stack.level)*5)).coerceAtLeast(1).toInt()
+                        val amount=(offense.toLong()*(100+20*attacker.stack.level)*attacker.strength*StrategicGroundTactics.factor(next,attacker.id) /
+                            (maxOf(1,defense).toLong()*(100+20*target.stack.level)*5*StrategicGroundTactics.factor(next,target.id))).coerceAtLeast(1).toInt()
                         losses[target.id]=(losses[target.id] ?: 0)+amount
                     }
                 }

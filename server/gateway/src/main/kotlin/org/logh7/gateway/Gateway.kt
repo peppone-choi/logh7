@@ -75,6 +75,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
     private var postureSubscription:AutoCloseable? = null
+    private var tacticalCommandSubscription:AutoCloseable? = null
     private var supportSubscription: AutoCloseable? = null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
@@ -106,6 +107,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             navigation.snapshot()?.let {snapshot->p.ground(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
         }}
         postureSubscription=presence?.let {p->navigation!!.observePostures {event->p.posture(event)}}
+        tacticalCommandSubscription=presence?.let {p->navigation!!.observeTacticalCommands {event->
+            navigation.snapshot()?.let {snapshot->p.tacticalCommand(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
+        }}
         supportSubscription = presence?.let { p -> navigation!!.observeSupport { result ->
             navigation.snapshot()?.let { snapshot -> p.support(result,snapshot,world!!.galaxy,currentCharacters()::characterById) }
         } }
@@ -241,6 +245,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         strategicMovementSubscription?.close()
         groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close()
         postureSubscription?.close()
+        tacticalCommandSubscription?.close()
         supportSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
         finally { try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() } }

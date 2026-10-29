@@ -6,6 +6,7 @@ enum class NationalOffice(val card:Int,val power:Int,val capital:Capital,val fac
     IMPERIAL_STAFF_DIRECTOR(3,2,Capital.EMPIRE,22,setOf(2)),
     MILITARY_MINISTER(17,2,Capital.EMPIRE,31,setOf(2)),
     NATIONAL_AFFAIRS_CHAIR(134,3,Capital.ALLIANCE,24,setOf(1)),
+    DEFENSE_COMMITTEE_CHAIR(135,3,Capital.ALLIANCE,24,setOf(1)),
     DEFENSE_HEAD(161,3,Capital.ALLIANCE,34,setOf(2,4,5)),
     ALLIANCE_FLEET_COMMANDER(169,3,Capital.ALLIANCE,29,setOf(2)),
     ALLIANCE_FLEET_CHIEF(171,3,Capital.ALLIANCE,29,setOf(2,4,5));
@@ -14,7 +15,7 @@ enum class NationalOffice(val card:Int,val power:Int,val capital:Capital,val fac
      */
     val appointer:NationalOffice? get()=when(this) {
         IMPERIAL_STAFF_DIRECTOR -> IMPERIAL_SUPREME_COMMANDER
-        ALLIANCE_FLEET_COMMANDER -> DEFENSE_HEAD
+        ALLIANCE_FLEET_COMMANDER -> DEFENSE_COMMITTEE_CHAIR
         ALLIANCE_FLEET_CHIEF -> ALLIANCE_FLEET_COMMANDER
         else -> null
     }

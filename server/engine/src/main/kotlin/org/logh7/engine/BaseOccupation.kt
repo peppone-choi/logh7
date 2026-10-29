@@ -70,7 +70,12 @@ internal object BaseOccupationOperations {
             stocks=stocks.copy(bases=stocks.bases+(base.id to occupied),outfits=outfits,warehouses=warehouses,
                 logisticsOfficers=stocks.logisticsOfficers.filterValues {it.capital!=capital},
                 nationalOffices=stocks.nationalOffices.filterKeys {it.capital!=capital},
-                groundBattles=stocks.groundBattles-base.id)
+                groundBattles=stocks.groundBattles-base.id,
+                strategic=stocks.strategic.copy(suppressions=stocks.strategic.suppressions.filter {it.base!=base.id},
+                    fiefs=stocks.strategic.fiefs-base.id,offices=stocks.strategic.offices.filter {holding ->
+                        if(OrganizationOffices.of(holding.card)?.scope==OfficeScope.OUTFIT)
+                            stocks.outfits[holding.seat]?.baseId!=base.id else holding.seat!=base.id
+                    }))
             val expelled=linkedMapOf<String,Navigator>()
             var offset=0
             for((account,p) in players.toMap()) {

@@ -80,11 +80,23 @@ class NationalOfficeDismissalTest {
         assertNull(result.rejection);assertTrue(result.changed)
     }
 
+    @Test fun capitalDefenseHeadCannotDismissTheAllianceFleetCommander() {
+        val role=NationalOffice.ALLIANCE_FLEET_COMMANDER
+        val s=stock(role).copy(nationalOffices=mapOf(NationalOffice.DEFENSE_HEAD to 10000,role to 10001))
+        val p=player(role)
+        val result=act(request(role).copy(actorRank=2),s,p)
+        assertEquals(DismissalRejection.AUTHORITY,result.rejection)
+        assertEquals(s,result.stocks);assertEquals(p,result.player);assertFalse(result.changed)
+        assertTrue(OfficeDismissalPolicy(galaxy).available(s,10000,3,2).none {it.card==169})
+        assertEquals(NationalOffice.DEFENSE_HEAD,CapitalAppointmentPolicy.rule(193)?.authority)
+        assertEquals(135,NationalOffice.ALLIANCE_FLEET_COMMANDER.appointer?.card)
+    }
+
     @Test fun unsupportedTopOfficesSelfDismissalAndStaleTargetCannotBeCharged() {
         for(role in roles) {
             val q=request(role);val s=stock(role);val p=player(role)
             for((r,reason) in listOf(
-                q.copy(card=if(role.power==2)2 else 161) to DismissalRejection.CARD,
+                q.copy(card=if(role.power==2)2 else 132) to DismissalRejection.CARD,
                 q.copy(target=10000) to DismissalRejection.TARGET,
                 q.copy(targetPower=if(role.power==2)3 else 2) to DismissalRejection.TARGET,
                 q.copy(target=10003) to DismissalRejection.AUTHORITY)) {

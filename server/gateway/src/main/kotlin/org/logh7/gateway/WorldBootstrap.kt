@@ -13,29 +13,39 @@ import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
+    private val officeCards=org.logh7.engine.OrganizationOffices.all.mapValues {(_,role)->
+        val commands=buildList {
+            addAll(WorldMessages.commandsForCard(role.card))
+            when(role.card) {
+                1->addAll(listOf(0,1,2,3,8,9))
+                17,135->addAll(listOf(0,1,2,4))
+                19,160->addAll(listOf(0,1,2))
+                24,25,26,147,148,149->addAll(listOf(22,23))
+                28,29,30,169,170,171->add(24)
+            }
+            if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
+            add(7)
+        }.distinct()
+        WorldMessages.CardDefinition(role.card,role.power,role.camp,role.institution,role.authority ?: 0,
+            role.ranks.max(),role.ranks.min(),commands)
+    }.plus(((60..66).toList()+(124..130).toList()).associateWith {card ->
+        WorldMessages.CardDefinition(card,2,if(card>=124)1 else 0,if(card in setOf(66,130))16 else 0,1,20,0,
+            if(card in setOf(66,130))listOf(11) else emptyList())
+    })
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices=org.logh7.engine.LogisticsOfficePolicy(galaxy)
     /** Stored base offices, never inferred from the viewer or a stationed outfit. */
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
-        val national=org.logh7.engine.NationalOffice.of(card)
-        val logistics=org.logh7.engine.LogisticsOffice.of(card)
-        val fleetRole=FleetOffice.of(card)
-        require(national!=null || logistics!=null || fleetRole!=null || card in setOf(52,54,55,56,57,188,190,191,192,193)) { "Unsupported public office roster" }
-        val power=national?.power ?: logistics?.power ?: if (card<136) 2 else 3
-        val baseHolders=stocks.bases.values.filter { it.power==power && it.camp==0 }.flatMap { base ->
-            val id=baseOffices.holders(base)[card] ?: return@flatMap emptyList()
-            listOf(id to BootstrapMessages.OfficeCard(card,base.baseId))
-        }
-        val nationalHolders=if(national!=null && national.active(galaxy,stocks)) stocks.nationalOffices[national]?.let {
-            listOf(it to BootstrapMessages.OfficeCard(card,checkNotNull(national.seat(galaxy)))) }.orEmpty() else emptyList()
-        val logisticsHolders=if (logistics==null) emptyList() else stocks.logisticsOfficers.entries
-            .filter { it.value==logistics }.flatMap { (id,_) ->
-                logisticsOffices.cards(stocks,id,power).map { (kind,seat) -> id to BootstrapMessages.OfficeCard(kind,seat) } }
-        val fleetHolders=if(fleetRole!=null) stocks.outfits.values.filter {
-            it.power==power && it.kind==org.logh7.engine.OutfitKind.FLEET
-        }.flatMap {outfit ->fleetRole.holders(outfit).map {it to BootstrapMessages.OfficeCard(card,outfit.id)}} else emptyList()
-        val appointed=(baseHolders+nationalHolders+logisticsHolders+fleetHolders).groupBy({it.first},{it.second}).toSortedMap()
+        val role=org.logh7.engine.OrganizationOffices.of(card)
+        require(role!=null || org.logh7.protocol.OfficeCardKinds.isPeerage(card) || org.logh7.protocol.OfficeCardKinds.isFief(card))
+        val power=role?.power ?: 2
+        val policy=org.logh7.engine.OrganizationalOfficePolicy(galaxy)
+        val holdings=if(role!=null)policy.holders(stocks,card).map {holding ->holding.character to
+            BootstrapMessages.OfficeCard(card,policy.target(role,holding.seat))} else if(card in 60..65)
+            stocks.strategic.people.filterValues {it.peerage?.ordinal==card-60}.keys.map {it to BootstrapMessages.OfficeCard(card,0)}
+        else if(card==66)stocks.strategic.fiefs.map {(base,owner)->owner to BootstrapMessages.OfficeCard(66,base)} else emptyList()
+        val appointed=holdings.groupBy({it.first},{it.second}).toSortedMap()
         if(appointed.size>64) return org.logh7.protocol.CardCharacterMessages.response(card,emptyList(),failed=true)
         require(appointed.values.all { it.size<=14 }) { "Office cards exceed CD capacity" }
         val records=appointed.map { (id,offices) ->
@@ -194,8 +204,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
         }),
         0x0314 to WorldMessages.grid(galaxy.cells),
         0x031c to WorldMessages.bases(galaxy.bases.map(::baseWire)),
-        0x0306 to WorldMessages.captainCommands(),
-        0x0304 to WorldMessages.cards(),
+        0x0306 to WorldMessages.captainCommands(officeCards.mapValues {it.value.commands}),
+        0x0304 to WorldMessages.cards(officeCards),
         0x0308 to WorldMessages.powerDirection(),
         0x0310 to WorldMessages.armaments(org.logh7.engine.TacticalArmaments.profiles),
         0x030a to WorldMessages.ships(UnitSpecifications.ships.map { ship ->

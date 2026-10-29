@@ -18,37 +18,16 @@ internal object OfficeResignation {
         if(player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.power!=r.power || participant.power!=r.power) return reject(ResignationRejection.IDENTITY)
         val power=if(r.power==Power.EMPIRE)2 else 3
-        if(NationalOffice.of(r.card)==null && FleetOffice.of(r.card)==null &&
-            r.card !in setOf(44,47,50,52,54,55,56,57,180,183,186,188,190,191,192,193))
-            return reject(ResignationRejection.CARD)
-        val policy=BaseOfficePolicy(galaxy)
-        val bases=stocks.bases.values.filter {it.power==power && policy.holders(it)[r.card]==r.characterId}
-        val national=NationalOffice.of(r.card)?.takeIf {it.power==power && it.active(galaxy,stocks) &&
-            stocks.nationalOffices[it]==r.characterId}
-        val outfits=stocks.outfits.values.filter { outfit ->
-            val kind=when(outfit.kind) {OutfitKind.FLEET->39;OutfitKind.TRANSPORT->44;OutfitKind.PATROL->47;OutfitKind.GROUND->50}
-            outfit.power==power && (FleetOffice.of(r.card)?.let {it.power==power && outfit.kind==OutfitKind.FLEET &&
-                r.characterId in it.holders(outfit)} ?: (outfit.commanderId==r.characterId && kind+(if(power==3)136 else 0)==r.card))
-        }
-        val count=bases.size+outfits.size+(if(national==null)0 else 1)
-        if(count==0) return reject(ResignationRejection.AUTHORITY)
-        if(count!=1) return reject(ResignationRejection.AMBIGUOUS)
+        val role=OrganizationOffices.of(r.card) ?: return reject(ResignationRejection.CARD)
+        if(role.power!=power)return reject(ResignationRejection.AUTHORITY)
+        val policy=OrganizationalOfficePolicy(galaxy)
+        val holdings=policy.holders(stocks,r.card).filter {it.character==r.characterId}
+        if(holdings.isEmpty())return reject(ResignationRejection.AUTHORITY)
+        if(holdings.size!=1)return reject(ResignationRejection.AMBIGUOUS)
         if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(ResignationRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),80,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(ResignationRejection.CP)
-        val replacement=when {
-            national!=null -> stocks.copy(nationalOffices=stocks.nationalOffices-national)
-            outfits.isNotEmpty() -> outfits.single().let {stocks.copy(outfits=stocks.outfits+(it.id to
-                (FleetOffice.of(r.card)?.remove(it,r.characterId) ?: it.copy(commanderId=0))))}
-            else -> bases.single().let {base ->
-                val cleared=when(r.card) {
-                    54,190->base.copy(governorId=0)
-                    52,55,188,191->base.copy(garrisonCommanderId=0)
-                    else->checkNotNull(CapitalAppointmentPolicy.rule(r.card)).assign(base,0)
-                }
-                stocks.copy(bases=stocks.bases+(base.baseId to cleared))
-            }
-        }
+        val replacement=policy.set(stocks,holdings.single(),remove=true)
         return OfficeResignationResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),replacement,changed=true)
     }
 }

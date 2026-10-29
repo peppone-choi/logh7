@@ -21,7 +21,7 @@ internal object TacticalMotionMessages {
         }
         return origins+org.logh7.protocol.TacticalTurnMessages.reply(org.logh7.protocol.TacticalTurnMessages.Command(character,
             ordered.map {(id,m)->org.logh7.protocol.TacticalTurnMessages.Unit(id,m.origin.direction)},
-            if(rotation.kind==org.logh7.engine.TacticalManeuver.REVERSE)null else first.direction),seconds,maxOf(0,first.startsAt-seconds))
+            if(rotation.kind==org.logh7.engine.TacticalManeuver.REVERSE)null else first.direction,rotation.reverseSide),seconds,maxOf(0,first.startsAt-seconds))
     }
     fun npc(unit:Int,motion:org.logh7.engine.TacticalMotion,seconds:Long,character:Int=0):ByteArray {
         if(motion.rotation!=null)return formation(mapOf(unit to motion),seconds,character).last()

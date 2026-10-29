@@ -68,7 +68,8 @@ object TacticsMessages {
     }
     data class Unit(val id: Int,val kind: Int,val outfit: Int,val character: Int,val supplies: Int,
         val cruise: Float,val destroyed: Int,val x: Float,val y: Float,val z: Float,val direction: Float,val damaged: Int = 0,
-        val mode:Int=6,val base:Int=0,val troops:List<Int> = emptyList())
+        val mode:Int=6,val base:Int=0,val troops:List<Int> = emptyList(),val morale:Int=100,val confused:Boolean=false,
+        val leader:Int=0,val leaderX:Float=0f,val leaderY:Float=0f,val leaderZ:Float=0f,val leaderDirection:Float=0f)
     fun notify(grid: Int, active: Boolean): ByteArray {
         require(grid in 0..4999)
         return LoginMessages.sessionMessage(0x0f1f,ByteBuffer.allocate(5).put(if(active)1 else 0).putInt(grid).array())
@@ -103,7 +104,7 @@ object TacticsMessages {
             // 00419ca0: boarding_ship, troop_units count/list, THEN base.
             out.putInt(u.id).putShort(u.kind.toShort()).put(u.mode.toByte()).putInt(grid).putInt(u.outfit).putInt(0).put(u.troops.size.toByte())
             u.troops.forEach(out::putInt)
-            out.putInt(u.base).put(100).put(0).putShort(u.damaged.toShort()).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
+            out.putInt(u.base).put(u.morale.toByte()).put(if(u.confused)1 else 0).putShort(u.damaged.toShort()).putShort(u.destroyed.toShort()).putInt(u.supplies).putInt(0).putFloat(u.cruise)
         }
         ground.forEach {u ->
             require(u.id>0 && u.kind in 1000..1015 && u.outfit>0 && u.base in 0..65535 && u.carrier>=0 &&
@@ -126,9 +127,9 @@ object TacticsMessages {
     fun states(units: List<Unit>): ByteArray {
         validate(units)
         val out=ByteBuffer.allocate(2+47*units.size).putShort(units.size.toShort())
-        units.forEach {u->out.putInt(u.id).put(100).put(0).putInt(u.character)
-            .putFloat(u.x).putFloat(u.y).putFloat(u.z).putFloat(u.direction).putInt(0)
-            .putFloat(0f).putFloat(0f).putFloat(0f).putFloat(0f).put(1)}
+        units.forEach {u->out.putInt(u.id).put(u.morale.toByte()).put(if(u.confused)1 else 0).putInt(u.character)
+            .putFloat(u.x).putFloat(u.y).putFloat(u.z).putFloat(u.direction).putInt(u.leader)
+            .putFloat(u.leaderX).putFloat(u.leaderY).putFloat(u.leaderZ).putFloat(u.leaderDirection).put(1)}
         return LoginMessages.sessionMessage(0x033b,out.array())
     }
     /** 00422d80: 55 wire bytes per corps, versus the native padded 60-byte record. */

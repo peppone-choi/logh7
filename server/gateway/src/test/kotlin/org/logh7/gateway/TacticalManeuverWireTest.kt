@@ -43,7 +43,7 @@ class TacticalManeuverWireTest {
         }
         fun command(character:Int)=TacticalTurnMessages.reply(TacticalTurnMessages.Command(character,
             listOf(1,2,1010000).map {TacticalTurnMessages.Unit(it,2.5f)},
-            if(reverse)null else (Math.PI/2).toFloat(),if(reverse)55 else 0),123,999).let {it.copyOfRange(4,it.size)}
+            if(reverse)null else (Math.PI/2).toFloat(),if(reverse)1 else 0),123,999).let {it.copyOfRange(4,it.size)}
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=stock,
             worldStateCommitter=commit,powerByIndex={2}).use {fixture ->
             fun join(i:Int,first:Boolean)=fixture.join(fixture.account(i),first,false).client.also {c ->
@@ -63,6 +63,7 @@ class TacticalManeuverWireTest {
             }
             val pending=savedStocks.outfits.getValue(1).activeShips!!.values.single {it.id==2}.tactical!!.motion
             assertNotNull(pending.rotation);assertEquals(1,pending.rotation!!.leader)
+            assertEquals(if(reverse)1 else 0,checkNotNull(pending.rotation).reverseSide)
             fixture.engine.submit(WorldCommand.AdvanceTo(2000)) // 48 G-seconds: still inside the manual wait.
             assertEquals(pending,savedStocks.outfits.getValue(1).activeShips!!.values.single {it.id==2}.tactical!!.motion)
             clients[1].close();fixture.awaitState(online=1,connections=1,participants=2)

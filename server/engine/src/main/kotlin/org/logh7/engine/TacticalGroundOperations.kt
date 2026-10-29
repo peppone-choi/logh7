@@ -16,7 +16,7 @@ data class TacticalGroundResult(val generation:Long,val order:TacticalGroundOrde
     val recipients:Map<Int,String>,val cancelled:Boolean=false)
 
 internal object TacticalGroundOperations {
-    private fun owned(o:OutfitStock,p:Navigator,galaxy:Galaxy)=o.commanderId==p.characterId &&
+    private fun owned(o:OutfitStock,id:Int,p:Navigator,galaxy:Galaxy,stocks:PlanetStocks)=o.activeShips?.values?.singleOrNull {it.id==id}?.let {TacticalAuthority.commander(o,it,stocks)==p.characterId}==true &&
         o.power==(if(p.power==Power.EMPIRE)2 else 3) && o.positionIn(galaxy)==OutfitPosition(p.grid)
     private fun berth(o:OutfitStock,carrier:Int,grid:Int)=o.activeShips?.values?.singleOrNull {it.id==carrier && it.boats>0}
         ?.posture?.takeIf {it.grid==grid && it.mode.requiresBase && it.order==null}
@@ -46,19 +46,19 @@ internal object TacticalGroundOperations {
         if(command.skill!=0)return reject(NavigationRejection.ACCESS) // Skill semantics are not reconstructed.
         if(now>0xffffffffL-25*scale)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
-        val centre=(p.motion?.pose(now,p.posture,galaxy) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players.values,stocks,galaxy)).position
+        val centre=(p.motion?.pose(now,p.posture,galaxy,stocks) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players.values,stocks,galaxy)).position
         val radius=checkNotNull(p.commandRange).radius(now)
         var next=stocks
         for(id in command.units) {
             val o=next.outfits.values.singleOrNull {it.activeShips?.values?.any {s->s.id==id}==true} ?: return reject(NavigationRejection.UNIT)
-            if(!owned(o,p,galaxy))return reject(NavigationRejection.CARD)
+            if(!owned(o,id,p,galaxy,next))return reject(NavigationRejection.CARD)
             val ship=o.activeShips!!.values.single {it.id==id}
             val state=berth(o,id,p.grid) ?: return reject(NavigationRejection.BASE)
             val base=galaxy.bases.singleOrNull {it.id==state.base && it.grid==p.grid} ?: return reject(NavigationRejection.BASE)
             if(ship.support!=null || ship.tactical?.retreat!=null || o.activeGround?.values?.any {it.order?.carrier==id}==true)
                 return reject(NavigationRejection.BUSY)
-            val point=if(state.mode==TacticalShipMode.STATIONED)TacticalBasePosition.at(base,now)
-                else ship.tactical?.motion?.pose(now,state,galaxy)?.position ?: TacticalDeployment.initial(id,p.power,p.grid,players.values,stocks,galaxy).position
+            val point=if(state.mode==TacticalShipMode.STATIONED)TacticalBasePosition.at(base,now,stocks)
+                else ship.tactical?.motion?.pose(now,state,galaxy,stocks)?.position ?: TacticalDeployment.initial(id,p.power,p.grid,players.values,stocks,galaxy).position
             if(hypot((point.x-centre.x).toDouble(),(point.y-centre.y).toDouble())>radius)return reject(NavigationRejection.RANGE)
             val troops=ground(o,id,state.base,command.action)
             if(troops.isEmpty())return reject(NavigationRejection.UNIT)
@@ -92,7 +92,7 @@ internal object TacticalGroundOperations {
             val reserved=next.outfits.values.filter {it.power==o.power}.sumOf {other->other.activeGround?.values.orEmpty().count {
                 it.base==order.base || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==order.base}==true}}
             val valid=(order.action!=TacticalGroundAction.DEPLOY || reserved<=GroundBattleRules.BOX_CAPACITY_PER_FACTION) && session.ended==null && p!=null && p.cpPaused && p.baseId==0 && p.grid==order.grid &&
-                owned(o,p,galaxy) && state?.base==order.base && galaxy.bases.any {it.id==order.base && it.grid==order.grid}
+                owned(o,order.carrier,p,galaxy,next) && state?.base==order.base && galaxy.bases.any {it.id==order.base && it.grid==order.grid}
             if(valid && now<order.readyAt)continue
             val units=o.activeGround!!.values.filter {it.order==order};val ids=units.map {it.id}.toSet()
             val roster=ActiveGroundUnits(o.activeGround.values.map {unit ->

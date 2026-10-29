@@ -109,7 +109,7 @@ class TacticalEntryWireTest {
             val ownIndex=ids.indexOf(1010000)
             assertEquals(locations[ownIndex].first,authoritative.units.single().position.x)
             assertEquals(locations[ownIndex].second,authoritative.units.single().position.y)
-            assertEquals(5,ByteBuffer.wrap(moved).getInt(10))
+            assertEquals(120,ByteBuffer.wrap(moved).getInt(10))
             assertContentEquals(moved,through(second,0x0400))
             val savedMotion=savedPlayers.getValue(fixture.account(0)).motion
             assertNotNull(savedMotion);assertEquals(1000,savedPlayers.getValue(fixture.account(0)).mcp)

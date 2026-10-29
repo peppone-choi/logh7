@@ -19,35 +19,32 @@ internal object GarrisonAppointment {
             !participant.online || participant.connection!=r.connection) return reject(AppointmentRejection.SESSION)
         if (player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.power!=r.power || participant.power!=r.power) return reject(AppointmentRejection.IDENTITY)
-        if (FleetOffice.of(r.targetCard)!=null) return FleetOfficeAppointment.evaluate(galaxy,r,player,stocks)
-        if (r.outfit!=0) return reject(AppointmentRejection.TARGET)
-        val capitalRule=CapitalAppointmentPolicy.rule(r.targetCard)
-        if (capitalRule==null && (r.power!=Power.EMPIRE || r.targetCard!=55)) return reject(AppointmentRejection.AUTHORITY)
-        val base=stocks.bases[r.base] ?: return reject(AppointmentRejection.BASE)
-        val seed=galaxy.bases.singleOrNull { it.id==r.base } ?: return reject(AppointmentRejection.BASE)
+        val role=OrganizationOffices.of(r.targetCard) ?: return reject(AppointmentRejection.AUTHORITY)
         val power=if(r.power==Power.EMPIRE)2 else 3
-        if (seed.kind!=0 || base.power!=power || base.camp!=0 ||
-            if(capitalRule==null) Capital.of(seed)!=null else Capital.of(seed)!=capitalRule.capital)
+        if(role.power!=power) return reject(AppointmentRejection.AUTHORITY)
+        if(role.scope==OfficeScope.OUTFIT && r.outfit<=0 || role.scope!=OfficeScope.OUTFIT && r.outfit!=0)
+            return reject(AppointmentRejection.TARGET)
+        if(role.scope in setOf(OfficeScope.PLANET,OfficeScope.FORTRESS) && r.base<=0)
             return reject(AppointmentRejection.BASE)
-        if (if(capitalRule==null) base.governorId!=r.characterId else
-            !CapitalAppointmentPolicy(galaxy).authorized(capitalRule,stocks,r.characterId,power))
-            return reject(AppointmentRejection.AUTHORITY)
-        if (r.target<=0 || r.target==r.characterId || r.targetPower!=power) return reject(AppointmentRejection.TARGET)
-        // Native rank indices: 1 politician; 2 marshal..10 major. Smaller military index is senior.
-        if (if(capitalRule==null) r.actorRank !in 0..20 || r.targetRank !in 2..10 || r.actorRank>=r.targetRank
-            else !capitalRule.eligible(r.actorRank,r.targetRank)) return reject(AppointmentRejection.RANK)
-        if (player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(AppointmentRejection.BUSY)
-        val holder=capitalRule?.holder(base) ?: base.garrisonCommanderId
-        if (holder==r.target) return GarrisonAppointmentResult(player,stocks)
-        if (holder!=0) return reject(AppointmentRejection.OCCUPIED)
-        val offices=BaseOfficePolicy(galaxy)
-        val held=stocks.bases.values.sumOf { offices.holders(it).values.count { id -> id==r.target } }+
-            stocks.outfits.values.sumOf { it.members().count {id->id==r.target} }+
-            stocks.nationalOffices.values.count { it==r.target }+(if(r.target in stocks.logisticsOfficers)1 else 0)
-        if (held>=14) return reject(AppointmentRejection.CAPACITY)
+        val seat=if(role.scope==OfficeScope.OUTFIT)r.outfit else r.base.takeIf {it>0} ?: galaxy.bases
+            .singleOrNull {Capital.of(it)?.power==power}?.id ?: return reject(AppointmentRejection.BASE)
+        if(role.scope==OfficeScope.OUTFIT && r.base!=0 && stocks.outfits[r.outfit]?.baseId!=r.base)
+            return reject(AppointmentRejection.BASE)
+        val policy=OrganizationalOfficePolicy(galaxy)
+        if(!policy.active(stocks,role,seat))return reject(AppointmentRejection.BASE)
+        if(!policy.authorized(stocks,role,seat,r.characterId,r.actorRank))return reject(AppointmentRejection.AUTHORITY)
+        if(r.target<=0 || r.target==r.characterId || r.targetPower!=power)return reject(AppointmentRejection.TARGET)
+        if(!role.eligible(r.actorRank,r.targetRank))return reject(AppointmentRejection.RANK)
+        if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null)return reject(AppointmentRejection.BUSY)
+        val current=policy.holders(stocks,r.targetCard).filter {it.seat==seat}
+        if(current.any {it.character==r.target})return GarrisonAppointmentResult(player,stocks)
+        if(current.size>=role.seats)return reject(AppointmentRejection.OCCUPIED)
+        if(policy.cardCount(stocks,r.target)>=14)return reject(AppointmentRejection.CAPACITY)
+        if(role.scope==OfficeScope.OUTFIT && r.target in stocks.outfits.getValue(seat).members())
+            return reject(AppointmentRejection.TARGET)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),COST.toLong(),CpPool.MCP)
-        if (paid !is PaymentResult.Paid) return reject(AppointmentRejection.CP)
+        if(paid !is PaymentResult.Paid)return reject(AppointmentRejection.CP)
         return GarrisonAppointmentResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),
-            stocks.copy(bases=stocks.bases+(base.baseId to (capitalRule?.assign(base,r.target) ?: base.copy(garrisonCommanderId=r.target)))),changed=true)
+            policy.set(stocks,OfficeHolding(r.targetCard,seat,r.target)),changed=true)
     }
 }

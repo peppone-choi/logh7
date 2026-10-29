@@ -24,20 +24,19 @@ internal object TacticalFleetAttack {
         if(command.units.isEmpty() || command.units.size>32 || command.units.distinct().size!=command.units.size)
             return reject(NavigationRejection.UNIT)
         if(command.mode !in 0..2 || command.target!=0)return reject(NavigationRejection.TARGET)
-        if(command.mode!=0 && player.retreat!=null)return reject(NavigationRejection.BUSY)
         val now=session.gameMillis/1000
         if(now>0xffffffffL-5*scale)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
-        val own=player.motion?.pose(now,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
+        val own=player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
         val ships=command.units.filter {it!=player.unitId}.map {id ->
             if(id !in 1..999999)return reject(NavigationRejection.UNIT)
             val pair=stocks.outfits.values.flatMap {o->o.activeShips?.values.orEmpty().filter {it.id==id}.map {o to it}}
                 .singleOrNull() ?: return reject(NavigationRejection.UNIT)
             val(o,u)=pair
-            if(o.commanderId!=player.characterId || o.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
+            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
-            if(u.boats<=u.damaged || u.support!=null || u.tactical?.retreat!=null)return reject(NavigationRejection.BUSY)
-            val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy) ?:
+            if(u.boats<=u.damaged || u.support!=null)return reject(NavigationRejection.BUSY)
+            val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy,stocks) ?:
                 TacticalDeployment.initial(id,player.power,player.grid,players.values,stocks,galaxy)
             if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
                 checkNotNull(player.commandRange).radius(now))return reject(NavigationRejection.RANGE)
@@ -76,12 +75,12 @@ internal object TacticalFleetAttack {
             val position=outfit.positionIn(galaxy)
             val commander=players.values.singleOrNull {it.characterId==command.commander &&
                 it.power==(if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE)}
-            if(outfit.commanderId!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
-                unit.boats<=unit.damaged || unit.support!=null || unit.tactical.retreat!=null ||
+            if(TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
+                unit.boats<=unit.damaged || unit.support!=null ||
                 commander==null || commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue
             }
-            if(now<command.order.nextAt || now>0xffffffffL-5*scale || unit.tactical.sequence>Long.MAX_VALUE-3)continue
+            if(stocks.tacticalCommands.confused(id) || now<command.order.nextAt || now>0xffffffffL-5*scale || unit.tactical.sequence>Long.MAX_VALUE-3)continue
             val power=if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}})
@@ -96,10 +95,12 @@ internal object TacticalFleetAttack {
                 val mount=TacticalArmaments.mount(spec,weapon)
                 val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                 if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
-                val origin=state.motion.pose(now,unit.posture,galaxy)
+                val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
                 val victim=ids.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,power,stocks,galaxy,players)
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
-                        TacticalArmaments.effectiveness(mount,origin,pose(t,now,players,stocks,galaxy).position)>0} ?: continue
+                        TacticalArmaments.effectiveness(mount,origin,pose(t,now,players,stocks,galaxy).position)>0 &&
+                            !TacticalLineOfFire.blocked(id,position.grid,power,origin.position,pose(t,now,players,stocks,galaxy).position,
+                                now,players.values,stocks,galaxy)} ?: continue
                 val effect=TacticalArmaments.effectiveness(mount,origin,pose(victim.second,now,players,stocks,galaxy).position)
                 val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,
                     victim.first,weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),
@@ -117,7 +118,7 @@ internal object TacticalFleetAttack {
     }
 
     internal fun pose(target:TacticalCombat.Target,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose =
-        target.personal?.second?.let {it.motion?.pose(now,it.posture,galaxy) ?: TacticalDeployment.initial(it.unitId,it.power,it.grid,players.values,stocks,galaxy)}
-            ?: target.regular!!.let {(o,u)->u.tactical?.motion?.pose(now,u.posture,galaxy) ?: TacticalDeployment.initial(u.id,
+        target.personal?.second?.let {it.motion?.pose(now,it.posture,galaxy,stocks) ?: TacticalDeployment.initial(it.unitId,it.power,it.grid,players.values,stocks,galaxy)}
+            ?: target.regular!!.let {(o,u)->u.tactical?.motion?.pose(now,u.posture,galaxy,stocks) ?: TacticalDeployment.initial(u.id,
                 if(o.power==2)Power.EMPIRE else Power.ALLIANCE,o.positionIn(galaxy).grid,players.values,stocks,galaxy)}
 }

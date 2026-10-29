@@ -21,17 +21,18 @@ data class TacticalStop(val units: List<Int>, val bases: List<Int> = emptyList()
 enum class TacticalManeuver { TURN, REVERSE }
 
 /** Group leader is retained so reconnect never turns a formation into independent rotations. */
-data class TacticalRotation(val kind:TacticalManeuver,val leader:Int,val wait:Long,val selection:List<Int> = listOf(leader)) {
+data class TacticalRotation(val kind:TacticalManeuver,val leader:Int,val wait:Long,val selection:List<Int> = listOf(leader),val reverseSide:Int=0) {
     init {require(leader>0 && wait in 1..0xffffffffL && selection.size in 1..32 && selection.first()==leader &&
-        selection.all {it>0} && selection.distinct().size==selection.size)}
+        selection.all {it>0} && selection.distinct().size==selection.size && reverseSide in 0..1 && (kind==TacticalManeuver.REVERSE || reverseSide==0))}
 }
 
 data class TacticalMove(val units: List<Int>, val velocity: Float, val direction: Float, val waypoints: List<TacticalPoint>,val parallel:Boolean=false,
-    val maneuver:TacticalManeuver?=null) {
+    val maneuver:TacticalManeuver?=null,val reverseSide:Int=0) {
     init {
         require(units.size in 1..32 && units.all { it > 0 } && units.distinct().size == units.size)
         require(velocity.isFinite() && velocity in 0f..1f && direction.isFinite() && waypoints.size in 1..32)
         require(maneuver==null || !parallel && waypoints.size==1)
+        require(reverseSide in 0..1 && (maneuver==TacticalManeuver.REVERSE || reverseSide==0))
     }
 }
 /** Parametric movement survives restart without writing interpolated positions on every tick.
@@ -40,15 +41,16 @@ data class TacticalMove(val units: List<Int>, val velocity: Float, val direction
  */
 data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: TacticalPose,
     val velocity: Float, val direction: Float, val waypoints: List<TacticalPoint>,val parallel:Boolean=false,
-    val reportedWaypoints:Int=0,val rotation:TacticalRotation?=null,val turnRate:Float=0f) {
+    val reportedWaypoints:Int=0,val rotation:TacticalRotation?=null,val turnRate:Float=0f,val waitSeconds:Long=WAIT_SECONDS) {
     init {
         require(grid in 0..4999 && acceptedAt in 0..0xffffffffL - WAIT_SECONDS)
         require(velocity.isFinite() && velocity in 0f..1f && direction.isFinite() && waypoints.size in 1..32)
         require(reportedWaypoints in waypoints.indices)
+        require(waitSeconds in 0..5000 && acceptedAt<=0xffffffffL-waitSeconds)
         require(turnRate.isFinite() && turnRate in 0f..1000f && (rotation==null || turnRate==0f))
         require(rotation==null || (!parallel && reportedWaypoints==0 && waypoints.size==1 && velocity==0f && acceptedAt<=0xffffffffL-rotation.wait))
     }
-    val startsAt get() = acceptedAt + (rotation?.wait ?: WAIT_SECONDS)
+    val startsAt get() = acceptedAt + (rotation?.wait ?: waitSeconds)
     /** First integer game second whose durable progress differs from the last report. */
     internal val nextProgressAt: Long? by lazy(LazyThreadSafetyMode.PUBLICATION) {
         if(rotation==null && velocity==0f || completedWaypoints(0xffffffffL)<=reportedWaypoints) null

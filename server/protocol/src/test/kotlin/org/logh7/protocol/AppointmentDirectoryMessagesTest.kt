@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class AppointmentDirectoryMessagesTest {
-    @Test fun nationalDismissalListsKeepTheirCardsWithoutEnablingUnsupportedAppointment() {
+    @Test fun nationalAppointmentAndDismissalDirectoriesKeepTheirOwnCards() {
         val query=AppointmentDirectoryMessages.query(request())
         val body=ByteBuffer.wrap(AppointmentDirectoryMessages.cards(query,mapOf(3 to 1,169 to 1,171 to 1))[1])
         assertEquals(3,body.getShort(6).toInt())
@@ -14,9 +14,9 @@ class AppointmentDirectoryMessagesTest {
             fun raw(search:Int)=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
                 .putShort(search.toShort()).putShort(80).putShort(card.toShort()).array()
             assertEquals(card,AppointmentDirectoryMessages.query(raw(5)).role)
-            assertFails {AppointmentDirectoryMessages.query(raw(4))}
+            assertEquals(card,AppointmentDirectoryMessages.query(raw(4)).role)
         }
-        assertFails {AppointmentDirectoryMessages.cards(query,mapOf(2 to 1))}
+        assertFails {AppointmentDirectoryMessages.cards(query,mapOf(59 to 1))}
     }
     @Test fun fleetVacanciesCarryAvailabilityIdentityAndTheActualBase() {
         val q=AppointmentDirectoryMessages.query(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
@@ -39,7 +39,8 @@ class AppointmentDirectoryMessagesTest {
             val raw=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(4).putShort(80).putShort(card.toShort()).array()
             assertEquals(card,AppointmentDirectoryMessages.query(raw).role)
         }
-        assertFails {AppointmentDirectoryMessages.cards(q,mapOf(134 to 1))}
+        assertEquals(3,AppointmentDirectoryMessages.cards(q,mapOf(134 to 1)).size)
+        assertFails {AppointmentDirectoryMessages.cards(q,mapOf(131 to 1))}
     }
     private fun request()=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(18).putShort(123).array()
     @Test fun nativeCardListHasTargetZeroAndByteVacancyCountBetweenBeginAndEnd() {

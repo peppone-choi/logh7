@@ -29,6 +29,7 @@ sealed interface WorldCommand {
     data class TransferGround(val request: GroundTransferRequest, val result: CompletableDeferred<GroundTransferResult>) : WorldCommand
     data class SupplementOutfit(val request: SupplementRequest, val result: CompletableDeferred<SupplementResult>) : WorldCommand
     data class AssignStock(val request: StockAssignmentRequest, val result: CompletableDeferred<StockAssignmentResult>) : WorldCommand
+    data class StrategyAction(val request:StrategyActionRequest,val result:CompletableDeferred<StrategyActionResult>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -74,6 +75,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         groundObservers+=observer;return AutoCloseable {groundObservers.remove(observer)}
     }
     private val postureObservers=java.util.concurrent.CopyOnWriteArrayList<(TacticalPostureResult)->Unit>()
+    private val commandObservers=java.util.concurrent.CopyOnWriteArrayList<(TacticalCommandResult)->Unit>()
+    fun observeTacticalCommands(observer:(TacticalCommandResult)->Unit):AutoCloseable {
+        commandObservers+=observer;return AutoCloseable {commandObservers.remove(observer)}
+    }
+    private fun publishTacticalCommands(events:List<TacticalCommandResult>) {
+        for(event in events)for(observer in commandObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Tactical command delivery failed: ${failure.javaClass.simpleName}")}
+    }
     fun observePostures(observer:(TacticalPostureResult)->Unit):AutoCloseable {
         postureObservers+=observer
         return AutoCloseable {postureObservers.remove(observer)}
@@ -118,8 +127,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val ground=mutableListOf<TacticalGroundResult>()
         val groundBattles=mutableListOf<GroundBattleResult>()
         val occupations=mutableListOf<BaseOccupation>()
+        val commands=mutableListOf<TacticalCommandResult>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add)
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         // Reconcile durable capital/session endings before observers can start a native
@@ -129,6 +139,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         catch(failure:Exception){System.err.println("NPC strategic movement delivery failed: ${failure.javaClass.simpleName}")}
         publishCombat(impacts)
         publishSupport(support)
+        publishTacticalCommands(commands)
         for(event in ground)for(observer in groundObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("Tactical ground delivery failed: ${failure.javaClass.simpleName}")}
         for(event in groundBattles)for(observer in groundBattleObservers)try {observer(event)}
@@ -184,13 +195,19 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 val position=galaxy?.let {outfit.positionIn(it)}
                 if(position==null || position.baseId!=0)emptySequence() else
                     outfit.activeShips?.values.orEmpty().asSequence().filter {
-                        it.boats>0 && (it.motionCommander==0 || it.motionCommander==outfit.commanderId)
+                        it.boats>0 && (it.motionCommander==0 || it.motionCommander==TacticalAuthority.commander(outfit,it,checkNotNull(snapshot.planetStocks)))
                     }.mapNotNull {it.tactical?.motion?.takeIf {m->m.grid==position.grid}}
             }
         val postureDeadlines=snapshot.navigators.values.mapNotNull {it.posture?.order?.readyAt} +
             snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().mapNotNull {it.posture?.order?.readyAt}}
         val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val commands=snapshot.planetStocks?.tacticalCommands
+        val commandDeadlines=commands?.orders.orEmpty().map {it.readyAt}+commands?.air.orEmpty().values.map {it.nextAt}+
+            commands?.fortresses.orEmpty().values.filter {it.motion.velocity>0}.map {it.reportedAt+rules.speed}+
+            commands?.missions.orEmpty().values.filter {!it.completed && it.mission!=0}.map {it.checkedAt+TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS}+
+            snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().mapNotNull {
+                it.tactical?.retreat?.let {r->maxOf(if(r.membershipChecked)r.completesAt else r.startsAt,session.gameMillis/1000+rules.speed)}}}
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -243,6 +260,41 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val command = if(queued.advanceNow) WorldCommand.AdvanceTo(
                 maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
                     else durableState?.elapsed ?: elapsed)) else queued.command
+            if(command is WorldCommand.StrategyAction) {
+                try {
+                    check(!storageFailed) {"World storage is unavailable"}
+                    val request=command.request
+                    val session=durableState?.session ?: simulation.exportState()
+                    val recovered=navigation?.apply(NavigationRequest(request.account,request.characterId,request.power,
+                        request.connection,request.generation,politics=request.politics,administration=request.administration),session)
+                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
+                        navigators=checkNotNull(navigation).snapshot(session.generation)),session,recovered?.player,inventory)
+                    if(result.rejection==null && request.outfit>0 && logistics.blocksSupply(session,inventory,setOf(request.outfit)))
+                        result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.BUSY)
+                    if(result.rejection==null && request.command==24 && request.card !in setOf(30,171) &&
+                        logistics.blocksSupply(session,inventory,setOf(request.base)))
+                        result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.BUSY)
+                    if(result.changed) {
+                        if(worldStateCommitter==null)result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.STORAGE)
+                        else {
+                            val before=checkNotNull(recovered?.player);val after=checkNotNull(result.player)
+                            val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
+                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation)+(request.account to after),prepared)
+                            navigation.publishCommitted(request.account,before,after)
+                            production.publishCommitted(inventory,prepared)
+                            result=result.copy(stocks=prepared)
+                        }
+                    }
+                    state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),
+                        planetStocks=production.snapshot(session.generation))
+                    publish(state);command.result.complete(result.copy(recovery=recovered))
+                } catch(failure:Exception) {
+                    if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
+                    command.result.completeExceptionally(failure)
+                }
+                continue
+            }
             if (command is WorldCommand.AssignStock) {
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
@@ -618,18 +670,25 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     settleCombat(session,published.get()) {reconcileTerritory()}
                     session=durableState?.session ?: simulation.exportState()
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
+                        TacticalCommandOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalGroundOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalPostureOperations.guard(command.request,session,navigation,
-                            checkNotNull(production.snapshot(session.generation))) ?: if(command.request.tacticalGround!=null)
+                            checkNotNull(production.snapshot(session.generation))) ?: if(command.request.tacticalCommand!=null)
+                            TacticalCommandOperations.accept(command.request,session,galaxy,navigation,production,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
+                        else if(command.request.tacticalGround!=null)
                             TacticalGroundOperations.accept(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else if(command.request.tacticalPosture!=null)
                             TacticalPostureOperations.accept(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
-                        else if (command.request.tacticalStop?.units?.any {it in 1..999999}==true)
+                        else if(command.request.tacticalRetreat?.any {it in 1..999999}==true)
+                            TacticalFleetRetreat.accept(command.request,session,galaxy,navigation,production,
+                                checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
+                        else if (command.request.tacticalStop!=null)
                             TacticalSupportOperations.stop(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter)
-                        else if(command.request.tacticalMove?.let {it.maneuver!=null || it.units.any {id->id in 1..999999}}==true)
+                        else if(command.request.tacticalMove!=null)
                             TacticalFleetMotion.move(command.request,session,galaxy,navigation,production,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else if (command.request.tacticalSupport != null)
@@ -655,6 +714,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         planetStocks = production?.snapshot(session.generation))
                     publish(state)
                     publishSupport(result.supportNotifications)
+                    publishTacticalCommands(result.commandNotifications)
                     result.player?.let {player ->
                         val recipients=session.participants.filter {(_,member)->member.online && member.connection!=command.request.connection}
                             .mapNotNull {(account,member)->state.navigators[account]?.takeIf {
@@ -748,6 +808,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.SupplementOutfit -> error("Supplement is handled before session commands")
                 is WorldCommand.Reorganize -> error("Reorganization is handled before session commands")
                 is WorldCommand.AssignStock -> error("Stock assignment is handled before session commands")
+                is WorldCommand.StrategyAction -> error("Strategy action is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

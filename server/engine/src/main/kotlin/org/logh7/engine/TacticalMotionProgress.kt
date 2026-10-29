@@ -31,7 +31,7 @@ internal object TacticalMotionProgress {
             val units=outfit.activeShips ?: continue
             val next=units.values.map {unit ->
                 val state=unit.tactical?.takeIf {unit.boats>0 && it.motion.grid==position.grid &&
-                    (unit.motionCommander==0 || unit.motionCommander==outfit.commanderId)} ?: return@map unit
+                    (unit.motionCommander==0 || unit.motionCommander==TacticalAuthority.commander(outfit,unit,stocks))} ?: return@map unit
                 val motion=progress(unit.id,unit.motionCommander,state.motion)
                 if(motion==state.motion)unit else unit.copy(tactical=state.copy(motion=motion))
             }

@@ -140,10 +140,10 @@ object WorldMessages {
         }
     }
     private fun commands(card: Int) = when (card) {
-        0 -> listOf(82, 83)
+        0 -> listOf(82, 83, 84)
         59, 195 -> listOf(43, 44, 45, 48, 50, 53, 60, 85)
         54 -> listOf(5,6,7,30)
-        2,3,17,134,161,169,171 -> listOf(5,6,7)
+        2,3,17,134,135,161,169,171 -> listOf(5,6,7)
         190,192 -> listOf(7,30)
         39,175 -> listOf(5,6,7,63,64)
         40,41,42,43,176,177,178,179 -> listOf(7)
@@ -153,12 +153,13 @@ object WorldMessages {
         24,25,150 -> listOf(67)
         else -> emptyList()
     }
+    fun commandsForCard(card:Int):List<Int> = commands(card)
     /** 0040f9f0: card kind, command list, three raw bit-mask fields. */
-    fun captainCommands() = body {
+    fun captainCommands(overrides:Map<Int,List<Int>> = emptyMap()) = body {
         writeShort(261)
         for (card in 0..260) {
             writeShort(card)
-            val commands = commands(card)
+            val commands = overrides[card] ?: commands(card)
             writeByte(commands.size)
             commands.forEach { command ->
                 writeShort(command)
@@ -167,16 +168,29 @@ object WorldMessages {
         }
     }
     /** The client indexes the card catalogue by card kind, rather than searching a sparse list. */
-    fun cards() = body {
+    data class CardDefinition(val kind:Int,val power:Int,val camp:Int,val institution:Int,val authority:Int,
+        val lowestRank:Int,val highestRank:Int,val commands:List<Int>)
+    fun cards(overrides:Map<Int,CardDefinition> = emptyMap()) = body {
         writeShort(261)
         for (card in 0..260) {
-            val power = when (card) { 2,3,17,24,25,54,59,39,40,41,42,43,44,47,50,52,55,56,57 -> 2; 134,150,161,169,171,190,195,175,176,177,178,179,180,183,186,188,191,192,193 -> 3; else -> 0 }
+            val definition=overrides[card]
+            if(definition!=null) {
+                require(definition.kind==card && definition.power in 2..3 && definition.camp in 0..1 &&
+                    definition.institution in 0..25 && definition.authority in 0..260 &&
+                    definition.lowestRank in 0..20 && definition.highestRank in 0..20 && definition.commands.size<=255)
+                writeShort(card);writeByte(1);writeByte(definition.power);writeByte(definition.camp);writeByte(definition.institution)
+                writeShort(definition.authority);writeShort(0);writeByte(definition.lowestRank);writeByte(definition.highestRank)
+                writeByte(0);writeShort(0);writeByte(0);writeShort(0);writeByte(definition.commands.size)
+                definition.commands.forEach(::writeShort)
+                continue
+            }
+            val power = when (card) { 2,3,17,24,25,54,59,39,40,41,42,43,44,47,50,52,55,56,57 -> 2; 134,135,150,161,169,171,190,195,175,176,177,178,179,180,183,186,188,191,192,193 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0)
             // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
             writeByte(when(card) {
                 // Card institutions use constmsg group 4, not physical facilities in group 73.
-                2,3 -> 0; 169,171 -> 5; 17 -> 3; 134 -> 20; 161 -> 23
+                2,3 -> 0; 169,171 -> 5; 17 -> 3; 134,135 -> 20; 161 -> 23
                 24,25 -> 4; 150 -> 21
                 54,55,190,191 -> 16
                 56,57,192,193 -> 17
@@ -188,13 +202,13 @@ object WorldMessages {
                 else -> 0
             })
             // 004c9140: parent appointment-authority card, not a faction ID.
-            writeShort(when(card) { 3 -> 2; 169 -> 161; 171 -> 169; 40 -> 17; 41 -> 3; 42,43 -> 39; 175,176 -> 169; 177,178 -> 171; 179 -> 175; 54 -> 6; 55 -> 54; 52 -> 51; 56 -> 2; 39,57 -> 17;
+            writeShort(when(card) { 3 -> 2; 169 -> 135; 171 -> 169; 40 -> 17; 41 -> 3; 42,43 -> 39; 175,176 -> 169; 177,178 -> 171; 179 -> 175; 54 -> 6; 55 -> 54; 52 -> 51; 56 -> 2; 39,57 -> 17;
                 188 -> 187; 192 -> 134; 193 -> 161; 24,25 -> 22; 150 -> 147; else -> 0 }); writeShort(0)
             val governor=card==54 || card==190 || card==192
             val garrison=card in setOf(52,55,188,191)
             // First is the lowest eligible rank (0057a080), not the lowest numeric index.
-            writeByte(when { governor || card==134 -> 1; garrison -> 10; card in setOf(24,150) -> 4; card in setOf(40,41,175) -> 6; card in setOf(176,177) -> 7; card in setOf(42,178) -> 11; card in setOf(43,179) -> 12; card==171 -> 5; card in setOf(3,169) -> 2; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
-            writeByte(if(governor || card==134)1 else if(garrison || card in setOf(2,3,17,24,25,39,40,41,42,43,169,171,175,176,177,178,179,150,56,57,161,193))2 else 20); writeByte(0)
+            writeByte(when { governor || card in setOf(134,135) -> 1; garrison -> 10; card in setOf(24,150) -> 4; card in setOf(40,41,175) -> 6; card in setOf(176,177) -> 7; card in setOf(42,178) -> 11; card in setOf(43,179) -> 12; card==171 -> 5; card in setOf(3,169) -> 2; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
+            writeByte(if(governor || card in setOf(134,135))1 else if(garrison || card in setOf(2,3,17,24,25,39,40,41,42,43,169,171,175,176,177,178,179,150,56,57,161,193))2 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)

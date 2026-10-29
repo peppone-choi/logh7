@@ -18,7 +18,7 @@ class NationalOfficeDismissalWireTest {
     @TempDir lateinit var directory:Path
 
     @Test fun supremeCommanderDismissesImperialStaffDirector()=exercise(NationalOffice.IMPERIAL_STAFF_DIRECTOR)
-    @Test fun defenseHeadDismissesAllianceFleetCommander()=exercise(NationalOffice.ALLIANCE_FLEET_COMMANDER)
+    @Test fun defenseCommitteeChairDismissesAllianceFleetCommander()=exercise(NationalOffice.ALLIANCE_FLEET_COMMANDER)
     @Test fun allianceFleetCommanderDismissesFleetChief()=exercise(NationalOffice.ALLIANCE_FLEET_CHIEF)
 
     private fun next(client:SyntheticClient,opcode:Int):ByteArray {
@@ -86,7 +86,7 @@ class NationalOfficeDismissalWireTest {
             mapOf(Power.EMPIRE to grid,Power.ALLIANCE to grid))
         // Both holders are marshals: dismissal follows the stored superior office, not a rank comparison.
         val characters=(0..1).map {i -> CharacterMessages.Generate(4,10000L+i,role.power,0,0,"Pilot$i","Test",
-            30,1,1,1,List(8){50},0,0,0,2,0,if(role.power==2)0 else 89,"Ship$i",0)}
+            30,1,1,1,List(8){50},0,0,0,if(i==0)authority.ranks.max() else 2,0,if(role.power==2)0 else 89,"Ship$i",0)}
         val properties=Properties()
         characters.forEachIndexed {i,person ->
             val reply=CharacterMessages.generateReply(person)
@@ -141,7 +141,8 @@ class NationalOfficeDismissalWireTest {
                 assertEquals(targetBefore,navigators.getValue("load-001"))
                 assertEquals(840,navigators.getValue("load-000").mcp)
                 assertEquals(1000,navigators.getValue("load-000").pcp)
-                assertFalse(role.card in roles(actor))
+                // Dismissal frees the same seat for a replacement appointment.
+                assertEquals(1,roles(actor)[role.card])
                 people(actor,role.card,0)
                 roster(actor,role.card,0)
             }

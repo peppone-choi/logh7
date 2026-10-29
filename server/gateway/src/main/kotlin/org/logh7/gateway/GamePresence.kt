@@ -122,6 +122,39 @@ class GamePresence {
                 send(viewer,frozen+packet)
             }
     }
+    @Synchronized fun tacticalCommand(event:org.logh7.engine.TacticalCommandResult,snapshot:org.logh7.engine.WorldSnapshot,
+        galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
+        members.values.filter {it.player.generation==event.generation && it.player.grid==event.order.grid &&
+            event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer->
+            val current=snapshot.navigators.values.singleOrNull {it.characterId==viewer.player.characterId} ?: viewer.player
+            val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
+            val packets=mutableListOf<ByteArray>()
+            if(event.cancelled)TacticalCommandWire.command(event.order)?.let {
+                packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0,false)
+            }
+            if(!event.cancelled && event.order.command.opcode in setOf(0x408,0x421)) {
+                val proposed=snapshot.planetStocks!!.tacticalCommands.proposals[event.order.character]?.let {
+                    it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
+                if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
+                    TacticalCommandWire.command(event.order)?.let {
+                        packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
+            }
+            // Completion publishes committed definitions/state, never an unconditional success ACK.
+            packets+=org.logh7.protocol.TacticsMessages.definitions(event.order.grid,tactical.units,tactical.groundDefinitions)
+            packets+=org.logh7.protocol.TacticsMessages.states(tactical.units)
+            packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
+            packets+=org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation)
+            packets+=org.logh7.protocol.TacticsMessages.basePositions(tactical.bases)
+            if(event.order.command.base>0 && event.order.command.opcode in setOf(0x41e,0x41f)) {
+                tactical.bases.singleOrNull {it.id==event.order.command.base}?.let {b->
+                    packets+=org.logh7.protocol.TacticalCommandMessages.fortressMoved(event.seconds,b.id,
+                        org.logh7.protocol.TacticalCommandMessages.Point(b.x,b.y,b.z))}
+            }
+            packets+=org.logh7.protocol.TacticsMessages.positions(tactical.units)
+            packets+=event.motions.map {(id,motion)->TacticalMotionMessages.npc(id,motion,event.seconds,event.order.character)}
+            send(viewer,packets)
+        }
+    }
     @Synchronized fun support(event:org.logh7.engine.TacticalSupportResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.reply(
@@ -200,7 +233,11 @@ class GamePresence {
     @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact,
         snapshot:org.logh7.engine.WorldSnapshot?=null,galaxy:org.logh7.engine.Galaxy?=null,
         characterById:((Int)->CharacterMessages.Generate?)?=null) {
-        val packet = org.logh7.protocol.TacticalAttackMessages.hit(impact.hit.seconds,impact.source,
+        val packet = if(impact.boarding)org.logh7.protocol.TacticalCommandMessages.fought(impact.hit.seconds,impact.source,impact.hit.target)
+            else if(impact.airBattle)org.logh7.protocol.TacticalCommandMessages.airBattle(impact.hit.seconds,impact.source,impact.hit.target,
+                impact.hit.damaged,impact.hit.destroyed,impact.hit.shieldFace,impact.hit.shieldDamage,
+                snapshot?.planetStocks?.tacticalCommands?.morale?.get(impact.hit.target) ?: 100)
+            else org.logh7.protocol.TacticalAttackMessages.hit(impact.hit.seconds,impact.source,
             impact.weapon.wire,impact.hit.target,impact.hit.destroyed,
             impact.hit.damaged,impact.hit.shieldFace,impact.hit.shieldDamage)
         members.values.filter { viewer -> viewer.player.generation == impact.generation &&
@@ -342,6 +379,14 @@ class GamePresence {
         return Update(newPeers, if (previous != null && (previous.player.grid != member.player.grid ||
             oldPeers.map { it.character.id } != newPeers.map { it.character.id }))
             refresh(oldPeers, newPeers) else emptyList())
+    }
+    @Synchronized fun refreshCharacter(character:CharacterMessages.Generate,player:Navigator,
+        offices:List<BootstrapMessages.OfficeCard>,seconds:Long,outfit:Int=0) {
+        val previous=members.values.singleOrNull {it.character.id==character.id && it.player.generation==player.generation} ?: return
+        val member=previous.copy(character=character,player=player,offices=offices,outfit=outfit)
+        val updated=update(member,seconds)
+        send(member,listOf(BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,player.spotId,
+            player.spotOwner,player.returnBase,offices),unit(member))+updated.refresh)
     }
     @Synchronized fun refreshOffices(characterId: Int,generation: Long,offices: List<BootstrapMessages.OfficeCard>,seconds: Long,outfit: Int?=null) {
         val previous=members.values.singleOrNull { it.character.id.toInt()==characterId && it.player.generation==generation } ?: return

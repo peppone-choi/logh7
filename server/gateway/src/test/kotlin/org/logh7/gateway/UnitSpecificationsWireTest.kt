@@ -18,7 +18,7 @@ class UnitSpecificationsWireTest {
             val client=fixture.join(fixture.account(0),true,false).client
             val ships=ByteBuffer.wrap(client.request(SyntheticClient.opcode(0x030a),0x030b,"ships"))
             ships.position(6); val count=ships.get().toInt() and 255
-            assertEquals(112,count)
+            assertEquals(114,count)
             val sizes=buildMap {
                 repeat(count) {
                     val start=ships.position(); val kind=ships.short.toInt() and 65535

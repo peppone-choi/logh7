@@ -22,7 +22,7 @@ class UnitClassCatalogueTest {
             input.position(start+106+length*2)
         }
         assertFalse(input.hasRemaining())
-        assertEquals(112,classes.size)
+        assertEquals(114,classes.size)
         // Both factions' existing deployment: battleship, cruiser, destroyer.
         for ((kind,type) in mapOf(32 to 3,48 to 5,56 to 6,119 to 3,131 to 5,139 to 6)) {
             assertEquals(type,classes.getValue(kind))

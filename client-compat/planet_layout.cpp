@@ -123,6 +123,9 @@ static void __declspec(naked) filterSpot() {
 }
 
 static bool updateTaxWindow(void* gui);
+static bool strategyActionCommand(unsigned command);
+static BYTE openStrategyAction(void* manager,int command,unsigned card);
+static bool updateStrategyAction(void* gui);
 static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
@@ -138,6 +141,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "navigation_status.h"
 #include "return_base.h"
 #include "planet_tax.h"
+#include "strategy_actions.h"
 #include "session_ending.h"
 #include "appointment_information.h"
 #include "supply_selector.h"
@@ -543,6 +547,7 @@ static void install() {
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }
     if (!installTaxWindow()) { status = -3; return; }
+    if (!installStrategyActions()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }

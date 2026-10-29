@@ -134,7 +134,9 @@ class TacticalFleetShootTest {
         }
     }
     @Test fun mixedPersonalAndFleetShotCommitsTogetherAndStopCancelsBothBeforeFiring() {
-        val s=state();s.players=s.players.mapValues {(_,v)->v.copy(charge=TacticalCharge(now,24000))}
+        // Keep the personal ray clear of the selected friendly ship at (0,.8).
+        val s=state();s.players=s.players.mapValues {(_,v)->v.copy(charge=TacticalCharge(now,24000),
+            motion=v.motion!!.copy(origin=TacticalPose(TacticalPoint(.5f,.5f),0f),waypoints=listOf(TacticalPoint(.5f,.5f))))}
         val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val before=s.players;val inventory=s.stocks;s.fail=true
         assertFailsWith<java.io.IOException>{shoot(s,nav,p,ids=listOf(2,1010000))}

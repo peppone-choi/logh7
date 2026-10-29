@@ -31,13 +31,13 @@ internal object TacticalSupportOperations {
     private fun ship(id: Int, stocks: PlanetStocks): Ship? = stocks.outfits.values.mapNotNull {o ->
         o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)} }.singleOrNull()
     private fun pose(s: Ship, grid: Int, now: Long, players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy) =
-        s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy) ?:
+        s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy,stocks) ?:
             TacticalDeployment.initial(s.unit.id,if(s.outfit.power==2)Power.EMPIRE else Power.ALLIANCE,grid,players,stocks,galaxy)
     private fun targetPoint(id: Int, player: Navigator, now: Long, players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy): TacticalPoint? {
         if(id>1_000_000) {
             val target=players.values.singleOrNull {it.unitId==id && it.grid==player.grid && it.power==player.power &&
                 it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null} ?: return null
-            return (target.motion?.pose(now,target.posture,galaxy) ?: TacticalDeployment.initial(id,target.power,target.grid,players.values,stocks,galaxy)).position
+            return (target.motion?.pose(now,target.posture,galaxy,stocks) ?: TacticalDeployment.initial(id,target.power,target.grid,players.values,stocks,galaxy)).position
         }
         val target=ship(id,stocks) ?: return null
         if(target.unit.boats==0 || target.outfit.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
@@ -48,13 +48,13 @@ internal object TacticalSupportOperations {
         players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy,commandRadius:Float?=null): Boolean {
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5 || player.grid!=order.grid ||
             player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats==0 || source.unit.id==order.target ||
-            source.outfit.commanderId!=player.characterId || source.outfit.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
-            source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid) || source.unit.tactical?.retreat!=null)return false
+            TacticalAuthority.commander(source.outfit,source.unit,stocks)!=player.characterId || source.outfit.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
+            source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid))return false
         val spec=UnitSpecifications.ships.single {it.kind==source.unit.stack.kind}
         if(spec.type!=(if(order.action==TacticalSupportAction.REPAIR)11 else 12))return false
         val to=targetPoint(order.target,player,now,players,stocks,galaxy) ?: return false
         val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
-        val commander=(player.motion?.pose(now,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
+        val commander=(player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
             players.values,stocks,galaxy)).position
         if(commandRadius!=null && hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>commandRadius)return false
         return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<TacticalSupportRules.SUPPORT_RANGE
@@ -79,20 +79,25 @@ internal object TacticalSupportOperations {
         var player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
-        if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         val command=checkNotNull(request.tacticalStop)
-        if(command.bases.isNotEmpty())return reject(NavigationRejection.UNIT)
+        if(command.units.isNotEmpty() && (!player.cpPaused || player.baseId!=0 || player.mode!=5))return reject(NavigationRejection.TACTICAL)
         val sources=command.units.filter {it!=player.unitId}.map {ship(it,stocks) ?: return reject(NavigationRejection.UNIT)}
-        if(sources.any {it.outfit.commanderId!=player.characterId ||
+        if(sources.any {TacticalAuthority.commander(it.outfit,it.unit,stocks)!=player.characterId ||
             it.outfit.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
             it.outfit.positionIn(galaxy)!=OutfitPosition(player.grid)})return reject(NavigationRejection.CARD)
         var next=stocks
         val now=session.gameMillis/1000
         if(now>0xffffffffL-TacticalMotion.WAIT_SECONDS)return reject(NavigationRejection.CLOCK)
+        val originalPlayers=navigation.snapshot(session.generation)
+        val players=(originalPlayers+(request.account to player)).toMutableMap()
+        val bases=TacticalCommandOperations.stopBases(next,command.bases,player,now,session,players,galaxy)
+            ?: return reject(NavigationRejection.CARD)
+        next=bases.first
+        player=players.getValue(request.account)
         val motions=linkedMapOf<Int,TacticalMotion>()
-        val commander=(player.motion?.pose(now,player.posture,galaxy) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
+        val commander=if(sources.isEmpty())TacticalPoint(0f,0f) else (player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,
             navigation.snapshot(session.generation).values,stocks,galaxy)).position
-        val radius=checkNotNull(player.commandRange).radius(now)
+        val radius=player.commandRange?.radius(now) ?: 0f
         for(source in sources) {
             val current=ship(source.unit.id,next)!!
             val location=pose(current,player.grid,now,navigation.snapshot(session.generation).values,stocks,galaxy)
@@ -105,17 +110,19 @@ internal object TacticalSupportOperations {
             next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0,attack=null,shot=null,posture=current.unit.posture?.copy(order=null)))
         }
         next=TacticalGroundOperations.cancel(next,command.units)
+        next=TacticalCommandOperations.cancel(next,command.units)
         if(player.unitId in command.units)motions[player.unitId]=checkNotNull(player.motion)
         if(sources.isNotEmpty())player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
-        val players=navigation.snapshot(session.generation)
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)
-        navigation.publishCommitted(players,players+(request.account to player),session.generation)
+        navigation.publishCommitted(originalPlayers,players+(request.account to player),session.generation)
         production.publishCommitted(stocks,prepared)
         val notifications=sources.mapNotNull {source->source.unit.support?.let {
             cancelled(session,source,it,players).let {event->event.copy(recipients=event.recipients.filterValues {it!=request.connection})}
         }}
-        return NavigationResult(player,preview.previous,supportNotifications=notifications,tacticalMotions=motions)
+        val commandNotifications=bases.second+stocks.tacticalCommands.orders.filter {it.command.units.any {id->id in command.units}}.map {
+            TacticalCommandResult(session.generation,it,now,audience(session,player.grid,players),true)}
+        return NavigationResult(player,preview.previous,supportNotifications=notifications,tacticalMotions=motions,commandNotifications=commandNotifications)
     }
 
     fun accept(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,

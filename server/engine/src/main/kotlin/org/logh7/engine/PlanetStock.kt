@@ -18,7 +18,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
     val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false,
     val nextShipId: Int = 1, val nationalOffices:Map<NationalOffice,Int> = emptyMap(),
-    val groundBattles:Map<Int,Long> = emptyMap(), val nationalTreasuries:Map<Int,Long> = emptyMap()) {
+    val groundBattles:Map<Int,Long> = emptyMap(), val nationalTreasuries:Map<Int,Long> = emptyMap(),
+    val strategic:StrategicState = StrategicState(),
+    val tacticalCommands:TacticalCommandState=TacticalCommandState()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -69,7 +71,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         logisticsOfficers = Collections.unmodifiableMap(LinkedHashMap(stocks.logisticsOfficers)),
         nationalOffices = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalOffices)),
         groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)),
-        nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)))
+        nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)),
+        strategic=stocks.strategic.detached(),tacticalCommands=stocks.tacticalCommands.detached())
     val maximumStock: Int get() = policy.maximumStock
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
@@ -100,8 +103,9 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 }
                 next
             }, nationalTreasuries=national)
-        if (result == previous) return checkNotNull(previous)
-        val next = detached(result)
+        val settled=StrategyActions.settle(result,seconds,galaxy)
+        if (settled == previous) return checkNotNull(previous)
+        val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.
         current = next
         return next

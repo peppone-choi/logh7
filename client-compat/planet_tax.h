@@ -8,7 +8,10 @@ static struct PlanetTaxWindow {
     void* root;
     void* world;
     unsigned character, base, card, current, selected;
-    bool visible, loaded, pending;
+    unsigned strategyCommand, strategyOutfit;
+    unsigned strategyTarget,strategyBase,strategyValue,strategyField;
+    unsigned strategyAmount,strategyArgument,strategyToken;
+    bool visible, loaded, pending,strategyActive;
     ULONGLONG acceptAfter, sentAt;
     const wchar_t* message;
 } taxWindow = {};
@@ -101,6 +104,7 @@ static void closeTaxWindow() {
     taxWindow.visible=false;
 }
 static BYTE __fastcall dispatchTaxCard(void* manager,void*,int command,unsigned card) {
+    if(strategyActionCommand(command))return openStrategyAction(manager,command,card);
     if (command!=30 || !logh::civilTaxCard(card))
         return reinterpret_cast<BYTE(__thiscall*)(void*,int,unsigned)>(0x4f93c0)(manager,command,card);
     auto world=*reinterpret_cast<void**>(0x7ccffc);
@@ -110,6 +114,10 @@ static BYTE __fastcall dispatchTaxCard(void* manager,void*,int command,unsigned 
     closePlanetInformation();
     auto& state=taxWindow;
     state.world=world;state.character=at<unsigned>(own,0x24);state.base=base;state.card=card;
+    state.strategyCommand=0;
+    state.strategyActive=false;
+    taxText(0,L"행성 세율 변경");taxText(5,L"MCP 160 · 부족 시 PCP 320 전액 대용");
+    taxText(10,L"−10%");taxText(11,L"−1%");taxText(12,L"+1%");taxText(13,L"+10%");taxText(14,L"변경 실행");
     state.visible=true;state.loaded=false;state.pending=false;state.message=L"행성의 현재 세율을 조회하고 있습니다.";
     state.acceptAfter=GetTickCount64()+250;
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(state.root,12);
@@ -119,6 +127,7 @@ static BYTE __fastcall dispatchTaxCard(void* manager,void*,int command,unsigned 
     return 1;
 }
 static BYTE __fastcall taxCommandAvailable(void* manager,void*,unsigned command) {
+    if(strategyActionCommand(command))return 1;
     if (command!=30) return reinterpret_cast<BYTE(__thiscall*)(void*,unsigned)>(0x4f9990)(manager,command);
     auto world=*reinterpret_cast<void**>(0x7ccffc);
     auto own=world ? at<void*>(world,8) : nullptr;
@@ -127,7 +136,7 @@ static BYTE __fastcall taxCommandAvailable(void* manager,void*,unsigned command)
 }
 static void taxConditions(void* world) {
     auto& state=taxWindow;
-    if (!state.visible || state.world!=world) return;
+    if (!state.visible || state.world!=world || state.strategyActive) return;
     auto base=pickerBase(state.base);
     if (!base) return;
     auto record=logh::findPlanetCondition(static_cast<BYTE*>(world)+0x3facf4,state.base,logh::infoShort(base,0x10));
@@ -149,6 +158,7 @@ static unsigned __fastcall readTaxResponse(void* codec,void*,void* record,void* 
 static bool updateTaxWindow(void* gui) {
     auto& state=taxWindow;
     state.manager=gui;
+    if(state.visible && state.strategyActive)return updateStrategyAction(gui);
     if (!state.visible) return false;
     auto world=*reinterpret_cast<void**>(0x7ccffc);
     auto own=world ? at<void*>(world,8) : nullptr;

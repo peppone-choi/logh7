@@ -74,11 +74,11 @@ internal object NpcTactics {
             var outfit=stocks.outfits.getValue(outfitId)
             val position=outfit.positionIn(galaxy)
             // A player taking command must never compete with autonomous orders.
-            if(position.baseId!=0 || outfit.members().isNotEmpty()) {
+            if(position.baseId!=0 || outfit.members().isNotEmpty() || outfit.activeShips?.values.orEmpty().any {TacticalAuthority.commander(outfit,it,stocks)>0}) {
                 for(unit in outfit.activeShips?.values.orEmpty()) {
                     val state=unit.tactical ?: continue
                     if(position.baseId==0 && state.motion.grid==position.grid && unit.motionCommander!=0 &&
-                        unit.motionCommander==outfit.commanderId)continue
+                        unit.motionCommander==TacticalAuthority.commander(outfit,unit,stocks))continue
                     val next=if(position.baseId!=0 || state.motion.grid!=position.grid)unit.copy(tactical=null,motionCommander=0,attack=null,shot=null) else {
                         if(state.motion.velocity==0f && state.target==0 && state.retreat==null && unit.motionCommander==0)continue
                         val motion=stationary(position.grid,now,state.motion.pose(now,unit.posture,galaxy))
@@ -138,7 +138,7 @@ internal object NpcTactics {
                     }
                 }
                 var firing=unit.tactical ?: continue
-                if(firing.retreat!=null || now<firing.nextFireAt || firing.sequence>Long.MAX_VALUE-3)continue
+                if(stocks.tacticalCommands.confused(id) || firing.retreat!=null || now<firing.nextFireAt || firing.sequence>Long.MAX_VALUE-3)continue
                 for(weapon in TacticalWeapon.entries) {
                     outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                     if(unit.boats<=unit.damaged)break
@@ -147,7 +147,8 @@ internal object NpcTactics {
                     val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                     if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                     val victim=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.firstOrNull {
-                        TacticalArmaments.effectiveness(mount,pose,it.pose.position)>0} ?: continue
+                        TacticalArmaments.effectiveness(mount,pose,it.pose.position)>0 &&
+                            !TacticalLineOfFire.blocked(id,position.grid,power(outfit),pose.position,it.pose.position,now,players.values,stocks,galaxy)} ?: continue
                     val effect=TacticalArmaments.effectiveness(mount,pose,victim.pose.position)
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
                         weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,pose,

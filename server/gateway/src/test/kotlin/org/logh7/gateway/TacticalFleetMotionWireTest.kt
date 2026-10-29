@@ -58,7 +58,7 @@ class TacticalFleetMotionWireTest {
             for(c in clients) {
                 val ack=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1 && ByteBuffer.wrap(it).getInt(14)==10000})
                 assertEquals(0,ack.int);assertEquals(10000,ack.getInt(14));assertEquals(1,ack.getInt(19))
-                assertEquals(0f,ack.getFloat(27));assertEquals(0f,ack.getFloat(31));assertEquals(5,ack.getInt(10))
+                assertEquals(0f,ack.getFloat(27));assertEquals(0f,ack.getFloat(31));assertEquals(120,ack.getInt(10))
                 assertEquals(if(parallel)0.5f else 1f,ack.getFloat(39))
             }
             val crc=ByteBuffer.wrap(through(clients[0],0x033f) {
@@ -66,7 +66,7 @@ class TacticalFleetMotionWireTest {
             })
             assertEquals(10001,crc.getInt(63)) // Keep the other corps in the native replacement cache.
             assertEquals(10000,savedStocks.outfits.getValue(1).activeShips!!.values.single().motionCommander)
-            fixture.engine.submit(WorldCommand.AdvanceTo(500)) // Twelve G-seconds: seven units after the five-second wait.
+            fixture.engine.submit(WorldCommand.AdvanceTo(5292)) // 127 G-seconds: seven after the 120-G-second wait.
             for(c in clients) {
                 val progress=through(c,0x0423) {ByteBuffer.wrap(it).getInt(10)==1}
                 assertEquals(1,progress[30].toInt())
@@ -78,7 +78,7 @@ class TacticalFleetMotionWireTest {
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
                 val resume=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1})
                 assertEquals(if(parallel)3.5f else 7f,resume.getFloat(31));assertEquals(0,resume.getInt(10))
-                fixture.engine.submit(WorldCommand.AdvanceTo(600)) // Import delay: another two G-seconds.
+                fixture.engine.submit(WorldCommand.AdvanceTo(5392)) // Import delay: another two G-seconds.
                 val query=ByteBuffer.allocate(8).putShort(0x0348).putShort(1).putInt(1).array()
                 c.send(query);through(c,0x0349)
                 val live=ByteBuffer.wrap(through(c,opcode) {ByteBuffer.wrap(it).getInt(19)==1})
@@ -87,7 +87,7 @@ class TacticalFleetMotionWireTest {
                 c.send(query)
                 assertEquals(0x0349,ByteBuffer.wrap(c.receive()).getShort(4).toInt())
             }
-            fixture.engine.submit(WorldCommand.AdvanceTo(1000)) // Both have passed the second point; reconnect got only the last two.
+            fixture.engine.submit(WorldCommand.AdvanceTo(5792)) // Nineteen moving G-seconds, as before the wait was scaled.
             clients.forEachIndexed {i,c ->
                 val progress=through(c,0x0423) {ByteBuffer.wrap(it).getInt(10)==1}
                 assertEquals(if(i==0)2 else 1,progress[30].toInt())
@@ -96,7 +96,7 @@ class TacticalFleetMotionWireTest {
             clients[0].send(stop.copyOfRange(4,stop.size))
             assertEquals(1,ByteBuffer.wrap(through(clients[0],0x040a)).int)
             assertEquals(if(parallel)0.5f else 1f,savedStocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion.velocity)
-            fixture.engine.submit(WorldCommand.AdvanceTo(14000)) // CRC has grown back to the maximum.
+            fixture.engine.submit(WorldCommand.AdvanceTo(19000)) // CRC has grown back to the maximum.
             for(c in clients) {
                 val arrived=ByteBuffer.wrap(through(c,0x0423) {ByteBuffer.wrap(it).getInt(10)==1})
                 assertEquals(-1,arrived.get(30).toInt());assertEquals(20f,arrived.getFloat(22));assertEquals(0f,arrived.getFloat(14))
