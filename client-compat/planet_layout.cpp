@@ -168,6 +168,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 
 #include "tactical_base_ui.h"
 #include "tactical_departure.h"
+#include "environment_shader.h"
 
 // The surviving message catalogue ends before tactical HUD group 119.
 // Supply the two known titles only when the native lookup reports NO TABLE;
@@ -489,6 +490,7 @@ static void __fastcall drawLayout(void* map, void*, char) {
 static void install() {
     if (InterlockedCompareExchange(&status, 1, 0)) return;
     if (!verifiedClient()) { status = -1; return; }
+    if (!installEnvironmentShader()) { status = -3; return; }
     if (!verifyTacticalNotices()) { status = -2; return; }
     if (!installSystemAffiliation()) { status = -2; return; }
     BYTE* target = reinterpret_cast<BYTE*>(0x4d68d0);

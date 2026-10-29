@@ -414,6 +414,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             break
                         elif action == {"traceQuads": True}:
                             script.exports_sync.tracequads()
+                        elif action == {"traceGraphics": True}:
+                            script.exports_sync.tracegraphics()
                         elif action == {"stop": True}:
                             deadline = time.monotonic()
                         else:

@@ -5,6 +5,8 @@ if(Process.arch!=='ia32' || Process.mainModule.name.toLowerCase()!=='g7mtclient.
 Process.setExceptionHandler(function(details) {
   // Caught C++ system exceptions are not evidence of a client crash.
   if(['access-violation','arithmetic','illegal-instruction','abort'].includes(details.type))
+    flushGraphicsTrace('client-exception');
+  if(['access-violation','arithmetic','illegal-instruction','abort'].includes(details.type))
     send({type:'client-exception', exception:details.type,
         address:details.address.toString(), memory:details.memory, registers:details.context,
         backtrace:Thread.backtrace(details.context,Backtracer.FUZZY).map(p=>p.toString())});
@@ -12,6 +14,93 @@ Process.setExceptionHandler(function(details) {
 });
 let done = false;
 rpc.exports.recapture = function() { done = false; };
+// Opt-in, bounded observation of the owned renderer. No return value, resource,
+// shader, declaration or draw argument is replaced by this diagnostic.
+let graphicsTrace = false;
+let graphicsRows = [];
+let graphicsBudget = 0;
+const graphicsStartup = [];
+for(const [address,prefix] of [[0x5dd390,[0xe8,0x3b,0xff,0xff,0xff,0xe8,0xd6,0x0f]],
+    [0x5e83f0,[0x83,0xec,0x18,0x53,0x56,0x57,0xb9,0xff]],
+    [0x5e8990,[0xa1,0,0x94,0x22,0x02,0x57,0x6a,0x02]]]) {
+  const entry=ptr(address);
+  if(prefix.every((v,i)=>entry.add(i).readU8()===v))Interceptor.attach(entry,{
+    onEnter(){if(graphicsStartup.length<128)graphicsStartup.push({event:'shader-init.enter',address:entry.toString()});},
+    onLeave(ret){if(graphicsStartup.length<128)graphicsStartup.push({event:'shader-init.leave',address:entry.toString(),
+      result:ret.toInt32(),shaders:[0,1].map(i=>ptr(0x323aa74+i*4).readU32())});}
+  });
+}
+for(const [address,prefix,isCompiler] of [[0x5a8dc7,[0x55,0x8b,0xec,0x81,0xec,0xe8,0x03,0],true],
+    [0x5e8220,[0x51,0xa1,0xc4,0xba,0x23,0x03,0x53,0x33],false]]) {
+  const entry=ptr(address);
+  if(prefix.every((v,i)=>entry.add(i).readU8()===v))Interceptor.attach(entry,{
+    onEnter(args){this.out=args[isCompiler ? 4 : 2];this.source=args[isCompiler ? 0 : 1].toString();},
+    onLeave(ret){if(graphicsStartup.length<128)graphicsStartup.push({event:isCompiler ? 'shader-assembler' : 'shader-create-helper',
+      source:this.source,hr:ret.toInt32(),output:this.out.isNull() ? null : this.out.readU32()});}
+  });
+}
+function graphicsEvent(event) {
+  if(!graphicsTrace || graphicsBudget<=0)return;
+  graphicsRows.push(event);
+  if(graphicsRows.length>96)graphicsRows.shift();
+}
+function flushGraphicsTrace(reason) {
+  if(graphicsTrace && graphicsBudget>0 && graphicsRows.length) {
+    --graphicsBudget;send({type:'render-trace',kind:'graphics',reason,events:graphicsRows});
+  }
+  graphicsRows=[];
+}
+rpc.exports.tracegraphics = function() {
+  graphicsRows=graphicsStartup.slice();graphicsBudget=32;graphicsTrace=true;
+  flushGraphicsTrace('startup');
+};
+function hookGraphicsTrace(device8) {
+  const wrapper=device8.add(12).readPointer(),native=wrapper.add(4).readPointer();
+  if(Process.findModuleByAddress(wrapper.readPointer().readPointer())?.name.toLowerCase()!=='dxwrapper.dll' ||
+     Process.findModuleByAddress(native.readPointer().readPointer())?.name.toLowerCase()!=='d3d9.dll')return;
+  Interceptor.attach(device8.readPointer().add(75*4).readPointer(),{
+    onEnter(args){this.match=args[0].equals(device8);if(this.match){this.out=args[3];this.program=args[2];}},
+    onLeave(ret){if(this.match && graphicsStartup.length<128) {
+      try {graphicsStartup.push({event:'D3D8.CreateVertexShader',hr:ret.toInt32(),
+        handle:this.out.isNull() ? null : this.out.readU32(),
+        version:this.program.isNull() ? null : this.program.readU32()});}catch(e) {
+        graphicsStartup.push({event:'shader-creation-observation-error',message:String(e)});
+      }
+    }}
+  });
+  const extraPass=ptr(0x5f34f0),prefix=[0x81,0xec,0x90,0,0,0,0xa1,0,0x94,0x22,0x02,0x8b,0x94,0x24,0xa4,0];
+  if(prefix.every((v,i)=>extraPass.add(i).readU8()===v))Interceptor.attach(extraPass,{onEnter(args){
+    if(!graphicsTrace || graphicsBudget<=0)return;
+    try {
+      const mesh=args[0];
+      graphicsEvent({event:'extra-pass.mesh',mesh:mesh.toString(),vb:mesh.readPointer().toString(),
+        ib:mesh.add(0x28).readPointer().toString(),vertices:mesh.add(0x2c).readU32(),
+        indices:mesh.add(0x30).readU32(),stride:mesh.add(0x3c).readU32(),variant:args[6].toUInt32(),
+        shaders:[0,1,2,3].map(i=>ptr(0x323aa74+i*4).readU32())});
+    } catch(e) {graphicsEvent({event:'mesh-observation-error',message:String(e)});}
+  }});
+  for(const [object,slot,name] of [[device8,76,'D3D8.SetVertexShader'],[native,87,'D3D9.SetVertexDeclaration'],
+      [native,92,'D3D9.SetVertexShader']]) {
+    Interceptor.attach(object.readPointer().add(slot*4).readPointer(),{
+      onEnter(args){this.match=graphicsTrace && graphicsBudget>0 && args[0].equals(object);if(this.match)this.value=args[1].toString();},
+      onLeave(ret){if(this.match){graphicsEvent({event:name,value:this.value,hr:ret.toInt32()});
+        if(ret.toInt32()<0)flushGraphicsTrace('failed-setter');}}
+    });
+  }
+  Interceptor.attach(device8.readPointer().add(71*4).readPointer(),{onEnter(args){
+    if(!graphicsTrace || graphicsBudget<=0 || !args[0].equals(device8) || !this.returnAddress.equals(ptr(0x5f366a)))return;
+    const out=Memory.alloc(4);out.writePointer(ptr(0));
+    let declaration=ptr(0);
+    try {
+      const hr=method(native,88,'int',['pointer','pointer'])(native,out);
+      declaration=out.readPointer();
+      graphicsEvent({event:'D3D8.DrawIndexedPrimitive.extra-pass',caller:this.returnAddress.toString(),
+        declaration:declaration.toString(),declarationHr:hr,args:[1,2,3,4,5].map(i=>args[i].toUInt32())});
+      flushGraphicsTrace('before-extra-pass');
+    } catch(e) {graphicsEvent({event:'diagnostic-error',message:String(e)});flushGraphicsTrace('observation-error');}
+    finally {if(!declaration.isNull())method(declaration,2,'uint',['pointer'])(declaration);}
+  }});
+}
 setInterval(()=>rpc.exports.recapture(),2000);
 let gameWindow = ptr(0);
 let frameNotified = false;
@@ -116,6 +205,7 @@ function hook8(object) {
     if(ret.toInt32()!==0)return;
     const device=this.out.readPointer();
     hookQuadTrace(device);
+    hookGraphicsTrace(device);
     try{fixWindowedReset(device);}catch(e){send({type:'capture-error',message:String(e)});}
     const present=device.readPointer().add(15*4).readPointer();
     send({type:'capture-status',event:'D3D8 device hooked'});

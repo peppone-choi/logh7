@@ -26,6 +26,20 @@
 #include "tactical_notice_data.h"
 #include "session_ending_data.h"
 #include "system_affiliation_data.h"
+#include "environment_shader_data.h"
+static bool environmentShaderTest() {
+    const char source[]="prefix\r\nm4x4 oT0.xy, r0, c12\r\nsuffix";char output[128]={};
+    const char expected[]="prefix\r\ndp4 oT0.x, r0, c12\r\ndp4 oT0.y, r0, c13\r\nsuffix";
+    unsigned n=logh::expandEnvironmentMatrix(source,sizeof(source)-1,output,sizeof(output));
+    if(n!=sizeof(expected)-1 || strcmp(output,expected))return false;
+    if(logh::expandEnvironmentMatrix(source,sizeof(source)-1,output,n) ||
+       logh::expandEnvironmentMatrix(nullptr,20,output,sizeof(output)) ||
+       logh::expandEnvironmentMatrix(source,sizeof(source)-1,nullptr,sizeof(output)) ||
+       logh::expandEnvironmentMatrix("m4x4 oT0.xyzw, r0, c12",22,output,sizeof(output)))return false;
+    const char duplicate[]="m4x4 oT0.xy, r0, c12\nm4x4 oT0.xy, r0, c12";
+    if(logh::expandEnvironmentMatrix(duplicate,sizeof(duplicate)-1,output,sizeof(output)))return false;
+    return logh::expandEnvironmentMatrix(source,sizeof(source)-1,output,n+1)==n && output[n]==0;
+}
 static bool mailTextTest() {
     std::wstring value=L"unchanged";
     // Use explicit CP949 bytes for portable source-code compilation.
@@ -386,6 +400,7 @@ static bool sessionEndingDataTest() {
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 int wmain(int argc, wchar_t** argv) {
+    if(!environmentShaderTest())return 96;
     if (!mailTextTest()) return 252;
     if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;
