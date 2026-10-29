@@ -77,10 +77,15 @@ Set-Location E:\logh7\server
 | 변수 | 의미 / 기본값 |
 |---|---|
 | `LOGH7_ACCOUNTS_FILE` | 외부 테스트 계정 properties 경로; 미설정 시 인증 거부 |
+| `LOGH7_GAME_PORT` | 로그인/게임 입구 수신 포트, 기본 47900 |
+| `LOGH7_UPDATE_PORT` | 업데이트 수신 포트, 기본 47902 |
 | `LOGH7_SESSION_PORT` | 세션 수신 포트, 기본 47903 |
+| `LOGH7_OPS_PORT` | 운영 API 수신 포트, 기본 47901. 주소는 항상 127.0.0.1 |
 | `LOGH7_SESSION_ADDRESS` | 로그인 응답의 세션 IPv4, 기본 bind 주소 |
 | `LOGH7_BIND_ADDRESS` | 기존 localhost 또는 검증된 호스트 전용 어댑터 주소 |
 | `LOGH7_CAPTURE_DIR` | 미설정·빈 문자열·공백만이면 OFF; 그 외 값은 원문 경로로 명시 opt-in. 컨테이너도 기본 OFF이며, 필요 시 이 변수만 추가한다(`/data/captures` 디렉터리·`game_captures` 볼륨 보존). 비밀번호 복원 가능: 운영 비권장, 운영자 사설·Git 제외 경로 사용 |
+
+포트 네 개는 1–65535의 서로 다른 정수여야 한다. 앱은 저장소·월드·통신을 열기 전에 값을 검사한다. 기본값을 유지하면 기존 배포와 같으며, 별도 월드/세션/캐릭터 저장소와 함께 포트를 모두 바꿔 기존 서버 옆에서 새 배포본을 시험할 수 있다. 포트 변경은 바인딩 주소 허용 범위를 넓히지 않는다.
 
 - `evidence:guess` `tools/vm/deploy-server.ps1`은 기본 `-Action Build`로 installDist만 만든다. 선택 `-IncludeRuntime`은 지정 JDK의 jlink로 배포 폴더에 런타임을 생성한다. 기존 runtime 폴더를 자동 삭제하지 않는다.
 - `evidence:guess` 리드는 `-Action Deploy -VmName <이름> -GuestUser <계정> -PasswordFile <파일> -AccountsFile <파일> -GuestDirectory <게스트 절대경로>`로 배치한다. `guestcontrol copyto --passwordfile`을 쓰며 비밀번호 내용은 읽거나 출력하지 않는다. VM 부팅·네트워크 변경은 이 스크립트의 범위가 아니다.
