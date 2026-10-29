@@ -68,4 +68,49 @@ class SessionEndingLobbyWireTest {
             }
         }
     }
+    @Test fun automaticNextGenerationRecreatesBothAccountsAndRestoresInitialWorldWithoutOldLocationsOrCosts()=runBlocking {
+        LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,powerByIndex={if(it==1)3 else 2}).use {f->
+            val old=(0..1).map {f.join(f.account(it),true,false).client.also {client->
+                client.send(SyntheticClient.opcode(0x0f00))
+                while(ByteBuffer.wrap(client.receive()).getShort(4).toInt() and 65535!=0x0f01) { }
+            }}
+            val warp=org.logh7.protocol.NavigationMessages.accepted(
+                org.logh7.protocol.NavigationMessages.Warp(10000,59,2488,0,5),0,0,0)
+            old[0].send(warp.copyOfRange(4,warp.size))
+            while(ByteBuffer.wrap(old[0].receive()).getShort(4).toInt() and 65535!=0x0b0a) { }
+            val previous=f.engine.snapshot()
+            assertEquals(2488,previous.navigators.getValue(f.account(0)).grid)
+            assertEquals(900,previous.navigators.getValue(f.account(0)).cruise)
+            assertEquals(1L,previous.session!!.generation)
+            f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
+            f.await("ended before next game") {f.engine.snapshot().result!=null}
+            f.engine.submit(WorldCommand.AdvanceTo(SessionRules.load().restartDelayRealMillis))
+            f.await("fresh generation") {f.engine.snapshot().session!!.generation==2L}
+            old.forEach {it.expectClosed()}
+            f.await("old game bindings removed") {f.access.trackedConnections()==0}
+            assertNull(f.engine.snapshot().result)
+            assertTrue(f.engine.snapshot().navigators.isEmpty())
+            for(index in 0..1) {
+                val client=f.join(f.account(index),true,false).client
+                client.send(SyntheticClient.opcode(0x0f00))
+                while(ByteBuffer.wrap(client.receive()).getShort(4).toInt() and 65535!=0x0f01) { }
+                val player=f.engine.snapshot().navigators.getValue(f.account(index))
+                assertEquals(2L,player.generation)
+                assertEquals(if(index==0)Power.EMPIRE else Power.ALLIANCE,player.power)
+                assertNull(player.motion)
+                assertEquals(if(index==0)2487 else 2015,player.grid)
+                assertEquals(0L,player.moves)
+                assertEquals(1000,player.cruise)
+                assertEquals(1000,player.mcp)
+                client.close()
+            }
+            val fresh=f.engine.snapshot()
+            assertEquals(2L,fresh.planetStocks!!.generation)
+            assertEquals(previous.planetStocks!!.bases,fresh.planetStocks!!.bases)
+            assertEquals(previous.planetStocks!!.outfits,fresh.planetStocks!!.outfits)
+            assertEquals(previous.planetStocks!!.warehouses,fresh.planetStocks!!.warehouses)
+            assertNull(fresh.session!!.ended)
+        }
+    }
+
 }
