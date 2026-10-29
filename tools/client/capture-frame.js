@@ -14,6 +14,48 @@ Process.setExceptionHandler(function(details) {
 });
 let done = false;
 rpc.exports.recapture = function() { done = false; };
+// Reuse the resident attachment for controlled IME commits (run-271 method).
+// Operate only in this process's input window thread; never use global input.
+let koreanCommit=null,koreanCommitHooks=false;
+function installKoreanCommitHooks() {
+  if(koreanCommitHooks)return;
+  const user=Process.getModuleByName('user32.dll'),imm=Process.getModuleByName('imm32.dll');
+  const thread=new NativeFunction(user.getExportByName('GetWindowThreadProcessId'),'uint',['pointer','pointer'],'stdcall');
+  const post=new NativeFunction(user.getExportByName('PostMessageW'),'int',['pointer','uint','uint','int'],'stdcall');
+  const setOpen=new NativeFunction(imm.getExportByName('ImmSetOpenStatus'),'int',['pointer','int'],'stdcall');
+  const setString=new NativeFunction(imm.getExportByName('ImmSetCompositionStringW'),'int',['pointer','uint','pointer','uint','pointer','uint'],'stdcall');
+  const notify=new NativeFunction(imm.getExportByName('ImmNotifyIME'),'int',['pointer','uint','uint','uint'],'stdcall');
+  const peek=new NativeFunction(user.getExportByName('PeekMessageW'),'int',['pointer','pointer','uint','uint','uint'],'stdcall');
+  Interceptor.attach(imm.getExportByName('ImmGetCompositionStringA'),{
+    onEnter(a){this.result=a[1].toUInt32()===0x800;this.buffer=a[2];},
+    onLeave(ret){if(koreanCommit && this.result && !this.buffer.isNull() && ret.toInt32()>0)++koreanCommit.calls;}
+  });
+  for(const name of ['PeekMessageA','PeekMessageW'])Interceptor.attach(user.getExportByName(name),{onLeave(){
+    if(!koreanCommit?.pending)return;
+    const hwnd=ptr(0x2214650).readPointer(),pid=Memory.alloc(4);
+    if(hwnd.isNull() || thread(hwnd,pid)!==Process.getCurrentThreadId() || pid.readU32()!==Process.id)return;
+    const state=koreanCommit;state.pending=false;
+    try {
+      const context=ptr(0x221464c).readPointer();if(context.isNull())throw new Error('No owned IME context');
+      const wide=Memory.allocUtf16String(state.text);
+      state.open=setOpen(context,1);state.set=setString(context,9,wide,state.text.length*2,ptr(0),0);
+      if(!state.open || !state.set)throw new Error('Owned IME did not accept the composition');
+      state.complete=notify(context,0x15,1,0);
+      if(!state.complete)throw new Error('Owned IME did not complete the composition');
+      const m=Memory.alloc(48);state.echoes=0;
+      while(peek(m,hwnd,0x102,0x102,1))++state.echoes;
+      state.posted=post(hwnd,0x10f,0,0x800);
+    } catch(e) {state.error=String(e);}
+  }});
+  koreanCommitHooks=true;
+}
+rpc.exports.commitkorean=function(text) {
+  if(typeof text!=='string' || text.length<1 || text.length>511 || /[\u0000-\u001f\u007f-\u009f\ud800-\udfff]/.test(text))
+    throw new Error('Invalid bounded IME result');
+  if(koreanCommit?.pending)throw new Error('An owned IME commit is already pending');
+  installKoreanCommitHooks();koreanCommit={text,pending:true,calls:0};
+};
+rpc.exports.koreancommitstate=function(){return koreanCommit;};
 function tacticalMenuState() {
   try {
   const ctx=ptr(0x2215e2c).readPointer();if(ctx.isNull())return null;

@@ -2,6 +2,14 @@ package org.logh7.gateway
 
 /** Display-only names; source rule keys and saved identities remain unchanged. Author: 최병호. */
 internal object KoreanDisplayNames {
+    /** Only reviewed built-in identities; never translate arbitrary player names. */
+    fun original(character: org.logh7.protocol.CharacterMessages.Generate): org.logh7.protocol.CharacterMessages.Generate {
+        val source = org.logh7.protocol.OriginalCharacterMessages.localCandidates.singleOrNull {
+            it.character.id == character.id && it.character.power == character.power &&
+                it.character.surname == character.surname && it.character.givenName == character.givenName
+        } ?: return character
+        return character.copy(surname = catalogue(source.character.surname), givenName = catalogue(source.character.givenName))
+    }
     private val translations: Map<String, String> by lazy {
         buildMap {
             for (file in listOf("ui-terms.ko.tsv", "world-names.ko.tsv")) {

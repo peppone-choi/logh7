@@ -138,7 +138,7 @@ class ImagePatchTests(unittest.TestCase):
     def test_path_traversal_devices_and_duplicate_case_are_rejected(self):
         for name in ('../test.tga', '/test.tga', 'a\\test.tga', 'a//b.tga',
                      'C:/test.tga', 'a.tga:stream', 'NUL.tga', 'a./b.tga',
-                     'a/COM1.tga', 'a/test.png'):
+                     'a/COM1.tga', 'a/test.jpg'):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 images.asset_path(self.target, name)
         self.rows[1]['asset'] = self.rows[0]['asset'].upper()

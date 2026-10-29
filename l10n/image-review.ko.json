@@ -1,0 +1,4785 @@
+{
+  "schema": 1,
+  "author": "최병호",
+  "date": "2026-10-30",
+  "scope": "설치본 data/image 전체 파일. 접촉 시트 육안 판정이며 실제 사용·확대 표시·실제 화면 검증이 아님.",
+  "note": "translation_candidate는 생성 후보이며 원본 글꼴·기준선·상태·가독성 확인 전이다. 훈장 6개의 작은 각인은 판독 미확인이다. 새 파일이나 해시 변경은 재검수한다.",
+  "assets": [
+    {
+      "asset": "chat/chat_parts.tga",
+      "sha256": "8072461a3eec838cf24ef32084519b1c3ebed6abc5cf47823f387d49691ab122",
+      "classification": "no_japanese_visible",
+      "sheet": "chat-00.png"
+    },
+    {
+      "asset": "effect/b_flare.bmp",
+      "sha256": "953601a9959a8dfd211c4559a100eaf4df4f3db701d2caf5de2b5ea1141575be",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/beam.tga",
+      "sha256": "74911c4e57eb851580e45a6bdbdd84c97dfaf2864cac8a10a3218b9388874b6f",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/CarrierCraft.tga",
+      "sha256": "a273fc6009389423750db674d28aef9c6e031aa868651a1f39d8df3bdfb5daee",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/e_flare.bmp",
+      "sha256": "4818373c11ca134344918d523e8b2e7fd0f34afa41d2420820c3869a65ce039e",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/ef_thruster01.bmp",
+      "sha256": "6dc5685362c17261aa50ef39a3d843e5b17e966680ff06919c5ee328e8886a0e",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/ef_thruster02.bmp",
+      "sha256": "a1e3399f118b83e34d631f743b9c4e059e9747a6195260abc465deb834e94b2d",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/engine_core.bmp",
+      "sha256": "75f36fcbfac36d10ed2b2b721c395fbdf325d2c18200e44755a245acb4e73581",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/engine_glow.bmp",
+      "sha256": "97d617efe9a78057aebedac76c0258302819db8f2754ffdac86243713a8890a2",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_a.bmp",
+      "sha256": "7ab4f757cd8c841f6bfe34169e4ecc67b72147defefeb1307068a12842400d9f",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_a_low.bmp",
+      "sha256": "2222700a033125ea908c9d13725e7310b5eda183cf9a330c997b6dd8946eb49b",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_b.bmp",
+      "sha256": "099b035eaea897093ea6a8a3d366b53adc9eba33d77d70b3fcb2e8bd93ea1e7a",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_b_low.bmp",
+      "sha256": "d9f02c1851446939f3692e61b10094bfe9bec2ff43d8a99773a77803a0a3a535",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_c.bmp",
+      "sha256": "8d9c436e79c921e405220727d3c9c689a1b057a9ffd2db8bd24fcdff86e81016",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_c_low.bmp",
+      "sha256": "22ba09192eac84d3056c248a48ff78b5bd0bb502adc06910bcddbcd0a6c72877",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_d.bmp",
+      "sha256": "102ef68ada6c409768178ea719329c7b0f0a2ffbdc5e38645d15f4ba4ca39522",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_d_low.bmp",
+      "sha256": "102ef68ada6c409768178ea719329c7b0f0a2ffbdc5e38645d15f4ba4ca39522",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_e.bmp",
+      "sha256": "0a511552c1fdad3aa7b5dff066484529c636b0bee9969cb58b0924b01e5aa63b",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_e_low.bmp",
+      "sha256": "84b0ec5f6ccfca5ed3379c317d328801c81f3f8ed86653fcbad9b494113fc947",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_f.bmp",
+      "sha256": "7f43673e1301a81a4e8f68173d0fcc6f7310d529e6503317e8ba8a84a5afbb39",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_f_low.bmp",
+      "sha256": "6a375fbd170d56390b03ab028e5f76045030a0634a35d878cdbdb6b18a3fa91a",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-00.png"
+    },
+    {
+      "asset": "effect/exp_flare.bmp",
+      "sha256": "6a5fd384328bac1472c02f1e28c293e866b7ddb4b941e68d9753511e6341ce5c",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/exp_g.bmp",
+      "sha256": "1cf828347e9f104b3dbe3c9f524f059e026391dd8e3a621fd721ee4b3b49acc9",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/exp_g_low.bmp",
+      "sha256": "93743999faaf0653418be7b9d663f8012b566ffa33d8c4b4f91067e2f93013d2",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/exp_grow.bmp",
+      "sha256": "6d39e74f73b92d8ed62ed784224bb848f1a6e4a8971c268e04ba69930c8d69b1",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/exp_grow02.bmp",
+      "sha256": "8d5a3c082e4f5d56d1d67af9cd7312283194a6ae3bcb7a4030ce01b7dbfd1465",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/f_exp.bmp",
+      "sha256": "758960d10b7e1770c3ddee330877eefdd4caf93b3d9bcc63749079bd5a1183cd",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/f_exp_flare.bmp",
+      "sha256": "a79543bc97bb4db4f63ce2cc58b2f2a18ce084b08007934f68efbea592b2a05b",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/f_exp_low.bmp",
+      "sha256": "ba010392b71cad661e309de66ecaaa9a7eaff685dce5bf3f88c15004f9778c0f",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/grid.bmp",
+      "sha256": "e0196495d9437fc4f3a6391952fa909871c245f3909023b7c83d38e00a06a887",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/gun_01.bmp",
+      "sha256": "e62f4cc293431443525f47c6503edd40a06e17b4f9e56ae6d329fae68a9969cc",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/laser_a_01.bmp",
+      "sha256": "f38bd5e9d34e50acffef6327f41d6d5a388d7727cc69a43db6908c64d6761b8a",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/laser_a_02.bmp",
+      "sha256": "0e8d7211499907b7f665178eb718374b4b8422d683b08479933376721d9be949",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/light.tga",
+      "sha256": "a273fc6009389423750db674d28aef9c6e031aa868651a1f39d8df3bdfb5daee",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/m_flare.bmp",
+      "sha256": "be0fb6477e5acd127fc2ce46b03a3d95df95891d44faad5be0a36f6699951dd3",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/particle.bmp",
+      "sha256": "02c6e4220ebe34f5eb639a633a096669d35754e01902702b60882c2c918a1cfb",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/railgun01.bmp",
+      "sha256": "8da2f516ed460768744453f9822c52c0b6dd626af16e96309d54fe9b86cd6a2c",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/railgun02.bmp",
+      "sha256": "da562bca71b83272a31aa92e27936101e633fec5f98dc6290224604188206c90",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/railgun03.bmp",
+      "sha256": "495dc5965ea1c15ec257cd5b482817a9076ff2ea8b8d65453209f4793a9434f6",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/railgun04.bmp",
+      "sha256": "86afbb5e9e237d260726372d46ee2bbd8628898ef8089963e6b65c5027e74136",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/railgun_01.bmp",
+      "sha256": "802075548e321e78b49b127e1d72435b69f77450f619fb8ff15dcee018963810",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-01.png"
+    },
+    {
+      "asset": "effect/smoke.tga",
+      "sha256": "fc5f3cb2253f0317ec430dfacd7e811dee86d2e446fb57f55ab0af0f73f722f1",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-02.png"
+    },
+    {
+      "asset": "effect/strategy.tga",
+      "sha256": "b8e25b3ad2056d786273fff6e749817e5bb9df7309d57f81d9005de652ee9b9e",
+      "classification": "translation_candidate",
+      "sheet": "effect-02.png"
+    },
+    {
+      "asset": "effect/wake_core.bmp",
+      "sha256": "86c09486790f8da0345ee036a34c35fc68d75103273507314b6ea6d1488c44b6",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-02.png"
+    },
+    {
+      "asset": "effect/wake_glow.bmp",
+      "sha256": "74f075a8341d310d0e3308c2288df61931ff331f45dccc101dbaf586dfa83158",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-02.png"
+    },
+    {
+      "asset": "effect/wal_flare.bmp",
+      "sha256": "79aa397472d98798e7fdb529f6298ce8a9354c8360695d98604628f8c5c507f9",
+      "classification": "no_japanese_visible",
+      "sheet": "effect-02.png"
+    },
+    {
+      "asset": "Face/faceshadow.tga",
+      "sha256": "b7a0a0c1d5d5c0b213099a741b32befbec1e98b0dde4ae677f2728adcba98134",
+      "classification": "no_japanese_visible",
+      "sheet": "Face-00.png"
+    },
+    {
+      "asset": "Face/gaf.tcf",
+      "sha256": "7aff0ba5469603b0ee39bd96b5951a0704fe3e6d88652c3cb50e729364bbfcfe",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/gam.tcf",
+      "sha256": "f7bf1e99847e470e69ce4acf0a7f8a090392f99ea67a9ab598544e3686ff2e19",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/gef.tcf",
+      "sha256": "883ea53b77dc060ce393b00d4e07064736643afa49de15512fdafb61207d1bfc",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/gem.tcf",
+      "sha256": "10896ce991678102d9c08ba90f4d0a6272dc9a1094cd7db35bc6ef59a3bc39b0",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/o.tcf",
+      "sha256": "62beb851afc064b8e7712aeb52bf35218b38ee027c8d468a2f297b998994da15",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/oam.tcf",
+      "sha256": "ce2327e978bb0904f02863c993c3132e3403721032663bfdd63b55e0a791bed5",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/oem.tcf",
+      "sha256": "8a6e0d07e909774e21d649b2bf5f39cbccdc75d20cf19ac87b45d9193b794c2e",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/tcf.hed",
+      "sha256": "b4e7455f6ddcf78b9a21856c7d182cabd2ae8d42ed281afdaebeb8535a976dd8",
+      "classification": "opaque_container",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "Face/unknownface.tga",
+      "sha256": "3b883c19aba54ce9f981a2dae2fdaf6f892a7bb824c16f8b4a7e3afd1b7e205c",
+      "classification": "no_japanese_visible",
+      "sheet": "Face-00.png"
+    },
+    {
+      "asset": "Field/bak icon_set.tga",
+      "sha256": "7544bec9be51b2181f3b55d76c17c6fb1022ab72d9aa6ad7bef12bcc4277d0a4",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/icon_action.tga",
+      "sha256": "59eb446adb30a997bdc2b72bd73885f6ba6778c10b1a89633869eee299465d96",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/icon_country32.tga",
+      "sha256": "95347ef82d5d3800045c92891f08fd5adcf36236fb3df02c5c82d2648f16a290",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/icon_fleet16.tga",
+      "sha256": "24afc9a4b1f2e0c8521991c45e1743990e2d9b74f9f3615a28991fa0425eb13c",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/icon_set.tga",
+      "sha256": "0f0b50f5eb6e56a0981be1cb6131b147c197a1c4c22e0da2544d1c308aa050de",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/idou_kaiten_pointer.tga",
+      "sha256": "81b3fb6982568db7605a730e08489b4b6bc3dbbf3245e1b9823843b1bad7937a",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/idou_parts.tga",
+      "sha256": "2956c71ff76be26e4e97cb60085ecf1fd426ac4ff17323ada1eb4638e34fe66e",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/mk_unitcircle_blue.tga",
+      "sha256": "9666981efe9e99abce7b0f439df82740d5d9d49ffc4d30efe9cf0f5bcfc9b443",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/mk_unitcircle_red.tga",
+      "sha256": "f1a7f90f11478f92b29b75ac6c83e829e003c9b1e775a2d653040f4459a07646",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/NewRange.bmp",
+      "sha256": "adaf6a96df651087911b13c9e8ef4beea8c5619b23668f4f3d1a53f40c3a244f",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/range.bmp",
+      "sha256": "89dd17c132e675ed2aa8bb966338a3bdc6a1f5142d22260cabd1ba1cea84359f",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/renge1.bmp",
+      "sha256": "776e5ef98e4bf52e86ab4704b44e9c6339bbab4402fda7e80d26b627c4fdad6d",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/renge2.bmp",
+      "sha256": "615f85f413efcf2d7435e09dedde2a5abb19855db5ee1f376e30529495fc4ea2",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/renge3.bmp",
+      "sha256": "47b5cd0d6ce45f207669dbd0f0a00020255c528fe3f3dd5f7f63e0776c8d04b0",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/renge4.bmp",
+      "sha256": "a4c2924ed82558f830403179e981aa5d5680ffcff903fde5c362e2af2798ba27",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/ShipMark.tga",
+      "sha256": "5e0a0aa0267c68e1dc750828d06ba93fb0d437105079d849cde428a1d669cea5",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/target.tga",
+      "sha256": "3c11f9b5449165b7ee53189a964335adeaffe21506e4617946fc69f9ee81a5cd",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/unit_range.tga",
+      "sha256": "83930135bc01c4c9a2007681e1d78eeb07f23b1c498ebe666413c7316a3b1a7c",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "Field/unit_statusbar.tga",
+      "sha256": "fbfe703922724ebcf9103471d481de044358e511828bd8ec0f7563c8a0a8fffc",
+      "classification": "no_japanese_visible",
+      "sheet": "Field-00.png"
+    },
+    {
+      "asset": "gamemenu/bothtec_logo.tga",
+      "sha256": "dc161ab32f977ce746303022f0513495c41dcb076e5fb0e5a2e494177ecad658",
+      "classification": "no_japanese_visible",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/jinei.tga",
+      "sha256": "077c414b5345f74c2b244f32730a31449f07fbd81a9489615c5e69aacd8f576c",
+      "classification": "translation_candidate",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/kekka.tga",
+      "sha256": "302b2ecf2c004a01b8c9546081982cb6a8595f9a8ddaddf3368674153a74149b",
+      "classification": "translation_candidate",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/menu_parts.tga",
+      "sha256": "0faae0325cb9bb06ea63928ffa1acfb43e72877ff4a6e268e87fb744d370278f",
+      "classification": "no_japanese_visible",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/microvision_logo.tga",
+      "sha256": "fb5f691eacea966ba82ae832fa88f537c8b27a37fa097e1b5e80394f0b5dd596",
+      "classification": "no_japanese_visible",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/multiterm_logo.tga",
+      "sha256": "fb5f691eacea966ba82ae832fa88f537c8b27a37fa097e1b5e80394f0b5dd596",
+      "classification": "no_japanese_visible",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/title.tga",
+      "sha256": "9dcb4a94f7a18ca261be89a9ed010d3343b6fe312cc3b26e78c55467bc8a01ce",
+      "classification": "translation_candidate",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/title_japan.tga",
+      "sha256": "6a6849cd663239514e91e7d5878b212444c175b88ecf643dbe5754fbb11a27c4",
+      "classification": "translation_candidate",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/title_korea.tga",
+      "sha256": "e139c213fab56beb262c00d30e29e2f48a4d2614c9843537dc641720a7291e95",
+      "classification": "translation_candidate",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "gamemenu/title_korea_china.tga",
+      "sha256": "74e2219a8d2cbf4a83a625e27b9f01540a94c1d7bbc1aad19cd19029e8c88b36",
+      "classification": "translation_candidate",
+      "sheet": "gamemenu-00.png"
+    },
+    {
+      "asset": "icon/system_camera.tga",
+      "sha256": "9e1151d068438171a9d1e919fe70e1c03013e80b81b12c9e9b10ce8642b11d46",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_chat.tga",
+      "sha256": "79b9ebba2a52d8faf0732be9c35f9f8ead56f25dba5f97f43016874dca3e19bd",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_heikou_idou.tga",
+      "sha256": "edf5b654365377e34864f5f082f6636780454b12534f93faabf2153cdfa51e14",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_icon_parts.tga",
+      "sha256": "14be2e5cb8195dce8cb73e3b02c07ebf46c40e2fe9a26a809b64656a5ce7b6ff",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_info.tga",
+      "sha256": "79b9ebba2a52d8faf0732be9c35f9f8ead56f25dba5f97f43016874dca3e19bd",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_info2.tga",
+      "sha256": "d16f4205d40f7b9e9cd2c64ab5c91ad8e55feb4d97d44e63380f0a6ec6c1bc53",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_kaiten.tga",
+      "sha256": "313902726aeb0de6a161fc393c402c113492e1f4e84adc428f21c00e6586a5ee",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_mail.tga",
+      "sha256": "31d633e06a6a0096e7ab80208dc63a5394342bf78f2028e8d8c3ce3b304074f3",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_system.tga",
+      "sha256": "4375831060224182e977a905f1c4408f5fde34f97e17dd5d197b9b80f0e074a0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_system2.tga",
+      "sha256": "a70348af32f6adbea3e7c322e51e5eb723139e06e5c3e4d7618d79a0033d17a8",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_window_shade.tga",
+      "sha256": "0b1235bac48d3b3bf87b5639604268c36e47f6ed4b49a56f59c4b0861126f0a9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon/system_zoom.tga",
+      "sha256": "8295abce487c756cf49fe20918ada250195c45a4beb468e1b22a215a94e8a3d0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon-00.png"
+    },
+    {
+      "asset": "icon_down/gushin.tga",
+      "sha256": "634347ae2e22d6082694f76c0ab1ac782f2a7d87ec4a5a02470f68ad95f7c0fd",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/gushin_bouei.tga",
+      "sha256": "948ddd342f10629694780fd9aec5273bac7cbf77091e8e3ab401c02298e57d2f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/gushin_geigeki.tga",
+      "sha256": "ce1268dc527eb3a1df4be81da09bdacede4d8e7838b22e8b4f9e8233fdee8388",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/gushin_senryou.tga",
+      "sha256": "1b51ec4d4e70a355b0612bebb2718e3ce028b687bad141bb198c407ab4cde210",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/gushin_teisatsu.tga",
+      "sha256": "b80598c7d6297f1b9c4f9634b1da90144ad28a617e571e2d11392548be34c524",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/gushin_tettai.tga",
+      "sha256": "d59d7d98642bf7daea5e85db088a5e871093eedee5bd25fd0acb5c081f311376",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/gushin_yuugeki.tga",
+      "sha256": "79118822b234607aee7a3a85bda4ab954bf86d02019f8ac00be4006a1e6f1bbd",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/hakuheisen.tga",
+      "sha256": "2422603fa630de554a03dafd45c1f554eb4e370b78b207a2cfa38888c49bb251",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/hanten.tga",
+      "sha256": "76bca6e4bc21d694a2fab5f6571afffbef64e83e308714701af603f35b335186",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/hanten_left.tga",
+      "sha256": "395342e3a1e5c8438fb6e48c0eddadcbfdc95c4d70e87bb742a45a29ee155f05",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/hanten_right.tga",
+      "sha256": "15b976f1bba1383d37be639f041e0c6044973b6f47073851c32e692442eac133",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/heikou_idou.tga",
+      "sha256": "05c0cd7417c4c6fc71dfe0cd98ab563095acaab81e5e2575307359798b9243d9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/hokyuu.tga",
+      "sha256": "038a8c4b749d7e7ab49c62377992b1b03f3fc42e429557f17dd7de6af9ebf6ea",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/idou.tga",
+      "sha256": "2641c54d842d5c95fdaf3b873315dc4e07720748fff12e8e17e0043760c0edc7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/idou_1_2.tga",
+      "sha256": "e26e738e51220a45f2f71166dd49a90b37ae9c8f0af6cd503d6ae82697b2bf99",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/idou_1_4.tga",
+      "sha256": "f989752335e566745329b6a625b5d799fa67eb8b5af41a13e6b3d85770fd6f5a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/idou_3_4.tga",
+      "sha256": "fe6a8a568df42cf941f9a5086df50e8c5c064f37ed1fb6212e96705a698e12fe",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/idou_zenkai.tga",
+      "sha256": "68f114a02f3048ee7c98093d9a76bf9621479cf2ae468f7636ef3bfc76f05e05",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/idou_zensoku.tga",
+      "sha256": "68f114a02f3048ee7c98093d9a76bf9621479cf2ae468f7636ef3bfc76f05e05",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/kinkyuu_hokyuu.tga",
+      "sha256": "282562bf18c726d3c4af8c4836c578170163af5a20e8c217c810e9ebd79c4365",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-00.png"
+    },
+    {
+      "asset": "icon_down/kinkyuuhokyuu.tga",
+      "sha256": "282562bf18c726d3c4af8c4836c578170163af5a20e8c217c810e9ebd79c4365",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/kobu.tga",
+      "sha256": "ac3d14e818fb226b144c9d6c99c9a09e913378353279388232c5e3fceabe55c7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/kojin.tga",
+      "sha256": "d3bcfb2e14f2c78148b281e102ec12b4be10554d371beaf725e86289e21862a0",
+      "classification": "translation_candidate",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/kougeki.tga",
+      "sha256": "1e8e1ed86ebd8147b463a528378029dc6f90683d6a4350a0d8a86fd0c5c835d6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/kougeki_issei.tga",
+      "sha256": "cdf8de3b60d67eec751e7e5149e747ba0112967870e20f693e52a8131b1e353e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/kougeki_renzoku.tga",
+      "sha256": "d295cc1107c795e26af1687a567e22ad40e51a9563d47f44400405ecb3c0c0a0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/kougeki_teishi.tga",
+      "sha256": "86733bd6f6157447116891adc7756eace17a0d87375f47606fc4ecdb7d6fd5cb",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/kuusen.tga",
+      "sha256": "814500dcea38ca17612e88cddda8bd6e67dce7eb85e4a8857a3e89a92bd87dff",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/ninmu.tga",
+      "sha256": "a1c6dc31dfa46c72f48e4b0f686d6a9b351d65dce0437b6a1ffbb2342eef8b30",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/no.tga",
+      "sha256": "89756bff4d21f7aab5c4e8d2e6114d121cef1f26a71f4de66cf85db7e6bbcd64",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/no_mark.tga",
+      "sha256": "25ed279a72f52bb90589a4ebb8b24bfbbe525e5e0946ac1d5fca344a8942d96b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/rader.tga",
+      "sha256": "5301d2af27e224f5c89eeeba2aea8be35414e5b6da5b7b6057e10344aa234836",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/riku.tga",
+      "sha256": "97944c8dcb56cadefec1a77580edb6bce265f415adabeb15a488b03a3523747f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/riku_tesshuu.tga",
+      "sha256": "62375cc664a82838e02d208654215ef50530fe21e465a349018c6d5dee04d93e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/riku_tettai.tga",
+      "sha256": "f7a3159362839fd6d1051bd1434c6d4cd23dadaa789179965aba74349a12d5ac",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/senjutsu.tga",
+      "sha256": "03e509aec513a1543ccb924e5112938cd4c8333eaf3ae62617894fe14ac4845a",
+      "classification": "translation_candidate",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/senkai.tga",
+      "sha256": "6bba331648744a8d68b19ca0bb840beb5eeecb7760dc5faaf6022e2b0be90321",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/shageki.tga",
+      "sha256": "8bc7cb3ea11b1e55c91938493131207f95f962bfbd24ec993795808b0fa282c9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/shageki_beam.tga",
+      "sha256": "7bf3e97cd179d07bc82e45bd41cb01ba98c138e55b7fb6462d95d4c6be4d22e1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/shageki_gun.tga",
+      "sha256": "0f8636825e73ff95eb3d9560ab1682cfa575f81bb262d620c1068c360b7230c1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-01.png"
+    },
+    {
+      "asset": "icon_down/shageki_missile.tga",
+      "sha256": "f96090e3c21e3453330228183371fcaf9c8552eb15a4ca362b4493d5d0caeaa0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/shageki_taikuu.tga",
+      "sha256": "2e6e7794a4cece78720abc1bbbff621bcd67e72969c4a1f44d51de91927cf5b7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/shokumu.tga",
+      "sha256": "b3f829f9cbdabc30673658872b471f896bc1bd170ba308708075a1e903ce629b",
+      "classification": "translation_candidate",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/shozoku.tga",
+      "sha256": "6f945a2dbb435db31b6e85bf18c40a4cdf5d420a74bfb8bcd50820e132346744",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/shutsugeki.tga",
+      "sha256": "ce0836c4023e0ff4c71130dafea14b6e375e524d9c0c692311af7c0793b06ade",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/shuuri.tga",
+      "sha256": "850fbd0a07b63cc38ba5023f7c02699370ddca9df877105c1df57bb78e028d42",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/stop.tga",
+      "sha256": "c66ad9fcba0e22ab28e748d2ad13fd755373e3bf892f517a213f00394db1be8a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu.tga",
+      "sha256": "dfbaffa57a6baf3b9e076a6d4df069d402053980deab7448573fa1009c1a0981",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_bougyo.tga",
+      "sha256": "9cc1fbbcdfb24f8492001256b193d803728047f41d253022feffae8c176446f7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_bousui.tga",
+      "sha256": "4ff486a9949c9800b6342e93df39fa1a335f3726ae18837bbc03b514218dd9e1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_kanshu1.tga",
+      "sha256": "1cfd7001402bd34817de56da6a6ad3c8cdcc8d975fe9cbe2c62c4095e3deef5b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_kanshu2.tga",
+      "sha256": "9aeeac24fd75aeac5135087547d08ab6a89704510c9c78b18cedb02fb7176566",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_konsei1.tga",
+      "sha256": "4289ac325b77c2a733314ec691a67a82932d355a8f8f695bfd8537adb8454d1d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_konsei2.tga",
+      "sha256": "1e8e1ed86ebd8147b463a528378029dc6f90683d6a4350a0d8a86fd0c5c835d6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_sankai.tga",
+      "sha256": "6c2ddf77a976690333d652a58c5b2f1d5ad1238a3381d849611ae1dd72dadd1f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/tairetsu_sanretsu.tga",
+      "sha256": "d87f63f7c880e375f2f611dc15fe839e34f57f38b41d8962186252f09f8bc5ad",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/taisei.tga",
+      "sha256": "6c47be044dc0d21d23ecb930073f6ca2ae7da956c0f62985b1da31489ce28d3d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/taisei_chuuryuu.tga",
+      "sha256": "a52fec5b153b1f14df06b3ca6e22bb0dbb76e78b393332211af927025d1aed21",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/taisei_koukou.tga",
+      "sha256": "53813aa380306dfb4b79d9f41d2c48d432d485dea70858ee801b03a8bea4cf7e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/taisei_sentou.tga",
+      "sha256": "a3ac246a13deb6a9de43a9e5f769ac33a406aa4fa7650f84eb2cae255855fdfa",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-02.png"
+    },
+    {
+      "asset": "icon_down/taisei_teihaku.tga",
+      "sha256": "ebef2d2d3b1a0a27744612f1abcad22f466d6f132f61d99874a5b174b8e94ad7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-03.png"
+    },
+    {
+      "asset": "icon_down/teishi.tga",
+      "sha256": "603703985c5fada2f7e8a52e66e4a3917b2eeb4030411d60aaa801680e42f797",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-03.png"
+    },
+    {
+      "asset": "icon_down/tettai.tga",
+      "sha256": "63df738eb1e415d20238fa69970af85a3a6f07a19bcc95de15b7a7c2f129ef5e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-03.png"
+    },
+    {
+      "asset": "icon_down/yes.tga",
+      "sha256": "95a40ab8c1f550c4174bcd090f18e1094beef2af34c53b9fba7a9f7f9d0cfb16",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-03.png"
+    },
+    {
+      "asset": "icon_down/yousai.tga",
+      "sha256": "c0ebf7a5f6b1df1f71b90ed65fe8da77157d944c9d500b2889740ef92abf9104",
+      "classification": "translation_candidate",
+      "sheet": "icon_down-03.png"
+    },
+    {
+      "asset": "icon_down/yousaihou.tga",
+      "sha256": "9a0ef751ba301d2f8f6301ce84e64fdd29b59723abc215801d302ed69d8e2ab9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_down-03.png"
+    },
+    {
+      "asset": "icon_kj/_CATALOG.VIX",
+      "sha256": "91955828e7dddf1810711278d33c7ff3ce8603179b25c5689d0fe850b9e82527",
+      "classification": "non_image_metadata",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "icon_kj/com_bar.tga",
+      "sha256": "e898dbff2bc639b99a9063bbc7bd5e3e48cb5dc5dbb3dd9caf94016f4d7cf45d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/com_saishou.tga",
+      "sha256": "d66cfe664e3a81902c545d3697de8d7da77a76ae9cda5c60cad936e7791f01c1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/com_window.tga",
+      "sha256": "ead6e3979b38658d732a6c14bcc5a092f9634725337f37ac8602e766b1514ffa",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/gushin.tga",
+      "sha256": "a984324723a03df3e55610baf73c567326e0b3d465a2cc95b1f826fdd2ed2f70",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/gushin_bouei.tga",
+      "sha256": "4769d18cc3ad09d663fcebcee3b496662c6d1553cef89d4ce5136de5e58face9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/gushin_geigeki.tga",
+      "sha256": "cf25a1becd5f9ede64a872dd311278468927b949f7d344b8b73b745edf6e376c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/gushin_senryou.tga",
+      "sha256": "7d793bdc721bdfe76202d9515eef0da49cecc8e880438a74f17426f9ac653453",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/gushin_teisatsu.tga",
+      "sha256": "135aa2ef2ec1794400faeac1ef90ff207071029321ad6baeeeb5210dde8c11e1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/gushin_tettai.tga",
+      "sha256": "86a872bb6c740580db4275e51719934dea1e4a252f0e60b990720f16158fa190",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/gushin_yuugeki.tga",
+      "sha256": "8c0047e423d8187b409f8d54c109a586c6549890edf460d8bda96d1c9c7429f7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/hakuheisen.tga",
+      "sha256": "5de5274fa137d3e1eba574cdb586a00fbd88b4e4a63197e86a74aca7c12db33b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/hanten.tga",
+      "sha256": "f9136e825ef573ca71f2b6acf71ad8d59a6649e8257160f0f11514ba0cb15be8",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/hanten_left.tga",
+      "sha256": "92ad1af8719c7dbd3900f62e379f0de7d4e5aeb8c59b36618dcefc862d6ef771",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/hanten_right.tga",
+      "sha256": "f59e23dedd1f6cbc1ea08aa549426bf4eb77090820b3ca71fd8012363edac290",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/heikou_idou.tga",
+      "sha256": "32157c483b90cdbee4dc3892c173c93cf34a481b17e086e7503eafec365d9f13",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/hokyuu.tga",
+      "sha256": "19d6b0821059bf21332f9950ab95cce58d9045285634dd3b9afafd71792f3f84",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/idou.tga",
+      "sha256": "4e25007ba026662f1b9939775ebcc1940af641d5db501dc629120df22bb6742c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/idou_1_2.tga",
+      "sha256": "02b693907808a3b8bac05b571f95d5bd216cac2ffac70c0e533a4b623295cc58",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/idou_1_4.tga",
+      "sha256": "282f499bcb17f77aaa5873502295b2e6119e0baa29be5f17d52fb3af7402631a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/idou_3_4.tga",
+      "sha256": "d243373952efa54ba0999c21633772283b34095713798e4dcae2338951577524",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-00.png"
+    },
+    {
+      "asset": "icon_kj/idou_zensoku.tga",
+      "sha256": "5080beee6739eedeaf3312bf5f65f226d0c3222379007098f5c3495dfd46fc28",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kinkyuu_hokyuu.tga",
+      "sha256": "7e858f5ef26a6a6aff048ede776514d4e7b74f6b21a2928fb9256bf94a3e0121",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kinkyuuhokyuu.tga",
+      "sha256": "7e858f5ef26a6a6aff048ede776514d4e7b74f6b21a2928fb9256bf94a3e0121",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kobu.tga",
+      "sha256": "bf82467c0fb07bf30f375181372cf97a88019d29c3e3caaa29b45ef75288c926",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kojin.tga",
+      "sha256": "9bb39f926a02f79487d2ff97537569b92b7c9fd871d364fc3c1ac39c13d8f37c",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kougeki.tga",
+      "sha256": "9405a4409d58424b246a5076c2e70a752813e7d20c583226746afad287860c5c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kougeki_issei.tga",
+      "sha256": "86b4c2fdff6994894673072501a9f3f03d01e0e823bae85bae286996333310ad",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kougeki_renzoku.tga",
+      "sha256": "86b4c2fdff6994894673072501a9f3f03d01e0e823bae85bae286996333310ad",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kougeki_teishi.tga",
+      "sha256": "5f8c59e2769ab0a3575eee615dbb3d47eaee27922fe1b71cda465638a885a063",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/kuusen.tga",
+      "sha256": "9f8e16b61d81b051f652540bfafbb07c0ba9fcfa321a9dd755352bf9b1b4002d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/ninmu.tga",
+      "sha256": "28b79ce840306f3ffa439c37d1ccc59dc216974359235cefe5bc63d67e85aaa6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/no.tga",
+      "sha256": "e6cbf6c40ec03f12fb59352bcf1ddc783a9c3635331830c7060f8299e47298f3",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/no_mark.tga",
+      "sha256": "fb365b37a82f73a240a9c746ca1a5ec19386c733e22dbc9d67ae9bad3c58df68",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/rader.tga",
+      "sha256": "105975cba6c7c8f5f59d46ff3e6ac5cc15d56c4f4b3eba0063bf98eda2596645",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/riku.tga",
+      "sha256": "41df56fc75a18345833ab94296d295dca3b21082c5f4da9da6521bd617675ece",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/riku_tesshuu.tga",
+      "sha256": "371ba0bb8623b4df6117c4ced067fa67670f7f7346f508cb39a1e209a4b70d85",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/senjutsu.tga",
+      "sha256": "bd3a610e2a4f21e8fe67d0f60fa7797ca24503d476d2961cf0eecd495d451af6",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/senkai.tga",
+      "sha256": "c3974d4f09f98db3cac949571a28f8e0785d3deb7ab69e698b5afd7f0e079a1e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/shageki.tga",
+      "sha256": "c3f21de1e5160e938025421591461f9de5f94a5630e92c24be6753811a6b1100",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/shageki_beam.tga",
+      "sha256": "792063e5d7a8d3f0c6a4c88cbca3b596b7e31650cfbf6b223f315070eae79bf8",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-01.png"
+    },
+    {
+      "asset": "icon_kj/shageki_gun.tga",
+      "sha256": "ec391597671bd7687c88e459c9b931fdb5a4615898874187481a87f5696791a2",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/shageki_missile.tga",
+      "sha256": "11bc801c8858236ff0c2f321834d02f2875115f8a4be451005c5bf9398d96cc1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/shageki_taikuu.tga",
+      "sha256": "9c1847f713bd4d6598056fdc78a3a3a0d939357a9631423384b49a800d1c7631",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/shokumu.tga",
+      "sha256": "a3e0969c7ed262c82b81b8cee28675f5ced84c9974ab1d5965f7f6fed3428132",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/shozoku.tga",
+      "sha256": "58fcf90dd82d15f9ed152a95aeb4b0495c0a191dca72a00bdaf8e75449deb5e9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/shutsugeki.tga",
+      "sha256": "cd234ee44eade6faf4a9694f485137190f2f71da604f51b5ecf7168d95b67be7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/shuuri.tga",
+      "sha256": "3bf84b038bac721a2c8eaa6ea5f62c1920268bbc4ab1a84dea4c0405032a1266",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu.tga",
+      "sha256": "32bed0e709cbe1c286846fa2dd13372f095a0abcd87151b2a2744e94ff6d5b3c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_bougyo.tga",
+      "sha256": "e7e250c75da40faa4f182ca2758ff16d859641f6716c5c2e4e4da1e00227a932",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_bousui.tga",
+      "sha256": "8cd7b8b6d169e30e30c45c93705eec8962125f03a9d85a94f6fdf792dd5f2174",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_kanshu1.tga",
+      "sha256": "38095f9e279a0df11c5d619b5572f8f70472a7d54c389988555e316cdc685201",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_kanshu2.tga",
+      "sha256": "0f1fad830485b4b347ed0bdd126d6b2ce9cbb85bd37fd4c5d92b128463549973",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_konsei1.tga",
+      "sha256": "4a2945846e6fa2b1cb96ae32e0edd05d4a548cd11dc6ed0793a11a188bf16591",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_konsei2.tga",
+      "sha256": "4d0f932afc8701d6fe25b868363ca56ae99d3e30fd03bbaa29adcaad3bc397e9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_sankai.tga",
+      "sha256": "44955ac8a433830be7d80f33b553bd68e2898d9847eaa6cb3f799b2ef2ee3891",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/tairetsu_sanretsu.tga",
+      "sha256": "b9c048ba275a80431ab35234d1773700a0866fe0cfc22f66e9bb0ea99fbc03a4",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/taisei.tga",
+      "sha256": "e57a1f9bfc80b616bce5529632f964605ccc187105e6820cf2df5ccfd0eb8030",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/taisei_chuuryuu.tga",
+      "sha256": "2d19e8eb4b299450ca84630af43710b81dc6c85ae4b638ede66957864fcd4d46",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/taisei_koukou.tga",
+      "sha256": "5a7d4043167adff33a196c4ebb1868a7dd0cafa3b6037124b34d8b838120bd88",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/taisei_sentou.tga",
+      "sha256": "9c47e677b2784a004dc78b42c95951ca23709dcc059ea99a2591ebda8bf61332",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-02.png"
+    },
+    {
+      "asset": "icon_kj/taisei_teihaku.tga",
+      "sha256": "0c52fd802a2e173a72ff0d70bb079af524ac8c6e2e25bef107481b4655a98b21",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-03.png"
+    },
+    {
+      "asset": "icon_kj/teishi.tga",
+      "sha256": "95c7fdc686bf1dbc89f68d0e6d5150db35c1788161e79b2a3f930556ffe23c52",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-03.png"
+    },
+    {
+      "asset": "icon_kj/tettai.tga",
+      "sha256": "32e703004c295e08a5083ede7e7217654b15ee846ba4b56af023cf4484eca3e0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-03.png"
+    },
+    {
+      "asset": "icon_kj/yes.tga",
+      "sha256": "5f4a87f57604332b0350beacbba1b98f455efd224dd6820a6f10424034b41694",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-03.png"
+    },
+    {
+      "asset": "icon_kj/yosaihou.tga",
+      "sha256": "e2e827b335c33cdb393424aa39aec8b63842a6572f501b2ed165e3bbc25e27f8",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj-03.png"
+    },
+    {
+      "asset": "icon_kj/yousai.tga",
+      "sha256": "0740b035e664694cdd89fe55abdfff0ab4738164fbfefd43319563163a8cbccf",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj-03.png"
+    },
+    {
+      "asset": "icon_kj_d/gushin.tga",
+      "sha256": "f15fab6a18504bfd120cb48c5e3198eb1693dfd099693275b723360619bb2476",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/gushin_bouei.tga",
+      "sha256": "e65ec5c32f3af326465ed9a966c955748b9b733011029d8145f380893d98af21",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/gushin_geigeki.tga",
+      "sha256": "c333e9033a5d88ddf423e51fdcf98e6a7223f1ab25b22389ba4fdbb6645beb36",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/gushin_senryou.tga",
+      "sha256": "878bdf8ed064a938fa470fc927d93f18ef97bc4669b92f03b3fb0c38c9536208",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/gushin_teisatsu.tga",
+      "sha256": "1da09f362ba08bb13676e0282511d7ff979dc0378e4cd90bb33bb2fea72f8779",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/gushin_tettai.tga",
+      "sha256": "45413f0f48161410bce3088fbabcc5c4eaa917349bb6bfaecc454c24644c8abd",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/gushin_yuugeki.tga",
+      "sha256": "e70a43fda9a2f239ab054e6aefd6b9ef236a85568dfaf861797628b3fcc5cc04",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/hakuheisen.tga",
+      "sha256": "3fde2aba4be83d3dec1f626ea77813e6ebe33f5f80f38240fae181d1bc159f60",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/hanten.tga",
+      "sha256": "b85b69bf6394599ababf2e20d9fe4a83a7900ac10e375ff3da31d82bad82c814",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/hanten_left.tga",
+      "sha256": "3529b02473c005e2fd151e72f2e42106b9adbe3347f93b026b497c25799a13a7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/hanten_right.tga",
+      "sha256": "4a600837989ecaf9e78e74a9b6375802df884981886abe301d0d1eaf04f5c6e2",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/heikou_idou.tga",
+      "sha256": "88a4947e6c2376376d82ab45a963cf3d29df03aaf4018767b4e8836ae6b4d7fa",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/hokyuu.tga",
+      "sha256": "26763af131be210859bd5b619a2fb69d27c35541b56735224fb69a1a3b2154ed",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/idou.tga",
+      "sha256": "51aa67d382b77a8262c191d762b93abcbcb125c25931a4aa3b99ba0786b07644",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/idou_1_2.tga",
+      "sha256": "afc220ef5c3bdf95b8773b55999bfbbbf52b952bddf559eee4f36375a50b9963",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/idou_1_4.tga",
+      "sha256": "c71d77617abdc571aa82c94cc59280fbdc46bec7f297331dbb2d4ca60206d90b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/idou_3_4.tga",
+      "sha256": "5b4f13692b8f7694de121ac26386854c8fb1ddcabdc323c0ed8b554c782477a7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/idou_zenkai.tga",
+      "sha256": "6f154d9fbfe3f292d0075f911826d16c237e5224c7c31e6a1b38669d0dc4f74b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/idou_zensoku.tga",
+      "sha256": "6f154d9fbfe3f292d0075f911826d16c237e5224c7c31e6a1b38669d0dc4f74b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/kinkyuu_hokyuu.tga",
+      "sha256": "7f5207ac982b5050e3afe9334d0a75d61a579f03010f3b689404e3ae1a7b52b9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-00.png"
+    },
+    {
+      "asset": "icon_kj_d/kinkyuuhokyuu.tga",
+      "sha256": "7f5207ac982b5050e3afe9334d0a75d61a579f03010f3b689404e3ae1a7b52b9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/kobu.tga",
+      "sha256": "f15fab6a18504bfd120cb48c5e3198eb1693dfd099693275b723360619bb2476",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/kojin.tga",
+      "sha256": "94799cb02ef8d98eeaa6ba798657a475ba1a0d65bc6e4f27c3aa8e29dc17d9fd",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/kougeki.tga",
+      "sha256": "325ae627fcc2316148e89d9fbf61de87a1f251a4dba5ddfa1929791ee8bc5202",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/kougeki_issei.tga",
+      "sha256": "a83f7e8edceb2f11f95c4486dfacea16cdfc659f9292da90a6e2c114b2a6559a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/kougeki_renzoku.tga",
+      "sha256": "a33fedd89186e8e9d9ab2ead01be870425d2a87dff73959b411d01b2b6b6ccec",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/kougeki_teishi.tga",
+      "sha256": "84d5adb674444219aec828c7f48bd5773dde3a5e11b4792dd070d0d6f0d81c0b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/kuusen.tga",
+      "sha256": "a5b295acb408c15ebf6d3ebecd1135cb2cdf8d136260028fc82a548c395c4a7f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/ninmu.tga",
+      "sha256": "443d000ebd34878140a27f1a036fa18d5ec98496bf997b27599780686f98e34d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/no.tga",
+      "sha256": "c297ef39f6208310bc36990f2e56c98d234caa307c5f2861a2a356ea30430a3e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/no_mark.tga",
+      "sha256": "ff75de1ad1c5d7c7ebe82ed9909eadcb33b121427c1740944f417c9f6d6a8b90",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/rader.tga",
+      "sha256": "f15fab6a18504bfd120cb48c5e3198eb1693dfd099693275b723360619bb2476",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/riku.tga",
+      "sha256": "754b1f259769160b29d0c6d61966df5c8d9c5daf596139da3f051545c85de854",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/riku_tesshuu.tga",
+      "sha256": "0c700a27e12e6932d0ad26f93818be4faf31edd9b57f5facdf283fd7b7b4c4d7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/senjutsu.tga",
+      "sha256": "74f26981981b60043b3b811e44e95b14166be99002a1f20ee9d822c36450153b",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/senkai.tga",
+      "sha256": "f15fab6a18504bfd120cb48c5e3198eb1693dfd099693275b723360619bb2476",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/shageki.tga",
+      "sha256": "f15fab6a18504bfd120cb48c5e3198eb1693dfd099693275b723360619bb2476",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/shageki_beam.tga",
+      "sha256": "0ad12a2a6f0840b9a1927ce560313d54fa06f2cf7da11ed05581fe8b5aa1125c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/shageki_gun.tga",
+      "sha256": "fc5cd266945741472d989f50585bb5606c60af67fc5d69ab5f20a90e7b97aeb7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/shageki_missile.tga",
+      "sha256": "05de68ab95e5994be7749993574d8f9e4b54b89e051407c4c39e099e81c9fcc9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-01.png"
+    },
+    {
+      "asset": "icon_kj_d/shageki_taikuu.tga",
+      "sha256": "97b1dca63bc164f4969ff6c67e025651e4e03fd914ab313e81fe46fb46a70221",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/shokumu.tga",
+      "sha256": "6221f591e990473b7b87b01cdbc06e5005b72b645f821efb697cc7b758ef751c",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/shozoku.tga",
+      "sha256": "c4896bfb5565e783c917390887f5898d08841d61e59b22214764abfbc4e9f657",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/shutsugeki.tga",
+      "sha256": "5d38b0037c9a164b0810a93062e8ef6c2e25206026f79007bf6d48fd46eba06d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/shuuri.tga",
+      "sha256": "d10f2bf6493e8e6f3d7efa22d11b783cedb972945ba539f776f95f588c996f63",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu.tga",
+      "sha256": "6fbcacfb3b3ecceff6078f4cdd03ca46f15b8dcc4c520e31da8bfb32185a5714",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_bougyo.tga",
+      "sha256": "c819485c17736ec11901885d5ef4d7d61a48ce269cb0eefa2b719957cfe6fbee",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_bousui.tga",
+      "sha256": "3aa1980479efcdc0208186a36d7e5d7835b4dd0c116ea837ef6815055d9a342a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_kanshu1.tga",
+      "sha256": "6c1289361ba24b8496a51b7fb42c7590380185c42251320710a11c1c08073397",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_kanshu2.tga",
+      "sha256": "d82b8af697098c22da91bcea7b956bb769d84e6c32991a8a79508e9c6ec3d3ca",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_konsei1.tga",
+      "sha256": "a63a1dd55bc09c0ac7a419e2c5bd9db934b7b96f319af082cf451d156aa9bf3f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_konsei2.tga",
+      "sha256": "0621fb2ff95399349cdd24c1553f33b6456eddca1ffffaa31a5acc0502ee94f2",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_sankai.tga",
+      "sha256": "007d8ba109f8aecb23be621b23c75d638569701d851234c50bd4fddb8bbe6ec7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tairetsu_sanretsu.tga",
+      "sha256": "14250749940c171576eb6edf1fa73afd14cb94d5b753c9246f4403cd401baf5c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/taisei.tga",
+      "sha256": "47794604e95a53b46d583105c87a99432362afc4d0d42bf9fb4465857add6c9a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/taisei_chuuryuu.tga",
+      "sha256": "16ff7e72ab1ddb8e40aa95177bf7265fe1fbdf6d45a3934d87fa8c05ce792eb0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/taisei_koukou.tga",
+      "sha256": "b1ff70460131acf7a0d40ee465c07eed958ee5a86ba3fa16a8cdda3858ff3236",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/taisei_sentou.tga",
+      "sha256": "757fd886de831728536f68a7f963ed0adf9499f30ce7aabbb6e14afca8ccfef5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/taisei_teihaku.tga",
+      "sha256": "a42e20663bff99265cc46605d7696f548eef11e8330c2651d0c1713d15aeff59",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/teishi.tga",
+      "sha256": "88681e7b5b2f065a76d6a184125151dea37e0ad07b3b53389209889a2b311d8e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-02.png"
+    },
+    {
+      "asset": "icon_kj_d/tettai.tga",
+      "sha256": "afca7931a4e4d5be6e5c460220e976bfd6a68ebb13ad3ad958847cdf8f298ece",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-03.png"
+    },
+    {
+      "asset": "icon_kj_d/yes.tga",
+      "sha256": "e077b70cb020d78ffff4dbc607d6651cd0f41547e5a8e1b9d0d0a06b92ad4b8e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-03.png"
+    },
+    {
+      "asset": "icon_kj_d/yousai.tga",
+      "sha256": "1963f92da835740c66220f26c40de7748c6032f2388deb64b16aca3137e05a03",
+      "classification": "translation_candidate",
+      "sheet": "icon_kj_d-03.png"
+    },
+    {
+      "asset": "icon_kj_d/yousaihou.tga",
+      "sha256": "24fbae74c791167b393bb08c51f30b39865214bf9954c3ad7926135d3a4eb6ae",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_kj_d-03.png"
+    },
+    {
+      "asset": "icon_mover/gushin.tga",
+      "sha256": "f011480a2c31a96a3be0442b009e8751ece65f2bedd741d9df6afc5096ebfad0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/gushin_bouei.tga",
+      "sha256": "8e54841fb99a38f6f2ce9c93ab2a3a90e24389377a4a9bfeda4dbc83cdca3836",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/gushin_geigeki.tga",
+      "sha256": "165d9998a83cbb9b6321eb64d4ae855fee2066aeeef94e16ae48606f37be8b7b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/gushin_senryou.tga",
+      "sha256": "b67b245bb27f639cd7d7dee696df99e1ae6daf2e938510ba7469534244a319fb",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/gushin_teisatsu.tga",
+      "sha256": "fa0565b4a62ca610a70bccd9b22f0ba8f017eb4687e9ef0307fb3a62cb9b268e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/gushin_tettai.tga",
+      "sha256": "363d0f076b459e00ae3e260651f1b7e7cd46f7f96601f65778e510b57b3bcd18",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/gushin_yuugeki.tga",
+      "sha256": "42374944ca5aba33616d9b1eaf034b53c99dd0727573594ce1276ecf9420e25e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/hakuheisen.tga",
+      "sha256": "5665c00456156b6f79355ad670bfb00c73c203e4fb229c91783ba63d80a7eb13",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/hanten.tga",
+      "sha256": "8d385474928f1d4446b4b49a27ec74abc2c3879e7cb253c6eecdf0dc4d620107",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/hanten_left.tga",
+      "sha256": "5f8ef4e2f99d0d0de17e93735346c6173960d019b25ceb0e7849c66e3afed7b5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/hanten_right.tga",
+      "sha256": "fb5780c70567df0392231b223b3e805fa9f73523e3294e6ce03d0ab1306dc980",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/heikou_idou.tga",
+      "sha256": "b5e593cf08aeec60c38230541146a8baf7d1e88e059601eef3bb83a23c47f0e6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/hokyuu.tga",
+      "sha256": "bfafee35fe450467f7657d32846b92f14ab31a0cb85fad0722855fe0aa00b7e5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/idou.tga",
+      "sha256": "364964db8596b765b052844b9d8b7fcdc7f5032c73466b3b99529a490045332f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/idou_1_2.tga",
+      "sha256": "9e9d5ee4861e57dbedf0c244355f9886ac80030fafa768e7674de32b1ba2f120",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/idou_1_4.tga",
+      "sha256": "02ede1a10f42d05842f749dbe8b06bf53f3d0af4e47ece3f252906b9823b242b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/idou_3_4.tga",
+      "sha256": "c83085941a9462d99aef6184990853cc3e7b964e27e5caf8518ae8e31929b181",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/idou_zensoku.tga",
+      "sha256": "6079d7cdde7ddb25916f4ea5570b20458b805da56fb7e7247f4c165377477b21",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/kinkyuu_hokyuu.tga",
+      "sha256": "23ddc50d7b3f85431b1dd24bbc1073210edaefc0de31e9a234e86c773f3c1a57",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/kinkyuuhokyuu.tga",
+      "sha256": "23ddc50d7b3f85431b1dd24bbc1073210edaefc0de31e9a234e86c773f3c1a57",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-00.png"
+    },
+    {
+      "asset": "icon_mover/kobu.tga",
+      "sha256": "0004cba6f004bceac0a51a980a524269c076378a0d09e678d44cc9686a36c123",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/kojin.tga",
+      "sha256": "81884818ab414c8a2c036efe253add2a8740e55deea0f3a1b7a5d509fc7e066f",
+      "classification": "translation_candidate",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/kougeki.tga",
+      "sha256": "623acfee603f670a88a4b8a32b859d95b6d56e310ad34c32fff947467fa07821",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/kougeki_issei.tga",
+      "sha256": "6f2e158c9bc63ed967646941f211d3b7c8ae7d657cc75563b18077ad6ef5abbc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/kougeki_renzoku.tga",
+      "sha256": "229cbd08bd5a57e4d9f5f4b57edc913f815fecea2a8d5e3a22ff4552064424d0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/kougeki_teishi.tga",
+      "sha256": "c5db158eb573754a778aa52e3708bb510f572abb48227f5245799fd7dbb5f22d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/kuusen.tga",
+      "sha256": "2bd7d1c8b42d6012eb9a371f2e6dad340909ff105f01e1d073047e7e10863167",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/ninmu.tga",
+      "sha256": "210764dc84152edd60e4d486a33cb1abddb85f13e16eef9e1758ea2065f0a8a0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/no.tga",
+      "sha256": "9ef6ed2fb235edfb2fbd9e59703682a191306fa9a76a2724ba03c743ad37b27c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/no_mark.tga",
+      "sha256": "fca6e23d706f67b65b42e0d1e65ed4da99c6c71b4888c9edca3b2ccfc3c5e671",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/rader.tga",
+      "sha256": "75a177d5985a3eebd32401b47abb1fdb7b82f2503a82c1e4c2dad1c5f623333c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/riku.tga",
+      "sha256": "0e48c9cdfae8697819939b9c65403ecbccd0c2f9338c2d01c7809ecb033b70ac",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/riku_tesshuu.tga",
+      "sha256": "de1da15d185ac167be8b9ed806d35aae8e7a27ba70e14f64377d63888cbc648e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/senjutsu.tga",
+      "sha256": "fd7d9b65578f4eca83af98b69e670feb875d3f6b9a704954820a2f856b502225",
+      "classification": "translation_candidate",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/senkai.tga",
+      "sha256": "4693d8cc81e3a3563eb5b72c019367c507ffb34d27ece26d4ee0b3095e689a30",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/shageki.tga",
+      "sha256": "8fd4884e7446405afa14b81e07f12d362487dde731287763f6b671a7b24f1adb",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/shageki_beam.tga",
+      "sha256": "ba86d06cb13e597c40552b88e4a0725be9093172ea64ac5506650266e2624dcf",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/shageki_gun.tga",
+      "sha256": "47339e203a7901fd63180d0cc6179d1203fa10bc629b3e6126fce97316c95cdb",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/shageki_missile.tga",
+      "sha256": "9ac117251b3b8e574174a0bbec231891c0509a9bba5f5626f6d30040fd63bb1d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/shageki_taikuu.tga",
+      "sha256": "4044f3016f17f18a6670fdb67a0c0fe7755be2b15dc0f7f6d00454e54499afa7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-01.png"
+    },
+    {
+      "asset": "icon_mover/shokumu.tga",
+      "sha256": "fcf3a86c5efc4e858687d6e6f9bdedffc17040003c3a5a7dc8e9041df138053c",
+      "classification": "translation_candidate",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/shozoku.tga",
+      "sha256": "f8d3b20dc66e5724eef5621b001d64175f50d6a49227c04e2aeda02af0b4bad3",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/shutsugeki.tga",
+      "sha256": "dabf8bbd3241478d74e5d8437593036eef6e11dd8af31721f89c65a62bddbc44",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/shuuri.tga",
+      "sha256": "49726689e62d295e688c5ebee21856c5702fb3eb9b736bd35e64a597c71e458e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu.tga",
+      "sha256": "7a8ada593bad8b0aa6ee1eb4fc864e1085589fe0cb43697e912897fc69285ed1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_bougyo.tga",
+      "sha256": "aee3d6e668ee52e5f0138eee8b953990d98af4391bbf250b57d381e6ace52dfc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_bousui.tga",
+      "sha256": "883bd387788e774e88d967f8a4d0896dcedb063ce9614990a7e9d9ca5255551f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_kanshu1.tga",
+      "sha256": "19c2316e90c11294e34ecefa16ba1ec6aa7197017f69d54e9e1a89a08e1247df",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_kanshu2.tga",
+      "sha256": "9f6df734ec12989120048ee98114029458ebd45a610ca68854be71e8a026ae89",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_konsei1.tga",
+      "sha256": "3f8f59aa7a0ca143dd5917726669c9535f562582e0f36dfcd91dc0df05e47b2f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_konsei2.tga",
+      "sha256": "33208f4ff912b7f5d8d2857f9f1a264275e08f28a464c2843b21e470b26962ec",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_sankai.tga",
+      "sha256": "17715e8a0c9122ce9294f3259fba130a16a0a7dcd123dd6782454198d3499ceb",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tairetsu_sanretsu.tga",
+      "sha256": "f271e228ed6c28c75bf84afeed88890dc32f2c58eb196feb018402bef00bf141",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/taisei.tga",
+      "sha256": "96bb4fc6b1deabfff0a511f2dab4fe4c3c0370fa8066cf1a0511ed7acaeb2088",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/taisei_chuuryuu.tga",
+      "sha256": "1c46b050d2b03b6e9511a15e712817632073878fecc8fac214fe0ef6e608bff1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/taisei_koukou.tga",
+      "sha256": "decf956fea8481d151cb21b4bdc7a8dee1d68bef08bfe0d5b8cf4c2afe3edd05",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/taisei_sentou.tga",
+      "sha256": "623acfee603f670a88a4b8a32b859d95b6d56e310ad34c32fff947467fa07821",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/taisei_teihaku.tga",
+      "sha256": "34a29595c1380e03cbd66b51765db840637eece762a1edeba22d97b625f6097a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/teishi.tga",
+      "sha256": "ba0516d780a8677690d303d6e33d1aa6b8f30e3083104a44fe62e409b4e265db",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/tettai.tga",
+      "sha256": "dae6d7852c7d15ed511c4f5e71b85a63f9f09ab395e9bfb2c09d5db8a5446f90",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-02.png"
+    },
+    {
+      "asset": "icon_mover/yes.tga",
+      "sha256": "038575a662e9adf55863794b05a0402820e90cc43e5aa6aa11dfe7dc86eb5dc0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-03.png"
+    },
+    {
+      "asset": "icon_mover/yousai.tga",
+      "sha256": "6e679265bb641f4de871eafe3886ce2d2244e8b5ea37d1bc81766a152b0340f7",
+      "classification": "translation_candidate",
+      "sheet": "icon_mover-03.png"
+    },
+    {
+      "asset": "icon_mover/yousaihou.tga",
+      "sha256": "f91f775e962c77490c6f731899df4b5010451543e91a5229334450a9b73e4a6a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_mover-03.png"
+    },
+    {
+      "asset": "icon_nfocus/gushin.tga",
+      "sha256": "25615165f92200b5a063dde3098faaf8135896fccd2381d39f3e27bddab2a57c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/gushin_bouei.tga",
+      "sha256": "329ce5bb85dd5b788b3fc2826533cc6fbeea10184dc44b756dd00c676aedf0ab",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/gushin_geigeki.tga",
+      "sha256": "b2245f290a0f5dca0a08001eb7fe414ff17a59e327e50f223363f82b680ab1df",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/gushin_senryou.tga",
+      "sha256": "efd205638972f154988ad162af2055cb7d69462c6fe300549e3f01959152d635",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/gushin_teisatsu.tga",
+      "sha256": "f0dc8b6e5318ef343f837643d3e6dfe3a3d04ee0115e8e5d32e017643a1c83bc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/gushin_tettai.tga",
+      "sha256": "483a7a4e24dbc8c17b6ab189cda05f25600189237bf25e595b4e606981f971da",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/gushin_yuugeki.tga",
+      "sha256": "9cf327f38bdc92cfebd2faf428f46cc4514c6a6d2a989efae4405846290b8101",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/hakuheisen.tga",
+      "sha256": "45b21e6fa8f0d0e061938611e14b66e02c772ab2c0202c1b568c0659895ba8c5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/hanten.tga",
+      "sha256": "220392ee4bb8f8f49209265a4333b2a217e5eb76586df1ee5fb20a4d8007c1df",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/hanten_left.tga",
+      "sha256": "6aaff7fe01ec89a420355945fd9aa6b29cf2b0d456feb55849316909d59c2745",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/hanten_right.tga",
+      "sha256": "5ea63382ebe33c8f30927336334be0330ffb9563c8c265a76745579bae333813",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/heikou_idou.tga",
+      "sha256": "1a1205404b34418cae294f80d33369d98565cb2e1f751056ecf58fcdc02fa9b0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/hokyuu.tga",
+      "sha256": "c7994751c126f866cc9776cf8db09f848536eb6ce51bb7669d68d87584f8a1d0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/idou.tga",
+      "sha256": "b70e77836aa68b86f195133aa7d77a49dfec2102b6488ec30585dea43e6cdcfb",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/idou_1_2.tga",
+      "sha256": "bc5fe30d93121cea313e14f34502e9ff2f1daa89cd09d33858bbb10d5dd31238",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/idou_1_4.tga",
+      "sha256": "ebbf1358ef37f384cfb6c0a3ab9f4be7ecd5a5160b32d22a33f7c9f720a050a3",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/idou_3_4.tga",
+      "sha256": "dc82356a39221b414b854ad74e77bc27665032144ca42570fbaffea0e44ff584",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/idou_zensoku.tga",
+      "sha256": "6f4fe5ec6396134144521bb05f1e70c8ea2f3d29ba0d798f5f7e99781c16f29e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/kinkyuu_hokyuu.tga",
+      "sha256": "90c24735c586d68047ea181f7fd0dc14cdb70b74dd68bb6409099e6e77b4a8b9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/kobu.tga",
+      "sha256": "e52a5637a910083f7452ddcfb1ddeedde3430cb0eb1e2f06ced7c605cf75d67c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-00.png"
+    },
+    {
+      "asset": "icon_nfocus/kougeki.tga",
+      "sha256": "a3edeed8f55b483ab0e8c8a6a54e2d6a4f63a3947357fc4b2937203aad0e6233",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/kougeki_issei.tga",
+      "sha256": "b182325207b06b8bc507ad7dbab34f64a6bb91e48aee3146c53ec9cd704438f5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/kougeki_renzoku.tga",
+      "sha256": "c5dba895f6a4b398e9fa6c3f0f541e04f858d1060beb54beb5bf922464680ef6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/kougeki_teishi.tga",
+      "sha256": "f3bb0a9a2613ce43fc1c5b067dc23d70291739e64abc7c96052e51c5d147631f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/kuusen.tga",
+      "sha256": "bddad34392a7563a60cfbad7b2cb03ca69326afa3ea62ab0a8279896b7a39614",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/ninmu.tga",
+      "sha256": "d182069f507ed95bbcd4654a756532413fc42c9c7f7bfa2d90b12f71e51323e6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/no.tga",
+      "sha256": "a9b23e86eec6f8b87d331a630aff2241fe2fa333ee4fe96903bba6c3cf38b237",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/no_mark.tga",
+      "sha256": "c809fac643a506a3f2ce814a8a18f5d5c7ac747cb22ec111a30119a052f92857",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/rader.tga",
+      "sha256": "f01465a3a8fbda810bd7e4c5a5d4c0e10b9610b8f9127e8b3d130c7abdeb9dec",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/riku.tga",
+      "sha256": "5b73a49323be97387c5db3bdac39a1a32c81618449259c5c3a28b3b03762a7d3",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/riku_tesshuu.tga",
+      "sha256": "c333c35b8f7b508633356671b7a316f1e6bf93b74d377d2ec2c989bf23e1c380",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/riku_tettai.tga",
+      "sha256": "c12dd26428d14a5bac71e84d683e703919154811a043fe5d99cc2c7d2db520a9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/senkai.tga",
+      "sha256": "9793b0a46ef6c57b6068f05419facc810c3332ea9f02c836223f60c4a8d7d16a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shageki.tga",
+      "sha256": "641c23aa0b7739e340f8a6d6e4105c74888f2d3b905673e7166557f31ab7afa6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shageki_beam.tga",
+      "sha256": "c7a8f6d3af41b8f9b7e9b0be0c2efac4326cd8ec8355a7d39be31bc170d91cdc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shageki_gun.tga",
+      "sha256": "ba19ad83699fe8195ecc77c20864b864bc95ac98b2a1c29f00a031abc91f756f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shageki_missile.tga",
+      "sha256": "69f7ad138a87994237cf4b1331a2e745125f89d6b7da1bb9c707fd321bf72870",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shageki_taikuu.tga",
+      "sha256": "3c93bf44b301218289e17f7821bf987e8018503186109ea2fecd8af730aaa38f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shozoku.tga",
+      "sha256": "3fc253e40b741540f44222c0f50528fe9d7a00fcc317e7efb7cc970c928c5f41",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shutsugeki.tga",
+      "sha256": "7d7faa46a314fb38a312a638decf6cab4fbbe2e9cf14b8efbd324dfa46beb968",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-01.png"
+    },
+    {
+      "asset": "icon_nfocus/shuuri.tga",
+      "sha256": "e72e7d558014a8546a708d2a0b4ddc7716b1e3e138e52c3458b7db85c0f0dc42",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu.tga",
+      "sha256": "cd785c2824479c989c0a8b49a9d16baf38e3de0b9a6e6ac66bb7a1137fc74ec6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_bougyo.tga",
+      "sha256": "3d8f5b384ad52c174906560ab7c8d0167c5ab714a61295f0a7fa19b5e9a7c999",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_bousui.tga",
+      "sha256": "fde24566ec6873e0b8eba340a5d8837a0ee3aaf8e05444ec5889bd9ac5b0cf4a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_kanshu1.tga",
+      "sha256": "615f8fa762599eef23163b8529153f4003ae500701f26993690741737ea9e6f4",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_kanshu2.tga",
+      "sha256": "2c22e5f33a5ded1329edddc39ee41ae1749eca5e7e97ad9ff268370c0f9234ab",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_konsei1.tga",
+      "sha256": "4b8417f104d7d7990cca593da86de52b16a3f21ada8ba82e4cd90aae3f11dd50",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_konsei2.tga",
+      "sha256": "5d1ca17f367d7562c547a0ea7d5658c1e6f278b7982c6e449b8f5ba603e8402b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_sankai.tga",
+      "sha256": "01f84a1f88d81047295bc528dfe9fd9d8ecead94caaaec8caf3bb4eea707bb9f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tairetsu_sanretsu.tga",
+      "sha256": "9670c5ce4f56ae9a2101d5d24947e4428e87d81c05302636a5af0fb9734194ff",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/taisei.tga",
+      "sha256": "7b2233d28ef6ef1b963203d19a2445f6087089901498536ef0285dc06aff57bc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/taisei_chuuryuu.tga",
+      "sha256": "12e1666dde5ead85b9a29133a003b315b1b20470edef3091d9eb38128fe621a0",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/taisei_koukou.tga",
+      "sha256": "5deb4ca30bd929c2f594e0b03c09871e0a8133f5f3668aea5262635b4885ee5f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/taisei_sentou.tga",
+      "sha256": "a3edeed8f55b483ab0e8c8a6a54e2d6a4f63a3947357fc4b2937203aad0e6233",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/taisei_teihaku.tga",
+      "sha256": "c1d229a93dbebc2d1861e89450146f5baafb55b244eaf5af9f6bf852cbbdda2f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/teishi.tga",
+      "sha256": "83fc47d50c6ecfcd27e47bd706994d3b97521ed515809dbc113c1b2972308866",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/tettai.tga",
+      "sha256": "f0ef0f7c3460c29560879110c14af46501b99d980ad699f7555e8f011758a17a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/yes.tga",
+      "sha256": "1a07a3fab9964274393b1c7d6345b4f0191153d27f97aecf14cc90d3af20d909",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/yosaihou.tga",
+      "sha256": "ad4235dc77b46e178dcd9453b01715cbc3fc31f346eaba0f4ce655baf267c44c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_nfocus/yousaihou.tga",
+      "sha256": "7f273c710652f8e02260570b703d9428ccb5bc8fa06292bfa560633077cc3575",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_nfocus-02.png"
+    },
+    {
+      "asset": "icon_none/gushin_bouei.tga",
+      "sha256": "9d7d5a2b529d8b701b7a917f8ced63a6b875d115ba2dc75ebb36611b4e0262b5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/gushin_geigeki.tga",
+      "sha256": "d7eccd22b2cf2b51d5f6afa0f2cc189e4cb40f970f41fae4c4f460e9c8a709e8",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/gushin_senryou.tga",
+      "sha256": "b67a6ac34ace687abc93bf87283346f64bfc0ce4ab873deeb80a7246735f64c7",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/gushin_teisatsu.tga",
+      "sha256": "4416a0f802f54cfd3a44c980b233a0635d4e1db3b3a99958fc8ef674588626ec",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/gushin_tettai.tga",
+      "sha256": "f71280d55bb9b3dc3ab6b795fbb9a8c887ca6c91e444c9ad53f2eb3d52cc84fa",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/gushin_yuugeki.tga",
+      "sha256": "a4595fefae371497f03e831cae992c0bae183060edd829944bad70d08d8b0295",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/hanten_left.tga",
+      "sha256": "732ae92f0018b9ab3ba6eacc7698a1c6267285cd7dfb21eaba6d9f287cadfef6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/hanten_right.tga",
+      "sha256": "899dd8e84777b694fddb8a1cc3f819e5947c80551d49817b6c956f1d0f48cd01",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/idou_1_2.tga",
+      "sha256": "173957f077273004cfbe5402074934c6d49eeef216c637d84aba1b6686191fc6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/idou_1_4.tga",
+      "sha256": "20cffcbc47bb6a0b5f89a03433d48f0d831d9a17f44cc0a07e7b5fbb06ec1932",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/idou_3_4.tga",
+      "sha256": "f09f817b3dfdd1a07c996225c6b50f3e3fcc61059785ad0cb6915e04ba4b13f1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/idou_zensoku.tga",
+      "sha256": "7b4000e7928c4b8d186e0d30b0295abd66716f2bed13a18969b5acf42cff0280",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/kinkyuu_hokyuu.tga",
+      "sha256": "b5751750c3f64d6ae5aef5d00e231ec4e1f1246c8cafb258716905c7b8a42024",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/kougeki_issei.tga",
+      "sha256": "ad556e1ba2ecbab3b3a0d12eee4ff2dba13d9bba658b6c8f284d4e5d375cfaee",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/kougeki_renzoku.tga",
+      "sha256": "483f9a4d01487d3c9ac7eb7b5a07a8c0d19a78f9c699e9e9112d80faac18a49f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/kougeki_teishi.tga",
+      "sha256": "1fe8a75a56a7e015f95b38d6e8ccbb569eedcf2db2d60dd4aaed0f9b453de98c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/no.tga",
+      "sha256": "3672f7bef1c4342d9cb0954e972f6dbe8b43900eb6ce7fcc7947f62501dec9ae",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/rader.tga",
+      "sha256": "91f1327c797a8973ea3a65d504431fdd685f2121553666c2a6f74eeb9280961c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/shageki_beam.tga",
+      "sha256": "e40f0597dc90db6160042e5e1af2c259f03daab60f9ac6ab21f1d646a1bef3eb",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/shageki_gun.tga",
+      "sha256": "95a394aa12e174e525d5ff07293bc491b784c67920f343a7519dc992ba3ba9e3",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-00.png"
+    },
+    {
+      "asset": "icon_none/shageki_missile.tga",
+      "sha256": "52ad0cf0898dc36c4d7a781b0fc47fc28d28f5c06be243d35f9f78be4c9d660d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/shageki_taikuu.tga",
+      "sha256": "ba6591894068f28f925a43ac1759ebb08b660d19278273ee1e1e8c56fca282e6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_bougyo.tga",
+      "sha256": "08f0f8b12d4415952aa18c79c520dfae924fad464c684db89b733eb095595884",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_bousui.tga",
+      "sha256": "73b7addd93877e5b4465a13d423111809bda82d897641388b6e2492c3f438333",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_kanshu1.tga",
+      "sha256": "74c62fc49015585737c705a0bf8953f738b18537b832bbe351884acf1769e764",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_kanshu2.tga",
+      "sha256": "cfa6a5c5ae438a68cfcc7f0bfc666b55440d9f403e2ee5d9dc389f5eb1d77d31",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_konsei1.tga",
+      "sha256": "6ad546ffcf5bc634e42bfd125a8644c43c50db79ded79e4defd9f831a7ed22dc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_konsei2.tga",
+      "sha256": "813ff3e760f2afe5de254e01d99e06ca8611762be36984e39f85d1942f7578f5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_sankai.tga",
+      "sha256": "e61a7e3fc17291cf46c9a96730abff695d5b45a7c045abbb9494f97f189dbbde",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/tairetsu_sanretsu.tga",
+      "sha256": "3f6ed0f91a787c534bb79ef3d9851df0fe6ed93a226bd90e4a5524767cbc106e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/taisei_chuuryuu.tga",
+      "sha256": "d9474a007270a86154e5f45273ca4e2e5b1b7a5419ad872e54e101e0a8a0ed82",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/taisei_koukou.tga",
+      "sha256": "36fb06b12db44fafb530db511162831ad6242e9c2ea4bb511ad3d916ab750e72",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/taisei_sentou.tga",
+      "sha256": "debc9e7af78b57a2b6782e80e6de16a54215da1075449e95ab640780965a1345",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/taisei_teihaku.tga",
+      "sha256": "ffa2feb9c87a6a8658de29c227b63ddf260e644ed731423e6d3ced3f22ad885e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_none/yes.tga",
+      "sha256": "51a155bc7fa3a25000e7126f2827f9087f32a61f4b0f059f7798f21a42cdc50b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_none-01.png"
+    },
+    {
+      "asset": "icon_normal/com_bar.tga",
+      "sha256": "b82c702b579b7bcbb0445c14b7fe02a7eb141962cb83300f2d0c8926399bde5d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/com_saishou.tga",
+      "sha256": "b4599706893d2e7aefc1186e476ea53a6c33da3f61fef11a146c296f36ff5d1e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/com_window.tga",
+      "sha256": "a86401397d0fa8886e40680d5000566d26f6c560f130acdece19a22db596b6c4",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/gushin.tga",
+      "sha256": "7be85922aed8fae7a6df1d13c4d77609611ba26860c9c345e54a24536383d7c2",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/gushin_bouei.tga",
+      "sha256": "059ab3af0d4732d2e63e26c3ed142477fb7f5a6f30b645c2c63537a2404f8a9d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/gushin_geigeki.tga",
+      "sha256": "ff736d882077c4f92e753e368555d104e45031035c9ad15760fef29c2cc72cc6",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/gushin_senryou.tga",
+      "sha256": "f912cd8b0750b11abb94108c6f2e927f46d69f1fa83532f2c5fbf9da0a2a84c2",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/gushin_teisatsu.tga",
+      "sha256": "546412c0365e7ba915a3634e6d3748fac3343df836e32f06768e318cb68564ff",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/gushin_tettai.tga",
+      "sha256": "267d792573e158c03ecda0769c88c0ea8ed9674efb67427cdfac8ce611877bcc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/gushin_yuugeki.tga",
+      "sha256": "32c6551d758df98494bd959bc53810c401fc3ae4149df187f610b3b46c3adb84",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/hakuheisen.tga",
+      "sha256": "6c99f5cd289e73b4aa9007e8af7086a38fa27ed711cc226f2b594e5822e17e2e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/hanten.tga",
+      "sha256": "b5308ad1322a15b96b83dc8b73f6470e61aff471f01d38ddc850c1ab7af1ecf2",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/hanten_left.tga",
+      "sha256": "9ba4782a7c0fcb290d7899b749564af116409b7b63d5f9ca8d636b0d4291e745",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/hanten_right.tga",
+      "sha256": "a7b469149964666b48cb0aeb7bf4bc5e88c924297bc35cd73f9c5a03ce717a5a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/heikou_idou.tga",
+      "sha256": "3019c45cfb432b67ff327aae91167e30acfdf8e968fbbcd73974d6746cc1210b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/hokyuu.tga",
+      "sha256": "066936228eabb594401229b4257373c6b826ec9e130fa9a704dd007bfac0b39f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/idou.tga",
+      "sha256": "ac6257f3245b37119c6e7a23fce4e0826a57db4fb16c5f2451f79bfdc11b52ab",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/idou_1_2.tga",
+      "sha256": "8ae9e6edcb1ccf3102b7a416e271e2ef71bf41ccedc3437e854d9257941f94a1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/idou_1_4.tga",
+      "sha256": "e9703c3ce4cd7731a31a9cde69d24a2fddcf151ffe37d805888381b491f699a1",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/idou_3_4.tga",
+      "sha256": "f0a8dbd65868476a7a0e1dc3c22cb9c451bd5f493f5e9fe7a1517a0a38dc3718",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-00.png"
+    },
+    {
+      "asset": "icon_normal/idou_zensoku.tga",
+      "sha256": "e67502fb264fd3dd419d002c4f572d6f2f29202e7f4f49940e80a9b7999aa6e8",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kinkyuu_hokyuu.tga",
+      "sha256": "351ccb8f389e6f790a860a79a14ca33d294488d94dce4f698ad8035794769c13",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kinkyuuhokyuu.tga",
+      "sha256": "351ccb8f389e6f790a860a79a14ca33d294488d94dce4f698ad8035794769c13",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kobu.tga",
+      "sha256": "eb2c6772684e3f3476e92681063c6ad3bd2858354cda4a0123c3f037cdfb94ee",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kojin.tga",
+      "sha256": "3761c069c5d4dd9b51a302930f9fbafc30a7ce1c697001f0a1c1386b496dd3d5",
+      "classification": "translation_candidate",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kougeki.tga",
+      "sha256": "3fae3913f5bcc7576bc476017a3d4531d57a18ba6e846ca80debc5ca895930e5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kougeki_issei.tga",
+      "sha256": "7348fd9e42c36eeda76d4035e312112945a95d5cf9972328e25314b0a381ea05",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kougeki_renzoku.tga",
+      "sha256": "433d01e386514c902ec01ec47671b264e5ea186283f8f1268aad9be69daff016",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kougeki_teishi.tga",
+      "sha256": "6a150fa25c5fd5eec1882e86d90dbe07755cfcb9825a7d25c3aa6e67111195de",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/kuusen.tga",
+      "sha256": "7eeb753f34510c4327418ab915236468765f68768930616ab6e363954657b8a3",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/ninmu.tga",
+      "sha256": "50dc06bcd1433305b0ed87ec347f82c600181748700be60de7355688d43c4e39",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/no.tga",
+      "sha256": "6f03dc72d0471ff0aafd6c739704afed44685ee83bdc6f58d450579896922a44",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/no_mark.tga",
+      "sha256": "fbac158c102aff680c9d3c9abecc06793fcd76bd66de12e89c3b2a15a20d0006",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/rader.tga",
+      "sha256": "ebcaf2163be8ed11072d505ffce1e73b9ff50fc31c1f431fa7e1de3d0c4d27a8",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/riku.tga",
+      "sha256": "390228b63e6ee2c01d051e8c6c25a1a1d85da839c439db6cf2cb044deef49971",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/riku_tesshuu.tga",
+      "sha256": "8ad32a673b6e71b14adc4232b31dcb0c36deccec1cebc687139b2b6b1c45b18e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/senjutsu.tga",
+      "sha256": "d2f6189439ea5f8d180853d932738ecaa71229e1efc322c4b599475f6dfab384",
+      "classification": "translation_candidate",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/senkai.tga",
+      "sha256": "acb91cfb9b2e7359a56ecfbdb5ca8536e34f7abd08c69fdc71b7ca51d352eb99",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/shageki.tga",
+      "sha256": "356044e2e2d01ea6d795fe76e748f83a43d922164b33172b371b170835b73869",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/shageki_beam.tga",
+      "sha256": "0c4b5c1ff7dd977b6c65b2b1177a550cc9b816c7d585458183c0de0156ca4315",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-01.png"
+    },
+    {
+      "asset": "icon_normal/shageki_gun.tga",
+      "sha256": "fd3d9ebca54fcb2f3e48be3e9284ed7f6145fb51623192fa78d413cec97f1d49",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/shageki_missile.tga",
+      "sha256": "9bdbda29ab44c5beb68173ce71a22abc37d8984b8e5e917c613670b31f44da1a",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/shageki_taikuu.tga",
+      "sha256": "b59a3381cbf1b80507f8f0739269daac85e93ce24ccaa33b3c99ea0d7f30e677",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/shokumu.tga",
+      "sha256": "a443852f5f829e01894ab71e62060f99b053d77016fd0a16cac32cda9d40e013",
+      "classification": "translation_candidate",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/shozoku.tga",
+      "sha256": "3d019ffd2de2245cc45bb750722389d85202ad1ce94d170f52798468404797ef",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/shutsugeki.tga",
+      "sha256": "c3c39d31fdc88de051d142d291d6a610e4ff7a6f7fd0f161350bb5de4fcf285d",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/shuuri.tga",
+      "sha256": "aebb4566b2625ed7635781243f073e29ebd0538259abc5bc2530860f974b2958",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu.tga",
+      "sha256": "e7957aeb8bd73844cf31eb3eff98ddd7b7365929738140f86f53c0ef348c47ba",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_bougyo.tga",
+      "sha256": "a8f693a92554db043ff8fb5dac85a405cafd8f9d379c062a78a457e27fa71d3b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_bousui.tga",
+      "sha256": "9a59f096cc62bbd3f33918913aa07e9d7c6e96ba185b3bd3b68029e3de10aa57",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_kanshu1.tga",
+      "sha256": "7a2dce66d09fa8002090c22717f6284daf9d27c0a298f22e7cb080ab731bc215",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_kanshu2.tga",
+      "sha256": "a5241e6baf4c1bc3a57d863000bb2c988421f0e1845535b30e784f92f5dcde73",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_konsei1.tga",
+      "sha256": "1e2925e8855f9c264c009481681b7b1af282521ca29ef600674b6a013353310c",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_konsei2.tga",
+      "sha256": "6b1a594be3e4d8e6e8e786ef04302ddc216c0351565afcbc9541129fd9ec0555",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_sankai.tga",
+      "sha256": "a7c1c46a90e804c09aa0f752668a489b03c7c88de64a8a41dca3f2ea368d8c04",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/tairetsu_sanretsu.tga",
+      "sha256": "526abdbab4c17091885897da48a1666b0efefcf332a2d5a2f442ec136e50c679",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/taisei.tga",
+      "sha256": "921de22d30bf246a1ce683fbcb0bdbda7a7a726fa045d312d4b77613cfd73ed5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/taisei_chuuryuu.tga",
+      "sha256": "a872221ce6408a71f38eab43590ddfd5d8dcd02ab67d2dbe0cdcc060d7cf5d02",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/taisei_koukou.tga",
+      "sha256": "ec1e028903e4918dbffc7452c22bb1024d3967259bcb5106a7017d71b912905f",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/taisei_sentou.tga",
+      "sha256": "3fae3913f5bcc7576bc476017a3d4531d57a18ba6e846ca80debc5ca895930e5",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-02.png"
+    },
+    {
+      "asset": "icon_normal/taisei_teihaku.tga",
+      "sha256": "75d0d05ba1b887775a116e969227632e726437e6499a8a0a2a1ec28cb5fbf656",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-03.png"
+    },
+    {
+      "asset": "icon_normal/teishi.tga",
+      "sha256": "164cce9a7419238b6a10c3e0e471c814a54b434e2be3338e1d6e2ca634f1bd5b",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-03.png"
+    },
+    {
+      "asset": "icon_normal/tettai.tga",
+      "sha256": "9140ab782c26b0c5db51b10c1e04fad146e79d80a4f1359a2877926cf1bec0d9",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-03.png"
+    },
+    {
+      "asset": "icon_normal/yes.tga",
+      "sha256": "d317e43dbd22fac49ff3f011bd796c12283cfbe337697ecf8597f7e0b88bc0cc",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-03.png"
+    },
+    {
+      "asset": "icon_normal/yosaihou.tga",
+      "sha256": "e950fc6febb7e21704cff2228413552584c07234ac949d08520b6eedee9b2f8e",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-03.png"
+    },
+    {
+      "asset": "icon_normal/yousai.tga",
+      "sha256": "83edddd78858f4a6d3b1d564b4b473c056e26f21b130b0e93801dac0d4c9f76f",
+      "classification": "translation_candidate",
+      "sheet": "icon_normal-03.png"
+    },
+    {
+      "asset": "icon_normal/yousaihou.tga",
+      "sha256": "b33ecd86c319dcd5523beddf60ce8b8e8d3074fcc6752c652181b21d05451170",
+      "classification": "no_japanese_visible",
+      "sheet": "icon_normal-03.png"
+    },
+    {
+      "asset": "lens/BackLight.bmp",
+      "sha256": "60b225ae945377174d1d2943d25a0f80b3eb4157e0e67f4f47a3e4509cf23943",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/BackLightOff.bmp",
+      "sha256": "494db6594b3372e74ba2c5582c6787aed9b053fccaeef322dec608aedc250fb1",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/fs000a.bmp",
+      "sha256": "6c53c994719d1c14341b05c03e65093d3711cecf8e166fc0c558f5d5bf9de88d",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/fs000b.bmp",
+      "sha256": "7e44ec9d67a1bc7cc133c55609bc0c724997aecb4a27bdadb4b6357cbdc3cac9",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/lenzflare_A.bmp",
+      "sha256": "1c979831931564864437b8ddf9d29b30d2fccf69d9e1899c32e544dab25871ef",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/lenzflare_B.bmp",
+      "sha256": "49da7270db74a8497be2e1c0553514707d8a9c7129f3eca12d1dc17a9033860b",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/lenzflare_C.bmp",
+      "sha256": "8c057bde53e873918817526306ab2035c1cf099bc8fdced45a400c1eecb4e7d4",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/lenzflare_D.bmp",
+      "sha256": "4f7ab0896d6081c1b6afb110a506e1d9e0edd8565cd24204534754a0a6153ad6",
+      "classification": "no_japanese_visible",
+      "sheet": "lens-00.png"
+    },
+    {
+      "asset": "lens/Thumbs.db",
+      "sha256": "cbb05010f92ce78a0122c8306421326bcb6da826047928ed8a974c51547a3545",
+      "classification": "non_image_metadata",
+      "sheet": "not_decoded"
+    },
+    {
+      "asset": "map_obj/mo_cloud01.tga",
+      "sha256": "0748595a7a77d087ea527c6dd50a1559fe586e0f43a338e0ee73e3ea45572bba",
+      "classification": "no_japanese_visible",
+      "sheet": "map_obj-00.png"
+    },
+    {
+      "asset": "map_obj/mo_cloud02.tga",
+      "sha256": "e2161eb13203b5cf9e08e1e6e72968219e43f82bd2aa543fc219f49746b21700",
+      "classification": "no_japanese_visible",
+      "sheet": "map_obj-00.png"
+    },
+    {
+      "asset": "Medal/m_f001.png",
+      "sha256": "04948f94ecdff5d19512f3172db3648e352093725a4d2f38d3f3af0be8ea2b13",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f001.tga",
+      "sha256": "466b83d56fa0d51a4e4a10a0b62f320b729c878a9249d719337c9fc5af336250",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f002.png",
+      "sha256": "6e3b31c5ddf78b9eca639fb9aca30a63338e7287b30b325d530921105732e4bd",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f002.tga",
+      "sha256": "a400b4e2102f1ef1fa552f20c10d65dc5692f79b4514f54bcaeacdd1500b6899",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f003.png",
+      "sha256": "c262a189d43bc428f650a74a32fbe895b410223aa16d20631333c9403a9fcb4c",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f003.tga",
+      "sha256": "bd3b718c6fe2c4aa0f17a815089d5b3e0a08124ff8e877ec0acea2a8edaac3ec",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f004.png",
+      "sha256": "b8a08b1195f4030a76818229bc3e1f361713d1b582b9302522e9eaf73604c10a",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f004.tga",
+      "sha256": "00a0fb69d3752ad4e58accb612d049a15a7818ca0b0c92500284ce6e30b0bd3c",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f005.png",
+      "sha256": "155b2468a9a368e38f90a18e3f508f45be275c92e7fd1031c96d08f4aab82d62",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f005.tga",
+      "sha256": "41557050ad872b619f54e2c66d69ef47a0536674aea6bc4e73552265aa752d60",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f006.png",
+      "sha256": "fc00f7be9690c10660f2f9ab0559ba9a619286937faa5dd91bdc021cae2f4323",
+      "classification": "inscription_unread",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f006.tga",
+      "sha256": "10498029f6276315879cd645f390e467582ea43b90b50b75e15e473d17eb5a98",
+      "classification": "inscription_unread",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f007.png",
+      "sha256": "f813743c30d66a03f954f4ed560caef5e0975d6cd46828a0eaa2f2c684706f2a",
+      "classification": "inscription_unread",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f007.tga",
+      "sha256": "8d8a00fd2b963ec42e84491e1063eae3182ad0c64d13978f6e036302624f124f",
+      "classification": "inscription_unread",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f008.png",
+      "sha256": "55ded2d08d9087aeca3e25605111d5e1c14b974b0220f704902c25cdb4753aa5",
+      "classification": "inscription_unread",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f008.tga",
+      "sha256": "77d5f54af71feeab23528aba768b6322169bb64f4633d2c2cd0e2a5781d10081",
+      "classification": "inscription_unread",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f009.png",
+      "sha256": "35b7abc50d1ce38870a55d5a4fe36e61da10211476a7afa8417d1833e1c003b3",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f009.tga",
+      "sha256": "6aac259abf650471f02d00c1c2ba466c0f20e7587ede7eefc3496a79c2f5fe57",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f010.png",
+      "sha256": "6244ca25b7ca0750b401aa63d4f011908110ce820999c0ca5bff44896216a163",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f010.tga",
+      "sha256": "955fee6473d911213e9fe5d83b3d24bf680da67b56b8810ca252469845604e4a",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-00.png"
+    },
+    {
+      "asset": "Medal/m_f011.png",
+      "sha256": "b062da28ef8953f25da05dd4a174f746ebebe8f91662f1058cc1df7335922a3d",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f011.tga",
+      "sha256": "cb98ac03d34bfd3e40a9b19410f2a93cd16c65b55425101649b3278f2fe64b61",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f012.png",
+      "sha256": "c27e37dd6037be527291bc76a9a8ecf8319e854d29001531b1fc1af07982d746",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f012.tga",
+      "sha256": "fee52c9d8c3dcbb05e227e91033e16ac72059690fefb62984484679d0c301478",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f013.png",
+      "sha256": "191a65e1c132d065ae4f80f3eda4eef58bf9c20d22f8cfaf95ed6e28d64348d7",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f013.tga",
+      "sha256": "1320c0f8703ec5ba6012d486eb2412a4c5061e2cc59bdd875115358da9d90e3b",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f014.png",
+      "sha256": "a3359ffc15d7e195b50f8defd1fc15c8aca7d86ad695b1accacbf2d94e13e275",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f014.tga",
+      "sha256": "9ac604b755e6465d0826d81e31b9b16ea8edb60e686756b81915f5ed22c87eff",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f015.png",
+      "sha256": "4503f83359b8a6620b8104a0dfa184f5fcc6f23c21de23f3481dbc45f1f42534",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "Medal/m_f015.tga",
+      "sha256": "6ddfb34f319f0250f6be8cc1a8fd7ad6ee1830fd3d0a41b3df59ba733247484c",
+      "classification": "no_japanese_visible",
+      "sheet": "Medal-01.png"
+    },
+    {
+      "asset": "planetbattle/同盟装甲兵L.bmp",
+      "sha256": "6fada6131583276d6ee7733733a4e9435c99efdd6ea156013c9936ace731f230",
+      "classification": "no_japanese_visible",
+      "sheet": "planetbattle-00.png"
+    },
+    {
+      "asset": "planetbattle/同盟装甲兵R.bmp",
+      "sha256": "8c50b69428db22daee3965cfe1e57cf9174a343675ffaab269d664f2eb246797",
+      "classification": "no_japanese_visible",
+      "sheet": "planetbattle-00.png"
+    },
+    {
+      "asset": "planetbattle/帝国装甲兵L.bmp",
+      "sha256": "2e5850bd3ca6b772b3dbe9b67e9f2287651102368c8a50573c77edc9617221f5",
+      "classification": "no_japanese_visible",
+      "sheet": "planetbattle-00.png"
+    },
+    {
+      "asset": "planetbattle/帝国装甲兵R.bmp",
+      "sha256": "7911c0855e44d906563660554f726ec880ed3af1db393a59dd4ba123033e971b",
+      "classification": "no_japanese_visible",
+      "sheet": "planetbattle-00.png"
+    },
+    {
+      "asset": "rader/bar.tga",
+      "sha256": "c05495e9044befb537c7636ac5c4de1fc9fa16ff1beebcb9c8512ea8835d66c2",
+      "classification": "no_japanese_visible",
+      "sheet": "rader-00.png"
+    },
+    {
+      "asset": "rader/down_2.tga",
+      "sha256": "f0091f7061837b5099c4fa8b2f1a87c4f3d7189e9314d96dedf395edfad74d68",
+      "classification": "no_japanese_visible",
+      "sheet": "rader-00.png"
+    },
+    {
+      "asset": "rader/parts.tga",
+      "sha256": "cfcf3bc53b57d803fc199593507cb7e7938c2e540d6d08d1d76576ffab470d03",
+      "classification": "translation_candidate",
+      "sheet": "rader-00.png"
+    },
+    {
+      "asset": "rader/rader.tga",
+      "sha256": "6e9cd22ea946dff0b63b78676de0a99e2cf876568ad7b785c5c3402af02f5b83",
+      "classification": "no_japanese_visible",
+      "sheet": "rader-00.png"
+    },
+    {
+      "asset": "rader/rader_parts.tga",
+      "sha256": "4429ba4b7b0f1c33b763ac893edac56eed7ec8e571b23a8c8f3584b67b52deb4",
+      "classification": "no_japanese_visible",
+      "sheet": "rader-00.png"
+    },
+    {
+      "asset": "rader/up_2.tga",
+      "sha256": "7251d7d9b7c608b308a73a1d61f29e262ee94b34c1e2538e8ca10d1b41b2b542",
+      "classification": "no_japanese_visible",
+      "sheet": "rader-00.png"
+    },
+    {
+      "asset": "senryaku_panel/senryaku_mainpanel.tga",
+      "sha256": "864a9de33880cadecb9560d78813839228d5fbef0a865ad730df60c8c2e4791c",
+      "classification": "no_japanese_visible",
+      "sheet": "senryaku_panel-00.png"
+    },
+    {
+      "asset": "shokumu_card/shokumu_meirei_doumei.tga",
+      "sha256": "cfbbfe79d0ee492c7d760a10cd1d86f65b1bfceaf47a9ac66d09a7ba11c3d0d7",
+      "classification": "no_japanese_visible",
+      "sheet": "shokumu_card-00.png"
+    },
+    {
+      "asset": "shokumu_card/shokumu_meirei_teikoku.tga",
+      "sha256": "966910ad67bee09462ecd0beed3ff1d4a55ceef5ed2baa5a51196c8a8ad2deb7",
+      "classification": "no_japanese_visible",
+      "sheet": "shokumu_card-00.png"
+    },
+    {
+      "asset": "shokumu_card/shokumu_parts_1.tga",
+      "sha256": "0a82da2acf6646ce8bbc42af32f187db8054c807806de16433059b028002eaac",
+      "classification": "no_japanese_visible",
+      "sheet": "shokumu_card-00.png"
+    },
+    {
+      "asset": "shokumu_card/shokumu_parts_2.tga",
+      "sha256": "f2ca4b70540e9cd107c654f4093e26230047d793d148e5f5faaeaf526acaf514",
+      "classification": "no_japanese_visible",
+      "sheet": "shokumu_card-00.png"
+    },
+    {
+      "asset": "shokumu_card/shokumu_shokumu_doumei.tga",
+      "sha256": "bdef38a43836ea0760312733018ad1494910920571f364637c974e1c2e32d452",
+      "classification": "no_japanese_visible",
+      "sheet": "shokumu_card-00.png"
+    },
+    {
+      "asset": "shokumu_card/shokumu_shokumu_teikoku.tga",
+      "sha256": "8eb358470fdf5195c1485a4b3b6bf5a287b5bc3c5d33cc28083a8a6d244f295c",
+      "classification": "no_japanese_visible",
+      "sheet": "shokumu_card-00.png"
+    },
+    {
+      "asset": "soukan/soukan_bar.tga",
+      "sha256": "cc3b63d5c102fad934817d765557c36bcd8270f3214ad166eb14ef1498b0c0e3",
+      "classification": "no_japanese_visible",
+      "sheet": "soukan-00.png"
+    },
+    {
+      "asset": "soukan/soukan_parts.tga",
+      "sha256": "1a064329c7a771ce883346c1dfb098edd7225fae1ca01974f431e7918b34fac0",
+      "classification": "no_japanese_visible",
+      "sheet": "soukan-00.png"
+    },
+    {
+      "asset": "soukan/soukan_window.tga",
+      "sha256": "0a4d2fab97479c948af3a1da6e14c0dbc593cd74ba1aee5d136dbf6395c37847",
+      "classification": "no_japanese_visible",
+      "sheet": "soukan-00.png"
+    },
+    {
+      "asset": "soukan/soukan_window_old.tga",
+      "sha256": "2af55d3766a9ff2e87165721e0758eef199edce26b3f583a06e21581303af820",
+      "classification": "no_japanese_visible",
+      "sheet": "soukan-00.png"
+    },
+    {
+      "asset": "spot/bg001.jpg",
+      "sha256": "fe3af29deacbec0720b5a37cebf57f568beee484c7db2b98028bf56cbcfc0755",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg002.jpg",
+      "sha256": "c0b397616ed02cf3fb4122b269036117d2928f9642df88925084b6287f760170",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg003.jpg",
+      "sha256": "23d2c999985662fd6bce905f2a7c8517be42c9fb669c5bc903453b5a19af97cd",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg004.jpg",
+      "sha256": "bf143f09fed6f033c7ed0b949dbf119ace0480db5482bb31cab8d9b2d48859da",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg005.jpg",
+      "sha256": "4e639db66a901e77e8600c0456b521f8ec057b0cf398377ec185f9472a79d099",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg006.jpg",
+      "sha256": "007f3c769d729f03bea800d2ce0d9174198ae02129bf0c4a55a8ffb424eec0f0",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg007.jpg",
+      "sha256": "4b9ab497c0148b20706f909580a4e7da038b7c8767878ce0aab8a8168781c3c0",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg008.jpg",
+      "sha256": "0e2cb10b311514dbe607b4e81fd7729df5a7ed01c74d3d77d9f032dc4b0d8828",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg009.jpg",
+      "sha256": "5da5c7c5ee3bb3b3fc7a8622c35787de1d3eabed3a2905f063ff89398449ab47",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg010.jpg",
+      "sha256": "2c290d0d15a057c1b122b28f63775c13b31af19b974d9bd2a39b3436a80b0058",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg011.jpg",
+      "sha256": "c4048516428f912e3d527e613966e9c431b0860d7bfdd365ed43eda24ec58191",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg012.jpg",
+      "sha256": "faf65750807de67baa99ec739d6c916c49a435db1f17445835602fde0defad5f",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg013.jpg",
+      "sha256": "950fbdbd3a02dd1bd05795e1f2f12815456336593a96edf1e27a41b6305d1a5b",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg014.jpg",
+      "sha256": "8c3a6c2887b6d84a313cfd2b85d4d788461de4ee2d9cec38728267a8bf304b59",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg015.jpg",
+      "sha256": "33d90842073d301106d5fec33d99edc7b02e4a4e334f36510d2e25b0db38a308",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg016.jpg",
+      "sha256": "89083ee821ce8ca290c962ef70bff6297480e1b90e2b2d46c74eed2473cbd7a9",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg017.jpg",
+      "sha256": "c8e7c2c5fc29fa3b59e7a3b6fe354760206240d7e919cc16c9a606754d46c70f",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg018.jpg",
+      "sha256": "b17dad956a8f65372ca6fbb8a0eaeccec0221d02028c577edb89a2769b117387",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg019.jpg",
+      "sha256": "774842732d86b87b511f7cfb0a858b11ee6845c4ef70bc78cc85f1aeeb5dcd88",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg020.jpg",
+      "sha256": "f823be97cc7def29fcc02d94f2a0c046c7a52181e8d919462dbece30ac656eb3",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-00.png"
+    },
+    {
+      "asset": "spot/bg021.jpg",
+      "sha256": "80bade93846bb7ec627e04e5d4051051a8055304cfc59cd231b484b74823d71a",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg022.jpg",
+      "sha256": "d94304f608c559d4baa352fb1614a7ff3a26a2976794adc6cf11fb2c560a0f52",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg023.jpg",
+      "sha256": "4661d8f282b6b6b35e82954f3f7f8f5f6a7fa7bb2ae33ab62669a71ac5a25e0a",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg024.jpg",
+      "sha256": "e2a6b3441695dcb19a7525e60e94ec1cff5b4ad2406aec2cc53bf318d71cc2b7",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg025.jpg",
+      "sha256": "cf4dd2e0a61abb9706ab19772cdb8a7921926b38a72bf58c6b11e880ca768362",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg026.jpg",
+      "sha256": "599efc18c8e1264f4626d8ce11a2f117bdbb87e0f434fa467ec318e2486bcd34",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg027.jpg",
+      "sha256": "176cce849ac7d5c9f2228a2acbcb6c755edeebfe6e1843b99d9af986cff4996d",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg028.jpg",
+      "sha256": "6127d79327f6bb1cf2087974903155502e3f50a285e5b81e2bce9fc18dc8be4b",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg029.jpg",
+      "sha256": "3a253148cd6e7ed0f649542129204cbb9ccab0f96a7720449e391c7ec6687f17",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg030.jpg",
+      "sha256": "d24757f26885d9e941917950855c17e2d6ab1389136958ee62589ec62a7ed8d7",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg031.jpg",
+      "sha256": "9b97a395a512b2a79330fb5a4c02e1f07be50b0b9a5793e3fae2904a5d01e111",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg032.jpg",
+      "sha256": "a12721214a57ab7b56d9690c251d68316af3fa1415ffb0c839c2fbdfb9d717d1",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg033.jpg",
+      "sha256": "73a5be560905d017c6c53e1fa4c6323cdf19f6d5cb2dec4c218627ea967188e2",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg034.jpg",
+      "sha256": "6b7534271fee667abae48409c50226535d9978bb377c5077476ee365774f7868",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg035.jpg",
+      "sha256": "299ec71a9ebf6a629718bb978b4217cfd3a900fbbd15baacaccf1be80dd90da0",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg036.jpg",
+      "sha256": "46a93a31c0cb2ed3a60e36c8926d8edc47251cf2ef91cdfba393130675709e35",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg037.jpg",
+      "sha256": "134634afd8dbee98484bfb7091e97bd832dd5010252301a53a1729e1ae21e412",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg038.jpg",
+      "sha256": "3ee093e66db1a51b18d8b246fbb4571a957524ddf74875c261960d088cc85398",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg039.jpg",
+      "sha256": "de7bf04ea1fdc18b8a839a0591028aad84a29cde357960388b8ae913c0c8dab3",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg040.jpg",
+      "sha256": "7d082bb3b5ce605a0ca5114ba2f7781d1dbc99b8a7df31e8bfea785e4162245b",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-01.png"
+    },
+    {
+      "asset": "spot/bg041.jpg",
+      "sha256": "5b3581ffb3541393bf6527c60e4b083500bea74a8a7e4fd490786c18d41aa9d1",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-02.png"
+    },
+    {
+      "asset": "spot/bg042.jpg",
+      "sha256": "c0be90dc95a9cd90c0d159d6e7c5795abe93ef74b960d166915688353f39071d",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-02.png"
+    },
+    {
+      "asset": "spot/bg043.jpg",
+      "sha256": "48acbff3e1dc4c1205168c8928c753def962a1c3262c13130d89b4dad126db1c",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-02.png"
+    },
+    {
+      "asset": "spot/bg050.jpg",
+      "sha256": "e996c106371335f447d1593ded41a3c718c0571f441cd836dc090b6b7cf88087",
+      "classification": "no_japanese_visible",
+      "sheet": "spot-02.png"
+    },
+    {
+      "asset": "strategy/bh_flare.bmp",
+      "sha256": "50474b8d8e57600a4c2478e07a514b712a83404513439bc59d56432f6a6f4a84",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/bh_light.bmp",
+      "sha256": "e0763fed4b4dc52bb1068fea22bf89f4f168b6a2b1bd6098e151c93ceb098787",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/bh_moya.tga",
+      "sha256": "f1cdf2b89ff0abeda8d341e62c7483c203504c3b5832aa07e0d33002e9016d4b",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/fs000_f.bmp",
+      "sha256": "9c6e8e04e442f97a5f5d259fb07eaf99de4f401c07b0d3bfecba42be432c80c3",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/fs001_f.bmp",
+      "sha256": "170303901687c8da32878b5968aa18078aa07008235ee4a7977ae71a817893dd",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/fs002_f.bmp",
+      "sha256": "6b62feb71adf17fb13e0ef115e560bfa759ebb494377f73b6975c8d66f6cdbe9",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/fs003_f.bmp",
+      "sha256": "f77ad5d329bfb4168e3d3bdfd53713167d68b002985b8a73082ff666c3b65a7a",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/fs004_f.bmp",
+      "sha256": "de077e802b6ccb2f13f13e87187e70ed58352e0681b7b3cb0db990c9464f096d",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/fs005_f.bmp",
+      "sha256": "a78449dd0268cf3de0705f541451133f832dd425bbfe2336d1a7b2cf4730dc55",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/fs006_f.bmp",
+      "sha256": "938ccd0d21ecc56a3a05c9c5168d897dcdf6463248c412c847168d4f9d0111a1",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/grid_glow.bmp",
+      "sha256": "3916b0caf78790988b4de633d337e44d8956ab293441260e0553cb3f41881982",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/old/sstar.bmp",
+      "sha256": "01ade488c46ed27ae3ac8f721c3a7ff2a893ddb73eaade167dd50abcd99f32fd",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/old/starbil.bmp",
+      "sha256": "6493c40e372cf3e0a24c595f214891e12596cdaa7999aad5be74c69024559955",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/old/恒星_ビルボード_G.bmp",
+      "sha256": "c42df22142c7c5cec0efd0e42172f668f8d90fc679c21773db049321acd7de50",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/sstar.bmp",
+      "sha256": "01ade488c46ed27ae3ac8f721c3a7ff2a893ddb73eaade167dd50abcd99f32fd",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/underpanel.png",
+      "sha256": "e8cb9922b2db264abf39e847dfe4317b15ccc3d8ef6db8db0d8a1c78d4ac2bfb",
+      "classification": "translation_candidate",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "strategy/units.bmp",
+      "sha256": "e633fe0c6cf5bcbbfa84b9d8475db1c0727ec9eeca3851484a316265fdcf9234",
+      "classification": "no_japanese_visible",
+      "sheet": "strategy-00.png"
+    },
+    {
+      "asset": "Stream/ImageA.bmp",
+      "sha256": "c15da430de5fa549cc44cd097a985604b50e9a9019133e39f0074f7c793a12a0",
+      "classification": "no_japanese_visible",
+      "sheet": "Stream-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip000.tga",
+      "sha256": "b9d4f6f7fd0acd6de81ea343cb2cc1a845c1e323d5c63b203bda16c75289d1bc",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip001.tga",
+      "sha256": "d87cd6033d345117d9ea4da2f93bcdbf994b51d75551dd436f318bf29cfd939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip010.tga",
+      "sha256": "e9c1eb225bca165d4f6142388c12aa48f6191f03219f52d9a18352bdd0e15452",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip011.tga",
+      "sha256": "32b9bd1415d30cd1ebf6d6059cbd5d97f48631d2dea1c215850abbd43d1fc48b",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip020.tga",
+      "sha256": "05d149c531d862bfd6f61d2c47df328244d25f94940503acae6e9b40b94839be",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip021.tga",
+      "sha256": "9477a2496331ddcf6cf4ee615301fb92d751d5cb7cfea9399e0270e378088697",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip030.tga",
+      "sha256": "d4119b564d5bf800c9ba0d0f20c7a8de2a7a2158c15c6821bf5448f59e7914d1",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip031.tga",
+      "sha256": "380f6c38b35e1ef421b309bd7bcf66ee22cb0cf696556302ce89492d68d2bceb",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip032.tga",
+      "sha256": "79d9f6fae05af85aa3b65f5c3b023065ff1a3df14497e9e392950249d214cd48",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip040.tga",
+      "sha256": "ac3d19cf0a04b30b853aedb5b4ea116940e923fb1554d283e680d53b31da3f6c",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip041.tga",
+      "sha256": "9007601fdcce6e8357eb7f0b7b99dea62cd14e4db6eba29b28c8cb7907525f56",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip050.tga",
+      "sha256": "8dab9eac8eaa6aab3da8f958ae6b912d3f15ee98c0f98d09262be113595f3fd7",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip051.tga",
+      "sha256": "082a977a277529426a1c53adeb84b60fd35a1b572405e9c108bd7d2bee008127",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip060.tga",
+      "sha256": "c568809e7eaaed2d81aab0db57d974c272fbcad945844de1aca990787e26bcfe",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip061.tga",
+      "sha256": "0f9a5c4d0233312a05829f3ad18e7b0939eb8ed145338ae84bfd8e57e1e1b8fb",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip070.tga",
+      "sha256": "8ce77113964e793c87abaebc613d695ad9247e812997dcdbad8cfd455c748636",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip071.tga",
+      "sha256": "5e93abe2e14f60e7742c0c6b81dcc518291d223be43b6b6468bf7d715e8e0ac9",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip080.tga",
+      "sha256": "fb9f7a8c81f04956413c12b4704f269ace5ddc3fe160386f727c9dec4fc7ed09",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip081.tga",
+      "sha256": "a8109c83865a62309e2a3fe596cbb47615355a3c919073b113f0300b5c6c3a88",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip090.tga",
+      "sha256": "7efbda1a8e07ebe5003c0d6f6c8139bf50453946912028821fc83cb44c0056f6",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-00.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip091.tga",
+      "sha256": "796fdcb0feaf1e4d63180888a5bc94d953665bc7486b020ab8226027427234d0",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip100.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip101.tga",
+      "sha256": "88822f220b2f509074d73492e841a61667f8ae4805a0f4ec304eae35080ff3aa",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip102.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip103.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip104.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip105.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip106.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip107.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip108.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Planet/ip109.tga",
+      "sha256": "95561bc5283ab337dad1094c2238d2ee97ae7e6c3b748cba8ea17cfca29b939a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu000.tga",
+      "sha256": "df4e40bc6775725162cfe6e08cbc932e265c78e4b9e198282b842db317c62324",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu001.tga",
+      "sha256": "73b42b812f1d131c2ebfeee4b88f81f2ba36c4a2842b2c58bde8b37e0c6109a3",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu002.tga",
+      "sha256": "59f31e036506692a32bfba0dc71b1da27fd9d0254c1184d6c3f5b0e3221ed990",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu003.tga",
+      "sha256": "dbb19ca4600c430be889f30a3d5d60c143479d8f7da4a64ff352ef01580117d5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu004.tga",
+      "sha256": "69966f1101e6bf62831f4239a2935d92807695dce0d80ba9ef4fd2bb38887c4a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu005.tga",
+      "sha256": "69966f1101e6bf62831f4239a2935d92807695dce0d80ba9ef4fd2bb38887c4a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu006.tga",
+      "sha256": "7d82918958dd20979eb59a11e5c31376349480c7390adc42cdc0855f26c033e5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu007.tga",
+      "sha256": "7d66f389b7626937fd505f365720e136c01d6feaffbcfe3860939dfe7f0809af",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu008.tga",
+      "sha256": "d92982521bf4109fd770f436c366254949a555d046332d4fd23cd00ca3144106",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-01.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu009.tga",
+      "sha256": "dc92a988aea49a5c1edc44392d34ac2a97bc42b2e6ca3062f2eccb596da0a1c0",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu010.tga",
+      "sha256": "5c306591dc4bb300bd3b3aecd8b076477bc3f9a8b68b501689281c772e214e58",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu011.tga",
+      "sha256": "ef09f59eb930c657be0b5fadfcbe6e48ebcd3525465a4d39a027765ebbd6f241",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu012.tga",
+      "sha256": "274f72fdbb702a58fa08cc364a9f5f65e4ca05a354decd89c7e5cbbeea2189de",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu013.tga",
+      "sha256": "8183593192c2c2d1fb10ba4815d17c26f86a8466a2007e736753555ef41518ff",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu014.tga",
+      "sha256": "dae48227c71dc09a2eacb162a1d7378b9e5c002776340a3424cb7b3646ee83d3",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu015.tga",
+      "sha256": "0de3943781057dce0f748e1bc414f7352960558cfe43bc77dc648e24ff3effd2",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu016.tga",
+      "sha256": "aac95764a4e5720a2bc636c598633aca6e3e11ddb391bb63b3d50b49e68e3735",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu017.tga",
+      "sha256": "4acbbb01ec04226433ef02671c1a8575f2b8eb8b661474677b3f684cc4322ef3",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu018.tga",
+      "sha256": "28a6572d5aab78d593810cb36946bb3318575905e3f5f0efc0ab5167d900ee81",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu019.tga",
+      "sha256": "cfa9bc86dde813456ba835c6e4d60e284ba43d9f962be262425a806c87d70eaf",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu020.tga",
+      "sha256": "7d82918958dd20979eb59a11e5c31376349480c7390adc42cdc0855f26c033e5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu021.tga",
+      "sha256": "7d82918958dd20979eb59a11e5c31376349480c7390adc42cdc0855f26c033e5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu022.tga",
+      "sha256": "728d4aacf2475738df989118aef3a0266b970fc301957020aef19c4794c755bf",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu023.tga",
+      "sha256": "ea1272a0e030d097d5cb2877c1b1604c5634c9aa1473cf76bb831e5432fbcdfa",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu024.tga",
+      "sha256": "0baf5f82c37c680a6cee6e78c6ee46bdb766bf3d21bbdd590b5b184ebb028f17",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu025.tga",
+      "sha256": "7d82918958dd20979eb59a11e5c31376349480c7390adc42cdc0855f26c033e5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu026.tga",
+      "sha256": "10731af0f1ddeddc902f3685a7559ffe2611f89f9d03373aad5907e5a01c9739",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu027.tga",
+      "sha256": "7d82918958dd20979eb59a11e5c31376349480c7390adc42cdc0855f26c033e5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu028.tga",
+      "sha256": "5dc1194e1c64d9757f8319c691eadf04e3e413e05dadfede3d624ebcc58d3d09",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-02.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu029.tga",
+      "sha256": "7d82918958dd20979eb59a11e5c31376349480c7390adc42cdc0855f26c033e5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu030.tga",
+      "sha256": "7d82918958dd20979eb59a11e5c31376349480c7390adc42cdc0855f26c033e5",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu064.tga",
+      "sha256": "5cc56ad8e0d8fdb1145df6325082aca27f09457878bfee6f605e3fed7607bec8",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu068.tga",
+      "sha256": "5cc56ad8e0d8fdb1145df6325082aca27f09457878bfee6f605e3fed7607bec8",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu072.tga",
+      "sha256": "bcdf37363599faa6c31bee161d29ac4d739bcfba00368082d2c4066a26b2a902",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu076.tga",
+      "sha256": "1f2864d43da6b7c7aea80b62517be393ffeb35fbd631a6b27ab948f6da3e04b7",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu080.tga",
+      "sha256": "69966f1101e6bf62831f4239a2935d92807695dce0d80ba9ef4fd2bb38887c4a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu088.tga",
+      "sha256": "1f2864d43da6b7c7aea80b62517be393ffeb35fbd631a6b27ab948f6da3e04b7",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu089.tga",
+      "sha256": "6968b0091f80e775353e4bd04328dd5af6bcbb08ea6039e976ab47f336915021",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu090.tga",
+      "sha256": "1e8dd5b244cff59990d39b7f837dcd81970ff06e119744d7aab510743d88c173",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu091.tga",
+      "sha256": "1e8dd5b244cff59990d39b7f837dcd81970ff06e119744d7aab510743d88c173",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu092.tga",
+      "sha256": "25ff42b50adf60bdf3c17e72aa9cc595190134f60a250916bb6fd069fe4a1ca3",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu093.tga",
+      "sha256": "1d44ad4d6ae2c2a6d77fdfcc321fd9456cc42aa023f302478205450f628e9b3e",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu094.tga",
+      "sha256": "efe40bf78a0a40e701360ccd5764506161d584026d7e595ed6576419e06804cf",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu095.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu096.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu097.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu098.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu099.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu100.tga",
+      "sha256": "7a5a4b5e86b1c71904071929414d17f7949517ad0bcb40a778caa3a389a96129",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-03.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu101.tga",
+      "sha256": "e666b04dddfa4a8af3979aaf1986a5639dd1e6c33cdd223ea16f5d5e6cf9b401",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu102.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu103.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu104.tga",
+      "sha256": "7800c983a5f0f526a9d9359332af3eade9faa8d2eb9a0bd3ee3a5bcad0c2dd8f",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu105.tga",
+      "sha256": "e429fe34858f0ad6ae84dba88d01e0f05756652b6f68fb2d197aa2912409c77a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu106.tga",
+      "sha256": "76d1eda32e87ea9dd663de821a8ad2e6bcc51eedcdeda1e2f1041616cf05d21c",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu107.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu108.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu109.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu110.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu111.tga",
+      "sha256": "bebbff7752e43b971852d08fbdbce2d0071673ef196be9e4527df071e90b8e9d",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu112.tga",
+      "sha256": "38a58b29f49b3b7ba3630ca0eb78b36eb9683c154e1895a032327f851c4add50",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu113.tga",
+      "sha256": "c183577bb163d6f430ffc303c33dd75a9d76c36b9b44971ffa92ca97cd11cb33",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu114.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu115.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu116.tga",
+      "sha256": "a14bdc2daf6e5991844b5bde20bd148fe9a579ae182eed2e3df86fcff0542369",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu117.tga",
+      "sha256": "282e2201d3ee8666985954bee5736170889329cc3bf796a2741065825b8c6216",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu118.tga",
+      "sha256": "662b4989dbe7a012b98d83f67581591172f5cd4a40f2145b9f45301b123fa569",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu147.tga",
+      "sha256": "9bee4c86cd9c35be61b8f97b1f34bbe753cab5c51ba77da3116d715c9a0f6f5a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu151.tga",
+      "sha256": "6286d31f3d9fb96ba5a7384a09e0fa557a3dabc6449d1b271df4dada329e8cab",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-04.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu155.tga",
+      "sha256": "662b4989dbe7a012b98d83f67581591172f5cd4a40f2145b9f45301b123fa569",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu159.tga",
+      "sha256": "efe40bf78a0a40e701360ccd5764506161d584026d7e595ed6576419e06804cf",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu169.tga",
+      "sha256": "662b4989dbe7a012b98d83f67581591172f5cd4a40f2145b9f45301b123fa569",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu170.tga",
+      "sha256": "d92982521bf4109fd770f436c366254949a555d046332d4fd23cd00ca3144106",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu171.tga",
+      "sha256": "d92982521bf4109fd770f436c366254949a555d046332d4fd23cd00ca3144106",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu172.tga",
+      "sha256": "d92982521bf4109fd770f436c366254949a555d046332d4fd23cd00ca3144106",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu173.tga",
+      "sha256": "d92982521bf4109fd770f436c366254949a555d046332d4fd23cd00ca3144106",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu174.tga",
+      "sha256": "d92982521bf4109fd770f436c366254949a555d046332d4fd23cd00ca3144106",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu175.tga",
+      "sha256": "d92982521bf4109fd770f436c366254949a555d046332d4fd23cd00ca3144106",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Ship/iu176.tga",
+      "sha256": "5f4a49f6035347f3a79c623bd6f019a4a4522adc6ac49be7fecf72f6ea81b69d",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Star/is001.tga",
+      "sha256": "a7b558d6bcc700642160513841ea25ffbc7dd8493a780ce4dd9b61643ec1c64d",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Star/is002.tga",
+      "sha256": "76a8d23e9791b959b0e4c6f172db5817d9f32d8ae9e628f785d1d847921d1cc4",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Star/is003.tga",
+      "sha256": "ee77a051dc45e24748a9668ae9a30f7576b1aabd4607e35d85232037c5cfe42c",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Star/is004.tga",
+      "sha256": "cf9c1999e3378a40441922ecf24092b5d5ea467ef38505f807fc9a98b4274e52",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Star/is005.tga",
+      "sha256": "f2314943fd4e7c0c71502972f60097c319a786dfe1a5fccbe7dbdee2ad440841",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Star/is006.tga",
+      "sha256": "0f13029ca05e5a6bc5d801917e7f1ba71b723d7f7a1948cd8fe9f0042d44d9c9",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Star/is007.tga",
+      "sha256": "59b7a95fa65e588e4635c9bdf7e063751403d589d8665c6335b37be1244377fd",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it001.tga",
+      "sha256": "114e244fab011c31a0bdf31a6cab9893a1b388679b35b94092c7efdbdd44a296",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it002.tga",
+      "sha256": "eb00745d1101c6507d0e4e0405cb1f55996292e0c55465114203116ee23b5400",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it003.tga",
+      "sha256": "f00256ff3be1fce49c8d7c6cda5b894c7aef28963780459de64d2ac57215ff39",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-05.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it004.tga",
+      "sha256": "2ee6a62fb3afa4367f7880ad110162c029334fd2a34026d33dd8c3a791bfe636",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it005.tga",
+      "sha256": "391a75e491e8052913804d7e0bc8262f047f1b5cd7782a98fff50462fe65bcb6",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it006.tga",
+      "sha256": "c0375b69e0ccdedcae4ff745c7a77dc73d1aba7a6de03156e443e0e4c277821a",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it007.tga",
+      "sha256": "cf14f7da2162a21480b00ae393236d9a5d6065487d51eda71107dd3b1cc1c8df",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it008.tga",
+      "sha256": "588b1344355d76cea88e769f770f120a917804eab454c7228d95ac481f98d56e",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it009.tga",
+      "sha256": "e5ef194349dc0d53c31e901bef40b6c8e2d1db3d3d297588aea1d3099a237a47",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it010.tga",
+      "sha256": "033bdff23372cde53d6e240a73db56dba10af4da368fed2d623989762a29c627",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it011.tga",
+      "sha256": "917ae016a6b3f9a05859f9ef0c934de4634f2cf7ad449e328c787c5d3a748df9",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it012.tga",
+      "sha256": "dbd9875aa8e8a5e2bee926f2d23378e5c791e6de97b987db5cdf340a173e2624",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "Thumbnail/Unit/it013.tga",
+      "sha256": "4b962fdea6295e42a8f34f4321dafd3363b937e75293291e455d89dc7d9fb529",
+      "classification": "no_japanese_visible",
+      "sheet": "Thumbnail-06.png"
+    },
+    {
+      "asset": "trush/soukanpanel_dummy.tga",
+      "sha256": "c27e8071a6481f494eeab93af14bcf42e935b1b3b4ccfdd22b5412fc1fe8ecd4",
+      "classification": "translation_candidate",
+      "sheet": "trush-00.png"
+    },
+    {
+      "asset": "trush/status_window.tga",
+      "sha256": "46768f51eeb24aa87bdae06dccf7f1ab603dfa0ec57040435b4a88649cc3c517",
+      "classification": "translation_candidate",
+      "sheet": "trush-00.png"
+    },
+    {
+      "asset": "window/baloon_parts.tga",
+      "sha256": "59489aa51762f1a09c75e75b11a2f70327c14d78054ebdf2dbd78102d91879af",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/cursor_parts.tga",
+      "sha256": "a4d38dddae863241ded505196fa54ad4cadc91a0d742a335dcc2757d94c13376",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/dialog_parts.tga",
+      "sha256": "eb09145c9fafe19757c3366f6443777023728d493bd544710f114fdc748a2cd3",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/ending_parts.tga",
+      "sha256": "302b2ecf2c004a01b8c9546081982cb6a8595f9a8ddaddf3368674153a74149b",
+      "classification": "translation_candidate",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/ending_parts_2.tga",
+      "sha256": "077c414b5345f74c2b244f32730a31449f07fbd81a9489615c5e69aacd8f576c",
+      "classification": "translation_candidate",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/loadingbg00.jpg",
+      "sha256": "d4a84be005fd8a9c860cbbe92b9f54970449038b10943804555b70273d646c60",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/mail_window.tga",
+      "sha256": "b2f34fb695c92f96edb915e7e20b55261429f898fc5ca9101730aae849bb91a6",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/menu_parts.tga",
+      "sha256": "4ebb22fdc1824259af5283d64c3fbc8d848657f837ad83b4d8ebbdcd46dceb50",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/offline_window.tga",
+      "sha256": "d648b49c98835041cc1c19699092ed14e3d344af4c669c71444515a283a18297",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/resize_window_parts.tga",
+      "sha256": "64de2d4dd8b3b27fa1100d2d91e35f8e939dfe58ad1be6ce188ace38f75285cf",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/sentaku_bar.tga",
+      "sha256": "d407f313b207816c9988f8dc64f2807d1bed1a72253ce2af8867a06aeb8c1c16",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/sentaku_dd_window.tga",
+      "sha256": "3393dc231e771ea34778136e1dcb69ea02089d11703093473f93f3d463aa367f",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/sentaku_window.tga",
+      "sha256": "3ee0c37d9f042bcd19d1ec4de16366a738bc9ed6405d13bc17aaa1b4a83c01aa",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/shinnin_shiji_shikin_window.tga",
+      "sha256": "b1475c1fd60f961e9357cd7f1e33a96460f95a970504e629630f9a22180e9f3c",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/system_window.tga",
+      "sha256": "bc9e8fac8274da0bf879a2759ffa1de5a16e675d7361e27df3bf8eab3ef6de0e",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/various_window.tga",
+      "sha256": "26ae59fb366a4288eee3a008a7a4b79f35251354d878c484851779b00faefde0",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/various_window_2.tga",
+      "sha256": "9252ef489b43110ba550d006a7a1e71a2d2f20a1acc530994dd7207050d831a3",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/wakusei_parts.tga",
+      "sha256": "4de673e7745d6ab6d69f0ee4fa01cd91637b0b4399601dbb35515f9747e37299",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/wakusei_shousai_window.tga",
+      "sha256": "5dd9ea4b02d4c5a1bd07ba33b584642b87f60981cd498950552fd68f85911f9c",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/wakusei_window.tga",
+      "sha256": "4267986400bf041761e47aea54b82cb8d75adaeab945092c05f705c5dc9c7ddc",
+      "classification": "no_japanese_visible",
+      "sheet": "window-00.png"
+    },
+    {
+      "asset": "window/window_parts.tga",
+      "sha256": "28d407241f92c45413cf6dc5bd07bf8945997876cc8b71af005140a8ad0b321e",
+      "classification": "no_japanese_visible",
+      "sheet": "window-01.png"
+    }
+  ]
+}

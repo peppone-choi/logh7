@@ -60,4 +60,41 @@ class KoreanLocalizationTest {
         assertEquals("내 기함",KoreanDisplayNames.catalogue("내 기함"))
         assertFailsWith<IllegalArgumentException> { KoreanDisplayNames.base("가".repeat(13)) }
     }
+
+    @Test fun everyServerOwnedShipAndProductionUnitHasAKoreanDisplayName() {
+        val japanese=Regex("[\\p{IsHiragana}\\p{IsKatakana}\\p{IsHan}]")
+        val names=org.logh7.engine.UnitSpecifications.ships.map {it.name}+
+            org.logh7.engine.ProductionUnits.definitions.map {it.name}
+        assertTrue(names.isNotEmpty())
+        val shown=names.associateWith(KoreanDisplayNames::catalogue)
+        assertEquals(emptyMap(),shown.filterValues(japanese::containsMatchIn),"Untranslated server catalogue")
+        assertEquals(emptyMap(),shown.filterValues {it.length !in 1..12},"Native name field exceeded")
+    }
+
+    @Test fun builtInOriginalCandidatesAndSavedOwnersDisplayKoreanWithoutRewritingPlayerNames() {
+        val clock=java.time.Clock.fixed(java.time.Instant.ofEpochMilli(1000),java.time.ZoneOffset.UTC)
+        val file=directory.resolve("original-korean.properties")
+        val service=CharacterCreation(file,clock,1)
+        assertEquals(listOf("키르히아이스","양"),service.candidates("new").map {it.character.surname})
+        assertEquals(listOf("지크프리트","웬리"),service.candidates("new").map {it.character.givenName})
+        val wire=org.logh7.protocol.OriginalCharacterMessages.catalogue(service.candidates("new"))
+        val nameBytes="키르히아이스".toByteArray(Charsets.UTF_16BE).toList()
+        assertTrue(wire.asList().windowed(nameBytes.size).any {it==nameBytes})
+        service.apply("original",listOf(1002))
+        val later=java.time.Clock.offset(clock,java.time.Duration.ofMillis(2))
+        val restored=CharacterCreation(file,later,1)
+        val owner=restored.character("original")!!
+        assertEquals("양",owner.surname);assertEquals("웬리",owner.givenName)
+        val bytes=java.nio.file.Files.readAllBytes(file)
+        assertEquals(owner,CharacterCreation(file,later,1).characterById(1002))
+        assertEquals(listOf(owner),restored.registeredCharacters())
+        assertContentEquals(bytes,java.nio.file.Files.readAllBytes(file))
+        for(reserved in listOf("양","ヤン","키르히아이스","ｷﾙﾋｱｲｽ")) {
+            val request=CharacterMessages.Generate(0,0,2,0,0,reserved,"Pilot",0,0,0,0,List(8){0},0,0,0,0,0,0,"",0)
+            assertFailsWith<IllegalArgumentException> {restored.accept("new",request)}
+        }
+        val original=org.logh7.protocol.OriginalCharacterMessages.localCandidates.last().character
+        val player=original.copy(id=10000)
+        assertSame(player,KoreanDisplayNames.original(player))
+    }
 }

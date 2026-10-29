@@ -39,6 +39,35 @@ inline const char* koreanStaticResource(const char* original) {
     if (address>0xffffffffu) return original;
     return koreanResource(65535,static_cast<unsigned>(address>>16),static_cast<unsigned>(address&0xffff),original);
 }
+inline const KoreanWideResource* koreanWideEntry(uintptr_t address) {
+    size_t left=0,right=sizeof(koreanWideResources)/sizeof(koreanWideResources[0])-1;
+    while (left<right) {
+        const size_t middle=left+(right-left)/2;
+        if (koreanWideResources[middle].address<address) left=middle+1;
+        else right=middle;
+    }
+    const auto& row=koreanWideResources[left];
+    return row.address && row.address==address ? &row : nullptr;
+}
+inline const KoreanWideResource* koreanWideResourceAt(uintptr_t address,const wchar_t* original) {
+    const auto row=koreanWideEntry(address);
+    if (!row || !original) return nullptr;
+    uint64_t hash=14695981039346656037ULL;
+    for (unsigned i=0;i<row->units;++i) {
+        const unsigned unit=static_cast<unsigned>(original[i]);
+        if (!unit || unit>0xffff) return nullptr;
+        hash=((hash^(unit&255))*1099511628211ULL);
+        hash=((hash^(unit>>8))*1099511628211ULL);
+    }
+    return !original[row->units] && hash==row->hash ? row : nullptr;
+}
+inline const KoreanWideResource* koreanWideResource(const wchar_t* original) {
+    return koreanWideResourceAt(reinterpret_cast<uintptr_t>(original),original);
+}
+inline const wchar_t* koreanWideText(const wchar_t* original) {
+    const auto row=koreanWideResource(original);
+    return row ? row->text : original;
+}
 // These five original formats contain only narrow string arguments. Never
 // walk arbitrary printf arguments (integers/doubles/wide strings differ).
 struct KoreanStringFormat { uintptr_t address; uint64_t hash; unsigned bytes,arguments; };

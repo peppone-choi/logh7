@@ -20,6 +20,7 @@ import uuid
 
 from silent_audio import (SilentAudio, TARGET_SHA256, runtime_manifest,
                           stop_owned_handle, strict_owned_job, verify_runtime_manifest)
+from ui_text import cp949_ui_bytes
 
 from PIL import Image, ImageStat
 import win32api
@@ -345,16 +346,17 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         control_offset = end + 1
                         if len(action) != 1:
                             raise ValueError("Expected one UI command")
-                        if "click" in action or "ctrlClick" in action:
+                        if "click" in action or "ctrlClick" in action or "rightClick" in action:
                             control = "ctrlClick" in action
-                            x, y = action["ctrlClick" if control else "click"]
-                            script.exports_sync.setmouse(x, y, True, 1, control)
+                            button = 2 if "rightClick" in action else 1
+                            x, y = action["ctrlClick" if control else "rightClick" if button == 2 else "click"]
+                            script.exports_sync.setmouse(x, y, True, button, control)
                             try:
                                 time.sleep(0.3)
                             finally:
                                 try:
                                     # Keep Ctrl down through the mouse-up frame, as a real chord does.
-                                    script.exports_sync.setmouse(x, y, False, 1, control)
+                                    script.exports_sync.setmouse(x, y, False, button, control)
                                     time.sleep(0.15)
                                 finally:
                                     if control:
@@ -374,6 +376,21 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             finally:
                                 script.exports_sync.setmouse(end_x, end_y, False, button)
                             time.sleep(0.15)
+                        elif "imeText" in action:
+                            cp949_ui_bytes(action["imeText"], ctypes.windll.kernel32.GetACP())
+                            owned_view(desk, pid)  # Verify ownership before the resident UI-thread action.
+                            script.exports_sync.commitkorean(action["imeText"])
+                            observed = None
+                            for _ in range(30):
+                                time.sleep(0.1)
+                                observed = script.exports_sync.koreancommitstate()
+                                if observed and (observed.get("calls", 0) or observed.get("error")):
+                                    break
+                            with (out / "ime-results.jsonl").open("a", encoding="utf-8") as evidence:
+                                evidence.write(json.dumps(observed) + "\n")
+                            if (not observed or observed.get("pending") or observed.get("error")
+                                    or observed.get("calls") != 1 or not observed.get("posted")):
+                                raise RuntimeError("Owned IME result was not consumed exactly once")
                         elif "text" in action:
                             value = action["text"]
                             if not isinstance(value, str) or not 1 <= len(value) <= 30 or not all(32 <= ord(char) < 127 for char in value):

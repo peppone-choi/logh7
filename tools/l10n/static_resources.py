@@ -83,3 +83,36 @@ def collect_windows(source,document,validate):
                   if re.search(r'[\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f]',text) and str(identifier) not in document['entries']]
     if untranslated:raise ValueError(f'untranslated Windows resource IDs: {untranslated}')
     return rows
+
+
+def collect_wide(source, document, validate):
+    """원문 UTF-16 바이트를 해시하되 번역/서식 검증은 Unicode로 한다."""
+    data = Path(source).read_bytes()
+    if msgdat.sha(data) != document['source_sha256']:
+        raise ValueError('wide UI EXE hash mismatch')
+    pe = struct.unpack_from('<I', data, 0x3c)[0]
+    optional = pe+24
+    table = optional+struct.unpack_from('<H', data, pe+20)[0]
+    base = struct.unpack_from('<I', data, optional+28)[0]
+    sections = []
+    for index in range(struct.unpack_from('<H', data, pe+6)[0]):
+        position = table+index*40
+        if data[position:position+8].rstrip(b'\0') in (b'.data', b'.rdata'):
+            size, va, raw_size, offset = struct.unpack_from('<IIII', data, position+8)
+            sections.append((base+va, raw_size, offset))
+    rows = []
+    for key, text in document['entries'].items():
+        address = int(key, 16)
+        section = next((row for row in sections if row[0] <= address < row[0]+row[1]), None)
+        if not section or address % 2:
+            raise ValueError('wide UI address outside aligned original data sections')
+        start = section[2]+address-section[0]
+        end = start
+        while end+2 <= min(start+4096, section[2]+section[1]) and data[end:end+2] != b'\0\0':
+            end += 2
+        if end+2 > min(start+4096, section[2]+section[1]):
+            raise ValueError('unterminated wide UI')
+        raw = data[start:end]
+        validate(raw.decode('utf-16-le'), text)
+        rows.append(dict(table=65532, group=address >> 16, index=address & 0xffff, source=raw, text=text))
+    return rows

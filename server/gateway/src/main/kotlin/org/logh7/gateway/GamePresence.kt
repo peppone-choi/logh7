@@ -16,6 +16,14 @@ class GamePresence {
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    @Synchronized internal fun communicationMember(connection:String):Member? = members[connection]
+    @Synchronized internal fun communicationMember(generation:Long,character:Int):Member? =
+        members.values.singleOrNull {it.player.generation==generation && it.character.id.toInt()==character}
+    @Synchronized internal fun communicationSend(generation:Long,character:Int,messages:List<ByteArray>,except:String) {
+        members.values.filter {it.connection!=except && it.player.generation==generation && it.character.id.toInt()==character}
+            .forEach {send(it,messages)}
+    }
+
     /** Government approval is public base state; CP/influence peers use ordinary character publication. */
     @Synchronized fun refreshSocialBase(world:WorldBootstrap,stocks:org.logh7.engine.PlanetStocks,base:Int) {
         val grid=world.galaxy.bases.single {it.id==base}.grid

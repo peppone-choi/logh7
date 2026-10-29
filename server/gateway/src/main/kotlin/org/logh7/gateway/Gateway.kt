@@ -79,6 +79,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var supportSubscription: AutoCloseable? = null
     private var civicSubscription:AutoCloseable?=null
     private var budgetSubscription:AutoCloseable?=null
+    private var communication:GameCommunication?=null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
     fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress,
@@ -94,6 +95,10 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
+            {generation,id->communicationIdentity(characterStores.get(generation),id)},
+            {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},
+            {generation->communicationStore(characterFile,generation)})}
         strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
             navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
         }}
@@ -128,7 +133,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 clients.add(ch)
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
-                                stock = stock, administration = administration, presence = presence, onPresence = { messages ->
+                                stock = stock, administration = administration, communication=communication, presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
                                 val updateExchange = UpdateExchange()
@@ -254,6 +259,10 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         civicSubscription?.close()
         budgetSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
-        finally { try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() } }
+        finally {
+            try {communication?.close()} finally {
+                try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() }
+            }
+        }
     }
 }

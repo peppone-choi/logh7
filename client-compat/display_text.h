@@ -19,14 +19,14 @@ inline bool validDisplayUnits(const std::wstring& text) {
     }
     return true;
 }
-inline bool storeDisplayName(const wchar_t* text,std::string& result) {
-    if (!text) return false;
+inline bool storeDisplayName(const wchar_t* text,std::string& result,unsigned capacity=displayNameUnits) {
+    if (!text || !capacity || capacity>displayNameUnits) return false;
     std::wstring original;
     unsigned i=0;
-    for (;i<displayNameUnits && text[i];++i) original+=text[i];
+    for (;i<capacity && text[i];++i) original+=text[i];
     // The supported native name fields include their NUL in this bound.
     // Leave longer/unavailable fields to the original conversion.
-    if (i==displayNameUnits || !validDisplayUnits(original)) return false;
+    if (i==capacity || !validDisplayUnits(original)) return false;
     static constexpr char digits[]="0123456789ABCDEF";
     std::string stored(displayNamePrefix);
     for (wchar_t ch:original) {

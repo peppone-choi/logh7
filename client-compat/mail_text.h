@@ -27,6 +27,11 @@ inline bool mailInputText(const char* text,size_t capacity,std::wstring& result,
     std::wstring value,checked;
     if (!inputFragment(text,value,codepage) || value.size()>=capacity ||
         !mailWideText(value.c_str(),capacity,checked)) return false;
+    // Same text policy as the server; UTF-16 pairs cannot be stored by this
+    // game's fixed BMP fields. CR/LF/TAB remain valid in ordinary mail text.
+    for (wchar_t ch:checked)
+        if ((ch>=0xd800 && ch<=0xdfff) || (ch<0x20 && ch!=L'\r' && ch!=L'\n' && ch!=L'\t') ||
+            (ch>=0x7f && ch<=0x9f)) return false;
     result.swap(checked);return true;
 }
 inline bool mailReplyText(const wchar_t* text,bool title,bool reply,std::wstring& result) {

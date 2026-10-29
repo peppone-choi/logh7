@@ -23,12 +23,13 @@ class MailHookTests(unittest.TestCase):
     def test_every_patch_matches_complete_original_instruction(self):
         header=(catalog.ROOT/'client-compat/mail_input.h').read_text('utf-8')
         rows=re.findall(r'\{(0x[0-9a-f]+),(\d+),\{([^}]+)\},MAIL_TARGET\((\w+)\),(true|false)\}',header)
-        self.assertEqual(17,len(rows))
+        self.assertEqual(19,len(rows))
         targets={
             'sendMailInput':0x4b4b60,'mailTitlePool':0x4eaaf0,'mailBodyPool':0x4eaaf0,
             'finishMailInput':0x53a670,'mailDefaultTitle':0x522010,
             'mailLineLeadByte':0x53cf60,'messengerEnterBridge':0x4eaaf0,
-            'messengerButtonBridge':0x4eaaf0,'displayNameCString':0x4eacf0}
+            'messengerButtonBridge':0x4eaaf0,'displayNameCString':0x4eacf0,
+            'mailEditorTick':0x539ce0,'mailReceive':0x4ba2b0,'mailNativeSend':0x4b78a0}
         seen=set()
         for address,size,encoded,function,call in rows:
             address=int(address,16);size=int(size);self.assertNotIn(address,seen);seen.add(address)
@@ -115,6 +116,73 @@ class MailHookTests(unittest.TestCase):
         entries=catalog.read_json(catalog.ROOT/'l10n/exe-ui.ko.json')['entries']
         self.assertEqual('시설/스폿 선택을 완료했습니다.\n',entries['78bd58'])
         self.assertEqual(self.data,self.original.read_bytes())
+
+    def test_mail_window_factory_uses_context_title_and_complete_header_operands(self):
+        header=(catalog.ROOT/'client-compat/mail_labels.h').read_text('utf-8')
+        entries=catalog.read_json(catalog.ROOT/'l10n/exe-ui.ko.json')['entries']
+        rows=re.findall(r'\{(0x[0-9a-f]+),(0x[0-9a-f]+)\}',header)
+        self.assertEqual(4,len(rows))
+        for address,source in rows:
+            address=int(address,16);source=int(source,16)
+            self.assertEqual(b'\xc7\x44\x24\x10'+struct.pack('<I',source),self.raw(address,8))
+            self.assertIn(format(source,'x'),entries)
+        self.assertEqual(0x522010,self.call_target(0x536a05))
+        self.assertEqual(b'\x53\xf3\xa5\x6a\x16',self.raw(0x5369fb,5)) # index EBX=0, group 22.
+        self.assertEqual('제목',entries['7884d0']);self.assertEqual('받은 날짜',entries['7889b8'])
+        self.assertIn('L"편지함"',header)
+
+    def test_observed_mail_actions_have_specific_factory_captions(self):
+        header=(catalog.ROOT/'client-compat/mail_labels.h').read_text('utf-8')
+        rows=re.findall(r'\{(0x[0-9a-f]+),L"([^"]+)",\{\}\}',header)
+        self.assertEqual(7,len(rows))
+        self.assertEqual({'보관 편지','받는 이','보내기','취소','새로 작성','주소록','답장'},{text for _,text in rows})
+        for address,_ in rows:
+            self.assertEqual(0x522010,self.call_target(int(address,16)))
+
+    def test_native_mail_wire_lengths_and_cache_capacity_are_not_memory_padding(self):
+        # InformationMail output writes u8 subject units and u16 body units,
+        # looping over 16-bit characters including the native terminating NUL.
+        self.assertEqual(b'\x8a\x87\x58\x02\0\0',self.raw(0x45bdc2,6))
+        self.assertEqual(b'\x66\x8b\x87\x5a\x03\0\0',self.raw(0x45bdf1,7))
+        self.assertEqual(b'\x83\xf8\x64',self.raw(0x4c26a4,3))
+        self.assertEqual(0x485764,0x457774+100*0x75c)
+
+    def test_invalid_message_reader_and_dispatch_have_a_bounded_wide_message(self):
+        # 0500 factory: incoming object uses reader vtable 0066cb5c.
+        self.assertEqual(b'\xc7\x40\x14\x5c\xcb\x66\0',self.raw(0x4391ab,7))
+        self.assertEqual(0x4391f0,struct.unpack('<I',self.raw(0x66cb5c,4))[0])
+        self.assertEqual(b'\x66\xb8\0\x05',self.raw(0x439a10,4))
+        # u16 type, a raw byte at +2, u8 count at +3, then u16 units at +4.
+        self.assertEqual(b'\xff\x50\x20',self.raw(0x439222,3))
+        self.assertEqual(b'\x8d\x4d\x02',self.raw(0x43922c,3))
+        self.assertEqual(b'\x8d\x7d\x03',self.raw(0x439239,3))
+        self.assertEqual(b'\xff\x52\x24',self.raw(0x43923f,3))
+        self.assertEqual(b'\x83\xc5\x04',self.raw(0x43932d,3))
+        self.assertEqual(b'\xff\x50\x20',self.raw(0x439335,3))
+        # Native accepts 128, but appends a NUL after count in its 128-unit
+        # array. The server writes <=127 units INCLUDING its own NUL.
+        self.assertEqual(b'\x3c\x80',self.raw(0x439246,2))
+        self.assertEqual(0x104,4+128*2)
+        self.assertLessEqual(4+127*2+2,0x104)
+
+    def test_delivery_hooks_keep_the_native_sender_ui_thread_and_nonce_slots(self):
+        # Tick executes this object directly in the native main UI frame;
+        # decoded receive dispatch and native sending preserve their arguments.
+        self.assertEqual(b'\x8d\x8e\0\x1a\x01\0',self.raw(0x4fd329,6))
+        self.assertEqual(b'\x52\x8b\xcb\x50',self.raw(0x4b8a74,4))
+        self.assertEqual(b'\x6a\x4c',self.raw(0x4b4c88,2))
+        self.assertEqual(b'\x53',self.raw(0x4b4c92,1))
+        self.assertEqual(b'\xc7\x44\x24\x38\xff\xff\xff\xff',self.raw(0x4b4bee,8))
+        self.assertEqual(b'\x83\xfd\x02',self.raw(0x53a845,3)) # Mode 2 owns native edit controls.
+
+    def test_mail_outcome_shares_the_existing_dispatch_hook(self):
+        mail=(catalog.ROOT/'client-compat/mail_input.h').read_text('utf-8')
+        outfit=(catalog.ROOT/'client-compat/outfit_information.h').read_text('utf-8')
+        self.assertNotIn('{0x4b8a78,',mail)
+        self.assertIn('if(!consume)receivedMailOutcome(world,opcode,',outfit)
+        dispatch=outfit[outfit.index('static void __fastcall receivedOutfitPagePacket'):]
+        self.assertLess(dispatch.index('(0x4ba2b0)(world,opcode,record)'),
+                        dispatch.index('receivedMailOutcome(world,opcode,'))
 
 
 if __name__=='__main__':unittest.main()

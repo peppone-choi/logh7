@@ -51,6 +51,7 @@ class GameExchange(
     private val onPresence: (List<ByteArray>) -> Unit = {},
     private val stock: GameStock? = null,
     private val administration: GameAdministration? = null,
+    private val communication:GameCommunication? = null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -1121,8 +1122,28 @@ class GameExchange(
                         if (message.text.isBlank()) return null
                         presence.spotChat(connection, message, gameSeconds())
                     }
+                    0x0f04,0x0f0b,0x0f0c,0x0f10,0x0f11,0x0f12 -> {
+                        if(opcode==0x0f04 && communication==null) {
+                            check(gameStarted)
+                            return handshake.stageAll(listOf(checkNotNull(BootstrapMessages.response(body))),clearHeader=0)
+                        }
+                        check(gameStarted && communication!=null)
+                        if(opcode!=0x0f04)check(worldInitialized)
+                        val owner=checkNotNull(communicationIdentity(characters,checkNotNull(currentCharacter(identity.account)).id.toInt()))
+                        require(owner.account==identity.account)
+                        pendingWorld=communication.submit(connection,owner,checkNotNull(generation),body,gameSeconds())
+                        return null
+                    }
                     0x0f08 -> {
-                        check(gameStarted && body.size == 28)
+                        check(gameStarted)
+                        if(communication!=null) {
+                            check(worldInitialized)
+                            val owner=checkNotNull(communicationIdentity(characters,checkNotNull(currentCharacter(identity.account)).id.toInt()))
+                            require(owner.account==identity.account)
+                            pendingWorld=communication.submit(connection,owner,checkNotNull(generation),body,gameSeconds())
+                            return null
+                        }
+                        require(body.size==28)
                         // This local world has no mail yet; finish the client's periodic inbox query.
                         LoginMessages.sessionMessage(0x0f09, byteArrayOf(0))
                     }
@@ -1537,6 +1558,7 @@ class GameExchange(
         if (state == State.CLOSED) return
         handshake.close(); state = State.CLOSED
         presence?.remove(connection)
+        communication?.disconnected(connection)
         if (joinRequested) admission?.disconnect(checkNotNull(ticket).account, connection)
     }
 }

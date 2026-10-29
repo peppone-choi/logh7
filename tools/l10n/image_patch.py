@@ -1,4 +1,4 @@
-"""검수 TGA의 백업·실행 사본 적용·복구. 작성자: 최병호."""
+"""검수 TGA/PNG의 백업·실행 사본 적용·복구. 작성자: 최병호."""
 import argparse
 import hashlib
 import json
@@ -6,6 +6,7 @@ import os
 from pathlib import Path, PurePosixPath
 import struct
 import tempfile
+import zlib
 
 
 WORK = Path('E:/logh7/work')
@@ -34,8 +35,8 @@ def asset_path(root, relative):
     if (any(not p or p in ('.', '..') or p.endswith((' ', '.')) or
             any(ord(c) < 32 or c in '<>:"|?*' for c in p) or
             p.split('.')[0].upper() in devices for p in parts) or
-            PurePosixPath(relative).suffix.lower() != '.tga'):
-        raise ValueError('invalid relative TGA asset path')
+            PurePosixPath(relative).suffix.lower() not in ('.tga', '.png')):
+        raise ValueError('invalid relative image asset path')
     root = Path(root).resolve()
     path = root.joinpath(*parts).resolve()
     if not path.is_relative_to(root):
@@ -84,14 +85,99 @@ def tga_info(data):
                 transparent_pixels=alpha.count(0), opaque_pixels=alpha.count(255))
 
 
-def compatible(original, replacement):
-    left, right = tga_info(original), tga_info(replacement)
+PNG_SIGNATURE = b'\x89PNG\r\n\x1a\n'
+
+
+def png_chunks(data):
+    """프로젝트의 RGBA PNG만 검증한다. 알 수 없는 중요 chunk/애니메이션은 거부."""
+    if not data.startswith(PNG_SIGNATURE):
+        raise ValueError('invalid PNG signature')
+    chunks = []
+    position = 8
+    while position < len(data):
+        if len(data)-position < 12:
+            raise ValueError('truncated PNG chunk')
+        length, kind = struct.unpack_from('>I4s', data, position)
+        end = position+12+length
+        if end > len(data):
+            raise ValueError('truncated PNG content')
+        content = data[position+8:end-4]
+        if zlib.crc32(kind+content) & 0xffffffff != struct.unpack_from('>I', data, end-4)[0]:
+            raise ValueError('PNG checksum mismatch')
+        if kind not in (b'IHDR', b'IDAT', b'IEND') and (not kind[0] & 32 or kind in (b'acTL', b'fcTL', b'fdAT')):
+            raise ValueError('unsupported PNG chunk')
+        chunks.append((kind, content))
+        position = end
+    kinds = [kind for kind, _ in chunks]
+    if (not kinds or kinds[0] != b'IHDR' or kinds[-1] != b'IEND' or
+            kinds.count(b'IHDR') != 1 or kinds.count(b'IEND') != 1 or b'IDAT' not in kinds or
+            chunks[-1][1]):
+        raise ValueError('invalid PNG chunk order')
+    first, last = kinds.index(b'IDAT'), len(kinds)-1-kinds[::-1].index(b'IDAT')
+    if any(kind != b'IDAT' for kind in kinds[first:last+1]):
+        raise ValueError('nonconsecutive PNG image chunks')
+    return chunks
+
+
+def png_pixels(data):
+    chunks = png_chunks(data)
+    if len(chunks[0][1]) != 13:
+        raise ValueError('invalid PNG header')
+    width, height, bits, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', chunks[0][1])
+    if (not width or not height or width*height > 16_777_216 or
+            (bits, color, compression, filtering, interlace) != (8, 6, 0, 0, 0)):
+        raise ValueError('only noninterlaced 8-bit RGBA PNG is supported')
+    stride = width*4
+    size = (stride+1)*height
+    decoder = zlib.decompressobj()
+    scanlines = decoder.decompress(b''.join(value for kind, value in chunks if kind == b'IDAT'), size+1)
+    if len(scanlines) != size or not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
+        raise ValueError('invalid PNG pixel stream')
+    pixels = bytearray(stride*height)
+    for y in range(height):
+        start = y*(stride+1)
+        mode = scanlines[start]
+        if mode > 4:
+            raise ValueError('invalid PNG filter')
+        for x in range(stride):
+            left = pixels[y*stride+x-4] if x >= 4 else 0
+            above = pixels[(y-1)*stride+x] if y else 0
+            corner = pixels[(y-1)*stride+x-4] if x >= 4 and y else 0
+            if mode == 4:
+                estimate = left+above-corner
+                distances = [abs(estimate-v) for v in (left, above, corner)]
+                prediction = (left, above, corner)[distances.index(min(distances))]
+            else:
+                prediction = (0, left, above, (left+above)//2)[mode]
+            pixels[y*stride+x] = (scanlines[start+x+1]+prediction) & 255
+    return width, height, bytes(pixels), chunks
+
+
+def png_info(data):
+    width, height, pixels, chunks = png_pixels(data)
+    alpha = pixels[3::4]
+    return dict(width=width, height=height, format='PNG', pixel_depth=32,
+                # Preserve original color profile, density and any ancillary data.
+                ancillary=[[kind.decode('ascii'), value.hex()] for kind, value in chunks if kind != b'IDAT'],
+                alpha_min=min(alpha), alpha_max=max(alpha),
+                transparent_pixels=alpha.count(0), opaque_pixels=alpha.count(255))
+
+
+def image_info(data):
+    return png_info(data) if data.startswith(PNG_SIGNATURE) else tga_info(data)
+
+
+def compatible(original, replacement, asset=None):
+    if asset is not None and any(data.startswith(PNG_SIGNATURE) != asset.lower().endswith('.png')
+                                 for data in (original, replacement)):
+        raise ValueError('image encoding does not match asset extension')
+    left, right = image_info(original), image_info(replacement)
     # Alpha content may change when glyphs change; retain its storage format and
     # report counts for visual review instead of silently dropping transparency.
     keys = [key for key in left if not key.startswith('alpha_') and
             key not in ('transparent_pixels', 'opaque_pixels')]
     if any(left[key] != right[key] for key in keys):
-        raise ValueError('TGA canvas, origin, encoding, palette, descriptor, ID or footer changed')
+        raise ValueError('image canvas, origin, encoding, palette, descriptor, ID, footer or PNG metadata changed')
     return left, right
 
 
@@ -131,7 +217,7 @@ def prepare(source_root, replacement_root, selection, output):
         original, translated = source.read_bytes(), replacement.read_bytes()
         if sha(original) != row['original_sha256'] or sha(translated) != row['replacement_sha256']:
             raise ValueError(f'input hash mismatch: {row["asset"]}')
-        before, after = compatible(original, translated)
+        before, after = compatible(original, translated, row['asset'])
         loaded.append((row['asset'], original, translated))
         report.append(dict(asset=row['asset'], source=str(source), replacement_source=str(replacement),
                            original_sha256=sha(original), replacement_sha256=sha(translated),
@@ -163,7 +249,7 @@ def verify(package):
         translated = asset_path(package / 'payload', row['asset']).read_bytes()
         if sha(original) != row['original_sha256'] or sha(translated) != row['replacement_sha256']:
             raise ValueError(f'package hash mismatch: {row["asset"]}')
-        before, after = compatible(original, translated)
+        before, after = compatible(original, translated, row['asset'])
         if before != row['original'] or after != row['replacement']:
             raise ValueError(f'package metadata mismatch: {row["asset"]}')
         loaded.append((row, original, translated))
@@ -238,7 +324,7 @@ def main():
     args = parser.parse_args()
     if args.command == 'inspect':
         data = args.image.read_bytes()
-        result = dict(sha256=sha(data), **tga_info(data))
+        result = dict(sha256=sha(data), **image_info(data))
     elif args.command == 'prepare':
         result = prepare(args.source_root, args.replacement_root, args.selection, args.output)
     elif args.command == 'verify':

@@ -18,6 +18,9 @@ static const wchar_t* __cdecl chatCastLabel(const char* text) {
     const wchar_t* original[]={L"全体",L"艦隊",L"同陣営"};
     const wchar_t* korean[]={L"전체",L"함대",L"동진영"};
     for (unsigned i=0;i<3;++i) {
+        const unsigned addresses[]={0x786430,0x786428,0x786420};
+        const auto translated=logh::koreanWideEntry(addresses[i]);
+        if (text && translated && !strcmp(text,translated->narrow)) return translated->text;
         char narrowed[32];
         if (text && WideCharToMultiByte(CP_ACP,0,original[i],-1,narrowed,sizeof(narrowed),nullptr,nullptr)>0 &&
             !strcmp(text,narrowed)) return korean[i];

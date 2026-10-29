@@ -7,6 +7,7 @@
 #include "unicode_text.h"
 #include "input_text.h"
 #include "mail_text.h"
+#include "mail_delivery.h"
 #include "korean_windows.h"
 #include "dialog_text.h"
 #include "portrait_label.h"
@@ -70,6 +71,8 @@ static bool mailTextTest() {
             logh::mailInputText("\x81",capacity,value,949) || value!=saved ||
             logh::mailInputText(nullptr,capacity,value,949) || value!=saved) return false;
     }
+    if (logh::mailInputText("bad\x1b",128,value,949) ||
+        !logh::mailInputText("\r\n\t",512,value,949) || value!=L"\r\n\t") return false;
     if (!logh::mailReplyText(L"한글日本",true,true,value) || value!=L"Re:한글日本" ||
         !logh::mailReplyText(L"한글\r\n日本\n",false,true,value) || value!=L">한글\r\n>日本\n" ||
         !logh::mailReplyText(L"\n\n",false,true,value) || value!=L">\n>\n" ||
@@ -83,6 +86,44 @@ static bool mailTextTest() {
     return !logh::mailWideText(unterminated,128,value) && value==saved &&
         !logh::mailWideText(broken,128,value) && value==saved &&
         logh::mailWideText(pair,128,value) && value==pair;
+}
+static bool wideResourceTest() {
+    const wchar_t original[]=L"銀河帝国";
+    const auto row=logh::koreanWideResourceAt(0x78d9b8,original);
+    if (!row || wcscmp(row->text,L"은하제국") || logh::koreanWideResource(original) ||
+        logh::koreanWideText(original)!=original || logh::koreanWideEntry(0) ||
+        logh::koreanWideResourceAt(0x78d9b8,nullptr) ||
+        logh::koreanWideResourceAt(0x78d9b8,L"銀河帝国!") ||
+        logh::koreanWideResourceAt(0x78d9b8,L"銀河帝") ||
+        logh::koreanWideResourceAt(0x78d9b8,L"銀河帝國")) return false;
+    unsigned count=0;
+    for (const auto& entry:logh::koreanWideResources) {
+        if (!entry.address) continue;
+        std::wstring decoded;
+        if (!logh::japaneseFragment(entry.narrow,decoded) || decoded!=entry.text) return false;
+        ++count;
+    }
+    return count==121;
+}
+static bool mailDeliveryTest() {
+    logh::MailDelivery delivery;
+    int editor=0,session=0,other=0;
+    if (!delivery.begin(&editor,&session,10000,10001,0x81234567,0x76543210,L"한글 제목",L"초안\n본문")) return false;
+    if (delivery.begin(&editor,&session,10000,10001,0x81234568,0,L"중복",L"송신")) return false;
+    delivery.accepted(&other,10000,10001,0x76543210);
+    delivery.accepted(&session,10001,10000,0x76543210);
+    delivery.accepted(&session,10000,10001,1);
+    delivery.rejected(&session,0x0f11);
+    if (delivery.response || delivery.body!=L"초안\n본문") return false;
+    delivery.rejected(&session,0x0f10);
+    if (delivery.response!=2 || !delivery.draftOpen || delivery.title!=L"한글 제목") return false;
+    delivery.reset();
+    if (!delivery.begin(&editor,&session,10000,10001,0x81234568,7,L"수정",L"재편집")) return false;
+    delivery.accepted(&session,10000,10001,7);
+    if (delivery.response!=1) return false;
+    delivery.reset();
+    return !delivery.pending && !delivery.context && delivery.title.empty() &&
+        !delivery.begin(&editor,&session,10000,10001,0xffffffff,7,L"",L"");
 }
 static bool dialogTextTest() {
     const char* mouse="\x83\x7d\x83\x45\x83\x58\x83\x66\x83\x6f\x83\x43\x83\x58\x82\xcc\x90\xb6\x90\xac\x82\xc9\x8e\xb8\x94\x73\x82\xb5\x82\xdc\x82\xb5\x82\xbd";
@@ -203,6 +244,17 @@ static bool displayNameTest() {
     const wchar_t* sample=L"한글日本ABC %／※";
     if (!logh::storeDisplayName(sample,stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=sample) return false;
     if (!logh::storeDisplayName(L"",stored) || !logh::japaneseFragment(stored.c_str(),decoded) || !decoded.empty()) return false;
+    if (!logh::storeDisplayName(L"전함Ⅰ",stored,13) ||
+        !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=L"전함Ⅰ") return false;
+    std::wstring shipMaximum(12,L'힣'),shipTooLong(13,L'힣');
+    if (!logh::storeDisplayName(shipMaximum.c_str(),stored,13) ||
+        !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=shipMaximum) return false;
+    auto shipSaved=stored;
+    wchar_t unterminatedShip[13];for (auto& ch:unterminatedShip)ch=L'가';
+    if (logh::storeDisplayName(shipTooLong.c_str(),stored,13) ||
+        logh::storeDisplayName(unterminatedShip,stored,13) ||
+        logh::storeDisplayName(L"",stored,0) ||
+        logh::storeDisplayName(L"",stored,29) || stored!=shipSaved) return false;
     for (unsigned ch=0xac00;ch<=0xd7a3;++ch) {
         wchar_t name[]={static_cast<wchar_t>(ch),0};
         if (!logh::storeDisplayName(name,stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=name) return false;
@@ -420,7 +472,8 @@ static bool sessionEndingDataTest() {
 int wmain(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
-    if (!mailTextTest()) return 252;
+    if (!mailTextTest() || !mailDeliveryTest()) return 252;
+    if (!wideResourceTest()) return 253;
     if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;
     const char* battleship="\x90\xed\x8a\xcd";

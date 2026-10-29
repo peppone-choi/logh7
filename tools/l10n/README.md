@@ -152,3 +152,24 @@ $source = Join-Path (Split-Path (Split-Path $msg)) 'image'
 ```
 
 이 작업에서는 `work/prototype-roundtrip-02/data/image`에 두 원본을 복사해 실제 파일 바이트 적용/복구를 대조했다. 클라이언트에는 적용하지 않았다. 281개 분류 원문과 참조는 `work/static-stage3-classification-02.json`, 추가 이미지 완전 파일명 검색은 `work/prototype-image-references-01.json`에 있다. 원문/게임 자산을 담은 `work/` 파일은 커밋하지 않는다.
+
+## UTF-16 고정 UI·CString 및 전체 이미지 후보 보완 (2026-10-29)
+
+작성: 최병호. 최신 작업 사본은 `E:/logh7/work/korean-completion-wt`다. 카탈로그는 4,967개(별도 UTF-16 UI 121개 포함)이며 아래 Python46개는 이 사본에서 통과했다. 새 DLL/guard·실제 게임은 실행 담당만 확인한다. 기존 카탈로그 원본과 새 `l10n/exe-wide-ui.ko.json`, `static_resources.py`, 생성기를 함께 통합해야 한다. 헤더를 이전 글리프 표와 섞지 않는다.
+
+```powershell
+Set-Location 'E:/logh7/work/korean-completion-wt'
+$python = 'C:/Users/user/AppData/Local/Programs/Python/Python311/python.exe'
+$source = 'E:/logh7-original/extracted/install/ｱﾌﾟﾘｹｰｼｮﾝ実行可能ﾌｧｲﾙ/data'
+# output은 실행할 때마다 새 폴더를 지정한다.
+& $python -X utf8 -B tools/l10n/catalog.py "$source/MsgDat/constmsg.dat" work/catalog-recheck-new --header client-compat/korean_catalog_data.h
+& $python -X utf8 -B -m unittest discover -s tools/l10n -p 'test_*.py' -v
+& $python -X utf8 -B tools/l10n/render_mockups.py "$source/image" work/korean-mockups-new
+& $python -X utf8 -B tools/l10n/image_patch.py verify work/korean-all-candidates-01/package
+```
+
+현재 미리보기는 `work/korean-mockups-02/{strategy,underpanel}-korean.png`, 새 두 장의 독립 패키지는 `work/korean-mockups-02/package`다. 기존 29개와 제목판 2개를 합친 33개 선택 후보는 `work/korean-all-candidates-01/package`이며 실제 사용 여부·원본 글꼴·최종 기준선 검수 전이다. 파일 사본의 33개 적용/복구 바이트 동일은 `work/image-roundtrip-33/result.json`에 있다. [이미지 범위와 한계](../../docs/l10n/image-localization.md#전략hud-시안의-한국어-후보와-png-복구-2026-10-29)를 따른다.
+
+`image_patch.py inspect/prepare/verify/apply/restore`는 TGA와 RGBA8 비인터레이스 PNG를 처리한다. PNG는 CRC·chunk 순서·원래 크기/색상 정보/투명도를 검사하며 IDAT만 재압축한 후보를 사용한다. PNG의 ancillary chunk나 원본 알파를 버리지 않는다. 확장자만 PNG로 바꾼 TGA도 거부한다. 설치/복구는 실행 담당이 중지된 소유 사본에서 기존 명령으로 수행한다.
+
+실행 담당은 메인 통합본에서 `client-compat/build.ps1`의 x86 DLL/guard를 실행하고, 로비의 일/개월/명·세션 설명, 편지함의 열 제목, 명령 조건 창·취소 로그·번호형 함대 이름과 채팅 세 버튼/한글 송신을 확인한다. 개인 편지 배달·주소록·거절 초안 보존은 이 사본에 없는 `korean-stage5-wt` 변경을 별도 통합해야 한다. [텍스트 검증](../../docs/l10n/text-format.md#12-utf-16-고정-ui와-cstring-복사-경로-보완-2026-10-29), [입력 의존성](../../docs/l10n/native-input.md#전체-보완-작업의-입력-경계와-stage5-의존성-2026-10-29)을 함께 따른다.

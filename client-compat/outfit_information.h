@@ -4,6 +4,7 @@
 #include "outfit_info_data.h"
 #include "ground_info_data.h"
 static void renderOutfitInformation();
+static void receivedMailOutcome(void* world,unsigned opcode,const BYTE* record);
 
 static struct OutfitInformation {
     void* manager; void* root; void* world; void* pages[4]; void* lists[4];
@@ -120,6 +121,7 @@ static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcod
     ReleaseSRWLockExclusive(&outfitReplyLock);
     if(!consume)reinterpret_cast<void(__thiscall*)(void*,unsigned,void*)>(0x4ba2b0)(world,opcode,record);
     if(!consume && (opcode&65535)==0x035a)receivedSessionEnding(world,static_cast<const BYTE*>(record));
+    if(!consume)receivedMailOutcome(world,opcode,static_cast<const BYTE*>(record));
 }
 static unsigned __stdcall decodedOutfitGround(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41f3d0)(record,reader);

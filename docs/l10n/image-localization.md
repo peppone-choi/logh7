@@ -89,3 +89,34 @@ PNG 캔버스·RGBA·투명 픽셀과 문구를 확인했으나, 전체 배경 �
 두 후보는 제목 글자 영역 `(10,3)-(175,17)`만 바꾸고 같은 행의 빈 제목판을 사용했다. 원래 파란 글자의 경계는 각각 `(12,5)-(78,16)`, `(12,5)-(111,16)`이며 맑은 고딕 11px로 글자와 아래 기준선을 근사했다. 새 글자 경계와 원본/후보 해시·저장 형식은 `render.json`/패키지 manifest에 기록했다. 원본 제작 글꼴은 미확인이다. 같은 글꼴/같은 잉크 높이로 완료한 것이 아니며 제목판 배경 보정도 실제 화면 검토가 필요하다. `evidence:client`(크기·외형) / `evidence:guess`(조판).
 
 원본 캔버스·TGA 헤더·32비트/알파 저장 형식·원점·방향·푸터와 편집 상자 밖 픽셀/바이트를 보존했다. 글자 모양이 달라져 상자 안 불투명/투명 픽셀 수는 달라질 수 있다. Python 검사에서 형식과 범위 밖 보존을 대조했다. 별도 `work/prototype-roundtrip-02/data/image` 사본에 두 후보 적용→교체 바이트 대조→복구→원본 바이트 일치도 통과했다. 이것은 파일 왕복이며 실행 담당의 실제 사용/제목 가독성 검증과 구분한다. `actual_reference_confirmed`/`display_validated`는 계속 false다.
+
+## 전략/HUD 시안의 한국어 후보와 PNG 복구 (2026-10-29)
+
+작성: 최병호. `E:/logh7/work/korean-completion-wt/work/korean-mockups-02`에 남아 있던 `effect/strategy.tga`, `strategy/underpanel.png`의 한국어 후보를 생성했다. 카드·군인 계급·직무·능력치·시설/방·세션 시간·명령 버튼을 원래 글자 상자 안에서 조판했다. 용어는 사관학교 교감·제1함대 부사령관·망명·심의 등을 사용한다. 픽셀 이미지는 `work/`에만 있고 저장소에는 생성 코드와 검사를 둔다. 두 자산의 실제 사용 여부는 아직 미확인이며 시안처럼 보인다는 이유로 사용하지 않는다고 확정하지 않는다.
+
+원본 해시를 확인한 뒤 같은 캔버스와 원래 알파 마스크를 유지한다. TGA는 기존 저장 형식/방향/푸터와 편집 상자 밖 원바이트를 보존한다. PNG는 1,600×200 RGBA8 비인터레이스 형식과 `pHYs/gAMA/cHRM` 등 원래 ancillary chunk를 그대로 두고 IDAT 픽셀만 재압축한다. 원래 압축 바이트와 파일 크기는 달라질 수 있으며 복구는 백업 원바이트를 사용한다. CRC·잘림·chunk 순서·다섯 PNG 필터·원본 알파·범위 밖 픽셀을 검사했다.
+
+맑은 고딕 11~14px를 주로 사용했고 각 셀의 폭에 맞춰 조판했다. 원본 제작 폰트는 미확인이다. 배경은 지정한 같은 행의 빈 지점이나 검은 패널로 근사했으므로 일부 그라데이션/배경 질감과 원래 기준선의 최종 대조가 남는다. 픽셀 미리보기는 읽었지만 실제 클라이언트 UI의 상태·UV·확대·가독성 확인은 아니다.
+
+기존 29개 + 제목판 2개 + 이 후보 2개를 합친 **33개 선택 후보 패키지**는 `work/korean-all-candidates-01/package`다. 원본과 교체본·manifest를 함께 보존하고 전체 `display_validated=false`를 유지한다. `work/image-roundtrip-33/data/image`의 별도 사본에서 33개 적용→교체 바이트 대조→33개 복구→원본 바이트 동일을 확인했다. 실제 실행 사본이나 게임에는 적용하지 않았다. 결과는 같은 폴더의 `result.json`이다.
+
+`image_patch.py`는 기존 TGA에 더해 위 PNG 형식을 지원한다. 확장자와 실제 저장 형식을 대조하며 원본·패키지 밖 쓰기·해시/메타데이터 불일치·제3의 변경 거부와 중간 실패 복구는 동일하다. 기존 29개 패키지의 형식도 유지한다. 두 추가 후보의 실제 참조·시각 검수와 나머지 이미지 상태의 전수 검토, 읽지 못한 자산 10개는 미완료다. 33개 생성·파일 왕복을 전체 이미지 한국어화 완료로 처리하지 않는다.
+
+
+## 2026-10-30 전체 파일 분류와 재검사
+
+작성: 최병호. 독립 사본의 `work/image-inventory`에서 전체 796파일/읽을 수 있는 786이미지의 접촉 시트를 생성하고 모두 대조했다. `spot/bg003.jpg` 광고와 `bg008.jpg` 장식도 원래 크기로 추가 대조했다. 원본/기존 후보는 변경하지 않았다. [image-review.ko.json](../../l10n/image-review.ko.json)은 원문/이미지를 복제하지 않고 상대 경로·해시·분류·접촉 시트만 담는다.
+
+분류는 일본어 미발견 747·교체 후보 33·작은 각인 판독 대기 6·미해석 컨테이너 8·메타데이터 2다. 미발견은 접촉 시트 크기의 육안 결과이며 숨은 프레임·확대·실제 사용 확인을 뜻하지 않는다. `Medal/m_f006`, `m_f007`, `m_f008`의 PNG/TGA 각인이 한자처럼 보여 여섯 파일을 미확인으로 남겼다. 원문과 의미가 확인되지 않아 임의 번역을 그리지 않았다. Face TCF 7개와 `tcf.hed`도 미해석으로 유지한다. `_CATALOG.VIX`와 `Thumbs.db`는 게임 이미지와 구분한다.
+
+최신 복사 패키지는 사본의 `work/image-candidates-33/package`다. 33개 구조·원본 백업/교체 해시와 별도 `work/image-roundtrip/data/image`의 적용→바이트 대조→복구를 확인했다. `work/image-roundtrip/result.json`에는 원본 796개 불변도 기록했다. 실제 클라이언트를 실행하거나 기존 실행 사본에 적용한 결과가 아니다.
+
+```powershell
+Set-Location 'E:/logh7/work/korean-full-20261030-wt'
+$python = 'C:/Users/user/AppData/Local/Programs/Python/Python311/python.exe'
+# 새 inventory 출력 폴더를 지정하며 원본을 읽기만 한다.
+& $python -X utf8 -B tools/l10n/inventory_images.py 'E:/logh7-original/extracted/install/ｱﾌﾟﾘｹｰｼｮﾝ実行可能ﾌｧｲﾙ/data/image' work/image-recheck-new --all
+& $python -X utf8 -B tools/l10n/review_images.py work/image-recheck-new/inventory.json l10n/image-review.ko.json work/image-review-new.json --package work/image-candidates-33/package
+```
+
+새/변경 파일은 기존 육안 분류를 물려받지 않고 `pending`이 된다. 삭제/누락과 교체 후보의 패키지 누락도 실패로 반환한다. 이 검사를 통과해도 `display_validated=false`와 각인/컨테이너 미확인은 유지한다. 원래 폰트·캔버스/기준선·모든 버튼 상태/UV·가독성 검수는 실행 담당이 기존 절차로 수행한다.

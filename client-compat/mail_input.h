@@ -1,6 +1,82 @@
 // Verified mail/messenger call sites only. Author: 최병호.
 #pragma once
 #include "mail_text.h"
+#include "mail_delivery.h"
+
+static thread_local logh::MailDelivery mailDelivery;
+static thread_local void* mailEditorContext=nullptr;
+static void mailDraftEnabled(void* context,bool enabled) {
+    for (unsigned offset:{0x2cu,0x30u,0x190u,0x194u,0x1b4u}) {
+        void* widget=at<void*>(context,offset);
+        if (widget) reinterpret_cast<void(__thiscall*)(void*,void*,unsigned)>(0x5024e0)(
+            at<void*>(context,0x24),widget,enabled?1u:0u);
+    }
+}
+static bool mailRequestNonce(unsigned& high,unsigned& low) {
+    HCRYPTPROV provider=0;
+    if (!CryptAcquireContextW(&provider,nullptr,nullptr,PROV_RSA_AES,CRYPT_VERIFYCONTEXT)) return false;
+    unsigned words[2]={};
+    bool ok=CryptGenRandom(provider,sizeof(words),reinterpret_cast<BYTE*>(words))!=FALSE;
+    CryptReleaseContext(provider,0);
+    high=words[0]|0x80000000u;low=words[1];
+    // -1 remains the native unset sentinel; reserve negative ID <= -2 for the
+    // replacement server's account/generation-bound 63-bit request key.
+    if (high==0xffffffffu) high=0xfffffffeu;
+    return ok;
+}
+static BYTE __fastcall mailNativeSend(void* world,void*,unsigned seconds,unsigned selector,BYTE* record) {
+    if (selector==0x4c && record && mailDelivery.pending && mailDelivery.world==world &&
+        at<unsigned>(record,0x0c)==mailDelivery.sender && at<unsigned>(record,0x130)==mailDelivery.recipient) {
+        at<unsigned>(record,0)=mailDelivery.requestId;
+        at<unsigned>(record,4)=mailDelivery.requestReference;
+    }
+    // The original sender still serializes/encrypts the native record.
+    return reinterpret_cast<BYTE(__thiscall*)(void*,unsigned,unsigned,BYTE*)>(0x4b78a0)(world,seconds,selector,record);
+}
+static void receivedMailOutcome(void* world,unsigned opcode,const BYTE* record) {
+    // The shared outfit/session dispatcher already ran the original handler.
+    // Observe that outcome without installing a second hook at 004b8a78.
+    if (!record) return;
+    if ((opcode&0xffff)==0x0f10)
+        mailDelivery.accepted(world,at<unsigned>(const_cast<BYTE*>(record),0x0c),
+            at<unsigned>(const_cast<BYTE*>(record),0x130),at<unsigned>(const_cast<BYTE*>(record),4));
+    else if ((opcode&0xffff)==0x0500)
+        mailDelivery.rejected(world,*reinterpret_cast<const unsigned short*>(record));
+}
+static void __fastcall mailEditorTick(void* context,void*,void* input) {
+    void* previous=mailEditorContext;mailEditorContext=context;
+    struct RestoreContext {void* previous;~RestoreContext(){mailEditorContext=previous;}} restore={previous};
+    void* world=*reinterpret_cast<void**>(0x7ccffc);
+    if (mailDelivery.pending && (mailDelivery.world!=world || !world || !at<void*>(world,8) ||
+        reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4b5b80)(at<void*>(world,8))!=mailDelivery.sender)) {
+        // An unknown outcome is never automatically retransmitted after logout.
+        if (mailDelivery.context==context) mailDraftEnabled(context,true);
+        mailDelivery.reset();
+    }
+    if (mailDelivery.pending && mailDelivery.context==context) {
+        if (at<unsigned>(context,0xa00)!=2) mailDelivery.draftOpen=false;
+        if (mailDelivery.response) {
+            const bool accepted=mailDelivery.response==1;
+            const bool active=mailDelivery.draftOpen && at<unsigned>(context,0xa00)==2;
+            const unsigned mode=mailDelivery.mode,option=mailDelivery.option;
+            if (active && !accepted) {
+                // Keep the exact wide draft, including mixed Korean text, in
+                // the live original edit controls; never reopen a closed draft.
+                for (unsigned index=0;index<2;++index) {
+                    void* widget=at<void*>(context,index?0x30:0x2c);
+                    if (widget) reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x505000)(
+                        at<void*>(context,0x24),widget,(index?mailDelivery.body:mailDelivery.title).c_str());
+                }
+            }
+            mailDraftEnabled(context,true);mailDelivery.reset();
+            if (accepted && active)
+                reinterpret_cast<void(__thiscall*)(void*,unsigned,unsigned)>(0x53a670)(context,mode,option);
+        } else if (mailDelivery.draftOpen) mailDraftEnabled(context,false);
+    }
+    reinterpret_cast<void(__thiscall*)(void*,void*)>(0x539ce0)(context,input);
+    if (mailDelivery.pending && mailDelivery.context==context && mailDelivery.draftOpen)
+        mailDraftEnabled(context,false);
+}
 
 static void __cdecl mailReplyEditor(void* context,const BYTE* record,bool title) {
     try {
@@ -106,11 +182,15 @@ static void __cdecl mailBodyPool(void* pool,const char* text,int count) {
 static BYTE __cdecl sendMailInput(unsigned sender,unsigned recipient,const char* const* title,const char* const* body) {
     // The native callers ignore the return value. Keep a rejected draft open
     // at their two subsequent mode-change calls instead of silently truncating.
-    if (mailSendRejected) return 0;
+    if (mailSendRejected || mailDelivery.pending) return 0;
     std::wstring wideTitle,wideBody;
     try {
-        if (!title || !body || !logh::mailInputText(*title,logh::mailTitleUnits,wideTitle) ||
+        if (!sender || sender>0x7fefffff || !recipient || recipient>0x7fefffff || !mailEditorContext || !title || !body ||
+            !logh::mailInputText(*title,logh::mailTitleUnits,wideTitle) ||
             !logh::mailInputText(*body,logh::mailBodyUnits,wideBody)) { mailSendRejected=true;return 0; }
+        unsigned high=0,low=0;
+        if (!mailRequestNonce(high,low) || !mailDelivery.begin(mailEditorContext,
+            *reinterpret_cast<void**>(0x7ccffc),sender,recipient,high,low,wideTitle,wideBody)) {mailSendRejected=true;return 0;}
     } catch (...) { mailSendRejected=true;return 0; }
     MailSendFrame frame={wideTitle,wideBody,mailSendFrame};
     struct RestoreFrame {
@@ -118,12 +198,17 @@ static BYTE __cdecl sendMailInput(unsigned sender,unsigned recipient,const char*
         ~RestoreFrame() { mailSendFrame=previous; }
     } restore={frame.previous};
     mailSendFrame=&frame;
-    // Original constructors, record copies, IDs, selector 4c and destructors.
+    // Original constructors, copies, selector 4c and destructors; the verified
+    // final send call only tags request ID/ref with the replacement-server key.
     return reinterpret_cast<BYTE(__cdecl*)(unsigned,unsigned,const char* const*,const char* const*)>(0x4b4b60)(
         sender,recipient,title,body);
 }
 static void __fastcall finishMailInput(void* context,void*,unsigned mode,unsigned option) {
     if (mailSendRejected) { mailSendRejected=false;return; }
+    if (mailDelivery.pending && mailDelivery.context==context) {
+        mailDelivery.mode=mode;mailDelivery.option=option;
+        mailDraftEnabled(context,false);return;
+    }
     reinterpret_cast<void(__thiscall*)(void*,unsigned,unsigned)>(0x53a670)(context,mode,option);
 }
 static const char* __fastcall mailDefaultTitle(void* catalogue,void*,unsigned table,unsigned index) {
@@ -233,7 +318,9 @@ static const MailTextPatch mailTextPatches[]={
     {0x543d14,5,{0xe8,0xd7,0x6d,0xfa,0xff},MAIL_TARGET(messengerEnterBridge),true},
     {0x543ed8,5,{0xe8,0x13,0x6c,0xfa,0xff},MAIL_TARGET(messengerButtonBridge),true},
     {0x5436b3,6,{0x81,0xc2,0x76,0x5f,0x48,0},MAIL_TARGET(messengerReceivedBridge),false},
-    {0x53bc20,5,{0xe8,0xcb,0xf0,0xfa,0xff},MAIL_TARGET(displayNameCString),true}
+    {0x53bc20,5,{0xe8,0xcb,0xf0,0xfa,0xff},MAIL_TARGET(displayNameCString),true},
+    {0x4fd32f,5,{0xe8,0xac,0xc9,0x03,0},MAIL_TARGET(mailEditorTick),true},
+    {0x4b4c93,5,{0xe8,0x08,0x2c,0,0},MAIL_TARGET(mailNativeSend),true}
 };
 #undef MAIL_TARGET
 static bool installMailInput() {

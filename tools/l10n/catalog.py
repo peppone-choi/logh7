@@ -177,7 +177,16 @@ def header(rows, message_tables=()):
     for row in message_tables:
         lines.append('    {'+','.join(str(row[key]) for key in ('id','kind','variant','groups','strings'))+'},')
     # A sentinel also makes a standalone synthetic header valid C++.
-    lines += ['    {0,0,0,0,0}', '};', '}']
+    lines += ['    {0,0,0,0,0}', '};',
+              'struct KoreanWideResource { unsigned address; uint64_t hash; unsigned units; const wchar_t* text; const char* narrow; };',
+              'static const KoreanWideResource koreanWideResources[] = {']
+    for row in sorted((r for r in rows if r.get('table') == 65532), key=lambda r: (r['group'], r['index'])):
+        address = row['group']*65536+row['index']
+        escapes = {'\n': r'\n', '\r': r'\r', '\t': r'\t', '\b': r'\b', '"': r'\"', '\\': r'\\'}
+        wide = ''.join(escapes.get(c, c if 32 <= ord(c) < 127 else f'\\u{ord(c):04x}') for c in row['text'])
+        narrow = ''.join(f'\\x{byte:02x}' for byte in encode(row['text']))
+        lines.append(f'    {{0x{address:x},0x{fnv(row["source"]):016x}ULL,{len(row["source"])//2},L"{wide}","{narrow}"}},')
+    lines += ['    {0,0,0,nullptr,nullptr}', '};', '}']
     return '\n'.join(lines) + '\n'
 
 
@@ -212,6 +221,7 @@ def project(source):
         rows.extend(translated)
     rows.extend(static_resources.collect(source.parents[2]/'exe/G7MTClient.exe',read_json(ROOT/'l10n/exe-ui.ko.json'),validate))
     rows.extend(static_resources.collect_windows(source.parents[2]/'exe/G7MTClient.exe',read_json(ROOT/'l10n/windows-ui.ko.json'),validate))
+    rows.extend(static_resources.collect_wide(source.parents[2]/'exe/G7MTClient.exe',read_json(ROOT/'l10n/exe-wide-ui.ko.json'),validate))
     for index,text in enumerate(('명령 패널','레이더')):
         rows.append(dict(table=65534,group=0,index=index,source=b'NO TABLE',text=text))
     return ref,rows,missing,tables,message_coverage
@@ -235,7 +245,8 @@ def main():
     msgdat.write_json(out/'coverage.json', dict(author='최병호', source_sha256=ref['source_sha256'],
         translated_slots=len(rows), untranslated_slots=len(missing),
         constmsg_slots=sum(not row.get('table') for row in rows),
-        message_slots=sum(0<row.get('table',0)<65533 for row in rows),
+        message_slots=sum(0<row.get('table',0)<65532 for row in rows),
+        wide_ui_slots=sum(row.get('table')==65532 for row in rows),
         windows_ui_slots=sum(row.get('table')==65533 for row in rows),
         static_ui_slots=sum(row.get('table')==65535 for row in rows),compat_ui_slots=2,
         groups=dict(Counter(row['group'] for row in rows if not row.get('table'))),

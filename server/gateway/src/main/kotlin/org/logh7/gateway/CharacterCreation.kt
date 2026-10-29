@@ -56,13 +56,17 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 ids.distinct().size == ids.size && ids.all { id -> originals.any { it.character.id == id } } })
         }
     }
-    @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account] }
+    private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
+    @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.let(::displayed) }
     @Synchronized fun registeredCharacters():List<CharacterMessages.Generate> {
-        resolveLottery();return registered.values.sortedBy { it.id }
+        resolveLottery();return registered.values.sortedBy { it.id }.map(::displayed)
+    }
+    @Synchronized fun accountByCharacter(id:Int):String? {
+        resolveLottery();return registered.entries.singleOrNull {it.value.id==id.toLong()}?.key
     }
     @Synchronized fun characterById(id: Int): CharacterMessages.Generate? {
         resolveLottery()
-        return registered.values.singleOrNull { it.id == id.toLong() }
+        return registered.values.singleOrNull { it.id == id.toLong() }?.let(::displayed)
     }
     @Synchronized fun entries(account: String): List<Long> { resolveLottery(); return applications[account].orEmpty().toList() }
     @Synchronized fun candidates(account: String): List<OriginalCharacterMessages.Candidate> {
@@ -70,6 +74,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         if (account in registered || account in pending) return emptyList()
         // Local accounts have fame 0. Original numeric conditions are unknown.
         return originals.filter { it.minimumFame <= fame(account) && registered.values.none { owned -> owned.id == it.character.id } }
+            .map {it.copy(character=KoreanDisplayNames.original(it.character))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0
     @Synchronized fun entryState(account: String, id: Long): ByteArray {
@@ -134,7 +139,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         require(account !in registered) { "Account already owns a character in this session" }
         val previous = pending[account]
         val response = if (message.category == 0) {
-            require(originals.none { normalized(it.character.surname) == normalized(message.surname) }) { "Surname already reserved" }
+            require(originals.none { normalized(it.character.surname) == normalized(message.surname) ||
+                normalized(KoreanDisplayNames.original(it.character).surname) == normalized(message.surname) }) { "Surname already reserved" }
             require((pending + registered).none { (owner, data) -> owner != account && normalized(data.surname) == normalized(message.surname) }) { "Surname already reserved" }
             check(pending.size < 4096 || previous != null)
             message.copy(id = previous?.id ?: nextId++, check = 1)
