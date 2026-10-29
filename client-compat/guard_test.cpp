@@ -83,6 +83,23 @@ static bool dialogTextTest() {
     return !logh::dialogMessageBoxCaller(0x12345678);
 }
 static bool tacticalBaseDataTest() {
+    BYTE stopRecord[16]={};unsigned stopCharacter=10000,stopBase=1000,wait=1;
+    memcpy(stopRecord+8,&stopCharacter,4);memcpy(stopRecord+12,&stopBase,4);
+    logh::TacticalFortressStop stop;
+    if (!stop.read(stopRecord) || stop.base!=1000 || stop.read(nullptr)) return false;
+    memcpy(stopRecord+4,&wait,4);
+    if (stop.read(stopRecord) || stop.base!=1000) return false;
+    wait=0;memcpy(stopRecord+4,&wait,4);
+    for(unsigned bad : {0u,65536u}) {
+        memcpy(stopRecord+12,&bad,4);
+        if (stop.read(stopRecord)) return false;
+    }
+    memcpy(stopRecord+12,&stopBase,4);memcpy(stopRecord+8,&wait,4);
+    if (stop.read(stopRecord)) return false;
+    BYTE object[0x5c8];memset(object,0xa5,sizeof(object));
+    logh::TacticalFortressStop::clearCharge(object);
+    logh::TacticalFortressStop::clearCharge(object);logh::TacticalFortressStop::clearCharge(nullptr);
+    for(unsigned i=0;i<sizeof(object);++i)if(object[i]!=(i>=0x5bc && i<0x5c4 ? 0 : 0xa5))return false;
     BYTE record[28]={};unsigned base=1000,target=11;unsigned short unavailable=10,destroyed=5,lost=20;
     memcpy(record+4,&base,4);memcpy(record+12,&target,4);
     record[9]=0x81;record[20]=255;record[24]=35;

@@ -51,7 +51,8 @@ class TacticalBaseDeliveryTest {
     @Test fun committedCannonStartsItsBeamAndNotifiesOnlyTheActualDestructionList() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()
-        val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(0x419,base=1000,direction=.5f))
+        val payload=ByteBuffer.allocate(20).putInt(100).putInt(20).putInt(10000).putInt(1000).putFloat(.5f).array().map {it.toInt() and 255}
+        val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(0x419,base=1000,direction=.5f,payload=payload))
         val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one"),destroyedUnits=listOf(1,2))
         val state=snapshot(TacticalCommandState())
         hub.tacticalCommand(event,state,galaxy,::character)
@@ -61,7 +62,34 @@ class TacticalBaseDeliveryTest {
         assertEquals(2,kills.size)
         assertEquals(listOf(1,2),kills.map {assertEquals(1,it[14].toInt());ByteBuffer.wrap(it).getInt(15)})
         received.clear();hub.tacticalCommand(event.copy(cancelled=true),state,galaxy,::character)
-        assertFalse(received.flatten().any {opcode(it) in setOf(0x419,0x436)})
+        assertFalse(received.flatten().any {opcode(it)==0x436 || (opcode(it)==0x419 && ByteBuffer.wrap(it).getInt(0)==0)})
+        assertEquals(1,ByteBuffer.wrap(received.flatten().single {opcode(it)==0x419}).getInt(0))
+        val stopped=ByteBuffer.wrap(received.flatten().single {opcode(it)==0x41e})
+        assertEquals(0,stopped.getInt(0));assertEquals(120,stopped.getInt(6))
+        assertEquals(0,stopped.getInt(10));assertEquals(10000,stopped.getInt(14));assertEquals(1000,stopped.getInt(18))
+    }
+    @Test fun committedStopReachesBothSidesButFailedStopsAndStaleConnectionsDoNotClearCharges() {
+        val hub=GamePresence();val received=mutableListOf<List<ByteArray>>();val other=mutableListOf<List<ByteArray>>()
+        val viewer=GamePresence.Member("one",person,player,received::add)
+        val observer=GamePresence.Member("two",enemy,opposing,other::add)
+        hub.update(viewer);hub.update(observer);received.clear();other.clear()
+        val payload=ByteBuffer.allocate(16).putInt(120).putInt(0).putInt(10000).putInt(1000).array().map {it.toInt() and 255}
+        val order=TacticalQueuedCommand(10000,2487,120,120,TacticalCommand(0x41e,base=1000,payload=payload))
+        val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one",10001 to "two"))
+        val state=snapshot(TacticalCommandState())
+        hub.tacticalCommand(event,state,galaxy,::character)
+        val ownerStop=received.flatten().single {opcode(it)==0x41e}
+        assertContentEquals(ownerStop,other.flatten().single {opcode(it)==0x41e})
+        assertFalse((received+other).flatten().any {opcode(it) in setOf(0x419,0x436)})
+        received.clear();other.clear()
+        hub.tacticalCommand(event.copy(cancelled=true),state,galaxy,::character)
+        for(packets in listOf(received,other))assertEquals(1,ByteBuffer.wrap(packets.flatten().single {opcode(it)==0x41e}).getInt(0))
+        hub.remove("two");hub.update(observer.copy(connection="replacement"));received.clear();other.clear()
+        hub.tacticalCommand(event,state,galaxy,::character)
+        assertTrue(received.flatten().any {opcode(it)==0x41e});assertTrue(other.isEmpty())
+        hub.update(viewer.copy(player=player.copy(grid=2488)));received.clear();other.clear()
+        hub.tacticalCommand(event,state,galaxy,::character)
+        assertTrue(received.isEmpty());assertTrue(other.isEmpty())
     }
     @Test fun emergencyBalancesReachOnlyTheSameFactionAndRestoreOnReconnect() {
         val state=TacticalCommandState(emergencySupplies=mapOf(1000 to 2))

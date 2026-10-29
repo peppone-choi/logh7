@@ -175,8 +175,18 @@ class TacticalCommandOperationsTest {
         val cannon=request(TacticalCommand(0x419,base=1000,direction=0f))
         assertNotNull(TacticalCommandOperations.accept(cannon,later,galaxy,r.navigation,r.production,r.production.snapshot(1)!!,r.state.commit,1).player)
         val stop=cannon.copy(tacticalCommand=TacticalCommand(0x41e,base=1000))
+        val before=r.production.snapshot(1)!!;val players=r.navigation.snapshot(1)
+        r.state.fail=true
+        assertFailsWith<java.io.IOException> {TacticalCommandOperations.accept(stop,later,galaxy,r.navigation,r.production,before,r.state.commit,1)}
+        assertEquals(before,r.production.snapshot(1));assertEquals(before,r.state.stocks)
+        assertEquals(players,r.navigation.snapshot(1));assertEquals(players,r.state.players)
+        r.state.fail=false
         val stopped=TacticalCommandOperations.accept(stop,later,galaxy,r.navigation,r.production,r.production.snapshot(1)!!,r.state.commit,1)
-        assertTrue(stopped.commandNotifications.any {it.cancelled});assertTrue(r.state.stocks.tacticalCommands.orders.isEmpty())
+        assertEquals(listOf(0x419,0x41e),stopped.commandNotifications.map {it.order.command.opcode})
+        assertEquals(listOf(true,false),stopped.commandNotifications.map {it.cancelled})
+        assertTrue(stopped.commandNotifications.all {it.order.character==10000 && it.order.command.base==1000})
+        assertTrue(r.state.stocks.tacticalCommands.orders.isEmpty())
+        assertTrue(run(r.state).production.snapshot(1)!!.tacticalCommands.orders.isEmpty())
         assertTrue(settle(r,now+60).isEmpty())
     }
     @Test fun supremeMissionAndSubordinateProposalRemainDistinctDurableEffects() {

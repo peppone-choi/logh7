@@ -4,6 +4,12 @@ import java.nio.ByteBuffer
 
 /** Native fortress/base notifications; separate layouts, no guessed shared clock. Author: 최병호. */
 object TacticalBaseMessages {
+    /** Successful 041e reader: time, zero wait, character, base. Also clears a cancelled charge. */
+    fun stopped(seconds:Long,character:Int,base:Int):ByteArray {
+        require(seconds in 0..0xffffffffL && character>0 && base in 1..65535)
+        return LoginMessages.sessionMessage(0x41e,ByteBuffer.allocate(16).putInt(seconds.toInt()).putInt(0)
+            .putInt(character).putInt(base).array())
+    }
     /** Completion command: the compatibility ACK wrapper holds the beam during a future wait. */
     fun fired(seconds:Long,character:Int,base:Int,direction:Float):ByteArray {
         require(seconds in 0..0xffffffffL && character>0 && base in 1..65535 && direction.isFinite())

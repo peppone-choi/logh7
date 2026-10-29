@@ -5,6 +5,16 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalBaseMessagesTest {
+    @Test fun fortressStopUsesTheOriginalSuccessRecordWithoutAFiringDirection() {
+        val packet=TacticalBaseMessages.stopped(0x01020304,10000,1000)
+        assertEquals("00000000041e010203040000000000002710000003e8",packet.joinToString(""){"%02x".format(it)})
+        val parsed=TacticalCommandMessages.command(packet.drop(4).toByteArray())
+        assertEquals(0x41e,parsed.opcode);assertEquals(10000,parsed.character);assertEquals(1000,parsed.base)
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.stopped(0,10000,0)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.stopped(0,10000,65536)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.stopped(0,0,1000)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.stopped(-1,10000,1000)}
+    }
     @Test fun moraleAndConfusionUseTheirIndependentPackedReaders() {
         val confused=TacticalStatusMessages.confusion(0x01020304,11,true)
         assertEquals("00000000043d010203040000000b",confused.joinToString(""){"%02x".format(it)})

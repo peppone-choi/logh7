@@ -7,6 +7,30 @@ static void __fastcall receivedFortressCharge(void* world,void*,void* message,BY
     if (message && at<unsigned>(message,4)>0) pending=1;
     reinterpret_cast<void(__thiscall*)(void*,void*,BYTE)>(0x4bfa10)(world,message,pending);
 }
+static void __cdecl receivedFortressStop(void* world,void* message) {
+    if (!world || world!=*reinterpret_cast<void**>(0x7ccffc) || !at<BYTE>(world,0x126718)) return;
+    logh::TacticalFortressStop stop;
+    if (!stop.read(static_cast<BYTE*>(message))) return;
+    auto base=reinterpret_cast<BYTE*(__cdecl*)(void*,unsigned,BYTE,BYTE,BYTE,BYTE)>(0x4c7cd0)
+        (static_cast<BYTE*>(world)+0x126718,stop.base,0,255,255,255);
+    logh::TacticalFortressStop::clearCharge(base);
+}
+static unsigned fortressStopLogger=0x5923a0;
+static void __declspec(naked) fortressStopped() {
+    // Success-only 041e case: ESI=world, EBX=decoded record. Preserve the
+    // logger's original string argument, return address, registers and flags.
+    __asm {
+        pushfd
+        pushad
+        push ebx
+        push esi
+        call receivedFortressStop
+        add esp, 8
+        popad
+        popfd
+        jmp dword ptr [fortressStopLogger]
+    }
+}
 static void __fastcall receivedBaseDamage(void* world,void*,void* message) {
     if (!message || at<BYTE>(message,9)!=0x81) {
         reinterpret_cast<void(__thiscall*)(void*,void*)>(0x4c0df0)(world,message);return;
@@ -84,14 +108,16 @@ static void __fastcall drawBaseStatusRadar(void* manager,void*,int x,int y) {
     drawSignedRadar(manager,nullptr,x,y);drawTacticalBaseStatus();
 }
 static bool installTacticalBaseUi() {
-    const unsigned sites[]={0x4b9167,0x4bb9c4,0x4bc2fa,0x4bc3f2,0x50d1d2};
-    BYTE expected[5][5]={{0xe8,0xa4,0x68,0,0},{0xe8,0x47,0x40,0,0},{0xe8,0xf1,0x4a,0,0},{0xe9,0x3c,0x19,0,0},{0xe8}};
+    const unsigned sites[]={0x4b9167,0x4bb9c4,0x4bc2fa,0x4bc3f2,0x50d1d2,0x4bba45};
+    BYTE expected[6][5]={{0xe8,0xa4,0x68,0,0},{0xe8,0x47,0x40,0,0},{0xe8,0xf1,0x4a,0,0},{0xe9,0x3c,0x19,0,0},{0xe8},
+        {0xe8,0x56,0x69,0x0d,0}};
     // Compose with installTacticalRadar, already verified and installed by the caller.
     *reinterpret_cast<LONG*>(expected[4]+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&drawSignedRadar)-reinterpret_cast<BYTE*>(sites[4])-5);
-    for(unsigned i=0;i<5;++i)if(memcmp(reinterpret_cast<void*>(sites[i]),expected[i],5))return false;
+    for(unsigned i=0;i<6;++i)if(memcmp(reinterpret_cast<void*>(sites[i]),expected[i],5))return false;
     const void* targets[]={reinterpret_cast<void*>(&receivedFortressCharge),reinterpret_cast<void*>(&receivedFortressCharge),
-        reinterpret_cast<void*>(&receivedBaseDamage),reinterpret_cast<void*>(&emergencySupplyReceived),reinterpret_cast<void*>(&drawBaseStatusRadar)};
-    for(unsigned i=0;i<5;++i) {
+        reinterpret_cast<void*>(&receivedBaseDamage),reinterpret_cast<void*>(&emergencySupplyReceived),reinterpret_cast<void*>(&drawBaseStatusRadar),
+        reinterpret_cast<void*>(&fortressStopped)};
+    for(unsigned i=0;i<6;++i) {
         BYTE jump[5]={i==3 ? static_cast<BYTE>(0xe9) : static_cast<BYTE>(0xe8)};
         *reinterpret_cast<LONG*>(jump+1)=static_cast<LONG>(static_cast<const BYTE*>(targets[i])-reinterpret_cast<BYTE*>(sites[i])-5);
         if(!patchBytes(reinterpret_cast<void*>(sites[i]),expected[i],jump,5))return false;

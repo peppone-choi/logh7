@@ -167,6 +167,12 @@ class GamePresence {
             if(event.cancelled)TacticalCommandWire.command(event.order)?.let {
                 packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0,false)
             }
+            // A failed shoot ACK leaves the CD's charge counters running. Publish the
+            // committed stop to every current observer, including automatic cancellation.
+            if((event.cancelled && event.order.command.opcode==0x419) ||
+                (!event.cancelled && !event.stateOnly && event.order.command.opcode==0x41e)) {
+                packets+=org.logh7.protocol.TacticalBaseMessages.stopped(event.seconds,event.order.character,event.order.command.base)
+            }
             if(!event.cancelled && !event.stateOnly && event.order.command.opcode in setOf(0x408,0x421)) {
                 val proposed=snapshot.planetStocks!!.tacticalCommands.proposals[event.order.character]?.let {
                     it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true

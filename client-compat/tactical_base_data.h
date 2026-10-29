@@ -9,6 +9,20 @@ inline unsigned baseMessageWord(const unsigned char* bytes,unsigned offset) {
 inline unsigned baseMessageShort(const unsigned char* bytes,unsigned offset) {
     uint16_t value;memcpy(&value,bytes+offset,2);return value;
 }
+struct TacticalFortressStop {
+    unsigned base=0;
+    bool read(const unsigned char* message) {
+        if (!message || baseMessageWord(message,4)!=0) return false;
+        unsigned character=baseMessageWord(message,8),id=baseMessageWord(message,12);
+        if (!character || character>0x7fffffffu || !id || id>65535) return false;
+        base=id;return true;
+    }
+    // Native 004bfa10 writes this pair when a cannon charge is accepted.
+    static void clearCharge(unsigned char* object) {
+        if (!object) return;
+        uint32_t zero=0;memcpy(object+0x5bc,&zero,4);memcpy(object+0x5c0,&zero,4);
+    }
+};
 struct TacticalBaseDamage {
     unsigned normal=0,alive=0,morale=0,face=255;
     float shield=0;
