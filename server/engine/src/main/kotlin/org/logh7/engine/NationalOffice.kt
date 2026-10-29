@@ -9,6 +9,15 @@ enum class NationalOffice(val card:Int,val power:Int,val capital:Capital,val fac
     DEFENSE_HEAD(161,3,Capital.ALLIANCE,34,setOf(2,4,5)),
     ALLIANCE_FLEET_COMMANDER(169,3,Capital.ALLIANCE,29,setOf(2)),
     ALLIANCE_FLEET_CHIEF(171,3,Capital.ALLIANCE,29,setOf(2,4,5));
+    /** Stored appointers explicitly listed in org-posts.csv (manual pp.56/63).
+     * A null entry leaves unsupported or elective national offices outside dismissal.
+     */
+    val appointer:NationalOffice? get()=when(this) {
+        IMPERIAL_STAFF_DIRECTOR -> IMPERIAL_SUPREME_COMMANDER
+        ALLIANCE_FLEET_COMMANDER -> DEFENSE_HEAD
+        ALLIANCE_FLEET_CHIEF -> ALLIANCE_FLEET_COMMANDER
+        else -> null
+    }
     fun seat(galaxy:Galaxy):Int?=galaxy.bases.singleOrNull { Capital.of(it)==capital }?.let { base ->
         galaxy.facilities[base.id]?.singleOrNull { it.kind==facility }?.id
     }
