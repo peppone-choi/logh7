@@ -22,23 +22,30 @@ object StrategyActionMessages {
         val preview=message[18]==1.toByte()
         val personnel=command in setOf(0,1,2,3,4,8,9)
         val operation=command in 22..24
+        val market=command==96
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,48,50,53,84,85) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,48,50,53,61,84,85,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24)
-        if(!operation)require(argument==0 && amount==0)
+        require(!preview || personnel || command==24 || market)
+        if(!operation && !market)require(argument==0 && amount==0)
         if(personnel)require((preview || target>0) && (command in setOf(3,4) || value==0) &&
             (if(command in setOf(8,9))base in 0..65535 else base==0))
         else if(operation)require((preview || target in 0..4999) && if(command==22)value in 0..2 && amount>0 && argument in 0..127 && base==0
             else value==0 && amount==0 && argument==0 && (if(command==24)!preview && base>0 || preview && base==0 else base==0))
+        else if(market)require(card==0 && base==0 && amount==0 && argument in 0..3 &&
+            (if(argument==0)value in 0..3 && (preview || target==0) else value==0 &&
+                (if(argument in 1..2)preview || target>0 else !preview && target==0)))
+        else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
+            (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        return Query(character,command,card,if(personnel || operation)0 else target,message.copyOfRange(2,message.size),
-            if(personnel || operation)target else 0,base,value,preview,amount,argument)
+        return Query(character,command,card,if(personnel || operation || market)0 else target,message.copyOfRange(2,message.size),
+            if(personnel || operation || market)target else 0,base,value,preview,amount,argument)
     }
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
-    fun response(q:Query,status:Int):List<ByteArray> {
+    fun response(q:Query,status:Int,changed:Boolean?=null):List<ByteArray> {
         require(status in 0..65535)
         val payload=q.raw.copyOf();ByteBuffer.wrap(payload).putShort(10,status.toShort())
+        if(!q.preview && changed!=null)payload[16]=(if(changed)2 else 3).toByte()
         return listOf(LoginMessages.sessionMessage(0x1200,payload),LoginMessages.sessionMessage(0x1201,byteArrayOf()))
     }
     fun candidates(q:Query,characters:List<AppointmentDirectoryMessages.Person>):List<ByteArray> {
@@ -48,7 +55,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command==24 && rows.size<=200)
+        require(q.preview && q.command in setOf(24,96) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

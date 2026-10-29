@@ -328,7 +328,9 @@ class GamePresence {
                 it.player.grid==next.grid && it.player.baseId==0 && it.player.cpPaused}.forEach {send(it,listOf(packet))}
         }
         val changedBase = old.baseId != next.baseId || old.mode != next.mode
-        if (!changedBase && old.grid == next.grid && old.cruise == next.cruise && previous.outfit == member.outfit) return
+        val flagshipChanged=old.hull?.kind!=next.hull?.kind || (old.hull?.hp?.let {it<100}==true)!=(next.hull?.hp?.let {it<100}==true) ||
+            old.supplies!=next.supplies
+        if (!changedBase && old.grid == next.grid && old.cruise == next.cruise && previous.outfit == member.outfit && !flagshipChanged) return
         val messages = listOf(BootstrapMessages.unit(member.character.copy(shipKind=member.player.hull?.kind ?: member.character.shipKind), next.grid, next.cruise, next.baseId, next.mode, member.outfit,next.supplies,if(next.hull?.hp?.let {it<100}==true)1 else 0)) +
             if (changedBase) listOf(org.logh7.protocol.PlaceMessages.dockNotification(next.characterId,
                 next.baseId, next.mode, seconds, next.spotId, if (next.spotId == 0) next.characterId else next.spotOwner)) else emptyList()

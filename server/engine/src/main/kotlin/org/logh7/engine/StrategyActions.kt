@@ -45,12 +45,14 @@ data class StrategyActionRequest(val account:String,val connection:String,val ch
 data class StrategicIdentity(val id:Int,val power:Int,val rank:Int,val origin:Int,val abilities:List<Int>) {
     init {require(id>0 && power in 2..3 && rank in 0..20 && abilities.size==8 && abilities.all {it in 0..255})}
 }
-enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE }
+enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET }
 data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:StrategyActionRejection?=null,
-    val changed:Boolean=false,val recovery:NavigationResult?=null,val readyAt:Long=0)
+    val changed:Boolean=false,val recovery:NavigationResult?=null,val readyAt:Long=0,
+    val navigators:Map<String,Navigator> = emptyMap())
 
 internal object StrategyActions {
-    val supported=setOf(48,50,53,84,85)+PersonnelActions.supported+StrategicOperations.supported
+    val supported=setOf(48,50,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
+        CompleteRepairActions.supported+FlagshipMarketActions.supported
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val member=s.participants[r.account]
@@ -61,6 +63,8 @@ internal object StrategyActions {
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks)
         val power=if(r.power==Power.EMPIRE)2 else 3
         if(r.card!=if(r.command==84)0 else if(power==2)59 else 195)return reject(StrategyActionRejection.CARD)
         if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null ||
@@ -143,7 +147,8 @@ internal object StrategyActions {
             strategic=stocks.strategic.copy(offices=stocks.strategic.offices.filter {it.character!=character}))
     }
     fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null):PlanetStocks {
-        val original=if(galaxy==null)stocks else StrategicOperations.settle(galaxy,stocks,seconds)
+        val market=FlagshipMarketActions.settle(stocks,seconds)
+        val original=if(galaxy==null)market else StrategicOperations.settle(galaxy,market,seconds)
         return settleSuppression(original,seconds)
     }
     private fun settleSuppression(stocks:PlanetStocks,seconds:Long):PlanetStocks {

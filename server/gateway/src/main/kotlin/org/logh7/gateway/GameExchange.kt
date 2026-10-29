@@ -1129,7 +1129,20 @@ class GameExchange(
                                     pendingWorld=stocks().thenApply {stored ->
                                         val inventory=checkNotNull(stored)
                                         val policy=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
-                                        require(policy.held(inventory,character.id.toInt()).any {it.card==query.card}) {"Strategy directory requires a held office"}
+                                        require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {it.card==query.card}) {"Strategy directory requires a held office"}
+                                        if(query.command==96) {
+                                            if(query.argument==0)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                org.logh7.engine.FlagshipMarketCatalog.options(character.power).map {option->
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,
+                                                        "${checkNotNull(org.logh7.engine.Flagships.find(option.kind)).name} ${option.price}",option.maximumRank)})
+                                            val eligible=if(query.argument==2)inventory.flagshipMarket.offers.filter {
+                                                it.receiver==character.id.toInt() && it.expiresAt>gameSeconds()}.map {it.giver}.toSet() else null
+                                            val candidates=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}.filter {
+                                                it.power==character.power && it.id!=character.id && it.id>query.target && (it.rank==0 || it.rank in 2..20) &&
+                                                    (eligible==null || it.id.toInt() in eligible)}.sortedBy {it.id}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,candidates.map {
+                                                org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
                                         if(query.command==24) {
                                             val force=when(query.card) {
                                                 28,169->0;29,170->1;30,171->2;else->error("Not an operation issuing office")
@@ -1163,13 +1176,15 @@ class GameExchange(
                                     val player=checkNotNull(result.player)
                                     val updated=checkNotNull(currentCharacter(identity.account))
                                     publication=Publication(updated,player,false)
-                                    if(result.changed && query.command !in 22..24 && query.target>0)currentCharacterById(query.target)?.let {target ->
-                                        navigation?.snapshot()?.navigators?.values?.singleOrNull {it.characterId==query.target}?.let {targetPlayer ->
+                                    val changedPeople=result.navigators.values.map {it.characterId}+
+                                        (if(query.command in setOf(0,1,2,3,4,8,9) && query.target>0)listOf(query.target) else emptyList())
+                                    if(result.changed)for(id in changedPeople.distinct().filter {it!=query.character})currentCharacterById(id)?.let {target ->
+                                        navigation?.snapshot()?.navigators?.values?.singleOrNull {it.characterId==id}?.let {targetPlayer ->
                                             presence?.refreshCharacter(target,targetPlayer,offices(target,targetPlayer),gameSeconds(),
                                                 administration.stationedOutfit(targetPlayer))
                                         }
                                     }
-                                    org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0)+
+                                    org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }

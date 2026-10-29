@@ -28,4 +28,27 @@ class StrategyActionMessagesTest {
         assertEquals(37,ByteBuffer.wrap(response).getShort(33).toInt())
         assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(body.copyOf().also {ByteBuffer.wrap(it).putInt(19,128)})}
     }
+    @Test fun repairDistinguishesCaptainFromTheHeldCommandingOutfitAndRejectsInjectedQuantities() {
+        val own=request().also {ByteBuffer.wrap(it).putShort(8,61).putInt(14,0)}
+        assertEquals(0,StrategyActionMessages.query(own).outfit)
+        val unchanged=StrategyActionMessages.response(StrategyActionMessages.query(own),0,false).first()
+        assertEquals(3,unchanged[22].toInt())
+        val fleet=own.copyOf().also {ByteBuffer.wrap(it).putShort(10,39).putInt(14,200)}
+        assertEquals(200,StrategyActionMessages.query(fleet).outfit)
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(fleet.copyOf().also {ByteBuffer.wrap(it).putShort(23,1)})}
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(own.copyOf().also {ByteBuffer.wrap(it).putInt(14,200)})}
+    }
+    @Test fun purchaseAndConsentModesKeepSelectionFieldsSeparateFromAuthorityAndCp() {
+        val buy=request().also {ByteBuffer.wrap(it).putShort(8,96).putShort(10,0).putShort(12,1).putInt(14,0)}
+        assertEquals(1,StrategyActionMessages.query(buy).value)
+        val accept=buy.copyOf().also {ByteBuffer.wrap(it).putShort(12,0).putInt(14,10001).putInt(19,2)}
+        assertEquals(10001,StrategyActionMessages.query(accept).target);assertEquals(2,StrategyActionMessages.query(accept).argument)
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(buy.copyOf().also {ByteBuffer.wrap(it).putShort(10,59)})}
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(buy.copyOf().also {ByteBuffer.wrap(it).putInt(14,10001)})}
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(accept.copyOf().also {ByteBuffer.wrap(it).putInt(19,4)})}
+        val preview=StrategyActionMessages.query(buy.copyOf().also {it[18]=1})
+        val rows=StrategyActionMessages.selections(preview,listOf(StrategyActionMessages.Selection(2,"순항함 200",10)))
+        assertEquals(0x1202,ByteBuffer.wrap(rows[1]).getShort(4).toInt())
+        assertEquals(1,rows[1][6].toInt());assertEquals(2,ByteBuffer.wrap(rows[1]).getInt(7))
+    }
 }

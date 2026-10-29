@@ -11,8 +11,9 @@ static unsigned strategyRequestToken=0;
 static bool operationStrategy(unsigned command) {return command>=22 && command<=24;}
 static bool personnelStrategy(unsigned command) {return command<=4 || command==8 || command==9;}
 static bool armyStrategy(unsigned command) {return command==48 || command==50 || command==53;}
+static bool outfitStrategy(unsigned command,unsigned card) {return armyStrategy(command) || (command==61 && card!=59 && card!=195);}
 static bool strategyActionCommand(unsigned command) {
-    return personnelStrategy(command) || operationStrategy(command) || armyStrategy(command) || command==84 || command==85;
+    return personnelStrategy(command) || operationStrategy(command) || armyStrategy(command) || command==61 || command==84 || command==85 || command==96;
 }
 static const wchar_t* strategyActionName(unsigned command) {
     switch(command) {
@@ -21,6 +22,7 @@ static const wchar_t* strategyActionName(unsigned command) {
     case 22:return L"작전 계획";case 23:return L"작전 철회";case 24:return L"발령";
     case 48:return L"육전 훈련";case 50:return L"육전 전술 훈련";
     case 53:return L"무력 진압";case 84:return L"퇴역";case 85:return L"지원";
+    case 61:return L"완전수리";case 96:return L"기함 구매 · 교환";
     default:return L"전략 명령";
     }
 }
@@ -40,9 +42,11 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
     at<unsigned short>(record,4)=0x7f00;at<unsigned short>(record,6)=static_cast<unsigned short>(state.strategyCommand);
     at<unsigned short>(record,8)=static_cast<unsigned short>(state.card);
     at<unsigned short>(record,10)=static_cast<unsigned short>(state.strategyValue);
-    at<unsigned>(record,12)=preview ? cursor : armyStrategy(state.strategyCommand) ? state.strategyOutfit : state.strategyTarget;
+    at<unsigned>(record,12)=preview ? cursor : outfitStrategy(state.strategyCommand,state.card) ? state.strategyOutfit :
+        state.strategyCommand==96 && (state.strategyArgument==0 || state.strategyArgument==3) ? 0 : state.strategyTarget;
     at<BYTE>(record,16)=preview ? 1 : 0;at<unsigned>(record,28)=preview ? 0 : state.strategyBase;
     if(state.strategyCommand==22) {at<unsigned>(record,20)=state.strategyArgument;at<unsigned short>(record,24)=static_cast<unsigned short>(state.strategyAmount);}
+    if(state.strategyCommand==96)at<unsigned>(record,20)=state.strategyArgument;
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
     state.pending=true;state.sentAt=GetTickCount64();state.message=preview ? L"대상 인물 목록을 조회하고 있습니다." : L"서버에 요청했습니다.";
@@ -55,7 +59,8 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(!own || !at<BYTE>(own,0) || at<void*>(manager,0x18) || *reinterpret_cast<void**>(0x21aa888)!=own || !createTaxWindow())return 0;
     logh::CharacterCards cards;if(!logh::CharacterCards::read(own,0x370,cards))return 0;
     bool held=false;for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)held=true;
-    if(!held || (!personnelStrategy(command) && !operationStrategy(command) && (command==84 ? card!=0 : card!=59 && card!=195)))return 0;
+    if(!held || (command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
+        (command==84 ? card!=0 : card!=59 && card!=195)))return 0;
     closePlanetInformation();auto& state=taxWindow;
     state.world=world;state.character=at<unsigned>(own,0x24);state.card=card;
     state.strategyActive=true;state.strategyCommand=command;state.strategyOutfit=0;
@@ -64,10 +69,11 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     state.visible=true;state.loaded=true;state.pending=false;strategyDirectory={};
     state.acceptAfter=GetTickCount64()+250;state.message=L"실행을 누르면 서버가 권한·위치·CP를 확인합니다.";
     unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
-    if(armyStrategy(command) && count)state.strategyOutfit=outfits[0];
+    if(outfitStrategy(command,card) && count)state.strategyOutfit=outfits[0];
+    if(command==61 && card!=59 && card!=195)for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)state.strategyOutfit=cards.rows[i].target;
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(state.root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(state.manager,state.root);
-    if(personnelStrategy(command) || command==24)sendStrategyAction(true);
+    if(personnelStrategy(command) || command==24 || command==96)sendStrategyAction(true);
     return 1;
 }
 static void strategyNextBase(int direction) {
@@ -129,16 +135,62 @@ static bool updateStrategyOperation() {
     }
     return true;
 }
+static bool updateFlagshipMarket() {
+    auto& state=taxWindow;unsigned mode=state.strategyArgument;
+    static const wchar_t* modes[]={L"구매",L"교환 제안",L"받은 교환 수락",L"교환 취소 / 거절"};
+    taxText(0,L"기함 구매 · 교환");taxText(1,L"수도 기함공창의 접수 스폿에서 실행합니다.");taxText(2,modes[mode]);
+    wchar_t label[160];const StrategyDirectory::Person* selected=nullptr;
+    for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)selected=&strategyDirectory.people[i];
+    if(mode==3)swprintf_s(label,L"본인에게 연결된 교환 제안을 취소합니다.");
+    else if(selected)swprintf_s(label,L"%ls",selected->name);else swprintf_s(label,L"선택 가능한 항목이 없습니다.");
+    taxText(3,label);
+    if(mode==0 && selected) {
+        const wchar_t* rank=selected->rank==7 ? L"준장" : selected->rank==10 ? L"소령" : L"이등병";
+        swprintf_s(label,L"%ls 이상 · 평가 포인트 가격",rank);taxText(4,label);
+    }
+    else taxText(4,mode==1 ? L"수락 시 교환 · 24시간 유효" :
+        mode==2 ? L"같은 접수 스폿에서 수락" : L"기함 변경 없이 제안 취소");
+    taxText(5,mode==0 || mode==2 ? L"PCP 80 · 부족 시 MCP 160 전액 대용" : L"제안 / 취소에는 CP를 사용하지 않습니다.");
+    taxText(6,state.message);taxText(10,L"구매 / 교환 방식");taxText(11,L"이전");taxText(12,L"다음");taxText(13,L"목록 갱신");taxText(14,L"실행");
+    taxEnabled(10,!state.pending);taxEnabled(11,!state.pending && mode<3 && strategyDirectory.count>0);
+    taxEnabled(12,!state.pending && mode<3 && strategyDirectory.count>0);taxEnabled(13,!state.pending && mode<3);
+    taxEnabled(14,!state.pending && (mode==3 || selected!=nullptr));
+    if(state.pending && GetTickCount64()-state.sentAt>10000)state.message=L"응답 대기 중 · 재접속 후 실제 상태를 확인해 주세요.";
+    if(GetTickCount64()<state.acceptAfter)return true;
+    BYTE event[52]={};
+    for(int id=10;id<=15;++id)if(reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(state.root,2,taxWidget(1,id),event,0)) {
+        state.acceptAfter=GetTickCount64()+250;
+        if(id==15)closeTaxWindow();
+        else if(!state.pending) {
+            if(id==10) {
+                state.strategyArgument=(mode+1)%4;state.strategyTarget=0;state.strategyValue=0;strategyDirectory={};
+                if(state.strategyArgument<3)sendStrategyAction(true);
+            } else if(id==13 && mode<3)sendStrategyAction(true);
+            else if(id==14 && (mode==3 || selected!=nullptr))sendStrategyAction();
+            else if((id==11 || id==12) && mode<3) {
+                strategyNextPerson(id==11 ? -1 : 1);
+                if(mode==0 && state.strategyTarget>0)state.strategyValue=state.strategyTarget-1;
+            }
+        }
+        break;
+    }
+    return true;
+}
 static bool updateStrategyAction(void*) {
     auto& state=taxWindow;auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if(world!=state.world || !own || !at<BYTE>(own,0) || at<unsigned>(own,0x24)!=state.character ||
         !at<BYTE>(world,0x2b6a6c) || at<BYTE>(world,0x3579cc)) {closeTaxWindow();return false;}
     if(operationStrategy(state.strategyCommand))return updateStrategyOperation();
+    if(state.strategyCommand==96)return updateFlagshipMarket();
     unsigned command=state.strategyCommand;unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
-    bool army=armyStrategy(command),personnel=personnelStrategy(command),estate=command==8 || command==9,title=command==3 || command==4;
+    if(command==61 && state.card!=59 && state.card!=195) {
+        logh::CharacterCards cards;count=0;
+        if(logh::CharacterCards::read(own,0x370,cards))for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==state.card)outfits[count++]=cards.rows[i].target;
+    }
+    bool army=outfitStrategy(command,state.card),personnel=personnelStrategy(command),estate=command==8 || command==9,title=command==3 || command==4;
     taxText(0,strategyActionName(command));taxText(1,L"명령 확정 후에만 CP를 사용합니다.");
     const wchar_t* field=personnel ? (state.strategyField==0 ? L"현재 선택: 대상 인물" : estate ? L"현재 선택: 봉토 행성" : L"현재 선택: 수여 종류") : L"대상 부대 선택";
-    taxText(2,personnel ? field : command==53 ? L"대기 게임 24시간 · 치안 상승, 정부 지지 하락" :
+    taxText(2,personnel ? field : command==61 ? L"손상 수리 · 보유 군수물자 전량 소비 · 파괴된 함정은 제외" : command==53 ? L"대기 게임 24시간 · 치안 상승, 정부 지지 하락" :
         command==84 ? L"정치가 전환 · 게임 30일 재지원 불가" : command==85 ? L"소령으로 입대 · 표준 전함 지급" : L"현 위치의 부대 병력을 훈련합니다.");
     wchar_t label[160];
     if(personnel) {
@@ -191,7 +243,10 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
             if(at<BYTE>(record,16)==1)strategyDirectory.receiving=true;
             else {
                 state.pending=false;
-                state.message=at<unsigned short>(record,10) ? L"명령 거부 · 직무·대상·계급·병력·CP를 확인하세요." :
+                unsigned responseStatus=at<unsigned short>(record,10);
+                state.message=responseStatus==13 ? L"보유 군수물자가 부족합니다." : responseStatus==14 ? L"평가 포인트가 부족합니다." :
+                    responseStatus==15 ? L"상대나 교환 제안이 유효하지 않습니다." : responseStatus ? L"명령 거부 · 직무·장소·대상·계급·CP를 확인하세요." :
+                    at<BYTE>(record,16)==3 ? L"변경할 상태가 없습니다. CP를 사용하지 않았습니다." :
                     state.strategyCommand==53 ? L"진압 예약이 저장됐습니다. 게임 24시간 뒤 적용됩니다." : L"명령 결과가 서버에 저장됐습니다.";
             }
         }
@@ -203,7 +258,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
     auto result=reinterpret_cast<unsigned(__thiscall*)(void*,void*,void*)>(0x55ba80)(codec,record,stream);
     if(strategyDirectory.receiving) {
         strategyDirectory.receiving=false;auto& state=taxWindow;
-        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24)) {
+        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96)) {
             unsigned count=at<BYTE>(record,0);if(count>200)return result;
             strategyDirectory.count=count;
             for(unsigned i=0;i<count;++i) {
@@ -213,6 +268,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
             }
             if(state.strategyCommand==24)state.strategyBase=count ? strategyDirectory.people[0].id : 0;
             else state.strategyTarget=count ? strategyDirectory.people[0].id : 0;
+            if(state.strategyCommand==96)state.strategyValue=state.strategyArgument==0 && count ? state.strategyTarget-1 : 0;
             state.pending=false;
             state.message=count ? L"항목을 선택한 뒤 실행하십시오. 서버에서 조건을 다시 확인합니다." : L"이 페이지에 대상 인물이 없습니다. 목록 갱신으로 처음부터 조회합니다.";
         }

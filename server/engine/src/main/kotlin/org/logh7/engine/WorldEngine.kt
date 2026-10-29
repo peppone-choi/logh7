@@ -278,10 +278,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if(result.changed) {
                         if(worldStateCommitter==null)result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.STORAGE)
                         else {
-                            val before=checkNotNull(recovered?.player);val after=checkNotNull(result.player)
+                            val after=checkNotNull(result.player)
                             val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
-                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation)+(request.account to after),prepared)
-                            navigation.publishCommitted(request.account,before,after)
+                            val previous=checkNotNull(navigation).snapshot(session.generation)
+                            require(result.navigators.all {(account,player)->previous[account]?.let {
+                                it.generation==player.generation && it.characterId==player.characterId && it.power==player.power}==true})
+                            val next=previous+result.navigators+(request.account to after)
+                            worldStateCommitter.saveWorld(next,prepared)
+                            navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
                             result=result.copy(stocks=prepared)
                         }

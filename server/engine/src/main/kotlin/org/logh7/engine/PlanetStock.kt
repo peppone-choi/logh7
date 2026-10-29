@@ -20,7 +20,8 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val nextShipId: Int = 1, val nationalOffices:Map<NationalOffice,Int> = emptyMap(),
     val groundBattles:Map<Int,Long> = emptyMap(), val nationalTreasuries:Map<Int,Long> = emptyMap(),
     val strategic:StrategicState = StrategicState(),
-    val tacticalCommands:TacticalCommandState=TacticalCommandState()) {
+    val tacticalCommands:TacticalCommandState=TacticalCommandState(),
+    val flagshipMarket:FlagshipMarketState=FlagshipMarketState()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -31,6 +32,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(groundBattles.size<=350 && groundBattles.all {(base,at)->base in bases && at in 0..0xffffffffL})
         require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
         require(nationalTreasuries.all {(power,balance)->power in 2..3 && balance>=0}) { "Invalid national treasury" }
+        require(flagshipMarket.offers.all {it.base in bases}) {"Unknown flagship exchange base"}
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -72,7 +74,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         nationalOffices = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalOffices)),
         groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)),
         nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)),
-        strategic=stocks.strategic.detached(),tacticalCommands=stocks.tacticalCommands.detached())
+        strategic=stocks.strategic.detached(),tacticalCommands=stocks.tacticalCommands.detached(),
+        flagshipMarket=stocks.flagshipMarket.detached())
     val maximumStock: Int get() = policy.maximumStock
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
