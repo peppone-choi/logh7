@@ -23,7 +23,7 @@ static struct PlanetInformation {
     logh::PlanetOfficeHolder governor,garrison;
     unsigned governorCard,garrisonCard;
     bool governorSent,governorReady,garrisonSent,garrisonReady;
-    bool directoryVisible, directoryLocal;
+    bool directoryVisible, directoryLocal, tactical;
     unsigned directoryRows[350], directoryCount, directoryPage;
     ULONGLONG directorySentAt;
     bool conditionsReady, warehouseReady, displayed, timeoutShown, detailOpen;
@@ -32,6 +32,20 @@ static struct PlanetInformation {
 } planetInformation = {};
 
 #include "planet_window.h"
+
+// Strategy and tactical views have different ready/grid fields. Queries use the
+// same authoritative world cache; never borrow the strategy grid during combat.
+static unsigned planetInformationGrid(void* world) {
+    if (!world || at<BYTE>(world,0x3579cc)) return 5000;
+    auto own=at<void*>(world,8);
+    if (!own || !at<BYTE>(own,0)) return 5000;
+    if (at<BYTE>(world,0x126718)) {
+        unsigned grid=at<unsigned>(own,0x320);
+        return grid<5000 ? grid : 5000;
+    }
+    if (!at<BYTE>(world,0x2a58f8) || !at<BYTE>(world,0x2b6a6c)) return 5000;
+    return at<unsigned>(world,0x2b6a70);
+}
 
 static bool selectPlanetSystem(unsigned grid) {
     auto& info = planetInformation;
@@ -231,12 +245,13 @@ static int __cdecl planetInfoMenu(void* gui) {
     if (updateTaxWindow(gui)) return -1;
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
-    if (!world || !at<BYTE>(world,0x2a58f8)) resetPlanetUnitConnection();
+    if (planetInformationGrid(world)>=5000) resetPlanetUnitConnection();
     if (info.popup) {
         auto character = world ? at<void*>(world, 8) : nullptr;
-        if (world != info.world || !character || !at<BYTE>(character, 0) || !at<BYTE>(world, 0x2a58f8) ||
-            at<BYTE>(world, 0x3579cc) || !at<BYTE>(world, 0x2b6a6c) ||
-            at<unsigned>(character, 0x24) != info.character || at<unsigned>(world, 0x2b6a70) != info.originGrid)
+        if (world != info.world || !character || !at<BYTE>(character, 0) ||
+            planetInformationGrid(world) != info.originGrid ||
+            (at<BYTE>(world,0x126718)!=0) != info.tactical ||
+            at<unsigned>(character, 0x24) != info.character)
             closePlanetInformation();
         else {
             if (info.detailOpen) {
@@ -339,13 +354,13 @@ static int __cdecl planetInfoMenu(void* gui) {
         }
     }
     int selected = reinterpret_cast<int(__cdecl*)(void*)>(0x54be80)(gui);
-    if (selected != 6 || !world || !at<BYTE>(world, 0x2a58f8) || at<BYTE>(world, 0x3579cc) ||
-        !at<BYTE>(world, 0x2b6a6c) || *reinterpret_cast<void**>(0xc9e2f8)) return selected;
+    if (selected != 6 || planetInformationGrid(world)>=5000 ||
+        *reinterpret_cast<void**>(0xc9e2f8)) return selected;
     auto character = at<void*>(world, 8);
-    unsigned grid = at<unsigned>(world, 0x2b6a70);
+    unsigned grid = planetInformationGrid(world);
     if (!character || grid >= 5000 || !createPlanetWindow(gui)) return selected;
     info = {}; info.world = world; info.character = at<unsigned>(character, 0x24); info.originGrid = grid;
-    info.popup = planetWindowRoot; planetWindowTab = 0;
+    info.popup = planetWindowRoot; info.tactical=at<BYTE>(world,0x126718)!=0; planetWindowTab = 0;
     for (unsigned slot = 0; slot < 350; ++slot) {
         auto base = static_cast<BYTE*>(world) + 0x2eb800 + slot * 0x250;
         if (at<BYTE>(base, 0) && at<int>(base, 8) == 2) {

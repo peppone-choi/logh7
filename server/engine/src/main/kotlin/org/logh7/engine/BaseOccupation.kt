@@ -63,7 +63,8 @@ internal object BaseOccupationOperations {
             }
             val occupied=previous.copy(power=winner,camp=0,supplies=supplies,
                 governorId=0,garrisonCommanderId=0,capitalAdministratorId=0,capitalDefenseCommanderId=0,guardInspectorId=0,
-                units=UnitInventory(troops=previous.units.troops,work=previous.units.work.filterKeys {it.startsWith("T")}),
+                // Captured works restart, including recruitment; never revive progress on recapture.
+                units=UnitInventory(troops=previous.units.troops),
                 spareShips=SpareShipBoats())
             val capital=Capital.of(base)
             stocks=stocks.copy(bases=stocks.bases+(base.id to occupied),outfits=outfits,warehouses=warehouses,

@@ -34,7 +34,7 @@ class BaseOccupationTest {
         assertEquals(2,owner.power);assertEquals(1000,owner.supplies)
         assertEquals(0,owner.governorId);assertEquals(0,owner.garrisonCommanderId)
         assertTrue(owner.units.ships.isEmpty());assertTrue(owner.spareShips.values.isEmpty())
-        assertEquals(mapOf("T4" to 3),owner.units.work)
+        assertTrue(owner.units.work.isEmpty())
         val outfit=captured.outfits.getValue(2)
         assertEquals(0,outfit.activeShips!!.values.single {it.id==2}.boats)
         assertEquals(300,outfit.activeShips!!.values.single {it.id==3}.boats)
