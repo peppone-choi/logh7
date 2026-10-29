@@ -115,6 +115,33 @@ class NpcTacticsTest {
         assertNull(state.stocks.outfits.getValue(1).activeShips!!.values.single().tactical)
         assertEquals(2487,moves.last().destination);assertEquals(10000,moves.last().recipients.keys.single())
     }
+    @Test fun whollyConfusedFleetWithdrawsButOneConfusedUnitDoesNotWithdrawItsHealthyPeers() {
+        for(allConfused in listOf(false,true)) {
+            val state=state();val outfit=state.stocks.outfits.getValue(1)
+            val unit=outfit.activeShips!!.values.single()
+            state.stocks=state.stocks.copy(nextShipId=3,outfits=mapOf(1 to outfit.copy(
+                units=UnitInventory(mapOf(unit.stack to 2)),
+                activeShips=ActiveShipUnits(listOf(unit,unit.copy(id=2))))),
+                tacticalCommands=TacticalCommandState(morale=if(allConfused)mapOf(1 to 20,2 to 0) else mapOf(1 to 0)))
+            val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+            val moves=mutableListOf<TacticalMovement>()
+            assertTrue(settle(now,nav,stock,state,moves).isEmpty())
+            val ships=state.stocks.outfits.getValue(1).activeShips!!.values
+            assertEquals(allConfused,ships.all {it.tactical?.retreat!=null})
+            if(allConfused) {
+                assertEquals(300,ships[0].boats)
+                val target=checkNotNull(ships[0].tactical?.retreat).destination
+                assertTrue(settle(now+3719,nav,stock,state,moves).isEmpty())
+                assertEquals(OutfitPosition(2488),state.stocks.outfits.getValue(1).position)
+                assertTrue(settle(now+3720,nav,stock,state,moves).isEmpty())
+                val departed=state.stocks.outfits.getValue(1)
+                assertEquals(OutfitPosition(target),departed.position)
+                assertTrue(departed.activeShips!!.values.all {it.tactical==null && it.boats==300})
+                assertEquals(setOf(1,2),moves.filter {it.destination==target}.map {it.unit}.toSet())
+                assertEquals(mapOf(1 to 20,2 to 0),state.stocks.tacticalCommands.morale)
+            }
+        }
+    }
     @Test fun failedMovementOrShotSavePublishesNeitherMovementNorDamageAndRetryIsSingle() {
         val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state);val moves=mutableListOf<TacticalMovement>()
         val initial=state.stocks;state.fail=true

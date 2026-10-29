@@ -99,6 +99,7 @@ internal object NpcTactics {
             val retreat=live.mapNotNull {it.tactical?.takeIf {s->s.motion.grid==position.grid}?.retreat}.minByOrNull {it.acceptedAt}
             val critical=live.sumOf {it.boats.toLong()}*4 <= outfit.activeShips!!.values.sumOf {
                 UnitSpecifications.ships.single {s->s.kind==it.stack.kind}.number.toLong()} ||
+                live.all {stocks.tacticalCommands.confused(it.id)} ||
                 live.all {u->TacticalWeapon.entries.all {TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},it).power==0}}
             val withdrawal=retreat ?: if(critical && enemies.isNotEmpty()) exit(galaxy,outfit,position.grid,players,stocks)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
