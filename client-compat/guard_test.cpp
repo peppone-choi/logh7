@@ -74,15 +74,46 @@ static bool tacticalBaseDataTest() {
 }
 static bool tacticalWeaponSelectionTest() {
     logh::TacticalWeaponSelection selection;
-    if (selection.targetKind(2,1)!=1) return false;
-    for (unsigned menu=0x21;menu<=0x24;++menu) {
+    const unsigned ids[]={11,12},powers[]={110,20},mixed[]={110,0},changed[]={11,13},duplicate[]={11,11};
+    unsigned context=1,otherContext=2;
+    if(selection.targetKind(2,1)!=1 || !selection.canSelect(ids,powers,2) ||
+        selection.canSelect(ids,mixed,2) || selection.canSelect(duplicate,powers,2) ||
+        selection.canSelect(ids,powers,0) || selection.canSelect(ids,powers,33) || selection.canSelect(nullptr,powers,2))return false;
+    for(unsigned menu=0x21;menu<=0x24;++menu) {
         selection.select(menu);
-        if (selection.targetKind(2,1)!=(menu==0x24 ? 0x81u : 1u) ||
-            selection.targetKind(0,1)!=1 || selection.targetKind(1,1)!=1 ||
-            selection.targetKind(2,0)!=0 || selection.targetKind(2,0x81)!=0x81) return false;
+        if(selection.targetKind(2,1)!=1)return false; // An unbound menu is never a live AA request.
+        const bool bound=selection.bind(&context,ids,powers,2);
+        if(bound!=(menu==0x24) || selection.targetKind(2,1)!=(bound ? 0x81u : 1u) ||
+            selection.targetKind(0,1)!=1 || selection.targetKind(1,1)!=1 || selection.targetKind(2,0)!=0 ||
+            selection.targetKind(2,0x81)!=0x81)return false;
+        if(bound && (!selection.matches(&context,ids,2) || selection.matches(&otherContext,ids,2) ||
+            selection.matches(&context,changed,2) || selection.matches(&context,ids,1)))return false;
     }
-    selection.clear();if (selection.targetKind(2,1)!=1) return false;
-    selection.select(0x24);selection.select(0);return selection.targetKind(2,1)==1;
+    if(!selection.aiming(6,4,2) || selection.aiming(1,4,2) || selection.aiming(6,0,2) || selection.aiming(6,4,3))return false;
+    selection.clear();if(selection.targetKind(2,1)!=1 || selection.count || selection.world || selection.units[0])return false;
+    selection.select(0x24);if(!selection.bind(&context,ids,powers,2))return false;
+    if(selection.bind(&context,ids,mixed,2) || selection.targetKind(2,1)!=1)return false;
+    selection.select(0);if(selection.antiAir() || selection.matches(&context,ids,2))return false;
+    unsigned char storage[logh::TacticalAntiAirPreview::SIZE+2];memset(storage,0xa5,sizeof(storage));
+    auto preview=storage+1;
+    // AA power is independent of a missing missile profile. Six native sectors stop at 8.
+    if(!logh::TacticalAntiAirPreview::write(preview,20) || !logh::TacticalAntiAirPreview::owns(preview) ||
+        preview[0]!=1 || preview[1]!=5 || storage[0]!=0xa5 || storage[sizeof(storage)-1]!=0xa5)return false;
+    for(unsigned i=0;i<48;++i) {float value;memcpy(&value,preview+4+i*4,4);if(value!=100.f)return false;}
+    for(unsigned i=0;i<6;++i) {float value;memcpy(&value,preview+0xc4+i*4,4);if(value!=8.f)return false;}
+    logh::TacticalAntiAirPreview::clear(preview);
+    for(unsigned i=0;i<logh::TacticalAntiAirPreview::SIZE;++i)if(preview[i])return false;
+    if(logh::TacticalAntiAirPreview::write(preview,0) || preview[0] ||
+        logh::TacticalAntiAirPreview::write(preview,65536) || logh::TacticalAntiAirPreview::write(nullptr,110))return false;
+    if(!logh::TacticalAntiAirPreview::write(preview,20))return false;
+    const float missile[]={60.f,80.f,100.f,100.f,80.f,60.f,40.f,20.f};
+    for(unsigned i=0;i<48;++i)memcpy(preview+4+i*4,&missile[i%8],4);
+    unsigned char saved[logh::TacticalAntiAirPreview::SIZE];memcpy(saved,preview,sizeof(saved));
+    logh::TacticalAntiAirPreview::clear(preview);
+    if(memcmp(preview,saved,sizeof(saved)))return false; // A real native missile profile is not AA-owned.
+    memset(preview,0xa5,logh::TacticalAntiAirPreview::SIZE);logh::TacticalAntiAirPreview::clear(preview);
+    for(unsigned i=0;i<sizeof(storage);++i)if(storage[i]!=0xa5)return false;
+    return true;
 }
 static bool displayNameTest() {
     std::string stored="unchanged";

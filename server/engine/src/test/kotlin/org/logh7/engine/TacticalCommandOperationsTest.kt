@@ -73,6 +73,59 @@ class TacticalCommandOperationsTest {
         assertNull(s.players.getValue("pilot").fire)
         assertEquals(NavigationRejection.TARGET,accept(restored,TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99)).rejection)
     }
+    @Test fun aaOnlyAssaultFlagshipAndRepairShipDisperseAircraftButCannotIssueOrdinaryMissiles() {
+        for(personal in listOf(true,false)) {
+            val s=state();val enemy=s.stocks.outfits.getValue(2)
+            val carrier=ProductionUnits.find(3,"戦闘艇母艦Ⅰ").kind
+            val target=enemy.activeShips!!.values.single().copy(stack=UnitStack(carrier))
+            val source=if(personal)1010000 else 2
+            val sourceKind=if(personal)4 else 72
+            val spec=UnitSpecifications.ships.single {it.kind==sourceKind}
+            assertTrue(spec.number("対空兵装破壊力:対空兵装破壊力")>0)
+            assertEquals(0,TacticalArmaments.mount(spec,TacticalWeapon.MISSILE).power)
+            s.players=s.players+("pilot" to s.players.getValue("pilot").copy(hull=FlagshipHull(4,now)))+
+                ("enemy" to Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,
+                    hull=FlagshipHull(89,now),motion=motion(10f)))
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(target)),
+                units=UnitInventory(mapOf(UnitStack(carrier) to 1)))),tacticalCommands=TacticalCommandState(
+                air=mapOf(99 to TacticalAirWing(10002,2488,99,source,1,now+100))))
+            val r=run(s)
+            val missile=request(TacticalCommand(0x406,listOf(source),kind=3,targetKind=0x81,target=99))
+                .copy(tacticalCommand=null,tacticalShoot=TacticalShoot(listOf(source),2,1,99),shipKind=4)
+            val denied=if(personal)TacticalCombat.accept(missile,session,galaxy,r.navigation,r.production.snapshot(1)!!,s.commit,1)
+                else TacticalFleetShoot.accept(missile,session,galaxy,r.navigation,r.production,r.production.snapshot(1)!!,s.commit,1)
+            assertEquals(NavigationRejection.WEAPON,denied.rejection)
+            val command=missile.copy(tacticalShoot=null,tacticalCommand=TacticalCommand(0x406,listOf(source),kind=3,targetKind=0x81,target=99))
+            assertNotNull(TacticalCommandOperations.accept(command,session,galaxy,r.navigation,r.production,
+                r.production.snapshot(1)!!,s.commit,1).player)
+            val targetBefore=s.stocks.outfits.getValue(2).activeShips!!.values.single()
+            val suppliesBefore=s.stocks.outfits.getValue(1).supplies
+            val restored=run(s);val hits=settle(restored,now+5)
+            assertTrue(hits.isEmpty());assertTrue(s.stocks.tacticalCommands.air.isEmpty())
+            assertEquals(targetBefore,s.stocks.outfits.getValue(2).activeShips!!.values.single())
+            assertEquals(suppliesBefore,s.stocks.outfits.getValue(1).supplies)
+            assertEquals(10000,s.players.getValue("pilot").supplies);assertNull(s.players.getValue("pilot").fire)
+            assertTrue(s.stocks.outfits.values.flatMap {it.activeShips!!.values}.all {it.shot==null})
+        }
+    }
+    @Test fun antiAirUsesAnExclusiveEightUnitRadiusEvenForAnAaOnlyFlagship() {
+        fun fixture(distance:Float):Run {
+            val s=state();s.players=s.players+("pilot" to s.players.getValue("pilot").copy(hull=FlagshipHull(4,now)))
+            val enemy=s.stocks.outfits.getValue(2);val target=enemy.activeShips!!.values.single()
+            val moved=target.copy(tactical=target.tactical!!.copy(motion=motion(0f,distance)))
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(moved)))),
+                tacticalCommands=TacticalCommandState(air=mapOf(99 to TacticalAirWing(10002,2488,99,1010000,1,now+100))))
+            return run(s)
+        }
+        val command=request(TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99)).copy(shipKind=4)
+        val boundary=fixture(8f)
+        assertEquals(NavigationRejection.RANGE,TacticalCommandOperations.accept(command,session,galaxy,boundary.navigation,
+            boundary.production,boundary.production.snapshot(1)!!,boundary.state.commit,1).rejection)
+        assertTrue(boundary.state.stocks.tacticalCommands.orders.isEmpty())
+        val inside=fixture(7.999f)
+        assertNotNull(TacticalCommandOperations.accept(command,session,galaxy,inside.navigation,inside.production,
+            inside.production.snapshot(1)!!,inside.state.commit,1).player)
+    }
     @Test fun formationWaitsSavesAndMovesRealUnitsAfterReloadWithoutRepeatedOrders() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x40d,listOf(1,2),kind=6)).player)
         assertEquals(0f,r.state.stocks.outfits.getValue(1).activeShips!!.values[0].tactical!!.motion.origin.position.x)

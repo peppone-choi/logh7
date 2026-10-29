@@ -24,6 +24,20 @@ class TacticalAttackMessagesTest {
             TacticalCommandMessages.command(tagged.copyOf().also {it[19]=0})
         }
     }
+    @Test fun mixedAaCapableSourcesKeepTheThreeNativeArmsAndNormalizeOnlyTheRequestMarker() {
+        val request=ByteBuffer.allocate(29).putShort(0x406).putInt(0).putInt(0).putInt(10000).put(2)
+            .putInt(1010000).putInt(2).put(2).put(0x81.toByte()).putInt(99).array()
+        val shoot=TacticalAttackMessages.shoot(request)
+        assertTrue(shoot.antiAir);assertEquals(listOf(1010000,2),shoot.units);assertEquals(2,shoot.arms)
+        val command=TacticalCommandMessages.command(request)
+        val reply=TacticalCommandMessages.reply(command,100,120)
+        assertEquals(2,reply[18].toInt());assertEquals(2,reply[27].toInt());assertEquals(1,reply[28].toInt())
+        val restored=TacticalAttackMessages.shoot(reply.drop(4).toByteArray())
+        assertEquals(shoot.copy(targetKind=1),restored)
+        // Cancellation/rejection carries the same safe native arm/target layout.
+        assertEquals(1,ByteBuffer.wrap(TacticalCommandMessages.reply(command,100,0,false)).int)
+        assertFailsWith<IllegalArgumentException> {TacticalCommandMessages.command(request.copyOf().also {it[23]=3})}
+    }
     @Test fun attackModeIsIndependentOfShootTargetKindAndStopCarriesZero() {
         for(mode in 0..2) {
             val order=TacticalAttackMessages.Attack(10000,listOf(1010000),mode,0)
