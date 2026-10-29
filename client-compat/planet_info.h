@@ -106,6 +106,7 @@ static void requestPlanetInformation() {
 // Both callbacks run in the native world dispatcher, after its validated decode
 // and copy, on the game thread. Never reuse an earlier query cache on opening.
 static void __cdecl receivedPlanetConditions(void* world) {
+    receiveSystemAffiliation(world);
     taxConditions(world);
     auto& info = planetInformation;
     if (!info.popup || info.world != world) return;

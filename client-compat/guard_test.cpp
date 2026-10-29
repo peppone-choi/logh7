@@ -20,6 +20,7 @@
 #include "tactical_motion_data.h"
 #include "tactical_notice_data.h"
 #include "session_ending_data.h"
+#include "system_affiliation_data.h"
 static bool tacticalNoticesTest() {
     const char* missing = "NO DATA";
     const char* valid = "existing guidance";
@@ -204,6 +205,21 @@ static bool sessionEndingDataTest() {
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 int wmain(int argc, wchar_t** argv) {
+    logh::SystemAffiliation territory;
+    unsigned territoryIds[]={1048,1049,1050};
+    if (territory.affiliation(territoryIds,3,2487)!=10 ||
+        !territory.accept(1048,2487,2,0) || !territory.accept(1049,2487,3,0) ||
+        territory.affiliation(territoryIds,3,2487)!=10 || !territory.accept(1050,2487,2,0) ||
+        territory.affiliation(territoryIds,3,2487)!=11 || !territory.accept(1049,2487,2,0) ||
+        territory.affiliation(territoryIds,3,2487)!=4 || !territory.accept(1049,2487,2,1) ||
+        territory.affiliation(territoryIds,3,2487)!=11 || territory.accept(1049,5000,2,0) ||
+        territory.accept(1049,2487,5,0) || territory.accept(1049,2487,2,2)) return 80;
+    if (!territory.accept(1048,2487,0,0) || !territory.accept(1049,2487,0,0) ||
+        !territory.accept(1050,2487,0,0) || territory.affiliation(territoryIds,3,2487)!=0 ||
+        logh::systemAffiliationRgb(10)==logh::systemAffiliationRgb(0) ||
+        logh::systemAffiliationRgb(4)!=0x4080ff || logh::systemAffiliationRgb(6)!=0x00dc80 ||
+        logh::systemAffiliationRgb(5)!=0x40c0ff || logh::systemAffiliationRgb(7)!=0xffff40 ||
+        logh::systemAffiliationRgb(11)==logh::systemAffiliationRgb(7)) return 81;
     if(!sessionEndingDataTest())return 86;
     if (!groundLocationPageTest()) return 85;
     if (!tacticalMotionOriginsTest()) return 81;

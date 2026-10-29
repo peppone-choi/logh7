@@ -163,7 +163,13 @@ class WorldBootstrap(val galaxy: Galaxy) {
         } else emptyList()) + (stocks?.let { state -> state.outfits.values
             .filter { it.positionIn(galaxy).grid == grid }.sortedBy { it.id }.map { it.id }
             .chunked(100).ifEmpty { listOf(emptyList()) }.map { outfits(it,state) } }.orEmpty()) +
-            listOf(conditions(ids, stocks), places(ids, stocks))
+            // Ownership is public map state. The original 031f cache holds only four
+            // records; the compatibility map keeps each decoded base independently.
+            // Resend all current owners on login, not the seed's original system power.
+            (if (directory) galaxy.bases.map { it.id }.chunked(4).map { conditions(it,stocks) }
+                else emptyList()) +
+            // Restore the native four-record current-grid cache after the map snapshot.
+            listOf(conditions(ids,stocks), places(ids, stocks))
     }
     fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
         WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
