@@ -127,3 +127,28 @@ Set-Location 'E:/logh7/work/korean-stage2-wt'
 ```
 
 미선정 정적 후보 원문/VA는 이 작업 폴더의 `work/remaining-static-stage2-01.json`이다. 원본과 일치하는 기존 후보 372개 중 이번 고정 UI에 없는 281개를 보존했으며 개발자 진단을 포함한다. 실제 화면/직접 오류창과 UTF-16 리터럴의 전체 누락 수를 뜻하지 않는다. 저작물 원문을 담은 이 파일은 `work/` 밖으로 옮기거나 커밋하지 않는다.
+
+## Windows 오류창·추가 제목판의 세 번째 묶음 (2026-10-29)
+
+작성: 최병호. 작업 위치는 `E:/logh7/work/korean-stage3-wt`, 기준 `11f71ec`이다. Python 33개가 통과했다. `work/catalog-stage3-01/coverage.json`은 고정 UI 138개를 포함한 4,844개·누락 0이며 헤더 재생성이 일치했다. `test_display_hooks.py`는 MessageBoxA의 실제 IAT 이름/네 CALL, 화면 경고의 세 push와 복사 허용 목록도 검사한다. guard의 오류창 본문/제목·기존 번역 복원·미등록/변경 거부·ACP 짝 검사는 창을 열지 않으며 아직 실행하지 않았다.
+
+```powershell
+Set-Location 'E:/logh7/work/korean-stage3-wt'
+$python = 'C:/Users/user/AppData/Local/Programs/Python/Python311/python.exe'
+& $python -X utf8 -B -m unittest discover -s tools/l10n -p 'test_*.py' -v
+# 아래 DLL/guard 빌드는 메인 담당만 수행한다.
+& ./client-compat/build.ps1 -OutDir 'E:/logh7/work/korean-stage3-wt/work/korean-stage3-review'
+```
+
+추가 이미지 후보는 `work/korean-prototype-headers-02/package`의 TGA 두 개다. 기존 29개를 자동으로 바꾸지 않는다. 원본 백업·후보·manifest·`render.json`과 원본/후보 비교 `preview.png`를 포함한다. 원본 글꼴과 실제 표시 완료를 주장하지 않는다. `status_window.tga`는 정적 생성 참조를 확인했으며 다른 제목판의 실제 사용은 미확인이다. [상세](../../docs/l10n/image-localization.md#추가-제목판-후보-2개와-정적-참조-2026-10-29)를 따른다.
+
+```powershell
+$msg = (Get-ChildItem 'E:/logh7-original/extracted/install' -Recurse -File -Filter constmsg.dat).FullName
+$source = Join-Path (Split-Path (Split-Path $msg)) 'image'
+# 재생성 출력은 새 폴더여야 한다.
+& $python -X utf8 -B tools/l10n/render_prototypes.py $source work/korean-prototype-recheck
+& $python -X utf8 -B tools/l10n/image_patch.py verify work/korean-prototype-headers-02/package
+# apply/restore는 실행 담당의 중지한 소유 사본에만 기존 도구로 수행한다.
+```
+
+이 작업에서는 `work/prototype-roundtrip-02/data/image`에 두 원본을 복사해 실제 파일 바이트 적용/복구를 대조했다. 클라이언트에는 적용하지 않았다. 281개 분류 원문과 참조는 `work/static-stage3-classification-02.json`, 추가 이미지 완전 파일명 검색은 `work/prototype-image-references-01.json`에 있다. 원문/게임 자산을 담은 `work/` 파일은 커밋하지 않는다.

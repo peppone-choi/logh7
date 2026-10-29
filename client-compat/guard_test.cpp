@@ -7,6 +7,7 @@
 #include "unicode_text.h"
 #include "input_text.h"
 #include "korean_windows.h"
+#include "dialog_text.h"
 #include "portrait_label.h"
 #include "roster_text.h"
 #include "spot_name.h"
@@ -24,6 +25,30 @@
 #include "tactical_notice_data.h"
 #include "session_ending_data.h"
 #include "system_affiliation_data.h"
+static bool dialogTextTest() {
+    const char* mouse="\x83\x7d\x83\x45\x83\x58\x83\x66\x83\x6f\x83\x43\x83\x58\x82\xcc\x90\xb6\x90\xac\x82\xc9\x8e\xb8\x94\x73\x82\xb5\x82\xdc\x82\xb5\x82\xbd";
+    std::wstring text=L"unchanged";
+    if (!logh::translatedDialogText(mouse,false,text) || text!=L"마우스 장치를 만들지 못했습니다.") return false;
+    const auto translated=logh::koreanResourceEntry((static_cast<uint64_t>(65535)<<32)|0x788038);
+    if (!translated || !logh::translatedDialogText(translated->text,false,text) || text!=L"마우스 장치를 만들지 못했습니다.") return false;
+    std::string copied(translated->text);
+    if (!logh::translatedDialogText(copied.c_str(),false,text) || text!=L"마우스 장치를 만들지 못했습니다.") return false;
+    const char* error="\x83\x47\x83\x89\x81\x5b";
+    if (!logh::translatedDialogText(error,true,text) || text!=L"오류") return false;
+    if (logh::translatedDialogText(error,false,text) || text!=L"오류" ||
+        logh::translatedDialogText("\x90\xed\x8a\xcd",false,text) || text!=L"오류" ||
+        logh::translatedDialogText("unreviewed error",false,text) || text!=L"오류" ||
+        logh::translatedDialogText(nullptr,false,text) || text!=L"오류") return false;
+    std::string changed(mouse);changed+='!';
+    if (logh::translatedDialogText(changed.c_str(),false,text) || text!=L"오류") return false;
+    // The untranslated partner is Windows ACP, not CP932. No GUI is opened.
+    if (!logh::ansiDialogText("\xc7\xd1\xb1\xdb ABC",text,949) || text!=L"한글 ABC" ||
+        logh::ansiDialogText("\x81",text,949) || text!=L"한글 ABC" ||
+        !logh::ansiDialogText(nullptr,text,949) || !text.empty()) return false;
+    for (unsigned address:logh::dialogMessageBoxCalls)
+        if (!logh::dialogMessageBoxCaller(address+6) || logh::dialogMessageBoxCaller(address)) return false;
+    return !logh::dialogMessageBoxCaller(0x12345678);
+}
 static bool tacticalBaseDataTest() {
     BYTE record[28]={};unsigned base=1000,target=11;unsigned short unavailable=10,destroyed=5,lost=20;
     memcpy(record+4,&base,4);memcpy(record+12,&target,4);
@@ -280,6 +305,7 @@ static bool sessionEndingDataTest() {
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 int wmain(int argc, wchar_t** argv) {
+    if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;
     const char* battleship="\x90\xed\x8a\xcd";
     const char* translated=logh::koreanResource(85,0,battleship);

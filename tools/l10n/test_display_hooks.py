@@ -58,5 +58,35 @@ class DisplayHookTests(unittest.TestCase):
             self.assertEqual(int(count),len(specifiers))
             self.assertTrue(all(re.fullmatch(r'%-?\d*s',item) for item in specifiers))
 
+    def test_message_box_calls_use_verified_import_and_literal_pushes_keep_stack_shape(self):
+        header=(catalog.ROOT/'client-compat/dialog_text.h').read_text('utf-8')
+        values=re.search(r'dialogMessageBoxCalls\[\]=\{([^}]+)\}',header).group(1)
+        addresses=[int(value,16) for value in values.split(',')]
+        expected=b'\xff\x15\xdc\xb5\x66\0'
+        self.assertEqual(4,len(addresses))
+        for address in addresses:self.assertEqual(expected,self.raw(address,6))
+        target=struct.unpack('<I',self.raw(0x66b5dc,4))[0]
+        self.assertEqual(b'MessageBoxA\0',self.raw(self.base+target+2,12))
+        literal=(catalog.ROOT/'client-compat/literal_text.h').read_text('utf-8')
+        values=re.search(r'koreanLiteralPushes\[\]=\{([^}]+)\}',literal).group(1)
+        for value in values.split(','):
+            self.assertEqual(b'\x68\x4c\x19\x77\0',self.raw(int(value,16),5))
+        self.assertEqual(b'\xc3',self.raw(0x5923a0,1)) # Disabled trace function.
+
+    def test_exact_dialog_copies_exclude_formats_and_general_names(self):
+        header=(catalog.ROOT/'client-compat/dialog_text.h').read_text('utf-8')
+        document=catalog.read_json(catalog.ROOT/'l10n/exe-ui.ko.json')
+        bodies=re.search(r'dialogBodyCopies\[\]=\{([^}]+)\}',header).group(1)
+        captions=re.search(r'dialogCaptionCopies\[\]=\{([^}]+)\}',header).group(1)
+        body_addresses=[int(value.strip(),16) for value in bodies.split(',')]
+        addresses=body_addresses+[int(value.strip(),16) for value in captions.split(',')]
+        self.assertEqual(len(addresses),len(set(addresses)))
+        for address in addresses:
+            self.assertIn(format(address,'x'),document['entries'])
+            raw=self.raw(address,2048).split(b'\0')[0]
+            self.assertFalse(catalog.PRINTF.findall(raw.decode('cp932')))
+            if address in body_addresses:self.assertGreaterEqual(len(raw),8)
+        self.assertNotIn(0x771df4,addresses) # Generic planet/name labels stay out.
+
 
 if __name__=='__main__':unittest.main()
