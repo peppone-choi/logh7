@@ -151,14 +151,9 @@ class GamePresence {
                 packets+=org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,event.destination,it)
             }
             if(player.grid==event.destination && player.cpPaused) {
-                if(!previous.player.cpPaused)packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,true)
-                else {
-                    val tactical=TacticalBootstrap(snapshot,world.galaxy,player,characterById)
-                    packets+=org.logh7.protocol.TacticsMessages.definitions(player.grid,tactical.units,tactical.groundDefinitions)
-                    packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
-                    packets+=org.logh7.protocol.TacticsMessages.states(tactical.units)
-                    packets+=org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation)
-                }
+                // Definitions/states replace caches but do not import a new native model.
+                // Re-enter through 0f02 to rebuild the complete committed battlefield.
+                packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,true)
             }
             send(member,packets+updated.refresh)
         }

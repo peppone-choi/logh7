@@ -210,7 +210,13 @@ class GameExchange(
     }
     internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED || !gameStarted || obsolete() || sessionEndingAvailable()) null else {
-            val output=tacticalPresence(messages)
+            val current=tacticalPresence(messages)
+            fun entering(message:ByteArray)=message.size>=7 &&
+                java.nio.ByteBuffer.wrap(message).getShort(4).toInt() and 65535==0x0f1f && message[6].toInt()==1
+            val output=if(current.any(::entering)) {
+                if(tacticalInitializationPending)current.filterNot(::entering)
+                else current.also {tacticalInitializationPending=true}
+            } else current
             if(output.isEmpty())null else {
                 presence?.observeMotions(connection,output)
                 handshake.stageAll(output, clearHeader = 0)
