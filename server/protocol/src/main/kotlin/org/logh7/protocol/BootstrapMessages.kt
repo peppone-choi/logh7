@@ -59,7 +59,8 @@ object BootstrapMessages {
         require(character.merit in 0..0xffffffffL && character.evaluation in 0..0xffffffffL &&
             character.money in 0..0xffffffffL && character.influence in 0..100 && character.decorations.all {it in 0..127})
         out.putInt(pcp).putInt(mcp).putInt(character.evaluation.toInt())
-        out.putShort(0); repeat(6) { u8(0) }; u8(1) // mail, AI switches, online
+        require(character.ai.size==6 && character.ai.all {it in 0..1})
+        out.putShort(0);character.ai.forEach(::u8);u8(1) // mail, operation + five AI switches, online
         val decorations=ByteArray(16)
         character.decorations.forEach {index->decorations[index/8]=(decorations[index/8].toInt() or (1 shl (index%8))).toByte()}
         out.putInt(character.money.toInt()).put(decorations); u8(0); u8(1)

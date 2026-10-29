@@ -116,21 +116,11 @@ class GameExchange(
     private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
         player.hull?.let { hull -> org.logh7.engine.Flagships.find(hull.kind)?.let {
             character.copy(shipKind=it.kind,shipType=it.type) } } ?: character
-    private fun currentCharacterById(id:Int):CharacterMessages.Generate? = characters.characterById(id)?.let {character ->
-        val snapshot=navigation?.snapshot()
-        val profile=snapshot?.planetStocks?.strategic?.people?.get(id)
-        val updated=profile?.let {character.copy(rank=it.rank ?: character.rank,abilities=it.abilities ?: character.abilities,
-            title=it.peerage?.let {title->title.ordinal+1} ?: character.title,merit=it.merit,influence=it.influence,
-            evaluation=it.evaluation,money=it.money,decorations=it.decorations)} ?: character
-        snapshot?.navigators?.values?.singleOrNull {it.characterId==id}?.let {flagshipCharacter(updated,it)} ?: updated
+    private fun currentCharacterById(id:Int):CharacterMessages.Generate? = characters.characterById(id)?.let {
+        WorldCharacters.view(it,navigation?.snapshot())
     }
-    private fun currentCharacter(account:String):CharacterMessages.Generate? = characters.character(account)?.let { character ->
-        val snapshot=navigation?.snapshot()
-        val profile=snapshot?.planetStocks?.strategic?.people?.get(character.id.toInt())
-        val updated=profile?.let {character.copy(rank=it.rank ?: character.rank,abilities=it.abilities ?: character.abilities,
-            title=it.peerage?.let {title->title.ordinal+1} ?: character.title,merit=it.merit,influence=it.influence,
-            evaluation=it.evaluation,money=it.money,decorations=it.decorations)} ?: character
-        snapshot?.navigators?.get(account)?.let {flagshipCharacter(updated,it)} ?: updated
+    private fun currentCharacter(account:String):CharacterMessages.Generate? = characters.character(account)?.let {
+        WorldCharacters.view(it,navigation?.snapshot())
     }
     private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         BootstrapMessages.unit(flagshipCharacter(character,player), player.grid, player.cruise, player.baseId, player.mode,
@@ -409,16 +399,21 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val shoot = org.logh7.protocol.TacticalAttackMessages.shoot(body)
                         require(shoot.character == character.id.toInt())
+                        val antiAir=shoot.antiAir
                         pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
-                            shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalShoot=org.logh7.engine.TacticalShoot(
-                                shoot.units,shoot.arms,shoot.targetKind,shoot.target))).thenApply { result ->
+                            shipKind=character.shipKind,rank=character.rank,commandAbility=character.abilities[4],
+                            tacticalShoot=if(antiAir)null else org.logh7.engine.TacticalShoot(shoot.units,shoot.arms,shoot.targetKind,shoot.target),
+                            tacticalCommand=if(antiAir)org.logh7.engine.TacticalCommand(0x406,shoot.units,kind=3,
+                                targetKind=shoot.targetKind,target=shoot.target,payload=body.drop(2).map {it.toInt() and 255}) else null)).thenApply { result ->
                             val player = checkNotNull(result.player ?: result.previous)
                             publication = Publication(character,player,false)
                             val shot=navigation.snapshot()?.planetStocks?.outfits?.values?.asSequence()
                                 ?.flatMap {it.activeShips?.values.orEmpty().asSequence()}?.firstOrNull {it.id in shoot.units}?.shot
-                            val wait = if(result.player == null) 0 else if(player.unitId in shoot.units)
+                            val wait = if(result.player == null) 0 else if(antiAir)
+                                (checkNotNull(result.commandReadyAt)-gameSeconds()).coerceAtLeast(0)
+                                else if(player.unitId in shoot.units)
                                 checkNotNull(player.fire?.pending).let {it.firesAt-it.acceptedAt}
                                 else checkNotNull(shot).let {it.firesAt-it.acceptedAt}
                             listOf(org.logh7.protocol.TacticalAttackMessages.reply(shoot,gameSeconds(),wait,result.player != null)) + commandCorps(identity.account)
@@ -562,6 +557,23 @@ class GameExchange(
                             pendingWorld = navigation.synchronizeTime().thenCompose {recover(character,identity.account,body)}
                             return null
                         }
+                    }
+                    0x0f18 -> {
+                        check(gameStarted && worldInitialized && navigation!=null && world!=null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val settings=org.logh7.protocol.OfflineDirectionMessages.settings(body)
+                        require(settings.character==character.id.toInt())
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,settings.character,
+                            if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),offlineDirection=settings.mask)).thenApply {result ->
+                            val player=checkNotNull(result.player ?: result.previous)
+                            val updated=checkNotNull(currentCharacter(identity.account))
+                            publication=Publication(updated,player,false)
+                            val actual=org.logh7.protocol.OfflineDirectionMessages.Settings(player.characterId,updated.ai.drop(1))
+                            listOf(org.logh7.protocol.OfflineDirectionMessages.reply(actual,gameSeconds(),result.player!=null),
+                                characterMessage(updated,player,true))+completedWork(result,updated)
+                        }
+                        return null
                     }
                     0x0f1a -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)

@@ -19,9 +19,46 @@
 #include "planet_tax_data.h"
 #include "tactical_support_data.h"
 #include "tactical_motion_data.h"
+#include "tactical_weapon_data.h"
+#include "tactical_base_data.h"
 #include "tactical_notice_data.h"
 #include "session_ending_data.h"
 #include "system_affiliation_data.h"
+static bool tacticalBaseDataTest() {
+    BYTE record[28]={};unsigned base=1000,target=11;unsigned short unavailable=10,destroyed=5,lost=20;
+    memcpy(record+4,&base,4);memcpy(record+12,&target,4);
+    record[9]=0x81;record[20]=255;record[24]=35;
+    memcpy(record+16,&unavailable,2);memcpy(record+18,&destroyed,2);
+    logh::TacticalBaseDamage hit;
+    if (!hit.read(record,300,70) || hit.normal!=290 || hit.alive!=295 || hit.face!=255 || hit.morale!=35) return false;
+    record[20]=2;memcpy(record+22,&lost,2);
+    if (!hit.read(record,300,70) || hit.shield!=50 || hit.face!=2) return false;
+    unavailable=4;memcpy(record+16,&unavailable,2);
+    if (hit.read(record,300,70) || hit.normal!=290 || hit.alive!=295) return false;
+    unavailable=10;memcpy(record+16,&unavailable,2);record[9]=1;
+    if (hit.read(record,300,70)) return false;
+    BYTE supply[16]={};unsigned available=321,zero=0;
+    memcpy(supply,&base,4);memcpy(supply+8,&available,4);
+    logh::TacticalEmergencySupply state;
+    if (!state.read(supply) || state.base!=1000 || state.target || state.available!=321 || state.supplies) return false;
+    memcpy(supply+4,&target,4);memcpy(supply+12,&available,4);
+    if (!state.read(supply) || state.target!=11 || state.supplies!=321) return false;
+    memcpy(supply+4,&zero,4);
+    if (state.read(supply) || state.target!=11) return false;
+    return true;
+}
+static bool tacticalWeaponSelectionTest() {
+    logh::TacticalWeaponSelection selection;
+    if (selection.targetKind(2,1)!=1) return false;
+    for (unsigned menu=0x21;menu<=0x24;++menu) {
+        selection.select(menu);
+        if (selection.targetKind(2,1)!=(menu==0x24 ? 0x81u : 1u) ||
+            selection.targetKind(0,1)!=1 || selection.targetKind(1,1)!=1 ||
+            selection.targetKind(2,0)!=0 || selection.targetKind(2,0x81)!=0x81) return false;
+    }
+    selection.clear();if (selection.targetKind(2,1)!=1) return false;
+    selection.select(0x24);selection.select(0);return selection.targetKind(2,1)==1;
+}
 static bool tacticalNoticesTest() {
     const char* missing = "NO DATA";
     const char* valid = "existing guidance";
@@ -249,6 +286,8 @@ int wmain(int argc, wchar_t** argv) {
     if (!groundLocationPageTest()) return 85;
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
+    if (!tacticalWeaponSelectionTest()) return 87;
+    if (!tacticalBaseDataTest()) return 88;
     if (!stationaryTacticalPoseTest()) return 83;
     if (!tacticalWaypointOrderTest()) return 84;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};

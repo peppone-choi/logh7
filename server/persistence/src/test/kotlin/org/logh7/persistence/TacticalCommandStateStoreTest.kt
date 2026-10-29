@@ -12,7 +12,8 @@ class TacticalCommandStateStoreTest {
     private fun state():TacticalCommandState {
         val motion=TacticalMotion(2488,100,TacticalPose(TacticalPoint(1f,2f),0f),.5f,0f,listOf(TacticalPoint(3f,4f)))
         return TacticalCommandState(listOf(TacticalQueuedCommand(10000,2488,100,105,
-            TacticalCommand(0x421,listOf(1010001),kind=4,target=99,payload=listOf(1,2,3)))),
+            TacticalCommand(0x421,listOf(1010001),kind=4,target=99,payload=listOf(1,2,3))),
+            TacticalQueuedCommand(10000,2488,100,105,TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99))),
             morale=mapOf(3 to 17),authority=mapOf(3 to 10001),formations=mapOf(10000 to 6),
             missions=mapOf(10001 to TacticalMissionState(10001,1,0,1000,100)),
             proposals=mapOf(10000 to TacticalMissionState(10000,5,0,0,100)),
@@ -29,6 +30,25 @@ class TacticalCommandStateStoreTest {
         // Relabeling the combined S+C header as strategy-only STOCK-29 must be rejected.
         Files.writeString(path,Files.readString(path).replace("LOGH7-STOCK-30","LOGH7-STOCK-29"))
         FilePlanetStockStore(path).use {assertFails {it.load()}}
+    }
+    @Test fun legacyVersionOneRemainsCanonicalAndVersionTwoRetainsAiAndRewardReceipts() {
+        fun version(text:String)=java.nio.ByteBuffer.wrap(java.util.Base64.getUrlDecoder().decode(text)).int
+        val legacy=state();val old=TacticalCommandStateCodec.encode(legacy)
+        assertEquals(1,version(old));assertEquals(old,TacticalCommandStateCodec.encode(TacticalCommandStateCodec.decode(old)))
+        val current=legacy.copy(aiSwitches=mapOf(10000 to 21),creditedMerits=mapOf(10000 to 120L),
+            aiNextAt=mapOf(10000 to 105L),missions=mapOf(10001 to legacy.missions.getValue(10001).copy(grid=2488)))
+        val encoded=TacticalCommandStateCodec.encode(current)
+        assertEquals(2,version(encoded));assertEquals(current,TacticalCommandStateCodec.decode(encoded))
+        val path=directory.resolve("ai-world")
+        val world=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,0,0)),tacticalCommands=current,
+            strategic=StrategicState(people=mapOf(10000 to StrategicPerson(merit=120))))
+        FileWorldStateStore(path).use {it.saveWorld(emptyMap(),world)}
+        FileWorldStateStore(path).use {store->
+            val loaded=checkNotNull(store.loadStocks());assertEquals(world,loaded)
+            assertFailsWith<UnsupportedOperationException>{(loaded.tacticalCommands.aiSwitches as MutableMap).clear()}
+            assertFailsWith<UnsupportedOperationException>{(loaded.tacticalCommands.creditedMerits as MutableMap).clear()}
+            assertFailsWith<UnsupportedOperationException>{(loaded.tacticalCommands.aiNextAt as MutableMap).clear()}
+        }
     }
     @Test fun truncatedDuplicateAndTrailingDataAreRejected() {
         val encoded=TacticalCommandStateCodec.encode(state())

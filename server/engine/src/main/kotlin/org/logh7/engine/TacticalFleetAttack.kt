@@ -96,7 +96,8 @@ internal object TacticalFleetAttack {
                 val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                 if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
-                val victim=ids.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,power,stocks,galaxy,players)
+                val preferred=stocks.tacticalCommands.missions[command.commander]?.takeIf {it.mission==3 && !it.completed}?.target
+                val victim=ids.sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,power,stocks,galaxy,players)
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
                         TacticalArmaments.effectiveness(mount,origin,pose(t,now,players,stocks,galaxy).position)>0 &&
                             !TacticalLineOfFire.blocked(id,position.grid,power,origin.position,pose(t,now,players,stocks,galaxy).position,

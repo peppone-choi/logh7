@@ -12,13 +12,19 @@ object TacticalCommandMessages {
     data class Command(val opcode:Int,val character:Int,val units:List<Int> = emptyList(),val base:Int=0,
         val kind:Int=0,val targetKind:Int=0,val target:Int=0,val velocity:Float=0f,val direction:Float=0f,
         val points:List<Point> = emptyList(),val payload:List<Int>) {
-        init {require(opcode in opcodes && character>0 && units.size<=32 && units.all {it>0} &&
+        init {require((opcode in opcodes || opcode==0x406 && kind==3 && targetKind==TacticalAttackMessages.ANTI_AIR_TARGET_KIND) && character>0 && units.size<=32 && units.all {it>0} &&
             units.distinct().size==units.size && base>=0 && target>=0 && payload.size in 16..800 && payload.all {it in 0..255})}
     }
     fun command(message:ByteArray):Command {
         require(message.size in 18..802)
         val input=ByteBuffer.wrap(message)
-        val op=input.short.toInt() and 65535;require(op in opcodes)
+        val op=input.short.toInt() and 65535
+        if(op==0x406) {
+            val shoot=TacticalAttackMessages.shoot(message);require(shoot.antiAir)
+            return Command(op,shoot.character,shoot.units,kind=3,targetKind=shoot.targetKind,target=shoot.target,
+                payload=message.drop(2).map {it.toInt() and 255})
+        }
+        require(op in opcodes)
         input.long
         val character=input.int
         var units=emptyList<Int>();var base=0;var kind=0;var targetKind=0;var target=0
@@ -57,6 +63,8 @@ object TacticalCommandMessages {
     /** Preserve native opaque fields, replacing only the two server scheduling words. */
     fun reply(command:Command,seconds:Long,wait:Long,accepted:Boolean=true):ByteArray {
         require(seconds in 0..0xffffffffL && wait in 0..0xffffffffL-seconds)
+        if(command.opcode==0x406)return TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(
+            command.character,command.units,2,TacticalAttackMessages.ANTI_AIR_TARGET_KIND,command.target),seconds,wait,accepted)
         val payload=command.payload.map {it.toByte()}.toByteArray()
         ByteBuffer.wrap(payload).putInt(seconds.toInt()).putInt(wait.toInt())
         return LoginMessages.sessionMessage(command.opcode,payload).also {if(!accepted)ByteBuffer.wrap(it).putInt(0,1)}

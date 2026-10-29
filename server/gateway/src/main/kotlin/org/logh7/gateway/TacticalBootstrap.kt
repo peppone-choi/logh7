@@ -5,7 +5,8 @@ import org.logh7.protocol.*
 
 /** Native tactical initialization from actual unit identities; formation placement is provisional. Author: 최병호. */
 internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val galaxy: Galaxy,private val viewer: Navigator,
-    private val characterById: (Int)->CharacterMessages.Generate?) {
+    baseCharacterById: (Int)->CharacterMessages.Generate?) {
+    private val characterById:(Int)->CharacterMessages.Generate? = {id->baseCharacterById(id)?.let {WorldCharacters.view(it,snapshot)}}
     private val people=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==viewer.grid && it.baseId==0}
         .sortedBy {it.characterId}
     val characterIds get()=people.map {it.characterId}
@@ -13,8 +14,9 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
         val state=snapshot.planetStocks!!.tacticalCommands
         val mission=state.missions[p.characterId]
-        val chief=people.filter {it.power==p.power}.maxWithOrNull(compareBy<Navigator> {
-            -(characterById(it.characterId)?.rank ?: 20)}.thenBy {state.merits[it.characterId] ?: 0}.thenByDescending {it.characterId})
+        val chief=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==p.grid &&
+            it.power==p.power && (it.cpPaused || it.baseId>0)}.maxWithOrNull(compareBy<Navigator> {
+            -(characterById(it.characterId)?.rank ?: 20)}.thenBy {TacticalPersonnel.merit(checkNotNull(snapshot.planetStocks),it.characterId)}.thenByDescending {it.characterId})
         val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}
         val energy=p.energy ?: TacticalEnergy.ZERO
         val charge=if(p.cpPaused) p.charge?.levels(snapshot.session?.gameSeconds ?: 0,energy) else null
@@ -136,9 +138,15 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(shot.commander,listOf(u.id),shot.weapon.wire,1,shot.target),
                     now,(shot.firesAt-now).coerceAtLeast(0))
             }} }
+    private fun emergencySupplies():List<ByteArray> {
+        val stocks=checkNotNull(snapshot.planetStocks)
+        val power=if(viewer.power==Power.EMPIRE)2 else 3
+        return bases.filter {stocks.tacticalCommands.emergencySupplies[it.id]==power}.map {
+            org.logh7.protocol.TacticalBaseMessages.emergency(it.id,0,stocks.bases.getValue(it.id).supplies,0)}
+    }
     fun initialize(offices:(CharacterMessages.Generate,Navigator)->List<BootstrapMessages.OfficeCard> = {_,_->emptyList()}): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,offices(c,p))
     }} + listOf(TacticsMessages.baseInformation(baseInformation),
         TacticsMessages.definitions(viewer.grid,units,groundDefinitions),
-        TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))
+        TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))+emergencySupplies()
 }

@@ -45,6 +45,34 @@ class TacticalCommandOperationsTest {
     private fun settle(r:Run,at:Long,events:MutableList<TacticalCommandResult> = mutableListOf(),impacts:MutableList<TacticalImpact> = mutableListOf())=
         TacticalCombat.settle(session.copy(gameMillis=at*1000),galaxy,r.navigation,r.production,r.state.commit,scale=1,onCommand=events::add).also {impacts+=it}
 
+    @Test fun explicitAntiAirWaitsAcrossReloadDispersesTheWingAndRestoresSpeedWithoutHittingItsCarrier() {
+        val s=state();val enemy=s.stocks.outfits.getValue(2)
+        val carrier=ProductionUnits.definitions.first {it.ship && it.power==3 && it.name.startsWith("戦闘艇母艦")}.kind
+        val target=enemy.activeShips!!.values.single().copy(stack=UnitStack(carrier))
+        val own=s.stocks.outfits.getValue(1)
+        val slowed=own.activeShips!!.values.map {unit->if(unit.id!=1)unit else {
+            val state=checkNotNull(unit.tactical)
+            unit.copy(tactical=state.copy(motion=state.motion.copy(velocity=.25f,waypoints=listOf(TacticalPoint(0f,10f)),waitSeconds=0)))
+        }}
+        s.players=s.players+("enemy" to Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,
+            hull=FlagshipHull(89,now),motion=motion(10f)))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(activeShips=ActiveShipUnits(slowed)))+
+            (2 to enemy.copy(activeShips=ActiveShipUnits(listOf(target)),units=UnitInventory(mapOf(UnitStack(carrier) to 1)))),
+            tacticalCommands=TacticalCommandState(air=mapOf(99 to TacticalAirWing(10002,2488,99,1,1,now+100,.5f))))
+        val r=run(s);val before=s.stocks.outfits.getValue(2).activeShips!!.values.single()
+        assertNotNull(accept(r,TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99)).player)
+        assertEquals(NavigationRejection.BUSY,TacticalCommandOperations.guard(request(TacticalCommand(0x409,listOf(1010000))),
+            session,r.navigation,r.production.snapshot(1)!!)?.rejection)
+        val hits=mutableListOf<TacticalImpact>();settle(r,now+4,impacts=hits)
+        assertTrue(99 in s.stocks.tacticalCommands.air)
+        val restored=run(s);settle(restored,now+5,impacts=hits)
+        assertTrue(s.stocks.tacticalCommands.air.isEmpty());assertTrue(hits.isEmpty())
+        assertEquals(before,s.stocks.outfits.getValue(2).activeShips!!.values.single())
+        assertEquals(.5f,s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.motion.velocity)
+        assertEquals(10000,s.players.getValue("pilot").supplies);assertEquals(100,s.players.getValue("pilot").pcp)
+        assertNull(s.players.getValue("pilot").fire)
+        assertEquals(NavigationRejection.TARGET,accept(restored,TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99)).rejection)
+    }
     @Test fun formationWaitsSavesAndMovesRealUnitsAfterReloadWithoutRepeatedOrders() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x40d,listOf(1,2),kind=6)).player)
         assertEquals(0f,r.state.stocks.outfits.getValue(1).activeShips!!.values[0].tactical!!.motion.origin.position.x)
@@ -108,13 +136,48 @@ class TacticalCommandOperationsTest {
         assertEquals(1,r.state.stocks.tacticalCommands.missions[10001]?.mission)
         settle(r,now+5+TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS)
         assertEquals(1L,r.state.stocks.tacticalCommands.merits[10001])
+        assertEquals(1L,r.state.stocks.strategic.people.getValue(10001).merit)
+        val restored=run(r.state);settle(restored,now+5+TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS)
+        assertEquals(1L,r.state.stocks.strategic.people.getValue(10001).merit)
+    }
+    @Test fun missionInterceptionCreditsTheActualCommanderEvenWhenItsLastEnemyDies() {
+        val s=state();val enemy=s.stocks.outfits.getValue(2);val target=enemy.activeShips!!.values.single()
+        val maximum=UnitSpecifications.ships.single {it.kind==target.stack.kind}.number
+        val dead=target.copy(boats=0,damaged=0)
+        val stock=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(dead)))),
+            tacticalCommands=TacticalCommandState(missions=mapOf(10000 to TacticalMissionState(10000,3,1,99,now,grid=2488))))
+        val impacts=mutableListOf(TacticalImpact(1,1010000,TacticalWeapon.BEAM,TacticalHit(1,2488,now,99,maximum),emptyMap()))
+        val events=mutableListOf<TacticalCommandResult>();val players=s.players.toMutableMap()
+        val next=TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,events,impacts)
+        assertEquals(30L,next.strategic.people.getValue(10000).merit)
+        assertEquals(30L,next.tacticalCommands.creditedMerits[10000]);assertTrue(next.tacticalCommands.missions.getValue(10000).completed)
+        assertTrue(events.single().stateOnly);assertEquals(mapOf(10000 to 30L),events.single().merits)
+        assertEquals(next,TacticalCommandOperations.finishMissions(session,galaxy,players,next,1,mutableListOf(),impacts))
+        val another=impacts.map {it.copy(source=1010001)}.toMutableList()
+        assertTrue(TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,mutableListOf(),another)
+            .tacticalCommands.merits.isEmpty())
+    }
+    @Test fun offlineMissionRequiresAiOnAndStrategicPersonnelDecidesTheSupremeCommander() {
+        val s=state();val disconnected=session.copy(participants=session.participants.mapValues {(a,p)->
+            if(a=="ally")p.copy(online=false,connection=null) else p})
+        val command=request(TacticalCommand(0x421,listOf(1010001),kind=1,target=1000))
+        val r=run(s)
+        assertEquals(NavigationRejection.ACCESS,TacticalCommandOperations.accept(command,disconnected,galaxy,r.navigation,
+            r.production,r.production.snapshot(1)!!,s.commit,1).rejection)
+        val enabled=state();enabled.stocks=enabled.stocks.copy(tacticalCommands=TacticalCommandState(aiSwitches=mapOf(10001 to 16)))
+        val e=run(enabled)
+        assertNotNull(TacticalCommandOperations.accept(command,disconnected,galaxy,e.navigation,e.production,e.production.snapshot(1)!!,enabled.commit,1).player)
+        val ranked=state();ranked.stocks=ranked.stocks.copy(strategic=StrategicState(people=mapOf(10001 to StrategicPerson(rank=5,merit=100))))
+        assertEquals(NavigationRejection.CARD,accept(run(ranked),command.tacticalCommand!!).rejection)
     }
     @Test fun confusionBlocksRegularCommandsAndEncouragementActuallyRecoversMorale() {
         val s=state();s.stocks=s.stocks.copy(tacticalCommands=TacticalCommandState(morale=mapOf(1 to 15)))
         val r=run(s);val order=request(TacticalCommand(0x40d,listOf(1),kind=0))
         assertEquals(NavigationRejection.ACCESS,TacticalCommandOperations.guard(order,session,r.navigation,s.stocks)?.rejection)
-        assertNotNull(accept(r,TacticalCommand(0x409,listOf(1010000))).player);settle(r,now+5)
+        val events=mutableListOf<TacticalCommandResult>()
+        assertNotNull(accept(r,TacticalCommand(0x409,listOf(1010000))).player);settle(r,now+5,events)
         assertEquals(35,s.stocks.tacticalCommands.morale[1]);assertFalse(s.stocks.tacticalCommands.confused(1))
+        assertEquals(35,events.single().morale[1])
         assertEquals(90,s.players.getValue("pilot").pcp)
     }
     @Test fun regularRetreatMovesOnlySelectedStableIdsAndLeavesLandedTroopsBehind() {
@@ -138,14 +201,24 @@ class TacticalCommandOperationsTest {
         assertEquals(100,s.stocks.outfits.values.sumOf {it.supplies})
     }
     @Test fun fortressCannonHitsFriendlyAndEnemyShipsAlongTheRay() {
-        val r=run();val own=r.state.stocks.outfits.getValue(1).activeShips!!.values.first().boats
+        val s=state();val outfit=s.stocks.outfits.getValue(1)
+        val ships=ActiveShipUnits(outfit.activeShips!!.values.map {if(it.id==2)it.copy(stack=UnitStack(32)) else it})
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(activeShips=ships,units=UnitInventory(ships.quantities()))))
+        val r=run(s);val own=r.state.stocks.outfits.getValue(1).activeShips!!.values.first().boats
         val enemy=r.state.stocks.outfits.getValue(2).activeShips!!.values.single().boats
         assertNotNull(accept(r,TacticalCommand(0x419,base=1000,direction=0f)).player)
-        val impacts=mutableListOf<TacticalImpact>();settle(r,now+34,impacts=impacts);assertTrue(impacts.isEmpty())
-        settle(r,now+35,impacts=impacts)
+        val impacts=mutableListOf<TacticalImpact>();val events=mutableListOf<TacticalCommandResult>()
+        settle(r,now+34,events,impacts);assertTrue(impacts.isEmpty());assertTrue(events.isEmpty())
+        settle(r,now+35,events,impacts)
         assertTrue(r.state.stocks.outfits.getValue(1).activeShips!!.values.first().boats<own)
         assertTrue(r.state.stocks.outfits.getValue(2).activeShips!!.values.single().boats<enemy)
         assertTrue(impacts.any {it.hit.target==1});assertTrue(impacts.any {it.hit.target==99})
+        assertTrue(impacts.all {it.fortress})
+        val survivor=r.state.stocks.outfits.getValue(1).activeShips!!.values.single {it.id==2}
+        assertTrue(survivor.boats in 1..299)
+        assertFalse(2 in events.single().destroyedUnits,"Native 0436 must never turn a partial loss into a total kill")
+        val dead=r.state.stocks.outfits.values.flatMap {it.activeShips!!.values}.filter {it.boats==0}.map {it.id}.toSet()
+        assertEquals(dead,events.single().destroyedUnits.filter {it<1000000}.toSet())
     }
     @Test fun baseStopAlsoCancelsTheActualMovingFortressWithoutSnappingToItsSeed() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).player)

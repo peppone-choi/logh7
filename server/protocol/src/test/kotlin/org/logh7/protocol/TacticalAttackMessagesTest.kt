@@ -5,6 +5,25 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalAttackMessagesTest {
+    @Test fun compatibilityAaMarkerIsExplicitAndNeverSentBackToTheNativeTargetReader() {
+        val missile=request(0x406,listOf(1010000),true)
+        assertFalse(TacticalAttackMessages.shoot(missile).antiAir)
+        assertFailsWith<IllegalArgumentException> {TacticalCommandMessages.command(missile)}
+        val tagged=missile.copyOf().also {it[20]=0x81.toByte()}
+        val shoot=TacticalAttackMessages.shoot(tagged)
+        assertTrue(shoot.antiAir)
+        val pending=TacticalCommandMessages.command(tagged)
+        assertEquals(0x406,pending.opcode);assertEquals(3,pending.kind);assertEquals(990001,pending.target)
+        for(accepted in listOf(true,false)) {
+            val response=TacticalCommandMessages.reply(pending,200,120,accepted)
+            assertEquals(if(accepted)0 else 1,ByteBuffer.wrap(response).int)
+            assertEquals(2,response[23].toInt());assertEquals(1,response[24].toInt())
+            assertFalse(TacticalAttackMessages.shoot(response.drop(4).toByteArray()).antiAir)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TacticalCommandMessages.command(tagged.copyOf().also {it[19]=0})
+        }
+    }
     @Test fun attackModeIsIndependentOfShootTargetKindAndStopCarriesZero() {
         for(mode in 0..2) {
             val order=TacticalAttackMessages.Attack(10000,listOf(1010000),mode,0)

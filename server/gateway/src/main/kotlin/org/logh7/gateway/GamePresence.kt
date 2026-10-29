@@ -132,14 +132,50 @@ class GamePresence {
             if(event.cancelled)TacticalCommandWire.command(event.order)?.let {
                 packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0,false)
             }
-            if(!event.cancelled && event.order.command.opcode in setOf(0x408,0x421)) {
+            if(!event.cancelled && !event.stateOnly && event.order.command.opcode in setOf(0x408,0x421)) {
                 val proposed=snapshot.planetStocks!!.tacticalCommands.proposals[event.order.character]?.let {
                     it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
                 if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
                     TacticalCommandWire.command(event.order)?.let {
                         packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
             }
+            if(!event.cancelled && event.order.command.opcode==0x419) {
+                tactical.bases.singleOrNull {it.id==event.order.command.base}?.let {b->
+                    packets+=org.logh7.protocol.TacticalCommandMessages.fortressMoved(event.seconds,b.id,
+                        org.logh7.protocol.TacticalCommandMessages.Point(b.x,b.y,b.z))}
+                packets+=org.logh7.protocol.TacticalBaseMessages.fired(event.seconds,event.order.character,
+                    event.order.command.base,event.order.command.direction)
+                // The CD's 0436 loop overwrites its own index while rendering a kill.
+                // One actual destroyed target per packet also avoids that native skip.
+                packets+=event.destroyedUnits.map {id->org.logh7.protocol.TacticalBaseMessages.destroyed(
+                    event.seconds,event.order.command.base,listOf(id))}
+            }
+            if(!event.cancelled && event.order.command.opcode in setOf(0x422,0x41c)) {
+                val stocks=checkNotNull(snapshot.planetStocks)
+                val base=event.order.command.base
+                val power=if(current.power==org.logh7.engine.Power.EMPIRE)2 else 3
+                if(stocks.tacticalCommands.emergencySupplies[base]==power) {
+                    val targets=if(event.order.command.opcode==0x422)listOf(0) else event.order.command.units
+                    for(id in targets) {
+                        val balance=if(id==0)0 else snapshot.navigators.values.singleOrNull {it.unitId==id}?.supplies ?:
+                            stocks.outfits.values.singleOrNull {o->o.activeShips?.values?.any {it.id==id}==true}
+                                ?.let {org.logh7.engine.OutfitSupplies.distribution(it)[id]} ?: 0
+                        packets+=org.logh7.protocol.TacticalBaseMessages.emergency(base,id,stocks.bases.getValue(base).supplies,balance)
+                    }
+                }
+            }
+            for((id,merit) in event.merits) {
+                val person=snapshot.navigators.values.singleOrNull {it.characterId==id} ?: continue
+                val character=characterById(id)?.let {WorldCharacters.view(it,snapshot)}?.copy(merit=merit) ?: continue
+                val cards=members.values.singleOrNull {it.character.id==id.toLong()}?.offices.orEmpty()
+                packets+=BootstrapMessages.changedCharacter(character,person.pcp,person.mcp,person.spotId,
+                    person.spotOwner,person.returnBase,cards)
+            }
             // Completion publishes committed definitions/state, never an unconditional success ACK.
+            if(!event.cancelled)for((id,value) in event.morale) {
+                packets+=org.logh7.protocol.TacticalStatusMessages.morale(event.seconds,id,value)
+                packets+=org.logh7.protocol.TacticalStatusMessages.confusion(event.seconds,id,value<=20)
+            }
             packets+=org.logh7.protocol.TacticsMessages.definitions(event.order.grid,tactical.units,tactical.groundDefinitions)
             packets+=org.logh7.protocol.TacticsMessages.states(tactical.units)
             packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
@@ -239,7 +275,8 @@ class GamePresence {
                 snapshot?.planetStocks?.tacticalCommands?.morale?.get(impact.hit.target) ?: 100)
             else org.logh7.protocol.TacticalAttackMessages.hit(impact.hit.seconds,impact.source,
             impact.weapon.wire,impact.hit.target,impact.hit.destroyed,
-            impact.hit.damaged,impact.hit.shieldFace,impact.hit.shieldDamage)
+            impact.hit.damaged,impact.hit.shieldFace,impact.hit.shieldDamage,sourceBase=impact.fortress,
+                morale=snapshot?.planetStocks?.tacticalCommands?.morale?.get(impact.hit.target) ?: 100)
         members.values.filter { viewer -> viewer.player.generation == impact.generation &&
             impact.recipients[viewer.character.id.toInt()] == viewer.connection }.forEach { viewer ->
                 val departed=impact.departed?.takeIf {it.characterId==viewer.character.id.toInt()}
@@ -267,7 +304,11 @@ class GamePresence {
                         listOf(org.logh7.protocol.TacticsMessages.definitions(impact.hit.grid,tactical.units,tactical.groundDefinitions),
                             org.logh7.protocol.TacticsMessages.corps(tactical.corps))
                     } else emptyList()
-                    send(viewer,listOf(packet)+leave+cargo)
+                    val morale=snapshot?.planetStocks?.tacticalCommands?.morale?.get(impact.hit.target)
+                    val status=if(morale==null)emptyList() else listOf(
+                        org.logh7.protocol.TacticalStatusMessages.morale(impact.hit.seconds,impact.hit.target,morale),
+                        org.logh7.protocol.TacticalStatusMessages.confusion(impact.hit.seconds,impact.hit.target,morale<=20))
+                    send(viewer,listOf(packet)+status+leave+cargo)
                 }
             }
     }

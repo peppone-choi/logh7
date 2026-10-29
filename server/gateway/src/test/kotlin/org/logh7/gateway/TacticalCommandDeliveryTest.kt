@@ -24,6 +24,15 @@ class TacticalCommandDeliveryTest {
         return TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(0x420,listOf(1),target=1010000,payload=payload.map {it.toInt() and 255}))
     }
     private fun opcode(packet:ByteArray)=ByteBuffer.wrap(packet).getShort(4).toInt() and 65535
+    @Test fun pendingAaReplaysNativeCompatibleMissileSlotsWithoutLosingItsServerMarker() {
+        val payload=ByteBuffer.allocate(23).putInt(100).putInt(20).putInt(10000).put(1).putInt(1010000)
+            .put(2).put(0x81.toByte()).putInt(99).array().map {it.toInt() and 255}
+        val queued=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99,payload=payload))
+        val boot=TacticalBootstrap(snapshot(TacticalCommandState(orders=listOf(queued))),galaxy,player){person}
+        val reply=boot.resume().single {opcode(it)==0x406}
+        assertEquals(10,ByteBuffer.wrap(reply).getInt(10));assertEquals(1,reply[24].toInt())
+        assertEquals(0x81,TacticalCommandWire.command(queued)!!.targetKind)
+    }
     @Test fun reconnectRestoresRemainingDelayAndSavedAuthorityMoraleAndMission() {
         val state=TacticalCommandState(orders=listOf(order()),authority=mapOf(1 to 10001),morale=mapOf(1 to 15),formations=mapOf(10000 to 6),
             missions=mapOf(10000 to TacticalMissionState(10000,1,0,1000,100)))

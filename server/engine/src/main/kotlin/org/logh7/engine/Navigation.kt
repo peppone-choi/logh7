@@ -69,7 +69,10 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null,
     val tacticalSupport: TacticalSupport? = null, val commandAbility:Int?=null,
     val tacticalPosture:TacticalPostureChange?=null,val tacticalGround:TacticalGroundCommand?=null,
-    val tacticalCommand:TacticalCommand?=null,val tacticalRanks:Map<Int,Int> = emptyMap()) {
+    val tacticalCommand:TacticalCommand?=null,val tacticalRanks:Map<Int,Int> = emptyMap(),val offlineDirection:Int?=null) {
+    init {require(offlineDirection==null || (offlineDirection in 0..31 && destination==null && place==null && !supplyFuel &&
+        returnBase==null && tactical==null && energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
+        tacticalShoot==null && tacticalAttack==null && tacticalSupport==null && tacticalPosture==null && tacticalGround==null && tacticalCommand==null))}
     init {require(tacticalRanks.size<=600 && tacticalRanks.all {(id,v)->id>0 && v>=0})
         require(tacticalCommand==null || (destination==null && place==null && !supplyFuel && returnBase==null && tactical==null &&
             energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null && tacticalShoot==null &&

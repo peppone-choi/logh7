@@ -4,16 +4,18 @@ import java.nio.ByteBuffer
 
 /** Native 004944a0/0049ca30 (0405), 0049cf90 (0406). Author: 최병호. */
 object TacticalAttackMessages {
+    /** Compatibility request bit only. Replies always use native ship target kind 1. */
+    const val ANTI_AIR_TARGET_KIND=0x81
     /** 004a61b0 reads 22 packed bytes; 004c0df0 consumes absolute cumulative losses. */
     fun hit(seconds: Long, source: Int, arms: Int, target: Int, destroyed: Int,
-        damaged: Int = 0, shieldFace: Int = 255, shieldDamage: Int = 0): ByteArray {
+        damaged: Int = 0, shieldFace: Int = 255, shieldDamage: Int = 0,sourceBase:Boolean=false,morale:Int=100): ByteArray {
         require(seconds in 0..0xffffffffL && source > 0 && target > 0 && arms in 0..2 && destroyed in 0..300 && damaged in 0..300 &&
             (destroyed>0 || damaged>0 || shieldDamage>0) && (shieldFace in 0..5 || shieldFace==255) &&
-            shieldDamage in 0..65535 && (shieldFace!=255 || shieldDamage==0))
+            shieldDamage in 0..65535 && (shieldFace!=255 || shieldDamage==0) && morale in 0..100 && (!sourceBase || arms==0 && source<=65535))
         return LoginMessages.sessionMessage(0x0426, ByteBuffer.allocate(22).putInt(seconds.toInt()).putInt(source)
             // Absolute native counters. Zero leaves the corresponding counter unchanged.
-            .put(arms.toByte()).put(1).putInt(target).putShort(damaged.toShort()).putShort(destroyed.toShort())
-            .put(shieldFace.toByte()).putShort(shieldDamage.toShort()).put(100).array())
+            .put(arms.toByte()).put((if(sourceBase)0x81 else 1).toByte()).putInt(target).putShort(damaged.toShort()).putShort(destroyed.toShort())
+            .put(shieldFace.toByte()).putShort(shieldDamage.toShort()).put(morale.toByte()).array())
     }
     /** 004b4110 writes attack mode here, unlike Shoot's target-kind byte. */
     data class Attack(val character: Int, val units: List<Int>, val mode: Int, val target: Int) {
@@ -21,6 +23,7 @@ object TacticalAttackMessages {
     }
     data class Shoot(val character: Int, val units: List<Int>, val arms: Int, val targetKind: Int, val target: Int) {
         init { validate(character, units, targetKind, target); require(arms in 0..255) }
+        val antiAir get()=arms==2 && targetKind==ANTI_AIR_TARGET_KIND
     }
     // Wire enums are not permission checks. The world actor must resolve the authenticated
     // commander, source units, target identity, hostility, sight, range and ammunition.
@@ -60,6 +63,6 @@ object TacticalAttackMessages {
             ByteBuffer.allocate(5).put(command.mode.toByte()).putInt(command.target).array(), seconds, waitSeconds, accepted)
     fun reply(command: Shoot, seconds: Long, waitSeconds: Long, accepted: Boolean = true): ByteArray =
         reply(0x0406, command.character, command.units,
-            ByteBuffer.allocate(6).put(command.arms.toByte()).put(command.targetKind.toByte()).putInt(command.target).array(),
+            ByteBuffer.allocate(6).put(command.arms.toByte()).put((if(command.antiAir)1 else command.targetKind).toByte()).putInt(command.target).array(),
             seconds, waitSeconds, accepted)
 }

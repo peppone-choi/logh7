@@ -27,7 +27,7 @@ internal fun validCombatTarget(id:Int) = id in 1..999999 || id in 1_000_001..Int
 
 /** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: 최병호. */
 data class TacticalImpact(val generation: Long, val source: Int, val weapon: TacticalWeapon, val hit: TacticalHit,
-    val recipients: Map<Int,String>, val departed: Navigator? = null,val airBattle:Boolean=false,val boarding:Boolean=false) {
+    val recipients: Map<Int,String>, val departed: Navigator? = null,val airBattle:Boolean=false,val boarding:Boolean=false,val fortress:Boolean=false) {
     init { require(generation > 0 && source > 0 && recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }
 }
 data class TacticalFire(val sequence: Long, val pending: TacticalPendingFire? = null, val last: TacticalHit? = null) {
@@ -117,7 +117,8 @@ internal object TacticalCombat {
         if(mount.power==0 || player.supplies<supplyCost(mount,weapon) ||
             !ready(player.charge?.settle(now,player.energy ?: TacticalEnergy.ZERO),weapon))return null
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
-        return ids.distinct().sorted().firstOrNull {id -> target(id,player.grid,player.power,stocks,galaxy,players)?.let {
+        val preferred=stocks.tacticalCommands.missions[player.characterId]?.takeIf {it.mission==3 && !it.completed}?.target
+        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).firstOrNull {id -> target(id,player.grid,player.power,stocks,galaxy,players)?.let {
             effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
 
@@ -206,6 +207,9 @@ internal object TacticalCombat {
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
         var inventory=if(session.ended==null)TacticalMotionProgress.advance(session,galaxy,players,stocks,movements) else stocks
         if(session.ended==null)inventory=TacticalFleetRetreat.advance(session,galaxy,players,inventory,movements)
+        val commands=mutableListOf<TacticalCommandResult>()
+        inventory=TacticalPersonnel.credit(inventory)
+        if(session.ended==null)inventory=TacticalOfflineAi.advance(session,galaxy,players,inventory,scale,commands)
         data class Due(val account:String,val shot:TacticalPendingFire,val automatic:Boolean=false)
         val due=original.mapNotNull { (account,p)->p.fire?.pending?.takeIf {it.firesAt<=now}?.let {Due(account,it)} }.toMutableList()
         if(session.ended==null) for((account,p) in players.toMap()) {
@@ -216,7 +220,7 @@ internal object TacticalCombat {
             val charge=p.charge?.settle(now,p.energy ?: TacticalEnergy.ZERO)
             if(order.mode==1 && TacticalWeapon.entries.filter {it!=TacticalWeapon.MISSILE && TacticalArmaments.mount(spec,it).power>0}
                 .any {!ready(charge,it)})continue
-            for(weapon in TacticalWeapon.entries) automaticTarget(p,weapon,now,original,stocks,galaxy)?.let {id ->
+            for(weapon in TacticalWeapon.entries) automaticTarget(p,weapon,now,players,inventory,galaxy)?.let {id ->
                 due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
             }
         }
@@ -224,7 +228,6 @@ internal object TacticalCombat {
             it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true || it.activeGround?.values?.any {u->u.order!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         val impacts = mutableListOf<TacticalImpact>()
-        val commands=mutableListOf<TacticalCommandResult>()
         inventory=TacticalCommandOperations.advance(session,galaxy,players,inventory,scale,commands,impacts)
         for ((account, scheduled, automatic) in due) {
             val player = players.getValue(account)
@@ -279,6 +282,7 @@ internal object TacticalCombat {
         val occupations=mutableListOf<BaseOccupation>()
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players)
+        inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
         clearFinishedOrders(players,galaxy,inventory,now)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)

@@ -158,8 +158,11 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "tactical_command_range.h"
 #include "tactical_support.h"
 #include "tactical_motion.h"
+#include "tactical_weapon.h"
 #include "tactical_radar.h"
 #include "korean_resources.h"
+
+#include "tactical_base_ui.h"
 
 // The surviving message catalogue ends before tactical HUD group 119.
 // Supply the two known titles only when the native lookup reports NO TABLE;
@@ -555,6 +558,7 @@ static void install() {
     if (!installUnitPresence()) { status = -3; return; }
     if (!installTacticalSupport()) { status = -3; return; }
     if (!installTacticalMotion()) { status = -3; return; }
+    if (!installTacticalWeapon()) { status = -3; return; }
     if (!installTacticalNotices()) { status = -3; return; }
     if (!installTacticalLabels()) { status = -3; return; }
     if (!installHudRecovery()) { status = -3; return; }
@@ -603,6 +607,8 @@ static void install() {
     }
     if (!installTacticalRadar()) { status = -3; return; }
     if (!installKoreanResources()) { status = -3; return; }
+
+    if (!installTacticalBaseUi()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};

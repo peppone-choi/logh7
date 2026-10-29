@@ -12,6 +12,7 @@ internal object TacticalCommandWire {
         order.command.payload.forEach {bytes.put(it.toByte())}
         return TacticalCommandMessages.command(bytes.array()).also {
             require(it.character==order.character && it.units==order.command.units && it.base==order.command.base)
+            if(it.opcode==0x406)require(it.kind==order.command.kind && it.targetKind==order.command.targetKind && it.target==order.command.target)
         }
     }
 }

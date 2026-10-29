@@ -207,7 +207,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             commands?.missions.orEmpty().values.filter {!it.completed && it.mission!=0}.map {it.checkedAt+TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS}+
             snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().mapNotNull {
                 it.tactical?.retreat?.let {r->maxOf(if(r.membershipChecked)r.completesAt else r.startsAt,session.gameMillis/1000+rules.speed)}}}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val aiDeadlines=snapshot.planetStocks?.let {stocks->snapshot.navigators.mapNotNull {(account,p)->
+            if(TacticalOfflineAi.eligible(session,account,p,stocks))maxOf(session.gameMillis/1000+rules.speed,
+                stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0) else null}}.orEmpty()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -674,6 +677,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     settleCombat(session,published.get()) {reconcileTerritory()}
                     session=durableState?.session ?: simulation.exportState()
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
+                        if(command.request.offlineDirection!=null)TacticalOfflineSettings.accept(command.request,session,navigation,production,
+                            checkNotNull(production.snapshot(session.generation)),worldStateCommitter) else
                         TacticalCommandOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalGroundOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalPostureOperations.guard(command.request,session,navigation,
