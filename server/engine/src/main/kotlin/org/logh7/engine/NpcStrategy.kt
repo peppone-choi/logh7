@@ -28,9 +28,8 @@ internal object NpcStrategy {
         if(count !in 1..300)return false
         return GridEntryRules.evaluate(GridForces.state(galaxy,target,forces),GridEntry(Camp(power(outfit),false),count.toInt(),false))==GridEntryVerdict.ALLOWED
     }
-    private fun target(galaxy:Galaxy,stocks:PlanetStocks,players:Map<String,Navigator>,outfit:OutfitStock):Int? {
+    private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock):Int? {
         val origin=outfit.positionIn(galaxy).grid
-        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
         val enemy=forces.entries.filter {(_,rows)->rows.any {it.camp!=Camp(power(outfit),false) && (it.units>0 || it.base)}}
             .minWithOrNull(compareBy<Map.Entry<Int,List<GridForces.Force>>> {distance(origin,it.key)}.thenBy {it.key})?.key ?: return null
         if(enemy==origin)return null
@@ -69,6 +68,8 @@ internal object NpcStrategy {
         val now=session.gameMillis/1000
         if(now>0xffffffffL-21600)return original
         var stocks=original
+        var forceCache:Map<Int,List<GridForces.Force>>?=null
+        fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks).also {forceCache=it}
         for(id in original.outfits.keys.sorted()) {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
@@ -82,7 +83,7 @@ internal object NpcStrategy {
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
-                if(distance(position.grid,destination)!=1 || target(galaxy,stocks,players,outfit)==null || !allowed(galaxy,GridForces.collect(galaxy,stocks.generation,players.values,stocks),outfit,destination)) {
+                if(distance(position.grid,destination)!=1 || target(galaxy,forces(),outfit)==null || !allowed(galaxy,forces(),outfit,destination)) {
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=NpcStrategicState(now+21600))))
                     continue
                 }
@@ -96,6 +97,7 @@ internal object NpcStrategy {
                     activeShips=ActiveShipUnits(outfit.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,
                         posture=null,attack=null,shot=null)}))
                 stocks=stocks.copy(outfits=stocks.outfits+(id to moved))
+                forceCache=null // Later arrivals must see this move when checking the 300-unit cap.
                 for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&
                     (player.hull?.woundedUntil ?: 0)<=now && TacticalContact.active(galaxy,player,players.values,stocks)) {
                     players[account]=player.copy(cpPaused=true,cpRecoveryAt=now,
@@ -107,7 +109,7 @@ internal object NpcStrategy {
                 movements+=NpcStrategicMovement(session.generation,id,position.grid,destination,now,
                     moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
-                val destination=target(galaxy,stocks,players,outfit)
+                val destination=target(galaxy,forces(),outfit)
                 val next=if(destination==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination,now+3600)
                 stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
             }

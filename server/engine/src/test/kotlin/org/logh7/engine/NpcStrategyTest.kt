@@ -60,6 +60,24 @@ class NpcStrategyTest {
         assertEquals(reserved.bases,result.bases);assertEquals(0,result.outfits.getValue(1).supplies)
         assertNull(result.outfits.getValue(1).strategy!!.destination);assertTrue(events.isEmpty())
     }
+    @Test fun simultaneousArrivalsRebuildForcesBeforeTheSecondFleetChecksCapacity() {
+        val initial=stocks()
+        val second=initial.outfits.getValue(1).copy(id=2,warehouseId=11,
+            units=UnitInventory(mapOf(stack to 1)),activeGround=null,
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(3,stack))))
+        val before=initial.copy(outfits=initial.outfits+(2 to second),
+            warehouses=initial.warehouses+(11 to OutfitWarehouse(11,2,OutfitKind.FLEET,1000,2)),nextShipId=4)
+        val players=players();val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,before,players,events)
+        assertEquals(2488,reserved.outfits.getValue(2).strategy!!.destination)
+        repeat(299) {i->players["friendly$i"]=Navigator(1,11000+i,Power.EMPIRE,2488,1000,1000,1000)}
+        val result=advance(3600,reserved,players,events)
+        assertEquals(OutfitPosition(2488),result.outfits.getValue(1).position)
+        assertEquals(OutfitPosition(2487,1000),result.outfits.getValue(2).position)
+        assertEquals(0,result.outfits.getValue(2).supplies)
+        assertEquals(97000,result.bases.getValue(1000).supplies)
+        assertEquals(listOf(1),events.map {it.outfit})
+    }
     @Test fun noFuelNoTargetOrNoncombatOutfitDoesNotCreateTravelOrResources() {
         val players=players();val events=mutableListOf<NpcStrategicMovement>()
         var reserved=advance(0,stocks(),players,events)
