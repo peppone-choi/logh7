@@ -5,19 +5,20 @@ import java.util.Collections
 data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
     val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null,
     val units: UnitInventory = UnitInventory(), val taxRate: Int? = null, val governorId: Int = 0, val garrisonCommanderId: Int = 0,
-    val capitalAdministratorId: Int = 0, val capitalDefenseCommanderId: Int = 0, val guardInspectorId: Int = 0, val spareShips: SpareShipBoats = SpareShipBoats()) {
+    val capitalAdministratorId: Int = 0, val capitalDefenseCommanderId: Int = 0, val guardInspectorId: Int = 0, val spareShips: SpareShipBoats = SpareShipBoats(),
+    val treasury: Long = 0) {
     init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0 &&
         (taxRate == null || taxRate in 0..100) && governorId >= 0 && (governorId == 0 || power in 2..3 && camp == 0) &&
         garrisonCommanderId >= 0 && (garrisonCommanderId == 0 || power in 2..3 && camp == 0) &&
         capitalAdministratorId>=0 && (capitalAdministratorId==0 || power==3 && camp==0) &&
         capitalDefenseCommanderId>=0 && (capitalDefenseCommanderId==0 || power in 2..3 && camp==0) &&
-        guardInspectorId>=0 && (guardInspectorId==0 || power==2 && camp==0)) }
+        guardInspectorId>=0 && (guardInspectorId==0 || power==2 && camp==0) && treasury>=0) }
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
     val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false,
     val nextShipId: Int = 1, val nationalOffices:Map<NationalOffice,Int> = emptyMap(),
-    val groundBattles:Map<Int,Long> = emptyMap()) {
+    val groundBattles:Map<Int,Long> = emptyMap(), val nationalTreasuries:Map<Int,Long> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -27,6 +28,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(outfits.values.all {it.activeGround?.values.orEmpty().all {u->u.base==0 || u.base in bases}}) {"Unknown ground base"}
         require(groundBattles.size<=350 && groundBattles.all {(base,at)->base in bases && at in 0..0xffffffffL})
         require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
+        require(nationalTreasuries.all {(power,balance)->power in 2..3 && balance>=0}) { "Invalid national treasury" }
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -39,7 +41,8 @@ fun interface WorldStateCommitter {
 }
 /** Only the supply interval is recovered; quantities, economy formulas and caps are designed policy. */
 data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumStock: Int = Int.MAX_VALUE,
-    val economy: PlanetEconomyPolicy = PlanetEconomyPolicy(), val units: UnitProductionPolicy = UnitProductionPolicy()) {
+    val economy: PlanetEconomyPolicy = PlanetEconomyPolicy(), val units: UnitProductionPolicy = UnitProductionPolicy(),
+    val tax: PlanetTaxRevenuePolicy = PlanetTaxRevenuePolicy(1,50)) {
     init { require(suppliesPerDay >= 0 && maximumStock > 0) }
 }
 
@@ -65,7 +68,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         warehouses = Collections.unmodifiableMap(LinkedHashMap(stocks.warehouses)),
         logisticsOfficers = Collections.unmodifiableMap(LinkedHashMap(stocks.logisticsOfficers)),
         nationalOffices = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalOffices)),
-        groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)))
+        groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)),
+        nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)))
     val maximumStock: Int get() = policy.maximumStock
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
@@ -82,14 +86,20 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             }
         })
         // A non-durable test clock may rewind. Keep stock and the watermark; never produce a day twice.
+        val national = initialized.nationalTreasuries.toMutableMap()
         val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
             bases = initialized.bases.mapValues { (id, stock) ->
                 var next = stock
                 repeat(Math.toIntExact(days - initialized.producedDays)) {
-                    next = units.advance(next.nextDay(galaxy.conditions.getValue(id), policy), next)
+                    val base=galaxy.conditions.getValue(id)
+                    val revenue=PlanetTaxRevenue.assess(next,base,policy.tax)
+                    if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
+                    val previousDay=next
+                    next = units.advance(next.nextDay(base, policy), previousDay)
+                        .copy(treasury=Math.addExact(previousDay.treasury,revenue.local))
                 }
                 next
-            })
+            }, nationalTreasuries=national)
         if (result == previous) return checkNotNull(previous)
         val next = detached(result)
         store?.save(next) // Publish only after durable replacement.
