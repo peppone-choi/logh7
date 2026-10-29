@@ -164,6 +164,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "display_hooks.h"
 
 #include "tactical_base_ui.h"
+#include "tactical_departure.h"
 
 // The surviving message catalogue ends before tactical HUD group 119.
 // Supply the two known titles only when the native lookup reports NO TABLE;
@@ -610,6 +611,7 @@ static void install() {
     if (!installKoreanResources()) { status = -3; return; }
 
     if (!installTacticalBaseUi()) { status = -3; return; }
+    if (!installTacticalDeparture()) { status = -3; return; }
     if (!installDisplayNames()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
