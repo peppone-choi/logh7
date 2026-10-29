@@ -65,12 +65,16 @@ class GameExchange(
     private var pendingJoin: CompletableFuture<Admission>? = null
     fun takePendingJoin(): CompletableFuture<Admission>? = pendingJoin.also { pendingJoin = null }
     private var pendingWorld: CompletableFuture<List<ByteArray>>? = null
-    private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean,val stage:Int=0)
+    private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean,val stage:Int=0,val revision:Long?=null)
     private var publication: Publication? = null
     private var deliveredPlayer: org.logh7.engine.Navigator? = null
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
     private var tacticalInitializationPending = false
+    private var pendingTacticalRevision = -1L
+    private fun rememberTacticalRefresh() {
+        navigation?.snapshot()?.revision?.let {pendingTacticalRevision=maxOf(pendingTacticalRevision,it)}
+    }
     private var endingPrepared=false
     internal fun sessionEndingAvailable():Boolean {
         if(state!=State.AUTHENTICATED || !gameStarted || !worldInitialized || ticket?.purpose!=SessionTickets.Purpose.GAME)return false
@@ -184,6 +188,8 @@ class GameExchange(
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED) null else {
             val update = publication.also { publication = null }
+            val repeatTactical = update?.initialize==true && update.stage==0x0f02 && update.player.cpPaused &&
+                update.revision?.let {pendingTacticalRevision>it}==true
             val tactical = update?.let {
                 val changed = deliveredTactics != null &&
                     (deliveredTactics != it.player.cpPaused && deliveredPlayer?.grid == it.player.grid ||
@@ -194,7 +200,8 @@ class GameExchange(
             if (update != null) deliveredPlayer = update.player
             if (update?.initialize == true) {
                 worldInitialized = true
-                tacticalInitializationPending = update.player.cpPaused && update.stage != 0x0f02
+                tacticalInitializationPending = update.player.cpPaused && (update.stage != 0x0f02 || repeatTactical)
+                if(!tacticalInitializationPending)pendingTacticalRevision=-1
             }
             val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0), gameSeconds()) }
             val output = if (update?.initialize == true && shared != null) {
@@ -202,9 +209,10 @@ class GameExchange(
                 check(index >= 0)
                 messages.take(index) + shared.peers.flatMap { listOf(presence!!.character(it),presence.unit(it)) } + messages.drop(index)
             } else messages + tacticalPresence(shared?.refresh.orEmpty())
-            if (output.isEmpty() && tactical.isEmpty()) null else {
-                presence?.observeMotions(connection,output+tactical)
-                handshake.stageAll(output + tactical, clearHeader = 0)
+            val retry=if(repeatTactical)listOf(org.logh7.protocol.TacticsMessages.notify(checkNotNull(update).player.grid,true)) else emptyList()
+            if (output.isEmpty() && tactical.isEmpty() && retry.isEmpty()) null else {
+                presence?.observeMotions(connection,output+tactical+retry)
+                handshake.stageAll(output + tactical + retry, clearHeader = 0)
             }
         }
     }
@@ -214,6 +222,7 @@ class GameExchange(
             fun entering(message:ByteArray)=message.size>=7 &&
                 java.nio.ByteBuffer.wrap(message).getShort(4).toInt() and 65535==0x0f1f && message[6].toInt()==1
             val output=if(current.any(::entering)) {
+                rememberTacticalRefresh()
                 if(tacticalInitializationPending)current.filterNot(::entering)
                 else current.also {tacticalInitializationPending=true}
             } else current
@@ -236,7 +245,7 @@ class GameExchange(
         if (messages.any { opcode(it) == 0x0b09 }) {
             // A second transition while 0f00 is still loading can rebuild with a null
             // own-character pointer (004b5bb0). The forthcoming 0f02 snapshot includes peers.
-            if (tacticalInitializationPending) return emptyList()
+            if (tacticalInitializationPending) {rememberTacticalRefresh();return emptyList()}
             // Native 0b0a also rebuilds live models (004c32a0(1)); use the native
             // tactical transition instead, then answer its 0f02 initialization request.
             return listOf(org.logh7.protocol.TacticsMessages.notify(player.grid, true))
@@ -1234,8 +1243,9 @@ class GameExchange(
                                 connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])
                             pendingWorld = stocks().thenCompose { stored -> navigation.apply(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
-                                publication = Publication(character, player, true,opcode)
-                                val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(navigation.snapshot()),
+                                val captured=navigation.snapshot()
+                                publication = Publication(character, player, true,opcode,captured?.revision)
+                                val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(captured),
                                     world.galaxy,player,characters::characterById) else null
                                 tacticalResumeGrid=tactical?.grid
                                 listOf(BootstrapMessages.characterId(character),

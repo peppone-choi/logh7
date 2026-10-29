@@ -94,3 +94,12 @@ run-243은 NPC 전함 1번이 있는 그리드 2488의 두 원본을 먼저 전�
 통신 계층 전체 214개 중 209개 통과·5개 건너뜀·실패 0이며, 초기 진입/동시 증원 2개에 재구성 전후 전체 재고·인물 상태 보존 단언을 추가해 재검사했다. 기존 전술 인물의 CP 일시 정지 기준 시각은 초기화 때 현재 게임 시각으로 진행되지만 CP·내구도/방패·물자·명령은 유지된다. 이 시각까지 불변이라고 가정했던 첫 추가 단언은 실패했고 허용되는 시각 진행을 정확히 비교한 최종 검사가 통과했다. 앱 배포본 빌드도 통과했다. run-243/244/245 두 원본은 모두 success=true·Job 0·소유 프로세스 종료·원본 해시 보존으로 정리했고 두 시험 서버도 종료했다. 실행기의 정상 종료는 run-243의 증원 누락이 해결됐다는 뜻이 아니다. 일반 서버는 health 정상으로 유지했다.
 
 관련 자료는 `reinforce243-after-a/b.json`, `reinforce244-before-a/b.json`, `reinforce244-after-a/b.json`, `reinforce244-approach-b.json`, `reinforce245-before-stocks.tsv`, `reinforce245-restored-stocks.tsv`, `reinforce245-restored-nav.tsv`, `reinforce245-restored-a/b.json`, `occupation209-reinforce245-restored0/1.png`과 `reinforce244-coalesced.log`, `reinforce245-gateway-full.log`, `reinforce245-no-recharge.log`다. 원본의 사격 메뉴/대상 선택 조작도 시도했지만 실제 증원 ID 2 대상 요청은 확인되지 않았으므로 선택·발사 완료로 세지 않는다.
+### 전술 초기화 스냅샷 뒤 증원 도착 유실 방지 (2026-10-29)
+
+작성: 최병호
+
+전술 0f02 스냅샷을 생성한 뒤 전송을 마치기 전에 증원이 도착하면, 초기화 중복 억제가 마지막 도착 통지까지 버렸다. 도착 시 월드 revision을 기억하고 이미 캡처한 스냅샷보다 최신이면 완성된 초기화 응답 마지막에 전술 전환 한 번을 추가한다. 스냅샷에 포함된 이른 도착은 추가 전환하지 않는다. 다음 초기화가 최신 revision을 포함하면 반복을 끝낸다.
+
+회귀 검사는 이른/늦은 도착과 동료 갱신 통지 유무의 네 조합을 확인한다. 수정 전 늦은 도착에서 실패했고 수정 후 통과했다. 통신 계층 전체 215개 중 210개 통과·5개 건너뜀·실패 0, 앱 배포본 빌드 통과. 이 경합의 강제 재현은 자동 검사 범위이며 실제 클라이언트 완료로 추가 체크하지 않는다.
+
+run-246의 두 원본은 전술 재접속 후 기존/증원 함정 객체 1·2를 생성했다. 직접 증원 사격은 확인하지 못했다. 종료 시 리드가 서버 종료를 클라이언트 정리 완료 전에 요청해 실행기 shutdown에서 연결 초기화 오류가 발생했으므로 실행 전체 성공으로 세지 않는다. 두 실행 모두 process_stopped=true·job_active_after_cleanup=0·원본 해시 보존이며 시험 서버도 종료했다. 일반 서버 runtime-236은 교체하지 않았다. 관련 자료: reinforce246-race-before.log, reinforce246-race-fixed.log, reinforce246-gateway-full.log, reinforce246-native-a/b.json 및 run-246 실행 기록.

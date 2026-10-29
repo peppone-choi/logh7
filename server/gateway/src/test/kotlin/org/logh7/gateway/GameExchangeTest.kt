@@ -198,6 +198,62 @@ class GameExchangeTest {
             game.close()
         }
     }
+    @Test fun reinforcementAfterTacticalSnapshotCaptureRequestsAnotherInitializationButEarlierArrivalDoesNot() {
+        for(late in listOf(false,true))for(peerRefresh in listOf(false,true)) {
+            var now=java.time.Instant.EPOCH
+            val clock=object:java.time.Clock() {
+                override fun getZone()=java.time.ZoneOffset.UTC
+                override fun withZone(zone:java.time.ZoneId):java.time.Clock=this
+                override fun instant()=now
+            }
+            val characters=CharacterCreation(clock=clock,lotteryWindowMillis=1)
+            characters.apply("user",listOf(1001));now=now.plusMillis(1)
+            val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Battle",2)),emptyList(),Power.entries.associateWith {2487})
+            val player=Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true)
+            var revision=1L
+            val navigation=object:GameNavigation {
+                override fun snapshot()=WorldSnapshot(revision,0,SessionSnapshot(1,0,0,0,emptyMap(),1,1,null),
+                    navigators=mapOf("user" to player),planetStocks=PlanetStocks(1,0,emptyMap()))
+                override fun apply(request:NavigationRequest)=CompletableFuture.completedFuture(NavigationResult(player))
+            }
+            val tickets=SessionTickets()
+            val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
+                Handshake(b,2),characters,gameSeconds={0},expectedGeneration=1,connection="owned",
+                navigation=navigation,world=WorldBootstrap(galaxy))
+            fun opcodes(batch:OutboundBatch):List<Int> {
+                val bytes=batch.bytes;var offset=0;val result=mutableListOf<Int>()
+                while(offset<bytes.size) {
+                    val end=offset+2+(ByteBuffer.wrap(bytes).getShort(offset).toInt() and 65535)
+                    val body=Envelope.decode(LegacyBlowfish(b).decrypt(bytes.copyOfRange(offset+8,end)),-1).second
+                    result+=ByteBuffer.wrap(body).getShort(4).toInt() and 65535;offset=end
+                }
+                return result
+            }
+            try {
+                game.accept(0x34,initial);game.accept(0x36,confirm)
+                val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+                game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+                game.accept(0x30,encrypted(hex("0200"),2));game.accept(0x30,encrypted(hex("0205"),3))
+                game.accept(0x30,encrypted(hex("0f00"),4))
+                assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join()))
+                fun arrive() {
+                    revision=2
+                    val notification=if(peerRefresh)LoginMessages.sessionMessage(0x0b09,byteArrayOf()) else TacticsMessages.notify(2487,true)
+                    assertNull(game.notifyWorld(listOf(notification)))
+                }
+                if(!late)arrive()
+                game.accept(0x30,encrypted(hex("0f02"),5))
+                val captured=assertNotNull(game.takePendingWorld()).join()
+                if(late)arrive() // Snapshot already built, but its outbound batch has not been published.
+                val delivered=opcodes(assertNotNull(game.finishWorld(captured)))
+                assertEquals(if(late)1 else 0,delivered.count {it==0x0f1f})
+                if(late)assertEquals(0x0f1f,delivered.last())
+                game.accept(0x30,encrypted(hex("0f02"),6))
+                val latest=opcodes(assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join())))
+                assertFalse(0x0f1f in latest,"A current snapshot must finish without an initialization loop")
+            } finally {game.close()}
+        }
+    }
     @Test fun tacticalPositionsWaitForCurrentTimeAndRecheckRetreatBeforeReplaying() {
         for(outcome in listOf("moving","failure","retreat","malformed")) {
             var now=java.time.Instant.EPOCH
