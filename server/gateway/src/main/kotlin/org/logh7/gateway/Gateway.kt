@@ -147,6 +147,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                     override fun channelActive(ctx: ChannelHandlerContext) {
                                         if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
                                             try {
+                                                if(!waiting)exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
                                                 if (exchange.obsolete()) { exchange.close(); ctx.close() }
                                                 else if (port == sessionPort && ctx.channel().isActive) {
                                                     if (waiting) refreshRequested = true else refresh(ctx)
@@ -186,7 +187,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         waiting = true
                                         pending.whenComplete { finish, failure ->
                                             ctx.executor().execute {
-                                                if (!ctx.channel().isActive || failure != null) {
+                                                if(ctx.channel().isActive && failure!=null && exchange.sessionEndingAvailable()) {
+                                                    waiting=false;refreshRequested=false;notifications.clear();notificationBytes=0
+                                                    exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
+                                                    while(waitingFrames.isNotEmpty() && ctx.channel().isActive)process(ctx,waitingFrames.removeFirst())
+                                                }
+                                                else if (!ctx.channel().isActive || failure != null) {
                                                     if(failure != null) System.err.println("gateway async: ${failure.cause?.message ?: failure.message}")
                                                     try { exchange.close() } finally { ctx.close() }
                                                 }
@@ -198,6 +204,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                         sendNotification(ctx, messages)
                                                     }
                                                     while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
+                                                    if(!waiting && ctx.channel().isActive)exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
                                                     if (!waiting && refreshRequested && ctx.channel().isActive) refresh(ctx)
                                                 } catch (failure: Exception) {
                                                     System.err.println("gateway outbound: ${failure.message}")

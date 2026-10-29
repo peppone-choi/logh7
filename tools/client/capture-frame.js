@@ -3,7 +3,9 @@
 if(Process.arch!=='ia32' || Process.mainModule.name.toLowerCase()!=='g7mtclient.exe')
   throw new Error('Only the owned original 32-bit LOGH7 client is supported');
 Process.setExceptionHandler(function(details) {
-  if(details.type==='access-violation')send({type:'client-exception', exception:details.type,
+  // Caught C++ system exceptions are not evidence of a client crash.
+  if(['access-violation','arithmetic','illegal-instruction','abort'].includes(details.type))
+    send({type:'client-exception', exception:details.type,
         address:details.address.toString(), memory:details.memory, registers:details.context,
         backtrace:Thread.backtrace(details.context,Backtracer.FUZZY).map(p=>p.toString())});
   return false;

@@ -70,6 +70,23 @@ class GameExchange(
     private var deliveredPlayer: org.logh7.engine.Navigator? = null
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
+    private var endingPrepared=false
+    internal fun sessionEndingAvailable():Boolean {
+        if(state!=State.AUTHENTICATED || !gameStarted || !worldInitialized || ticket?.purpose!=SessionTickets.Purpose.GAME)return false
+        val snapshot=navigation?.snapshot() ?: return false
+        return generation==snapshot.session?.generation && generation==admission?.generation && snapshot.result!=null
+    }
+    internal fun finishSession():OutboundBatch? = prepared {
+        if(endingPrepared || !sessionEndingAvailable())null else {
+            val snapshot=checkNotNull(navigation?.snapshot())
+            val account=checkNotNull(ticket).account
+            val player=checkNotNull(snapshot.navigators[account])
+            val character=checkNotNull(currentCharacter(account))
+            val message=SessionEndingReport.message(snapshot,character,player,characters.registeredCharacters(),offices(character,player))
+            endingPrepared=true
+            handshake.stageAll(listOf(message),clearHeader=0)
+        }
+    }
     private var tacticalResumeGrid: Int? = null
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
@@ -126,7 +143,7 @@ class GameExchange(
                     player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList())
     }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
-        if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || navigation == null) return null
+        if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
         val now = gameSeconds()
         if (recoveryCheckedAt?.let { now >= it && now - it < 24 } == true) return null
         recoveryCheckedAt = now
@@ -188,7 +205,7 @@ class GameExchange(
         }
     }
     internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
-        if (state == State.CLOSED || !gameStarted || obsolete()) null else {
+        if (state == State.CLOSED || !gameStarted || obsolete() || sessionEndingAvailable()) null else {
             val output=tacticalPresence(messages)
             presence?.observeMotions(connection,output)
             handshake.stageAll(output, clearHeader = 0)
@@ -215,7 +232,7 @@ class GameExchange(
             org.logh7.protocol.TacticsMessages.definitions(player.grid, tactical.units,tactical.groundDefinitions)
     }
     fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
-        (generation != admission.generation || !admission.running)
+        (generation != admission.generation || !admission.running && !sessionEndingAvailable())
     // ByteArray convenience is retained for codec callers. Gateway always writes the bound outbound batch.
     fun finishJoin(result: Admission): ByteArray? = finishJoinOutbound(result)?.bytes
     fun accept(type: Int, data: ByteArray): ByteArray? = acceptOutbound(type, data)?.bytes
@@ -247,6 +264,12 @@ class GameExchange(
             val body = handshake.receive(type, data) ?: return null
             val opcode = java.nio.ByteBuffer.wrap(body).short.toInt() and 65535
             val identity = checkNotNull(ticket)
+            if(sessionEndingAvailable()) {
+                // Consume and validate encrypted in-flight requests without reopening commands.
+                // Clock polling remains safe while the player reads the final result.
+                return if(opcode==0x0300 && body.size==2)handshake.stageAll(listOf(checkNotNull(
+                    BootstrapMessages.response(body,checkNotNull(navigation?.snapshot()?.result).end.gameSeconds))),clearHeader=0) else null
+            }
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
                     0x040f,0x0410 -> {

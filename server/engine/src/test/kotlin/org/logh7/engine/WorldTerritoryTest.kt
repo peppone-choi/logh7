@@ -108,6 +108,8 @@ class WorldTerritoryTest {
         val commit=WorldStateCommitter {_,next->inventory.value=checkNotNull(next);saved++}
         val engine=WorldEngine(this,rules,ticking=false,durability=store,galaxy=galaxy,stockStore=inventory,
             worldStateCommitter=commit)
+        val observed=mutableListOf<Pair<SessionResult?,SessionEnd?>>()
+        engine.observeOccupations {observed+=engine.snapshot().result to store.value.session.ended}
         engine.submit(WorldCommand.AdvanceTo(0))
         val joined=CompletableDeferred<Admission>()
         engine.submit(WorldCommand.Join("late",Power.EMPIRE,false,joined,"connection",1))
@@ -115,6 +117,10 @@ class WorldTerritoryTest {
         assertEquals(2,inventory.value.bases.getValue(1004).power)
         assertEquals(EndReason.CAPITAL_CAPTURED,engine.snapshot().session!!.ended!!.reason)
         assertEquals(1,saved)
+        // A facility occupant must receive ending, not begin an unfinishable forced-undock UI.
+        assertEquals(1,observed.size)
+        assertEquals(EndReason.CAPITAL_CAPTURED,assertNotNull(observed.single().first).end.reason)
+        assertEquals(observed.single().first!!.end,observed.single().second)
         val report=assertNotNull(engine.snapshot().result)
         assertEquals(engine.snapshot().session!!.ended,report.end)
         assertEquals(SessionGrade.LIMITED,report.powers.getValue(Power.EMPIRE).grade)

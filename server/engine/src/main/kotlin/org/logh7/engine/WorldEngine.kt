@@ -104,7 +104,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             System.err.println("Combat delivery failed: ${failure.javaClass.simpleName}")
         }
     }
-    private fun settleCombat(session: SessionState, base: WorldSnapshot) {
+    private fun settleCombat(session: SessionState, base: WorldSnapshot, afterCommit:()->Unit = {}) {
         if (navigation == null || production == null || galaxy == null) return
         val before=navigation.snapshot(session.generation)
         val movements=mutableListOf<TacticalMovement>()
@@ -117,6 +117,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
+        // Reconcile durable capital/session endings before observers can start a native
+        // forced-undock transition that cannot finish once gameplay requests are frozen.
+        afterCommit()
         publishCombat(impacts)
         publishSupport(support)
         for(event in ground)for(observer in groundObservers)try {observer(event)}
@@ -605,8 +608,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     var session = durableState?.session ?: simulation.exportState()
                     val ownership = production?.settle(session.generation, session.gameMillis / 1000)
-                    settleCombat(session,published.get())
-                    reconcileTerritory()
+                    settleCombat(session,published.get()) {reconcileTerritory()}
                     session=durableState?.session ?: simulation.exportState()
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
                         TacticalGroundOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
@@ -681,8 +683,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     durableState = next.state
                     if (command is WorldCommand.AdvanceTo) {
                         production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
-                        settleCombat(next.state.session,next.state.snapshot(rules))
-                        reconcileTerritory()
+                        settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
                         navigation?.settleRetreats(current, production?.snapshot(current.generation))
                     }
@@ -713,8 +714,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         else simulation.advance(command.elapsedRealMillis - elapsed)
                     elapsed = command.elapsedRealMillis
                     if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
-                    settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot()))
-                    reconcileTerritory()
+                    settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events

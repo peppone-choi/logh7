@@ -19,6 +19,7 @@
 #include "tactical_support_data.h"
 #include "tactical_motion_data.h"
 #include "tactical_notice_data.h"
+#include "session_ending_data.h"
 static bool tacticalNoticesTest() {
     const char* missing = "NO DATA";
     const char* valid = "existing guidance";
@@ -170,7 +171,28 @@ static bool groundLocationPageTest() {
     if(!page.read(wire,1,99) || page.count!=1)return false;
     wire[0]=0;return page.read(wire,1,999999) && !page.count && !page.last();
 }
+static bool sessionEndingDataTest() {
+    BYTE record[0x434]={};unsigned id=10000;memcpy(record,&id,4);record[4]=2;record[0x2ea]=3;
+    record[0x2eb]=2;record[0x2ec]='A';record[0x390]=3;record[0x3d8]=2;
+    record[0x3a0]=1;record[0x3e8]=1;record[0x3c2]=3;record[0x40a]=0;
+    record[0x3c3]=255;record[0x3c4]=1;record[0x40b]=0;record[0x40c]=1;
+    record[0x3c8]=7;record[0x410]=9;record[0x420]=1;record[0x424]=16;
+    logh::SessionEndingData data;
+    if(!data.read(record) || data.character!=id || data.power!=2 || data.reason!=3 || data.name[0]!='A' ||
+        data.sides[0].power!=2 || data.sides[0].grade!=0 || data.sides[0].statistics.planets!=9 ||
+        data.sides[1].grade!=3 || data.sides[1].populationCondition!=255 || data.total.planets!=16)return false;
+    for(unsigned offset : {0x2ebu,0x3a0u,0x3c2u,0x3c3u,0x420u}) {
+        BYTE before=record[offset];record[offset]=offset==0x2eb ? 14 : 4;
+        if(data.read(record) || data.character!=id || data.total.planets!=16)return false;
+        record[offset]=before;
+    }
+    record[0x3d8]=3;if(data.read(record))return false;record[0x3d8]=2;
+    if(data.read(nullptr) || data.read(record,0x433))return false;
+    record[0x40a]=255;if(!data.read(record) || data.sides[0].grade!=255)return false;
+    return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
+}
 int wmain(int argc, wchar_t** argv) {
+    if(!sessionEndingDataTest())return 86;
     if (!groundLocationPageTest()) return 85;
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalNoticesTest()) return 82;

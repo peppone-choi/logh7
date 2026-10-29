@@ -225,6 +225,7 @@ static bool openDirectoryPlanet(unsigned row) {
 }
 
 static int __cdecl planetInfoMenu(void* gui) {
+    if(updateSessionEnding(gui))return -1;
     updateCharacterInformation(gui);
     updateOutfitInformation(gui);
     if (updateTaxWindow(gui)) return -1;

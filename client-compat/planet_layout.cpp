@@ -127,6 +127,8 @@ static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
+static bool updateSessionEnding(void* manager);
+static void receivedSessionEnding(void* world,const BYTE* record);
 #include "planet_info.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"
@@ -135,6 +137,7 @@ static void updateCharacterInformation(void* manager);
 #include "navigation_status.h"
 #include "return_base.h"
 #include "planet_tax.h"
+#include "session_ending.h"
 #include "appointment_information.h"
 #include "supply_selector.h"
 #include "unicode_text.h"
@@ -525,6 +528,7 @@ static void install() {
     const BYTE oldCardGroup = 101, newCardGroup = 96;
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
+    if (!installSessionEnding()) { status = -3; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }
     if (!installOutfitWarnings()) { status = -3; return; }

@@ -2,7 +2,6 @@
 // group-54 list fields. The layout is reconstructed, not a recovered screen.
 // Author: 최병호.
 #pragma once
-static void* planetDirectoryList = nullptr;
 static unsigned planetDirectoryStates[350];
 static void planetDirectoryCell(unsigned row, unsigned col, const wchar_t* text) {
     reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*,int,int)>(0x505b50)
