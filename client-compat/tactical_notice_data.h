@@ -26,6 +26,8 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {20, 0, "LOGH7_TACTICAL_FIRE_STOP", L"공격 중지 명령을 요청했습니다.\n"},
         {41, 0, "LOGH7_TACTICAL_RETREAT_CANCEL", L"철수 명령을 취소했습니다.\n"},
         {42, 0, "LOGH7_TACTICAL_RETREAT_REQUEST", L"철수 명령을 요청했습니다.\n"},
+        {47, 0, "LOGH7_TACTICAL_BASE_SUPPORT_SELECT", L"수리·보급할 주둔 함정을 목록에서 선택하세요.\n"},
+        {60, 0, "LOGH7_TACTICAL_BASE_SUPPORT_EMPTY", L"이 거점에 주둔한 함정이 없습니다.\n"},
     };
     count = sizeof(rows) / sizeof(rows[0]);
     return rows;

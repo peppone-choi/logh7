@@ -181,6 +181,57 @@ class TacticalCommandOperationsTest {
         assertTrue(events.single {it.order.command.opcode==0x419}.cancelled)
         assertEquals(lost.bases.getValue(1000).supplies,after.bases.getValue(1000).supplies)
     }
+    @Test fun fortressRepairsAndSuppliesItsStationedShipsAcrossReloadWithoutLaunchingThem() {
+        for(opcode in listOf(0x41b,0x41c))for(atBase in listOf(false,true)) {
+            val s=state();val outfit=s.stocks.outfits.getValue(1)
+            val roster=outfit.activeShips!!.values.map {u->if(u.id!=2)u else u.copy(damaged=1,
+                posture=TacticalPosture(2488,TacticalShipMode.STATIONED,1000),tactical=null)}
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(activeShips=ActiveShipUnits(roster),
+                position=OutfitPosition(2488,if(atBase)1000 else 0))))
+            val before=s.stocks;val r=run(s)
+            assertNull(accept(r,TacticalCommand(opcode,listOf(2),base=1000)).rejection)
+            val restored=run(s);val events=mutableListOf<TacticalCommandResult>();settle(restored,now+5,events)
+            assertFalse(events.single().cancelled)
+            val after=s.stocks.outfits.getValue(1);val unit=after.activeShips!!.values.single {it.id==2}
+            assertEquals(TacticalShipMode.STATIONED,unit.posture!!.mode);assertEquals(1000,unit.posture.base)
+            assertNull(unit.tactical);assertTrue(s.stocks.bases.getValue(1000).supplies<before.bases.getValue(1000).supplies)
+            if(opcode==0x41b)assertEquals(0,unit.damaged) else {
+                assertTrue(OutfitSupplies.distribution(after).getValue(2)>0)
+                assertEquals(before.bases.getValue(1000).supplies+before.outfits.getValue(1).supplies,
+                    s.stocks.bases.getValue(1000).supplies+after.supplies)
+            }
+        }
+    }
+    @Test fun fortressSupportDoesNotAcceptWrongBerthsEnemiesOrStationedCombatCommands() {
+        for(opcode in listOf(0x41b,0x41c)) {
+            val s=state();val outfit=s.stocks.outfits.getValue(1)
+            val roster=outfit.activeShips!!.values.map {u->if(u.id!=2)u else u.copy(
+                posture=TacticalPosture(2488,TacticalShipMode.STATIONED,1001),tactical=null)}
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(activeShips=ActiveShipUnits(roster))))
+            val r=run(s);val before=s.stocks
+            assertEquals(NavigationRejection.BASE,accept(r,TacticalCommand(opcode,listOf(2),base=1000)).rejection)
+            assertEquals(NavigationRejection.UNIT,accept(r,TacticalCommand(opcode,listOf(99),base=1000)).rejection)
+            assertEquals(NavigationRejection.BASE,accept(r,TacticalCommand(0x40d,listOf(2),kind=0)).rejection)
+            assertEquals(before,s.stocks)
+        }
+    }
+    @Test fun fortressSupportRechecksTheBerthBeforeSpendingItsStock() {
+        for(opcode in listOf(0x41b,0x41c)) {
+            val s=state();val outfit=s.stocks.outfits.getValue(1)
+            val roster=outfit.activeShips!!.values.map {u->if(u.id!=2)u else u.copy(damaged=1,
+                posture=TacticalPosture(2488,TacticalShipMode.STATIONED,1000),tactical=null)}
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(activeShips=ActiveShipUnits(roster))))
+            val r=run(s);assertNull(accept(r,TacticalCommand(opcode,listOf(2),base=1000)).rejection)
+            val changed=s.stocks.outfits.getValue(1).copy(activeShips=ActiveShipUnits(roster.map {u->
+                if(u.id==2)u.copy(posture=u.posture!!.copy(base=1001)) else u}))
+            val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to changed))
+            val events=mutableListOf<TacticalCommandResult>();val impacts=mutableListOf<TacticalImpact>()
+            val after=TacticalCommandOperations.advance(session.copy(gameMillis=(now+5)*1000),galaxy,
+                s.players.toMutableMap(),before,1,events,impacts)
+            assertTrue(events.single().cancelled);assertTrue(after.tacticalCommands.orders.isEmpty())
+            assertEquals(before.bases,after.bases);assertEquals(before.outfits,after.outfits);assertTrue(impacts.isEmpty())
+        }
+    }
     @Test fun fortressSupplyConservesStockAndStopCancelsPendingCannon() {
         val r=run();val supplies=r.state.stocks.bases.getValue(1000).supplies+r.state.stocks.outfits.getValue(1).supplies
         assertNotNull(accept(r,TacticalCommand(0x41c,listOf(2),base=1000)).player)

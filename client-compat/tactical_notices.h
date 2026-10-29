@@ -1,7 +1,8 @@
 // Hooks only the verified tactical guidance lookups. Author: 최병호.
 #pragma once
 #include "tactical_notice_data.h"
-static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08, 0x50f6b3, 0x50f426, 0x50ffa5, 0x50ffe3};
+static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08, 0x50f6b3, 0x50f426,
+    0x50ffa5, 0x50ffe3, 0x510363, 0x5104b2};
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);

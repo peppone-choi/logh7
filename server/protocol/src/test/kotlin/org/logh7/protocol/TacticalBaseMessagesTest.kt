@@ -5,6 +5,19 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalBaseMessagesTest {
+    @Test fun baseSupportCompletionsUseTheirOwnClocklessReadersAndAbsoluteBalances() {
+        val repair=TacticalBaseMessages.repaired(1040,100,0x01020304,50)
+        assertEquals("0000000004330000041000000064010203040032",repair.joinToString(""){"%02x".format(it)})
+        val supply=TacticalBaseMessages.supplied(1040,100,0x01020304,0x05060708)
+        assertEquals("00000000043400000410000000640102030405060708",supply.joinToString(""){"%02x".format(it)})
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.repaired(0,100,0,0)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.repaired(1040,0,0,0)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.repaired(1040,100,-1,0)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.repaired(1040,100,0,65536)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.supplied(65536,100,0,0)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.supplied(1040,0,0,0)}
+        assertFailsWith<IllegalArgumentException>{TacticalBaseMessages.supplied(1040,100,0,-1)}
+    }
     @Test fun fortressStopUsesTheOriginalSuccessRecordWithoutAFiringDirection() {
         val packet=TacticalBaseMessages.stopped(0x01020304,10000,1000)
         assertEquals("00000000041e010203040000000000002710000003e8",packet.joinToString(""){"%02x".format(it)})

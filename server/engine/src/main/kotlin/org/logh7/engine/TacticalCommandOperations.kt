@@ -27,6 +27,17 @@ internal object TacticalCommandOperations {
     }
     fun basePoint(base:GalaxyBase,now:Long,stocks:PlanetStocks)=stocks.tacticalCommands.fortresses[base.id]
         ?.takeIf {it.grid==base.grid}?.motion?.pose(now)?.position ?: TacticalBasePosition.at(base,now)
+    /** The native repair/supply picker enumerates mode-4 ships at the selected base.
+     * They have no exposed tactical pose, but their exact berth is authoritative. */
+    private fun supportPoint(id:Int,base:GalaxyBase,now:Long,players:Map<String,Navigator>,s:PlanetStocks,g:Galaxy):TacticalPoint? {
+        val u=ship(id,s)
+        if(u?.unit?.posture?.mode==TacticalShipMode.STATIONED) {
+            val berth=u.unit.posture;val location=u.outfit.positionIn(g)
+            return if(u.unit.boats>0 && berth.grid==base.grid && berth.base==base.id &&
+                location.grid==base.grid && location.baseId in setOf(0,base.id))basePoint(base,now,s) else null
+        }
+        return pose(id,base.grid,now,players,s,g)?.position
+    }
     /** Rebase berth offsets before replacing a fortress path; old anchor timestamps must not
      * start referring to the new path's origin after another move or stop. */
     private fun rebaseBerths(base:Int,now:Long,players:MutableMap<String,Navigator>,initial:PlanetStocks,g:Galaxy):PlanetStocks {
@@ -96,12 +107,14 @@ internal object TacticalCommandOperations {
             val personal=players.values.singleOrNull {it.unitId==id && it.grid==p.grid && it.power==p.power && it.cpPaused && it.baseId==0}
             val unit=ship(id,s)
             if(personal==null && (unit==null || unit.outfit.power!=wire(p) || unit.unit.boats==0 ||
-                    unit.outfit.positionIn(g)!=OutfitPosition(p.grid)))return NavigationRejection.UNIT
+                    (if(baseSupport)unit.outfit.positionIn(g).let {it.grid!=p.grid || it.baseId !in setOf(0,c.base)}
+                     else unit.outfit.positionIn(g)!=OutfitPosition(p.grid))))return NavigationRejection.UNIT
             if(!transfer && !mission && !baseSupport && personal?.unitId!=p.unitId &&
                 (unit==null || TacticalAuthority.commander(unit.outfit,unit.unit,s)!=p.characterId))return NavigationRejection.CARD
             if(!transfer && !mission && !baseSupport && unit?.unit?.let {it.support!=null || it.posture?.order!=null || it.tactical?.retreat!=null}==true)
                 return NavigationRejection.BUSY
-            val at=pose(id,p.grid,now,players,s,g)?.position ?: return NavigationRejection.BASE
+            val at=if(baseSupport)supportPoint(id,base!!,now,players,s,g) else pose(id,p.grid,now,players,s,g)?.position
+            if(at==null)return NavigationRejection.BASE
             if(checkRange && !transfer && !mission && id!=p.unitId && hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>range)
                 return NavigationRejection.RANGE
             if(!transfer && !mission && !baseSupport && id!=p.unitId && s.tacticalCommands.confused(id))return NavigationRejection.ACCESS
@@ -170,8 +183,8 @@ internal object TacticalCommandOperations {
             0x41b,0x41c -> {
                 if(s.bases.getValue(c.base).supplies==0)return NavigationRejection.SUPPLY
                 for(id in c.units) {
-                    val at=pose(id,p.grid,now,players,s,g)?.position ?: return NavigationRejection.TARGET
-                    if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>maxOf(1f,base!!.diameter))return NavigationRejection.RANGE
+                    val at=supportPoint(id,base!!,now,players,s,g) ?: return NavigationRejection.TARGET
+                    if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>maxOf(1f,base.diameter))return NavigationRejection.RANGE
                 }
             }
             0x41f -> if(base?.kind!=1 || c.points.isEmpty() || c.velocity<=0f)return NavigationRejection.BASE

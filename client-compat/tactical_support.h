@@ -39,13 +39,20 @@ static void applyTacticalSupplies(void* world) {
     for(unsigned i=0;i<count;++i) {
         auto row=static_cast<BYTE*>(world)+0x41a368+i*0x58;
         auto unit=supportUnit(world,at<unsigned>(row,0));
-        if (unit) at<unsigned>(unit,0x950)=at<unsigned>(row,0x4c);
+        if (!unit || at<BYTE>(unit,8)!=1) continue;
+        unsigned kind=at<unsigned short>(unit,0x8bc);
+        if(kind>=179 || at<unsigned short>(row,4)!=kind)continue;
+        at<unsigned>(unit,0x950)=at<unsigned>(row,0x4c);
+        unsigned maximum=at<unsigned>(world,0x2c1c90+kind*0x2a8),normal=0,alive=0;
+        if(logh::definitionShipCounts(maximum,at<unsigned short>(row,0x46),at<unsigned short>(row,0x48),normal,alive)) {
+            at<unsigned>(unit,0x8d4)=normal;at<unsigned>(unit,0x8d8)=alive;at<unsigned>(unit,0x8dc)=maximum;
+        }
     }
 }
 static void __fastcall importedTacticalUnits(void* world,void*,BYTE announce) {
     reinterpret_cast<void(__thiscall*)(void*,BYTE)>(0x4c32a0)(world,announce);
-    // The CD importer initializes damage but omits runtime cargo. Restore by ID from
-    // the complete 0325 definition cache, including after reconnect/reinforcement.
+    // The CD importer leaves existing damage/cargo untouched. Restore absolute
+    // counts and cargo by ID/kind from the committed 0325 definition cache.
     applyTacticalSupplies(world);
     applyTacticalLabels(world);
     applyTacticalCommandRange(world);

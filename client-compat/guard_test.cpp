@@ -249,7 +249,7 @@ static bool tacticalNoticesTest() {
             logh::tacticalNoticeFallback(118, rows[i].index, nullptr, rows[i].motion)) return false;
     }
     if (logh::tacticalNoticeFallback(118, 0, missing) != missing ||
-        logh::tacticalNoticeFallback(118, 60, missing) != missing) return false;
+        logh::tacticalNoticeFallback(118, 63, missing) != missing) return false;
     if (strcmp(logh::tacticalNoticeFallback(118, 10, missing, 3), "LOGH7_TACTICAL_TURN") ||
         strcmp(logh::tacticalNoticeFallback(118, 10, missing, 4), "LOGH7_TACTICAL_PARALLEL") ||
         strcmp(logh::tacticalNoticeFallback(118, 10, missing, 99), "LOGH7_TACTICAL_DESTINATION")) return false;
@@ -826,6 +826,13 @@ int wmain(int argc, wchar_t** argv) {
         !logh::repairedNormal(1,1,0,normal) || normal!=1 ||
         logh::repairedNormal(300,250,0,normal) || logh::repairedNormal(300,250,301,normal) ||
         logh::repairedNormal(0,0,0,normal)) return 80;
+    unsigned alive=999;
+    if(!logh::definitionShipCounts(300,50,0,normal,alive) || normal!=250 || alive!=300 ||
+        !logh::definitionShipCounts(300,0,0,normal,alive) || normal!=300 || alive!=300 ||
+        !logh::definitionShipCounts(300,222,148,normal,alive) || normal!=78 || alive!=152 ||
+        !logh::definitionShipCounts(1,1,0,normal,alive) || normal!=0 || alive!=1 ||
+        logh::definitionShipCounts(300,10,20,normal,alive) || logh::definitionShipCounts(300,301,0,normal,alive) ||
+        logh::definitionShipCounts(0,0,0,normal,alive) || logh::definitionShipCounts(301,0,0,normal,alive))return 80;
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));

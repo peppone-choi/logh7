@@ -197,6 +197,16 @@ class GamePresence {
                 packets+=event.destroyedUnits.map {id->org.logh7.protocol.TacticalBaseMessages.destroyed(
                     event.seconds,event.order.command.base,listOf(id))}
             }
+            if(!event.cancelled && event.order.command.opcode in setOf(0x41b,0x41c)) {
+                val command=event.order.command
+                val available=checkNotNull(snapshot.planetStocks).bases.getValue(command.base).supplies
+                for(id in command.units) {
+                    val target=tactical.units.singleOrNull {it.id==id} ?: continue
+                    packets+=if(command.opcode==0x41b)org.logh7.protocol.TacticalBaseMessages.repaired(
+                        command.base,id,available,target.damaged)
+                    else org.logh7.protocol.TacticalBaseMessages.supplied(command.base,id,available,target.supplies)
+                }
+            }
             if(!event.cancelled && event.order.command.opcode in setOf(0x422,0x41c)) {
                 val stocks=checkNotNull(snapshot.planetStocks)
                 val base=event.order.command.base

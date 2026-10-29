@@ -61,8 +61,11 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             val pose=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
                 ?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks) ?: stocks.outfits[u.outfit]?.activeShips?.values
                 ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks)
+            val berth=u.posture?.takeIf {it.mode.requiresBase}?.let {state->
+                galaxy.bases.singleOrNull {it.id==state.base && it.grid==viewer.grid}}
+                ?.let {TacticalBasePosition.at(it,snapshot.session?.gameSeconds ?: 0,stocks)}
             TacticsMessages.Unit(u.id,u.kind,u.outfit,u.character,u.supplies,u.cruise,u.destroyed,
-                pose?.position?.x ?: initial.position.x,pose?.position?.y ?: initial.position.y,0f,
+                pose?.position?.x ?: berth?.x ?: initial.position.x,pose?.position?.y ?: berth?.y ?: initial.position.y,0f,
                 pose?.direction ?: initial.direction,
                 damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else
                     stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0,

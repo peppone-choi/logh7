@@ -46,6 +46,10 @@ class TacticalPostureBootstrapTest {
             assertEquals(1,basePacket[6].toInt());assertEquals(1049,java.nio.ByteBuffer.wrap(basePacket).getInt(7))
             assertEquals(setOf(1,1010000),bootstrap.units.map {it.id}.toSet())
             assertTrue(bootstrap.units.all {it.mode==mode.wire && it.base==posture.base})
+            if(mode.requiresBase) {
+                val berth=TacticalBasePosition.at(galaxy.bases.single(),snapshot.session!!.gameSeconds,stock)
+                assertTrue(bootstrap.units.all {it.x==berth.x && it.y==berth.y})
+            }
             val replay=bootstrap.resume().single {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0411}
             assertEquals(140,java.nio.ByteBuffer.wrap(replay).getInt(10))
             val restored=TacticalGroundMessages.posture(replay.copyOfRange(4,replay.size))

@@ -4,6 +4,18 @@ import java.nio.ByteBuffer
 
 /** Native fortress/base notifications; separate layouts, no guessed shared clock. Author: 최병호. */
 object TacticalBaseMessages {
+    /** CD 0433 reader 004a7670: absolute base balance and unavailable target boats. */
+    fun repaired(base:Int,target:Int,available:Int,unavailable:Int):ByteArray {
+        require(base in 1..65535 && target>0 && available>=0 && unavailable in 0..65535)
+        return LoginMessages.sessionMessage(0x433,ByteBuffer.allocate(14).putInt(base).putInt(target)
+            .putInt(available).putShort(unavailable.toShort()).array())
+    }
+    /** CD 0434 reader 0043e9e0: both balances are absolute, with no clock prefix. */
+    fun supplied(base:Int,target:Int,available:Int,supplies:Int):ByteArray {
+        require(base in 1..65535 && target>0 && available>=0 && supplies>=0)
+        return LoginMessages.sessionMessage(0x434,ByteBuffer.allocate(16).putInt(base).putInt(target)
+            .putInt(available).putInt(supplies).array())
+    }
     /** Successful 041e reader: time, zero wait, character, base. Also clears a cancelled charge. */
     fun stopped(seconds:Long,character:Int,base:Int):ByteArray {
         require(seconds in 0..0xffffffffL && character>0 && base in 1..65535)

@@ -53,9 +53,31 @@ function installFortressBlockers() {
   const entries=[[0x5015f0,[0x83,0xec,0x20,0x53,0x8b,0x5c,0x24,0x2c]],
     [0x50c180,[0x83,0xec,8,0x53,0x55,0x56,0x57,0x89]],
     [0x501d60,[0x83,0xec,0x1c,0x53,0x55,0x56,0x8d,0x44]],
-    [0x4ec2e0,[0x8b,0x44,0x24,0x0c,0x8b,0x4c,0x24,8]]];
+    [0x4ec2e0,[0x8b,0x44,0x24,0x0c,0x8b,0x4c,0x24,8]],
+    [0x4c7e60,[0x8b,0x44,0x24,8,0x53,0x55,0x56,0x8b,0x30]],
+    [0x505b50,[0x51,0x8b,0x54,0x24,8,0x8a,0x42,8]]];
   if(!entries.every(([a,b])=>b.every((v,i)=>ptr(a).add(i).readU8()===v)))return;
   fortressBlockersInstalled=true;
+  Interceptor.attach(ptr(0x505b50),{
+    onEnter(args) {
+      if(fortressInputBudget<=0 || this.returnAddress.toUInt32()!==0x51046c || ptr(0x77a8f8).readU32()!==5)return;
+      recordFortressInput({site:'0x505b50',row:args[2].toInt32(),column:args[3].toInt32(),
+        text:args[1].isNull()?null:args[1].readUtf16String(128).split('\0')[0]});
+    }
+  });
+  Interceptor.attach(ptr(0x4c7e60),{
+    onEnter(args) {
+      const caller=this.returnAddress.toUInt32(),ctx=ptr(0x2215e2c).readPointer();
+      if(fortressInputBudget<=0 || caller<0x51032c || caller>0x51058e || ctx.isNull() ||
+          ![0x12,0x13].includes(ctx.add(4).readU32()) || ptr(0x77a8f8).readU32()!==5)return;
+      this.cursor=args[1];this.row={site:'0x4c7e60',caller:'0x'+caller.toString(16),
+        table:args[0].toString(),cursor:this.cursor.readS32(),mode:args[2].toUInt32()&255,base:args[3].toUInt32()};
+    },
+    onLeave(ret) {
+      if(!this.row)return;
+      this.row.next=this.cursor.readS32();this.row.unit=ret.isNull()?0:ret.add(4).readU32();recordFortressInput(this.row);
+    }
+  });
   Interceptor.attach(ptr(0x5015f0),{
     onEnter(args) {
       const caller=this.returnAddress.toUInt32();
@@ -105,21 +127,48 @@ rpc.exports.fortressstate = function(id) {
   const base=lookup(world.add(0x126718),id,0,255,255,255);
   if(!base.isNull())installFortressBlockers();
   fortressInputBudget=32;
+  const modeOf=new NativeFunction(ptr(0x4b5d50),'uint8',['pointer'],'thiscall');
+  const baseOf=new NativeFunction(ptr(0x4b5e20),'uint',['pointer'],'thiscall');
   const ships=[];
   for(let i=0;i<600 && ships.length<32;++i) {
     const unit=world.add(0x12671c+i*0x9ec);
     if(!unit.readU8() || unit.add(8).readU8()!==1)continue;
     ships.push({id:unit.add(4).readU32(),kind:unit.add(0x8bc).readU16(),
       normal:unit.add(0x8d4).readU32(),alive:unit.add(0x8d8).readU32(),supplies:unit.add(0x950).readU32(),
+      morale:unit.add(0x954).readU8(),mode:unit.add(0x974).readU8(),base:unit.add(0x978).readU32(),
+      subtype:unit.add(9).readU8(),effectiveMode:modeOf(unit),effectiveBase:baseOf(unit),
+      specName:world.add(0x2c1a78+unit.add(0x8bc).readU16()*0x2a8+12).readUtf16String(32).split('\0')[0],
       pose:[0x14,0x18,0x1c].map(i=>unit.add(i).readFloat())});
   }
   const display=ptr(0x22293fc).readPointer();
+  let supportList=null;
+  try {
+    const ctx=ptr(0x2215e2c).readPointer(),manager=ctx.isNull()?ptr(0):ctx.add(12).readPointer();
+    const sheet=manager.isNull()?ptr(0):manager.add(4+57*4).readPointer();
+    if(!sheet.isNull()) {
+      const list=new NativeFunction(ptr(0x502780),'pointer',['pointer','int','int'],'thiscall')(sheet,4,0);
+      supportList={exists:!list.isNull()};
+      if(!list.isNull()) {
+        supportList.flags=[list.add(8).readU8(),list.add(0x15).readU8(),list.add(0x18).readU8()];
+        supportList.bounds=[0x20,0x24,0x2c,0x30].map(i=>list.add(i).readS32());
+        if(supportList.flags[0])supportList.rowHeight=new NativeFunction(ptr(0x5056e0),'int',['pointer','pointer'],'thiscall')(sheet,list);
+        const index=sheet.add(0x932c).readS32(),pool=sheet.add(0x30).readPointer();
+        if(index>=0 && index<100000 && !pool.isNull()) {
+          const slot=pool.add(0xbc3fa8+index*4);
+          supportList.firstCellHandle=slot.readU32();
+          const cell=new NativeFunction(ptr(0x4eae30),'pointer',['pointer'],'mscdecl')(slot);
+          const length=new NativeFunction(ptr(0x4eae10),'uint',['pointer'],'mscdecl')(slot);
+          if(!cell.isNull() && length<=2048)supportList.firstCell=cell.readUtf16String(length);
+        }
+      }
+    }
+  } catch(e) {supportList={...supportList,error:String(e)};}
   return {base:base.isNull()?null:{id:base.add(4).readU32(),type:base.add(8).readU8(),owner:base.add(0x8c8).readU32(),
     pose:[0x14,0x18,0x1c].map(i=>base.add(i).readFloat()),
     kind:base.add(0x8bc).readU16(),charge:[base.add(0x5bc).readU32(),base.add(0x5c0).readU32()]},
     projection:{viewport:display.isNull()?null:[display.add(0x2a4c8).readU32(),display.add(0x2a4cc).readU32()],
       scale:[ptr(0x2229970).readFloat(),ptr(0x2229984).readFloat()],matrix:Array.from({length:16},(_,i)=>ptr(0x2229674+i*4).readFloat())},
-    ships,input:fortressInputEvents.slice(),aimBase:ptr(0x2216674).readU32(),command:ptr(0x22166a9).readU8(),
+    ships,supportList,input:fortressInputEvents.slice(),aimBase:ptr(0x2216674).readU32(),command:ptr(0x22166a9).readU8(),
     tab:ptr(0x77a8f8).readU32(),mode:ptr(0x2216694).readU32(),
     fortCount:ptr(0x221666c).readU32(),fortId:ptr(0x2215528).readU32(),selected:ptr(0x2216664).readU32(),menu:tacticalMenuState()};
 };

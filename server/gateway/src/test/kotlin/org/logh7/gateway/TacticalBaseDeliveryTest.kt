@@ -15,8 +15,8 @@ class TacticalBaseDeliveryTest {
     private val opposing=player.copy(characterId=10001,power=Power.ALLIANCE)
     private fun character(id:Int)=if(id==10000)person else enemy.takeIf {id==10001}
     private fun opcode(packet:ByteArray)=ByteBuffer.wrap(packet).getShort(4).toInt() and 65535
-    private fun snapshot(state:TacticalCommandState,available:Int=321,supplies:Int=0):WorldSnapshot {
-        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),supplies=supplies)))
+    private fun snapshot(state:TacticalCommandState,available:Int=321,supplies:Int=0,damaged:Int=0):WorldSnapshot {
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),supplies=supplies,damaged=damaged)))
         val outfit=OutfitStock(1,2,OutfitKind.PATROL,1000,10,10000,UnitInventory(ships.quantities()),
             supplies=supplies,activeShips=ships,position=OutfitPosition(2487))
         return WorldSnapshot(0,0,SessionSnapshot(1,120,0,0,emptyMap(),1,1,null),
@@ -35,6 +35,23 @@ class TacticalBaseDeliveryTest {
         assertEquals(5,packet.getShort(22).toInt());assertEquals(35,packet.get(27).toInt())
         assertTrue(received.flatten().any {opcode(it)==0x43e})
         assertEquals(35,received.flatten().single {opcode(it)==0x440}[14].toInt())
+    }
+    @Test fun committedBaseSupportPublishesAbsoluteResultsToBothObserversButCancellationDoesNot() {
+        for(command in listOf(0x41b,0x41c)) {
+            val hub=GamePresence();val own=mutableListOf<List<ByteArray>>();val peer=mutableListOf<List<ByteArray>>()
+            hub.update(GamePresence.Member("one",person,player,own::add))
+            hub.update(GamePresence.Member("two",enemy,opposing,peer::add));own.clear();peer.clear()
+            val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(command,listOf(1),base=1000))
+            val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one",10001 to "two"))
+            val state=snapshot(TacticalCommandState(),200,121,4)
+            hub.tacticalCommand(event,state,galaxy,::character)
+            val code=if(command==0x41b)0x433 else 0x434
+            val expected=if(command==0x41b)TacticalBaseMessages.repaired(1000,1,200,4)
+                else TacticalBaseMessages.supplied(1000,1,200,121)
+            for(packets in listOf(own,peer))assertContentEquals(expected,packets.flatten().single {opcode(it)==code})
+            own.clear();peer.clear();hub.tacticalCommand(event.copy(cancelled=true),state,galaxy,::character)
+            assertTrue((own+peer).flatten().none {opcode(it) in setOf(0x433,0x434)})
+        }
     }
     @Test fun encouragementUpdatesTheLiveMoraleAndConfusionFlagsAfterCommit() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
@@ -57,7 +74,7 @@ class TacticalBaseDeliveryTest {
         val state=snapshot(TacticalCommandState())
         hub.tacticalCommand(event,state,galaxy,::character)
         val fired=ByteBuffer.wrap(received.flatten().single {opcode(it)==0x419})
-        assertEquals(0,fired.getInt(10));assertEquals(.5f,fired.getFloat(22))
+        assertEquals(0,fired.getInt(10));assertEquals(Math.toDegrees(.5).toFloat(),fired.getFloat(22),.00001f)
         val kills=received.flatten().filter {opcode(it)==0x436}
         assertEquals(2,kills.size)
         assertEquals(listOf(1,2),kills.map {assertEquals(1,it[14].toInt());ByteBuffer.wrap(it).getInt(15)})
