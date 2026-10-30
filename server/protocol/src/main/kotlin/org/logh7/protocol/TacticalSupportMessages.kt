@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native 004a0d90, 004a7670 and 0043e9e0. Author: 최병호. */
+/** Native 004a0d90, 004a7670 and 0043e9e0. Author: Peppone Choi. */
 object TacticalSupportMessages {
     enum class Action(val opcode: Int) { REPAIR(0x0413), SUPPLY(0x0414) }
 

@@ -1,4 +1,4 @@
-// Preserve native CString lengths, identifiers and selection data. Author: 최병호.
+// Preserve native CString lengths, identifiers and selection data. Author: Peppone Choi.
 #pragma once
 #include "office_text.h"
 

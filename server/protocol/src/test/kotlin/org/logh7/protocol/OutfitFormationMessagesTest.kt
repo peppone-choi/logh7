@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 기존 봉투와 복원 확장·편집 단계의 구분. 작성: 최병호. */
+/** 기존 봉투와 복원 확장·편집 단계의 구분. 작성: Peppone Choi. */
 class OutfitFormationMessagesTest {
     private fun request(command:Int=25,phase:Int=0,target:Int=0,unit:Int=0,amount:Int=0)=ByteBuffer.allocate(31)
         .putShort(0x1200).putInt(10000).putShort(0x7f01).putShort(command.toShort()).putShort(24).putShort(0)

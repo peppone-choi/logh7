@@ -1,4 +1,4 @@
-"""얼굴 컨테이너의 경계·변조 거부·CD 인덱스 대응 검사. 작성: 최병호."""
+"""얼굴 컨테이너의 경계·변조 거부·CD 인덱스 대응 검사. 작성: Peppone Choi."""
 from pathlib import Path
 import struct
 import unittest

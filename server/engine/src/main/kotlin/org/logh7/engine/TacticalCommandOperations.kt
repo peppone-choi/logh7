@@ -5,7 +5,7 @@ import kotlin.math.*
 /** Actor-only native command execution. The complete after-image is saved before any event.
  * Manual facts: CRC, 10 supplies per aircraft launch, friendly-fire fortress cannon,
  * six missions and their time limits. All unrecorded costs/magnitudes below are design policy.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 internal object TacticalCommandOperations {
     private data class Ship(val outfit:OutfitStock,val unit:ActiveShipUnit)
     private fun ship(id:Int,s:PlanetStocks)=s.outfits.values.mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)}}.singleOrNull()

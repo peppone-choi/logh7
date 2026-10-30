@@ -1,4 +1,4 @@
-"""검수 TGA/PNG의 백업·실행 사본 적용·복구. 작성자: 최병호."""
+"""검수 TGA/PNG의 백업·실행 사본 적용·복구. 작성자: Peppone Choi."""
 import argparse
 import hashlib
 import json
@@ -229,7 +229,7 @@ def prepare(source_root, replacement_root, selection, output):
             target.parent.mkdir(parents=True, exist_ok=True)
             with target.open('xb') as stream:
                 stream.write(data)
-    manifest = dict(format=FORMAT, author='최병호', display_validated=False, assets=report)
+    manifest = dict(format=FORMAT, author='Peppone Choi', display_validated=False, assets=report)
     with (output / 'manifest.json').open('x', encoding='utf-8', newline='\n') as stream:
         json.dump(manifest, stream, ensure_ascii=False, indent=2)
         stream.write('\n')

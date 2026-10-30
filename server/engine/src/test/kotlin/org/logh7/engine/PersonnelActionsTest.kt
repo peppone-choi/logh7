@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 실제 인사 결과와 래더/정원/직무 상실/봉토 상태를 검사한다. 작성: 최병호. */
+/** 실제 인사 결과와 래더/정원/직무 상실/봉토 상태를 검사한다. 작성: Peppone Choi. */
 class PersonnelActionsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),

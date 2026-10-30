@@ -1,4 +1,4 @@
-// Hooks only the verified tactical guidance lookups. Author: 최병호.
+// Hooks only the verified tactical guidance lookups. Author: Peppone Choi.
 #pragma once
 #include "tactical_notice_data.h"
 static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08, 0x50f6b3, 0x50f426,

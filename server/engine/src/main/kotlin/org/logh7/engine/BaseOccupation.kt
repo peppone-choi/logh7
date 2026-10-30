@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Manual W pp.51-52. Warehouse caps and sortie offsets are revival policy. Author: 최병호. */
+/** Manual W pp.51-52. Warehouse caps and sortie offsets are revival policy. Author: Peppone Choi. */
 data class BaseOccupation(val generation:Long,val grid:Int,val base:Int,val previousPower:Int,val power:Int,
     val seconds:Long,val destroyedShips:Map<Int,Int>,val expelled:Map<String,Navigator>,
     val recipients:Map<Int,String>)

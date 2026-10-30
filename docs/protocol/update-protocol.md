@@ -1,6 +1,6 @@
 # 업데이터 제어 프로토콜
 
-작성자: 최병호 · 2026-09-27 · 상태: **candidate**, 동적 미검증.
+작성자: Peppone Choi · 2026-09-27 · 상태: **candidate**, 동적 미검증.
 근거: `evidence:client`, E-303. 대상 `Gin7UpdateClient.exe`, 주소는 VA.
 
 ## 외부 opcode와 오류 상태값 분리

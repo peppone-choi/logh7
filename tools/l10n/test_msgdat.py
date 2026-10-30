@@ -1,4 +1,4 @@
-"""Synthetic safety/regression tests; contains no game text. Author: 최병호."""
+"""Synthetic safety/regression tests; contains no game text. Author: Peppone Choi."""
 import copy
 import struct
 import tempfile

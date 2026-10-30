@@ -14,7 +14,7 @@ data class TacticalWeaponMount(val profile: Int, val angles: Int, val power: Int
     }
 }
 
-/** Designed replacement for lost server range tables, not original balance data. Author: 최병호.
+/** Designed replacement for lost server range tables, not original balance data. Author: Peppone Choi.
  * Manual destructive power and absent weapons remain authoritative. Profile IDs and arcs
  * are assigned here for native initialization and the server range evaluator below.
  * Personal beam fire uses this evaluator; native range-preview equivalence is still unverified.

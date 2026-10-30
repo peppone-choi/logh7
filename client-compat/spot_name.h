@@ -1,4 +1,4 @@
-// Natural Korean spot labels. Author: 최병호.
+// Natural Korean spot labels. Author: Peppone Choi.
 #pragma once
 #include <string>
 namespace logh {

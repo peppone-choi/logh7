@@ -1,4 +1,4 @@
-"""타이틀 4종의 한글 조판 후보·원본 복구 패키지. 작성: 최병호.
+"""타이틀 4종의 한글 조판 후보·원본 복구 패키지. 작성: Peppone Choi.
 
 원작 로고의 제작 글꼴과 가려진 배경은 미확인이다. 원래 로고 폭·높이 안에
 바탕 은색 글자를 조판하고 주변 별 배경을 복사한 후보다. 실제 화면 검수는 미완료다.
@@ -79,7 +79,7 @@ def render(source,output,font_path,logo_font_path=Path('C:/Windows/Fonts/batang.
                            logo_treatment='바탕 은색 조판·주변 별 복사',original_font_confirmed=False))
         if path.read_bytes()!=data:raise ValueError('original changed')
     (output/'selection.json').write_text(json.dumps(selection,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    (output/'render.json').write_text(json.dumps(dict(author='최병호',font=str(font_path),font_sha256=image_patch.sha(font_path.read_bytes()),
+    (output/'render.json').write_text(json.dumps(dict(author='Peppone Choi',font=str(font_path),font_sha256=image_patch.sha(font_path.read_bytes()),
         logo_font=str(logo_font_path),logo_font_sha256=image_patch.sha(logo_font_path.read_bytes()),
         assets=report),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     image_patch.prepare(source,output/'replacement',output/'selection.json',output/'package');image_patch.verify(output/'package')

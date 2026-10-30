@@ -1,4 +1,4 @@
-// Current base ownership, independent of fleets and entry capacity. Author: 최병호.
+// Current base ownership, independent of fleets and entry capacity. Author: Peppone Choi.
 #pragma once
 namespace logh {
 struct SystemAffiliation {

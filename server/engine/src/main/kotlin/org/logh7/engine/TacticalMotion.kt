@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-/** Wire map coordinates are x/y, imported into native world x/z. Author: 최병호. */
+/** Wire map coordinates are x/y, imported into native world x/z. Author: Peppone Choi. */
 data class TacticalPoint(val x: Float, val y: Float) {
     init { require(x.isFinite() && y.isFinite() && kotlin.math.abs(x) <= 100_000 && kotlin.math.abs(y) <= 100_000) }
 }

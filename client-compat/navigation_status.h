@@ -1,5 +1,5 @@
 // Display the server's accepted docking deadline; never predict arrival locally.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 
 static struct DockingStatus {

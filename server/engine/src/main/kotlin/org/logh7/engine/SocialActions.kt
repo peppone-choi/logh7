@@ -29,7 +29,7 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,
- * +/-2 approval and separate speaker/base daily limits are restoration policy. Author: 최병호. */
+ * +/-2 approval and separate speaker/base daily limits are restoration policy. Author: Peppone Choi. */
 object SocialActions {
     const val DAY=86400L
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks):SocialResult {

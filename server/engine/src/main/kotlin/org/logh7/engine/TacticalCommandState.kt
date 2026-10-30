@@ -1,7 +1,7 @@
 package org.logh7.engine
 
 /** Additional native tactical commands. Opaque bytes are retained only for native replies.
- * Timing, CP costs, formation geometry and combat magnitudes are replacement policy. Author: 최병호. */
+ * Timing, CP costs, formation geometry and combat magnitudes are replacement policy. Author: Peppone Choi. */
 data class TacticalCommand(val opcode:Int,val units:List<Int> = emptyList(),val base:Int=0,val kind:Int=0,
     val targetKind:Int=0,val target:Int=0,val velocity:Float=0f,val direction:Float=0f,
     val points:List<TacticalPoint> = emptyList(),val payload:List<Int> = emptyList()) {

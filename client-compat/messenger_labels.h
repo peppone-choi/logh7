@@ -1,4 +1,4 @@
-// Messenger buttons and connection notices, limited to observed CD calls. Author: 최병호.
+// Messenger buttons and connection notices, limited to observed CD calls. Author: Peppone Choi.
 #pragma once
 #include "display_text.h"
 #include <intrin.h>

@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-/** Autonomous uncommanded ship units, not offline delegation or named original characters. Author: 최병호. */
+/** Autonomous uncommanded ship units, not offline delegation or named original characters. Author: Peppone Choi. */
 data class NpcTacticalPolicy(val enabled:Boolean=true,val sight:Float=500f,val engagementDistance:Float=2f,val strategic:Boolean=false) {
     init { require(sight in 8f..1000f && engagementDistance in 1f..3f) }
 }

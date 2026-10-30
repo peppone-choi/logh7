@@ -2,7 +2,7 @@ package org.logh7.persistence
 
 import org.logh7.engine.*
 
-/** Separate from the navigation-only fuel/docking checkpoint. Author: 최병호. */
+/** Separate from the navigation-only fuel/docking checkpoint. Author: Peppone Choi. */
 internal object StrategicStateCodec {
     fun encode(state:StrategicState):String = listOf(
         state.people.toSortedMap().entries.joinToString(";") {(id,p)->listOf(id,p.rank ?: "-",p.groundTactics,p.retiredUntil,

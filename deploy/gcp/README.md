@@ -1,6 +1,6 @@
 # GCP IaC 검토 초안
 
-작성: 최병호 · 2026-09-27 · LOGH-41 · `evidence:guess`
+작성: Peppone Choi · 2026-09-27 · LOGH-41 · `evidence:guess`
 
 `main.tf`는 Compute Engine 단일 VM, 전용 VPC·서브넷, 고정 IP, 데이터 PD와 일일 스냅샷, 게임 TCP 방화벽, IAP SSH 경로를 제안한다. **apply/create를 실행하지 않았다.** Terraform도 로컬에 없어 validate/plan을 실행하지 않았다. 버전 범위는 호환성 제약 초안이며 최신 버전 확인 또는 provider 스키마 검증을 뜻하지 않는다. `evidence:guess`
 

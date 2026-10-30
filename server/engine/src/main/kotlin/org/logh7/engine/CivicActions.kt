@@ -26,7 +26,7 @@ data class CivicChange(val generation:Long,val stocks:PlanetStocks,val bases:Set
 
 /** W68/69 fixes CP160 and 24-hour wait/duration; MCP, coefficients, commander/card
  * authority, continuous local eligibility, cancellation without refunds, captured-seed
- * identity and a 1000-supply transfer are explicit replacement policy. Author: 최병호. */
+ * identity and a 1000-supply transfer are explicit replacement policy. Author: Peppone Choi. */
 object CivicActions {
     val supported=setOf(52,54,55,56)
     val commandingCards=setOf(39,44,47,50,175,180,183,186)

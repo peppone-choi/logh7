@@ -1,6 +1,6 @@
 ---
 title: 미구현·미완성 기능 후보 (단기 범위)
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: gin7manual.pdf(웹판), 銀英伝７マニュアル.pdf(CD판), wayback ns-update·update01~05
 ---

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run real loopback TCP probes and unchanged alert rules; no game protocol or delivery claim.
-작성: 최병호
+작성: Peppone Choi
 """
 import argparse
 import hashlib

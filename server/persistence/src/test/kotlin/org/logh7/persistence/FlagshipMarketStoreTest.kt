@@ -8,7 +8,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** S/C 보존·M 제안 복원·양측 기함/CP 저장 실패의 원자성. 작성: 최병호. */
+/** S/C 보존·M 제안 복원·양측 기함/CP 저장 실패의 원자성. 작성: Peppone Choi. */
 class FlagshipMarketStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds

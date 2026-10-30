@@ -12,7 +12,7 @@ enum class TaxRejection { SESSION, IDENTITY, ACCESS, CARD, BASE, LOCATION, BUSY,
 data class TaxResult(val player: Navigator?, val stocks: PlanetStocks?, val rejection: TaxRejection? = null,
     val changed: Boolean = false, val recovery: NavigationResult? = null)
 
-/** Civil planetary offices; capital administrator tax authority is restoration policy. Author: 최병호. */
+/** Civil planetary offices; capital administrator tax authority is restoration policy. Author: Peppone Choi. */
 internal object PlanetTax {
     const val COST = 160 // Original constmsg group 0, entry 97: MCP 160, no wait or duration.
     fun effectiveRate(stock: PlanetStock, base: BaseCondition): Int {

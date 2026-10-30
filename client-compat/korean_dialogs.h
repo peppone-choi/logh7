@@ -1,4 +1,4 @@
-// Keep native MessageBox ownership/buttons/return values. Author: 최병호.
+// Keep native MessageBox ownership/buttons/return values. Author: Peppone Choi.
 #pragma once
 #include "dialog_text.h"
 #include <intrin.h>

@@ -1,6 +1,6 @@
 // Original scrolling-list control and selection event, with the surviving
 // group-54 list fields. The layout is reconstructed, not a recovered screen.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 static unsigned planetDirectoryStates[350];
 static void planetDirectoryCell(unsigned row, unsigned col, const wchar_t* text) {

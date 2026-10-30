@@ -1,4 +1,4 @@
-// Non-ASCII map-selection prompt through the native name-label renderer. Author: 최병호.
+// Non-ASCII map-selection prompt through the native name-label renderer. Author: Peppone Choi.
 #pragma once
 #include <windows.h>
 

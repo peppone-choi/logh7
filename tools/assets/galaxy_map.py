@@ -1,4 +1,4 @@
-"""Extract LOGH7 map payloads and Null_galaxy MDX anchors. Author: 최병호.
+"""Extract LOGH7 map payloads and Null_galaxy MDX anchors. Author: Peppone Choi.
 
 Inputs are read-only; output contains derived data and belongs under work/.
 This is the observed LOGH7 MDX layout, not a general MDX file reader.

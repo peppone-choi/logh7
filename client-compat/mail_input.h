@@ -1,4 +1,4 @@
-// Verified mail/messenger call sites only. Author: 최병호.
+// Verified mail/messenger call sites only. Author: Peppone Choi.
 #pragma once
 #include "mail_text.h"
 #include "mail_delivery.h"

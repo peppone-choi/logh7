@@ -1,4 +1,4 @@
-"""Keep a two-client GUI group exclusive from other GUI tests. Author: 최병호."""
+"""Keep a two-client GUI group exclusive from other GUI tests. Author: Peppone Choi."""
 import subprocess
 import sys
 import threading

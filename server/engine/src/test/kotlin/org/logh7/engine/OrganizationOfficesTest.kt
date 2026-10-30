@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 조직표 전 행의 임명·해임·사임·무권한 거부를 운영 평가기에 연결한다. 작성: 최병호. */
+/** 조직표 전 행의 임명·해임·사임·무권한 거부를 운영 평가기에 연결한다. 작성: Peppone Choi. */
 class OrganizationOfficesTest {
     private val seeds=listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),

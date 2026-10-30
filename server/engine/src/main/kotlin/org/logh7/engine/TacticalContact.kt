@@ -1,9 +1,9 @@
 package org.logh7.engine
 
-/** A committed battlefield exit addressed to the current authenticated connection. Author: 최병호. */
+/** A committed battlefield exit addressed to the current authenticated connection. Author: Peppone Choi. */
 data class TacticalEnd(val generation:Long,val character:Int,val grid:Int,val connection:String)
 
-/** Manual W46: hostile units sharing a grid enter tactics. Author: 최병호. */
+/** Manual W46: hostile units sharing a grid enter tactics. Author: Peppone Choi. */
 internal object TacticalContact {
     fun contested(forces: List<GridForces.Force>): Boolean = forces.any { own ->
         own.units > 0 && forces.any { it.camp != own.camp && (it.units > 0 || it.base) }

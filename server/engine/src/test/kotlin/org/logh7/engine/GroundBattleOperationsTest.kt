@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** Manual participation and designed simultaneous damage, using real physical rosters. Author: 최병호. */
+/** Manual participation and designed simultaneous damage, using real physical rosters. Author: Peppone Choi. */
 class GroundBattleOperationsTest {
     private val rules=SessionRules.load()
     private val session=SessionSimulation(rules).exportState()

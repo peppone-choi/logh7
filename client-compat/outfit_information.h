@@ -1,5 +1,5 @@
 // Standing-outfit details using the original tab frame and scrolling sheets.
-// Missing CD category-4 contents are reconstructed from server replies. Author: 최병호.
+// Missing CD category-4 contents are reconstructed from server replies. Author: Peppone Choi.
 #pragma once
 #include "outfit_info_data.h"
 #include "ground_info_data.h"

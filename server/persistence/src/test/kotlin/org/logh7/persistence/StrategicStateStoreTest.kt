@@ -8,7 +8,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.*
 
-/** CP·훈련/계급·예약을 같은 월드 슬롯에 저장. 작성: 최병호. */
+/** CP·훈련/계급·예약을 같은 월드 슬롯에 저장. 작성: Peppone Choi. */
 class StrategicStateStoreTest {
     @TempDir lateinit var directory:Path
     private val navigator=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000)

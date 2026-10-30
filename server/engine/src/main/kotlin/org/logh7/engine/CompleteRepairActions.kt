@@ -5,7 +5,7 @@ import org.logh7.engine.strategy.*
 /** W71: MCP160, repair surviving ships, consume all carried supplies. The personal
  * captain path, same-location member flagships and zero-damage free no-op are explicit
  * restoration policy. Destroyed boats and injured characters are never resurrected.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 internal object CompleteRepairActions {
     val supported=setOf(61)
     private fun busy(p:Navigator)=p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null

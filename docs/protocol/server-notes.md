@@ -1,6 +1,6 @@
 # 서버 골격 구현 메모
 
-작성자: 최병호 · 2026-09-27 · T1 (LOGH-17/61/18/19)
+작성자: Peppone Choi · 2026-09-27 · T1 (LOGH-17/61/18/19)
 
 ## 범위와 근거
 
@@ -62,7 +62,7 @@ Set-Location E:\logh7\server
 
 ## T1 서버 역할 구현 (2026-09-28)
 
-작성자: 최병호. 아래 기록은 이 절의 빌드 시점을 기준으로 한다.
+작성자: Peppone Choi. 아래 기록은 이 절의 빌드 시점을 기준으로 한다.
 
 - `evidence:client` `Handshake`는 `kex-envelope.md`의 B 역할을 구현한다. 0x34를 정적 wrapping key로 복호하여 키 길이·checksum·초기 sequence·정렬과 0 패딩을 검증하고, 난수 16바이트 B 키와 초기 sequence로 0x35를 만든다. 0x36의 checksum과 B 키 반향이 일치해야 ESTABLISHED로 바뀐다. sequence 필드를 읽기 전 최소 4바이트를 요구한다. 합성 응답은 `mps-kex.json`과 바이트 단위로 일치한다.
 - `evidence:client` A 키는 수신, B 키는 송신에 사용한다. 0x30은 봉투 전체를 복호한 다음 checksum·본문 길이·sequence 단조 증가를 검증한다. 수신 초기 previous는 A initial sequence−1이다. 송신 sequence는 사용 후 증가하며 0x7fffffff를 넘으면 명시적 rekey 필요 오류를 낸다. 복호 본문 시작의 0x0031은 미구현 rekey 오류로 처리한다. 외부 평문 0x31을 rekey로 수용하지 않는다.

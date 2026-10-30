@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import kotlin.math.hypot
 
-/** Durable regular-ship order. Weapon cadence is replacement policy. Author: 최병호. */
+/** Durable regular-ship order. Weapon cadence is replacement policy. Author: Peppone Choi. */
 data class TacticalUnitAttack(val commander:Int,val order:TacticalAttackOrder) {
     init {require(commander>0)}
 }

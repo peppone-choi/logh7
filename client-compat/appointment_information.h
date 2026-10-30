@@ -1,5 +1,5 @@
 // Native confirmation details: selected office/card and current warp cost policy.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "appointment_ui_data.h"
 #include "unicode_text.h"

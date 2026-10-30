@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test
 import java.nio.ByteBuffer
 import kotlin.test.*
 
-/** 코덱 단위 검사이며 원본 UI의 송신 완료 증거가 아니다. 작성: 최병호. */
+/** 코덱 단위 검사이며 원본 UI의 송신 완료 증거가 아니다. 작성: Peppone Choi. */
 class MailMessagesTest {
     private val a=MailMessages.Peer(10000,"한글 日本",1,20)
     private val b=MailMessages.Peer(10001,"수신인",2,20)

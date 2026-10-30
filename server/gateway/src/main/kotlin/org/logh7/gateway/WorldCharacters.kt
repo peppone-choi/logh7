@@ -3,7 +3,7 @@ package org.logh7.gateway
 import org.logh7.engine.*
 import org.logh7.protocol.CharacterMessages
 
-/** One current personnel view for login, observers and tactical reconnect. Author: 최병호. */
+/** One current personnel view for login, observers and tactical reconnect. Author: Peppone Choi. */
 internal object WorldCharacters {
     fun view(character:CharacterMessages.Generate,snapshot:WorldSnapshot?):CharacterMessages.Generate {
         if(snapshot==null)return character

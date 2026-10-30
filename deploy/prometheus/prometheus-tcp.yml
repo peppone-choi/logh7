@@ -1,4 +1,4 @@
-# 작성: 최병호 | LOGH-46 | Opt-in native processes on the same localhost.
+# 작성: Peppone Choi | LOGH-46 | Opt-in native processes on the same localhost.
 # This is separate from the existing Docker rehearsal configuration.
 global:
   scrape_interval: 5s

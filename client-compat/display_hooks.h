@@ -1,4 +1,4 @@
-// Only verified display-name callers of 004eacf0 use this bridge. Author: 최병호.
+// Only verified display-name callers of 004eacf0 use this bridge. Author: Peppone Choi.
 #pragma once
 #include "display_text.h"
 

@@ -1,5 +1,5 @@
 // Native 0331 decoded information-unit rows, shared by ships and ground units.
-// Mode-2 outfit queries are an explicit revival extension. Author: 최병호.
+// Mode-2 outfit queries are an explicit revival extension. Author: Peppone Choi.
 #pragma once
 #include "planet_info_data.h"
 namespace logh {

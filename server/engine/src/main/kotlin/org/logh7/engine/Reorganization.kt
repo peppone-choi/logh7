@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Native 0c02 deltas: ship rows have no grade; zero boats means whole units. Author: 최병호. */
+/** Native 0c02 deltas: ship rows have no grade; zero boats means whole units. Author: Peppone Choi. */
 data class ReorganizationShip(val kind: Int, val units: Int, val boats: Int = 0)
 data class ReorganizationTroop(val kind: Int, val grade: Int, val units: Int)
 class ReorganizationRequest(val account: String, val connection: String, val characterId: Int, val power: Power,

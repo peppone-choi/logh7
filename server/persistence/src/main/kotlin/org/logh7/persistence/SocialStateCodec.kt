@@ -2,7 +2,7 @@ package org.logh7.persistence
 
 import org.logh7.engine.*
 
-/** STOCK35 X, separate from S and the other extension grammars. Author: 최병호. */
+/** STOCK35 X, separate from S and the other extension grammars. Author: Peppone Choi. */
 internal object SocialStateCodec {
     private fun times(values:Map<Int,Long>)=values.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
     fun encode(s:SocialState)=listOf(s.nextId,times(s.speakers),times(s.squares),s.speeches.toSortedMap().values.joinToString(";") {r->

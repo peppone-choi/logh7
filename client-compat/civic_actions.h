@@ -1,4 +1,4 @@
-// Timed local duties over the explicit 7f00 revival codec. Author: 최병호.
+// Timed local duties over the explicit 7f00 revival codec. Author: Peppone Choi.
 #pragma once
 static struct CivicWindowState {
     int phase;

@@ -4,7 +4,7 @@ import org.logh7.engine.strategy.*
 
 /** Offer/accept is an explicit revival extension requested for flagship transfers.
  * Both owners consent, keep their own supplies, and exchange the entire surviving hull.
- * Offers expire after 24 game hours; no fee before acceptance. Author: 최병호. */
+ * Offers expire after 24 game hours; no fee before acceptance. Author: Peppone Choi. */
 data class FlagshipExchangeOffer(val giver:Int,val receiver:Int,val giverKind:Int,val receiverKind:Int,
     val base:Int,val spot:Int,val expiresAt:Long) {
     init {require(giver>0 && receiver>0 && giver!=receiver && Flagships.find(giverKind)!=null &&
@@ -19,7 +19,7 @@ data class FlagshipPurchaseOption(val index:Int,val kind:Int,val price:Long,val 
 /** REVIEW05: personal card, owned capital flagship-yard spot, evaluation currency,
  * rank limit. The four supported classes, prices/rank thresholds and exchange acceptance
  * PCP80 are evidence:guess. Special flagship definitions are not fabricated.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 object FlagshipMarketCatalog {
     fun options(power:Int):List<FlagshipPurchaseOption> {
         require(power in 2..3)

@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Commander-led deployment uses the same durable transaction as the flagship. Author: 최병호. */
+/** Commander-led deployment uses the same durable transaction as the flagship. Author: Peppone Choi. */
 internal object FleetNavigation {
     fun apply(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?, blocked: (Int) -> Boolean): NavigationResult {

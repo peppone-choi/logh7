@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 
-/** Native search14 / 00561c80: u16 count, supplies/free-room then simple outfit. Author: 최병호. */
+/** Native search14 / 00561c80: u16 count, supplies/free-room then simple outfit. Author: Peppone Choi. */
 object SupplyDirectoryMessages {
     data class Query(val character: Int, val grid: Int, val raw: ByteArray)
     data class Outfit(val id: Int, val kind: Int, val number: Int, val supplies: Int,

@@ -8,7 +8,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** 저장35·34 호환과 CP/영향력/지지/재실행 제한의 원자 저장. 작성: 최병호. */
+/** 저장35·34 호환과 CP/영향력/지지/재실행 제한의 원자 저장. 작성: Peppone Choi. */
 class SocialStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds

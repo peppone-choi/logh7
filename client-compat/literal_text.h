@@ -1,4 +1,4 @@
-// Localize verified on-screen literal pushes. Author: 최병호.
+// Localize verified on-screen literal pushes. Author: Peppone Choi.
 #pragma once
 #include "korean_text.h"
 #include <cwchar>

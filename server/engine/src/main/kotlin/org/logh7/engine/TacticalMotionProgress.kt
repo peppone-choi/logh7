@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Actor-owned waypoint permission/completion, committed before 0423 publication. Author: 최병호. */
+/** Actor-owned waypoint permission/completion, committed before 0423 publication. Author: Peppone Choi. */
 internal object TacticalMotionProgress {
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
         events:MutableList<TacticalMovement>):PlanetStocks {

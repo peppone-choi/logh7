@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 
-/** CD 0042a420: dedicated public profile, not a 0323 character/cache record. Author: 최병호. */
+/** CD 0042a420: dedicated public profile, not a 0323 character/cache record. Author: Peppone Choi. */
 object CharacterInformationMessages {
     data class ChargedBase(val card: Int, val base: WorldMessages.Base)
     data class Profile(val character: CharacterMessages.Generate, val grid: Int, val base: Int,

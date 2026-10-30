@@ -9,7 +9,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
 
-/** Actual encrypted peers receive only committed ground casualties. Author: 최병호. */
+/** Actual encrypted peers receive only committed ground casualties. Author: Peppone Choi. */
 class GroundBattleWireTest {
     @TempDir lateinit var directory:Path
     @Test fun automaticExchangeUpdatesBothNativeBaseBarsAndReloadKeepsPartialStrength()=runBlocking {

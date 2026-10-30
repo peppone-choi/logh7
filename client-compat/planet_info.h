@@ -1,6 +1,6 @@
 // Dedicated planet browser. Native GUI and authoritative decoded responses.
 // Reconstructed layout; original command dialogs are not borrowed.
-// All quantities come from fresh decoded server responses. Author: 최병호.
+// All quantities come from fresh decoded server responses. Author: Peppone Choi.
 #pragma once
 #include <stdio.h>
 #include <stdlib.h>

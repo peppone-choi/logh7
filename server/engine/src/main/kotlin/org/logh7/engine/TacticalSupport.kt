@@ -15,7 +15,7 @@ data class TacticalSupportOrder(val action: TacticalSupportAction, val character
     init { require(character > 0 && validCombatTarget(target) && grid in 0..4999 &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL) }
 }
-/** Committed balances and repair state; delivery follows the durable world transaction. Author: 최병호. */
+/** Committed balances and repair state; delivery follows the durable world transaction. Author: Peppone Choi. */
 data class TacticalSupportResult(val generation: Long, val grid: Int, val action: TacticalSupportAction,
     val unit: Int, val target: Int, val supplies: Int, val targetSupplies: Int, val damaged: Int,
     val recipients: Map<Int,String>, val cancelled:Boolean=false, val character:Int=0) {

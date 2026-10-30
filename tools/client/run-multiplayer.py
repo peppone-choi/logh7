@@ -1,4 +1,4 @@
-"""Run two original client copies under one owned GUI test. Author: 최병호."""
+"""Run two original client copies under one owned GUI test. Author: Peppone Choi."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import importlib.util

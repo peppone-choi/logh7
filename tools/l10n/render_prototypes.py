@@ -1,4 +1,4 @@
-"""사용 여부 미확정 제목판 2개의 별도 한국어 후보. 작성: 최병호.
+"""사용 여부 미확정 제목판 2개의 별도 한국어 후보. 작성: Peppone Choi.
 
 기존 29개 묶음에 자동 포함하지 않는다. 원본 제작 폰트는 미확인이며,
 같은 행의 빈 제목판 배경과 맑은 고딕 11px로 검토 후보를 만든다.
@@ -65,7 +65,7 @@ def render(source,output,font_path):
         report.append(dict(asset=relative,**metadata))
         if path.read_bytes()!=data:raise ValueError('original changed')
     (output/'selection.json').write_text(json.dumps(selection,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    (output/'render.json').write_text(json.dumps(dict(author='최병호',font=str(font_path),
+    (output/'render.json').write_text(json.dumps(dict(author='Peppone Choi',font=str(font_path),
         font_sha256=image_patch.sha(font_path.read_bytes()),assets=report,
         actual_reference_confirmed=False,display_validated=False),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     preview.save(output/'preview.png')

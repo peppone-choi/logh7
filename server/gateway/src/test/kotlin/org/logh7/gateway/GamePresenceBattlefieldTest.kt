@@ -7,7 +7,7 @@ import java.nio.ByteBuffer
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Delayed tactical events must stay in their committed battlefield. Author: 최병호. */
+/** Delayed tactical events must stay in their committed battlefield. Author: Peppone Choi. */
 class GamePresenceBattlefieldTest {
     private val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
         emptyList(), Power.entries.associateWith { 2487 })

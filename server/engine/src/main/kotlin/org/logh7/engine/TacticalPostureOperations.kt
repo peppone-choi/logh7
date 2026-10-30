@@ -6,7 +6,7 @@ data class TacticalPostureChange(val units:List<Int>,val mode:TacticalShipMode,v
     init {require(units.size in 1..32 && units.all {it>0} && units.distinct().size==units.size &&
         base in 0..65535 && (if(sortie)mode==TacticalShipMode.ANCHORED && base==0 else (base>0)==mode.requiresBase))}
 }
-/** Committed change; only these connections may receive this generation's notification. Author: 최병호. */
+/** Committed change; only these connections may receive this generation's notification. Author: Peppone Choi. */
 data class TacticalPostureResult(val generation:Long,val grid:Int,val seconds:Long,val character:Int,
     val mode:TacticalShipMode,val base:Int,val units:Map<Int,TacticalPose>,val recipients:Map<Int,String>,
     val spot:Int=0,val spotOwner:Int=0,val cancelled:Boolean=false,val sortie:Boolean=false) {

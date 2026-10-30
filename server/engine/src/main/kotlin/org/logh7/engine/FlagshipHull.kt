@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Server-designed hull points, six shield work pools and injury delay. Author: 최병호. */
+/** Server-designed hull points, six shield work pools and injury delay. Author: Peppone Choi. */
 data class FlagshipHull(val kind: Int, val at: Long, val hp: Int = 100, val woundedUntil: Long = 0,
     val clockScale: Long = 24, val shields: List<Long> = List(6) { capacity(kind) * 100L * clockScale }) {
     init {

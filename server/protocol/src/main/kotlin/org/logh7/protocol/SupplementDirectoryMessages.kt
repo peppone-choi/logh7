@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native search34 / 0055f1f0: count:u16, (id:u32,kind:u8,destroyed:u16). Author: 최병호. */
+/** Native search34 / 0055f1f0: count:u16, (id:u32,kind:u8,destroyed:u16). Author: Peppone Choi. */
 object SupplementDirectoryMessages {
     data class Query(val character: Int,val kind: Int,val raw: ByteArray)
     data class Unit(val id: Int,val kind: Int,val destroyed: Int)

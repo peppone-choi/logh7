@@ -1,4 +1,4 @@
-// Decoded CD records, not wire packets. Author: 최병호.
+// Decoded CD records, not wire packets. Author: Peppone Choi.
 #pragma once
 #include <stdint.h>
 #include <string.h>

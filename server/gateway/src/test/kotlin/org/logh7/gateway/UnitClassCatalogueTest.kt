@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** Native editor classes: 004c6d20 mask and 00534160 totals. Author: 최병호. */
+/** Native editor classes: 004c6d20 mask and 00534160 totals. Author: Peppone Choi. */
 class UnitClassCatalogueTest {
     private val catalogues=WorldBootstrap(Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),emptyList(),
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))).catalogues

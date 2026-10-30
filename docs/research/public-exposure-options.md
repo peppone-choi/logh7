@@ -1,6 +1,6 @@
 # 자택 서버 공개용 TCP 노출 방식 비교
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27
 - 모든 URL 확인 날짜: 2026-09-27
 - 근거 태그: `evidence:manual`(LOGH7 공식 사이트), `evidence:web`(각 서비스 공식 문서 등 제3자 자료), `evidence:guess`(추정)

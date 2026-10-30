@@ -3,7 +3,7 @@ package org.logh7.gateway
 import org.logh7.engine.*
 import org.logh7.protocol.*
 
-/** Native tactical initialization from actual unit identities; formation placement is provisional. Author: 최병호. */
+/** Native tactical initialization from actual unit identities; formation placement is provisional. Author: Peppone Choi. */
 internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val galaxy: Galaxy,private val viewer: Navigator,
     baseCharacterById: (Int)->CharacterMessages.Generate?) {
     private val characterById:(Int)->CharacterMessages.Generate? = {id->baseCharacterById(id)?.let {WorldCharacters.view(it,snapshot)}}

@@ -3,7 +3,7 @@ package org.logh7.engine
 import java.util.Collections
 import org.logh7.engine.strategy.*
 
-/** Organization pp.57/63: deputy, chief of staff and up to six staff officers. Author: 최병호. */
+/** Organization pp.57/63: deputy, chief of staff and up to six staff officers. Author: Peppone Choi. */
 class FleetStaff(val deputy: Int=0,val chief: Int=0,officers: List<Int> = emptyList()) {
     val officers:List<Int> = Collections.unmodifiableList(ArrayList(officers))
     val members:List<Int> get()=listOf(deputy,chief).filter {it>0}+officers

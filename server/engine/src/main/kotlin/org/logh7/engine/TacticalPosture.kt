@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Native tactical modes; strategy location modes have a separate contract. Author: 최병호. */
+/** Native tactical modes; strategy location modes have a separate contract. Author: Peppone Choi. */
 enum class TacticalShipMode(val wire:Int,val berth:ShipBerth) {
     STATIONED(4,ShipBerth.STATIONED), ANCHORED(5,ShipBerth.ANCHORED),
     SAILING(6,ShipBerth.NONE), BATTLE(7,ShipBerth.NONE);

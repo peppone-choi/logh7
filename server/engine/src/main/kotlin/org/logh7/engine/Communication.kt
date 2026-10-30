@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** 개인 주소만 지원한다. 직무 주소·망명·건의 편지는 별도 연결 대상. 작성: 최병호. */
+/** 개인 주소만 지원한다. 직무 주소·망명·건의 편지는 별도 연결 대상. 작성: Peppone Choi. */
 data class MailIdentity(val account:String,val character:Int,val power:Int,val name:String,
     val origin:Int=0,val rank:Int=0,val title:String="",val face:Int=-1,val ageSeconds:Int=0) {
     init {

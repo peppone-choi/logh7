@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD readers 00449380/0044d6a0 and NotifyMovedBase. Author: 최병호. */
+/** CD readers 00449380/0044d6a0 and NotifyMovedBase. Author: Peppone Choi. */
 object PlaceMessages {
     data class Dock(val characterId: Int, val card: Int, val base: Int, val mode: Int)
     data class Move(val characterId: Int, val spot: Int, val owner: Int)

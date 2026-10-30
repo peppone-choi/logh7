@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 
-/** Native 0041cba0 / 0041f3d0, variable wire records without C++ padding. Author: 최병호. */
+/** Native 0041cba0 / 0041f3d0, variable wire records without C++ padding. Author: Peppone Choi. */
 object OutfitPartyMessages {
     data class Query(val outfit: Int, val base: Int, val mode: Int)
     data class UnitQuery(val id: Int, val base: Int)

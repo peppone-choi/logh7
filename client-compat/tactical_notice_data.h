@@ -1,4 +1,4 @@
-// Missing tactical command guidance. Author: 최병호.
+// Missing tactical command guidance. Author: Peppone Choi.
 #pragma once
 #include "unicode_text.h"
 #include <cstring>

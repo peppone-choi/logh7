@@ -11,7 +11,7 @@ data class GroundTransferResult(val player:Navigator?,val stocks:PlanetStocks?,v
 /** Manual PDF69: transfer all own-outfit marines, CP80, no waiting.
  * MCP, ten slots per commissioned ship, stable ID-first carrier selection and resolution of
  * unknown local legacy allocation are replacement policies. The native three wire values
- * are not interpreted as quantities or identities. Author: 최병호.
+ * are not interpreted as quantities or identities. Author: Peppone Choi.
  */
 internal object GroundTransfer {
     const val COST=80

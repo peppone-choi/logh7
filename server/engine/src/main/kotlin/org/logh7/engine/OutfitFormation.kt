@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import org.logh7.engine.strategy.*
 
-/** IDs are never reused after dissolution, including the largest legacy ID. Author: 최병호. */
+/** IDs are never reused after dissolution, including the largest legacy ID. Author: Peppone Choi. */
 data class OutfitSequence(val nextOutfit:Int=1,val nextWarehouse:Int=1) {
     init {require(nextOutfit>0 && nextWarehouse>0)}
 }
@@ -17,7 +17,7 @@ data class OutfitFormationResult(val player:Navigator?,val stocks:PlanetStocks?,
 /** Native card descriptions constmsg6: 24 fleet,25 auxiliary;164 ship formations.
  * Alliance ground authority152, local presence, 255 numbers/type, ascending crew grades,
  * returning inventory and damaged-unit restrictions are evidence:guess. W70/71 fixes
- * MCP320/160, unit formation and stationed dissolution. Author: 최병호. */
+ * MCP320/160, unit formation and stationed dissolution. Author: Peppone Choi. */
 object OutfitFormationPolicy {
     fun kinds(card:Int):Set<OutfitKind> = when(card) {
         24->setOf(OutfitKind.FLEET)

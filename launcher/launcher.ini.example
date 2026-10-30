@@ -1,4 +1,4 @@
-# 작성자: 최병호
+# 작성자: Peppone Choi
 # 상대 경로는 이 설정 파일의 디렉터리를 기준으로 해석합니다.
 client_root=../client
 host=127.0.0.1

@@ -15,7 +15,7 @@ data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetSt
 /** Manual command table: MCP160, no wait/duration. Native 004b4da0 identifies two outfits.
  * Same-base bulk transfer and partial delivery when cargo runs out are designed policy until
  * moving-outfit logistics is connected. Individual flagship cargo is a separate pending task.
- * Author: 최병호.
+ * Author: Peppone Choi.
  */
 internal object CompletenessSupply {
     fun evaluate(r: CompletenessSupplyRequest, session: SessionState, player: Navigator?,

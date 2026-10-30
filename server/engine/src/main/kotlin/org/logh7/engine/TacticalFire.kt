@@ -1,11 +1,11 @@
 package org.logh7.engine
 
-/** Personal flagship weapons; fleet/CRC authority remains separate work. Author: 최병호. */
+/** Personal flagship weapons; fleet/CRC authority remains separate work. Author: Peppone Choi. */
 data class TacticalShoot(val units: List<Int>, val arms: Int, val targetKind: Int, val target: Int)
 
 /** Native 0405 uses its suffix byte as attack mode (0 stop, 1 salvo, 2 continuous).
  * Salvo waits for every fitted charged weapon; continuous fires each ready weapon.
- * The cadence and salvo charge gate are replacement-server policy. Author: 최병호. */
+ * The cadence and salvo charge gate are replacement-server policy. Author: Peppone Choi. */
 data class TacticalAttack(val units: List<Int>, val mode: Int, val target: Int = 0)
 data class TacticalAttackOrder(val mode: Int, val acceptedAt: Long, val startsAt: Long, val nextAt: Long) {
     init { require(mode in 1..2 && acceptedAt in 0..0xffffffffL && startsAt in acceptedAt..0xffffffffL &&
@@ -25,7 +25,7 @@ data class TacticalHit(val sequence: Long, val grid: Int, val seconds: Long, val
 }
 internal fun validCombatTarget(id:Int) = id in 1..999999 || id in 1_000_001..Int.MAX_VALUE
 
-/** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: 최병호. */
+/** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: Peppone Choi. */
 data class TacticalImpact(val generation: Long, val source: Int, val weapon: TacticalWeapon, val hit: TacticalHit,
     val recipients: Map<Int,String>, val departed: Navigator? = null,val airBattle:Boolean=false,val boarding:Boolean=false,val fortress:Boolean=false) {
     init { require(generation > 0 && source > 0 && recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }

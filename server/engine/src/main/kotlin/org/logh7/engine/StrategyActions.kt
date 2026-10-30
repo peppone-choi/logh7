@@ -4,7 +4,7 @@ import org.logh7.engine.strategy.*
 
 /** Manual command numbers are native constmsg group 18; these are not packet opcodes.
  * Training increments and suppression sentiment deltas are revival policy (evidence:guess).
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 data class StrategicPerson(val rank:Int?=null,val groundTactics:Int=0,val retiredUntil:Long=0,
     val peerage:Peerage?=null,val merit:Long=0,val influence:Int=0,val evaluation:Long=0,
     val money:Long=0,val abilities:List<Int>?=null,val decorations:Set<Int> = emptySet()) {

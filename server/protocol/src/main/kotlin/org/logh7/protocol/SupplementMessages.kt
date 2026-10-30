@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native 00552610 writer / 00556b10 reader, variable records without C++ padding. Author: 최병호. */
+/** Native 00552610 writer / 00556b10 reader, variable records without C++ padding. Author: Peppone Choi. */
 object SupplementMessages {
     data class Units(val kind: Int,val ids: List<Int>) {
         init {require(kind in 0..65535 && ids.size<=99)}

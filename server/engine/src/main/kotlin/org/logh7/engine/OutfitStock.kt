@@ -30,7 +30,7 @@ class LogisticsOfficePolicy(private val galaxy: Galaxy) {
     }
 }
 
-/** Current deployment is independent of the permanent supply depot. Author: 최병호. */
+/** Current deployment is independent of the permanent supply depot. Author: Peppone Choi. */
 data class OutfitPosition(val grid: Int, val baseId: Int = 0) {
     init { require(grid in 0..4999 && baseId in 0..65535) }
 }

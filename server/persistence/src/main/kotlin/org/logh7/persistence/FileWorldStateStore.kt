@@ -7,7 +7,7 @@ import java.nio.channels.FileChannel
 import java.nio.file.*
 import java.nio.file.StandardOpenOption.*
 
-/** Two complete slots, selected by one forced atomic pointer replacement. Author: 최병호. */
+/** Two complete slots, selected by one forced atomic pointer replacement. Author: Peppone Choi. */
 class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? = null,
     legacyStocks: Path? = null) : AutoCloseable, WorldStateCommitter {
     private val channel: FileChannel

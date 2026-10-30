@@ -1,6 +1,6 @@
 ---
 title: 전술 게임
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: gin7manual.pdf(웹판) p.22–26, p.46–55 / CD판 p.19–22, p.40–56 / wayback st-tactics(2004-04-07), st-tactics2(2004-05-04), st-tactics3(2004-05-08), update04, update05, ns-update
 ---

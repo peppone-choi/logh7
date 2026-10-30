@@ -1,4 +1,4 @@
-// Mail factory's title and two list headers only. Author: 최병호.
+// Mail factory's title and two list headers only. Author: Peppone Choi.
 #pragma once
 #include "korean_text.h"
 #include "display_text.h"

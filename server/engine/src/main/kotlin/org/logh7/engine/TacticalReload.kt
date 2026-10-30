@@ -1,7 +1,7 @@
 package org.logh7.engine
 
 /** Replacement timing, not recovered original balance: beam 10, gun 15, missile 20 real seconds.
- * Absolute game-clock deadlines survive orders, commander changes, logout and restart. Author: 최병호. */
+ * Absolute game-clock deadlines survive orders, commander changes, logout and restart. Author: Peppone Choi. */
 data class TacticalReload(val beam:Long=0,val gun:Long=0,val missile:Long=0) {
     init {require(listOf(beam,gun,missile).all {it in 0..0xffffffffL})}
     fun ready(weapon:TacticalWeapon,seconds:Long):Boolean {

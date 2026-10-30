@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
  * Search 0x7f00 is not an original server command. Its native factory is absent for
  * training/suppression/volunteering; the compatibility DLL provides the missing UI.
  * The envelope retains the original 31-byte shape and carries no trusted CP/time/rank.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 object StrategyActionMessages {
     const val SEARCH=0x7f00
     data class Query(val character:Int,val command:Int,val card:Int,val outfit:Int,val raw:ByteArray,

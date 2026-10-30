@@ -7,7 +7,7 @@ import org.logh7.protocol.MailMessages as Wire
 import java.nio.ByteBuffer
 import kotlin.test.*
 
-/** 실제 프로토콜 코덱/서비스 경계 검사. 원본 UI 실행·송신 실기와 구분한다. 작성: 최병호. */
+/** 실제 프로토콜 코덱/서비스 경계 검사. 원본 UI 실행·송신 실기와 구분한다. 작성: Peppone Choi. */
 class GameCommunicationTest {
     private val a=MailIdentity("alpha",10000,2,"송신 한글",face=1000001,ageSeconds=30*31_536_000)
     private val b=MailIdentity("beta",10001,3,"수신 日本",face=1000002,ageSeconds=35*31_536_000)

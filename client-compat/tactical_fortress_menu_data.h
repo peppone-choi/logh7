@@ -1,5 +1,5 @@
 // Fortress command UI follows the server-issued office and its exact base seat.
-// Ground garrison cards do not grant command of the fortress cannon. Author: 최병호.
+// Ground garrison cards do not grant command of the fortress cannon. Author: Peppone Choi.
 #pragma once
 #include "character_cards.h"
 namespace logh {

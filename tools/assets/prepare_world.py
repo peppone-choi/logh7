@@ -1,4 +1,4 @@
-"""Prepare an external local world seed from reviewed manual extraction. Author: 최병호.
+"""Prepare an external local world seed from reviewed manual extraction. Author: Peppone Choi.
 
 Placements/names come from the extraction. Unmapped cells, star model numbering,
 planet models/classes/orbits and initial spawn policy are local defaults, not recovered originals.

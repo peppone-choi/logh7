@@ -5,7 +5,7 @@ import java.util.Collections
 
 /** 00449e20 / 0044a350: five u32 fields, u8 count, at most three u32 values.
  * The native field is load_unit/unload_unit. Keep its values opaque until the UI producer
- * is recovered; the formatter alone does not establish unit IDs versus quantities. Author: 최병호.
+ * is recovered; the formatter alone does not establish unit IDs versus quantities. Author: Peppone Choi.
  */
 object GroundTransferMessages {
     enum class Action(val opcode:Int) { UNLOAD(0x0b04), LOAD(0x0b05) }

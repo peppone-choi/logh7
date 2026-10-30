@@ -1,4 +1,4 @@
-// The CD HUD has a malformed cache-miss block during flagship return. Author: 최병호.
+// The CD HUD has a malformed cache-miss block during flagship return. Author: Peppone Choi.
 #pragma once
 static bool installHudRecovery() {
     // 0058ee70 resolves the character profile at 004c7290. A cache hit already

@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.*
 
 /** Manual: offline AI accepts tactical missions (update04). Steering, allocation and five-real-second
- * decisions below are replacement policy. Uses the normal motion, reload and damage models. Author: 최병호. */
+ * decisions below are replacement policy. Uses the normal motion, reload and damage models. Author: Peppone Choi. */
 internal object TacticalOfflineAi {
     fun eligible(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks)=session.ended==null &&
         session.participants[account]?.online==false && p.generation==session.generation && p.cpPaused &&

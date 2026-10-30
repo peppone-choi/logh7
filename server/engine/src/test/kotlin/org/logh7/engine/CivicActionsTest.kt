@@ -5,7 +5,7 @@ import java.io.IOException
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 치안/행진/징발/경비의 실제 효과·예약·취소·이탈·저장 경계. 작성: 최병호. 실행은 리드 담당. */
+/** 치안/행진/징발/경비의 실제 효과·예약·취소·이탈·저장 경계. 작성: Peppone Choi. 실행은 리드 담당. */
 class CivicActionsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2200,4,"Foreign",3)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),

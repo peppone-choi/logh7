@@ -1,4 +1,4 @@
-// Office mail kind and picker display boundaries only. Author: 최병호.
+// Office mail kind and picker display boundaries only. Author: Peppone Choi.
 #pragma once
 #include "unicode_text.h"
 

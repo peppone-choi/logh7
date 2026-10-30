@@ -1,5 +1,5 @@
 // Resource-only Korean text. ANSI input and UTF-16 network strings stay separate.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "korean_catalog_data.h"
 #include <cstring>

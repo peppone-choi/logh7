@@ -13,7 +13,7 @@ import java.util.HexFormat
 import java.util.Properties
 import kotlin.test.*
 
-/** 국가 직무의 암호화 목록·해임·온라인 카드 갱신 검사. 작성: 최병호. */
+/** 국가 직무의 암호화 목록·해임·온라인 카드 갱신 검사. 작성: Peppone Choi. */
 class NationalOfficeDismissalWireTest {
     @TempDir lateinit var directory:Path
 

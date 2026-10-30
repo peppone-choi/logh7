@@ -7,7 +7,7 @@ import org.logh7.protocol.MailMessages as Wire
 import java.nio.ByteBuffer
 import java.nio.file.Path
 
-/** 개인 명함·편지. 클라이언트가 보낸 이름/권한·시각은 저장 근거로 쓰지 않는다. 작성: 최병호. */
+/** 개인 명함·편지. 클라이언트가 보낸 이름/권한·시각은 저장 근거로 쓰지 않는다. 작성: Peppone Choi. */
 class GameCommunication(private val presence:GamePresence,private val generation:()->Long,
     private val directory:(Long,Int)->MailIdentity?,private val inTactics:(String)->Boolean,
     private val store:(Long)->CommunicationStore,private val now:()->Long=System::currentTimeMillis):AutoCloseable {

@@ -1,4 +1,4 @@
-"""Reconnect cannot reuse a live/unclean client or overwrite evidence. Author: 최병호."""
+"""Reconnect cannot reuse a live/unclean client or overwrite evidence. Author: Peppone Choi."""
 import importlib.util
 import json
 from pathlib import Path

@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 국가 직무의 상위 임면권·개별 해제·비용 보존 검사. 작성: 최병호. */
+/** 국가 직무의 상위 임면권·개별 해제·비용 보존 검사. 작성: Peppone Choi. */
 class NationalOfficeDismissalTest {
     private val galaxy=Galaxy(
         listOf(GalaxySystem(3,2487,4,"Empire",2),GalaxySystem(4,2015,4,"Alliance",3)),

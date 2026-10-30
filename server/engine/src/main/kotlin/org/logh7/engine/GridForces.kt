@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Shared deployed-force accounting for map reports and movement. Author: 최병호. */
+/** Shared deployed-force accounting for map reports and movement. Author: Peppone Choi. */
 object GridForces {
     private val ground = UnitSpecifications.crews.filter { it.category != 19 }.map { it.kind }.toSet()
     private fun ships(outfit: OutfitStock): Long = outfit.activeShips?.values?.count { it.boats > 0 }?.toLong()

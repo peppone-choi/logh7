@@ -1,4 +1,4 @@
-"""작성: 최병호. Docker/네트워크를 기동하지 않는 smoke 제어 흐름 회귀 시험."""
+"""작성: Peppone Choi. Docker/네트워크를 기동하지 않는 smoke 제어 흐름 회귀 시험."""
 import contextlib
 
 import json

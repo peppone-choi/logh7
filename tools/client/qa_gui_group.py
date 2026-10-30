@@ -1,4 +1,4 @@
-"""One GUI-test mutex owner coordinating two isolated client copies. Author: 최병호."""
+"""One GUI-test mutex owner coordinating two isolated client copies. Author: Peppone Choi."""
 import os
 import threading
 from pathlib import Path

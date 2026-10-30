@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import kotlin.math.hypot
 
-/** Commander-controlled regular ships share the durable per-unit motion with NPCs. Author: 최병호. */
+/** Commander-controlled regular ships share the durable per-unit motion with NPCs. Author: Peppone Choi. */
 internal object TacticalFleetMotion {
     fun move(request:NavigationRequest,session:SessionState,galaxy:Galaxy,navigation:Navigation,
         production:PlanetProduction,stocks:PlanetStocks,committer:WorldStateCommitter?,clockScale:Long=1):NavigationResult {

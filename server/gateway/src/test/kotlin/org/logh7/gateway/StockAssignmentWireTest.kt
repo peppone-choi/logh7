@@ -9,7 +9,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
 
-/** Encrypted native assignment requests through the world actor and combined store. Author: 최병호. */
+/** Encrypted native assignment requests through the world actor and combined store. Author: Peppone Choi. */
 class StockAssignmentWireTest {
     @TempDir lateinit var directory: Path
     private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),

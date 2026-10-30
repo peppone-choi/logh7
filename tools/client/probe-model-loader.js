@@ -1,4 +1,4 @@
-// Author: 최병호. Appended to capture-frame.js in the owned CD client only.
+// Author: Peppone Choi. Appended to capture-frame.js in the owned CD client only.
 // Original loader calls stay on its render thread; no serialized heap pointers are dumped.
 if (Process.arch !== 'ia32' || Process.mainModule.name.toLowerCase() !== 'g7mtclient.exe'
     || !Process.mainModule.base.equals(ptr('0x00400000')))

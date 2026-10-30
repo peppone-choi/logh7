@@ -29,7 +29,7 @@ data class OfficeHolding(val card:Int,val seat:Int,val character:Int) {
 /** Exact appointed_by edges are read from the reviewed 121-row manual source. Empty edges
  * stay empty: elections, succession and missing appointers are never replaced by rank checks.
  * Rebel aliases retain the matching office edge as an explicit restoration policy; the two
- * rebel leaders have no ordinary appointment edge. Author: 최병호. */
+ * rebel leaders have no ordinary appointment edge. Author: Peppone Choi. */
 object OrganizationOffices {
     private val institutions=listOf("皇宮","内閣","駐フェザーン弁務官事務所","軍務省","統帥本部","宇宙艦隊司令部",
         "憲兵本部","装甲擲弾兵総監部","科学技術総監部","帝国軍士官学校","同盟軍士官学校","艦隊","輸送艦隊",

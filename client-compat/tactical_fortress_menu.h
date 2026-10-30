@@ -1,5 +1,5 @@
 // Restore fortress commands from the authenticated character's exact office seat.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "tactical_fortress_menu_data.h"
 static bool selectedCommandFortress(unsigned base) {

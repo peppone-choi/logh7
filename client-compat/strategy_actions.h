@@ -1,5 +1,5 @@
 // Missing strategic factories and a dedicated revival form over the native simple-data codec.
-// Author: 최병호. No original server opcode is assigned to the reconstructed commands.
+// Author: Peppone Choi. No original server opcode is assigned to the reconstructed commands.
 #pragma once
 #include "character_cards.h"
 static struct StrategyDirectory {

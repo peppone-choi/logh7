@@ -1,6 +1,6 @@
 // A destroyed/removed unit may already be absent when its warp notice arrives.
 // Keep native character departure processing; flag only an extant tactical unit.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 static unsigned tacticalDepartureResume=0x4c1a60;
 static void __declspec(naked) flagDepartingTacticalUnit() {

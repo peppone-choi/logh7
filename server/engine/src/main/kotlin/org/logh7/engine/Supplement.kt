@@ -16,7 +16,7 @@ data class SupplementResult(val player: Navigator?,val stocks: PlanetStocks?,val
 
 /** Manual §7.5: one exact ship kind, warehouse replacements and automatic crew.
  * Keep active unit identity/grade; unpacked boats remain in the warehouse. Partial crew and
- * signed supply return are designed policies, not a recovered original server formula. Author: 최병호.
+ * signed supply return are designed policies, not a recovered original server formula. Author: Peppone Choi.
  */
 internal object Supplement {
     const val COST=160

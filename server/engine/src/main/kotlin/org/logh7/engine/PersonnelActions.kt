@@ -5,7 +5,7 @@ import org.logh7.engine.strategy.*
 /** Manual W pp.35–37/72: ladder, one-rank changes, card loss, peerage and fiefs.
  * Unrecovered ennoblement/decoration thresholds are conservative explicit restoration
  * policy: noble origin, military rank 7 or higher; titles require progressively senior ranks;
- * decorations require 100 merit per grade. Author: 최병호. */
+ * decorations require 100 merit per grade. Author: Peppone Choi. */
 internal object PersonnelActions {
     val supported=setOf(0,1,2,3,4,8,9)
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {

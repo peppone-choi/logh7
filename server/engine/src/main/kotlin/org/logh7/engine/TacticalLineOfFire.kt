@@ -4,7 +4,7 @@ import kotlin.math.hypot
 
 /** W50: friendly ships (including mobile fortresses) block conventional weapons.
  * Ship collision radius .25 and a .05 margin are design policy. No terrain shapes are seeded yet.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 internal object TacticalLineOfFire {
     fun blocked(source:Int,grid:Int,power:Power,from:TacticalPoint,to:TacticalPoint,now:Long,
         players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):Boolean {

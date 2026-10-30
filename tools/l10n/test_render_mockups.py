@@ -1,4 +1,4 @@
-"""PNG 형식·백업 복구와 전략/HUD 편집 범위 검사. 작성: 최병호."""
+"""PNG 형식·백업 복구와 전략/HUD 편집 범위 검사. 작성: Peppone Choi."""
 import json
 from pathlib import Path
 import struct

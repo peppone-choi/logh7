@@ -1,4 +1,4 @@
-"""Extract the annotated galaxy map on web-manual PDF page 101. Author: 최병호.
+"""Extract the annotated galaxy map on web-manual PDF page 101. Author: Peppone Choi.
 
 The map's Text annotations carry system and base names, absent from get_text().
 Original content and derived full catalogues belong under work/, not in Git.

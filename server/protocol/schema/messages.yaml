@@ -1,4 +1,4 @@
-# 작성자: 최병호. evidence:client — login-messages.md, candidate.
+# 작성자: Peppone Choi. evidence:client — login-messages.md, candidate.
 messages:
   - name: LGLoginRequest
     opcode: 0x7000

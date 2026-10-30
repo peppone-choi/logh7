@@ -1,6 +1,6 @@
 # LOGH-14 재현 도구 인계
 
-작성: 최병호 · 2026-10-08
+작성: Peppone Choi · 2026-10-08
 
 ## 현재 결과
 
@@ -56,7 +56,7 @@ MDX 추출 출력도 새 디렉터리명을 사용한다(기존 추출기의 덮
 
 ## LOGH-43 로컬 전체 세션 복구 구현 인계 (2026-10-09)
 
-작성: 최병호
+작성: Peppone Choi
 
 전체 상태 DTO, 파일 checkpoint·순번/체크섬 저널과 검증 재생, actor 후보→append→force→게시→입장 응답 경계를 구현했다. `LOGH7_SESSION_STORE_DIR` 지정 시 app과 실제 admission/ACK 경로가 연결되며 기본 메모리 실행은 전체 상태를 영속화하지 않는다. 복구는 참가자를 유지하고 접속을 별도 기록으로 정리한다. [형식·적용·미완료 범위](docs/server/session-persistence.md).
 
@@ -68,7 +68,7 @@ main의 LOGH-29 전략 CSV 등록을 보존했다. LOGH-28/29 별도 격리 통�
 
 ## LOGH-46 합성 루프백 부하 검사 인계 (2026-10-09)
 
-작성: 최병호
+작성: Peppone Choi
 
 실제 TCP와 공유 codec으로 합성 로그인·캐릭터 등록·actor 입장·초기 응답·시각 조회를 검사했다. 3명 수명주기/ACK 대기 RST/gateway 종료 검사는 기본 실행, 50명은 `LOGH7_LOAD_HARNESS=1`로 직접 실행했다. 최초50명 수락/online50→RST50→online/채널/매핑0→동일50명 재접속→접속 중 세션 종료 후 online/active/tracked/admission 매핑0을 확인했다. 정상 오프라인 참가자50은 보존했고 중복 접속·정원 초과를 거절했다. [재현·측정·제한](docs/ops/load-test.md).
 
@@ -80,7 +80,7 @@ LOGH-43과의 격리 통합에서는 엔진30/persistence20/gateway29개 통과(
 
 ## LOGH-19 업데이터 스텁 TCP 계약 구현 (2026-10-13)
 
-작성: 최병호 · 기준 main `dcf0c578e4248fb86011009202e57db34feb292a`.
+작성: Peppone Choi · 기준 main `dcf0c578e4248fb86011009202e57db34feb292a`.
 
 `UpdatePortTest.kt`에 실제 Gateway/동적 루프백 포트/임시 capture를 쓰는 합성 검사 8개를 추가했다. 정확한 평문 `00 02 68 11`, `00 02 68 22`와 실제 EOF, 빈 식별 blob, 1바이트 쓰기/합친 요청, 잘못된 첫 opcode·누락 opcode·버전 본문 길이(0/3/5), 완료 뒤 추가 요청을 검사한다. 오류 뒤 동일 Gateway 게임 리스너의 실제 합성 핸드셰이크도 확인한다. 소켓·예약 포트·Gateway는 use/finally로 정리하고 bind 경합만 최대 5회 재시도한다. 제품 코드·암호·포트 정책·connections 의미는 변경하지 않았다.
 

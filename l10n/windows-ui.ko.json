@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "author": "최병호",
+  "author": "Peppone Choi",
   "source_sha256": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16",
   "note": "G7MTClient.exe의 RT_STRING. 내부 문서 형식 식별자와 %1 등의 삽입 인수를 보존한다.",
   "entries": {

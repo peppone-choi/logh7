@@ -1,4 +1,4 @@
-"""검증한 이미지 후보 패키지를 중복 없이 묶는다. 작성: 최병호."""
+"""검증한 이미지 후보 패키지를 중복 없이 묶는다. 작성: Peppone Choi."""
 import argparse
 import json
 from pathlib import Path
@@ -24,7 +24,7 @@ def bundle(source,output,packages):
     (output/'selection.json').write_text(json.dumps(selected,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     image_patch.prepare(source,output/'replacement',output/'selection.json',output/'package')
     image_patch.verify(output/'package')
-    return dict(author='최병호',assets=len(selected),package=str(output/'package'),display_validated=False)
+    return dict(author='Peppone Choi',assets=len(selected),package=str(output/'package'),display_validated=False)
 
 
 if __name__=='__main__':

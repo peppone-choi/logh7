@@ -1,5 +1,5 @@
 // Validated decoded 035a object. Revival presentation codes, not recovered enum meanings.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "planet_info_data.h"
 namespace logh {

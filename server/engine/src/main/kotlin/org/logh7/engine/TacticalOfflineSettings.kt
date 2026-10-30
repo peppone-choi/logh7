@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Owner-authenticated settings and navigation share the durable world transaction. Author: 최병호. */
+/** Owner-authenticated settings and navigation share the durable world transaction. Author: Peppone Choi. */
 internal object TacticalOfflineSettings {
     fun accept(request:NavigationRequest,session:SessionState,navigation:Navigation,production:PlanetProduction,
         stocks:PlanetStocks,committer:WorldStateCommitter?):NavigationResult {

@@ -1,4 +1,4 @@
-// LOGH7 CD client compatibility module. Author: 최병호
+// LOGH7 CD client compatibility module. Author: Peppone Choi
 // The original executable stays unchanged. DINPUT8 forwards to the Windows DLL.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

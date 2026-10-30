@@ -1,4 +1,4 @@
-// Match native ANSI edit buffers to their Windows codepage. Author: 최병호.
+// Match native ANSI edit buffers to their Windows codepage. Author: Peppone Choi.
 #pragma once
 #include <windows.h>
 #include <string>

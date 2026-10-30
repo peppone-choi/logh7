@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 명령별 실제 상태 변경·권한·비용·지연 효과. 작성: 최병호. 실행은 리드 담당. */
+/** 명령별 실제 상태 변경·권한·비용·지연 효과. 작성: Peppone Choi. 실행은 리드 담당. */
 class StrategyActionsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
         listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),

@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Explicit 7f02 extension in the existing native 1200 envelope, not a recovered opcode. Author: 최병호. */
+/** Explicit 7f02 extension in the existing native 1200 envelope, not a recovered opcode. Author: Peppone Choi. */
 object BudgetMessages {
     const val SEARCH=0x7f02
     data class Query(val character:Int,val command:Int,val card:Int,val phase:Int,val base:Int,val rate:Int,val quote:Int,val raw:ByteArray)

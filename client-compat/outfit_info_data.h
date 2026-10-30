@@ -1,4 +1,4 @@
-// Native 0041cba0 main standing-outfit record. Author: 최병호.
+// Native 0041cba0 main standing-outfit record. Author: Peppone Choi.
 #pragma once
 #include "planet_info_data.h"
 

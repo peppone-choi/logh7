@@ -1,4 +1,4 @@
-"""Preview extracted geometry/textures and compare native buffers. Author: 최병호.
+"""Preview extracted geometry/textures and compare native buffers. Author: Peppone Choi.
 
 Derived images and buffers belong under work/, never in version control.
 Geometry previews omit materials, animation and node transforms.

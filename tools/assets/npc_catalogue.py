@@ -1,4 +1,4 @@
-"""Offline NPC worksheet and read-only CD portrait extraction. Author: 최병호.
+"""Offline NPC worksheet and read-only CD portrait extraction. Author: Peppone Choi.
 
 Generated names, portraits and JSON belong under work/, never in Git.
 This tool does not change a running server or claim to recover original stats.

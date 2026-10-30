@@ -1,4 +1,4 @@
-"""Synthetic malformed-input checks; no original assets. Author: 최병호."""
+"""Synthetic malformed-input checks; no original assets. Author: Peppone Choi."""
 import copy
 import struct
 import unittest
