@@ -8,10 +8,10 @@ import org.logh7.protocol.MessengerMessages as Wire
 import kotlin.test.*
 
 class GameMessengerTest {
-    private val a=MailIdentity("alpha",10000,2,"송신 한글")
-    private val b=MailIdentity("beta",10001,3,"수신 한글")
+    private val a=MailIdentity("alpha",10000,2,"송신 한글",face=1000001,ageSeconds=30*31_536_000)
+    private val b=MailIdentity("beta",10001,3,"수신 한글",face=1000002,ageSeconds=35*31_536_000)
     private val c=MailIdentity("gamma",10002,2,"세번째")
-    private fun peer(p:MailIdentity)=MailMessages.Peer(p.character,p.name)
+    private fun peer(p:MailIdentity)=p.communicationPeer()
     private fun body(packet:ByteArray)=packet.copyOfRange(4,packet.size)
     private class Fixture {
         val presence=GamePresence()
@@ -45,6 +45,7 @@ class GameMessengerTest {
             val directory=Wire.directory(body(service.handle(a.account,a,7,byteArrayOf(0x0f,6),0).single()))
             assertEquals(listOf(a.character,b.character),directory.map {it.peer.id})
             assertEquals(b.name,directory.single {it.peer.id==b.character}.peer.name)
+            assertEquals(listOf(b.face,b.ageSeconds,0),directory.single {it.peer.id==b.character}.peer.extra)
             call(service,a,b)
             assertEquals(2,Wire.link(body(f.received.getValue(b.character).last())).phase)
             f.clear();accept(service,a,b)
@@ -56,6 +57,7 @@ class GameMessengerTest {
             for(owner in listOf(a,b)) {
                 val message=Wire.text(body(f.received.getValue(owner.character).single()))
                 assertEquals(a.name,message.peer.name);assertEquals(a.character,message.peer.id);assertEquals(text,message.text)
+                assertEquals(listOf(a.face,a.ageSeconds,0),message.peer.extra)
             }
         }
     }

@@ -22,11 +22,14 @@ class FileCommunicationStore(private val path:Path,private val beforeReplace:()-
         if(!Files.exists(path))return null
         require(Files.size(path) in 20L..128_000_000L)
         return DataInputStream(ByteArrayInputStream(Files.readAllBytes(path))).use {input->
-            require(input.readInt()==0x4c374d31)
+            val format=input.readInt().also {require(it==0x4c374d31 || it==0x4c374d32)}
             val generation=input.readLong();val next=input.readInt()
             fun count(limit:Int)=input.readInt().also {require(it in 0..limit)}
-            fun identity()=MailIdentity(input.readUTF(),input.readInt(),input.readInt(),input.readUTF(),
-                input.readUnsignedShort(),input.readUnsignedShort(),input.readUTF())
+            fun identity():MailIdentity {
+                val identity=MailIdentity(input.readUTF(),input.readInt(),input.readInt(),input.readUTF(),
+                    input.readUnsignedShort(),input.readUnsignedShort(),input.readUTF())
+                return if(format==0x4c374d32)identity.copy(face=input.readInt(),ageSeconds=input.readInt()) else identity
+            }
             val owners=List(count(4096)){identity()}.also {require(it.map {p->p.character}.distinct().size==it.size)}.associateBy {it.character}
             val addresses=linkedMapOf<Int,Set<Int>>()
             repeat(count(4096)) {
@@ -48,8 +51,9 @@ class FileCommunicationStore(private val path:Path,private val beforeReplace:()-
             fun identity(p:MailIdentity) {
                 out.writeUTF(p.account);out.writeInt(p.character);out.writeInt(p.power);out.writeUTF(p.name)
                 out.writeShort(p.origin);out.writeShort(p.rank);out.writeUTF(p.title)
+                out.writeInt(p.face);out.writeInt(p.ageSeconds)
             }
-            out.writeInt(0x4c374d31);out.writeLong(state.generation);out.writeInt(state.nextId)
+            out.writeInt(0x4c374d32);out.writeLong(state.generation);out.writeInt(state.nextId)
             out.writeInt(state.owners.size);state.owners.toSortedMap().values.forEach(::identity)
             out.writeInt(state.addresses.size);state.addresses.toSortedMap().forEach {(owner,peers)->
                 out.writeInt(owner);out.writeInt(peers.size);peers.sorted().forEach(out::writeInt)

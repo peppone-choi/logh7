@@ -9,9 +9,9 @@ import kotlin.test.*
 
 /** 실제 프로토콜 코덱/서비스 경계 검사. 원본 UI 실행·송신 실기와 구분한다. 작성: 최병호. */
 class GameCommunicationTest {
-    private val a=MailIdentity("alpha",10000,2,"송신 한글")
-    private val b=MailIdentity("beta",10001,3,"수신 日本")
-    private fun peer(p:MailIdentity)=Wire.Peer(p.character,p.name)
+    private val a=MailIdentity("alpha",10000,2,"송신 한글",face=1000001,ageSeconds=30*31_536_000)
+    private val b=MailIdentity("beta",10001,3,"수신 日本",face=1000002,ageSeconds=35*31_536_000)
+    private fun peer(p:MailIdentity)=p.communicationPeer()
     private fun body(packet:ByteArray)=packet.copyOfRange(4,packet.size)
     private fun opcode(packet:ByteArray)=ByteBuffer.wrap(packet).getShort(4).toInt() and 65535
     private class Store:CommunicationStore {
@@ -94,13 +94,30 @@ class GameCommunicationTest {
             val query=body(Wire.begin(Wire.Query(peer(a),false,true)))
             assertFails {service.handle("first",a.copy(account="other"),7,query,0)}
             assertFails {service.handle("first",a,7,body(Wire.begin(Wire.Query(peer(b),false,true))),0)}
-            val office=service.handle("first",a,7,body(Wire.begin(Wire.Query(peer(a).copy(extra=listOf(54,1049,0)),false,true))),0)
+            val office=service.handle("first",a,7,body(Wire.begin(Wire.Query(peer(a).copy(extra=listOf(a.face,a.ageSeconds,195)),false,true))),0)
             assertEquals(listOf(0x0500,0x0f09),office.map(::opcode))
             hub.remove("first");service.disconnected("first")
             assertFails {service.handle("first",a,7,query,0)}
             hub.update(first.copy(connection="new"));generation=8
             assertFails {service.handle("new",a,7,query,0)}
             assertTrue(delivered.none {packets->packets.any {opcode(it)==0x0f0a}})
+        }
+    }
+    @Test fun legacyMailPortraitUsesOnlyTheOriginalAccountsCurrentCharacter() {
+        for(sameAccount in listOf(true,false)) {
+            val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
+            hub.update(member(b,"second",received))
+            val legacyA=a.copy(face=-1,ageSeconds=0);val legacyB=b.copy(face=-1,ageSeconds=0)
+            val store=Store().apply {state=CommunicationState(7,2,mapOf(a.character to legacyA,b.character to legacyB),
+                messages=listOf(StoredMail(1,legacyA,legacyB,"기존 편지","초상 복원",0,"legacy")))}
+            val currentA=if(sameAccount)a else a.copy(account="recycled")
+            GameCommunication(hub,{7},{_,id->if(id==a.character)currentA else if(id==b.character)b else null},{false},{store}).use {service->
+                val packets=service.handle("second",b,7,body(Wire.begin(Wire.Query(peer(b),false,true))),0)
+                val mail=Wire.item(body(packets.single {opcode(it)==0x0f0a}),0x0f0a)
+                assertEquals(if(sameAccount)a.face else -1,mail.sender.extra[0])
+                assertEquals(b.face,mail.recipient.extra[0])
+                assertEquals("초상 복원",mail.text)
+            }
         }
     }
     @Test fun nameCardConsentExpiresAndCannotMoveAcrossRoomsOrReconnect() {

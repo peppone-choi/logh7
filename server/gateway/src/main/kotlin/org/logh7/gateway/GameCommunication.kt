@@ -2,6 +2,7 @@ package org.logh7.gateway
 
 import org.logh7.engine.*
 import org.logh7.persistence.FileCommunicationStore
+import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.MailMessages as Wire
 import java.nio.ByteBuffer
 import java.nio.file.Path
@@ -28,7 +29,12 @@ class GameCommunication(private val presence:GamePresence,private val generation
         val engine=try {Communication(expected,backend,generation)} catch(failure:Throwable){backend.close();throw failure}
         current=Triple(expected,backend,engine);return engine
     }
-    private fun peer(p:MailIdentity)=Wire.Peer(p.character,p.name,p.origin,p.rank,p.title)
+    private fun peer(p:MailIdentity):Wire.Peer {
+        // Upgrade a legacy saved mail's missing portrait only from the same account's character.
+        val expected=current?.first
+        val current=if(p.face==-1 && expected!=null)directory(expected,p.character)?.takeIf {it.account==p.account} else null
+        return (current?.let {p.copy(face=it.face,ageSeconds=it.ageSeconds)} ?: p).communicationPeer()
+    }
     private fun item(p:StoredMail)=Wire.Item(p.id,-1,p.read,peer(p.sender),peer(p.recipient),p.seconds,p.subject,p.body)
     private fun member(connection:String,owner:MailIdentity,expected:Long):GamePresence.Member {
         require(expected==generation() && directory(expected,owner.character)==owner)
@@ -176,8 +182,11 @@ internal fun communicationIdentity(characters:CharacterCreation,id:Int):MailIden
     val character=characters.characterById(id) ?: return null
     val account=characters.accountByCharacter(id) ?: return null
     val name=(character.surname+" "+character.givenName).trim().take(12)
-    return MailIdentity(account,id,character.power,name,character.origin,character.rank)
+    return MailIdentity(account,id,character.power,name,character.origin,character.rank,
+        face=character.face,ageSeconds=Math.multiplyExact(character.age,CharacterMessages.AGE_SECONDS_PER_YEAR))
 }
+
+internal fun MailIdentity.communicationPeer()=Wire.Peer(character,name,origin,rank,title,listOf(face,ageSeconds,0))
 
 internal fun communicationStore(path:Path?,generation:Long):CommunicationStore =
     path?.let {FileCommunicationStore(it.resolveSibling("${it.fileName}.mail.session-$generation"))} ?:

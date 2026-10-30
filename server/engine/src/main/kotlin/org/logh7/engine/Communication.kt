@@ -2,11 +2,12 @@ package org.logh7.engine
 
 /** 개인 주소만 지원한다. 직무 주소·망명·건의 편지는 별도 연결 대상. 작성: 최병호. */
 data class MailIdentity(val account:String,val character:Int,val power:Int,val name:String,
-    val origin:Int=0,val rank:Int=0,val title:String="") {
+    val origin:Int=0,val rank:Int=0,val title:String="",val face:Int=-1,val ageSeconds:Int=0) {
     init {
         require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")) && character in 1..0x7fefffff && power in 2..3)
         require(name.isNotBlank() && name.length<=12 && title.length<=15 && origin in 0..65535 && rank in 0..65535)
         require((name+title).none {it.isSurrogate() || it.isISOControl()})
+        require(face>=-1 && ageSeconds>=0)
     }
 }
 data class StoredMail(val id:Int,val sender:MailIdentity,val recipient:MailIdentity,val subject:String,val body:String,

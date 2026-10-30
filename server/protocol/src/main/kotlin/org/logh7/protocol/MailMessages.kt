@@ -6,7 +6,8 @@ import java.nio.ByteBuffer
 object MailMessages {
     data class Peer(val id:Int,val name:String="",val origin:Int=0,val rank:Int=0,val title:String="",
         val extra:List<Int> = List(3){0}) {
-        val personal:Boolean get()=extra.all {it==0}
+        // Native +118 is the face, +11c the age clock; only +120 selects an office address.
+        val personal:Boolean get()=extra[2]==0
     }
     data class Query(val owner:Peer,val all:Boolean,val inbox:Boolean)
     data class Item(val id:Int,val reference:Int=-1,val read:Boolean=false,val sender:Peer,val recipient:Peer,

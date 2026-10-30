@@ -17,7 +17,7 @@ internal class GameMessenger(private val presence:GamePresence,private val gener
     private fun peer(endpoint:Messenger.Endpoint):MailMessages.Peer {
         val p=checkNotNull(identity(generation,endpoint.character))
         check(p.account==endpoint.account)
-        return MailMessages.Peer(p.character,p.name,p.origin,p.rank,p.title)
+        return p.communicationPeer()
     }
     private fun directory(owner:Messenger.Endpoint):ByteArray {
         // Keep callers and the current peer visible before filling the CD's slots.

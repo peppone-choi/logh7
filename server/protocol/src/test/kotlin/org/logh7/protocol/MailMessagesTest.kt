@@ -9,6 +9,14 @@ class MailMessagesTest {
     private val a=MailMessages.Peer(10000,"한글 日本",1,20)
     private val b=MailMessages.Peer(10001,"수신인",2,20)
     private fun body(packet:ByteArray)=packet.copyOfRange(4,packet.size)
+    @Test fun portraitAndAgeDoNotTurnPersonalPeersIntoOfficeAddresses() {
+        val portrait=a.copy(extra=listOf(1000001,30*31_536_000,0))
+        assertTrue(portrait.personal)
+        val query=MailMessages.Query(portrait,true,true)
+        assertEquals(query,MailMessages.query(body(MailMessages.begin(query))))
+        assertFalse(portrait.copy(extra=listOf(1000001,30*31_536_000,195)).personal)
+        assertTrue(portrait.copy(extra=listOf(-1,0,0)).personal)
+    }
     @Test fun queryMinimalSizeAndUnicodeItemRoundTripWithNativeNulCounts() {
         val query=MailMessages.Query(MailMessages.Peer(10000),true,true)
         val request=body(MailMessages.begin(query))
