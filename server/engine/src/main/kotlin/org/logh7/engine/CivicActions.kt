@@ -32,6 +32,8 @@ object CivicActions {
     val commandingCards=setOf(39,44,47,50,175,180,183,186)
     const val DAY=86400L
     fun army(command:Int)=command in setOf(52,54,56)
+    /** 特別警備 guards the faction lobby only; academy rooms are also GUARDED (own-faction entry) but not guard posts. */
+    private fun lobby(spot:PlanetSpot)=spot.kind==0 && spot.access==SpotAccess.GUARDED
     private fun power(p:Navigator)=if(p.power==Power.EMPIRE)2 else 3
     private fun location(g:Galaxy,p:Navigator,base:Int)=p.baseId==base && p.mode in 1..4 &&
         g.bases.singleOrNull {it.id==base}?.grid==p.grid && !p.cpPaused && p.dockTarget==null && p.fuelReadyAt==null
@@ -48,7 +50,7 @@ object CivicActions {
         val rank=s.strategic.people[o.character]?.rank ?: o.rank
         if(!card(g,s,o.character,o.power,rank,o.card,o.outfit))return false
         if(o.command==55)return p.spotId==o.spot && p.spotOwner==0 &&
-            g.facilitiesAt(o.base,s).any {f->f.spots.any {it.id==o.spot && it.access==SpotAccess.GUARDED}}
+            g.facilitiesAt(o.base,s).any {f->f.spots.any {it.id==o.spot && lobby(it)}}
         val outfit=s.outfits[o.outfit] ?: return false
         if(outfit.power!=o.power || outfit.commanderId!=o.character || outfit.positionIn(g)!=OutfitPosition(p.grid,o.base))return false
         val ground=outfit.activeGround?.values.orEmpty().associateBy {it.id}
@@ -107,7 +109,7 @@ object CivicActions {
             local.map {it.id}.toSet()
         } else {
             if(p.spotOwner!=0 || g.facilitiesAt(base.baseId,stocks).none {f->f.spots.any {
-                it.id==p.spotId && it.access==SpotAccess.GUARDED}})return reject(StrategyActionRejection.LOCATION)
+                it.id==p.spotId && lobby(it)}})return reject(StrategyActionRejection.LOCATION)
             if(stocks.civic.active.any {it.spot==p.spotId})return reject(StrategyActionRejection.BUSY)
             emptySet()
         }
