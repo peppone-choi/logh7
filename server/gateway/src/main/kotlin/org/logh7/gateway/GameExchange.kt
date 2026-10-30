@@ -118,6 +118,7 @@ class GameExchange(
     private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
         player.hull?.let { hull -> org.logh7.engine.Flagships.find(hull.kind)?.let {
             character.copy(shipKind=it.kind,shipType=it.type) } } ?: character
+    private val traceOpcodes = System.getenv("LOGH7_TRACE_OPCODES") == "1"
     private fun currentCharacterById(id:Int):CharacterMessages.Generate? = characters.characterById(id)?.let {
         WorldCharacters.view(it,navigation?.snapshot())
     }
@@ -306,6 +307,8 @@ class GameExchange(
             val body = handshake.receive(type, data) ?: return null
             val opcode = java.nio.ByteBuffer.wrap(body).short.toInt() and 65535
             val identity = checkNotNull(ticket)
+            // Opt-in QA trace of authenticated game requests (no payload, which may hold chat text).
+            if(traceOpcodes)System.err.println("trace ${identity.account} <- 0x%04x (%d bytes)".format(opcode,body.size))
             if(sessionEndingAvailable()) {
                 // Consume and validate encrypted in-flight requests without reopening commands.
                 // Clock polling remains safe while the player reads the final result.
@@ -449,6 +452,7 @@ class GameExchange(
                                 command.targetKind,command.target,command.velocity,command.direction,
                                 command.points.map {org.logh7.engine.TacticalPoint(it.x,it.y)},command.payload))).thenApply {result->
                             val player=checkNotNull(result.player ?: result.previous)
+                            if(traceOpcodes && result.player==null)System.err.println("trace ${identity.account} 0x%04x rejected: ${result.rejection}".format(command.opcode))
                             publication=Publication(character,player,false)
                             listOf(org.logh7.protocol.TacticalCommandMessages.reply(command,gameSeconds(),
                                 (result.commandReadyAt?.minus(gameSeconds()) ?: 0).coerceAtLeast(0),result.player!=null))+
