@@ -16,7 +16,10 @@ static constexpr DisplayNameCall displayNameCalls[]={
 // before later Japanese decoding. Keep this display-only call separate from
 // the existing 004eacf0 wrappers and from every input/network conversion.
 static constexpr DisplayNameCall displayShipSpecCalls[]={
-    {0x4c7b5e,{0xe8,0x23,0x47,0x18,0x00}}
+    {0x4c7b5e,{0xe8,0x23,0x47,0x18,0x00}},
+    // 0054d4e0 flagship information: the flagship record's UTF-16 name at +0a,
+    // assigned through the same narrowing CString call (12 units plus NUL).
+    {0x54d891,{0xe8,0xf0,0xe9,0x0f,0x00}}
 };
 // 0054c950 character information basic tab: the star system and birth base both
 // assign the shared base record's UTF-16 name (+48, as 004c8e56) through the same
