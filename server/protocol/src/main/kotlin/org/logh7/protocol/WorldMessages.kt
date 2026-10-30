@@ -5,6 +5,8 @@ import java.io.DataOutputStream
 
 /** CD readers: 00413050, 004134e0, 004142e0. No native struct padding on the wire. */
 object WorldMessages {
+    /** Card institution byte for cards outside every constmsg group 4 organisation. */
+    const val NO_INSTITUTION = 0xff
     data class Stock(val kind: Int, val level: Int, val quantity: Int)
     data class WarehouseShips(val kind: Int, val units: Int, val boats: Int)
     /** 0041a870/0041aff0: ships carry units/boats; troops carry grade/units. */
@@ -190,6 +192,9 @@ object WorldMessages {
             // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
             writeByte(when(card) {
                 // Card institutions use constmsg group 4, not physical facilities in group 73.
+                // 0x4c8d50 returns no name for >= 0xff, so 004f5d50 shows the card alone
+                // instead of "皇宮 : 艦長" for personal/captain cards that belong to no institution.
+                0,59,195 -> NO_INSTITUTION
                 2,3 -> 0; 169,171 -> 5; 17 -> 3; 134,135 -> 20; 161 -> 23
                 24,25 -> 4; 150 -> 21
                 54,55,190,191 -> 16

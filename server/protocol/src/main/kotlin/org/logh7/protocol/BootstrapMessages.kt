@@ -19,7 +19,8 @@ object BootstrapMessages {
         val out = ByteBuffer.allocate(128).putShort(3)
         // constmsg group 3: 0=personal, 59=Empire captain, 195=Alliance captain.
         for ((kind, power) in listOf(0 to 0, 59 to 2, 195 to 3)) {
-            out.putShort(kind.toShort()).put(if (kind == 0) 0 else 1).put(power.toByte()).put(0).put(0)
+            out.putShort(kind.toShort()).put(if (kind == 0) 0 else 1).put(power.toByte()).put(0)
+                .put(WorldMessages.NO_INSTITUTION.toByte())
             out.putShort(0).putShort(0).put(0).put(20).put(0).putShort(0).put(0).putShort(0)
             out.put(0)
         }
