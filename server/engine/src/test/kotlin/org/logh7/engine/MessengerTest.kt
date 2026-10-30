@@ -121,4 +121,12 @@ class MessengerTest {
         assertNull(next.partner(a));assertTrue(next.callerList(b).isEmpty())
         assertFails {next.send(a,"재연결 전 송신")}
     }
+    @Test fun targetedLateCancelDoesNotBreakNewPartnerAndRecipientCanDecline() {
+        val m=service();m.call(a,2)
+        assertEquals(listOf(Messenger.Event.Cancelled(a,b,Messenger.Reason.DISCONNECTED)),m.dismiss(b,1))
+        assertFails {m.accept(b,1)}
+        m.call(a,3);m.accept(c,1)
+        assertTrue(m.dismiss(a,2).isEmpty());assertEquals(c,m.partner(a))
+        assertEquals(1,m.dismiss(c,1).size);assertNull(m.partner(a))
+    }
 }

@@ -349,7 +349,11 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         if "click" in action or "ctrlClick" in action or "rightClick" in action:
                             control = "ctrlClick" in action
                             button = 2 if "rightClick" in action else 1
-                            x, y = action["ctrlClick" if control else "rightClick" if button == 2 else "click"]
+                            point = action["ctrlClick" if control else "rightClick" if button == 2 else "click"]
+                            if not isinstance(point, list) or len(point) != 2 or not all(type(v) is int and 0 <= v <= 4095 for v in point):
+                                raise ValueError("Click requires two bounded owned-window coordinates")
+                            x, y = point
+                            owned_view(desk, pid)
                             script.exports_sync.setmouse(x, y, True, button, control)
                             try:
                                 time.sleep(0.3)
@@ -401,13 +405,15 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         elif "key" in action and action["key"] in (8, 9, 13, 27, 67, 68, 88):
                             code = action["key"]
                             target = owned_view(desk, pid)
+                            scan = win32api.MapVirtualKey(code, 0)
                             script.exports_sync.setkey(code)
                             try:
-                                win32gui.PostMessage(target, win32con.WM_KEYDOWN, code, 0)
+                                win32gui.PostMessage(target, win32con.WM_KEYDOWN, code, 1 | (scan << 16))
                                 time.sleep(0.3)
                             finally:
                                 script.exports_sync.setkey(0)
-                                win32gui.PostMessage(target, win32con.WM_KEYUP, code, 3 << 30)
+                                win32gui.PostMessage(target, win32con.WM_KEYUP, code, 1 | (scan << 16) | (3 << 30))
+                            time.sleep(0.15) # Let native focus/keyboard polling finish before queued text.
                         elif "wheel" in action:
                             delta = action["wheel"]
                             if type(delta) is not int or delta == 0 or abs(delta) > 1200 or delta % 120 != 0:

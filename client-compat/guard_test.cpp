@@ -6,8 +6,15 @@
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
+#include "ime_status.h"
 #include "mail_text.h"
+#include "mail_caption_text.h"
 #include "mail_delivery.h"
+#include "legacy_korean_glyph.h"
+#include "namecard_text.h"
+#include "messenger_text.h"
+#include <vector>
+#pragma comment(lib,"gdi32.lib")
 #include "mail_refresh.h"
 #include "korean_windows.h"
 #include "dialog_text.h"
@@ -30,6 +37,65 @@
 #include "system_affiliation_data.h"
 #include "environment_shader_data.h"
 #include "tactical_fortress_menu_data.h"
+static bool legacyKoreanGlyphTest() {
+    wchar_t value=0;
+    if (logh::legacyKoreanGlyph('A',value) || logh::legacyKoreanGlyph(0x82a0,value) ||
+        logh::legacyKoreanGlyph(0xf07f,value) || logh::legacyKoreanGlyph(0xf9fc,value)) return false;
+    UINT firstHangul=0;
+    for (unsigned i=0;i<logh::koreanGlyphCount;++i) {
+        const wchar_t privateGlyph=static_cast<wchar_t>(0xe000+i);
+        char bytes[2]={};
+        if (WideCharToMultiByte(932,WC_NO_BEST_FIT_CHARS,&privateGlyph,1,bytes,2,nullptr,nullptr)!=2) return false;
+        const UINT code=(static_cast<unsigned char>(bytes[0])<<8)|static_cast<unsigned char>(bytes[1]);
+        if (!logh::legacyKoreanGlyph(code,value) || value!=logh::koreanGlyphs()[i]) return false;
+        if (!firstHangul && value>=0xac00 && value<=0xd7a3) firstHangul=code;
+    }
+    const auto dc=CreateCompatibleDC(nullptr);
+    if (!dc || !firstHangul) { if(dc)DeleteDC(dc);return false; }
+    const auto original=GetCurrentObject(dc,OBJ_FONT);
+    MAT2 matrix={};matrix.eM11.value=matrix.eM22.value=1;
+    GLYPHMETRICS metrics={};
+    const auto size=logh::legacyKoreanOutline(dc,firstHangul,GGO_GRAY8_BITMAP,&metrics,0,nullptr,&matrix);
+    bool ok=size!=GDI_ERROR && size>0 && GetCurrentObject(dc,OBJ_FONT)==original;
+    if (ok) {
+        std::vector<BYTE> bitmap(size);
+        ok=logh::legacyKoreanOutline(dc,firstHangul,GGO_GRAY8_BITMAP,&metrics,size,bitmap.data(),&matrix)==size &&
+            GetCurrentObject(dc,OBJ_FONT)==original;
+    }
+    GLYPHMETRICS nativeMetrics={},bridgeMetrics={};
+    const auto native=GetGlyphOutlineA(dc,'A',GGO_METRICS,&nativeMetrics,0,nullptr,&matrix);
+    const auto bridge=logh::legacyKoreanOutline(dc,'A',GGO_METRICS,&bridgeMetrics,0,nullptr,&matrix);
+    ok=ok && native==bridge && !memcmp(&nativeMetrics,&bridgeMetrics,sizeof(nativeMetrics));
+    DeleteDC(dc);
+    return ok;
+}
+static bool nameCardDisplayTest() {
+    std::string text="old";
+    if (!logh::nameCardDisplayText(L"한글ABC"," suffix",text)) return false;
+    std::wstring wide;
+    if (!logh::japaneseFragment(text.c_str(),wide) || wide!=L"한글ABC suffix") return false;
+    const std::wstring maximum(27,L'한');
+    const std::string suffix(64,'x');
+    if (!logh::nameCardDisplayText(maximum.c_str(),suffix.c_str(),text) || text.size()<=128 ||
+        !logh::japaneseFragment(text.c_str(),wide) || wide!=maximum+std::wstring(64,L'x')) return false;
+    const auto before=text;
+    const std::wstring tooLong(28,L'한');
+    const wchar_t broken[]={0xd800,0};
+    return !logh::nameCardDisplayText(tooLong.c_str(),"suffix",text) && text==before &&
+        !logh::nameCardDisplayText(broken,"suffix",text) && text==before &&
+        !logh::nameCardDisplayText(nullptr,"suffix",text) && text==before;
+}
+static bool messengerStatusTextTest() {
+    return logh::messengerStatusKind(0x5433a5,0x16,0x77)==0 &&
+        logh::messengerStatusKind(0x5433a5,0x16,0x7b)==1 &&
+        logh::messengerStatusKind(0x5433a5,0x16,0x78)==2 &&
+        logh::messengerStatusKind(0x54501d,0x16,0x78)==2 &&
+        logh::messengerStatusKind(0x545044,0x16,0x66)==1 &&
+        logh::messengerStatusKind(0x54506b,0x16,0x77)==0 &&
+        logh::messengerStatusKind(0x54506b,0x16,0x87)==3 &&
+        logh::messengerStatusKind(0x5433a5,0x15,0x77)==3 &&
+        logh::messengerStatusKind(0x544f05,0x16,0x77)==3;
+}
 static bool fortressMenuAuthorityTest() {
     BYTE own[0x370]={};own[0x270]=1;unsigned base=1040;unsigned short kind=188;
     memcpy(own+0x274,&kind,2);memcpy(own+0x278,&base,4);
@@ -502,6 +568,50 @@ int wmain(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
     if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest()) return 252;
+    if (!legacyKoreanGlyphTest()) return 253;
+    if (!nameCardDisplayTest()) return 254;
+    if (!messengerStatusTextTest()) return 255;
+    std::string calendarPrefix;
+    std::wstring calendarDecoded;
+    for(bool imperial:{true,false}) {
+        if(!logh::mailCalendarText(imperial,calendarPrefix) || calendarPrefix.size()!=6 ||
+            calendarPrefix.size()+1>16 || !logh::japaneseFragment(calendarPrefix.c_str(),calendarDecoded) ||
+            calendarDecoded!=(imperial?L"제국력":L"우주력"))return 257;
+        // Simulate the native adjacent prefix[16] / numeric[128] buffers.
+        // Formatting numbers must not overwrite the prefix's terminator.
+        char dateBuffers[144]={};
+        memcpy(dateBuffers,calendarPrefix.c_str(),calendarPrefix.size()+1);
+        strcpy_s(dateBuffers+16,sizeof(dateBuffers)-16,"795/ 1/12 06:26");
+        if(strcmp(dateBuffers,calendarPrefix.c_str()) ||
+            !logh::japaneseFragment(dateBuffers,calendarDecoded) ||
+            calendarDecoded!=(imperial?L"제국력":L"우주력"))return 258;
+    }
+    if(logh::mailCalendarKind(0x53cc65,0x16,0x56)!=0 ||
+        logh::mailCalendarKind(0x53cc9d,0x16,0x57)!=1 ||
+        logh::mailCalendarKind(0x53c80e,0x16,0x54)!=2 ||
+        logh::mailCalendarKind(0x53c961,0x16,0x55)!=2 ||
+        logh::mailCalendarKind(0x53cc65,0x16,0x57)!=2 ||
+        logh::mailCalendarKind(0x53cc9d,0x15,0x57)!=2)return 259;
+    if(logh::mailFooterKind(0x537eb7,0x16,4)!=0 ||
+        logh::mailFooterKind(0x53c2d9,0x16,4)!=0 ||
+        logh::mailFooterKind(0x537f53,0x16,4)!=1)return 260;
+    for(auto caller:{0x52a0ffu,0x52d30eu,0x52d580u,0x52d8eeu})
+        if(logh::mailFooterKind(caller,0x16,4)!=2)return 261;
+    if(logh::mailFooterKind(0x537f53,0x16,5)!=3 ||
+        logh::mailFooterKind(0x52a0ff,0x15,4)!=3 ||
+        logh::mailFooterKind(0x52d203,0x16,7)!=3)return 262;
+    std::wstring imeStatus=L"unchanged";
+    const LANGID koreanKeyboard=MAKELANGID(LANG_KOREAN,SUBLANG_DEFAULT);
+    const LANGID japaneseKeyboard=MAKELANGID(LANG_JAPANESE,SUBLANG_DEFAULT);
+    if(!logh::imeStatusFragment("\xe7\xc8",imeStatus,koreanKeyboard,949) || imeStatus!=L"A" ||
+        !logh::imeStatusFragment("\xaa\xa2",imeStatus,koreanKeyboard,949) || imeStatus!=L"한" ||
+        !logh::imeStatusFragment("\xab\xa2",imeStatus,koreanKeyboard,949) || imeStatus!=L"한" ||
+        !logh::imeStatusFragment("A",imeStatus,koreanKeyboard,949) || imeStatus!=L"A" ||
+        !logh::imeStatusFragment("\x82\xa0",imeStatus,japaneseKeyboard,932) || imeStatus!=L"あ" ||
+        !logh::imeStatusFragment("\x83\x41",imeStatus,japaneseKeyboard,932) || imeStatus!=L"ア" ||
+        !logh::imeStatusFragment("\x89\x70",imeStatus,japaneseKeyboard,932) || imeStatus!=L"A" ||
+        logh::imeStatusFragment("\x81",imeStatus,koreanKeyboard,949) || imeStatus!=L"A" ||
+        logh::imeStatusFragment(nullptr,imeStatus,koreanKeyboard,949) || imeStatus!=L"A")return 256;
     if (!wideResourceTest()) return 253;
     if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;

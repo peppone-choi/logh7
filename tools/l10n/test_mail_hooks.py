@@ -23,7 +23,7 @@ class MailHookTests(unittest.TestCase):
     def test_every_patch_matches_complete_original_instruction(self):
         header=(catalog.ROOT/'client-compat/mail_input.h').read_text('utf-8')
         rows=re.findall(r'\{(0x[0-9a-f]+),(\d+),\{([^}]+)\},MAIL_TARGET\((\w+)\),(true|false)\}',header)
-        self.assertEqual(19,len(rows))
+        self.assertEqual(20,len(rows))
         targets={
             'sendMailInput':0x4b4b60,'mailTitlePool':0x4eaaf0,'mailBodyPool':0x4eaaf0,
             'finishMailInput':0x53a670,'mailDefaultTitle':0x522010,
@@ -37,12 +37,25 @@ class MailHookTests(unittest.TestCase):
             self.assertEqual(size,len(expected));self.assertEqual(expected,self.raw(address,size))
             if call=='true':
                 self.assertEqual(5,size);self.assertEqual(targets[function],self.call_target(address))
+            elif function=='messengerCallSlotBridge':
+                self.assertEqual(b'\x8b\x08\x83\xf9\xff',expected) # mov ecx,[eax]; cmp ecx,-1.
             else:
                 # Complete 6-byte LEA r32,[r32+disp32] or ADD r32,imm32.
                 self.assertEqual(6,size)
                 self.assertIn(expected[:2],(b'\x8d\x83',b'\x81\xc3',b'\x81\xc1',b'\x8d\x95',b'\x81\xc2'))
         self.assertEqual(0x53c563,0x53c54f+2+0x12)
         self.assertEqual(b'\x8d\x4c\x24\x24',self.raw(0x53c54f,4))
+
+    def test_messenger_null_away_slot_returns_through_native_cleanup(self):
+        # run-337: clicking an away peer with no existing slot reaches 00545503
+        # with EAX=0. Non-null callers must retain the original cmp/JE path.
+        self.assertEqual(b'\x3b\xc2',self.raw(0x545466,2))
+        self.assertEqual(b'\x0f\x85\x95\0\0\0',self.raw(0x545468,6))
+        self.assertEqual(b'\x0f\x84\x8a\0\0\0',self.raw(0x545473,6))
+        self.assertEqual(b'\x5f\x5e\x5d\x5b\x81\xc4\x5c\x02\0\0\xc2\x04\0',self.raw(0x545617,13))
+        # Text's peer is self (1d10), not the recipient. Verified on native wire.
+        self.assertEqual(b'\x8d\xb5\x10\x1d\0\0',self.raw(0x543d61,6))
+        self.assertEqual(b'\xb9\x49\0\0\0',self.raw(0x543d67,5))
 
     def test_native_field_spans_include_terminators_and_keep_native_senders(self):
         # In the native stack record, title[128] ends at the two-byte body
@@ -120,7 +133,8 @@ class MailHookTests(unittest.TestCase):
     def test_mail_window_factory_uses_context_title_and_complete_header_operands(self):
         header=(catalog.ROOT/'client-compat/mail_labels.h').read_text('utf-8')
         entries=catalog.read_json(catalog.ROOT/'l10n/exe-ui.ko.json')['entries']
-        rows=re.findall(r'\{(0x[0-9a-f]+),(0x[0-9a-f]+)\}',header)
+        block=re.search(r'mailLabelOperands\[\]=\{(.*?)\n\};',header,re.S).group(1)
+        rows=re.findall(r'\{(0x[0-9a-f]+),(0x[0-9a-f]+)\}',block)
         self.assertEqual(4,len(rows))
         for address,source in rows:
             address=int(address,16);source=int(source,16)
@@ -134,8 +148,8 @@ class MailHookTests(unittest.TestCase):
     def test_observed_mail_actions_have_specific_factory_captions(self):
         header=(catalog.ROOT/'client-compat/mail_labels.h').read_text('utf-8')
         rows=re.findall(r'\{(0x[0-9a-f]+),L"([^"]+)",\{\}\}',header)
-        self.assertEqual(7,len(rows))
-        self.assertEqual({'보관 편지','받는 이','보내기','취소','새로 작성','주소록','답장'},{text for _,text in rows})
+        self.assertEqual(29,len(rows))
+        self.assertTrue({'보관 편지','받는 이','보내기','취소','새로 작성','주소록','답장'}.issubset({text for _,text in rows}))
         for address,_ in rows:
             self.assertEqual(0x522010,self.call_target(int(address,16)))
 
@@ -173,6 +187,18 @@ class MailHookTests(unittest.TestCase):
         # Same-mode flag=0 returns early; the force byte=1 executes native refresh.
         self.assertEqual(bytes.fromhex('8a44241084c0'),self.raw(0x53a696,6))
         self.assertEqual(bytes.fromhex('c6814974480000'),self.raw(0x4c266a,7))
+
+    def test_messenger_wire_fields_and_actual_ui_call_accept_phases(self):
+        # Status follows peer[0x124]; link has a leading close byte, two
+        # aligned peers, then phase/result. Text has a word, peer and u16 length.
+        self.assertEqual(bytes.fromhex('81c324010000'),self.raw(0x46cc8a,6))
+        self.assertEqual(bytes.fromhex('8d8b4c020000'),self.raw(0x46ee82,6))
+        self.assertEqual(bytes.fromhex('81c34d020000'),self.raw(0x46ee92,6))
+        self.assertEqual(bytes.fromhex('8dab28010000'),self.raw(0x47198d,6))
+        self.assertEqual(bytes.fromhex('663d0002'),self.raw(0x47199f,4))
+        self.assertEqual(bytes.fromhex('c684246802000001'),self.raw(0x5454a8,8))
+        self.assertEqual(bytes.fromhex('c684246802000003'),self.raw(0x545546,8))
+        self.assertEqual(bytes.fromhex('c684246902000001'),self.raw(0x54554e,8))
 
     def test_delivery_hooks_keep_the_native_sender_ui_thread_and_nonce_slots(self):
         # Tick executes this object directly in the native main UI frame;

@@ -3,7 +3,7 @@
   "author": "최병호",
   "date": "2026-10-30",
   "scope": "설치본 data/image 전체 파일. 접촉 시트 육안 판정이며 실제 사용·확대 표시·실제 화면 검증이 아님.",
-  "note": "translation_candidate는 생성 후보이며 원본 글꼴·기준선·상태·가독성 확인 전이다. 훈장 6개의 작은 각인은 판독 미확인이다. 새 파일이나 해시 변경은 재검수한다.",
+  "note": "translation_candidate는 생성 후보이며 원본 글꼴·기준선·상태·가독성 확인 전이다. 훈장 6개의 작은 각인은 판독 미확인이다. 새 파일이나 해시 변경은 재검수한다. 2026-10-30: TCF 7개 669프레임과 hed 인덱스 대조/전체 시트 육안 확인. 훈장 6개 각인은 미판독 유지.",
   "assets": [
     {
       "asset": "chat/chat_parts.tga",
@@ -290,50 +290,58 @@
     {
       "asset": "Face/gaf.tcf",
       "sha256": "7aff0ba5469603b0ee39bd96b5951a0704fe3e6d88652c3cb50e729364bbfcfe",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "no_japanese_visible",
+      "sheet": "Face_gaf-*.png",
+      "note": "TCF 전체 프레임을 읽어 접촉 시트 검토. 실제 게임에서 선택/상태 노출은 미확인."
     },
     {
       "asset": "Face/gam.tcf",
       "sha256": "f7bf1e99847e470e69ce4acf0a7f8a090392f99ea67a9ab598544e3686ff2e19",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "no_japanese_visible",
+      "sheet": "Face_gam-*.png",
+      "note": "TCF 전체 프레임을 읽어 접촉 시트 검토. 실제 게임에서 선택/상태 노출은 미확인."
     },
     {
       "asset": "Face/gef.tcf",
       "sha256": "883ea53b77dc060ce393b00d4e07064736643afa49de15512fdafb61207d1bfc",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "no_japanese_visible",
+      "sheet": "Face_gef-*.png",
+      "note": "TCF 전체 프레임을 읽어 접촉 시트 검토. 실제 게임에서 선택/상태 노출은 미확인."
     },
     {
       "asset": "Face/gem.tcf",
       "sha256": "10896ce991678102d9c08ba90f4d0a6272dc9a1094cd7db35bc6ef59a3bc39b0",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "no_japanese_visible",
+      "sheet": "Face_gem-*.png",
+      "note": "TCF 전체 프레임을 읽어 접촉 시트 검토. 실제 게임에서 선택/상태 노출은 미확인."
     },
     {
       "asset": "Face/o.tcf",
       "sha256": "62beb851afc064b8e7712aeb52bf35218b38ee027c8d468a2f297b998994da15",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "no_japanese_visible",
+      "sheet": "Face_o-*.png",
+      "note": "TCF 전체 프레임을 읽어 접촉 시트 검토. 실제 게임에서 선택/상태 노출은 미확인."
     },
     {
       "asset": "Face/oam.tcf",
       "sha256": "ce2327e978bb0904f02863c993c3132e3403721032663bfdd63b55e0a791bed5",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "no_japanese_visible",
+      "sheet": "Face_oam-*.png",
+      "note": "TCF 전체 프레임을 읽어 접촉 시트 검토. 실제 게임에서 선택/상태 노출은 미확인."
     },
     {
       "asset": "Face/oem.tcf",
       "sha256": "8a6e0d07e909774e21d649b2bf5f39cbccdc75d20cf19ac87b45d9193b794c2e",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "no_japanese_visible",
+      "sheet": "Face_oem-*.png",
+      "note": "TCF 전체 프레임을 읽어 접촉 시트 검토. 실제 게임에서 선택/상태 노출은 미확인."
     },
     {
       "asset": "Face/tcf.hed",
       "sha256": "b4e7455f6ddcf78b9a21856c7d182cabd2ae8d42ed281afdaebeb8535a976dd8",
-      "classification": "opaque_container",
-      "sheet": "not_decoded"
+      "classification": "non_image_metadata",
+      "sheet": "not_an_image",
+      "note": "669개 TGA 프레임의 offset/length와 1:1 일치한 인덱스. 화면 문구 아님."
     },
     {
       "asset": "Face/unknownface.tga",

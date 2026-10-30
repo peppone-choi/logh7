@@ -17,6 +17,8 @@ class GamePresence {
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
     @Synchronized internal fun communicationMember(connection:String):Member? = members[connection]
+    @Synchronized internal fun communicationMembers(generation:Long):List<Member> =
+        members.values.filter {it.player.generation==generation}.toList()
     @Synchronized internal fun communicationMember(generation:Long,character:Int):Member? =
         members.values.singleOrNull {it.player.generation==generation && it.character.id.toInt()==character}
     @Synchronized internal fun communicationSend(generation:Long,character:Int,messages:List<ByteArray>,except:String) {

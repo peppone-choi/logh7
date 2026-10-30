@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw
 
 import image_patch
 import render_buttons
+import tcf
 
 ROOT = Path(__file__).resolve().parents[2]
 SHEETS = {'gamemenu','window','strategy','senryaku_panel','soukan','shokumu_card','Field','chat','icon','rader','planetbattle'}
@@ -27,6 +28,21 @@ def inventory(source,output,all_images=False):
         data=path.read_bytes();relative=path.relative_to(source).as_posix()
         row=dict(asset=relative,bytes=len(data),sha256=image_patch.sha(data),text_review='pending',display_validated=False)
         try:
+            if path.suffix.lower()=='.tcf':
+                frames=tcf.frames(data)
+                row['format']=dict(container='tcf',frames=len(frames))
+                if all_images:
+                    for index,frame in enumerate(frames):
+                        _,portrait,_=render_buttons.unpack(data[frame['offset']:frame['offset']+frame['bytes']])
+                        groups.setdefault('Face_'+path.stem,[]).append((f'{relative}#{index}',portrait))
+                rows.append(row)
+                continue
+            if relative.casefold()=='face/tcf.hed':
+                containers={name:(path.parent/name).read_bytes() for name,_,_ in tcf.INDEX_BLOCKS}
+                records=tcf.verify_index(data,containers)
+                row['format']=dict(container='tcf_index',frames=len(records),all_frames_indexed=True)
+                rows.append(row)
+                continue
             if path.suffix.lower()=='.tga':
                 info,image,_=render_buttons.unpack(data);row['format']=info
             else:

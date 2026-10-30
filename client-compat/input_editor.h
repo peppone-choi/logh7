@@ -1,11 +1,18 @@
-// Only the edit buffer uses ACP; resource strings remain CP932. Author: 최병호.
+// Edit buffers and the native IME status CString use ACP. Author: 최병호.
 #pragma once
 #include "input_text.h"
+#include "ime_status.h"
 
 static const wchar_t* __cdecl decodeInputText(const char* text) {
     static thread_local std::wstring converted;
     if (!logh::inputFragment(text, converted)) converted.clear();
     // Consumers immediately copy into the native UTF-16 pool or name field.
+    return converted.c_str();
+}
+static const wchar_t* __cdecl decodeImeStatus(const char* text) {
+    static thread_local std::wstring converted;
+    const auto keyboard=LOWORD(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(0)));
+    if(!logh::imeStatusFragment(text,converted,keyboard))converted.clear();
     return converted.c_str();
 }
 static int __cdecl inputPrintableByte(unsigned value) {
@@ -47,10 +54,11 @@ static void __declspec(naked) consumedImeResult() {
     }
 }
 static bool installInputEditor() {
-    const unsigned addresses[] = {0x508092,0x508137,0x4fff69,0x4ffb84,0x516e3b,0x516e5a,0x51603f};
+    const unsigned addresses[] = {0x508092,0x508137,0x4fff69,0x4ffb84,0x516e3b,0x516e5a,0x51603f,0x5080c0};
     const BYTE expected[][5] = {{0xe8,0xc9,0x2b,0xfe,0xff},{0xe8,0x24,0x2b,0xfe,0xff},
         {0xe8,0x7b,0x0e,0x10,0},{0xe8,0x97,0xfc,0xff,0xff},
-        {0xe8,0x20,0x3e,0xfd,0xff},{0xe8,0x01,0x3e,0xfd,0xff},{0xe8,0x1c,0x4c,0xfd,0xff}};
+        {0xe8,0x20,0x3e,0xfd,0xff},{0xe8,0x01,0x3e,0xfd,0xff},{0xe8,0x1c,0x4c,0xfd,0xff},
+        {0xe8,0x9b,0x2b,0xfe,0xff}};
     // Korean IME may commit without a preceding composition string. The CD's
     // fresh-result branch discards everything except a Japanese full-width
     // space, then inserts a literal space. Consume the actual result instead.
@@ -71,13 +79,13 @@ static bool installInputEditor() {
     if (memcmp(reinterpret_cast<void*>(0x4ff9fd),oldResult,sizeof(oldResult)) ||
         memcmp(reinterpret_cast<void*>(0x4ffa18),oldArgument,sizeof(oldArgument)) ||
         memcmp(reinterpret_cast<void*>(0x4e72be),oldReturn,sizeof(oldReturn))) return false;
-    for (unsigned i=0;i<7;++i)
+    for (unsigned i=0;i<8;++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
     for (unsigned i=0;i<6;++i)
         if (memcmp(reinterpret_cast<void*>(nameAddresses[i]),nameExpected[i],5)) return false;
-    for (unsigned i=0;i<7;++i) {
+    for (unsigned i=0;i<8;++i) {
         BYTE call[5]={0xe8};
-        auto function=i==6?reinterpret_cast<BYTE*>(&chatCastLabel):i==3?reinterpret_cast<BYTE*>(&updateImeEvent):
+        auto function=i==7?reinterpret_cast<BYTE*>(&decodeImeStatus):i==6?reinterpret_cast<BYTE*>(&chatCastLabel):i==3?reinterpret_cast<BYTE*>(&updateImeEvent):
             i==2?reinterpret_cast<BYTE*>(&inputPrintableByte):reinterpret_cast<BYTE*>(&decodeInputText);
         *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(function-reinterpret_cast<BYTE*>(addresses[i])-5);
         if (!patchBytes(reinterpret_cast<void*>(addresses[i]),expected[i],call,5)) return false;

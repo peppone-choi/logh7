@@ -11,6 +11,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
     private val directory:(Long,Int)->MailIdentity?,private val inTactics:(String)->Boolean,
     private val store:(Long)->CommunicationStore,private val now:()->Long=System::currentTimeMillis):AutoCloseable {
     private var current:Triple<Long,CommunicationStore,Communication>?=null
+    private var messenger:Pair<Long,GameMessenger>?=null
     private data class Offer(val from:String,val to:String,val expires:Long)
     private val offers=mutableMapOf<Triple<Long,Int,Int>,Offer>()
     private val views=mutableMapOf<String,Boolean>()
@@ -75,6 +76,13 @@ class GameCommunication(private val presence:GamePresence,private val generation
         if(opcode==0x0f04) {
             require(body.size==2 && expected==generation() && directory(expected,owner.character)==owner)
             return listOf(books(engine(expected),owner))
+        }
+        if(opcode in listOf(0x0f06,0x0f0d,0x0f0e,0x0f0f)) {
+            require(expected==generation() && directory(expected,owner.character)==owner)
+            member(connection,owner,expected)
+            val service=messenger?.takeIf {it.first==expected}?.second ?: GameMessenger(
+                presence,expected,generation,directory).also {messenger=expected to it}
+            return service.handle(connection,body)
         }
         val actor=member(connection,owner,expected)
         val engine=engine(expected)
@@ -155,11 +163,12 @@ class GameCommunication(private val presence:GamePresence,private val generation
     }
     @Synchronized fun disconnected(connection:String) {
         views.remove(connection);offers.entries.removeIf {it.value.from==connection || it.value.to==connection}
+        if(messenger?.first==generation())messenger?.second?.disconnected(connection) else messenger=null
     }
     override fun close() {
         executor.shutdown()
         if(!executor.awaitTermination(10,java.util.concurrent.TimeUnit.SECONDS))executor.shutdownNow()
-        synchronized(this) {current?.second?.close();current=null;offers.clear();views.clear()}
+        synchronized(this) {current?.second?.close();current=null;messenger=null;offers.clear();views.clear()}
     }
 }
 

@@ -240,7 +240,8 @@ static const char* __fastcall mailDefaultTitle(void* catalogue,void*,unsigned ta
     static thread_local std::string converted;
     try {
         std::wstring text;
-        if (!logh::japaneseFragment(original,text)) { mailSendRejected=true;return ""; }
+        if (table==0x16 && index==0x4b) text=L"(제목 없음)";
+        else if (!logh::japaneseFragment(original,text)) { mailSendRejected=true;return ""; }
         BOOL loss=FALSE;
         int bytes=WideCharToMultiByte(CP_ACP,WC_NO_BEST_FIT_CHARS,text.c_str(),-1,nullptr,0,nullptr,&loss);
         if (bytes<=0 || loss) { mailSendRejected=true;return ""; }
@@ -323,6 +324,20 @@ static void __declspec(naked) messengerReceivedBridge() {
         jmp dword ptr [messengerReceivedResume]
     }
 }
+// The CD branches here for an away peer even when 00545a90 found no call slot.
+// Keep valid call/accept behavior and return through its existing cleanup for null.
+static unsigned messengerSlotResume=0x545508,messengerSlotCleanup=0x545617;
+static void __declspec(naked) messengerCallSlotBridge() {
+    __asm {
+        test eax, eax
+        jz missing
+        mov ecx, dword ptr [eax]
+        cmp ecx, -1
+        jmp dword ptr [messengerSlotResume]
+    missing:
+        jmp dword ptr [messengerSlotCleanup]
+    }
+}
 struct MailTextPatch { unsigned address; BYTE size; BYTE expected[6]; const void* target; bool call; };
 #define MAIL_TARGET(function) reinterpret_cast<const void*>(&function)
 static const MailTextPatch mailTextPatches[]={
@@ -342,6 +357,7 @@ static const MailTextPatch mailTextPatches[]={
     {0x543d14,5,{0xe8,0xd7,0x6d,0xfa,0xff},MAIL_TARGET(messengerEnterBridge),true},
     {0x543ed8,5,{0xe8,0x13,0x6c,0xfa,0xff},MAIL_TARGET(messengerButtonBridge),true},
     {0x5436b3,6,{0x81,0xc2,0x76,0x5f,0x48,0},MAIL_TARGET(messengerReceivedBridge),false},
+    {0x545503,5,{0x8b,0x08,0x83,0xf9,0xff},MAIL_TARGET(messengerCallSlotBridge),false},
     {0x53bc20,5,{0xe8,0xcb,0xf0,0xfa,0xff},MAIL_TARGET(displayNameCString),true},
     {0x4fd32f,5,{0xe8,0xac,0xc9,0x03,0},MAIL_TARGET(mailEditorTick),true},
     {0x4b4c93,5,{0xe8,0x08,0x2c,0,0},MAIL_TARGET(mailNativeSend),true}

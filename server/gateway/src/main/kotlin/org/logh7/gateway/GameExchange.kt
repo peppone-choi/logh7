@@ -1122,13 +1122,17 @@ class GameExchange(
                         if (message.text.isBlank()) return null
                         presence.spotChat(connection, message, gameSeconds())
                     }
-                    0x0f04,0x0f0b,0x0f0c,0x0f10,0x0f11,0x0f12 -> {
-                        if(opcode==0x0f04 && communication==null) {
+                    0x0f04,0x0f06,0x0f0b,0x0f0c,0x0f0d,0x0f0e,0x0f0f,0x0f10,0x0f11,0x0f12 -> {
+                        if(opcode==0x0f06 && !worldInitialized) {
+                            check(gameStarted)
+                            return handshake.stageAll(listOf(checkNotNull(BootstrapMessages.response(body))),clearHeader=0)
+                        }
+                        if(opcode in listOf(0x0f04,0x0f06) && communication==null) {
                             check(gameStarted)
                             return handshake.stageAll(listOf(checkNotNull(BootstrapMessages.response(body))),clearHeader=0)
                         }
                         check(gameStarted && communication!=null)
-                        if(opcode!=0x0f04)check(worldInitialized)
+                        if(opcode !in listOf(0x0f04,0x0f06))check(worldInitialized)
                         val owner=checkNotNull(communicationIdentity(characters,checkNotNull(currentCharacter(identity.account)).id.toInt()))
                         require(owner.account==identity.account)
                         pendingWorld=communication.submit(connection,owner,checkNotNull(generation),body,gameSeconds())

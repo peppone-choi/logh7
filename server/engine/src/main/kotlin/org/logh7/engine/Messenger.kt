@@ -95,6 +95,15 @@ class Messenger(private val generation:Long,private val currentGeneration:()->Lo
         cancel(endpoint.character,Reason.DISCONNECTED,events)
         return events
     }
+    /** 원본의 상대별 취소. 늦은 취소로 다른 상대의 새 연결을 끊지 않는다. */
+    @Synchronized fun dismiss(endpoint:Endpoint,peer:Int):List<Event> {
+        owned(endpoint)
+        val events=mutableListOf<Event>()
+        if(partners[endpoint.character]==peer)unlink(endpoint.character,Reason.DISCONNECTED,events)
+        if(outgoing[endpoint.character]==peer)cancel(endpoint.character,Reason.DISCONNECTED,events)
+        if(outgoing[peer]==endpoint.character)cancel(peer,Reason.DISCONNECTED,events)
+        return events
+    }
     /** 주소록/스폿과 독립된 연결 상대에게만 전달. 로그/오프라인 큐는 만들지 않는다. */
     @Synchronized fun send(endpoint:Endpoint,text:String):Event.Message {
         owned(endpoint)
