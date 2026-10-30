@@ -20,11 +20,19 @@ data class TacticalWeaponMount(val profile: Int, val angles: Int, val power: Int
  * Personal beam fire uses this evaluator; native range-preview equivalence is still unverified.
  */
 object TacticalArmaments {
+    /** Profile IDs are also the weapon-name index of constmsg group 116 (0054d4e0 reads it for the
+     * flagship sheet): 0 光子砲 (beam), 8 レールガン (gun), 12 レーザー水爆ミサイル (missile), 16 対空砲. */
+    const val BEAM_PROFILE = 0
+    const val GUN_PROFILE = 8
+    const val MISSILE_PROFILE = 12
+    const val ANTIAIR_NAME = 16
+    fun profile(weapon: TacticalWeapon) = when(weapon) {
+        TacticalWeapon.BEAM -> BEAM_PROFILE; TacticalWeapon.GUN -> GUN_PROFILE; TacticalWeapon.MISSILE -> MISSILE_PROFILE }
     const val RANGE_STEP = 1.0 // 004c7820 stores sample-count radii; 004f1180 compares them directly to map distance.
     val profiles: List<List<Int>> = List(27) { index -> when(index) {
-        0 -> listOf(100, 100, 85, 65, 40, 15, 0, 0) // beam: medium range
-        1 -> listOf(100, 85, 50, 10, 0, 0, 0, 0) // gun: close range
-        2 -> listOf(60, 80, 100, 100, 80, 60, 40, 20) // missile: long range
+        BEAM_PROFILE -> listOf(100, 100, 85, 65, 40, 15, 0, 0) // beam: medium range
+        GUN_PROFILE -> listOf(100, 85, 50, 10, 0, 0, 0, 0) // gun: close range
+        MISSILE_PROFILE -> listOf(60, 80, 100, 100, 80, 60, 40, 20) // missile: long range
         else -> List(8) { 0 } // Unassigned profiles are not fictitious additional weapons.
     } }
     fun mount(ship: ShipSpecification, weapon: TacticalWeapon): TacticalWeaponMount {
@@ -35,7 +43,7 @@ object TacticalArmaments {
         }
         val power = ship.number(column)
         if (power == 0) return TacticalWeaponMount(255, 0, 0, 0)
-        return TacticalWeaponMount(weapon.wire, when(weapon) {
+        return TacticalWeaponMount(profile(weapon), when(weapon) {
             TacticalWeapon.BEAM -> 1 // provisional forward sector
             TacticalWeapon.GUN -> 0x23 // forward and its two adjacent sectors
             TacticalWeapon.MISSILE -> 0x3f

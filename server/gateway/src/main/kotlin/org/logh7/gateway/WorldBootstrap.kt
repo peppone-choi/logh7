@@ -239,6 +239,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 cargo = ship.number("物資搭載量:物資搭載量"),
                 beamArms = beam.profile, beamAngles = beam.angles, gunArms = gun.profile, gunAngles = gun.angles,
                 missileArms = missile.profile, missileAngles = missile.angles,
+                antiaircraftArms = if (ship.number("対空兵装破壊力:対空兵装破壊力") > 0) org.logh7.engine.TacticalArmaments.ANTIAIR_NAME else 255,
                 commandRange=if(ship.number==1)org.logh7.engine.TacticalSupportRules.COMMAND_RANGE else 0f)
         }),
         0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->
