@@ -516,9 +516,13 @@ class GamePresence {
             val power=viewer.character.power
             val ids=stocks.outfits.values.filter {it.power==power && it.positionIn(world.galaxy).grid==grid}.map {it.id}
             send(viewer,ids.chunked(100).map {world.outfits(it,stocks)}+
-                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks))
+                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks)+refresh(peers(viewer),peers(viewer)))
         }
     }
+    /** Native 032b only fills the detail slot; 0b0a's 004c2a80(1) merges the last 032b into the
+     * 100-row outfit list. Re-sending the current peers keeps its character import unchanged. */
+    @Synchronized fun outfitListRefresh(connection: String): List<ByteArray> =
+        members[connection]?.let { refresh(peers(it), peers(it)) }.orEmpty()
     @Synchronized fun remove(connection: String) {
         motionPaths.keys.removeIf { it.first==connection }
         val leaving = members[connection] ?: return

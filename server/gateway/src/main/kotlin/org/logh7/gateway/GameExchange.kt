@@ -5,6 +5,7 @@ import org.logh7.protocol.LobbyMessages
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.OriginalCharacterMessages
+import org.logh7.engine.positionIn
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.SecureRandom
@@ -1303,9 +1304,11 @@ class GameExchange(
                                     org.logh7.protocol.OutfitFormationMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,
                                         result.changed,if(result.changed)result.outfit else result.lease,result.base,result.supplies,result.crew,rows)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
-                                        (if(result.changed)listOf(world.outfits(listOf(result.outfit),inventory),
-                                            world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory),
-                                            world.warehouse(result.base,inventory)) else emptyList())+
+                                        (if(result.changed)inventory.outfits.values.filter {it.power==character.power &&
+                                                it.positionIn(world.galaxy).grid==player.grid}.map {it.id}.sorted().chunked(100)
+                                                .map {world.outfits(it,inventory)}.ifEmpty {listOf(world.outfits(listOf(result.outfit),inventory))}+
+                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory),
+                                            world.warehouse(result.base,inventory))+presence?.outfitListRefresh(connection).orEmpty() else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }
                                 return null
