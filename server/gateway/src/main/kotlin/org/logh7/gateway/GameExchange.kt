@@ -136,6 +136,13 @@ class GameExchange(
                 org.logh7.protocol.TacticalRetreatMessages.Retreat(player.characterId,listOf(player.unitId)),
                 gameSeconds(),maxOf(0,retreat.startsAt-gameSeconds())))
         }
+        player.warpTarget?.let { warp ->
+            // Same restore order as docking: the HUD module records the reserved ACK.
+            val seconds = gameSeconds()
+            return listOf(org.logh7.protocol.NavigationMessages.reserved(org.logh7.protocol.NavigationMessages.Warp(
+                player.characterId, if (player.power == org.logh7.engine.Power.EMPIRE) 59 else 195, warp, 0, 5),
+                seconds, player.pcp, player.mcp, maxOf(0, checkNotNull(player.warpReadyAt) - seconds)))
+        }
         val target = player.dockTarget ?: return emptyList()
         val seconds = gameSeconds()
         return listOf(org.logh7.protocol.PlaceMessages.docked(org.logh7.protocol.PlaceMessages.Dock(
@@ -143,14 +150,19 @@ class GameExchange(
             seconds, player.pcp, player.mcp, waitSeconds = maxOf(0, checkNotNull(player.dockReadyAt) - seconds)))
     }
     private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate): List<ByteArray> {
-        if (!result.completedFuel && !result.completedDock) return emptyList()
+        if (!result.completedFuel && !result.completedDock && !result.warpRejected) return emptyList()
         val player = checkNotNull(result.player ?: result.previous)
         val seconds = gameSeconds()
         return (if (result.completedFuel) listOf(org.logh7.protocol.FuelMessages.supplied(seconds,
             player.characterId, player.unitId, player.cruise)) else emptyList()) +
             (if (result.completedDock) listOf(unitMessage(character, player),
                 org.logh7.protocol.PlaceMessages.dockNotification(player.characterId, player.baseId, player.mode, seconds,
-                    player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList())
+                    player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList()) +
+            // A reserved warp that can no longer enter still ends the native 0b07 wait at its origin.
+            (if (result.warpRejected) listOf(characterMessage(character, player, true), unitMessage(character, player),
+                org.logh7.protocol.NavigationMessages.grid(player.grid, player.cpPaused),
+                org.logh7.protocol.NavigationMessages.moved(org.logh7.protocol.NavigationMessages.Warp(player.characterId,
+                    if (character.power == 2) 59 else 195, player.grid, 0, 5), seconds, player.unitId, player.cruise)) else emptyList())
     }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
@@ -1100,6 +1112,12 @@ class GameExchange(
                             }
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
+                            player.warpReadyAt?.let { readyAt ->
+                                // Reserved: keep the origin, report CP and the wait; 0b07 is sent on execution.
+                                return@thenApply listOf(org.logh7.protocol.NavigationMessages.reserved(command,
+                                    seconds, player.pcp, player.mcp, maxOf(0, readyAt - seconds)),
+                                    characterMessage(character, player, true)) + completedWork(result, character)
+                            }
                             // A long warp may land on a neighbouring space grid; report the server's arrival.
                             val arrived = command.copy(grid = player.grid)
                             listOf(org.logh7.protocol.NavigationMessages.accepted(arrived, seconds, player.pcp, player.mcp),

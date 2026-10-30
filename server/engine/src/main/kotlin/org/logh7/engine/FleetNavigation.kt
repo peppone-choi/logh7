@@ -46,7 +46,8 @@ internal object FleetNavigation {
             return NavigationResult(null, before, NavigationRejection.BUSY)
         if (followers.values.any { it.cpPaused || it.fuelReadyAt != null || it.dockTarget != null })
             return NavigationResult(null, before, NavigationRejection.BUSY)
-        val cruiseCost = if (request.destination != null) (before.cruise - after.cruise).coerceAtLeast(0) else 0
+        // A reserved warp moves the fleet when its job completes, not on the accepting request.
+        val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0
         if (followers.values.any { it.cruise < cruiseCost }) return NavigationResult(null, before, NavigationRejection.CRUISE)
         val moved = followers.mapValues { (_, player) -> player.copy(grid = after.grid, baseId = after.baseId,
             mode = after.mode, spotId = 0, spotOwner = 0, cruise = player.cruise - cruiseCost,

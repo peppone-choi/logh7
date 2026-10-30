@@ -39,6 +39,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
             "LOGH7-NAV-15" -> 27
             "LOGH7-NAV-16" -> 28
             "LOGH7-NAV-17" -> 29
+            "LOGH7-NAV-18" -> 30
             else -> error("Unknown navigation store format") }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
@@ -71,13 +72,16 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                 if(columns>=28 && f[27]!="-")f[27].split(',').also {require(it.size==4)}.let {
                     org.logh7.engine.TacticalCommandRange(it[0].toLong(),it[1].toFloat(),it[2].toInt(),it[3].toInt())
                 } else null,
-                if(columns>=29 && f[28]!="-")TacticalPostureCodec.decode(f[28]) else null)
+                if(columns>=29 && f[28]!="-")TacticalPostureCodec.decode(f[28]) else null,
+                if(columns>=30 && f[29]!="-")f[29].toInt() else null)
             require(players.put(f[0], player) == null) { "Duplicate navigation account" }
         }
         return players
     }
     override fun save(players: Map<String, Navigator>) {
-        val postures=players.values.any {it.posture!=null}
+        // NAV-18 adds a reserved warp destination; without one the previous format is kept.
+        val warps=players.values.any {it.warpTarget!=null}
+        val postures=warps || players.values.any {it.posture!=null}
         val ranges=postures || players.values.any {it.commandRange!=null}
         val attacks = ranges || players.values.any {it.attack != null}
         val hulls = attacks || players.values.any {it.hull != null}
@@ -87,7 +91,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         val retreats = charges || players.values.any { it.retreat != null }
         val motions = retreats || players.values.any { it.motion != null }
         val bytes = buildString {
-            append(if(postures) "LOGH7-NAV-17\n" else if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
+            append(if(warps) "LOGH7-NAV-18\n" else if(postures) "LOGH7-NAV-17\n" else if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
                 append((listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
@@ -110,7 +114,8 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                     (if(ranges)listOf(p.commandRange?.let {
                         listOf(it.at,it.radius,it.command,it.stamina).joinToString(",")
                     } ?: "-") else emptyList()) +
-                    (if(postures)listOf(p.posture?.let(TacticalPostureCodec::encode) ?: "-") else emptyList())).joinToString("\t"))
+                    (if(postures)listOf(p.posture?.let(TacticalPostureCodec::encode) ?: "-") else emptyList()) +
+                    (if(warps)listOf(p.warpTarget ?: "-") else emptyList())).joinToString("\t"))
                 append('\n')
             }
         }.toByteArray(Charsets.UTF_8)
