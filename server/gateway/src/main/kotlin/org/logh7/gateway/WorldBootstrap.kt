@@ -206,9 +206,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
             })
         }))
     val catalogues: Map<Int, ByteArray> = mapOf(
+        // Row 89 renders a black hole (004d40bc: type 3, fixedstar 8 -> model 7) under the
+        // "impassable grid" name; it is excluded from the 3..88 star-system index.
         0x0312 to WorldMessages.types(List(89) { kind ->
             Triple(kind, if (kind >= 3) 3 else kind, galaxy.systems.find { it.kind == kind }?.star ?: 4)
-        }),
+        } + Triple(org.logh7.engine.Galaxy.IMPASSABLE_CELL, 3, 8)),
         0x0314 to WorldMessages.grid(galaxy.cells),
         0x031c to WorldMessages.bases(galaxy.bases.map(::baseWire)),
         0x0306 to WorldMessages.captainCommands(officeCards.mapValues {it.value.commands}),
