@@ -58,8 +58,8 @@ class StrategyActionsTest {
             UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=3)}
         var current=s
         repeat(3) {val r=act(51,current);assertNull(r.rejection);assertEquals(920,r.player?.mcp);current=assertNotNull(r.stocks)}
-        assertEquals(3,current.strategic.people.getValue(10000).airTactics);assertEquals(130,StrategicAirTactics.factor(current,10000))
-        assertEquals(100,StrategicAirTactics.factor(current,10001))
+        assertEquals(3,current.strategic.people.getValue(10000).airTactics);assertEquals(76,StrategicAirTactics.interval(current,10000,100))
+        assertEquals(100,StrategicAirTactics.interval(current,10001,100));assertEquals(1,StrategicAirTactics.interval(current,10000,1))
         assertEquals(StrategyActionRejection.MAXIMUM,act(51,current).rejection)
     }
     @Test fun learnedTacticsAffectAutomaticGroundCombatAndSurviveAnOfflineCommander() {

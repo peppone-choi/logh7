@@ -106,7 +106,7 @@ internal object StrategyActions {
                         next=stocks.copy(outfits=stocks.outfits+(o.id to o.copy(activeGround=trained,
                             units=UnitInventory(o.units.ships,crew+trained.quantities()))))
                     }
-                    // 空戦戦術訓練 51 (group 18 #51, MCP80): the air counterpart of 50, +10% wing damage per level (evidence:guess).
+                    // 空戦戦術訓練 51 (group 18 #51, MCP80): the air counterpart of 50, a 10% faster wing cycle per level (evidence:guess).
                     51 -> {
                         if(person.airTactics==3)return reject(StrategyActionRejection.MAXIMUM)
                         next=stocks.copy(strategic=stocks.strategic.copy(people=stocks.strategic.people+
@@ -190,8 +190,10 @@ internal object StrategyActions {
  * Ten percent per learned stage (maximum three) is an explicit restoration coefficient. */
 object StrategicAirTactics {
     fun carrier(kind:Int)=UnitSpecifications.ships.single {it.kind==kind}.number("戦闘艇/雷撃艇搭載数:戦闘艇/雷撃艇搭載数")>0
-    /** Wing damage percent for the character who launched it. */
-    fun factor(stocks:PlanetStocks,character:Int)=100+10*(stocks.strategic.people[character]?.airTactics ?: 0)
+    /** Wing strike damage is fixed at the minimum (mount power 1), so the skill shortens the
+     * strike cycle instead: 10% faster per level, never below one second (evidence:guess). */
+    fun interval(stocks:PlanetStocks,character:Int,base:Long):Long=
+        maxOf(1L,base*100/(100+10*(stocks.strategic.people[character]?.airTactics ?: 0)))
 }
 object StrategicGroundTactics {
     fun factor(stocks:PlanetStocks,unit:Int):Int {

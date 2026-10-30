@@ -153,6 +153,16 @@ class TacticalCommandOperationsTest {
         assertTrue(s.stocks.tacticalCommands.air.isEmpty());assertEquals(90,s.stocks.outfits.getValue(1).supplies)
         assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
     }
+    @Test fun airTacticsOfTheLaunchingCharacterShortensTheWingCycle() {
+        fun nextStrike(airTactics:Int):Long {
+            val s=state()
+            if(airTactics>0)s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(rank=10,airTactics=airTactics))))
+            val r=run(s);assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
+            val hits=mutableListOf<TacticalImpact>();settle(r,now+5,impacts=hits);assertTrue(hits.single().airBattle)
+            return checkNotNull(s.stocks.tacticalCommands.air[1]).nextAt-(now+5)
+        }
+        assertEquals(5,nextStrike(0));assertEquals(3,nextStrike(3))
+    }
     @Test fun invalidAuthorityInsufficientCpAndDiskFailureNeverPublishSuccess() {
         val r=run();val c=TacticalCommand(0x40d,listOf(1,2),kind=1)
         assertEquals(NavigationRejection.CARD,accept(r,c,"ally").rejection)
