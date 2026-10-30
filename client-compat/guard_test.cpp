@@ -1,6 +1,7 @@
 // Negative test: loading the proxy in another x86 process must not install game hooks.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <cstdio>
 #include "hud_atlas.h"
 #include "planet_info_data.h"
 #include "spot_presence.h"
@@ -564,7 +565,7 @@ static bool sessionEndingDataTest() {
     }
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
-int wmain(int argc, wchar_t** argv) {
+static int runGuard(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
     if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest()) return 252;
@@ -1035,4 +1036,10 @@ int wmain(int argc, wchar_t** argv) {
     if (status() != -1 || SUCCEEDED(result) || input) return 4;
     FreeLibrary(module);
     return 0;
+}
+
+int wmain(int argc, wchar_t** argv) {
+    const int result=runGuard(argc,argv);
+    if(result)std::fprintf(stderr,"Compatibility guard failed: %d (ACP %u)\n",result,GetACP());
+    return result;
 }
