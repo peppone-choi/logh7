@@ -285,7 +285,14 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
                 state.pending=false;
                 unsigned responseStatus=at<unsigned short>(record,10);
                 state.message=responseStatus==13 ? L"보유 군수물자가 부족합니다." : responseStatus==14 ? L"평가 포인트가 부족합니다." :
-                    responseStatus==15 ? L"상대나 교환 제안이 유효하지 않습니다." : responseStatus ? L"명령 거부 · 직무·장소·대상·계급·CP를 확인하세요." :
+                    responseStatus==15 ? L"상대나 교환 제안이 유효하지 않습니다." :
+                    // StrategyActionRejection ordinal+1: LOCATION 6, BUSY 7, MAXIMUM 9, RANK 10, CP 11.
+                    responseStatus==6 ? L"명령 거부 · 실행할 수 있는 장소가 아닙니다." :
+                    responseStatus==7 ? L"명령 거부 · 진행 중인 작업이 끝난 뒤 실행하십시오." :
+                    responseStatus==9 ? L"이미 최대치이거나 현재와 같은 대상입니다. CP를 사용하지 않았습니다." :
+                    responseStatus==10 ? L"명령 거부 · 계급 조건을 충족하지 않습니다." :
+                    responseStatus==11 ? L"CP가 부족합니다." :
+                    responseStatus ? L"명령 거부 · 직무·장소·대상·계급·CP를 확인하세요." :
                     at<BYTE>(record,16)==3 ? L"변경할 상태가 없습니다. CP를 사용하지 않았습니다." :
                     state.strategyCommand==53 ? L"진압 예약이 저장됐습니다. 게임 24시간 뒤 적용됩니다." : L"명령 결과가 서버에 저장됐습니다.";
             }
