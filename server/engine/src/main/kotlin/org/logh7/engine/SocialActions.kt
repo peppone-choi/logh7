@@ -13,20 +13,22 @@ data class SpeechReceipt(val id:Int,val character:Int,val power:Int,val base:Int
     val approvalDelta get()=approval-beforeApproval
 }
 data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = emptyMap(),
-    val speakers:Map<Int,Long> = emptyMap(),val squares:Map<Int,Long> = emptyMap(),val academy:AcademyState=AcademyState()) {
+    val speakers:Map<Int,Long> = emptyMap(),val squares:Map<Int,Long> = emptyMap(),val academy:AcademyState=AcademyState(),
+    val meeting:MeetingState=MeetingState()) {
     init {require(nextId>0 && speeches.size<=256 && speeches.all {(id,r)->id==r.character && r.id<nextId} &&
         speeches.values.map {it.id}.distinct().size==speeches.size && speakers.size<=4096 && squares.size<=350 &&
         speakers.all {(id,at)->id>0 && at in 0..0xffffffffL} && squares.all {(base,at)->base in 1..65535 && at in 0..0xffffffffL} &&
         speeches.values.all {r->(speakers[r.character] ?: 0)>=r.nextAt && (squares[r.base] ?: 0)>=r.nextAt})}
     fun detached()=copy(speeches=java.util.Collections.unmodifiableMap(LinkedHashMap(speeches)),
         speakers=java.util.Collections.unmodifiableMap(LinkedHashMap(speakers)),squares=java.util.Collections.unmodifiableMap(LinkedHashMap(squares)),
-        academy=academy.detached())
+        academy=academy.detached(),meeting=meeting.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
 enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE }
 data class SocialView(val ticket:Int,val base:Int,val influence:Int,val approval:Int,val wait:Long,val last:SpeechReceipt?)
 data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:SocialRejection?=null,
-    val changed:Boolean=false,val view:SocialView?=null,val recovery:NavigationResult?=null,val academy:AcademyView?=null)
+    val changed:Boolean=false,val view:SocialView?=null,val recovery:NavigationResult?=null,val academy:AcademyView?=null,
+    val meeting:MeetingView?=null)
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,
@@ -36,6 +38,7 @@ object SocialActions {
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
         navigators:Collection<Navigator> = emptyList()):SocialResult {
         if(r.identity.command in AcademyActions.commands)return AcademyActions.evaluate(g,r,session,p,s,navigators)
+        if(r.identity.command==MeetingActions.MEETING)return MeetingActions.evaluate(r,session,p,s,navigators)
         val i=r.identity
         fun reject(reason:SocialRejection,view:SocialView?=null)=SocialResult(p,s,reason,view=view)
         val member=session.participants[i.account]
@@ -80,7 +83,7 @@ object SocialActions {
         val next=s.copy(strategic=s.strategic.copy(people=s.strategic.people+(i.characterId to person.copy(influence=influence))),
             bases=s.bases+(base.baseId to base.copy(economy=economy.copy(approval=approval))),
             social=SocialState(receipt.id+1,speeches,s.social.speakers+(i.characterId to receipt.nextAt),
-                s.social.squares+(base.baseId to receipt.nextAt),s.social.academy))
+                s.social.squares+(base.baseId to receipt.nextAt),s.social.academy,s.social.meeting))
         return SocialResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true,
             view=SocialView(next.social.nextId,base.baseId,influence,approval,DAY,receipt))
     }

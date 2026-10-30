@@ -1177,6 +1177,23 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.MeetingMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.MeetingMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
+                                val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),org.logh7.engine.MeetingActions.MEETING,0,character.rank,target=q.target),q.phase,q.ticket)
+                                pendingWorld=administration.social(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    val view=result.meeting?.let {org.logh7.protocol.MeetingMessages.View(it.ticket,it.target,it.friendship,it.wait,it.gained)}
+                                    org.logh7.protocol.MeetingMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
                             if(org.logh7.protocol.AcademyMessages.matches(body)) {
                                 check(administration!=null)
                                 val q=org.logh7.protocol.AcademyMessages.query(body)
@@ -1302,6 +1319,17 @@ class GameExchange(
                                     pendingWorld=stocks().thenApply {stored ->
                                         val inventory=checkNotNull(stored)
                                         val policy=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
+                                        if(query.command==87) {
+                                            // 会見 directory: people whose saved place is the requester's exact spot (online or not).
+                                            val players=navigation?.snapshot()?.navigators.orEmpty()
+                                            val me=checkNotNull(players[identity.account])
+                                            val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                                it.characterId>query.target && me.spotId!=0 && it.grid==me.grid && it.baseId==me.baseId &&
+                                                it.spotId==me.spotId && it.spotOwner==me.spotOwner}.map {it.characterId}.toSet()
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
                                         require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {it.card==query.card}) {"Strategy directory requires a held office"}
                                         if(query.command==96) {
                                             if(query.argument==0)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,

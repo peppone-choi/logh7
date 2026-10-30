@@ -142,7 +142,7 @@ object WorldMessages {
         }
     }
     private fun commands(card: Int) = when (card) {
-        0 -> listOf(14, 82, 83, 84, 93, 94, 96)
+        0 -> listOf(14, 82, 83, 84, 87, 93, 94, 96)
         37,38,173,174 -> listOf(27)
         59, 195 -> listOf(43, 44, 45, 48, 50, 52, 53, 54, 55, 56, 60, 61, 85)
         54 -> listOf(5,6,7,30)

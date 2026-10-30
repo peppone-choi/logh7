@@ -37,6 +37,15 @@ class SocialStoreTest {
         val path=directory.resolve("academy.tsv");val saved=stocks.copy(social=value)
         FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
     }
+    @Test fun meetingFriendshipAndPairLimitsRoundTripAsAnOptionalSixthField() {
+        val meeting=MeetingState(mapOf(MeetingActions.pair(10001,10000) to 53),mapOf(MeetingActions.pair(10000,10002) to now+86400))
+        val value=social.copy(meeting=meeting);val text=SocialStateCodec.encode(value);assertEquals(value,SocialStateCodec.decode(text))
+        assertEquals(6,text.split('|').size);assertTrue(text.endsWith("|-/-/-/-|10000:10001:53/10000:10002:${now+86400}"))
+        for(bad in listOf(text.replace("10000:10001:53","10001:10000:53"),text.replace(":53/",":101/"),text.replace("10000:10001:53","10000:10000:53")))
+            assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(bad)}
+        val path=directory.resolve("meeting.tsv");val saved=stocks.copy(social=value)
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+    }
     @Test fun malformedReceiptsMissingLimitsDuplicateSectionsAndReusedIdsAreRejected() {
         val text=SocialStateCodec.encode(social);assertEquals(social,SocialStateCodec.decode(text))
         for(bad in listOf(text.replaceFirst("2|","1|"),text+"|trailing",text.replace("10000:${receipt.nextAt}","10000:0"),
