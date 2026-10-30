@@ -27,7 +27,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     /** 軍紀維持: outfit ID → stored discipline and when it was stored (OutfitDiscipline). */
     val discipline:Map<Int,OutfitDiscipline> = emptyMap(),
     /** Last game hour whose black-hole tidal loss was applied (BlackHoleTides); 0 before the first settlement. */
-    val tidalHour:Long=0) {
+    val tidalHour:Long=0,
+    /** Air (fighter) training level 1..3 per outfit from 空戦訓練; absent means 0. */
+    val airTraining:Map<Int,Int> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -44,6 +46,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(social.squares.keys.all {it in bases} && social.speeches.values.all {it.base in bases}) {"Unknown social base"}
         require(discipline.size<=1000 && discipline.keys.all {it>0}) {"Invalid outfit discipline"}
         require(tidalHour in 0..0xffffffffL/3600) {"Invalid tidal hour"}
+        require(airTraining.size<=1000 && airTraining.all {(id,level)->id>0 && level in 1..3}) {"Invalid air training"}
     }
 }
 interface PlanetStockStore : AutoCloseable {

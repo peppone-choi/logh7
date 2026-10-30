@@ -445,7 +445,7 @@ internal object TacticalCommandOperations {
                     }
                 }
                 if(id in stocks.tacticalCommands.air)stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=stocks.tacticalCommands.air+
-                    (id to wing.copy(nextAt=minOf(0xffffffffL,now+StrategicAirTactics.interval(stocks,wing.character,5*scale))))))
+                    (id to wing.copy(nextAt=minOf(0xffffffffL,now+StrategicAirTactics.interval(stocks,wing.character,5*scale,wing.source))))))
             }
         }
         fun advanceMissions() {

@@ -51,7 +51,7 @@ data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,v
     val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null)
 
 internal object StrategyActions {
-    val supported=setOf(46,47,48,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
+    val supported=setOf(46,47,48,49,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
         CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -78,15 +78,15 @@ internal object StrategyActions {
         var next=stocks
         var readyAt=0L
         when(r.command) {
-            46,47,48,50,51,53 -> {
+            46,47,48,49,50,51,53 -> {
                 if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
                 if(o.commanderId!=r.characterId || o.power!=power)return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.grid!=p.grid || position.baseId!=p.baseId)return reject(StrategyActionRejection.LOCATION)
                 if(r.command in setOf(46,47) && o.activeShips?.values.orEmpty().none {it.boats>0} ||
-                    r.command==51 && o.activeShips?.values.orEmpty().none {it.boats>0 && StrategicAirTactics.carrier(it.stack.kind)} ||
-                    r.command !in setOf(46,47,51) && o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
+                    r.command in setOf(49,51) && o.activeShips?.values.orEmpty().none {it.boats>0 && StrategicAirTactics.carrier(it.stack.kind)} ||
+                    r.command !in setOf(46,47,49,51) && o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
                 if(o.activeGround?.values.orEmpty().any {it.order!=null} ||
                     o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
                 when(r.command) {
@@ -111,6 +111,13 @@ internal object StrategyActions {
                         val crew=o.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}
                         next=stocks.copy(outfits=stocks.outfits+(o.id to o.copy(activeGround=trained,
                             units=UnitInventory(o.units.ships,crew+trained.quantities()))))
+                    }
+                    // 空戦訓練 49 (group 18 #49, MCP80): the outfit's fighter training, one level per call up to 3, a 10% faster
+                    // wing cycle per level like 51 (evidence:guess, the 47/48 training rule applied to fighters).
+                    49 -> {
+                        val level=stocks.airTraining[o.id] ?: 0
+                        if(level==3)return reject(StrategyActionRejection.MAXIMUM)
+                        next=stocks.copy(airTraining=stocks.airTraining+(o.id to level+1))
                     }
                     // 空戦戦術訓練 51 (group 18 #51, MCP80): the air counterpart of 50, a 10% faster wing cycle per level (evidence:guess).
                     51 -> {
@@ -149,7 +156,7 @@ internal object StrategyActions {
                 }
             }
         }
-        val cost=if(r.command in setOf(46,47,48,50,51))80L else 160L
+        val cost=if(r.command in setOf(46,47,48,49,50,51))80L else 160L
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return StrategyActionResult(after.paidWith(paid.balance),next,
@@ -198,8 +205,11 @@ object StrategicAirTactics {
     fun carrier(kind:Int)=UnitSpecifications.ships.single {it.kind==kind}.number("戦闘艇/雷撃艇搭載数:戦闘艇/雷撃艇搭載数")>0
     /** Wing strike damage is fixed at the minimum (mount power 1), so the skill shortens the
      * strike cycle instead: 10% faster per level, never below one second (evidence:guess). */
-    fun interval(stocks:PlanetStocks,character:Int,base:Long):Long=
-        maxOf(1L,base*100/(100+10*(stocks.strategic.people[character]?.airTactics ?: 0)))
+    fun interval(stocks:PlanetStocks,character:Int,base:Long,source:Int=0):Long {
+        val training=stocks.outfits.values.firstOrNull {o->o.activeShips?.values.orEmpty().any {it.id==source}}
+            ?.let {stocks.airTraining[it.id]} ?: 0
+        return maxOf(1L,base*100/(100+10*(stocks.strategic.people[character]?.airTactics ?: 0)+10*training))
+    }
 }
 object StrategicGroundTactics {
     fun factor(stocks:PlanetStocks,unit:Int):Int {

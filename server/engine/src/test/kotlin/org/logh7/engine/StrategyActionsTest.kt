@@ -62,6 +62,19 @@ class StrategyActionsTest {
         assertEquals(100,StrategicAirTactics.interval(current,10001,100));assertEquals(1,StrategicAirTactics.interval(current,10000,1))
         assertEquals(StrategyActionRejection.MAXIMUM,act(51,current).rejection)
     }
+    @Test fun airTrainingRaisesTheCarrierOutfitsWingCycleToThreeLevels() {
+        assertEquals(StrategyActionRejection.TROOPS,act(49).rejection)
+        val kind=UnitSpecifications.ships.first {StrategicAirTactics.carrier(it.kind)}.kind
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind))))
+        val s=stocks().let {it.copy(outfits=it.outfits+(200 to OutfitStock(200,2,OutfitKind.PATROL,1049,300,10000,
+            UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=3)}
+        var current=s
+        repeat(3) {val r=act(49,current);assertNull(r.rejection);assertEquals(920,r.player?.mcp);current=assertNotNull(r.stocks)}
+        assertEquals(mapOf(200 to 3),current.airTraining)
+        assertEquals(76,StrategicAirTactics.interval(current,10001,100,2))
+        assertEquals(100,StrategicAirTactics.interval(current,10001,100,9))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(49,current).rejection)
+    }
     @Test fun disciplineRisesByTenDecaysDailyToFiftyAndSoftensMoraleLoss() {
         val kind=UnitSpecifications.ships.first().kind
         val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind))))
