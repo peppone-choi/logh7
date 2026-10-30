@@ -52,6 +52,9 @@ class BlackHoleTidesTest {
         assertEquals(1f, drift.direction); assertTrue(drift.parallel)
         assertEquals(-5f, drift.pose(300).position.x, 1e-3f)
         assertNull(BlackHoleTides.drift(galaxy, drift, 300))
+        // A flagship drifts no faster than its own parallel-move limit, and not at all with no engine output.
+        assertEquals(0.02f, BlackHoleTides.drift(galaxy, still, 200, 0.02f)!!.velocity)
+        assertNull(BlackHoleTides.drift(galaxy, still, 200, 0f))
         assertNull(BlackHoleTides.drift(galaxy, still.copy(grid = 2487), 200))
         val held = TacticalMotion(3061, 100, TacticalPose(TacticalPoint(-250f, 0f), 1f), 0f, 1f, listOf(TacticalPoint(-250f, 0f)))
         assertNull(BlackHoleTides.drift(galaxy, held, 200))

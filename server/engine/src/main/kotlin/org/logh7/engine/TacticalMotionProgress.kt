@@ -8,11 +8,11 @@ internal object TacticalMotionProgress {
         fun audience(grid:Int)=players.mapNotNull {(account,p)->session.participants[account]?.takeIf {
             it.online && it.power==p.power && p.grid==grid && p.baseId==0 && p.cpPaused
         }?.connection?.let {p.characterId to it}}.toMap()
-        fun progress(unit:Int,character:Int,motion:TacticalMotion):TacticalMotion {
+        fun progress(unit:Int,character:Int,motion:TacticalMotion,driftLimit:Float=BlackHoleTides.DRIFT_VELOCITY):TacticalMotion {
             val completed=motion.completedWaypoints(now)
             // A still player-commanded unit beside a black hole is pulled toward the field edge (BlackHoleTides).
             // Autonomous units are excluded: NpcTactics owns their motion and would cancel the drift every tick.
-            if(completed<=motion.reportedWaypoints)return BlackHoleTides.drift(galaxy,motion,now)?.takeIf {character>0}?.also {
+            if(completed<=motion.reportedWaypoints)return BlackHoleTides.drift(galaxy,motion,now,driftLimit)?.takeIf {character>0}?.also {
                 events+=TacticalMovement(session.generation,unit,motion.grid,now,it,audience(motion.grid),character=character,waypoint=0)
             } ?: motion
             val next=if(completed==motion.waypoints.size) {
@@ -30,7 +30,8 @@ internal object TacticalMotionProgress {
                 val pose=TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,original,galaxy)
                 TacticalMotion(player.grid,now,pose,0f,pose.direction,listOf(pose.position))
             }
-            val next=progress(player.unitId,player.characterId,motion)
+            // Navigator allows a parallel motion only within half its engine output.
+            val next=progress(player.unitId,player.characterId,motion,(player.energy ?: TacticalEnergy.ZERO).values[0]/100f*0.5f)
             if(next!=motion)players[account]=player.copy(motion=next)
         }
         var stocks=original

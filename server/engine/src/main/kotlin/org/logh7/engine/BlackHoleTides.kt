@@ -33,13 +33,15 @@ object BlackHoleTides {
     }
     private fun atEdge(edge: TacticalPoint, position: TacticalPoint) =
         hypot(position.x.toDouble() - edge.x, position.y.toDouble() - edge.y) < 1.0
-    /** A still unit in a gravity zone starts drifting to the edge; moving, turning or edge units are left alone. */
-    fun drift(galaxy: Galaxy, motion: TacticalMotion, now: Long): TacticalMotion? {
+    /** A still unit in a gravity zone starts drifting to the edge; moving, turning or edge units are left alone.
+     * [maxVelocity] is the unit's own parallel-move limit (a flagship's engine output); none means no drift. */
+    fun drift(galaxy: Galaxy, motion: TacticalMotion, now: Long, maxVelocity: Float = DRIFT_VELOCITY): TacticalMotion? {
         if (motion.velocity != 0f || motion.rotation != null || motion.turnRate > 0f) return null
         val edge = edge(galaxy, motion.grid) ?: return null
         val pose = motion.pose(now)
-        if (atEdge(edge, pose.position) || now > 0xffffffffL) return null
-        return TacticalMotion(motion.grid, now, pose, DRIFT_VELOCITY, pose.direction, listOf(edge), parallel = true, waitSeconds = 0)
+        val velocity = minOf(DRIFT_VELOCITY, maxVelocity)
+        if (atEdge(edge, pose.position) || now > 0xffffffffL || !(velocity > 0f)) return null
+        return TacticalMotion(motion.grid, now, pose, velocity, pose.direction, listOf(edge), parallel = true, waitSeconds = 0)
     }
     /** Removes [percent]% (rounded down) of every active ship unit, doubled for a unit held at the field edge
      * ([seconds] given); units below 100 boats lose nothing. */
