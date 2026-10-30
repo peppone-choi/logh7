@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.logh7.engine.strategy.*
 import kotlin.math.abs
 
-/** Local navigation policy where original range, fuel and timing formulas remain unknown. */
+/** Local navigation policy where original range, fuel and timing formulas remain unknown. cruiseCost is per 100-ly grid. */
 data class NavigationPolicy(val initialCp: Int = 1000, val initialCruise: Int = 1000,
     val maximumRange: Int = 3, val warpCost: Int = 40, val cruiseCost: Int = 100,
     val maximumCp: Int = 1000, val recoveryBase: Int = 50,
@@ -313,15 +313,21 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (dx * dx + dy * dy > policy.maximumRange * policy.maximumRange) return reject(NavigationRejection.RANGE)
         val warp = WarpPreconditions.evaluate(WarpContext(before.cruise, galaxy.kind(destination) == GridKind.STAR_SYSTEM,
             maxOf(dx, dy) == 1))
-        if (warp != WarpDecision.ALLOWED || before.cruise < policy.cruiseCost) return reject(NavigationRejection.CRUISE)
+        // Cruise is light-years (CD p.31); policy.cruiseCost is the cost of one 100-ly grid.
+        val cruiseCost = Math.toIntExact((WarpCourse.cruiseCost(before.grid, destination).toLong() * policy.cruiseCost +
+            WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)
+        if (warp != WarpDecision.ALLOWED || before.cruise < cruiseCost) return reject(NavigationRejection.CRUISE)
         val forces = GridForces.collect(galaxy, session.generation, snapshot(session.generation).values, stocks)
-        val entry = GridEntryRules.evaluate(GridForces.state(galaxy, destination, forces),
-            GridEntry(Camp(before.power, false), movingUnits, soloShip))
-        if (entry != GridEntryVerdict.ALLOWED) return reject(NavigationRejection.GRID)
+        fun enterable(grid: Int) = GridEntryRules.evaluate(GridForces.state(galaxy, grid, forces),
+            GridEntry(Camp(before.power, false), movingUnits, soloShip)) == GridEntryVerdict.ALLOWED
+        if (!enterable(destination)) return reject(NavigationRejection.GRID)
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), policy.warpCost.toLong(), CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
-        val after = contact(before.copy(grid = destination, pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
-            cruise = before.cruise - policy.cruiseCost, moves = Math.addExact(before.moves, 1), motion = null))
+        // The salt changes with every completed move, so a rejected attempt cannot be retried for a new roll.
+        val arrival = WarpCourse.arrival(galaxy, before.grid, destination,
+            session.generation * 0x9E3779B1L xor (before.characterId.toLong() shl 20) xor before.moves, ::enterable)
+        val after = contact(before.copy(grid = arrival, pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
+            cruise = before.cruise - cruiseCost, moves = Math.addExact(before.moves, 1), motion = null))
         if (persist) commit(request.account, after, session.generation)
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock)
     }

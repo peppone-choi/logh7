@@ -86,8 +86,8 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
     std::wstring body;
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     if (isWarpConfirmation(command)) {
-        // Mirrors current NavigationPolicy defaults; distance-dependent costs remain unfinished.
-        body=L"선택한 그리드로 워프합니다.\nMCP 40 · 부족하면 PCP 80 전액 대용\n항속 소비: 100\n실행하시겠습니까?";
+        // Mirrors NavigationPolicy/WarpCourse: cruise per light-year and drift beyond adjacent grids.
+        body=L"선택한 그리드로 워프합니다.\nMCP 40 · 부족하면 PCP 80 전액 대용\n항속: 100광년당 100 소비 · 2칸 이상은 오차 가능\n실행하시겠습니까?";
     } else {
     if (!logh::japaneseFragment(original,body)) return;
     auto newline=body.find(L'\n');
