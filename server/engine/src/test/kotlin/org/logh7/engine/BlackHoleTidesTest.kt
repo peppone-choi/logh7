@@ -43,4 +43,21 @@ class BlackHoleTidesTest {
         val untouched = away.copy(tidalHour = 0)
         assertSame(untouched, BlackHoleTides.settle(galaxy, untouched, 104 * 3600L))
     }
+    @Test fun stillUnitsDriftToTheEdgeFacingTheBlackHoleWhereTidalLossDoubles() {
+        val still = TacticalMotion(3061, 100, TacticalPose(TacticalPoint(0f, 0f), 1f), 0f, 1f, listOf(TacticalPoint(0f, 0f)))
+        assertEquals(TacticalPoint(-250f, 0f), BlackHoleTides.edge(galaxy, 3061))
+        assertNull(BlackHoleTides.edge(galaxy, 2487))
+        val drift = assertNotNull(BlackHoleTides.drift(galaxy, still, 200))
+        assertEquals(listOf(TacticalPoint(-250f, 0f)), drift.waypoints); assertEquals(0.05f, drift.velocity)
+        assertEquals(1f, drift.direction); assertTrue(drift.parallel)
+        assertEquals(-5f, drift.pose(300).position.x, 1e-3f)
+        assertNull(BlackHoleTides.drift(galaxy, drift, 300))
+        assertNull(BlackHoleTides.drift(galaxy, still.copy(grid = 2487), 200))
+        val held = TacticalMotion(3061, 100, TacticalPose(TacticalPoint(-250f, 0f), 1f), 0f, 1f, listOf(TacticalPoint(-250f, 0f)))
+        assertNull(BlackHoleTides.drift(galaxy, held, 200))
+        val o = outfit(1, 3061).let { it.copy(activeShips = ActiveShipUnits(it.activeShips!!.values.map { u ->
+            if (u.id == 1) u.copy(tactical = NpcTacticalState(held, 100, 0)) else u.copy(tactical = NpcTacticalState(still, 100, 0)) })) }
+        assertEquals(listOf(294, 297), boats(BlackHoleTides.loss(o, BlackHoleTides.TIDAL_PERCENT, galaxy, 200)))
+        assertEquals(listOf(297, 297), boats(BlackHoleTides.loss(o, BlackHoleTides.TIDAL_PERCENT)))
+    }
 }
