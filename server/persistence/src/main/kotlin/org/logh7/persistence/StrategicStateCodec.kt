@@ -7,7 +7,8 @@ internal object StrategicStateCodec {
     fun encode(state:StrategicState):String = listOf(
         state.people.toSortedMap().entries.joinToString(";") {(id,p)->listOf(id,p.rank ?: "-",p.groundTactics,p.retiredUntil,
             p.peerage?.ordinal ?: "-",p.merit,p.influence,p.evaluation,p.money,
-            p.abilities?.joinToString(",") ?: "-",p.decorations.sorted().joinToString(",").ifEmpty {"-"}).joinToString(":")}.ifEmpty {"-"},
+            p.abilities?.joinToString(",") ?: "-",p.decorations.sorted().joinToString(",").ifEmpty {"-"})
+            .plus(if(p.airTactics>0)listOf(p.airTactics) else emptyList()).joinToString(":")}.ifEmpty {"-"},
         state.suppressions.joinToString(";") {"${it.character}:${it.outfit}:${it.base}:${it.power}:${it.readyAt}"}.ifEmpty {"-"},
         state.offices.joinToString(";") {"${it.card}:${it.seat}:${it.character}"}.ifEmpty {"-"},
         state.fiefs.toSortedMap().entries.joinToString(";") {"${it.key}:${it.value}"}.ifEmpty {"-"},
@@ -21,11 +22,11 @@ internal object StrategicStateCodec {
         val sections=text.split('|');require(sections.size==5)
         val people=linkedMapOf<Int,StrategicPerson>()
         if(sections[0]!="-")for(row in sections[0].split(';')) {
-            val f=row.split(':');require(f.size==11)
+            val f=row.split(':');require(f.size==11 || f.size==12 && f[11].toInt()>0)
             require(people.put(f[0].toInt(),StrategicPerson(f[1].takeUnless {it=="-"}?.toInt(),f[2].toInt(),f[3].toLong(),
                 f[4].takeUnless {it=="-"}?.toInt()?.let {Peerage.entries[it]},f[5].toLong(),f[6].toInt(),f[7].toLong(),f[8].toLong(),
                 f[9].takeUnless {it=="-"}?.split(',')?.map(String::toInt),
-                f[10].takeUnless {it=="-"}?.split(',')?.map(String::toInt)?.toSet().orEmpty()))==null)
+                f[10].takeUnless {it=="-"}?.split(',')?.map(String::toInt)?.toSet().orEmpty(),if(f.size==12)f[11].toInt() else 0))==null)
         }
         val orders=if(sections[1]=="-")emptyList() else sections[1].split(';').map {row->
             val f=row.split(':');require(f.size==5)

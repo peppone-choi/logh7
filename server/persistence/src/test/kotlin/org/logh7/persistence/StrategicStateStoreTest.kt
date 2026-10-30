@@ -27,6 +27,14 @@ class StrategicStateStoreTest {
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode("0$encoded")}
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode("-|-|-|-|-|-")}
     }
+    @Test fun airTacticsIsAnOptionalTwelfthPersonFieldThatKeepsOlderRowsCanonical() {
+        val trained=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(airTactics=2)))
+        val encoded=StrategicStateCodec.encode(trained);assertEquals(trained,StrategicStateCodec.decode(encoded))
+        assertTrue(encoded.substringBefore('|').endsWith(":0,127:2"))
+        assertFalse(StrategicStateCodec.encode(state).substringBefore('|').endsWith(":0"))
+        for(bad in listOf(encoded.replace(":0,127:2",":0,127:0"),encoded.replace(":0,127:2",":0,127:4")))
+            assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(bad)}
+    }
     @Test fun format29ReopensAlongsideLegacyEmptyStrategicState() {
         val path=directory.resolve("stocks.tsv")
         FilePlanetStockStore(path).use {it.save(stocks)}

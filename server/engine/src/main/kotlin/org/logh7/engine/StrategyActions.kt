@@ -7,8 +7,8 @@ import org.logh7.engine.strategy.*
  * Author: Peppone Choi. */
 data class StrategicPerson(val rank:Int?=null,val groundTactics:Int=0,val retiredUntil:Long=0,
     val peerage:Peerage?=null,val merit:Long=0,val influence:Int=0,val evaluation:Long=0,
-    val money:Long=0,val abilities:List<Int>?=null,val decorations:Set<Int> = emptySet()) {
-    init {require((rank==null || rank in 0..20) && groundTactics in 0..3 && retiredUntil in 0..0xffffffffL &&
+    val money:Long=0,val abilities:List<Int>?=null,val decorations:Set<Int> = emptySet(),val airTactics:Int=0) {
+    init {require((rank==null || rank in 0..20) && groundTactics in 0..3 && airTactics in 0..3 && retiredUntil in 0..0xffffffffL &&
         merit in 0..0xffffffffL && influence in 0..100 && evaluation in 0..0xffffffffL && money in 0..0xffffffffL &&
         (abilities==null || abilities.size==8 && abilities.all {it in 0..255}) && decorations.size<=128 && decorations.all {it in 0..127})}
 }
@@ -51,7 +51,7 @@ data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,v
     val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null)
 
 internal object StrategyActions {
-    val supported=setOf(47,48,50,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
+    val supported=setOf(47,48,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
         CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -78,14 +78,15 @@ internal object StrategyActions {
         var next=stocks
         var readyAt=0L
         when(r.command) {
-            47,48,50,53 -> {
+            47,48,50,51,53 -> {
                 if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
                 if(o.commanderId!=r.characterId || o.power!=power)return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.grid!=p.grid || position.baseId!=p.baseId)return reject(StrategyActionRejection.LOCATION)
                 if(r.command==47 && o.activeShips?.values.orEmpty().none {it.boats>0} ||
-                    r.command!=47 && o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
+                    r.command==51 && o.activeShips?.values.orEmpty().none {it.boats>0 && StrategicAirTactics.carrier(it.stack.kind)} ||
+                    r.command !in setOf(47,51) && o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
                 if(o.activeGround?.values.orEmpty().any {it.order!=null} ||
                     o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
                 when(r.command) {
@@ -104,6 +105,12 @@ internal object StrategyActions {
                         val crew=o.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}
                         next=stocks.copy(outfits=stocks.outfits+(o.id to o.copy(activeGround=trained,
                             units=UnitInventory(o.units.ships,crew+trained.quantities()))))
+                    }
+                    // 空戦戦術訓練 51 (group 18 #51, MCP80): the air counterpart of 50, +10% wing damage per level (evidence:guess).
+                    51 -> {
+                        if(person.airTactics==3)return reject(StrategyActionRejection.MAXIMUM)
+                        next=stocks.copy(strategic=stocks.strategic.copy(people=stocks.strategic.people+
+                            (r.characterId to person.copy(airTactics=person.airTactics+1))))
                     }
                     50 -> {
                         if(person.groundTactics==3)return reject(StrategyActionRejection.MAXIMUM)
@@ -136,7 +143,7 @@ internal object StrategyActions {
                 }
             }
         }
-        val cost=if(r.command in setOf(47,48,50))80L else 160L
+        val cost=if(r.command in setOf(47,48,50,51))80L else 160L
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return StrategyActionResult(after.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
@@ -181,6 +188,11 @@ internal object StrategyActions {
 
 /** Training affects the existing automatic ground exchange, including offline commanders.
  * Ten percent per learned stage (maximum three) is an explicit restoration coefficient. */
+object StrategicAirTactics {
+    fun carrier(kind:Int)=UnitSpecifications.ships.single {it.kind==kind}.number("戦闘艇/雷撃艇搭載数:戦闘艇/雷撃艇搭載数")>0
+    /** Wing damage percent for the character who launched it. */
+    fun factor(stocks:PlanetStocks,character:Int)=100+10*(stocks.strategic.people[character]?.airTactics ?: 0)
+}
 object StrategicGroundTactics {
     fun factor(stocks:PlanetStocks,unit:Int):Int {
         val commander=stocks.outfits.values.singleOrNull {o->o.activeGround?.values.orEmpty().any {it.id==unit}}?.commanderId ?: 0

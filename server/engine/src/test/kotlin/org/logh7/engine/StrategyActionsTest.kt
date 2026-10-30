@@ -50,6 +50,18 @@ class StrategyActionsTest {
         assertEquals(StrategyActionRejection.MAXIMUM,act(47,top).rejection)
         assertEquals(StrategyActionRejection.TROOPS,act(47).rejection)
     }
+    @Test fun airTacticsNeedsALocalCarrierAndRaisesTheLaunchersWingDamage() {
+        assertEquals(StrategyActionRejection.TROOPS,act(51).rejection)
+        val kind=UnitSpecifications.ships.first {StrategicAirTactics.carrier(it.kind)}.kind
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind))))
+        val s=stocks().let {it.copy(outfits=it.outfits+(200 to OutfitStock(200,2,OutfitKind.PATROL,1049,300,10000,
+            UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=3)}
+        var current=s
+        repeat(3) {val r=act(51,current);assertNull(r.rejection);assertEquals(920,r.player?.mcp);current=assertNotNull(r.stocks)}
+        assertEquals(3,current.strategic.people.getValue(10000).airTactics);assertEquals(130,StrategicAirTactics.factor(current,10000))
+        assertEquals(100,StrategicAirTactics.factor(current,10001))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(51,current).rejection)
+    }
     @Test fun learnedTacticsAffectAutomaticGroundCombatAndSurviveAnOfflineCommander() {
         val result=act(50);val stored=assertNotNull(result.stocks)
         assertNull(result.rejection);assertEquals(1,stored.strategic.people.getValue(10000).groundTactics)

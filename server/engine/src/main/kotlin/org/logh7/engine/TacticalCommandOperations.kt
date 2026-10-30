@@ -433,7 +433,7 @@ internal object TacticalCommandOperations {
                         val opposing=stocks.tacticalCommands.air.filterValues {it.grid==wing.grid && it.target==id && it.mode==1}.keys
                         for(enemy in opposing)removeWing(enemy)
                         val result=TacticalCombat.strike(session,g,players,stocks,id,wing.grid,now+1,now,wing.target,TacticalWeapon.GUN,
-                            TacticalWeaponMount(1,63,1,0),100,at,victim)
+                            TacticalWeaponMount(1,63,1,0),StrategicAirTactics.factor(stocks,wing.character),at,victim)
                         stocks=result.first;impacts+=result.second.copy(airBattle=true)
                         val moving=players.values.singleOrNull {it.unitId==wing.target}?.motion ?: ship(wing.target,stocks)?.unit?.tactical?.motion
                         if(moving!=null && moving.velocity>0 && wing.slowVelocity==null) {
