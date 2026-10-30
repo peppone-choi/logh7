@@ -10,7 +10,7 @@ static struct StrategyDirectory {
 static unsigned strategyRequestToken=0;
 static bool operationStrategy(unsigned command) {return command>=22 && command<=24;}
 static bool personnelStrategy(unsigned command) {return command<=4 || command==8 || command==9;}
-static bool armyStrategy(unsigned command) {return command==48 || command==50 || command==52 || command==53 || command==54 || command==56;}
+static bool armyStrategy(unsigned command) {return command==47 || command==48 || command==50 || command==52 || command==53 || command==54 || command==56;}
 static bool outfitStrategy(unsigned command,unsigned card) {return armyStrategy(command) || (command==61 && card!=59 && card!=195);}
 static bool strategyActionCommand(unsigned command) {
     return personnelStrategy(command) || operationStrategy(command) || command==14 || command==16 || command==18 || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96 || command==27 || command==87 || command==93 || command==94;
@@ -21,7 +21,7 @@ static const wchar_t* strategyActionName(unsigned command) {
     case 3:return L"서작";case 4:return L"서훈";case 8:return L"봉토 수여";case 9:return L"봉토 직할";
     case 22:return L"작전 계획";case 23:return L"작전 철회";case 24:return L"발령";
     case 25:return L"부대 결성";case 26:return L"부대 해산";
-    case 48:return L"육전 훈련";case 50:return L"육전 전술 훈련";
+    case 47:return L"항주 훈련";case 48:return L"육전 훈련";case 50:return L"육전 전술 훈련";
     case 53:return L"무력 진압";case 84:return L"퇴역";case 85:return L"지원";
     case 52:return L"경계 출동";case 54:return L"분열행진";case 55:return L"특별경비";case 56:return L"징발";
     case 87:return L"회견";case 27:return L"강의";case 93:return L"수강";case 94:return L"병기 연습";
@@ -225,7 +225,7 @@ static bool updateStrategyAction(void*) {
     taxText(0,strategyActionName(command));taxText(1,L"명령 확정 후에만 CP를 사용합니다.");
     const wchar_t* field=personnel ? (state.strategyField==0 ? L"현재 선택: 대상 인물" : estate ? L"현재 선택: 봉토 행성" : L"현재 선택: 수여 종류") : L"대상 부대 선택";
     taxText(2,personnel ? field : command==61 ? L"손상 수리 · 보유 군수물자 전량 소비 · 파괴된 함정은 제외" : command==53 ? L"대기 게임 24시간 · 치안 상승, 정부 지지 하락" :
-        command==84 ? L"정치가 전환 · 게임 30일 재지원 불가" : command==85 ? L"소령으로 입대 · 표준 전함 지급" : L"현 위치의 부대 병력을 훈련합니다.");
+        command==47 ? L"부대 함정의 훈련도를 1단계 올립니다(최대 3)." : command==84 ? L"정치가 전환 · 게임 30일 재지원 불가" : command==85 ? L"소령으로 입대 · 표준 전함 지급" : L"현 위치의 부대 병력을 훈련합니다.");
     wchar_t label[160];
     if(personnel) {
         const StrategyDirectory::Person* person=nullptr;
@@ -237,7 +237,7 @@ static bool updateStrategyAction(void*) {
     else if(title) {static const wchar_t* titles[]={L"공작",L"후작",L"백작",L"자작",L"남작",L"제국기사"};
         if(command==3)swprintf_s(label,L"작위: %ls",titles[state.strategyValue%6]);else swprintf_s(label,L"훈장 종류: %u",state.strategyValue+1);taxText(4,label);}
     else taxText(4,L"");
-    unsigned cost=command==1 || estate ? 640 : command==2 ? 320 : command==48 || command==50 ? 80 : 160;
+    unsigned cost=command==1 || estate ? 640 : command==2 ? 320 : command==47 || command==48 || command==50 ? 80 : 160;
     swprintf_s(label,L"MCP %u · 부족 시 PCP %u 전액 대용",cost,cost*2);taxText(5,label);
     taxText(6,state.message);taxText(10,L"선택 항목");taxText(11,L"이전 / −");taxText(12,L"다음 / +");taxText(13,L"목록 갱신");taxText(14,L"실행");
     taxEnabled(10,personnel && (estate || title) && !state.pending);taxEnabled(13,personnel && !state.pending);

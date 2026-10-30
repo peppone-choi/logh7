@@ -51,7 +51,7 @@ data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,v
     val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null)
 
 internal object StrategyActions {
-    val supported=setOf(48,50,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
+    val supported=setOf(47,48,50,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
         CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -78,16 +78,25 @@ internal object StrategyActions {
         var next=stocks
         var readyAt=0L
         when(r.command) {
-            48,50,53 -> {
+            47,48,50,53 -> {
                 if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
                 if(o.commanderId!=r.characterId || o.power!=power)return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.grid!=p.grid || position.baseId!=p.baseId)return reject(StrategyActionRejection.LOCATION)
-                if(o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
+                if(r.command==47 && o.activeShips?.values.orEmpty().none {it.boats>0} ||
+                    r.command!=47 && o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
                 if(o.activeGround?.values.orEmpty().any {it.order!=null} ||
                     o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
                 when(r.command) {
+                    // 航宙訓練 47 (group 18 #47, MCP80): the ship counterpart of 48, one training level per call up to 3 (evidence:guess).
+                    47 -> {
+                        val old=checkNotNull(o.activeShips)
+                        if(old.values.all {it.stack.level==3})return reject(StrategyActionRejection.MAXIMUM)
+                        val trained=ActiveShipUnits(old.values.map {it.copy(stack=it.stack.copy(level=minOf(3,it.stack.level+1)))})
+                        next=stocks.copy(outfits=stocks.outfits+(o.id to o.copy(activeShips=trained,
+                            units=UnitInventory(trained.quantities(),o.units.troops,o.units.work))))
+                    }
                     48 -> {
                         val old=checkNotNull(o.activeGround)
                         if(old.values.all {it.stack.level==3})return reject(StrategyActionRejection.MAXIMUM)
@@ -127,7 +136,7 @@ internal object StrategyActions {
                 }
             }
         }
-        val cost=if(r.command in setOf(48,50))80L else 160L
+        val cost=if(r.command in setOf(47,48,50))80L else 160L
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return StrategyActionResult(after.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,

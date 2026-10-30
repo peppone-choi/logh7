@@ -25,7 +25,7 @@ object StrategyActionMessages {
         val market=command==96
         val civic=command in setOf(52,54,55,56)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,48,50,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,47,48,50,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
         require(!preview || personnel || command==24 || market || command==87)
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
