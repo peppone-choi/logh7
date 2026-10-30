@@ -182,7 +182,9 @@ internal object TacticalCombat {
             TacticalHit(sequence,grid,seconds,targetId,if(hp<=0)1 else 0,
                 if(hp<hull.hp || hull.hp<100)1 else 0,face,lost)
         }
-        val morale=(inventory.tacticalCommands.morale[targetId] ?: 100)-minOf(20,damage)
+        val outfit=inventory.outfits.values.singleOrNull {o->o.activeShips?.values.orEmpty().any {it.id==targetId}}?.id
+        val morale=(inventory.tacticalCommands.morale[targetId] ?: 100)-OutfitDiscipline.moraleLoss(minOf(20,damage),
+            if(outfit==null)OutfitDiscipline.BASELINE else OutfitDiscipline.value(inventory,outfit,seconds))
         inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(morale=inventory.tacticalCommands.morale+(targetId to morale.coerceAtLeast(0))))
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed)
     }

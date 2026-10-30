@@ -62,6 +62,21 @@ class StrategyActionsTest {
         assertEquals(100,StrategicAirTactics.interval(current,10001,100));assertEquals(1,StrategicAirTactics.interval(current,10000,1))
         assertEquals(StrategyActionRejection.MAXIMUM,act(51,current).rejection)
     }
+    @Test fun disciplineRisesByTenDecaysDailyToFiftyAndSoftensMoraleLoss() {
+        val kind=UnitSpecifications.ships.first().kind
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind))))
+        val s=stocks().let {it.copy(outfits=it.outfits+(200 to OutfitStock(200,2,OutfitKind.PATROL,1049,300,10000,
+            UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=3)}
+        val now=session().gameMillis/1000
+        assertEquals(50,OutfitDiscipline.value(s,200,now))
+        var current=s
+        repeat(5) {val r=act(46,current);assertNull(r.rejection);assertEquals(920,r.player?.mcp);current=assertNotNull(r.stocks)}
+        assertEquals(100,OutfitDiscipline.value(current,200,now));assertEquals(StrategyActionRejection.MAXIMUM,act(46,current).rejection)
+        assertEquals(97,OutfitDiscipline.value(current,200,now+3*86400));assertEquals(50,OutfitDiscipline.value(current,200,now+99*86400))
+        assertEquals(20,OutfitDiscipline.moraleLoss(20,50));assertEquals(10,OutfitDiscipline.moraleLoss(20,100))
+        assertEquals(1,OutfitDiscipline.moraleLoss(1,100));assertEquals(0,OutfitDiscipline.moraleLoss(0,100))
+        assertEquals(StrategyActionRejection.TROOPS,act(46).rejection)
+    }
     @Test fun learnedTacticsAffectAutomaticGroundCombatAndSurviveAnOfflineCommander() {
         val result=act(50);val stored=assertNotNull(result.stocks)
         assertNull(result.rejection);assertEquals(1,stored.strategic.people.getValue(10000).groundTactics)

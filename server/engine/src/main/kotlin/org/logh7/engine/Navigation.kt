@@ -174,7 +174,13 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         completedDock = initial.dockTarget != null && fueled.dockTarget == null
         val dueWarp = ranged.warpTarget?.takeIf { fueled.warpTarget == null && !fueled.cpPaused }
         completedWarp = dueWarp != null
-        val recovered = recover(fueled, request, now)
+        // Docking reservations cannot be cancelled or refunded (design 2026-10-30, evidence:guess). A destination
+        // that stopped being a regular own base before execution keeps the flagship at its origin.
+        val dueDock = ranged.dockTarget?.takeIf { fueled.dockTarget == null }
+        val ownWire = if (ranged.power == Power.EMPIRE) 2 else 3
+        val docked = if (dueDock != null && stocks?.bases?.get(dueDock)?.let { it.power != ownWire || it.camp != 0 } == true)
+            fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
+        val recovered = recover(docked, request, now)
         val settled = recovered
         fun contact(player: Navigator): Navigator {
             val active = if(stocks == null) player.cpPaused else

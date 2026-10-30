@@ -51,7 +51,7 @@ data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,v
     val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null)
 
 internal object StrategyActions {
-    val supported=setOf(47,48,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
+    val supported=setOf(46,47,48,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
         CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -78,18 +78,24 @@ internal object StrategyActions {
         var next=stocks
         var readyAt=0L
         when(r.command) {
-            47,48,50,51,53 -> {
+            46,47,48,50,51,53 -> {
                 if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
                 if(o.commanderId!=r.characterId || o.power!=power)return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.grid!=p.grid || position.baseId!=p.baseId)return reject(StrategyActionRejection.LOCATION)
-                if(r.command==47 && o.activeShips?.values.orEmpty().none {it.boats>0} ||
+                if(r.command in setOf(46,47) && o.activeShips?.values.orEmpty().none {it.boats>0} ||
                     r.command==51 && o.activeShips?.values.orEmpty().none {it.boats>0 && StrategicAirTactics.carrier(it.stack.kind)} ||
-                    r.command !in setOf(47,51) && o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
+                    r.command !in setOf(46,47,51) && o.activeGround?.values.orEmpty().isEmpty())return reject(StrategyActionRejection.TROOPS)
                 if(o.activeGround?.values.orEmpty().any {it.order!=null} ||
                     o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
                 when(r.command) {
+                    // 軍紀維持 46 (group 18 #46, MCP80): +10 discipline, capped at 100 (design 2026-10-30, evidence:guess).
+                    46 -> {
+                        val current=OutfitDiscipline.value(stocks,o.id,now)
+                        if(current>=OutfitDiscipline.MAXIMUM)return reject(StrategyActionRejection.MAXIMUM)
+                        next=stocks.copy(discipline=stocks.discipline+(o.id to OutfitDiscipline(minOf(OutfitDiscipline.MAXIMUM,current+OutfitDiscipline.STEP),now)))
+                    }
                     // 航宙訓練 47 (group 18 #47, MCP80): the ship counterpart of 48, one training level per call up to 3 (evidence:guess).
                     47 -> {
                         val old=checkNotNull(o.activeShips)
@@ -143,7 +149,7 @@ internal object StrategyActions {
                 }
             }
         }
-        val cost=if(r.command in setOf(47,48,50,51))80L else 160L
+        val cost=if(r.command in setOf(46,47,48,50,51))80L else 160L
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return StrategyActionResult(after.paidWith(paid.balance),next,

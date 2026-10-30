@@ -23,7 +23,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
     val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
     val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState(),val budget:BudgetState=BudgetState(),
-    val social:SocialState=SocialState()) {
+    val social:SocialState=SocialState(),
+    /** 軍紀維持: outfit ID → stored discipline and when it was stored (OutfitDiscipline). */
+    val discipline:Map<Int,OutfitDiscipline> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -38,6 +40,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
         require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}
         require(social.squares.keys.all {it in bases} && social.speeches.values.all {it.base in bases}) {"Unknown social base"}
+        require(discipline.size<=1000 && discipline.keys.all {it>0}) {"Invalid outfit discipline"}
     }
 }
 interface PlanetStockStore : AutoCloseable {

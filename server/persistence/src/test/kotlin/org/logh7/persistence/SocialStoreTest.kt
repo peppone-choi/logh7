@@ -46,6 +46,15 @@ class SocialStoreTest {
         val path=directory.resolve("meeting.tsv");val saved=stocks.copy(social=value)
         FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
     }
+    @Test fun outfitDisciplineIsAStock36Section() {
+        val path=directory.resolve("discipline.tsv")
+        val saved=stocks.copy(discipline=mapOf(7 to OutfitDiscipline(80,now),3 to OutfitDiscipline(50,now+1)))
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+        val lines=Files.readAllLines(path);assertTrue(lines.first().startsWith("LOGH7-STOCK-36\t"))
+        assertEquals("L\t3:50:${now+1},7:80:$now",lines.single {it.startsWith("L\t")})
+        FilePlanetStockStore(path).use {it.save(stocks);assertEquals(stocks,it.load())}
+        assertTrue(Files.readAllLines(path).first().startsWith("LOGH7-STOCK-35\t"))
+    }
     @Test fun malformedReceiptsMissingLimitsDuplicateSectionsAndReusedIdsAreRejected() {
         val text=SocialStateCodec.encode(social);assertEquals(social,SocialStateCodec.decode(text))
         for(bad in listOf(text.replaceFirst("2|","1|"),text+"|trailing",text.replace("10000:${receipt.nextAt}","10000:0"),
