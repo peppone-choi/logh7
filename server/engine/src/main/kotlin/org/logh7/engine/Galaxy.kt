@@ -60,17 +60,18 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
         const val IMPASSABLE_CELL = 2
         /** Extra kind-table row drawn by 004d40bc as model 7 (type 3, fixedstar 8); never a star system. */
         const val BLACK_HOLE_CELL = 89
-        /** Neutron stars (ns_01..03) stay navigable space; positions are kept for tactical terrain. */
+        /** Neutron stars (ns_01..03): constmsg group 71 gives them a whole-grid movement radius, so they are
+         * impassable like black holes (approved 2026-10-30). Drawn as a plain impassable grid; no map model exists. */
         val neutronStars = listOf(1875, 3537, 4117)
         /**
-         * 100x50 rows: '.'/'N' space, '#' impassable, '~' plasma storm, 'B' black hole.
+         * 100x50 rows: '.' space, 'N' neutron star (impassable), '#' impassable, '~' plasma storm, 'B' black hole.
          * The navigable outline is manual p.101's in-game map (evidence:manual); plasma storms
          * along the corridor flanks are a design value (evidence:guess). Author: Peppone Choi.
          */
         fun terrainCells(rows: List<String>): List<Int> {
             require(rows.size == 50 && rows.all { it.length == 100 }) { "Terrain must be 100x50" }
             return rows.joinToString("").map { when (it) {
-                '.', 'N' -> SPACE_CELL; '#' -> IMPASSABLE_CELL; '~' -> PLASMA_STORM_CELL; 'B' -> BLACK_HOLE_CELL
+                '.' -> SPACE_CELL; '#', 'N' -> IMPASSABLE_CELL; '~' -> PLASMA_STORM_CELL; 'B' -> BLACK_HOLE_CELL
                 else -> error("Unknown terrain cell $it") } }
         }
         fun manualTerrain(): List<String> = checkNotNull(Galaxy::class.java.getResourceAsStream("/world/terrain-p101.txt")) {

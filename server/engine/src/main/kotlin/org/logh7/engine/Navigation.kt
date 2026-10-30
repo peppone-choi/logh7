@@ -271,6 +271,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now,before.posture,galaxy) ?:
                 TacticalDeployment.initial(before.unitId, before.power, before.grid,
                     snapshot(session.generation).values + before, stocks, galaxy)
+            if (TacticalTerrain.pathBlocked(galaxy, before.grid, origin.position, move.waypoints)) return reject(NavigationRejection.RANGE)
             val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
                 move.velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel,
                 turnRate=TacticalMotion.NATIVE_TURN_RATE,waitSeconds=5*clockScale))

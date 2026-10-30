@@ -68,6 +68,8 @@ internal object TacticalFleetMotion {
                 if(kotlin.math.abs(x)>100000 || kotlin.math.abs(y)>100000)return reject(NavigationRejection.RANGE)
                 TacticalPoint(x,y)
             },command.parallel,turnRate=TacticalMotion.NATIVE_TURN_RATE,waitSeconds=5*clockScale)}
+        if(requestedMotions.values.any {m->TacticalTerrain.pathBlocked(galaxy,player.grid,m.origin.position,m.waypoints)})
+            return reject(NavigationRejection.RANGE)
         val attacked=stocks.tacticalCommands.air.values.filter {it.mode==1 && it.target in requestedMotions}.map {it.target}.toSet()
         val motions=requestedMotions.mapValues {(id,m)->if(id in attacked)m.copy(velocity=m.velocity*.5f) else m}
         var next=if(attacked.isEmpty())stocks else stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=

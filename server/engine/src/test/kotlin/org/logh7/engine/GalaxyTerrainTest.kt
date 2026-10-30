@@ -19,7 +19,7 @@ class GalaxyTerrainTest {
         for (y in 13..36) assertTrue((48..55).any { galaxy.terrain(y * 100 + it) == GridTerrain.PLASMA_STORM }, "row $y")
         assertEquals(listOf(831, 3060, 3723), galaxy.blackHoles)
         assertTrue(galaxy.blackHoles.all { galaxy.kind(it) == GridKind.IMPASSABLE })
-        assertTrue(Galaxy.neutronStars.all { galaxy.kind(it) == GridKind.SPACE })
+        assertTrue(Galaxy.neutronStars.all { galaxy.kind(it) == GridKind.IMPASSABLE })
         assertFailsWith<IllegalArgumentException> {
             Galaxy(listOf(GalaxySystem(3, 0, 4, "Outside")), emptyList(), Power.entries.associateWith { 0 },
                 terrain = Galaxy.manualTerrain())
