@@ -241,7 +241,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         }
                                     }
                                     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                                        System.err.println("gateway: ${cause.message}")
+                                        // The first project frame locates a failed requirement without a full trace.
+                                        System.err.println("gateway: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}")
                                         try { exchange.close() } finally { ctx.close() }
                                     }
                                     override fun channelInactive(ctx: ChannelHandlerContext) {

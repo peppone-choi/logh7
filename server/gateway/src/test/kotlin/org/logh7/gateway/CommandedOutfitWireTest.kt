@@ -91,6 +91,9 @@ class CommandedOutfitWireTest {
         assertFails { world.outfitParty(editor.copy(base=0),2,wrongOffice,10001) { commander } }
         val enemyBase=allocated.copy(bases=allocated.bases.mapValues { (_,base)->base.copy(power=3) })
         assertFails { world.outfitParty(editor.copy(base=0),2,enemyBase,10001) { commander } }
+        // A commander away from the flagship dock: the native editor asks for outfit 0.
+        val away=world.outfitParty(OutfitPartyMessages.query(ByteBuffer.allocate(11).putShort(0x032e).putInt(0).putInt(1032).put(1).array()),2,stocks,10000)
+        assertEquals(0x032f,ByteBuffer.wrap(away).getShort(4).toInt());assertEquals(0,ByteBuffer.wrap(away).getInt(6))
 
     }
 }
