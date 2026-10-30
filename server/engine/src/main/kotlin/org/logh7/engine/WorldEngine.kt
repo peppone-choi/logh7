@@ -683,7 +683,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
-                    var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory)
+                    var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,
+                        navigation?.snapshot(session.generation)?.values.orEmpty())
                     if(result.changed) {
                         if(worldStateCommitter==null)result=SocialResult(recovered?.player,inventory,SocialRejection.STORAGE)
                         else {

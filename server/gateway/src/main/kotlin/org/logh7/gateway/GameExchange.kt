@@ -1177,6 +1177,28 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.AcademyMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.AcademyMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
+                                val profile=org.logh7.engine.StrategicPerson(rank=character.rank,
+                                    peerage=org.logh7.engine.Peerage.entries.getOrNull(character.title-1),merit=character.merit,
+                                    influence=character.influence,evaluation=character.evaluation,money=character.money,
+                                    abilities=character.abilities,decorations=character.decorations)
+                                val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),q.command,q.card,character.rank,argument=q.argument),q.phase,q.ticket,profile)
+                                pendingWorld=administration.social(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    val view=result.academy?.let {org.logh7.protocol.AcademyMessages.View(it.ticket,it.base,it.content,
+                                        it.lectureRemaining,it.usesLeft,it.ability,it.value,it.experience,it.wait,it.gained)}
+                                    org.logh7.protocol.AcademyMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
                             if(org.logh7.protocol.SocialMessages.matches(body)) {
                                 check(administration!=null)
                                 val q=org.logh7.protocol.SocialMessages.query(body)

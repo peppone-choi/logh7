@@ -27,6 +27,16 @@ class SocialStoreTest {
         assertTrue(Files.readAllLines(path).first().startsWith("LOGH7-STOCK-34\t"))
         val only=stocks.copy(budget=BudgetState());FilePlanetStockStore(path).use {it.save(only);assertEquals(only,it.load())}
     }
+    @Test fun academyExperienceLecturesAttendanceAndWargamesRoundTripAsAnOptionalFifthField() {
+        val academy=AcademyState(mapOf(10000 to listOf(0,1,2,3,4,5,6,99)),mapOf(10001 to Lecture(10001,1049,10494017,2,now,now+7200)),
+            mapOf(10000 to now+86400),mapOf(10000 to (now/86400 to 3)))
+        val value=social.copy(academy=academy);val text=SocialStateCodec.encode(value);assertEquals(value,SocialStateCodec.decode(text))
+        assertEquals(5,text.split('|').size);assertEquals(4,SocialStateCodec.encode(social).split('|').size)
+        for(bad in listOf(text.replace(".99",".100"),text.replace(":10494017:2:",":10494017:4:"),text.replace(":3","" ),text+"/x"))
+            assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(bad)}
+        val path=directory.resolve("academy.tsv");val saved=stocks.copy(social=value)
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+    }
     @Test fun malformedReceiptsMissingLimitsDuplicateSectionsAndReusedIdsAreRejected() {
         val text=SocialStateCodec.encode(social);assertEquals(social,SocialStateCodec.decode(text))
         for(bad in listOf(text.replaceFirst("2|","1|"),text+"|trailing",text.replace("10000:${receipt.nextAt}","10000:0"),

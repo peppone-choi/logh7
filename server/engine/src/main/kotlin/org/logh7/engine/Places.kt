@@ -49,7 +49,9 @@ object Places {
     fun access(kind: Int): SpotAccess = when (kind) {
         0 -> SpotAccess.GUARDED
         18 -> SpotAccess.CLOSED
-        6, 12, 13, 16, 17, 19, 20 -> SpotAccess.PRIVATE
+        // Academy classroom/simulator (W69–71 commands run there); own-faction access is design (evidence:guess).
+        16, 17 -> SpotAccess.GUARDED
+        6, 12, 13, 19, 20 -> SpotAccess.PRIVATE
         9, 10 -> SpotAccess.RANK
         in 22..104 -> SpotAccess.PRIVATE
         else -> SpotAccess.PUBLIC
