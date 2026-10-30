@@ -85,6 +85,8 @@ class CommandedOutfitWireTest {
         assertEquals(1,reply[14].toInt())
         val allocated=stocks.copy(logisticsOfficers=mapOf(10001 to LogisticsOffice.EMPIRE_FIRST))
         assertEquals(1,world.outfitParty(editor.copy(base=0),2,allocated,10001) { commander }[14].toInt())
+        assertEquals(1,world.outfitParty(editor,2,allocated,10001) { commander }[14].toInt())
+        assertFails { world.outfitParty(editor.copy(base=1050),2,allocated,10001) { commander } }
         val wrongOffice=stocks.copy(logisticsOfficers=mapOf(10001 to LogisticsOffice.EMPIRE_SECOND))
         assertFails { world.outfitParty(editor.copy(base=0),2,wrongOffice,10001) { commander } }
         val enemyBase=allocated.copy(bases=allocated.bases.mapValues { (_,base)->base.copy(power=3) })

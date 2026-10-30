@@ -69,7 +69,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val allocator=editor>0 && stocks.logisticsOfficers[editor]?.permits(power,outfit.kind)==true &&
             owner.power==power && owner.camp==0
         require(query.mode == 0 || owner.power == power && owner.camp == 0 && editor > 0 &&
-            (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId || allocator && query.base == 0)) {
+            // The native allocation editor (00585150) sends the selected depot base, not 0.
+            (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId ||
+                allocator && (query.base == 0 || query.base == outfit.baseId))) {
             "Only the stationed commander or authorized allocator may open the editor"
         }
         val members = outfit.members().map {id ->
