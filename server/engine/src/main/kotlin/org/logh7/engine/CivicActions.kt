@@ -118,7 +118,7 @@ object CivicActions {
             units,token=r.requestToken,connection=r.connection)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),
+        return StrategyActionResult(p.paidWith(paid.balance),
             stocks.copy(civic=remember(stocks.civic,order)),changed=true,readyAt=order.readyAt,civic=order)
     }
     /** Offline saved characters retain jobs. Missing player context defers settlement, never fabricates eligibility. */

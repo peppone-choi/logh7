@@ -124,7 +124,7 @@ object OutfitFormationPolicy {
                 GridEntry(Camp(p.power,false),count.toInt(),false))!=GridEntryVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),320,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return OutfitFormationResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),prepared,
+        return OutfitFormationResult(p.paidWith(paid.balance),prepared,
             changed=true,outfit=id,base=r.base,crew=needed.toInt())
     }
     internal fun dissolve(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks):OutfitFormationResult {
@@ -185,7 +185,7 @@ object OutfitFormationPolicy {
             outfitSequence=ids,deploymentInitialized=true)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return OutfitFormationResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
+        return OutfitFormationResult(p.paidWith(paid.balance),next,
             changed=true,outfit=outfit.id,base=r.base,affected=affected)
     }
 }

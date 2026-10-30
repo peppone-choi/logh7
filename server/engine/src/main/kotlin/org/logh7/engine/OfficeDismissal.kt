@@ -54,6 +54,6 @@ internal object OfficeDismissal {
         if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(DismissalRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(DismissalRejection.CP)
-        return OfficeDismissalResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),policy.clear(stocks,seat),changed=true)
+        return OfficeDismissalResult(player.paidWith(paid.balance),policy.clear(stocks,seat),changed=true)
     }
 }

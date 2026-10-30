@@ -56,7 +56,7 @@ internal object CompleteRepairActions {
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(after.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
+        return StrategyActionResult(after.paidWith(paid.balance),next,
             changed=true,navigators=updates-r.account)
     }
 }

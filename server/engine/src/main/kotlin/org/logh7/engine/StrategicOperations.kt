@@ -128,7 +128,7 @@ internal object StrategicOperations {
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         val next=stocks.copy(strategic=stocks.strategic.copy(operations=plans))
-        return StrategyActionResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true)
+        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
     }
     fun settle(galaxy:Galaxy,stocks:PlanetStocks,seconds:Long,navigators:Map<String,Navigator> = emptyMap()):PlanetStocks {
         if(stocks.strategic.operations.none {it.live})return stocks

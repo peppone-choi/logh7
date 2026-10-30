@@ -39,7 +39,7 @@ internal object PlanetTax {
         if (request.rate == effectiveRate(base, seed)) return TaxResult(player, stocks)
         val payment = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), COST.toLong(), CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(TaxRejection.CP)
-        return TaxResult(player.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp)),
+        return TaxResult(player.paidWith(payment.balance),
             stocks.copy(bases = stocks.bases + (base.baseId to base.copy(taxRate = request.rate))), changed = true)
     }
 }

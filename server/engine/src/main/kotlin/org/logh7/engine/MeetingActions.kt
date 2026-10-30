@@ -56,7 +56,7 @@ object MeetingActions {
         val value=minOf(100,view.friendship+GAIN)
         val meeting=MeetingState(m.friendship+(key to value),m.nextAt.filterValues {it>now}+(key to now+SocialActions.DAY))
         val next=s.copy(social=s.social.copy(nextId=s.social.nextId+1,meeting=meeting))
-        return SocialResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true,
+        return SocialResult(p.paidWith(paid.balance),next,changed=true,
             meeting=MeetingView(next.social.nextId,i.target,value,SocialActions.DAY,value-view.friendship))
     }
 }

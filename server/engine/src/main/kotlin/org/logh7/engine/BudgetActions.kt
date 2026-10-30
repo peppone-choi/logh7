@@ -102,7 +102,7 @@ object BudgetActions {
         if(i.command==16)next=next.copy(budget=next.budget.copy(remittanceRates=next.budget.remittanceRates+(baseId to r.rate)))
         else next=next.copy(nationalTreasuries=next.nationalTreasuries+(power to national-q.amount),
             bases=next.bases+(baseId to b.copy(treasury=b.treasury+q.amount)))
-        return BudgetResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true,
+        return BudgetResult(p.paidWith(paid.balance),next,changed=true,
             view=BudgetView(baseId,power,next.nationalTreasuries[power] ?: 0,next.bases.getValue(baseId).treasury,
                 rate(next,baseId,defaultRate),completed))
     }

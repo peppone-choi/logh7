@@ -44,7 +44,7 @@ internal object GarrisonAppointment {
             return reject(AppointmentRejection.TARGET)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),COST.toLong(),CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(AppointmentRejection.CP)
-        return GarrisonAppointmentResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),
+        return GarrisonAppointmentResult(player.paidWith(paid.balance),
             policy.set(stocks,OfficeHolding(r.targetCard,seat,r.target)),changed=true)
     }
 }

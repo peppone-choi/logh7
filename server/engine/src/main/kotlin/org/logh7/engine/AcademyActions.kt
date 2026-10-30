@@ -116,7 +116,7 @@ object AcademyActions {
             if(i.command==LECTURE)LECTURE_SECONDS else ((lecture?.until ?: now)-now).coerceAtLeast(0),
             target,values[target],points[target],if(i.command==WARGAME && used+1<WARGAMES_PER_DAY)0 else SocialActions.DAY,
             if(i.command==WARGAME)WARGAMES_PER_DAY-used-1 else 0,gains.sumOf {it.second})
-        return SocialResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true,academy=after)
+        return SocialResult(p.paidWith(paid.balance),next,changed=true,academy=after)
     }
     /** The lecture ends when its lecturer is no longer in that classroom (offline lecturers keep their saved spot). */
     private fun present(l:Lecture,generation:Long,navigators:Collection<Navigator>)=

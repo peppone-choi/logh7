@@ -84,7 +84,7 @@ object SocialActions {
             bases=s.bases+(base.baseId to base.copy(economy=economy.copy(approval=approval))),
             social=SocialState(receipt.id+1,speeches,s.social.speakers+(i.characterId to receipt.nextAt),
                 s.social.squares+(base.baseId to receipt.nextAt),s.social.academy,s.social.meeting))
-        return SocialResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true,
+        return SocialResult(p.paidWith(paid.balance),next,changed=true,
             view=SocialView(next.social.nextId,base.baseId,influence,approval,DAY,receipt))
     }
 }

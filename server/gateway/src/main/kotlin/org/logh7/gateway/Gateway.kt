@@ -72,6 +72,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var movementSubscription: AutoCloseable? = null
     private var strategicMovementSubscription: AutoCloseable? = null
     private var occupationSubscription:AutoCloseable?=null
+    private var experienceSubscription:AutoCloseable?=null
     private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
     private var postureSubscription:AutoCloseable? = null
@@ -108,6 +109,15 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         occupationSubscription=presence?.let {p->navigation!!.observeOccupations {event->
             navigation.snapshot()?.let {snapshot->p.occupation(event,snapshot,world!!,currentCharacters()::characterById,
                 {id,power,generation->administration?.offices(id,power,generation).orEmpty()})}
+        }}
+        // CP-experience settlement changes abilities outside a request; refresh the owner's own record.
+        experienceSubscription=presence?.let {p->navigation!!.observeExperience {ids->
+            navigation.snapshot()?.let {snapshot->for(id in ids) {
+                val character=currentCharacters().characterById(id)?.let {WorldCharacters.view(it,snapshot)} ?: continue
+                val player=snapshot.navigators.values.singleOrNull {it.characterId==id} ?: continue
+                p.refreshCharacter(character,player,administration?.offices(id,character.power,player.generation).orEmpty(),
+                    snapshot.session?.gameSeconds ?: 0L,administration?.stationedOutfit(player) ?: 0)
+            }}
         }}
         groundBattleSubscription=presence?.let {p->navigation!!.observeGroundBattles {event->
             navigation.snapshot()?.let {snapshot->p.groundBattle(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
@@ -252,7 +262,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         combatSubscription?.close()
         movementSubscription?.close()
         strategicMovementSubscription?.close()
-        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close()
+        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close();experienceSubscription?.close()
         postureSubscription?.close()
         tacticalCommandSubscription?.close()
         supportSubscription?.close()

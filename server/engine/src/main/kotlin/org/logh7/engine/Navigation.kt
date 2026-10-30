@@ -22,12 +22,14 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val supplies: Int = 10_000, val hull: FlagshipHull? = null, val attack: TacticalAttackOrder? = null,
     val commandRange:TacticalCommandRange?=null,val posture:TacticalPosture?=null,
     /** Reserved warp destination; the fleet stays at [grid] until the strategy job completes. */
-    val warpTarget: Int? = null) {
+    val warpTarget: Int? = null,
+    /** Strategic CP spent but not yet converted into ability experience (CpExperience). */
+    val pcpUsed: Int = 0, val mcpUsed: Int = 0) {
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     val warpReadyAt: Long? get() = if (warpTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
-        pcp >= 0 && mcp >= 0 && cruise >= 0 && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
+        pcp >= 0 && mcp >= 0 && cruise >= 0 && pcpUsed in 0..CpExperience.USED_LIMIT && mcpUsed in 0..CpExperience.USED_LIMIT && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && supplies in 0..10_000 &&
         (hull == null || Flagships.find(hull.kind)?.power == if(power==Power.EMPIRE)2 else 3) &&
         (charge == null || cpPaused && baseId == 0 && mode == 5) &&
@@ -326,8 +328,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 NavigationRejection.CLOCK else NavigationRejection.CP)
             val job = (submitted as SubmissionResult.Accepted).job
             if (job.completesAtGameMillis / 1000 > 0xffffffffL) return reject(NavigationRejection.CLOCK)
-            val after = before.copy(pcp = Math.toIntExact(pipeline.balance.pcp), mcp = Math.toIntExact(pipeline.balance.mcp),
-                fuelReadyAt = job.completesAtGameMillis / 1000, strategy = pipeline.checkpoint())
+            val after = before.copy(fuelReadyAt = job.completesAtGameMillis / 1000, strategy = pipeline.checkpoint()).paidWith(pipeline.balance)
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
         }
@@ -364,15 +365,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 NavigationRejection.CLOCK else NavigationRejection.CP)
             val job = (submitted as SubmissionResult.Accepted).job
             if (job.completesAtGameMillis / 1000 > 0xffffffffL) return reject(NavigationRejection.CLOCK)
-            val after = before.copy(warpTarget = destination, strategy = pipeline.checkpoint(),
-                pcp = Math.toIntExact(pipeline.balance.pcp), mcp = Math.toIntExact(pipeline.balance.mcp))
+            val after = before.copy(warpTarget = destination, strategy = pipeline.checkpoint()).paidWith(pipeline.balance)
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
                 completedWarp = completedWarp, warpRejected = warpRejected)
         }
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), cost, CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
-        val after = executeWarp(before.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp)),
+        val after = executeWarp(before.paidWith(payment.balance),
             destination)
         if (persist) commit(request.account, after, session.generation)
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
@@ -489,8 +489,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                         NavigationRejection.CLOCK else NavigationRejection.CP)
                     val job = (submitted as SubmissionResult.Accepted).job
                     if (job.completesAtGameMillis / 1000 > 0xffffffffL) return reject(NavigationRejection.CLOCK)
-                    return NavigationResult(before.copy(dockTarget = move.baseId, strategy = pipeline.checkpoint(),
-                        pcp = Math.toIntExact(pipeline.balance.pcp), mcp = Math.toIntExact(pipeline.balance.mcp)), before)
+                    return NavigationResult(before.copy(dockTarget = move.baseId, strategy = pipeline.checkpoint()).paidWith(pipeline.balance), before)
                 }
                 after = before.copy(baseId = move.baseId, mode = move.mode, spotId = 0, spotOwner = 0)
                 cost = 0 // Departure retains its existing explicit local policy.
@@ -533,9 +532,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         }
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), cost, pool)
         if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
-        return NavigationResult(after.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp),
-            posture = if(before.baseId!=0 && after.baseId==0)null else after.posture,
-            moves = Math.addExact(before.moves, 1)), before)
+        return NavigationResult(after.copy(posture = if(before.baseId!=0 && after.baseId==0)null else after.posture,
+            moves = Math.addExact(before.moves, 1)).paidWith(payment.balance), before)
     }
     private fun commit(account: String, player: Navigator, generation: Long) {
         val next = snapshot(generation) + (account to player)

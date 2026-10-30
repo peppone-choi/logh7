@@ -113,7 +113,7 @@ internal object FlagshipMarketActions {
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.PCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(after.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
+        return StrategyActionResult(after.paidWith(paid.balance),next,
             changed=true,navigators=updates)
     }
 }

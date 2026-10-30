@@ -49,7 +49,7 @@ internal object CompletenessSupply {
         if (amount == 0) return CompletenessSupplyResult(player, stocks)
         val paid = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), 160, CpPool.MCP)
         if (paid !is PaymentResult.Paid) return reject(LogisticsRejection.CP)
-        val after = player.copy(pcp = paid.balance.pcp.toInt(), mcp = paid.balance.mcp.toInt())
+        val after = player.paidWith(paid.balance)
         val next = stocks.copy(outfits = stocks.outfits + mapOf(
             from.id to from.copy(supplies = from.supplies - amount),
             to.id to to.copy(supplies = Math.addExact(to.supplies, amount))))

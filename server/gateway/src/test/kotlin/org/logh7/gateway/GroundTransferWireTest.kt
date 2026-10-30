@@ -64,11 +64,13 @@ class GroundTransferWireTest {
         }
         fixture(state,"reopen").use {server->
             val c=server.join(server.account(0),true,false).client;start(c)
-            c.send(query());assertEquals(920,receive(c));assertEquals(1,state.saves)
+            c.send(query());assertEquals(920,receive(c));assertEquals(920,state.players.values.single().mcp)
             c.send(query(GroundTransferMessages.Action.UNLOAD));assertEquals(840,receive(c,0x0b04))
             val troop=state.stocks.outfits.getValue(1).activeGround!!.values.single()
             assertEquals(2,troop.id);assertEquals(1049,troop.base);assertEquals(0,troop.carrier);assertEquals(3,state.stocks.nextShipId)
-            c.send(query(GroundTransferMessages.Action.UNLOAD));assertEquals(840,receive(c,0x0b04));assertEquals(2,state.saves)
+            c.send(query(GroundTransferMessages.Action.UNLOAD));assertEquals(840,receive(c,0x0b04))
+            // The repeat is free; save count also includes the periodic CP-experience settlement.
+            assertEquals(840,state.players.values.single().mcp)
         }
     }
     @Test fun commandAndRosterRefreshUseCurrentStationInsteadOfDepot() {

@@ -81,7 +81,7 @@ internal object Supplement {
             troops=moved,supplies=r.supplies,maxCrew=required)
         val payment=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),COST.toLong(),CpPool.MCP)
         if(payment !is PaymentResult.Paid)return reject(LogisticsRejection.CP)
-        return SupplementResult(p.copy(pcp=Math.toIntExact(payment.balance.pcp),mcp=Math.toIntExact(payment.balance.mcp)),
+        return SupplementResult(p.paidWith(payment.balance),
             next,changed=true,troops=moved,supplies=r.supplies,maxCrew=required)
     }
 }

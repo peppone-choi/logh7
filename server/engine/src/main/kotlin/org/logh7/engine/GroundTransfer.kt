@@ -57,7 +57,7 @@ internal object GroundTransfer {
         if(moved.isEmpty())return GroundTransferResult(p,stocks)
         if(p.mcp<COST)return reject(LogisticsRejection.CP)
         val changed=o.copy(activeGround=ActiveGroundUnits(roster.values.map {locations.getValue(it.id)}))
-        return GroundTransferResult(p.copy(mcp=p.mcp-COST),stocks.copy(outfits=stocks.outfits+(o.id to changed)),
+        return GroundTransferResult(p.paidWith(org.logh7.engine.strategy.CpBalance(p.pcp.toLong(),(p.mcp-COST).toLong())),stocks.copy(outfits=stocks.outfits+(o.id to changed)),
             changed=true,moved=moved)
     }
 }

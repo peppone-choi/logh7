@@ -146,7 +146,7 @@ internal object StrategyActions {
         val cost=if(r.command in setOf(47,48,50,51))80L else 160L
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(after.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
+        return StrategyActionResult(after.paidWith(paid.balance),next,
             changed=true,readyAt=readyAt)
     }
     /** Retirement abandons offices, retaining other people's appointments in the same outfit. */

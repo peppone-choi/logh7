@@ -77,7 +77,7 @@ internal object FleetOfficeAppointment {
         if(held>=14) return reject(AppointmentRejection.CAPACITY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),GarrisonAppointment.COST.toLong(),CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(AppointmentRejection.CP)
-        return GarrisonAppointmentResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),
+        return GarrisonAppointmentResult(player.paidWith(paid.balance),
             stocks.copy(outfits=stocks.outfits+(outfit.id to role.assign(outfit,r.target))),changed=true)
     }
 }
