@@ -165,6 +165,15 @@ class MailHookTests(unittest.TestCase):
         self.assertEqual(0x104,4+128*2)
         self.assertLessEqual(4+127*2+2,0x104)
 
+    def test_refresh_uses_native_visible_mode_and_queue_subobject(self):
+        self.assertEqual(bytes.fromhex('8b412485c0'),self.raw(0x5357f0,5))
+        self.assertEqual(bytes.fromhex('55568bf1'),self.raw(0x53a670,4))
+        self.assertEqual(bytes.fromhex('8b41048b448108c3'),self.raw(0x53d090,8))
+        self.assertEqual(bytes.fromhex('8d9ec4814e01'),self.raw(0x53c200,6))
+        # Same-mode flag=0 returns early; the force byte=1 executes native refresh.
+        self.assertEqual(bytes.fromhex('8a44241084c0'),self.raw(0x53a696,6))
+        self.assertEqual(bytes.fromhex('c6814974480000'),self.raw(0x4c266a,7))
+
     def test_delivery_hooks_keep_the_native_sender_ui_thread_and_nonce_slots(self):
         # Tick executes this object directly in the native main UI frame;
         # decoded receive dispatch and native sending preserve their arguments.

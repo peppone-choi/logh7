@@ -2,9 +2,20 @@
 #pragma once
 #include "mail_text.h"
 #include "mail_delivery.h"
+#include "mail_refresh.h"
 
 static thread_local logh::MailDelivery mailDelivery;
 static thread_local void* mailEditorContext=nullptr;
+static thread_local logh::MailRefresh mailRefresh;
+static bool mailRefreshView(void* context,void* world,unsigned owner,bool includeDraft=false) {
+    const unsigned mode=at<unsigned>(context,0xa00);
+    if(!world || !owner || mailDelivery.pending || at<unsigned>(context,0xa08)!=3 ||
+        (mode!=1 && !(includeDraft && mode==2)) ||
+        !reinterpret_cast<unsigned(__thiscall*)(void*)>(0x5357f0)(context))return false;
+    // This helper operates on the original queue subobject, not the mail UI.
+    return reinterpret_cast<unsigned(__thiscall*)(void*)>(0x53d090)(
+        static_cast<BYTE*>(context)+0x14e81c4)==10;
+}
 static void mailDraftEnabled(void* context,bool enabled) {
     for (unsigned offset:{0x2cu,0x30u,0x190u,0x194u,0x1b4u}) {
         void* widget=at<void*>(context,offset);
@@ -42,6 +53,11 @@ static void receivedMailOutcome(void* world,unsigned opcode,const BYTE* record) 
             at<unsigned>(const_cast<BYTE*>(record),0x130),at<unsigned>(const_cast<BYTE*>(record),4));
     else if ((opcode&0xffff)==0x0500)
         mailDelivery.rejected(world,*reinterpret_cast<const unsigned short*>(record));
+    else if ((opcode&0xffff)==0x0f08) {
+        const auto data=const_cast<BYTE*>(record);
+        mailRefresh.begin(world,at<unsigned>(data,0),at<BYTE>(data,0x125)!=0,
+            !at<unsigned>(data,0x118) && !at<unsigned>(data,0x11c) && !at<unsigned>(data,0x120));
+    } else if ((opcode&0xffff)==0x0f09)mailRefresh.end(world);
 }
 static void __fastcall mailEditorTick(void* context,void*,void* input) {
     void* previous=mailEditorContext;mailEditorContext=context;
@@ -73,9 +89,17 @@ static void __fastcall mailEditorTick(void* context,void*,void* input) {
                 reinterpret_cast<void(__thiscall*)(void*,unsigned,unsigned)>(0x53a670)(context,mode,option);
         } else if (mailDelivery.draftOpen) mailDraftEnabled(context,false);
     }
+    const unsigned owner=world && at<void*>(world,8) ?
+        reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4b5b80)(at<void*>(world,8)) : 0;
+    if(mailRefresh.take(world,owner,mailRefreshView(context,world,owner)))
+        // Force the original same-mode refresh, including its native queries,
+        // row allocation and normal completion. Never reset an active draft.
+        reinterpret_cast<void(__thiscall*)(void*,unsigned,unsigned)>(0x53a670)(context,1,1);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x539ce0)(context,input);
     if (mailDelivery.pending && mailDelivery.context==context && mailDelivery.draftOpen)
         mailDraftEnabled(context,false);
+    // Receive during composition too; applying still requires the list view.
+    mailRefresh.observe(world,owner,mailRefreshView(context,world,owner,true));
 }
 
 static void __cdecl mailReplyEditor(void* context,const BYTE* record,bool title) {
@@ -324,6 +348,12 @@ static const MailTextPatch mailTextPatches[]={
 };
 #undef MAIL_TARGET
 static bool installMailInput() {
+    const BYTE visible[]={0x8b,0x41,0x24,0x85,0xc0};
+    const BYTE mode[]={0x55,0x56,0x8b,0xf1};
+    const BYTE queue[]={0x8b,0x41,0x04,0x8b,0x44,0x81,0x08,0xc3};
+    if(memcmp(reinterpret_cast<void*>(0x5357f0),visible,sizeof(visible)) ||
+        memcmp(reinterpret_cast<void*>(0x53a670),mode,sizeof(mode)) ||
+        memcmp(reinterpret_cast<void*>(0x53d090),queue,sizeof(queue)))return false;
     const BYTE oldCleanup[]={0x8d,0x4c,0x24,0x24},newCleanup[]={0xeb,0x12,0x90,0x90};
     if (memcmp(reinterpret_cast<void*>(0x53c54f),oldCleanup,sizeof(oldCleanup))) return false;
     for (const auto& row:mailTextPatches)

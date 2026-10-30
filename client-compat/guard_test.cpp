@@ -8,6 +8,7 @@
 #include "input_text.h"
 #include "mail_text.h"
 #include "mail_delivery.h"
+#include "mail_refresh.h"
 #include "korean_windows.h"
 #include "dialog_text.h"
 #include "portrait_label.h"
@@ -124,6 +125,34 @@ static bool mailDeliveryTest() {
     delivery.reset();
     return !delivery.pending && !delivery.context && delivery.title.empty() &&
         !delivery.begin(&editor,&session,10000,10001,0xffffffff,7,L"",L"");
+}
+static bool mailRefreshTest() {
+    logh::MailRefresh refresh;int world=0,other=0;
+    refresh.observe(&world,10000,true);
+    refresh.begin(&world,10001,true,true);refresh.end(&world);
+    if(refresh.take(&world,10000,true))return false;
+    refresh.begin(&world,10000,false,true);refresh.end(&world);
+    refresh.begin(&world,10000,true,false);refresh.end(&world);
+    if(refresh.take(&world,10000,true))return false;
+    refresh.begin(&world,10000,true,true);
+    if(refresh.take(&world,10000,true))return false; // Wait for transaction end.
+    refresh.end(&world);
+    refresh.observe(&world,10000,false); // A draft opened before the transaction ended.
+    if(refresh.take(&world,10000,false) || !refresh.pending)return false;
+    if(!refresh.take(&world,10000,true) || refresh.take(&world,10000,true))return false;
+    refresh.observe(&world,10000,false); // Native refresh's own query must not recurse.
+    refresh.begin(&world,10000,true,true);refresh.end(&world);
+    if(refresh.pending)return false;
+    refresh.observe(&world,10000,true); // Idle native queue while editing.
+    refresh.begin(&world,10000,true,true);refresh.end(&world);
+    if(refresh.take(&world,10000,false) || !refresh.pending)return false;
+    if(!refresh.take(&world,10000,true) || refresh.take(&world,10000,true))return false;
+    refresh.begin(&world,10000,true,true);refresh.end(&world);
+    refresh.observe(&other,10000,true);
+    if(refresh.pending || refresh.take(&world,10000,true))return false;
+    refresh.begin(&other,10000,true,true);refresh.end(&other);
+    refresh.observe(nullptr,0,false);
+    return !refresh.pending && !refresh.world && !refresh.owner;
 }
 static bool dialogTextTest() {
     const char* mouse="\x83\x7d\x83\x45\x83\x58\x83\x66\x83\x6f\x83\x43\x83\x58\x82\xcc\x90\xb6\x90\xac\x82\xc9\x8e\xb8\x94\x73\x82\xb5\x82\xdc\x82\xb5\x82\xbd";
@@ -472,7 +501,7 @@ static bool sessionEndingDataTest() {
 int wmain(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
-    if (!mailTextTest() || !mailDeliveryTest()) return 252;
+    if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest()) return 252;
     if (!wideResourceTest()) return 253;
     if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;
