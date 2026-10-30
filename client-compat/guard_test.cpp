@@ -628,8 +628,9 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::koreanStaticResource(error)!=error ||
         !logh::japaneseFragment(logh::koreanResource(65534,0,0,"NO TABLE"),korean) || korean!=L"명령 패널") return 82;
     char windowsString[128];memset(windowsString,0x7f,sizeof(windowsString));
+    // This fixture is encoded as CP949 even on the English CI runner (ACP1252).
     if (logh::copyKoreanWindowsString(57344,windowsString,sizeof(windowsString),949)<=0 ||
-        !logh::inputFragment(windowsString,korean) || korean!=L"은하영웅전설 VII" ||
+        !logh::inputFragment(windowsString,korean,949) || korean!=L"은하영웅전설 VII" ||
         logh::copyKoreanWindowsString(57344,windowsString,2,949)!=0 || windowsString[0] ||
         logh::copyKoreanWindowsString(57344,windowsString,3,949)!=2 || windowsString[2] ||
         logh::copyKoreanWindowsString(999,windowsString,sizeof(windowsString),949)!=-1 ||
