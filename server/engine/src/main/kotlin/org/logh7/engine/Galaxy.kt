@@ -37,7 +37,7 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
         cells = MutableList(5000) { map?.get(it) ?: defaultCell }.also { values -> systems.forEach { values[it.grid] = it.kind } }.toList()
     }
     /** Black holes; Null_galaxy.mdx bh_01..03 (evidence:client). */
-    val blackHoles: List<Int> get() = cells.indices.filter { cells[it] == BLACK_HOLE_CELL }
+    val blackHoles: List<Int> by lazy { cells.indices.filter { cells[it] == BLACK_HOLE_CELL } }
     fun terrain(grid: Int): GridTerrain = if (grid in cells.indices && cells[grid] == PLASMA_STORM_CELL) GridTerrain.PLASMA_STORM
         else GridTerrain.NONE
     /** Room identities and backgrounds follow the saved owner after conquest. */

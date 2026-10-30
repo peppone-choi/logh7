@@ -172,7 +172,7 @@ internal object StrategyActions {
     }
     fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null):PlanetStocks {
         val market=FlagshipMarketActions.settle(stocks,seconds)
-        val original=if(galaxy==null)market else StrategicOperations.settle(galaxy,market,seconds)
+        val original=if(galaxy==null)market else BlackHoleTides.settle(galaxy,StrategicOperations.settle(galaxy,market,seconds),seconds)
         return settleSuppression(original,seconds)
     }
     private fun settleSuppression(stocks:PlanetStocks,seconds:Long):PlanetStocks {

@@ -25,7 +25,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState(),val budget:BudgetState=BudgetState(),
     val social:SocialState=SocialState(),
     /** 軍紀維持: outfit ID → stored discipline and when it was stored (OutfitDiscipline). */
-    val discipline:Map<Int,OutfitDiscipline> = emptyMap()) {
+    val discipline:Map<Int,OutfitDiscipline> = emptyMap(),
+    /** Last game hour whose black-hole tidal loss was applied (BlackHoleTides); 0 before the first settlement. */
+    val tidalHour:Long=0) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -41,6 +43,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}
         require(social.squares.keys.all {it in bases} && social.speeches.values.all {it.base in bases}) {"Unknown social base"}
         require(discipline.size<=1000 && discipline.keys.all {it>0}) {"Invalid outfit discipline"}
+        require(tidalHour in 0..0xffffffffL/3600) {"Invalid tidal hour"}
     }
 }
 interface PlanetStockStore : AutoCloseable {

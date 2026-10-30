@@ -55,7 +55,11 @@ internal object FleetNavigation {
             commandRange=if(after.cpPaused)TacticalCommandRange(session.gameMillis/1000,command=player.commandRange?.command ?: 50) else null,
             moves = Math.addExact(player.moves, 1), motion = null) }
         val next = players + moved + (request.account to after)
-        val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to outfit.copy(position = position)))
+        // A reserved warp whose error pulled the fleet into a black hole's gravity zone damages it on arrival.
+        val pulled = preview.completedWarp && before.warpTarget != null && after.grid != before.warpTarget &&
+            BlackHoleTides.inGravity(galaxy, after.grid)
+        val moving = outfit.copy(position = position).let { if (pulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
+        val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to moving))
         val prepared = production.prepareReplacement(stocks,CivicActions.settle(galaxy,deployed,session.gameMillis/1000,next.values))
         committer.saveWorld(next, prepared)
         navigation.publishCommitted(players, next, session.generation)

@@ -55,6 +55,15 @@ class SocialStoreTest {
         FilePlanetStockStore(path).use {it.save(stocks);assertEquals(stocks,it.load())}
         assertTrue(Files.readAllLines(path).first().startsWith("LOGH7-STOCK-35\t"))
     }
+    @Test fun blackHoleTidalHourIsAStock37SectionEvenWithoutDiscipline() {
+        val path=directory.resolve("tidal.tsv")
+        val saved=stocks.copy(tidalHour=123)
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+        val lines=Files.readAllLines(path);assertTrue(lines.first().startsWith("LOGH7-STOCK-37\t"))
+        assertEquals("L\t-",lines.single {it.startsWith("L\t")});assertEquals("H\t123",lines.single {it.startsWith("H\t")})
+        Files.write(path,lines.filterNot {it.startsWith("H\t")})
+        FilePlanetStockStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
     @Test fun malformedReceiptsMissingLimitsDuplicateSectionsAndReusedIdsAreRejected() {
         val text=SocialStateCodec.encode(social);assertEquals(social,SocialStateCodec.decode(text))
         for(bad in listOf(text.replaceFirst("2|","1|"),text+"|trailing",text.replace("10000:${receipt.nextAt}","10000:0"),
