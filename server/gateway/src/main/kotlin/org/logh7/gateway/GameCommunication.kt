@@ -16,6 +16,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
     private data class Offer(val from:String,val to:String,val expires:Long)
     private val offers=mutableMapOf<Triple<Long,Int,Int>,Offer>()
     private val views=mutableMapOf<String,Boolean>()
+    /** Connections already told that office mailboxes are not connected. */
+    private val officeNotified=mutableSetOf<String>()
     private val executor=java.util.concurrent.Executors.newSingleThreadExecutor {task->
         Thread(task,"logh7-personal-mail").apply {isDaemon=true}
     }
@@ -100,8 +102,10 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 // Opening the CD mailbox automatically queries every card
                 // address after the personal inbox/outbox. An unconnected
                 // office mailbox is a normal outcome, not lost authentication.
-                if(!query.owner.personal) return listOf(Wire.rejected(opcode,
-                    "직무 주소 편지함은 아직 연결되지 않았습니다. 개인 주소를 선택해 주세요."),Wire.end())
+                // Every opening queries each card address twice (inbox/outbox); say it once
+                // per connection, then only close the request.
+                if(!query.owner.personal) return if(officeNotified.add(connection))listOf(Wire.rejected(opcode,
+                    "직무 주소 편지함은 아직 연결되지 않았습니다. 개인 주소를 선택해 주세요."),Wire.end()) else listOf(Wire.end())
                 views[connection]=query.inbox
                 inbox(engine,owner,query.inbox,query.all)
             }
@@ -168,7 +172,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         }
     }
     @Synchronized fun disconnected(connection:String) {
-        views.remove(connection);offers.entries.removeIf {it.value.from==connection || it.value.to==connection}
+        views.remove(connection);officeNotified.remove(connection);offers.entries.removeIf {it.value.from==connection || it.value.to==connection}
         if(messenger?.first==generation())messenger?.second?.disconnected(connection) else messenger=null
     }
     override fun close() {
