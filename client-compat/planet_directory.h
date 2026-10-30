@@ -2,6 +2,7 @@
 // group-54 list fields. The layout is reconstructed, not a recovered screen.
 // Author: Peppone Choi.
 #pragma once
+#include "unicode_text.h"
 static unsigned planetDirectoryStates[350];
 static void planetDirectoryCell(unsigned row, unsigned col, const wchar_t* text) {
     reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*,int,int)>(0x505b50)
@@ -117,8 +118,12 @@ static void renderPlanetDirectory() {
             wchar_t name[13]={};planetName(row.id,name);planetDirectoryCell(i+1,2,name[0] ? name : L"이름 미수신");
             auto grid=reinterpret_cast<const BYTE*(__stdcall*)(int,int)>(0x4c8b70)(row.grid%100,row.grid/100);
             auto label=grid ? reinterpret_cast<const char*(__stdcall*)(unsigned)>(0x4c8c90)(grid[0]) : nullptr;
-            wchar_t system[64]={};if (label) MultiByteToWideChar(932,0,label,-1,system,_countof(system));
-            planetDirectoryCell(i+1,1,system[0] ? system : L"성계명 미수신");
+            // Catalog names are Korean in the private CP932 glyph range; decode them like other catalog labels.
+            std::wstring system;
+            if (label && !logh::japaneseFragment(label,system)) {
+                wchar_t raw[64]={};MultiByteToWideChar(932,0,label,-1,raw,_countof(raw));system=raw;
+            }
+            planetDirectoryCell(i+1,1,!system.empty() ? system.c_str() : L"성계명 미수신");
             auto base=planetBase(row.id);unsigned kind=base ? logh::infoShort(base,0x14) : ~0u;
             planetDirectoryCell(i+1,3,kind==0 ? L"행성" : kind==1 ? L"요새" : L"미확인");
         }
