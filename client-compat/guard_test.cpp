@@ -10,6 +10,8 @@
 #include "ime_status.h"
 #include "mail_text.h"
 #include "mail_caption_text.h"
+#include "office_text.h"
+#include "mail_peer_text.h"
 #include "mail_delivery.h"
 #include "legacy_korean_glyph.h"
 #include "namecard_text.h"
@@ -194,6 +196,13 @@ static bool mailDeliveryTest() {
         !delivery.begin(&editor,&session,10000,10001,0xffffffff,7,L"",L"");
 }
 static bool mailRefreshTest() {
+    unsigned char peer[0x124]={};
+    const unsigned face=1000001,age=35u*31536000u;
+    memcpy(peer+0x118,&face,4);memcpy(peer+0x11c,&age,4);
+    if(!logh::personalMailAddress(peer) || logh::personalMailAddress(nullptr))return false;
+    for(unsigned offset=0x120;offset<0x124;++offset) {
+        peer[offset]=1;if(logh::personalMailAddress(peer))return false;peer[offset]=0;
+    }
     logh::MailRefresh refresh;int world=0,other=0;
     refresh.observe(&world,10000,true);
     refresh.begin(&world,10001,true,true);refresh.end(&world);
@@ -572,6 +581,119 @@ static int runGuard(int argc, wchar_t** argv) {
     if (!legacyKoreanGlyphTest()) return 253;
     if (!nameCardDisplayTest()) return 254;
     if (!messengerStatusTextTest()) return 255;
+    std::string officeCaption;
+    std::wstring officeDecoded;
+    for(unsigned kind=0;kind<2;++kind) {
+        if(!logh::officeMailKindText(kind,officeCaption) || officeCaption.size()!=4 ||
+            !logh::japaneseFragment(officeCaption.c_str(),officeDecoded) ||
+            officeDecoded!=(kind==0?L"제안":L"명령"))return 263;
+    }
+    if(logh::officeMailKindText(2,officeCaption) ||
+        logh::officeMailKind(0x53c80e,0x16,0x54)!=0 ||
+        logh::officeMailKind(0x53c80e,0x16,0x55)!=1 ||
+        logh::officeMailKind(0x53c961,0x16,0x54)!=0 ||
+        logh::officeMailKind(0x53c961,0x16,0x55)!=1 ||
+        logh::officeMailKind(0x53cc65,0x16,0x56)!=2 ||
+        logh::officeMailKind(0x53c80e,0x15,0x54)!=2)return 264;
+    logh::OfficeFriendDisplay friendDisplay;
+    char originalCString[]="native",differentCString[]="native";
+    if(!friendDisplay.remember(L"한글日本ABC",originalCString) ||
+        friendDisplay.take(differentCString,officeDecoded) || friendDisplay.buffer ||
+        !friendDisplay.remember(L"가나다라마바사아자차카타",originalCString) ||
+        !friendDisplay.take(originalCString,officeDecoded) || officeDecoded!=L"가나다라마바사아자차카타" ||
+        friendDisplay.take(originalCString,officeDecoded) || strcmp(originalCString,"native"))return 265;
+    const wchar_t badFriend[]={0xdc00,0};
+    if(friendDisplay.remember(L"가나다라마바사아자차카타파",originalCString) ||
+        friendDisplay.remember(badFriend,originalCString) ||
+        friendDisplay.remember(nullptr,originalCString) || friendDisplay.remember(L"한글",nullptr) ||
+        friendDisplay.buffer)return 266;
+    logh::OfficeGroupDisplay officeGroups;
+    const uintptr_t pickerContext=0x10000000;
+    char groupNarrow[]="    narrowed",groupCopy[]="    narrowed";
+    const std::string groupOriginal=groupNarrow;
+    if(!officeGroups.remember(pickerContext,299,L"가나다라마바사아자차카타") ||
+        !officeGroups.bind(pickerContext+0x5938,511,1,0,2,299,groupNarrow) ||
+        !officeGroups.restore(pickerContext+0x1038,2,299,groupCopy,officeDecoded) ||
+        officeDecoded!=L"    가나다라마바사아자차카타" || groupOriginal!=groupNarrow)return 267;
+    const auto groupSaved=officeDecoded;
+    if(officeGroups.restore(pickerContext+0x738,2,299,groupCopy,officeDecoded) ||
+        officeGroups.restore(pickerContext+0x1038,1,299,groupCopy,officeDecoded) ||
+        officeGroups.restore(pickerContext+0x1038,2,298,groupCopy,officeDecoded) ||
+        officeGroups.restore(pickerContext+0x1038,2,299,"    changed",officeDecoded) ||
+        officeDecoded!=groupSaved)return 268;
+    if(officeGroups.bind(pickerContext+0x5938,512,1,0,2,299,groupCopy) ||
+        officeGroups.bind(pickerContext+0x5938,-1,1,0,2,299,groupCopy) ||
+        officeGroups.bind(pickerContext+0x5938,0,1,1,2,299,groupCopy) ||
+        officeGroups.bind(pickerContext+0x5938,0,1,0,1,299,groupCopy) ||
+        officeGroups.remember(pickerContext,300,L"다른 이름"))return 269;
+    if(officeGroups.remember(pickerContext,299,L"가나다라마바사아자차카타파") ||
+        officeGroups.restore(pickerContext+0x1038,2,299,groupCopy,officeDecoded) ||
+        officeGroups.remember(pickerContext,0,badFriend))return 270;
+    if(!officeGroups.remember(pickerContext,0,L"한글日本ABC") ||
+        !officeGroups.bind(pickerContext+0x5938,0,1,0,2,0,groupCopy) ||
+        !officeGroups.restore(pickerContext+0x1038,2,0,groupCopy,officeDecoded) ||
+        officeDecoded!=L"    한글日本ABC" ||
+        !officeGroups.remember(pickerContext+4,1,L"새 그룹") ||
+        officeGroups.restore(pickerContext+0x1038,2,0,groupCopy,officeDecoded))return 271;
+    officeGroups.clear();
+    if(officeGroups.owner || officeGroups.restore(pickerContext+4+0x1038,2,1,groupCopy,officeDecoded))return 272;
+    std::vector<BYTE> friendCache(4+100*0x124,0);
+    friendCache[0]=100;
+    const unsigned lastFriendId=12345;
+    memcpy(friendCache.data()+4+99*0x124,&lastFriendId,4);
+    memcpy(friendCache.data()+10+99*0x124,L"이 둘",4*sizeof(wchar_t));
+    const auto friendCacheOriginal=friendCache;
+    if(!logh::officeFriendCacheName(friendCache.data(),lastFriendId,officeDecoded) ||
+        officeDecoded!=L"이 둘" || friendCache!=friendCacheOriginal)return 273;
+    if(logh::officeFriendCacheName(nullptr,lastFriendId,officeDecoded) ||
+        logh::officeFriendCacheName(friendCache.data(),54321,officeDecoded) || officeDecoded!=L"이 둘")return 274;
+    friendCache[0]=101;
+    if(logh::officeFriendCacheName(friendCache.data(),lastFriendId,officeDecoded))return 275;
+    friendCache[0]=100;
+    memcpy(friendCache.data()+10+99*0x124,L"가나다라마바사아자차카타파",14*sizeof(wchar_t));
+    if(logh::officeFriendCacheName(friendCache.data(),lastFriendId,officeDecoded) || officeDecoded!=L"이 둘")return 276;
+    logh::OfficeFriendRows friendRows;
+    const uintptr_t friendListContext=0x20000000;
+    const char friendOriginal[]="\xc0\xcc \xb5\xd1",friendCopy[]="\xc0\xcc \xb5\xd1";
+    friendRows.begin(friendListContext,1,2);
+    if(friendRows.root!=1 || friendRows.table!=2)return 277;
+    if(!friendRows.bind(friendListContext,12345,friendOriginal) ||
+        !friendRows.matches(friendListContext,12345,friendCopy) ||
+        friendRows.matches(friendListContext+4,12345,friendCopy) ||
+        friendRows.matches(friendListContext,12346,friendCopy) ||
+        friendRows.matches(friendListContext,12345,"different") ||
+        friendRows.matches(friendListContext,12345,nullptr))return 277;
+    friendRows.begin(friendListContext);
+    if(friendRows.root || friendRows.table || friendRows.matches(friendListContext,12345,friendCopy))return 278;
+    for(unsigned i=0;i<100;++i)if(!friendRows.bind(friendListContext,i,friendOriginal))return 279;
+    if(friendRows.bind(friendListContext,100,friendOriginal) ||
+        !friendRows.bind(friendListContext,99,"new") ||
+        friendRows.matches(friendListContext,99,friendCopy) ||
+        !friendRows.matches(friendListContext,99,"new"))return 280;
+    const std::string tooLongFriend(64,'A');
+    if(friendRows.bind(friendListContext,99,tooLongFriend.c_str()) ||
+        !friendRows.bind(friendListContext+4,100,friendOriginal) ||
+        friendRows.matches(friendListContext,0,friendOriginal))return 281;
+    logh::MailPeerRows mailPeers;
+    if(!mailPeers.bind(0,0x30000000,1,2,0,10,12345,friendOriginal,L"김 하나") ||
+       !mailPeers.restore(0,0x30000000,1,2,0,2,-1,10,12345,friendCopy,officeDecoded) ||
+       officeDecoded!=L"김 하나")return 282;
+    for(unsigned which=0;which<8;++which) {
+        if(mailPeers.restore(which==0?1:0,which==1?0x30000004:0x30000000,which==2?3:1,which==3?3:2,
+            which==4?1:0,2,-1,which==5?11:10,which==6?12346:12345,which==7?"changed":friendCopy,officeDecoded))return 283;
+    }
+    if(mailPeers.restore(0,0x30000000,1,2,0,1,-1,10,12345,friendCopy,officeDecoded) ||
+       mailPeers.restore(0,0x30000000,1,2,0,2,0,10,12345,friendCopy,officeDecoded) || officeDecoded!=L"김 하나")return 284;
+    if(!mailPeers.bind(1,0x30000004,3,4,99,11,12346,"plain",L"한글日本ABC") ||
+       !mailPeers.restore(1,0x30000004,3,4,99,2,-1,11,12346,"plain",officeDecoded) || officeDecoded!=L"한글日本ABC" ||
+       mailPeers.bind(1,0x30000004,3,4,100,11,12346,"plain",L"이 둘"))return 285;
+    if(mailPeers.bind(0,0x30000000,1,2,0,10,12345,friendOriginal,L"가나다라마바사아자차카타파") ||
+       mailPeers.restore(0,0x30000000,1,2,0,2,-1,10,12345,friendCopy,officeDecoded))return 286;
+    std::wstring hudName;
+    if(!logh::hudPersonalName(L"이 둘",0,L"계급",hudName) || hudName!=L"계급이 둘\n" ||
+       !logh::hudPersonalName(L"이 둘",1,L"계급",hudName) || hudName!=L"계급이 둘\n" ||
+       !logh::hudPersonalName(L"김 하나",2,L"계급",hudName) || hudName!=L"김 하나계급\n" ||
+       logh::hudPersonalName(L"가나다라마바사아자차카타파",2,L"계급",hudName))return 287;
     std::string calendarPrefix;
     std::wstring calendarDecoded;
     for(bool imperial:{true,false}) {

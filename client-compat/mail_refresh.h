@@ -2,6 +2,12 @@
 // Author: 최병호. No wire, editor or native queue is reconstructed here.
 #pragma once
 namespace logh {
+inline bool personalMailAddress(const void* memory) {
+    if(!memory)return false;
+    const auto peer=static_cast<const unsigned char*>(memory);
+    // +118/+11c are the portrait and age clock, not office-address flags.
+    return !peer[0x120] && !peer[0x121] && !peer[0x122] && !peer[0x123];
+}
 struct MailRefresh {
     void* world=nullptr;
     unsigned owner=0;
