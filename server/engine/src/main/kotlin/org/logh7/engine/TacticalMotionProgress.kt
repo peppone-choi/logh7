@@ -24,7 +24,12 @@ internal object TacticalMotionProgress {
             return next
         }
         for((account,player) in players.toMap()) {
-            val motion=player.motion?.takeIf {player.cpPaused && player.baseId==0 && player.hull!=null && it.grid==player.grid} ?: continue
+            if(!player.cpPaused || player.baseId!=0 || player.hull==null)continue
+            val motion=player.motion?.takeIf {it.grid==player.grid} ?: if(BlackHoleTides.edge(galaxy,player.grid)==null)continue else {
+                // A flagship that has not moved yet still drifts from its deployment pose.
+                val pose=TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,original,galaxy)
+                TacticalMotion(player.grid,now,pose,0f,pose.direction,listOf(pose.position))
+            }
             val next=progress(player.unitId,player.characterId,motion)
             if(next!=motion)players[account]=player.copy(motion=next)
         }
