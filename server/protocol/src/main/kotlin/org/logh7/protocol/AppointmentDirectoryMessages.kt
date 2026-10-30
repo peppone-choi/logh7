@@ -13,9 +13,9 @@ object AppointmentDirectoryMessages {
         val base=b.getInt(25)
         require(character>0 && when(search) {
             18 -> flags==123 && message.drop(10).all { it==0.toByte() }
-            28 -> role in setOf(55,56,57,192,193)
-            27 -> flags==80 && (role in 39..43 || role in 175..179)
-            4,5 -> flags==80 && (role in 39..43 || role in 175..179 || role in setOf(55,56,57,192,193))
+            28 -> OfficeCardKinds.isOffice(role) && !OfficeCardKinds.isOutfit(role)
+            27 -> flags==80 && OfficeCardKinds.isOutfit(role)
+            4,5 -> flags==80 && OfficeCardKinds.isOffice(role)
             else -> false
         })
         return Query(character,search,flags,role,base,message.copyOfRange(2,message.size))
@@ -81,7 +81,7 @@ object AppointmentDirectoryMessages {
         return cards(query,if(remaining==0)emptyMap() else mapOf(55 to remaining))
     }
     fun cards(query:Query,vacancies:Map<Int,Int>):List<ByteArray> {
-        require(vacancies.size<=15 && vacancies.all { (card,n)->(card in 39..43 || card in 175..179 || card in setOf(55,56,57,192,193)) && n in 1..255 })
+        require(vacancies.size<=300 && vacancies.all { (card,n)->OfficeCardKinds.isOffice(card) && n in 1..255 })
         val b=ByteBuffer.allocate(2+vacancies.size*7).putShort(vacancies.size.toShort())
         vacancies.toSortedMap().forEach { (card,n)->b.putShort(card.toShort()).putInt(0).put(n.toByte()) }
         return transaction(query,0x1208,b.array())

@@ -8,7 +8,7 @@ inline bool characterCardBase(unsigned kind) {
     // Base-targeted offices currently emitted by BootstrapMessages.OfficeCard.
     switch(kind) {
     case 2:case 17:case 24:case 25:case 39:case 44:case 47:case 50:
-    case 52:case 54:case 55:case 56:case 57:case 134:case 150:case 161:
+    case 52:case 54:case 55:case 56:case 57:case 66:case 130:case 134:case 135:case 150:case 161:
     case 175:case 180:case 183:case 186:case 188:case 190:case 191:case 192:case 193:return true;
     default:return false;
     }

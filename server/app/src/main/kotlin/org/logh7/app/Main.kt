@@ -18,6 +18,16 @@ import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 
 fun main() {
+    fun port(name:String,default:Int):Int {
+        val value=System.getenv(name)?.let {it.toIntOrNull() ?: error("$name must be an integer port")} ?: default
+        require(value in 1..65535) {"$name must be in 1..65535"}
+        return value
+    }
+    val gamePort=port("LOGH7_GAME_PORT",47900)
+    val updatePort=port("LOGH7_UPDATE_PORT",47902)
+    val sessionPort=port("LOGH7_SESSION_PORT",47903)
+    val opsPort=port("LOGH7_OPS_PORT",47901)
+    require(setOf(gamePort,updatePort,sessionPort,opsPort).size==4) {"Game, update, session and ops ports must be distinct"}
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val resources = ArrayDeque<AutoCloseable>()
     resources.addFirst(AutoCloseable { scope.cancel() })
@@ -78,7 +88,8 @@ fun main() {
             throw failure
         }
         val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store,
-            galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState) }
+            galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
+            npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true)) }
         catch (failure: Throwable) {
             try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
@@ -97,14 +108,13 @@ fun main() {
         resources.addFirst(gateway)
         val audit = System.getenv("LOGH7_OPS_AUDIT_FILE")?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)
-        val ops = startOpsApi(engine, engine, audit = audit)
+        val ops = startOpsApi(engine, engine, port = opsPort, audit = audit)
         resources.addFirst(ops)
         val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
-        val sessionPort = System.getenv("LOGH7_SESSION_PORT")?.toInt() ?: 47903
-        gateway.start(bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress,
+        gateway.start(gamePort = gamePort, updatePort = updatePort, bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress,
             additionalBindAddresses = listOfNotNull(System.getenv("LOGH7_HOST_ONLY_ADDRESS")))
         Runtime.getRuntime().addShutdownHook(Thread { closeResources() })
-        println("LOGH7 stubs: $bindAddress:47900 / 47902 / $sessionPort; ops: 127.0.0.1:47901; capture: ${captureDirectory?.toAbsolutePath() ?: "off"}")
+        println("LOGH7 stubs: $bindAddress:$gamePort / $updatePort / $sessionPort; ops: 127.0.0.1:$opsPort; capture: ${captureDirectory?.toAbsolutePath() ?: "off"}")
         CountDownLatch(1).await()
     } catch (failure: Throwable) {
         try { closeResources() } catch (closing: Throwable) { failure.addSuppressed(closing) }

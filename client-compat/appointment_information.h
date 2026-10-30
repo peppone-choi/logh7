@@ -1,4 +1,4 @@
-// Keep the native office information renderer, but bind the selected card.
+// Native confirmation details: selected office/card and current warp cost policy.
 // Author: 최병호.
 #pragma once
 #include "appointment_ui_data.h"
@@ -8,7 +8,7 @@ struct AppointmentChoice { unsigned card=0, base=0, outfit=0, character=0; const
 static bool appointmentChoice(AppointmentChoice& choice) {
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     unsigned authority=*reinterpret_cast<unsigned*>(0xc9eac0);
-    if (!command || (authority!=54 && authority!=2 && authority!=17 && authority!=134 && authority!=161 && authority!=39 && authority!=175 && authority!=3 && authority!=169 && authority!=171)) return false;
+    if (!command || !logh::appointmentAuthorityCard(authority)) return false;
     auto steps=at<BYTE**>(command,0x10), end=at<BYTE**>(command,0x14);
     unsigned active=at<unsigned>(command,4);
     if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;
@@ -45,10 +45,10 @@ static bool appointmentChoice(AppointmentChoice& choice) {
             }
         }
     }
-    if (!choice.base && (choice.card==56 || choice.card==57 || choice.card==192 || choice.card==193)) {
+    if (!choice.base && logh::appointmentCapitalPower(choice.card)) {
         auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
         if (!world) return false;
-        unsigned power=choice.card==56 || choice.card==57 ? 2 : 3;
+        unsigned power=logh::appointmentCapitalPower(choice.card);
         for (unsigned slot=0;slot<350;++slot) {
             auto base=world+0x2eb800+slot*0x250;
             if (!base[0] || logh::infoWord(base,8)!=2 || logh::planetCapitalPower(base)!=power) continue;
@@ -58,20 +58,40 @@ static bool appointmentChoice(AppointmentChoice& choice) {
         }
     }
     bool dismissal=at<unsigned>(command,0x28)==6;
-    bool validSeat=dismissal || (((choice.card>=39 && choice.card<=43) || (choice.card>=175 && choice.card<=179)) ? choice.outfit>0 && choice.seat && logh::infoWord(choice.seat,4)==choice.outfit :
+    bool validSeat=dismissal || (((choice.card>=39 && choice.card<=50) || (choice.card>=103 && choice.card<=114) ||
+        (choice.card>=175 && choice.card<=186) || (choice.card>=237 && choice.card<=248)) ? choice.outfit>0 && choice.seat && logh::infoWord(choice.seat,4)==choice.outfit :
         choice.outfit==0 && choice.base>0 && choice.base<=65535);
     return choice.card>0 && choice.card<=260 && validSeat &&
         choice.character>0 && choice.person && logh::infoWord(choice.person,0)==choice.character;
+}
+
+// Native 00581c80 selects confirmation 0x2b. The CD help predates the 80 -> 40
+// MCP patch and its distance multiplier does not describe the current server policy.
+static bool isWarpConfirmation(BYTE* command) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if (!command || !own || at<unsigned>(command,0x28)!=0x2b || at<void*>(command,0x1c)!=own) return false;
+    unsigned card=at<unsigned>(command,0x20);
+    if (card!=59 && card!=195) return false;
+    auto steps=at<BYTE**>(command,0x10),end=at<BYTE**>(command,0x14);
+    unsigned active=at<unsigned>(command,4);
+    if (!steps || end<steps || end-steps>64 || active>=static_cast<unsigned>(end-steps)) return false;
+    auto confirmation=steps[active];
+    return confirmation && at<unsigned>(confirmation,0)==0x675780 && at<unsigned>(confirmation,0x48)==0x2b;
 }
 
 static void __fastcall appointmentConfirmation(void* dialog, void*, const char* original) {
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
     std::wstring body;
+    auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
+    if (isWarpConfirmation(command)) {
+        // Mirrors NavigationPolicy/WarpCourse: cruise per light-year and drift beyond adjacent grids.
+        body=L"선택한 그리드로 워프합니다.\nMCP 40 · 부족하면 PCP 80 전액 대용\n항속: 100광년당 100 소비 · 2칸 이상은 오차 가능\n실행하시겠습니까?";
+    } else {
     if (!logh::japaneseFragment(original,body)) return;
     auto newline=body.find(L'\n');
     if (newline==std::wstring::npos) return;
-    auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     if (const BYTE* supplied=selectedSupplyOutfit()) {
         auto name=supplyOutfitName(supplied);
         if (name.empty()) return;
@@ -116,6 +136,7 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
         // Preserve the original cost, wait, duration and confirmation question.
         body=std::wstring(person)+L" → "+seat+L" · "+office+body.substr(newline);
         }
+    }
     }
     // 005706d0 returns the control directly; 005706c0 returns the GUI manager.
     auto element=reinterpret_cast<void*(__thiscall*)(void*,unsigned)>(0x5706d0)(dialog,5);

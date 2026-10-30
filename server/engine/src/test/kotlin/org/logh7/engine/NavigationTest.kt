@@ -5,6 +5,20 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NavigationTest {
+    @Test fun bothPersonalDepartureCommandsClearThePreviousStationedTacticalPosture() {
+        val base=GalaxyBase(1000,2487,60,0,"Home",0,20f,86400,0,0f,2f)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Empire",2)),listOf(base),Power.entries.associateWith {2487})
+        val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,false,"connection")}.exportState()
+        for(command in listOf(PlaceMove.SwitchMode(5),PlaceMove.Dock(0,5))) {
+            val store=Store()
+            store.saved=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1000,mode=4,
+                posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1000)))
+            val nav=Navigation(galaxy,store,NavigationPolicy())
+            val departed=nav.apply(request.copy(unitId=1010000,captainCard=59,place=command),session).player!!
+            assertNull(departed.posture);assertEquals(0,departed.baseId)
+            assertEquals(departed,Navigation(galaxy,store,NavigationPolicy()).snapshot(1).getValue("pilot"))
+        }
+    }
     @Test fun nativeDepartureRequiresOwnCaptainAndFlagshipQuayAndPersistsBeforeSuccess() {
         val base = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(base),
@@ -76,6 +90,34 @@ class NavigationTest {
         assertEquals(0, departed.baseId); assertEquals(0, departed.spotId)
         assertEquals(departed, navigation.apply(request, session).player)
     }
+    @Test fun guardedRoomsAndQuaysFollowSavedOwnerAndCampInsteadOfSeed() {
+        val base = GalaxyBase(1000,2487,60,0,"Home",0,20f,86400,0,0f,2f)
+        // The initial map still says Empire; ownership changes only in the saved world.
+        val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(base),
+            Power.entries.associateWith {2487})
+        for (power in Power.entries) for (owner in listOf(2,3)) for (camp in 0..1) {
+            val session = SessionSimulation(SessionRules.load()).also {
+                it.join("pilot",power,false,"connection")
+            }.exportState()
+            val stocks = PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,owner,camp,100,100,100)))
+            val friendly = owner == (if(power == Power.EMPIRE) 2 else 3) && camp == 0
+            val facilities = galaxy.facilitiesAt(1000,stocks)
+            val port = facilities.single {it.kind == 4}
+            for (kind in listOf(0,6)) {
+                val store = Store().also {it.saved = mapOf("pilot" to Navigator(1,10000,power,2487,
+                    1000,1000,1000,baseId=1000,mode=4,cpRecoveryAt=0))}
+                val navigation = Navigation(galaxy,store,NavigationPolicy())
+                val before = store.saved.getValue("pilot")
+                val result = navigation.apply(request.copy(power=power,unitId=1010000,
+                    place=PlaceMove.Spot(port.spots.single {it.kind == kind}.id,0)),session,stocks)
+                if(friendly) assertNotNull(result.player) else {
+                    assertEquals(NavigationRejection.ACCESS,result.rejection)
+                    assertEquals(before,store.saved.getValue("pilot"))
+                }
+            }
+        }
+    }
+
     private fun galaxy() = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire"), GalaxySystem(4, 2015, 4, "Alliance")),
         emptyList(), mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015))
     private val request = NavigationRequest("pilot", 10000, Power.EMPIRE, "connection", 1)

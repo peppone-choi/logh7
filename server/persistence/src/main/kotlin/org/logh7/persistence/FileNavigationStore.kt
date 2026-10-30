@@ -3,6 +3,9 @@ package org.logh7.persistence
 import org.logh7.engine.NavigationStore
 import org.logh7.engine.Navigator
 import org.logh7.engine.Power
+import org.logh7.engine.TacticalEnergy
+import org.logh7.engine.TacticalRetreat
+import org.logh7.engine.TacticalCharge
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -32,7 +35,10 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         require(Files.size(path) <= 4_000_000) { "Navigation store is too large" }
         val lines = Files.readAllLines(path)
         val version = lines.firstOrNull()
-        val columns = when (version) { "LOGH7-NAV-1" -> 9; "LOGH7-NAV-2" -> 13; "LOGH7-NAV-3" -> 15; "LOGH7-NAV-4" -> 16; "LOGH7-NAV-5" -> 17; "LOGH7-NAV-6" -> 18; "LOGH7-NAV-7" -> 19
+        val columns = when (version) { "LOGH7-NAV-1" -> 9; "LOGH7-NAV-2" -> 13; "LOGH7-NAV-3" -> 15; "LOGH7-NAV-4" -> 16; "LOGH7-NAV-5" -> 17; "LOGH7-NAV-6" -> 18; "LOGH7-NAV-7" -> 19; "LOGH7-NAV-8" -> 20; "LOGH7-NAV-9" -> 21; "LOGH7-NAV-10" -> 22; "LOGH7-NAV-11" -> 23; "LOGH7-NAV-12" -> 24; "LOGH7-NAV-13" -> 25; "LOGH7-NAV-14" -> 26
+            "LOGH7-NAV-15" -> 27
+            "LOGH7-NAV-16" -> 28
+            "LOGH7-NAV-17" -> 29
             else -> error("Unknown navigation store format") }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
@@ -47,19 +53,64 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                 if (columns >= 16 && f[15] != "-") f[15].toLong() else null,
                 if (columns >= 17 && f[16] != "-") StrategyCheckpointCodec.decode(f[16]) else null,
                 if (columns >= 18 && f[17] != "-") f[17].toInt() else null,
-                if (columns >= 19) f[18].toInt() else 0)
+                if (columns >= 19) f[18].toInt() else 0,
+                if (columns >= 20 && f[19] != "-") TacticalEnergy(f[19].split(',').map(String::toInt)) else null,
+                if (columns >= 21 && f[20] != "-") TacticalMotionCodec.decode(f[20]) else null,
+                if (columns >= 22 && f[21] != "-") f[21].split(',').also { require(it.size == 4) }.let {
+                    TacticalRetreat(it[0].toInt(), it[1].toLong(), it[2].toLong(), it[3].toLong())
+                } else null,
+                if (columns >= 23 && f[22] != "-") f[22].split(',').also { require(it.size == 4) }.let {
+                    TacticalCharge(it[0].toLong(), it[1].toLong(), it[2].toLong(), it[3].toLong())
+                } else null,
+                if (columns >= 24 && f[23] != "-") TacticalFireCodec.decode(f[23]) else null,
+                if (columns >= 25) f[24].toInt() else 10_000,
+                if (columns >= 26 && f[25] != "-") FlagshipHullCodec.decode(f[25]) else null,
+                if (columns >= 27 && f[26] != "-") f[26].split(',').also {require(it.size==4)}.let {
+                    org.logh7.engine.TacticalAttackOrder(it[0].toInt(),it[1].toLong(),it[2].toLong(),it[3].toLong())
+                } else null,
+                if(columns>=28 && f[27]!="-")f[27].split(',').also {require(it.size==4)}.let {
+                    org.logh7.engine.TacticalCommandRange(it[0].toLong(),it[1].toFloat(),it[2].toInt(),it[3].toInt())
+                } else null,
+                if(columns>=29 && f[28]!="-")TacticalPostureCodec.decode(f[28]) else null)
             require(players.put(f[0], player) == null) { "Duplicate navigation account" }
         }
         return players
     }
     override fun save(players: Map<String, Navigator>) {
+        val postures=players.values.any {it.posture!=null}
+        val ranges=postures || players.values.any {it.commandRange!=null}
+        val attacks = ranges || players.values.any {it.attack != null}
+        val hulls = attacks || players.values.any {it.hull != null}
+        val supplies = hulls || players.values.any { it.supplies != 10_000 || it.fire?.pending?.weapon?.let { w -> w != org.logh7.engine.TacticalWeapon.BEAM } == true }
+        val fires = supplies || players.values.any { it.fire != null }
+        val charges = fires || players.values.any { it.charge != null }
+        val retreats = charges || players.values.any { it.retreat != null }
+        val motions = retreats || players.values.any { it.motion != null }
         val bytes = buildString {
-            append("LOGH7-NAV-7\n")
+            append(if(postures) "LOGH7-NAV-17\n" else if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
-                append(listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
+                append((listOf(account, p.generation, p.characterId, p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
                     p.moves, p.baseId, p.mode, p.spotId, p.spotOwner, p.cpRecoveryAt ?: "-", if (p.cpPaused) 1 else 0,
-                    p.fuelReadyAt ?: "-", p.strategy?.let(StrategyCheckpointCodec::encode) ?: "-", p.dockTarget ?: "-", p.returnBase).joinToString("\t"))
+                    p.fuelReadyAt ?: "-", p.strategy?.let(StrategyCheckpointCodec::encode) ?: "-", p.dockTarget ?: "-", p.returnBase,
+                    p.energy?.values?.joinToString(",") ?: "-") +
+                    (if (motions) listOf(p.motion?.let(TacticalMotionCodec::encode) ?: "-") else emptyList()) +
+                    (if (retreats) listOf(p.retreat?.let {
+                        listOf(it.destination,it.acceptedAt,it.waitSeconds,it.preparationSeconds).joinToString(",")
+                    } ?: "-") else emptyList()) +
+                    (if (charges) listOf(p.charge?.let {
+                        listOf(it.at,it.beam,it.gun,it.clockScale).joinToString(",")
+                    } ?: "-") else emptyList()) +
+                    (if (fires) listOf(p.fire?.let(TacticalFireCodec::encode) ?: "-") else emptyList()) +
+                    (if (supplies) listOf(p.supplies) else emptyList()) +
+                    (if (hulls) listOf(p.hull?.let(FlagshipHullCodec::encode) ?: "-") else emptyList()) +
+                    (if (attacks) listOf(p.attack?.let {
+                        listOf(it.mode,it.acceptedAt,it.startsAt,it.nextAt).joinToString(",")
+                    } ?: "-") else emptyList()) +
+                    (if(ranges)listOf(p.commandRange?.let {
+                        listOf(it.at,it.radius,it.command,it.stamina).joinToString(",")
+                    } ?: "-") else emptyList()) +
+                    (if(postures)listOf(p.posture?.let(TacticalPostureCodec::encode) ?: "-") else emptyList())).joinToString("\t"))
                 append('\n')
             }
         }.toByteArray(Charsets.UTF_8)

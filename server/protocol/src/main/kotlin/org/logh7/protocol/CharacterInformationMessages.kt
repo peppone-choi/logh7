@@ -44,11 +44,11 @@ object CharacterInformationMessages {
             out.writeInt(if (c == null) 0 else Math.addExact(id, 1_000_000)); string(c?.shipName.orEmpty())
             out.writeInt(profile?.grid ?: 0); out.writeInt(profile?.base ?: 0)
             out.writeInt(profile?.spot ?: 0); out.writeInt(profile?.owner ?: 0)
-            out.writeInt(0) // Evaluation: same current server baseline as 0323.
+            out.writeInt(c?.evaluation?.toInt() ?: 0)
             (c?.abilities ?: List(8) { 0 }).forEach(out::writeByte)
-            out.writeByte(0); out.writeByte(if (c == null) 0 else 100) // Influence, stamina (0323 baseline).
-            out.writeShort(c?.rank ?: 255); string("")
-            out.writeInt(c?.face ?: 0); out.writeInt(0) // Achievement (0323 baseline).
+            out.writeByte(c?.influence ?: 0); out.writeByte(if (c == null) 0 else 100)
+            out.writeShort(c?.rank ?: 255); string(c?.let(BootstrapMessages::peerageTitle).orEmpty())
+            out.writeInt(c?.face ?: 0); out.writeInt(c?.merit?.toInt() ?: 0)
             out.writeByte(profile?.cards?.size ?: 0); profile?.cards?.forEach(out::writeShort)
             val outfit = profile?.outfit
             out.writeByte(if (outfit == null) 0 else 1)

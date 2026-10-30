@@ -20,6 +20,7 @@ import uuid
 
 from silent_audio import (SilentAudio, TARGET_SHA256, runtime_manifest,
                           stop_owned_handle, strict_owned_job, verify_runtime_manifest)
+from ui_text import cp949_ui_bytes
 
 from PIL import Image, ImageStat
 import win32api
@@ -294,6 +295,9 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         report["login_failure_code"] = payload["code"]
                     elif payload.get("type") == "client-exception":
                         report["client_exception"] = payload
+                    elif payload.get("type") == "render-trace":
+                        with (out / "render-trace.jsonl").open("a", encoding="utf-8") as trace:
+                            trace.write(json.dumps(payload) + "\n")
                 script.on("message", on_message)
                 script.load()
             if audio is not None:
@@ -342,14 +346,55 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         control_offset = end + 1
                         if len(action) != 1:
                             raise ValueError("Expected one UI command")
-                        if "click" in action:
-                            x, y = action["click"]
-                            script.exports_sync.setmouse(x, y, True)
+                        if "click" in action or "ctrlClick" in action or "rightClick" in action:
+                            control = "ctrlClick" in action
+                            button = 2 if "rightClick" in action else 1
+                            point = action["ctrlClick" if control else "rightClick" if button == 2 else "click"]
+                            if not isinstance(point, list) or len(point) != 2 or not all(type(v) is int and 0 <= v <= 4095 for v in point):
+                                raise ValueError("Click requires two bounded owned-window coordinates")
+                            x, y = point
+                            owned_view(desk, pid)
+                            script.exports_sync.setmouse(x, y, True, button, control)
                             try:
                                 time.sleep(0.3)
                             finally:
-                                script.exports_sync.setmouse(x, y, False)
-                            time.sleep(0.15) # Allow a release frame before another queued click.
+                                try:
+                                    # Keep Ctrl down through the mouse-up frame, as a real chord does.
+                                    script.exports_sync.setmouse(x, y, False, button, control)
+                                    time.sleep(0.15)
+                                finally:
+                                    if control:
+                                        script.exports_sync.setkey(0)
+                        elif "drag" in action or "rightDrag" in action:
+                            button = 2 if "rightDrag" in action else 1
+                            points = action["rightDrag" if button == 2 else "drag"]
+                            if not isinstance(points, list) or len(points) != 4 or not all(type(v) is int and 0 <= v <= 4095 for v in points):
+                                raise ValueError("Drag requires four bounded owned-window coordinates")
+                            x, y, end_x, end_y = points
+                            script.exports_sync.setmouse(x, y, True, button)
+                            try:
+                                time.sleep(0.3)
+                                for step in range(1, 13):
+                                    script.exports_sync.movemouse(round(x + (end_x-x)*step/12), round(y + (end_y-y)*step/12))
+                                    time.sleep(0.05)
+                            finally:
+                                script.exports_sync.setmouse(end_x, end_y, False, button)
+                            time.sleep(0.15)
+                        elif "imeText" in action:
+                            cp949_ui_bytes(action["imeText"], ctypes.windll.kernel32.GetACP())
+                            owned_view(desk, pid)  # Verify ownership before the resident UI-thread action.
+                            script.exports_sync.commitkorean(action["imeText"])
+                            observed = None
+                            for _ in range(30):
+                                time.sleep(0.1)
+                                observed = script.exports_sync.koreancommitstate()
+                                if observed and (observed.get("calls", 0) or observed.get("error")):
+                                    break
+                            with (out / "ime-results.jsonl").open("a", encoding="utf-8") as evidence:
+                                evidence.write(json.dumps(observed) + "\n")
+                            if (not observed or observed.get("pending") or observed.get("error")
+                                    or observed.get("calls") != 1 or not observed.get("posted")):
+                                raise RuntimeError("Owned IME result was not consumed exactly once")
                         elif "text" in action:
                             value = action["text"]
                             if not isinstance(value, str) or not 1 <= len(value) <= 30 or not all(32 <= ord(char) < 127 for char in value):
@@ -357,16 +402,51 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             for char in value:
                                 win32gui.PostMessage(owned_view(desk, pid), win32con.WM_CHAR, ord(char), 0)
                             time.sleep(0.15) # Let the owned view consume text before changing focus.
-                        elif "key" in action and action["key"] in (9, 13, 27):
+                        elif "key" in action and action["key"] in (8, 9, 13, 27, 67, 68, 88):
                             code = action["key"]
                             target = owned_view(desk, pid)
+                            scan = win32api.MapVirtualKey(code, 0)
                             script.exports_sync.setkey(code)
                             try:
-                                win32gui.PostMessage(target, win32con.WM_KEYDOWN, code, 0)
+                                win32gui.PostMessage(target, win32con.WM_KEYDOWN, code, 1 | (scan << 16))
                                 time.sleep(0.3)
                             finally:
                                 script.exports_sync.setkey(0)
-                                win32gui.PostMessage(target, win32con.WM_KEYUP, code, 3 << 30)
+                                win32gui.PostMessage(target, win32con.WM_KEYUP, code, 1 | (scan << 16) | (3 << 30))
+                            time.sleep(0.15) # Let native focus/keyboard polling finish before queued text.
+                        elif "wheel" in action:
+                            delta = action["wheel"]
+                            if type(delta) is not int or delta == 0 or abs(delta) > 1200 or delta % 120 != 0:
+                                raise ValueError("Wheel requires one to ten bounded owned-device notches")
+                            target = owned_view(desk, pid)
+                            x, y = win32gui.ClientToScreen(target, (512, 384))
+                            script.exports_sync.scrollmouse(delta)
+                            win32gui.PostMessage(target, win32con.WM_MOUSEWHEEL,
+                                                 (delta & 0xffff) << 16, (y << 16) | (x & 0xffff))
+                            time.sleep(0.15)
+                        elif "hover" in action:
+                            point = action["hover"]
+                            if not isinstance(point, list) or len(point) != 2 or not all(type(v) is int and 0 <= v <= 4095 for v in point):
+                                raise ValueError("Hover requires two bounded owned-window coordinates")
+                            x, y = point
+                            script.exports_sync.movemouse(x, y)
+                        elif action == {"reconnect": True}:
+                            if gui_group is None:
+                                raise ValueError("Reconnect requires the coordinated multiplayer runner")
+                            report["reconnect_requested"] = True
+                            deadline = 0
+                            break
+                        elif action == {"traceQuads": True}:
+                            script.exports_sync.tracequads()
+                        elif action == {"traceGraphics": True}:
+                            script.exports_sync.tracegraphics()
+                        elif "inspectFortress" in action:
+                            base = action["inspectFortress"]
+                            if type(base) is not int or not 1 <= base <= 65535:
+                                raise ValueError("Fortress inspection requires one bounded base ID")
+                            observed = script.exports_sync.fortressstate(base)
+                            with (out / "fortress-state.jsonl").open("a", encoding="utf-8") as evidence:
+                                evidence.write(json.dumps(observed) + "\n")
                         elif action == {"stop": True}:
                             deadline = time.monotonic()
                         else:

@@ -27,7 +27,7 @@ class GarrisonAppointmentTest {
         assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(targetCard=59)).rejection)
         assertEquals(AppointmentRejection.IDENTITY,act(request.copy(power=Power.ALLIANCE),player.copy(power=Power.ALLIANCE)).rejection)
         for(rank in listOf(-1,0,1,7,11,20)) assertEquals(AppointmentRejection.RANK,act(request.copy(targetRank=rank)).rejection)
-        assertEquals(AppointmentRejection.RANK,act(request.copy(actorRank=10)).rejection)
+        assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(actorRank=10)).rejection)
         assertNull(act(request.copy(actorRank=1)).rejection)
         assertEquals(AppointmentRejection.TARGET,act(request.copy(target=10000)).rejection)
         assertEquals(AppointmentRejection.TARGET,act(request.copy(targetPower=3)).rejection)

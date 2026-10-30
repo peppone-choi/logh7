@@ -10,6 +10,74 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class MultiplayerPresenceTest {
+    @Test fun tacticalEndOnlyReachesTheMatchingLiveBattlefieldConnection() {
+        val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
+        val person=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,
+            List(8){50},0,0,0,20,0,0,"Ship",1)
+        val player=Navigator(1,10000,Power.EMPIRE,2488,1000,1000,900,cpPaused=true)
+        val viewer=GamePresence.Member("viewer",person,player,received::add)
+        hub.update(viewer);received.clear()
+        val end=TacticalEnd(1,10000,2488,"viewer")
+        for(stale in listOf(end.copy(generation=2),end.copy(character=10001),end.copy(grid=2487),end.copy(connection="old")))
+            hub.tacticalEnd(stale)
+        assertTrue(received.isEmpty())
+        hub.tacticalEnd(end)
+        val packet=received.single().single()
+        assertEquals(0x0f1f,opcode(packet));assertEquals(0,packet[6].toInt())
+        hub.update(viewer.copy(player=player.copy(cpPaused=false)));received.clear()
+        hub.tacticalEnd(end);assertTrue(received.isEmpty())
+    }
+    @Test fun waypointAccountingDoesNotRestartPeerPathButReplacementAndStopStillArrive() {
+        val hub=GamePresence()
+        val received=mutableListOf<List<ByteArray>>()
+        val person=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,
+            List(8){50},0,0,0,20,0,0,"Ship",1)
+        val player=Navigator(1,10000,Power.EMPIRE,2488,1000,1000,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(100)+List(10){0}))
+        val viewer=GamePresence.Member("viewer",person,player,received::add)
+        val peer=GamePresence.Member("peer",person.copy(id=10001),player.copy(characterId=10001),{})
+        hub.update(viewer);hub.update(peer);received.clear()
+        val motion=TacticalMotion(2488,100,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
+            listOf(TacticalPoint(0f,10f),TacticalPoint(0f,0f)),turnRate=TacticalMotion.NATIVE_TURN_RATE)
+        val moving=peer.copy(player=peer.player.copy(motion=motion))
+        hub.update(moving,100)
+        assertEquals(listOf(0x0400),received.flatten().map(::opcode))
+        val initial=received.single().single();hub.observeMotions("viewer",listOf(initial));received.clear()
+        val progress=moving.copy(player=moving.player.copy(motion=motion.copy(reportedWaypoints=1)))
+        hub.update(progress,115)
+        assertTrue(received.isEmpty(),"Accounting alone must preserve the peer's existing native plan")
+        hub.movement(TacticalMovement(generation=1,grid=2488,character=10001,unit=progress.player.unitId,seconds=115,
+            recipients=mapOf(10000 to "viewer"),motion=progress.player.motion,waypoint=0))
+        assertEquals(listOf(0x0423),received.flatten().map(::opcode))
+        assertEquals(0,ByteBuffer.wrap(received.single().single()).get(30).toInt())
+        received.clear()
+        val replacement=progress.copy(player=progress.player.copy(motion=motion.copy(acceptedAt=116,velocity=0.5f)))
+        hub.update(replacement,116)
+        assertEquals(listOf(0x0400),received.flatten().map(::opcode));received.clear()
+        val stopped=replacement.copy(player=replacement.player.copy(motion=motion.copy(acceptedAt=117,velocity=0f,
+            waypoints=listOf(motion.origin.position))))
+        hub.update(stopped,117)
+        assertEquals(listOf(0x0400),received.flatten().map(::opcode))
+    }
+    @Test fun committedImpactsReachBothPowersInOrderButNeverAnOldConnectionOrGeneration() {
+        val hub=GamePresence()
+        val received=(0..4).associateWith {mutableListOf<List<ByteArray>>()}
+        val person=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,
+            List(8){50},0,0,0,20,0,0,"Ship",1)
+        for(i in 0..4) {
+            val connection=listOf("own","enemy","stale","future","outside")[i]
+            val power=if(i==1)Power.ALLIANCE else Power.EMPIRE
+            hub.update(GamePresence.Member(connection,person.copy(id=10000L+i,power=if(i==1)3 else 2),
+                Navigator(if(i==3)2 else 1,10000+i,power,if(i==4)2487 else 2488,1000,1000,900,cpPaused=true),
+                received.getValue(i)::add))
+        }
+        received.values.forEach {it.clear()}
+        val audience=mapOf(10000 to "own",10001 to "enemy",10002 to "new-connection",10003 to "future")
+        for((sequence,target) in listOf(1L to 1,2L to 21))hub.combat(TacticalImpact(1,1010000,TacticalWeapon.BEAM,
+            TacticalHit(sequence,2488,120*sequence,target,2),audience))
+        for(i in 0..1)assertEquals(listOf(1,21),received.getValue(i).flatten().map {ByteBuffer.wrap(it).getInt(16)})
+        for(i in 2..4)assertTrue(received.getValue(i).isEmpty())
+    }
     @Test fun visiblePeerGetsActualArrivalWithoutAnEarlyBaseChangeOrFuelRefill() {
         val hub = GamePresence()
         val messages = mutableListOf<List<ByteArray>>()

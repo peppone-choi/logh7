@@ -5,6 +5,8 @@ import java.io.DataOutputStream
 
 /** CD readers: 00413050, 004134e0, 004142e0. No native struct padding on the wire. */
 object WorldMessages {
+    /** Card institution byte for cards outside every constmsg group 4 organisation. */
+    const val NO_INSTITUTION = 0xff
     data class Stock(val kind: Int, val level: Int, val quantity: Int)
     data class WarehouseShips(val kind: Int, val units: Int, val boats: Int)
     /** 0041a870/0041aff0: ships carry units/boats; troops carry grade/units. */
@@ -140,25 +142,26 @@ object WorldMessages {
         }
     }
     private fun commands(card: Int) = when (card) {
-        0 -> listOf(82, 83)
-        59, 195 -> listOf(43, 44, 45, 60)
+        0 -> listOf(14, 82, 83, 84, 96)
+        59, 195 -> listOf(43, 44, 45, 48, 50, 52, 53, 54, 55, 56, 60, 61, 85)
         54 -> listOf(5,6,7,30)
-        2,3,17,134,161,169,171 -> listOf(5,6,7)
+        2,3,17,134,135,161,169,171 -> listOf(5,6,7)
         190,192 -> listOf(7,30)
-        39,175 -> listOf(5,6,7,63,64)
+        39,175 -> listOf(5,6,7,61,63,64)
         40,41,42,43,176,177,178,179 -> listOf(7)
-        44,180 -> listOf(7,62,63,64)
-        47,50,183,186 -> listOf(7,63,64)
+        44,180 -> listOf(7,61,62,63,64)
+        47,50,183,186 -> listOf(7,61,63,64)
         52,55,56,57,188,191,193 -> listOf(7)
         24,25,150 -> listOf(67)
         else -> emptyList()
     }
+    fun commandsForCard(card:Int):List<Int> = commands(card)
     /** 0040f9f0: card kind, command list, three raw bit-mask fields. */
-    fun captainCommands() = body {
+    fun captainCommands(overrides:Map<Int,List<Int>> = emptyMap()) = body {
         writeShort(261)
         for (card in 0..260) {
             writeShort(card)
-            val commands = commands(card)
+            val commands = overrides[card] ?: commands(card)
             writeByte(commands.size)
             commands.forEach { command ->
                 writeShort(command)
@@ -167,16 +170,32 @@ object WorldMessages {
         }
     }
     /** The client indexes the card catalogue by card kind, rather than searching a sparse list. */
-    fun cards() = body {
+    data class CardDefinition(val kind:Int,val power:Int,val camp:Int,val institution:Int,val authority:Int,
+        val lowestRank:Int,val highestRank:Int,val commands:List<Int>)
+    fun cards(overrides:Map<Int,CardDefinition> = emptyMap()) = body {
         writeShort(261)
         for (card in 0..260) {
-            val power = when (card) { 2,3,17,24,25,54,59,39,40,41,42,43,44,47,50,52,55,56,57 -> 2; 134,150,161,169,171,190,195,175,176,177,178,179,180,183,186,188,191,192,193 -> 3; else -> 0 }
+            val definition=overrides[card]
+            if(definition!=null) {
+                require(definition.kind==card && definition.power in 2..3 && definition.camp in 0..1 &&
+                    definition.institution in 0..25 && definition.authority in 0..260 &&
+                    definition.lowestRank in 0..20 && definition.highestRank in 0..20 && definition.commands.size<=255)
+                writeShort(card);writeByte(1);writeByte(definition.power);writeByte(definition.camp);writeByte(definition.institution)
+                writeShort(definition.authority);writeShort(0);writeByte(definition.lowestRank);writeByte(definition.highestRank)
+                writeByte(0);writeShort(0);writeByte(0);writeShort(0);writeByte(definition.commands.size)
+                definition.commands.forEach(::writeShort)
+                continue
+            }
+            val power = when (card) { 2,3,17,24,25,54,59,39,40,41,42,43,44,47,50,52,55,56,57 -> 2; 134,135,150,161,169,171,190,195,175,176,177,178,179,180,183,186,188,191,192,193 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0)
             // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
             writeByte(when(card) {
                 // Card institutions use constmsg group 4, not physical facilities in group 73.
-                2,3 -> 0; 169,171 -> 5; 17 -> 3; 134 -> 20; 161 -> 23
+                // 0x4c8d50 returns no name for >= 0xff, so 004f5d50 shows the card alone
+                // instead of "皇宮 : 艦長" for personal/captain cards that belong to no institution.
+                0,59,195 -> NO_INSTITUTION
+                2,3 -> 0; 169,171 -> 5; 17 -> 3; 134,135 -> 20; 161 -> 23
                 24,25 -> 4; 150 -> 21
                 54,55,190,191 -> 16
                 56,57,192,193 -> 17
@@ -188,13 +207,13 @@ object WorldMessages {
                 else -> 0
             })
             // 004c9140: parent appointment-authority card, not a faction ID.
-            writeShort(when(card) { 3 -> 2; 169 -> 161; 171 -> 169; 40 -> 17; 41 -> 3; 42,43 -> 39; 175,176 -> 169; 177,178 -> 171; 179 -> 175; 54 -> 6; 55 -> 54; 52 -> 51; 56 -> 2; 39,57 -> 17;
+            writeShort(when(card) { 3 -> 2; 169 -> 135; 171 -> 169; 40 -> 17; 41 -> 3; 42,43 -> 39; 175,176 -> 169; 177,178 -> 171; 179 -> 175; 54 -> 6; 55 -> 54; 52 -> 51; 56 -> 2; 39,57 -> 17;
                 188 -> 187; 192 -> 134; 193 -> 161; 24,25 -> 22; 150 -> 147; else -> 0 }); writeShort(0)
             val governor=card==54 || card==190 || card==192
             val garrison=card in setOf(52,55,188,191)
             // First is the lowest eligible rank (0057a080), not the lowest numeric index.
-            writeByte(when { governor || card==134 -> 1; garrison -> 10; card in setOf(24,150) -> 4; card in setOf(40,41,175) -> 6; card in setOf(176,177) -> 7; card in setOf(42,178) -> 11; card in setOf(43,179) -> 12; card==171 -> 5; card in setOf(3,169) -> 2; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
-            writeByte(if(governor || card==134)1 else if(garrison || card in setOf(2,3,17,24,25,39,40,41,42,43,169,171,175,176,177,178,179,150,56,57,161,193))2 else 20); writeByte(0)
+            writeByte(when { governor || card in setOf(134,135) -> 1; garrison -> 10; card in setOf(24,150) -> 4; card in setOf(40,41,175) -> 6; card in setOf(176,177) -> 7; card in setOf(42,178) -> 11; card in setOf(43,179) -> 12; card==171 -> 5; card in setOf(3,169) -> 2; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
+            writeByte(if(governor || card in setOf(134,135))1 else if(garrison || card in setOf(2,3,17,24,25,39,40,41,42,43,169,171,175,176,177,178,179,150,56,57,161,193))2 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)
@@ -212,7 +231,17 @@ object WorldMessages {
         val armorFront: Int, val armorSide: Int, val armorBack: Int, val shield: Int, val shieldCapacity: Int,
         val beam: Int, val gun: Int, val missile: Int, val antiaircraft: Int, val repair: Int,
         val category: Int = 0, val number: Int = 1, val term: Int = 0, val crew: Int = 0,
-        val missileConsumption: Int = 0, val fighterNumber: Int = 0, val cargo: Int = 0)
+        val missileConsumption: Int = 0, val fighterNumber: Int = 0, val cargo: Int = 0,
+        val beamArms: Int = 0, val beamAngles: Int = 0, val gunArms: Int = 0, val gunAngles: Int = 0,
+        val missileArms: Int = 0, val missileAngles: Int = 0, val antiaircraftArms: Int = 0,
+        val commandRange:Float=0f)
+    /** 00412eb0/004c5140: fixed 27 profiles, eight signed short samples each, no count/padding. */
+    fun armaments(profiles: List<List<Int>>): ByteArray {
+        require(profiles.size == 27 && profiles.all { it.size == 8 && it.all { value -> value in Short.MIN_VALUE..Short.MAX_VALUE } })
+        return java.nio.ByteBuffer.allocate(432).also { out ->
+            profiles.forEach { profile -> profile.forEach { out.putShort(it.toShort()) } }
+        }.array()
+    }
     /** 004109a0/00411a60: kind, class and model_file are distinct fields. */
     fun ships(ships: List<Ship>) = body {
         require(ships.size <= 200 && ships.map { it.kind }.distinct().size == ships.size)
@@ -224,6 +253,13 @@ object WorldMessages {
             require(ship.model in 0..49 || ship.model in 1000..1049 ||
                 ship.model in 2000..2009 || ship.model in 3000..3009)
             require(ship.searchRange.isFinite() && ship.searchRange >= 0 && ship.speed.isFinite() && ship.speed > 0)
+            require(ship.commandRange.isFinite() && ship.commandRange>=0)
+            // 004c7820: 0xff means absent; 0..26 indexes the separate 0311 ability table.
+            // A zero profile index is NOT a zero weapon count.
+            require(listOf(ship.beamArms, ship.gunArms, ship.missileArms)
+                .all { it in 0..26 || it == 255 })
+            require(ship.antiaircraftArms in 0..255) // Its lookup path is not yet recovered.
+            require(listOf(ship.beamAngles, ship.gunAngles, ship.missileAngles).all { it in 0..63 })
             require(listOf(ship.outputPower, ship.armorFront, ship.armorSide, ship.armorBack, ship.shield,
                 ship.shieldCapacity, ship.beam, ship.gun, ship.missile, ship.antiaircraft, ship.repair,
                 ship.term, ship.crew, ship.missileConsumption, ship.fighterNumber, ship.cargo).all { it in 0..65535 })
@@ -232,15 +268,16 @@ object WorldMessages {
             writeShort(ship.number); writeInt(0) // price has not been recovered
             writeShort(0); writeShort(0); writeShort(ship.term); writeShort(0); writeShort(ship.crew)
             writeShort(ship.outputPower)
-            writeFloat(0f); writeFloat(ship.searchRange)
+            // 004c32a0 reads constmsg +0x254 as maximum CRC; zero clamps the original to 1.6.
+            writeFloat(ship.commandRange); writeFloat(ship.searchRange)
             repeat(13) { writeShort(0) } // sensor profile, evasion, navigation
             writeFloat(ship.speed); writeFloat(1f) // turning rate is provisional
             listOf(ship.armorFront, ship.armorBack, ship.armorSide, ship.shield, ship.shieldCapacity).forEach(::writeShort)
-            // Weapon counts and arcs remain unresolved; do not invent a combat fit.
-            writeByte(0); writeShort(ship.beam); writeByte(0)
-            writeByte(0); writeShort(ship.gun); writeByte(0)
-            writeByte(0); writeShort(ship.missile); writeByte(0); writeShort(ship.missileConsumption)
-            writeByte(0); writeShort(ship.antiaircraft)
+            // Profile assignments and six-sector masks are separate from destructive power.
+            writeByte(ship.beamArms); writeShort(ship.beam); writeByte(ship.beamAngles)
+            writeByte(ship.gunArms); writeShort(ship.gun); writeByte(ship.gunAngles)
+            writeByte(ship.missileArms); writeShort(ship.missile); writeByte(ship.missileAngles); writeShort(ship.missileConsumption)
+            writeByte(ship.antiaircraftArms); writeShort(ship.antiaircraft)
             writeShort(0); writeShort(ship.fighterNumber); writeShort(ship.cargo); writeShort(ship.repair); writeShort(0)
         }
     }

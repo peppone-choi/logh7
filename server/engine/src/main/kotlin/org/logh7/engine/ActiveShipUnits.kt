@@ -4,8 +4,17 @@ import java.util.Collections
 
 /** Commissioned unit identity, not a ship-kind ID or a personal flagship ID. Author: 최병호. */
 data class ActiveShipUnit(val id: Int, val stack: UnitStack,
-    val boats: Int = UnitSpecifications.ships.single { it.kind == stack.kind }.number) {
-    init { require(id in 1..999_999 && boats in 0..UnitSpecifications.ships.single { it.kind == stack.kind }.number) }
+    val boats: Int = UnitSpecifications.ships.single { it.kind == stack.kind }.number,
+    val tactical: NpcTacticalState? = null, val supplies: Int? = null,
+    val damaged: Int = 0, val support: TacticalSupportOrder? = null, val motionCommander: Int = 0,
+    val attack:TacticalUnitAttack?=null,val shot:TacticalUnitShot?=null,val reload:TacticalReload?=null,
+    val posture:TacticalPosture?=null) {
+    /** Native damage is cumulative unavailable boats: destroyed plus surviving damaged boats. */
+    val unavailable: Int get() = UnitSpecifications.ships.single {it.kind==stack.kind}.number - boats + damaged
+    init { require(id in 1..999_999 && boats in 0..UnitSpecifications.ships.single { it.kind == stack.kind }.number &&
+        motionCommander>=0 && (motionCommander==0 || tactical!=null) && (attack==null || tactical!=null) &&
+        (shot==null || tactical!=null && attack==null) && damaged in 0..boats && (support == null || support.target != id) &&
+        (supplies == null || supplies in 0..OutfitSupplies.unitCapacity(stack.kind))) }
 }
 
 class ActiveShipUnits(values: List<ActiveShipUnit>) {
@@ -35,7 +44,7 @@ object ActiveShips {
     }
     fun initialize(stocks: PlanetStocks): PlanetStocks {
         val missing = stocks.outfits.values.filter { it.activeShips == null }.sortedBy { it.id }
-        if (missing.isEmpty()) return stocks
+        if (missing.isEmpty()) return GroundUnits.initialize(stocks)
         missing.forEach { checkCapacity(it.units) }
         val count = missing.sumOf { it.units.ships.values.sumOf(Int::toLong) }
         require(count <= 1_000_000L - stocks.nextShipId) { "Active ship identity space exhausted" }
@@ -49,7 +58,7 @@ object ActiveShips {
             }
             outfits[outfit.id] = outfit.copy(activeShips = ActiveShipUnits(ships))
         }
-        return stocks.copy(outfits = outfits, nextShipId = cursor)
+        return GroundUnits.initialize(stocks.copy(outfits = outfits, nextShipId = cursor))
     }
 
     fun reorganize(stocks: PlanetStocks, outfitId: Int, inventory: UnitInventory): PlanetStocks {
@@ -69,7 +78,10 @@ object ActiveShips {
                 repeat(quantity - retained.size) { add(ActiveShipUnit(cursor++, stack)) }
             }
         }
-        val changed = outfit.copy(units = inventory, activeShips = ActiveShipUnits(units))
+        val roster=ActiveShipUnits(units)
+        val (ground,next)=GroundUnits.reorganize(outfit,inventory,roster,cursor)
+        cursor=next
+        val changed = outfit.copy(units = inventory, activeShips = roster,activeGround=ground)
         return stocks.copy(outfits = stocks.outfits + (outfitId to changed), nextShipId = cursor)
     }
 }

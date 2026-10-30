@@ -18,7 +18,7 @@ class UnitSpecificationsWireTest {
             val client=fixture.join(fixture.account(0),true,false).client
             val ships=ByteBuffer.wrap(client.request(SyntheticClient.opcode(0x030a),0x030b,"ships"))
             ships.position(6); val count=ships.get().toInt() and 255
-            assertEquals(112,count)
+            assertEquals(114,count)
             val sizes=buildMap {
                 repeat(count) {
                     val start=ships.position(); val kind=ships.short.toInt() and 65535
@@ -27,6 +27,18 @@ class UnitSpecificationsWireTest {
                     ships.short; assertEquals(definition.model,ships.short.toInt())
                     val length=ships.get().toInt() and 255; ships.position(ships.position()+length*2)
                     put(kind,ships.short.toInt() and 65535)
+                    val beam=TacticalArmaments.mount(definition,TacticalWeapon.BEAM)
+                    val gun=TacticalArmaments.mount(definition,TacticalWeapon.GUN)
+                    val missile=TacticalArmaments.mount(definition,TacticalWeapon.MISSILE)
+                    // Native wire offsets from record start, excluding its variable UTF-16 name.
+                    val weapons=start+79+length*2
+                    assertEquals(beam.profile,ships.get(weapons).toInt() and 255)
+                    assertEquals(beam.power,ships.getShort(weapons+1).toInt() and 65535)
+                    assertEquals(beam.angles,ships.get(weapons+3).toInt() and 255)
+                    assertEquals(gun.profile,ships.get(weapons+4).toInt() and 255)
+                    assertEquals(gun.angles,ships.get(weapons+7).toInt() and 255)
+                    assertEquals(missile.profile,ships.get(weapons+8).toInt() and 255)
+                    assertEquals(missile.angles,ships.get(weapons+11).toInt() and 255)
                     ships.position(start+106+length*2)
                 }
             }
@@ -38,6 +50,12 @@ class UnitSpecificationsWireTest {
                 repeat(11) { val at=crews.position(); add(crews.short.toInt() and 65535); crews.position(at+22) }
             }
             assertEquals((1000..1010).toSet(),kinds); assertFalse(crews.hasRemaining())
+            val arms=ByteBuffer.wrap(client.request(SyntheticClient.opcode(0x0310),0x0311,"armaments"))
+            assertEquals(438,arms.limit()); arms.position(6)
+            val profiles=List(27) { List(8) { arms.short.toInt() } }
+            assertEquals(TacticalArmaments.profiles,profiles)
+            assertTrue(profiles[0].any {it>0} && profiles[1].any {it>0} && profiles[2].all {it>0})
+            assertFalse(arms.hasRemaining())
         }
     }
 }

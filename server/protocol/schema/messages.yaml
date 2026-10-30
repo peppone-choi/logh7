@@ -131,3 +131,25 @@ messages:
     opcode: 0x1208
   - name: NotifySimpleInformationCardAvailableBaseSeat
     opcode: 0x120d
+  - name: RequestInformationMailAddress
+    opcode: 0x0f04
+  - name: ResponseInformationMailAddress
+    opcode: 0x0f05
+  - name: TransactionInformationMailBegin
+    opcode: 0x0f08
+  - name: TransactionInformationMailEnd
+    opcode: 0x0f09
+  - name: InformationMail
+    opcode: 0x0f0a
+  - name: CommandExchangeMailAddress
+    opcode: 0x0f0b
+  - name: CommandDeleteMailAddress
+    opcode: 0x0f0c
+  - name: CommandSendMail
+    opcode: 0x0f10
+  - name: CommandReadMail
+    opcode: 0x0f11
+  - name: CommandDeleteMail
+    opcode: 0x0f12
+  - name: NotifyInvalidMessage
+    opcode: 0x0500

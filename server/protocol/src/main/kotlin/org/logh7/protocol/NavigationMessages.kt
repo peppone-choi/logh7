@@ -35,8 +35,8 @@ object NavigationMessages {
     fun rejected(command: Warp, seconds: Long = 0, pcp: Int = 0, mcp: Int = 0): ByteArray = reply(command, seconds, pcp, mcp).also {
         ByteBuffer.wrap(it).putInt(0, 1) // Existing S2C result field precedes the opcode.
     }
-    fun grid(index: Int): ByteArray {
+    fun grid(index: Int, tactical: Boolean = false): ByteArray {
         require(index in 0..4999)
-        return LoginMessages.sessionMessage(MessageId.ResponseInformationGrid.opcode, ByteBuffer.allocate(3).putShort(index.toShort()).put(0).array())
+        return LoginMessages.sessionMessage(MessageId.ResponseInformationGrid.opcode, ByteBuffer.allocate(3).putShort(index.toShort()).put(if(tactical)1 else 0).array())
     }
 }

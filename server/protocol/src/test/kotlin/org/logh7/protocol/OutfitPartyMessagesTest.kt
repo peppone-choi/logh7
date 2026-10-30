@@ -62,6 +62,10 @@ class OutfitPartyMessagesTest {
         assertEquals(1049,b.int); assertEquals(100,b.get().toInt()); assertEquals(0,b.get().toInt())
         assertEquals(0,b.short.toInt()); assertEquals(0,b.short.toInt()); assertEquals(0,b.int); assertEquals(0,b.int); assertEquals(0f,b.float)
         assertFalse(b.hasRemaining())
+        val damaged=ByteBuffer.wrap(OutfitPartyMessages.units(listOf(
+            OutfitPartyMessages.UnitInformation(101,32,2487,1,0,400,80,50))))
+        assertEquals(80,damaged.getShort(27).toInt());assertEquals(50,damaged.getShort(29).toInt())
+        assertFails {OutfitPartyMessages.units(listOf(OutfitPartyMessages.UnitInformation(101,32,2487,1,0,damaged=30,destroyed=50)))}
     }
     @Test fun requestsRequireExactLengthsAndRepliesRejectNativeOverrunsAndDuplicateIds() {
         val query = ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(1049).put(255.toByte()).array()
@@ -78,4 +82,28 @@ class OutfitPartyMessagesTest {
         assertFails { party(List(61) { OutfitPartyMessages.Ships(32,300,listOf(it+1)) }) }
         assertFails { party(listOf(OutfitPartyMessages.Ships(32,65536,listOf(1)))) }
     }
+    @Test fun groundUnitInformationKeepsRealCarrierBaseAndUnknownStateWithoutInventingAPlacement() {
+        val rows=listOf(OutfitPartyMessages.UnitInformation(2,1000,2487,1,0,carrier=1,mode=10),
+            OutfitPartyMessages.UnitInformation(3,1001,2488,1,1050,mode=9),
+            OutfitPartyMessages.UnitInformation(4,1000,2487,1,0,mode=0))
+        val bytes=OutfitPartyMessages.units(rows);assertEquals(127,bytes.size)
+        val b=ByteBuffer.wrap(bytes);assertEquals(3,b.get().toInt())
+        for(u in rows) {
+            assertEquals(u.id,b.int);assertEquals(u.kind,b.short.toInt());assertEquals(u.mode,b.get().toInt())
+            assertEquals(u.grid,b.int);assertEquals(u.outfit,b.int);assertEquals(u.carrier,b.int)
+            assertEquals(0,b.get().toInt());assertEquals(u.base,b.int);b.position(b.position()+18)
+        }
+        assertFalse(b.hasRemaining())
+        for(u in listOf(rows[0].copy(base=1049),rows[0].copy(carrier=2),rows[1].copy(mode=10),rows[2].copy(mode=4)))
+            assertFails {OutfitPartyMessages.units(listOf(u))}
+        assertFails {OutfitPartyMessages.units(List(71){rows[0].copy(id=it+100)})}
+    }
+    @Test fun groundPageExtensionHasAnExplicitModeAndFullIdentityCursor() {
+        val q=ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(999999).put(2).array()
+        assertEquals(999999,OutfitPartyMessages.query(q).base)
+        assertFails {OutfitPartyMessages.query(q.copyOf().also {it[10]=0})}
+        val marker=OutfitPartyMessages.party(OutfitPartyMessages.Query(1,999999,2),2,0,1,emptyList(),emptyList(),0,0)
+        assertEquals(999999,ByteBuffer.wrap(marker).getInt(4));assertEquals(2,marker[8].toInt())
+    }
+
 }

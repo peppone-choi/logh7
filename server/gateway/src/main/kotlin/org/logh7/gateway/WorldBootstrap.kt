@@ -13,29 +13,42 @@ import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
+    private val officeCards=org.logh7.engine.OrganizationOffices.all.mapValues {(_,role)->
+        val commands=buildList {
+            addAll(WorldMessages.commandsForCard(role.card).filter {it !in 25..26})
+            if(org.logh7.engine.OutfitFormationPolicy.kinds(role.card).isNotEmpty())addAll(listOf(25,26))
+            if(role.card in org.logh7.engine.CivicActions.commandingCards)addAll(listOf(52,54,56))
+            when(role.card) {
+                8,136->addAll(listOf(16,18))
+                1->addAll(listOf(0,1,2,3,8,9))
+                17,135->addAll(listOf(0,1,2,4))
+                19,160->addAll(listOf(0,1,2))
+                24,25,26,147,148,149->addAll(listOf(22,23))
+                28,29,30,169,170,171->add(24)
+            }
+            if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
+            add(7)
+        }.distinct()
+        WorldMessages.CardDefinition(role.card,role.power,role.camp,role.institution,role.authority ?: 0,
+            role.ranks.max(),role.ranks.min(),commands)
+    }.plus(((60..66).toList()+(124..130).toList()).associateWith {card ->
+        WorldMessages.CardDefinition(card,2,if(card>=124)1 else 0,if(card in setOf(66,130))16 else 0,1,20,0,
+            if(card in setOf(66,130))listOf(11) else emptyList())
+    })
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices=org.logh7.engine.LogisticsOfficePolicy(galaxy)
     /** Stored base offices, never inferred from the viewer or a stationed outfit. */
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
-        val national=org.logh7.engine.NationalOffice.of(card)
-        val logistics=org.logh7.engine.LogisticsOffice.of(card)
-        val fleetRole=FleetOffice.of(card)
-        require(national!=null || logistics!=null || fleetRole!=null || card in setOf(52,54,55,56,57,188,190,191,192,193)) { "Unsupported public office roster" }
-        val power=national?.power ?: logistics?.power ?: if (card<136) 2 else 3
-        val baseHolders=stocks.bases.values.filter { it.power==power && it.camp==0 }.flatMap { base ->
-            val id=baseOffices.holders(base)[card] ?: return@flatMap emptyList()
-            listOf(id to BootstrapMessages.OfficeCard(card,base.baseId))
-        }
-        val nationalHolders=if(national!=null && national.active(galaxy,stocks)) stocks.nationalOffices[national]?.let {
-            listOf(it to BootstrapMessages.OfficeCard(card,checkNotNull(national.seat(galaxy)))) }.orEmpty() else emptyList()
-        val logisticsHolders=if (logistics==null) emptyList() else stocks.logisticsOfficers.entries
-            .filter { it.value==logistics }.flatMap { (id,_) ->
-                logisticsOffices.cards(stocks,id,power).map { (kind,seat) -> id to BootstrapMessages.OfficeCard(kind,seat) } }
-        val fleetHolders=if(fleetRole!=null) stocks.outfits.values.filter {
-            it.power==power && it.kind==org.logh7.engine.OutfitKind.FLEET
-        }.flatMap {outfit ->fleetRole.holders(outfit).map {it to BootstrapMessages.OfficeCard(card,outfit.id)}} else emptyList()
-        val appointed=(baseHolders+nationalHolders+logisticsHolders+fleetHolders).groupBy({it.first},{it.second}).toSortedMap()
+        val role=org.logh7.engine.OrganizationOffices.of(card)
+        require(role!=null || org.logh7.protocol.OfficeCardKinds.isPeerage(card) || org.logh7.protocol.OfficeCardKinds.isFief(card))
+        val power=role?.power ?: 2
+        val policy=org.logh7.engine.OrganizationalOfficePolicy(galaxy)
+        val holdings=if(role!=null)policy.holders(stocks,card).map {holding ->holding.character to
+            BootstrapMessages.OfficeCard(card,policy.target(role,holding.seat))} else if(card in 60..65)
+            stocks.strategic.people.filterValues {it.peerage?.ordinal==card-60}.keys.map {it to BootstrapMessages.OfficeCard(card,0)}
+        else if(card==66)stocks.strategic.fiefs.map {(base,owner)->owner to BootstrapMessages.OfficeCard(66,base)} else emptyList()
+        val appointed=holdings.groupBy({it.first},{it.second}).toSortedMap()
         if(appointed.size>64) return org.logh7.protocol.CardCharacterMessages.response(card,emptyList(),failed=true)
         require(appointed.values.all { it.size<=14 }) { "Office cards exceed CD capacity" }
         val records=appointed.map { (id,offices) ->
@@ -48,13 +61,14 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun outfitParty(query: OutfitPartyMessages.Query, power: Int, stocks: org.logh7.engine.PlanetStocks,
         editor: Int = 0, characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate? = { null }): ByteArray {
         require(query.mode in 0..1) { "Unsupported outfit roster query mode" }
-        val outfit = requireNotNull(stocks.outfits[query.outfit]) { "Unknown outfit" }
+        val outfit = stocks.outfits[query.outfit] ?: return LoginMessages.sessionMessage(0x032f,
+            OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0))
         val position = outfit.positionIn(galaxy)
         require(outfit.power == power && (query.base == 0 || query.base == position.baseId)) { "Outfit identity mismatch" }
         val owner=stocks.bases.getValue(outfit.baseId)
         val allocator=editor>0 && stocks.logisticsOfficers[editor]?.permits(power,outfit.kind)==true &&
             owner.power==power && owner.camp==0
-        require(query.mode == 0 || editor > 0 &&
+        require(query.mode == 0 || owner.power == power && owner.camp == 0 && editor > 0 &&
             (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId || allocator && query.base == 0)) {
             "Only the stationed commander or authorized allocator may open the editor"
         }
@@ -72,9 +86,28 @@ class WorldBootstrap(val galaxy: Galaxy) {
         }
         val troops = outfit.units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { OutfitPartyMessages.Troops(1000+it.key.kind,it.key.level,it.value) }
-        val maximum = org.logh7.engine.OutfitSupplies.capacity(outfit.units)
+        val maximum = org.logh7.engine.OutfitSupplies.visibleCapacity(outfit)
         return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=if(query.mode==1)outfit.baseId else position.baseId),power,
             outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum,members))
+    }
+    /** Explicit revival query mode 2: original 0331 rows, at most 70 ground identities after the cursor.
+     * No command or CP mutation; actual saved carriers, remote bases and unresolved legacy locations survive. */
+    fun outfitGround(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks):List<ByteArray> {
+        require(query.mode==2 && query.base in 0..999999)
+        val outfit=stocks.outfits[query.outfit] ?: return listOf(LoginMessages.sessionMessage(0x032f,
+            OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0)),
+            LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(emptyList())))
+        require(outfit.power==power) {"Ground location access denied"}
+        val position=outfit.positionIn(galaxy)
+        val rows=outfit.activeGround?.values.orEmpty().filter {it.id>query.base}.sortedBy {it.id}.take(70).map {u->
+            val grid=if(u.base>0)galaxy.bases.single {it.id==u.base}.grid else position.grid
+            OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,grid,outfit.id,u.base,carrier=u.carrier,
+                mode=if(u.carrier>0)10 else if(u.base>0)if(u.origin>0)9 else 4 else 0)
+        }
+        // Echo the extension identity/cursor before 0331, including an empty page. This
+        // prevents an unrelated or delayed native unit reply from satisfying the page.
+        return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,outfit.kind.wire,
+            outfit.number,emptyList(),emptyList(),0,0)),LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
     }
     fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
         val outfit = stocks.outfits.values.singleOrNull { owner -> owner.activeShips?.values?.any { it.id == id } == true }
@@ -83,7 +116,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             require(outfit.power == power && (base == 0 || base == position.baseId)) { "Outfit unit access denied" }
             val unit = outfit.activeShips!!.values.single { it.id == id }
             listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,position.baseId,
-                org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id)))
+                org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id),unit.unavailable,
+                UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number-unit.boats))
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
     }
@@ -112,8 +146,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
         units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { LogisticsMessages.TroopStock(1000+it.key.kind,it.key.level,it.value) })
     fun outfitWarehouse(base: Int, outfitId: Int, character: Int, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
-        val outfit = requireNotNull(stocks.outfits[outfitId]) { "Unknown outfit" }
+        val outfit = stocks.outfits[outfitId] ?: return LoginMessages.sessionMessage(0x0327,
+            WorldMessages.warehouse(base,0,0,0,outfit=outfitId))
         require(outfit.baseId == base && outfit.power == power) { "Outfit warehouse identity mismatch" }
+        val owner = stocks.bases.getValue(base)
+        require(owner.power == power && owner.camp == 0) { "Outfit warehouse base access denied" }
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         val commandsSharedWarehouse = stocks.outfits.values.any { it.warehouseId == warehouse.id && it.commanderId == character }
         require(character > 0 && (commandsSharedWarehouse || stocks.logisticsOfficers[character]?.permits(power,outfit.kind) == true)) {
@@ -133,7 +170,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             stored?.food ?: state.food, stored?.mineral ?: 100_000, warehouseShips(stored?.units?.ships,stored?.spareShips?.values.orEmpty()), entries(stored?.units?.troops)))
     }
     internal fun baseWire(base: org.logh7.engine.GalaxyBase) = WorldMessages.Base(base.id, base.grid,
-        base.model, base.kind, base.name, base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
+        base.model, base.kind, KoreanDisplayNames.base(base.name), base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
     fun initialize(grid: Int, directory: Boolean = false, stocks: org.logh7.engine.PlanetStocks? = null): List<ByteArray> {
         val ids = galaxy.bases.filter { it.grid == grid }.map { it.id }
         // 004b76e0 builds the native standing-outfit cache after initialization
@@ -143,7 +180,13 @@ class WorldBootstrap(val galaxy: Galaxy) {
         } else emptyList()) + (stocks?.let { state -> state.outfits.values
             .filter { it.positionIn(galaxy).grid == grid }.sortedBy { it.id }.map { it.id }
             .chunked(100).ifEmpty { listOf(emptyList()) }.map { outfits(it,state) } }.orEmpty()) +
-            listOf(conditions(ids, stocks), places(ids))
+            // Ownership is public map state. The original 031f cache holds only four
+            // records; the compatibility map keeps each decoded base independently.
+            // Resend all current owners on login, not the seed's original system power.
+            (if (directory) galaxy.bases.map { it.id }.chunked(4).map { conditions(it,stocks) }
+                else emptyList()) +
+            // Restore the native four-record current-grid cache after the map snapshot.
+            listOf(conditions(ids,stocks), places(ids, stocks))
     }
     fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
         WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
@@ -154,9 +197,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 stored?.taxRate ?: it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
                 stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)
         }))
-    fun places(ids: List<Int>): ByteArray = LoginMessages.sessionMessage(0x0321,
+    fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->
-            WorldMessages.BaseInstitutions(base.id, galaxy.facilities.getValue(base.id).map { facility ->
+            WorldMessages.BaseInstitutions(base.id, galaxy.facilitiesAt(base.id, stocks).map { facility ->
                 WorldMessages.Institution(facility.kind, facility.id, facility.spots.map {
                     WorldMessages.Spot(it.kind, it.id, it.image)
                 })
@@ -168,13 +211,17 @@ class WorldBootstrap(val galaxy: Galaxy) {
         }),
         0x0314 to WorldMessages.grid(galaxy.cells),
         0x031c to WorldMessages.bases(galaxy.bases.map(::baseWire)),
-        0x0306 to WorldMessages.captainCommands(),
-        0x0304 to WorldMessages.cards(),
+        0x0306 to WorldMessages.captainCommands(officeCards.mapValues {it.value.commands}),
+        0x0304 to WorldMessages.cards(officeCards),
         0x0308 to WorldMessages.powerDirection(),
+        0x0310 to WorldMessages.armaments(org.logh7.engine.TacticalArmaments.profiles),
         0x030a to WorldMessages.ships(UnitSpecifications.ships.map { ship ->
+            val beam = org.logh7.engine.TacticalArmaments.mount(ship, org.logh7.engine.TacticalWeapon.BEAM)
+            val gun = org.logh7.engine.TacticalArmaments.mount(ship, org.logh7.engine.TacticalWeapon.GUN)
+            val missile = org.logh7.engine.TacticalArmaments.mount(ship, org.logh7.engine.TacticalWeapon.MISSILE)
             // 004c5d50/00533980 use native +0x21e as the shared 0..19
             // class index, not the provisional hull-role IDs in ship.type.
-            WorldMessages.Ship(ship.kind, ship.category, ship.model, ship.name,
+            WorldMessages.Ship(ship.kind, ship.category, ship.model, KoreanDisplayNames.catalogue(ship.name),
                 ship.number("出力:出力"), ship.number("索敵範囲（万km）:索敵範囲（万km）").toFloat(),
                 ship.number("最高速度（km/1G秒）:最高速度（km/1G秒）").toFloat(),
                 ship.number("装甲:前"), ship.number("装甲:側"), ship.number("装甲:後"),
@@ -187,7 +234,10 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 crew = ship.number("必要乗組員ユニット数:必要乗組員ユニット数"),
                 missileConsumption = ship.number("ミサイル兵装破壊力/消費物資:ミサイル兵装破壊力/消費物資", 1),
                 fighterNumber = ship.number("戦闘艇/雷撃艇搭載数:戦闘艇/雷撃艇搭載数"),
-                cargo = ship.number("物資搭載量:物資搭載量"))
+                cargo = ship.number("物資搭載量:物資搭載量"),
+                beamArms = beam.profile, beamAngles = beam.angles, gunArms = gun.profile, gunAngles = gun.angles,
+                missileArms = missile.profile, missileAngles = missile.angles,
+                commandRange=if(ship.number==1)org.logh7.engine.TacticalSupportRules.COMMAND_RANGE else 0f)
         }),
         0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->
             WorldMessages.Crew(crew.kind, crew.category, crew.category, crew.manual.training,

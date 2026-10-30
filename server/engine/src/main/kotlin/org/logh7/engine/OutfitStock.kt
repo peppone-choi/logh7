@@ -42,7 +42,8 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
     val warehouseId: Int, val commanderId: Int = 0, val units: UnitInventory = UnitInventory(),
     val number: Int = 0, val supplies: Int = 0,
     val activeShips: ActiveShipUnits? = if (units.ships.isEmpty()) ActiveShipUnits(emptyList()) else null,
-    val aideId: Int = 0, val staff: FleetStaff = FleetStaff(), val position: OutfitPosition? = null) {
+    val aideId: Int = 0, val staff: FleetStaff = FleetStaff(), val position: OutfitPosition? = null,
+    val activeGround:ActiveGroundUnits?=null, val strategy:NpcStrategicState?=null) {
     init {
         require(id > 0 && power in 2..3 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
         require(number in 0..255 && supplies >= 0)
@@ -53,6 +54,11 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
         require(units.work.isEmpty()) { "An outfit cannot own a production line" }
         require(position == null || kind != OutfitKind.GROUND || position.baseId != 0)
         require(activeShips == null || activeShips.quantities() == units.ships) { "Outfit ship identities differ from inventory" }
+        require(activeGround==null || activeGround.quantities()==GroundUnits.quantities(units)) {"Outfit ground identities differ from inventory"}
+        require(activeGround?.values.orEmpty().all {u->
+            UnitSpecifications.crews.single {it.kind==u.stack.kind}.power==power &&
+                (u.carrier==0 || activeShips?.values?.any {it.id==u.carrier && it.boats>0}==true)
+        }) {"Invalid ground carrier or faction"}
     }
 }
 

@@ -67,6 +67,19 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val channels = mutableListOf<Channel>()
     private val clients = DefaultChannelGroup(GlobalEventExecutor.INSTANCE, true)
     private val closed = AtomicBoolean()
+    private var tacticalEndSubscription: AutoCloseable? = null
+    private var combatSubscription: AutoCloseable? = null
+    private var movementSubscription: AutoCloseable? = null
+    private var strategicMovementSubscription: AutoCloseable? = null
+    private var occupationSubscription:AutoCloseable?=null
+    private var groundBattleSubscription:AutoCloseable?=null
+    private var groundSubscription:AutoCloseable?=null
+    private var postureSubscription:AutoCloseable? = null
+    private var tacticalCommandSubscription:AutoCloseable? = null
+    private var supportSubscription: AutoCloseable? = null
+    private var civicSubscription:AutoCloseable?=null
+    private var budgetSubscription:AutoCloseable?=null
+    private var communication:GameCommunication?=null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
     fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress,
@@ -76,8 +89,39 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
+        tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
+        movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
+        civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
+        budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
+            {generation,id->communicationIdentity(characterStores.get(generation),id)},
+            {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},
+            {generation->communicationStore(characterFile,generation)})}
+        strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
+            navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
+        }}
+        combatSubscription = presence?.let { p -> navigation!!.observeCombat { impact ->
+            navigation.snapshot()?.let { snapshot -> p.combat(impact,snapshot,world!!.galaxy,currentCharacters()::characterById) }
+        }}
+        occupationSubscription=presence?.let {p->navigation!!.observeOccupations {event->
+            navigation.snapshot()?.let {snapshot->p.occupation(event,snapshot,world!!,currentCharacters()::characterById,
+                {id,power,generation->administration?.offices(id,power,generation).orEmpty()})}
+        }}
+        groundBattleSubscription=presence?.let {p->navigation!!.observeGroundBattles {event->
+            navigation.snapshot()?.let {snapshot->p.groundBattle(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
+        }}
+        groundSubscription=presence?.let {p->navigation!!.observeGround {event->
+            navigation.snapshot()?.let {snapshot->p.ground(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
+        }}
+        postureSubscription=presence?.let {p->navigation!!.observePostures {event->p.posture(event)}}
+        tacticalCommandSubscription=presence?.let {p->navigation!!.observeTacticalCommands {event->
+            navigation.snapshot()?.let {snapshot->p.tacticalCommand(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
+        }}
+        supportSubscription = presence?.let { p -> navigation!!.observeSupport { result ->
+            navigation.snapshot()?.let { snapshot -> p.support(result,snapshot,world!!.galaxy,currentCharacters()::characterById) }
+        } }
         val capture = captureDirectory?.let(::Capture)
         try {
             for (host in hosts) {
@@ -89,7 +133,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 clients.add(ch)
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
-                                stock = stock, administration = administration, presence = presence, onPresence = { messages ->
+                                stock = stock, administration = administration, communication=communication, presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
                                 val updateExchange = UpdateExchange()
@@ -120,6 +164,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                     override fun channelActive(ctx: ChannelHandlerContext) {
                                         if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
                                             try {
+                                                if(!waiting)exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
                                                 if (exchange.obsolete()) { exchange.close(); ctx.close() }
                                                 else if (port == sessionPort && ctx.channel().isActive) {
                                                     if (waiting) refreshRequested = true else refresh(ctx)
@@ -159,7 +204,15 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         waiting = true
                                         pending.whenComplete { finish, failure ->
                                             ctx.executor().execute {
-                                                if (!ctx.channel().isActive || failure != null) { try { exchange.close() } finally { ctx.close() } }
+                                                if(ctx.channel().isActive && failure!=null && exchange.sessionEndingAvailable()) {
+                                                    waiting=false;refreshRequested=false;notifications.clear();notificationBytes=0
+                                                    exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
+                                                    while(waitingFrames.isNotEmpty() && ctx.channel().isActive)process(ctx,waitingFrames.removeFirst())
+                                                }
+                                                else if (!ctx.channel().isActive || failure != null) {
+                                                    if(failure != null) System.err.println("gateway async: ${failure.cause?.message ?: failure.message}")
+                                                    try { exchange.close() } finally { ctx.close() }
+                                                }
                                                 else try {
                                                     finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
                                                     waiting = false
@@ -168,8 +221,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                         sendNotification(ctx, messages)
                                                     }
                                                     while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
+                                                    if(!waiting && ctx.channel().isActive)exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
                                                     if (!waiting && refreshRequested && ctx.channel().isActive) refresh(ctx)
-                                                } catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
+                                                } catch (failure: Exception) {
+                                                    System.err.println("gateway outbound: ${failure.message}")
+                                                    try { exchange.close() } finally { ctx.close() }
+                                                }
                                             }
                                         }
                                     }
@@ -191,7 +248,21 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        tacticalEndSubscription?.close()
+        combatSubscription?.close()
+        movementSubscription?.close()
+        strategicMovementSubscription?.close()
+        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close()
+        postureSubscription?.close()
+        tacticalCommandSubscription?.close()
+        supportSubscription?.close()
+        civicSubscription?.close()
+        budgetSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
-        finally { try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() } }
+        finally {
+            try {communication?.close()} finally {
+                try { workers.shutdownGracefully().syncUninterruptibly() } finally { boss.shutdownGracefully().syncUninterruptibly() }
+            }
+        }
     }
 }

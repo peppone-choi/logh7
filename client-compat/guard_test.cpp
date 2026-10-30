@@ -1,20 +1,445 @@
 // Negative test: loading the proxy in another x86 process must not install game hooks.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <cstdio>
 #include "hud_atlas.h"
 #include "planet_info_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
+#include "ime_status.h"
+#include "mail_text.h"
+#include "mail_caption_text.h"
+#include "office_text.h"
+#include "mail_peer_text.h"
+#include "mail_delivery.h"
+#include "legacy_korean_glyph.h"
+#include "namecard_text.h"
+#include "messenger_text.h"
+#include <vector>
+#pragma comment(lib,"gdi32.lib")
+#include "mail_refresh.h"
+#include "korean_windows.h"
+#include "dialog_text.h"
 #include "portrait_label.h"
 #include "roster_text.h"
 #include "spot_name.h"
 #include "character_cards.h"
 #include "character_info_data.h"
 #include "outfit_info_data.h"
+#include "ground_info_data.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
 #include "planet_tax_data.h"
+#include "tactical_support_data.h"
+#include "tactical_motion_data.h"
+#include "tactical_weapon_data.h"
+#include "tactical_base_data.h"
+#include "tactical_notice_data.h"
+#include "session_ending_data.h"
+#include "system_affiliation_data.h"
+#include "environment_shader_data.h"
+#include "tactical_fortress_menu_data.h"
+static bool legacyKoreanGlyphTest() {
+    wchar_t value=0;
+    if (logh::legacyKoreanGlyph('A',value) || logh::legacyKoreanGlyph(0x82a0,value) ||
+        logh::legacyKoreanGlyph(0xf07f,value) || logh::legacyKoreanGlyph(0xf9fc,value)) return false;
+    UINT firstHangul=0;
+    for (unsigned i=0;i<logh::koreanGlyphCount;++i) {
+        const wchar_t privateGlyph=static_cast<wchar_t>(0xe000+i);
+        char bytes[2]={};
+        if (WideCharToMultiByte(932,WC_NO_BEST_FIT_CHARS,&privateGlyph,1,bytes,2,nullptr,nullptr)!=2) return false;
+        const UINT code=(static_cast<unsigned char>(bytes[0])<<8)|static_cast<unsigned char>(bytes[1]);
+        if (!logh::legacyKoreanGlyph(code,value) || value!=logh::koreanGlyphs()[i]) return false;
+        if (!firstHangul && value>=0xac00 && value<=0xd7a3) firstHangul=code;
+    }
+    const auto dc=CreateCompatibleDC(nullptr);
+    if (!dc || !firstHangul) { if(dc)DeleteDC(dc);return false; }
+    const auto original=GetCurrentObject(dc,OBJ_FONT);
+    MAT2 matrix={};matrix.eM11.value=matrix.eM22.value=1;
+    GLYPHMETRICS metrics={};
+    const auto size=logh::legacyKoreanOutline(dc,firstHangul,GGO_GRAY8_BITMAP,&metrics,0,nullptr,&matrix);
+    bool ok=size!=GDI_ERROR && size>0 && GetCurrentObject(dc,OBJ_FONT)==original;
+    if (ok) {
+        std::vector<BYTE> bitmap(size);
+        ok=logh::legacyKoreanOutline(dc,firstHangul,GGO_GRAY8_BITMAP,&metrics,size,bitmap.data(),&matrix)==size &&
+            GetCurrentObject(dc,OBJ_FONT)==original;
+    }
+    GLYPHMETRICS nativeMetrics={},bridgeMetrics={};
+    const auto native=GetGlyphOutlineA(dc,'A',GGO_METRICS,&nativeMetrics,0,nullptr,&matrix);
+    const auto bridge=logh::legacyKoreanOutline(dc,'A',GGO_METRICS,&bridgeMetrics,0,nullptr,&matrix);
+    ok=ok && native==bridge && !memcmp(&nativeMetrics,&bridgeMetrics,sizeof(nativeMetrics));
+    DeleteDC(dc);
+    return ok;
+}
+static bool nameCardDisplayTest() {
+    std::string text="old";
+    if (!logh::nameCardDisplayText(L"한글ABC"," suffix",text)) return false;
+    std::wstring wide;
+    if (!logh::japaneseFragment(text.c_str(),wide) || wide!=L"한글ABC suffix") return false;
+    const std::wstring maximum(27,L'한');
+    const std::string suffix(64,'x');
+    if (!logh::nameCardDisplayText(maximum.c_str(),suffix.c_str(),text) || text.size()<=128 ||
+        !logh::japaneseFragment(text.c_str(),wide) || wide!=maximum+std::wstring(64,L'x')) return false;
+    const auto before=text;
+    const std::wstring tooLong(28,L'한');
+    const wchar_t broken[]={0xd800,0};
+    return !logh::nameCardDisplayText(tooLong.c_str(),"suffix",text) && text==before &&
+        !logh::nameCardDisplayText(broken,"suffix",text) && text==before &&
+        !logh::nameCardDisplayText(nullptr,"suffix",text) && text==before;
+}
+static bool messengerStatusTextTest() {
+    return logh::messengerStatusKind(0x5433a5,0x16,0x77)==0 &&
+        logh::messengerStatusKind(0x5433a5,0x16,0x7b)==1 &&
+        logh::messengerStatusKind(0x5433a5,0x16,0x78)==2 &&
+        logh::messengerStatusKind(0x54501d,0x16,0x78)==2 &&
+        logh::messengerStatusKind(0x545044,0x16,0x66)==1 &&
+        logh::messengerStatusKind(0x54506b,0x16,0x77)==0 &&
+        logh::messengerStatusKind(0x54506b,0x16,0x87)==3 &&
+        logh::messengerStatusKind(0x5433a5,0x15,0x77)==3 &&
+        logh::messengerStatusKind(0x544f05,0x16,0x77)==3;
+}
+static bool fortressMenuAuthorityTest() {
+    BYTE own[0x370]={};own[0x270]=1;unsigned base=1040;unsigned short kind=188;
+    memcpy(own+0x274,&kind,2);memcpy(own+0x278,&base,4);
+    if(logh::commandsFortress(own,sizeof(own),base))return false;
+    kind=187;memcpy(own+0x274,&kind,2);
+    if(!logh::commandsFortress(own,sizeof(own),base) || logh::commandsFortress(own,sizeof(own),1041) ||
+       logh::commandsFortress(own,sizeof(own),0) || logh::commandsFortress(own,0x274,base))return false;
+    kind=51;memcpy(own+0x274,&kind,2);
+    if(!logh::commandsFortress(own,sizeof(own),base))return false;
+    own[0x270]=0;return !logh::commandsFortress(own,sizeof(own),base);
+}
+static bool environmentShaderTest() {
+    const char source[]="prefix\r\nm4x4 oT0.xy, r0, c12\r\nsuffix";char output[128]={};
+    const char expected[]="prefix\r\ndp4 oT0.x, r0, c12\r\ndp4 oT0.y, r0, c13\r\nsuffix";
+    unsigned n=logh::expandEnvironmentMatrix(source,sizeof(source)-1,output,sizeof(output));
+    if(n!=sizeof(expected)-1 || strcmp(output,expected))return false;
+    if(logh::expandEnvironmentMatrix(source,sizeof(source)-1,output,n) ||
+       logh::expandEnvironmentMatrix(nullptr,20,output,sizeof(output)) ||
+       logh::expandEnvironmentMatrix(source,sizeof(source)-1,nullptr,sizeof(output)) ||
+       logh::expandEnvironmentMatrix("m4x4 oT0.xyzw, r0, c12",22,output,sizeof(output)))return false;
+    const char duplicate[]="m4x4 oT0.xy, r0, c12\nm4x4 oT0.xy, r0, c12";
+    if(logh::expandEnvironmentMatrix(duplicate,sizeof(duplicate)-1,output,sizeof(output)))return false;
+    return logh::expandEnvironmentMatrix(source,sizeof(source)-1,output,n+1)==n && output[n]==0;
+}
+static bool mailTextTest() {
+    std::wstring value=L"unchanged";
+    // Use explicit CP949 bytes for portable source-code compilation.
+    if (!logh::mailInputText("\xc7\xd1\xb1\xdb ABC",128,value,949) || value!=L"한글 ABC") return false;
+    for (unsigned ch=0xac00;ch<=0xd7a3;++ch) {
+        wchar_t source[]={static_cast<wchar_t>(ch),0};char bytes[8]={};
+        if (!WideCharToMultiByte(949,WC_NO_BEST_FIT_CHARS,source,-1,bytes,sizeof(bytes),nullptr,nullptr) ||
+            !logh::mailInputText(bytes,128,value,949) || value!=source) return false;
+    }
+    for (size_t capacity:{logh::mailTitleUnits,logh::mailBodyUnits}) {
+        std::string maximum;
+        for (size_t i=1;i<capacity;++i) maximum+="\xc6\x52"; // CP949 힣.
+        if (!logh::mailInputText(maximum.c_str(),capacity,value,949) || value!=std::wstring(capacity-1,L'힣')) return false;
+        const auto saved=value;maximum+="\xc6\x52";
+        if (logh::mailInputText(maximum.c_str(),capacity,value,949) || value!=saved ||
+            logh::mailInputText("\x81",capacity,value,949) || value!=saved ||
+            logh::mailInputText(nullptr,capacity,value,949) || value!=saved) return false;
+    }
+    if (logh::mailInputText("bad\x1b",128,value,949) ||
+        !logh::mailInputText("\r\n\t",512,value,949) || value!=L"\r\n\t") return false;
+    if (!logh::mailReplyText(L"한글日本",true,true,value) || value!=L"Re:한글日本" ||
+        !logh::mailReplyText(L"한글\r\n日本\n",false,true,value) || value!=L">한글\r\n>日本\n" ||
+        !logh::mailReplyText(L"\n\n",false,true,value) || value!=L">\n>\n" ||
+        !logh::mailReplyText(L"",false,true,value) || !value.empty() ||
+        !logh::mailReplyText(L"한글\n日本",false,false,value) || value!=L"한글\n日本") return false;
+    std::wstring lines(511,L'\n');
+    if (!logh::mailReplyText(lines.c_str(),false,true,value) || value.size()!=1022) return false;
+    const auto saved=value;
+    wchar_t unterminated[128];for (auto& ch:unterminated) ch=L'가';
+    wchar_t broken[]={0xd800,L'A',0},pair[]={0xd83d,0xde80,0};
+    return !logh::mailWideText(unterminated,128,value) && value==saved &&
+        !logh::mailWideText(broken,128,value) && value==saved &&
+        logh::mailWideText(pair,128,value) && value==pair;
+}
+static bool wideResourceTest() {
+    const wchar_t original[]=L"銀河帝国";
+    const auto row=logh::koreanWideResourceAt(0x78d9b8,original);
+    if (!row || wcscmp(row->text,L"은하제국") || logh::koreanWideResource(original) ||
+        logh::koreanWideText(original)!=original || logh::koreanWideEntry(0) ||
+        logh::koreanWideResourceAt(0x78d9b8,nullptr) ||
+        logh::koreanWideResourceAt(0x78d9b8,L"銀河帝国!") ||
+        logh::koreanWideResourceAt(0x78d9b8,L"銀河帝") ||
+        logh::koreanWideResourceAt(0x78d9b8,L"銀河帝國")) return false;
+    unsigned count=0;
+    for (const auto& entry:logh::koreanWideResources) {
+        if (!entry.address) continue;
+        std::wstring decoded;
+        if (!logh::japaneseFragment(entry.narrow,decoded) || decoded!=entry.text) return false;
+        ++count;
+    }
+    return count==121;
+}
+static bool mailDeliveryTest() {
+    logh::MailDelivery delivery;
+    int editor=0,session=0,other=0;
+    if (!delivery.begin(&editor,&session,10000,10001,0x81234567,0x76543210,L"한글 제목",L"초안\n본문")) return false;
+    if (delivery.begin(&editor,&session,10000,10001,0x81234568,0,L"중복",L"송신")) return false;
+    delivery.accepted(&other,10000,10001,0x76543210);
+    delivery.accepted(&session,10001,10000,0x76543210);
+    delivery.accepted(&session,10000,10001,1);
+    delivery.rejected(&session,0x0f11);
+    if (delivery.response || delivery.body!=L"초안\n본문") return false;
+    delivery.rejected(&session,0x0f10);
+    if (delivery.response!=2 || !delivery.draftOpen || delivery.title!=L"한글 제목") return false;
+    delivery.reset();
+    if (!delivery.begin(&editor,&session,10000,10001,0x81234568,7,L"수정",L"재편집")) return false;
+    delivery.accepted(&session,10000,10001,7);
+    if (delivery.response!=1) return false;
+    delivery.reset();
+    return !delivery.pending && !delivery.context && delivery.title.empty() &&
+        !delivery.begin(&editor,&session,10000,10001,0xffffffff,7,L"",L"");
+}
+static bool mailRefreshTest() {
+    unsigned char peer[0x124]={};
+    const unsigned face=1000001,age=35u*31536000u;
+    memcpy(peer+0x118,&face,4);memcpy(peer+0x11c,&age,4);
+    if(!logh::personalMailAddress(peer) || logh::personalMailAddress(nullptr))return false;
+    for(unsigned offset=0x120;offset<0x124;++offset) {
+        peer[offset]=1;if(logh::personalMailAddress(peer))return false;peer[offset]=0;
+    }
+    logh::MailRefresh refresh;int world=0,other=0;
+    refresh.observe(&world,10000,true);
+    refresh.begin(&world,10001,true,true);refresh.end(&world);
+    if(refresh.take(&world,10000,true))return false;
+    refresh.begin(&world,10000,false,true);refresh.end(&world);
+    refresh.begin(&world,10000,true,false);refresh.end(&world);
+    if(refresh.take(&world,10000,true))return false;
+    refresh.begin(&world,10000,true,true);
+    if(refresh.take(&world,10000,true))return false; // Wait for transaction end.
+    refresh.end(&world);
+    refresh.observe(&world,10000,false); // A draft opened before the transaction ended.
+    if(refresh.take(&world,10000,false) || !refresh.pending)return false;
+    if(!refresh.take(&world,10000,true) || refresh.take(&world,10000,true))return false;
+    refresh.observe(&world,10000,false); // Native refresh's own query must not recurse.
+    refresh.begin(&world,10000,true,true);refresh.end(&world);
+    if(refresh.pending)return false;
+    refresh.observe(&world,10000,true); // Idle native queue while editing.
+    refresh.begin(&world,10000,true,true);refresh.end(&world);
+    if(refresh.take(&world,10000,false) || !refresh.pending)return false;
+    if(!refresh.take(&world,10000,true) || refresh.take(&world,10000,true))return false;
+    refresh.begin(&world,10000,true,true);refresh.end(&world);
+    refresh.observe(&other,10000,true);
+    if(refresh.pending || refresh.take(&world,10000,true))return false;
+    refresh.begin(&other,10000,true,true);refresh.end(&other);
+    refresh.observe(nullptr,0,false);
+    return !refresh.pending && !refresh.world && !refresh.owner;
+}
+static bool dialogTextTest() {
+    const char* mouse="\x83\x7d\x83\x45\x83\x58\x83\x66\x83\x6f\x83\x43\x83\x58\x82\xcc\x90\xb6\x90\xac\x82\xc9\x8e\xb8\x94\x73\x82\xb5\x82\xdc\x82\xb5\x82\xbd";
+    std::wstring text=L"unchanged";
+    if (!logh::translatedDialogText(mouse,false,text) || text!=L"마우스 장치를 만들지 못했습니다.") return false;
+    const auto translated=logh::koreanResourceEntry((static_cast<uint64_t>(65535)<<32)|0x788038);
+    if (!translated || !logh::translatedDialogText(translated->text,false,text) || text!=L"마우스 장치를 만들지 못했습니다.") return false;
+    std::string copied(translated->text);
+    if (!logh::translatedDialogText(copied.c_str(),false,text) || text!=L"마우스 장치를 만들지 못했습니다.") return false;
+    const char* error="\x83\x47\x83\x89\x81\x5b";
+    if (!logh::translatedDialogText(error,true,text) || text!=L"오류") return false;
+    if (logh::translatedDialogText(error,false,text) || text!=L"오류" ||
+        logh::translatedDialogText("\x90\xed\x8a\xcd",false,text) || text!=L"오류" ||
+        logh::translatedDialogText("unreviewed error",false,text) || text!=L"오류" ||
+        logh::translatedDialogText(nullptr,false,text) || text!=L"오류") return false;
+    std::string changed(mouse);changed+='!';
+    if (logh::translatedDialogText(changed.c_str(),false,text) || text!=L"오류") return false;
+    // The untranslated partner is Windows ACP, not CP932. No GUI is opened.
+    if (!logh::ansiDialogText("\xc7\xd1\xb1\xdb ABC",text,949) || text!=L"한글 ABC" ||
+        logh::ansiDialogText("\x81",text,949) || text!=L"한글 ABC" ||
+        !logh::ansiDialogText(nullptr,text,949) || !text.empty()) return false;
+    for (unsigned address:logh::dialogMessageBoxCalls)
+        if (!logh::dialogMessageBoxCaller(address+6) || logh::dialogMessageBoxCaller(address)) return false;
+    return !logh::dialogMessageBoxCaller(0x12345678);
+}
+static bool tacticalBaseDataTest() {
+    BYTE stopRecord[16]={};unsigned stopCharacter=10000,stopBase=1000,wait=1;
+    memcpy(stopRecord+8,&stopCharacter,4);memcpy(stopRecord+12,&stopBase,4);
+    logh::TacticalFortressStop stop;
+    if (!stop.read(stopRecord) || stop.base!=1000 || stop.read(nullptr)) return false;
+    memcpy(stopRecord+4,&wait,4);
+    if (stop.read(stopRecord) || stop.base!=1000) return false;
+    wait=0;memcpy(stopRecord+4,&wait,4);
+    for(unsigned bad : {0u,65536u}) {
+        memcpy(stopRecord+12,&bad,4);
+        if (stop.read(stopRecord)) return false;
+    }
+    memcpy(stopRecord+12,&stopBase,4);memcpy(stopRecord+8,&wait,4);
+    if (stop.read(stopRecord)) return false;
+    BYTE object[0x5c8];memset(object,0xa5,sizeof(object));
+    logh::TacticalFortressStop::clearCharge(object);
+    logh::TacticalFortressStop::clearCharge(object);logh::TacticalFortressStop::clearCharge(nullptr);
+    for(unsigned i=0;i<sizeof(object);++i)if(object[i]!=(i>=0x5bc && i<0x5c4 ? 0 : 0xa5))return false;
+    int32_t expired=-118;unsigned positive=840;
+    memcpy(object+0x5bc,&expired,4);memcpy(object+0x5c0,&positive,4);
+    logh::clampFortressCharge(object);logh::clampFortressCharge(nullptr);
+    if(logh::baseMessageWord(object,0x5bc)!=0 || logh::baseMessageWord(object,0x5c0)!=840)return false;
+    memcpy(object+0x5c0,&expired,4);logh::clampFortressCharge(object);
+    if(logh::baseMessageWord(object,0x5c0)!=0 || object[0x5bb]!=0xa5 || object[0x5c4]!=0xa5)return false;
+    BYTE record[28]={};unsigned base=1000,target=11;unsigned short unavailable=10,destroyed=5,lost=20;
+    memcpy(record+4,&base,4);memcpy(record+12,&target,4);
+    record[9]=0x81;record[20]=255;record[24]=35;
+    memcpy(record+16,&unavailable,2);memcpy(record+18,&destroyed,2);
+    logh::TacticalBaseDamage hit;
+    if (!hit.read(record,300,70) || hit.normal!=290 || hit.alive!=295 || hit.face!=255 || hit.morale!=35) return false;
+    record[20]=2;memcpy(record+22,&lost,2);
+    if (!hit.read(record,300,70) || hit.shield!=50 || hit.face!=2) return false;
+    unavailable=4;memcpy(record+16,&unavailable,2);
+    if (hit.read(record,300,70) || hit.normal!=290 || hit.alive!=295) return false;
+    unavailable=10;memcpy(record+16,&unavailable,2);record[9]=1;
+    if (hit.read(record,300,70)) return false;
+    BYTE supply[16]={};unsigned available=321,zero=0;
+    memcpy(supply,&base,4);memcpy(supply+8,&available,4);
+    logh::TacticalEmergencySupply state;
+    if (!state.read(supply) || state.base!=1000 || state.target || state.available!=321 || state.supplies) return false;
+    memcpy(supply+4,&target,4);memcpy(supply+12,&available,4);
+    if (!state.read(supply) || state.target!=11 || state.supplies!=321) return false;
+    memcpy(supply+4,&zero,4);
+    if (state.read(supply) || state.target!=11) return false;
+    return true;
+}
+static bool tacticalWeaponSelectionTest() {
+    logh::TacticalWeaponSelection selection;
+    const unsigned ids[]={11,12},powers[]={110,20},mixed[]={110,0},changed[]={11,13},duplicate[]={11,11};
+    unsigned context=1,otherContext=2;
+    if(selection.targetKind(2,1)!=1 || !selection.canSelect(ids,powers,2) ||
+        selection.canSelect(ids,mixed,2) || selection.canSelect(duplicate,powers,2) ||
+        selection.canSelect(ids,powers,0) || selection.canSelect(ids,powers,33) || selection.canSelect(nullptr,powers,2))return false;
+    for(unsigned menu=0x21;menu<=0x24;++menu) {
+        selection.select(menu);
+        if(selection.targetKind(2,1)!=1)return false; // An unbound menu is never a live AA request.
+        const bool bound=selection.bind(&context,ids,powers,2);
+        if(bound!=(menu==0x24) || selection.targetKind(2,1)!=(bound ? 0x81u : 1u) ||
+            selection.targetKind(0,1)!=1 || selection.targetKind(1,1)!=1 || selection.targetKind(2,0)!=0 ||
+            selection.targetKind(2,0x81)!=0x81)return false;
+        if(bound && (!selection.matches(&context,ids,2) || selection.matches(&otherContext,ids,2) ||
+            selection.matches(&context,changed,2) || selection.matches(&context,ids,1)))return false;
+    }
+    if(!selection.aiming(6,4,2) || selection.aiming(1,4,2) || selection.aiming(6,0,2) || selection.aiming(6,4,3))return false;
+    selection.clear();if(selection.targetKind(2,1)!=1 || selection.count || selection.world || selection.units[0])return false;
+    selection.select(0x24);if(!selection.bind(&context,ids,powers,2))return false;
+    if(selection.bind(&context,ids,mixed,2) || selection.targetKind(2,1)!=1)return false;
+    selection.select(0);if(selection.antiAir() || selection.matches(&context,ids,2))return false;
+    unsigned char storage[logh::TacticalAntiAirPreview::SIZE+2];memset(storage,0xa5,sizeof(storage));
+    auto preview=storage+1;
+    // AA power is independent of a missing missile profile. Six native sectors stop at 8.
+    if(!logh::TacticalAntiAirPreview::write(preview,20) || !logh::TacticalAntiAirPreview::owns(preview) ||
+        preview[0]!=1 || preview[1]!=5 || storage[0]!=0xa5 || storage[sizeof(storage)-1]!=0xa5)return false;
+    for(unsigned i=0;i<48;++i) {float value;memcpy(&value,preview+4+i*4,4);if(value!=100.f)return false;}
+    for(unsigned i=0;i<6;++i) {float value;memcpy(&value,preview+0xc4+i*4,4);if(value!=8.f)return false;}
+    logh::TacticalAntiAirPreview::clear(preview);
+    for(unsigned i=0;i<logh::TacticalAntiAirPreview::SIZE;++i)if(preview[i])return false;
+    if(logh::TacticalAntiAirPreview::write(preview,0) || preview[0] ||
+        logh::TacticalAntiAirPreview::write(preview,65536) || logh::TacticalAntiAirPreview::write(nullptr,110))return false;
+    if(!logh::TacticalAntiAirPreview::write(preview,20))return false;
+    const float missile[]={60.f,80.f,100.f,100.f,80.f,60.f,40.f,20.f};
+    for(unsigned i=0;i<48;++i)memcpy(preview+4+i*4,&missile[i%8],4);
+    unsigned char saved[logh::TacticalAntiAirPreview::SIZE];memcpy(saved,preview,sizeof(saved));
+    logh::TacticalAntiAirPreview::clear(preview);
+    if(memcmp(preview,saved,sizeof(saved)))return false; // A real native missile profile is not AA-owned.
+    memset(preview,0xa5,logh::TacticalAntiAirPreview::SIZE);logh::TacticalAntiAirPreview::clear(preview);
+    for(unsigned i=0;i<sizeof(storage);++i)if(storage[i]!=0xa5)return false;
+    return true;
+}
+static bool displayNameTest() {
+    std::string stored="unchanged";
+    std::wstring decoded;
+    const wchar_t* sample=L"한글日本ABC %／※";
+    if (!logh::storeDisplayName(sample,stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=sample) return false;
+    if (!logh::storeDisplayName(L"",stored) || !logh::japaneseFragment(stored.c_str(),decoded) || !decoded.empty()) return false;
+    if (!logh::storeDisplayName(L"전함Ⅰ",stored,13) ||
+        !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=L"전함Ⅰ") return false;
+    std::wstring shipMaximum(12,L'힣'),shipTooLong(13,L'힣');
+    if (!logh::storeDisplayName(shipMaximum.c_str(),stored,13) ||
+        !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=shipMaximum) return false;
+    auto shipSaved=stored;
+    wchar_t unterminatedShip[13];for (auto& ch:unterminatedShip)ch=L'가';
+    if (logh::storeDisplayName(shipTooLong.c_str(),stored,13) ||
+        logh::storeDisplayName(unterminatedShip,stored,13) ||
+        logh::storeDisplayName(L"",stored,0) ||
+        logh::storeDisplayName(L"",stored,29) || stored!=shipSaved) return false;
+    for (unsigned ch=0xac00;ch<=0xd7a3;++ch) {
+        wchar_t name[]={static_cast<wchar_t>(ch),0};
+        if (!logh::storeDisplayName(name,stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=name) return false;
+    }
+    std::wstring maximum(27,L'힣'),tooLong(28,L'힣');
+    if (!logh::storeDisplayName(maximum.c_str(),stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=maximum) return false;
+    std::string saved=stored;
+    wchar_t bad[]={0xd800,L'A',0};
+    if (logh::storeDisplayName(tooLong.c_str(),stored) || logh::storeDisplayName(bad,stored) ||
+        logh::storeDisplayName(nullptr,stored) || stored!=saved) return false;
+    std::wstring literal=L"\x1eL7U:AC00\x1f";
+    if (!logh::storeDisplayName(literal.c_str(),stored) || !logh::japaneseFragment(stored.c_str(),decoded) || decoded!=literal) return false;
+    if (!logh::storeDisplayName(L"주인 한글",stored)) return false;
+    auto second=stored;
+    if (!logh::storeDisplayName(L"손님日本",stored)) return false;
+    std::string joined=second+" / "+stored;
+    if (!logh::japaneseFragment(joined.c_str(),decoded) || decoded!=L"주인 한글 / 손님日本") return false;
+    for (const auto* malformed:{L"\x1eL7U:0000\x1f",L"\x1eL7U:D800\x1f",L"\x1eL7U:AC0\x1f",L"\x1eL7U:ZZZZ\x1f",L"\x1eL7U:AC00"}) {
+        std::wstring text=L"\x1eL7U:AC00\x1f";text+=malformed;auto before=text;
+        if (logh::restoreDisplayNames(text) || text!=before) return false;
+    }
+    wchar_t buffer[64]={};wcscpy_s(buffer,L"\x1eL7U:AC00\x1f");buffer[63]=L'Z';
+    if (!logh::restoreDisplayNames(buffer) || wcscmp(buffer,L"가") || buffer[63]!=L'Z') return false;
+    if (logh::koreanFormatStringArguments(0x76ccf4,"%s%s")!=2 ||
+        logh::koreanFormatStringArguments(0x771e08,"%s")!=1 ||
+        logh::koreanFormatStringArguments(0x788a24,"%s %s")!=2 ||
+        logh::koreanFormatStringArguments(0x76ccf4,"%d%s") ||
+        logh::koreanFormatStringArguments(0x1234,"%s%s") ||
+        logh::koreanFormatStringArguments(0x76ccf4,nullptr)) return false;
+    return true;
+}
+static bool tacticalNoticesTest() {
+    const char* missing = "NO DATA";
+    const char* valid = "existing guidance";
+    if (!logh::tacticalRetreatText(61, missing) || !logh::tacticalRetreatText(40, "NO TABLE") ||
+        logh::tacticalRetreatText(61, valid) || logh::tacticalRetreatText(40, nullptr) ||
+        logh::tacticalRetreatText(9, missing) || logh::missingTacticalText("prefix NO DATA")) return false;
+    size_t count; const auto rows = logh::tacticalNotices(count);
+    for (size_t i = 0; i < count; ++i) {
+        if (logh::tacticalNoticeFallback(118, rows[i].index, missing, rows[i].motion) != rows[i].marker ||
+            logh::tacticalNoticeFallback(118, rows[i].index, "NO TABLE", rows[i].motion) != rows[i].marker ||
+            logh::tacticalNoticeFallback(118, rows[i].index, valid, rows[i].motion) != valid ||
+            logh::tacticalNoticeFallback(117, rows[i].index, missing, rows[i].motion) != missing ||
+            logh::tacticalNoticeFallback(118, rows[i].index, nullptr, rows[i].motion)) return false;
+    }
+    if (logh::tacticalNoticeFallback(118, 0, missing) != missing ||
+        logh::tacticalNoticeFallback(118, 63, missing) != missing) return false;
+    if (strcmp(logh::tacticalNoticeFallback(118, 10, missing, 3), "LOGH7_TACTICAL_TURN") ||
+        strcmp(logh::tacticalNoticeFallback(118, 10, missing, 4), "LOGH7_TACTICAL_PARALLEL") ||
+        strcmp(logh::tacticalNoticeFallback(118, 10, missing, 99), "LOGH7_TACTICAL_DESTINATION")) return false;
+    std::wstring decoded = L"unchanged";
+    if (logh::tacticalNoticeFragment(missing, decoded) || decoded != L"unchanged" ||
+        logh::tacticalNoticeFragment(nullptr, decoded)) return false;
+    const std::string mixed = std::string("[5]\x90\xed\x8a\xcd ") + rows[0].marker + rows[4].marker + "!";
+    if (!logh::tacticalNoticeFragment(mixed.c_str(), decoded) ||
+        decoded != std::wstring(L"[5]戦艦 ") + rows[0].text + rows[4].text + L"!") return false;
+    const std::string invalid = std::string("\x81") + rows[0].marker;
+    decoded = L"unchanged";
+    return !logh::tacticalNoticeFragment(invalid.c_str(), decoded) && decoded == L"unchanged";
+}
+static bool tacticalMotionOriginsTest() {
+    BYTE message[0x41c]={};message[12]=1;message[0x298]=1;
+    unsigned id=3;float x=1,y=-8,angle=0.7f;
+    memcpy(message+16,&id,4);memcpy(message+20,&angle,4);
+    memcpy(message+24,&x,4);memcpy(message+28,&y,4);
+    memcpy(message+0x294,&angle,4);memcpy(message+0x29c,&x,4);memcpy(message+0x2a0,&y,4);
+    logh::TacticalMoveOrigins origins;
+    if (!origins.read(message) || !origins.stationary || origins.count!=1 || origins.units[0].direction!=angle) return false;
+    message[4]=1;if (!origins.read(message) || origins.stationary) return false;message[4]=0;
+    float speed=0.5f;memcpy(message+0x290,&speed,4);
+    if (!origins.read(message) || origins.stationary) return false;
+    message[12]=33;if (origins.read(message) || origins.count) return false;
+    message[12]=2;memcpy(message+36,message+16,20);if (origins.read(message)) return false;
+    message[12]=1;message[0x298]=33;if (origins.read(message)) return false;
+    message[0x298]=1;unsigned nan=0x7fc00000;memcpy(message+24,&nan,4);
+    if (origins.read(message)) return false;
+    memcpy(message+24,&x,4);memcpy(message+32,&x,4);if (origins.read(message)) return false;
+    memset(message+32,0,4);x=100001;memcpy(message+24,&x,4);
+    return !origins.read(message);
+}
 static bool planetUnitRowsTest() {
     unsigned char grid[4+300*12]={},party[logh::outfitPartyBytes]={};
     unsigned id=11,base=1049;grid[0]=1;
@@ -45,7 +470,322 @@ static bool planetUnitRowsTest() {
     grid[0]=0;
     return rows.grid(grid,2) && !rows.candidates && !rows.count;
 }
-int wmain(int argc, wchar_t** argv) {
+static bool stationaryTacticalPoseTest() {
+    BYTE unit[0x9ec],model[0xb4c];memset(unit,0xcc,sizeof(unit));memset(model,0xcc,sizeof(model));
+    const logh::TacticalMoveOrigins::Origin origin={1010000,2.9f,1.5f,-8.5f};
+    memcpy(unit+4,&origin.id,4);memcpy(model+4,&origin.id,4);
+    if (!logh::applyStationaryTacticalPose(unit,model,origin)) return false;
+    const float pose[]={1.5f,0,-8.5f,0,2.9f,0};
+    if (memcmp(unit+0x14,pose,sizeof(pose)) || memcmp(model+0x85c,pose,sizeof(pose)) ||
+        memcmp(model+0x88c,pose,sizeof(pose)) || unit[0x60] || unit[0x62] ||
+        model[9] || model[10] || model[11]) return false;
+    for(unsigned i=0x10;i<0x20;++i) if(model[i]) return false;
+    // Preserve formation flags, other unit state, and neighboring render data.
+    if (model[8]!=0xcc || model[12]!=0xcc || model[0x85b]!=0xcc || model[0x874]!=0xcc ||
+        model[0x88b]!=0xcc || model[0x8a4]!=0xcc || unit[0x61]!=0xcc) return false;
+    BYTE before[sizeof(model)];++model[4];memcpy(before,model,sizeof(model));
+    if(logh::applyStationaryTacticalPose(unit,model,origin) || memcmp(before,model,sizeof(model))) return false;
+    model[4]=unit[4];model[0]=0;
+    return !logh::applyStationaryTacticalPose(unit,model,origin) &&
+        !logh::applyStationaryTacticalPose(nullptr,model,origin) &&
+        !logh::applyStationaryTacticalPose(unit,nullptr,origin);
+}
+static bool tacticalWaypointOrderTest() {
+    BYTE unit[0x9ec]={},model[0xb4c]={};unit[0]=model[0]=1;
+    auto put=[](BYTE* p,unsigned offset,unsigned value){memcpy(p+offset,&value,4);};
+    put(unit,4,3);put(model,4,3);put(unit,0x10c,4);put(model,0x1c,7);
+    put(model,0x14,4);put(model,0x18,3);put(unit,0x410,2);put(unit,0x6c,42);unit[0x414]=1;
+    for(unsigned i=0;i<7;++i)put(model,0x20+i*4,i%2 ? 2 : 3);
+    for(unsigned i=0;i<3;++i) {
+        float x=i%2 ? -12.0f : 26.0f,z=i%2 ? -65.0f : 101.0f;
+        memcpy(unit+0x128+i*24,&x,4);memcpy(unit+0x130+i*24,&z,4);
+        memcpy(model+0x534+(i*2+1)*12,&x,4);memcpy(model+0x53c+(i*2+1)*12,&z,4);
+    }
+    if(!logh::applyTacticalWaypointOrder(unit,model) || unit[0x414] || model[0x18]!=5 || unit[0x6c] || model[0x14]!=4) return false;
+    // The repeated A must select translation 3, and an older B must not rewind it.
+    put(unit,0x410,1);unit[0x414]=1;
+    if(!logh::applyTacticalWaypointOrder(unit,model) || model[0x18]!=5) return false;
+    for(unsigned i=1;i<7;i+=2)put(model,0x20+i*4,4); // Parallel translation steps.
+    put(unit,0x410,2);unit[0x414]=1;
+    if(!logh::applyTacticalWaypointOrder(unit,model)) return false;
+    BYTE before[sizeof(model)];memcpy(before,model,sizeof(model));
+    put(unit,0x410,0xffffffffu);unit[0x414]=1;
+    if(logh::applyTacticalWaypointOrder(unit,model) || !unit[0x414] || memcmp(before,model,sizeof(model))) return false;
+    put(unit,0x410,2);put(unit,0x10c,5);
+    if(logh::applyTacticalWaypointOrder(unit,model) || !unit[0x414]) return false;
+    put(unit,0x10c,4);put(model,4,99);
+    if(logh::applyTacticalWaypointOrder(unit,model)) return false;
+    put(model,4,3);put(model,0x1c,66);
+    if(logh::applyTacticalWaypointOrder(unit,model)) return false;
+    put(model,0x1c,7);put(model,0x534+5*12,0); // Stale/different render plan.
+    return !logh::applyTacticalWaypointOrder(unit,model) && !logh::applyTacticalWaypointOrder(nullptr,model) &&
+        !logh::applyTacticalWaypointOrder(unit,nullptr);
+}
+static bool groundLocationPageTest() {
+    unsigned char wire[4+70*88]={};wire[0]=2;
+    auto set=[&](unsigned row,unsigned field,unsigned value){memcpy(wire+4+row*88+field,&value,4);};
+    unsigned short kind=1000;
+    for(unsigned i=0;i<2;++i){set(i,0,100+i);memcpy(wire+4+i*88+4,&kind,2);set(i,8,2487);set(i,12,1);}
+    wire[4+6]=10;set(0,16,1);wire[4+88+6]=4;set(1,64,1049);
+    logh::GroundPage page;
+    if(!page.read(wire,1,99) || page.count!=2 || page.last()!=101 || !page.matches(wire) ||
+        page.read(wire,2,99) || page.read(wire,1,100))return false;
+    auto samePage=page;samePage.rows[7]=255;
+    if(!page.same(samePage))return false; // Decoder padding cannot reset a native scroll position.
+    samePage.rows[16]=2;if(page.same(samePage))return false;
+    samePage=page;samePage.count=1;if(page.same(samePage))return false;
+    set(1,0,100);if(page.read(wire,1,99) || page.last()!=101)return false;set(1,0,101);
+    set(0,64,1049);if(page.matches(wire) || page.read(wire,1,99))return false;set(0,64,0);
+    set(0,16,100);if(page.read(wire,1,99))return false;set(0,16,1);
+    wire[0]=71;if(page.read(wire,1,99))return false;
+    wire[0]=1;wire[4+6]=0;set(0,16,0);
+    if(!page.read(wire,1,99) || page.count!=1)return false;
+    wire[0]=0;return page.read(wire,1,999999) && !page.count && !page.last();
+}
+static bool sessionEndingDataTest() {
+    BYTE record[0x434]={};unsigned id=10000;memcpy(record,&id,4);record[4]=2;record[0x2ea]=3;
+    record[0x2eb]=2;record[0x2ec]='A';record[0x390]=3;record[0x3d8]=2;
+    record[0x3a0]=1;record[0x3e8]=1;record[0x3c2]=3;record[0x40a]=0;
+    record[0x3c3]=255;record[0x3c4]=1;record[0x40b]=0;record[0x40c]=1;
+    record[0x3c8]=7;record[0x410]=9;record[0x420]=1;record[0x424]=16;
+    logh::SessionEndingData data;
+    if(!data.read(record) || data.character!=id || data.power!=2 || data.reason!=3 || data.name[0]!='A' ||
+        data.sides[0].power!=2 || data.sides[0].grade!=0 || data.sides[0].statistics.planets!=9 ||
+        data.sides[1].grade!=3 || data.sides[1].populationCondition!=255 || data.total.planets!=16)return false;
+    for(unsigned offset : {0x2ebu,0x3a0u,0x3c2u,0x3c3u,0x420u}) {
+        BYTE before=record[offset];record[offset]=offset==0x2eb ? 14 : 4;
+        if(data.read(record) || data.character!=id || data.total.planets!=16)return false;
+        record[offset]=before;
+    }
+    record[0x3d8]=3;if(data.read(record))return false;record[0x3d8]=2;
+    if(data.read(nullptr) || data.read(record,0x433))return false;
+    record[0x40a]=255;if(!data.read(record) || data.sides[0].grade!=255)return false;
+    BYTE lobby[0x6d8]={};lobby[0]=1;
+    memcpy(lobby+4,record+0x2e8,0x14c);memcpy(lobby+0x2a4,&id,4);lobby[0x2a8]=2;
+    lobby[0x2a0]=2;lobby[0x2a1]=1;lobby[0x358]=1;
+    if(!data.readLobby(lobby,sizeof(lobby),0) || data.character!=id || data.sides[0].grade!=255 || data.total.planets!=16)return false;
+    if(data.readLobby(lobby,0x36b,0) || data.readLobby(lobby,sizeof(lobby),1) || data.readLobby(nullptr,0,0))return false;
+    lobby[0]=2;memcpy(lobby+0x36c+4,lobby+4,0x368);
+    lobby[0x36c+0x2a8]=3;
+    if(!data.readLobby(lobby,sizeof(lobby),1) || data.power!=3)return false;
+    for(unsigned offset:{0u,0x2a0u,0x2a1u,0x358u}) {
+        BYTE before=lobby[offset];lobby[offset]=4;
+        if(data.readLobby(lobby,sizeof(lobby),0))return false;lobby[offset]=before;
+    }
+    return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
+}
+static int runGuard(int argc, wchar_t** argv) {
+    if(!environmentShaderTest())return 96;
+    if(!fortressMenuAuthorityTest())return 97;
+    if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest()) return 252;
+    if (!legacyKoreanGlyphTest()) return 253;
+    if (!nameCardDisplayTest()) return 254;
+    if (!messengerStatusTextTest()) return 255;
+    std::string officeCaption;
+    std::wstring officeDecoded;
+    for(unsigned kind=0;kind<2;++kind) {
+        if(!logh::officeMailKindText(kind,officeCaption) || officeCaption.size()!=4 ||
+            !logh::japaneseFragment(officeCaption.c_str(),officeDecoded) ||
+            officeDecoded!=(kind==0?L"제안":L"명령"))return 263;
+    }
+    if(logh::officeMailKindText(2,officeCaption) ||
+        logh::officeMailKind(0x53c80e,0x16,0x54)!=0 ||
+        logh::officeMailKind(0x53c80e,0x16,0x55)!=1 ||
+        logh::officeMailKind(0x53c961,0x16,0x54)!=0 ||
+        logh::officeMailKind(0x53c961,0x16,0x55)!=1 ||
+        logh::officeMailKind(0x53cc65,0x16,0x56)!=2 ||
+        logh::officeMailKind(0x53c80e,0x15,0x54)!=2)return 264;
+    logh::OfficeFriendDisplay friendDisplay;
+    char originalCString[]="native",differentCString[]="native";
+    if(!friendDisplay.remember(L"한글日本ABC",originalCString) ||
+        friendDisplay.take(differentCString,officeDecoded) || friendDisplay.buffer ||
+        !friendDisplay.remember(L"가나다라마바사아자차카타",originalCString) ||
+        !friendDisplay.take(originalCString,officeDecoded) || officeDecoded!=L"가나다라마바사아자차카타" ||
+        friendDisplay.take(originalCString,officeDecoded) || strcmp(originalCString,"native"))return 265;
+    const wchar_t badFriend[]={0xdc00,0};
+    if(friendDisplay.remember(L"가나다라마바사아자차카타파",originalCString) ||
+        friendDisplay.remember(badFriend,originalCString) ||
+        friendDisplay.remember(nullptr,originalCString) || friendDisplay.remember(L"한글",nullptr) ||
+        friendDisplay.buffer)return 266;
+    logh::OfficeGroupDisplay officeGroups;
+    const uintptr_t pickerContext=0x10000000;
+    char groupNarrow[]="    narrowed",groupCopy[]="    narrowed";
+    const std::string groupOriginal=groupNarrow;
+    if(!officeGroups.remember(pickerContext,299,L"가나다라마바사아자차카타") ||
+        !officeGroups.bind(pickerContext+0x5938,511,1,0,2,299,groupNarrow) ||
+        !officeGroups.restore(pickerContext+0x1038,2,299,groupCopy,officeDecoded) ||
+        officeDecoded!=L"    가나다라마바사아자차카타" || groupOriginal!=groupNarrow)return 267;
+    const auto groupSaved=officeDecoded;
+    if(officeGroups.restore(pickerContext+0x738,2,299,groupCopy,officeDecoded) ||
+        officeGroups.restore(pickerContext+0x1038,1,299,groupCopy,officeDecoded) ||
+        officeGroups.restore(pickerContext+0x1038,2,298,groupCopy,officeDecoded) ||
+        officeGroups.restore(pickerContext+0x1038,2,299,"    changed",officeDecoded) ||
+        officeDecoded!=groupSaved)return 268;
+    if(officeGroups.bind(pickerContext+0x5938,512,1,0,2,299,groupCopy) ||
+        officeGroups.bind(pickerContext+0x5938,-1,1,0,2,299,groupCopy) ||
+        officeGroups.bind(pickerContext+0x5938,0,1,1,2,299,groupCopy) ||
+        officeGroups.bind(pickerContext+0x5938,0,1,0,1,299,groupCopy) ||
+        officeGroups.remember(pickerContext,300,L"다른 이름"))return 269;
+    if(officeGroups.remember(pickerContext,299,L"가나다라마바사아자차카타파") ||
+        officeGroups.restore(pickerContext+0x1038,2,299,groupCopy,officeDecoded) ||
+        officeGroups.remember(pickerContext,0,badFriend))return 270;
+    if(!officeGroups.remember(pickerContext,0,L"한글日本ABC") ||
+        !officeGroups.bind(pickerContext+0x5938,0,1,0,2,0,groupCopy) ||
+        !officeGroups.restore(pickerContext+0x1038,2,0,groupCopy,officeDecoded) ||
+        officeDecoded!=L"    한글日本ABC" ||
+        !officeGroups.remember(pickerContext+4,1,L"새 그룹") ||
+        officeGroups.restore(pickerContext+0x1038,2,0,groupCopy,officeDecoded))return 271;
+    officeGroups.clear();
+    if(officeGroups.owner || officeGroups.restore(pickerContext+4+0x1038,2,1,groupCopy,officeDecoded))return 272;
+    std::vector<BYTE> friendCache(4+100*0x124,0);
+    friendCache[0]=100;
+    const unsigned lastFriendId=12345;
+    memcpy(friendCache.data()+4+99*0x124,&lastFriendId,4);
+    memcpy(friendCache.data()+10+99*0x124,L"이 둘",4*sizeof(wchar_t));
+    const auto friendCacheOriginal=friendCache;
+    if(!logh::officeFriendCacheName(friendCache.data(),lastFriendId,officeDecoded) ||
+        officeDecoded!=L"이 둘" || friendCache!=friendCacheOriginal)return 273;
+    if(logh::officeFriendCacheName(nullptr,lastFriendId,officeDecoded) ||
+        logh::officeFriendCacheName(friendCache.data(),54321,officeDecoded) || officeDecoded!=L"이 둘")return 274;
+    friendCache[0]=101;
+    if(logh::officeFriendCacheName(friendCache.data(),lastFriendId,officeDecoded))return 275;
+    friendCache[0]=100;
+    memcpy(friendCache.data()+10+99*0x124,L"가나다라마바사아자차카타파",14*sizeof(wchar_t));
+    if(logh::officeFriendCacheName(friendCache.data(),lastFriendId,officeDecoded) || officeDecoded!=L"이 둘")return 276;
+    logh::OfficeFriendRows friendRows;
+    const uintptr_t friendListContext=0x20000000;
+    const char friendOriginal[]="\xc0\xcc \xb5\xd1",friendCopy[]="\xc0\xcc \xb5\xd1";
+    friendRows.begin(friendListContext,1,2);
+    if(friendRows.root!=1 || friendRows.table!=2)return 277;
+    if(!friendRows.bind(friendListContext,12345,friendOriginal) ||
+        !friendRows.matches(friendListContext,12345,friendCopy) ||
+        friendRows.matches(friendListContext+4,12345,friendCopy) ||
+        friendRows.matches(friendListContext,12346,friendCopy) ||
+        friendRows.matches(friendListContext,12345,"different") ||
+        friendRows.matches(friendListContext,12345,nullptr))return 277;
+    friendRows.begin(friendListContext);
+    if(friendRows.root || friendRows.table || friendRows.matches(friendListContext,12345,friendCopy))return 278;
+    for(unsigned i=0;i<100;++i)if(!friendRows.bind(friendListContext,i,friendOriginal))return 279;
+    if(friendRows.bind(friendListContext,100,friendOriginal) ||
+        !friendRows.bind(friendListContext,99,"new") ||
+        friendRows.matches(friendListContext,99,friendCopy) ||
+        !friendRows.matches(friendListContext,99,"new"))return 280;
+    const std::string tooLongFriend(64,'A');
+    if(friendRows.bind(friendListContext,99,tooLongFriend.c_str()) ||
+        !friendRows.bind(friendListContext+4,100,friendOriginal) ||
+        friendRows.matches(friendListContext,0,friendOriginal))return 281;
+    logh::MailPeerRows mailPeers;
+    if(!mailPeers.bind(0,0x30000000,1,2,0,10,12345,friendOriginal,L"김 하나") ||
+       !mailPeers.restore(0,0x30000000,1,2,0,2,-1,10,12345,friendCopy,officeDecoded) ||
+       officeDecoded!=L"김 하나")return 282;
+    for(unsigned which=0;which<8;++which) {
+        if(mailPeers.restore(which==0?1:0,which==1?0x30000004:0x30000000,which==2?3:1,which==3?3:2,
+            which==4?1:0,2,-1,which==5?11:10,which==6?12346:12345,which==7?"changed":friendCopy,officeDecoded))return 283;
+    }
+    if(mailPeers.restore(0,0x30000000,1,2,0,1,-1,10,12345,friendCopy,officeDecoded) ||
+       mailPeers.restore(0,0x30000000,1,2,0,2,0,10,12345,friendCopy,officeDecoded) || officeDecoded!=L"김 하나")return 284;
+    if(!mailPeers.bind(1,0x30000004,3,4,99,11,12346,"plain",L"한글日本ABC") ||
+       !mailPeers.restore(1,0x30000004,3,4,99,2,-1,11,12346,"plain",officeDecoded) || officeDecoded!=L"한글日本ABC" ||
+       mailPeers.bind(1,0x30000004,3,4,100,11,12346,"plain",L"이 둘"))return 285;
+    if(mailPeers.bind(0,0x30000000,1,2,0,10,12345,friendOriginal,L"가나다라마바사아자차카타파") ||
+       mailPeers.restore(0,0x30000000,1,2,0,2,-1,10,12345,friendCopy,officeDecoded))return 286;
+    std::wstring hudName;
+    if(!logh::hudPersonalName(L"이 둘",0,L"계급",hudName) || hudName!=L"계급이 둘\n" ||
+       !logh::hudPersonalName(L"이 둘",1,L"계급",hudName) || hudName!=L"계급이 둘\n" ||
+       !logh::hudPersonalName(L"김 하나",2,L"계급",hudName) || hudName!=L"김 하나계급\n" ||
+       logh::hudPersonalName(L"가나다라마바사아자차카타파",2,L"계급",hudName))return 287;
+    std::string calendarPrefix;
+    std::wstring calendarDecoded;
+    for(bool imperial:{true,false}) {
+        if(!logh::mailCalendarText(imperial,calendarPrefix) || calendarPrefix.size()!=6 ||
+            calendarPrefix.size()+1>16 || !logh::japaneseFragment(calendarPrefix.c_str(),calendarDecoded) ||
+            calendarDecoded!=(imperial?L"제국력":L"우주력"))return 257;
+        // Simulate the native adjacent prefix[16] / numeric[128] buffers.
+        // Formatting numbers must not overwrite the prefix's terminator.
+        char dateBuffers[144]={};
+        memcpy(dateBuffers,calendarPrefix.c_str(),calendarPrefix.size()+1);
+        strcpy_s(dateBuffers+16,sizeof(dateBuffers)-16,"795/ 1/12 06:26");
+        if(strcmp(dateBuffers,calendarPrefix.c_str()) ||
+            !logh::japaneseFragment(dateBuffers,calendarDecoded) ||
+            calendarDecoded!=(imperial?L"제국력":L"우주력"))return 258;
+    }
+    if(logh::mailCalendarKind(0x53cc65,0x16,0x56)!=0 ||
+        logh::mailCalendarKind(0x53cc9d,0x16,0x57)!=1 ||
+        logh::mailCalendarKind(0x53c80e,0x16,0x54)!=2 ||
+        logh::mailCalendarKind(0x53c961,0x16,0x55)!=2 ||
+        logh::mailCalendarKind(0x53cc65,0x16,0x57)!=2 ||
+        logh::mailCalendarKind(0x53cc9d,0x15,0x57)!=2)return 259;
+    if(logh::mailFooterKind(0x537eb7,0x16,4)!=0 ||
+        logh::mailFooterKind(0x53c2d9,0x16,4)!=0 ||
+        logh::mailFooterKind(0x537f53,0x16,4)!=1)return 260;
+    for(auto caller:{0x52a0ffu,0x52d30eu,0x52d580u,0x52d8eeu})
+        if(logh::mailFooterKind(caller,0x16,4)!=2)return 261;
+    if(logh::mailFooterKind(0x537f53,0x16,5)!=3 ||
+        logh::mailFooterKind(0x52a0ff,0x15,4)!=3 ||
+        logh::mailFooterKind(0x52d203,0x16,7)!=3)return 262;
+    std::wstring imeStatus=L"unchanged";
+    const LANGID koreanKeyboard=MAKELANGID(LANG_KOREAN,SUBLANG_DEFAULT);
+    const LANGID japaneseKeyboard=MAKELANGID(LANG_JAPANESE,SUBLANG_DEFAULT);
+    if(!logh::imeStatusFragment("\xe7\xc8",imeStatus,koreanKeyboard,949) || imeStatus!=L"A" ||
+        !logh::imeStatusFragment("\xaa\xa2",imeStatus,koreanKeyboard,949) || imeStatus!=L"한" ||
+        !logh::imeStatusFragment("\xab\xa2",imeStatus,koreanKeyboard,949) || imeStatus!=L"한" ||
+        !logh::imeStatusFragment("A",imeStatus,koreanKeyboard,949) || imeStatus!=L"A" ||
+        !logh::imeStatusFragment("\x82\xa0",imeStatus,japaneseKeyboard,932) || imeStatus!=L"あ" ||
+        !logh::imeStatusFragment("\x83\x41",imeStatus,japaneseKeyboard,932) || imeStatus!=L"ア" ||
+        !logh::imeStatusFragment("\x89\x70",imeStatus,japaneseKeyboard,932) || imeStatus!=L"A" ||
+        logh::imeStatusFragment("\x81",imeStatus,koreanKeyboard,949) || imeStatus!=L"A" ||
+        logh::imeStatusFragment(nullptr,imeStatus,koreanKeyboard,949) || imeStatus!=L"A")return 256;
+    if (!wideResourceTest()) return 253;
+    if (!dialogTextTest()) return 251;
+    if (!displayNameTest()) return 250;
+    const char* battleship="\x90\xed\x8a\xcd";
+    const char* translated=logh::koreanResource(85,0,battleship);
+    std::wstring korean;
+    if (translated==battleship || !logh::japaneseFragment(translated,korean) || korean!=L"전함" ||
+        strcmp(logh::koreanResource(85,0,"modified catalogue"),"modified catalogue") ||
+        logh::koreanResource(999,0,battleship)!=battleship ||
+        logh::koreanResource(85,0,nullptr)!=nullptr) return 82;
+    const char* error="\x83\x47\x83\x89\x81\x5b";
+    if (!logh::japaneseFragment(logh::koreanResource(65535,0x78,0x6ab4,error),korean) || korean!=L"오류" ||
+        logh::koreanStaticResource(error)!=error ||
+        !logh::japaneseFragment(logh::koreanResource(65534,0,0,"NO TABLE"),korean) || korean!=L"명령 패널") return 82;
+    char windowsString[128];memset(windowsString,0x7f,sizeof(windowsString));
+    // This fixture is encoded as CP949 even on the English CI runner (ACP1252).
+    if (logh::copyKoreanWindowsString(57344,windowsString,sizeof(windowsString),949)<=0 ||
+        !logh::inputFragment(windowsString,korean,949) || korean!=L"은하영웅전설 VII" ||
+        logh::copyKoreanWindowsString(57344,windowsString,2,949)!=0 || windowsString[0] ||
+        logh::copyKoreanWindowsString(57344,windowsString,3,949)!=2 || windowsString[2] ||
+        logh::copyKoreanWindowsString(999,windowsString,sizeof(windowsString),949)!=-1 ||
+        logh::copyKoreanWindowsString(57344,windowsString,sizeof(windowsString),932)!=-1) return 82;
+    // A genuine resource translation cannot leak its private codepoints into
+    // Unicode render text, and malformed Japanese bytes still fail strictly.
+    for (const auto& row:logh::koreanResources) {
+        if (!logh::japaneseFragment(row.text,korean)) return 83;
+        for (wchar_t ch:korean) if(ch>=0xe000 && ch<=0xf8ff) return 83;
+    }
+    logh::SystemAffiliation territory;
+    unsigned territoryIds[]={1048,1049,1050};
+    if (territory.affiliation(territoryIds,3,2487)!=10 ||
+        !territory.accept(1048,2487,2,0) || !territory.accept(1049,2487,3,0) ||
+        territory.affiliation(territoryIds,3,2487)!=10 || !territory.accept(1050,2487,2,0) ||
+        territory.affiliation(territoryIds,3,2487)!=11 || !territory.accept(1049,2487,2,0) ||
+        territory.affiliation(territoryIds,3,2487)!=4 || !territory.accept(1049,2487,2,1) ||
+        territory.affiliation(territoryIds,3,2487)!=11 || territory.accept(1049,5000,2,0) ||
+        territory.accept(1049,2487,5,0) || territory.accept(1049,2487,2,2)) return 80;
+    if (!territory.accept(1048,2487,0,0) || !territory.accept(1049,2487,0,0) ||
+        !territory.accept(1050,2487,0,0) || territory.affiliation(territoryIds,3,2487)!=0 ||
+        logh::systemAffiliationRgb(10)==logh::systemAffiliationRgb(0) ||
+        logh::systemAffiliationRgb(4)!=0x4080ff || logh::systemAffiliationRgb(6)!=0x00dc80 ||
+        logh::systemAffiliationRgb(5)!=0x40c0ff || logh::systemAffiliationRgb(7)!=0xffff40 ||
+        logh::systemAffiliationRgb(11)==logh::systemAffiliationRgb(7)) return 81;
+    if(!sessionEndingDataTest())return 86;
+    if (!groundLocationPageTest()) return 85;
+    if (!tacticalMotionOriginsTest()) return 81;
+    if (!tacticalNoticesTest()) return 82;
+    if (!tacticalWeaponSelectionTest()) return 87;
+    if (!tacticalBaseDataTest()) return 88;
+    if (!stationaryTacticalPoseTest()) return 83;
+    if (!tacticalWaypointOrderTest()) return 84;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
     unsigned profileId=10001;memcpy(profile,&profileId,4);memcpy(snapshot+0x24,&profileId,4);
     profile[4]=2;profile[6]='A';profile[0x20]=3;profile[0x6a]=7;profile[0x60]=88;
@@ -169,7 +909,17 @@ int wmain(int argc, wchar_t** argv) {
     memcpy(capitalBase+0x48,heinessenName,sizeof(heinessenName));
     if (logh::planetOfficeKinds(capitalBase,3,0).first!=192 || logh::planetOfficeKinds(capitalBase,3,0).second!=193 ||
         logh::planetOfficeKinds(capitalBase,2,0).second) return 68;
-    capitalBase[0x48]='X';
+    const uint16_t odinKoName[]={0xc624,0xb518,0};
+    const uint16_t heinessenKoName[]={0xd558,0xc774,0xb124,0xc13c,0};
+    memcpy(capitalBase+0x48,odinKoName,sizeof(odinKoName));
+    if(logh::planetCapitalPower(capitalBase)) return 212;
+    capitalGrid=2487;memcpy(capitalBase+0x10,&capitalGrid,2);
+    if(logh::planetOfficeKinds(capitalBase,2,0).first!=56) return 213;
+    memcpy(capitalBase+0x48,heinessenKoName,sizeof(heinessenKoName));
+    if(logh::planetCapitalPower(capitalBase)) return 214;
+    capitalGrid=2015;memcpy(capitalBase+0x10,&capitalGrid,2);
+    if(logh::planetOfficeKinds(capitalBase,3,0).first!=192 || logh::planetOfficeKinds(capitalBase,3,0).second!=193) return 215;
+    capitalBase[0x48]='X';capitalBase[0x49]=0;
     if (logh::planetCapitalPower(capitalBase) || logh::planetOfficeKinds(capitalBase,3,0).first!=190) return 69;
     capitalBase[0x14]=1;
     if (logh::planetOfficeKinds(capitalBase,3,0).first || logh::planetOfficeKinds(capitalBase,3,0).second!=188 ||
@@ -182,6 +932,12 @@ int wmain(int argc, wchar_t** argv) {
         logh::appointmentInformationCard(14,55,0) ||
         logh::appointmentInformationCard(14,55,261) ||
         logh::appointmentInformationCard(3,55,55)) return 26;
+    if (!logh::appointmentAuthorityCard(135) || !logh::appointmentAuthorityCard(1) ||
+        logh::appointmentAuthorityCard(0) || logh::appointmentAuthorityCard(195) ||
+        logh::appointmentCapitalPower(169)!=3 || logh::appointmentCapitalPower(135)!=3 ||
+        logh::appointmentCapitalPower(2)!=2 || logh::appointmentCapitalPower(56)!=2 ||
+        logh::appointmentCapitalPower(193)!=3 || logh::appointmentCapitalPower(54) ||
+        logh::appointmentCapitalPower(175) || logh::appointmentCapitalPower(231)) return 71;
     unsigned char outfitCache[100 * 32] = {};
     outfitCache[32] = 1; outfitCache[36] = 7;
     outfitCache[96] = 1; outfitCache[100] = 9;
@@ -191,8 +947,18 @@ int wmain(int argc, wchar_t** argv) {
     unsigned char party[logh::outfitPartyBytes] = {};
     party[0] = 7; party[4] = 1; party[9] = 2;
     if (!logh::validOutfitParty(party, 7) || logh::validOutfitParty(party, 9)) return 24;
+    party[4]=0;
+    if(!logh::validOutfitParty(party,7) || !logh::matchingOutfitParty(party,7,2,0) ||
+        logh::matchingOutfitParty(party,7,2,0,1))return 87;
+    party[4]=1;
     party[0x180] = 1; party[0x186] = 1; party[0x188] = 44; party[0x18a] = 1; party[0x18c] = 1;
     if (!logh::validOutfitParty(party, 7)) return 24;
+    unsigned char sameParty[logh::outfitPartyBytes];memcpy(sameParty,party,sizeof(party));
+    sameParty[11]=255;sameParty[0x183]=255;sameParty[0x187]=255;sameParty[0x1a0]=255;
+    if(!logh::sameOutfitParty(party,sameParty))return 86;
+    sameParty[0x18c]=2;if(logh::sameOutfitParty(party,sameParty))return 86;
+    memcpy(sameParty,party,sizeof(party));sameParty[0x4598]=1;
+    if(logh::sameOutfitParty(party,sameParty))return 86;
     party[0x18a] = 71;
     if (logh::validOutfitParty(party, 7)) return 24;
     party[0x18a] = 1; party[0x4504] = 25;
@@ -370,6 +1136,19 @@ int wmain(int argc, wchar_t** argv) {
     if (logh::matchingPlanetWarehouse(warehouse, id)) return 11;
     warehouse[12] = 0; warehouse[0x260] = 25;
     if (logh::matchingPlanetWarehouse(warehouse, id)) return 11;
+    unsigned normal=999;
+    if (!logh::repairedNormal(300,250,50,normal) || normal!=250 ||
+        !logh::repairedNormal(300,250,78,normal) || normal!=222 ||
+        !logh::repairedNormal(1,1,0,normal) || normal!=1 ||
+        logh::repairedNormal(300,250,0,normal) || logh::repairedNormal(300,250,301,normal) ||
+        logh::repairedNormal(0,0,0,normal)) return 80;
+    unsigned alive=999;
+    if(!logh::definitionShipCounts(300,50,0,normal,alive) || normal!=250 || alive!=300 ||
+        !logh::definitionShipCounts(300,0,0,normal,alive) || normal!=300 || alive!=300 ||
+        !logh::definitionShipCounts(300,222,148,normal,alive) || normal!=78 || alive!=152 ||
+        !logh::definitionShipCounts(1,1,0,normal,alive) || normal!=0 || alive!=1 ||
+        logh::definitionShipCounts(300,10,20,normal,alive) || logh::definitionShipCounts(300,301,0,normal,alive) ||
+        logh::definitionShipCounts(0,0,0,normal,alive) || logh::definitionShipCounts(301,0,0,normal,alive))return 80;
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));
@@ -380,4 +1159,10 @@ int wmain(int argc, wchar_t** argv) {
     if (status() != -1 || SUCCEEDED(result) || input) return 4;
     FreeLibrary(module);
     return 0;
+}
+
+int wmain(int argc, wchar_t** argv) {
+    const int result=runGuard(argc,argv);
+    if(result)std::fprintf(stderr,"Compatibility guard failed: %d (ACP %u)\n",result,GetACP());
+    return result;
 }

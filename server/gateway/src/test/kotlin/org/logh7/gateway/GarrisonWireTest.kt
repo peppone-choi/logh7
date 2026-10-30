@@ -32,8 +32,8 @@ class GarrisonWireTest {
             val initial=next(client,0x0323)
             val tail=ByteBuffer.wrap(initial,initial.size-26,26)
             assertEquals(4,tail.get().toInt());tail.position(tail.position()+12)
-            assertEquals(55,tail.short.toInt());assertEquals(1049,tail.int)
             assertEquals(52,tail.short.toInt());assertEquals(1050,tail.int)
+            assertEquals(55,tail.short.toInt());assertEquals(1049,tail.int)
             next(client,0x0f01)
             for ((card,base) in listOf(55 to 1049,52 to 1050)) {
                 client.send(ByteBuffer.allocate(4).putShort(0x034e).putShort(card.toShort()).array())

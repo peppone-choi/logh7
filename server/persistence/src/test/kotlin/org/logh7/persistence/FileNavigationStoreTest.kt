@@ -7,14 +7,220 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun angularScheduleReopensAndLegacyMotionRetainsItsLinearMeaning() {
+        val legacy=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
+            listOf(TacticalPoint(0f,10f),TacticalPoint(0f,0f)))
+        val old=TacticalMotionCodec.encode(legacy)
+        val oldBytes=java.util.Base64.getUrlDecoder().decode(old)
+        assertEquals(49,oldBytes.size) // Historical header + two points, no trailer.
+        assertEquals(0f,TacticalMotionCodec.decode(old).turnRate)
+        assertEquals(TacticalPoint(0f,9f),TacticalMotionCodec.decode(old).pose(116).position)
+        val motion=legacy.copy(turnRate=1f)
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,1000,900,cpPaused=true,motion=motion,
+            energy=TacticalEnergy(listOf(100)+List(10){0}))
+        val path=directory.resolve("angular-motion")
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        FileNavigationStore(path).use {
+            val restored=it.load().getValue("pilot").motion!!
+            assertEquals(motion,restored);assertEquals(TacticalPoint(0f,10f),restored.pose(116).position)
+        }
+        val maximum=motion.copy(waypoints=List(32){TacticalPoint(0f,it.toFloat())},reportedWaypoints=31,parallel=true)
+        val encoded=TacticalMotionCodec.encode(maximum)
+        assertEquals(295,java.util.Base64.getUrlDecoder().decode(encoded).size)
+        assertEquals(maximum,TacticalMotionCodec.decode(encoded))
+        val raw=java.util.Base64.getUrlDecoder().decode(TacticalMotionCodec.encode(motion))
+        fun reject(bytes:ByteArray)=assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode(
+            java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes))}
+        reject(raw.dropLast(1).toByteArray());reject(raw+0.toByte())
+        for(rate in listOf(0f,-1f,Float.NaN,Float.POSITIVE_INFINITY)) {
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putFloat(it.size-4,rate)})
+        }
+        reject(raw.copyOf().also {it[49]=32}) // Unknown option bit.
+        assertEquals(old,TacticalMotionCodec.encode(TacticalMotionCodec.decode(old)))
+    }
+    @Test fun pendingFormationRotationReopensWithLeaderAndRemainingWait() {
+        for(kind in TacticalManeuver.entries) {
+            val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(2f,3f),0.4f),0f,1f,
+                listOf(TacticalPoint(-3f,2f)),rotation=TacticalRotation(kind,1010000,240,List(32){1010000+it}))
+            val player=Navigator(1,10000,Power.EMPIRE,2017,1000,1000,900,cpPaused=true,motion=motion)
+            val path=directory.resolve("rotation-$kind")
+            FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+            FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+            val raw=java.util.Base64.getUrlDecoder().decode(TacticalMotionCodec.encode(motion))
+            assertEquals(179,raw.size)
+            fun reject(bytes:ByteArray)=assertFailsWith<IllegalArgumentException> {
+                TacticalMotionCodec.decode(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes))
+            }
+            reject(raw.dropLast(1).toByteArray());reject(raw+0.toByte())
+            reject(raw.copyOf().also {it[41]=12}) // Both mutually exclusive maneuver bits.
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putInt(42,0)})
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putInt(46,0)})
+            reject(raw.copyOf().also {it[50]=0})
+            reject(raw.copyOf().also {it[50]=33})
+            reject(raw.copyOf().also {java.nio.ByteBuffer.wrap(it).putInt(55,1010000)})
+        }
+    }
+    @Test fun waypointPermissionsSurviveFileReopenAndRejectMissingOrOutOfRangeProgress() {
+        val path=directory.resolve("waypoint-progress")
+        val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0.4f),0.5f,1f,
+            List(32){TacticalPoint(it.toFloat(),0f)},parallel=true,reportedWaypoints=31)
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,1000,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(100)+List(10){0}),motion=motion)
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        val raw=java.util.Base64.getUrlDecoder().decode(TacticalMotionCodec.encode(motion))
+        assertEquals(291,raw.size)
+        fun encoded(bytes:ByteArray)=java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode(encoded(raw.dropLast(1).toByteArray()))}
+        for(bad in listOf(0,32,255))assertFailsWith<IllegalArgumentException>{
+            TacticalMotionCodec.decode(encoded(raw.copyOf().also {it[it.lastIndex]=bad.toByte()}))
+        }
+    }
+    @Test fun commandRangeReopensWithoutRefillAndLegacyFifteenHasNoRangeHistory() {
+        val path=directory.resolve("command-range")
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,960,900,cpPaused=true,
+            commandRange=TacticalCommandRange(100,2.5f,70,85))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-16",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-15\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").commandRange)}
+        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace("100,2.5,70,85","100,NaN,70,85")+"\n")
+        FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
+    @Test fun automaticAttackCadenceReopensAndLegacyFourteenHasNoOrder() {
+        val path=directory.resolve("automatic")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,hull=FlagshipHull(89,100),
+            attack=TacticalAttackOrder(2,100,220,460),fire=TacticalFire(3,last=TacticalHit(3,2017,340,7,10)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-15",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-14\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").attack)}
+        assertFailsWith<IllegalArgumentException>{TacticalAttackOrder(0,100,220,460)}
+        assertFailsWith<IllegalArgumentException>{TacticalAttackOrder(2,100,220,219)}
+    }
+    @Test fun hullInjuryAndPersonalHitsReopenInFourteenAndLegacyThirteenRemainsUnset() {
+        val path=directory.resolve("hull")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            hull=FlagshipHull(89,100,hp=75,shields=List(6){123L}),
+            fire=TacticalFire(2,last=TacticalHit(2,2017,100,1010001,0,1,3,20)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-14",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-13\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").hull)}
+        assertFailsWith<IllegalArgumentException>{FlagshipHullCodec.decode("89,100,0,0,24,0,0,0,0,0,0")}
+        assertFailsWith<IllegalArgumentException>{FlagshipHullCodec.decode("89,100,100,0,24,-1,0,0,0,0,0")}
+    }
+    @Test fun gunAndMissilePendingAndSuppliesSurviveReopenWithoutChangingLegacyBeam() {
+        val path=directory.resolve("ammunition")
+        for(weapon in listOf(TacticalWeapon.GUN,TacticalWeapon.MISSILE)) {
+            val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,supplies=9999,
+                fire=TacticalFire(1,TacticalPendingFire(1,2017,89,7,100,220,weapon)))
+            FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+            val lines=java.nio.file.Files.readAllLines(path)
+            assertEquals("LOGH7-NAV-13",lines.first())
+            FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+            java.nio.file.Files.writeString(path,lines.joinToString("\n").replace("\t9999","\t-1")+"\n")
+            FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+        }
+        assertFailsWith<IllegalArgumentException>{TacticalFireCodec.decode("1;1,2017,89,7,100,220,3;-")}
+    }
+    @Test fun pendingAndCompletedBeamSurviveReopenAndLegacyElevenHasNoPendingFire() {
+        val path=directory.resolve("beam")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            fire=TacticalFire(2,TacticalPendingFire(2,2017,89,7,100,220),TacticalHit(1,2017,90,8,34)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-12",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-11\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").fire)}
+        val fired=player.copy(fire=player.fire!!.copy(pending=null,last=TacticalHit(2,2017,220,7,300)))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to fired))}
+        FileNavigationStore(path).use {assertEquals(fired,it.load().getValue("pilot"))}
+        assertFailsWith<IllegalArgumentException>{TacticalFireCodec.decode("1;1,2017,89,7,100,99;-")}
+        assertFailsWith<IllegalArgumentException>{TacticalFireCodec.decode("1;-;2,2017,100,7,300")}
+    }
+    @Test fun pendingRetreatReopensWithoutResettingItsDeadlineAndOldNineHasNoRetreat() {
+        val path=directory.resolve("retreat")
+        val pose=TacticalPose(TacticalPoint(-300f,0f),1f)
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(100,50)+List(9){0}),
+            motion=TacticalMotion(2017,100,pose,0f,1f,listOf(pose.position)),
+            retreat=TacticalRetreat(2016,120,120,3600))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-10",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-9\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").retreat)}
+    }
+    @Test fun motionKeepsItsScheduleAndPathAcrossReopenAndLegacyEightHasNoMotion() {
+        val path=directory.resolve("motion")
+        val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(-700f,-180f),0f),0.5f,1f,
+            listOf(TacticalPoint(-600f,-180f),TacticalPoint(-600f,0f)))
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,motion=motion,
+            energy=TacticalEnergy(listOf(50)+List(10){0}))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player,"peer" to player.copy(characterId=10001,motion=null)))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-9",lines.first())
+        FileNavigationStore(path).use {
+            val saved=it.load();assertEquals(player,saved.getValue("pilot"));assertNull(saved.getValue("peer").motion)
+            assertEquals(motion.pose(120),saved.getValue("pilot").motion!!.pose(120))
+        }
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-8\n"+lines.drop(1).joinToString("\n"){it.substringBeforeLast('\t')}+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").motion)}
+        val encoded=TacticalMotionCodec.encode(motion)
+        assertEquals(motion,TacticalMotionCodec.decode(encoded))
+        assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode(encoded+"A")}
+        assertFailsWith<IllegalArgumentException>{TacticalMotionCodec.decode("!".repeat(60))}
+    }
+    @Test fun parallelMotionReopensHeadingAndRejectsUnknownOrNoncanonicalExtensions() {
+        val path=directory.resolve("parallel")
+        val motion=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0.7f),0.5f,0.7f,
+            listOf(TacticalPoint(20f,0f)),parallel=true)
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,960,900,cpPaused=true,motion=motion,
+            energy=TacticalEnergy(listOf(100)+List(10){0}))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        FileNavigationStore(path).use {assertEquals(motion,it.load().getValue("pilot").motion)}
+        val encoded=TacticalMotionCodec.encode(motion)
+        assertEquals(0.7f,TacticalMotionCodec.decode(encoded).pose(120).direction)
+        val bytes=java.util.Base64.getUrlDecoder().decode(encoded)
+        for(flag in listOf(0,2,255)) {
+            val bad=bytes.copyOf().also {it[it.lastIndex]=flag.toByte()}
+            assertFails {TacticalMotionCodec.decode(java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bad))}
+        }
+        val normal=motion.copy(parallel=false)
+        assertEquals(normal,TacticalMotionCodec.decode(TacticalMotionCodec.encode(normal)))
+    }
+    @Test fun tacticalEnergySurvivesReopenAndSevenDefaultsToUnset() {
+        val path=directory.resolve("energy")
+        val player=Navigator(1,10000,Power.ALLIANCE,2017,1000,960,900,cpPaused=true,
+            energy=TacticalEnergy(listOf(40,0,20,60,20)+List(6){20}))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-8",lines.first())
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-7\n"+lines[1].substringBeforeLast('\t')+"\n")
+        FileNavigationStore(path).use {assertEquals(player.copy(energy=null),it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace(",60,",",130,")+"\n")
+        FileNavigationStore(path).use {assertEquals(130,it.load().getValue("pilot").energy!!.values[3])}
+        java.nio.file.Files.writeString(path,lines.joinToString("\n").replace(",60,",",131,")+"\n")
+        FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
     @Test fun returnBaseSurvivesReopenAndSixDefaultsToUnset() {
         val path = directory.resolve("return-base")
         val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 900, returnBase = 1048)
         FileNavigationStore(path).use { it.save(mapOf("pilot" to player)) }
         val seven = java.nio.file.Files.readAllLines(path)
-        assertEquals("LOGH7-NAV-7", seven.first())
+        assertEquals("LOGH7-NAV-8", seven.first())
         FileNavigationStore(path).use { assertEquals(player, it.load().getValue("pilot")) }
-        java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n" + seven[1].substringBeforeLast('\t') + "\n")
+        java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n" + seven[1].split('\t').take(18).joinToString("\t") + "\n")
         FileNavigationStore(path).use { assertEquals(player.copy(returnBase = 0), it.load().getValue("pilot")) }
         assertFails { player.copy(returnBase = 65536) }
     }
@@ -27,7 +233,7 @@ class FileNavigationStoreTest {
         val pending = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 840, 900,
             strategy = org.logh7.engine.strategy.StrategyCheckpoint(1, 1000, listOf(job)), dockTarget = 1049)
         FileNavigationStore(path).use { it.save(mapOf("pilot" to pending)) }
-        val row = java.nio.file.Files.readAllLines(path)[1].substringBeforeLast('\t')
+        val row = java.nio.file.Files.readAllLines(path)[1].split('\t').take(18).joinToString("\t")
         java.nio.file.Files.writeString(path, "LOGH7-NAV-6\n$row\n")
         FileNavigationStore(path).use {
             val restored = it.load().getValue("pilot")
@@ -69,6 +275,19 @@ class FileNavigationStoreTest {
         assertFails { StrategyCheckpointCodec.decode(StrategyCheckpointCodec.encode(p.strategy!!) + "AAAA") }
         assertFails { StrategyCheckpointCodec.decode("AA==") }
     }
+    @Test fun chargeAnchorPersistsWithLegacyOptionalColumnsAndRejectsCorruptWork() {
+        val path=directory.resolve("charge-navigation")
+        val player=Navigator(1,10000,Power.EMPIRE,2487,1000,960,900,cpPaused=true,
+            charge=org.logh7.engine.TacticalCharge(1000,12001,6001,24))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        val lines=java.nio.file.Files.readAllLines(path)
+        assertEquals("LOGH7-NAV-11",lines.first());assertEquals(23,lines[1].split('\t').size)
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        java.nio.file.Files.writeString(path,"LOGH7-NAV-10\n"+lines[1].split('\t').take(22).joinToString("\t")+"\n")
+        FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").charge)}
+        java.nio.file.Files.writeString(path,lines[0]+"\n"+lines[1].substringBeforeLast('\t')+"\t1000,24001,0,24\n")
+        FileNavigationStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
     @TempDir lateinit var directory: Path
     @Test fun migratesOldRowsAndPersistsFacilityLocationAcrossReopen() {
         val path = directory.resolve("old-navigation")
@@ -80,7 +299,7 @@ class FileNavigationStoreTest {
             landed = old.copy(baseId = 1049, mode = 0, spotId = 10_490_003)
             store.save(mapOf("pilot" to landed))
         }
-        assertEquals("LOGH7-NAV-7", java.nio.file.Files.readAllLines(path).first())
+        assertEquals("LOGH7-NAV-8", java.nio.file.Files.readAllLines(path).first())
         FileNavigationStore(path).use { assertEquals(landed, it.load().getValue("pilot")) }
     }
     @Test fun replacementSurvivesReopenAndExcludesOtherWriters() {

@@ -13,6 +13,7 @@ static BYTE planetDecorationSection[150] = {};
 static const char planetPartsPath[] = "/../data/image/window/wakusei_parts.tga";
 static const char planetIconPath[] = "/../data/image/senryaku_panel/senryaku_mainpanel.tga";
 static void* planetIcons[1] = {};
+static void* planetDirectoryList = nullptr;
 static void createPlanetDirectory();
 static void renderPlanetDirectory();
 // 00503a70 has 150 sprite slots; exceeding it corrupts the native GUI array.
@@ -109,12 +110,16 @@ static void planetIcon(unsigned slot, const BYTE* base) {
     for (int state = 0; state < 4; ++state)
         reinterpret_cast<void(__thiscall*)(void*, void*, const void*, int)>(0x503920)(planetWindowRoot, icon, art, state);
 }
-static bool createPlanetWindow(void* manager) {
+static bool createPlanetWindow(void* manager,bool directory=true) {
     if (planetWindowManager == manager && planetWindowRoot &&
-        at<void*>(manager, 4 + planetWindowId * 4) == planetWindowRoot) return true;
+        at<void*>(manager, 4 + planetWindowId * 4) == planetWindowRoot) {
+        if(directory && !planetDirectoryList)createPlanetDirectory();
+        return true;
+    }
     if (at<void*>(manager, 4 + planetWindowId * 4)) return false;
     planetWindowManager = manager;
     planetDecorationCount = 0;
+    planetDirectoryList = nullptr;
     memset(planetDecorationSection, 0, sizeof(planetDecorationSection));
     planetWindowRoot = reinterpret_cast<void*(__thiscall*)(void*, int)>(0x50bb40)(manager, planetWindowId);
     if (!planetWindowRoot) return false;
@@ -207,7 +212,7 @@ static bool createPlanetWindow(void* manager) {
             (planetWindowRoot, surface, fill, 3, 3, state);
     reinterpret_cast<void(__thiscall*)(void*, void*, float, float, float, float)>(0x502f40)
         (planetWindowRoot, surface, 0.015f, 0.035f, 0.065f, 0.97f);
-    createPlanetDirectory();
+    if(directory)createPlanetDirectory();
     reinterpret_cast<void(__thiscall*)(void*)>(0x503910)(planetWindowRoot);
     reinterpret_cast<void(__thiscall*)(void*, int)>(0x502ea0)(planetWindowRoot, 0);
     return true;

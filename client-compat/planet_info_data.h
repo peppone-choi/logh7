@@ -58,9 +58,11 @@ inline unsigned planetCapitalPower(const unsigned char* base) {
     if (!base || infoShort(base,0x14)!=0) return 0;
     const uint16_t odin[]={0x30aa,0x30fc,0x30c7,0x30a3,0x30f3,0};
     const uint16_t heinessen[]={0x30cf,0x30a4,0x30cd,0x30bb,0x30f3,0};
+    const uint16_t odinKo[]={0xc624,0xb518,0};
+    const uint16_t heinessenKo[]={0xd558,0xc774,0xb124,0xc13c,0};
     unsigned grid=infoShort(base,0x10);
-    if (grid==2487 && !memcmp(base+0x48,odin,sizeof(odin))) return 2;
-    if (grid==2015 && !memcmp(base+0x48,heinessen,sizeof(heinessen))) return 3;
+    if (grid==2487 && (!memcmp(base+0x48,odin,sizeof(odin)) || !memcmp(base+0x48,odinKo,sizeof(odinKo)))) return 2;
+    if (grid==2015 && (!memcmp(base+0x48,heinessen,sizeof(heinessen)) || !memcmp(base+0x48,heinessenKo,sizeof(heinessenKo)))) return 3;
     return 0;
 }
 inline PlanetOfficeKinds planetOfficeKinds(const unsigned char* base,unsigned power,unsigned camp) {

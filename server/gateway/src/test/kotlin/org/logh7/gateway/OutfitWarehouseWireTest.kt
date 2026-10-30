@@ -55,6 +55,71 @@ class OutfitWarehouseWireTest {
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,1,40000,2,stocks)).getShort(4).toInt())
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,3,20000,2,stocks)).getShort(4).toInt())
     }
+    @Test fun encryptedFacilityQueryUsesSavedOwnerDespiteDifferentSeed() = runBlocking<Unit> {
+        val original = snapshot()
+        val captured = original.copy(bases=original.bases +
+            (1049 to original.bases.getValue(1049).copy(power=3)))
+        val store = object : PlanetStockStore {
+            override fun load() = captured
+            override fun save(stocks: PlanetStocks) {}
+        }
+        LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false,stockStore=store).use { fixture ->
+            val client = fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            for(ignored in 0..300) if(ByteBuffer.wrap(client.receive()).getShort(4).toInt() == 0x0f01) break
+            val packet = client.request(ByteBuffer.allocate(7).putShort(0x0320).put(1).putInt(1049).array(),
+                0x0321,"capturedFacilities")
+            val input = ByteBuffer.wrap(packet); input.position(6)
+            assertEquals(1,input.get().toInt()); assertEquals(1049,input.int)
+            val rooms = mutableMapOf<Int,Int>()
+            repeat(input.get().toInt() and 255) {
+                input.short; input.int
+                repeat(input.get().toInt() and 255) {
+                    val kind = input.short.toInt(); input.int
+                    rooms[kind] = input.short.toInt() and 65535
+                }
+            }
+            assertFalse(input.hasRemaining())
+            assertEquals(7,rooms[6]) // Alliance hangar, not the Empire seed's image 5.
+            assertTrue(101 in rooms); assertFalse(63 in rooms)
+            val condition = client.request(ByteBuffer.allocate(7).putShort(0x031e).put(1).putInt(1049).array(),
+                0x031f,"capturedCondition")
+            assertEquals(3,condition[11].toInt())
+        }
+    }
+
+    @Test fun lostBaseDeniesEvenExistingCommanderAndLogisticsCards() {
+        val world = WorldBootstrap(galaxy)
+        val original = snapshot()
+        for ((power,camp) in listOf(3 to 0,2 to 1)) {
+            val stocks = original.copy(bases=original.bases +
+                (1049 to original.bases.getValue(1049).copy(power=power,camp=camp)))
+            for(character in listOf(10000,40000)) {
+                assertFailsWith<IllegalArgumentException> { world.outfitWarehouse(1049,1,character,2,stocks) }
+            }
+            assertEquals(original.warehouses,stocks.warehouses)
+        }
+    }
+
+    @Test fun savedOwnerControlsInitialAndRequestedFacilityRoomsAndBackgrounds() {
+        val world = WorldBootstrap(galaxy)
+        val original = snapshot()
+        val captured = original.copy(bases=original.bases +
+            (1049 to original.bases.getValue(1049).copy(power=3)))
+        val expected = org.logh7.protocol.LoginMessages.sessionMessage(0x0321,
+            org.logh7.protocol.WorldMessages.institutions(listOf(
+                org.logh7.protocol.WorldMessages.BaseInstitutions(1049,
+                    Places.forBase(galaxy.bases.single(),3).map { facility ->
+                        org.logh7.protocol.WorldMessages.Institution(facility.kind,facility.id,facility.spots.map {
+                            org.logh7.protocol.WorldMessages.Spot(it.kind,it.id,it.image)
+                        })
+                    }))))
+        assertContentEquals(expected,world.places(listOf(1049),captured))
+        assertContentEquals(expected,world.initialize(2487,stocks=captured).last())
+        assertFalse(world.places(listOf(1049),original).contentEquals(expected))
+        assertContentEquals(world.places(listOf(1049)),world.places(listOf(1049),original))
+    }
+
     @Test fun shipGradesAreAggregatedAsUnitsAndPhysicalBoatsWithoutChangingStoredStacks() {
         val world = WorldBootstrap(galaxy)
         val original = snapshot()

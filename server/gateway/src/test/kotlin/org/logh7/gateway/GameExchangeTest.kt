@@ -7,7 +7,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.*
-import org.logh7.engine.Admission
+import org.logh7.engine.*
 import java.util.concurrent.CompletableFuture
 
 class GameExchangeTest {
@@ -155,6 +155,177 @@ class GameExchangeTest {
         val clockFrame = game.accept(0x30, encrypted(hex("0300"), 6))!!
         val clockBody = Envelope.decode(LegacyBlowfish(b).decrypt(clockFrame.copyOfRange(8, clockFrame.size)), serverSequence).second
         assertContentEquals(hex("00000000030100015180"), clockBody)
+    }
+    @Test fun clockResponseWaitsForTimeCommitBeforeRecoveryAndUsesTheFreshSample() {
+        for(fail in listOf(false,true)) {
+            var now=java.time.Instant.EPOCH
+            val clock=object:java.time.Clock() {
+                override fun getZone()=java.time.ZoneOffset.UTC
+                override fun withZone(zone:java.time.ZoneId):java.time.Clock=this
+                override fun instant()=now
+            }
+            val characters=CharacterCreation(clock=clock,lotteryWindowMillis=1)
+            characters.apply("user",listOf(1001));now=now.plusMillis(1)
+            val sampled=CompletableFuture<Unit>();val calls=mutableListOf<String>();var seconds=0L
+            val player=org.logh7.engine.Navigator(1,1001,org.logh7.engine.Power.EMPIRE,2487,1000,1000,1000)
+            val navigation=object:GameNavigation {
+                override fun synchronizeTime():CompletableFuture<Unit>{calls+="clock";return sampled}
+                override fun apply(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
+                    calls+="navigation"
+                    return CompletableFuture.completedFuture(org.logh7.engine.NavigationResult(player))
+                }
+            }
+            val tickets=SessionTickets()
+            val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
+                Handshake(b,2),characters,gameSeconds={seconds},expectedGeneration=1,connection="owned",navigation=navigation)
+            game.accept(0x34,initial);game.accept(0x36,confirm)
+            val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+            game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+            game.accept(0x30,encrypted(hex("0200"),2));game.accept(0x30,encrypted(hex("0205"),3))
+            assertNull(game.accept(0x30,encrypted(hex("0300"),4)))
+            val operation=assertNotNull(game.takePendingWorld());assertFalse(operation.isDone)
+            assertEquals(listOf("clock"),calls)
+            if(fail) {
+                sampled.completeExceptionally(java.io.IOException("clock save failed"))
+                assertTrue(operation.isCompletedExceptionally);assertEquals(listOf("clock"),calls)
+            } else {
+                seconds=1234;sampled.complete(Unit)
+                val response=operation.join().first()
+                assertEquals(0x0301,ByteBuffer.wrap(response).getShort(4).toInt())
+                assertEquals(1234,ByteBuffer.wrap(response).getInt(6))
+                assertEquals(listOf("clock","navigation"),calls)
+            }
+            game.close()
+        }
+    }
+    @Test fun reinforcementAfterTacticalSnapshotCaptureRequestsAnotherInitializationButEarlierArrivalDoesNot() {
+        for(late in listOf(false,true))for(peerRefresh in listOf(false,true)) {
+            var now=java.time.Instant.EPOCH
+            val clock=object:java.time.Clock() {
+                override fun getZone()=java.time.ZoneOffset.UTC
+                override fun withZone(zone:java.time.ZoneId):java.time.Clock=this
+                override fun instant()=now
+            }
+            val characters=CharacterCreation(clock=clock,lotteryWindowMillis=1)
+            characters.apply("user",listOf(1001));now=now.plusMillis(1)
+            val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Battle",2)),emptyList(),Power.entries.associateWith {2487})
+            val player=Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true)
+            var revision=1L
+            val navigation=object:GameNavigation {
+                override fun snapshot()=WorldSnapshot(revision,0,SessionSnapshot(1,0,0,0,emptyMap(),1,1,null),
+                    navigators=mapOf("user" to player),planetStocks=PlanetStocks(1,0,emptyMap()))
+                override fun apply(request:NavigationRequest)=CompletableFuture.completedFuture(NavigationResult(player))
+            }
+            val tickets=SessionTickets()
+            val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
+                Handshake(b,2),characters,gameSeconds={0},expectedGeneration=1,connection="owned",
+                navigation=navigation,world=WorldBootstrap(galaxy))
+            fun opcodes(batch:OutboundBatch):List<Int> {
+                val bytes=batch.bytes;var offset=0;val result=mutableListOf<Int>()
+                while(offset<bytes.size) {
+                    val end=offset+2+(ByteBuffer.wrap(bytes).getShort(offset).toInt() and 65535)
+                    val body=Envelope.decode(LegacyBlowfish(b).decrypt(bytes.copyOfRange(offset+8,end)),-1).second
+                    result+=ByteBuffer.wrap(body).getShort(4).toInt() and 65535;offset=end
+                }
+                return result
+            }
+            try {
+                game.accept(0x34,initial);game.accept(0x36,confirm)
+                val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+                game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+                game.accept(0x30,encrypted(hex("0200"),2));game.accept(0x30,encrypted(hex("0205"),3))
+                game.accept(0x30,encrypted(hex("0f00"),4))
+                assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join()))
+                fun arrive() {
+                    revision=2
+                    val notification=if(peerRefresh)LoginMessages.sessionMessage(0x0b09,byteArrayOf()) else TacticsMessages.notify(2487,true)
+                    assertNull(game.notifyWorld(listOf(notification)))
+                }
+                if(!late)arrive()
+                game.accept(0x30,encrypted(hex("0f02"),5))
+                val captured=assertNotNull(game.takePendingWorld()).join()
+                if(late)arrive() // Snapshot already built, but its outbound batch has not been published.
+                val delivered=opcodes(assertNotNull(game.finishWorld(captured)))
+                assertEquals(if(late)1 else 0,delivered.count {it==0x0f1f})
+                if(late)assertEquals(0x0f1f,delivered.last())
+                game.accept(0x30,encrypted(hex("0f02"),6))
+                val latest=opcodes(assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join())))
+                assertFalse(0x0f1f in latest,"A current snapshot must finish without an initialization loop")
+            } finally {game.close()}
+        }
+    }
+    @Test fun tacticalPositionsWaitForCurrentTimeAndRecheckRetreatBeforeReplaying() {
+        for(outcome in listOf("moving","failure","retreat","malformed")) {
+            var now=java.time.Instant.EPOCH
+            val clock=object:java.time.Clock() {
+                override fun getZone()=java.time.ZoneOffset.UTC
+                override fun withZone(zone:java.time.ZoneId):java.time.Clock=this
+                override fun instant()=now
+            }
+            val characters=CharacterCreation(clock=clock,lotteryWindowMillis=1)
+            characters.apply("user",listOf(1001));now=now.plusMillis(1)
+            val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Capital",2)),emptyList(),
+                Power.entries.associateWith {2487})
+            val motion=TacticalMotion(2487,0,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
+                listOf(TacticalPoint(0f,100f)))
+            var player=Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true,
+                energy=TacticalEnergy(listOf(100)+List(10){0}),motion=motion)
+            var seconds=0L;var syncs=0;var recoveries=0
+            var sampled=CompletableFuture<Unit>()
+            val navigation=object:GameNavigation {
+                override fun synchronizeTime():CompletableFuture<Unit>{syncs++;return sampled}
+                override fun snapshot()=WorldSnapshot(0,0,SessionSnapshot(1,seconds,0,0,emptyMap(),1,1,null),
+                    navigators=mapOf("user" to player),planetStocks=PlanetStocks(1,0,emptyMap()))
+                override fun apply(request:NavigationRequest):CompletableFuture<NavigationResult> {
+                    recoveries++;return CompletableFuture.completedFuture(NavigationResult(player))
+                }
+            }
+            val tickets=SessionTickets()
+            val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
+                Handshake(b,2),characters,gameSeconds={seconds},expectedGeneration=1,connection="owned",
+                navigation=navigation,world=WorldBootstrap(galaxy))
+            game.accept(0x34,initial);game.accept(0x36,confirm)
+            val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+            game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+            game.accept(0x30,encrypted(hex("0200"),2));game.accept(0x30,encrypted(hex("0205"),3))
+            game.accept(0x30,encrypted(hex("0f02"),4))
+            game.finishWorld(assertNotNull(game.takePendingWorld()).join())
+            val query=ByteBuffer.allocate(8).putShort(0x0348).putShort(1).putInt(player.unitId).array()
+            if(outcome=="malformed") {
+                assertFails {game.accept(0x30,encrypted(query.copyOf(7),5))}
+                assertEquals(0,syncs);game.close();continue
+            }
+            assertNull(game.accept(0x30,encrypted(query,5)))
+            val operation=assertNotNull(game.takePendingWorld())
+            assertFalse(operation.isDone);assertEquals(1,syncs);assertEquals(1,recoveries)
+            if(outcome=="failure") {
+                sampled.completeExceptionally(java.io.IOException("position time save failed"))
+                assertTrue(operation.isCompletedExceptionally);assertEquals(1,recoveries)
+            } else {
+                seconds=10
+                if(outcome=="retreat") player=player.copy(grid=2488,cpPaused=false,motion=null)
+                sampled.complete(Unit)
+                val messages=operation.join();val position=ByteBuffer.wrap(messages.first())
+                assertEquals(0x0349,position.getShort(4).toInt())
+                if(outcome=="retreat") {
+                    assertEquals(0,position.getShort(6).toInt());assertEquals(2,recoveries)
+                    assertTrue(messages.any {ByteBuffer.wrap(it).getShort(4).toInt()==0x0356})
+                    assertNotNull(game.finishWorld(messages))
+                } else {
+                    assertEquals(1,position.getShort(6).toInt());assertEquals(player.unitId,position.getInt(8))
+                    assertEquals(0f,position.getFloat(12));assertEquals(5f,position.getFloat(16))
+                    val replay=messages.single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0400}
+                    val resumed=TacticalMoveMessages.move(replay.copyOfRange(4,replay.size))
+                    assertEquals(5f,resumed.units.single().position.y)
+                    assertNotNull(game.finishWorld(messages))
+                    sampled=CompletableFuture.completedFuture(Unit)
+                    assertNull(game.accept(0x30,encrypted(query,6)))
+                    assertEquals(listOf(0x0349),assertNotNull(game.takePendingWorld()).join().map {
+                        ByteBuffer.wrap(it).getShort(4).toInt()})
+                }
+            }
+            game.close()
+        }
     }
     @Test fun warpWaitsForNavigationPersistenceThenPublishesAuthoritativeState() {
         var now = java.time.Instant.EPOCH

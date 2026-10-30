@@ -123,10 +123,16 @@ static void __declspec(naked) filterSpot() {
 }
 
 static bool updateTaxWindow(void* gui);
+static bool strategyActionCommand(unsigned command);
+static BYTE openStrategyAction(void* manager,int command,unsigned card);
+static bool updateStrategyAction(void* gui);
 static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
+static bool updateSessionEnding(void* manager);
+static void receivedSessionEnding(void* world,const BYTE* record);
+#include "system_affiliation.h"
 #include "planet_info.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"
@@ -135,6 +141,8 @@ static void updateCharacterInformation(void* manager);
 #include "navigation_status.h"
 #include "return_base.h"
 #include "planet_tax.h"
+#include "strategy_actions.h"
+#include "session_ending.h"
 #include "appointment_information.h"
 #include "supply_selector.h"
 #include "unicode_text.h"
@@ -142,7 +150,41 @@ static void updateCharacterInformation(void* manager);
 #include "character_information.h"
 #include "input_editor.h"
 #include "peer_notices.h"
+#include "tactical_notices.h"
 #include "unit_presence.h"
+#include "tactical_labels.h"
+#include "hud_recovery.h"
+#include "hud_text.h"
+#include "tactical_command_range.h"
+#include "tactical_support.h"
+#include "tactical_motion.h"
+#include "tactical_weapon.h"
+#include "tactical_radar.h"
+#include "korean_resources.h"
+#include "display_hooks.h"
+#include "mail_input.h"
+#include "mail_labels.h"
+#include "korean_dialogs.h"
+#include "literal_text.h"
+#include "legacy_hud_text.h"
+#include "warp_prompt.h"
+#include "namecard_labels.h"
+
+#include "tactical_base_ui.h"
+#include "tactical_fortress_menu.h"
+#include "tactical_departure.h"
+#include "environment_shader.h"
+
+// The surviving message catalogue ends before tactical HUD group 119.
+// Supply the two known titles only when the native lookup reports NO TABLE;
+// preserve a future complete catalogue and every other lookup unchanged.
+static const char* __fastcall tacticalHudTitle(void* table, void*, unsigned group, unsigned index) {
+    const char* text = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
+        (table, group, index);
+    if (!text || strcmp(text, "NO TABLE") || group != 119) return text;
+    if (index < 2) return logh::koreanResource(65534,0,index,text);
+    return text;
+}
 
 // 005035a0 appends chat colour markers through 004eab10. That routine converts
 // the entire existing UTF-16 pool to the host ANSI codepage, then decodes it as
@@ -153,7 +195,7 @@ static void __cdecl appendTextFragment(void* pool, const char* fragment) {
     if (fragment && !strcmp(fragment, peerNoticeMarker) && !pendingPeerNotice.empty()) {
         decoded.swap(pendingPeerNotice);
         converted = true;
-    } else converted = logh::japaneseFragment(fragment, decoded);
+    } else converted = logh::tacticalNoticeFragment(fragment, decoded) || logh::japaneseFragment(fragment, decoded);
     if (pool && converted)
         reinterpret_cast<void(__cdecl*)(void*, const wchar_t*)>(0x4eabb0)(pool, decoded.c_str());
 }
@@ -277,6 +319,7 @@ static void drawHudIcon(int slot, int atlasX, int atlasY, float x, float y, unsi
 static void __fastcall drawHud(void* map, void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x4d5610)(map);
     drawDockingStatus();
+    drawSystemAffiliationIcons(map);
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     if (!world || !at<BYTE>(world, 0x2b6a6c)) return;
     int grid = at<int>(world, 0x2b6a70);
@@ -452,6 +495,9 @@ static void __fastcall drawLayout(void* map, void*, char) {
 static void install() {
     if (InterlockedCompareExchange(&status, 1, 0)) return;
     if (!verifiedClient()) { status = -1; return; }
+    if (!installEnvironmentShader()) { status = -3; return; }
+    if (!verifyTacticalNotices()) { status = -2; return; }
+    if (!installSystemAffiliation()) { status = -2; return; }
     BYTE* target = reinterpret_cast<BYTE*>(0x4d68d0);
     const BYTE expected[] = {0x83,0xec,0x58,0x53,0x56};
     if (memcmp(target, expected, sizeof(expected))) { status = -2; return; }
@@ -482,6 +528,10 @@ static void install() {
     const BYTE expectedNotices[][5] = {{0xe8,0x4a,0xf4,0x05,0}, {0xe8,0xd1,0x32,0x06,0}};
     for (unsigned i = 0; i < 2; ++i)
         if (memcmp(reinterpret_cast<void*>(noticeAddresses[i]), expectedNotices[i], 5)) { status = -2; return; }
+    const unsigned tacticalTitleAddresses[] = {0x513181, 0x513855};
+    const BYTE expectedTacticalTitles[][5] = {{0xe8,0x8a,0xee,0,0}, {0xe8,0xb6,0xe7,0,0}};
+    for (unsigned i = 0; i < 2; ++i)
+        if (memcmp(reinterpret_cast<void*>(tacticalTitleAddresses[i]), expectedTacticalTitles[i], 5)) { status = -2; return; }
     const unsigned glyphAddresses[] = {0x4b0c62, 0x4b0cb5, 0x4b0d29};
     const BYTE expectedGdi[][6] = {{0xff,0x15,0xa0,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}, {0xff,0x15,0xa4,0xb0,0x66,0}};
     for (unsigned i = 0; i < 3; ++i)
@@ -502,6 +552,7 @@ static void install() {
     const BYTE oldCardGroup = 101, newCardGroup = 96;
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
+    if (!installSessionEnding()) { status = -3; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }
     if (!installOutfitWarnings()) { status = -3; return; }
@@ -513,9 +564,18 @@ static void install() {
     if (!installNavigationStatus()) { status = -3; return; }
     if (!installReturnSettings()) { status = -3; return; }
     if (!installTaxWindow()) { status = -3; return; }
+    if (!installStrategyActions()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }
+    if (!installTacticalSupport()) { status = -3; return; }
+    if (!installTacticalMotion()) { status = -3; return; }
+    if (!installTacticalWeapon()) { status = -3; return; }
+    if (!installTacticalNotices()) { status = -3; return; }
+    if (!installTacticalLabels()) { status = -3; return; }
+    if (!installHudRecovery()) { status = -3; return; }
+    if (!installHudText()) { status = -3; return; }
+    if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);
     if (!patchBytes(spotFilter, expectedSpotFilter, spotJump, sizeof(spotJump))) { status = -3; return; }
@@ -552,6 +612,22 @@ static void install() {
         *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(function - address - 5);
         if (!patchBytes(address, expectedNotices[i], call, 5)) { status = -3; return; }
     }
+    for (unsigned i = 0; i < 2; ++i) {
+        auto address = reinterpret_cast<BYTE*>(tacticalTitleAddresses[i]);
+        *reinterpret_cast<LONG*>(call + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&tacticalHudTitle) - address - 5);
+        if (!patchBytes(address, expectedTacticalTitles[i], call, 5)) { status = -3; return; }
+    }
+    if (!installTacticalRadar()) { status = -3; return; }
+    if (!installKoreanResources()) { status = -3; return; }
+
+    if (!installTacticalBaseUi()) { status = -3; return; }
+    if (!installFortressCommandMenu()) { status = -3; return; }
+    if (!installTacticalDeparture()) { status = -3; return; }
+    if (!installDisplayNames()) { status = -3; return; }
+    if (!installMailInput()) { status = -3; return; }
+    if (!installMailLabels()) { status = -3; return; }
+    if (!installKoreanDialogs() || !installKoreanLiteralText() || !installKoreanLegacyHud() || !installNameCardLabels() ||
+        !installWarpPrompt()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};
@@ -559,7 +635,7 @@ static void install() {
         *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(function - address - 5);
         if (!patchBytes(address, expectedGdi[i], replacement, 6)) { status = -3; return; }
     }
-    // Only the strategy HUD call sites use the wrong group. Tactical group 104 remains intact.
+    // Correct the strategy HUD group only at its verified call sites.
     const unsigned hudGroups[] = {0x58d561,0x58d570,0x58d57f,0x58d58e,0x58d59d,0x58d5ac,0x58d5bb,
         0x58d5ca,0x58d5d9,0x58d5e8,0x58d6d3,0x58effb,0x58f01e,0x58f038,0x58f053,0x58f070,
         0x58f085,0x58f0e3,0x58f24c,0x58f339,0x58f38d};
