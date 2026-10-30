@@ -239,7 +239,18 @@ static void updateOutfitGroundControls() {
     ReleaseSRWLockExclusive(&outfitReplyLock);
     if(reply && state.groundPending) {
         state.groundPending=0;state.groundArmed=0;
-        state.groundMessage=L"서버 응답을 받았습니다. 최신 편성을 조회합니다.";
+        // reply = 1 + server reason (GroundTransferMessages: LogisticsRejection ordinal+1, 0x40 no change).
+        unsigned reason=reply-1;
+        state.groundMessage=reason==0 ? L"승하선을 저장했습니다. 최신 편성을 조회합니다." :
+            reason==0x40 ? L"옮길 육전대가 없습니다. CP를 사용하지 않았습니다." :
+            reason==4 ? L"명령 거부 · 부대 지휘관이 아니거나 아군 정규 거점이 아닙니다." :
+            reason==5 ? L"명령 거부 · 지휘관이 부대와 같은 거점에 있어야 합니다(이동·보급 중 불가)." :
+            reason==6 ? L"명령 거부 · 전술 명령이 진행 중인 함정이나 육전대가 있습니다." :
+            reason==8 ? L"명령 거부 · 육전대나 생존 함정이 없거나 탑재 공간(함정당 10)이 부족합니다." :
+            reason==10 ? L"명령 거부 · MCP가 부족합니다(80 필요)." :
+            reason==3 ? L"명령 거부 · 부대를 찾을 수 없습니다. 창을 다시 여십시오." :
+            reason==12 ? L"명령 거부 · 서버 저장에 실패했습니다. CP를 사용하지 않았습니다." :
+            L"명령 거부 · 접속·직무·위치를 확인하십시오.";
         invalidateOutfitGround();requestOutfit(false);
     }
     if(state.groundPending && now-state.groundSentAt>=10000) {
@@ -288,11 +299,17 @@ static void updateOutfitGroundControls() {
     }
 }
 static void receivedOutfitGround(void* world,void* record,unsigned flags,unsigned action) {
+    // The server's single marked value ('LG' << 16 | reason) is an extension; clear it so
+    // the native handler sees the plain whole-outfit record.
+    unsigned reason=0;
+    if(at<BYTE>(record,20)==1 && (at<unsigned>(record,24)>>16)==0x4c47) {
+        reason=at<unsigned>(record,24)&0xffff;at<BYTE>(record,20)=0;at<unsigned>(record,24)=0;
+    }
     reinterpret_cast<void(__thiscall*)(void*,void*,unsigned)>(action==0x40 ? 0x4c00c0 : 0x4c0130)(world,record,flags);
     AcquireSRWLockExclusive(&outfitReplyLock);
     if(outfitInbox.world==world && outfitInbox.groundAction==action &&
         outfitInbox.groundCharacter==at<unsigned>(record,4) && outfitInbox.groundOutfit==at<unsigned>(record,16))
-        outfitInbox.groundReply=1;
+        outfitInbox.groundReply=1+reason;
     ReleaseSRWLockExclusive(&outfitReplyLock);
 }
 static void __fastcall receivedOutfitUnload(void* world,void*,void* record,unsigned flags) {receivedOutfitGround(world,record,flags,0x40);}

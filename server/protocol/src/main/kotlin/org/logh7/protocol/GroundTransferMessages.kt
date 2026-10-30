@@ -28,12 +28,17 @@ object GroundTransferMessages {
         require(count<=3 && input.remaining()==count*4)
         return Command(action,character,outfit,List(count) {input.int.toLong() and 0xffffffffL})
     }
-    fun reply(command:Command,seconds:Long,pcp:Int,mcp:Int,accepted:Boolean=true):ByteArray {
-        require(seconds in 0..0xffffffffL && pcp>=0 && mcp>=0)
-        val out=ByteBuffer.allocate(21+4*command.values.size)
+    /** Extension marker 'LG' in the high half of the single value; the compat module reads the
+     * low half as the result reason and clears the value before the native handler sees it. */
+    const val REASON_MARK=0x4c470000L
+    const val NO_CHANGE=0x40
+    fun reply(command:Command,seconds:Long,pcp:Int,mcp:Int,accepted:Boolean=true,reason:Int=0):ByteArray {
+        require(seconds in 0..0xffffffffL && pcp>=0 && mcp>=0 && reason in 0..0xffff)
+        val values=if(reason!=0)listOf(REASON_MARK or reason.toLong()) else command.values
+        val out=ByteBuffer.allocate(21+4*values.size)
             .putInt(seconds.toInt()).putInt(command.character).putInt(pcp).putInt(mcp).putInt(command.outfit)
-            .put(command.values.size.toByte())
-        command.values.forEach {out.putInt(it.toInt())}
+            .put(values.size.toByte())
+        values.forEach {out.putInt(it.toInt())}
         return LoginMessages.sessionMessage(command.action.opcode,out.array(),if(accepted)0 else 1)
     }
 }

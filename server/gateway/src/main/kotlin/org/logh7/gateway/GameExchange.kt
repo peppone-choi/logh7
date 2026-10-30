@@ -1046,7 +1046,8 @@ class GameExchange(
                         // cannot silently become a quantity or an individual unit ID.
                         if(command.values.isNotEmpty()) {
                             val p=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
-                            return handshake.stageAll(listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),p.pcp,p.mcp,false)),clearHeader=0)
+                            return handshake.stageAll(listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),p.pcp,p.mcp,false,
+                                org.logh7.engine.LogisticsRejection.MODE.ordinal+1)),clearHeader=0)
                         }
                         pendingWorld=administration.transferGround(org.logh7.engine.GroundTransferRequest(identity.account,connection,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
@@ -1058,7 +1059,9 @@ class GameExchange(
                             val accepted=result.rejection==null
                             val stored=checkNotNull(result.stocks ?: navigation?.snapshot()?.planetStocks)
                             val outfit=stored.outfits[command.outfit]
-                            listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),player.pcp,player.mcp,accepted),
+                            // Reason = rejection ordinal+1; an accepted request that moved nothing reports NO_CHANGE.
+                            val reason=result.rejection?.let {it.ordinal+1} ?: if(result.changed)0 else org.logh7.protocol.GroundTransferMessages.NO_CHANGE
+                            listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),player.pcp,player.mcp,accepted,reason),
                                 characterMessage(character,player,true))+
                                 (if(accepted && outfit!=null)listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
                                     outfit.id,0,0),character.power,stored,characterById=::currentCharacterById)) else emptyList())+
