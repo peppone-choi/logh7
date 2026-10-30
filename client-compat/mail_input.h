@@ -56,7 +56,7 @@ static void receivedMailOutcome(void* world,unsigned opcode,const BYTE* record) 
     else if ((opcode&0xffff)==0x0f08) {
         const auto data=const_cast<BYTE*>(record);
         mailRefresh.begin(world,at<unsigned>(data,0),at<BYTE>(data,0x125)!=0,
-            !at<unsigned>(data,0x118) && !at<unsigned>(data,0x11c) && !at<unsigned>(data,0x120));
+            logh::personalMailAddress(data));
     } else if ((opcode&0xffff)==0x0f09)mailRefresh.end(world);
 }
 static void __fastcall mailEditorTick(void* context,void*,void* input) {

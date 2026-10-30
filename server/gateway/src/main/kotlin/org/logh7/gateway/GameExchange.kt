@@ -1100,11 +1100,13 @@ class GameExchange(
                             }
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
-                            listOf(org.logh7.protocol.NavigationMessages.accepted(command, seconds, player.pcp, player.mcp),
+                            // A long warp may land on a neighbouring space grid; report the server's arrival.
+                            val arrived = command.copy(grid = player.grid)
+                            listOf(org.logh7.protocol.NavigationMessages.accepted(arrived, seconds, player.pcp, player.mcp),
                                 characterMessage(character, player, true),
                                 unitMessage(character, player),
                                 org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused),
-                                org.logh7.protocol.NavigationMessages.moved(command, seconds, player.unitId, player.cruise)) + completedWork(result, character)
+                                org.logh7.protocol.NavigationMessages.moved(arrived, seconds, player.unitId, player.cruise)) + completedWork(result, character)
                         }
                         return null
                     }

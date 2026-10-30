@@ -12,6 +12,9 @@ class WorldMessagesTest {
             val record=input.position()
             assertEquals(kind,input.short.toInt())
             if(kind==55 || kind==54)assertEquals(16,input.get(record+5).toInt())
+            // Personal/captain cards name no institution, so the card list omits "皇宮 :".
+            if(kind in setOf(0,59,195))assertEquals(WorldMessages.NO_INSTITUTION,input.get(record+5).toInt() and 0xff)
+            if(kind==1)assertEquals(0,input.get(record+5).toInt())
             if(kind in setOf(52,55,188,191)) {
                 assertEquals(10,input.get(record+10).toInt());assertEquals(2,input.get(record+11).toInt())
             }

@@ -5,6 +5,7 @@
 #include "messenger_text.h"
 #include "messenger_labels.h"
 #include "mail_caption_text.h"
+#include "office_labels.h"
 #include <intrin.h>
 #pragma intrinsic(_ReturnAddress)
 static std::string mailWindowCaption;
@@ -53,6 +54,7 @@ static struct MessengerStatusCaption {const wchar_t* text;std::string encoded;} 
 };
 static constexpr unsigned messengerStatusCalls[]={0x5433a0,0x545018,0x54503f,0x545066};
 static std::string mailImperialEra,mailSpaceEra,mailListHint,mailComposeHint,mailAddressHint,mailAddressTitle;
+static std::string officeProposal,officeOrder;
 static struct MailLiteralCaption {
     unsigned address,source;const wchar_t* text;std::string encoded;
 } mailLiteralCaptions[]={
@@ -61,6 +63,7 @@ static struct MailLiteralCaption {
 };
 // 53c809/53c95c inspect an office-row flag, not a calendar allegiance.
 static constexpr unsigned mailEraCalls[]={0x53cc60,0x53cc98};
+static constexpr unsigned officeKindCalls[]={0x53c809,0x53c95c};
 static constexpr unsigned mailHelpCalls[]={0x537eb2,0x537f4e,0x53c2d4,
     0x529d3f,0x52a0fa,0x52d309,0x52d57b,0x52d8e9};
 static const char* __fastcall mailControlCaption(void* table,void*,unsigned group,unsigned index) {
@@ -70,6 +73,8 @@ static const char* __fastcall mailControlCaption(void* table,void*,unsigned grou
     for(const auto& row:mailControlCaptions)if(caller==row.call+5)return row.encoded.c_str();
     const auto calendar=logh::mailCalendarKind(caller,group,index);
     if(calendar<2)return calendar==0 ? mailImperialEra.c_str() : mailSpaceEra.c_str();
+    const auto office=logh::officeMailKind(caller,group,index);
+    if(office<2)return office==0 ? officeProposal.c_str() : officeOrder.c_str();
     const auto footer=logh::mailFooterKind(caller,group,index);
     if(footer<3)return footer==0 ? mailListHint.c_str() : footer==1 ? mailComposeHint.c_str() : mailAddressHint.c_str();
     if(caller==0x529d44 && group==0x16 && index==0)return mailAddressTitle.c_str();
@@ -95,6 +100,7 @@ static bool installMailLabels() {
         !logh::storeDisplayName(L"받는 이를 고르고 편지를 작성하세요.",mailComposeHint) ||
         !logh::storeDisplayName(L"인물을 선택한 뒤 결정을 누르세요.",mailAddressHint) ||
         !logh::storeDisplayName(L"인물 선택",mailAddressTitle))return false;
+    if(!logh::officeMailKindText(0,officeProposal) || !logh::officeMailKindText(1,officeOrder))return false;
     for(auto& row:mailLiteralCaptions) {
         BYTE expected[8]={0xc7,0x44,0x24,0x10};memcpy(expected+4,&row.source,4);
         if(memcmp(reinterpret_cast<void*>(row.address),expected,8) || !logh::storeDisplayName(row.text,row.encoded))return false;
@@ -104,6 +110,10 @@ static bool installMailLabels() {
         if(memcmp(reinterpret_cast<void*>(call),expected,5))return false;
     }
     for(auto call:mailHelpCalls) {
+        BYTE expected[5]={0xe8};*reinterpret_cast<LONG*>(expected+1)=static_cast<LONG>(0x522010-call-5);
+        if(memcmp(reinterpret_cast<void*>(call),expected,5))return false;
+    }
+    for(auto call:officeKindCalls) {
         BYTE expected[5]={0xe8};*reinterpret_cast<LONG*>(expected+1)=static_cast<LONG>(0x522010-call-5);
         if(memcmp(reinterpret_cast<void*>(call),expected,5))return false;
     }
@@ -142,6 +152,12 @@ static bool installMailLabels() {
         *reinterpret_cast<LONG*>(replacement+1)=static_cast<LONG>(reinterpret_cast<const BYTE*>(&mailControlCaption)-reinterpret_cast<const BYTE*>(call)-5);
         if(!patchBytes(reinterpret_cast<void*>(call),expected,replacement,5))return false;
     }
+    for(auto call:officeKindCalls) {
+        BYTE expected[5]={0xe8},replacement[5]={0xe8};
+        *reinterpret_cast<LONG*>(expected+1)=static_cast<LONG>(0x522010-call-5);
+        *reinterpret_cast<LONG*>(replacement+1)=static_cast<LONG>(reinterpret_cast<const BYTE*>(&mailControlCaption)-reinterpret_cast<const BYTE*>(call)-5);
+        if(!patchBytes(reinterpret_cast<void*>(call),expected,replacement,5))return false;
+    }
     for(const auto& row:mailLabelOperands) {
         BYTE expected[8]={0xc7,0x44,0x24,0x10};memcpy(expected+4,&row.source,4);
         BYTE replacement[8];memcpy(replacement,expected,sizeof(expected));
@@ -154,5 +170,5 @@ static bool installMailLabels() {
         memcpy(replacement,expected,8);const auto text=row.encoded.c_str();memcpy(replacement+4,&text,4);
         if(!patchBytes(reinterpret_cast<void*>(row.address),expected,replacement,8))return false;
     }
-    return installMessengerLabels();
+    return installMessengerLabels() && installOfficeFriendLabels();
 }
