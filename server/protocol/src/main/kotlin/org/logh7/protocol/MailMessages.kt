@@ -85,6 +85,14 @@ object MailMessages {
         peer(exchange.first);peer(exchange.second);put(exchange.phase.toByte());put(exchange.result.toByte())
     }
     fun deleteAddress(value:Peer)=packet(0x0f0c){peer(value)}
+    /** 0x0f13 CommandOrderSuggestMail (decoder 004799c0, evidence:client static analysis). */
+    data class Suggest(val id:Int,val refer:Int,val status:Int,val sender:Peer,val recipient:Peer,val seconds:Long,
+        val command:Int,val type:Int,val influence:Int,val pcp:Int,val mcp:Int)
+    fun suggest(value:Suggest)=packet(0x0f13) {
+        putInt(value.id);putInt(value.refer);put(value.status.toByte());peer(value.sender);peer(value.recipient)
+        putInt(value.seconds.toInt());putShort(value.command.toShort());put(value.type.toByte());put(value.influence.toByte())
+        putInt(value.pcp);putInt(value.mcp)
+    }
     /** 004391f0 reader: type:u16, error:raw u8, count:u8, UTF-16BE.
      * type=failed opcode/error=0 is our correlation policy, not a recovered enum.
      * Dispatch adds another NUL at count; keep that inside its 128-unit array. */

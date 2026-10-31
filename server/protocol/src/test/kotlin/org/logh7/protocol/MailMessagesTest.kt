@@ -54,4 +54,13 @@ class MailMessagesTest {
         assertFails {MailMessages.rejected(0x0f10,"")}
         assertFails {MailMessages.rejected(0x0700,"오류")}
     }
+    @Test fun aProposalMailEndsWithCommandTypeInfluenceAndBothCp() {
+        val packet=MailMessages.suggest(MailMessages.Suggest(7,0,0,MailMessages.Peer(10002,"갑"),
+            MailMessages.Peer(10004,"을",extra=listOf(0,0,25)),99,0x0709,1,1,0,80))
+        val b=java.nio.ByteBuffer.wrap(packet)
+        assertEquals(0x0f13,b.getShort(4).toInt() and 65535);assertEquals(7,b.getInt(6))
+        val end=packet.size
+        assertEquals(80,b.getInt(end-4));assertEquals(0,b.getInt(end-8));assertEquals(1,packet[end-9].toInt())
+        assertEquals(1,packet[end-10].toInt());assertEquals(0x0709,b.getShort(end-12).toInt());assertEquals(99,b.getInt(end-16))
+    }
 }

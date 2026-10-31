@@ -38,7 +38,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
     /** An office address is the holder's peer with the card number in native +120. */
     private fun peer(p:MailIdentity,post:Int)=peer(p).let {if(post==0)it else it.copy(extra=listOf(it.extra[0],it.extra[1],post))}
     private fun item(p:StoredMail)=Wire.Item(p.id,-1,p.read,peer(p.sender,p.senderPost),peer(p.recipient,p.recipientPost),p.seconds,p.subject,p.body)
-    private fun post(p:Wire.Peer)=p.extra[2].also {require(it in 0..260) {"Invalid office address"}}
+    /** The card number of an office address; a proposal row's address carries an unset value instead (36173 observed). */
+    private fun post(p:Wire.Peer)=p.extra[2].takeIf {it in 0..260} ?: -1
     private fun holds(member:GamePresence.Member,post:Int)=post==0 || member.offices.any {it.kind==post}
     private fun member(connection:String,owner:MailIdentity,expected:Long):GamePresence.Member {
         require(expected==generation() && directory(expected,owner.character)==owner)
@@ -164,7 +165,10 @@ class GameCommunication(private val presence:GamePresence,private val generation
                     inbox(engine,owner,if(senderPost==0)views[connection] ?: true else false,post=senderPost)
             }
             0x0f11,0x0f12 -> {
-                val command=Wire.change(body,opcode);own(command.owner);val post=post(command.owner)
+                val command=Wire.change(body,opcode)
+                // Proposal/order rows (0x0f13) are not stored mail yet: acknowledge their read/delete marks only.
+                if(command.owner.id==owner.character && post(command.owner)<0)return listOf(Wire.change(command,opcode))
+                own(command.owner);val post=post(command.owner)
                 val result=engine.change(owner,command.id,command.inbox,opcode==0x0f12,post)
                 result.rejection?.let {return rejection(opcode,it)}
                 listOf(Wire.change(command.copy(owner=peer(owner,post)),opcode))+inbox(engine,owner,command.inbox,post=post)
