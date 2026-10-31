@@ -6,7 +6,9 @@ import java.util.Properties
 
 data class GalaxySystem(val kind: Int, val grid: Int, val star: Int, val name: String, val power: Int = 0)
 data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int, val name: String,
-    val physicalClass: Int, val radius: Float, val cycle: Int, val direction: Int, val angle: Float, val diameter: Float)
+    val physicalClass: Int, val radius: Float, val cycle: Int, val direction: Int, val angle: Float, val diameter: Float,
+    /** CD manual p.54: only mobile fortresses take the in-grid 【移動】 command (U-26). */
+    val mobile: Boolean = false)
 
 /** Confirmed manual placements plus explicitly labelled local defaults, loaded outside the repository. */
 class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val starts: Map<Power, Int>,
@@ -30,7 +32,7 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
         require(bases.all { it.id in 1..65535 && it.grid in locations && it.model in 0..129 && it.kind in 0..1 &&
             it.name.length in 1..12 && '\u0000' !in it.name && it.physicalClass in 0..255 &&
             it.radius.isFinite() && it.radius >= 0 && it.cycle > 0 && it.direction in 0..1 &&
-            it.angle.isFinite() && it.diameter.isFinite() && it.diameter > 0 })
+            it.angle.isFinite() && it.diameter.isFinite() && it.diameter > 0 && (!it.mobile || it.kind == 1) })
         require(starts.keys == Power.entries.toSet() && starts.values.all { it in locations })
         val map = terrain?.let(::terrainCells)
         if (map != null) require(systems.all { map[it.grid] == SPACE_CELL }) { "A star system lies outside the navigable terrain" }
@@ -91,7 +93,8 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
                 fun number(key: String) = p.getProperty(prefix + key).toFloat()
                 GalaxyBase(int(prefix + "id"), int(prefix + "grid"), int(prefix + "model"), int(prefix + "kind"),
                     p.getProperty(prefix + "name"), int(prefix + "class"), number("radius"), int(prefix + "cycle"),
-                    int(prefix + "direction"), number("angle"), number("diameter"))
+                    int(prefix + "direction"), number("angle"), number("diameter"),
+                    p.getProperty(prefix + "mobile", "false").toBooleanStrict())
             }
             // "terrain=none" keeps the previous all-space map for isolated experiments.
             val terrain = if (p.getProperty("terrain", "manual-p101") == "none") null else manualTerrain()

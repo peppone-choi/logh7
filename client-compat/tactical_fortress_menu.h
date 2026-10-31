@@ -29,7 +29,8 @@ static void __cdecl fortressCommandMenu(void* manager,BYTE wait,unsigned tab,uns
     if (manager && tab==5) {
         BYTE enabled[24]={};
         unsigned base=*reinterpret_cast<unsigned*>(0x2215528);
-        if (forts==1 && selectedCommandFortress(base)) enabled[6]=enabled[9]=enabled[15]=enabled[21]=enabled[22]=1;
+        // Slot 0 is 【移動】 (CD manual p.54, mobile fortresses only); the server rejects fixed fortresses.
+        if (forts==1 && selectedCommandFortress(base)) enabled[0]=enabled[6]=enabled[9]=enabled[15]=enabled[21]=enabled[22]=1;
         auto menu=at<void*>(manager,0xd4);
         if (menu) reinterpret_cast<void(__thiscall*)(void*,unsigned,const BYTE*,unsigned,unsigned)>(0x508930)
             (menu,1,enabled,6,24);

@@ -9,7 +9,7 @@ class TacticalCommandOperationsTest {
         it.join("pilot",Power.EMPIRE,false,"one");it.join("ally",Power.EMPIRE,false,"two")}.exportState()
     private val now=session.gameMillis/1000
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Battle",2)),
-        listOf(GalaxyBase(1000,2488,80,1,"Fortress",0,0f,86400,0,0f,2f)),Power.entries.associateWith {2488})
+        listOf(GalaxyBase(1000,2488,80,1,"Fortress",0,0f,86400,0,0f,2f,mobile=true)),Power.entries.associateWith {2488})
     private fun motion(x:Float=0f,y:Float=0f)=TacticalMotion(2488,now,TacticalPose(TacticalPoint(x,y),0f),0f,0f,listOf(TacticalPoint(x,y)))
     private class State(var players:Map<String,Navigator>,var stocks:PlanetStocks) {
         var fail=false
@@ -373,6 +373,13 @@ class TacticalCommandOperationsTest {
         assertFalse(2 in events.single().destroyedUnits,"Native 0436 must never turn a partial loss into a total kill")
         val dead=r.state.stocks.outfits.values.flatMap {it.activeShips!!.values}.filter {it.boats==0}.map {it.id}.toSet()
         assertEquals(dead,events.single().destroyedUnits.filter {it<1000000}.toSet())
+    }
+    @Test fun onlyAMobileFortressTakesTheMoveCommand() {
+        // CD manual p.54: 【移動】 is exclusive to mobile fortresses (U-26).
+        val fixed=Galaxy(galaxy.systems,listOf(galaxy.bases.single().copy(mobile=false)),galaxy.starts)
+        val r=run()
+        assertEquals(NavigationRejection.BASE,TacticalCommandOperations.accept(request(TacticalCommand(0x41f,base=1000,velocity=.5f,
+            points=listOf(TacticalPoint(20f,0f)))),session,fixed,r.navigation,r.production,r.production.snapshot(1)!!,r.state.commit,1).rejection)
     }
     @Test fun baseStopAlsoCancelsTheActualMovingFortressWithoutSnappingToItsSeed() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).player)
