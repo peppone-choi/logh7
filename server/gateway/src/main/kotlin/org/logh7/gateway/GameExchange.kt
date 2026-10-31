@@ -1584,6 +1584,7 @@ class GameExchange(
                             }
                             return null
                         }
+                        if(traceOpcodes && !OriginalCharacterMessages.catalogueRequest(body))System.err.println("trace ${identity.account} 1200 body ${java.util.HexFormat.of().formatHex(body)}")
                         check(gameLoggedIn && OriginalCharacterMessages.catalogueRequest(body))
                         val messages = listOf(LoginMessages.sessionMessage(0x1200, body.copyOfRange(2, body.size)),
                             OriginalCharacterMessages.catalogue(characters.candidates(identity.account)), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
