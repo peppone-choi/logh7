@@ -1,6 +1,7 @@
 // Standing-outfit details using the original tab frame and scrolling sheets.
 // Missing CD category-4 contents are reconstructed from server replies. Author: Peppone Choi.
 #pragma once
+#include "unicode_text.h"
 #include "outfit_info_data.h"
 #include "ground_info_data.h"
 static void renderOutfitInformation();
@@ -370,7 +371,9 @@ static void renderOutfitInformation() {
         if (member[5]<21) {
             auto value=reinterpret_cast<const char*(__thiscall*)(void*,int,int)>(0x522010)
                 (reinterpret_cast<void*>(0x2217400),5,member[5]);
-            if (value) MultiByteToWideChar(932,0,value,-1,rank,_countof(rank));
+            // The Korean catalogue answers this lookup in its private glyph encoding, not CP932.
+            std::wstring decoded;
+            if (value && logh::japaneseFragment(value,decoded)) wcsncpy_s(rank,decoded.c_str(),_TRUNCATE);
         }
         outfitCell(0,7+i,1,rank[0] ? rank : L"계급 미확인");outfitCell(0,7+i,2,L"등록 인물");
     }
