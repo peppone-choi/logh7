@@ -447,7 +447,8 @@ static void __cdecl buildOutfitInformation(void* manager,int kind) {
         (state.root,surface,0.015f,0.035f,0.065f,1.f);
     for (int i=0;i<2;++i) {
         auto control=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(state.root,1,20+i,nullptr);
-        outfitBox(state.root,control,16,48+i*26,660,24);
+        // Below the tab strip (ends near y 47) and on the table's first text column (x 30).
+        outfitBox(state.root,control,30,54+i*24,646,22);
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5029e0)(state.root,control,3);
     }
     buildOutfitGroundControls();
