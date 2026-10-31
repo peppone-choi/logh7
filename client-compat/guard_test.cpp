@@ -972,6 +972,10 @@ static int runGuard(int argc, wchar_t** argv) {
         replies.take(7,1,false,replyToken) || !replies.take(7,1,true,replyToken) || replyToken != 3) return 25;
     for (unsigned i = 0; i < 8; ++i) if (!replies.add(7,1,i+4,true)) return 25;
     if (replies.add(7,1,12,true)) return 25;
+    // A stale unanswered head (closed window's warehouse query) must not block a later reply.
+    logh::OutfitReplyQueue stale;unsigned staleToken=0;
+    if (!stale.add(7,1,1,true) || !stale.add(7,0,2,false) || !stale.take(7,1,false,staleToken) ||
+        staleToken!=2 || stale.count || stale.take(7,1,true,staleToken)) return 25;
     // Native chat appends colour controls after its UTF-16 body. The previous
     // ANSI round trip corrupted Hangul already present in that body.
     std::wstring body = L"한글 대화 日本語 ABC";

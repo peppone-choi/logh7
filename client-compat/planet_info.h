@@ -11,6 +11,8 @@ static bool stationedOutfitVisible(void* manager);
 static bool openOwnOutfit(void* manager);
 // The own-outfit window opened from info categories 1/3/5 needs the same per-frame tab driving.
 static bool ownOutfitShown=false;
+// 0054bb50 hides window 13 after this selection returns when it already exists, so open on the next frame.
+static bool ownOutfitPending=false;
 static bool updateStationedOutfit(void* manager);
 static void closeStationedOutfit(void* manager);
 static bool outfitInformationPending();
@@ -250,6 +252,10 @@ static int __cdecl planetInfoMenu(void* gui) {
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     if (planetInformationGrid(world)>=5000) resetPlanetUnitConnection();
+    if (ownOutfitPending) {
+        ownOutfitPending=false;
+        ownOutfitShown=openOwnOutfit(gui);
+    }
     if (ownOutfitShown) {
         if (updateStationedOutfit(gui)) return -1;
         ownOutfitShown=false;
@@ -364,7 +370,7 @@ static int __cdecl planetInfoMenu(void* gui) {
     int selected = reinterpret_cast<int(__cdecl*)(void*)>(0x54be80)(gui);
     // Categories 1/3/5 (ship, squadron, ground troops) have no CD window; 0054bb50 only deselects them.
     if ((selected == 1 || selected == 3 || selected == 5) && !*reinterpret_cast<void**>(0xc9e2f8)) {
-        ownOutfitShown=openOwnOutfit(gui);
+        ownOutfitPending=true;
         return selected;
     }
     if (selected != 6 || planetInformationGrid(world)>=5000 ||
