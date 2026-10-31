@@ -134,7 +134,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
         if(days>initialized.producedDays && lastMonth>=firstMonth) {
             val people=checkNotNull(supplier)()
-            if(people.isNotEmpty())for(month in firstMonth..lastMonth)monthly=PoliticianLadder.monthly(galaxy,monthly,people,month)
+            if(people.isNotEmpty())for(month in firstMonth..lastMonth)
+                monthly=AbilityAging.monthly(PoliticianLadder.monthly(galaxy,monthly,people,month),people,month)
         }
         val settled=CivicActions.settle(galaxy,StrategyActions.settle(monthly,seconds,galaxy),seconds,civicPlayers(generation))
         if (settled == previous) return checkNotNull(previous)

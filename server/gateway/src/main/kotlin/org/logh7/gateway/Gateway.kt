@@ -98,7 +98,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
-            org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList())}}
+            org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList(),c.age)}}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
             {generation,id->communicationIdentity(characterStores.get(generation),id)},
             {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},
