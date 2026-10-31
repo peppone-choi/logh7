@@ -38,8 +38,11 @@ object StrategyActionMessages {
             (if(command in setOf(8,9))base in 0..65535 else base==0))
         else if(operation)require((preview || target in 0..4999) && if(command==22)value in 0..2 && amount>0 && argument in 0..127 && base==0
             else value==0 && amount==0 && argument==0 && (if(command==24)!preview && base>0 || preview && base==0 else base==0))
-        else if(market)require(card==0 && base==0 && amount==0 && argument in 0..3 &&
-            (if(argument==0)value in 0..3 && (preview || target==0) else value==0 &&
+        // Market arguments: 0 buy flagship, 1 offer, 2 accept, 3 cancel, 4 buy guard ship
+        // (value = GuardShips index, 0..25), 5 disband the guard unit (U-13).
+        else if(market)require(card==0 && base==0 && amount==0 && argument in 0..5 &&
+            (if(argument==0)value in 0..3 && (preview || target==0) else if(argument==4)value in 0..25 && (preview || target==0)
+             else if(argument==5)!preview && value==0 && target==0 else value==0 &&
                 (if(argument in 1..2)preview || target>0 else !preview && target==0)))
         else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(card in setOf(59,195))target==0 else target>0))

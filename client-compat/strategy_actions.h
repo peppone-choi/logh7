@@ -46,7 +46,7 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
     at<unsigned short>(record,8)=static_cast<unsigned short>(state.card);
     at<unsigned short>(record,10)=static_cast<unsigned short>(state.strategyValue);
     at<unsigned>(record,12)=preview ? cursor : outfitStrategy(state.strategyCommand,state.card) ? state.strategyOutfit :
-        state.strategyCommand==96 && (state.strategyArgument==0 || state.strategyArgument==3) ? 0 : state.strategyTarget;
+        state.strategyCommand==96 && (state.strategyArgument==0 || state.strategyArgument>=3) ? 0 : state.strategyTarget;
     at<BYTE>(record,16)=preview ? 1 : 0;at<unsigned>(record,28)=preview ? 0 : state.strategyBase;
     if(state.strategyCommand==22) {at<unsigned>(record,20)=state.strategyArgument;at<unsigned short>(record,24)=static_cast<unsigned short>(state.strategyAmount);}
     if(state.strategyCommand==96)at<unsigned>(record,20)=state.strategyArgument;
@@ -165,24 +165,31 @@ static bool updateStrategyOperation() {
 }
 static bool updateFlagshipMarket() {
     auto& state=taxWindow;unsigned mode=state.strategyArgument;
-    static const wchar_t* modes[]={L"구매",L"교환 제안",L"받은 교환 수락",L"교환 취소 / 거절"};
-    taxText(0,L"기함 구매 · 교환");taxText(1,L"수도 기함공창의 접수 스폿에서 실행합니다.");taxText(2,modes[mode]);
+    static const wchar_t* modes[]={L"구매",L"교환 제안",L"받은 교환 수락",L"교환 취소 / 거절",L"경비함 구매",L"경비대 해산"};
+    // U-13: modes 4/5 reuse this window; the CD has no guard-ship purchase screen.
+    bool guard=mode>=4,list=mode<3 || mode==4;
+    taxText(0,guard ? L"경비함 구매 · 경비대" : L"기함 구매 · 교환");taxText(1,L"수도 기함공창의 접수 스폿에서 실행합니다.");taxText(2,modes[mode]);
     wchar_t label[160];const StrategyDirectory::Person* selected=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)selected=&strategyDirectory.people[i];
     if(mode==3)swprintf_s(label,L"본인에게 연결된 교환 제안을 취소합니다.");
+    else if(mode==5)swprintf_s(label,L"본인의 경비대를 해산합니다. 환불은 없습니다.");
     else if(selected)swprintf_s(label,L"%ls",selected->name);else swprintf_s(label,L"선택 가능한 항목이 없습니다.");
     taxText(3,label);
-    if(mode==0 && selected) {
-        const wchar_t* rank=selected->rank==7 ? L"준장" : selected->rank==10 ? L"소령" : L"이등병";
-        swprintf_s(label,L"%ls 이상 · 평가 포인트 가격",rank);taxText(4,label);
+    static const wchar_t* ranks[]={L"",L"",L"원수",L"상급대장",L"대장",L"중장",L"소장",L"준장",L"대령",L"중령",L"소령",
+        L"대위",L"중위",L"소위",L"준위",L"상사",L"중사",L"하사",L"상등병",L"일등병",L"이등병"};
+    if((mode==0 || mode==4) && selected) {
+        const wchar_t* rank=selected->rank<=20 ? ranks[selected->rank] : L"";
+        swprintf_s(label,mode==4 ? L"%ls 이상 · 평가 포인트 가격 · 300척 무인 유닛" : L"%ls 이상 · 평가 포인트 가격",rank);taxText(4,label);
     }
+    else if(mode==4)taxText(4,L"부대 미소속 인물만 · 최대 3유닛");
+    else if(mode==5)taxText(4,L"손상된 경비함은 보충·수리할 수 없어 해산 뒤 다시 구매합니다.");
     else taxText(4,mode==1 ? L"수락 시 교환 · 24시간 유효" :
         mode==2 ? L"같은 접수 스폿에서 수락" : L"기함 변경 없이 제안 취소");
-    taxText(5,mode==0 || mode==2 ? L"PCP 80 · 부족 시 MCP 160 전액 대용" : L"제안 / 취소에는 CP를 사용하지 않습니다.");
+    taxText(5,mode==0 || mode==2 || guard ? L"PCP 80 · 부족 시 MCP 160 전액 대용" : L"제안 / 취소에는 CP를 사용하지 않습니다.");
     taxText(6,state.message);taxText(10,L"구매 / 교환 방식");taxText(11,L"이전");taxText(12,L"다음");taxText(13,L"목록 갱신");taxText(14,L"실행");
-    taxEnabled(10,!state.pending);taxEnabled(11,!state.pending && mode<3 && strategyDirectory.count>0);
-    taxEnabled(12,!state.pending && mode<3 && strategyDirectory.count>0);taxEnabled(13,!state.pending && mode<3);
-    taxEnabled(14,!state.pending && (mode==3 || selected!=nullptr));
+    taxEnabled(10,!state.pending);taxEnabled(11,!state.pending && list && strategyDirectory.count>0);
+    taxEnabled(12,!state.pending && list && strategyDirectory.count>0);taxEnabled(13,!state.pending && list);
+    taxEnabled(14,!state.pending && (mode==3 || mode==5 || selected!=nullptr));
     if(state.pending && GetTickCount64()-state.sentAt>10000)state.message=L"응답 대기 중 · 재접속 후 실제 상태를 확인해 주세요.";
     if(GetTickCount64()<state.acceptAfter)return true;
     BYTE event[52]={};
@@ -191,13 +198,13 @@ static bool updateFlagshipMarket() {
         if(id==15)closeTaxWindow();
         else if(!state.pending) {
             if(id==10) {
-                state.strategyArgument=(mode+1)%4;state.strategyTarget=0;state.strategyValue=0;strategyDirectory={};
-                if(state.strategyArgument<3)sendStrategyAction(true);
-            } else if(id==13 && mode<3)sendStrategyAction(true);
-            else if(id==14 && (mode==3 || selected!=nullptr))sendStrategyAction();
-            else if((id==11 || id==12) && mode<3) {
+                state.strategyArgument=(mode+1)%6;state.strategyTarget=0;state.strategyValue=0;strategyDirectory={};
+                if(state.strategyArgument<3 || state.strategyArgument==4)sendStrategyAction(true);
+            } else if(id==13 && list)sendStrategyAction(true);
+            else if(id==14 && (mode==3 || mode==5 || selected!=nullptr))sendStrategyAction();
+            else if((id==11 || id==12) && list) {
                 strategyNextPerson(id==11 ? -1 : 1);
-                if(mode==0 && state.strategyTarget>0)state.strategyValue=state.strategyTarget-1;
+                if((mode==0 || mode==4) && state.strategyTarget>0)state.strategyValue=state.strategyTarget-1;
             }
         }
         break;
@@ -316,7 +323,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
             }
             if(state.strategyCommand==24)state.strategyBase=count ? strategyDirectory.people[0].id : 0;
             else state.strategyTarget=count ? strategyDirectory.people[0].id : 0;
-            if(state.strategyCommand==96)state.strategyValue=state.strategyArgument==0 && count ? state.strategyTarget-1 : 0;
+            if(state.strategyCommand==96)state.strategyValue=(state.strategyArgument==0 || state.strategyArgument==4) && count ? state.strategyTarget-1 : 0;
             state.pending=false;
             state.message=count ? L"항목을 선택한 뒤 실행하십시오. 서버에서 조건을 다시 확인합니다." : L"이 페이지에 대상 인물이 없습니다. 목록 갱신으로 처음부터 조회합니다.";
         }

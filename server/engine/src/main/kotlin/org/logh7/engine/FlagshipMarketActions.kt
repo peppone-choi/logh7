@@ -126,6 +126,7 @@ internal object FlagshipMarketActions {
  * purchase (evidence:guess). Author: Peppone Choi. */
 internal object GuardUnitActions {
     const val COST=80L
+    val GUARD_NUMBERS=201..255
     fun guardOf(stocks:PlanetStocks,character:Int)=stocks.outfits.values.singleOrNull {it.guard!=null && it.commanderId==character}
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -157,7 +158,9 @@ internal object GuardUnitActions {
                 activeShips=ActiveShipUnits(own.activeShips!!.values+unit),guard=own.guard!!+(unit.id to choice.index))
             else {
                 val id=(stocks.outfits.keys.maxOrNull() ?: 0)+1
-                val number=((stocks.outfits.values.filter {it.power==power && it.kind==OutfitKind.PATROL}.maxOfOrNull {it.number} ?: 0)+1).coerceAtMost(255)
+                // Guard units take patrol numbers 201..255 so the client can tell them from regular patrols.
+                val used=stocks.outfits.values.filter {it.power==power && it.guard!=null}.map {it.number}.toSet()
+                val number=(GUARD_NUMBERS).firstOrNull {it !in used} ?: return reject(StrategyActionRejection.MAXIMUM)
                 OutfitStock(id,power,OutfitKind.PATROL,base.id,warehouse.id,r.characterId,UnitInventory(mapOf(stack to 1)),number,
                     activeShips=ActiveShipUnits(listOf(unit)),position=OutfitPosition(base.grid,base.id),guard=mapOf(unit.id to choice.index))
             }

@@ -27,7 +27,7 @@ class GuardUnitActionsTest {
             s=result.stocks!!;p=result.player!!
         }
         val guard=GuardUnitActions.guardOf(s,10000)!!
-        assertEquals(OutfitKind.PATROL,guard.kind);assertEquals(10000,guard.commanderId);assertEquals(5,guard.warehouseId)
+        assertEquals(201,guard.number);assertEquals(OutfitKind.PATROL,guard.kind);assertEquals(10000,guard.commanderId);assertEquals(5,guard.warehouseId)
         assertEquals(mapOf(100 to 0,101 to 4,102 to 12),guard.guard)
         assertEquals(listOf(300,300,300),guard.activeShips!!.values.map {it.boats})
         assertEquals(50000L-20000-8000-500,s.strategic.people.getValue(10000).evaluation)

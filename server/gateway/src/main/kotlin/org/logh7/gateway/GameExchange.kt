@@ -1346,6 +1346,11 @@ class GameExchange(
                                                 org.logh7.engine.FlagshipMarketCatalog.options(character.power).map {option->
                                                     org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,
                                                         "${checkNotNull(org.logh7.engine.Flagships.find(option.kind)).name} ${option.price}",option.maximumRank)})
+                                            // U-13 guard ships: row id = catalogue index + 1, shown as "code price".
+                                            if(query.argument==4)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                org.logh7.engine.GuardShips.forPower(character.power)
+                                                    .filter {it.index+1>query.target}.map {option->
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,option.label,option.maximumRank)})
                                             val eligible=if(query.argument==2)inventory.flagshipMarket.offers.filter {
                                                 it.receiver==character.id.toInt() && it.expiresAt>gameSeconds()}.map {it.giver}.toSet() else null
                                             val candidates=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}.filter {
