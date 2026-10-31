@@ -93,14 +93,16 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached(),social=stocks.social.detached())
     val maximumStock: Int get() = policy.maximumStock
     val defaultRemittanceRate:Int get()=policy.tax.remittanceRate
-    /** Registered characters for periodic personnel rules; supplied by the gateway's character store. */
-    @Volatile var identities:()->List<StrategicIdentity> = {emptyList()}
+    /** Registered characters for periodic personnel rules; supplied by the gateway's character store.
+     * Null means the supplier is not wired yet: production then stops just before the next 30-day
+     * boundary instead of crossing it with nobody to process (startup catch-up runs before the gateway). */
+    @Volatile var identities:(()->List<StrategicIdentity>)? = {emptyList()}
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
         val previous = current
         require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
-        val days = (seconds - startSeconds) / 86400
+        val reached = (seconds - startSeconds) / 86400
         val initial = ActiveShips.initialize(deployment.initialize(previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
             galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) })))
         // Upgrade old rows at their existing watermark; never replay already-produced days.
@@ -109,6 +111,9 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 stock.copy(economy = PlanetEconomy(base.population, base.adultPopulation, base.approval, base.peace))
             }
         })
+        val supplier=identities
+        val days=if(supplier!=null)reached else minOf(reached,maxOf(initialized.producedDays,
+            (initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1)*PoliticianLadder.PERIOD_DAYS-1))
         // A non-durable test clock may rewind. Keep stock and the watermark; never produce a day twice.
         val national = initialized.nationalTreasuries.toMutableMap()
         val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
@@ -128,7 +133,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         var monthly=result
         val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
         if(days>initialized.producedDays && lastMonth>=firstMonth) {
-            val people=identities()
+            val people=checkNotNull(supplier)()
             if(people.isNotEmpty())for(month in firstMonth..lastMonth)monthly=PoliticianLadder.monthly(galaxy,monthly,people,month)
         }
         val settled=CivicActions.settle(galaxy,StrategyActions.settle(monthly,seconds,galaxy),seconds,civicPlayers(generation))

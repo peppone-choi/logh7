@@ -54,7 +54,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     navigationPolicy: NavigationPolicy = NavigationPolicy(), private val stockStore: PlanetStockStore? = null,
     productionPolicy: PlanetProductionPolicy = PlanetProductionPolicy(),
     private val worldStateCommitter: WorldStateCommitter? = null,
-    private val npcPolicy:NpcTacticalPolicy=NpcTacticalPolicy()) : CommandSink, SnapshotSource, AutoCloseable {
+    private val npcPolicy:NpcTacticalPolicy=NpcTacticalPolicy(),
+    /** The app wires character identities after construction; hold month boundaries until then. */
+    private val awaitIdentities:Boolean=false) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null,
         val applied: CompletableDeferred<Unit>? = null, val advanceNow:Boolean=false)
@@ -199,7 +201,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
-        durableState?.session?.generation ?: simulation.snapshot().generation,{generation->navigation?.snapshot(generation)?.values}) }
+        durableState?.session?.generation ?: simulation.snapshot().generation,{generation->navigation?.snapshot(generation)?.values})
+        .also {if(awaitIdentities)it.identities=null} }
     private val territory=galaxy?.let(::WorldTerritory)
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()

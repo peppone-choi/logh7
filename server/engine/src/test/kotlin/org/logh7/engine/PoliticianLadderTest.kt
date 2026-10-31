@@ -44,4 +44,15 @@ class PoliticianLadderSettlementTest {
         assertEquals(10,production.settle(1,start+30*86400).strategic.people.getValue(9).rank)
         assertEquals(10,production.settle(1,start+31*86400).strategic.people.getValue(9).rank)
     }
+    @Test fun anUnwiredSupplierHoldsTheBoundaryUntilCharactersArrive() {
+        // Startup catch-up runs before the gateway wires identities; it must not consume month 1.
+        val start=SessionRules.load().startSeconds
+        val production=PlanetProduction(galaxy,null,start,PlanetProductionPolicy())
+        production.identities=null
+        val held=production.settle(1,start+45*86400)
+        assertEquals(29,held.producedDays);assertNull(held.strategic.people[9])
+        production.identities={listOf(StrategicIdentity(9,3,1,0,List(8){50}))}
+        val crossed=production.settle(1,start+45*86400)
+        assertEquals(45,crossed.producedDays);assertEquals(10,crossed.strategic.people.getValue(9).rank)
+    }
 }
