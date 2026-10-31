@@ -41,6 +41,8 @@ object GatheringActions {
     const val COST=320L
     /** Sixty real seconds at the default 24x clock. */
     const val INVITE_SECONDS=1440L
+    /** Friendship at which a guest who is not connected accepts an invitation. */
+    const val NPC_ACCEPT=50
     const val HOTEL=17
     const val HOTEL_ROOM=13
     /** Spot ids are base*10000 + facility*200 + room + 1 (Places). */
@@ -52,6 +54,36 @@ object GatheringActions {
     fun score(politics:Int,host:Int,day:Long)=politics+java.util.Random(day*1_000_003L+host*131L+17).nextInt(50)
     fun hostInfluence(grade:GatheringGrade)=when(grade){GatheringGrade.GREAT->3;GatheringGrade.SUCCESS->1;GatheringGrade.FAILURE->-1}
     fun friendshipDelta(grade:GatheringGrade)=when(grade){GatheringGrade.GREAT->10;GatheringGrade.SUCCESS->5;GatheringGrade.FAILURE->-3}
+
+    /** Pays the host and applies one gathering; null when the host cannot pay, a null result at the people limit. */
+    private fun outcome(command:Int,hostId:Int,guestId:Int,host:Navigator,s:PlanetStocks,live:Map<Int,GatheringInvite>,
+        friendship:Int,now:Long):Pair<PaymentResult.Paid,Pair<PlanetStocks,GatheringView>?>? {
+        val g=s.social.gatherings
+        val paid=CpPayment.charge(CpBalance(host.pcp.toLong(),host.mcp.toLong()),COST,CpPool.MCP)
+        if(paid !is PaymentResult.Paid)return null
+        val people=s.strategic.people
+        val hostPerson=people[hostId] ?: StrategicPerson()
+        val guestPerson=people[guestId] ?: StrategicPerson()
+        val politics=hostPerson.abilities?.get(1) ?: 50
+        val grade=grade(score(politics,hostId,now/SocialActions.DAY))
+        val hostGain=hostInfluence(grade).let {if(command==PARTY)(if(it>0)(it*3+1)/2 else -((-it*3+1)/2)) else it}
+        val guestGain=if(grade==GatheringGrade.FAILURE)0 else 1
+        val key=MeetingActions.pair(hostId,guestId)
+        val pairReady=(g.pairNextAt[key] ?: 0)<=now
+        val friendGain=if(friendly(command) && pairReady)friendshipDelta(grade) else 0
+        if(hostId !in people && people.size>=4096 || guestId !in people && people.size>=4095)return paid to null
+        val hostAfter=(hostPerson.influence+hostGain).coerceIn(0,100)
+        val guestAfter=(guestPerson.influence+guestGain).coerceIn(0,100)
+        val friendAfter=(friendship+friendGain).coerceIn(0,100)
+        val meeting=if(friendGain==0)s.social.meeting else s.social.meeting.copy(friendship=s.social.meeting.friendship+(key to friendAfter))
+        val pairs=if(friendly(command) && pairReady)g.pairNextAt.filterValues {it>now}+(key to now+SocialActions.DAY) else g.pairNextAt
+        val gatherings=GatheringState(live-hostId,g.hostNextAt.filterValues {it>now}+(hostId to now+SocialActions.DAY),pairs)
+        val next=s.copy(strategic=s.strategic.copy(people=people+(hostId to hostPerson.copy(influence=hostAfter))+
+            (guestId to guestPerson.copy(influence=guestAfter))),
+            social=s.social.copy(nextId=s.social.nextId+1,meeting=meeting,gatherings=gatherings))
+        return paid to (next to GatheringView(next.social.nextId,hostId,friendAfter,0,null,grade,
+            hostAfter-hostPerson.influence,guestAfter-guestPerson.influence,friendAfter-friendship))
+    }
 
     fun evaluate(r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,navigators:Map<String,Navigator>):SocialResult {
         val i=r.identity;val g=s.social.gatherings;val now=session.gameMillis/1000
@@ -106,6 +138,16 @@ object GatheringActions {
                     return reject(SocialRejection.CP,view)
                 if(now>0xffffffffL-INVITE_SECONDS || s.social.nextId==Int.MAX_VALUE || hostId !in live && live.size>=4096)
                     return reject(SocialRejection.MAXIMUM,view)
+                // A guest who is not connected (an NPC or an offline player) answers at once: friendship 50 or more
+                // accepts, less declines (user decision 2026-11-01, evidence:guess).
+                val guestKey=navigators.entries.singleOrNull {it.value===guest}?.key
+                if(guestKey==null || session.participants[guestKey]?.online!=true) {
+                    if(friendship<NPC_ACCEPT)return SocialResult(p,s.copy(social=s.social.copy(nextId=s.social.nextId+1)),changed=true,
+                        gathering=view.copy(ticket=s.social.nextId+1,invite=null))
+                    val outcome=outcome(i.command,hostId,guestId,p,s,live,friendship,now) ?: return reject(SocialRejection.CP,view)
+                    val (paid,result)=outcome;val (next,done)=result ?: return reject(SocialRejection.MAXIMUM,view)
+                    return SocialResult(p.paidWith(paid.balance),next,changed=true,gathering=done.copy(hostWait=SocialActions.DAY))
+                }
                 val opened=GatheringInvite(hostId,guestId,i.command,p.baseId,p.spotId,now+INVITE_SECONDS)
                 val next=s.copy(social=s.social.copy(nextId=s.social.nextId+1,gatherings=g.copy(invites=live+(hostId to opened))))
                 return SocialResult(p,next,changed=true,gathering=view.copy(ticket=next.social.nextId,invite=opened))
@@ -120,32 +162,12 @@ object GatheringActions {
         if(invite==null || host==null || hostEntry.key==i.account)return reject(SocialRejection.STALE,view)
         if(!hostInRoom(host) || host.baseId!=invite.base || host.spotId!=invite.spot || p.grid!=host.grid || p.baseId!=invite.base)
             return reject(SocialRejection.LOCATION,view)
-        val paid=CpPayment.charge(CpBalance(host.pcp.toLong(),host.mcp.toLong()),COST,CpPool.MCP)
-        if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP,view)
-        val people=s.strategic.people
-        val hostPerson=people[hostId] ?: StrategicPerson()
-        val guestPerson=people[guestId] ?: StrategicPerson()
-        val politics=hostPerson.abilities?.get(1) ?: 50
-        val grade=grade(score(politics,hostId,now/SocialActions.DAY))
-        val hostGain=hostInfluence(grade).let {if(i.command==PARTY)(if(it>0)(it*3+1)/2 else -((-it*3+1)/2)) else it}
-        val guestGain=if(grade==GatheringGrade.FAILURE)0 else 1
-        val key=MeetingActions.pair(hostId,guestId)
-        val pairReady=(g.pairNextAt[key] ?: 0)<=now
-        val friendGain=if(friendly(i.command) && pairReady)friendshipDelta(grade) else 0
-        if(hostId !in people && people.size>=4096 || guestId !in people && people.size>=4095)return reject(SocialRejection.MAXIMUM,view)
-        val hostAfter=(hostPerson.influence+hostGain).coerceIn(0,100)
-        val guestAfter=(guestPerson.influence+guestGain).coerceIn(0,100)
-        val friendAfter=(friendship+friendGain).coerceIn(0,100)
-        val meeting=if(friendGain==0)s.social.meeting else s.social.meeting.copy(friendship=s.social.meeting.friendship+(key to friendAfter))
-        val pairs=if(friendly(i.command) && pairReady)g.pairNextAt.filterValues {it>now}+(key to now+SocialActions.DAY) else g.pairNextAt
-        val gatherings=GatheringState(live-hostId,g.hostNextAt.filterValues {it>now}+(hostId to now+SocialActions.DAY),pairs)
-        val next=s.copy(strategic=s.strategic.copy(people=people+(hostId to hostPerson.copy(influence=hostAfter))+
-            (guestId to guestPerson.copy(influence=guestAfter))),
-            social=s.social.copy(nextId=s.social.nextId+1,meeting=meeting,gatherings=gatherings))
+        val outcome=outcome(i.command,hostId,guestId,host,s,live,friendship,now) ?: return reject(SocialRejection.CP,view)
+        if(outcome.second==null)return reject(SocialRejection.MAXIMUM,view)
+        val (paid,result)=outcome;val (next,done)=checkNotNull(result)
         // The CD has no server-initiated room move, so the guest stays where it is (deviation from the design's §2.2-3).
         return SocialResult(p,next,changed=true,navigators=mapOf(hostEntry.key to host.paidWith(paid.balance)),
             // The view belongs to the guest: its own hosting wait, not the host's new limit.
-            gathering=GatheringView(next.social.nextId,hostId,friendAfter,((g.hostNextAt[guestId] ?: 0)-now).coerceAtLeast(0),null,grade,
-                hostAfter-hostPerson.influence,guestAfter-guestPerson.influence,friendAfter-friendship))
+            gathering=done.copy(hostWait=((g.hostNextAt[guestId] ?: 0)-now).coerceAtLeast(0)))
     }
 }

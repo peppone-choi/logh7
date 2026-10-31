@@ -2,7 +2,7 @@
 // The server reports an open invitation in either direction for the selected person. Author: Peppone Choi.
 #pragma once
 static struct GatheringWindow {
-    unsigned ticket,target,friendship,wait,inviteHost,inviteWait,grade,deltas;
+    unsigned ticket,target,friendship,wait,inviteHost,inviteWait,grade,deltas,lastValue;
     ULONGLONG queryAt;
     bool loaded;
     wchar_t outcome[200];
@@ -24,7 +24,7 @@ static void sendGatheringAction(unsigned phase,unsigned value) {
     at<unsigned>(record,28)=state.strategyTarget;
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
-    gathering.queryAt=GetTickCount64();state.pending=true;state.sentAt=gathering.queryAt;
+    gathering.lastValue=value;gathering.queryAt=GetTickCount64();state.pending=true;state.sentAt=gathering.queryAt;
     state.message=!phase ? L"상대와의 초대 상태를 조회합니다." : value==0 ? L"초대를 보냅니다. CP는 상대가 수락할 때 씁니다." :
         value==1 ? L"초대를 수락합니다." : L"초대를 거절합니다.";
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
@@ -64,7 +64,9 @@ static bool readGatheringAction(void* record) {
                     swprintf_s(gathering.outcome,L"%ls · 주최자 영향력 %+d · 손님 영향력 %+d · 우호도 %+d → %u",
                         grades[gathering.grade<4 ? gathering.grade : 0],host,guest,friendship,gathering.friendship);
                     state.message=gathering.outcome;
-                } else if(flag==12)state.message=gathering.inviteHost ? L"초대를 보냈습니다. 상대가 수락하면 결과가 나옵니다." : L"초대를 거절했습니다.";
+                } else if(flag==12)state.message=gathering.inviteHost ? L"초대를 보냈습니다. 상대가 수락하면 결과가 나옵니다." :
+                    // A guest who is not connected answers at once (friendship 50 or more accepts).
+                    gathering.lastValue==0 ? L"접속하지 않은 상대가 초대를 거절했습니다(우호도 50 미만)." : L"초대를 거절했습니다.";
                 else if(gathering.outcome[0])state.message=gathering.outcome;
                 else state.message=gatheringIncoming() ? L"이 인물의 초대가 와 있습니다. 수락하거나 거절하세요." :
                     gatheringOutgoing() ? L"이 인물에게 보낸 초대가 수락을 기다리고 있습니다." :

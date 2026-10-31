@@ -90,4 +90,19 @@ class GatheringActionsTest {
         assertEquals(listOf(10,5,-3),GatheringGrade.entries.map(GatheringActions::friendshipDelta))
         assertTrue((0..200).all {GatheringActions.score(50,10000,it.toLong()) in 50..99})
     }
+    @Test fun aGuestWhoIsNotConnectedAnswersAtOnceByFriendship() {
+        // Only the host is in the session: the guest is an NPC or an offline player.
+        val alone=SessionSimulation(rules).also {it.join("host",Power.EMPIRE,false,"h")}.exportState()
+        fun invite(s:PlanetStocks)=SocialActions.evaluate(galaxy,request("host",10000,10001,0,1),alone,host,s,listOf(host,guest),
+            mapOf("host" to host,"guest" to guest))
+        val accepted=invite(stocks());assertNull(accepted.rejection)
+        assertEquals(680,accepted.player?.mcp,"the host pays at once");val view=assertNotNull(accepted.gathering)
+        assertNotNull(view.grade);assertNull(view.invite)
+        val after=assertNotNull(accepted.stocks);assertTrue(after.social.gatherings.invites.isEmpty())
+        assertEquals(50+view.friendshipDelta,after.social.meeting.friendship(10000,10001))
+        val cold=stocks().let {it.copy(social=it.social.copy(meeting=it.social.meeting.copy(
+            friendship=mapOf(MeetingActions.pair(10000,10001) to 40))))}
+        val declined=invite(cold);assertNull(declined.rejection);assertEquals(1000,declined.player?.mcp,"no CP on a refusal")
+        assertNull(assertNotNull(declined.gathering).grade);assertTrue(assertNotNull(declined.stocks).social.gatherings.invites.isEmpty())
+    }
 }
