@@ -65,7 +65,7 @@ object GuardCombat {
         outfit?.guard?.get(unit)?.let {GuardShips.option(it)?.modifier}
     fun mount(base:TacticalWeaponMount,weapon:TacticalWeapon,outfit:OutfitStock?,unit:Int):TacticalWeaponMount {
         val m=modifier(outfit,unit) ?: return base
-        if(weapon !in m.weapons || base.power==0)return base.copy(power=0)
+        if(weapon !in m.weapons || base.power==0)return TacticalWeaponMount(255,0,0,0)
         return base.copy(power=maxOf(1,(base.power.toLong()*m.attack/100).toInt()))
     }
     fun armor(base:Int,outfit:OutfitStock?,unit:Int):Int =
