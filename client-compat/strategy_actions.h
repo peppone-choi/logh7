@@ -72,9 +72,11 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     bool held=false;for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)held=true;
     unsigned formationValues[4]={};unsigned formationCount=formationKinds(card,formationValues);
     bool civicCard=card==59 || card==195 || card==39 || card==44 || card==47 || card==50 || card==175 || card==180 || card==183 || card==186;
-    if(!held || (transportCommand(command) ? !transportCard(command,card) : meetingCommand(command) || gatheringCommand(command) ? card!=0 : academyCommand(command) ? !academyCard(command,card) : socialCommand(command) ? card!=0 : budgetCommand(command) ? card!=8 && card!=136 : civicCommand(command) ? !civicCard || command==55 && card!=59 && card!=195 : formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
+    if(!held || (transportCommand(command) ? !transportCard(command,card) : meetingCommand(command) || gatheringCommand(command) ? card!=0 && !(command==11 && card==66) : academyCommand(command) ? !academyCard(command,card) : socialCommand(command) ? card!=0 : budgetCommand(command) ? card!=8 && card!=136 : civicCommand(command) ? !civicCard || command==55 && card!=59 && card!=195 : formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
         (command==84 ? card!=0 : card!=59 && card!=195)))return 0;
     closePlanetInformation();auto& state=taxWindow;
+    // 狩猟 also sits on the 封土 card (66); the server's gathering path takes the personal card 0.
+    if(command==11 && card==66)card=0;
     state.world=world;state.character=at<unsigned>(own,0x24);state.card=card;
     state.strategyActive=true;state.strategyCommand=command;state.strategyOutfit=0;
     state.strategyTarget=0;state.strategyBase=0;state.strategyValue=command==3 ? 5 : 0;state.strategyField=0;

@@ -73,5 +73,17 @@ class PlanetTreasuryTest {
             assertEquals(full,store.value)
         }
     }
+    @Test fun aFiefPaysItsWholeCollectedTaxToTheLordInsteadOfTheTreasuries() {
+        val store=Store()
+        val production=PlanetProduction(galaxy,store,0,PlanetProductionPolicy())
+        val initial=production.settle(1,0)
+        val collected=initial.bases.getValue(1000).economy!!.adults.toLong()*galaxy.conditions.getValue(1000).tax/100
+        val fief=initial.copy(strategic=initial.strategic.copy(fiefs=mapOf(1000 to 10004),
+            people=mapOf(10004 to StrategicPerson(money=7))))
+        production.replace(initial,fief)
+        val daily=production.settle(1,86400)
+        assertEquals(7+collected,daily.strategic.people.getValue(10004).money)
+        assertEquals(0L,daily.bases.getValue(1000).treasury);assertEquals(0L,daily.nationalTreasuries[2] ?: 0L)
+        assertEquals(daily,production.settle(1,86400),"a day is paid once")
+    }
 }
-

@@ -116,19 +116,28 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             (initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1)*PoliticianLadder.PERIOD_DAYS-1))
         // A non-durable test clock may rewind. Keep stock and the watermark; never produce a day twice.
         val national = initialized.nationalTreasuries.toMutableMap()
+        // U-20: the 封土 card text (constmsg, evidence:client) gives a fief's taxes to its lord,
+        // so the whole collected amount goes to the lord's private money, not the treasuries.
+        val lords = linkedMapOf<Int, Long>()
         val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
             bases = initialized.bases.mapValues { (id, stock) ->
                 var next = stock
                 repeat(Math.toIntExact(days - initialized.producedDays)) {
                     val base=galaxy.conditions.getValue(id)
                     val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
-                    if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
+                    val lord=initialized.strategic.fiefs[id]
+                    if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
+                    else if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
                     val previousDay=next
                     next = units.advance(next.nextDay(base, policy), previousDay)
-                        .copy(treasury=Math.addExact(previousDay.treasury,revenue.local))
+                        .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                 }
                 next
-            }, nationalTreasuries=national)
+            }, nationalTreasuries=national).let {produced ->
+                if(lords.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+
+                    lords.mapValues {(lord,amount)->(produced.strategic.people[lord] ?: StrategicPerson()).let {
+                        it.copy(money=minOf(0xffffffffL,it.money+amount))}}))
+            }
         // U-28: politician-ladder rules run once per crossed 30-day boundary, in order.
         var monthly=result
         val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
