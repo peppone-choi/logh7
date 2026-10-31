@@ -123,6 +123,13 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy) {
     fun target(role:OrganizationalOffice,seat:Int):Int = if(role.scope==OfficeScope.NATIONAL && role.facility>=0)
         galaxy.facilities[seat]?.singleOrNull {it.kind==role.facility}?.id ?: seat else seat
     fun set(stocks:PlanetStocks,holding:OfficeHolding,remove:Boolean=false):PlanetStocks {
+        if(!remove)return store(stocks,holding,false)
+        // A seat may sit in its concrete field or in the general seat list; removal clears both.
+        val cleared=store(stocks,holding,true)
+        return if(holding in cleared.strategic.offices)
+            cleared.copy(strategic=cleared.strategic.copy(offices=cleared.strategic.offices-holding)) else cleared
+    }
+    private fun store(stocks:PlanetStocks,holding:OfficeHolding,remove:Boolean):PlanetStocks {
         val role=checkNotNull(OrganizationOffices.of(holding.card));val card=holding.card
         require(active(stocks,role,holding.seat))
         if(role.camp==0) {
