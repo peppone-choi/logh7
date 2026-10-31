@@ -58,6 +58,12 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
     @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.let(::displayed) }
+    /** U-11: a character that died in battle leaves the account, which may then create a new one. */
+    @Synchronized fun retire(account: String, id: Long): Boolean {
+        if (registered[account]?.id != id) return false
+        val next = registered - account
+        save(next); registered.remove(account); pending.remove(account); return true
+    }
     @Synchronized fun registeredCharacters():List<CharacterMessages.Generate> {
         resolveLottery();return registered.values.sortedBy { it.id }.map(::displayed)
     }

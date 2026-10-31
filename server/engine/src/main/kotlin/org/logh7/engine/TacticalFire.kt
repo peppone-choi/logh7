@@ -289,6 +289,7 @@ internal object TacticalCombat {
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players)
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
+        inventory=BattleDeath.apply(inventory,impacts.mapNotNull {it.departed?.characterId},now)
         inventory=SinkingExperience.apply(inventory,impacts.mapNotNull {it.departed?.characterId}.distinct(),
             impacts.takeIf {it.any {i->i.departed!=null}}?.let {production.identities?.invoke()}.orEmpty())
         clearFinishedOrders(players,galaxy,inventory,now)

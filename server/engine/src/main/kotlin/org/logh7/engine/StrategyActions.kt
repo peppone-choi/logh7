@@ -7,8 +7,10 @@ import org.logh7.engine.strategy.*
  * Author: Peppone Choi. */
 data class StrategicPerson(val rank:Int?=null,val groundTactics:Int=0,val retiredUntil:Long=0,
     val peerage:Peerage?=null,val merit:Long=0,val influence:Int=0,val evaluation:Long=0,
-    val money:Long=0,val abilities:List<Int>?=null,val decorations:Set<Int> = emptySet(),val airTactics:Int=0) {
-    init {require((rank==null || rank in 0..20) && groundTactics in 0..3 && airTactics in 0..3 && retiredUntil in 0..0xffffffffL &&
+    val money:Long=0,val abilities:List<Int>?=null,val decorations:Set<Int> = emptySet(),val airTactics:Int=0,
+    /** U-11: game second of death in battle; 0 while alive. */
+    val deceasedAt:Long=0) {
+    init {require((rank==null || rank in 0..20) && groundTactics in 0..3 && airTactics in 0..3 && retiredUntil in 0..0xffffffffL && deceasedAt in 0..0xffffffffL &&
         merit in 0..0xffffffffL && influence in 0..100 && evaluation in 0..0xffffffffL && money in 0..0xffffffffL &&
         (abilities==null || abilities.size==8 && abilities.all {it in 0..255}) && decorations.size<=128 && decorations.all {it in 0..127})}
 }
@@ -62,6 +64,7 @@ internal object StrategyActions {
             !member.online || member.connection!=r.connection)return reject(StrategyActionRejection.SESSION)
         if(p==null || p.generation!=r.generation || p.characterId!=r.characterId || p.power!=r.power || member.power!=r.power)
             return reject(StrategyActionRejection.IDENTITY)
+        if(BattleDeath.deceased(stocks,r.characterId))return reject(StrategyActionRejection.IDENTITY)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.command in CivicActions.supported)return CivicActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks)

@@ -1611,8 +1611,11 @@ class GameExchange(
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
                 0x2003 -> {
                     check(lobbyLoggedIn && body.size==2)
-                    val character=characters.character(identity.account)
                     val snapshot=navigation?.snapshot()
+                    // U-11: a character killed in battle is removed here; the lobby then offers creation.
+                    characters.character(identity.account)?.takeIf {snapshot?.session?.generation==admission?.generation &&
+                        org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}?.let {characters.retire(identity.account,it.id)}
+                    val character=characters.character(identity.account)
                     // Lobby accounts may inspect their own ended character without joining,
                     // changing CP/navigation, or obtaining a playable ended-session ticket.
                     if(characters!==characterProvider())LobbyMessages.noCharacters()
