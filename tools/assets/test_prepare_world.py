@@ -21,6 +21,16 @@ def properties(text):
 
 
 class PrepareWorldTest(unittest.TestCase):
+    def test_only_gaiesburg_is_a_mobile_fortress(self):
+        data = world()
+        data['systems'][5]['bases'][0].update(name='ガイエスブルク', kind_code=1, model_file=None)
+        data['systems'][6]['bases'][0].update(name='イゼルローン', kind_code=1, model_file=None)
+        p = properties(prepare(data, design_fallback=True))
+        mobile = [k for k, v in p.items() if k.endswith('.mobile')]
+        self.assertEqual(len(mobile), 1)
+        self.assertEqual(p[mobile[0].replace('.mobile', '.name')], 'ガイエスブルク')
+        self.assertEqual(p[mobile[0]], 'true')
+
     def test_map_annotations_keep_empire_alliance_and_neutral_distinct(self):
         data = world()
         for i, color in enumerate([(0, 1, 1), (.50197, 1, .50197), (1, 1, 0)]):

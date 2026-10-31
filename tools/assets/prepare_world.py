@@ -16,6 +16,9 @@ HABITABLE_MODELS = (60, 61, 80, 81, 100, 101, 102)
 CAPITALS = {(2487, 'オーディン'): 60, (2015, 'ハイネセン'): 61}
 
 
+MOBILE_FORTRESSES = {'ガイエスブルク'}
+
+
 def designed_model(grid, name, ordinal):
     """User-authorized fallback, never a claim about original server assignments."""
     if (grid, name) in CAPITALS:
@@ -124,6 +127,10 @@ def prepare(manual, appearances=None, design_fallback=False):
                 raise ValueError('Invalid supplied physical fields')
             for key, value in fields.items():
                 result[f'base.{base_index}.{key}'] = value
+            # U-26 (CD manual p.54): only mobile fortresses take 【移動】. Gaiesburg alone is
+            # mobile in the default world (user decision 2026-10-31).
+            if base['kind_code'] != 0 and base['name'] in MOBILE_FORTRESSES:
+                result[f'base.{base_index}.mobile'] = 'true'
             base_index += 1
     if used != set(overrides):
         raise ValueError('Appearance map targets a base absent from the world')
