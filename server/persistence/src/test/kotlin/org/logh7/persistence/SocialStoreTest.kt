@@ -8,7 +8,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** 저장35·34 호환과 CP/영향력/지지/재실행 제한의 원자 저장. 작성: 최병호. */
+/** 저장35·34 호환과 CP/영향력/지지/재실행 제한의 원자 저장. 작성: Peppone Choi. */
 class SocialStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds
@@ -26,6 +26,52 @@ class SocialStoreTest {
         val old=stocks.copy(social=SocialState());FilePlanetStockStore(path).use {it.save(old);assertEquals(old,it.load())}
         assertTrue(Files.readAllLines(path).first().startsWith("LOGH7-STOCK-34\t"))
         val only=stocks.copy(budget=BudgetState());FilePlanetStockStore(path).use {it.save(only);assertEquals(only,it.load())}
+    }
+    @Test fun academyExperienceLecturesAttendanceAndWargamesRoundTripAsAnOptionalFifthField() {
+        val academy=AcademyState(mapOf(10000 to listOf(0,1,2,3,4,5,6,99)),mapOf(10001 to Lecture(10001,1049,10494017,2,now,now+7200)),
+            mapOf(10000 to now+86400),mapOf(10000 to (now/86400 to 3)))
+        val value=social.copy(academy=academy);val text=SocialStateCodec.encode(value);assertEquals(value,SocialStateCodec.decode(text))
+        assertEquals(5,text.split('|').size);assertEquals(4,SocialStateCodec.encode(social).split('|').size)
+        for(bad in listOf(text.replace(".99",".100"),text.replace(":10494017:2:",":10494017:4:"),text.replace(":3","" ),text+"/x"))
+            assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(bad)}
+        val path=directory.resolve("academy.tsv");val saved=stocks.copy(social=value)
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+    }
+    @Test fun meetingFriendshipAndPairLimitsRoundTripAsAnOptionalSixthField() {
+        val meeting=MeetingState(mapOf(MeetingActions.pair(10001,10000) to 53),mapOf(MeetingActions.pair(10000,10002) to now+86400))
+        val value=social.copy(meeting=meeting);val text=SocialStateCodec.encode(value);assertEquals(value,SocialStateCodec.decode(text))
+        assertEquals(6,text.split('|').size);assertTrue(text.endsWith("|-/-/-/-|10000:10001:53/10000:10002:${now+86400}"))
+        for(bad in listOf(text.replace("10000:10001:53","10001:10000:53"),text.replace(":53/",":101/"),text.replace("10000:10001:53","10000:10000:53")))
+            assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(bad)}
+        val path=directory.resolve("meeting.tsv");val saved=stocks.copy(social=value)
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+    }
+    @Test fun outfitDisciplineIsAStock36Section() {
+        val path=directory.resolve("discipline.tsv")
+        val saved=stocks.copy(discipline=mapOf(7 to OutfitDiscipline(80,now),3 to OutfitDiscipline(50,now+1)))
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+        val lines=Files.readAllLines(path);assertTrue(lines.first().startsWith("LOGH7-STOCK-36\t"))
+        assertEquals("L\t3:50:${now+1},7:80:$now",lines.single {it.startsWith("L\t")})
+        FilePlanetStockStore(path).use {it.save(stocks);assertEquals(stocks,it.load())}
+        assertTrue(Files.readAllLines(path).first().startsWith("LOGH7-STOCK-35\t"))
+    }
+    @Test fun blackHoleTidalHourIsAStock37SectionEvenWithoutDiscipline() {
+        val path=directory.resolve("tidal.tsv")
+        val saved=stocks.copy(tidalHour=123)
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+        val lines=Files.readAllLines(path);assertTrue(lines.first().startsWith("LOGH7-STOCK-37\t"))
+        assertEquals("L\t-",lines.single {it.startsWith("L\t")});assertEquals("H\t123",lines.single {it.startsWith("H\t")})
+        Files.write(path,lines.filterNot {it.startsWith("H\t")})
+        FilePlanetStockStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
+    @Test fun airTrainingIsAStock38SectionKeepingAZeroTidalHour() {
+        val path=directory.resolve("air.tsv")
+        val saved=stocks.copy(airTraining=mapOf(9 to 2,3 to 1))
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+        val lines=Files.readAllLines(path);assertTrue(lines.first().startsWith("LOGH7-STOCK-38\t"))
+        assertEquals("K\t3:1,9:2",lines.single {it.startsWith("K\t")});assertEquals("H\t0",lines.single {it.startsWith("H\t")})
+        val tidal=saved.copy(tidalHour=55)
+        FilePlanetStockStore(path).use {it.save(tidal);assertEquals(tidal,it.load())}
     }
     @Test fun malformedReceiptsMissingLimitsDuplicateSectionsAndReusedIdsAreRejected() {
         val text=SocialStateCodec.encode(social);assertEquals(social,SocialStateCodec.decode(text))

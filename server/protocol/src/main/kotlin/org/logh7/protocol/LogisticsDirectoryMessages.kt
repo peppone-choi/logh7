@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native allocation's base (search 32) and outfit (search 31) selectors. Author: 최병호. */
+/** Native allocation's base (search 32) and outfit (search 31) selectors. Author: Peppone Choi. */
 object LogisticsDirectoryMessages {
     data class Query(val character: Int, val search: Int, val base: Int, val card: Int, val raw: ByteArray)
     fun matches(message: ByteArray) = message.size == 31 && ByteBuffer.wrap(message).getShort(6).toInt() in setOf(31,32)

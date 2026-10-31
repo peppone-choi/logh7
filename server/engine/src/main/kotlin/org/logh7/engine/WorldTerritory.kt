@@ -2,7 +2,7 @@ package org.logh7.engine
 
 /** Manual W p.12: capital capture or regular territory reduced to three systems ends the session.
  * A system is controlled only when every base belongs to the same regular camp (revival policy).
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 internal class WorldTerritory(private val galaxy:Galaxy) {
     private val systems=galaxy.bases.groupBy {it.grid}
     private fun power(wire:Int)=when(wire) {2->Power.EMPIRE;3->Power.ALLIANCE;else->null}

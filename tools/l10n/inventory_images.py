@@ -1,4 +1,4 @@
-"""이미지의 의미를 추측하지 않고 전체 경로와 구조를 기록한다. 작성: 최병호.
+"""이미지의 의미를 추측하지 않고 전체 경로와 구조를 기록한다. 작성: Peppone Choi.
 
 텍스트 유무 판정은 접촉 시트로 직접 확인한다. 자동 OCR 결과로 완료하지 않는다.
 """
@@ -61,7 +61,7 @@ def inventory(source,output,all_images=False):
                 draw.text((x+4,y+3),relative,fill='white')
                 image.thumbnail((272,266));sheet.paste(image,(x+4,y+22),image)
             sheet.save(output/f'{group}-{page:02}.png')
-    (output/'inventory.json').write_text(json.dumps(dict(author='최병호',source=str(source),assets=rows,
+    (output/'inventory.json').write_text(json.dumps(dict(author='Peppone Choi',source=str(source),assets=rows,
         counts=dict(Counter(row['asset'].split('/')[0] for row in rows))),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(dict(assets=len(rows),errors=sum('inspect_error' in row for row in rows),output=str(output))))
 

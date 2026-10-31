@@ -6,7 +6,7 @@ data class UnitStack(val kind: Int, val level: Int = 0) {
     init { require(kind in 0..199 && level in 0..3) }
 }
 
-/** Native warehouse limits: 99 ship stacks, 24 troop stacks, u16 quantities. Author: 최병호. */
+/** Native warehouse limits: 99 ship stacks, 24 troop stacks, u16 quantities. Author: Peppone Choi. */
 class UnitInventory(ships: Map<UnitStack, Int> = emptyMap(), troops: Map<UnitStack, Int> = emptyMap(),
     work: Map<String, Int> = emptyMap()) {
     val ships: Map<UnitStack, Int> = Collections.unmodifiableMap(LinkedHashMap(ships))

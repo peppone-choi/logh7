@@ -192,7 +192,16 @@ class GamePresence {
             if(!event.cancelled && !event.stateOnly && event.order.command.opcode in setOf(0x408,0x421)) {
                 val proposed=snapshot.planetStocks!!.tacticalCommands.proposals[event.order.character]?.let {
                     it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
-                if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
+                val assigned=event.order.command.opcode==0x421 && current.characterId!=event.order.character &&
+                    snapshot.planetStocks!!.tacticalCommands.missions[current.characterId]?.let {
+                        it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
+                if(assigned) TacticalCommandWire.command(event.order)?.let {
+                    // CD 004ba2b0 applies a 0421 result only when its character is the receiver.
+                    // A supreme-commander mission (update04) is addressed to every recipient.
+                    val payload=it.payload.toMutableList()
+                    java.nio.ByteBuffer.allocate(4).putInt(current.characterId).array().forEachIndexed {i,b->payload[8+i]=b.toInt() and 255}
+                    packets+=org.logh7.protocol.TacticalCommandMessages.reply(it.copy(character=current.characterId,payload=payload),event.seconds,0)
+                } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
                     TacticalCommandWire.command(event.order)?.let {
                         packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
             }
@@ -411,9 +420,11 @@ class GamePresence {
         val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
         require(message.characterId.toLong() == sender.character.id)
         val packet = ChatMessages.grid(message, seconds)
+        // Manual W p.25: tactical chat reaches only the same battle's participants, and a battle is not heard outside.
+        fun inTactics(member: Member) = member.player.cpPaused && member.player.baseId == 0
         members.values.filter { other ->
             other.connection != connection && other.player.generation == sender.player.generation &&
-                other.player.grid == sender.player.grid && when (message.cast) {
+                other.player.grid == sender.player.grid && inTactics(other) == inTactics(sender) && when (message.cast) {
                     0 -> true
                     1 -> other.player.power == sender.player.power
                     2 -> sender.outfit > 0 && other.outfit == sender.outfit && other.player.power == sender.player.power
@@ -514,9 +525,13 @@ class GamePresence {
             val power=viewer.character.power
             val ids=stocks.outfits.values.filter {it.power==power && it.positionIn(world.galaxy).grid==grid}.map {it.id}
             send(viewer,ids.chunked(100).map {world.outfits(it,stocks)}+
-                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks))
+                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks)+refresh(peers(viewer),peers(viewer)))
         }
     }
+    /** Native 032b only fills the detail slot; 0b0a's 004c2a80(1) merges the last 032b into the
+     * 100-row outfit list. Re-sending the current peers keeps its character import unchanged. */
+    @Synchronized fun outfitListRefresh(connection: String): List<ByteArray> =
+        members[connection]?.let { refresh(peers(it), peers(it)) }.orEmpty()
     @Synchronized fun remove(connection: String) {
         motionPaths.keys.removeIf { it.first==connection }
         val leaving = members[connection] ?: return

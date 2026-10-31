@@ -1,7 +1,7 @@
 package org.logh7.engine
 
 /**
- * 일일 징세 설계값. 작성: 최병호.
+ * 일일 징세 설계값. 작성: Peppone Choi.
  * evidence:guess — 성인별 과세 소득과 중앙 납입률은 원작 수치가 없어 호출자가 명시한다.
  * 세율(taxRate)과 납입률(remittanceRate)은 서로 다른 비율이다.
  */
@@ -26,7 +26,7 @@ data class PlanetTaxRevenueAssessment(
 }
 
 /**
- * 저장·시간 진행·CP 결제를 수행하지 않는 계산 경계. 작성: 최병호.
+ * 저장·시간 진행·CP 결제를 수행하지 않는 계산 경계. 작성: Peppone Choi.
  * evidence:guess — 현재 정규 세력의 일반 진영·거주 가능 행성 성인을 과세 대상으로 삼는다.
  * 군수물자·함선 등의 자동 생산량을 별도 세금으로 차감하지 않는다.
  * 원작 경제 미구현: docs/manual/01-session-time-victory.md (W p.9).

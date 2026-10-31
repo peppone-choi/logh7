@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 명령별 실제 상태 변경·권한·비용·지연 효과. 작성: 최병호. 실행은 리드 담당. */
+/** 명령별 실제 상태 변경·권한·비용·지연 효과. 작성: Peppone Choi. 실행은 리드 담당. */
 class StrategyActionsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
         listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),
@@ -36,6 +36,59 @@ class StrategyActionsTest {
         repeat(3){current=assertNotNull(act(48,current).stocks)}
         val maximum=act(48,current)
         assertEquals(StrategyActionRejection.MAXIMUM,maximum.rejection);assertEquals(player(),maximum.player)
+    }
+    @Test fun shipTrainingRaisesEveryActiveShipUnitAndItsInventoryTogether() {
+        val kind=UnitSpecifications.ships.first().kind
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind)),ActiveShipUnit(3,UnitStack(kind,2))))
+        val s=stocks().let {it.copy(outfits=it.outfits+(200 to OutfitStock(200,2,OutfitKind.PATROL,1049,300,10000,
+            UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=4)}
+        val result=act(47,s);assertNull(result.rejection);assertEquals(920,result.player?.mcp)
+        val trained=assertNotNull(result.stocks).outfits.getValue(200)
+        assertEquals(listOf(2 to 1,3 to 3),trained.activeShips!!.values.map {it.id to it.stack.level})
+        assertEquals(trained.activeShips.quantities(),trained.units.ships)
+        var top=s;repeat(3){top=assertNotNull(act(47,top).stocks)}
+        assertEquals(StrategyActionRejection.MAXIMUM,act(47,top).rejection)
+        assertEquals(StrategyActionRejection.TROOPS,act(47).rejection)
+    }
+    @Test fun airTacticsNeedsALocalCarrierAndRaisesTheLaunchersWingDamage() {
+        assertEquals(StrategyActionRejection.TROOPS,act(51).rejection)
+        val kind=UnitSpecifications.ships.first {StrategicAirTactics.carrier(it.kind)}.kind
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind))))
+        val s=stocks().let {it.copy(outfits=it.outfits+(200 to OutfitStock(200,2,OutfitKind.PATROL,1049,300,10000,
+            UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=3)}
+        var current=s
+        repeat(3) {val r=act(51,current);assertNull(r.rejection);assertEquals(920,r.player?.mcp);current=assertNotNull(r.stocks)}
+        assertEquals(3,current.strategic.people.getValue(10000).airTactics);assertEquals(76,StrategicAirTactics.interval(current,10000,100))
+        assertEquals(100,StrategicAirTactics.interval(current,10001,100));assertEquals(1,StrategicAirTactics.interval(current,10000,1))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(51,current).rejection)
+    }
+    @Test fun airTrainingRaisesTheCarrierOutfitsWingCycleToThreeLevels() {
+        assertEquals(StrategyActionRejection.TROOPS,act(49).rejection)
+        val kind=UnitSpecifications.ships.first {StrategicAirTactics.carrier(it.kind)}.kind
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind))))
+        val s=stocks().let {it.copy(outfits=it.outfits+(200 to OutfitStock(200,2,OutfitKind.PATROL,1049,300,10000,
+            UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=3)}
+        var current=s
+        repeat(3) {val r=act(49,current);assertNull(r.rejection);assertEquals(920,r.player?.mcp);current=assertNotNull(r.stocks)}
+        assertEquals(mapOf(200 to 3),current.airTraining)
+        assertEquals(76,StrategicAirTactics.interval(current,10001,100,2))
+        assertEquals(100,StrategicAirTactics.interval(current,10001,100,9))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(49,current).rejection)
+    }
+    @Test fun disciplineRisesByTenDecaysDailyToFiftyAndSoftensMoraleLoss() {
+        val kind=UnitSpecifications.ships.first().kind
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind))))
+        val s=stocks().let {it.copy(outfits=it.outfits+(200 to OutfitStock(200,2,OutfitKind.PATROL,1049,300,10000,
+            UnitInventory(ships=ships.quantities()),activeShips=ships)),nextShipId=3)}
+        val now=session().gameMillis/1000
+        assertEquals(50,OutfitDiscipline.value(s,200,now))
+        var current=s
+        repeat(5) {val r=act(46,current);assertNull(r.rejection);assertEquals(920,r.player?.mcp);current=assertNotNull(r.stocks)}
+        assertEquals(100,OutfitDiscipline.value(current,200,now));assertEquals(StrategyActionRejection.MAXIMUM,act(46,current).rejection)
+        assertEquals(97,OutfitDiscipline.value(current,200,now+3*86400));assertEquals(50,OutfitDiscipline.value(current,200,now+99*86400))
+        assertEquals(20,OutfitDiscipline.moraleLoss(20,50));assertEquals(10,OutfitDiscipline.moraleLoss(20,100))
+        assertEquals(1,OutfitDiscipline.moraleLoss(1,100));assertEquals(0,OutfitDiscipline.moraleLoss(0,100))
+        assertEquals(StrategyActionRejection.TROOPS,act(46).rejection)
     }
     @Test fun learnedTacticsAffectAutomaticGroundCombatAndSurviveAnOfflineCommander() {
         val result=act(50);val stored=assertNotNull(result.stocks)

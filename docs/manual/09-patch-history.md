@@ -1,6 +1,6 @@
 ---
 title: 공식 패치 이력과 복원 규칙
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 ---
 

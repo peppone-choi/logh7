@@ -1,4 +1,4 @@
-// Native mail/editor boundaries; no packet construction. Author: 최병호.
+// Native mail/editor boundaries; no packet construction. Author: Peppone Choi.
 #pragma once
 #include "input_text.h"
 

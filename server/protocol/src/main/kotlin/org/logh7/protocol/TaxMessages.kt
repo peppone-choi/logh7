@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD group 00438e30, writer 00434880, reader 00435e80. Author: 최병호. */
+/** CD group 00438e30, writer 00434880, reader 00435e80. Author: Peppone Choi. */
 object TaxMessages {
     data class Query(val character: Int, val base: Int, val rate: Int, val card: Int, val mode: Int)
     fun query(message: ByteArray): Query {

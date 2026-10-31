@@ -1,6 +1,6 @@
 ---
 title: 클라이언트 자산 포맷 목록 (LOGH-13)
-author: 최병호
+author: Peppone Choi
 created: 2026-10-18
 evidence: E-019, E-025, E-027, docs/re/galaxy-map.md, tools/assets/
 status: 부분 문서. UNKNOWN 항목은 원본 근거가 생기기 전까지 확정하지 않는다.

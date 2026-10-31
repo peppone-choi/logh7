@@ -26,6 +26,12 @@ class GroundTransferMessagesTest {
             assertEquals(c.outfit,read.outfit);assertEquals(values,read.values)
         }
     }
+    @Test fun reasonReplacesTheEchoWithOneMarkedValue() {
+        val c=GroundTransferMessages.Command(GroundTransferMessages.Action.UNLOAD,10000,12,emptyList())
+        val read=GroundTransferMessages.command(GroundTransferMessages.reply(c,9,800,840,false,10).let {it.copyOfRange(4,it.size)})
+        assertEquals(listOf(GroundTransferMessages.REASON_MARK or 10L),read.values)
+        assertFailsWith<IllegalArgumentException> {GroundTransferMessages.reply(c,9,800,840,false,0x10000)}
+    }
     @Test fun truncatedExtraPaddedAndOversizedMessagesAreRejected() {
         val c=GroundTransferMessages.Command(GroundTransferMessages.Action.UNLOAD,10000,12,listOf(99L))
         val response=GroundTransferMessages.reply(c,9,800,840)

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "author": "최병호",
+  "author": "Peppone Choi",
   "source_sha256": "5b3fafba7dd7230cdeb5f2ff9acf9bbbe20fd95ade25c425bc0d11ae645c383c",
   "note": "그룹/항목 번호별 한국어. 원문·내부 프로토콜 이름을 복제하지 않는다. null 또는 누락은 미번역이다.",
   "groups": {

@@ -45,10 +45,14 @@ class GroundTransferWireTest {
     private fun query(action:GroundTransferMessages.Action=GroundTransferMessages.Action.LOAD,values:List<Long> = emptyList(),outfit:Int=1):ByteArray =
         ByteBuffer.allocate(23+values.size*4).putShort(action.opcode.toShort()).putInt(-1).putInt(10000)
             .putInt(Int.MAX_VALUE).putInt(Int.MAX_VALUE).putInt(outfit).put(values.size.toByte()).also {b->values.forEach {b.putInt(it.toInt())}}.array()
+    private var lastReason=0
     private fun receive(c:SyntheticClient,opcode:Int=0x0b05,accepted:Boolean=true,refresh:Boolean=true):Int {
         val raw=c.receive();val b=ByteBuffer.wrap(raw)
         assertEquals(opcode,b.getShort(4).toInt() and 65535)
         assertEquals(if(accepted)0 else 1,b.getInt(0))
+        lastReason=if(b.get(26).toInt()==1) {
+            assertEquals(GroundTransferMessages.REASON_MARK.toInt() ushr 16,b.getInt(27) ushr 16);b.getInt(27) and 0xffff
+        } else 0
         if(refresh){c.expect(0x0356);if(accepted)c.expect(0x032f)}
         return b.getInt(18)
     }
@@ -57,18 +61,23 @@ class GroundTransferWireTest {
         fixture(state,"first").use {server->
             val c=server.join(server.account(0),true,false).client;start(c)
             c.send(query(values=listOf(2)));assertEquals(1000,receive(c,accepted=false,refresh=false));assertEquals(0,state.saves)
+            assertEquals(LogisticsRejection.MODE.ordinal+1,lastReason)
             c.send(query(outfit=999));assertEquals(1000,receive(c,accepted=false));assertEquals(0,state.saves)
-            c.send(query());assertEquals(920,receive(c));assertEquals(1,state.saves)
+            assertEquals(LogisticsRejection.OUTFIT.ordinal+1,lastReason)
+            c.send(query());assertEquals(920,receive(c));assertEquals(1,state.saves);assertEquals(0,lastReason)
             assertEquals(1,state.stocks.outfits.getValue(1).activeGround!!.values.single().carrier)
             c.send(query());assertEquals(920,receive(c));assertEquals(1,state.saves)
+            assertEquals(GroundTransferMessages.NO_CHANGE,lastReason)
         }
         fixture(state,"reopen").use {server->
             val c=server.join(server.account(0),true,false).client;start(c)
-            c.send(query());assertEquals(920,receive(c));assertEquals(1,state.saves)
+            c.send(query());assertEquals(920,receive(c));assertEquals(920,state.players.values.single().mcp)
             c.send(query(GroundTransferMessages.Action.UNLOAD));assertEquals(840,receive(c,0x0b04))
             val troop=state.stocks.outfits.getValue(1).activeGround!!.values.single()
             assertEquals(2,troop.id);assertEquals(1049,troop.base);assertEquals(0,troop.carrier);assertEquals(3,state.stocks.nextShipId)
-            c.send(query(GroundTransferMessages.Action.UNLOAD));assertEquals(840,receive(c,0x0b04));assertEquals(2,state.saves)
+            c.send(query(GroundTransferMessages.Action.UNLOAD));assertEquals(840,receive(c,0x0b04))
+            // The repeat is free; save count also includes the periodic CP-experience settlement.
+            assertEquals(840,state.players.values.single().mcp)
         }
     }
     @Test fun commandAndRosterRefreshUseCurrentStationInsteadOfDepot() {

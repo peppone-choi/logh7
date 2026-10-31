@@ -20,7 +20,8 @@ try {
       'if errorlevel 1 exit /b 1',
       "cl /nologo /O2 /W4 /WX /MT /EHsc /utf-8 `"$testSource`" /Fe:guard-test.exe /link /DYNAMICBASE:NO /BASE:0x400000",
       'if errorlevel 1 exit /b 1',
-      "guard-test.exe `"$(Join-Path $destination 'dinput8.dll')`"") |
+      # Full path: cmd may not search the current directory (NoDefaultCurrentDirectoryInExePath).
+      "`"$(Join-Path $destination 'guard-test.exe')`" `"$(Join-Path $destination 'dinput8.dll')`"") |
         Set-Content -LiteralPath $batch -Encoding ascii
     & $env:ComSpec /d /c $batch
     if ($LASTEXITCODE -ne 0) { throw 'Compatibility module build failed.' }

@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Unpacked replacement boats survive across actions; full units remain in UnitInventory. Author: 최병호. */
+/** Unpacked replacement boats survive across actions; full units remain in UnitInventory. Author: Peppone Choi. */
 class SpareShipBoats(values: Map<UnitStack, Int> = emptyMap()) {
     val values: Map<UnitStack, Int> = java.util.Collections.unmodifiableMap(LinkedHashMap(values))
     init {

@@ -6,7 +6,7 @@ import org.logh7.protocol.*
 import java.nio.ByteBuffer
 import kotlin.test.*
 
-/** Full native 0325 replacement must keep aboard and ashore identities after every refresh. Author: 최병호. */
+/** Full native 0325 replacement must keep aboard and ashore identities after every refresh. Author: Peppone Choi. */
 class GroundPresenceTest {
     @Test fun supportAndImpactRefreshRetainBothSidesOfCarrierRelationshipsForBothPeers() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2)),

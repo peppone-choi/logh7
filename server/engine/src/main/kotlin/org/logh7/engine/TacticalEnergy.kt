@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Native allocation units, ordered engine/warp/sensor/beam/gun/six shield faces. Author: 최병호. */
+/** Native allocation units, ordered engine/warp/sensor/beam/gun/six shield faces. Author: Peppone Choi. */
 data class TacticalEnergy(val values: List<Int>) {
     // Retain legacy rows; command validation applies the per-slider limits below.
     init { require(values.size == 11 && values.all { it in 0..130 }) }

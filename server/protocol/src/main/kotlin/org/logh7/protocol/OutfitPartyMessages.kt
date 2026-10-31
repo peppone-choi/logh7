@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 
-/** Native 0041cba0 / 0041f3d0, variable wire records without C++ padding. Author: 최병호. */
+/** Native 0041cba0 / 0041f3d0, variable wire records without C++ padding. Author: Peppone Choi. */
 object OutfitPartyMessages {
     data class Query(val outfit: Int, val base: Int, val mode: Int)
     data class UnitQuery(val id: Int, val base: Int)
@@ -19,7 +19,9 @@ object OutfitPartyMessages {
         require(input.short.toInt() == 0x032e)
         return Query(input.int,input.int,input.get().toInt() and 255).also {
             // Mode 2 is the revival ground-location page: base carries an exclusive unit-ID cursor.
-            require(it.outfit > 0 && it.base in 0..(if(it.mode==2)999999 else 65535))
+            // The native editor sends the character's own outfit field, which is 0 away from the
+            // flagship dock (e.g. a commander in a lobby); it is answered as an empty roster.
+            require(it.outfit >= 0 && it.base in 0..(if(it.mode==2)999999 else 65535))
         }
     }
     fun unitQuery(bytes: ByteArray): UnitQuery {
@@ -33,7 +35,7 @@ object OutfitPartyMessages {
     }
     fun party(query: Query, power: Int, kind: Int, number: Int, ships: List<Ships>, troops: List<Troops>,
         supplies: Int, maximumSupplies: Int, members: List<Member> = emptyList()): ByteArray = body {
-        require(query.outfit > 0 && query.base in 0..(if(query.mode==2)999999 else 65535) && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
+        require(query.outfit >= 0 && query.base in 0..(if(query.mode==2)999999 else 65535) && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
         require(ships.size <= 60 && troops.size <= 24 && supplies in 0..maximumSupplies)
         val ids = ships.flatMap { it.ids }
         require(ids.distinct().size == ids.size && ids.all { it > 0 })

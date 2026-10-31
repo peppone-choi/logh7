@@ -1,4 +1,4 @@
-"""실제 제목판의 원본·배경·저장 형식 보존. 작성: 최병호."""
+"""실제 제목판의 원본·배경·저장 형식 보존. 작성: Peppone Choi."""
 from pathlib import Path
 import unittest
 

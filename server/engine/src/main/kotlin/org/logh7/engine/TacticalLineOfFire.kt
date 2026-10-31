@@ -3,13 +3,14 @@ package org.logh7.engine
 import kotlin.math.hypot
 
 /** W50: friendly ships (including mobile fortresses) block conventional weapons.
- * Ship collision radius .25 and a .05 margin are design policy. No terrain shapes are seeded yet.
- * Author: 최병호. */
+ * Ship collision radius .25 and a .05 margin are design policy. The star of a star-system grid also blocks (TacticalTerrain).
+ * Author: Peppone Choi. */
 internal object TacticalLineOfFire {
     fun blocked(source:Int,grid:Int,power:Power,from:TacticalPoint,to:TacticalPoint,now:Long,
         players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):Boolean {
         val dx=to.x.toDouble()-from.x;val dy=to.y.toDouble()-from.y;val length=dx*dx+dy*dy
         if(length==0.0)return false
+        if(TacticalTerrain.fireBlocked(galaxy,grid,from,to))return true
         fun intersects(point:TacticalPoint,radius:Double):Boolean {
             val t=((point.x-from.x)*dx+(point.y-from.y)*dy)/length
             return t>0 && t<1 && hypot(point.x-from.x-t*dx,point.y-from.y-t*dy)<=radius+.05

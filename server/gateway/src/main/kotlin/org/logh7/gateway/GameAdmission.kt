@@ -27,7 +27,10 @@ class EngineGameAdmission(private val engine: WorldEngine, private val scope: Co
             try {
                 val result = CompletableDeferred<Admission>()
                 engine.submit(WorldCommand.Join(account, if (character.power == 2) Power.EMPIRE else Power.ALLIANCE,
-                    !character.generated, result, connection, generation))
+                    !character.generated, result, connection, generation, StrategicPerson(rank = character.rank,
+                        peerage = Peerage.entries.getOrNull(character.title - 1), merit = character.merit, influence = character.influence,
+                        evaluation = character.evaluation, money = character.money, abilities = character.abilities,
+                        decorations = character.decorations)))
                 future.complete(result.await())
             } catch (failure: Throwable) { future.completeExceptionally(failure) }
         }

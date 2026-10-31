@@ -1,4 +1,4 @@
-// Edit buffers and the native IME status CString use ACP. Author: 최병호.
+// Edit buffers and the native IME status CString use ACP. Author: Peppone Choi.
 #pragma once
 #include "input_text.h"
 #include "ime_status.h"

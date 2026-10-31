@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "author": "최병호",
+  "author": "Peppone Choi",
   "source_sha256": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16",
   "note": "고정 주소·원문 바이트가 맞는 네이티브 변환 호출만 치환. 포맷 후 복사본·운영체제 ANSI 대화상자 경로는 별도 확인한다.",
   "entries": {

@@ -54,7 +54,8 @@ class UnitSpecificationsWireTest {
             assertEquals(438,arms.limit()); arms.position(6)
             val profiles=List(27) { List(8) { arms.short.toInt() } }
             assertEquals(TacticalArmaments.profiles,profiles)
-            assertTrue(profiles[0].any {it>0} && profiles[1].any {it>0} && profiles[2].all {it>0})
+            assertTrue(profiles[TacticalArmaments.BEAM_PROFILE].any {it>0} && profiles[TacticalArmaments.GUN_PROFILE].any {it>0} &&
+                profiles[TacticalArmaments.MISSILE_PROFILE].all {it>0})
             assertFalse(arms.hasRemaining())
         }
     }

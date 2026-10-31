@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native 00492930/0049a5d0: packed CommandMoveShip records. Author: 최병호. */
+/** Native 00492930/0049a5d0: packed CommandMoveShip records. Author: Peppone Choi. */
 object TacticalMoveMessages {
     /** 004a5870/004bf870: no padding after the signed waypoint index; -1 means finished. */
     fun moved(seconds:Long,unit:Int,direction:Float,position:Point,waypoint:Int):ByteArray {

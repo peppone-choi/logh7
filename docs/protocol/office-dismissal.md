@@ -1,6 +1,6 @@
 # 원본 카드의 해임 연결
 
-작성: 최병호 · 2026-10-27
+작성: Peppone Choi · 2026-10-27
 
 원본 명령 6의 `CommandCardDismisal`(`0708`)을 연결한다. 비용 MCP 160과 즉시 실행은 매뉴얼 W p.72 및 CD 명령 정의를 따른다. 본인 직무를 내려놓는 [사임](office-resignation.md)과 별도이며, 저장된 임명권으로 타인의 직무를 해제한다. `evidence:manual`
 

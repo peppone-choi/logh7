@@ -5,7 +5,7 @@ import kotlinx.coroutines.*
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 자금 보존·일일 경계·실제 직위·영속 견적과 실패 원자성. 작성: 최병호. 실행은 리드 담당. */
+/** 자금 보존·일일 경계·실제 직위·영속 견적과 실패 원자성. 작성: Peppone Choi. 실행은 리드 담당. */
 class BudgetActionsTest {
     private val rules=SessionRules.load()
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2015,4,"Other",3)),listOf(

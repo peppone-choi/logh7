@@ -4,7 +4,7 @@ import java.io.*
 import java.util.Base64
 import org.logh7.engine.*
 
-/** Bounded, canonical binary state inside STOCK-30. No Java object deserialization. Author: 최병호. */
+/** Bounded, canonical binary state inside STOCK-30. No Java object deserialization. Author: Peppone Choi. */
 internal object TacticalCommandStateCodec {
     private fun DataOutputStream.ints(values:List<Int>) {writeInt(values.size);values.forEach(::writeInt)}
     private fun DataInputStream.count(max:Int)=readInt().also {require(it in 0..max)}

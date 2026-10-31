@@ -1,4 +1,4 @@
-"""One GUI-test mutex owner coordinating two isolated client copies. Author: 최병호."""
+"""One GUI-test mutex owner coordinating two (at most three) isolated client copies. Author: Peppone Choi."""
 import os
 import threading
 from pathlib import Path
@@ -15,8 +15,11 @@ def assert_no_gui_group():
 
 
 class GuiTestGroup:
-    def __init__(self, reusable=False):
+    def __init__(self, reusable=False, copies=2):
+        if copies not in (2, 3):
+            raise ValueError('A GUI group coordinates two or three client copies')
         self._reusable = reusable
+        self._copies = copies
         self._handle = None
         self._pid = os.getpid()
         self._owner = threading.current_thread()
@@ -47,8 +50,8 @@ class GuiTestGroup:
             if self._stop.is_set() or self._handle is None or os.getpid() != self._pid or not self._owner.is_alive():
                 raise RuntimeError('GUI group is not held by this process')
             if (key in self._members or (key in self._used and not self._reusable)
-                    or (key not in self._used and len(self._used) >= 2)):
-                raise RuntimeError('GUI group permits two distinct client copies only')
+                    or (key not in self._used and len(self._used) >= self._copies)):
+                raise RuntimeError(f'GUI group permits {self._copies} distinct client copies only')
             self._used.add(key)
             self._members.add(key)
         return _Lease(self, key)

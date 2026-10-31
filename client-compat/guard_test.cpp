@@ -99,6 +99,18 @@ static bool messengerStatusTextTest() {
         logh::messengerStatusKind(0x5433a5,0x15,0x77)==3 &&
         logh::messengerStatusKind(0x544f05,0x16,0x77)==3;
 }
+static bool commanderMenuTest() {
+    BYTE decoded[4+3*0x3c]={};*reinterpret_cast<unsigned short*>(decoded)=2;
+    *reinterpret_cast<unsigned*>(decoded+4)=10001;*reinterpret_cast<unsigned*>(decoded+4+0x3c)=10000;decoded[4+0x3c+0x10]=1;
+    if(logh::corpsChief(decoded,10000)!=1 || logh::corpsChief(decoded,10001)!=0 || logh::corpsChief(decoded,10002)!=-1)return false;
+    *reinterpret_cast<unsigned*>(decoded+4+2*0x3c)=10002;decoded[4+2*0x3c+0x10]=1;
+    if(logh::corpsChief(decoded,10002)!=-1 || logh::corpsChief(decoded,0)!=-1)return false;
+    *reinterpret_cast<unsigned short*>(decoded)=601;if(logh::corpsChief(decoded,10000)!=-1)return false;
+    BYTE enabled[24];logh::commanderMenu(true,enabled);
+    for(unsigned i=0;i<24;++i)if(enabled[i]!=(i==20 || i==23))return false;
+    logh::commanderMenu(false,enabled);for(unsigned i=0;i<24;++i)if(enabled[i])return false;
+    return true;
+}
 static bool fortressMenuAuthorityTest() {
     BYTE own[0x370]={};own[0x270]=1;unsigned base=1040;unsigned short kind=188;
     memcpy(own+0x274,&kind,2);memcpy(own+0x278,&base,4);
@@ -577,6 +589,7 @@ static bool sessionEndingDataTest() {
 static int runGuard(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
+    if(!commanderMenuTest())return 196;
     if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest()) return 252;
     if (!legacyKoreanGlyphTest()) return 253;
     if (!nameCardDisplayTest()) return 254;
@@ -972,6 +985,10 @@ static int runGuard(int argc, wchar_t** argv) {
         replies.take(7,1,false,replyToken) || !replies.take(7,1,true,replyToken) || replyToken != 3) return 25;
     for (unsigned i = 0; i < 8; ++i) if (!replies.add(7,1,i+4,true)) return 25;
     if (replies.add(7,1,12,true)) return 25;
+    // A stale unanswered head (closed window's warehouse query) must not block a later reply.
+    logh::OutfitReplyQueue stale;unsigned staleToken=0;
+    if (!stale.add(7,1,1,true) || !stale.add(7,0,2,false) || !stale.take(7,1,false,staleToken) ||
+        staleToken!=2 || stale.count || stale.take(7,1,true,staleToken)) return 25;
     // Native chat appends colour controls after its UTF-16 body. The previous
     // ANSI round trip corrupted Hangul already present in that body.
     std::wstring body = L"한글 대화 日本語 ABC";

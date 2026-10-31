@@ -1,4 +1,4 @@
-// LOGH7 CD client compatibility module. Author: 최병호
+// LOGH7 CD client compatibility module. Author: Peppone Choi
 // The original executable stays unchanged. DINPUT8 forwards to the Windows DLL.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -168,6 +168,10 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "literal_text.h"
 #include "legacy_hud_text.h"
 #include "warp_prompt.h"
+#include "character_refresh.h"
+#include "flagship_info_groups.h"
+#include "flagship_spec_lookup.h"
+#include "outfit_list_names.h"
 #include "namecard_labels.h"
 
 #include "tactical_base_ui.h"
@@ -627,7 +631,7 @@ static void install() {
     if (!installMailInput()) { status = -3; return; }
     if (!installMailLabels()) { status = -3; return; }
     if (!installKoreanDialogs() || !installKoreanLiteralText() || !installKoreanLegacyHud() || !installNameCardLabels() ||
-        !installWarpPrompt()) { status = -3; return; }
+        !installWarpPrompt() || !installCharacterRefresh() || !installFlagshipInfoGroups() || !installFlagshipSpecLookup() || !installOutfitListNames()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};

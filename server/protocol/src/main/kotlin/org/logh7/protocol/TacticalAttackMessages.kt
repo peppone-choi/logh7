@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native 004944a0/0049ca30 (0405), 0049cf90 (0406). Author: 최병호. */
+/** Native 004944a0/0049ca30 (0405), 0049cf90 (0406). Author: Peppone Choi. */
 object TacticalAttackMessages {
     /** Compatibility request bit only. Replies always use native ship target kind 1. */
     const val ANTI_AIR_TARGET_KIND=0x81

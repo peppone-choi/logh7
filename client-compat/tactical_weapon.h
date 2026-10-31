@@ -1,4 +1,4 @@
-// AA power/preview is separate; native weapon arrays and outgoing arm remain 0..2. Author: 최병호.
+// AA power/preview is separate; native weapon arrays and outgoing arm remain 0..2. Author: Peppone Choi.
 #pragma once
 #include "tactical_weapon_data.h"
 static logh::TacticalWeaponSelection tacticalWeaponSelection;

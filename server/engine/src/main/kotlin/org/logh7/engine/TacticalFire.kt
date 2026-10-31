@@ -1,11 +1,11 @@
 package org.logh7.engine
 
-/** Personal flagship weapons; fleet/CRC authority remains separate work. Author: 최병호. */
+/** Personal flagship weapons; fleet/CRC authority remains separate work. Author: Peppone Choi. */
 data class TacticalShoot(val units: List<Int>, val arms: Int, val targetKind: Int, val target: Int)
 
 /** Native 0405 uses its suffix byte as attack mode (0 stop, 1 salvo, 2 continuous).
  * Salvo waits for every fitted charged weapon; continuous fires each ready weapon.
- * The cadence and salvo charge gate are replacement-server policy. Author: 최병호. */
+ * The cadence and salvo charge gate are replacement-server policy. Author: Peppone Choi. */
 data class TacticalAttack(val units: List<Int>, val mode: Int, val target: Int = 0)
 data class TacticalAttackOrder(val mode: Int, val acceptedAt: Long, val startsAt: Long, val nextAt: Long) {
     init { require(mode in 1..2 && acceptedAt in 0..0xffffffffL && startsAt in acceptedAt..0xffffffffL &&
@@ -25,7 +25,7 @@ data class TacticalHit(val sequence: Long, val grid: Int, val seconds: Long, val
 }
 internal fun validCombatTarget(id:Int) = id in 1..999999 || id in 1_000_001..Int.MAX_VALUE
 
-/** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: 최병호. */
+/** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: Peppone Choi. */
 data class TacticalImpact(val generation: Long, val source: Int, val weapon: TacticalWeapon, val hit: TacticalHit,
     val recipients: Map<Int,String>, val departed: Navigator? = null,val airBattle:Boolean=false,val boarding:Boolean=false,val fortress:Boolean=false) {
     init { require(generation > 0 && source > 0 && recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }
@@ -147,7 +147,7 @@ internal object TacticalCombat {
         source:Int,grid:Int,sequence:Long,seconds:Long,targetId:Int,weapon:TacticalWeapon,
         mount:TacticalWeaponMount,effect:Int,origin:TacticalPose,victim:Target):Pair<PlanetStocks,TacticalImpact> {
         var inventory=stocks
-        val divisor = 100L * maxOf(1, victim.spec.number("装甲:前"))
+        val divisor = 100L * maxOf(1, GuardCombat.armor(victim.spec.number("装甲:前"),victim.regular?.first,victim.regular?.second?.id ?: 0))
         val damage = ((mount.power.toLong()*effect+divisor-1)/divisor).coerceAtLeast(1).toInt()
         val audience = players.mapNotNull { (viewerAccount, viewer) ->
             val member=session.participants[viewerAccount]
@@ -156,10 +156,12 @@ internal object TacticalCombat {
             else member.connection?.let {viewer.characterId to it}
         }.toMap()
         var departed:Navigator?=null
+        var earned=0L
         val hit = if(victim.regular!=null) {
             val (outfit,unit)=victim.regular
             val changed=TacticalLosses.apply(outfit,unit.id,damage)
             val survivor=changed.activeShips!!.values.single {it.id==targetId}
+            earned=EvaluationPoints.sunk(unit.boats-survivor.boats)
             inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to changed))
             TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-survivor.boats,
                 damaged=survivor.unavailable)
@@ -176,14 +178,18 @@ internal object TacticalCombat {
             val shields=hull.shields.toMutableList().also {it[face]-=absorbed*100*hull.clockScale}
             val lost=FlagshipHull.capacity(hull.kind)-(shields[face]/(100*hull.clockScale)).toInt()
             if(hp<=0) {
-                departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory)
+                earned=EvaluationPoints.FLAGSHIP
+                departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory,players.values)
                 players[victimAccount]=departed
             } else players[victimAccount]=defender.copy(hull=hull.copy(hp=hp,shields=shields))
             TacticalHit(sequence,grid,seconds,targetId,if(hp<=0)1 else 0,
                 if(hp<hull.hp || hull.hp<100)1 else 0,face,lost)
         }
-        val morale=(inventory.tacticalCommands.morale[targetId] ?: 100)-minOf(20,damage)
+        val outfit=inventory.outfits.values.singleOrNull {o->o.activeShips?.values.orEmpty().any {it.id==targetId}}?.id
+        val morale=(inventory.tacticalCommands.morale[targetId] ?: 100)-OutfitDiscipline.moraleLoss(minOf(20,damage),
+            if(outfit==null)OutfitDiscipline.BASELINE else OutfitDiscipline.value(inventory,outfit,seconds))
         inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(morale=inventory.tacticalCommands.morale+(targetId to morale.coerceAtLeast(0))))
+        inventory=EvaluationPoints.award(inventory,EvaluationPoints.shooter(source,players,stocks),earned)
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed)
     }
 

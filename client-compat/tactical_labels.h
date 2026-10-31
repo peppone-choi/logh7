@@ -1,4 +1,4 @@
-// Tactical labels describe the ship rather than its commander. Author: 최병호.
+// Tactical labels describe the ship rather than its commander. Author: Peppone Choi.
 #pragma once
 static void applyTacticalLabels(void* world) {
     if (!world || !at<BYTE>(world,0x126718)) return;

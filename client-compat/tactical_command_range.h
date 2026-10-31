@@ -1,4 +1,4 @@
-// Restore the server's current CRC from the decoded 033f corps cache. Author: 최병호.
+// Restore the server's current CRC from the decoded 033f corps cache. Author: Peppone Choi.
 #pragma once
 static void applyTacticalCommandRange(void* world) {
     if (!world || !at<BYTE>(world,0x126718)) return;

@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD 0045aca0 / 00472e40 InformationMail, 00482620 address list. 작성: 최병호. */
+/** CD 0045aca0 / 00472e40 InformationMail, 00482620 address list. 작성: Peppone Choi. */
 object MailMessages {
     data class Peer(val id:Int,val name:String="",val origin:Int=0,val rank:Int=0,val title:String="",
         val extra:List<Int> = List(3){0}) {

@@ -4,7 +4,7 @@ import org.logh7.engine.*
 import org.logh7.protocol.GridForceMessages
 import kotlin.math.abs
 
-/** Friendly surviving ships, not grid-entry unit slots. Includes offline flagships. Author: 최병호. */
+/** Friendly surviving ships, not grid-entry unit slots. Includes offline flagships. Author: Peppone Choi. */
 internal object GridForceReport {
     fun message(snapshot: WorldSnapshot, galaxy: Galaxy, viewer: Navigator, seconds: Long): ByteArray? {
         if (snapshot.session?.generation != viewer.generation) return null

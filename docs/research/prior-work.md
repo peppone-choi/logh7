@@ -1,6 +1,6 @@
 # 선행 커뮤니티 작업 조사 — 『銀河英雄伝説VII』(LOGH7)
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27
 - 모든 URL의 확인 날짜: 2026-09-27 (별도 표기가 없으면 동일)
 - 근거 태그: `evidence:manual` = 공식 사이트(gineiden.com 아카이브)·매뉴얼·공식 보도자료, `evidence:web` = 제3자 자료, `evidence:guess` = 추정

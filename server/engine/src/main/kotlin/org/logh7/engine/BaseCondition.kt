@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Initial economics/environment are gameplay design, not recovered server values. Author: 최병호. */
+/** Initial economics/environment are gameplay design, not recovered server values. Author: Peppone Choi. */
 data class BaseCondition(val baseId: Int, val grid: Int, val power: Int, val camp: Int,
     val population: Int, val adultPopulation: Int, val tax: Int, val approval: Int,
     val peace: Int, val atmosphere: Int, val habitability: Int,

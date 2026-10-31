@@ -1,4 +1,4 @@
-// Only known game dialog literals and selected exact copies. Author: 최병호.
+// Only known game dialog literals and selected exact copies. Author: Peppone Choi.
 #pragma once
 #include "unicode_text.h"
 #include "input_text.h"

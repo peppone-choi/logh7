@@ -2,7 +2,7 @@ package org.logh7.persistence
 
 import org.logh7.engine.*
 
-/** Canonical integer fields; no floating point or separators used by enclosing records. Author: 최병호. */
+/** Canonical integer fields; no floating point or separators used by enclosing records. Author: Peppone Choi. */
 internal object TacticalPostureCodec {
     fun encode(state:TacticalPosture):String = (listOf(state.grid,state.mode.wire,state.base)+
         (state.order?.let {listOf(it.character,it.mode.wire,it.base,it.acceptedAt,it.readyAt)} ?: emptyList()))

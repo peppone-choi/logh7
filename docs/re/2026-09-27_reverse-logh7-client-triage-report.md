@@ -1,6 +1,6 @@
 ---
 title: LOGH7 클라이언트 오프라인 트리아지 보고서
-author: 최병호
+author: Peppone Choi
 date: 2026-09-27
 case: work/logh7-client-triage (reverse-skill case, git 제외)
 template: docs-generator 역공학 보고서 (flavor = null)

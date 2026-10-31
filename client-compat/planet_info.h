@@ -1,6 +1,6 @@
 // Dedicated planet browser. Native GUI and authoritative decoded responses.
 // Reconstructed layout; original command dialogs are not borrowed.
-// All quantities come from fresh decoded server responses. Author: 최병호.
+// All quantities come from fresh decoded server responses. Author: Peppone Choi.
 #pragma once
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +8,11 @@
 #include "planet_units.h"
 static bool openStationedOutfit(void* manager,unsigned id,unsigned kind,unsigned power,unsigned number,unsigned base);
 static bool stationedOutfitVisible(void* manager);
+static bool openOwnOutfit(void* manager);
+// The own-outfit window opened from info categories 1/3/5 needs the same per-frame tab driving.
+static bool ownOutfitShown=false;
+// 0054bb50 hides window 13 after this selection returns when it already exists, so open on the next frame.
+static bool ownOutfitPending=false;
 static bool updateStationedOutfit(void* manager);
 static void closeStationedOutfit(void* manager);
 static bool outfitInformationPending();
@@ -247,6 +252,14 @@ static int __cdecl planetInfoMenu(void* gui) {
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     if (planetInformationGrid(world)>=5000) resetPlanetUnitConnection();
+    if (ownOutfitPending) {
+        ownOutfitPending=false;
+        ownOutfitShown=openOwnOutfit(gui);
+    }
+    if (ownOutfitShown) {
+        if (updateStationedOutfit(gui)) return -1;
+        ownOutfitShown=false;
+    }
     if (info.popup) {
         auto character = world ? at<void*>(world, 8) : nullptr;
         if (world != info.world || !character || !at<BYTE>(character, 0) ||
@@ -355,6 +368,11 @@ static int __cdecl planetInfoMenu(void* gui) {
         }
     }
     int selected = reinterpret_cast<int(__cdecl*)(void*)>(0x54be80)(gui);
+    // Categories 1/3/5 (ship, squadron, ground troops) have no CD window; 0054bb50 only deselects them.
+    if ((selected == 1 || selected == 3 || selected == 5) && !*reinterpret_cast<void**>(0xc9e2f8)) {
+        ownOutfitPending=true;
+        return selected;
+    }
     if (selected != 6 || planetInformationGrid(world)>=5000 ||
         *reinterpret_cast<void**>(0xc9e2f8)) return selected;
     auto character = at<void*>(world, 8);

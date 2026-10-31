@@ -430,3 +430,19 @@ Process.attachModuleObserver({onAdded(module){
     }
   }
 }});
+
+// Read-only tactical pick table (manager 0xc515f0, 60-byte rows from +0x48, count +0x44).
+rpc.exports.pickstate = function() {
+  const m=ptr(0xc515f0),world=ptr(0x7ccffc).readPointer();
+  const lookup=new NativeFunction(ptr(0x4c7cd0),'pointer',['pointer','uint','uint8','uint8','uint8','uint8'],'mscdecl');
+  const count=Math.min(m.add(0x44).readS32(),700),rows=[];
+  for(let i=0;i<count;++i) {
+    const e=m.add(0x48+i*0x3c),id=e.add(0x20).readU32();
+    const row={id:id,x:e.add(0xc).readFloat(),y:e.add(0x10).readFloat(),flags:e.add(0x24).readU32(),
+      level:e.add(0x2d).readU8(),side:e.add(0x2c).readS8(),type:e.add(0x2e).readU8()};
+    if(!world.isNull() && id) {const u=lookup(world.add(0x126718),id,1,255,255,255);
+      if(!u.isNull())row.unit=[8,9,10,11].map(o=>u.add(o).readU8());}
+    rows.push(row);
+  }
+  return {mask:m.add(0xa75c).readU32(),blocked:m.add(0xa758).readU8(),airPush:Array.from(new Uint8Array(ptr(0x510ec3).readByteArray(5))),dllStatus:null,rows:rows};
+};

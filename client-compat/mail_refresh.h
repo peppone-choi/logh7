@@ -1,5 +1,5 @@
 // One native mailbox refresh for an unsolicited completed inbox transaction.
-// Author: 최병호. No wire, editor or native queue is reconstructed here.
+// Author: Peppone Choi. No wire, editor or native queue is reconstructed here.
 #pragma once
 namespace logh {
 inline bool personalMailAddress(const void* memory) {

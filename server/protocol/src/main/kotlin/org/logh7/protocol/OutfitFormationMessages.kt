@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 
 /** Revival formation editor; original 0903/0906 layouts remain unknown.
  * Uses the recovered simple-directory envelope and two native row shorts.
- * No client-provided stock, cost or authority is trusted. Author: 최병호. */
+ * No client-provided stock, cost or authority is trusted. Author: Peppone Choi. */
 object OutfitFormationMessages {
     const val SEARCH=0x7f01
     data class Query(val character:Int,val command:Int,val card:Int,val kind:Int,val phase:Int,

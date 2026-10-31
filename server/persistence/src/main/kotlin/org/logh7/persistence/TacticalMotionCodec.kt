@@ -8,7 +8,7 @@ import org.logh7.engine.TacticalPose
 import org.logh7.engine.TacticalRotation
 import org.logh7.engine.TacticalManeuver
 
-/** Bounded NAV-9 motion, with no locale-dependent float serialization. Author: 최병호. */
+/** Bounded NAV-9 motion, with no locale-dependent float serialization. Author: Peppone Choi. */
 internal object TacticalMotionCodec {
     fun encode(motion: TacticalMotion): String {
         val flags=(if(motion.parallel)1 else 0) or (if(motion.reportedWaypoints>0)2 else 0) or

@@ -7,7 +7,7 @@ import org.logh7.protocol.ChatMessages
 import java.nio.file.Path
 import kotlin.test.*
 
-/** Actual codecs and character file reopening; native IME/UI is verified separately. Author: 최병호. */
+/** Actual codecs and character file reopening; native IME/UI is verified separately. Author: Peppone Choi. */
 class KoreanLocalizationTest {
     @TempDir lateinit var directory: Path
     private fun character(packet: ByteArray) = CharacterMessages.generate(packet.copyOfRange(4,packet.size))

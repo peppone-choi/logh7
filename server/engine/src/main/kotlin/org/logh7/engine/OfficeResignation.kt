@@ -28,6 +28,6 @@ internal object OfficeResignation {
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),80,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(ResignationRejection.CP)
         val replacement=policy.set(stocks,holdings.single(),remove=true)
-        return OfficeResignationResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),replacement,changed=true)
+        return OfficeResignationResult(player.paidWith(paid.balance),replacement,changed=true)
     }
 }

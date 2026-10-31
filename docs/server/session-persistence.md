@@ -1,6 +1,6 @@
 # 세션 checkpoint·journal 복구
 
-작성: 최병호 · 2026-10-09 · LOGH-43
+작성: Peppone Choi · 2026-10-09 · LOGH-43
 
 ## 구현과 적용 범위
 
@@ -43,7 +43,7 @@ schema 1, 모든 `SessionRules` 필드의 SHA-256 fingerprint, 길이 제한 8 M
 
 ## 2026-10-29 점령과 종료 저널 사이의 복구
 
-작성자: 최병호
+작성자: Peppone Choi
 
 점령은 `FileWorldStateStore`에 먼저 확정하고, 그 소유권에서 도출한 수도 함락/잔존
 성계 감소는 `FileSessionStore`의 `Territory` 명령으로 강제 저장한다. 엔진은 후자의

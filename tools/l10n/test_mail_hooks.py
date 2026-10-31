@@ -1,4 +1,4 @@
-"""편지·메신저 원본 호출/버퍼/수명 경계 대조. 작성: 최병호."""
+"""편지·메신저 원본 호출/버퍼/수명 경계 대조. 작성: Peppone Choi."""
 import re
 import struct
 import unittest

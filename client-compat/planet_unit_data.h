@@ -1,4 +1,4 @@
-// Fresh standing-outfit replies, distinct from warehouse inventory. Author: 최병호.
+// Fresh standing-outfit replies, distinct from warehouse inventory. Author: Peppone Choi.
 #pragma once
 #include "outfit_info_data.h"
 namespace logh {

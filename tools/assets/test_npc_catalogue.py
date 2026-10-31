@@ -1,4 +1,4 @@
-"""Malformed resources and unverified roster data must not become confirmed NPCs. Author: 최병호."""
+"""Malformed resources and unverified roster data must not become confirmed NPCs. Author: Peppone Choi."""
 import copy
 from pathlib import Path
 import struct

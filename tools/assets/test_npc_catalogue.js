@@ -1,4 +1,4 @@
-/* Import validation protects reviewed assignments and unknown values. Author: 최병호. */
+/* Import validation protects reviewed assignments and unknown values. Author: Peppone Choi. */
 'use strict';
 const assert = require('node:assert/strict');
 const {validate, migrateNameParts, nameText} = require('./npc_catalogue.js');

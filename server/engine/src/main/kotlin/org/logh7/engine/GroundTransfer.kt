@@ -11,7 +11,7 @@ data class GroundTransferResult(val player:Navigator?,val stocks:PlanetStocks?,v
 /** Manual PDF69: transfer all own-outfit marines, CP80, no waiting.
  * MCP, ten slots per commissioned ship, stable ID-first carrier selection and resolution of
  * unknown local legacy allocation are replacement policies. The native three wire values
- * are not interpreted as quantities or identities. Author: 최병호.
+ * are not interpreted as quantities or identities. Author: Peppone Choi.
  */
 internal object GroundTransfer {
     const val COST=80
@@ -57,7 +57,7 @@ internal object GroundTransfer {
         if(moved.isEmpty())return GroundTransferResult(p,stocks)
         if(p.mcp<COST)return reject(LogisticsRejection.CP)
         val changed=o.copy(activeGround=ActiveGroundUnits(roster.values.map {locations.getValue(it.id)}))
-        return GroundTransferResult(p.copy(mcp=p.mcp-COST),stocks.copy(outfits=stocks.outfits+(o.id to changed)),
+        return GroundTransferResult(p.paidWith(org.logh7.engine.strategy.CpBalance(p.pcp.toLong(),(p.mcp-COST).toLong())),stocks.copy(outfits=stocks.outfits+(o.id to changed)),
             changed=true,moved=moved)
     }
 }

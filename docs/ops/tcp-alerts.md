@@ -1,6 +1,6 @@
 # localhost TCP 도달성 알림 평가
 
-작성: 최병호 · 2026-10-11 · LOGH-46
+작성: Peppone Choi · 2026-10-11 · LOGH-46
 
 ## 인수 단위
 

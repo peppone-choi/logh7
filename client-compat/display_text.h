@@ -1,4 +1,4 @@
-// Lossless names inside display-only native ANSI CStrings. Author: 최병호.
+// Lossless names inside display-only native ANSI CStrings. Author: Peppone Choi.
 // These escaped segments never replace input, network or saved strings.
 #pragma once
 #include <string>

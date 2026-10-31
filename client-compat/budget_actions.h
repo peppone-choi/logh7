@@ -1,4 +1,4 @@
-// Finance editor over the explicit 7f02/native 1200 envelope. Author: 최병호.
+// Finance editor over the explicit 7f02/native 1200 envelope. Author: Peppone Choi.
 #pragma once
 static void strategyNextBase(int direction);
 static struct BudgetWindow {

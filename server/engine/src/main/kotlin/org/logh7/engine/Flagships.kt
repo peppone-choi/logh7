@@ -11,7 +11,7 @@ data class FlagshipDefinition(val kind: Int, val type: Int, val model: Int, val 
     }
 }
 
-/** Kinds: constmsg group 85. Model codes use native 004f3e30 faction encoding. Author: 최병호. */
+/** Kinds: constmsg group 85. Model codes use native 004f3e30 faction encoding. Author: Peppone Choi. */
 object Flagships {
     private val manual = ShipUnitSeedLoader.load().units
     val definitions: List<FlagshipDefinition> = listOf(

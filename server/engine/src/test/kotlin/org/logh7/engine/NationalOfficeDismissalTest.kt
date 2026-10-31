@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 국가 직무의 상위 임면권·개별 해제·비용 보존 검사. 작성: 최병호. */
+/** 국가 직무의 상위 임면권·개별 해제·비용 보존 검사. 작성: Peppone Choi. */
 class NationalOfficeDismissalTest {
     private val galaxy=Galaxy(
         listOf(GalaxySystem(3,2487,4,"Empire",2),GalaxySystem(4,2015,4,"Alliance",3)),
@@ -39,7 +39,7 @@ class NationalOfficeDismissalTest {
                 .filter {NationalOffice.of(it.card)!=null}.map {it.card})
             val result=act(q,stocks,p)
             assertNull(result.rejection,role.name);assertTrue(result.changed)
-            assertEquals(p.copy(mcp=840),result.player)
+            assertEquals(p.copy(mcp=840,mcpUsed=160),result.player)
             assertEquals(stocks.copy(nationalOffices=stocks.nationalOffices-role),result.stocks)
             // Other offices held by the same target remain; dismissal is not a rank change.
             val after=assertNotNull(result.stocks)
@@ -110,7 +110,7 @@ class NationalOfficeDismissalTest {
         val role=NationalOffice.ALLIANCE_FLEET_COMMANDER
         val q=request(role);val s=stock(role);val p=player(role).copy(mcp=159,pcp=320)
         val paid=act(q,s,p)
-        assertNull(paid.rejection);assertEquals(p.copy(pcp=0),paid.player)
+        assertNull(paid.rejection);assertEquals(p.copy(pcp=0,pcpUsed=320),paid.player)
         assertEquals(s.copy(nationalOffices=s.nationalOffices-role),paid.stocks)
         for((nav,reason) in listOf(p.copy(pcp=319) to DismissalRejection.CP,
             p.copy(cpPaused=true) to DismissalRejection.BUSY)) {

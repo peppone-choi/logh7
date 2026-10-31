@@ -3,7 +3,7 @@ package org.logh7.protocol
 import java.nio.ByteBuffer
 import org.logh7.protocol.generated.MessageId
 
-/** CD NotifySearch reader 0044c960 and map import 004bfd30. Author: 최병호. */
+/** CD NotifySearch reader 0044c960 and map import 004bfd30. Author: Peppone Choi. */
 object GridForceMessages {
     // The native importer replaces one power/camp across the map per packet.
     // Every row must therefore carry the same allegiance, with one nonempty group.

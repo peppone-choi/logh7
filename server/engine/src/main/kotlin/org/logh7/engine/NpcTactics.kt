@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-/** Autonomous uncommanded ship units, not offline delegation or named original characters. Author: 최병호. */
+/** Autonomous uncommanded ship units, not offline delegation or named original characters. Author: Peppone Choi. */
 data class NpcTacticalPolicy(val enabled:Boolean=true,val sight:Float=500f,val engagementDistance:Float=2f,val strategic:Boolean=false) {
     init { require(sight in 8f..1000f && engagementDistance in 1f..3f) }
 }
@@ -144,7 +144,7 @@ internal object NpcTactics {
                     outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                     if(unit.boats<=unit.damaged)break
                     val pose=initial(unit,outfit,position.grid,now,players,stocks,galaxy)
-                    val mount=TacticalArmaments.mount(spec,weapon)
+                    val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
                     val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                     if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                     val victim=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.firstOrNull {

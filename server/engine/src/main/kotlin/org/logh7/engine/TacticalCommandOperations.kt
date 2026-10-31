@@ -5,7 +5,7 @@ import kotlin.math.*
 /** Actor-only native command execution. The complete after-image is saved before any event.
  * Manual facts: CRC, 10 supplies per aircraft launch, friendly-fire fortress cannon,
  * six missions and their time limits. All unrecorded costs/magnitudes below are design policy.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 internal object TacticalCommandOperations {
     private data class Ship(val outfit:OutfitStock,val unit:ActiveShipUnit)
     private fun ship(id:Int,s:PlanetStocks)=s.outfits.values.mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)}}.singleOrNull()
@@ -187,7 +187,7 @@ internal object TacticalCommandOperations {
                     if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>maxOf(1f,base.diameter))return NavigationRejection.RANGE
                 }
             }
-            0x41f -> if(base?.kind!=1 || c.points.isEmpty() || c.velocity<=0f)return NavigationRejection.BASE
+            0x41f -> if(base?.kind!=1 || base.mobile!=true || c.points.isEmpty() || c.velocity<=0f)return NavigationRejection.BASE
             0x408,0x421 -> {
                 if(c.kind !in 0..5)return NavigationRejection.TARGET
                 val chief=supreme(p,players,s)
@@ -217,8 +217,12 @@ internal object TacticalCommandOperations {
         var p=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
-        val c=checkNotNull(r.tacticalCommand);val now=session.gameMillis/1000
+        val now=session.gameMillis/1000
         val players=(n.snapshot(session.generation)+(r.account to p)).toMutableMap()
+        // The CD has no air sub-menu (0x3f..0x41), so its air button always sends kind 0 (intercept).
+        // Intercept of a hostile unit is read as the anti-ship attack (constmsg group 0 air help, evidence:guess).
+        val c=checkNotNull(r.tacticalCommand).let {q->if(q.opcode==0x40e && q.kind==0 && q.target!=0 &&
+            TacticalCombat.target(q.target,p.grid,p.power,s,g,players)!=null)q.copy(kind=1) else q}
         if(c.base==0 && r.captainCard!=if(p.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
         if(c.base==0 && p.hull?.kind!=r.shipKind)return reject(NavigationRejection.UNIT)
         var next=s.copy(tacticalCommands=s.tacticalCommands.copy(ranks=s.tacticalCommands.ranks+r.tacticalRanks+(p.characterId to r.rank)))
@@ -317,7 +321,7 @@ internal object TacticalCommandOperations {
                 0x406 -> removeWing(c.target)
                 0x407 -> {
                     val entry=players.entries.single {it.value.unitId==c.target};val victim=entry.value
-                    val recovered=FlagshipRecovery.defeated(victim,now,g,stocks).copy(supplies=victim.supplies,
+                    val recovered=FlagshipRecovery.defeated(victim,now,g,stocks,players.values).copy(supplies=victim.supplies,
                         hull=victim.hull!!.copy(at=now,woundedUntil=minOf(0xffffffffL,now+86400)))
                     players[entry.key]=recovered
                     impacts+=TacticalImpact(session.generation,p.unitId,TacticalWeapon.GUN,
@@ -392,7 +396,15 @@ internal object TacticalCommandOperations {
                     if(!supreme(p,players,stocks)) stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(
                         proposals=stocks.tacticalCommands.proposals+(p.characterId to mission)))
                     else {
-                        val assignments=c.units.map {id->players.values.single {it.unitId==id}.characterId}.associateWith {mission.copy(character=it)}
+                        // update04: a supreme-commander mission reaches every own-side participant of this grid.
+                        // The CD only lets the chief select units he commands, so the selection alone never names them.
+                        // Offline people receive it only with tactical AI ON, matching the selection check above.
+                        val recipients=players.entries.filter {(account,q)->q.grid==p.grid && q.power==p.power &&
+                            (q.cpPaused || q.characterId==p.characterId) &&
+                            (session.participants[account]?.online!=false || stocks.tacticalCommands.tacticalAi(q.characterId))}
+                            .map {it.value.characterId}
+                        val assignments=(recipients+c.units.map {id->players.values.single {it.unitId==id}.characterId})
+                            .distinct().associateWith {mission.copy(character=it)}
                         stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(missions=stocks.tacticalCommands.missions+assignments))
                     }
                 }
@@ -433,7 +445,7 @@ internal object TacticalCommandOperations {
                         val opposing=stocks.tacticalCommands.air.filterValues {it.grid==wing.grid && it.target==id && it.mode==1}.keys
                         for(enemy in opposing)removeWing(enemy)
                         val result=TacticalCombat.strike(session,g,players,stocks,id,wing.grid,now+1,now,wing.target,TacticalWeapon.GUN,
-                            TacticalWeaponMount(1,63,1,0),100,at,victim)
+                            TacticalWeaponMount(TacticalArmaments.GUN_PROFILE,63,1,0),100,at,victim)
                         stocks=result.first;impacts+=result.second.copy(airBattle=true)
                         val moving=players.values.singleOrNull {it.unitId==wing.target}?.motion ?: ship(wing.target,stocks)?.unit?.tactical?.motion
                         if(moving!=null && moving.velocity>0 && wing.slowVelocity==null) {
@@ -445,7 +457,7 @@ internal object TacticalCommandOperations {
                     }
                 }
                 if(id in stocks.tacticalCommands.air)stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=stocks.tacticalCommands.air+
-                    (id to wing.copy(nextAt=minOf(0xffffffffL,now+5*scale)))))
+                    (id to wing.copy(nextAt=minOf(0xffffffffL,now+StrategicAirTactics.interval(stocks,wing.character,5*scale,wing.source))))))
             }
         }
         fun advanceMissions() {

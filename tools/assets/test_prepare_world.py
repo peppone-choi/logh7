@@ -1,4 +1,4 @@
-"""World metadata must survive seed generation. Author: 최병호."""
+"""World metadata must survive seed generation. Author: Peppone Choi."""
 import copy
 import unittest
 

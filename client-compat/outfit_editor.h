@@ -1,4 +1,4 @@
-// Restore the native editor's initial tab and unit labels. Author: 최병호.
+// Restore the native editor's initial tab and unit labels. Author: Peppone Choi.
 #pragma once
 #include "outfit_editor_labels.h"
 static void __fastcall outfitEditorReady(void* editor, void*) {

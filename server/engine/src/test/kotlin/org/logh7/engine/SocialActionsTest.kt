@@ -5,7 +5,7 @@ import kotlinx.coroutines.*
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 광장 연설 한 명령의 실제 효과·실패·제한·원자성. 작성: 최병호. 실행은 리드 담당. */
+/** 광장 연설 한 명령의 실제 효과·실패·제한·원자성. 작성: Peppone Choi. 실행은 리드 담당. */
 class SocialActionsTest {
     private val rules=SessionRules.load()
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2015,4,"Other",3)),listOf(

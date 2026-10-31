@@ -1,4 +1,4 @@
-// First social editor: public-square speech. Explicit 7f10/native1200. Author: 최병호.
+// First social editor: public-square speech. Explicit 7f10/native1200. Author: Peppone Choi.
 #pragma once
 static struct SocialWindow {
     unsigned ticket,base,influence,approval,wait,last,lastBase,at;

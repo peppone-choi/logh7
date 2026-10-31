@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
  * Search 0x7f00 is not an original server command. Its native factory is absent for
  * training/suppression/volunteering; the compatibility DLL provides the missing UI.
  * The envelope retains the original 31-byte shape and carries no trusted CP/time/rank.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 object StrategyActionMessages {
     const val SEARCH=0x7f00
     data class Query(val character:Int,val command:Int,val card:Int,val outfit:Int,val raw:ByteArray,
@@ -25,9 +25,11 @@ object StrategyActionMessages {
         val market=command==96
         val civic=command in setOf(52,54,55,56)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,48,50,52,53,54,55,56,61,84,85,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market)
+        require(!preview || personnel || command==24 || market || command==87)
+        // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
+        if(command==87)require(preview && card==0)
         if(!operation && !market)require(argument==0 && amount==0)
         if(civic)require(!preview && value in 0..2 && base==0 && argument==0 && amount==0 &&
             card in setOf(39,44,47,50,59,175,180,183,186,195) &&
@@ -36,14 +38,18 @@ object StrategyActionMessages {
             (if(command in setOf(8,9))base in 0..65535 else base==0))
         else if(operation)require((preview || target in 0..4999) && if(command==22)value in 0..2 && amount>0 && argument in 0..127 && base==0
             else value==0 && amount==0 && argument==0 && (if(command==24)!preview && base>0 || preview && base==0 else base==0))
-        else if(market)require(card==0 && base==0 && amount==0 && argument in 0..3 &&
-            (if(argument==0)value in 0..3 && (preview || target==0) else value==0 &&
+        // Market arguments: 0 buy flagship, 1 offer, 2 accept, 3 cancel, 4 buy guard ship
+        // (value = GuardShips index, 0..25), 5 disband the guard unit (U-13).
+        else if(market)require(card==0 && base==0 && amount==0 && argument in 0..5 &&
+            (if(argument==0)value in 0..3 && (preview || target==0) else if(argument==4)value in 0..25 && (preview || target==0)
+             else if(argument==5)!preview && value==0 && target==0 else value==0 &&
                 (if(argument in 1..2)preview || target>0 else !preview && target==0)))
         else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        return Query(character,command,card,if(personnel || operation || market)0 else target,message.copyOfRange(2,message.size),
-            if(personnel || operation || market)target else 0,base,value,preview,amount,argument)
+        val listed=personnel || operation || market || command==87
+        return Query(character,command,card,if(listed)0 else target,message.copyOfRange(2,message.size),
+            if(listed)target else 0,base,value,preview,amount,argument)
     }
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
     data class CivicStatus(val phase:Int,val outfit:Int,val base:Int,val readyAt:Long,val effect:Int)
@@ -68,7 +74,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(24,96) && rows.size<=200)
+        require(q.preview && q.command in setOf(24,87,96) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

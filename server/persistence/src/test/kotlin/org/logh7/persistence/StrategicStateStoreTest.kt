@@ -8,7 +8,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.*
 
-/** CP·훈련/계급·예약을 같은 월드 슬롯에 저장. 작성: 최병호. */
+/** CP·훈련/계급·예약을 같은 월드 슬롯에 저장. 작성: Peppone Choi. */
 class StrategicStateStoreTest {
     @TempDir lateinit var directory:Path
     private val navigator=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000)
@@ -26,6 +26,14 @@ class StrategicStateStoreTest {
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode(encoded.replace(":1:2:3000000:",":1:4:3000000:"))}
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode("0$encoded")}
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode("-|-|-|-|-|-")}
+    }
+    @Test fun airTacticsIsAnOptionalTwelfthPersonFieldThatKeepsOlderRowsCanonical() {
+        val trained=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(airTactics=2)))
+        val encoded=StrategicStateCodec.encode(trained);assertEquals(trained,StrategicStateCodec.decode(encoded))
+        assertTrue(encoded.substringBefore('|').endsWith(":0,127:2"))
+        assertFalse(StrategicStateCodec.encode(state).substringBefore('|').endsWith(":0"))
+        for(bad in listOf(encoded.replace(":0,127:2",":0,127:0"),encoded.replace(":0,127:2",":0,127:4")))
+            assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(bad)}
     }
     @Test fun format29ReopensAlongsideLegacyEmptyStrategicState() {
         val path=directory.resolve("stocks.tsv")

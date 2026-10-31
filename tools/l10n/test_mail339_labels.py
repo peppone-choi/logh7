@@ -1,4 +1,4 @@
-"""run-339 날짜·편지 안내·공용 인물 선택의 CD 문맥 대조. 작성: 최병호."""
+"""run-339 날짜·편지 안내·공용 인물 선택의 CD 문맥 대조. 작성: Peppone Choi."""
 import re
 import struct
 import unittest

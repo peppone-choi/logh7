@@ -24,6 +24,14 @@ class BootstrapMessagesTest {
     }
     private val character = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 18, 1, 1,
         1_000_001, listOf(60) + List(7) { 50 }, 0, 0, 0, 20, 3, 0, "AlphaShip", 1)
+    @Test fun abilityExperienceFollowsEachAbilityValue() {
+        // Abilities are eight (value u16, experience u16) pairs before influence/100/0 and the 14-byte card tail.
+        val body=BootstrapMessages.character(character.copy(experience=listOf(0,1,2,3,45,5,6,99)))
+        val abilities=ByteBuffer.wrap(body,body.size-17-32,32)
+        val pairs=List(8) {abilities.short.toInt() to abilities.short.toInt()}
+        assertEquals(listOf(60 to 0,50 to 1,50 to 2,50 to 3,50 to 45,50 to 5,50 to 6,50 to 99),pairs)
+        assertFails {BootstrapMessages.character(character.copy(experience=List(8){100}))}
+    }
     @Test fun initialCardTableAndCharacterUseMatchingRoleIds() {
         val cards = ByteBuffer.wrap(BootstrapMessages.response(byteArrayOf(3, 4))!!)
         cards.position(6)

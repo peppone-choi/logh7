@@ -1,4 +1,4 @@
-# 작성자: 최병호. evidence:guess — 리드 전용 배포 도구, VM 실행 검증 전.
+# 작성자: Peppone Choi. evidence:guess — 리드 전용 배포 도구, VM 실행 검증 전.
 [CmdletBinding()]
 param(
     [ValidateSet('Build','Deploy','Start','Stop')][string]$Action = 'Build',

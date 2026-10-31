@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Shared carrying policy; ship statistics are manual data, ground allowance is designed. Author: 최병호. */
+/** Shared carrying policy; ship statistics are manual data, ground allowance is designed. Author: Peppone Choi. */
 object OutfitSupplies {
     fun unitCapacity(kind: Int): Int {
         val spec = UnitSpecifications.ships.single { it.kind == kind }

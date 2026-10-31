@@ -8,7 +8,7 @@ import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import kotlin.test.*
 
-/** 암호화 연설·공개 지지/인물 갱신·상대 재실행 제한·서버 재시작. 작성: 최병호. */
+/** 암호화 연설·공개 지지/인물 갱신·상대 재실행 제한·서버 재시작. 작성: Peppone Choi. */
 class SocialActionsWireTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds

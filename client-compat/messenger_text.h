@@ -1,4 +1,4 @@
-// Only the inspected CD status menu and its selected-state captions. Author: 최병호.
+// Only the inspected CD status menu and its selected-state captions. Author: Peppone Choi.
 #pragma once
 #include <cstdint>
 namespace logh {

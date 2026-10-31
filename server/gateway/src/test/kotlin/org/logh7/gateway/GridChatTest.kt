@@ -43,6 +43,12 @@ class GridChatTest {
         hub.update(members[0].copy(outfit = 0)); chat(2, emptySet()) // Unassigned players never become one shared fleet.
         hub.update(members[1].copy(outfit = 0, player = members[1].player.copy(grid = 2488))); chat(0, setOf(2,5))
         hub.remove("2"); chat(0, setOf(5))
+        // A battle on the grid is a separate audience: participants hear each other, docked players do not.
+        val fighting = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000, cpPaused = true)
+        hub.update(members[0].copy(outfit = 11, player = fighting))
+        hub.update(members[1].copy(outfit = 11, player = fighting.copy(characterId = 10001)))
+        chat(0, setOf(1)); chat(2, setOf(1))
+        hub.update(members[1].copy(outfit = 11)); chat(0, emptySet())
         assertFailsWith<IllegalArgumentException> { hub.gridChat("0", ChatMessages.Grid(10001,0,"Spoof"),0) }
         assertFailsWith<IllegalStateException> { hub.gridChat("absent", ChatMessages.Grid(10000,0,"Absent"),0) }
     }

@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import kotlin.math.hypot
 
-/** One accepted regular-ship shot; delay/cost scaling are replacement policy. Author: 최병호. */
+/** One accepted regular-ship shot; delay/cost scaling are replacement policy. Author: Peppone Choi. */
 data class TacticalUnitShot(val commander:Int,val weapon:TacticalWeapon,val target:Int,val acceptedAt:Long,val firesAt:Long) {
     init {require(commander>0 && validCombatTarget(target) && acceptedAt in 0..0xffffffffL && firesAt in acceptedAt..0xffffffffL)}
 }
@@ -99,7 +99,7 @@ internal object TacticalFleetShoot {
             stocks=replace(stocks,outfit,unit.copy(shot=null))
             val victim=TacticalCombat.target(shot.target,position.grid,power,stocks,galaxy,players) ?: continue
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
-            val mount=TacticalArmaments.mount(spec,shot.weapon)
+            val mount=GuardCombat.mount(TacticalArmaments.mount(spec,shot.weapon),shot.weapon,outfit,unit.id)
             val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
             val effect=TacticalArmaments.effectiveness(mount,origin,TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position)
             val cost=cost(unit,mount,shot.weapon)

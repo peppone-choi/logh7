@@ -8,7 +8,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** F 수명주기·기존 S/C/M·원자 저장과 재시작. 작성: 최병호. */
+/** F 수명주기·기존 S/C/M·원자 저장과 재시작. 작성: Peppone Choi. */
 class OutfitFormationStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds

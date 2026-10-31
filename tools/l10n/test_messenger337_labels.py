@@ -1,4 +1,4 @@
-"""run-337 버튼·연결 알림·IME 표시의 실제 CD 경계 대조. 작성: 최병호."""
+"""run-337 버튼·연결 알림·IME 표시의 실제 CD 경계 대조. 작성: Peppone Choi."""
 import re
 import struct
 import unittest

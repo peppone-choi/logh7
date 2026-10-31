@@ -8,7 +8,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** 저장34·33 호환과 금고/견적/CP의 동시 저장. 작성: 최병호. */
+/** 저장34·33 호환과 금고/견적/CP의 동시 저장. 작성: Peppone Choi. */
 class BudgetStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds

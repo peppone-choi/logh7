@@ -1,4 +1,4 @@
-// Verified native logistics captions and compact formats. Author: 최병호.
+// Verified native logistics captions and compact formats. Author: Peppone Choi.
 #pragma once
 #include <string>
 static void __fastcall outfitTroopSummary(void* editor,void*) {

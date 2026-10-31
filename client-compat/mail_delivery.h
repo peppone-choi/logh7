@@ -1,4 +1,4 @@
-// One outstanding personal mail; the native editor remains the draft. Author: 최병호.
+// One outstanding personal mail; the native editor remains the draft. Author: Peppone Choi.
 #pragma once
 #include <string>
 #include <utility>

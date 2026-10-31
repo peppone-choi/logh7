@@ -7,7 +7,7 @@ import java.nio.channels.FileChannel
 import java.nio.file.*
 import java.nio.file.StandardOpenOption.*
 
-/** Two complete slots, selected by one forced atomic pointer replacement. Author: 최병호. */
+/** Two complete slots, selected by one forced atomic pointer replacement. Author: Peppone Choi. */
 class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? = null,
     legacyStocks: Path? = null) : AutoCloseable, WorldStateCommitter {
     private val channel: FileChannel
@@ -69,7 +69,7 @@ class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? =
     private fun detached(value: PlanetStocks?) = value?.copy(bases = value.bases.toMap(), outfits = value.outfits.toMap(),
         warehouses = value.warehouses.toMap(), logisticsOfficers = value.logisticsOfficers.toMap(),
         strategic=value.strategic.detached(),tacticalCommands=value.tacticalCommands.detached(),
-        flagshipMarket=value.flagshipMarket.detached(),civic=value.civic.detached(),budget=value.budget.detached(),social=value.social.detached())
+        flagshipMarket=value.flagshipMarket.detached(),civic=value.civic.detached(),budget=value.budget.detached(),social=value.social.detached(),discipline=value.discipline.toMap(),tidalHour=value.tidalHour,airTraining=value.airTraining.toMap())
 
     @Synchronized fun loadNavigation(): Map<String, Navigator> { check(!closed); return players.toMap() }
     @Synchronized fun loadStocks(): PlanetStocks? { check(!closed); return detached(stocks) }

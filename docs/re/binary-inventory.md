@@ -1,6 +1,6 @@
 # 바이너리 인벤토리 (트랙 B: 클라이언트 정적 분석)
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27
 - 케이스: `E:\logh7\work\logh7-client-triage` (Evidence E-010, E-022, E-025)
 - 방법: 정적 분석만 수행(실행·네트워크 접속 없음). 원본은 읽기 전용이며, 분석용 사본은 `work\logh7-client-triage\ghidra\bin\`에 두었다.

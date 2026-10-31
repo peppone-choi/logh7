@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import kotlin.math.hypot
 
-/** Durable regular-ship order. Weapon cadence is replacement policy. Author: 최병호. */
+/** Durable regular-ship order. Weapon cadence is replacement policy. Author: Peppone Choi. */
 data class TacticalUnitAttack(val commander:Int,val order:TacticalAttackOrder) {
     init {require(commander>0)}
 }
@@ -92,7 +92,7 @@ internal object TacticalFleetAttack {
             for(weapon in TacticalWeapon.entries) {
                 outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                 val state=checkNotNull(unit.tactical)
-                val mount=TacticalArmaments.mount(spec,weapon)
+                val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
                 val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                 if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now,unit.posture,galaxy,stocks)

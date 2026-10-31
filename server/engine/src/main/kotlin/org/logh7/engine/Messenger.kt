@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** 매뉴얼 W p.17의 1:1 호출/수락. 온라인 연결만 보관한다. 작성: 최병호. */
+/** 매뉴얼 W p.17의 1:1 호출/수락. 온라인 연결만 보관한다. 작성: Peppone Choi. */
 class Messenger(private val generation:Long,private val currentGeneration:()->Long={generation},
     private val capacity:Int=4096) {
     data class Endpoint(val account:String,val character:Int,val connection:String) {

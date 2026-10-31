@@ -69,7 +69,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val allocator=editor>0 && stocks.logisticsOfficers[editor]?.permits(power,outfit.kind)==true &&
             owner.power==power && owner.camp==0
         require(query.mode == 0 || owner.power == power && owner.camp == 0 && editor > 0 &&
-            (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId || allocator && query.base == 0)) {
+            // The native allocation editor (00585150) sends the selected depot base, not 0.
+            (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId ||
+                allocator && (query.base == 0 || query.base == outfit.baseId))) {
             "Only the stationed commander or authorized allocator may open the editor"
         }
         val members = outfit.members().map {id ->
@@ -206,9 +208,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
             })
         }))
     val catalogues: Map<Int, ByteArray> = mapOf(
+        // Row 89 renders a black hole (004d40bc: type 3, fixedstar 8 -> model 7) under the
+        // "impassable grid" name; it is excluded from the 3..88 star-system index.
         0x0312 to WorldMessages.types(List(89) { kind ->
             Triple(kind, if (kind >= 3) 3 else kind, galaxy.systems.find { it.kind == kind }?.star ?: 4)
-        }),
+        } + Triple(org.logh7.engine.Galaxy.IMPASSABLE_CELL, 3, 8)),
         0x0314 to WorldMessages.grid(galaxy.cells),
         0x031c to WorldMessages.bases(galaxy.bases.map(::baseWire)),
         0x0306 to WorldMessages.captainCommands(officeCards.mapValues {it.value.commands}),
@@ -237,6 +241,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 cargo = ship.number("物資搭載量:物資搭載量"),
                 beamArms = beam.profile, beamAngles = beam.angles, gunArms = gun.profile, gunAngles = gun.angles,
                 missileArms = missile.profile, missileAngles = missile.angles,
+                antiaircraftArms = if (ship.number("対空兵装破壊力:対空兵装破壊力") > 0) org.logh7.engine.TacticalArmaments.ANTIAIR_NAME else 255,
                 commandRange=if(ship.number==1)org.logh7.engine.TacticalSupportRules.COMMAND_RANGE else 0f)
         }),
         0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->

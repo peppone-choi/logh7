@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native 004940d0/0049c5a0 (0404), 004a5cc0 (0425). Author: 최병호. */
+/** Native 004940d0/0049c5a0 (0404), 004a5cc0 (0425). Author: Peppone Choi. */
 object TacticalRetreatMessages {
     data class Retreat(val character: Int, val units: List<Int>) {
         init { require(character > 0 && units.size in 1..32 && units.all { it > 0 } && units.distinct().size == units.size) }

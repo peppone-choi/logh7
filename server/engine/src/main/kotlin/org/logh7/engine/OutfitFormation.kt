@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import org.logh7.engine.strategy.*
 
-/** IDs are never reused after dissolution, including the largest legacy ID. Author: 최병호. */
+/** IDs are never reused after dissolution, including the largest legacy ID. Author: Peppone Choi. */
 data class OutfitSequence(val nextOutfit:Int=1,val nextWarehouse:Int=1) {
     init {require(nextOutfit>0 && nextWarehouse>0)}
 }
@@ -17,7 +17,7 @@ data class OutfitFormationResult(val player:Navigator?,val stocks:PlanetStocks?,
 /** Native card descriptions constmsg6: 24 fleet,25 auxiliary;164 ship formations.
  * Alliance ground authority152, local presence, 255 numbers/type, ascending crew grades,
  * returning inventory and damaged-unit restrictions are evidence:guess. W70/71 fixes
- * MCP320/160, unit formation and stationed dissolution. Author: 최병호. */
+ * MCP320/160, unit formation and stationed dissolution. Author: Peppone Choi. */
 object OutfitFormationPolicy {
     fun kinds(card:Int):Set<OutfitKind> = when(card) {
         24->setOf(OutfitKind.FLEET)
@@ -124,7 +124,7 @@ object OutfitFormationPolicy {
                 GridEntry(Camp(p.power,false),count.toInt(),false))!=GridEntryVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),320,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return OutfitFormationResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),prepared,
+        return OutfitFormationResult(p.paidWith(paid.balance),prepared,
             changed=true,outfit=id,base=r.base,crew=needed.toInt())
     }
     internal fun dissolve(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks):OutfitFormationResult {
@@ -185,7 +185,7 @@ object OutfitFormationPolicy {
             outfitSequence=ids,deploymentInitialized=true)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return OutfitFormationResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
+        return OutfitFormationResult(p.paidWith(paid.balance),next,
             changed=true,outfit=outfit.id,base=r.base,affected=affected)
     }
 }

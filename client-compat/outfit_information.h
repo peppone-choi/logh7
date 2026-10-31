@@ -1,5 +1,5 @@
 // Standing-outfit details using the original tab frame and scrolling sheets.
-// Missing CD category-4 contents are reconstructed from server replies. Author: 최병호.
+// Missing CD category-4 contents are reconstructed from server replies. Author: Peppone Choi.
 #pragma once
 #include "outfit_info_data.h"
 #include "ground_info_data.h"
@@ -239,7 +239,18 @@ static void updateOutfitGroundControls() {
     ReleaseSRWLockExclusive(&outfitReplyLock);
     if(reply && state.groundPending) {
         state.groundPending=0;state.groundArmed=0;
-        state.groundMessage=L"서버 응답을 받았습니다. 최신 편성을 조회합니다.";
+        // reply = 1 + server reason (GroundTransferMessages: LogisticsRejection ordinal+1, 0x40 no change).
+        unsigned reason=reply-1;
+        state.groundMessage=reason==0 ? L"승하선을 저장했습니다. 최신 편성을 조회합니다." :
+            reason==0x40 ? L"옮길 육전대가 없습니다. CP를 사용하지 않았습니다." :
+            reason==4 ? L"명령 거부 · 부대 지휘관이 아니거나 아군 정규 거점이 아닙니다." :
+            reason==5 ? L"명령 거부 · 지휘관이 부대와 같은 거점에 있어야 합니다(이동·보급 중 불가)." :
+            reason==6 ? L"명령 거부 · 전술 명령이 진행 중인 함정이나 육전대가 있습니다." :
+            reason==8 ? L"명령 거부 · 육전대나 생존 함정이 없거나 탑재 공간(함정당 10)이 부족합니다." :
+            reason==10 ? L"명령 거부 · MCP가 부족합니다(80 필요)." :
+            reason==3 ? L"명령 거부 · 부대를 찾을 수 없습니다. 창을 다시 여십시오." :
+            reason==12 ? L"명령 거부 · 서버 저장에 실패했습니다. CP를 사용하지 않았습니다." :
+            L"명령 거부 · 접속·직무·위치를 확인하십시오.";
         invalidateOutfitGround();requestOutfit(false);
     }
     if(state.groundPending && now-state.groundSentAt>=10000) {
@@ -288,11 +299,17 @@ static void updateOutfitGroundControls() {
     }
 }
 static void receivedOutfitGround(void* world,void* record,unsigned flags,unsigned action) {
+    // The server's single marked value ('LG' << 16 | reason) is an extension; clear it so
+    // the native handler sees the plain whole-outfit record.
+    unsigned reason=0;
+    if(at<BYTE>(record,20)==1 && (at<unsigned>(record,24)>>16)==0x4c47) {
+        reason=at<unsigned>(record,24)&0xffff;at<BYTE>(record,20)=0;at<unsigned>(record,24)=0;
+    }
     reinterpret_cast<void(__thiscall*)(void*,void*,unsigned)>(action==0x40 ? 0x4c00c0 : 0x4c0130)(world,record,flags);
     AcquireSRWLockExclusive(&outfitReplyLock);
     if(outfitInbox.world==world && outfitInbox.groundAction==action &&
         outfitInbox.groundCharacter==at<unsigned>(record,4) && outfitInbox.groundOutfit==at<unsigned>(record,16))
-        outfitInbox.groundReply=1;
+        outfitInbox.groundReply=1+reason;
     ReleaseSRWLockExclusive(&outfitReplyLock);
 }
 static void __fastcall receivedOutfitUnload(void* world,void*,void* record,unsigned flags) {receivedOutfitGround(world,record,flags,0x40);}
@@ -465,6 +482,34 @@ static bool openStationedOutfit(void* manager,unsigned id,unsigned kind,unsigned
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(outfitInformation.root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(manager,outfitInformation.root);
     return true;
+}
+// Info-menu ship/squadron/ground categories (design-ship-squadron-info.md, first step): the player's own
+// outfit (character +0x324, else its outfit office card) in the reconstructed outfit window, whose tabs carry
+// the ship and ground rosters. Kind/number come from the grid's outfit list cache.
+static bool openOwnOutfit(void* manager) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto own=world ? at<BYTE*>(world,8) : nullptr;
+    unsigned id=own ? at<unsigned>(own,0x324) : 0;
+    // +0x324 is filled only in tactical/fleet contexts (0 at a strategic dock). Fall back to the first
+    // held outfit-scope office card (same ranges as appointments), whose target is the outfit ID.
+    for (unsigned i=0;own && !id && i<own[0x270] && i<16;++i) {
+        unsigned card=logh::infoShort(own,0x274+i*8);
+        if ((card>=39 && card<=50) || (card>=103 && card<=114) || (card>=175 && card<=186) || (card>=237 && card<=248))
+            id=logh::infoWord(own,0x278+i*8);
+    }
+    if (!id) return false;
+    for (unsigned row=1;row<=100;++row) {
+        auto definition=logh::outfitListRow(world+0x811fc,row);
+        if (!definition || logh::infoWord(definition,0)!=id) continue;
+        // With the current base (+0x358) the stationed path also drives the tab controller.
+        unsigned base=at<unsigned>(own,0x358);
+        if (base && base<=65535) return openStationedOutfit(manager,id,definition[4],definition[5],definition[7],base);
+        buildOutfitInformation(manager,4);
+        if (!selectOutfitIdentity(id,definition[4],definition[5],definition[7])) return false;
+        reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(outfitInformation.root,12);
+        reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(manager,outfitInformation.root);
+        return true;
+    }
+    return false;
 }
 static bool stationedOutfitVisible(void* manager) {
     auto& state=outfitInformation;

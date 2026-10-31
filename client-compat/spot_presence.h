@@ -1,4 +1,4 @@
-// Same physical room, including its private instance. Author: 최병호
+// Same physical room, including its private instance. Author: Peppone Choi
 #pragma once
 namespace logh {
 inline bool spotOwnerPresent(unsigned owner, unsigned spot, unsigned memberId,

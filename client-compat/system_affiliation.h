@@ -1,4 +1,4 @@
-// Colour only the original strategy system-name body call. Author: 최병호.
+// Colour only the original strategy system-name body call. Author: Peppone Choi.
 #pragma once
 #include "system_affiliation_data.h"
 static logh::SystemAffiliation systemAffiliation;

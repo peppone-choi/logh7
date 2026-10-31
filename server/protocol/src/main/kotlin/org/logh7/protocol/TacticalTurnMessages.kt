@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native 00493030/00493c70 writers and 0049b040/0049c020 readers. Author: 최병호. */
+/** Native 00493030/00493c70 writers and 0049b040/0049c020 readers. Author: Peppone Choi. */
 object TacticalTurnMessages {
     /** 004bf970: a committed reverse uses the native in-place rotation executor. */
     fun turned(seconds:Long,unit:Int,direction:Float):ByteArray {

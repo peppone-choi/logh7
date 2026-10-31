@@ -1,6 +1,6 @@
 ---
 title: 조직표·초기 배치·유닛 데이터 (부록)
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: gin7manual.pdf(웹판) 부록 p.56–100 (추출: tools/manual_tables.py → docs/manual/data/*.csv)
 ---

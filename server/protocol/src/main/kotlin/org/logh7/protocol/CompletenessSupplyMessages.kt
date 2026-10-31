@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD 00551340/00555530: seven u32 followed by two bounded unit/supply result lists. Author: 최병호. */
+/** CD 00551340/00555530: seven u32 followed by two bounded unit/supply result lists. Author: Peppone Choi. */
 object CompletenessSupplyMessages {
     data class Query(val character:Int,val from:Int,val to:Int)
     data class UnitSupply(val unit:Int,val supplies:Int)

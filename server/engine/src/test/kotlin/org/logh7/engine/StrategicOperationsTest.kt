@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 실제 계획·할당·기간·소유권·보상·철회 저장 상태. 작성: 최병호. 실행은 통합 담당. */
+/** 실제 계획·할당·기간·소유권·보상·철회 저장 상태. 작성: Peppone Choi. 실행은 통합 담당. */
 class StrategicOperationsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2500,4,"Enemy",3)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),

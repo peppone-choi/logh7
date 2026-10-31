@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.cos
 import kotlin.math.sin
 
-/** Native 004b2740 orbit and x/z projection (wire x/y). Author: 최병호. */
+/** Native 004b2740 orbit and x/z projection (wire x/y). Author: Peppone Choi. */
 object TacticalBasePosition {
     fun at(base:GalaxyBase,seconds:Long,stocks:PlanetStocks?):TacticalPoint = stocks?.tacticalCommands?.fortresses?.get(base.id)
         ?.takeIf {it.grid==base.grid}?.motion?.pose(seconds)?.position ?: at(base,seconds)

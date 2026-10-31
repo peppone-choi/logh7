@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** CD manual PDF p.32-34: kinds are constmsg groups 73/74/75. Author: 최병호. */
+/** CD manual PDF p.32-34: kinds are constmsg groups 73/74/75. Author: Peppone Choi. */
 enum class SpotAccess(val wire: Int) { CLOSED(0), PUBLIC(1), PRIVATE(2), RANK(3), GUARDED(4) }
 data class PlanetSpot(val id: Int, val kind: Int, val image: Int, val access: SpotAccess)
 data class PlanetFacility(val id: Int, val kind: Int, val baseId: Int, val spots: List<PlanetSpot>)
@@ -49,7 +49,9 @@ object Places {
     fun access(kind: Int): SpotAccess = when (kind) {
         0 -> SpotAccess.GUARDED
         18 -> SpotAccess.CLOSED
-        6, 12, 13, 16, 17, 19, 20 -> SpotAccess.PRIVATE
+        // Academy classroom/simulator (W69–71 commands run there); own-faction access is design (evidence:guess).
+        16, 17 -> SpotAccess.GUARDED
+        6, 12, 13, 19, 20 -> SpotAccess.PRIVATE
         9, 10 -> SpotAccess.RANK
         in 22..104 -> SpotAccess.PRIVATE
         else -> SpotAccess.PUBLIC

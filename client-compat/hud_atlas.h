@@ -1,4 +1,4 @@
-// CD senryaku_mainpanel.tga coordinates. Author: 최병호
+// CD senryaku_mainpanel.tga coordinates. Author: Peppone Choi
 #pragma once
 
 namespace logh {

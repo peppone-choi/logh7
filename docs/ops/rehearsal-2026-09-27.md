@@ -1,6 +1,6 @@
 # 운영 리허설 기록 — 2026-09-27
 
-작성: 최병호 · LOGH-41/42/43
+작성: Peppone Choi · LOGH-41/42/43
 
 환경 관찰과 운영 설계는 게임 클라이언트 증거가 아니므로 `evidence:guess`로 분류한다. T5의 E-600 대역은 배정되어 있었으나 별도 reverse 케이스 Evidence 발급은 하지 않았다. 실행 근거는 ops 채팅의 명령 결과와 아래 재현 스크립트이며, 게임 프로토콜 validated 근거로 사용하지 않는다. `evidence:guess`
 

@@ -8,7 +8,7 @@ import java.nio.file.*
 import java.nio.file.StandardOpenOption.*
 import java.nio.file.StandardCopyOption.*
 
-/** 송/수신 사본을 분리 저장하지 않는다. 강제 기록 후 원자 교체. 작성: 최병호. */
+/** 송/수신 사본을 분리 저장하지 않는다. 강제 기록 후 원자 교체. 작성: Peppone Choi. */
 class FileCommunicationStore(private val path:Path,private val beforeReplace:()->Unit={}):CommunicationStore {
     private val channel:FileChannel
     private val lock:java.nio.channels.FileLock

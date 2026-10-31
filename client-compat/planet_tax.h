@@ -1,5 +1,5 @@
 // Rebuild the CD's missing command 30 screen with native widgets and transport.
-// UI layout is reconstructed; authority and payment remain on the server. Author: 최병호.
+// UI layout is reconstructed; authority and payment remain on the server. Author: Peppone Choi.
 #pragma once
 #include "planet_tax_data.h"
 

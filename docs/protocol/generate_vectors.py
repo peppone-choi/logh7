@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""최병호 — evidence:client, candidate; static LOGH7 cipher vectors, no target execution.
+"""Peppone Choi — evidence:client, candidate; static LOGH7 cipher vectors, no target execution.
 Usage: python -B docs/protocol/generate_vectors.py CLIENT.exe OUTPUT_DIRECTORY
 Only stdlib required. PE constants are read without modifying the input.
 """
@@ -90,7 +90,7 @@ def main():
     words, source_hash, table_hash = tables_from_pe(sys.argv[1])
     out = Path(sys.argv[2])
     out.mkdir(parents=True, exist_ok=True)
-    meta = dict(author='최병호', status='candidate', evidence='evidence:client', source_sha256=source_hash,
+    meta = dict(author='Peppone Choi', status='candidate', evidence='evidence:client', source_sha256=source_hash,
                 validation='static calculation; not captured from a running client')
     def save(name, value):
         (out/name).write_text(json.dumps(value, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')

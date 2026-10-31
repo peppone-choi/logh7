@@ -1,4 +1,4 @@
-"""Stream grouping, offsets and malformed asset rejection. Author: 최병호."""
+"""Stream grouping, offsets and malformed asset rejection. Author: Peppone Choi."""
 from pathlib import Path
 import struct
 import tempfile

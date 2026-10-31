@@ -4,7 +4,7 @@ import org.logh7.engine.TacticalSupportAction
 import org.logh7.engine.TacticalSupportOrder
 import java.util.Base64
 
-/** Bounded canonical URL-base64 avoids the active-unit record delimiters. Author: 최병호. */
+/** Bounded canonical URL-base64 avoids the active-unit record delimiters. Author: Peppone Choi. */
 internal object TacticalSupportCodec {
     fun encode(value:TacticalSupportOrder):String = Base64.getUrlEncoder().withoutPadding().encodeToString(
         listOf(value.action.name,value.character,value.target,value.grid,value.acceptedAt,value.readyAt)

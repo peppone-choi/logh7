@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Server-designed hull points, six shield work pools and injury delay. Author: 최병호. */
+/** Server-designed hull points, six shield work pools and injury delay. Author: Peppone Choi. */
 data class FlagshipHull(val kind: Int, val at: Long, val hp: Int = 100, val woundedUntil: Long = 0,
     val clockScale: Long = 24, val shields: List<Long> = List(6) { capacity(kind) * 100L * clockScale }) {
     init {
@@ -22,13 +22,19 @@ data class FlagshipHull(val kind: Int, val at: Long, val hp: Int = 100, val woun
 
 internal object FlagshipRecovery {
     /** Manual: return planet, injury, destroyer replacement (REVIEW05). Fallback and 24G-hour delay are design. */
-    fun defeated(player:Navigator,seconds:Long,galaxy:Galaxy,stocks:PlanetStocks):Navigator {
+    fun defeated(player:Navigator,seconds:Long,galaxy:Galaxy,stocks:PlanetStocks,
+        players:Collection<Navigator> = emptyList()):Navigator {
         val power=if(player.power==Power.EMPIRE)2 else 3
-        val bases=galaxy.bases.filter { base ->
+        val owned=galaxy.bases.filter { base ->
             val stock=stocks.bases[base.id]
             val initial=galaxy.conditions.getValue(base.id)
             initial.habitability==1 && (stock?.power ?: initial.power)==power && (stock?.camp ?: initial.camp)==0
         }
+        // Manual P04: a return system that is in tactics sends the flagship to another system.
+        val busy=GridForces.collect(galaxy,stocks.generation,
+            players.filter {it.characterId!=player.characterId && it.generation==stocks.generation},stocks)
+            .filterValues {TacticalContact.contested(it)}.keys
+        val bases=owned.filter {it.grid !in busy}.ifEmpty {owned}
         val home=bases.singleOrNull {it.id==player.returnBase}
             ?: bases.singleOrNull {it.grid==galaxy.starts.getValue(player.power) &&
                 it.name==if(player.power==Power.EMPIRE)"オーディン" else "ハイネセン"}

@@ -9,7 +9,9 @@ data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val ses
 sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
-    data class Join(val account: String, val power: Power, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null) : WorldCommand
+    data class Join(val account: String, val power: Power, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null,
+        /** The character store's current profile; seeds the strategic record when CP experience first raises an ability. */
+        val profile: StrategicPerson? = null) : WorldCommand
     data class Disconnect(val account: String, val connection: String? = null) : WorldCommand
     data class Exclude(val account: String) : WorldCommand
     data class OpenBattle(val id: String) : WorldCommand
@@ -61,6 +63,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val budgetObservers=java.util.concurrent.CopyOnWriteArrayList<(BudgetChange)->Unit>()
+    fun provideIdentities(supplier:()->List<StrategicIdentity>):AutoCloseable {
+        production?.identities=supplier;return AutoCloseable {production?.identities={emptyList()}}
+    }
     fun observeBudget(observer:(BudgetChange)->Unit):AutoCloseable {
         budgetObservers+=observer;return AutoCloseable {budgetObservers.remove(observer)}
     }
@@ -70,6 +75,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
     private val occupationObservers=java.util.concurrent.CopyOnWriteArrayList<(BaseOccupation)->Unit>()
+    private val experienceObservers=java.util.concurrent.CopyOnWriteArrayList<(List<Int>)->Unit>()
+    /** Character IDs whose abilities/experience changed by CP-experience settlement. */
+    fun observeExperience(observer:(List<Int>)->Unit):AutoCloseable {
+        experienceObservers+=observer;return AutoCloseable {experienceObservers.remove(observer)}
+    }
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable {
         occupationObservers+=observer;return AutoCloseable {occupationObservers.remove(observer)}
     }
@@ -130,6 +140,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private fun settleCombat(session: SessionState, base: WorldSnapshot, afterCommit:()->Unit = {}) {
         if (navigation == null || production == null || galaxy == null) return
+        val experienced=settleExperience(session)
         val before=navigation.snapshot(session.generation)
         val movements=mutableListOf<TacticalMovement>()
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
@@ -146,6 +157,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // Reconcile durable capital/session endings before observers can start a native
         // forced-undock transition that cannot finish once gameplay requests are frozen.
         afterCommit()
+        if(experienced.isNotEmpty())for(observer in experienceObservers)try {observer(experienced)}
+        catch(failure:Exception){System.err.println("Experience delivery failed: ${failure.javaClass.simpleName}")}
         for(event in strategicMovements)for(observer in strategicMovementObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("NPC strategic movement delivery failed: ${failure.javaClass.simpleName}")}
         publishCombat(impacts)
@@ -195,6 +208,20 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val formations=OutfitFormationService(monotonicMillis)
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
+    private val profiles = java.util.concurrent.ConcurrentHashMap<String, StrategicPerson>()
+    /** Converts accumulated strategic CP into ability experience in one world transaction (CpExperience). */
+    private fun settleExperience(session: SessionState): List<Int> {
+        val committer = worldStateCommitter ?: return emptyList()
+        if (navigation == null || production == null || storageFailed) return emptyList()
+        val stocks = production.snapshot(session.generation) ?: return emptyList()
+        val players = navigation.snapshot(session.generation)
+        val (next, after) = CpExperience.settle(players, stocks) { profiles[it] } ?: return emptyList()
+        val prepared = production.prepareReplacement(stocks, after)
+        try { committer.saveWorld(next, prepared) }
+        catch (failure: java.io.IOException) { storageFailed = true; System.err.println("CP experience commit failed: ${failure.javaClass.simpleName}"); return emptyList() }
+        navigation.publishCommitted(players, next, session.generation); production.publishCommitted(stocks, prepared)
+        return next.filter { (account, p) -> players[account] != p }.values.map { it.characterId }
+    }
     private fun publish(snapshot:WorldSnapshot) {
         val old=published.get().planetStocks
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
@@ -409,7 +436,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             org.logh7.engine.strategy.CpBalance(before.pcp.toLong(), before.mcp.toLong()),
                             StockAssignment.COST.toLong(), org.logh7.engine.strategy.CpPool.MCP)
                         if (payment !is org.logh7.engine.strategy.PaymentResult.Paid) return@assignment reject(LogisticsRejection.CP)
-                        val after = before.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp))
+                        val after = before.paidWith(payment.balance)
                         val prepared = production.prepareReplacement(inventory, next)
                         worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
                         navigation.publishCommitted(request.account, before, after)
@@ -569,7 +596,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             org.logh7.engine.strategy.CpBalance(before.pcp.toLong(), before.mcp.toLong()),
                             Reorganization.COST.toLong(), org.logh7.engine.strategy.CpPool.MCP)
                         if (payment !is org.logh7.engine.strategy.PaymentResult.Paid) return@native reject(LogisticsRejection.CP)
-                        val after = before.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp))
+                        val after = before.paidWith(payment.balance)
                         val prepared = production.prepareReplacement(inventory, next)
                         worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
                         navigation.publishCommitted(request.account, before, after)
@@ -683,7 +710,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
-                    var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory)
+                    var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,
+                        navigation?.snapshot(session.generation)?.values.orEmpty())
                     if(result.changed) {
                         if(worldStateCommitter==null)result=SocialResult(recovered?.player,inventory,SocialRejection.STORAGE)
                         else {
@@ -923,7 +951,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }
-                is WorldCommand.Join -> { admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION else simulation.join(command.account, command.power, command.original, command.connection); emptyList() }
+                is WorldCommand.Join -> { command.profile?.let { profiles[command.account] = it }; admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION else simulation.join(command.account, command.power, command.original, command.connection); emptyList() }
                 is WorldCommand.Disconnect -> { simulation.disconnect(command.account, command.connection); emptyList() }
                 is WorldCommand.Exclude -> { simulation.exclude(command.account); emptyList() }
                 is WorldCommand.OpenBattle -> { simulation.openBattle(command.id); emptyList() }

@@ -3,7 +3,7 @@ package org.logh7.engine
 import java.util.Collections
 import org.logh7.engine.strategy.*
 
-/** Organization pp.57/63: deputy, chief of staff and up to six staff officers. Author: 최병호. */
+/** Organization pp.57/63: deputy, chief of staff and up to six staff officers. Author: Peppone Choi. */
 class FleetStaff(val deputy: Int=0,val chief: Int=0,officers: List<Int> = emptyList()) {
     val officers:List<Int> = Collections.unmodifiableList(ArrayList(officers))
     val members:List<Int> get()=listOf(deputy,chief).filter {it>0}+officers
@@ -77,7 +77,7 @@ internal object FleetOfficeAppointment {
         if(held>=14) return reject(AppointmentRejection.CAPACITY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),GarrisonAppointment.COST.toLong(),CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(AppointmentRejection.CP)
-        return GarrisonAppointmentResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),
+        return GarrisonAppointmentResult(player.paidWith(paid.balance),
             stocks.copy(outfits=stocks.outfits+(outfit.id to role.assign(outfit,r.target))),changed=true)
     }
 }

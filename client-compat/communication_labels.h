@@ -1,4 +1,4 @@
-// Verified mail/HUD display-only boundaries after office343. Author: 최병호.
+// Verified mail/HUD display-only boundaries after office343. Author: Peppone Choi.
 #pragma once
 #include "mail_peer_text.h"
 

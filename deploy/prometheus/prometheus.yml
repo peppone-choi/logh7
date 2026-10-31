@@ -1,4 +1,4 @@
-# 작성: 최병호 | evidence:guess
+# 작성: Peppone Choi | evidence:guess
 global:
   scrape_interval: 15s
 scrape_configs:

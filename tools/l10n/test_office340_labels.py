@@ -1,4 +1,4 @@
-"""직무행 종류/인물 선택 이름의 표시 전용 CD 경계. 작성: 최병호."""
+"""직무행 종류/인물 선택 이름의 표시 전용 CD 경계. 작성: Peppone Choi."""
 import re
 import struct
 import unittest

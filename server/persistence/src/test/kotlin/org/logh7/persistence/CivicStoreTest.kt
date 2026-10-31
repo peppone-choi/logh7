@@ -8,7 +8,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** 기존 저장32 보존·예약/경비/최종 기록·실패 원자성과 분리된 스냅샷. 작성: 최병호. */
+/** 기존 저장32 보존·예약/경비/최종 기록·실패 원자성과 분리된 스냅샷. 작성: Peppone Choi. */
 class CivicStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds

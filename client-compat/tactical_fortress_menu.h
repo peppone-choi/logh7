@@ -1,5 +1,5 @@
 // Restore fortress commands from the authenticated character's exact office seat.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "tactical_fortress_menu_data.h"
 static bool selectedCommandFortress(unsigned base) {
@@ -10,11 +10,27 @@ static bool selectedCommandFortress(unsigned base) {
     return reinterpret_cast<void*(__cdecl*)(void*,unsigned,BYTE,BYTE,BYTE,BYTE)>(0x4c7cd0)
         (world+0x126718,base,0,255,255,255)!=nullptr;
 }
+static volatile LONG ownSupremeCommander=0;
+static unsigned __stdcall decodedCommandCorps(void* record,void* reader) {
+    unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x422d80)(record,reader);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    int chief=!result && own ? logh::corpsChief(static_cast<const BYTE*>(record),at<unsigned>(own,0x24)) : -1;
+    if(chief>=0)InterlockedExchange(&ownSupremeCommander,chief);
+    return result;
+}
 static void __cdecl fortressCommandMenu(void* manager,BYTE wait,unsigned tab,unsigned forts,unsigned ships) {
+    if (manager && tab==4) {
+        BYTE enabled[24];logh::commanderMenu(InterlockedCompareExchange(&ownSupremeCommander,0,0)!=0,enabled);
+        auto menu=at<void*>(manager,0xd4);
+        if (menu) reinterpret_cast<void(__thiscall*)(void*,unsigned,const BYTE*,unsigned,unsigned)>(0x508930)
+            (menu,1,enabled,6,24);
+    }
     if (manager && tab==5) {
         BYTE enabled[24]={};
         unsigned base=*reinterpret_cast<unsigned*>(0x2215528);
-        if (forts==1 && selectedCommandFortress(base)) enabled[6]=enabled[9]=enabled[15]=enabled[21]=enabled[22]=1;
+        // Slot 0 is 【移動】 (CD manual p.54, mobile fortresses only); the server rejects fixed fortresses.
+        if (forts==1 && selectedCommandFortress(base)) enabled[0]=enabled[6]=enabled[9]=enabled[15]=enabled[21]=enabled[22]=1;
         auto menu=at<void*>(manager,0xd4);
         if (menu) reinterpret_cast<void(__thiscall*)(void*,unsigned,const BYTE*,unsigned,unsigned)>(0x508930)
             (menu,1,enabled,6,24);
@@ -294,6 +310,14 @@ static bool installFortressCommandMenu() {
     }
     unsigned replacement=static_cast<unsigned>(reinterpret_cast<uintptr_t>(&fortressStopState));
     if(!patchBytes(reinterpret_cast<void*>(0x512278),&originalFortressStopState,&replacement,sizeof(replacement)))return false;
+    // CD air battle (menu 0x11, 00510ec3) picks enemies with 0x1181, but registers no weapon-range
+    // preview (+0xa764 stays 0), so 004f1180 is always false and no target passes.
+    // 0x40000 inverts that preview check; the server still validates the launch.
+    const BYTE airMask[5]={0x68,0x81,0x11,0,0},airEnemyMask[5]={0x68,0x81,0x11,0x04,0};
+    if(!patchBytes(reinterpret_cast<void*>(0x510ec3),airMask,airEnemyMask,5))return false;
+    const unsigned corpsDecoder=0x422d80,corpsReplacement=static_cast<unsigned>(reinterpret_cast<uintptr_t>(&decodedCommandCorps));
+    if(memcmp(reinterpret_cast<void*>(0x66c400),&corpsDecoder,4) ||
+       !patchBytes(reinterpret_cast<void*>(0x66c400),&corpsDecoder,&corpsReplacement,4))return false;
     BYTE rowCall[5]={0xe8};
     *reinterpret_cast<LONG*>(rowCall+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&fortressSupportRow)-reinterpret_cast<BYTE*>(0x510467)-5);
     return patchBytes(reinterpret_cast<void*>(0x510467),rowExpected,rowCall,sizeof(rowCall));

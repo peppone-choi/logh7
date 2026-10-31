@@ -23,7 +23,13 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
     val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
     val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState(),val budget:BudgetState=BudgetState(),
-    val social:SocialState=SocialState()) {
+    val social:SocialState=SocialState(),
+    /** 軍紀維持: outfit ID → stored discipline and when it was stored (OutfitDiscipline). */
+    val discipline:Map<Int,OutfitDiscipline> = emptyMap(),
+    /** Last game hour whose black-hole tidal loss was applied (BlackHoleTides); 0 before the first settlement. */
+    val tidalHour:Long=0,
+    /** Air (fighter) training level 1..3 per outfit from 空戦訓練; absent means 0. */
+    val airTraining:Map<Int,Int> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -38,6 +44,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
         require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}
         require(social.squares.keys.all {it in bases} && social.speeches.values.all {it.base in bases}) {"Unknown social base"}
+        require(discipline.size<=1000 && discipline.keys.all {it>0}) {"Invalid outfit discipline"}
+        require(tidalHour in 0..0xffffffffL/3600) {"Invalid tidal hour"}
+        require(airTraining.size<=1000 && airTraining.all {(id,level)->id>0 && level in 1..3}) {"Invalid air training"}
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -84,6 +93,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached(),social=stocks.social.detached())
     val maximumStock: Int get() = policy.maximumStock
     val defaultRemittanceRate:Int get()=policy.tax.remittanceRate
+    /** Registered characters for periodic personnel rules; supplied by the gateway's character store. */
+    @Volatile var identities:()->List<StrategicIdentity> = {emptyList()}
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
@@ -113,7 +124,14 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 }
                 next
             }, nationalTreasuries=national)
-        val settled=CivicActions.settle(galaxy,StrategyActions.settle(result,seconds,galaxy),seconds,civicPlayers(generation))
+        // U-28: politician-ladder rules run once per crossed 30-day boundary, in order.
+        var monthly=result
+        val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
+        if(days>initialized.producedDays && lastMonth>=firstMonth) {
+            val people=identities()
+            if(people.isNotEmpty())for(month in firstMonth..lastMonth)monthly=PoliticianLadder.monthly(galaxy,monthly,people,month)
+        }
+        val settled=CivicActions.settle(galaxy,StrategyActions.settle(monthly,seconds,galaxy),seconds,civicPlayers(generation))
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.

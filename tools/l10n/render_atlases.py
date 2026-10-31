@@ -1,4 +1,4 @@
-"""진영·결과 아틀라스의 UV 칸을 유지한 한국어 후보 생성. 작성: 최병호.
+"""진영·결과 아틀라스의 UV 칸을 유지한 한국어 후보 생성. 작성: Peppone Choi.
 
 원본 제작 글꼴은 미확인이다. 실행 담당의 실제 화면 확인 전에는 배포 검수
 완료로 취급하지 않는다. 원본 팔레트·알파 형식·캔버스와 수정 영역 밖 바이트를 보존한다.
@@ -68,7 +68,7 @@ def render(source, output, font_path):
         if path.read_bytes()!=data:
             raise ValueError('original changed')
     (output/'selection.json').write_text(json.dumps(selection,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    (output/'render.json').write_text(json.dumps(dict(author='최병호',font=str(font_path),
+    (output/'render.json').write_text(json.dumps(dict(author='Peppone Choi',font=str(font_path),
         font_sha256=image_patch.sha(font_path.read_bytes()),original_font_confirmed=False,assets=report),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     sheet.save(output/'preview.png')
     image_patch.prepare(source,output/'replacement',output/'selection.json',output/'package')

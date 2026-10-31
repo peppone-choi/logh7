@@ -1,4 +1,4 @@
-"""게임 자산 없는 이미지 적용/복구 회귀 검사. 작성자: 최병호."""
+"""게임 자산 없는 이미지 적용/복구 회귀 검사. 작성자: Peppone Choi."""
 import json
 from pathlib import Path
 import struct

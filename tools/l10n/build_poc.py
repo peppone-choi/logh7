@@ -1,4 +1,4 @@
-"""오프라인 한글 표시 PoC 생성. 작성자: 최병호."""
+"""오프라인 한글 표시 PoC 생성. 작성자: Peppone Choi."""
 import argparse
 import copy
 import json
@@ -76,7 +76,7 @@ def main():
     assert all(msgdat.sha(Path(path).read_bytes()) == digest for path,digest in original.items())
     msgdat.write_json(out/'manifest.json', manifest)
     msgdat.write_json(out/'candidates.json', rows)
-    msgdat.write_json(out/'verification.json', dict(author='최병호', evidence='evidence:client',
+    msgdat.write_json(out/'verification.json', dict(author='Peppone Choi', evidence='evidence:client',
                      original_unchanged=True, strings=len(ref['strings']),
                      rewritten=sum(bool(s) for s in ref['strings']), tokens_preserved=True,
                      structure_preserved=True, cp949_roundtrip=True, display_validated=False))

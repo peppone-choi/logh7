@@ -1,4 +1,4 @@
-// Reconcile authoritative origins before the CD builds its local path. Author: 최병호.
+// Reconcile authoritative origins before the CD builds its local path. Author: Peppone Choi.
 #pragma once
 #include "tactical_motion_data.h"
 static void receivedTacticalMotion(void* world,void* message,BYTE pending,bool parallel) {
