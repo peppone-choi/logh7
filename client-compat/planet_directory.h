@@ -87,8 +87,9 @@ static void rebuildPlanetDirectory() {
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x505a70)(planetWindowRoot,planetDirectoryList,0);
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x505a00)(planetWindowRoot,planetDirectoryList,0);
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5053d0)(planetWindowRoot,planetDirectoryList,6);
-    const int widths[]={88,134,162,62,58,108};
-    const wchar_t* headers[]={L"소속",L"성계",L"행성·요새",L"구분",L"거주",L"인구(만 명)"};
+    // Original group 54 columns: faction, system, name, kind, state, population (no habitability).
+    const int widths[]={88,128,152,56,80,108};
+    const wchar_t* headers[]={L"소속",L"성계",L"행성·요새",L"구분",L"상태",L"인구(만 명)"};
     for (unsigned i=0;i<6;++i) {
         reinterpret_cast<void(__thiscall*)(void*,void*,int,int)>(0x5054b0)(planetWindowRoot,planetDirectoryList,widths[i],i);
         planetDirectoryCell(0,i,headers[i]);
@@ -130,7 +131,9 @@ static void renderPlanetDirectory() {
         bool ready=row.state==2;
         const wchar_t* queryStatus=row.state==3 ? L"응답 없음" : L"조회 중";
         planetDirectoryCell(i+1,0,ready ? logh::planetAffiliation(row.power,row.camp) : queryStatus);
-        planetDirectoryCell(i+1,4,ready ? logh::planetHabitability(row.habitable) : L"—");
+        // 状態 has no surviving value strings (group 54). Tactical supply/repair draw on the base's
+        // stored supplies (031f record +0x18), so the state shows that availability (evidence:guess, approved).
+        planetDirectoryCell(i+1,4,ready ? (row.supplies ? L"보급 가능" : L"물자 없음") : L"—");
         if (ready) _snwprintf_s(text,_countof(text),_TRUNCATE,L"%u.%04u",row.population/10000,row.population%10000);
         else wcscpy_s(text,L"—");
         planetDirectoryCell(i+1,5,text);

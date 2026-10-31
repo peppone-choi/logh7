@@ -146,7 +146,7 @@ struct PlanetDirectory {
         return index<visible ? index : visible;
     }
     struct Row {
-        unsigned id, grid, slot, population;
+        unsigned id, grid, slot, population, supplies;
         unsigned char state, power, camp, habitable;
     } rows[350] = {};
     unsigned count = 0;
@@ -178,7 +178,7 @@ struct PlanetDirectory {
             auto& row = rows[i];
             if (row.state != 1 || row.id != infoWord(record, 0) || row.grid != infoWord(record, 8)) continue;
             row.power = record[4]; row.camp = record[5]; row.habitable = record[0x175];
-            row.population = infoWord(record, 0x120); row.state = 2; return true;
+            row.population = infoWord(record, 0x120); row.supplies = infoWord(record, 0x18); row.state = 2; return true;
         }
         return false;
     }
