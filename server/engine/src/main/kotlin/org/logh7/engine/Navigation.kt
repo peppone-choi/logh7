@@ -529,8 +529,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                                 friendly
                             13 -> move.owner == before.characterId
                             // Own mansion rooms (U-18): the ballroom in a capital, the forest on one's own fief.
-                            14 -> move.owner == before.characterId && Capital.of(galaxy.bases.single { it.id == before.baseId })?.power == ownPower
-                            15 -> move.owner == before.characterId && stocks?.strategic?.fiefs?.get(before.baseId) == before.characterId
+                            // The CD knows these rooms only with owner 0; entry itself checks the right (U-18).
+                            14 -> move.owner == 0 && Capital.of(galaxy.bases.single { it.id == before.baseId })?.power == ownPower
+                            15 -> move.owner == 0 && stocks?.strategic?.fiefs?.get(before.baseId) == before.characterId
                             else -> false
                         }
                     }

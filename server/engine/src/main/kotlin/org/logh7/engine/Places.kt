@@ -51,7 +51,8 @@ object Places {
         18 -> SpotAccess.CLOSED
         // Academy classroom/simulator (W69–71 commands run there); own-faction access is design (evidence:guess).
         16, 17 -> SpotAccess.GUARDED
-        6, 12, 13, 19, 20 -> SpotAccess.PRIVATE
+        // 14 ballroom / 15 hunting ground are the host's own mansion rooms (U-18 夜会/狩猟, evidence:guess).
+        6, 12, 13, 14, 15, 19, 20 -> SpotAccess.PRIVATE
         9, 10 -> SpotAccess.RANK
         in 22..104 -> SpotAccess.PRIVATE
         else -> SpotAccess.PUBLIC

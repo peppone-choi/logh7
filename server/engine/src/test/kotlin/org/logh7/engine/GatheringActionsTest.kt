@@ -54,20 +54,34 @@ class GatheringActionsTest {
     @Test fun huntingNeedsTheOwnFiefForestAndAPartyTheCapitalBallroomOfANoble() {
         val forest=1049*10000+GatheringActions.MANSION*200+GatheringActions.FOREST+1
         val ballroom=1049*10000+GatheringActions.MANSION*200+GatheringActions.BALLROOM+1
-        val hunter=host.copy(spotId=forest)
+        val hunter=host.copy(spotId=forest,spotOwner=0)
         val fief=stocks().let {it.copy(strategic=it.strategic.copy(fiefs=mapOf(1049 to 10000)))}
         assertEquals(SocialRejection.LOCATION,act(request("host",10000,10001,0,1,GatheringActions.HUNT),stocks(),h=hunter).rejection,"no fief")
         val hunt=act(request("host",10000,10001,0,1,GatheringActions.HUNT),fief,h=hunter);assertNull(hunt.rejection)
         val s=assertNotNull(hunt.stocks)
         val done=act(request("guest",10001,10000,1,s.social.nextId,GatheringActions.HUNT),s,h=hunter)
         assertNull(done.rejection);assertTrue(assertNotNull(done.gathering).friendshipDelta!=0,"hunting changes friendship")
-        val party=host.copy(spotId=ballroom)
+        val party=host.copy(spotId=ballroom,spotOwner=0)
         assertEquals(SocialRejection.LOCATION,act(request("host",10000,10001,0,1,GatheringActions.PARTY),stocks(),h=party).rejection,"no peerage")
         val noble=stocks().let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+(10000 to it.strategic.people.getValue(10000).copy(peerage=Peerage.BARON))))}
         val invited=assertNotNull(act(request("host",10000,10001,0,1,GatheringActions.PARTY),noble,h=party).stocks)
         val view=assertNotNull(act(request("guest",10001,10000,1,invited.social.nextId,GatheringActions.PARTY),invited,h=party).gathering)
         assertTrue(view.hostInfluence in setOf(5,2),"夜会 influence is 1.5x");assertEquals(0,view.friendshipDelta)
         assertTrue(Places.forBase(galaxy.bases.single(),2,estate=true).any {it.kind==GatheringActions.MANSION})
+    }
+    @Test fun theOwnFiefForestIsAnOwnerZeroSpotOnlyItsHolderEnters() {
+        val store=object:NavigationStore {var saved=emptyMap<String,Navigator>()
+            override fun load()=saved;override fun save(players:Map<String,Navigator>){saved=players}}
+        store.saved=mapOf("host" to host.copy(spotId=1049*10000+GatheringActions.MANSION*200+1,spotOwner=0))
+        val navigation=Navigation(galaxy,store,NavigationPolicy())
+        val one=SessionSimulation(rules).also {it.join("host",Power.EMPIRE,false,"h")}.exportState()
+        val fief=stocks().let {it.copy(strategic=it.strategic.copy(fiefs=mapOf(1049 to 10000)))}
+        val forest=1049*10000+GatheringActions.MANSION*200+GatheringActions.FOREST+1
+        val request=NavigationRequest("host",10000,Power.EMPIRE,"h",1,unitId=1010000,place=PlaceMove.Spot(forest,0))
+        val result=navigation.apply(request,one,fief)
+        val moved=assertNotNull(result.player,"rejected: ${result.rejection}")
+        assertEquals(forest,moved.spotId);assertEquals(0,moved.spotOwner)
+        assertEquals(NavigationRejection.SPOT,navigation.apply(request,one,stocks()).rejection,"no fief, no mansion")
     }
     @Test fun outcomeBandsAndAmountsFollowTheApprovedDesign() {
         assertEquals(GatheringGrade.GREAT,GatheringActions.grade(100));assertEquals(GatheringGrade.SUCCESS,GatheringActions.grade(70))

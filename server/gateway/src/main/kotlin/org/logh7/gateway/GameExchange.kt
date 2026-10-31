@@ -653,6 +653,7 @@ class GameExchange(
                             politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
                             val player = checkNotNull(result.player ?: result.previous) { "Place request lost its authenticated session" }
                             val accepted = result.player != null
+                            if(traceOpcodes && !accepted && move!=null)System.err.println("trace ${identity.account} spot ${move.spot} owner ${move.owner} rejected: ${result.rejection}")
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
                             // The CD's 004beaa0 applies ACK coordinates even on a rejection.

@@ -83,8 +83,10 @@ object GatheringActions {
         // 会談/談話: own hotel room. 狩猟: own fief mansion forest. 夜会: own capital mansion ballroom,
         // for empire nobles and for alliance politicians or commodores and above (evidence:guess).
         fun hostInRoom(h:Navigator):Boolean {
-            if(h.mode !in 1..4 || h.spotOwner!=h.characterId)return false
+            if(h.mode !in 1..4)return false
             val place=room(h.baseId,h.spotId)
+            // Mansion rooms are owner-0 spots in the CD; the hotel room keeps its saved owner.
+            if(i.command !in setOf(PARTY,HUNT) && h.spotOwner!=h.characterId)return false
             val person=s.strategic.people[h.characterId]
             return when(i.command) {
                 PARTY -> place==(MANSION to BALLROOM) && Capital.entries.any {c->c.power==(if(h.power==Power.EMPIRE)2 else 3) &&
