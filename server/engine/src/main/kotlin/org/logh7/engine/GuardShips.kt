@@ -58,3 +58,18 @@ object GuardShips {
     fun forPower(power:Int)=options.filter {it.power==power}
     fun option(index:Int)=options.getOrNull(index)
 }
+
+/** Applies a guard ship's GuardModifier to the base hull in tactical combat. Author: Peppone Choi. */
+object GuardCombat {
+    fun modifier(outfit:OutfitStock?,unit:Int):GuardModifier? =
+        outfit?.guard?.get(unit)?.let {GuardShips.option(it)?.modifier}
+    fun mount(base:TacticalWeaponMount,weapon:TacticalWeapon,outfit:OutfitStock?,unit:Int):TacticalWeaponMount {
+        val m=modifier(outfit,unit) ?: return base
+        if(weapon !in m.weapons || base.power==0)return base.copy(power=0)
+        return base.copy(power=maxOf(1,(base.power.toLong()*m.attack/100).toInt()))
+    }
+    fun armor(base:Int,outfit:OutfitStock?,unit:Int):Int =
+        modifier(outfit,unit)?.let {maxOf(1,base*it.armor/100)} ?: base
+    fun speed(base:Float,outfit:OutfitStock?,unit:Int):Float =
+        modifier(outfit,unit)?.let {base*it.speed/100f} ?: base
+}

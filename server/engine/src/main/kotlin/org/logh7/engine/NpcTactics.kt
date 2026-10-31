@@ -144,7 +144,7 @@ internal object NpcTactics {
                     outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                     if(unit.boats<=unit.damaged)break
                     val pose=initial(unit,outfit,position.grid,now,players,stocks,galaxy)
-                    val mount=TacticalArmaments.mount(spec,weapon)
+                    val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
                     val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                     if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                     val victim=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.firstOrNull {

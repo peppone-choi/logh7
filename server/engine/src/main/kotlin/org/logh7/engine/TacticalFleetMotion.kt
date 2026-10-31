@@ -71,7 +71,10 @@ internal object TacticalFleetMotion {
         if(requestedMotions.values.any {m->TacticalTerrain.pathBlocked(galaxy,player.grid,m.origin.position,m.waypoints)})
             return reject(NavigationRejection.RANGE)
         val attacked=stocks.tacticalCommands.air.values.filter {it.mode==1 && it.target in requestedMotions}.map {it.target}.toSet()
-        val motions=requestedMotions.mapValues {(id,m)->if(id in attacked)m.copy(velocity=m.velocity*.5f) else m}
+        val motions=requestedMotions.mapValues {(id,m)->
+            val guard=ships.singleOrNull {it.second.id==id}?.first
+            val scaled=if(m.velocity>0f)m.copy(velocity=GuardCombat.speed(m.velocity,guard,id)) else m
+            if(id in attacked)scaled.copy(velocity=scaled.velocity*.5f) else scaled}
         var next=if(attacked.isEmpty())stocks else stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=
             stocks.tacticalCommands.air.mapValues {(_,wing)->if(wing.target in attacked)wing.copy(slowVelocity=requestedMotions.getValue(wing.target).velocity) else wing}))
         for((outfit,unit) in ships) {

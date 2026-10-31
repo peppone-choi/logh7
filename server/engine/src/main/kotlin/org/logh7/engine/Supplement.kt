@@ -29,6 +29,8 @@ internal object Supplement {
             return reject(LogisticsRejection.IDENTITY)
         if(r.mode !in 0..1)return reject(LogisticsRejection.MODE)
         val outfit=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
+        // update03: guard ships are never replenished; disband and buy again instead.
+        if(outfit.guard!=null)return reject(LogisticsRejection.ACCESS)
         val power=if(r.power==Power.EMPIRE)2 else 3
         val owner=stocks.bases.getValue(outfit.baseId)
         if(outfit.power!=power || owner.power!=power || owner.camp!=0 || outfit.commanderId!=r.characterId)

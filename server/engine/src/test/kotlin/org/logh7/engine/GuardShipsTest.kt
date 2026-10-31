@@ -24,3 +24,20 @@ class GuardShipsTest {
         }
     }
 }
+
+/** Guard modifiers in combat. Author: Peppone Choi. */
+class GuardCombatTest {
+    private val stack=UnitStack(48)
+    private fun outfit(index:Int)=OutfitStock(1,2,OutfitKind.PATROL,1000,5,10000,UnitInventory(mapOf(stack to 1)),
+        activeShips=ActiveShipUnits(listOf(ActiveShipUnit(7,stack))),guard=mapOf(7 to index))
+    @Test fun weaponsAttackArmorAndSpeedFollowTheGuardModifier() {
+        val mount=TacticalWeaponMount(5,63,100,1)
+        assertEquals(mount,GuardCombat.mount(mount,TacticalWeapon.BEAM,null,7))
+        assertEquals(90,GuardCombat.mount(mount,TacticalWeapon.BEAM,outfit(4),7).power)
+        assertEquals(90,GuardCombat.mount(mount,TacticalWeapon.BEAM,outfit(6),7).power)
+        assertEquals(0,GuardCombat.mount(mount,TacticalWeapon.GUN,outfit(6),7).power)
+        assertEquals(50,GuardCombat.mount(mount,TacticalWeapon.MISSILE,outfit(7),7).power)
+        assertEquals(36,GuardCombat.armor(24,outfit(7),7));assertEquals(24,GuardCombat.armor(24,outfit(7),8))
+        assertEquals(1.1f,GuardCombat.speed(1f,outfit(5),7),1e-6f)
+    }
+}

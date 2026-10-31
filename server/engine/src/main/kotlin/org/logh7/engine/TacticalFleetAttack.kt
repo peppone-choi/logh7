@@ -92,7 +92,7 @@ internal object TacticalFleetAttack {
             for(weapon in TacticalWeapon.entries) {
                 outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                 val state=checkNotNull(unit.tactical)
-                val mount=TacticalArmaments.mount(spec,weapon)
+                val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
                 val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                 if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now,unit.posture,galaxy,stocks)

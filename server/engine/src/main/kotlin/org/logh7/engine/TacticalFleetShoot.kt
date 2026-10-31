@@ -99,7 +99,7 @@ internal object TacticalFleetShoot {
             stocks=replace(stocks,outfit,unit.copy(shot=null))
             val victim=TacticalCombat.target(shot.target,position.grid,power,stocks,galaxy,players) ?: continue
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
-            val mount=TacticalArmaments.mount(spec,shot.weapon)
+            val mount=GuardCombat.mount(TacticalArmaments.mount(spec,shot.weapon),shot.weapon,outfit,unit.id)
             val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
             val effect=TacticalArmaments.effectiveness(mount,origin,TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position)
             val cost=cost(unit,mount,shot.weapon)

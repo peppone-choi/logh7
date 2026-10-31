@@ -27,6 +27,7 @@ internal object Reorganization {
         val outfit = stocks.outfits.getValue(request.outfit)
         // 004b4fc0 copies troop rows only in nonzero mode; the command-63
         // factory's normal SendOrganizeDataCommand path selects mode 1.
+        require(outfit.guard == null) { "Guard units cannot be reorganized" } // update03: fixed unmanned units
         require(request.base == outfit.baseId && request.kind == outfit.kind.wire && request.mode in 0..1 &&
             (request.mode == 1 || request.troops.isEmpty()) && request.supplies == 0)
         require(request.ships.map { it.kind }.distinct().size == request.ships.size &&

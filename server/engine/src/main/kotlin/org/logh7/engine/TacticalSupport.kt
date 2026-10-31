@@ -161,7 +161,7 @@ internal object TacticalSupportOperations {
         val target=ship(order.target,stocks) ?: return false
         return if(order.action==TacticalSupportAction.SUPPLY)
             OutfitSupplies.distribution(target.outfit).getValue(order.target)<OutfitSupplies.unitCapacity(target.unit)
-            else target.unit.damaged>0
+            else target.unit.damaged>0 && target.outfit.guard==null // update03: no guard repairs
     }
     fun advance(session: SessionState, galaxy: Galaxy, players: MutableMap<String,Navigator>, initial: PlanetStocks,
         results: MutableList<TacticalSupportResult>): PlanetStocks {

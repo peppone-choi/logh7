@@ -147,7 +147,7 @@ internal object TacticalCombat {
         source:Int,grid:Int,sequence:Long,seconds:Long,targetId:Int,weapon:TacticalWeapon,
         mount:TacticalWeaponMount,effect:Int,origin:TacticalPose,victim:Target):Pair<PlanetStocks,TacticalImpact> {
         var inventory=stocks
-        val divisor = 100L * maxOf(1, victim.spec.number("装甲:前"))
+        val divisor = 100L * maxOf(1, GuardCombat.armor(victim.spec.number("装甲:前"),victim.regular?.first,victim.regular?.second?.id ?: 0))
         val damage = ((mount.power.toLong()*effect+divisor-1)/divisor).coerceAtLeast(1).toInt()
         val audience = players.mapNotNull { (viewerAccount, viewer) ->
             val member=session.participants[viewerAccount]
