@@ -2949,7 +2949,7 @@ static const KoreanResource koreanResources[] = {
     {6422532ULL,0x0757873bfc0877b4ULL,20,"\xf1\xe1\xf2\x9a\x20\xf0\x41\xf0\xbe\xf3\xb9\x20\xf1\x9b\xf1\x60\x20\xf1\x9d\xf1\x63"},
     {6422533ULL,0xc4b13823de49cf98ULL,4,"\xf3\x44\xf1\x5a"},
     {6422534ULL,0x6b5043b55774823eULL,12,"\xf0\x68\xf2\xc7\x20\xf3\xa5\xf2\xb4\xf3\x93"},
-    {6422535ULL,0xf4d8d319261dd666ULL,12,"\xf3\xa3\xf0\x41\x20\xf3\xa5\xf2\xb4\xf3\x93"},
+    {6422535ULL,0xf4d8d319261dd666ULL,12,"\xf3\x44\xf1\x5a"},
     {6422536ULL,0x250f56fcbbf2fa86ULL,4,"\xf0\x61\xf0\x7d"},
     {6422537ULL,0x388b1e3b733a0b38ULL,4,"\xf3\x8e\xf2\x41"},
     {6422538ULL,0x2002e431b6ac199cULL,4,"\xf2\xb4\xf0\x6f"},
