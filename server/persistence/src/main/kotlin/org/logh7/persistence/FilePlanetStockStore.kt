@@ -183,7 +183,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     require(bases.put(base.baseId, base) == null) { "Duplicate stock base" }
                 }
                 "O" -> {
-                    require(f.size == if(strategic)17 else if(grounds)16 else if(positions)15 else if(staff)13 else if (aides) 12 else if (identities) 11 else if (current) 10 else 8)
+                    // An 18th field exists only for guard units (U-13); older rows keep their canonical size.
+                    require(f.size == (if(strategic)17 else if(grounds)16 else if(positions)15 else if(staff)13 else if (aides) 12 else if (identities) 11 else if (current) 10 else 8)
+                        || strategic && f.size==18)
                     val inventory = UnitInventoryCodec.decode(f[7])
                     val outfit = OutfitStock(f[1].toInt(), f[2].toInt(), OutfitKind.valueOf(f[3]), f[4].toInt(),
                         f[5].toInt(), f[6].toInt(), inventory,
@@ -196,7 +198,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                         if(strategic && f[16]!="-")f[16].split(",").let {v->
                             require(v.size==3) {"Invalid NPC strategic order"}
                             org.logh7.engine.NpcStrategicState(v[0].toLong(),v[1].takeIf {it!="-"}?.toInt(),v[2].takeIf {it!="-"}?.toLong())
-                        } else null)
+                        } else null,
+                        if(f.size==18)f[17].split(",").associate {e->e.split("=").let {(u,g)->u.toInt() to g.toInt()}} else null)
                     require(!positions || (f[13]!="-" || f[14]=="-")) { "Incomplete outfit position" }
                     require(outfits.put(outfit.id, outfit) == null) { "Duplicate outfit" }
                 }
@@ -258,7 +261,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val commands=market || !stocks.tacticalCommands.empty
         val actions=commands || stocks.strategic!=org.logh7.engine.StrategicState()
         val fiscal=actions || stocks.bases.values.any {it.treasury!=0L} || stocks.nationalTreasuries.isNotEmpty()
-        val strategic=fiscal || stocks.outfits.values.any {it.strategy!=null}
+        val strategic=fiscal || stocks.outfits.values.any {it.strategy!=null || it.guard!=null}
         val combat=strategic || stocks.groundBattles.isNotEmpty() || stocks.outfits.values.any {it.activeGround?.values?.any {u->u.strength!=1000}==true}
         val grounds = combat || stocks.outfits.values.any {it.activeGround!=null}
         val deployments=combat || stocks.outfits.values.any {it.activeGround?.values?.any {u->u.origin!=0 || u.order!=null}==true}
@@ -291,7 +294,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     ActiveShipUnitCodec.encode(outfit.activeShips),outfit.aideId,FleetStaffCodec.encode(outfit.staff)) +
                     (if(positions) listOf(outfit.position?.grid ?: "-",outfit.position?.baseId ?: "-") else emptyList()) +
                     (if(grounds) listOf(ActiveGroundUnitCodec.encode(outfit.activeGround)) else emptyList()) +
-                    (if(strategic)listOf(outfit.strategy?.let {"${it.nextDecisionAt},${it.destination ?: "-"},${it.arrivesAt ?: "-"}"} ?: "-") else emptyList()))
+                    (if(strategic)listOf(outfit.strategy?.let {"${it.nextDecisionAt},${it.destination ?: "-"},${it.arrivesAt ?: "-"}"} ?: "-") else emptyList()) +
+                    (if(strategic)outfit.guard?.let {g->listOf(g.toSortedMap().entries.joinToString(",") {"${it.key}=${it.value}"})}.orEmpty() else emptyList()))
                     .joinToString("\t")); append('\n')
             }
             stocks.warehouses.toSortedMap().values.forEach { warehouse ->
