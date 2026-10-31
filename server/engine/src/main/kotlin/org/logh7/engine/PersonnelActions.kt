@@ -21,6 +21,7 @@ internal object PersonnelActions {
         val actorRank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
         fun holds(card:Int)=r.card==card && policy.holders(stocks,card).any {it.character==r.characterId}
         var next=stocks
+        var promoted=emptyMap<String,Navigator>()
         val cost=when(r.command){1,8,9->640L;2->320L;else->160L}
         when(r.command) {
             0,1,2 -> {
@@ -52,6 +53,13 @@ internal object PersonnelActions {
                 }
                 next=StrategyActions.clearOffices(stocks,r.target).let {cleared ->cleared.copy(strategic=cleared.strategic.copy(
                     people=cleared.strategic.people+(r.target to person.copy(rank=changedRank,merit=if(r.command==2)100 else 0))))}
+                // U-24: a promoted character outside battle receives the new rank's default flagship.
+                if(r.command!=2)r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}?.let {(key,other)->
+                    val hull=other.hull;val now=s.gameMillis/1000;val upgrade=Flagships.rankDefault(power,changedRank)
+                    if(hull!=null && !other.cpPaused && hull.woundedUntil<=now && Flagships.tier(upgrade.kind)>Flagships.tier(hull.kind))
+                        promoted=mapOf(key to other.copy(hull=FlagshipHull(upgrade.kind,now,clockScale=hull.clockScale),energy=null,
+                            motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null))
+                }
             }
             3 -> {
                 if(power!=2 || !holds(1))return reject(StrategyActionRejection.AUTHORITY)
@@ -89,6 +97,6 @@ internal object PersonnelActions {
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
+        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true,navigators=promoted)
     }
 }

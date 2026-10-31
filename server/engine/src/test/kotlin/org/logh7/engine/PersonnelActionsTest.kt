@@ -32,6 +32,14 @@ class PersonnelActionsTest {
         val denied=act(request(0,10002),s)
         assertEquals(StrategyActionRejection.RANK,denied.rejection);assertEquals(s,denied.stocks);assertEquals(p,denied.player)
     }
+    @Test fun promotionRaisesTheFlagshipToTheNewRankDefaultButNeverTradesItDown() {
+        // U-24: rank 9 -> 8 is the cruiser band; a destroyer is replaced, a battleship is kept.
+        val target=Navigator(1,10001,Power.EMPIRE,2487,1000,1000,1000)
+        fun promote(kind:Int)=act(request(0).copy(navigators=mapOf("target" to target.copy(hull=FlagshipHull(kind,0))))).navigators["target"]
+        assertEquals(Flagships.forType(2,2).kind,assertNotNull(promote(3)).hull?.kind)
+        assertNull(promote(0))
+        assertNull(act(request(2,10002).copy(navigators=mapOf("target" to target.copy(characterId=10002,hull=FlagshipHull(3,0))))).navigators["target"])
+    }
     @Test fun specialPromotionAndDemotionExcludeTheTopAndUseTheManualCosts() {
         val s=stocks()
         assertEquals(StrategyActionRejection.RANK,act(request(1),s).rejection)
