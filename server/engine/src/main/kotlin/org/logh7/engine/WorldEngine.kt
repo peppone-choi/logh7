@@ -63,6 +63,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val tacticalTickAt = AtomicReference<Long?>(null)
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val budgetObservers=java.util.concurrent.CopyOnWriteArrayList<(BudgetChange)->Unit>()
+    fun provideIdentities(supplier:()->List<StrategicIdentity>):AutoCloseable {
+        production?.identities=supplier;return AutoCloseable {production?.identities={emptyList()}}
+    }
     fun observeBudget(observer:(BudgetChange)->Unit):AutoCloseable {
         budgetObservers+=observer;return AutoCloseable {budgetObservers.remove(observer)}
     }

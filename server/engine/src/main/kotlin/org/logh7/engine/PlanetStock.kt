@@ -93,6 +93,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached(),social=stocks.social.detached())
     val maximumStock: Int get() = policy.maximumStock
     val defaultRemittanceRate:Int get()=policy.tax.remittanceRate
+    /** Registered characters for periodic personnel rules; supplied by the gateway's character store. */
+    @Volatile var identities:()->List<StrategicIdentity> = {emptyList()}
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
@@ -122,7 +124,14 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 }
                 next
             }, nationalTreasuries=national)
-        val settled=CivicActions.settle(galaxy,StrategyActions.settle(result,seconds,galaxy),seconds,civicPlayers(generation))
+        // U-28: politician-ladder rules run once per crossed 30-day boundary, in order.
+        var monthly=result
+        val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
+        if(days>initialized.producedDays && lastMonth>=firstMonth) {
+            val people=identities()
+            if(people.isNotEmpty())for(month in firstMonth..lastMonth)monthly=PoliticianLadder.monthly(galaxy,monthly,people,month)
+        }
+        val settled=CivicActions.settle(galaxy,StrategyActions.settle(monthly,seconds,galaxy),seconds,civicPlayers(generation))
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.
