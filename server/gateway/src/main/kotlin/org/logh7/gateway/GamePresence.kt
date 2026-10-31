@@ -367,7 +367,11 @@ class GamePresence {
                         (viewer.player!=departed && !awaitingReturn))return@forEach
                     // 004c96c0 requires a living own flagship while rendering any tactical unit.
                     // Leave the victim's view before destroying that native anchor; bootstrap returns the replacement.
-                    send(viewer,listOf(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false)))
+                    // U-24: the sinking also lowered ability experience/values; refresh the victim's status panel.
+                    val changed=snapshot?.let {s->WorldCharacters.view(viewer.character,s)}?.let {c->
+                        BootstrapMessages.changedCharacter(c,departed.pcp,departed.mcp,departed.spotId,departed.spotOwner,
+                            departed.returnBase,viewer.offices)}
+                    send(viewer,listOfNotNull(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false),changed))
                 } else {
                     if(viewer.player.grid!=impact.hit.grid)return@forEach
                     val leave=impact.departed?.let {
