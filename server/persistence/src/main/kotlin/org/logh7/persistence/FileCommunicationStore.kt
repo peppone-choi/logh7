@@ -22,13 +22,14 @@ class FileCommunicationStore(private val path:Path,private val beforeReplace:()-
         if(!Files.exists(path))return null
         require(Files.size(path) in 20L..128_000_000L)
         return DataInputStream(ByteArrayInputStream(Files.readAllBytes(path))).use {input->
-            val format=input.readInt().also {require(it==0x4c374d31 || it==0x4c374d32)}
+            // 0x4c374d33 adds the office (card) addresses of every mail.
+            val format=input.readInt().also {require(it==0x4c374d31 || it==0x4c374d32 || it==0x4c374d33)}
             val generation=input.readLong();val next=input.readInt()
             fun count(limit:Int)=input.readInt().also {require(it in 0..limit)}
             fun identity():MailIdentity {
                 val identity=MailIdentity(input.readUTF(),input.readInt(),input.readInt(),input.readUTF(),
                     input.readUnsignedShort(),input.readUnsignedShort(),input.readUTF())
-                return if(format==0x4c374d32)identity.copy(face=input.readInt(),ageSeconds=input.readInt()) else identity
+                return if(format>=0x4c374d32)identity.copy(face=input.readInt(),ageSeconds=input.readInt()) else identity
             }
             val owners=List(count(4096)){identity()}.also {require(it.map {p->p.character}.distinct().size==it.size)}.associateBy {it.character}
             val addresses=linkedMapOf<Int,Set<Int>>()
@@ -40,7 +41,8 @@ class FileCommunicationStore(private val path:Path,private val beforeReplace:()-
             val messages=List(count(100_000)) {
                 val id=input.readInt();val sender=identity();val recipient=identity()
                 StoredMail(id,sender,recipient,input.readUTF(),input.readUTF(),input.readLong(),input.readUTF(),
-                    input.readBoolean(),input.readBoolean(),input.readBoolean())
+                    input.readBoolean(),input.readBoolean(),input.readBoolean()).let {mail->
+                        if(format==0x4c374d33)mail.copy(senderPost=input.readUnsignedShort(),recipientPost=input.readUnsignedShort()) else mail}
             }
             require(input.read()==-1)
             CommunicationState(generation,next,owners,addresses,messages)
@@ -53,7 +55,8 @@ class FileCommunicationStore(private val path:Path,private val beforeReplace:()-
                 out.writeShort(p.origin);out.writeShort(p.rank);out.writeUTF(p.title)
                 out.writeInt(p.face);out.writeInt(p.ageSeconds)
             }
-            out.writeInt(0x4c374d32);out.writeLong(state.generation);out.writeInt(state.nextId)
+            val posts=state.messages.any {it.senderPost!=0 || it.recipientPost!=0}
+            out.writeInt(if(posts)0x4c374d33 else 0x4c374d32);out.writeLong(state.generation);out.writeInt(state.nextId)
             out.writeInt(state.owners.size);state.owners.toSortedMap().values.forEach(::identity)
             out.writeInt(state.addresses.size);state.addresses.toSortedMap().forEach {(owner,peers)->
                 out.writeInt(owner);out.writeInt(peers.size);peers.sorted().forEach(out::writeInt)
@@ -62,6 +65,7 @@ class FileCommunicationStore(private val path:Path,private val beforeReplace:()-
                 out.writeInt(mail.id);identity(mail.sender);identity(mail.recipient);out.writeUTF(mail.subject);out.writeUTF(mail.body)
                 out.writeLong(mail.seconds);out.writeUTF(mail.operation);out.writeBoolean(mail.read)
                 out.writeBoolean(mail.inboxDeleted);out.writeBoolean(mail.sentDeleted)
+                if(posts) {out.writeShort(mail.senderPost);out.writeShort(mail.recipientPost)}
             }
         }}.toByteArray()
         require(bytes.size<=128_000_000)

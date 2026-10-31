@@ -62,4 +62,15 @@ class FileCommunicationStoreTest {
         Files.write(file,byteArrayOf(1,2,3))
         FileCommunicationStore(file).use {assertFails {it.load()}}
     }
+    @Test fun officeAddressesUseTheThirdFormatOnlyWhenAMailHasOne() {
+        val personal=CommunicationState(7,3,mapOf(a.character to a,b.character to b),
+            messages=listOf(StoredMail(1,a,b,"개인","본문",1,"p")))
+        val file=directory.resolve("office")
+        FileCommunicationStore(file).use {it.save(personal)}
+        assertEquals(0x4c374d32,java.io.DataInputStream(Files.newInputStream(file)).use {it.readInt()})
+        val office=personal.copy(messages=personal.messages+StoredMail(2,b,a,"직무","본문",2,"o",recipientPost=25))
+        FileCommunicationStore(file).use {it.save(office)}
+        assertEquals(0x4c374d33,java.io.DataInputStream(Files.newInputStream(file)).use {it.readInt()})
+        assertEquals(office,FileCommunicationStore(file).use {it.load()})
+    }
 }

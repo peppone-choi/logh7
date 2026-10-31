@@ -80,8 +80,8 @@ class GameCommunicationTest {
             // Captured run-324: the original mailbox queries personal inbox,
             // personal outbox, then its card 195 address without user input.
             val native=java.util.HexFormat.of().parseHex("0f080000271000000000000000000000000000000000000000c30001")
-            val rejected=service.handle("first",a,7,native,5)
-            assertEquals(listOf(0x0500,0x0f09),rejected.map(::opcode))
+            val unheld=service.handle("first",a,7,native,5)
+            assertEquals(listOf(0x0f08,0x0f09),unheld.map(::opcode),"a card that is not held lists an empty office mailbox")
             val personal=service.handle("first",a,7,body(Wire.begin(Wire.Query(peer(a),false,true))),6)
             assertEquals(listOf(0x0f08,0x0f09),personal.map(::opcode))
         }
@@ -95,7 +95,7 @@ class GameCommunicationTest {
             assertFails {service.handle("first",a.copy(account="other"),7,query,0)}
             assertFails {service.handle("first",a,7,body(Wire.begin(Wire.Query(peer(b),false,true))),0)}
             val office=service.handle("first",a,7,body(Wire.begin(Wire.Query(peer(a).copy(extra=listOf(a.face,a.ageSeconds,195)),false,true))),0)
-            assertEquals(listOf(0x0500,0x0f09),office.map(::opcode))
+            assertEquals(listOf(0x0f08,0x0f09),office.map(::opcode),"no card 195, no office mail")
             hub.remove("first");service.disconnected("first")
             assertFails {service.handle("first",a,7,query,0)}
             hub.update(first.copy(connection="new"));generation=8
@@ -202,6 +202,29 @@ class GameCommunicationTest {
             assertEquals(1,store.state!!.messages.size);assertTrue(notifications.isEmpty())
             val next=body(Wire.item(draft.copy(reference=1234568),0x0f10))
             assertEquals(id+1,Wire.item(body(service.handle("new",a,7,next,5).first()),0x0f10).id)
+        }
+    }
+    @Test fun anOfficeMailboxBelongsToThePostAndPassesToTheNextHolder() {
+        val hub=GamePresence();val got=mutableListOf<List<ByteArray>>()
+        val officer=member(a,"first",got).copy(offices=listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(25,1049)))
+        val successorId=a.copy(account="gamma",character=10002,name="후임")
+        val successor=member(successorId,"third",got).copy(offices=listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(25,1049)))
+        hub.update(officer);hub.update(member(b,"second",got));hub.update(successor)
+        val ids=mapOf(a.character to a,b.character to b,successorId.character to successorId)
+        val office=peer(a).copy(extra=listOf(a.face,a.ageSeconds,25))
+        GameCommunication(hub,{7},{_,id->ids[id]},{false},{Store()}).use {service->
+            val sent=service.handle("first",a,7,body(Wire.item(Wire.Item(0,-1,false,office,peer(b),1,"보급 지시","내용"),0x0f10)),1,"o1")
+            assertEquals(25,Wire.item(body(sent.first()),0x0f10).sender.extra[2],"sent from the post")
+            service.handle("second",b,7,body(Wire.item(Wire.Item(0,-1,false,peer(b),office,2,"답장","확인"),0x0f10)),2,"o2")
+            fun list(owner:MailIdentity,connection:String,inbox:Boolean)=service.handle(connection,owner,7,
+                body(Wire.begin(Wire.Query(peer(owner).copy(extra=listOf(owner.face,owner.ageSeconds,25)),true,inbox))),3)
+                .filter {opcode(it)==0x0f0a}.map {Wire.item(body(it),0x0f0a).subject}
+            assertEquals(listOf("답장"),list(a,"first",true));assertEquals(listOf("보급 지시"),list(a,"first",false))
+            assertEquals(listOf("답장"),list(successorId,"third",true),"the next holder of card 25 inherits the mailbox")
+            assertTrue(service.handle("first",a,7,body(Wire.begin(Wire.Query(peer(a),true,true))),4).none {opcode(it)==0x0f0a},
+                "office mail stays out of the personal inbox")
+            hub.update(officer.copy(offices=emptyList()))
+            assertTrue(list(a,"first",true).isEmpty(),"a former holder no longer reads it")
         }
     }
 }

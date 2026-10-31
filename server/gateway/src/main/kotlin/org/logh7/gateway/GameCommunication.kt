@@ -16,8 +16,6 @@ class GameCommunication(private val presence:GamePresence,private val generation
     private data class Offer(val from:String,val to:String,val expires:Long)
     private val offers=mutableMapOf<Triple<Long,Int,Int>,Offer>()
     private val views=mutableMapOf<String,Boolean>()
-    /** Connections already told that office mailboxes are not connected. */
-    private val officeNotified=mutableSetOf<String>()
     private val executor=java.util.concurrent.Executors.newSingleThreadExecutor {task->
         Thread(task,"logh7-personal-mail").apply {isDaemon=true}
     }
@@ -37,7 +35,11 @@ class GameCommunication(private val presence:GamePresence,private val generation
         val current=if(p.face==-1 && expected!=null)directory(expected,p.character)?.takeIf {it.account==p.account} else null
         return (current?.let {p.copy(face=it.face,ageSeconds=it.ageSeconds)} ?: p).communicationPeer()
     }
-    private fun item(p:StoredMail)=Wire.Item(p.id,-1,p.read,peer(p.sender),peer(p.recipient),p.seconds,p.subject,p.body)
+    /** An office address is the holder's peer with the card number in native +120. */
+    private fun peer(p:MailIdentity,post:Int)=peer(p).let {if(post==0)it else it.copy(extra=listOf(it.extra[0],it.extra[1],post))}
+    private fun item(p:StoredMail)=Wire.Item(p.id,-1,p.read,peer(p.sender,p.senderPost),peer(p.recipient,p.recipientPost),p.seconds,p.subject,p.body)
+    private fun post(p:Wire.Peer)=p.extra[2].also {require(it in 0..260) {"Invalid office address"}}
+    private fun holds(member:GamePresence.Member,post:Int)=post==0 || member.offices.any {it.kind==post}
     private fun member(connection:String,owner:MailIdentity,expected:Long):GamePresence.Member {
         require(expected==generation() && directory(expected,owner.character)==owner)
         return checkNotNull(presence.communicationMember(connection)).also {
@@ -45,11 +47,11 @@ class GameCommunication(private val presence:GamePresence,private val generation
         }
     }
     private fun books(engine:Communication,owner:MailIdentity)=Wire.addresses(engine.addressBook(owner).map(::peer))
-    private fun inbox(engine:Communication,owner:MailIdentity,received:Boolean,all:Boolean=false):List<ByteArray> {
-        val query=Wire.Query(peer(owner),all,received)
+    private fun inbox(engine:Communication,owner:MailIdentity,received:Boolean,all:Boolean=false,post:Int=0):List<ByteArray> {
+        val query=Wire.Query(peer(owner,post),all,received)
         // The CD cache has 100 slots immediately before its next object. The
         // manual's 120 remain stored; deleting visible mail reveals older rows.
-        return listOf(Wire.begin(query))+engine.list(owner,received).take(100).map {Wire.item(item(it))}+Wire.end()
+        return listOf(Wire.begin(query))+engine.list(owner,received,post).take(100).map {Wire.item(item(it))}+Wire.end()
     }
     private fun publish(expected:Long,owner:MailIdentity,messages:List<ByteArray>,except:String) {
         presence.communicationSend(expected,owner.character,messages,except)
@@ -94,20 +96,17 @@ class GameCommunication(private val presence:GamePresence,private val generation
         }
         val actor=member(connection,owner,expected)
         val engine=engine(expected)
-        fun own(p:Wire.Peer) {require(p.id==owner.character && p.personal) {"Personal mail owner mismatch"}}
+        fun own(p:Wire.Peer) {require(p.id==owner.character && holds(actor,post(p))) {"Mail owner mismatch"}}
         return when(opcode) {
             0x0f08 -> {
                 val query=Wire.query(body)
                 require(query.owner.id==owner.character) {"Mail owner mismatch"}
-                // Opening the CD mailbox automatically queries every card
-                // address after the personal inbox/outbox. An unconnected
-                // office mailbox is a normal outcome, not lost authentication.
-                // Every opening queries each card address twice (inbox/outbox); say it once
-                // per connection, then only close the request.
-                if(!query.owner.personal) return if(officeNotified.add(connection))listOf(Wire.rejected(opcode,
-                    "직무 주소 편지함은 아직 연결되지 않았습니다. 개인 주소를 선택해 주세요."),Wire.end()) else listOf(Wire.end())
-                views[connection]=query.inbox
-                inbox(engine,owner,query.inbox,query.all)
+                // Opening the CD mailbox queries the personal inbox/outbox and then every held card
+                // address (+120 = card number). A card that is no longer held simply lists nothing.
+                val post=post(query.owner)
+                if(!holds(actor,post))return listOf(Wire.begin(query),Wire.end())
+                if(post==0)views[connection]=query.inbox
+                inbox(engine,owner,query.inbox,query.all,post)
             }
             0x0f0b -> {
                 val command=Wire.exchange(body)
@@ -143,36 +142,38 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 listOf(Wire.deleteAddress(Wire.Peer(target.id)),books(engine,owner))
             }
             0x0f10 -> {
-                val command=Wire.item(body);own(command.sender);require(command.recipient.personal)
+                val command=Wire.item(body);own(command.sender)
+                val senderPost=post(command.sender);val recipientPost=post(command.recipient)
                 val recipient=directory(expected,command.recipient.id)
                 // Compatibility DLL puts a random 63-bit nonce in the existing
                 // request ID/ref words. Legacy ID=0 requests keep per-call keys.
                 // Account + character + generation bind the untrusted nonce.
                 val key=if(command.id<=-2)"native:${owner.account}:${owner.character}:${command.id}:${command.reference}" else operation
                 val result=engine.send(owner,recipient,command.subject,command.text,seconds,key,
-                    recipient?.let {inTactics(it.account)} ?: false)
+                    recipient?.let {inTactics(it.account)} ?: false,senderPost,recipientPost)
                 result.rejection?.let {return rejection(opcode,it)}
                 val saved=checkNotNull(result.mail)
                 if(result.changed) {
                     // CD opening queries both folders, so the last query is
                     // not the visible tab. Delivery always changes the inbox.
-                    publish(expected,saved.recipient,inbox(engine,saved.recipient,true),connection)
+                    publish(expected,saved.recipient,inbox(engine,saved.recipient,true,post=saved.recipientPost),connection)
                 }
                 // Echo the nonce's low word only in the command ACK. Stored
                 // inbox/outbox rows keep the ordinary reference=-1 value.
-                listOf(Wire.item(item(saved).copy(reference=command.reference),0x0f10))+inbox(engine,owner,views[connection] ?: true)
+                listOf(Wire.item(item(saved).copy(reference=command.reference),0x0f10))+
+                    inbox(engine,owner,if(senderPost==0)views[connection] ?: true else false,post=senderPost)
             }
             0x0f11,0x0f12 -> {
-                val command=Wire.change(body,opcode);own(command.owner)
-                val result=engine.change(owner,command.id,command.inbox,opcode==0x0f12)
+                val command=Wire.change(body,opcode);own(command.owner);val post=post(command.owner)
+                val result=engine.change(owner,command.id,command.inbox,opcode==0x0f12,post)
                 result.rejection?.let {return rejection(opcode,it)}
-                listOf(Wire.change(command.copy(owner=peer(owner)),opcode))+inbox(engine,owner,command.inbox)
+                listOf(Wire.change(command.copy(owner=peer(owner,post)),opcode))+inbox(engine,owner,command.inbox,post=post)
             }
             else -> error("Unsupported communication opcode")
         }
     }
     @Synchronized fun disconnected(connection:String) {
-        views.remove(connection);officeNotified.remove(connection);offers.entries.removeIf {it.value.from==connection || it.value.to==connection}
+        views.remove(connection);offers.entries.removeIf {it.value.from==connection || it.value.to==connection}
         if(messenger?.first==generation())messenger?.second?.disconnected(connection) else messenger=null
     }
     override fun close() {

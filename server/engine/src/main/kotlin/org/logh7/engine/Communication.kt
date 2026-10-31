@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** 개인 주소만 지원한다. 직무 주소·망명·건의 편지는 별도 연결 대상. 작성: Peppone Choi. */
+/** 개인 주소와 직무(카드) 주소. 직무 편지함은 직책에 귀속한다(사용자 결정 2026-11-01). 망명·건의 편지는 별도 연결 대상. 작성: Peppone Choi. */
 data class MailIdentity(val account:String,val character:Int,val power:Int,val name:String,
     val origin:Int=0,val rank:Int=0,val title:String="",val face:Int=-1,val ageSeconds:Int=0) {
     init {
@@ -11,9 +11,11 @@ data class MailIdentity(val account:String,val character:Int,val power:Int,val n
     }
 }
 data class StoredMail(val id:Int,val sender:MailIdentity,val recipient:MailIdentity,val subject:String,val body:String,
-    val seconds:Long,val operation:String,val read:Boolean=false,val inboxDeleted:Boolean=false,val sentDeleted:Boolean=false) {
+    val seconds:Long,val operation:String,val read:Boolean=false,val inboxDeleted:Boolean=false,val sentDeleted:Boolean=false,
+    /** Office (card) addresses; 0 is the personal address. An office mailbox belongs to the post, not the holder. */
+    val senderPost:Int=0,val recipientPost:Int=0) {
     init {
-        require(id>0 && seconds in 0..0xffffffffL && operation.length in 1..160)
+        require(id>0 && seconds in 0..0xffffffffL && operation.length in 1..160 && senderPost in 0..260 && recipientPost in 0..260)
         require(validMailText(subject,127) && validMailText(body,511))
     }
 }
@@ -30,8 +32,8 @@ data class CommunicationState(val generation:Long,val nextId:Int=1,
         require(messages.map {it.id}.distinct().size==messages.size && messages.map {it.operation}.distinct().size==messages.size)
         require(messages.all {it.id<nextId && owners[it.sender.character]?.account==it.sender.account &&
             owners[it.recipient.character]?.account==it.recipient.account})
-        require(owners.keys.all {owner->messages.count {it.recipient.character==owner && !it.inboxDeleted}<=120 &&
-            messages.count {it.sender.character==owner && !it.sentDeleted}<=120})
+        require(owners.keys.all {owner->messages.count {it.recipientPost==0 && it.recipient.character==owner && !it.inboxDeleted}<=120 &&
+            messages.count {it.senderPost==0 && it.sender.character==owner && !it.sentDeleted}<=120})
     }
 }
 interface CommunicationStore:AutoCloseable {
@@ -71,13 +73,16 @@ class Communication(private val generation:Long,private val store:CommunicationS
         val addresses=state.addresses[owner.character].orEmpty()
         if(peer in addresses)commit(state.copy(addresses=state.addresses+(owner.character to (addresses-peer))))
     }
-    @Synchronized fun list(owner:MailIdentity,inbox:Boolean):List<StoredMail> {
+    /** [post] 0 lists the personal mailbox; a card number lists that post's mailbox (the caller checks the card). */
+    @Synchronized fun list(owner:MailIdentity,inbox:Boolean,post:Int=0):List<StoredMail> {
         require(active() && owned(owner))
-        return state.messages.filter {if(inbox)it.recipient.character==owner.character && !it.inboxDeleted
-            else it.sender.character==owner.character && !it.sentDeleted}.sortedByDescending {it.id}
+        return state.messages.filter {mailbox(it,owner,inbox,post)}.sortedByDescending {it.id}
     }
+    private fun mailbox(mail:StoredMail,owner:MailIdentity,inbox:Boolean,post:Int)=if(inbox)
+        !mail.inboxDeleted && mail.recipientPost==post && (if(post==0)mail.recipient.character==owner.character else mail.recipient.power==owner.power)
+        else !mail.sentDeleted && mail.senderPost==post && (if(post==0)mail.sender.character==owner.character else mail.sender.power==owner.power)
     @Synchronized fun send(sender:MailIdentity,recipient:MailIdentity?,subject:String,body:String,
-        seconds:Long,operation:String,recipientInTactics:Boolean=false):MailResult {
+        seconds:Long,operation:String,recipientInTactics:Boolean=false,senderPost:Int=0,recipientPost:Int=0):MailResult {
         fun reject(reason:MailRejection)=MailResult(rejection=reason)
         if(!active())return reject(MailRejection.STALE)
         if(!owned(sender))return reject(MailRejection.IDENTITY)
@@ -85,24 +90,29 @@ class Communication(private val generation:Long,private val store:CommunicationS
         if(!validMailText(subject,127) || !validMailText(body,511))return reject(MailRejection.TEXT)
         state.messages.singleOrNull {it.operation==operation}?.let {previous->
             return if(previous.sender.account==sender.account && previous.sender.character==sender.character &&
-                previous.recipient.character==recipient.character && previous.subject==subject && previous.body==body)
+                previous.recipient.character==recipient.character && previous.subject==subject && previous.body==body &&
+                previous.senderPost==senderPost && previous.recipientPost==recipientPost)
                 MailResult(previous) else reject(MailRejection.OPERATION_CONFLICT)
         }
         if(recipientInTactics)return reject(MailRejection.TACTICS)
-        if(state.messages.count {it.recipient.character==recipient.character && !it.inboxDeleted}>=120)return reject(MailRejection.INBOX_FULL)
-        if(state.messages.count {it.sender.character==sender.character && !it.sentDeleted}>=120)return reject(MailRejection.SENT_FULL)
+        if(state.messages.count {mailbox(it,recipient,true,recipientPost)}>=120)return reject(MailRejection.INBOX_FULL)
+        if(state.messages.count {mailbox(it,sender,false,senderPost)}>=120)return reject(MailRejection.SENT_FULL)
         if(state.messages.size>=100_000 || state.nextId==Int.MAX_VALUE || remember(sender,recipient).size>4096)
             return reject(MailRejection.CAPACITY)
-        val mail=StoredMail(state.nextId,sender,recipient,subject,body,seconds,operation)
+        val mail=StoredMail(state.nextId,sender,recipient,subject,body,seconds,operation,
+            senderPost=senderPost,recipientPost=recipientPost)
         commit(state.copy(nextId=mail.id+1,owners=remember(sender,recipient),messages=state.messages+mail))
         return MailResult(mail,changed=true)
     }
-    @Synchronized fun change(owner:MailIdentity,id:Int,inbox:Boolean,delete:Boolean):MailResult {
+    @Synchronized fun change(owner:MailIdentity,id:Int,inbox:Boolean,delete:Boolean,post:Int=0):MailResult {
         if(!active())return MailResult(rejection=MailRejection.STALE)
         if(!owned(owner))return MailResult(rejection=MailRejection.IDENTITY)
         val previous=state.messages.singleOrNull {it.id==id} ?: return MailResult(rejection=MailRejection.NOT_OWNER)
-        if((if(inbox)previous.recipient else previous.sender).let {it.character!=owner.character || it.account!=owner.account})
-            return MailResult(rejection=MailRejection.NOT_OWNER)
+        // A personal mailbox belongs to the character; an office mailbox to whoever holds that post now.
+        val side=if(inbox)previous.recipient else previous.sender
+        val held=(if(inbox)previous.recipientPost else previous.senderPost)==post &&
+            (if(post==0)side.character==owner.character && side.account==owner.account else side.power==owner.power)
+        if(!held)return MailResult(rejection=MailRejection.NOT_OWNER)
         val next=if(delete)if(inbox)previous.copy(inboxDeleted=true) else previous.copy(sentDeleted=true)
             else if(inbox && !previous.inboxDeleted)previous.copy(read=true) else previous
         if(next!=previous)commit(state.copy(messages=state.messages.map {if(it.id==id)next else it}))
