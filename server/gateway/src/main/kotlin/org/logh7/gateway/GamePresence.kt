@@ -192,7 +192,16 @@ class GamePresence {
             if(!event.cancelled && !event.stateOnly && event.order.command.opcode in setOf(0x408,0x421)) {
                 val proposed=snapshot.planetStocks!!.tacticalCommands.proposals[event.order.character]?.let {
                     it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
-                if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
+                val assigned=event.order.command.opcode==0x421 && current.characterId!=event.order.character &&
+                    snapshot.planetStocks!!.tacticalCommands.missions[current.characterId]?.let {
+                        it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
+                if(assigned) TacticalCommandWire.command(event.order)?.let {
+                    // CD 004ba2b0 applies a 0421 result only when its character is the receiver.
+                    // A supreme-commander mission (update04) is addressed to every recipient.
+                    val payload=it.payload.toMutableList()
+                    java.nio.ByteBuffer.allocate(4).putInt(current.characterId).array().forEachIndexed {i,b->payload[8+i]=b.toInt() and 255}
+                    packets+=org.logh7.protocol.TacticalCommandMessages.reply(it.copy(character=current.characterId,payload=payload),event.seconds,0)
+                } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
                     TacticalCommandWire.command(event.order)?.let {
                         packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
             }
