@@ -40,7 +40,8 @@ internal object PersonnelActions {
                 val entries=r.identities.filter {it.power==power && (stocks.strategic.people[it.id]?.rank ?: it.rank)==rank}.map {id->
                     val progress=stocks.strategic.people[id.id] ?: StrategicPerson()
                     LadderEntry(id.id.toString(),progress.merit,if(power==2)progress.peerage else null,
-                        progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong))
+                        progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
+                        progress.decorations.maxOrNull() ?: -1)
                 }
                 val top=LadderRules.topIds(r.power,entries)
                 if((r.target.toString() in top)!=(r.command==0))return reject(StrategyActionRejection.RANK)
