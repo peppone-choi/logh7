@@ -385,7 +385,7 @@ class TacticalCommandOperationsTest {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).player)
         settle(r,now+20)
         val current=TacticalBasePosition.at(galaxy.bases.single(),now+20,r.state.stocks)
-        assertEquals(TacticalPoint(7.5f,0f),current) // five-second wait, then fifteen seconds at .5
+        assertEquals(TacticalPoint(1.5f,0f),current) // five-second wait, then fifteen seconds at the server's .1
         val req=request(TacticalCommand(0x41e,base=1000)).copy(tacticalCommand=null,tacticalStop=TacticalStop(emptyList(),listOf(1000)))
         assertNotNull(TacticalSupportOperations.stop(req,session.copy(gameMillis=(now+20)*1000),galaxy,r.navigation,r.production,
             r.production.snapshot(1)!!,r.state.commit).player)

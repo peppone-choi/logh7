@@ -440,7 +440,9 @@ class GameExchange(
                     in org.logh7.protocol.TacticalCommandMessages.opcodes -> {
                         check(gameStarted && worldInitialized && navigation!=null && world!=null)
                         val character=checkNotNull(currentCharacter(identity.account))
-                        val command=org.logh7.protocol.TacticalCommandMessages.command(body)
+                        val command=org.logh7.protocol.TacticalCommandMessages.command(body).let {
+                            if(it.opcode==0x041f)org.logh7.protocol.TacticalCommandMessages.withFortressVelocity(it,
+                                org.logh7.engine.TacticalFortressMotion.VELOCITY) else it}
                         require(command.character==character.id.toInt() && command.points.all {it.z==0f})
                         pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,character.id.toInt(),
                             if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,

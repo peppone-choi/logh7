@@ -177,7 +177,7 @@ rpc.exports.fortressstate = function(id) {
     if(!unit.readU8() || unit.add(8).readU8()!==1)continue;
     ships.push({id:unit.add(4).readU32(),kind:unit.add(0x8bc).readU16(),
       normal:unit.add(0x8d4).readU32(),alive:unit.add(0x8d8).readU32(),supplies:unit.add(0x950).readU32(),
-      morale:unit.add(0x954).readU8(),mode:unit.add(0x974).readU8(),base:unit.add(0x978).readU32(),
+      morale:unit.add(0x954).readU8(),mode:unit.add(0x974).readU8(),base:unit.add(0x978).readU32(),ready:unit.add(0x8c5).readU8(),
       subtype:unit.add(9).readU8(),effectiveMode:modeOf(unit),effectiveBase:baseOf(unit),
       specName:world.add(0x2c1a78+unit.add(0x8bc).readU16()*0x2a8+12).readUtf16String(32).split('\0')[0],
       pose:[0x14,0x18,0x1c].map(i=>unit.add(i).readFloat())});
@@ -207,12 +207,16 @@ rpc.exports.fortressstate = function(id) {
   } catch(e) {supportList={...supportList,error:String(e)};}
   return {base:base.isNull()?null:{id:base.add(4).readU32(),type:base.add(8).readU8(),owner:base.add(0x8c8).readU32(),
     pose:[0x14,0x18,0x1c].map(i=>base.add(i).readFloat()),
-    kind:base.add(0x8bc).readU16(),charge:[base.add(0x5bc).readU32(),base.add(0x5c0).readU32()]},
+    kind:base.add(0x8bc).readU16(),charge:[base.add(0x5bc).readU32(),base.add(0x5c0).readU32()],
+    motion:{moving:base.add(0x60).readU8(),start:base.add(0x64).readU32(),points:base.add(0x10c).readFloat(),
+      speed:[0x418,0x41c,0x420].map(i=>base.add(i).readFloat())}},
     projection:{viewport:display.isNull()?null:[display.add(0x2a4c8).readU32(),display.add(0x2a4cc).readU32()],
       scale:[ptr(0x2229970).readFloat(),ptr(0x2229984).readFloat()],matrix:Array.from({length:16},(_,i)=>ptr(0x2229674+i*4).readFloat())},
     ships,supportList,input:fortressInputEvents.slice(),aimBase:ptr(0x2216674).readU32(),command:ptr(0x22166a9).readU8(),
     tab:ptr(0x77a8f8).readU32(),mode:ptr(0x2216694).readU32(),
-    fortCount:ptr(0x221666c).readU32(),fortId:ptr(0x2215528).readU32(),selected:ptr(0x2216664).readU32(),menu:tacticalMenuState()};
+    fortCount:ptr(0x221666c).readU32(),fortId:ptr(0x2215528).readU32(),selected:ptr(0x2216664).readU32(),
+    uiState:(()=>{const c=ptr(0x2215e2c).readPointer();return c.isNull()?null:c.add(4).readU32();})(),
+    path:[ptr(0x22166a0).readU32(),ptr(0x221669c).readU32()],menu:tacticalMenuState()};
 };
 // Opt-in, bounded observation of the owned renderer. No return value, resource,
 // shader, declaration or draw argument is replaced by this diagnostic.

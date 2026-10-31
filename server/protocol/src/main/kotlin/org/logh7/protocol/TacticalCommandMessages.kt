@@ -62,6 +62,13 @@ object TacticalCommandMessages {
         require(units.isNotEmpty() || base>0)
         return Command(op,character,units,base,kind,targetKind,target,velocity,direction,points,message.drop(2).map {it.toInt() and 255})
     }
+    /** CD 004b3b20 leaves the 041f velocity word unset; the server replaces it with its own speed. */
+    fun withFortressVelocity(command:Command,velocity:Float):Command {
+        require(command.opcode==0x041f && velocity.isFinite() && velocity in 0f..1f)
+        val payload=command.payload.toMutableList()
+        java.nio.ByteBuffer.allocate(4).putFloat(velocity).array().forEachIndexed {i,b->payload[16+i]=b.toInt() and 255}
+        return command.copy(velocity=velocity,payload=payload)
+    }
     /** Preserve native opaque fields, replacing only the two server scheduling words. */
     fun reply(command:Command,seconds:Long,wait:Long,accepted:Boolean=true):ByteArray {
         require(seconds in 0..0xffffffffL && wait in 0..0xffffffffL-seconds)

@@ -187,7 +187,7 @@ internal object TacticalCommandOperations {
                     if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>maxOf(1f,base.diameter))return NavigationRejection.RANGE
                 }
             }
-            0x41f -> if(base?.kind!=1 || base.mobile!=true || c.points.isEmpty() || c.velocity<=0f)return NavigationRejection.BASE
+            0x41f -> if(base?.kind!=1 || base.mobile!=true || c.points.isEmpty())return NavigationRejection.BASE
             0x408,0x421 -> {
                 if(c.kind !in 0..5)return NavigationRejection.TARGET
                 val chief=supreme(p,players,s)
@@ -387,7 +387,7 @@ internal object TacticalCommandOperations {
                     // Otherwise a restart/time jump postpones the same saved fortress order.
                     val base=g.bases.single {it.id==c.base};val at=basePoint(base,o.readyAt,stocks)
                     stocks=rebaseBerths(c.base,o.readyAt,players,stocks,g)
-                    val m=TacticalMotion(p.grid,o.readyAt,TacticalPose(at,0f),c.velocity,0f,c.points,waitSeconds=0)
+                    val m=TacticalMotion(p.grid,o.readyAt,TacticalPose(at,0f),TacticalFortressMotion.VELOCITY,0f,c.points,waitSeconds=0)
                     stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(fortresses=stocks.tacticalCommands.fortresses+
                         (c.base to TacticalFortressMotion(p.grid,m))))
                 }

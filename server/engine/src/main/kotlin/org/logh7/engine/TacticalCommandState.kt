@@ -24,6 +24,11 @@ data class TacticalAirWing(val character:Int,val grid:Int,val source:Int,val tar
 }
 data class TacticalFortressMotion(val grid:Int,val motion:TacticalMotion,val reportedAt:Long=motion.acceptedAt) {
     init {require(grid==motion.grid && reportedAt in motion.acceptedAt..0xffffffffL)}
+    companion object {
+        /** The CD 004b3b20 041f record never writes its velocity word, so the speed is server-owned.
+         * Mobile fortresses use the slowest ship speed (the 0.1 lower bound of ship speeds), evidence:guess. */
+        const val VELOCITY=.1f
+    }
 }
 data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyList(),
     val morale:Map<Int,Int> = emptyMap(),val authority:Map<Int,Int> = emptyMap(),val formations:Map<Int,Int> = emptyMap(),
