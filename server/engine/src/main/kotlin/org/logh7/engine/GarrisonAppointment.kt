@@ -40,6 +40,8 @@ internal object GarrisonAppointment {
         if(current.any {it.character==r.target})return GarrisonAppointmentResult(player,stocks)
         if(current.size>=role.seats)return reject(AppointmentRejection.OCCUPIED)
         if(policy.cardCount(stocks,r.target)>=14)return reject(AppointmentRejection.CAPACITY)
+        // Native resignation 0709 names only the card kind, so one person never holds the same kind twice.
+        if(policy.held(stocks,r.target).any {it.card==r.targetCard})return reject(AppointmentRejection.TARGET)
         if(role.scope==OfficeScope.OUTFIT && r.target in stocks.outfits.getValue(seat).members())
             return reject(AppointmentRejection.TARGET)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),COST.toLong(),CpPool.MCP)
