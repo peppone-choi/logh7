@@ -2,7 +2,9 @@
 #pragma once
 #include "tactical_notice_data.h"
 static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08, 0x50f6b3, 0x50f426,
-    0x50ffa5, 0x50ffe3, 0x510363, 0x5104b2};
+    0x50ffa5, 0x50ffe3, 0x510363, 0x5104b2,
+    // update04 mission prompts (state 0x1a): group 118 indices 14..19 are absent from the CD.
+    0x50f096, 0x50f0b0, 0x50f0e2, 0x50f111, 0x50f128, 0x50f157};
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);
