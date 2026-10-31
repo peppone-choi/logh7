@@ -217,8 +217,12 @@ internal object TacticalCommandOperations {
         var p=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
-        val c=checkNotNull(r.tacticalCommand);val now=session.gameMillis/1000
+        val now=session.gameMillis/1000
         val players=(n.snapshot(session.generation)+(r.account to p)).toMutableMap()
+        // The CD has no air sub-menu (0x3f..0x41), so its air button always sends kind 0 (intercept).
+        // Intercept of a hostile unit is read as the anti-ship attack (constmsg group 0 air help, evidence:guess).
+        val c=checkNotNull(r.tacticalCommand).let {q->if(q.opcode==0x40e && q.kind==0 && q.target!=0 &&
+            TacticalCombat.target(q.target,p.grid,p.power,s,g,players)!=null)q.copy(kind=1) else q}
         if(c.base==0 && r.captainCard!=if(p.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
         if(c.base==0 && p.hull?.kind!=r.shipKind)return reject(NavigationRejection.UNIT)
         var next=s.copy(tacticalCommands=s.tacticalCommands.copy(ranks=s.tacticalCommands.ranks+r.tacticalRanks+(p.characterId to r.rank)))

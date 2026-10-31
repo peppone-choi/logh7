@@ -137,6 +137,13 @@ class TacticalCommandOperationsTest {
         assertNotEquals(TacticalPoint(0f,.8f),r.state.stocks.outfits.getValue(1).activeShips!!.values[1].tactical!!.motion.waypoints.single())
         settle(restored,now+20,events);assertEquals(1,events.size)
     }
+    @Test fun cdAirButtonInterceptAtAHostileUnitBecomesTheAntiShipLaunch() {
+        // CD air button sends kind 0 only; a hostile target means the anti-ship attack.
+        val s=state();val r=run(s);assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=0,target=99)).player)
+        assertEquals(1,s.stocks.tacticalCommands.orders.single().command.kind)
+        val hits=mutableListOf<TacticalImpact>();settle(r,now+5,impacts=hits)
+        assertEquals(90,s.stocks.outfits.getValue(1).supplies);assertTrue(hits.single().airBattle)
+    }
     @Test fun carrierLaunchSpendsExactlyTenAndLandingRestoresTargetSpeed() {
         val s=state();val foe=s.stocks.outfits.getValue(2)
         val moving=foe.activeShips!!.values.single().let {it.copy(tactical=it.tactical!!.copy(motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))}
