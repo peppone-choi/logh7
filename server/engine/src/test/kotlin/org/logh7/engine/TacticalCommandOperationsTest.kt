@@ -280,6 +280,13 @@ class TacticalCommandOperationsTest {
         val restored=run(r.state);settle(restored,now+5+TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS)
         assertEquals(1L,r.state.stocks.strategic.people.getValue(10001).merit)
     }
+    @Test fun supremeMissionWithOnlyTheChiefsOwnFlagshipReachesEveryOwnSideParticipant() {
+        // The CD selection only holds units the chief commands (pick flag 0x400).
+        val r=run();val order=TacticalCommand(0x421,listOf(1010000),kind=5)
+        assertNotNull(accept(r,order).player);settle(r,now+5)
+        assertEquals(5,r.state.stocks.tacticalCommands.missions[10000]?.mission)
+        assertEquals(5,r.state.stocks.tacticalCommands.missions[10001]?.mission)
+    }
     @Test fun missionInterceptionCreditsTheActualCommanderEvenWhenItsLastEnemyDies() {
         val s=state();val enemy=s.stocks.outfits.getValue(2);val target=enemy.activeShips!!.values.single()
         val maximum=UnitSpecifications.ships.single {it.kind==target.stack.kind}.number

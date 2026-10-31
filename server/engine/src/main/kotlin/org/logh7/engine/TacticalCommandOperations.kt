@@ -392,7 +392,15 @@ internal object TacticalCommandOperations {
                     if(!supreme(p,players,stocks)) stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(
                         proposals=stocks.tacticalCommands.proposals+(p.characterId to mission)))
                     else {
-                        val assignments=c.units.map {id->players.values.single {it.unitId==id}.characterId}.associateWith {mission.copy(character=it)}
+                        // update04: a supreme-commander mission reaches every own-side participant of this grid.
+                        // The CD only lets the chief select units he commands, so the selection alone never names them.
+                        // Offline people receive it only with tactical AI ON, matching the selection check above.
+                        val recipients=players.entries.filter {(account,q)->q.grid==p.grid && q.power==p.power &&
+                            (q.cpPaused || q.characterId==p.characterId) &&
+                            (session.participants[account]?.online!=false || stocks.tacticalCommands.tacticalAi(q.characterId))}
+                            .map {it.value.characterId}
+                        val assignments=(recipients+c.units.map {id->players.values.single {it.unitId==id}.characterId})
+                            .distinct().associateWith {mission.copy(character=it)}
                         stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(missions=stocks.tacticalCommands.missions+assignments))
                     }
                 }
