@@ -1415,6 +1415,12 @@ class GameExchange(
                                             (if(civicOutfit!=null)
                                                 listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(civicOutfit.id,0,0),
                                                     character.power,checkNotNull(result.stocks),character.id.toInt(),::currentCharacterById)) else emptyList()) else emptyList())+
+                                        // U-13: guard purchase/disband changes this grid's outfits; refresh like outfit formation.
+                                        (if(query.command==96 && query.argument>=4 && result.changed)result.stocks?.let {inventory ->
+                                            inventory.outfits.values.filter {it.power==character.power && it.positionIn(world.galaxy).grid==player.grid}
+                                                .map {it.id}.sorted().chunked(100).map {world.outfits(it,inventory)}+
+                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory))+
+                                            presence?.outfitListRefresh(connection).orEmpty()}.orEmpty() else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }
                                 return null
