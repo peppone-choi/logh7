@@ -483,6 +483,34 @@ static bool openStationedOutfit(void* manager,unsigned id,unsigned kind,unsigned
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(manager,outfitInformation.root);
     return true;
 }
+// Info-menu ship/squadron/ground categories (design-ship-squadron-info.md, first step): the player's own
+// outfit (character +0x324, else its outfit office card) in the reconstructed outfit window, whose tabs carry
+// the ship and ground rosters. Kind/number come from the grid's outfit list cache.
+static bool openOwnOutfit(void* manager) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto own=world ? at<BYTE*>(world,8) : nullptr;
+    unsigned id=own ? at<unsigned>(own,0x324) : 0;
+    // +0x324 is filled only in tactical/fleet contexts (0 at a strategic dock). Fall back to the first
+    // held outfit-scope office card (same ranges as appointments), whose target is the outfit ID.
+    for (unsigned i=0;own && !id && i<own[0x270] && i<16;++i) {
+        unsigned card=logh::infoShort(own,0x274+i*8);
+        if ((card>=39 && card<=50) || (card>=103 && card<=114) || (card>=175 && card<=186) || (card>=237 && card<=248))
+            id=logh::infoWord(own,0x278+i*8);
+    }
+    if (!id) return false;
+    for (unsigned row=1;row<=100;++row) {
+        auto definition=logh::outfitListRow(world+0x811fc,row);
+        if (!definition || logh::infoWord(definition,0)!=id) continue;
+        // With the current base (+0x358) the stationed path also drives the tab controller.
+        unsigned base=at<unsigned>(own,0x358);
+        if (base && base<=65535) return openStationedOutfit(manager,id,definition[4],definition[5],definition[7],base);
+        buildOutfitInformation(manager,4);
+        if (!selectOutfitIdentity(id,definition[4],definition[5],definition[7])) return false;
+        reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(outfitInformation.root,12);
+        reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(manager,outfitInformation.root);
+        return true;
+    }
+    return false;
+}
 static bool stationedOutfitVisible(void* manager) {
     auto& state=outfitInformation;
     return state.expectedBase && state.manager==manager && state.root && at<void*>(manager,4+13*4)==state.root && at<BYTE>(state.root,4);
