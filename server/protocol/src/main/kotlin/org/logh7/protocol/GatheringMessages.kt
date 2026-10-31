@@ -16,7 +16,7 @@ object GatheringMessages {
         require(matches(body) && body.size==31);val b=ByteBuffer.wrap(body)
         val character=b.getInt(2);val command=b.getShort(8).toInt();val value=b.getShort(12).toInt()
         val phase=b.get(18).toInt() and 255;val ticket=b.getInt(14);val target=b.getInt(25)
-        require(character>0 && command in setOf(12,13) && b.getShort(10).toInt()==0 && value in 0..2 &&
+        require(character>0 && command in 10..13 && b.getShort(10).toInt()==0 && value in 0..2 &&
             phase in 0..1 && (if(phase==0)ticket==0 else ticket>0) && b.getInt(19)==0 && b.getShort(23).toInt()==0 &&
             target>0 && target!=character && (b.getShort(29).toInt() and 65535)>0)
         return Query(character,command,phase,ticket,value,target,body.copyOfRange(2,31))
@@ -41,7 +41,7 @@ object GatheringMessages {
     }
     /** Pushed to an invited guest: flag 13, command, host id and the remaining seconds. */
     fun invited(guest:Int,command:Int,host:Int,wait:Long):ByteArray {
-        require(guest>0 && host>0 && command in setOf(12,13) && wait in 0..0xffffffffL)
+        require(guest>0 && host>0 && command in 10..13 && wait in 0..0xffffffffL)
         val b=ByteBuffer.allocate(29);b.putInt(guest);b.putShort(SEARCH.toShort());b.putShort(command.toShort())
         b.putShort(0);b.putShort(0);b.putInt(0);b.put(13);b.putInt(wait.toInt());b.putShort(0);b.putInt(host);b.putShort(1)
         return LoginMessages.sessionMessage(0x1200,b.array())

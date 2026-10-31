@@ -13,7 +13,7 @@ static bool personnelStrategy(unsigned command) {return command<=4 || command==8
 static bool armyStrategy(unsigned command) {return command==46 || command==47 || command==48 || command==49 || command==50 || command==51 || command==52 || command==53 || command==54 || command==56;}
 static bool outfitStrategy(unsigned command,unsigned card) {return armyStrategy(command) || (command==61 && card!=59 && card!=195);}
 static bool strategyActionCommand(unsigned command) {
-    return personnelStrategy(command) || operationStrategy(command) || command==14 || command==16 || command==18 || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96 || command==27 || command==87 || command==93 || command==94 || command==12 || command==13;
+    return personnelStrategy(command) || operationStrategy(command) || command==14 || command==16 || command==18 || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96 || command==27 || command==87 || command==93 || command==94 || command==10 || command==11 || command==12 || command==13;
 }
 static const wchar_t* strategyActionName(unsigned command) {
     switch(command) {
@@ -24,7 +24,7 @@ static const wchar_t* strategyActionName(unsigned command) {
     case 46:return L"군기 유지";case 51:return L"공전 전술 훈련";case 47:return L"항주 훈련";case 48:return L"육전 훈련";case 49:return L"공전 훈련";case 50:return L"육전 전술 훈련";
     case 53:return L"무력 진압";case 84:return L"퇴역";case 85:return L"지원";
     case 52:return L"경계 출동";case 54:return L"분열행진";case 55:return L"특별경비";case 56:return L"징발";
-    case 87:return L"회견";case 12:return L"회담";case 13:return L"담화";case 27:return L"강의";case 93:return L"수강";case 94:return L"병기 연습";
+    case 87:return L"회견";case 10:return L"야회";case 11:return L"수렵";case 12:return L"회담";case 13:return L"담화";case 27:return L"강의";case 93:return L"수강";case 94:return L"병기 연습";
     case 61:return L"완전수리";case 96:return L"기함 구매 · 교환";
     default:return L"전략 명령";
     }

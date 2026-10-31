@@ -56,7 +56,8 @@ object Places {
         in 22..104 -> SpotAccess.PRIVATE
         else -> SpotAccess.PUBLIC
     }
-    fun forBase(base: GalaxyBase, power: Int = 0): List<PlanetFacility> {
+    /** [estate]: the base is someone's fief, so it holds a mansion (18) for 狩猟 (U-18, design-social-gatherings.md). */
+    fun forBase(base: GalaxyBase, power: Int = 0, estate: Boolean = false): List<PlanetFacility> {
         val capitalEmpire = base.grid == 2487 && base.name == "オーディン"
         val capitalAlliance = base.grid == 2015 && base.name == "ハイネセン"
         val kinds = when {
@@ -67,10 +68,11 @@ object Places {
         }
         val additions = when {
             capitalEmpire -> listOf(18, 20, 22, 23, 29, 30, 31, 32, 35, 37, 38)
-            capitalAlliance -> listOf(20, 23, 24, 29, 33, 34, 36)
+            // The alliance capital mansion hosts 夜会 (design-social-gatherings.md §2.1, evidence:guess).
+            capitalAlliance -> listOf(18, 20, 23, 24, 29, 33, 34, 36)
             else -> emptyList()
         }
-        return (kinds + additions).distinct().map { kind ->
+        return (kinds + additions + if (estate) listOf(18) else emptyList()).distinct().map { kind ->
             val facilityId = Math.addExact(Math.multiplyExact(base.id, 100), kind + 1)
             val offices = when {
                 kind == 0 && power == 2 -> listOf(63)

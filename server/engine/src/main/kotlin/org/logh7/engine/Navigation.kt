@@ -528,6 +528,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                             6 -> move.owner == 0 && request.unitId == before.unitId &&
                                 friendly
                             13 -> move.owner == before.characterId
+                            // Own mansion rooms (U-18): the ballroom in a capital, the forest on one's own fief.
+                            14 -> move.owner == before.characterId && Capital.of(galaxy.bases.single { it.id == before.baseId })?.power == ownPower
+                            15 -> move.owner == before.characterId && stocks?.strategic?.fiefs?.get(before.baseId) == before.characterId
                             else -> false
                         }
                     }

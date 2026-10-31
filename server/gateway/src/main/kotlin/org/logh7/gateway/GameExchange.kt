@@ -1369,7 +1369,7 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
-                                        if(query.command==12 || query.command==13) {
+                                        if(query.command in 10..13) {
                                             // 会談/談話 directory: same-side people stationed at the requester's base (online or not).
                                             val players=navigation?.snapshot()?.navigators.orEmpty()
                                             val me=checkNotNull(players[identity.account])

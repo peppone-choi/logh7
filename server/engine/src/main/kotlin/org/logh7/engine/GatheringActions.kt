@@ -28,9 +28,16 @@ data class GatheringView(val ticket:Int,val target:Int,val friendship:Int,val ho
  * the invitation from host [identity.target]. Author: Peppone Choi.
  */
 object GatheringActions {
+    const val PARTY=10
+    const val HUNT=11
     const val TALK=12
     const val DISCUSSION=13
-    val commands=setOf(TALK,DISCUSSION)
+    val commands=setOf(PARTY,HUNT,TALK,DISCUSSION)
+    /** 狩猟/談話 change the host-guest friendship; 夜会 multiplies influence by 1.5 (rounded up). */
+    fun friendly(command:Int)=command==HUNT || command==DISCUSSION
+    const val MANSION=18
+    const val BALLROOM=14
+    const val FOREST=15
     const val COST=320L
     /** Sixty real seconds at the default 24x clock. */
     const val INVITE_SECONDS=1440L
@@ -73,8 +80,20 @@ object GatheringActions {
         val hostEntry=navigators.entries.singleOrNull {it.value.generation==i.generation && it.value.characterId==hostId}
         val guest=navigators.values.singleOrNull {it.generation==i.generation && it.characterId==guestId}
         val host=hostEntry?.value
-        fun hostInRoom(h:Navigator)=h.mode in 1..4 && h.spotOwner==h.characterId &&
-            room(h.baseId,h.spotId)==(HOTEL to HOTEL_ROOM)
+        // 会談/談話: own hotel room. 狩猟: own fief mansion forest. 夜会: own capital mansion ballroom,
+        // for empire nobles and for alliance politicians or commodores and above (evidence:guess).
+        fun hostInRoom(h:Navigator):Boolean {
+            if(h.mode !in 1..4 || h.spotOwner!=h.characterId)return false
+            val place=room(h.baseId,h.spotId)
+            val person=s.strategic.people[h.characterId]
+            return when(i.command) {
+                PARTY -> place==(MANSION to BALLROOM) && Capital.entries.any {c->c.power==(if(h.power==Power.EMPIRE)2 else 3) &&
+                    s.bases[h.baseId]!=null && h.grid==c.grid} &&
+                    (if(h.power==Power.EMPIRE)person?.peerage!=null else (person?.rank ?: i.rank).let {it==1 || it in 2..7})
+                HUNT -> place==(MANSION to FOREST) && s.strategic.fiefs[h.baseId]==h.characterId
+                else -> place==(HOTEL to HOTEL_ROOM)
+            }
+        }
         when(i.value) {
             0 -> {
                 if(!hostInRoom(p))return reject(SocialRejection.LOCATION,view)
@@ -106,16 +125,17 @@ object GatheringActions {
         val guestPerson=people[guestId] ?: StrategicPerson()
         val politics=hostPerson.abilities?.get(1) ?: 50
         val grade=grade(score(politics,hostId,now/SocialActions.DAY))
-        val hostGain=hostInfluence(grade);val guestGain=if(grade==GatheringGrade.FAILURE)0 else 1
+        val hostGain=hostInfluence(grade).let {if(i.command==PARTY)(if(it>0)(it*3+1)/2 else -((-it*3+1)/2)) else it}
+        val guestGain=if(grade==GatheringGrade.FAILURE)0 else 1
         val key=MeetingActions.pair(hostId,guestId)
         val pairReady=(g.pairNextAt[key] ?: 0)<=now
-        val friendGain=if(i.command==DISCUSSION && pairReady)friendshipDelta(grade) else 0
+        val friendGain=if(friendly(i.command) && pairReady)friendshipDelta(grade) else 0
         if(hostId !in people && people.size>=4096 || guestId !in people && people.size>=4095)return reject(SocialRejection.MAXIMUM,view)
         val hostAfter=(hostPerson.influence+hostGain).coerceIn(0,100)
         val guestAfter=(guestPerson.influence+guestGain).coerceIn(0,100)
         val friendAfter=(friendship+friendGain).coerceIn(0,100)
         val meeting=if(friendGain==0)s.social.meeting else s.social.meeting.copy(friendship=s.social.meeting.friendship+(key to friendAfter))
-        val pairs=if(i.command==DISCUSSION && pairReady)g.pairNextAt.filterValues {it>now}+(key to now+SocialActions.DAY) else g.pairNextAt
+        val pairs=if(friendly(i.command) && pairReady)g.pairNextAt.filterValues {it>now}+(key to now+SocialActions.DAY) else g.pairNextAt
         val gatherings=GatheringState(live-hostId,g.hostNextAt.filterValues {it>now}+(hostId to now+SocialActions.DAY),pairs)
         val next=s.copy(strategic=s.strategic.copy(people=people+(hostId to hostPerson.copy(influence=hostAfter))+
             (guestId to guestPerson.copy(influence=guestAfter))),
