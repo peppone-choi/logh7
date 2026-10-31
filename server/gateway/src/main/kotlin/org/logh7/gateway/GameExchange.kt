@@ -1153,6 +1153,12 @@ class GameExchange(
                         if (message.text.isBlank()) return null
                         presence.spotChat(connection, message, gameSeconds())
                     }
+                    0x0f13,0x0f14 -> {
+                        // Proposal/order mail (design-proposals-orders.md); recorded until the flow is connected.
+                        check(gameStarted && worldInitialized)
+                        System.err.println("proposal-mail ${identity.account} %04x ${body.joinToString("") {"%02x".format(it)}}".format(opcode))
+                        return null
+                    }
                     0x0f04,0x0f06,0x0f0b,0x0f0c,0x0f0d,0x0f0e,0x0f0f,0x0f10,0x0f11,0x0f12 -> {
                         if(opcode==0x0f06 && !worldInitialized) {
                             check(gameStarted)
@@ -1559,6 +1565,30 @@ class GameExchange(
                                 val dismissals=org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
                                     .available(inventory,character.id.toInt(),character.power,character.rank)
                                 when(query.search) {
+                                    // 命令/提案 targets (CD p.28): same side; same spot inside a facility, else the same grid.
+                                    // One group per own office card; targets hold a card of the same institution. A higher
+                                    // rank receives a proposal (1), others an order (0); the emperor orders everyone (evidence:guess).
+                                    29 -> {
+                                        val players=navigation?.snapshot()?.navigators.orEmpty()
+                                        val me=checkNotNull(players[identity.account])
+                                        val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                            it.power==me.power && !it.cpPaused && it.grid==me.grid &&
+                                            (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
+                                            .map {it.characterId}.toSet()
+                                        fun cards(id:Int,power:Int)=administration!!.offices(id,power,checkNotNull(generation)).map {it.kind}
+                                        fun institution(card:Int)=org.logh7.engine.OrganizationOffices.of(card)?.institution
+                                        val people=characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                            .sortedBy {it.id}.map {it to cards(it.id.toInt(),it.power)}
+                                        val own=cards(character.id.toInt(),character.power).filter {institution(it)!=null}.distinct()
+                                        org.logh7.protocol.AppointmentDirectoryMessages.orderSuggest(query,own.take(10).map {card ->
+                                            val group=institution(card)
+                                            org.logh7.protocol.AppointmentDirectoryMessages.OrderSuggest(card,people.filter {(_,held)->
+                                                card==1 || held.any {institution(it)==group}}.take(10).map {(target,held)->
+                                                val proposal=card!=1 && target.rank in 1..20 && character.rank in 1..20 && target.rank<character.rank
+                                                (if(proposal)1 else 0) to org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
+                                                    listOf(0,if(target.power==2)59 else 195)+held)})
+                                        }.filter {it.targets.isNotEmpty()})
+                                    }
                                     18 -> {
                                         val vacancies=available.mapValues { (card,seats)->
                                             val definition=checkNotNull(org.logh7.engine.OrganizationOffices.of(card))

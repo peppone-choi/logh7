@@ -13,6 +13,8 @@ object AppointmentDirectoryMessages {
         val base=b.getInt(25)
         require(character>0 && when(search) {
             18 -> flags==123 && message.drop(10).all { it==0.toByte() }
+            // 命令/提案 tab target directory (CD p.28; first seen 2026-11-01 with flags 0x0984).
+            29 -> role==0 && message.drop(12).all { it==0.toByte() }
             28 -> OfficeCardKinds.isOffice(role) && !OfficeCardKinds.isOutfit(role)
             27 -> flags==80 && OfficeCardKinds.isOutfit(role)
             4,5 -> flags==80 && OfficeCardKinds.isOffice(role)
@@ -56,25 +58,39 @@ object AppointmentDirectoryMessages {
         }
         return transaction(query,0x120c,bytes.toByteArray())
     }
+    private fun java.io.DataOutputStream.person(value:Person) {
+        val person=value.character
+        require(value.cards.size<=16 && value.cards.all { it in 0..260 })
+        writeInt(person.id.toInt());name(person.surname)
+        // 0055ba80 stores the first u16 at record+0x20; 0057a1f0 reads it as rank.
+        writeShort(person.rank);writeShort(0)
+        writeByte(value.cards.size);value.cards.forEach(::writeShort)
+        writeByte(0);writeByte(0) // Detailed unit/base locations are omitted from this personnel directory.
+        val age=person.age.toLong()*CharacterMessages.AGE_SECONDS_PER_YEAR
+        require(age in 0..0xffffffffL)
+        writeInt(person.face);writeInt(age.toInt())
+    }
     fun people(query:Query,values:List<Person>):List<ByteArray> {
         require(values.size<=200)
+        val bytes=java.io.ByteArrayOutputStream()
+        java.io.DataOutputStream(bytes).use { out -> out.writeByte(values.size);values.forEach {out.person(it)} }
+        return transaction(query,0x1202,bytes.toByteArray())
+    }
+    /** One 命令/提案 tab group: own card, then targets with type 0 order / 1 proposal (evidence:client, 00563c20). */
+    data class OrderSuggest(val card:Int,val targets:List<Pair<Int,Person>>)
+    /** 0x120e NotifySimpleInformationOrderSuggestCharacter: at most ten cards of ten people each. */
+    fun orderSuggest(query:Query,values:List<OrderSuggest>):List<ByteArray> {
+        require(query.search==29 && values.size<=10 && values.all {it.targets.size<=10 && it.card in 0..260 &&
+            it.targets.all {(type,_)->type in 0..1}})
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use { out ->
             out.writeByte(values.size)
             for(value in values) {
-                val person=value.character
-                require(value.cards.size<=16 && value.cards.all { it in 0..260 })
-                out.writeInt(person.id.toInt());out.name(person.surname)
-                // 0055ba80 stores the first u16 at record+0x20; 0057a1f0 reads it as rank.
-                out.writeShort(person.rank);out.writeShort(0)
-                out.writeByte(value.cards.size);value.cards.forEach(out::writeShort)
-                out.writeByte(0);out.writeByte(0) // Detailed unit/base locations are omitted from this personnel directory.
-                val age=person.age.toLong()*CharacterMessages.AGE_SECONDS_PER_YEAR
-                require(age in 0..0xffffffffL)
-                out.writeInt(person.face);out.writeInt(age.toInt())
+                out.writeShort(value.card);out.writeByte(value.targets.size)
+                for((type,person) in value.targets) {out.writeByte(type);out.person(person)}
             }
         }
-        return transaction(query,0x1202,bytes.toByteArray())
+        return transaction(query,0x120e,bytes.toByteArray())
     }
     fun cards(query:Query,remaining:Int):List<ByteArray> {
         require(remaining in 0..255)
