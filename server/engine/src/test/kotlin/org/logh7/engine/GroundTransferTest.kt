@@ -8,8 +8,8 @@ class GroundTransferTest {
     private val pilot=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4)
     private fun request(action:GroundTransferAction=GroundTransferAction.LOAD)=GroundTransferRequest("pilot","c",10000,Power.EMPIRE,1,1,action)
     private fun stocks(troops:List<ActiveGroundUnit> = listOf(ActiveGroundUnit(2,UnitStack(0,2),base=1049),
-        ActiveGroundUnit(3,UnitStack(1)),ActiveGroundUnit(4,UnitStack(0),base=1050))) :PlanetStocks {
-        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32))))
+        ActiveGroundUnit(3,UnitStack(1)),ActiveGroundUnit(4,UnitStack(0),base=1050)),shipKind:Int=32) :PlanetStocks {
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(shipKind))))
         return PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300),1050 to PlanetStock(1050,2,0,0,0,0)),
             mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1049,101,10000,UnitInventory(ships.quantities(),ActiveGroundUnits(troops).quantities()),
                 activeShips=ships,activeGround=ActiveGroundUnits(troops))),
@@ -32,11 +32,15 @@ class GroundTransferTest {
         assertFalse(GroundTransfer.evaluate(request(GroundTransferAction.UNLOAD),session,unloaded.player,unloaded.stocks!!).changed)
     }
     @Test fun slotOverflowIsAtomicAndExactCapacityIsAllowed() {
-        val eleven=stocks((2..12).map {ActiveGroundUnit(it,UnitStack(0),base=1049)})
+        // 揚陸艦Ⅰ (84) carries the full ten; a battleship (32) only two.
+        val eleven=stocks((2..12).map {ActiveGroundUnit(it,UnitStack(0),base=1049)},84)
         val refused=GroundTransfer.evaluate(request(),session,pilot,eleven)
         assertEquals(LogisticsRejection.STOCK,refused.rejection);assertEquals(eleven,refused.stocks);assertEquals(pilot,refused.player)
-        val ten=GroundTransfer.evaluate(request(),session,pilot,stocks((2..11).map {ActiveGroundUnit(it,UnitStack(0),base=1049)}))
+        val ten=GroundTransfer.evaluate(request(),session,pilot,stocks((2..11).map {ActiveGroundUnit(it,UnitStack(0),base=1049)},84))
         assertNull(ten.rejection);assertEquals(10,ten.moved.size)
+        assertEquals(LogisticsRejection.STOCK,GroundTransfer.evaluate(request(),session,pilot,
+            stocks((2..4).map {ActiveGroundUnit(it,UnitStack(0),base=1049)})).rejection)
+        assertEquals(listOf(10,10,2,2,2),listOf(80,84,32,56,0).map(GroundTransfer::capacity))
     }
     @Test fun staleConnectionIdentityCpOwnerAndLocationCannotMutate() {
         val before=stocks()

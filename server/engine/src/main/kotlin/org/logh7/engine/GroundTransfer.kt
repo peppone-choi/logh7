@@ -15,7 +15,12 @@ data class GroundTransferResult(val player:Navigator?,val stocks:PlanetStocks?,v
  */
 internal object GroundTransfer {
     const val COST=80
-    const val CARRIER_SLOTS=10 // Verified wire bound; original per-hull capacity is still unknown.
+    const val CARRIER_SLOTS=10 // Verified wire bound (00419ca0 holds at most ten troops per unit).
+    const val WARSHIP_SLOTS=2
+    /** Per-hull capacity (user decision 2026-10-31, evidence:guess): troop transports and landing
+     * ships use the full wire bound of 10, every other hull 2. The manual table has no column. */
+    fun capacity(kind:Int):Int = ProductionUnits.definitions.singleOrNull {it.ship && it.kind==kind}?.name
+        ?.let {if(it.startsWith("兵員輸送艦") || it.startsWith("揚陸艦"))CARRIER_SLOTS else WARSHIP_SLOTS} ?: WARSHIP_SLOTS
     fun evaluate(r:GroundTransferRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):GroundTransferResult {
         fun reject(reason:LogisticsRejection)=GroundTransferResult(p,stocks,reason)
         val member=s.participants[r.account]
@@ -44,11 +49,11 @@ internal object GroundTransfer {
             for(u in selected)locations[u.id]=u.copy(carrier=0,base=base,origin=0)
         } else {
             val occupied=alive.associate {ship->ship.id to roster.values.count {it.carrier==ship.id}}.toMutableMap()
-            if(occupied.values.any {it>CARRIER_SLOTS} || selected.size>alive.size*CARRIER_SLOTS-occupied.values.sum())
-                return reject(LogisticsRejection.STOCK)
+            val free=alive.sumOf {maxOf(0,capacity(it.stack.kind)-occupied.getValue(it.id))}
+            if(occupied.values.any {it>CARRIER_SLOTS} || selected.size>free)return reject(LogisticsRejection.STOCK)
             for(u in selected) {
-                val carrier=alive.firstOrNull {it.id==u.origin && occupied.getValue(it.id)<CARRIER_SLOTS}
-                    ?: alive.firstOrNull {occupied.getValue(it.id)<CARRIER_SLOTS} ?: return reject(LogisticsRejection.STOCK)
+                val carrier=alive.firstOrNull {it.id==u.origin && occupied.getValue(it.id)<capacity(it.stack.kind)}
+                    ?: alive.firstOrNull {occupied.getValue(it.id)<capacity(it.stack.kind)} ?: return reject(LogisticsRejection.STOCK)
                 occupied[carrier.id]=occupied.getValue(carrier.id)+1
                 locations[u.id]=u.copy(carrier=carrier.id,base=0,origin=0)
             }
