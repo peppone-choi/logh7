@@ -46,6 +46,16 @@ class SocialStoreTest {
         val path=directory.resolve("meeting.tsv");val saved=stocks.copy(social=value)
         FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
     }
+    @Test fun gatheringInvitesAndLimitsRoundTripAsAnOptionalSeventhField() {
+        val gatherings=GatheringState(mapOf(10000 to GatheringInvite(10000,10001,13,1049,10493414,now+1440)),
+            mapOf(10002 to now+86400),mapOf(MeetingActions.pair(10002,10003) to now+86400))
+        val value=social.copy(gatherings=gatherings);val text=SocialStateCodec.encode(value);assertEquals(value,SocialStateCodec.decode(text))
+        assertEquals(7,text.split('|').size)
+        assertTrue(text.endsWith("|10000:10001:13:1049:10493414:${now+1440}/10002:${now+86400}/10002:10003:${now+86400}"))
+        assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(text.replace(":13:1049:",":14:1049:"))}
+        val path=directory.resolve("gathering.tsv");val saved=stocks.copy(social=value)
+        FilePlanetStockStore(path).use {it.save(saved);assertEquals(saved,it.load())}
+    }
     @Test fun outfitDisciplineIsAStock36Section() {
         val path=directory.resolve("discipline.tsv")
         val saved=stocks.copy(discipline=mapOf(7 to OutfitDiscipline(80,now),3 to OutfitDiscipline(50,now+1)))

@@ -1187,6 +1187,33 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.GatheringMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.GatheringMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
+                                val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),q.command,0,character.rank,target=q.target,value=q.value),q.phase,q.ticket)
+                                pendingWorld=administration.social(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    val now=gameSeconds()
+                                    val view=result.gathering?.let {g->org.logh7.protocol.GatheringMessages.View(g.ticket,g.target,g.friendship,g.hostWait,
+                                        g.invite?.host ?: 0,g.invite?.let {(it.expiresAt-now).coerceAtLeast(0)} ?: 0,
+                                        g.grade?.let {it.ordinal+1} ?: 0,g.hostInfluence,g.guestInfluence,g.friendshipDelta)}
+                                    // A new invitation reaches the guest's live connections at once.
+                                    val opened=result.gathering?.invite?.takeIf {result.changed && q.value==0}
+                                    // The host paid on acceptance; refresh its own CP display.
+                                    result.navigators.values.forEach {host->currentCharacterById(host.characterId)?.let {c->
+                                        presence?.refreshCharacter(c,host,offices(c,host),now,administration.stationedOutfit(host))}}
+                                    if(opened!=null)presence?.toCharacter(opened.guest,checkNotNull(generation),
+                                        listOf(org.logh7.protocol.GatheringMessages.invited(opened.guest,opened.command,opened.host,(opened.expiresAt-now).coerceAtLeast(0))))
+                                    org.logh7.protocol.GatheringMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
                             if(org.logh7.protocol.MeetingMessages.matches(body)) {
                                 check(administration!=null)
                                 val q=org.logh7.protocol.MeetingMessages.query(body)
@@ -1338,6 +1365,17 @@ class GameExchange(
                                             val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
                                                 it.characterId>query.target && me.spotId!=0 && it.grid==me.grid && it.baseId==me.baseId &&
                                                 it.spotId==me.spotId && it.spotOwner==me.spotOwner}.map {it.characterId}.toSet()
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
+                                        if(query.command==12 || query.command==13) {
+                                            // 会談/談話 directory: same-side people stationed at the requester's base (online or not).
+                                            val players=navigation?.snapshot()?.navigators.orEmpty()
+                                            val me=checkNotNull(players[identity.account])
+                                            val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                                it.characterId>query.target && me.baseId!=0 && it.power==me.power && it.grid==me.grid &&
+                                                it.baseId==me.baseId}.map {it.characterId}.toSet()
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})

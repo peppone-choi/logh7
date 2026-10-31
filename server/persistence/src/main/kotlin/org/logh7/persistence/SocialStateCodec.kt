@@ -7,8 +7,22 @@ internal object SocialStateCodec {
     private fun times(values:Map<Int,Long>)=values.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
     fun encode(s:SocialState)=(listOf(s.nextId,times(s.speakers),times(s.squares),s.speeches.toSortedMap().values.joinToString(";") {r->
         listOf(r.id,r.character,r.power,r.base,r.spot,r.at,r.politics,r.beforeInfluence,r.influence,r.beforeApproval,r.approval,r.nextAt)
-            .joinToString(":")}.ifEmpty {"-"})+(if(s.academy==AcademyState() && s.meeting==MeetingState())emptyList() else listOf(academy(s.academy)))+
-        (if(s.meeting==MeetingState())emptyList() else listOf(meeting(s.meeting)))).joinToString("|")
+            .joinToString(":")}.ifEmpty {"-"})+(if(s.academy==AcademyState() && s.meeting==MeetingState() && s.gatherings==GatheringState())emptyList() else listOf(academy(s.academy)))+
+        (if(s.meeting==MeetingState() && s.gatherings==GatheringState())emptyList() else listOf(meeting(s.meeting)))+
+        (if(s.gatherings==GatheringState())emptyList() else listOf(gatherings(s.gatherings)))).joinToString("|")
+    /** Optional seventh field (会談/談話, 2026-10-31): invites "host:guest:command:base:spot:expires" / host limits / pair limits. */
+    private fun gatherings(g:GatheringState)=listOf(
+        g.invites.toSortedMap().values.joinToString(",") {listOf(it.host,it.guest,it.command,it.base,it.spot,it.expiresAt).joinToString(":")}.ifEmpty {"-"},
+        times(g.hostNextAt),
+        g.pairNextAt.toSortedMap().entries.joinToString(",") {"${it.key ushr 32}:${it.key and 0xffffffffL}:${it.value}"}.ifEmpty {"-"}).joinToString("/")
+    private fun gatherings(text:String):GatheringState {
+        val f=text.split('/');require(f.size==3)
+        val invites=linkedMapOf<Int,GatheringInvite>();for(v in rows(f[0])) {require(v.size==6)
+            val i=GatheringInvite(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toInt(),v[5].toLong());require(invites.put(i.host,i)==null)}
+        val pairs=linkedMapOf<Long,Long>();for(v in rows(f[2])) {require(v.size==3);val a=v[0].toInt();val b=v[1].toInt();require(a<b)
+            require(pairs.put(MeetingActions.pair(a,b),v[2].toLong())==null)}
+        return GatheringState(invites,times(f[1]),pairs)
+    }
     /** Optional sixth field (会見, 2026-10-30): friendship "low:high:value" / pair limits "low:high:at". */
     private fun meeting(m:MeetingState)=listOf(m.friendship.toSortedMap().entries.joinToString(",") {"${it.key ushr 32}:${it.key and 0xffffffffL}:${it.value}"}.ifEmpty {"-"},
         m.nextAt.toSortedMap().entries.joinToString(",") {"${it.key ushr 32}:${it.key and 0xffffffffL}:${it.value}"}.ifEmpty {"-"}).joinToString("/")
@@ -42,7 +56,7 @@ internal object SocialStateCodec {
         };return out
     }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..6)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..7)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -51,7 +65,7 @@ internal object SocialStateCodec {
             require(speeches.put(r.character,r)==null)
         }
         return SocialState(f[0].toInt(),speeches,times(f[1]),times(f[2]),if(f.size>=5)academy(f[4]) else AcademyState(),
-            if(f.size==6)meeting(f[5]) else MeetingState())
+            if(f.size>=6)meeting(f[5]) else MeetingState(),if(f.size==7)gatherings(f[6]) else GatheringState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }

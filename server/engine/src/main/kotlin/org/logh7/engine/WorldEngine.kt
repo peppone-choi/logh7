@@ -720,15 +720,21 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    val accounts=navigation?.snapshot(session.generation).orEmpty().let {s->recovered?.player?.let {s+(i.account to it)} ?: s}
                     var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,
-                        navigation?.snapshot(session.generation)?.values.orEmpty())
+                        navigation?.snapshot(session.generation)?.values.orEmpty(),accounts)
                     if(result.changed) {
                         if(worldStateCommitter==null)result=SocialResult(recovered?.player,inventory,SocialRejection.STORAGE)
                         else {
                             val after=checkNotNull(result.player);val before=checkNotNull(recovered?.player)
                             val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
-                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation)+(i.account to after),prepared)
-                            navigation.publishCommitted(i.account,before,after);production.publishCommitted(inventory,prepared)
+                            val previous=checkNotNull(navigation).snapshot(session.generation)
+                            require(result.navigators.all {(account,player)->account!=i.account && previous[account]?.let {
+                                it.generation==player.generation && it.characterId==player.characterId}==true})
+                            worldStateCommitter.saveWorld(previous+result.navigators+(i.account to after),prepared)
+                            if(result.navigators.isEmpty())navigation.publishCommitted(i.account,before,after)
+                            else navigation.publishCommitted(previous+(i.account to before),previous+result.navigators+(i.account to after),session.generation)
+                            production.publishCommitted(inventory,prepared)
                             result=result.copy(stocks=prepared)
                         }
                     }

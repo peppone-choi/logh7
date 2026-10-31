@@ -14,21 +14,23 @@ data class SpeechReceipt(val id:Int,val character:Int,val power:Int,val base:Int
 }
 data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = emptyMap(),
     val speakers:Map<Int,Long> = emptyMap(),val squares:Map<Int,Long> = emptyMap(),val academy:AcademyState=AcademyState(),
-    val meeting:MeetingState=MeetingState()) {
+    val meeting:MeetingState=MeetingState(),val gatherings:GatheringState=GatheringState()) {
     init {require(nextId>0 && speeches.size<=256 && speeches.all {(id,r)->id==r.character && r.id<nextId} &&
         speeches.values.map {it.id}.distinct().size==speeches.size && speakers.size<=4096 && squares.size<=350 &&
         speakers.all {(id,at)->id>0 && at in 0..0xffffffffL} && squares.all {(base,at)->base in 1..65535 && at in 0..0xffffffffL} &&
         speeches.values.all {r->(speakers[r.character] ?: 0)>=r.nextAt && (squares[r.base] ?: 0)>=r.nextAt})}
     fun detached()=copy(speeches=java.util.Collections.unmodifiableMap(LinkedHashMap(speeches)),
         speakers=java.util.Collections.unmodifiableMap(LinkedHashMap(speakers)),squares=java.util.Collections.unmodifiableMap(LinkedHashMap(squares)),
-        academy=academy.detached(),meeting=meeting.detached())
+        academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
 enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE }
 data class SocialView(val ticket:Int,val base:Int,val influence:Int,val approval:Int,val wait:Long,val last:SpeechReceipt?)
 data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:SocialRejection?=null,
     val changed:Boolean=false,val view:SocialView?=null,val recovery:NavigationResult?=null,val academy:AcademyView?=null,
-    val meeting:MeetingView?=null)
+    val meeting:MeetingView?=null,val gathering:GatheringView?=null,
+    /** Other accounts' navigators changed by the same commit (a gathering host's payment). */
+    val navigators:Map<String,Navigator> = emptyMap())
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,
@@ -36,7 +38,8 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
 object SocialActions {
     const val DAY=86400L
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
-        navigators:Collection<Navigator> = emptyList()):SocialResult {
+        navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap()):SocialResult {
+        if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(r,session,p,s,accounts)
         if(r.identity.command in AcademyActions.commands)return AcademyActions.evaluate(g,r,session,p,s,navigators)
         if(r.identity.command==MeetingActions.MEETING)return MeetingActions.evaluate(r,session,p,s,navigators)
         val i=r.identity

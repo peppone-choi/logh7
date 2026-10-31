@@ -402,6 +402,11 @@ class GamePresence {
                 viewer.player.spotId == other.player.spotId && viewer.player.spotOwner == other.player.spotOwner))
     private fun peers(viewer: Member) = members.values.filter { visible(viewer, it) }.sortedBy { it.character.id }
     /** Public profiles follow the same live visibility boundary as the strategy character cache. */
+    /** Delivers to every live connection of one character (e.g. a 会談/談話 invitation). */
+    @Synchronized fun toCharacter(characterId: Int, generation: Long, messages: List<ByteArray>): Boolean {
+        val targets = members.values.filter { it.character.id == characterId.toLong() && it.player.generation == generation }
+        targets.forEach { send(it, messages) };return targets.isNotEmpty()
+    }
     @Synchronized fun detail(connection: String, id: Int): Member? {
         val viewer = members[connection] ?: return null
         return members.values.singleOrNull { it.character.id == id.toLong() &&

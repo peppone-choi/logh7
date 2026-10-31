@@ -25,11 +25,12 @@ object StrategyActionMessages {
         val market=command==96
         val civic=command in setOf(52,54,55,56)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,22,23,24,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,12,13,22,23,24,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command==87)
+        require(!preview || personnel || command==24 || market || command in setOf(12,13,87))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
-        if(command==87)require(preview && card==0)
+        // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
+        if(command in setOf(12,13,87))require(preview && card==0)
         if(!operation && !market)require(argument==0 && amount==0)
         if(civic)require(!preview && value in 0..2 && base==0 && argument==0 && amount==0 &&
             card in setOf(39,44,47,50,59,175,180,183,186,195) &&
@@ -47,7 +48,7 @@ object StrategyActionMessages {
         else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        val listed=personnel || operation || market || command==87
+        val listed=personnel || operation || market || command in setOf(12,13,87)
         return Query(character,command,card,if(listed)0 else target,message.copyOfRange(2,message.size),
             if(listed)target else 0,base,value,preview,amount,argument)
     }
@@ -74,7 +75,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(24,87,96) && rows.size<=200)
+        require(q.preview && q.command in setOf(12,13,24,87,96) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)
