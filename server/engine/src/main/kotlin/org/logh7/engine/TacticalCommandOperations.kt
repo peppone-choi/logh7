@@ -317,7 +317,7 @@ internal object TacticalCommandOperations {
                 0x406 -> removeWing(c.target)
                 0x407 -> {
                     val entry=players.entries.single {it.value.unitId==c.target};val victim=entry.value
-                    val recovered=FlagshipRecovery.defeated(victim,now,g,stocks).copy(supplies=victim.supplies,
+                    val recovered=FlagshipRecovery.defeated(victim,now,g,stocks,players.values).copy(supplies=victim.supplies,
                         hull=victim.hull!!.copy(at=now,woundedUntil=minOf(0xffffffffL,now+86400)))
                     players[entry.key]=recovered
                     impacts+=TacticalImpact(session.generation,p.unitId,TacticalWeapon.GUN,

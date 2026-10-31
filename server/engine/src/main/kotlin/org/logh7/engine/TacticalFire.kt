@@ -179,7 +179,7 @@ internal object TacticalCombat {
             val lost=FlagshipHull.capacity(hull.kind)-(shields[face]/(100*hull.clockScale)).toInt()
             if(hp<=0) {
                 earned=EvaluationPoints.FLAGSHIP
-                departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory)
+                departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory,players.values)
                 players[victimAccount]=departed
             } else players[victimAccount]=defender.copy(hull=hull.copy(hp=hp,shields=shields))
             TacticalHit(sequence,grid,seconds,targetId,if(hp<=0)1 else 0,
