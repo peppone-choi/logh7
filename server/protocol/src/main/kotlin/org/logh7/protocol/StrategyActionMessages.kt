@@ -24,14 +24,15 @@ object StrategyActionMessages {
         val operation=command in 22..24
         val market=command==96
         val civic=command in setOf(52,54,55,56)
+        val transport=command in setOf(28,29,65)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,22,23,24,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,22,23,24,28,29,65,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,87))
+        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,29,65,87))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
-        if(!operation && !market)require(argument==0 && amount==0)
+        if(!operation && !market && !transport)require(argument==0 && amount==0)
         if(civic)require(!preview && value in 0..2 && base==0 && argument==0 && amount==0 &&
             card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(command==55)target==0 && card in setOf(59,195) else value!=0 || target>0))
@@ -45,11 +46,18 @@ object StrategyActionMessages {
             (if(argument==0)value in 0..3 && (preview || target==0) else if(argument==4)value in 0..25 && (preview || target==0)
              else if(argument==5)!preview && value==0 && target==0 else value==0 &&
                 (if(argument in 1..2)preview || target>0 else !preview && target==0)))
+        // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
+        // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package. Previews list packages.
+        else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && value==0 && base==0 && amount==0 &&
+                (preview || target>0)
+            else card in setOf(24,25,150) && (if(command==28)!preview && base in 1..65535 && target in 1..65535 &&
+                (value==0xffff) == (argument==0) && argument in 0..65535 && (value==0xffff || value in 0..199 || value in 1000..1015)
+                else value==0 && base==0 && argument==0 && amount==0 && (preview || target>0)))
         else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        val listed=personnel || operation || market || command in setOf(10,11,12,13,87)
-        return Query(character,command,card,if(listed)0 else target,message.copyOfRange(2,message.size),
+        val listed=personnel || operation || market || transport || command in setOf(10,11,12,13,87)
+        return Query(character,command,card,if(command==65)argument else if(listed)0 else target,message.copyOfRange(2,message.size),
             if(listed)target else 0,base,value,preview,amount,argument)
     }
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
@@ -75,7 +83,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(10,11,12,13,24,87,96) && rows.size<=200)
+        require(q.preview && q.command in setOf(10,11,12,13,24,29,65,87,96) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

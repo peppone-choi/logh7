@@ -17,10 +17,13 @@ internal object StrategicStateCodec {
             p.purpose.ordinal,p.units,p.activatesAt,p.state.ordinal,p.issuedAt ?: "-",
             p.outfits.sorted().joinToString(",").ifEmpty {"-"},p.characters.sorted().joinToString(",").ifEmpty {"-"},
             p.defended.sorted().joinToString(",").ifEmpty {"-"},p.outcome?.ordinal ?: "-",p.issuer).joinToString(":")}.ifEmpty {"-"}
-    ).joinToString("|").also {require(it.length<=2_000_000) {"Strategic state is too large"}}
+    ).plus(if(state.transports.isEmpty())emptyList() else listOf(state.transports.joinToString(";") {t->
+        fun stacks(m:Map<UnitStack,Int>)=m.entries.joinToString(",") {"${it.key.kind}.${it.key.level}.${it.value}"}.ifEmpty {"-"}
+        listOf(t.id,t.power,t.source,t.destination,t.supplies,stacks(t.units.ships),stacks(t.units.troops),t.carrier,t.carrierBoats).joinToString(":")}))
+    .joinToString("|").also {require(it.length<=2_000_000) {"Strategic state is too large"}}
     fun decode(text:String):StrategicState {
         require(text.length<=2_000_000)
-        val sections=text.split('|');require(sections.size==5)
+        val sections=text.split('|');require(sections.size==5 || sections.size==6 && sections[5].isNotEmpty())
         val people=linkedMapOf<Int,StrategicPerson>()
         if(sections[0]!="-")for(row in sections[0].split(';')) {
             val f=row.split(':');require(f.size==11 || f.size==12 && f[11].toInt()>0 || f.size==13 && f[12].toLong()>0)
@@ -49,6 +52,13 @@ internal object StrategicStateCodec {
                 StrategicPlanState.entries[f[9].toInt()],f[10].takeUnless {it=="-"}?.toLong(),ids(f[11]),ids(f[12]),ids(f[13]),
                 f[14].takeUnless {it=="-"}?.toInt()?.let {OperationOutcome.entries[it]},f[15].toInt())
         }
-        return StrategicState(people,orders,offices,fiefs,operations).also {require(encode(it)==text) {"Noncanonical strategic state"}}
+        fun stacks(value:String)=if(value=="-")emptyMap() else value.split(',').associate {s->
+            val f=s.split('.');require(f.size==3);UnitStack(f[0].toInt(),f[1].toInt()) to f[2].toInt()}
+        val transports=if(sections.size==5)emptyList() else sections[5].split(';').map {row->
+            val f=row.split(':');require(f.size==9)
+            TransportPackage(f[0].toInt(),f[1].toInt(),f[2].toInt(),f[3].toInt(),f[4].toInt(),UnitInventory(stacks(f[5]),stacks(f[6])),
+                f[7].toInt(),f[8].toInt())
+        }
+        return StrategicState(people,orders,offices,fiefs,operations,transports).also {require(encode(it)==text) {"Noncanonical strategic state"}}
     }
 }

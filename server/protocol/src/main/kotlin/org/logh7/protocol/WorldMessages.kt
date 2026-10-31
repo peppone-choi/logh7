@@ -150,10 +150,10 @@ object WorldMessages {
         190,192 -> listOf(7,30)
         39,175 -> listOf(5,6,7,61,63,64)
         40,41,42,43,176,177,178,179 -> listOf(7)
-        44,180 -> listOf(7,61,62,63,64)
+        44,180 -> listOf(7,61,62,63,64,65)
         47,50,183,186 -> listOf(7,61,63,64)
         52,55,56,57,188,191,193 -> listOf(7)
-        24,25,150 -> listOf(67)
+        24,25,150 -> listOf(28,29,67)
         else -> emptyList()
     }
     fun commandsForCard(card:Int):List<Int> = commands(card)

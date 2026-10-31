@@ -1400,6 +1400,21 @@ class GameExchange(
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,candidates.map {
                                                 org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command in setOf(29,65)) {
+                                            // U-15 package rows: name "destination/supplies", "+" with units, "*" aboard.
+                                            val power=character.power
+                                            val outfit=if(query.command==65)inventory.outfits[query.outfit]?.takeIf {
+                                                it.power==power && it.commanderId==character.id.toInt()} else null
+                                            val here=outfit?.positionIn(world.galaxy)?.baseId ?: 0
+                                            val rows=inventory.strategic.transports.filter {it.power==power && it.id>query.target &&
+                                                (if(query.command==29)it.carrier==0 else outfit!=null &&
+                                                    (it.carrier==outfit.id || it.carrier==0 && it.source==here && here!=0))}
+                                                .sortedBy {it.id}.take(200).map {p ->
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(p.id,("${p.destination}/${p.supplies}"+
+                                                        (if(p.units.ships.isEmpty() && p.units.troops.isEmpty())"" else "+")+
+                                                        (if(p.carrier!=0)"*" else "")).take(12))}
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
+                                        }
                                         if(query.command==24) {
                                             val force=when(query.card) {
                                                 28,169->0;29,170->1;30,171->2;else->error("Not an operation issuing office")
@@ -1462,6 +1477,11 @@ class GameExchange(
                                                 .map {it.id}.sorted().chunked(100).map {world.outfits(it,inventory)}+
                                             listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory))+
                                             presence?.outfitListRefresh(connection).orEmpty()}.orEmpty() else emptyList())+
+                                        // U-15: refresh the warehouse a transport command changed.
+                                        (if(query.command in org.logh7.engine.TransportActions.supported && result.changed)result.stocks?.let {inventory ->
+                                            listOf(if(query.command==28)query.base else player.baseId).filter {
+                                                inventory.bases[it]?.let {b->b.power==character.power && b.camp==0}==true}.map {world.warehouse(it,inventory)}}.orEmpty()
+                                        else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }
                                 return null

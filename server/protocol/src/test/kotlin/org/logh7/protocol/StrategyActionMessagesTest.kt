@@ -51,4 +51,20 @@ class StrategyActionMessagesTest {
         assertEquals(0x1202,ByteBuffer.wrap(rows[1]).getShort(4).toInt())
         assertEquals(1,rows[1][6].toInt());assertEquals(2,ByteBuffer.wrap(rows[1]).getInt(7))
     }
+    private fun transport(command:Int,card:Int,target:Int,value:Int,argument:Int,amount:Int,base:Int,preview:Boolean=false)=
+        ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(command.toShort()).putShort(card.toShort()).putShort(value.toShort())
+            .putInt(target).put(if(preview)1 else 0).putInt(argument).putShort(amount.toShort()).putInt(base).putShort(0).array()
+    @Test fun transportCommandsCarrySourceDestinationQuantitiesAndTheOutfitSeparately() {
+        val plan=StrategyActionMessages.query(transport(28,25,1050,32,3,1000,1049))
+        assertEquals(1050,plan.target);assertEquals(1049,plan.base);assertEquals(1000,plan.amount);assertEquals(32,plan.value)
+        assertEquals(3,plan.argument);assertEquals(0,plan.outfit)
+        StrategyActionMessages.query(transport(28,150,1050,0xffff,0,1,1049))
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(transport(28,25,1050,0xffff,3,1,1049))}
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(transport(28,44,1050,32,3,1,1049))}
+        val load=StrategyActionMessages.query(transport(65,44,7,0,200,0,0))
+        assertEquals(200,load.outfit);assertEquals(7,load.target)
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(transport(65,44,7,0,0,0,0))}
+        assertTrue(StrategyActionMessages.query(transport(29,24,0,0,0,0,0,preview=true)).preview)
+        assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(transport(29,24,7,0,0,5,0))}
+    }
 }

@@ -19,7 +19,9 @@ data class SuppressionOrder(val character:Int,val outfit:Int,val base:Int,val po
 }
 data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val suppressions:List<SuppressionOrder> = emptyList(),
     val offices:List<OfficeHolding> = emptyList(),val fiefs:Map<Int,Int> = emptyMap(),
-    val operations:List<StrategicOperation> = emptyList()) {
+    val operations:List<StrategicOperation> = emptyList(),
+    /** U-15 transport packages, in the source warehouse or aboard a transport outfit. */
+    val transports:List<TransportPackage> = emptyList()) {
     init {
         require(people.size<=4096 && people.keys.all {it>0} && suppressions.size<=128)
         require(suppressions.distinctBy {it.character}.size==suppressions.size)
@@ -28,6 +30,7 @@ data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val s
         require(offices.groupBy {it.card to it.seat}.all {(key,seats)->seats.size<=OrganizationOffices.all.getValue(key.first).seats})
         require(fiefs.size<=350 && fiefs.all {(base,owner)->base in 1..65535 && owner>0})
         require(operations.size<=256 && operations.distinctBy {it.id}.size==operations.size && operations.count {it.live}<=128)
+        require(transports.size<=4096 && transports.distinctBy {it.id}.size==transports.size)
     }
     /** Freeze nested collections as well as the top-level checkpoint before publication. */
     fun detached():StrategicState {
@@ -36,7 +39,8 @@ data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val s
         fun <K,V> map(values:Map<K,V>):Map<K,V> = java.util.Collections.unmodifiableMap(LinkedHashMap(values))
         return copy(people=map(people.mapValues {(_,p)->p.copy(abilities=p.abilities?.let {list(it)},decorations=set(p.decorations))}),
             suppressions=list(suppressions),offices=list(offices),fiefs=map(fiefs),
-            operations=list(operations.map {it.copy(outfits=set(it.outfits),characters=set(it.characters),defended=set(it.defended))}))
+            operations=list(operations.map {it.copy(outfits=set(it.outfits),characters=set(it.characters),defended=set(it.defended))}),
+            transports=list(transports))
     }
 }
 data class StrategyActionRequest(val account:String,val connection:String,val characterId:Int,val power:Power,
@@ -56,7 +60,7 @@ data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,v
 
 internal object StrategyActions {
     val supported=setOf(46,47,48,49,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
-        CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported
+        CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported+TransportActions.supported
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val member=s.participants[r.account]
@@ -71,6 +75,7 @@ internal object StrategyActions {
         if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks)
         if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks)
         val power=if(r.power==Power.EMPIRE)2 else 3
         if(r.card!=if(r.command==84)0 else if(power==2)59 else 195)return reject(StrategyActionRejection.CARD)
         if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null ||

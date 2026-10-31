@@ -82,4 +82,13 @@ class StrategicStateStoreTest {
         Files.write(path,lines.filterNot {it.startsWith("S\t")})
         FilePlanetStockStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
     }
+    @Test fun transportPackagesAreAnOptionalSixthSection() {
+        assertEquals(5,StrategicStateCodec.encode(state).split('|').size)
+        val packed=state.copy(transports=listOf(TransportPackage(1,2,1049,1050,1000,UnitInventory(mapOf(UnitStack(32,1) to 2),mapOf(UnitStack(3) to 1))),
+            TransportPackage(2,2,1049,1050,5,carrier=200,carrierBoats=300)))
+        val encoded=StrategicStateCodec.encode(packed);assertEquals(packed,StrategicStateCodec.decode(encoded))
+        assertEquals("1:2:1049:1050:1000:32.1.2:3.0.1:0:0;2:2:1049:1050:5:-:-:200:300",encoded.substringAfterLast('|'))
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode("$encoded|")}
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":200:300",":200:0"))}
+    }
 }
