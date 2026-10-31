@@ -9,8 +9,13 @@ data class StrategicPerson(val rank:Int?=null,val groundTactics:Int=0,val retire
     val peerage:Peerage?=null,val merit:Long=0,val influence:Int=0,val evaluation:Long=0,
     val money:Long=0,val abilities:List<Int>?=null,val decorations:Set<Int> = emptySet(),val airTactics:Int=0,
     /** U-11: game second of death in battle; 0 while alive. */
-    val deceasedAt:Long=0) {
+    val deceasedAt:Long=0,
+    /** U-28: an empire politician (rank 1) stays on the military ladder of this rank (CD manual p.37); 0 none. */
+    val militaryRank:Int=0) {
+    /** The rank whose military ladder holds this person: the kept rank of an empire politician, else the rank. */
+    fun ladderRank(fallback:Int)=(rank ?: fallback).let {if(it==1 && militaryRank>0)militaryRank else it}
     init {require((rank==null || rank in 0..20) && groundTactics in 0..3 && airTactics in 0..3 && retiredUntil in 0..0xffffffffL && deceasedAt in 0..0xffffffffL &&
+        (militaryRank==0 || rank==1 && militaryRank in 2..20) &&
         merit in 0..0xffffffffL && influence in 0..100 && evaluation in 0..0xffffffffL && money in 0..0xffffffffL &&
         (abilities==null || abilities.size==8 && abilities.all {it in 0..255}) && decorations.size<=128 && decorations.all {it in 0..127})}
 }
@@ -157,8 +162,10 @@ internal object StrategyActions {
                 if(r.command==85 && (rank!=1 || now<person.retiredUntil) || r.command==84 && rank !in 2..20)
                     return reject(StrategyActionRejection.RANK)
                 if(r.command==84 && now>0xffffffffL-30*86400)return reject(StrategyActionRejection.BUSY)
+                // U-28: an empire politician is also a soldier (CD manual p.37) and keeps the retired rank's ladder.
                 next=clearOffices(stocks,r.characterId).let {cleared ->cleared.copy(strategic=cleared.strategic.copy(
                     people=cleared.strategic.people+(r.characterId to person.copy(rank=if(r.command==85)10 else 1,
+                        militaryRank=if(r.command==84 && power==2)rank else 0,
                         retiredUntil=if(r.command==84)now+30*86400 else person.retiredUntil))))}
                 if(r.command==85) {
                     val ship=Flagships.forType(power,0)

@@ -82,4 +82,13 @@ class PersonnelActionsTest {
         val replay=act(q,assertNotNull(awarded.stocks))
         assertEquals(StrategyActionRejection.MAXIMUM,replay.rejection);assertEquals(p,replay.player)
     }
+    @Test fun anEmpirePoliticianStaysOnItsMilitaryLadderAndIsPromotedThere() {
+        // U-28 (CD manual p.37): 10001 retired from rank 9 as a politician that keeps rank 9's military ladder.
+        val s=stocks().let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+
+            (10001 to StrategicPerson(rank=1,militaryRank=9,merit=30))))}
+        val promoted=act(request(0),s);assertNull(promoted.rejection)
+        val person=assertNotNull(promoted.stocks).strategic.people.getValue(10001)
+        assertEquals(1,person.rank,"still a politician");assertEquals(8,person.militaryRank);assertEquals(0L,person.merit)
+        assertEquals(StrategyActionRejection.RANK,act(request(0,10002),s).rejection,"the politician tops rank 9")
+    }
 }

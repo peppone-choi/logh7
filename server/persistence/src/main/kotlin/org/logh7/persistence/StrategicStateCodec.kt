@@ -8,8 +8,9 @@ internal object StrategicStateCodec {
         state.people.toSortedMap().entries.joinToString(";") {(id,p)->listOf(id,p.rank ?: "-",p.groundTactics,p.retiredUntil,
             p.peerage?.ordinal ?: "-",p.merit,p.influence,p.evaluation,p.money,
             p.abilities?.joinToString(",") ?: "-",p.decorations.sorted().joinToString(",").ifEmpty {"-"})
-            .plus(if(p.airTactics>0 || p.deceasedAt>0)listOf(p.airTactics) else emptyList())
-            .plus(if(p.deceasedAt>0)listOf(p.deceasedAt) else emptyList()).joinToString(":")}.ifEmpty {"-"},
+            .plus(if(p.airTactics>0 || p.deceasedAt>0 || p.militaryRank>0)listOf(p.airTactics) else emptyList())
+            .plus(if(p.deceasedAt>0 || p.militaryRank>0)listOf(p.deceasedAt) else emptyList())
+            .plus(if(p.militaryRank>0)listOf(p.militaryRank) else emptyList()).joinToString(":")}.ifEmpty {"-"},
         state.suppressions.joinToString(";") {"${it.character}:${it.outfit}:${it.base}:${it.power}:${it.readyAt}"}.ifEmpty {"-"},
         state.offices.joinToString(";") {"${it.card}:${it.seat}:${it.character}"}.ifEmpty {"-"},
         state.fiefs.toSortedMap().entries.joinToString(";") {"${it.key}:${it.value}"}.ifEmpty {"-"},
@@ -26,12 +27,12 @@ internal object StrategicStateCodec {
         val sections=text.split('|');require(sections.size==5 || sections.size==6 && sections[5].isNotEmpty())
         val people=linkedMapOf<Int,StrategicPerson>()
         if(sections[0]!="-")for(row in sections[0].split(';')) {
-            val f=row.split(':');require(f.size==11 || f.size==12 && f[11].toInt()>0 || f.size==13 && f[12].toLong()>0)
+            val f=row.split(':');require(f.size==11 || f.size==12 && f[11].toInt()>0 || f.size==13 && f[12].toLong()>0 || f.size==14 && f[13].toInt()>0)
             require(people.put(f[0].toInt(),StrategicPerson(f[1].takeUnless {it=="-"}?.toInt(),f[2].toInt(),f[3].toLong(),
                 f[4].takeUnless {it=="-"}?.toInt()?.let {Peerage.entries[it]},f[5].toLong(),f[6].toInt(),f[7].toLong(),f[8].toLong(),
                 f[9].takeUnless {it=="-"}?.split(',')?.map(String::toInt),
                 f[10].takeUnless {it=="-"}?.split(',')?.map(String::toInt)?.toSet().orEmpty(),if(f.size>=12)f[11].toInt() else 0,
-                if(f.size==13)f[12].toLong() else 0))==null)
+                if(f.size>=13)f[12].toLong() else 0,if(f.size==14)f[13].toInt() else 0))==null)
         }
         val orders=if(sections[1]=="-")emptyList() else sections[1].split(';').map {row->
             val f=row.split(':');require(f.size==5)

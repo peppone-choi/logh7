@@ -116,12 +116,13 @@ class StrategyActionsTest {
             NationalOffice.IMPERIAL_SUPREME_COMMANDER to 10001))
         val retired=act(84,s);val stored=assertNotNull(retired.stocks)
         assertNull(retired.rejection);assertEquals(1,stored.strategic.people.getValue(10000).rank)
+        assertEquals(10,stored.strategic.people.getValue(10000).militaryRank,"an empire politician keeps its military ladder")
         assertEquals(0,stored.outfits.getValue(200).commanderId)
         assertEquals(mapOf(NationalOffice.IMPERIAL_SUPREME_COMMANDER to 10001),stored.nationalOffices)
         assertEquals(StrategyActionRejection.RANK,act(85,stored).rejection)
         val ready=session().copy(gameMillis=stored.strategic.people.getValue(10000).retiredUntil*1000)
         val joined=StrategyActions.evaluate(galaxy,request(85),ready,player(),stored)
-        assertNull(joined.rejection);assertEquals(10,joined.stocks?.strategic?.people?.get(10000)?.rank)
+        assertNull(joined.rejection);assertEquals(10,joined.stocks?.strategic?.people?.get(10000)?.rank);assertEquals(0,joined.stocks?.strategic?.people?.get(10000)?.militaryRank)
         assertEquals(Flagships.forType(2,0).kind,joined.player?.hull?.kind)
     }
     @Test fun wrongConnectionCardFactionRankAuthorityAndCpCannotChangeTheWorld() {

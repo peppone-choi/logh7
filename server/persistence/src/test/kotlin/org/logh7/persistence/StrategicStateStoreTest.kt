@@ -91,4 +91,10 @@ class StrategicStateStoreTest {
         assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode("$encoded|")}
         assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":200:300",":200:0"))}
     }
+    @Test fun anEmpirePoliticiansKeptMilitaryRankIsAnOptionalFourteenthField() {
+        val politician=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(rank=1,militaryRank=6)))
+        val encoded=StrategicStateCodec.encode(politician);assertEquals(politician,StrategicStateCodec.decode(encoded))
+        assertTrue(encoded.substringBefore('|').endsWith(":0,127:0:0:6"))
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":0,127:0:0:6",":0,127:0:0:0"))}
+    }
 }

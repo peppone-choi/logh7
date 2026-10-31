@@ -18,7 +18,7 @@ object PoliticianLadder {
         for(identity in identities.sortedBy {it.id}) {
             val person=people[identity.id] ?: StrategicPerson()
             if((person.rank ?: identity.rank)!=POLITICIAN || person.merit!=0L)continue
-            people=people+(identity.id to if(identity.power==3)person.copy(rank=CONVERTED_RANK) else {
+            people=people+(identity.id to if(identity.power==3)person.copy(rank=CONVERTED_RANK,militaryRank=0) else {
                 val abilities=(person.abilities ?: identity.abilities).toMutableList()
                 val index=java.util.Random(month*1_000_003L+identity.id).nextInt(abilities.size)
                 abilities[index]=maxOf(0,abilities[index]-1)

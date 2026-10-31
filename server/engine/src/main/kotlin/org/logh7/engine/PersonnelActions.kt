@@ -18,6 +18,8 @@ internal object PersonnelActions {
         val policy=OrganizationalOfficePolicy(galaxy)
         val person=stocks.strategic.people[r.target] ?: StrategicPerson()
         val rank=person.rank ?: identity.rank
+        // U-28: an empire politician is promoted on the military ladder of its kept rank.
+        val ladder=person.ladderRank(identity.rank)
         val actorRank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
         fun holds(card:Int)=r.card==card && policy.holders(stocks,card).any {it.character==r.characterId}
         var next=stocks
@@ -25,6 +27,7 @@ internal object PersonnelActions {
         val cost=when(r.command){1,8,9->640L;2->320L;else->160L}
         when(r.command) {
             0,1,2 -> {
+                val rank=ladder
                 if(rank !in 2..20 || power==3 && rank==3)return reject(StrategyActionRejection.RANK)
                 var changedRank=rank+if(r.command==2)1 else -1
                 if(power==3 && changedRank==3)changedRank+=if(r.command==2)1 else -1
@@ -37,7 +40,7 @@ internal object PersonnelActions {
                     else -> if(power==2)19 else 160
                 }
                 if(!holds(authority))return reject(StrategyActionRejection.AUTHORITY)
-                val entries=r.identities.filter {it.power==power && (stocks.strategic.people[it.id]?.rank ?: it.rank)==rank}.map {id->
+                val entries=r.identities.filter {it.power==power && (stocks.strategic.people[it.id] ?: StrategicPerson()).ladderRank(it.rank)==rank}.map {id->
                     val progress=stocks.strategic.people[id.id] ?: StrategicPerson()
                     LadderEntry(id.id.toString(),progress.merit,if(power==2)progress.peerage else null,
                         progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
@@ -48,12 +51,13 @@ internal object PersonnelActions {
                 val limited=when(changedRank){2->LimitedRank.MARSHAL;3->LimitedRank.SENIOR_ADMIRAL;4->LimitedRank.ADMIRAL;
                     5->LimitedRank.VICE_ADMIRAL;6->LimitedRank.REAR_ADMIRAL;7->LimitedRank.COMMODORE;else->null}
                 if(limited!=null) {
-                    val count=r.identities.count {it.power==power && (stocks.strategic.people[it.id]?.rank ?: it.rank)==changedRank}
+                    val count=r.identities.count {it.power==power && (stocks.strategic.people[it.id] ?: StrategicPerson()).ladderRank(it.rank)==changedRank}
                     val capacity=RankRules.capacity(r.power,limited) ?: return reject(StrategyActionRejection.RANK)
                     if(count>=capacity)return reject(StrategyActionRejection.MAXIMUM)
                 }
                 next=StrategyActions.clearOffices(stocks,r.target).let {cleared ->cleared.copy(strategic=cleared.strategic.copy(
-                    people=cleared.strategic.people+(r.target to person.copy(rank=changedRank,merit=if(r.command==2)100 else 0))))}
+                    people=cleared.strategic.people+(r.target to (if(person.militaryRank>0)person.copy(militaryRank=changedRank)
+                        else person.copy(rank=changedRank)).copy(merit=if(r.command==2)100 else 0))))}
                 // U-24: a promoted character outside battle receives the new rank's default flagship.
                 if(r.command!=2)r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}?.let {(key,other)->
                     val hull=other.hull;val now=s.gameMillis/1000;val upgrade=Flagships.rankDefault(power,changedRank)
