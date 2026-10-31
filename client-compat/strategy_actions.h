@@ -13,7 +13,7 @@ static bool personnelStrategy(unsigned command) {return command<=4 || command==8
 static bool armyStrategy(unsigned command) {return command==46 || command==47 || command==48 || command==49 || command==50 || command==51 || command==52 || command==53 || command==54 || command==56;}
 static bool outfitStrategy(unsigned command,unsigned card) {return armyStrategy(command) || (command==61 && card!=59 && card!=195);}
 static bool strategyActionCommand(unsigned command) {
-    return personnelStrategy(command) || operationStrategy(command) || command==14 || command==16 || command==18 || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96 || command==27 || command==87 || command==93 || command==94;
+    return personnelStrategy(command) || operationStrategy(command) || command==14 || command==16 || command==18 || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96 || command==27 || command==87 || command==93 || command==94 || command==12 || command==13;
 }
 static const wchar_t* strategyActionName(unsigned command) {
     switch(command) {
@@ -24,7 +24,7 @@ static const wchar_t* strategyActionName(unsigned command) {
     case 46:return L"군기 유지";case 51:return L"공전 전술 훈련";case 47:return L"항주 훈련";case 48:return L"육전 훈련";case 49:return L"공전 훈련";case 50:return L"육전 전술 훈련";
     case 53:return L"무력 진압";case 84:return L"퇴역";case 85:return L"지원";
     case 52:return L"경계 출동";case 54:return L"분열행진";case 55:return L"특별경비";case 56:return L"징발";
-    case 87:return L"회견";case 27:return L"강의";case 93:return L"수강";case 94:return L"병기 연습";
+    case 87:return L"회견";case 12:return L"회담";case 13:return L"담화";case 27:return L"강의";case 93:return L"수강";case 94:return L"병기 연습";
     case 61:return L"완전수리";case 96:return L"기함 구매 · 교환";
     default:return L"전략 명령";
     }
@@ -63,6 +63,7 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
 #include "social_actions.h"
 #include "academy_actions.h"
 #include "meeting_actions.h"
+#include "gathering_actions.h"
 static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if(!own || !at<BYTE>(own,0) || at<void*>(manager,0x18) || *reinterpret_cast<void**>(0x21aa888)!=own || !createTaxWindow())return 0;
@@ -70,7 +71,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     bool held=false;for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)held=true;
     unsigned formationValues[4]={};unsigned formationCount=formationKinds(card,formationValues);
     bool civicCard=card==59 || card==195 || card==39 || card==44 || card==47 || card==50 || card==175 || card==180 || card==183 || card==186;
-    if(!held || (meetingCommand(command) ? card!=0 : academyCommand(command) ? !academyCard(command,card) : socialCommand(command) ? card!=0 : budgetCommand(command) ? card!=8 && card!=136 : civicCommand(command) ? !civicCard || command==55 && card!=59 && card!=195 : formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
+    if(!held || (meetingCommand(command) || gatheringCommand(command) ? card!=0 : academyCommand(command) ? !academyCard(command,card) : socialCommand(command) ? card!=0 : budgetCommand(command) ? card!=8 && card!=136 : civicCommand(command) ? !civicCard || command==55 && card!=59 && card!=195 : formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
         (command==84 ? card!=0 : card!=59 && card!=195)))return 0;
     closePlanetInformation();auto& state=taxWindow;
     state.world=world;state.character=at<unsigned>(own,0x24);state.card=card;
@@ -83,7 +84,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     budgetWindow={};
     socialWindow={};
     academyWindow={};academyWindow.argument=command==94 ? 4 : 0;
-    meetingWindow={};
+    meetingWindow={};gatheringWindow={};
     state.acceptAfter=GetTickCount64()+250;state.message=L"실행을 누르면 서버가 권한·위치·CP를 확인합니다.";
     unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
     if(outfitStrategy(command,card) && count)state.strategyOutfit=outfits[0];
@@ -95,9 +96,10 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(socialCommand(command))drawSocialAction();
     if(academyCommand(command))drawAcademyAction();
     if(meetingCommand(command))drawMeetingAction();
+    if(gatheringCommand(command))drawGatheringAction();
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(state.root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(state.manager,state.root);
-    if(personnelStrategy(command) || command==24 || command==96 || meetingCommand(command))sendStrategyAction(true);
+    if(personnelStrategy(command) || command==24 || command==96 || meetingCommand(command) || gatheringCommand(command))sendStrategyAction(true);
     if(civicCommand(command))sendCivicAction(2);
     if(budgetCommand(command))sendBudgetAction(0);
     if(socialCommand(command))sendSocialAction(0);
@@ -222,6 +224,7 @@ static bool updateStrategyAction(void*) {
     if(socialCommand(state.strategyCommand))return updateSocialAction();
     if(academyCommand(state.strategyCommand))return updateAcademyAction();
     if(meetingCommand(state.strategyCommand))return updateMeetingAction();
+    if(gatheringCommand(state.strategyCommand))return updateGatheringAction();
     if(state.strategyCommand==96)return updateFlagshipMarket();
     unsigned command=state.strategyCommand;unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
     if(command==61 && state.card!=59 && state.card!=195) {
@@ -282,6 +285,7 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
     if(readSocialAction(record))return result;
     if(readAcademyAction(record))return result;
     if(readMeetingAction(record))return result;
+    if(readGatheringAction(record))return result;
     if(at<unsigned short>(record,4)==0x7f00) {
         auto& state=taxWindow;
         if(state.visible && state.strategyActive && state.pending && at<unsigned>(record,0)==state.character &&
@@ -313,7 +317,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
     if(readOutfitFormationPeople(record))return result;
     if(strategyDirectory.receiving) {
         strategyDirectory.receiving=false;auto& state=taxWindow;
-        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand))) {
+        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand))) {
             unsigned count=at<BYTE>(record,0);if(count>200)return result;
             strategyDirectory.count=count;
             for(unsigned i=0;i<count;++i) {

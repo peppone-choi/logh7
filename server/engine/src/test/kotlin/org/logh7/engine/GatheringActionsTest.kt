@@ -28,6 +28,9 @@ class GatheringActionsTest {
         assertNull(invited.rejection);assertTrue(invited.changed);assertEquals(1000,invited.player?.mcp,"no CP on invitation")
         val s=assertNotNull(invited.stocks);val invite=assertNotNull(s.social.gatherings.invites[10000])
         assertEquals(now+GatheringActions.INVITE_SECONDS,invite.expiresAt)
+        val incoming=act(request("guest",10001,10000,0,0).copy(phase=0),s).gathering?.invite
+        assertEquals(10000,incoming?.host,"the guest's preview sees the received invitation")
+        assertEquals(10000,act(request("host",10000,10001,0,0).copy(phase=0),s).gathering?.invite?.host)
         val accepted=act(request("guest",10001,10000,1,s.social.nextId),s)
         assertNull(accepted.rejection);assertEquals(guest,accepted.player,"the guest is not moved")
         assertEquals(680,accepted.navigators.getValue("host").mcp)

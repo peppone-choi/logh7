@@ -64,7 +64,9 @@ object GatheringActions {
         val invite=live[hostId]?.takeIf {it.guest==guestId && it.command==i.command}
         val friendship=s.social.meeting.friendship(hostId,guestId)
         val view=GatheringView(s.social.nextId,i.target,friendship,((g.hostNextAt[hostId] ?: 0)-now).coerceAtLeast(0),invite)
-        if(r.phase==0)return SocialResult(p,s,gathering=view)
+        // A preview reports the open invitation in either direction: received from or sent to the target.
+        if(r.phase==0)return SocialResult(p,s,gathering=view.copy(invite=live[i.target]?.takeIf {it.guest==i.characterId && it.command==i.command}
+            ?: live[i.characterId]?.takeIf {it.guest==i.target && it.command==i.command}))
         if(r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
         if(i.card!=0)return reject(SocialRejection.CARD,view)
         if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || p.warpTarget!=null)return reject(SocialRejection.BUSY,view)
@@ -120,7 +122,8 @@ object GatheringActions {
             social=s.social.copy(nextId=s.social.nextId+1,meeting=meeting,gatherings=gatherings))
         // The CD has no server-initiated room move, so the guest stays where it is (deviation from the design's §2.2-3).
         return SocialResult(p,next,changed=true,navigators=mapOf(hostEntry.key to host.paidWith(paid.balance)),
-            gathering=GatheringView(next.social.nextId,hostId,friendAfter,SocialActions.DAY,null,grade,
+            // The view belongs to the guest: its own hosting wait, not the host's new limit.
+            gathering=GatheringView(next.social.nextId,hostId,friendAfter,((g.hostNextAt[guestId] ?: 0)-now).coerceAtLeast(0),null,grade,
                 hostAfter-hostPerson.influence,guestAfter-guestPerson.influence,friendAfter-friendship))
     }
 }
