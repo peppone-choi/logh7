@@ -416,6 +416,7 @@ class GamePresence {
     @Synchronized fun spotChat(connection: String, message: ChatMessages.Spot, seconds: Long): ByteArray {
         val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
         require(message.characterId.toLong() == sender.character.id)
+        ChatChannel.parse(message.text)?.let {(channel,text) -> return channelChat(sender,channel,text,seconds)}
         val packet = ChatMessages.spot(message, seconds)
         val location = sender.player
         if (location.baseId != 0 && location.spotId != 0) members.values.filter {
@@ -424,6 +425,19 @@ class GamePresence {
                 it.player.spotId == location.spotId && it.player.spotOwner == location.spotOwner
         }.forEach { send(it, listOf(packet)) }
         return packet // The sender's echo uses its own exchange/cipher queue exactly once.
+    }
+    /** U-06: same-side channel members anywhere in the session; the sender must belong to the channel. */
+    private fun channelChat(sender:Member,channel:ChatChannel,text:String,seconds:Long):ByteArray {
+        fun cards(member:Member)=member.offices.map {it.kind}
+        val allowed=channel.admits(cards(sender),sender.outfit)
+        val line=("[${channel.label}] "+(if(!allowed)"이 채널을 쓸 수 있는 직무·소속이 아닙니다." else text)).take(65)
+        val packet=ChatMessages.spot(ChatMessages.Spot(sender.character.id.toInt(),line),seconds)
+        if(allowed && text.isNotBlank())members.values.filter {
+            it.connection!=sender.connection && it.player.generation==sender.player.generation &&
+                it.character.power==sender.character.power && channel.admits(cards(it),it.outfit) &&
+                (channel!=ChatChannel.OWN_OUTFIT || it.outfit==sender.outfit)
+        }.forEach {send(it,listOf(packet))}
+        return packet
     }
     @Synchronized fun gridChat(connection: String, message: ChatMessages.Grid, seconds: Long): ByteArray {
         val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
