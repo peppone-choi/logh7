@@ -68,6 +68,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     fun provideIdentities(supplier:()->List<StrategicIdentity>):AutoCloseable {
         production?.identities=supplier;return AutoCloseable {production?.identities={emptyList()}}
     }
+    private val resultObservers=java.util.concurrent.CopyOnWriteArrayList<(WorldSnapshot)->Unit>()
+    /** U-27: each published snapshot carrying a session result; observers must be idempotent per generation. */
+    fun observeSessionResults(observer:(WorldSnapshot)->Unit):AutoCloseable {
+        resultObservers+=observer;return AutoCloseable {resultObservers.remove(observer)}
+    }
     fun observeBudget(observer:(BudgetChange)->Unit):AutoCloseable {
         budgetObservers+=observer;return AutoCloseable {budgetObservers.remove(observer)}
     }
@@ -229,7 +234,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val old=published.get().planetStocks
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
             SessionResults.fromWorld(galaxy,snapshot) else null
+        val previousResult=published.get().result
         published.set(snapshot.copy(result=result))
+        if(result!=null && previousResult==null)published.get().let {s->resultObservers.forEach {it(s)}}
         val inventory=snapshot.planetStocks
         if(inventory!=null && old!=null && old.generation==inventory.generation &&
             (old.budget!=inventory.budget || old.nationalTreasuries!=inventory.nationalTreasuries ||

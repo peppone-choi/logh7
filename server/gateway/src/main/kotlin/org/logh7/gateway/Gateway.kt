@@ -81,6 +81,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var civicSubscription:AutoCloseable?=null
     private var budgetSubscription:AutoCloseable?=null
     private var identitySubscription:AutoCloseable?=null
+    private var fameSubscription:AutoCloseable?=null
     private var communication:GameCommunication?=null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
@@ -97,6 +98,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        fameSubscription=stock?.observeSessionResults {s->s.session?.generation?.let {g->
+            characterStores.fame.settle(s,characterStores.get(g))}}
         identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
             org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList(),c.age)}}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
@@ -273,6 +276,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         civicSubscription?.close()
         budgetSubscription?.close()
         identitySubscription?.close()
+        fameSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
         finally {
             try {communication?.close()} finally {
