@@ -156,10 +156,12 @@ internal object TacticalCombat {
             else member.connection?.let {viewer.characterId to it}
         }.toMap()
         var departed:Navigator?=null
+        var earned=0L
         val hit = if(victim.regular!=null) {
             val (outfit,unit)=victim.regular
             val changed=TacticalLosses.apply(outfit,unit.id,damage)
             val survivor=changed.activeShips!!.values.single {it.id==targetId}
+            earned=EvaluationPoints.sunk(unit.boats-survivor.boats)
             inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to changed))
             TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-survivor.boats,
                 damaged=survivor.unavailable)
@@ -176,6 +178,7 @@ internal object TacticalCombat {
             val shields=hull.shields.toMutableList().also {it[face]-=absorbed*100*hull.clockScale}
             val lost=FlagshipHull.capacity(hull.kind)-(shields[face]/(100*hull.clockScale)).toInt()
             if(hp<=0) {
+                earned=EvaluationPoints.FLAGSHIP
                 departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory)
                 players[victimAccount]=departed
             } else players[victimAccount]=defender.copy(hull=hull.copy(hp=hp,shields=shields))
@@ -186,6 +189,7 @@ internal object TacticalCombat {
         val morale=(inventory.tacticalCommands.morale[targetId] ?: 100)-OutfitDiscipline.moraleLoss(minOf(20,damage),
             if(outfit==null)OutfitDiscipline.BASELINE else OutfitDiscipline.value(inventory,outfit,seconds))
         inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(morale=inventory.tacticalCommands.morale+(targetId to morale.coerceAtLeast(0))))
+        inventory=EvaluationPoints.award(inventory,EvaluationPoints.shooter(source,players,stocks),earned)
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed)
     }
 

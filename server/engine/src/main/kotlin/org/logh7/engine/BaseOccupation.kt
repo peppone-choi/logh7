@@ -22,6 +22,12 @@ internal object BaseOccupationOperations {
         var stocks=original
         for(base in galaxy.bases.sortedBy {it.id}) {
             val winner=victor(stocks,base) ?: continue
+            // Occupation evaluation (design-evaluation-points.md): the victor's ground commanders here and its
+            // tactical participants in the grid share it equally, before the occupation rewrites the outfits.
+            val groundIds=GroundBattleOperations.participants(stocks,base,winner).map {it.id}.toSet()
+            val earners=stocks.outfits.values.filter {o->o.activeGround?.values.orEmpty().any {it.id in groundIds}}.map {it.commanderId}+
+                players.values.filter {(if(it.power==Power.EMPIRE)2 else 3)==winner && it.generation==session.generation &&
+                    it.grid==base.grid && it.cpPaused}.map {it.characterId}
             val previous=stocks.bases.getValue(base.id)
             val loser=previous.power
             val destroyed=linkedMapOf<Int,Int>()
@@ -99,6 +105,8 @@ internal object BaseOccupationOperations {
             val recipients=session.participants.mapNotNull {(account,member)->players[account]?.takeIf {
                 member.online && member.connection!=null && it.generation==session.generation
             }?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
+            for((character,points) in EvaluationPoints.shares(if(base.kind==1)EvaluationPoints.FORTRESS else EvaluationPoints.PLANET,earners))
+                stocks=EvaluationPoints.award(stocks,character,points)
             events+=BaseOccupation(session.generation,base.grid,base.id,loser,winner,now,destroyed,expelled,recipients)
         }
         return stocks
