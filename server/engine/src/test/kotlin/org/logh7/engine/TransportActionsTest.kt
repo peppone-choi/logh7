@@ -46,6 +46,7 @@ class TransportActionsTest {
     @Test fun cancellingReturnsAnUnloadedPackageAndASunkCarrierLosesItsShare() {
         val s=assertNotNull(act(plan(),stocks()).stocks);val id=s.strategic.transports.single().id
         val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=id)
+        assertEquals(920,act(cancel,s).player?.mcp,"cancelling costs MCP 80")
         val back=assertNotNull(act(cancel,s).stocks);assertEquals(stocks().bases,back.bases);assertTrue(back.strategic.transports.isEmpty())
         val aboard=assertNotNull(act(load(id),s).stocks)
         assertEquals(StrategyActionRejection.BUSY,act(cancel,aboard).rejection,"a loaded package cannot be cancelled")
