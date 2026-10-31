@@ -41,6 +41,18 @@ object GroundBattleRules {
 
     fun canParticipate(site: GroundSite, kind: GroundUnitKind): Boolean = kind in eligibleKinds(site)
 
+    /** U-09: p.51's "gas and other special planets" are the planets whose model is not one of the
+     * habitable surfaces (BaseCondition.habitable); the model-to-type reading is evidence:guess. */
+    fun site(base: GalaxyBase): GroundSite = when {
+        base.kind == 1 -> GroundSite.FORTRESS
+        BaseCondition.habitable(base) -> GroundSite.NORMAL_PLANET
+        else -> GroundSite.SPECIAL_PLANET
+    }
+
+    /** Crew type 2 is 装甲兵 (ARMORED_INFANTRY), the one kind p.51 bars from special planets and fortresses. */
+    fun admitsCrewType(base: GalaxyBase, type: Int): Boolean =
+        type != 2 || GroundUnitKind.ARMORED_INFANTRY in eligibleKinds(site(base))
+
     /**
      * p.54: 정박 시 강하, 주류 시 출격. p.51: 탑재 육전대 필요, 진영당 박스 상한 30(수비대 포함).
      * landingUnits는 이번 명령으로 내릴 전 육전대 수이며 Int.MAX_VALUE까지 비음수 입력을 허용한다.

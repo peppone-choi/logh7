@@ -9,7 +9,7 @@ internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
     fun participants(stocks:PlanetStocks,base:GalaxyBase,power:Int):List<ActiveGroundUnit> =
         stocks.outfits.values.filter {it.power==power}.flatMap {it.activeGround?.values.orEmpty()}
-            .filter {it.base==base.id && (base.kind!=1 || specifications.getValue(it.stack.kind).type!=2)}
+            .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
 
     fun contested(stocks:PlanetStocks,base:GalaxyBase)=participants(stocks,base,2).isNotEmpty() && participants(stocks,base,3).isNotEmpty()

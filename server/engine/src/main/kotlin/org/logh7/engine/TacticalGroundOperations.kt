@@ -64,8 +64,8 @@ internal object TacticalGroundOperations {
             if(troops.isEmpty())return reject(NavigationRejection.UNIT)
             if(troops.any {it.order!=null})return reject(NavigationRejection.BUSY)
             if(command.action==TacticalGroundAction.DEPLOY) {
-                // Fortress restriction is known. Special-planet classification remains separate unfinished work.
-                if(base.kind==1 && troops.any {u->UnitSpecifications.crews.single {it.kind==u.stack.kind}.type==2})return reject(NavigationRejection.BASE)
+                // p.51: fortresses and special (gas etc.) planets refuse 装甲兵 (U-09).
+                if(troops.any {u->!GroundBattleRules.admitsCrewType(base,UnitSpecifications.crews.single {it.kind==u.stack.kind}.type)})return reject(NavigationRejection.BASE)
                 val occupied=next.outfits.values.filter {it.power==o.power}.sumOf {other->
                     other.activeGround?.values.orEmpty().count {it.base==base.id || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==base.id}==true}}
                 if(occupied+troops.size>GroundBattleRules.BOX_CAPACITY_PER_FACTION)return reject(NavigationRejection.GRID)
