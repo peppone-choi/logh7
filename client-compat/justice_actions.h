@@ -22,7 +22,8 @@ static void sendJusticeAction(bool preview,unsigned cursor=0) {
     at<unsigned short>(record,10)=static_cast<unsigned short>(preview ? (grantees ? 1 : 0) : state.strategyValue);
     at<unsigned>(record,12)=preview ? cursor : state.strategyTarget;
     at<BYTE>(record,16)=preview ? 1 : 0;
-    if(!preview && state.strategyCommand==70)at<unsigned>(record,28)=state.strategyBase;
+    // 執行命令 names the listed person on commit and while listing grantees (so the server can leave it out).
+    if(state.strategyCommand==70 && (!preview || grantees))at<unsigned>(record,28)=state.strategyBase;
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
     state.pending=true;state.sentAt=GetTickCount64();state.message=preview ? L"목록을 조회하고 있습니다." : L"서버에 요청했습니다.";

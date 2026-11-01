@@ -1436,7 +1436,7 @@ class GameExchange(
                                                 org.logh7.engine.Justice.PERMIT -> people.filter {org.logh7.engine.Justice.arrests(query.card,rankOf(it.id.toInt(),it.rank)) &&
                                                     !justice.detained(it.id.toInt())}
                                                 org.logh7.engine.Justice.EXECUTION -> if(query.value==0)people.filter {justice.permits[it.id.toInt()]?.let {p->p.until>now}==true}
-                                                    else people.filter {!justice.detained(it.id.toInt())}
+                                                    else people.filter {!justice.detained(it.id.toInt()) && it.id.toInt()!=query.base}
                                                 org.logh7.engine.Justice.ARREST -> people.filter {p->justice.permits[p.id.toInt()]?.let {it.until>now}==true &&
                                                     (justice.rights[character.id.toInt()]?.target==p.id.toInt() ||
                                                         org.logh7.engine.Justice.arrests(query.card,rankOf(p.id.toInt(),p.rank)))}

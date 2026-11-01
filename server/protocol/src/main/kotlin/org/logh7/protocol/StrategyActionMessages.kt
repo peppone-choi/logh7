@@ -58,7 +58,7 @@ object StrategyActionMessages {
         else if(proposal)require(card in 0..260 && argument in 0..260 && amount in 0..260 && base>=0 &&
             (if(preview)card==0 && argument==0 && amount==0 && (value==0 && base==0 || value in setOf(0x0707,0x0708) && base>0)
              else target>0 && value in 1..0xffff && (if(value in setOf(0x0707,0x0708))base>0 && amount>0 else base==0 && amount==0)))
-        else if(justice)require(card in 0..260 && argument==0 && amount==0 && (if(preview)base==0 && value in 0..1
+        else if(justice)require(card in 0..260 && argument==0 && amount==0 && (if(preview)value in 0..1 && (base==0 || command==70 && value==1 && base>0)
              else target>0 && when(command) {69 -> card>0 && value in 1..7 && base==0;70 -> card>0 && value in 0..1 && base>0
                  71 -> value==0 && base==0;else -> card>0 && value in 1..3 && base==0}))
         // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
