@@ -34,10 +34,13 @@ object StrategyActionMessages {
         // U-17 工作 75..79: card = intelligence card, base = the spot to infiltrate (75); 75 previews list this base's spots.
         // 80 侵入 / 81 帰還: base = the destination base, value = the alias (80); previews list reachable bases.
         val espionage=command in 75..81
+        // U-10 クーデター: 叛意 88, 謀議 89 (target = same-spot person; previews list them), 説得 90, 叛乱 91, 参加 92 on the
+        // personal card; 査閲 72 on a police/intelligence card.
+        val coup=command in setOf(72,88,89,90,91,92)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,19,22,23,24,28,29,65,68,69,70,71,73,74,75,76,77,78,79,80,81,86,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,19,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,68,69,70,71,73,74,75,80,81,87,98))
+        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,68,69,70,71,73,74,75,80,81,87,89,98))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
@@ -69,6 +72,8 @@ object StrategyActionMessages {
         else if(espionage)require(card in 1..260 && argument==0 && amount==0 && target==0 &&
             (if(preview)command in setOf(75,80,81) && base==0 else if(command in setOf(75,80,81))base>0 else base==0) &&
             (value==0 || command==80 && !preview && value in 0..7))
+        else if(coup)require(argument==0 && amount==0 && value==0 && base==0 && (if(command==72)card in 1..260 && !preview && target==0
+            else card==0 && (if(command==89)preview || target>0 else !preview && target==0)))
         // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
         // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package. Previews list packages.
         else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && value==0 && base==0 && amount==0 &&
@@ -79,7 +84,7 @@ object StrategyActionMessages {
         else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        val listed=personnel || operation || market || transport || proposal || justice || espionage || command in setOf(10,11,12,13,87)
+        val listed=personnel || operation || market || transport || proposal || justice || espionage || coup || command in setOf(10,11,12,13,87)
         return Query(character,command,card,if(command==65)argument else if(listed)0 else target,message.copyOfRange(2,message.size),
             if(listed)target else 0,base,value,preview,amount,argument)
     }
@@ -112,7 +117,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(10,11,12,13,19,24,29,65,68,69,70,71,73,74,75,80,81,87,96,98) && rows.size<=200)
+        require(q.preview && q.command in setOf(10,11,12,13,19,24,29,65,68,69,70,71,73,74,75,80,81,87,89,96,98) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

@@ -120,4 +120,11 @@ class SocialStoreTest {
         assertEquals(8,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
         assertEquals(4,SocialStateCodec.encode(SocialState()).split('|').size,"no proposals keep the old form")
     }
+    @Test fun coupPlotsAndLoyaltyRoundTripAsAnOptionalTenthField() {
+        val coup=CoupState(mapOf(10000 to Plot(10000,2,100,setOf(10003),listOf(10002,10001),500,setOf(1049))),mapOf(7 to 20))
+        val state=SocialState(coup=coup)
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(10,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+        assertEquals(listOf(10002,10001),SocialStateCodec.decode(encoded).coup.plots.getValue(10000).members,"joining order")
+    }
 }

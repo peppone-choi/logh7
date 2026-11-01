@@ -12,7 +12,7 @@ internal object SocialStateCodec {
         // Optional fields 5..9 are written up to the last one that differs from its default.
         val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
             (s.gatherings!=GatheringState()) to {gatherings(s.gatherings)},(s.proposals!=ProposalState()) to {proposals(s.proposals)},
-            (s.justice!=JusticeState()) to {justice(s.justice)})
+            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)})
         val last=optional.indexOfLast {it.first}
         return (base+optional.take(last+1).map {it.second()}).joinToString("|")
     }
@@ -114,8 +114,22 @@ internal object SocialStateCodec {
             val f=row.split(':');require(f.size==2 && out.put(f[0].toInt(),f[1].toLong())==null)
         };return out
     }
+    /** Optional tenth field (U-10 クーデター, 2026-11-01): plots "leader:power:since:revolt:consenting,..:members,..:bases,.."
+     * joined by ';' (empty lists "-"), then '/' and outfit loyalty "outfit:value,..". */
+    private fun ids(values:Collection<Int>)=values.joinToString(",").ifEmpty {"-"}
+    private fun ids(text:String)=if(text=="-")emptyList() else text.split(',').map {it.toInt()}
+    private fun coup(c:CoupState)=c.plots.toSortedMap().values.joinToString(";") {p->
+        listOf(p.leader,p.power,p.since,p.revolt,ids(p.consenting.sorted()),ids(p.members),ids(p.bases.sorted())).joinToString(":")}
+        .ifEmpty {"-"}+"/"+c.loyalty.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
+    private fun coup(text:String):CoupState {
+        val (plots,loyalty)=text.split('/').also {require(it.size==2)}
+        return CoupState(if(plots=="-")emptyMap() else plots.split(';').associate {row->
+            val v=row.split(':');require(v.size==7)
+            v[0].toInt() to Plot(v[0].toInt(),v[1].toInt(),v[2].toLong(),ids(v[4]).toSet(),ids(v[5]),v[3].toLong(),ids(v[6]).toSet())},
+            if(loyalty=="-")emptyMap() else loyalty.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toInt()}})
+    }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..9)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..10)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -125,7 +139,8 @@ internal object SocialStateCodec {
         }
         return SocialState(f[0].toInt(),speeches,times(f[1]),times(f[2]),if(f.size>=5)academy(f[4]) else AcademyState(),
             if(f.size>=6)meeting(f[5]) else MeetingState(),if(f.size>=7)gatherings(f[6]) else GatheringState(),
-            if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size==9)justice(f[8]) else JusticeState())
+            if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size>=9)justice(f[8]) else JusticeState(),
+            if(f.size==10)coup(f[9]) else CoupState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }

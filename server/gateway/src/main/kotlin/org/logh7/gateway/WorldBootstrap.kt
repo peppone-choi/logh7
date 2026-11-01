@@ -32,6 +32,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 24,25,26,147,148,149->addAll(listOf(22,23))
                 28,29,30,169,170,171->add(24)
             }
+            // U-10 査閲 on the police/intelligence cards that search.
+            if(role.card in org.logh7.engine.Justice.searchCards)add(72)
             if(role.card==160)add(19)
             if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
             add(7)

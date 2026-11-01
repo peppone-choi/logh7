@@ -1427,6 +1427,17 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command==org.logh7.engine.CoupActions.CONSPIRACY) {
+                                            // 謀議: same-side people in the requester's spot who are not in a plot.
+                                            val snapshot=navigation?.snapshot();val players=snapshot?.navigators.orEmpty()
+                                            val me=checkNotNull(players[identity.account]);val coup=snapshot?.planetStocks?.social?.coup
+                                            val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                                it.characterId>query.target && me.baseId!=0 && it.power==me.power && it.baseId==me.baseId &&
+                                                it.spotId==me.spotId && coup?.plotOf(it.characterId)==null}.map {it.characterId}.toSet()
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
                                         if(query.command==org.logh7.engine.EspionageActions.INTRUDE || query.command==org.logh7.engine.EspionageActions.RETURN) {
                                             // U-17: bases within 10 grid cells, of another side (侵入) or this side (帰還).
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
@@ -1571,7 +1582,8 @@ class GameExchange(
                                     }
                                     return null
                                 }
-                                if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands) {
+                                if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands ||
+                                    query.command in org.logh7.engine.CoupActions.commands) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
@@ -1585,6 +1597,12 @@ class GameExchange(
                                             check(characters.defect(identity.account,character.id,result.defected))
                                             communicationIdentity(characters,character.id.toInt())?.let {communication?.defect(it,checkNotNull(generation))?.join()}
                                             defectedLogout=true
+                                        }
+                                        if(query.command==org.logh7.engine.CoupActions.CONSPIRACY && result.outcome==3 && result.found>0) {
+                                            // 謀議 refused: the target learns who asked (user decision 2026-11-01).
+                                            val from=communicationIdentity(characters,character.id.toInt());val to=communicationIdentity(characters,result.found)
+                                            if(from!=null && to!=null)communication?.notice(from,to,"모의 제안",
+                                                "${from.name}이(가) 쿠데타 참가를 제안했습니다. 거절했습니다.",checkNotNull(generation),gameSeconds())
                                         }
                                         val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)

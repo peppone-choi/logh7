@@ -18,7 +18,9 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
     /** 命令/提案 mail rows (design-proposals-orders.md). */
     val proposals:ProposalState=ProposalState(),
     /** U-25 逮捕·処断 (design-arrest-judgment.md). */
-    val justice:JusticeState=JusticeState()) {
+    val justice:JusticeState=JusticeState(),
+    /** U-10 クーデター (design-coup.md). */
+    val coup:CoupState=CoupState()) {
     init {require(nextId>0 && speeches.size<=256 && speeches.all {(id,r)->id==r.character && r.id<nextId} &&
         speeches.values.map {it.id}.distinct().size==speeches.size && speakers.size<=4096 && squares.size<=350 &&
         speakers.all {(id,at)->id>0 && at in 0..0xffffffffL} && squares.all {(base,at)->base in 1..65535 && at in 0..0xffffffffL} &&
@@ -26,7 +28,7 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
     fun detached()=copy(speeches=java.util.Collections.unmodifiableMap(LinkedHashMap(speeches)),
         speakers=java.util.Collections.unmodifiableMap(LinkedHashMap(speakers)),squares=java.util.Collections.unmodifiableMap(LinkedHashMap(squares)),
         academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached(),proposals=proposals.detached(),
-        justice=justice.detached())
+        justice=justice.detached(),coup=coup.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
 enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE, TARGET }
@@ -55,6 +57,7 @@ object SocialActions {
         if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(r,session,p,s,accounts)
         if(r.identity.command in Justice.commands)return JusticeActions.evaluate(g,r,session,p,s,accounts)
         if(r.identity.command in EspionageActions.commands)return EspionageActions.evaluate(g,r,session,p,s,accounts)
+        if(r.identity.command in CoupActions.commands)return CoupActions.evaluate(g,r,session,p,s,accounts)
         // A detainee (U-25) cannot run social commands.
         if(p!=null && s.social.justice.detained(p.characterId))return SocialResult(p,s,SocialRejection.BUSY)
         if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts)

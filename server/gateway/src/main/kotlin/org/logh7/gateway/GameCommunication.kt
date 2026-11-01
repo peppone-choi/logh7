@@ -31,6 +31,10 @@ class GameCommunication(private val presence:GamePresence,private val generation
     },executor)
     /** U-25 defection: record the new side and clear the address book, on the mail executor. */
     fun defect(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.runAsync({engine(expected).defect(owner)},executor)
+    /** A server-written notice from [sender] to [recipient] (U-10 謀議 refusal), on the mail executor. */
+    fun notice(sender:MailIdentity,recipient:MailIdentity,subject:String,body:String,expected:Long,seconds:Long)=
+        java.util.concurrent.CompletableFuture.runAsync({runCatching {engine(expected).send(sender,recipient,subject,body,seconds,
+            "coup-${sender.character}-${recipient.character}-$seconds")}},executor)
     fun submit(connection:String,owner:MailIdentity,expected:Long,body:ByteArray,seconds:Long)=
         java.util.concurrent.CompletableFuture.supplyAsync({handle(connection,owner,expected,body,seconds)},executor)
     private fun engine(expected:Long):Communication {
