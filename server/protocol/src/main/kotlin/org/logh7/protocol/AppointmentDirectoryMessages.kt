@@ -15,11 +15,14 @@ object AppointmentDirectoryMessages {
             18 -> flags==123 && message.drop(10).all { it==0.toByte() }
             // 命令/提案 tab target directory (CD p.28; first seen 2026-11-01 with flags 0x0984).
             29 -> role==0 && message.drop(12).all { it==0.toByte() }
+            // New-mail recipient picker's office tab: flags and role carry stale values (run-343 0/175,
+            // run-71 0x0646/51), everything after them is 0.
+            15 -> message.drop(12).all { it==0.toByte() }
             28 -> OfficeCardKinds.isOffice(role) && !OfficeCardKinds.isOutfit(role)
             27 -> flags==80 && OfficeCardKinds.isOutfit(role)
             4,5 -> flags==80 && OfficeCardKinds.isOffice(role)
             else -> false
-        })
+        }) {"Unsupported directory search: ${message.joinToString("") {"%02x".format(it)}}"}
         return Query(character,search,flags,role,base,message.copyOfRange(2,message.size))
     }
     private fun transaction(query:Query,opcode:Int,body:ByteArray)=listOf(
@@ -80,7 +83,7 @@ object AppointmentDirectoryMessages {
     data class OrderSuggest(val card:Int,val targets:List<Pair<Int,Person>>)
     /** 0x120e NotifySimpleInformationOrderSuggestCharacter: at most ten cards of ten people each. */
     fun orderSuggest(query:Query,values:List<OrderSuggest>):List<ByteArray> {
-        require(query.search==29 && values.size<=10 && values.all {it.targets.size<=10 && it.card in 0..260 &&
+        require(query.search in setOf(15,29) && values.size<=10 && values.all {it.targets.size<=10 && it.card in 0..260 &&
             it.targets.all {(type,_)->type in 0..1}})
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use { out ->

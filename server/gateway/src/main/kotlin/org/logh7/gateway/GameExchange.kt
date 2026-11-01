@@ -1647,6 +1647,10 @@ class GameExchange(
                                 val dismissals=org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
                                     .available(inventory,character.id.toInt(),character.power,character.rank)
                                 when(query.search) {
+                                    // The new-mail office tab: the CD's office mailbox shows only 命令/提案 mail (0f13/0f14), so
+                                    // ordinary mail to an office address could never be read there. Answer an empty directory
+                                    // instead of the old unsupported-search disconnect (design-proposals-orders.md).
+                                    15 -> org.logh7.protocol.AppointmentDirectoryMessages.orderSuggest(query,emptyList())
                                     // 命令/提案 targets (CD p.28): same side; same spot inside a facility, else the same grid.
                                     // One group per own office card; targets hold a card of the same institution. A higher
                                     // rank receives a proposal (1), others an order (0); the emperor orders everyone (evidence:guess).
