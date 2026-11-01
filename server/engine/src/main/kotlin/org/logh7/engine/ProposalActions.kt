@@ -17,7 +17,23 @@ object ProposalActions {
     const val RESIGNATION=0x0709
     val costs=mapOf(RESIGNATION to 80L)
 
+    /** Expired pending rows give the sender's half back first (approved design §2.2), in the same commit as the action. */
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
+        val now=session.gameMillis/1000
+        val expired=Proposals.expired(s.social.proposals,now)
+        if(expired.isEmpty() || p==null)return act(g,r,session,p,s,accounts)
+        var self:Navigator=p;val refunds=linkedMapOf<String,Navigator>()
+        for(mail in expired) {
+            if(mail.sender==p.characterId) {self=self.copy(mcp=Math.addExact(self.mcp,mail.mcp));continue}
+            val (key,sender)=accounts.entries.singleOrNull {it.value.generation==p.generation && it.value.characterId==mail.sender}
+                ?.let {it.key to (refunds[it.key] ?: it.value)} ?: continue
+            refunds[key]=sender.copy(mcp=Math.addExact(sender.mcp,mail.mcp))
+        }
+        val settled=s.copy(social=s.social.copy(proposals=Proposals.withoutExpired(s.social.proposals,now)))
+        val result=act(g,r,session,self,settled,accounts+refunds)
+        return if(result.rejection!=null)SocialResult(p,s,result.rejection) else result.copy(navigators=refunds+result.navigators)
+    }
+    private fun act(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         val member=session.participants[i.account]

@@ -48,4 +48,17 @@ class ProposalActionsTest {
         assertEquals(SocialRejection.RANK,act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,poor).rejection,"no influence")
         assertEquals(SocialRejection.COMMAND,act("a",ProposalActions.OPEN,17,10001,0x0c0b,19,stocks()).rejection)
     }
+    @Test fun anExpiredRowGivesTheSendersHalfBackInTheNextCommit() {
+        val opened=act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,stocks())
+        val s=assertNotNull(opened.stocks)
+        val late=session.copy(gameMillis=(session.gameMillis/1000+Proposals.LIFETIME+1)*1000)
+        val r=SocialRequest(StrategyActionRequest("b","b",10001,Power.EMPIRE,1,ProposalActions.REPLY,0,9,target=s.social.proposals.mails.single().id,value=0))
+        val result=SocialActions.evaluate(galaxy,r,late,b,s,listOf(a,b),mapOf("a" to a.copy(mcp=960),"b" to b))
+        assertEquals(SocialRejection.STALE,result.rejection,"the row is gone")
+        val other=SocialRequest(StrategyActionRequest("b","b",10001,Power.EMPIRE,1,ProposalActions.OPEN,19,9,
+            target=10000,value=ProposalActions.RESIGNATION,argument=17))
+        val refunded=SocialActions.evaluate(galaxy,other,late,b,s,listOf(a,b),mapOf("a" to a.copy(mcp=960),"b" to b))
+        assertNull(refunded.rejection);assertEquals(1000,refunded.navigators.getValue("a").mcp,"40 MCP back to the sender")
+        assertEquals(1,assertNotNull(refunded.stocks).social.proposals.mails.size,"only the new row remains")
+    }
 }

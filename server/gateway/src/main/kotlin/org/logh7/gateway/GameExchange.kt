@@ -113,6 +113,11 @@ class GameExchange(
         return listOf(org.logh7.protocol.TacticsMessages.corps(
             TacticalBootstrap(snapshot,checkNotNull(world).galaxy,player,::currentCharacterById).corps))
     }
+    /** Other people whose CP changed in the same commit (a proposal refund) see it at once. */
+    private fun refreshPaid(navigators:Map<String,org.logh7.engine.Navigator>) {
+        navigators.values.forEach {other->currentCharacterById(other.characterId)?.let {c->
+            presence?.refreshCharacter(c,other,offices(c,other),gameSeconds(),administration?.stationedOutfit(other) ?: 0)}}
+    }
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
     private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
@@ -1170,6 +1175,7 @@ class GameExchange(
                         pendingWorld=administration.social(request).thenApply {result ->
                             val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                             publication=Publication(updated,player,false)
+                            refreshPaid(result.navigators)
                             listOf(characterMessage(updated,player,true))
                         }
                         return null
@@ -1468,6 +1474,7 @@ class GameExchange(
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
+                                        refreshPaid(result.navigators)
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
                                             listOf(characterMessage(updated,player,true))
                                     }
