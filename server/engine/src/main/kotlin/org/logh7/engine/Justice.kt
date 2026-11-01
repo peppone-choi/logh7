@@ -30,8 +30,17 @@ object Justice {
     const val PERMIT=69
     const val EXECUTION=70
     const val ARREST=71
-    val commands=setOf(JUDGMENT,PERMIT,EXECUTION,ARREST)
-    val costs=mapOf(JUDGMENT to 320L,PERMIT to 800L,EXECUTION to 800L,ARREST to 160L)
+    /** Phase 2 (design §2): 一斉捜索 68 finds a person staying at the same base; 襲撃 73 attacks the other side. */
+    const val SEARCH=68
+    const val RAID=73
+    val commands=setOf(JUDGMENT,PERMIT,EXECUTION,ARREST,SEARCH,RAID)
+    val costs=mapOf(JUDGMENT to 320L,PERMIT to 800L,EXECUTION to 800L,ARREST to 160L,SEARCH to 160L,RAID to 160L)
+    /** Police and intelligence duties (CM group 6): 7 内務尚書, 10 司法尚書, 20 調査局長, 32 憲兵総監, 58 諜報官,
+     * 137 法秩序委員長, 157 憲兵司令官, 158 査閲部長, 162 情報部長, 194 諜報官. Raids are for police/intelligence only. */
+    val searchCards=setOf(7,10,20,32,58,137,157,158,162,194)
+    val raidCards=setOf(20,32,58,157,158,162,194)
+    /** A raid wounds the loser for one game day (approved design pattern, evidence:guess). */
+    const val WOUND_SECONDS=86400L
     const val DAY=86400L
     const val PERMIT_DAYS=30L
     const val RIGHT_DAYS=7L

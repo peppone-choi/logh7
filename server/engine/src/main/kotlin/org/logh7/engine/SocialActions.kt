@@ -37,7 +37,9 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     /** Other accounts' navigators changed by the same commit (a gathering host's payment). */
     val navigators:Map<String,Navigator> = emptyMap(),
     /** 逮捕命令 result: JusticeActions.Outcome ordinal (0 none). */
-    val outcome:Int=0)
+    val outcome:Int=0,
+    /** 一斉捜索 result: the found person's spot (1 when it stays outside a spot), 0 not found. */
+    val found:Int=0)
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,

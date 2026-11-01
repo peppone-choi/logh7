@@ -121,6 +121,29 @@ object JusticeActions {
                 val changed=players.filter {(k,v)->accounts[k]!=v}
                 return pay(next,p,changed).let {if(it.rejection==null)it.copy(outcome=outcome.ordinal) else it}
             }
+            Justice.SEARCH -> {
+                if(!holds || i.card !in Justice.searchCards)return reject(SocialRejection.CARD)
+                val t=targetNav ?: return reject(SocialRejection.TARGET)
+                // Found only when staying at the searcher's base and the intelligence roll succeeds.
+                val threshold=Justice.arrestThreshold(intelligence(s,ids,i.characterId),intelligence(s,ids,i.target))
+                val found=p.baseId!=0 && t.baseId==p.baseId && !t.cpPaused && roll(i.characterId,i.target,now)<threshold
+                return pay(s).let {if(it.rejection==null)it.copy(outcome=if(found)1 else 3,found=if(found)maxOf(t.spotId,1) else 0) else it}
+            }
+            Justice.RAID -> {
+                if(!holds || i.card !in Justice.raidCards)return reject(SocialRejection.CARD)
+                val t=targetNav ?: return reject(SocialRejection.LOCATION)
+                if(targetPower==power)return reject(SocialRejection.TARGET)
+                val sameSpot=p.spotId!=0 && t.baseId==p.baseId && t.spotId==p.spotId && t.spotOwner==p.spotOwner && !t.cpPaused
+                if(!sameSpot)return reject(SocialRejection.LOCATION)
+                val threshold=Justice.arrestThreshold(intelligence(s,ids,i.characterId),intelligence(s,ids,i.target))
+                val dice=roll(i.characterId,i.target,now)
+                val outcome=when {dice<threshold-10 -> Outcome.ARRESTED;dice<threshold+10 -> Outcome.EVADED;else -> Outcome.FAILED}
+                fun wound(n:Navigator)=n.hull?.let {n.copy(hull=it.copy(woundedUntil=maxOf(it.woundedUntil,now+Justice.WOUND_SECONDS)))} ?: n
+                val targetKey=accounts.entries.single {it.value.characterId==i.target}.key
+                val others=if(outcome==Outcome.ARRESTED)mapOf(targetKey to wound(t)) else emptyMap()
+                val self=if(outcome==Outcome.FAILED)wound(p) else p
+                return pay(s,self,others).let {if(it.rejection==null)it.copy(outcome=outcome.ordinal) else it}
+            }
             Justice.JUDGMENT -> {
                 val d=j.detentions[i.target]?.takeIf {it.power==power && !it.severe} ?: return reject(SocialRejection.STALE)
                 if(!holds || !Justice.judges(i.card,targetRank))return reject(SocialRejection.TARGET)

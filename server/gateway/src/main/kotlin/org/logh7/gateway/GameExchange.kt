@@ -1430,7 +1430,7 @@ class GameExchange(
                                             // value 1 same-side grantees, 71 listed people this character may arrest, 19 detainees in scope.
                                             val justice=inventory.social.justice;val now=gameSeconds()
                                             val people=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
-                                                .filter {it.power==character.power && it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
+                                                .filter {(it.power==character.power || query.command in setOf(68,73)) && it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
                                             fun rankOf(id:Int,fallback:Int)=inventory.strategic.people[id]?.rank ?: fallback
                                             val rows=when(query.command) {
                                                 org.logh7.engine.Justice.PERMIT -> people.filter {org.logh7.engine.Justice.arrests(query.card,rankOf(it.id.toInt(),it.rank)) &&
@@ -1440,6 +1440,13 @@ class GameExchange(
                                                 org.logh7.engine.Justice.ARREST -> people.filter {p->justice.permits[p.id.toInt()]?.let {it.until>now}==true &&
                                                     (justice.rights[character.id.toInt()]?.target==p.id.toInt() ||
                                                         org.logh7.engine.Justice.arrests(query.card,rankOf(p.id.toInt(),p.rank)))}
+                                                org.logh7.engine.Justice.SEARCH -> people
+                                                org.logh7.engine.Justice.RAID -> {
+                                                    val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                                    val here=navigation?.snapshot()?.navigators.orEmpty().values.filter {me.spotId!=0 && it.baseId==me.baseId &&
+                                                        it.spotId==me.spotId && it.spotOwner==me.spotOwner && it.power!=me.power}.map {it.characterId}.toSet()
+                                                    people.filter {it.id.toInt() in here}
+                                                }
                                                 else -> people.filter {p->justice.detentions[p.id.toInt()]?.let {!it.severe}==true &&
                                                     org.logh7.engine.Justice.judges(query.card,rankOf(p.id.toInt(),p.rank))}
                                             }.sortedBy {it.id}.take(200)
@@ -1544,7 +1551,7 @@ class GameExchange(
                                         publication=Publication(updated,player,false)
                                         refreshPaid(result.navigators)
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
-                                            outcome=result.outcome)+listOf(characterMessage(updated,player,true))
+                                            outcome=result.outcome,found=result.found)+listOf(characterMessage(updated,player,true))
                                     }
                                     return null
                                 }

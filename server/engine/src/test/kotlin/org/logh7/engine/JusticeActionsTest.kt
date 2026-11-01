@@ -71,4 +71,11 @@ class JusticeActionsTest {
         assertFalse(settled.social.justice.detained(10002));assertEquals(9,settled.strategic.people.getValue(10002).rank)
         assertEquals(0,players.getValue("c").spotId,"released to the square")
     }
+    @Test fun aSearchFindsSomeoneAtTheSameBaseAndARaidWoundsByTheRoll() {
+        val search=act(a,"a",Justice.SEARCH,7,10002,s=stocks())
+        assertNull(search.rejection);assertEquals(840,search.player?.mcp)
+        val found=JusticeActions.roll(10000,10002,session.gameMillis/1000)<Justice.arrestThreshold(50,10)
+        assertEquals(if(found)1 else 3,search.outcome);assertEquals(if(found)spot else 0,search.found)
+        assertEquals(SocialRejection.CARD,act(a,"a",Justice.RAID,7,10002,s=stocks()).rejection,"内務尚書 cannot raid")
+    }
 }
