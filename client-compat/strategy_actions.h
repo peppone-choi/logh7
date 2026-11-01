@@ -117,7 +117,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(academyCommand(command))sendAcademyAction(0);
     if(command==29 || command==65)sendTransportAction(true);
     if(justiceCommand(command) && command!=86)sendJusticeAction(true);
-    if(command==75) {espionageReport[0]=0;sendEspionageAction(true);}
+    if(command==75 || command==80 || command==81) {espionageReport[0]=0;sendEspionageAction(true);}
     else if(espionageCommand(command))espionageReport[0]=0;
     return 1;
 }
@@ -345,7 +345,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
     if(readOutfitFormationPeople(record))return result;
     if(strategyDirectory.receiving) {
         strategyDirectory.receiving=false;auto& state=taxWindow;
-        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand) || proposalCommand(state.strategyCommand) || justiceCommand(state.strategyCommand) || state.strategyCommand==75)) {
+        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand) || proposalCommand(state.strategyCommand) || justiceCommand(state.strategyCommand) || state.strategyCommand==75 || state.strategyCommand==80 || state.strategyCommand==81)) {
             unsigned count=at<BYTE>(record,0);if(count>200)return result;
             strategyDirectory.count=count;
             for(unsigned i=0;i<count;++i) {

@@ -92,6 +92,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
+        presence?.disguise = { id -> navigation?.snapshot()?.planetStocks?.social?.justice?.disguises?.get(id)?.let {
+            org.logh7.engine.EspionageActions.aliases[it.alias] to it.power } }
         tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}

@@ -14,13 +14,27 @@ data class Bomb(val character:Int,val base:Int,val spot:Int,val explodesAt:Long)
     init {require(character>0 && base in 1..65535 && spot>0 && explodesAt in 0..0xffffffffL)}
 }
 
+/** A forged identity: others see [alias] (an index of [EspionageActions.aliases]) of [power] until detected. */
+data class Disguise(val character:Int,val alias:Int,val power:Int,val since:Long,val checkAt:Long) {
+    init {require(character>0 && alias in EspionageActions.aliases.indices && power in 2..3 && since in 0..checkAt && checkAt<=0xffffffffL)}
+}
+
 object EspionageActions {
     const val INFILTRATE=75
     const val ESCAPE=76
     const val INTELLIGENCE=77
     const val SABOTAGE=78
     const val AGITATE=79
-    val commands=setOf(INFILTRATE,ESCAPE,INTELLIGENCE,SABOTAGE,AGITATE)
+    /** 侵入 80 / 帰還 81 (MCP 320, manual p.74): to another side's / own side's base within 1000 light years (10 grid cells). */
+    const val INTRUDE=80
+    const val RETURN=81
+    val commands=setOf(INFILTRATE,ESCAPE,INTELLIGENCE,SABOTAGE,AGITATE,INTRUDE,RETURN)
+    /** Forged surnames offered by the window (evidence:guess). */
+    val aliases=listOf("Muller","Schmidt","Fischer","Weber","Wagner","Becker","Hoffmann","Schulz")
+    const val RANGE_CELLS=10
+    fun cells(a:Int,b:Int)=maxOf(kotlin.math.abs(a%100-b%100),kotlin.math.abs(a/100-b/100))
+    /** Daily chance (percent) that a disguise is seen through: 20 − (intelligence − 50)/4, 5..40 (evidence:guess). */
+    fun exposure(intelligence:Int)=(20-(intelligence-50)/4).coerceIn(5,40)
     /** Intelligence duties (CM group 6): 20 調査局長, 58/194 諜報官, 162 情報部長. */
     val cards=setOf(20,58,162,194)
     const val INFILTRATION_DAYS=7L
@@ -36,16 +50,29 @@ object EspionageActions {
     fun settle(session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks):PlanetStocks {
         val now=session.gameMillis/1000;val j=s.social.justice
         val due=j.bombs.values.filter {it.explodesAt<=now}
-        if(due.isEmpty() && j.infiltrations.none {it.value.until<=now} && j.disabled.none {it.value<=now})return s
+        val seen=j.disguises.values.filter {it.checkAt<=now}
+        if(due.isEmpty() && seen.isEmpty() && j.infiltrations.none {it.value.until<=now} && j.disabled.none {it.value<=now})return s
         val disabled=LinkedHashMap(j.disabled.filterValues {it>now})
         for(b in due.sortedBy {it.character}) {
             disabled[b.base]=maxOf(disabled[b.base] ?: 0,b.explodesAt+DISABLED_DAYS*Justice.DAY)
             for((key,n) in players.entries.toList())if(n.baseId==b.base && n.spotId==b.spot)
                 players[key]=n.hull?.let {n.copy(hull=it.copy(woundedUntil=maxOf(it.woundedUntil,b.explodesAt+Justice.WOUND_SECONDS)))} ?: n
         }
-        return s.copy(social=s.social.copy(justice=j.copy(bombs=j.bombs.filterValues {it.explodesAt>now},
+        var next=s.copy(social=s.social.copy(justice=j.copy(bombs=j.bombs.filterValues {it.explodesAt>now},
             infiltrations=j.infiltrations.filterValues {it.until>now},disabled=disabled)))
+        // A disguise is rolled once per game day; seen through, the intruder is arrested by the side it hid among.
+        for(d in seen.sortedBy {it.character}) {
+            val intelligence=next.strategic.people[d.character]?.abilities?.getOrNull(3) ?: 50
+            val justice=next.social.justice
+            if(roll(d.character,d.alias,d.checkAt)<exposure(intelligence)) {
+                next=next.copy(social=next.social.copy(justice=justice.copy(disguises=justice.disguises-d.character)))
+                caughtBy?.invoke(next,players,d.character,d.power,now)?.let {next=it}
+            } else next=next.copy(social=next.social.copy(justice=justice.copy(disguises=justice.disguises+(d.character to d.copy(checkAt=d.checkAt+Justice.DAY)))))
+        }
+        return next
     }
+    /** Detention hook (set to JusticeActions.detain by the world tick, which knows the galaxy). */
+    @Volatile var caughtBy:((PlanetStocks,MutableMap<String,Navigator>,Int,Int,Long)->PlanetStocks?)?=null
     fun disabled(s:PlanetStocks,base:Int,seconds:Long)=(s.social.justice.disabled[base] ?: 0)>seconds
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
@@ -62,7 +89,7 @@ object EspionageActions {
         val j=s.social.justice;val inside=j.infiltrations[i.characterId]?.takeIf {it.base==p.baseId && it.spot==p.spotId}
         val intelligence=s.strategic.people[i.characterId]?.abilities?.getOrNull(3)
             ?: i.identities.singleOrNull {it.id==i.characterId}?.abilities?.getOrNull(3) ?: 50
-        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160L,CpPool.MCP)
+        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command in setOf(INTRUDE,RETURN))320L else 160L,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         val payer=p.paidWith(paid.balance)
         val owner=s.bases[p.baseId]?.power ?: return reject(SocialRejection.LOCATION)
@@ -109,6 +136,28 @@ object EspionageActions {
                     return SocialResult(payer,s,changed=true,outcome=3)
                 return SocialResult(payer,s.copy(social=s.social.copy(justice=j.copy(bombs=j.bombs+(i.characterId to
                     Bomb(i.characterId,p.baseId,p.spotId,now+FUSE_SECONDS))))),changed=true,outcome=1)
+            }
+            INTRUDE,RETURN -> {
+                val own=if(p.power==Power.EMPIRE)2 else 3
+                val target=g.bases.singleOrNull {it.id==i.base} ?: return reject(SocialRejection.TARGET)
+                val side=s.bases[target.id]?.power ?: return reject(SocialRejection.TARGET)
+                val here=g.bases.singleOrNull {it.id==p.baseId} ?: return reject(SocialRejection.LOCATION)
+                if(target.id==p.baseId || cells(here.grid,target.grid)>RANGE_CELLS)return reject(SocialRejection.LOCATION)
+                if(i.command==INTRUDE && (side==own || side !in 2..3 || i.value !in aliases.indices))return reject(SocialRejection.TARGET)
+                if(i.command==RETURN && side!=own)return reject(SocialRejection.TARGET)
+                val moved=payer.copy(grid=target.grid,baseId=target.id,mode=4,spotId=0,spotOwner=0)
+                val cleared=j.copy(infiltrations=j.infiltrations-i.characterId,disguises=j.disguises-i.characterId)
+                if(i.command==RETURN)return SocialResult(moved,s.copy(social=s.social.copy(justice=cleared)),changed=true,outcome=1)
+                if(roll(i.characterId,target.id,now)>=threshold(intelligence,1)) {
+                    // Caught at the border: detained by the side being entered.
+                    val players=LinkedHashMap(accounts);players[i.account]=payer
+                    val next=JusticeActions.detain(g,s.copy(social=s.social.copy(justice=cleared)),players,i.characterId,side,now)
+                        ?: return SocialResult(payer,s,changed=true,outcome=3)
+                    return SocialResult(players.getValue(i.account),next,changed=true,outcome=3,
+                        navigators=players.filter {(k,v)->k!=i.account && accounts[k]!=v})
+                }
+                return SocialResult(moved,s.copy(social=s.social.copy(justice=cleared.copy(disguises=cleared.disguises+(i.characterId to
+                    Disguise(i.characterId,i.value,side,now,now+Justice.DAY))))),changed=true,outcome=1)
             }
             AGITATE -> {
                 val b=s.bases.getValue(p.baseId)

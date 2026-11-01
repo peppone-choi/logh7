@@ -25,7 +25,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 32,157->addAll(listOf(69,70,71,68,73,74))
                 158->addAll(listOf(68,73,74))
                 // U-17 工作 (design-espionage.md): intelligence cards also run the operations.
-                20,58,162,194->addAll(listOf(68,73,74,75,76,77,78,79))
+                20,58,162,194->addAll(listOf(68,73,74,75,76,77,78,79,80,81))
                 1->addAll(listOf(0,1,2,3,8,9))
                 17,135->addAll(listOf(0,1,2,4))
                 19,160->addAll(listOf(0,1,2))

@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** U-17 工作: 잠입 판정과 실패 시 구금, 시한폭탄 폭발과 7일 생산 정지, 선동. 작성: Peppone Choi. */
+/** U-17 工作: 잠입 판정과 실패 시 구금, 시한폭탄 폭발과 7일 생산 정지, 선동, 위조 신분 침입·귀환. 작성: Peppone Choi. */
 class EspionageActionsTest {
     private val rules=SessionRules.load()
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(
@@ -38,5 +38,24 @@ class EspionageActionsTest {
     }
     @Test fun agitationNeedsAnotherSidesBase() {
         assertEquals(SocialRejection.TARGET,act(EspionageActions.AGITATE).rejection,"own base")
+    }
+    @Test fun anIntrusionCrossesIntoANearbyEnemyBaseUnderAForgedName() {
+        val g=Galaxy(galaxy.systems+GalaxySystem(4,2490,4,"Far",3)+GalaxySystem(5,2499,4,"Out",3),galaxy.bases+GalaxyBase(1050,2490,80,0,"Far",0,20f,86400,0,0f,2f)+
+            GalaxyBase(1051,2499,80,0,"Out",0,20f,86400,0,0f,2f),galaxy.starts)
+        val s=stocks().let {it.copy(bases=it.bases+(1050 to PlanetStock(1050,3,0,0,0,0))+(1051 to PlanetStock(1051,3,0,0,0,0)))}
+        fun go(command:Int,base:Int,value:Int=0,p:Navigator=a,st:PlanetStocks=s)=SocialActions.evaluate(g,SocialRequest(
+            StrategyActionRequest("a","a",10000,Power.EMPIRE,1,command,58,9,base=base,value=value)),session,p,st,accounts.values,mapOf("a" to p))
+        assertEquals(SocialRejection.LOCATION,go(EspionageActions.INTRUDE,1051,2).rejection,"beyond 10 cells")
+        assertEquals(SocialRejection.TARGET,go(EspionageActions.RETURN,1050).rejection,"return needs an own base")
+        val result=go(EspionageActions.INTRUDE,1050,2)
+        assertNull(result.rejection);assertEquals(680,result.player?.mcp)
+        val next=assertNotNull(result.stocks)
+        if(result.outcome==1) {
+            assertEquals(1050,result.player?.baseId)
+            val d=next.social.justice.disguises.getValue(10000);assertEquals(2,d.alias);assertEquals(3,d.power)
+            val back=go(EspionageActions.RETURN,1049,p=checkNotNull(result.player),st=next)
+            assertEquals(1,back.outcome);assertEquals(1049,back.player?.baseId)
+            assertTrue(assertNotNull(back.stocks).social.justice.disguises.isEmpty())
+        } else assertTrue(next.social.justice.detained(10000),"caught at the border")
     }
 }

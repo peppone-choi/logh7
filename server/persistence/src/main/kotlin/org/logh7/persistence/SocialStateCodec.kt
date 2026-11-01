@@ -27,12 +27,13 @@ internal object SocialStateCodec {
             j.watches.toSortedMap().values.joinToString(",") {listOf(it.watcher,it.target,it.since,it.checkAt).joinToString(":")}.ifEmpty {"-"},
             j.infiltrations.toSortedMap().values.joinToString(",") {listOf(it.character,it.base,it.spot,it.until).joinToString(":")}.ifEmpty {"-"},
             j.bombs.toSortedMap().values.joinToString(",") {listOf(it.character,it.base,it.spot,it.explodesAt).joinToString(":")}.ifEmpty {"-"},
-            times(j.disabled))
+            times(j.disabled),
+            j.disguises.toSortedMap().values.joinToString(",") {listOf(it.character,it.alias,it.power,it.since,it.checkAt).joinToString(":")}.ifEmpty {"-"})
         val last=maxOf(2,parts.indexOfLast {it!="-"})
         return parts.take(last+1).joinToString("/")
     }
     private fun justice(text:String):JusticeState {
-        val f=text.split('/');require(f.size in 3..7)
+        val f=text.split('/');require(f.size in 3..8)
         val permits=linkedMapOf<Int,ArrestPermit>();for(v in rows(f[0])) {require(v.size==5)
             val x=ArrestPermit(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toLong());require(permits.put(x.target,x)==null)}
         val rights=linkedMapOf<Int,ArrestRight>();for(v in rows(f[1])) {require(v.size==4)
@@ -45,7 +46,9 @@ internal object SocialStateCodec {
             val x=Infiltration(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(infiltrations.put(x.character,x)==null)}
         val bombs=linkedMapOf<Int,Bomb>();if(f.size>=6)for(v in rows(f[5])) {require(v.size==4)
             val x=Bomb(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(bombs.put(x.character,x)==null)}
-        return JusticeState(permits,rights,detentions,watches,infiltrations,bombs,if(f.size==7)times(f[6]) else emptyMap())
+        val disguises=linkedMapOf<Int,Disguise>();if(f.size==8)for(v in rows(f[7])) {require(v.size==5)
+            val x=Disguise(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong(),v[4].toLong());require(disguises.put(x.character,x)==null)}
+        return JusticeState(permits,rights,detentions,watches,infiltrations,bombs,if(f.size>=7)times(f[6]) else emptyMap(),disguises)
     }
     /** Optional eighth field (命令/提案, 2026-11-01): mails "id:sender:recipient:senderCard:card:command:order:created:expires:reply:pcp:mcp"
      * / refusal blocks "sender:recipient:command:until". */

@@ -32,11 +32,12 @@ object StrategyActionMessages {
         // Phase 2: 一斉捜索 68 and 襲撃 73 name only the card and the target.
         val justice=command in setOf(19,68,69,70,71,73,74,86)
         // U-17 工作 75..79: card = intelligence card, base = the spot to infiltrate (75); 75 previews list this base's spots.
-        val espionage=command in 75..79
+        // 80 侵入 / 81 帰還: base = the destination base, value = the alias (80); previews list reachable bases.
+        val espionage=command in 75..81
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,19,22,23,24,28,29,65,68,69,70,71,73,74,75,76,77,78,79,86,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,19,22,23,24,28,29,65,68,69,70,71,73,74,75,76,77,78,79,80,81,86,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,68,69,70,71,73,74,75,87,98))
+        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,68,69,70,71,73,74,75,80,81,87,98))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
@@ -65,8 +66,9 @@ object StrategyActionMessages {
              else if(command==86)card==0 && target==0 && base==0 && value in setOf(0,2,3)
              else target>0 && when(command) {69 -> card>0 && value in 1..7 && base==0;70 -> card>0 && value in 0..1 && base>0
                  71 -> value==0 && base==0;68,73,74 -> card>0 && value==0 && base==0;else -> card>0 && value in 1..3 && base==0}))
-        else if(espionage)require(card in 1..260 && argument==0 && amount==0 && value==0 && target==0 &&
-            (if(preview)command==75 && base==0 else if(command==75)base>0 else base==0))
+        else if(espionage)require(card in 1..260 && argument==0 && amount==0 && target==0 &&
+            (if(preview)command in setOf(75,80,81) && base==0 else if(command in setOf(75,80,81))base>0 else base==0) &&
+            (value==0 || command==80 && !preview && value in 0..7))
         // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
         // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package. Previews list packages.
         else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && value==0 && base==0 && amount==0 &&
@@ -110,7 +112,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(10,11,12,13,19,24,29,65,68,69,70,71,73,74,75,87,96,98) && rows.size<=200)
+        require(q.preview && q.command in setOf(10,11,12,13,19,24,29,65,68,69,70,71,73,74,75,80,81,87,96,98) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

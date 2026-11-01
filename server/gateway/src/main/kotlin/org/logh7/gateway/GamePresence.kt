@@ -456,9 +456,15 @@ class GamePresence {
         }.forEach { send(it, listOf(packet)) }
         return packet
     }
-    fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
-        member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
-    fun unit(member: Member) = BootstrapMessages.unit(member.character.copy(shipKind=member.player.hull?.kind ?: member.character.shipKind),member.player.grid,member.player.cruise,
+    /** U-17 侵入: a forged identity (alias, side) by character id, shown to everyone else. */
+    @Volatile var disguise: (Int) -> Pair<String, Int>? = { null }
+    private fun shown(member: Member): CharacterMessages.Generate = disguise(member.character.id.toInt())?.let { (alias, power) ->
+        member.character.copy(surname = alias, givenName = "", power = power,
+            shipKind = org.logh7.engine.Flagships.forType(power, member.character.shipType).kind) } ?: member.character
+    fun character(member: Member) = shown(member).let { c -> BootstrapMessages.character(c, member.player.pcp,
+        member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase,
+        if (c === member.character) member.offices else emptyList()) }
+    fun unit(member: Member) = BootstrapMessages.unit(shown(member).let { c -> if (c === member.character) c.copy(shipKind=member.player.hull?.kind ?: c.shipKind) else c },member.player.grid,member.player.cruise,
         member.player.baseId,member.player.mode,member.outfit,member.player.supplies,if(member.player.hull?.hp?.let {it<100}==true)1 else 0)
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
@@ -498,8 +504,10 @@ class GamePresence {
             val before = character(previous)
             val after = character(member)
             if (!before.contentEquals(after)) {
-                val changed = BootstrapMessages.changedCharacter(member.character, member.player.pcp,
-                    member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
+                val shownCharacter = shown(member)
+                val changed = BootstrapMessages.changedCharacter(shownCharacter, member.player.pcp,
+                    member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase,
+                    if (shownCharacter === member.character) member.offices else emptyList())
                 members.values.filter { visible(it, member) }.forEach { send(it, listOf(changed)) }
             }
             location(previous, member, seconds)

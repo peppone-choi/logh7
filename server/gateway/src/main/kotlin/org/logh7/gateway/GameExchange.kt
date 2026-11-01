@@ -1427,6 +1427,18 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command==org.logh7.engine.EspionageActions.INTRUDE || query.command==org.logh7.engine.EspionageActions.RETURN) {
+                                            // U-17: bases within 10 grid cells, of another side (侵入) or this side (帰還).
+                                            val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            val here=world.galaxy.bases.singleOrNull {it.id==me.baseId}
+                                            val own=character.power
+                                            val rows=if(here==null)emptyList() else world.galaxy.bases.filter {b->b.id!=here.id && b.id>query.target &&
+                                                org.logh7.engine.EspionageActions.cells(here.grid,b.grid)<=org.logh7.engine.EspionageActions.RANGE_CELLS &&
+                                                inventory.bases[b.id]?.power?.let {if(query.command==org.logh7.engine.EspionageActions.INTRUDE)it in 2..3 && it!=own else it==own}==true}
+                                                .sortedBy {it.id}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {
+                                                org.logh7.protocol.StrategyActionMessages.Selection(it.id,it.name.take(12))})
+                                        }
                                         if(query.command==org.logh7.engine.EspionageActions.INFILTRATE) {
                                             // U-17: the spots of this base's facilities (row id = spot, name = facility/room numbers).
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
