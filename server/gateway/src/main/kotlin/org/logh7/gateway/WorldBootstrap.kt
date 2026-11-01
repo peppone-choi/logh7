@@ -116,7 +116,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val rows=outfit.activeGround?.values.orEmpty().filter {it.id>query.base}.sortedBy {it.id}.take(70).map {u->
             val grid=if(u.base>0)galaxy.bases.single {it.id==u.base}.grid else position.grid
             OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,grid,outfit.id,u.base,carrier=u.carrier,
-                mode=if(u.carrier>0)10 else if(u.base>0)if(u.origin>0)9 else 4 else 0)
+                mode=if(u.carrier>0)10 else if(u.base>0)if(u.origin>0)9 else 4 else 0,rebellion=stocks.social.coup.loyalty[outfit.id] ?: 0)
         }
         // Echo the extension identity/cursor before 0331, including an empty page. This
         // prevents an unrelated or delayed native unit reply from satisfying the page.
@@ -131,7 +131,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             val unit = outfit.activeShips!!.values.single { it.id == id }
             listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,position.baseId,
                 org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id),unit.unavailable,
-                UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number-unit.boats))
+                UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number-unit.boats,
+                rebellion=stocks.social.coup.loyalty[outfit.id] ?: 0))
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
     }

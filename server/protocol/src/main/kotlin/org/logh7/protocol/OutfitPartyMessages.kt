@@ -12,7 +12,9 @@ object OutfitPartyMessages {
     data class Ships(val kind: Int, val boats: Int, val ids: List<Int>)
     data class Troops(val kind: Int, val grade: Int, val quantity: Int)
     data class UnitInformation(val id: Int, val kind: Int, val grid: Int, val outfit: Int, val base: Int, val supplies: Int = 0,
-        val damaged:Int=0,val destroyed:Int=0,val carrier:Int=0,val mode:Int=if(base==0)5 else 4)
+        val damaged:Int=0,val destroyed:Int=0,val carrier:Int=0,val mode:Int=if(base==0)5 else 4,
+        /** 叛乱忠誠度 0..100 (U-10 説得). */
+        val rebellion:Int=0)
     fun query(bytes: ByteArray): Query {
         require(bytes.size == 11)
         val input = ByteBuffer.wrap(bytes)
@@ -78,7 +80,8 @@ object OutfitPartyMessages {
                 else when(unit.mode){0->unit.base==0 && unit.carrier==0;4,9->unit.base>0 && unit.carrier==0;10->unit.carrier>0 && unit.base==0;else->false})
             writeInt(unit.id); writeShort(unit.kind); writeByte(unit.mode)
             writeInt(unit.grid); writeInt(unit.outfit); writeInt(unit.carrier); writeByte(0) // No nested troop list in this single-unit view.
-            writeInt(unit.base); writeByte(100); writeByte(0) // Initial morale, no rebellion.
+            require(unit.rebellion in 0..100)
+            writeInt(unit.base); writeByte(100); writeByte(unit.rebellion) // Initial morale, then the unit's rebel loyalty.
             require(unit.damaged in 0..65535 && unit.destroyed in 0..unit.damaged)
             writeShort(unit.damaged); writeShort(unit.destroyed)
             require(unit.supplies >= 0)
