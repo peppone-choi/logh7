@@ -10,7 +10,9 @@ import java.nio.file.Path
 /** 개인 명함·편지. 클라이언트가 보낸 이름/권한·시각은 저장 근거로 쓰지 않는다. 작성: Peppone Choi. */
 class GameCommunication(private val presence:GamePresence,private val generation:()->Long,
     private val directory:(Long,Int)->MailIdentity?,private val inTactics:(String)->Boolean,
-    private val store:(Long)->CommunicationStore,private val now:()->Long=System::currentTimeMillis):AutoCloseable {
+    private val store:(Long)->CommunicationStore,private val now:()->Long=System::currentTimeMillis,
+    /** 命令/提案 rows of the world state (design-proposals-orders.md). */
+    private val proposals:(Long)->ProposalState?={null}):AutoCloseable {
     private var current:Triple<Long,CommunicationStore,Communication>?=null
     private var messenger:Pair<Long,GameMessenger>?=null
     private data class Offer(val from:String,val to:String,val expires:Long)
@@ -53,6 +55,32 @@ class GameCommunication(private val presence:GamePresence,private val generation
         // The CD cache has 100 slots immediately before its next object. The
         // manual's 120 remain stored; deleting visible mail reveals older rows.
         return listOf(Wire.begin(query))+engine.list(owner,received,post).take(100).map {Wire.item(item(it))}+Wire.end()
+    }
+    /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
+    private fun paired(mail:ProposalMail)=when(mail.command) {
+        ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
+            org.logh7.protocol.ResignationMessages.Query(mail.recipient,mail.card),0,0,mail.mcp,true)
+        else -> error("Unsupported proposal command")
+    }
+    /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
+    private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean):List<ByteArray> {
+        if(post<=0)return emptyList()
+        val state=proposals(expected) ?: return emptyList()
+        fun who(id:Int,card:Int)=directory(expected,id)?.let {peer(it,card)} ?: Wire.Peer(id,extra=listOf(0,0,card))
+        val rows=mutableListOf<ByteArray>()
+        for(mail in state.mails.sortedBy {it.id}) {
+            val type=if(mail.order)1 else 0
+            if(received && mail.pending && mail.recipient==owner.character && mail.card==post)
+                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),peer(owner,post),mail.createdAt,
+                    mail.command,type,1,mail.pcp,mail.mcp)),paired(mail))
+            if(received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
+                rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,0,who(mail.recipient,mail.card),peer(owner,post),mail.createdAt,
+                    mail.command,type,mail.reply+1)),paired(mail))
+            if(!received && mail.pending && mail.sender==owner.character && mail.senderCard==post)
+                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,peer(owner,post),who(mail.recipient,mail.card),mail.createdAt,
+                    mail.command,type,1,mail.pcp,mail.mcp)),paired(mail))
+        }
+        return rows
     }
     private fun publish(expected:Long,owner:MailIdentity,messages:List<ByteArray>,except:String) {
         presence.communicationSend(expected,owner.character,messages,except)
@@ -107,7 +135,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 val post=post(query.owner)
                 if(!holds(actor,post))return listOf(Wire.begin(query),Wire.end())
                 if(post==0)views[connection]=query.inbox
-                inbox(engine,owner,query.inbox,query.all,post)
+                val listed=inbox(engine,owner,query.inbox,query.all,post)
+                listed.dropLast(1)+proposalRows(expected,owner,post,query.inbox)+listed.last()
             }
             0x0f0b -> {
                 val command=Wire.exchange(body)

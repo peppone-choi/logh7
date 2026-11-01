@@ -1153,10 +1153,25 @@ class GameExchange(
                         if (message.text.isBlank()) return null
                         presence.spotChat(connection, message, gameSeconds())
                     }
-                    0x0f13,0x0f14 -> {
-                        // Proposal/order mail (design-proposals-orders.md); recorded until the flow is connected.
+                    0x0f13 -> {
+                        // The CD's own proposal send needs the 命令/提案 tab rows the CD never draws; the compatibility
+                        // window sends 0x7f00 command 98 instead (design-proposals-orders.md).
                         check(gameStarted && worldInitialized)
-                        System.err.println("proposal-mail ${identity.account} %04x ${body.joinToString("") {"%02x".format(it)}}".format(opcode))
+                        return null
+                    }
+                    0x0f14 -> {
+                        check(gameStarted && worldInitialized && administration!=null)
+                        val reply=org.logh7.protocol.MailMessages.reply(body)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        require(reply.sender.id==character.id.toInt()) {"Proposal reply owner mismatch"}
+                        val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation),org.logh7.engine.ProposalActions.REPLY,0,character.rank,target=reply.refer,value=reply.value))
+                        pendingWorld=administration.social(request).thenApply {result ->
+                            val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                            publication=Publication(updated,player,false)
+                            listOf(characterMessage(updated,player,true))
+                        }
                         return null
                     }
                     0x0f04,0x0f06,0x0f0b,0x0f0c,0x0f0d,0x0f0e,0x0f0f,0x0f10,0x0f11,0x0f12 -> {
@@ -1442,6 +1457,19 @@ class GameExchange(
                                             org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
                                                 listOf(0,if(target.power==2)59 else 195)+administration.offices(target.id.toInt(),target.power,
                                                     checkNotNull(generation)).map {it.kind})})
+                                    }
+                                    return null
+                                }
+                                if(query.command==org.logh7.engine.ProposalActions.OPEN) {
+                                    val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                        query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                        checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
+                                        argument=query.argument))
+                                    pendingWorld=administration.social(request).thenApply {result ->
+                                        val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                        publication=Publication(updated,player,false)
+                                        org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
+                                            listOf(characterMessage(updated,player,true))
                                     }
                                     return null
                                 }

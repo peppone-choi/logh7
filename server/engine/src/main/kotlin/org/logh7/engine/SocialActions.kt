@@ -42,6 +42,7 @@ object SocialActions {
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
         navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap()):SocialResult {
         if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(r,session,p,s,accounts)
+        if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts)
         if(r.identity.command in AcademyActions.commands)return AcademyActions.evaluate(g,r,session,p,s,navigators)
         if(r.identity.command==MeetingActions.MEETING)return MeetingActions.evaluate(r,session,p,s,navigators)
         val i=r.identity

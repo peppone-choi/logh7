@@ -63,4 +63,11 @@ class MailMessagesTest {
         assertEquals(80,b.getInt(end-4));assertEquals(0,b.getInt(end-8));assertEquals(1,packet[end-9].toInt())
         assertEquals(1,packet[end-10].toInt());assertEquals(0x0709,b.getShort(end-12).toInt());assertEquals(99,b.getInt(end-16))
     }
+    @Test fun aCapturedReplyDecodesItsReferenceAndValue() {
+        // run-r510 (拒絶): id 0, refer 1, both peers swapped, value 1.
+        val reply=MailMessages.Reply(0,1,0,MailMessages.Peer(10002,"Gamma Pilot"),MailMessages.Peer(10002,"Gamma Pilot",extra=listOf(0,0,25)),0,0,0,1)
+        val packet=MailMessages.reply(reply)
+        assertEquals(reply,MailMessages.reply(packet.copyOfRange(4,packet.size)))
+        assertFailsWith<IllegalArgumentException>{MailMessages.reply(MailMessages.reply(reply.copy(value=4)).let {it.copyOfRange(4,it.size)})}
+    }
 }

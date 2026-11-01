@@ -88,6 +88,17 @@ object MailMessages {
     /** 0x0f13 CommandOrderSuggestMail (decoder 004799c0, evidence:client static analysis). */
     data class Suggest(val id:Int,val refer:Int,val status:Int,val sender:Peer,val recipient:Peer,val seconds:Long,
         val command:Int,val type:Int,val influence:Int,val pcp:Int,val mcp:Int)
+    /** 0x0f14 CommandReplyOrderSuggestMail (decoder 0047ce40): the 0x0f13 order without CP, ending in the reply value
+     * (client: 0 拒否 · 1 拒絶 · 2 オウム返し, the compatibility approval button 3; server rows carry reply+1 for display). */
+    data class Reply(val id:Int,val refer:Int,val status:Int,val sender:Peer,val recipient:Peer,val seconds:Long,
+        val command:Int,val type:Int,val value:Int)
+    fun reply(bytes:ByteArray):Reply=with(input(bytes,0x0f14)) {
+        Reply(int,int,u8(),peer(),peer(),int.toLong() and 0xffffffffL,u16(),u8(),u8()).also {require(it.value in 0..3 && !hasRemaining())}
+    }
+    fun reply(value:Reply)=packet(0x0f14) {
+        putInt(value.id);putInt(value.refer);put(value.status.toByte());peer(value.sender);peer(value.recipient)
+        putInt(value.seconds.toInt());putShort(value.command.toShort());put(value.type.toByte());put(value.value.toByte())
+    }
     fun suggest(value:Suggest)=packet(0x0f13) {
         putInt(value.id);putInt(value.refer);put(value.status.toByte());peer(value.sender);peer(value.recipient)
         putInt(value.seconds.toInt());putShort(value.command.toShort());put(value.type.toByte());put(value.influence.toByte())
