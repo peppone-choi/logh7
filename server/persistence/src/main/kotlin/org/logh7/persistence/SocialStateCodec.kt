@@ -12,7 +12,7 @@ internal object SocialStateCodec {
         // Optional fields 5..9 are written up to the last one that differs from its default.
         val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
             (s.gatherings!=GatheringState()) to {gatherings(s.gatherings)},(s.proposals!=ProposalState()) to {proposals(s.proposals)},
-            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)})
+            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)})
         val last=optional.indexOfLast {it.first}
         return (base+optional.take(last+1).map {it.second()}).joinToString("|")
     }
@@ -128,8 +128,17 @@ internal object SocialStateCodec {
             v[0].toInt() to Plot(v[0].toInt(),v[1].toInt(),v[2].toLong(),ids(v[4]).toSet(),ids(v[5]),v[3].toLong(),ids(v[6]).toSet())},
             if(loyalty=="-")emptyMap() else loyalty.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toInt()}})
     }
+    /** Optional eleventh field (資金投入, 2026-11-01): confidence "power:for:against,.." then '/' and support "candidate:total,..". */
+    private fun funds(f:FundState)=f.confidence.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value.first}:${it.value.second}"}
+        .ifEmpty {"-"}+"/"+f.support.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
+    private fun funds(text:String):FundState {
+        val (confidence,support)=text.split('/').also {require(it.size==2)}
+        return FundState(if(confidence=="-")emptyMap() else confidence.split(',').associate {e->
+            e.split(':').also {require(it.size==3)}.let {(k,a,b)->k.toInt() to (a.toLong() to b.toLong())}},
+            if(support=="-")emptyMap() else support.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toLong()}})
+    }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..10)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..11)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -140,7 +149,7 @@ internal object SocialStateCodec {
         return SocialState(f[0].toInt(),speeches,times(f[1]),times(f[2]),if(f.size>=5)academy(f[4]) else AcademyState(),
             if(f.size>=6)meeting(f[5]) else MeetingState(),if(f.size>=7)gatherings(f[6]) else GatheringState(),
             if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size>=9)justice(f[8]) else JusticeState(),
-            if(f.size==10)coup(f[9]) else CoupState())
+            if(f.size>=10)coup(f[9]) else CoupState(),if(f.size==11)funds(f[10]) else FundState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }

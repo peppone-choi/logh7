@@ -127,4 +127,9 @@ class SocialStoreTest {
         assertEquals(10,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
         assertEquals(listOf(10002,10001),SocialStateCodec.decode(encoded).coup.plots.getValue(10000).members,"joining order")
     }
+    @Test fun fundBoxesRoundTripAsAnOptionalEleventhField() {
+        val state=SocialState(funds=FundState(mapOf(2 to (100L to 5L)),mapOf(10001 to 300L)))
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(11,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+    }
 }

@@ -1427,6 +1427,20 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command==org.logh7.engine.FundActions.FUNDS) {
+                                            // 資金投入 targets: governed planets, the two confidence choices, or same-side candidates.
+                                            val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
+                                            val rows=when(query.value) {
+                                                0 -> org.logh7.engine.FundActions.governed(stocks,character.id.toInt(),character.power).filter {it>query.target}
+                                                    .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")}
+                                                1 -> listOf(1 to "지지",2 to "불지지").filter {it.first>query.target}
+                                                    .map {org.logh7.protocol.StrategyActionMessages.Selection(it.first,it.second)}
+                                                else -> characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .filter {it.power==character.power && it.id!=character.id && it.id>query.target}.sortedBy {it.id}
+                                                    .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
+                                            }.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
+                                        }
                                         if(query.command==org.logh7.engine.CoupActions.CONSPIRACY) {
                                             // 謀議: same-side people in the requester's spot who are not in a plot.
                                             val snapshot=navigation?.snapshot();val players=snapshot?.navigators.orEmpty()
@@ -1583,11 +1597,11 @@ class GameExchange(
                                     return null
                                 }
                                 if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands ||
-                                    query.command in org.logh7.engine.CoupActions.commands) {
+                                    query.command in org.logh7.engine.CoupActions.commands || query.command==org.logh7.engine.FundActions.FUNDS) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
-                                        base=query.base,identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),
+                                        base=query.base,amount=query.amount.toLong(),identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),
                                             id.power,id.rank,id.origin,id.abilities.toList())}))
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player)
