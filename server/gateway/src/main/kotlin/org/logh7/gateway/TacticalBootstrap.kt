@@ -40,24 +40,25 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}
     val units: List<TacticsMessages.Unit> = run {
         data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,
-            val destroyed:Int=0,val posture:TacticalPosture?=null)
+            val destroyed:Int=0,val posture:TacticalPosture?=null,val camp:Int=0)
         val stocks=checkNotNull(snapshot.planetStocks)
         val sources=people.mapNotNull {p->characterById(p.characterId)?.let {c->
             val fleet=stocks.outfits.values.singleOrNull {p.characterId in it.members() && it.positionIn(galaxy)==OutfitPosition(p.grid)}
             Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,c.power,p.supplies,p.cruise.toFloat(),
-                posture=p.posture?.takeIf {it.grid==viewer.grid})
+                posture=p.posture?.takeIf {it.grid==viewer.grid},camp=org.logh7.engine.CoupActions.camp(stocks,p.characterId))
         }} + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {fleet->
             val supplies=OutfitSupplies.distribution(fleet)
             checkNotNull(fleet.activeShips).values.map {ship->
             Source(ship.id,ship.stack.kind,fleet.id,TacticalAuthority.commander(fleet,ship,stocks),fleet.power,supplies.getValue(ship.id),0f,
                     UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats,
-                    ship.posture?.takeIf {it.grid==viewer.grid})
+                    ship.posture?.takeIf {it.grid==viewer.grid},org.logh7.engine.CoupActions.outfitCamp(stocks,fleet))
             }
         }
-        val indices=mutableMapOf<Int,Int>()
+        val indices=mutableMapOf<Pair<Int,Int>,Int>()
         sources.sortedBy {it.id}.map {u->
-            val index=indices[u.power] ?: 0;indices[u.power]=index+1
-            val initial=TacticalDeployment.formation(index,if(u.power==2)Power.EMPIRE else Power.ALLIANCE)
+            // Same grouping as TacticalDeployment.initial: power and camp (U-10 rebels deploy apart).
+            val index=indices[u.power to u.camp] ?: 0;indices[u.power to u.camp]=index+1
+            val initial=TacticalDeployment.formation(index,if(u.power==2)Power.EMPIRE else Power.ALLIANCE,u.camp==1)
             val pose=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
                 ?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks) ?: stocks.outfits[u.outfit]?.activeShips?.values
                 ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks)

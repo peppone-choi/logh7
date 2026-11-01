@@ -82,4 +82,13 @@ class CoupActionsTest {
         assertTrue(1 in held && 58 in held,"emperor and the regular office back: $held")
         assertTrue(policy.holders(won,1).none {it.character==10009},"the old emperor loses the seat")
     }
+    @Test fun rebelsDeployOnTheOtherEdgeFacingTheirRegularCamp() {
+        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
+        val players=listOf(a.copy(baseId=0,mode=5,spotId=0),b.copy(baseId=0,mode=5,spotId=0))
+        val rebel=TacticalDeployment.initial(a.unitId,Power.EMPIRE,2487,players,s,galaxy)
+        val regular=TacticalDeployment.initial(b.unitId,Power.EMPIRE,2487,players,s,galaxy)
+        assertTrue(rebel.position.x<0 && regular.position.x>0,"opposite edges: $rebel $regular")
+        assertEquals(regular.position.y,rebel.position.y,"each camp starts its own column")
+        assertTrue(TacticalDeployment.initial(a.unitId,Power.EMPIRE,2487,players,stocks(),galaxy).position.x>0,"no revolt, one camp")
+    }
 }
