@@ -41,7 +41,9 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     /** 一斉捜索 result: the found person's spot (1 when it stays outside a spot), 0 not found. */
     val found:Int=0,
     /** 亡命: the destination power (2/3) whose session record, character and navigation now switch; 0 none. */
-    val defected:Int=0)
+    val defected:Int=0,
+    /** 情報工作 report: approval*256+peace of the infiltrated base. */
+    val report:Int=0)
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,
@@ -52,6 +54,7 @@ object SocialActions {
         navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap()):SocialResult {
         if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(r,session,p,s,accounts)
         if(r.identity.command in Justice.commands)return JusticeActions.evaluate(g,r,session,p,s,accounts)
+        if(r.identity.command in EspionageActions.commands)return EspionageActions.evaluate(g,r,session,p,s,accounts)
         // A detainee (U-25) cannot run social commands.
         if(p!=null && s.social.justice.detained(p.characterId))return SocialResult(p,s,SocialRejection.BUSY)
         if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts)

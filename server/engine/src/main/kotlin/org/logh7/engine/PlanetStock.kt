@@ -122,14 +122,16 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
             bases = initialized.bases.mapValues { (id, stock) ->
                 var next = stock
-                repeat(Math.toIntExact(days - initialized.producedDays)) {
+                repeat(Math.toIntExact(days - initialized.producedDays)) {day->
                     val base=galaxy.conditions.getValue(id)
+                    // U-17: a sabotaged base keeps collecting taxes but produces nothing until the stop ends.
+                    val stopped=EspionageActions.disabled(initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L))
                     val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
                     val lord=initialized.strategic.fiefs[id]
                     if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
                     else if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
                     val previousDay=next
-                    next = units.advance(next.nextDay(base, policy), previousDay)
+                    next = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), previousDay))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                 }
                 next

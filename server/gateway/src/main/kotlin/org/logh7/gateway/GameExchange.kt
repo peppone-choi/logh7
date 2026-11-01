@@ -1427,6 +1427,15 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command==org.logh7.engine.EspionageActions.INFILTRATE) {
+                                            // U-17: the spots of this base's facilities (row id = spot, name = facility/room numbers).
+                                            val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            val spots=if(me.baseId==0)emptyList() else world.galaxy.facilitiesAt(me.baseId,inventory)
+                                                .flatMap {f->f.spots.map {sp->Triple(sp.id,f.kind,sp.kind)}}.filter {it.first>query.target && it.first!=me.spotId}
+                                                .sortedBy {it.first}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,spots.map {(id,kind,room)->
+                                                org.logh7.protocol.StrategyActionMessages.Selection(id,"F$kind R$room")})
+                                        }
                                         if(query.command in org.logh7.engine.Justice.commands) {
                                             // U-25 directories: 69 same-side people in the card's scope, 70 value 0 the arrest list /
                                             // value 1 same-side grantees, 71 listed people this character may arrest, 19 detainees in scope.
@@ -1550,7 +1559,7 @@ class GameExchange(
                                     }
                                     return null
                                 }
-                                if(query.command in org.logh7.engine.Justice.commands) {
+                                if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
@@ -1569,7 +1578,7 @@ class GameExchange(
                                         publication=Publication(updated,player,false)
                                         refreshPaid(result.navigators)
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
-                                            outcome=result.outcome,found=result.found)+listOf(characterMessage(updated,player,true))
+                                            outcome=result.outcome,found=result.found,report=result.report)+listOf(characterMessage(updated,player,true))
                                     }
                                     return null
                                 }

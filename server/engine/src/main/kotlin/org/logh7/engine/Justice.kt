@@ -21,12 +21,17 @@ data class Watch(val watcher:Int,val target:Int,val since:Long,val checkAt:Long)
     init {require(watcher>0 && target>0 && watcher!=target && since in 0..checkAt && checkAt<=0xffffffffL)}
 }
 data class JusticeState(val permits:Map<Int,ArrestPermit> = emptyMap(),val rights:Map<Int,ArrestRight> = emptyMap(),
-    val detentions:Map<Int,Detention> = emptyMap(),val watches:Map<Int,Watch> = emptyMap()) {
+    val detentions:Map<Int,Detention> = emptyMap(),val watches:Map<Int,Watch> = emptyMap(),
+    /** U-17 工作: infiltrations by character, armed bombs by character, bases whose production stops until a time. */
+    val infiltrations:Map<Int,Infiltration> = emptyMap(),val bombs:Map<Int,Bomb> = emptyMap(),val disabled:Map<Int,Long> = emptyMap()) {
     init {require(permits.size<=4096 && permits.all {(k,v)->k==v.target} && rights.size<=4096 && rights.all {(k,v)->k==v.holder} &&
-        detentions.size<=4096 && detentions.all {(k,v)->k==v.character} && watches.size<=4096 && watches.all {(k,v)->k==v.watcher})}
+        detentions.size<=4096 && detentions.all {(k,v)->k==v.character} && watches.size<=4096 && watches.all {(k,v)->k==v.watcher} &&
+        infiltrations.size<=4096 && infiltrations.all {(k,v)->k==v.character} && bombs.size<=4096 && bombs.all {(k,v)->k==v.character} &&
+        disabled.size<=350 && disabled.all {(base,until)->base in 1..65535 && until in 0..0xffffffffL})}
     fun detached()=copy(permits=java.util.Collections.unmodifiableMap(LinkedHashMap(permits)),
         rights=java.util.Collections.unmodifiableMap(LinkedHashMap(rights)),detentions=java.util.Collections.unmodifiableMap(LinkedHashMap(detentions)),
-        watches=java.util.Collections.unmodifiableMap(LinkedHashMap(watches)))
+        watches=java.util.Collections.unmodifiableMap(LinkedHashMap(watches)),infiltrations=java.util.Collections.unmodifiableMap(LinkedHashMap(infiltrations)),
+        bombs=java.util.Collections.unmodifiableMap(LinkedHashMap(bombs)),disabled=java.util.Collections.unmodifiableMap(LinkedHashMap(disabled)))
     fun detained(character:Int)=character in detentions
 }
 
