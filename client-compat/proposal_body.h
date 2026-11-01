@@ -40,7 +40,13 @@ static int __cdecl bodyTargetCard(BYTE* ctx) {
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
     return world ? catalogCopy(ctx,3,at<unsigned>(world,0x43c990+0x10)) : 0;
 }
-static int __cdecl bodyPlace(BYTE* ctx) {return bodyText(ctx,L"직무 소재지");}
+// The executor is the mailbox owner, so the place is its current base (own record +0x358); in space it is "우주".
+static int __cdecl bodyPlace(BYTE* ctx) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto own=world ? at<BYTE*>(world,8) : nullptr;
+    unsigned base=own ? at<unsigned>(own,0x358) : 0;wchar_t name[32]={};
+    if(base && base<=65535)pickerName(base,name);
+    return bodyText(ctx,name[0] ? name : L"우주");
+}
 static bool installProposalBody() {
     // Each 8-byte entry is {keyword, handler} starting at 0x786b78, so a keyword's handler slot is the next
     // pointer after its string pointer.
