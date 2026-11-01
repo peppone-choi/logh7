@@ -58,13 +58,16 @@ class GameCommunication(private val presence:GamePresence,private val generation
     }
     private companion object {const val REPLY_ROWS=true}
     /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
-    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;else -> 0}
+    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;else -> 0}
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
     private fun paired(mail:ProposalMail)=when(mail.command) {
         ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
             org.logh7.protocol.ResignationMessages.Query(mail.recipient,mail.card),0,0,mail.mcp,true)
         ProposalActions.DISMISSAL -> org.logh7.protocol.DismissalMessages.response(
             org.logh7.protocol.DismissalMessages.Query(mail.recipient,mail.target,mail.targetCard),0,0,mail.mcp,true)
+        // Appointment: changed=false keeps target 0 so 004c5580 appends no card; +0x14 still names the card.
+        ProposalActions.APPOINTMENT -> org.logh7.protocol.AppointmentMessages.response(
+            org.logh7.protocol.AppointmentMessages.Query(mail.recipient,mail.target,mail.targetCard,0,0),0,0,mail.mcp,true,false)
         else -> error("Unsupported proposal command")
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */

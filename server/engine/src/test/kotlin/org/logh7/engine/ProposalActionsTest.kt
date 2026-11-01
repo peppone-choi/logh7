@@ -99,4 +99,23 @@ class ProposalActionsTest {
             value=ProposalActions.DISMISSAL,argument=19,base=10000,amount=17))
         assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,r,session,a,stocks(),listOf(a,b),mapOf("a" to a,"b" to b)).rejection)
     }
+    @Test fun anAppointmentAsksTheRecipientToAppointTheSenderToAVacancy() {
+        // 10001 (a rank-4 general here) asks the minister 10000 for a vacancy 10000 may fill with 10001.
+        val s=stocks().let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+(10001 to StrategicPerson(rank=4,influence=10))))}
+        val vacancies=ProposalActions.vacancies(galaxy,s,10000,2,2,10001,4)
+        assertTrue(vacancies.isNotEmpty(),"the minister has a vacancy for 10001");val (card,seat)=vacancies.first()
+        val r=SocialRequest(StrategyActionRequest("b","b",10001,Power.EMPIRE,1,ProposalActions.OPEN,19,9,target=10000,
+            value=ProposalActions.APPOINTMENT,argument=17,base=seat,amount=card.toLong()))
+        val opened=SocialActions.evaluate(galaxy,r,session,b,s,listOf(a,b),mapOf("a" to a,"b" to b))
+        assertNull(opened.rejection);val mail=assertNotNull(opened.stocks).social.proposals.mails.single()
+        assertEquals(10001,mail.target);assertEquals(seat,mail.seat);assertEquals(920,opened.player?.mcp,"half of 160")
+        val approved=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,assertNotNull(opened.stocks))
+        assertNull(approved.rejection)
+        assertTrue(OrganizationalOfficePolicy(galaxy).held(assertNotNull(approved.stocks),10001).any {it.card==card && it.seat==seat})
+    }
+    @Test fun anAppointmentToASeatTheRecipientCannotFillIsRejected() {
+        val r=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,ProposalActions.OPEN,17,9,target=10001,
+            value=ProposalActions.APPOINTMENT,argument=19,base=1049,amount=17))
+        assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,r,session,a,stocks(),listOf(a,b),mapOf("a" to a,"b" to b)).rejection)
+    }
 }

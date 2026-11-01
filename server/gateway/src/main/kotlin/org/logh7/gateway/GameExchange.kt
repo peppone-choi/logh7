@@ -1434,6 +1434,19 @@ class GameExchange(
                                                     currentCharacterById(seat.target)?.let {org.logh7.protocol.StrategyActionMessages.Selection(seat.target*512+seat.card,it.surname,
                                                         minOf(20,it.rank))}})
                                             }
+                                            if(query.value==org.logh7.engine.ProposalActions.APPOINTMENT) {
+                                                // Vacancies the chosen recipient may fill with this sender; row id = seat*512+card, name = seat base.
+                                                val recipient=currentCharacterById(query.base)
+                                                val people=inventory.strategic.people
+                                                val rows=if(recipient==null)emptyList() else org.logh7.engine.ProposalActions.vacancies(world.galaxy,inventory,
+                                                    query.base,recipient.power,(people[query.base] ?: org.logh7.engine.StrategicPerson()).ladderRank(recipient.rank),
+                                                    me.characterId,(people[me.characterId] ?: org.logh7.engine.StrategicPerson()).ladderRank(character.rank))
+                                                    .filter {it.second*512+it.first>query.target}.take(200)
+                                                return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {(card,seat)->
+                                                    val baseId=inventory.outfits[seat]?.baseId ?: seat
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(seat*512+card,
+                                                        (world.galaxy.bases.singleOrNull {it.id==baseId}?.name ?: "#$seat").take(12))})
+                                            }
                                             val pairs=proposalPairs(inventory,me).filter {it.first>query.target}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,pairs.mapNotNull {(id,_,_)->
                                                 currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname,it.rank)}})

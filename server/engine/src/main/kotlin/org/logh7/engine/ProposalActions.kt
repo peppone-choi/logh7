@@ -17,7 +17,22 @@ object ProposalActions {
     const val RESIGNATION=0x0709
     /** Dismissal of a third person the recipient may dismiss (0x0708, MCP 160). */
     const val DISMISSAL=0x0708
-    val costs=mapOf(RESIGNATION to 80L,DISMISSAL to 160L)
+    /** Appointment of the sender itself to a vacancy the recipient may fill (0x0707, MCP 160; self-recommendation,
+     * evidence:guess). */
+    const val APPOINTMENT=0x0707
+    val costs=mapOf(RESIGNATION to 80L,DISMISSAL to 160L,APPOINTMENT to 160L)
+    /** (card, seat) vacancies [actor] may fill with [candidate]: the actor's appointment authority with a free seat,
+     * the candidate's rank eligible, not already holding the card and under the 14-card limit. Old fleet fields excluded. */
+    fun vacancies(g:Galaxy,s:PlanetStocks,actor:Int,power:Int,rank:Int,candidate:Int,candidateRank:Int):List<Pair<Int,Int>> {
+        val policy=OrganizationalOfficePolicy(g)
+        if(candidate==actor || policy.cardCount(s,candidate)>=14)return emptyList()
+        val held=policy.held(s,candidate).map {it.card}.toSet()
+        return policy.available(s,actor,power,rank).flatMap {(card,seats)->
+            val role=checkNotNull(OrganizationOffices.of(card))
+            if(FleetOffice.of(card)!=null || card in held || !role.eligible(rank,candidateRank))emptyList()
+            else seats.filter {role.scope!=OfficeScope.OUTFIT || candidate !in s.outfits.getValue(it).members()}.map {card to it}
+        }.sortedWith(compareBy({it.first},{it.second}))
+    }
     /** Runs an approved command for its recipient; false when it can no longer be done. */
     private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,power:Int,rank:Int):PlanetStocks? {
         val policy=OrganizationalOfficePolicy(g)
@@ -27,6 +42,11 @@ object ProposalActions {
                 val dismissal=OfficeDismissalPolicy(g)
                 dismissal.available(s,mail.recipient,power,rank).singleOrNull {it.target==mail.target && it.card==mail.targetCard}
                     ?.let {dismissal.clear(s,it)}
+            }
+            APPOINTMENT -> {
+                val candidateRank=(s.strategic.people[mail.target] ?: StrategicPerson()).ladderRank(20)
+                if(vacancies(g,s,mail.recipient,power,rank,mail.target,candidateRank).contains(mail.targetCard to mail.seat))
+                    policy.set(s,OfficeHolding(mail.targetCard,mail.seat,mail.target)) else null
             }
             else -> null
         }
@@ -118,15 +138,21 @@ object ProposalActions {
         val order=emperor || senderRank<=recipientRank
         if(sender.influence<1)return reject(SocialRejection.RANK)
         // Dismissal: base = the third person, amount = that person's card; the recipient must be able to dismiss it.
-        val target=if(i.value==DISMISSAL)i.base else 0;val targetCard=if(i.value==DISMISSAL)i.amount.toInt() else 0
-        if(i.value==DISMISSAL && OfficeDismissalPolicy(g).available(s,i.target,if(p.power==Power.EMPIRE)2 else 3,recipientRank)
+        // Appointment: base = the seat, amount = the card; the sender asks the recipient to appoint the sender there.
+        val target=when(i.value) {DISMISSAL -> i.base;APPOINTMENT -> i.characterId;else -> 0}
+        val targetCard=if(i.value==DISMISSAL || i.value==APPOINTMENT)i.amount.toInt() else 0
+        val seat=if(i.value==APPOINTMENT)i.base else 0
+        val power=if(p.power==Power.EMPIRE)2 else 3
+        if(i.value==DISMISSAL && OfficeDismissalPolicy(g).available(s,i.target,power,recipientRank)
                 .none {it.target==target && it.card==targetCard})return reject(SocialRejection.TARGET)
+        if(i.value==APPOINTMENT && (targetCard to seat) !in vacancies(g,s,i.target,power,recipientRank,i.characterId,senderRank))
+            return reject(SocialRejection.TARGET)
         val half=cost/2
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),half,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         if(s.social.nextId==Int.MAX_VALUE)return reject(SocialRejection.MAXIMUM)
         val (opened,refused)=Proposals.open(proposals,s.social.nextId,i.characterId,i.target,i.card,i.argument,i.value,order,now,0,half.toInt(),
-            target,targetCard)
+            target,targetCard,seat)
         if(refused!=null)return reject(if(refused==ProposalRejection.BLOCKED)SocialRejection.COOLDOWN else SocialRejection.MAXIMUM)
         val next=s.copy(social=s.social.copy(nextId=s.social.nextId+1,proposals=opened),
             strategic=s.strategic.copy(people=people+(i.characterId to sender.copy(influence=sender.influence-1))))

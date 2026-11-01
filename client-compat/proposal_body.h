@@ -47,7 +47,10 @@ static bool knownName(unsigned id,wchar_t (&name)[13]) {
 // Resignation: the executor resigns its own card, so the target is the recipient. Dismissal (command 6): the 0x0708
 // pair record (world+0x43c8f0, receiver 004bd*) names the third person at +0x10 and its card at +0x14.
 static bool bodyDismissal(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==6;}
+// Appointment (command 5): the sender asks to be appointed; the 0x0707 pair record (world+0x43c8c8) has the card at +0x14.
+static bool bodyAppointment(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==5;}
 static int __cdecl bodyTargetName(BYTE* ctx) {
+    if(bodyAppointment(ctx))return bodyName(ctx,0x66);
     if(!bodyDismissal(ctx))return bodyName(ctx,0x18a);
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);unsigned id=world ? at<unsigned>(world,0x43c8f0+0x10) : 0;
     // The mail's own peers (sender SIC at S+0x60, recipient at S+0x184; id +0, name +6) come first.
@@ -57,11 +60,13 @@ static int __cdecl bodyTargetName(BYTE* ctx) {
 }
 static int __cdecl bodyTargetRank(BYTE* ctx) {
     if(bodyDismissal(ctx)) {ctx[0x24]=0;return 1;} // the third person's rank is not known to this client
+    if(bodyAppointment(ctx))return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x84)); // sender SIC rank
     return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x1a4));
 }
 static int __cdecl bodyTargetCard(BYTE* ctx) {
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
-    return world ? catalogCopy(ctx,3,bodyDismissal(ctx) ? at<unsigned>(world,0x43c8f0+0x14) : at<unsigned>(world,0x43c990+0x10)) : 0;
+    return world ? catalogCopy(ctx,3,bodyAppointment(ctx) ? at<unsigned>(world,0x43c8c8+0x14) :
+        bodyDismissal(ctx) ? at<unsigned>(world,0x43c8f0+0x14) : at<unsigned>(world,0x43c990+0x10)) : 0;
 }
 // The executor is the mailbox owner, so the place is its current base (own record +0x358); in space it is "우주".
 static int __cdecl bodyPlace(BYTE* ctx) {
