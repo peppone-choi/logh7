@@ -34,7 +34,8 @@ object GridForces {
                 player.characterId in outfit.members() && outfit.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
                     outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
             } == true
-            add(it.grid, Force(Camp(it.power, false), 1, nonSolo = grouped, ship = true))
+            // U-10: a revolt's rebels count as their side's rebel camp (manual p.31).
+            add(it.grid, Force(Camp(it.power, stocks?.let { s -> CoupActions.rebel(s, player.characterId) } == true), 1, nonSolo = grouped, ship = true))
         }
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)
@@ -47,10 +48,10 @@ object GridForces {
             val ships = ships(outfit)
             val count = mobileUnits(outfit)
             if (count > 0) add(outfit.positionIn(galaxy).grid,
-                Force(checkNotNull(camp(outfit.power)), count, nonSolo = true, ship = ships > 0))
+                Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))), count, nonSolo = true, ship = ships > 0))
             outfit.activeGround?.values.orEmpty().filter {it.base>0}.groupingBy {it.base}.eachCount().forEach { (base,count) ->
                 add(galaxy.bases.single {it.id==base}.grid,
-                    Force(checkNotNull(camp(outfit.power)),count.toLong(),nonSolo=true))
+                    Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))),count.toLong(),nonSolo=true))
             }
         }
         return result.mapValues { it.value.values.toList() }

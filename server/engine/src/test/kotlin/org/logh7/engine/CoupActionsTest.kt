@@ -62,4 +62,10 @@ class CoupActionsTest {
         assertNull(TacticalCombat.target(b.unitId,2487,Power.EMPIRE,s,galaxy,players,camp=0),"regulars stay friends")
         assertNull(TacticalCombat.target(a.unitId,2487,Power.EMPIRE,stocks(),galaxy,players),"no revolt, no enemy")
     }
+    @Test fun aRebelFlagshipCountsAsItsSidesRebelCampInTheGrid() {
+        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
+        val camps=GridForces.collect(galaxy,1,listOf(a,b),s).getValue(2487).map {it.camp}.toSet()
+        assertTrue(Camp(Power.EMPIRE,true) in camps && Camp(Power.EMPIRE,false) in camps,"$camps")
+        assertFalse(GridForces.collect(galaxy,1,listOf(a,b),stocks()).getValue(2487).any {it.camp.insurgent})
+    }
 }
