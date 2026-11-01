@@ -12,7 +12,9 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     // 7 BATTLE refused for a selected unit the native unit table does not hold (118/28).
     0x50fa98,
     // 所属変更 target prompt (118/12) and the 鼓舞 request (118/43).
-    0x50f2b2, 0x5100f4};
+    0x50f2b2, 0x5100f4,
+    // Ship-group tab: 鼓舞 request for fleet units (118/29) and 出撃 refused without stationed units (118/39).
+    0x51008a, 0x50fcbb};
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);
