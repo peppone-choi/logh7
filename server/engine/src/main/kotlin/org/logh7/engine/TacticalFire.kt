@@ -245,7 +245,7 @@ internal object TacticalCombat {
             } else player.fire?.pending?.takeIf {it==scheduled} ?: continue
             val fire=if(automatic)TacticalFire(shot.sequence,last=player.fire?.last) else checkNotNull(player.fire)
             var next = player.copy(fire = fire.copy(pending = null))
-            val victim = target(shot.target, shot.grid, player.power, inventory, galaxy, players)
+            val victim = target(shot.target, shot.grid, player.power, inventory, galaxy, players, CoupActions.camp(inventory, player.characterId))
             if (session.ended == null && player.cpPaused && player.grid == shot.grid && player.baseId == 0 &&
                 victim != null && (player.charge == null || player.charge.at <= shot.firesAt)) {
                 val charge = player.charge?.settle(shot.firesAt, player.energy ?: TacticalEnergy.ZERO)
