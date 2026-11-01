@@ -5,12 +5,34 @@ import org.logh7.engine.*
 /** STOCK35 X, separate from S and the other extension grammars. Author: Peppone Choi. */
 internal object SocialStateCodec {
     private fun times(values:Map<Int,Long>)=values.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
-    fun encode(s:SocialState)=(listOf(s.nextId,times(s.speakers),times(s.squares),s.speeches.toSortedMap().values.joinToString(";") {r->
-        listOf(r.id,r.character,r.power,r.base,r.spot,r.at,r.politics,r.beforeInfluence,r.influence,r.beforeApproval,r.approval,r.nextAt)
-            .joinToString(":")}.ifEmpty {"-"})+(if(s.academy==AcademyState() && s.meeting==MeetingState() && s.gatherings==GatheringState() && s.proposals==ProposalState())emptyList() else listOf(academy(s.academy)))+
-        (if(s.meeting==MeetingState() && s.gatherings==GatheringState() && s.proposals==ProposalState())emptyList() else listOf(meeting(s.meeting)))+
-        (if(s.gatherings==GatheringState() && s.proposals==ProposalState())emptyList() else listOf(gatherings(s.gatherings)))+
-        (if(s.proposals==ProposalState())emptyList() else listOf(proposals(s.proposals)))).joinToString("|")
+    fun encode(s:SocialState):String {
+        val base=listOf(s.nextId.toString(),times(s.speakers),times(s.squares),s.speeches.toSortedMap().values.joinToString(";") {r->
+            listOf(r.id,r.character,r.power,r.base,r.spot,r.at,r.politics,r.beforeInfluence,r.influence,r.beforeApproval,r.approval,r.nextAt)
+                .joinToString(":")}.ifEmpty {"-"})
+        // Optional fields 5..9 are written up to the last one that differs from its default.
+        val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
+            (s.gatherings!=GatheringState()) to {gatherings(s.gatherings)},(s.proposals!=ProposalState()) to {proposals(s.proposals)},
+            (s.justice!=JusticeState()) to {justice(s.justice)})
+        val last=optional.indexOfLast {it.first}
+        return (base+optional.take(last+1).map {it.second()}).joinToString("|")
+    }
+    /** Optional ninth field (U-25 逮捕·処断, 2026-11-01): permits "target:issuer:power:charge:until" /
+     * rights "holder:target:issuer:until" / detentions "character:power:since:releaseAt:severe". */
+    private fun justice(j:JusticeState)=listOf(
+        j.permits.toSortedMap().values.joinToString(",") {listOf(it.target,it.issuer,it.power,it.charge,it.until).joinToString(":")}.ifEmpty {"-"},
+        j.rights.toSortedMap().values.joinToString(",") {listOf(it.holder,it.target,it.issuer,it.until).joinToString(":")}.ifEmpty {"-"},
+        j.detentions.toSortedMap().values.joinToString(",") {listOf(it.character,it.power,it.since,it.releaseAt,if(it.severe)1 else 0).joinToString(":")}.ifEmpty {"-"})
+        .joinToString("/")
+    private fun justice(text:String):JusticeState {
+        val f=text.split('/');require(f.size==3)
+        val permits=linkedMapOf<Int,ArrestPermit>();for(v in rows(f[0])) {require(v.size==5)
+            val x=ArrestPermit(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toLong());require(permits.put(x.target,x)==null)}
+        val rights=linkedMapOf<Int,ArrestRight>();for(v in rows(f[1])) {require(v.size==4)
+            val x=ArrestRight(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(rights.put(x.holder,x)==null)}
+        val detentions=linkedMapOf<Int,Detention>();for(v in rows(f[2])) {require(v.size==5 && v[4] in setOf("0","1"))
+            val x=Detention(v[0].toInt(),v[1].toInt(),v[2].toLong(),v[3].toLong(),v[4]=="1");require(detentions.put(x.character,x)==null)}
+        return JusticeState(permits,rights,detentions)
+    }
     /** Optional eighth field (命令/提案, 2026-11-01): mails "id:sender:recipient:senderCard:card:command:order:created:expires:reply:pcp:mcp"
      * / refusal blocks "sender:recipient:command:until". */
     private fun proposals(p:ProposalState)=listOf(
@@ -76,7 +98,7 @@ internal object SocialStateCodec {
         };return out
     }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..8)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..9)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -86,7 +108,7 @@ internal object SocialStateCodec {
         }
         return SocialState(f[0].toInt(),speeches,times(f[1]),times(f[2]),if(f.size>=5)academy(f[4]) else AcademyState(),
             if(f.size>=6)meeting(f[5]) else MeetingState(),if(f.size>=7)gatherings(f[6]) else GatheringState(),
-            if(f.size==8)proposals(f[7]) else ProposalState())
+            if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size==9)justice(f[8]) else JusticeState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }

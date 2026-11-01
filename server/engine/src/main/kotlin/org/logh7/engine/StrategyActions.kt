@@ -74,6 +74,8 @@ internal object StrategyActions {
         if(p==null || p.generation!=r.generation || p.characterId!=r.characterId || p.power!=r.power || member.power!=r.power)
             return reject(StrategyActionRejection.IDENTITY)
         if(BattleDeath.deceased(stocks,r.characterId))return reject(StrategyActionRejection.IDENTITY)
+        // U-25: a detainee cannot run strategy commands until released.
+        if(stocks.social.justice.detained(r.characterId))return reject(StrategyActionRejection.BUSY)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.command in CivicActions.supported)return CivicActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks)

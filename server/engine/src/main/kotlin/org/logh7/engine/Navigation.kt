@@ -222,6 +222,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (wounded && (request.destination != null || request.place != null || request.supplyFuel ||
             request.energy != null || request.tacticalMove != null || request.tacticalStop != null ||
             request.tacticalRetreat != null || request.tacticalShoot != null || request.tacticalAttack != null)) return reject(NavigationRejection.WOUNDED)
+        // U-25: a detainee stays in the holding room until released (warp, docking, spot moves and supply refused).
+        if (stocks?.social?.justice?.detained(request.characterId) == true &&
+            (request.destination != null || request.place != null || request.supplyFuel)) return reject(NavigationRejection.BUSY)
         if (request.shipKind!=null && before.hull!=null && request.shipKind!=before.hull.kind &&
             (request.energy!=null || request.tacticalMove!=null || request.tacticalRetreat!=null ||
                 request.tacticalStop!=null || request.tacticalShoot!=null || request.tacticalAttack!=null)) return reject(NavigationRejection.UNIT)
