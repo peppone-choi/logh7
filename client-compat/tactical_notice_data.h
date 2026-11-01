@@ -38,6 +38,8 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {26, 0, "LOGH7_TACTICAL_STANCE_STATION_BASE", L"주류할 아군 거점을 선택하세요.\n"},
         {27, 0, "LOGH7_TACTICAL_STANCE_ANCHOR_BASE", L"정박할 아군 거점을 선택하세요.\n"},
         {28, 0, "LOGH7_TACTICAL_STANCE_REFUSED", L"선택한 유닛은 지금 이 태세로 바꿀 수 없습니다.\n"},
+        {12, 0, "LOGH7_TACTICAL_TRANSFER_SELECT", L"소속을 옮길 부대를 선택하세요.\n"},
+        {43, 0, "LOGH7_TACTICAL_ENCOURAGE_REQUEST", L"고무 명령을 요청했습니다.\n"},
         {32, 0, "LOGH7_TACTICAL_STANCE_STATIONED", L"주류 태세로 전환을 요청했습니다.\n"},
         {33, 0, "LOGH7_TACTICAL_STANCE_SAILING", L"항행 태세로 전환을 요청했습니다.\n"},
         {34, 0, "LOGH7_TACTICAL_STANCE_ANCHORED", L"정박 태세로 전환을 요청했습니다.\n"},
