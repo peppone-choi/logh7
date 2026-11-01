@@ -33,3 +33,51 @@ static bool installProposalApproval() {
     *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&approvalClick)-reinterpret_cast<BYTE*>(approvalClickCall)-5);
     return patchBytes(reinterpret_cast<void*>(approvalClickCall),approvalClickExpected,call,sizeof(call));
 }
+
+// Reply rows (0x0f14) in an office mailbox: 0053c1e0 keeps the 0x0f13 item pointer [esp+0x3c] at 0 for them and
+// then reads its +0x25a at 0x53c933 without a null check, so any reply row crashed the CD (static analysis,
+// work/mailbox-re). Remember the reply item at 0x53c8f2 and read its own +0x25a when the 0x0f13 pointer is null.
+static void* proposalReplyItem=nullptr;
+static constexpr unsigned replyItemAt=0x53c8f2,replyKindAt=0x53c931;
+static constexpr BYTE replyItemExpected[8]={0x85,0xc9,0x0f,0x84,0x20,0x01,0x00,0x00};
+static constexpr BYTE replyKindExpected[8]={0x33,0xc0,0x8a,0x87,0x5a,0x02,0x00,0x00};
+static __declspec(naked) void replyItemStub() {
+    __asm {
+        mov proposalReplyItem,ecx
+        test ecx,ecx
+        jz skip
+        push 0x53c8fa
+        ret
+    skip:
+        push 0x53ca1a
+        ret
+    }
+}
+static __declspec(naked) void replyKindStub() {
+    __asm {
+        xor eax,eax
+        test edi,edi
+        jz reply
+        mov al,byte ptr [edi+0x25a]
+        push 0x53c939
+        ret
+    reply:
+        push ecx
+        mov ecx,proposalReplyItem
+        test ecx,ecx
+        jz done
+        mov al,byte ptr [ecx+0x25a]
+    done:
+        pop ecx
+        push 0x53c939
+        ret
+    }
+}
+static bool installProposalReplyRows() {
+    if(memcmp(reinterpret_cast<void*>(replyItemAt),replyItemExpected,8) || memcmp(reinterpret_cast<void*>(replyKindAt),replyKindExpected,8))return false;
+    BYTE item[8]={0xe9,0,0,0,0,0x90,0x90,0x90},kind[8]={0xe9,0,0,0,0,0x90,0x90,0x90};
+    *reinterpret_cast<LONG*>(item+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&replyItemStub)-reinterpret_cast<BYTE*>(replyItemAt)-5);
+    *reinterpret_cast<LONG*>(kind+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&replyKindStub)-reinterpret_cast<BYTE*>(replyKindAt)-5);
+    return patchBytes(reinterpret_cast<void*>(replyItemAt),replyItemExpected,item,8) &&
+        patchBytes(reinterpret_cast<void*>(replyKindAt),replyKindExpected,kind,8);
+}

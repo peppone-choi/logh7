@@ -572,6 +572,7 @@ static void install() {
     if (!installTaxWindow()) { status = -3; return; }
     if (!installStrategyActions()) { status = -3; return; }
     if (!installProposalApproval()) { status = -3; return; }
+    if (!installProposalReplyRows()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }

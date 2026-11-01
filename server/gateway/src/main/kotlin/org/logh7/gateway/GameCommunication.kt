@@ -56,7 +56,9 @@ class GameCommunication(private val presence:GamePresence,private val generation
         // manual's 120 remain stored; deleting visible mail reveals older rows.
         return listOf(Wire.begin(query))+engine.list(owner,received,post).take(100).map {Wire.item(item(it))}+Wire.end()
     }
-    private companion object {const val REPLY_ROWS=false}
+    private companion object {const val REPLY_ROWS=true}
+    /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
+    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;else -> 0}
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
     private fun paired(mail:ProposalMail)=when(mail.command) {
         ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
@@ -74,14 +76,15 @@ class GameCommunication(private val presence:GamePresence,private val generation
             val type=if(mail.order)1 else 0
             if(received && mail.pending && mail.recipient==owner.character && mail.card==post)
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),peer(owner,post),mail.createdAt,
-                    mail.command,type,1,mail.pcp,mail.mcp)),paired(mail))
-            // Reply rows (0x0f14) crash the CD's row builder at 0053c933 (null item); kept off until that path is analysed.
+                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
+            // Reply rows need the compatibility DLL's 0053c933 null fix (proposal_approval.h). +0x25b 0 shows 22/77 承諾,
+            // 1..3 show 22/78..80 (拒否·拒絶·オウム返し).
             if(REPLY_ROWS && received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
                 rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,0,who(mail.recipient,mail.card),peer(owner,post),mail.createdAt,
-                    mail.command,type,mail.reply+1)),paired(mail))
+                    commandNumber(mail),0,if(mail.reply==Proposals.APPROVE)0 else mail.reply+1)),paired(mail))
             if(!received && mail.pending && mail.sender==owner.character && mail.senderCard==post)
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,peer(owner,post),who(mail.recipient,mail.card),mail.createdAt,
-                    mail.command,type,1,mail.pcp,mail.mcp)),paired(mail))
+                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
         }
         return rows
     }
