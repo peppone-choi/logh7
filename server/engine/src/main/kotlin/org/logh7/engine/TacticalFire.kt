@@ -288,6 +288,7 @@ internal object TacticalCombat {
         val occupations=mutableListOf<BaseOccupation>()
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players)
+        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory)
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
         inventory=BattleDeath.apply(inventory,impacts.mapNotNull {it.departed?.characterId},now)
         inventory=SinkingExperience.apply(inventory,impacts.mapNotNull {it.departed?.characterId}.distinct(),
