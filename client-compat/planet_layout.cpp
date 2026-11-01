@@ -164,6 +164,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "display_hooks.h"
 #include "mail_input.h"
 #include "mail_labels.h"
+#include "proposal_approval.h"
 #include "korean_dialogs.h"
 #include "literal_text.h"
 #include "legacy_hud_text.h"
@@ -569,6 +570,7 @@ static void install() {
     if (!installReturnSettings()) { status = -3; return; }
     if (!installTaxWindow()) { status = -3; return; }
     if (!installStrategyActions()) { status = -3; return; }
+    if (!installProposalApproval()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }
