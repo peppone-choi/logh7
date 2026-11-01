@@ -21,6 +21,14 @@ class GameCommunication(private val presence:GamePresence,private val generation
     private val executor=java.util.concurrent.Executors.newSingleThreadExecutor {task->
         Thread(task,"logh7-personal-mail").apply {isDaemon=true}
     }
+    /** The personal inbox when it holds unread mail, sent at strategy entry: the CD never queries a closed mailbox,
+     * and the compatibility DLL marks the HUD from this list (user decision 2026-11-01). */
+    fun unreadInbox(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.supplyAsync({
+        runCatching {
+            val engine=engine(expected)
+            if(engine.list(owner,true).none {!it.read})emptyList() else inbox(engine,owner,true)
+        }.getOrDefault(emptyList())
+    },executor)
     fun submit(connection:String,owner:MailIdentity,expected:Long,body:ByteArray,seconds:Long)=
         java.util.concurrent.CompletableFuture.supplyAsync({handle(connection,owner,expected,body,seconds)},executor)
     private fun engine(expected:Long):Communication {

@@ -75,10 +75,26 @@ static void drawWarpStatus(BYTE* world, BYTE* own) {
     draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, width - 205, height - 112, 0xffffdf70, 6);
     draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, width - 205, height - 96, 0xffffdf70, 6);
 }
+static unsigned unreadPersonalMail(BYTE* world, unsigned owner);
+// "새 편지 N통" above the HUD mailbox button while the personal inbox holds unread rows (mail_input.h).
+static void drawMailNotice(BYTE* world, BYTE* own) {
+    if (!own || !at<BYTE>(own, 0) || at<BYTE>(world, 0x3579cc)) return;
+    unsigned unread = unreadPersonalMail(world, at<unsigned>(own, 0x24));
+    auto display = *reinterpret_cast<BYTE**>(0x7c1b4c);
+    if (!unread || !display || !at<unsigned>(display, 0x2a418)) return;
+    int width = at<int>(display, 0x2a604), height = at<int>(display, 0x2a608);
+    if (width < 743 || width > 4096 || height < 600 || height > 4096) return;
+    wchar_t text[32];
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"새 편지 %u통", unread);
+    reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
+    reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0)(
+        at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), text, width - 205, height - 80, 0xffffdf70, 6);
+}
 static void drawDockingStatus() {
     auto world = *reinterpret_cast<BYTE**>(0x7ccffc);
     auto own = world ? at<BYTE*>(world, 8) : nullptr;
     if (!world || !at<BYTE>(world, 0x2a58f8)) return;
+    drawMailNotice(world, own);
     drawWarpStatus(world, own); // A warp reservation and a dock reservation never coexist.
     if (dockingStatus.world != world) {
         dockingStatus = {};

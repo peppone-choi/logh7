@@ -1764,7 +1764,12 @@ class GameExchange(
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
                                     tactical?.initialize(::offices).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player) + tactical?.resume().orEmpty()
-                            } }
+                            } }.let {initialized ->
+                                val owner=if(opcode==0x0f00)communicationIdentity(characters,character.id.toInt()) else null
+                                if(communication==null || owner==null)initialized
+                                else initialized.thenCompose {messages ->
+                                    communication.unreadInbox(owner,checkNotNull(generation)).thenApply {messages+it}}
+                            }
                             return null
                         }
                         val messages = listOf(BootstrapMessages.characterId(character),
