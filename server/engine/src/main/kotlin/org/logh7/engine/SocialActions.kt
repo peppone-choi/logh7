@@ -14,14 +14,16 @@ data class SpeechReceipt(val id:Int,val character:Int,val power:Int,val base:Int
 }
 data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = emptyMap(),
     val speakers:Map<Int,Long> = emptyMap(),val squares:Map<Int,Long> = emptyMap(),val academy:AcademyState=AcademyState(),
-    val meeting:MeetingState=MeetingState(),val gatherings:GatheringState=GatheringState()) {
+    val meeting:MeetingState=MeetingState(),val gatherings:GatheringState=GatheringState(),
+    /** 命令/提案 mail rows (design-proposals-orders.md). */
+    val proposals:ProposalState=ProposalState()) {
     init {require(nextId>0 && speeches.size<=256 && speeches.all {(id,r)->id==r.character && r.id<nextId} &&
         speeches.values.map {it.id}.distinct().size==speeches.size && speakers.size<=4096 && squares.size<=350 &&
         speakers.all {(id,at)->id>0 && at in 0..0xffffffffL} && squares.all {(base,at)->base in 1..65535 && at in 0..0xffffffffL} &&
         speeches.values.all {r->(speakers[r.character] ?: 0)>=r.nextAt && (squares[r.base] ?: 0)>=r.nextAt})}
     fun detached()=copy(speeches=java.util.Collections.unmodifiableMap(LinkedHashMap(speeches)),
         speakers=java.util.Collections.unmodifiableMap(LinkedHashMap(speakers)),squares=java.util.Collections.unmodifiableMap(LinkedHashMap(squares)),
-        academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached())
+        academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached(),proposals=proposals.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
 enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE }

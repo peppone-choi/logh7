@@ -112,4 +112,12 @@ class SocialStoreTest {
             assertFailsWith<UnsupportedOperationException>{(saved.social.squares as MutableMap<Int,Long>).clear()}
         }
     }
+    @Test fun proposalMailsAndRefusalBlocksRoundTripAsAnOptionalEighthField() {
+        val proposals=ProposalState(listOf(ProposalMail(1,10002,10004,25,1,0x0709,true,100,86500,reply=1,mcp=80)),
+            mapOf(Triple(10002,10004,0x0709) to 86600L))
+        val state=SocialState(proposals=proposals)
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(8,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+        assertEquals(4,SocialStateCodec.encode(SocialState()).split('|').size,"no proposals keep the old form")
+    }
 }
