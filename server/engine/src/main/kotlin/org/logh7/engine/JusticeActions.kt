@@ -55,6 +55,18 @@ object JusticeActions {
         if(j.permits.any {it.value.until<=now} || j.rights.any {it.value.until<=now})
             next=next.copy(social=next.social.copy(justice=j.copy(permits=j.permits.filterValues {it.until>now},
                 rights=j.rights.filterValues {it.until>now})))
+        // Watches: one detection roll per watch and game day; a noticed watch ends.
+        val due=next.social.justice.watches.values.filter {it.checkAt<=now}
+        if(due.isNotEmpty()) {
+            val none=emptyList<StrategicIdentity>()
+            val watches=LinkedHashMap(next.social.justice.watches)
+            for(w in due.sortedBy {it.watcher}) {
+                val chance=Justice.detection(intelligence(next,none,w.watcher),intelligence(next,none,w.target))
+                if(roll(w.target,w.watcher,w.checkAt)<chance)watches.remove(w.watcher)
+                else watches[w.watcher]=w.copy(checkAt=w.checkAt+Justice.DAY)
+            }
+            next=next.copy(social=next.social.copy(justice=next.social.justice.copy(watches=watches)))
+        }
         for(d in next.social.justice.detentions.values.filter {it.releaseAt<=now}.sortedBy {it.character}) {
             next=release(g,next,players,d)
             next=if(d.severe)demote(next,d.character,2,false) else demote(next,d.character,1,true)
@@ -143,6 +155,17 @@ object JusticeActions {
                 val others=if(outcome==Outcome.ARRESTED)mapOf(targetKey to wound(t)) else emptyMap()
                 val self=if(outcome==Outcome.FAILED)wound(p) else p
                 return pay(s,self,others).let {if(it.rejection==null)it.copy(outcome=outcome.ordinal) else it}
+            }
+            Justice.WATCH -> {
+                if(!holds || i.card !in Justice.raidCards)return reject(SocialRejection.CARD)
+                val t=targetNav ?: return reject(SocialRejection.LOCATION)
+                val current=j.watches[i.characterId]
+                // While the watch lasts, asking again reports the target's current place without cost.
+                if(current?.target==i.target)return SocialResult(p,s,outcome=1,found=if(t.baseId==0)0 else maxOf(t.spotId,1))
+                val sameSpot=p.spotId!=0 && t.baseId==p.baseId && t.spotId==p.spotId && t.spotOwner==p.spotOwner && !t.cpPaused
+                if(!sameSpot)return reject(SocialRejection.LOCATION)
+                return pay(s.copy(social=s.social.copy(justice=j.copy(watches=j.watches+(i.characterId to
+                    Watch(i.characterId,i.target,now,now+Justice.DAY)))))).let {if(it.rejection==null)it.copy(outcome=1,found=maxOf(t.spotId,1)) else it}
             }
             Justice.JUDGMENT -> {
                 val d=j.detentions[i.target]?.takeIf {it.power==power && !it.severe} ?: return reject(SocialRejection.STALE)

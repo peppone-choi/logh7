@@ -1430,7 +1430,7 @@ class GameExchange(
                                             // value 1 same-side grantees, 71 listed people this character may arrest, 19 detainees in scope.
                                             val justice=inventory.social.justice;val now=gameSeconds()
                                             val people=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
-                                                .filter {(it.power==character.power || query.command in setOf(68,73)) && it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
+                                                .filter {(it.power==character.power || query.command in setOf(68,73,74)) && it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
                                             fun rankOf(id:Int,fallback:Int)=inventory.strategic.people[id]?.rank ?: fallback
                                             val rows=when(query.command) {
                                                 org.logh7.engine.Justice.PERMIT -> people.filter {org.logh7.engine.Justice.arrests(query.card,rankOf(it.id.toInt(),it.rank)) &&
@@ -1441,6 +1441,14 @@ class GameExchange(
                                                     (justice.rights[character.id.toInt()]?.target==p.id.toInt() ||
                                                         org.logh7.engine.Justice.arrests(query.card,rankOf(p.id.toInt(),p.rank)))}
                                                 org.logh7.engine.Justice.SEARCH -> people
+                                                org.logh7.engine.Justice.WATCH -> {
+                                                    // The current watch target first (asking again reports its place), then the same spot.
+                                                    val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                                    val watched=justice.watches[character.id.toInt()]?.target
+                                                    val here=navigation?.snapshot()?.navigators.orEmpty().values.filter {me.spotId!=0 && it.baseId==me.baseId &&
+                                                        it.spotId==me.spotId && it.spotOwner==me.spotOwner}.map {it.characterId}.toSet()
+                                                    people.filter {it.id.toInt()==watched || it.id.toInt() in here}
+                                                }
                                                 org.logh7.engine.Justice.RAID -> {
                                                     val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                                     val here=navigation?.snapshot()?.navigators.orEmpty().values.filter {me.spotId!=0 && it.baseId==me.baseId &&

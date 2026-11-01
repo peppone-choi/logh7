@@ -22,8 +22,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 8,136->addAll(listOf(16,18))
                 // U-25 (design-arrest-judgment.md): list/grant/arrest and judgment by duty (CM group 6).
                 7,10,137->addAll(listOf(69,70,71,19,68))
-                32,157->addAll(listOf(69,70,71,68,73))
-                20,58,158,162,194->addAll(listOf(68,73))
+                32,157->addAll(listOf(69,70,71,68,73,74))
+                20,58,158,162,194->addAll(listOf(68,73,74))
                 1->addAll(listOf(0,1,2,3,8,9))
                 17,135->addAll(listOf(0,1,2,4))
                 19,160->addAll(listOf(0,1,2))

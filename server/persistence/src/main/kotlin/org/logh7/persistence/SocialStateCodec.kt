@@ -22,16 +22,21 @@ internal object SocialStateCodec {
         j.permits.toSortedMap().values.joinToString(",") {listOf(it.target,it.issuer,it.power,it.charge,it.until).joinToString(":")}.ifEmpty {"-"},
         j.rights.toSortedMap().values.joinToString(",") {listOf(it.holder,it.target,it.issuer,it.until).joinToString(":")}.ifEmpty {"-"},
         j.detentions.toSortedMap().values.joinToString(",") {listOf(it.character,it.power,it.since,it.releaseAt,if(it.severe)1 else 0).joinToString(":")}.ifEmpty {"-"})
+        // Optional fourth part (watches): "watcher:target:since:checkAt".
+        .plus(if(j.watches.isEmpty())emptyList() else listOf(j.watches.toSortedMap().values.joinToString(",") {
+            listOf(it.watcher,it.target,it.since,it.checkAt).joinToString(":")}))
         .joinToString("/")
     private fun justice(text:String):JusticeState {
-        val f=text.split('/');require(f.size==3)
+        val f=text.split('/');require(f.size in 3..4)
         val permits=linkedMapOf<Int,ArrestPermit>();for(v in rows(f[0])) {require(v.size==5)
             val x=ArrestPermit(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toLong());require(permits.put(x.target,x)==null)}
         val rights=linkedMapOf<Int,ArrestRight>();for(v in rows(f[1])) {require(v.size==4)
             val x=ArrestRight(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(rights.put(x.holder,x)==null)}
         val detentions=linkedMapOf<Int,Detention>();for(v in rows(f[2])) {require(v.size==5 && v[4] in setOf("0","1"))
             val x=Detention(v[0].toInt(),v[1].toInt(),v[2].toLong(),v[3].toLong(),v[4]=="1");require(detentions.put(x.character,x)==null)}
-        return JusticeState(permits,rights,detentions)
+        val watches=linkedMapOf<Int,Watch>();if(f.size==4)for(v in rows(f[3])) {require(v.size==4)
+            val x=Watch(v[0].toInt(),v[1].toInt(),v[2].toLong(),v[3].toLong());require(watches.put(x.watcher,x)==null)}
+        return JusticeState(permits,rights,detentions,watches)
     }
     /** Optional eighth field (命令/提案, 2026-11-01): mails "id:sender:recipient:senderCard:card:command:order:created:expires:reply:pcp:mcp"
      * / refusal blocks "sender:recipient:command:until". */

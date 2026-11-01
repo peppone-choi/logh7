@@ -30,11 +30,11 @@ object StrategyActionMessages {
         // U-25 (design-arrest-judgment.md): 処断 19 value=verdict, 逮捕許可 69 value=charge, 執行命令 70 base=listed person
         // value=0 grant/1 revoke, 逮捕命令 71 (card 0 for a right holder). Previews: 70 value 0 lists the arrest list, 1 grantees.
         // Phase 2: 一斉捜索 68 and 襲撃 73 name only the card and the target.
-        val justice=command in setOf(19,68,69,70,71,73)
+        val justice=command in setOf(19,68,69,70,71,73,74)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,19,22,23,24,28,29,65,68,69,70,71,73,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,19,22,23,24,28,29,65,68,69,70,71,73,74,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,68,69,70,71,73,87,98))
+        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,68,69,70,71,73,74,87,98))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
@@ -61,7 +61,7 @@ object StrategyActionMessages {
              else target>0 && value in 1..0xffff && (if(value in setOf(0x0707,0x0708))base>0 && amount>0 else base==0 && amount==0)))
         else if(justice)require(card in 0..260 && argument==0 && amount==0 && (if(preview)value in 0..1 && (base==0 || command==70 && value==1 && base>0)
              else target>0 && when(command) {69 -> card>0 && value in 1..7 && base==0;70 -> card>0 && value in 0..1 && base>0
-                 71 -> value==0 && base==0;68,73 -> card>0 && value==0 && base==0;else -> card>0 && value in 1..3 && base==0}))
+                 71 -> value==0 && base==0;68,73,74 -> card>0 && value==0 && base==0;else -> card>0 && value in 1..3 && base==0}))
         // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
         // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package. Previews list packages.
         else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && value==0 && base==0 && amount==0 &&
@@ -103,7 +103,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(10,11,12,13,19,24,29,65,68,69,70,71,73,87,96,98) && rows.size<=200)
+        require(q.preview && q.command in setOf(10,11,12,13,19,24,29,65,68,69,70,71,73,74,87,96,98) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

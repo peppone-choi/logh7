@@ -16,12 +16,17 @@ data class ArrestRight(val holder:Int,val target:Int,val issuer:Int,val until:Lo
 data class Detention(val character:Int,val power:Int,val since:Long,val releaseAt:Long,val severe:Boolean=false) {
     init {require(character>0 && power in 2..3 && since in 0..releaseAt && releaseAt<=0xffffffffL)}
 }
+/** A watch (U-25) lasts until the target notices it; [checkAt] is the next daily detection roll. */
+data class Watch(val watcher:Int,val target:Int,val since:Long,val checkAt:Long) {
+    init {require(watcher>0 && target>0 && watcher!=target && since in 0..checkAt && checkAt<=0xffffffffL)}
+}
 data class JusticeState(val permits:Map<Int,ArrestPermit> = emptyMap(),val rights:Map<Int,ArrestRight> = emptyMap(),
-    val detentions:Map<Int,Detention> = emptyMap()) {
+    val detentions:Map<Int,Detention> = emptyMap(),val watches:Map<Int,Watch> = emptyMap()) {
     init {require(permits.size<=4096 && permits.all {(k,v)->k==v.target} && rights.size<=4096 && rights.all {(k,v)->k==v.holder} &&
-        detentions.size<=4096 && detentions.all {(k,v)->k==v.character})}
+        detentions.size<=4096 && detentions.all {(k,v)->k==v.character} && watches.size<=4096 && watches.all {(k,v)->k==v.watcher})}
     fun detached()=copy(permits=java.util.Collections.unmodifiableMap(LinkedHashMap(permits)),
-        rights=java.util.Collections.unmodifiableMap(LinkedHashMap(rights)),detentions=java.util.Collections.unmodifiableMap(LinkedHashMap(detentions)))
+        rights=java.util.Collections.unmodifiableMap(LinkedHashMap(rights)),detentions=java.util.Collections.unmodifiableMap(LinkedHashMap(detentions)),
+        watches=java.util.Collections.unmodifiableMap(LinkedHashMap(watches)))
     fun detained(character:Int)=character in detentions
 }
 
@@ -33,8 +38,11 @@ object Justice {
     /** Phase 2 (design §2): 一斉捜索 68 finds a person staying at the same base; 襲撃 73 attacks the other side. */
     const val SEARCH=68
     const val RAID=73
-    val commands=setOf(JUDGMENT,PERMIT,EXECUTION,ARREST,SEARCH,RAID)
-    val costs=mapOf(JUDGMENT to 320L,PERMIT to 800L,EXECUTION to 800L,ARREST to 160L,SEARCH to 160L,RAID to 160L)
+    const val WATCH=74
+    val commands=setOf(JUDGMENT,PERMIT,EXECUTION,ARREST,SEARCH,RAID,WATCH)
+    val costs=mapOf(JUDGMENT to 320L,PERMIT to 800L,EXECUTION to 800L,ARREST to 160L,SEARCH to 160L,RAID to 160L,WATCH to 160L)
+    /** Daily chance (percent) that the target notices a watch: 30 + (target - watcher intelligence)/2, 5..60 (evidence:guess). */
+    fun detection(watcherIntelligence:Int,targetIntelligence:Int)=(30+(targetIntelligence-watcherIntelligence)/2).coerceIn(5,60)
     /** Police and intelligence duties (CM group 6): 7 内務尚書, 10 司法尚書, 20 調査局長, 32 憲兵総監, 58 諜報官,
      * 137 法秩序委員長, 157 憲兵司令官, 158 査閲部長, 162 情報部長, 194 諜報官. Raids are for police/intelligence only. */
     val searchCards=setOf(7,10,20,32,58,137,157,158,162,194)

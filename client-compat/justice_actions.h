@@ -3,7 +3,7 @@
 // 執行命令 first picks the listed person (strategyBase, preview value 0) and then the grantee (preview value 1).
 // Author: Peppone Choi.
 #pragma once
-static bool justiceCommand(unsigned command) {return command==19 || command==68 || command==69 || command==70 || command==71 || command==73;}
+static bool justiceCommand(unsigned command) {return command==19 || command==68 || command==69 || command==70 || command==71 || command==73 || command==74;}
 static bool justiceCard(unsigned card) {return card==7 || card==10 || card==32 || card==137 || card==157 || card==160 ||
     card==20 || card==58 || card==158 || card==162 || card==194;}
 static const wchar_t* justiceCharge(unsigned value) {
@@ -38,11 +38,12 @@ static bool readJusticeAction(void* record) {
         !state.pending || at<BYTE>(record,16)==1 || at<unsigned>(record,0)!=state.character ||
         at<unsigned short>(record,6)!=state.strategyCommand || at<unsigned short>(record,32)!=state.strategyToken)return false;
     state.pending=false;unsigned reply=at<unsigned short>(record,10),outcome=at<unsigned>(record,20);
-    if(state.strategyCommand==68)state.strategyBase=outcome==1 ? at<unsigned>(record,28) : 0;
+    if(state.strategyCommand==68 || state.strategyCommand==74)state.strategyBase=outcome==1 ? at<unsigned>(record,28) : 0;
     state.message=reply==4 ? L"이 직무 카드로 할 수 없습니다." : reply==6 ? L"대상이 같은 스폿이나 같은 부대에 없습니다." :
         reply==7 ? L"진행 중인 작업이 있거나 구금 중입니다." : reply==8 ? L"MCP가 부족합니다." :
         reply==10 ? L"체포 리스트에 없거나 기한이 지났습니다." : reply==13 ? L"직무 권한 밖의 대상입니다." :
         reply ? L"실행할 수 없습니다. 대상·카드·위치를 확인하세요." :
+        state.strategyCommand==74 ? L"감시 중입니다. 같은 대상에 다시 실행하면 현재 위치를 무료로 알려 줍니다." :
         state.strategyCommand==68 ? (outcome==1 ? L"찾았습니다. 같은 거점에 머물고 있습니다(위 스폿 ID)." : L"찾지 못했습니다.") :
         state.strategyCommand==73 ? (outcome==1 ? L"습격에 성공했습니다. 대상이 부상했습니다(게임 1일)." :
             outcome==2 ? L"대상이 피했습니다." : L"습격에 실패해 부상했습니다(게임 1일).") :
@@ -55,7 +56,7 @@ static bool readJusticeAction(void* record) {
 }
 static bool updateJusticeAction() {
     auto& state=taxWindow;unsigned command=state.strategyCommand;
-    taxText(0,command==19 ? L"처단" : command==68 ? L"일제 수색" : command==73 ? L"습격" : command==69 ? L"체포 허가" : command==70 ? L"집행 명령" : L"체포 명령");
+    taxText(0,command==19 ? L"처단" : command==68 ? L"일제 수색" : command==73 ? L"습격" : command==74 ? L"감시" : command==69 ? L"체포 허가" : command==70 ? L"집행 명령" : L"체포 명령");
     const StrategyDirectory::Person* row=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
     wchar_t label[160];
@@ -71,11 +72,12 @@ static bool updateJusticeAction() {
         else if(command==70)swprintf_s(label,L"체포 대상 ID %u · %ls",state.strategyBase,state.strategyValue ? L"회수" : L"부여");
         else if(command==68)swprintf_s(label,state.strategyBase ? L"마지막 수색 결과: 스폿 ID %u" : L"같은 거점에 머무는 인물을 찾습니다.",state.strategyBase);
         else if(command==73)swprintf_s(label,L"같은 스폿의 다른 진영 인물 · 실패하면 자신이 부상");
+        else if(command==74)swprintf_s(label,state.strategyBase ? L"대상의 현재 위치: 스폿 ID %u" : L"같은 스폿의 인물에게 감시를 붙입니다(발각되면 끝).",state.strategyBase);
         else swprintf_s(label,L"같은 스폿 또는 같은 부대의 리스트 인물");
         taxText(2,label);
     }
     taxText(3,command==69 || command==70 ? L"MCP 800" : command==19 ? L"MCP 320" : L"MCP 160 · 판정은 정보 능력 비교");
-    bool simple=command==71 || command==68 || command==73;
+    bool simple=command==71 || command==68 || command==73 || command==74;
     taxText(4,L"");taxText(5,L"");taxText(6,state.message);
     taxText(10,command==70 && !state.strategyBase ? L"받을 사람" : simple ? L"-" : L"선택 바꾸기");
     taxText(11,L"이전");taxText(12,L"다음");taxText(13,L"목록 갱신");taxText(14,L"실행");taxText(15,L"닫기");

@@ -78,4 +78,16 @@ class JusticeActionsTest {
         assertEquals(if(found)1 else 3,search.outcome);assertEquals(if(found)spot else 0,search.found)
         assertEquals(SocialRejection.CARD,act(a,"a",Justice.RAID,7,10002,s=stocks()).rejection,"内務尚書 cannot raid")
     }
+    @Test fun aWatchReportsAgainForFreeUntilItIsNoticed() {
+        val s=policy.set(stocks(),OfficeHolding(32,1049,10000))
+        val placed=act(a,"a",Justice.WATCH,32,10002,s=s)
+        assertNull(placed.rejection);assertEquals(840,placed.player?.mcp);assertEquals(spot,placed.found)
+        val again=act(a,"a",Justice.WATCH,32,10002,s=assertNotNull(placed.stocks))
+        assertNull(again.rejection);assertEquals(1000,again.player?.mcp,"free while watching");assertEquals(spot,again.found)
+        // Daily rolls until noticed; detection 30% at equal intelligence (50 vs the stored default).
+        var state=assertNotNull(placed.stocks);var day=1L
+        while(state.social.justice.watches.isNotEmpty() && day<60) {
+            state=JusticeActions.settle(galaxy,session.copy(gameMillis=(session.gameMillis/1000+day*86400)*1000),accounts.toMutableMap(),state);day++}
+        assertTrue(state.social.justice.watches.isEmpty(),"noticed within 60 days")
+    }
 }
