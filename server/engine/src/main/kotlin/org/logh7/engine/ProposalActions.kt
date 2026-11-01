@@ -17,21 +17,41 @@ object ProposalActions {
     const val RESIGNATION=0x0709
     val costs=mapOf(RESIGNATION to 80L)
 
-    /** Expired pending rows give the sender's half back first (approved design §2.2), in the same commit as the action. */
+    /** U-16 (user decision 2026-11-01): an order to an absent recipient is approved for it one game hour after
+     * arrival; a proposal waits for the recipient. */
+    const val ABSENT_ORDER_SECONDS=3600L
+    /** Before each proposal action: expired rows refund the sender's half, absent recipients' due orders are approved
+     * (the recipient pays the other half and the command runs), all in the same commit as the action. */
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
+        if(p==null)return act(g,r,session,p,s,accounts)
         val now=session.gameMillis/1000
-        val expired=Proposals.expired(s.social.proposals,now)
-        if(expired.isEmpty() || p==null)return act(g,r,session,p,s,accounts)
-        var self:Navigator=p;val refunds=linkedMapOf<String,Navigator>()
-        for(mail in expired) {
+        var self:Navigator=p;val changed=linkedMapOf<String,Navigator>()
+        fun current(key:String)=changed[key] ?: accounts.getValue(key)
+        fun keyOf(id:Int)=accounts.entries.singleOrNull {it.value.generation==p.generation && it.value.characterId==id}?.key
+        var settled=s
+        for(mail in Proposals.expired(s.social.proposals,now)) {
             if(mail.sender==p.characterId) {self=self.copy(mcp=Math.addExact(self.mcp,mail.mcp));continue}
-            val (key,sender)=accounts.entries.singleOrNull {it.value.generation==p.generation && it.value.characterId==mail.sender}
-                ?.let {it.key to (refunds[it.key] ?: it.value)} ?: continue
-            refunds[key]=sender.copy(mcp=Math.addExact(sender.mcp,mail.mcp))
+            val key=keyOf(mail.sender) ?: continue
+            changed[key]=current(key).let {it.copy(mcp=Math.addExact(it.mcp,mail.mcp))}
         }
-        val settled=s.copy(social=s.social.copy(proposals=Proposals.withoutExpired(s.social.proposals,now)))
-        val result=act(g,r,session,self,settled,accounts+refunds)
-        return if(result.rejection!=null)SocialResult(p,s,result.rejection) else result.copy(navigators=refunds+result.navigators)
+        settled=settled.copy(social=settled.social.copy(proposals=Proposals.withoutExpired(settled.social.proposals,now)))
+        val policy=OrganizationalOfficePolicy(g)
+        for(mail in settled.social.proposals.mails.filter {it.pending && it.order && it.createdAt+ABSENT_ORDER_SECONDS<=now}) {
+            val key=keyOf(mail.recipient) ?: continue
+            if(session.participants[key]?.online==true || mail.recipient==p.characterId)continue
+            val recipient=current(key)
+            val paid=CpPayment.charge(CpBalance(recipient.pcp.toLong(),recipient.mcp.toLong()),costs.getValue(mail.command)-mail.mcp,CpPool.MCP)
+            if(paid !is PaymentResult.Paid)continue
+            val held=policy.holders(settled,mail.card).filter {it.character==mail.recipient}
+            if(held.size!=1)continue
+            val (answered,refused)=Proposals.reply(settled.social.proposals,mail.id,mail.recipient,Proposals.APPROVE,now)
+            if(refused!=null)continue
+            settled=policy.set(settled.copy(social=settled.social.copy(proposals=answered)),held.single(),remove=true)
+            changed[key]=recipient.paidWith(paid.balance)
+        }
+        if(settled==s && self==p)return act(g,r,session,p,s,accounts)
+        val result=act(g,r,session,self,settled,accounts+changed)
+        return if(result.rejection!=null)SocialResult(p,s,result.rejection) else result.copy(navigators=changed+result.navigators)
     }
     private fun act(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000

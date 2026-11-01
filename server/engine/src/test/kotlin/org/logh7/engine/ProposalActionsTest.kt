@@ -61,4 +61,24 @@ class ProposalActionsTest {
         assertNull(refunded.rejection);assertEquals(1000,refunded.navigators.getValue("a").mcp,"40 MCP back to the sender")
         assertEquals(1,assertNotNull(refunded.stocks).social.proposals.mails.size,"only the new row remains")
     }
+    @Test fun anOrderToAnAbsentRecipientIsApprovedAfterAnHourButAProposalWaits() {
+        val base=policy.set(stocks(),OfficeHolding(18,1049,10001))
+        val order=assertNotNull(act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,base).stocks)
+        val absent=session.copy(participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)),
+            gameMillis=session.gameMillis+ProposalActions.ABSENT_ORDER_SECONDS*1000)
+        // Any later proposal action settles it: a's own (rejected-as-blocked-free) open to b again.
+        val r=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,ProposalActions.REPLY,0,9,target=999,value=0))
+        val settled=SocialActions.evaluate(galaxy,r,absent,a,order,listOf(a,b),mapOf("a" to a,"b" to b))
+        assertEquals(SocialRejection.STALE,settled.rejection,"the trigger itself fails, so nothing is committed")
+        val proposal=assertNotNull(act("b",ProposalActions.OPEN,19,10000,ProposalActions.RESIGNATION,17,stocks()).stocks)
+        val waiting=SocialActions.evaluate(galaxy,r.copy(identity=r.identity.copy(account="b",characterId=10001)),
+            session.copy(participants=session.participants+("a" to session.participants.getValue("a").copy(online=false)),
+                gameMillis=session.gameMillis+ProposalActions.ABSENT_ORDER_SECONDS*1000),b,proposal,listOf(a,b),mapOf("a" to a,"b" to b))
+        assertTrue(waiting.navigators.isEmpty(),"a proposal is never approved for the absent superior")
+        val good=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,ProposalActions.OPEN,17,9,
+            target=10001,value=ProposalActions.RESIGNATION,argument=18))
+        val approved=SocialActions.evaluate(galaxy,good,absent,a,order,listOf(a,b),mapOf("a" to a,"b" to b))
+        assertNull(approved.rejection,"the triggering order (card 18) succeeds");assertEquals(960,approved.navigators["b"]?.mcp,"the absent recipient paid its half")
+        assertTrue(policy.held(assertNotNull(approved.stocks),10001).none {it.card==19},"and resigned")
+    }
 }
