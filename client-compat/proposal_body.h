@@ -33,12 +33,35 @@ static int catalogCopy(BYTE* ctx,unsigned group,unsigned index) {
     auto text=reinterpret_cast<const char*(__thiscall*)(void*,unsigned,unsigned)>(0x522010)(reinterpret_cast<void*>(0x2217400),group,index);
     if(!text)return 0;strncpy_s(reinterpret_cast<char*>(ctx+0x24),32,text,_TRUNCATE);return 1;
 }
-// Resignation: the executor resigns its own card, so the target is the recipient.
-static int __cdecl bodyTargetName(BYTE* ctx) {return bodyName(ctx,0x18a);}
-static int __cdecl bodyTargetRank(BYTE* ctx) {return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x1a4));}
+/** A third person's name from what this client has seen: the 0x1202 directory (world+0x4c83a0, 0x120 records),
+ * the mail address book (world+0x448808, 0x124 records) and the compatibility windows' directory; else "#id". */
+static bool knownName(unsigned id,wchar_t (&name)[13]) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);if(!world || !id)return false;
+    unsigned count=at<unsigned>(world,0x4c83a0);
+    for(unsigned i=0;i<count && i<2000;++i)if(at<unsigned>(world,0x4c83a4+i*0x120)==id) {memcpy(name,world+0x4c83a4+i*0x120+6,24);name[12]=0;return true;}
+    unsigned book=world[0x448808];
+    for(unsigned i=0;i<book && i<100;++i)if(at<unsigned>(world,0x448808+4+i*0x124)==id) {memcpy(name,world+0x448808+4+i*0x124+6,24);name[12]=0;return true;}
+    for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==id) {memcpy(name,strategyDirectory.people[i].name,24);name[12]=0;return true;}
+    return false;
+}
+// Resignation: the executor resigns its own card, so the target is the recipient. Dismissal (command 6): the 0x0708
+// pair record (world+0x43c8f0, receiver 004bd*) names the third person at +0x10 and its card at +0x14.
+static bool bodyDismissal(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==6;}
+static int __cdecl bodyTargetName(BYTE* ctx) {
+    if(!bodyDismissal(ctx))return bodyName(ctx,0x18a);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);unsigned id=world ? at<unsigned>(world,0x43c8f0+0x10) : 0;
+    // The mail's own peers (sender SIC at S+0x60, recipient at S+0x184; id +0, name +6) come first.
+    for(unsigned peer:{0x60u,0x184u})if(id && at<unsigned>(bodyScratch(ctx),peer)==id)return bodyName(ctx,peer+6);
+    wchar_t name[13]={};if(knownName(id,name))return bodyText(ctx,name);
+    wchar_t text[16];swprintf_s(text,L"#%u",id);return bodyText(ctx,text);
+}
+static int __cdecl bodyTargetRank(BYTE* ctx) {
+    if(bodyDismissal(ctx)) {ctx[0x24]=0;return 1;} // the third person's rank is not known to this client
+    return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x1a4));
+}
 static int __cdecl bodyTargetCard(BYTE* ctx) {
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
-    return world ? catalogCopy(ctx,3,at<unsigned>(world,0x43c990+0x10)) : 0;
+    return world ? catalogCopy(ctx,3,bodyDismissal(ctx) ? at<unsigned>(world,0x43c8f0+0x14) : at<unsigned>(world,0x43c990+0x10)) : 0;
 }
 // The executor is the mailbox owner, so the place is its current base (own record +0x358); in space it is "우주".
 static int __cdecl bodyPlace(BYTE* ctx) {
