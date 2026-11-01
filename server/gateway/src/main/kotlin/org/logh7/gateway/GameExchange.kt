@@ -349,6 +349,7 @@ class GameExchange(
                             tacticalGround=org.logh7.engine.TacticalGroundCommand(
                                 if(opcode==0x040f)org.logh7.engine.TacticalGroundAction.DEPLOY else org.logh7.engine.TacticalGroundAction.WITHDRAW,
                                 command.units,command.skill))).thenApply {result->
+                            if(result.player==null)println("tactical ground rejected account=${identity.account} opcode=0x${opcode.toString(16)} units=${command.units} reason=${result.rejection}")
                             val now=gameSeconds()
                             listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,now,
                                 result.groundReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))+commandCorps(identity.account)
@@ -383,6 +384,7 @@ class GameExchange(
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
                             tacticalPosture=org.logh7.engine.TacticalPostureChange(command.units,mode,command.base))).thenApply {result->
                             val player=checkNotNull(result.player ?: result.previous)
+                            if(result.player==null)println("tactical posture rejected account=${identity.account} units=${command.units} mode=$mode base=${command.base} reason=${result.rejection}")
                             publication=Publication(character,player,false)
                             val now=gameSeconds()
                             listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,now,

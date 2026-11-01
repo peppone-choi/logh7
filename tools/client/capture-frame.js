@@ -455,5 +455,10 @@ rpc.exports.pickstate = function() {
     selected:ptr(0x2216660).readS32(),commandable:ptr(0x2216664).readS32(),posting:ptr(0x2216668).readS32()};
   if(!world.isNull() && crc.flagship) {const f=lookup(world.add(0x126718),crc.flagship,1,255,255,255);
     if(!f.isNull())crc.flags=[0x8c4,0x8c5,0x5ba].map(o=>f.add(o).readU8());}
-  return {mask:m.add(0xa75c).readU32(),blocked:m.add(0xa758).readU8(),airPush:Array.from(new Uint8Array(ptr(0x510ec3).readByteArray(5))),dllStatus:null,crc:crc,rows:rows};
+  // Base pick rows (004ef740): count +0xa468, at most 10 rows of 0x3c from +0xa46c; level 1 needs 0<depth<1 and distance<=80.
+  const bases=[];
+  for(let i=0;i<Math.min(m.add(0xa468).readS32(),10);++i) {const e=m.add(0xa46c+i*0x3c);
+    bases.push({id:e.add(0x20).readU32(),x:e.add(0xc).readFloat(),y:e.add(0x10).readFloat(),depth:e.add(0x14).readFloat(),
+      distance:e.add(0x1c).readFloat(),flags:e.add(0x24).readU32(),level:e.add(0x2d).readU8()});}
+  return {mask:m.add(0xa75c).readU32(),blocked:m.add(0xa758).readU8(),airPush:Array.from(new Uint8Array(ptr(0x510ec3).readByteArray(5))),dllStatus:null,crc:crc,bases:bases,rows:rows};
 };
