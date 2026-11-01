@@ -80,8 +80,9 @@ class GameCommunication(private val presence:GamePresence,private val generation
             // Reply rows need the compatibility DLL's 0053c933 null fix (proposal_approval.h). +0x25b 0 shows 22/77 承諾,
             // 1..3 show 22/78..80 (拒否·拒絶·オウム返し).
             if(REPLY_ROWS && received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
-                rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,0,who(mail.recipient,mail.card),peer(owner,post),mail.createdAt,
-                    commandNumber(mail),0,if(mail.reply==Proposals.APPROVE)0 else mail.reply+1)),paired(mail))
+                // status 1 = already read (no 22/76 pending-read text); approval 5 keeps 22/77 with the reply buttons off.
+                rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,1,who(mail.recipient,mail.card),peer(owner,post),mail.createdAt,
+                    commandNumber(mail),0,if(mail.reply==Proposals.APPROVE)5 else mail.reply+1)),paired(mail))
             if(!received && mail.pending && mail.sender==owner.character && mail.senderCard==post)
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,peer(owner,post),who(mail.recipient,mail.card),mail.createdAt,
                     commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))

@@ -96,6 +96,7 @@ object MailMessages {
         Reply(int,int,u8(),peer(),peer(),int.toLong() and 0xffffffffL,u16(),u8(),u8()).also {require(it.value in 0..3 && !hasRemaining())}
     }
     fun reply(value:Reply)=packet(0x0f14) {
+        require(value.value in 0..5)
         putInt(value.id);putInt(value.refer);put(value.status.toByte());peer(value.sender);peer(value.recipient)
         putInt(value.seconds.toInt());putShort(value.command.toShort());put(value.type.toByte());put(value.value.toByte())
     }
