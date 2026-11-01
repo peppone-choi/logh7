@@ -48,7 +48,7 @@ class CoupActionsTest {
         assertEquals(setOf(69),policy.held(s,10001).map {it.card}.toSet(),"副盟主")
         assertTrue(s.social.coup.revolting(2))
         val caught=s.copy(social=s.social.copy(justice=JusticeState(detentions=mapOf(10000 to Detention(10000,2,0,86400)))))
-        val ended=CoupActions.settle(caught)
+        val ended=CoupActions.settle(galaxy,caught,100)
         assertEquals(0,ended.bases.getValue(1049).camp);assertTrue(ended.social.coup.plots.isEmpty())
         assertTrue(policy.held(ended,10000).isEmpty())
     }
@@ -67,5 +67,19 @@ class CoupActionsTest {
         val camps=GridForces.collect(galaxy,1,listOf(a,b),s).getValue(2487).map {it.camp}.toSet()
         assertTrue(Camp(Power.EMPIRE,true) in camps && Camp(Power.EMPIRE,false) in camps,"$camps")
         assertFalse(GridForces.collect(galaxy,1,listOf(a,b),stocks()).getValue(2487).any {it.camp.insurgent})
+    }
+    @Test fun holdingTheCapitalForSevenDaysMakesTheLeaderHeadOfState() {
+        val plotted=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,setOf(10001))))))}
+        val revolted=assertNotNull(act(CoupActions.REVOLT,assertNotNull(act(CoupActions.JOIN,plotted,"b").stocks)).stocks)
+        val withEmperor=policy.set(revolted.copy(bases=revolted.bases+(1049 to revolted.bases.getValue(1049).copy(camp=0))),
+            OfficeHolding(1,1049,10009)).let {it.copy(bases=it.bases+(1049 to it.bases.getValue(1049).copy(camp=1)))}
+        val started=CoupActions.settle(galaxy,withEmperor,1000)
+        assertEquals(1000,started.social.coup.plots.getValue(10000).capitalSince,"holding starts")
+        assertSame(started,CoupActions.settle(galaxy,started,1000+6*86400),"not yet")
+        val won=CoupActions.settle(galaxy,started,1000+7*86400)
+        assertTrue(won.social.coup.plots.isEmpty());assertEquals(0,won.bases.getValue(1049).camp)
+        val held=policy.held(won,10000).map {it.card}.toSet()
+        assertTrue(1 in held && 58 in held,"emperor and the regular office back: $held")
+        assertTrue(policy.holders(won,1).none {it.character==10009},"the old emperor loses the seat")
     }
 }

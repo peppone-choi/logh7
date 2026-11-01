@@ -289,7 +289,7 @@ internal object TacticalCombat {
         val occupations=mutableListOf<BaseOccupation>()
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players)
-        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {EspionageActions.caughtBy={st,pl,id,side,at->JusticeActions.detain(galaxy,st,pl,id,side,at)};inventory=EspionageActions.settle(session,players,inventory);inventory=CoupActions.settle(inventory)}
+        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {EspionageActions.caughtBy={st,pl,id,side,at->JusticeActions.detain(galaxy,st,pl,id,side,at)};inventory=EspionageActions.settle(session,players,inventory);inventory=CoupActions.settle(galaxy,inventory,session.gameMillis/1000)}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
         inventory=BattleDeath.apply(inventory,impacts.mapNotNull {it.departed?.characterId},now)
         inventory=SinkingExperience.apply(inventory,impacts.mapNotNull {it.departed?.characterId}.distinct(),

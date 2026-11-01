@@ -13,8 +13,10 @@ data class Plot(val leader:Int,val power:Int,val since:Long,val consenting:Set<I
     /** 0 while plotting; the game second the revolt broke out. */
     val revolt:Long=0,
     /** Bases turned to the rebel camp by the revolt. */
-    val bases:Set<Int> = emptySet()) {
-    init {require(leader>0 && power in 2..3 && since in 0..0xffffffffL && revolt in 0..0xffffffffL &&
+    val bases:Set<Int> = emptySet(),
+    /** Game second since the rebel camp has held its side's capital without a break; 0 while it does not. */
+    val capitalSince:Long=0) {
+    init {require(leader>0 && power in 2..3 && since in 0..0xffffffffL && revolt in 0..0xffffffffL && capitalSince in 0..0xffffffffL &&
         consenting.all {it>0 && it!=leader} && members.all {it>0 && it!=leader && it !in consenting} &&
         members.distinct().size==members.size && consenting.size+members.size<=256 &&
         bases.all {it in 1..65535} && (revolt>0 || bases.isEmpty()))}
@@ -184,9 +186,48 @@ object CoupActions {
         return s.copy(social=s.social.copy(coup=s.social.coup.copy(plots=s.social.coup.plots+(leader to plot.copy(bases=bases)))))
     }
 
-    /** A plot ends when its leader is detained; a revolt also ends when it holds no rebel base. The rebels lose their
-     * rebel cards and the bases still in the rebel camp return to the regular camp. */
-    fun settle(s:PlanetStocks):PlanetStocks {
+    /** Holding the capital this long wins the revolt (user decision 2026-11-02, evidence:guess). */
+    const val CAPITAL_DAYS=7L
+    /** 皇帝 / 議長: the head-of-state card a successful leader takes. */
+    fun headCard(power:Int)=if(power==2)1 else 132
+    private fun capital(g:Galaxy,power:Int)=g.bases.singleOrNull {Capital.of(it)?.power==power}?.id
+
+    /** A revolt that has held its side's capital for [CAPITAL_DAYS] changes the regime: rebel cards turn back into the
+     * regular offices they alias (where a seat is free), the leader takes the head-of-state card from its holder, and
+     * the rebel bases return to the regular camp. Other plots end when the leader is detained or every rebel base is
+     * lost (the rebels lose their rebel cards). */
+    fun settle(g:Galaxy,s:PlanetStocks,now:Long):PlanetStocks {
+        var current=s
+        for(plot in s.social.coup.plots.values.filter {it.revolt>0}) {
+            val seat=capital(g,plot.power) ?: continue
+            val held=s.bases[seat]?.let {it.camp==1 && it.power==plot.power}==true
+            val since=if(!held)0L else if(plot.capitalSince==0L)now else plot.capitalSince
+            if(held && now-since>=CAPITAL_DAYS*Justice.DAY && !s.social.justice.detained(plot.leader)) {
+                current=succeed(g,current,plot,seat);continue
+            }
+            if(since!=plot.capitalSince)current=current.copy(social=current.social.copy(coup=current.social.coup.copy(
+                plots=current.social.coup.plots+(plot.leader to plot.copy(capitalSince=since)))))
+        }
+        return suppress(current)
+    }
+    private fun succeed(g:Galaxy,s:PlanetStocks,plot:Plot,capital:Int):PlanetStocks {
+        val policy=OrganizationalOfficePolicy(g);val rebels=plot.rebels.toSet()
+        val aliases=s.strategic.offices.filter {it.character in rebels && OrganizationOffices.of(it.card)?.camp==1}
+        var next=s.copy(strategic=s.strategic.copy(offices=s.strategic.offices-aliases.toSet()))
+        for(b in plot.bases+capital)next.bases[b]?.takeIf {it.camp==1 && it.power==plot.power}?.let {
+            next=next.copy(bases=next.bases+(b to it.copy(camp=0)))}
+        for(h in aliases.filter {it.card !in setOf(68,69,197,198)}) {
+            val role=OrganizationOffices.of(OrganizationOffices.of(h.card)!!.canonical) ?: continue
+            val at=if(role.scope in setOf(OfficeScope.NATIONAL,OfficeScope.CAPITAL))capital else h.seat
+            if(policy.active(next,role,at) && policy.holders(next,role.card).count {it.seat==at}<role.seats)
+                next=policy.set(next,OfficeHolding(role.card,at,h.character))
+        }
+        val head=headCard(plot.power)
+        for(old in policy.holders(next,head))next=policy.set(next,old,remove=true)
+        next=policy.set(next,OfficeHolding(head,capital,plot.leader))
+        return next.copy(social=next.social.copy(coup=next.social.coup.copy(plots=next.social.coup.plots-plot.leader)))
+    }
+    private fun suppress(s:PlanetStocks):PlanetStocks {
         val c=s.social.coup
         val ended=c.plots.values.filter {plot->s.social.justice.detained(plot.leader) ||
             plot.revolt>0 && plot.bases.none {s.bases[it]?.let {b->b.camp==1 && b.power==plot.power}==true}}
