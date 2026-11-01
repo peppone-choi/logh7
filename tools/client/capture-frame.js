@@ -448,5 +448,12 @@ rpc.exports.pickstate = function() {
       if(!u.isNull())row.unit=[8,9,10,11].map(o=>u.add(o).readU8());}
     rows.push(row);
   }
-  return {mask:m.add(0xa75c).readU32(),blocked:m.add(0xa758).readU8(),airPush:Array.from(new Uint8Array(ptr(0x510ec3).readByteArray(5))),dllStatus:null,rows:rows};
+  // Command range circle (CRC) and command lists (U-09, 004ec600/004ee250/0050fac3): charge a70c/a710,
+  // radius a714/a718, flagship a71c, centre a724; flagship +0x8c4/+0x8c5/+0x5ba; selection/commandable counts.
+  const crc={charge:m.add(0xa70c).readFloat(),full:m.add(0xa710).readFloat(),radius:m.add(0xa714).readFloat(),
+    maximum:m.add(0xa718).readFloat(),flagship:m.add(0xa71c).readU32(),centre:[0xa724,0xa728].map(o=>m.add(o).readFloat()),
+    selected:ptr(0x2216660).readS32(),commandable:ptr(0x2216664).readS32(),posting:ptr(0x2216668).readS32()};
+  if(!world.isNull() && crc.flagship) {const f=lookup(world.add(0x126718),crc.flagship,1,255,255,255);
+    if(!f.isNull())crc.flags=[0x8c4,0x8c5,0x5ba].map(o=>f.add(o).readU8());}
+  return {mask:m.add(0xa75c).readU32(),blocked:m.add(0xa758).readU8(),airPush:Array.from(new Uint8Array(ptr(0x510ec3).readByteArray(5))),dllStatus:null,crc:crc,rows:rows};
 };
