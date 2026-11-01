@@ -126,6 +126,7 @@ static bool updateTaxWindow(void* gui);
 static bool strategyActionCommand(unsigned command);
 static BYTE openStrategyAction(void* manager,int command,unsigned card);
 static bool updateStrategyAction(void* gui);
+static void proposalWindowTick();
 static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void outfitWarehouseResponse(void* world,const BYTE* record);

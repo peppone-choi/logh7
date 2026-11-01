@@ -158,6 +158,7 @@ static unsigned __fastcall readTaxResponse(void* codec,void*,void* record,void* 
 static bool updateTaxWindow(void* gui) {
     auto& state=taxWindow;
     state.manager=gui;
+    proposalWindowTick();
     if(state.visible && state.strategyActive)return updateStrategyAction(gui);
     if (!state.visible) return false;
     auto world=*reinterpret_cast<void**>(0x7ccffc);

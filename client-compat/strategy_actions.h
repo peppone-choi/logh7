@@ -65,6 +65,7 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
 #include "meeting_actions.h"
 #include "gathering_actions.h"
 #include "transport_actions.h"
+#include "proposal_send.h"
 static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if(!own || !at<BYTE>(own,0) || at<void*>(manager,0x18) || *reinterpret_cast<void**>(0x21aa888)!=own || !createTaxWindow())return 0;
@@ -231,6 +232,7 @@ static bool updateStrategyAction(void*) {
     if(meetingCommand(state.strategyCommand))return updateMeetingAction();
     if(gatheringCommand(state.strategyCommand))return updateGatheringAction();
     if(transportCommand(state.strategyCommand))return updateTransportAction();
+    if(proposalCommand(state.strategyCommand))return updateProposalAction();
     if(state.strategyCommand==96)return updateFlagshipMarket();
     unsigned command=state.strategyCommand;unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
     if(command==61 && state.card!=59 && state.card!=195) {
@@ -293,6 +295,12 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
     if(readMeetingAction(record))return result;
     if(readGatheringAction(record))return result;
     if(readTransportAction(record))return result;
+    if(readProposalAction(record))return result;
+    // The CD's 命令/提案 tab (search 29) draws no rows; open the compatibility window instead.
+    if(at<unsigned short>(record,4)==29 && !taxWindow.visible) {
+        auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
+        if(own && at<unsigned>(record,0)==at<unsigned>(own,0x24))proposalTabRequested=true;
+    }
     if(at<unsigned short>(record,4)==0x7f00) {
         auto& state=taxWindow;
         if(state.visible && state.strategyActive && state.pending && at<unsigned>(record,0)==state.character &&
@@ -324,7 +332,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
     if(readOutfitFormationPeople(record))return result;
     if(strategyDirectory.receiving) {
         strategyDirectory.receiving=false;auto& state=taxWindow;
-        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand))) {
+        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand) || proposalCommand(state.strategyCommand))) {
             unsigned count=at<BYTE>(record,0);if(count>200)return result;
             strategyDirectory.count=count;
             for(unsigned i=0;i<count;++i) {

@@ -56,6 +56,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         // manual's 120 remain stored; deleting visible mail reveals older rows.
         return listOf(Wire.begin(query))+engine.list(owner,received,post).take(100).map {Wire.item(item(it))}+Wire.end()
     }
+    private companion object {const val REPLY_ROWS=false}
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
     private fun paired(mail:ProposalMail)=when(mail.command) {
         ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
@@ -64,7 +65,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
     private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean):List<ByteArray> {
-        if(post<=0)return emptyList()
+        // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
+        if(post<=0 || org.logh7.engine.OrganizationOffices.of(post)==null)return emptyList()
         val state=proposals(expected) ?: return emptyList()
         fun who(id:Int,card:Int)=directory(expected,id)?.let {peer(it,card)} ?: Wire.Peer(id,extra=listOf(0,0,card))
         val rows=mutableListOf<ByteArray>()
@@ -73,7 +75,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
             if(received && mail.pending && mail.recipient==owner.character && mail.card==post)
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),peer(owner,post),mail.createdAt,
                     mail.command,type,1,mail.pcp,mail.mcp)),paired(mail))
-            if(received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
+            // Reply rows (0x0f14) crash the CD's row builder at 0053c933 (null item); kept off until that path is analysed.
+            if(REPLY_ROWS && received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
                 rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,0,who(mail.recipient,mail.card),peer(owner,post),mail.createdAt,
                     mail.command,type,mail.reply+1)),paired(mail))
             if(!received && mail.pending && mail.sender==owner.character && mail.senderCard==post)
@@ -196,7 +199,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
             0x0f11,0x0f12 -> {
                 val command=Wire.change(body,opcode)
                 // Proposal/order rows (0x0f13) are not stored mail yet: acknowledge their read/delete marks only.
-                if(command.owner.id==owner.character && post(command.owner)<0)return listOf(Wire.change(command,opcode))
+                // Their +120 is not filled in (36173 and in-range values were both seen), so anything but a held card is acknowledged.
+                if(command.owner.id==owner.character && post(command.owner).let {it!=0 && !holds(actor,it)})return listOf(Wire.change(command,opcode))
                 own(command.owner);val post=post(command.owner)
                 val result=engine.change(owner,command.id,command.inbox,opcode==0x0f12,post)
                 result.rejection?.let {return rejection(opcode,it)}

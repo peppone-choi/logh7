@@ -113,6 +113,20 @@ class GameExchange(
         return listOf(org.logh7.protocol.TacticsMessages.corps(
             TacticalBootstrap(snapshot,checkNotNull(world).galaxy,player,::currentCharacterById).corps))
     }
+    /** 命令/提案 pairs (CD p.28): same side; same spot inside a facility, else the same grid; not in tactics.
+     * Each target is paired with my card and theirs of the same institution; the emperor card pairs with any office. */
+    private fun proposalPairs(inventory:org.logh7.engine.PlanetStocks,me:org.logh7.engine.Navigator):List<Triple<Int,Int,Int>> {
+        val policy=org.logh7.engine.OrganizationalOfficePolicy(checkNotNull(world).galaxy)
+        fun institution(card:Int)=org.logh7.engine.OrganizationOffices.of(card)?.institution
+        val mine=policy.held(inventory,me.characterId).map {it.card}.filter {institution(it)!=null}.distinct()
+        val players=navigation?.snapshot()?.navigators.orEmpty().values.filter {it.generation==me.generation &&
+            it.characterId!=me.characterId && it.power==me.power && !it.cpPaused && it.grid==me.grid &&
+            (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
+        return players.sortedBy {it.characterId}.mapNotNull {other ->
+            val theirs=policy.held(inventory,other.characterId).map {it.card}.filter {institution(it)!=null}.distinct()
+            mine.firstNotNullOfOrNull {card->theirs.firstOrNull {card==1 || institution(it)==institution(card)}?.let {Triple(other.characterId,card,it)}}
+        }
+    }
     /** Other people whose CP changed in the same commit (a proposal refund) see it at once. */
     private fun refreshPaid(navigators:Map<String,org.logh7.engine.Navigator>) {
         navigators.values.forEach {other->currentCharacterById(other.characterId)?.let {c->
@@ -1408,6 +1422,12 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command==org.logh7.engine.ProposalActions.OPEN) {
+                                            val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            val pairs=proposalPairs(inventory,me).filter {it.first>query.target}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,pairs.mapNotNull {(id,_,_)->
+                                                currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname,it.rank)}})
+                                        }
                                         require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {it.card==query.card}) {"Strategy directory requires a held office"}
                                         if(query.command==96) {
                                             if(query.argument==0)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
@@ -1467,10 +1487,14 @@ class GameExchange(
                                     return null
                                 }
                                 if(query.command==org.logh7.engine.ProposalActions.OPEN) {
+                                    // The compatibility window may leave both cards 0: use the target's pair.
+                                    val pair=if(query.card!=0 && query.argument!=0)Triple(query.target,query.card,query.argument) else
+                                        navigation?.snapshot()?.let {s->proposalPairs(checkNotNull(s.planetStocks),checkNotNull(s.navigators[identity.account]))}
+                                            ?.firstOrNull {it.first==query.target} ?: Triple(query.target,0,0)
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
-                                        checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
-                                        argument=query.argument))
+                                        checkNotNull(generation),query.command,pair.second,character.rank,target=query.target,value=query.value,
+                                        argument=pair.third))
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
