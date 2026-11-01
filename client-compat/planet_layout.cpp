@@ -576,6 +576,7 @@ static void install() {
     if (!installProposalReplyRows()) { status = -3; return; }
     if (!installProposalBody()) { status = -3; return; }
     if (!installSuggestVariant()) { status = -3; return; }
+    if (!installReplyVariant()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }

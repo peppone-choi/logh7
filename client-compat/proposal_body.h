@@ -77,3 +77,19 @@ static bool installSuggestVariant() {
     *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&suggestStore)-reinterpret_cast<BYTE*>(suggestStoreCall)-5);
     return patchBytes(reinterpret_cast<void*>(suggestStoreCall),suggestStoreExpected,call,5);
 }
+
+// A reply row's +0x25b both picks the row kind (5 = approved, buttons off) and is copied to the template variant
+// (world+0x12670c), where 5 has no variant and showed NO DATA. Keep the item's value but render variant 0
+// (call 004c277a in the 0x0f14 store).
+static constexpr unsigned replyStoreCall=0x4c277a;
+static constexpr BYTE replyStoreExpected[5]={0xe8,0x11,0x00,0x00,0x00};
+static void __fastcall replyStore(BYTE* world,void*,int type,void* record) {
+    reinterpret_cast<void(__thiscall*)(void*,int,void*)>(0x4c2790)(world,type,record);
+    world[0x12670c]=0;
+}
+static bool installReplyVariant() {
+    if(memcmp(reinterpret_cast<void*>(replyStoreCall),replyStoreExpected,5))return false;
+    BYTE call[5]={0xe8};
+    *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&replyStore)-reinterpret_cast<BYTE*>(replyStoreCall)-5);
+    return patchBytes(reinterpret_cast<void*>(replyStoreCall),replyStoreExpected,call,5);
+}
