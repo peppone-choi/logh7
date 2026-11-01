@@ -20,12 +20,16 @@ class WorldBootstrap(val galaxy: Galaxy) {
             if(role.card in org.logh7.engine.CivicActions.commandingCards)addAll(listOf(52,54,56))
             when(role.card) {
                 8,136->addAll(listOf(16,18))
+                // U-25 (design-arrest-judgment.md): list/grant/arrest and judgment by duty (CM group 6).
+                7,10,137->addAll(listOf(69,70,71,19))
+                32,157->addAll(listOf(69,70,71))
                 1->addAll(listOf(0,1,2,3,8,9))
                 17,135->addAll(listOf(0,1,2,4))
                 19,160->addAll(listOf(0,1,2))
                 24,25,26,147,148,149->addAll(listOf(22,23))
                 28,29,30,169,170,171->add(24)
             }
+            if(role.card==160)add(19)
             if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
             add(7)
         }.distinct()

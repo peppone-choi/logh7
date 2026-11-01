@@ -1425,6 +1425,27 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command in org.logh7.engine.Justice.commands) {
+                                            // U-25 directories: 69 same-side people in the card's scope, 70 value 0 the arrest list /
+                                            // value 1 same-side grantees, 71 listed people this character may arrest, 19 detainees in scope.
+                                            val justice=inventory.social.justice;val now=gameSeconds()
+                                            val people=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
+                                                .filter {it.power==character.power && it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
+                                            fun rankOf(id:Int,fallback:Int)=inventory.strategic.people[id]?.rank ?: fallback
+                                            val rows=when(query.command) {
+                                                org.logh7.engine.Justice.PERMIT -> people.filter {org.logh7.engine.Justice.arrests(query.card,rankOf(it.id.toInt(),it.rank)) &&
+                                                    !justice.detained(it.id.toInt())}
+                                                org.logh7.engine.Justice.EXECUTION -> if(query.value==0)people.filter {justice.permits[it.id.toInt()]?.let {p->p.until>now}==true}
+                                                    else people.filter {!justice.detained(it.id.toInt())}
+                                                org.logh7.engine.Justice.ARREST -> people.filter {p->justice.permits[p.id.toInt()]?.let {it.until>now}==true &&
+                                                    (justice.rights[character.id.toInt()]?.target==p.id.toInt() ||
+                                                        org.logh7.engine.Justice.arrests(query.card,rankOf(p.id.toInt(),p.rank)))}
+                                                else -> people.filter {p->justice.detentions[p.id.toInt()]?.let {!it.severe}==true &&
+                                                    org.logh7.engine.Justice.judges(query.card,rankOf(p.id.toInt(),p.rank))}
+                                            }.sortedBy {it.id}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {
+                                                org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,minOf(20,rankOf(it.id.toInt(),it.rank)))})
+                                        }
                                         if(query.command==org.logh7.engine.ProposalActions.OPEN) {
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                             if(query.value==org.logh7.engine.ProposalActions.DISMISSAL) {
@@ -1509,6 +1530,21 @@ class GameExchange(
                                             org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
                                                 listOf(0,if(target.power==2)59 else 195)+administration.offices(target.id.toInt(),target.power,
                                                     checkNotNull(generation)).map {it.kind})})
+                                    }
+                                    return null
+                                }
+                                if(query.command in org.logh7.engine.Justice.commands) {
+                                    val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                        query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                        checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
+                                        base=query.base,identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),
+                                            id.power,id.rank,id.origin,id.abilities.toList())}))
+                                    pendingWorld=administration.social(request).thenApply {result ->
+                                        val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                        publication=Publication(updated,player,false)
+                                        refreshPaid(result.navigators)
+                                        org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
+                                            outcome=result.outcome)+listOf(characterMessage(updated,player,true))
                                     }
                                     return null
                                 }

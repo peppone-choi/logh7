@@ -27,10 +27,13 @@ object StrategyActionMessages {
         val transport=command in setOf(28,29,65)
         // 命令/提案 send (design-proposals-orders.md): card=own card, target=recipient, value=native command, argument=recipient card.
         val proposal=command==98
+        // U-25 (design-arrest-judgment.md): 処断 19 value=verdict, 逮捕許可 69 value=charge, 執行命令 70 base=listed person
+        // value=0 grant/1 revoke, 逮捕命令 71 (card 0 for a right holder). Previews: 70 value 0 lists the arrest list, 1 grantees.
+        val justice=command in setOf(19,69,70,71)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,22,23,24,28,29,65,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,19,22,23,24,28,29,65,69,70,71,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,29,65,87,98))
+        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,69,70,71,87,98))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
@@ -55,6 +58,9 @@ object StrategyActionMessages {
         else if(proposal)require(card in 0..260 && argument in 0..260 && amount in 0..260 && base>=0 &&
             (if(preview)card==0 && argument==0 && amount==0 && (value==0 && base==0 || value in setOf(0x0707,0x0708) && base>0)
              else target>0 && value in 1..0xffff && (if(value in setOf(0x0707,0x0708))base>0 && amount>0 else base==0 && amount==0)))
+        else if(justice)require(card in 0..260 && argument==0 && amount==0 && (if(preview)base==0 && value in 0..1
+             else target>0 && when(command) {69 -> card>0 && value in 1..7 && base==0;70 -> card>0 && value in 0..1 && base>0
+                 71 -> value==0 && base==0;else -> card>0 && value in 1..3 && base==0}))
         // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
         // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package. Previews list packages.
         else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && value==0 && base==0 && amount==0 &&
@@ -65,15 +71,17 @@ object StrategyActionMessages {
         else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        val listed=personnel || operation || market || transport || proposal || command in setOf(10,11,12,13,87)
+        val listed=personnel || operation || market || transport || proposal || justice || command in setOf(10,11,12,13,87)
         return Query(character,command,card,if(command==65)argument else if(listed)0 else target,message.copyOfRange(2,message.size),
             if(listed)target else 0,base,value,preview,amount,argument)
     }
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
     data class CivicStatus(val phase:Int,val outfit:Int,val base:Int,val readyAt:Long,val effect:Int)
-    fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null):List<ByteArray> {
-        require(status in 0..65535)
+    fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null,outcome:Int=0):List<ByteArray> {
+        require(status in 0..65535 && outcome in 0..3)
         val payload=q.raw.copyOf();ByteBuffer.wrap(payload).putShort(10,status.toShort())
+        // 逮捕命令 result (U-25) in the argument word: 1 arrested, 2 evaded, 3 failed.
+        if(outcome>0)ByteBuffer.wrap(payload).putInt(17,outcome)
         if(!q.preview && changed!=null)payload[16]=(if(changed)2 else 3).toByte()
         if(civic!=null && status==0) {
             require(q.command in setOf(52,54,55,56) && civic.phase in -1..5 && civic.outfit>=0 && civic.base in 0..65535 &&
@@ -92,7 +100,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(10,11,12,13,24,29,65,87,96,98) && rows.size<=200)
+        require(q.preview && q.command in setOf(10,11,12,13,19,24,29,65,69,70,71,87,96,98) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

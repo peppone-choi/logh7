@@ -12,8 +12,10 @@ static bool operationStrategy(unsigned command) {return command>=22 && command<=
 static bool personnelStrategy(unsigned command) {return command<=4 || command==8 || command==9;}
 static bool armyStrategy(unsigned command) {return command==46 || command==47 || command==48 || command==49 || command==50 || command==51 || command==52 || command==53 || command==54 || command==56;}
 static bool outfitStrategy(unsigned command,unsigned card) {return armyStrategy(command) || (command==61 && card!=59 && card!=195);}
+static bool justiceCommand(unsigned command);
+static bool justiceCard(unsigned card);
 static bool strategyActionCommand(unsigned command) {
-    return personnelStrategy(command) || operationStrategy(command) || command==14 || command==16 || command==18 || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96 || command==27 || command==87 || command==93 || command==94 || command==10 || command==11 || command==12 || command==13 || command==28 || command==29 || command==65;
+    return justiceCommand(command) || personnelStrategy(command) || operationStrategy(command) || command==14 || command==16 || command==18 || command==25 || command==26 || armyStrategy(command) || command==55 || command==61 || command==84 || command==85 || command==96 || command==27 || command==87 || command==93 || command==94 || command==10 || command==11 || command==12 || command==13 || command==28 || command==29 || command==65;
 }
 static const wchar_t* strategyActionName(unsigned command) {
     switch(command) {
@@ -66,6 +68,7 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
 #include "gathering_actions.h"
 #include "transport_actions.h"
 #include "proposal_send.h"
+#include "justice_actions.h"
 static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if(!own || !at<BYTE>(own,0) || at<void*>(manager,0x18) || *reinterpret_cast<void**>(0x21aa888)!=own || !createTaxWindow())return 0;
@@ -73,14 +76,14 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     bool held=false;for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==card)held=true;
     unsigned formationValues[4]={};unsigned formationCount=formationKinds(card,formationValues);
     bool civicCard=card==59 || card==195 || card==39 || card==44 || card==47 || card==50 || card==175 || card==180 || card==183 || card==186;
-    if(!held || (transportCommand(command) ? !transportCard(command,card) : meetingCommand(command) || gatheringCommand(command) ? card!=0 && !(command==11 && card==66) : academyCommand(command) ? !academyCard(command,card) : socialCommand(command) ? card!=0 : budgetCommand(command) ? card!=8 && card!=136 : civicCommand(command) ? !civicCard || command==55 && card!=59 && card!=195 : formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
+    if(!held || (justiceCommand(command) ? !(justiceCard(card) || command==71 && card==0) : transportCommand(command) ? !transportCard(command,card) : meetingCommand(command) || gatheringCommand(command) ? card!=0 && !(command==11 && card==66) : academyCommand(command) ? !academyCard(command,card) : socialCommand(command) ? card!=0 : budgetCommand(command) ? card!=8 && card!=136 : civicCommand(command) ? !civicCard || command==55 && card!=59 && card!=195 : formationStrategy(command) ? !formationCount : command==96 ? card!=0 : command!=61 && !personnelStrategy(command) && !operationStrategy(command) &&
         (command==84 ? card!=0 : card!=59 && card!=195)))return 0;
     closePlanetInformation();auto& state=taxWindow;
     // 狩猟 also sits on the 封土 card (66); the server's gathering path takes the personal card 0.
     if(command==11 && card==66)card=0;
     state.world=world;state.character=at<unsigned>(own,0x24);state.card=card;
     state.strategyActive=true;state.strategyCommand=command;state.strategyOutfit=0;
-    state.strategyTarget=0;state.strategyBase=0;state.strategyValue=command==3 ? 5 : 0;state.strategyField=0;
+    state.strategyTarget=0;state.strategyBase=0;state.strategyValue=command==3 ? 5 : command==19 || command==69 ? 1 : 0;state.strategyField=0;
     state.strategyAmount=1;state.strategyArgument=0;state.strategyToken=0;
     state.visible=true;state.loaded=true;state.pending=false;strategyDirectory={};
     formationWindow={};if(formationStrategy(command))formationWindow.kind=formationValues[0];
@@ -110,6 +113,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(socialCommand(command))sendSocialAction(0);
     if(academyCommand(command))sendAcademyAction(0);
     if(command==29 || command==65)sendTransportAction(true);
+    if(justiceCommand(command))sendJusticeAction(true);
     return 1;
 }
 static void strategyNextBase(int direction) {
@@ -233,6 +237,7 @@ static bool updateStrategyAction(void*) {
     if(gatheringCommand(state.strategyCommand))return updateGatheringAction();
     if(transportCommand(state.strategyCommand))return updateTransportAction();
     if(proposalCommand(state.strategyCommand))return updateProposalAction();
+    if(justiceCommand(state.strategyCommand))return updateJusticeAction();
     if(state.strategyCommand==96)return updateFlagshipMarket();
     unsigned command=state.strategyCommand;unsigned outfits[16]={};unsigned count=strategyOutfits(own,outfits);
     if(command==61 && state.card!=59 && state.card!=195) {
@@ -296,6 +301,7 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
     if(readGatheringAction(record))return result;
     if(readTransportAction(record))return result;
     if(readProposalAction(record))return result;
+    if(readJusticeAction(record))return result;
     // The CD's 命令/提案 tab (search 29) draws no rows; open the compatibility window instead.
     if(at<unsigned short>(record,4)==29 && !taxWindow.visible) {
         auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
@@ -332,7 +338,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
     if(readOutfitFormationPeople(record))return result;
     if(strategyDirectory.receiving) {
         strategyDirectory.receiving=false;auto& state=taxWindow;
-        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand) || proposalCommand(state.strategyCommand))) {
+        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand) || proposalCommand(state.strategyCommand) || justiceCommand(state.strategyCommand))) {
             unsigned count=at<BYTE>(record,0);if(count>200)return result;
             strategyDirectory.count=count;
             for(unsigned i=0;i<count;++i) {
