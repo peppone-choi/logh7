@@ -518,6 +518,7 @@ class GameExchange(
                                     TacticalMotionMessages.npc(id,motion,gameSeconds(),player.characterId)}
                                 else listOf(checkNotNull(TacticalMotionMessages.reply(player,gameSeconds())))
                             } else {
+                                println("tactical move rejected account=${identity.account} units=${move.units.map {it.id}} reason=${result.rejection}")
                                 val unit=TacticalBootstrap(checkNotNull(navigation.snapshot()),world.galaxy,player,::currentCharacterById)
                                     .units.single {it.id==player.unitId}
                                 val pose=org.logh7.protocol.TacticalMoveMessages.Point(unit.x,unit.y,0f)
