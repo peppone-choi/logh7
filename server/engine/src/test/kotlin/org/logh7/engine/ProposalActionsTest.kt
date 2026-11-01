@@ -118,4 +118,16 @@ class ProposalActionsTest {
             value=ProposalActions.APPOINTMENT,argument=19,base=1049,amount=17))
         assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,r,session,a,stocks(),listOf(a,b),mapOf("a" to a,"b" to b)).rejection)
     }
+    @Test fun aPendingRowFollowsItsPostToTheNextHolder() {
+        // 10000 orders 10001 (card 19); before answering, card 19 passes to 10003.
+        val opened=act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,stocks())
+        assertNull(opened.rejection)
+        val handed=policy.set(policy.set(assertNotNull(opened.stocks),OfficeHolding(19,1049,10001),remove=true),OfficeHolding(19,1049,10003))
+        val players=linkedMapOf("a" to a,"b" to b)
+        val settled=ProposalActions.settle(galaxy,session,players,handed)
+        assertEquals(10003,settled.social.proposals.mails.single().recipient,"the successor answers the row")
+        val vacant=policy.set(assertNotNull(opened.stocks),OfficeHolding(19,1049,10001),remove=true)
+        assertEquals(10001,ProposalActions.settle(galaxy,session,players,vacant).social.proposals.mails.single().recipient,
+            "a vacant post keeps the row")
+    }
 }

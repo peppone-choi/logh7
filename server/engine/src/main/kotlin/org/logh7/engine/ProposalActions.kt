@@ -68,6 +68,15 @@ object ProposalActions {
         if(Proposals.expired(s.social.proposals,now).isNotEmpty())
             settled=settled.copy(social=settled.social.copy(proposals=Proposals.withoutExpired(settled.social.proposals,now)))
         val policy=OrganizationalOfficePolicy(g)
+        // Office mail belongs to the post (user decision 2026-11-01): a pending row whose recipient no longer holds the
+        // card passes to the card's single current holder; a vacant or shared post keeps it until it expires.
+        val moved=settled.social.proposals.mails.map {mail ->
+            if(!mail.pending || policy.held(settled,mail.recipient).any {it.card==mail.card})mail
+            else policy.holders(settled,mail.card).map {it.character}.distinct().singleOrNull()
+                ?.takeIf {it!=mail.sender}?.let {mail.copy(recipient=it)} ?: mail
+        }
+        if(moved!=settled.social.proposals.mails)
+            settled=settled.copy(social=settled.social.copy(proposals=settled.social.proposals.copy(mails=moved)))
         for(mail in settled.social.proposals.mails.filter {it.pending && it.order && it.createdAt+ABSENT_ORDER_SECONDS<=now}) {
             val key=keyOf(mail.recipient) ?: continue
             if(session.participants[key]?.online==true)continue
