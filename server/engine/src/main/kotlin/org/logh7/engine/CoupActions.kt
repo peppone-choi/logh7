@@ -60,6 +60,11 @@ object CoupActions {
             it.card !in setOf(68,69,197,198)}?.card
     }
     private fun coup(s:PlanetStocks,c:CoupState)=s.copy(social=s.social.copy(coup=c))
+    /** A revolt's rebels form their side's rebel camp (manual p.31: regular and rebel camps count apart). */
+    fun rebel(s:PlanetStocks,character:Int)=character>0 && s.social.coup.plots.values.any {it.revolt>0 && character in it.rebels}
+    fun camp(s:PlanetStocks,character:Int)=if(rebel(s,character))1 else 0
+    /** An outfit follows its rebel commander once its 叛乱忠誠度 reaches [LOYAL]. */
+    fun outfitCamp(s:PlanetStocks,o:OutfitStock)=if(rebel(s,o.commanderId) && (s.social.coup.loyalty[o.id] ?: 0)>=LOYAL)1 else 0
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000

@@ -85,7 +85,7 @@ internal object TacticalFleetAttack {
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}})
                 .distinct().sorted()
-            if(ids.none {TacticalCombat.target(it,position.grid,power,stocks,galaxy,players)!=null}) {
+            if(ids.none {TacticalCombat.target(it,position.grid,power,stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit))!=null}) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue
             }
             if(command.order.mode==1 && !TacticalReload.salvoReady(unit,now,scale))continue
@@ -97,7 +97,7 @@ internal object TacticalFleetAttack {
                 if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
                 val preferred=stocks.tacticalCommands.missions[command.commander]?.takeIf {it.mission==3 && !it.completed}?.target
-                val victim=ids.sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,power,stocks,galaxy,players)
+                val victim=ids.sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,power,stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit))
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
                         TacticalArmaments.effectiveness(mount,origin,pose(t,now,players,stocks,galaxy).position)>0 &&
                             !TacticalLineOfFire.blocked(id,position.grid,power,origin.position,pose(t,now,players,stocks,galaxy).position,

@@ -153,7 +153,7 @@ internal object NpcTactics {
                     val effect=TacticalArmaments.effectiveness(mount,pose,victim.pose.position)
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
                         weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,pose,
-                        checkNotNull(TacticalCombat.target(victim.id,position.grid,power(outfit),stocks,galaxy,players)))
+                        checkNotNull(TacticalCombat.target(victim.id,position.grid,power(outfit),stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit))))
                     stocks=resolved.first;impacts+=resolved.second
                     outfit=stocks.outfits.getValue(outfitId)
                     firing=firing.copy(nextFireAt=now+5*scale,sequence=firing.sequence+1)

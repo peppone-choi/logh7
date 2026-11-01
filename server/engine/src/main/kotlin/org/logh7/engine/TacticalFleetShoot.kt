@@ -30,7 +30,7 @@ internal object TacticalFleetShoot {
         val now=session.gameMillis/1000
         if(now>0xffffffffL-5*scale)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
-        val victim=TacticalCombat.target(command.target,player.grid,player.power,stocks,galaxy,players)
+        val victim=TacticalCombat.target(command.target,player.grid,player.power,stocks,galaxy,players,CoupActions.camp(stocks,player.characterId))
             ?: return reject(NavigationRejection.TARGET)
         val own=player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
         val ships=command.units.filter {it!=player.unitId}.map {id ->
@@ -97,7 +97,7 @@ internal object TacticalFleetShoot {
             if(now<shot.firesAt)continue
             // Clear even a missed/cancelled shot; retries cannot turn a one-shot command into auto fire.
             stocks=replace(stocks,outfit,unit.copy(shot=null))
-            val victim=TacticalCombat.target(shot.target,position.grid,power,stocks,galaxy,players) ?: continue
+            val victim=TacticalCombat.target(shot.target,position.grid,power,stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit)) ?: continue
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val mount=GuardCombat.mount(TacticalArmaments.mount(spec,shot.weapon),shot.weapon,outfit,unit.id)
             val origin=state.motion.pose(now,unit.posture,galaxy,stocks)

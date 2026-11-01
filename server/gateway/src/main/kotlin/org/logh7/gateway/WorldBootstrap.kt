@@ -142,8 +142,10 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks): ByteArray =
         LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
             (query.grid == -1 || outfit.positionIn(galaxy).grid == query.grid) &&
-                (query.power == 255 || outfit.power == query.power) && (query.camp == 255 || query.camp == 0)
-        }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,0,it.number,it.supplies) }))
+                (query.power == 255 || outfit.power == query.power) &&
+                (query.camp == 255 || query.camp == org.logh7.engine.CoupActions.outfitCamp(stocks,outfit))
+        }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,
+            org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number,it.supplies) }))
     private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?,
         spare: Map<org.logh7.engine.UnitStack,Int> = emptyMap()) = (values.orEmpty().keys+spare.keys).map {it.kind}.distinct().sorted().map { kind ->
             val stacks=values.orEmpty().entries.filter {it.key.kind==kind}

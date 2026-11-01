@@ -42,15 +42,16 @@ data class TacticalFire(val sequence: Long, val pending: TacticalPendingFire? = 
 internal object TacticalCombat {
     internal data class Target(val regular:Pair<OutfitStock,ActiveShipUnit>?=null,
         val personal:Pair<String,Navigator>?=null,val spec:ShipSpecification)
+    /** [camp] is the attacker's camp: a rebel camp (U-10) and its side's regular camp are enemies of each other. */
     internal fun target(id:Int,grid:Int,power:Power,stocks:PlanetStocks,galaxy:Galaxy,
-        players:Map<String,Navigator>):Target? {
+        players:Map<String,Navigator>,camp:Int=0):Target? {
         if(id>1_000_000) {
             val victim=players.entries.singleOrNull { (_,p)->p.unitId==id && p.grid==grid && p.baseId==0 &&
-                p.cpPaused && p.power!=power && p.hull!=null } ?: return null
+                p.cpPaused && (p.power!=power || CoupActions.camp(stocks,p.characterId)!=camp) && p.hull!=null } ?: return null
             return Target(personal=victim.key to victim.value,
                 spec=UnitSpecifications.ships.single {it.kind==victim.value.hull!!.kind})
         }
-        return stocks.outfits.values.asSequence().filter {it.power != if(power==Power.EMPIRE)2 else 3}
+        return stocks.outfits.values.asSequence().filter {it.power != (if(power==Power.EMPIRE)2 else 3) || CoupActions.outfitCamp(stocks,it)!=camp}
             .filter {it.positionIn(galaxy)==OutfitPosition(grid)}
             .mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id && it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}?.let {o to it}}
             .singleOrNull()?.let {Target(regular=it,spec=UnitSpecifications.ships.single {s->s.kind==it.second.stack.kind})}
@@ -78,7 +79,7 @@ internal object TacticalCombat {
         val now = session.gameMillis / 1000
         if (now > 0xffffffffL - 5 * scale || player.fire?.sequence == Long.MAX_VALUE) return reject(NavigationRejection.CLOCK)
         val players = navigation.snapshot(session.generation)
-        val victim = target(shoot.target, player.grid, player.power, stocks, galaxy, players) ?: return reject(NavigationRejection.TARGET)
+        val victim = target(shoot.target, player.grid, player.power, stocks, galaxy, players, CoupActions.camp(stocks, player.characterId)) ?: return reject(NavigationRejection.TARGET)
         if (effectiveness(player, mount, victim, now, players.values, stocks, galaxy) == 0) return reject(NavigationRejection.RANGE)
         val charge = player.charge?.settle(now, player.energy ?: TacticalEnergy.ZERO)
         if (!ready(charge, weapon)) return reject(NavigationRejection.ENERGY)
@@ -118,7 +119,7 @@ internal object TacticalCombat {
             !ready(player.charge?.settle(now,player.energy ?: TacticalEnergy.ZERO),weapon))return null
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
         val preferred=stocks.tacticalCommands.missions[player.characterId]?.takeIf {it.mission==3 && !it.completed}?.target
-        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).firstOrNull {id -> target(id,player.grid,player.power,stocks,galaxy,players)?.let {
+        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).firstOrNull {id -> target(id,player.grid,player.power,stocks,galaxy,players,CoupActions.camp(stocks,player.characterId))?.let {
             effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
 
@@ -197,7 +198,7 @@ internal object TacticalCombat {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
         // Hostile bases/ground troops can retain tactical contact but are never auto-fire targets.
         for((account,p) in players.toMap()) if(p.attack!=null &&
-            ids.none {target(it,p.grid,p.power,stocks,galaxy,players)!=null})players[account]=p.copy(attack=null)
+            ids.none {target(it,p.grid,p.power,stocks,galaxy,players,CoupActions.camp(stocks,p.characterId))!=null})players[account]=p.copy(attack=null)
         TacticalContact.endUncontested(galaxy,players,stocks,now)
     }
 

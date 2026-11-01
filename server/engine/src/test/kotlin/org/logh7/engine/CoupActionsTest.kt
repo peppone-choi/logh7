@@ -52,4 +52,14 @@ class CoupActionsTest {
         assertEquals(0,ended.bases.getValue(1049).camp);assertTrue(ended.social.coup.plots.isEmpty())
         assertTrue(policy.held(ended,10000).isEmpty())
     }
+    @Test fun rebelsAndTheRegularCampOfTheSameSideAreEnemiesInTactics() {
+        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
+        val hull=FlagshipHull(Flagships.forType(2,0).kind,0)
+        val players=mapOf("a" to a.copy(baseId=0,mode=5,spotId=0,cpPaused=true,hull=hull),"b" to b.copy(baseId=0,mode=5,spotId=0,cpPaused=true,hull=hull))
+        assertEquals(1,CoupActions.camp(s,10000));assertEquals(0,CoupActions.camp(s,10001))
+        assertNotNull(TacticalCombat.target(a.unitId,2487,Power.EMPIRE,s,galaxy,players,camp=0),"regulars may shoot the rebel")
+        assertNotNull(TacticalCombat.target(b.unitId,2487,Power.EMPIRE,s,galaxy,players,camp=1),"the rebel may shoot regulars")
+        assertNull(TacticalCombat.target(b.unitId,2487,Power.EMPIRE,s,galaxy,players,camp=0),"regulars stay friends")
+        assertNull(TacticalCombat.target(a.unitId,2487,Power.EMPIRE,stocks(),galaxy,players),"no revolt, no enemy")
+    }
 }
