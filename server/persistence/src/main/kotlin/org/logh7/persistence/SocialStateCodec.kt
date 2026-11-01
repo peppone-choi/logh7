@@ -12,7 +12,7 @@ internal object SocialStateCodec {
         // Optional fields 5..9 are written up to the last one that differs from its default.
         val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
             (s.gatherings!=GatheringState()) to {gatherings(s.gatherings)},(s.proposals!=ProposalState()) to {proposals(s.proposals)},
-            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)})
+            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)},(s.goals!=GoalState()) to {goals(s.goals)})
         val last=optional.indexOfLast {it.first}
         return (base+optional.take(last+1).map {it.second()}).joinToString("|")
     }
@@ -137,8 +137,17 @@ internal object SocialStateCodec {
             e.split(':').also {require(it.size==3)}.let {(k,a,b)->k.toInt() to (a.toLong() to b.toLong())}},
             if(support=="-")emptyMap() else support.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toLong()}})
     }
+    /** Optional twelfth field (国家目標/統治目標, 2026-11-01): national "power:base:setter:since,.." then '/' and focus "base:focus,..". */
+    private fun goals(g:GoalState)=g.national.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value.base}:${it.value.setter}:${it.value.since}"}
+        .ifEmpty {"-"}+"/"+g.focus.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
+    private fun goals(text:String):GoalState {
+        val (national,focus)=text.split('/').also {require(it.size==2)}
+        return GoalState(if(national=="-")emptyMap() else national.split(',').associate {e->
+            e.split(':').also {require(it.size==4)}.let {v->v[0].toInt() to NationalGoal(v[1].toInt(),v[2].toInt(),v[3].toLong())}},
+            if(focus=="-")emptyMap() else focus.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toInt()}})
+    }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..11)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..12)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -149,7 +158,8 @@ internal object SocialStateCodec {
         return SocialState(f[0].toInt(),speeches,times(f[1]),times(f[2]),if(f.size>=5)academy(f[4]) else AcademyState(),
             if(f.size>=6)meeting(f[5]) else MeetingState(),if(f.size>=7)gatherings(f[6]) else GatheringState(),
             if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size>=9)justice(f[8]) else JusticeState(),
-            if(f.size>=10)coup(f[9]) else CoupState(),if(f.size==11)funds(f[10]) else FundState())
+            if(f.size>=10)coup(f[9]) else CoupState(),if(f.size>=11)funds(f[10]) else FundState(),
+            if(f.size==12)goals(f[11]) else GoalState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }

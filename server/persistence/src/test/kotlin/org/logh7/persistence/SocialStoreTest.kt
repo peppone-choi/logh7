@@ -132,4 +132,9 @@ class SocialStoreTest {
         val encoded=SocialStateCodec.encode(state)
         assertEquals(11,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }
+    @Test fun goalsRoundTripAsAnOptionalTwelfthField() {
+        val state=SocialState(goals=GoalState(mapOf(2 to NationalGoal(1050,10000,7)),mapOf(1049 to 2)))
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(12,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+    }
 }

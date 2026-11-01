@@ -1427,6 +1427,15 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command in org.logh7.engine.GoalActions.commands) {
+                                            // 国家目標: enemy-held bases; 統治目標: the planets this character governs.
+                                            val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
+                                            val ids=if(query.command==org.logh7.engine.GoalActions.NATIONAL)
+                                                stocks.bases.values.filter {it.power in 2..3 && it.power!=character.power}.map {it.baseId}
+                                                else org.logh7.engine.FundActions.governed(stocks,character.id.toInt(),character.power)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it>query.target}.sorted().take(200)
+                                                .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")})
+                                        }
                                         if(query.command==org.logh7.engine.FundActions.FUNDS) {
                                             // 資金投入 targets: governed planets, the two confidence choices, or same-side candidates.
                                             val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
@@ -1597,7 +1606,8 @@ class GameExchange(
                                     return null
                                 }
                                 if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands ||
-                                    query.command in org.logh7.engine.CoupActions.commands || query.command==org.logh7.engine.FundActions.FUNDS) {
+                                    query.command in org.logh7.engine.CoupActions.commands || query.command==org.logh7.engine.FundActions.FUNDS ||
+                                    query.command in org.logh7.engine.GoalActions.commands) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,

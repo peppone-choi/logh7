@@ -107,6 +107,7 @@ internal object BaseOccupationOperations {
             }?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
             for((character,points) in EvaluationPoints.shares(if(base.kind==1)EvaluationPoints.FORTRESS else EvaluationPoints.PLANET,earners))
                 stocks=EvaluationPoints.award(stocks,character,points)
+            stocks=GoalActions.achieved(stocks,base.id,winner,earners)
             events+=BaseOccupation(session.generation,base.grid,base.id,loser,winner,now,destroyed,expelled,recipients)
         }
         return stocks

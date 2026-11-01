@@ -133,6 +133,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     val previousDay=next
                     next = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), previousDay))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
+                        .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }
                 next
             }, nationalTreasuries=national).let {produced ->

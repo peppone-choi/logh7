@@ -34,6 +34,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             }
             // U-10 査閲 on the police/intelligence cards that search.
             if(role.card in org.logh7.engine.Justice.searchCards)add(72)
+            // 国家目標 on the head of state and the prime minister.
+            if(role.card in org.logh7.engine.GoalActions.nationalCards)add(15)
             if(role.card==160)add(19)
             if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
             add(7)
@@ -42,7 +44,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             role.ranks.max(),role.ranks.min(),commands)
     }.plus(((60..66).toList()+(124..130).toList()).associateWith {card ->
         WorldMessages.CardDefinition(card,2,if(card>=124)1 else 0,if(card in setOf(66,130))16 else 0,1,20,0,
-            if(card in setOf(66,130))listOf(11) else emptyList())
+            // 封土 cards host 狩猟 and the lord's 統治目標.
+            if(card in setOf(66,130))listOf(11,21) else emptyList())
     })
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices=org.logh7.engine.LogisticsOfficePolicy(galaxy)

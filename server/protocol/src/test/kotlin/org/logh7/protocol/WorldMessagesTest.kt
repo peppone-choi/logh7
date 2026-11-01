@@ -50,7 +50,7 @@ class WorldMessagesTest {
             input.position(record+18)
             val count=input.get().toInt() and 255
             if(kind in setOf(24,25,150)) {assertEquals(3,count);assertEquals(listOf(28,29,67),List(count) {input.getShort(input.position()+it*2).toInt()})}
-            if(kind==192) { assertEquals(2,count);assertEquals(7,input.getShort(input.position()).toInt());assertEquals(30,input.getShort(input.position()+2).toInt()) }
+            if(kind==192) { assertEquals(listOf(7,21,30),List(count) {input.getShort(input.position()+it*2).toInt()}) } // 統治目標 21 added
             if(kind in setOf(2,3,17,134,161,169,171)) {
                 assertEquals(3,count)
                 assertEquals(listOf(5,6,7),List(count) {input.getShort(input.position()+it*2).toInt()})
