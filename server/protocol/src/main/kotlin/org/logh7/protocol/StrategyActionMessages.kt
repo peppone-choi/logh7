@@ -49,8 +49,11 @@ object StrategyActionMessages {
              else if(argument==5)!preview && value==0 && target==0 else value==0 &&
                 (if(argument in 1..2)preview || target>0 else !preview && target==0)))
         // card/argument 0 lets the server pick the same-institution pair; a preview lists the targets.
-        else if(proposal)require(card in 0..260 && argument in 0..260 && amount==0 && base==0 &&
-            (if(preview)card==0 && argument==0 && value==0 else target>0 && value in 1..0xffff))
+        // Dismissal (value 0x0708) also names the third person (base) and that person's card (amount).
+        // Previews: value 0 lists recipients; value 0x0708 with base = the recipient lists the seats it may dismiss.
+        else if(proposal)require(card in 0..260 && argument in 0..260 && amount in 0..260 && base>=0 &&
+            (if(preview)card==0 && argument==0 && amount==0 && (value==0 && base==0 || value==0x0708 && base>0)
+             else target>0 && value in 1..0xffff && (if(value==0x0708)base>0 && amount>0 else base==0 && amount==0)))
         // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
         // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package. Previews list packages.
         else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && value==0 && base==0 && amount==0 &&

@@ -81,4 +81,22 @@ class ProposalActionsTest {
         assertNull(approved.rejection,"the triggering order (card 18) succeeds");assertEquals(960,approved.navigators["b"]?.mcp,"the absent recipient paid its half")
         assertTrue(policy.held(assertNotNull(approved.stocks),10001).none {it.card==19},"and resigned")
     }
+    @Test fun aDismissalNamesAThirdPersonTheRecipientMayDismissAndRunsOnApproval() {
+        // 10001 proposes that the minister 10000 dismiss a seat 10000 may dismiss.
+        val s=stocks();val seats=OfficeDismissalPolicy(galaxy).available(s,10000,2,2)
+        assertTrue(seats.isNotEmpty(),"the minister can dismiss someone: $seats");val seat=seats.first()
+        val r=SocialRequest(StrategyActionRequest("b","b",10001,Power.EMPIRE,1,ProposalActions.OPEN,19,9,target=10000,
+            value=ProposalActions.DISMISSAL,argument=17,base=seat.target,amount=seat.card.toLong()))
+        val opened=SocialActions.evaluate(galaxy,r,session,b,s,listOf(a,b),mapOf("a" to a,"b" to b))
+        assertNull(opened.rejection);val mail=assertNotNull(opened.stocks).social.proposals.mails.single()
+        assertEquals(seat.target,mail.target);assertFalse(mail.order,"rank 9 proposes to rank 2");assertEquals(920,opened.player?.mcp,"half of 160")
+        val approved=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,assertNotNull(opened.stocks))
+        assertNull(approved.rejection);assertEquals(920,approved.player?.mcp)
+        assertTrue(OrganizationalOfficePolicy(galaxy).held(assertNotNull(approved.stocks),seat.target).none {it.card==seat.card})
+    }
+    @Test fun aDismissalOfASeatTheRecipientCannotDismissIsRejected() {
+        val r=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,ProposalActions.OPEN,17,9,target=10001,
+            value=ProposalActions.DISMISSAL,argument=19,base=10000,amount=17))
+        assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,r,session,a,stocks(),listOf(a,b),mapOf("a" to a,"b" to b)).rejection)
+    }
 }

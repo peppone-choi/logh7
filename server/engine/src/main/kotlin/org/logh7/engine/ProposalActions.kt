@@ -15,7 +15,22 @@ object ProposalActions {
     const val REPLY=99
     val commands=setOf(OPEN,REPLY)
     const val RESIGNATION=0x0709
-    val costs=mapOf(RESIGNATION to 80L)
+    /** Dismissal of a third person the recipient may dismiss (0x0708, MCP 160). */
+    const val DISMISSAL=0x0708
+    val costs=mapOf(RESIGNATION to 80L,DISMISSAL to 160L)
+    /** Runs an approved command for its recipient; false when it can no longer be done. */
+    private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,power:Int,rank:Int):PlanetStocks? {
+        val policy=OrganizationalOfficePolicy(g)
+        return when(mail.command) {
+            RESIGNATION -> policy.holders(s,mail.card).filter {it.character==mail.recipient}.singleOrNull()?.let {policy.set(s,it,remove=true)}
+            DISMISSAL -> {
+                val dismissal=OfficeDismissalPolicy(g)
+                dismissal.available(s,mail.recipient,power,rank).singleOrNull {it.target==mail.target && it.card==mail.targetCard}
+                    ?.let {dismissal.clear(s,it)}
+            }
+            else -> null
+        }
+    }
 
     /** U-16 (user decision 2026-11-01): an order to an absent recipient is approved for it one game hour after
      * arrival; a proposal waits for the recipient. */
@@ -39,11 +54,11 @@ object ProposalActions {
             val recipient=players.getValue(key)
             val paid=CpPayment.charge(CpBalance(recipient.pcp.toLong(),recipient.mcp.toLong()),costs.getValue(mail.command)-mail.mcp,CpPool.MCP)
             if(paid !is PaymentResult.Paid)continue
-            val held=policy.holders(settled,mail.card).filter {it.character==mail.recipient}
-            if(held.size!=1)continue
             val (answered,refused)=Proposals.reply(settled.social.proposals,mail.id,mail.recipient,Proposals.APPROVE,now)
             if(refused!=null)continue
-            settled=policy.set(settled.copy(social=settled.social.copy(proposals=answered)),held.single(),remove=true)
+            val rank=(settled.strategic.people[mail.recipient] ?: StrategicPerson()).ladderRank(20)
+            settled=execute(g,mail,settled.copy(social=settled.social.copy(proposals=answered)),
+                if(recipient.power==Power.EMPIRE)2 else 3,rank) ?: continue
             players[key]=recipient.paidWith(paid.balance)
         }
         return settled
@@ -78,13 +93,8 @@ object ProposalActions {
             val cost=costs.getValue(mail.command)-mail.mcp
             val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
             if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
-            when(mail.command) {
-                RESIGNATION -> {
-                    val held=policy.holders(next,mail.card).filter {it.character==i.characterId}
-                    if(held.size!=1)return reject(SocialRejection.CARD)
-                    next=policy.set(next,held.single(),remove=true)
-                }
-            }
+            next=execute(g,mail,next,if(p.power==Power.EMPIRE)2 else 3,
+                (s.strategic.people[i.characterId] ?: StrategicPerson()).ladderRank(i.rank)) ?: return reject(SocialRejection.CARD)
             return SocialResult(p.paidWith(paid.balance),next,changed=true)
         }
         if(i.command!=OPEN)return reject(SocialRejection.COMMAND)
@@ -107,11 +117,16 @@ object ProposalActions {
         // 命令 goes down the ranks, 提案 up (a smaller rank number is senior); the emperor orders everyone.
         val order=emperor || senderRank<=recipientRank
         if(sender.influence<1)return reject(SocialRejection.RANK)
+        // Dismissal: base = the third person, amount = that person's card; the recipient must be able to dismiss it.
+        val target=if(i.value==DISMISSAL)i.base else 0;val targetCard=if(i.value==DISMISSAL)i.amount.toInt() else 0
+        if(i.value==DISMISSAL && OfficeDismissalPolicy(g).available(s,i.target,if(p.power==Power.EMPIRE)2 else 3,recipientRank)
+                .none {it.target==target && it.card==targetCard})return reject(SocialRejection.TARGET)
         val half=cost/2
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),half,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         if(s.social.nextId==Int.MAX_VALUE)return reject(SocialRejection.MAXIMUM)
-        val (opened,refused)=Proposals.open(proposals,s.social.nextId,i.characterId,i.target,i.card,i.argument,i.value,order,now,0,half.toInt())
+        val (opened,refused)=Proposals.open(proposals,s.social.nextId,i.characterId,i.target,i.card,i.argument,i.value,order,now,0,half.toInt(),
+            target,targetCard)
         if(refused!=null)return reject(if(refused==ProposalRejection.BLOCKED)SocialRejection.COOLDOWN else SocialRejection.MAXIMUM)
         val next=s.copy(social=s.social.copy(nextId=s.social.nextId+1,proposals=opened),
             strategic=s.strategic.copy(people=people+(i.characterId to sender.copy(influence=sender.influence-1))))

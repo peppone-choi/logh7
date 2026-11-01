@@ -1424,6 +1424,16 @@ class GameExchange(
                                         }
                                         if(query.command==org.logh7.engine.ProposalActions.OPEN) {
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            if(query.value==org.logh7.engine.ProposalActions.DISMISSAL) {
+                                                // Seats the chosen recipient may dismiss; row id = person*512+card, name = surname.
+                                                val recipient=currentCharacterById(query.base)
+                                                val seats=if(recipient==null)emptyList() else org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
+                                                    .available(inventory,query.base,recipient.power,
+                                                        (inventory.strategic.people[query.base] ?: org.logh7.engine.StrategicPerson()).ladderRank(recipient.rank)).filter {it.target*512+it.card>query.target}.take(200)
+                                                return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,seats.mapNotNull {seat->
+                                                    currentCharacterById(seat.target)?.let {org.logh7.protocol.StrategyActionMessages.Selection(seat.target*512+seat.card,it.surname,
+                                                        minOf(20,it.rank))}})
+                                            }
                                             val pairs=proposalPairs(inventory,me).filter {it.first>query.target}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,pairs.mapNotNull {(id,_,_)->
                                                 currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname,it.rank)}})
@@ -1494,7 +1504,7 @@ class GameExchange(
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,pair.second,character.rank,target=query.target,value=query.value,
-                                        argument=pair.third))
+                                        argument=pair.third,base=query.base,amount=query.amount.toLong()))
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)

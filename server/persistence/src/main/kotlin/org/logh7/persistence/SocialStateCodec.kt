@@ -15,14 +15,16 @@ internal object SocialStateCodec {
      * / refusal blocks "sender:recipient:command:until". */
     private fun proposals(p:ProposalState)=listOf(
         p.mails.sortedBy {it.id}.joinToString(",") {listOf(it.id,it.sender,it.recipient,it.senderCard,it.card,it.command,
-            if(it.order)1 else 0,it.createdAt,it.expiresAt,it.reply,it.pcp,it.mcp).joinToString(":")}.ifEmpty {"-"},
+            if(it.order)1 else 0,it.createdAt,it.expiresAt,it.reply,it.pcp,it.mcp).plus(if(it.target>0)listOf(it.target,it.targetCard) else emptyList())
+            .joinToString(":")}.ifEmpty {"-"},
         p.blocked.entries.sortedWith(compareBy({it.key.first},{it.key.second},{it.key.third}))
             .joinToString(",") {"${it.key.first}:${it.key.second}:${it.key.third}:${it.value}"}.ifEmpty {"-"}).joinToString("/")
     private fun proposals(text:String):ProposalState {
         val f=text.split('/');require(f.size==2)
-        val mails=rows(f[0]).map {v->require(v.size==12 && v[6] in setOf("0","1"))
+        val mails=rows(f[0]).map {v->require((v.size==12 || v.size==14 && v[12].toInt()>0) && v[6] in setOf("0","1"))
             ProposalMail(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toInt(),v[5].toInt(),v[6]=="1",
-                v[7].toLong(),v[8].toLong(),v[9].toInt(),v[10].toInt(),v[11].toInt())}
+                v[7].toLong(),v[8].toLong(),v[9].toInt(),v[10].toInt(),v[11].toInt(),
+                if(v.size==14)v[12].toInt() else 0,if(v.size==14)v[13].toInt() else 0)}
         val blocked=linkedMapOf<Triple<Int,Int,Int>,Long>();for(v in rows(f[1])) {require(v.size==4)
             require(blocked.put(Triple(v[0].toInt(),v[1].toInt(),v[2].toInt()),v[3].toLong())==null)}
         return ProposalState(mails,blocked)

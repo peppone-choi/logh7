@@ -26,7 +26,7 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
         academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached(),proposals=proposals.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
-enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE }
+enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE, TARGET }
 data class SocialView(val ticket:Int,val base:Int,val influence:Int,val approval:Int,val wait:Long,val last:SpeechReceipt?)
 data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:SocialRejection?=null,
     val changed:Boolean=false,val view:SocialView?=null,val recovery:NavigationResult?=null,val academy:AcademyView?=null,
