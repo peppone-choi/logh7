@@ -68,6 +68,15 @@ class Communication(private val generation:Long,private val store:CommunicationS
         if(next!=state)commit(next)
         return true
     }
+    /** U-25 defection (W p.16): the owner's side changes and its whole address book is cleared. */
+    @Synchronized fun defect(owner:MailIdentity) {
+        require(active())
+        val known=state.owners[owner.character]
+        if(known==null && owner.character !in state.addresses)return
+        require(known==null || known.account==owner.account)
+        commit(state.copy(owners=if(known==null)state.owners else state.owners+(owner.character to owner),
+            addresses=state.addresses-owner.character))
+    }
     @Synchronized fun removeAddress(owner:MailIdentity,peer:Int) {
         require(active() && owned(owner))
         val addresses=state.addresses[owner.character].orEmpty()

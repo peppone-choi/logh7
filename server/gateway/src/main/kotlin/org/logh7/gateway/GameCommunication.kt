@@ -29,6 +29,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
             if(engine.list(owner,true).none {!it.read})emptyList() else inbox(engine,owner,true)
         }.getOrDefault(emptyList())
     },executor)
+    /** U-25 defection: record the new side and clear the address book, on the mail executor. */
+    fun defect(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.runAsync({engine(expected).defect(owner)},executor)
     fun submit(connection:String,owner:MailIdentity,expected:Long,body:ByteArray,seconds:Long)=
         java.util.concurrent.CompletableFuture.supplyAsync({handle(connection,owner,expected,body,seconds)},executor)
     private fun engine(expected:Long):Communication {

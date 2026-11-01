@@ -39,7 +39,9 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     /** 逮捕命令 result: JusticeActions.Outcome ordinal (0 none). */
     val outcome:Int=0,
     /** 一斉捜索 result: the found person's spot (1 when it stays outside a spot), 0 not found. */
-    val found:Int=0)
+    val found:Int=0,
+    /** 亡命: the destination power (2/3) whose session record, character and navigation now switch; 0 none. */
+    val defected:Int=0)
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,

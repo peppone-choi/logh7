@@ -736,6 +736,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             else navigation.publishCommitted(previous+(i.account to before),previous+result.navigators+(i.account to after),session.generation)
                             production.publishCommitted(inventory,prepared)
                             result=result.copy(stocks=prepared)
+                            // U-25 defection: the session record follows the committed world (user decision 2026-11-01).
+                            if(result.defected!=0) {
+                                val action=SessionAction.Defect(i.account,if(result.defected==2)Power.EMPIRE else Power.ALLIANCE)
+                                if(durability!=null) {
+                                    val next=transitionSession(rules,checkNotNull(durableState),action)
+                                    check(!next.rejected) {"Defection was rejected by the session"}
+                                    durability.commit(action,next);durableState=next.state
+                                } else simulation.defect(action.account,action.power)
+                            }
                         }
                     }
                     state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))

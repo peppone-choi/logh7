@@ -90,4 +90,19 @@ class JusticeActionsTest {
             state=JusticeActions.settle(galaxy,session.copy(gameMillis=(session.gameMillis/1000+day*86400)*1000),accounts.toMutableMap(),state);day++}
         assertTrue(state.social.justice.watches.isEmpty(),"noticed within 60 days")
     }
+    @Test fun aDefectorSwitchesSideLosesOfficesAndWaitsInTheOtherCapital() {
+        val twoCapitals=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2015,4,"Away",3)),listOf(
+            GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),
+            GalaxyBase(1177,2015,80,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f)),
+            mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
+        val r=SocialRequest(StrategyActionRequest("c","c",10002,Power.EMPIRE,1,Justice.DEFECT,0,8,value=0,identities=ids))
+        val result=SocialActions.evaluate(twoCapitals,r,session,c,stocks(),accounts.values,accounts)
+        assertNull(result.rejection);assertEquals(3,result.defected)
+        val p=assertNotNull(result.player);assertEquals(Power.ALLIANCE,p.power);assertEquals(680,p.pcp,"PCP 320");assertNull(p.hull)
+        assertEquals(11770019,p.spotId,"the alliance capital holding room")
+        val s=assertNotNull(result.stocks);assertEquals(3,s.social.justice.detentions.getValue(10002).power)
+        assertTrue(OrganizationalOfficePolicy(twoCapitals).held(s,10002).isEmpty())
+        val sim=SessionSimulation(rules).also {it.join("c",Power.EMPIRE,false,"c")}
+        sim.defect("c",Power.ALLIANCE);assertEquals(Power.ALLIANCE,sim.exportState().participants.getValue("c").power)
+    }
 }

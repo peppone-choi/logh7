@@ -107,6 +107,7 @@ internal object SessionCodec {
             value.systems.entries.sortedBy { it.key.ordinal }.forEach { writeUTF(it.key.name); writeInt(it.value) }; powers(value.capitals) }
         SessionAction.Restart -> writeByte(8)
         SessionAction.RecoverConnections -> writeByte(9)
+        is SessionAction.Defect -> { writeByte(10); writeUTF(value.account); writeUTF(value.power.name) }
     } }
     private fun DataInputStream.action(): SessionAction = when (readUnsignedByte()) {
         0 -> SessionAction.Probe
@@ -123,6 +124,7 @@ internal object SessionCodec {
         }
         8 -> SessionAction.Restart
         9 -> SessionAction.RecoverConnections
+        10 -> SessionAction.Defect(readUTF(), Power.valueOf(readUTF()))
         else -> error("Unknown journal action")
     }
     private fun DataOutputStream.event(value: WorldEvent) { when (value) {

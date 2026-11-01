@@ -73,6 +73,32 @@ object JusticeActions {
         }
         return next
     }
+    /** 亡命 (design §3.5): PCP 320, to the other side's capital holding room; offices, outfits and the flagship stay
+     * behind; the destination's judges decide (Detention.power = destination). */
+    private fun defect(g:Galaxy,i:StrategyActionRequest,session:SessionState,p:Navigator,s:PlanetStocks,power:Int,now:Long):SocialResult {
+        fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
+        if(i.card!=0 || i.target!=0 || i.base!=0)return reject(SocialRejection.COMMAND)
+        // 0 = the other side (the compatibility window does not know its own side).
+        val destination=if(i.value==0)(if(power==2)3 else 2) else i.value
+        if(destination !in 2..3 || destination==power)return reject(SocialRejection.TARGET)
+        if(session.participants[i.account]==null)return reject(SocialRejection.SESSION)
+        val (capital,cell)=Justice.cell(g,destination) ?: return reject(SocialRejection.LOCATION)
+        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),320L,CpPool.PCP)
+        if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
+        val id=i.characterId
+        // Offices, fiefs and the peerage belong to the side left behind (their cards carry that side).
+        val offices=StrategyActions.clearOffices(s,id)
+        val person=offices.strategic.people[id]
+        val cleared=offices.copy(strategic=offices.strategic.copy(fiefs=offices.strategic.fiefs.filterValues {it!=id},
+            people=if(person==null)offices.strategic.people else offices.strategic.people+(id to person.copy(peerage=null))))
+        val j=cleared.social.justice
+        val next=cleared.copy(social=cleared.social.copy(justice=j.copy(permits=j.permits-id,
+            rights=j.rights.filterValues {it.holder!=id && it.target!=id},watches=j.watches.filterValues {it.watcher!=id && it.target!=id},
+            detentions=j.detentions+(id to Detention(id,destination,now,now+Justice.DETENTION_DAYS*Justice.DAY)))))
+        val moved=p.paidWith(paid.balance).copy(power=if(destination==2)Power.EMPIRE else Power.ALLIANCE,grid=capital.grid,
+            baseId=capital.id,mode=4,spotId=cell,spotOwner=0,hull=null,dockTarget=null,fuelReadyAt=null,returnBase=0)
+        return SocialResult(moved,next,changed=true,defected=destination)
+    }
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
@@ -85,6 +111,7 @@ object JusticeActions {
         val j=s.social.justice
         if(j.detained(i.characterId))return reject(SocialRejection.BUSY)
         val power=powerOf(p);val ids=i.identities
+        if(i.command==Justice.DEFECT)return defect(g,i,session,p,s,power,now)
         val cost=Justice.costs[i.command] ?: return reject(SocialRejection.COMMAND)
         val holds=i.card!=0 && OrganizationalOfficePolicy(g).held(s,i.characterId).any {it.card==i.card} && Justice.power(i.card)==power
         if(i.card!=0 && !holds)return reject(SocialRejection.CARD)

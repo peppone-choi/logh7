@@ -227,7 +227,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                     while(waitingFrames.isNotEmpty() && ctx.channel().isActive)process(ctx,waitingFrames.removeFirst())
                                                 }
                                                 else if (!ctx.channel().isActive || failure != null) {
-                                                    if(failure != null) System.err.println("gateway async: ${failure.cause?.message ?: failure.message}")
+                                                    if(failure != null) {val cause=failure.cause ?: failure
+                                                        System.err.println("gateway async: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}")}
                                                     try { exchange.close() } finally { ctx.close() }
                                                 }
                                                 else try {

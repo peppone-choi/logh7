@@ -293,7 +293,9 @@ class GameExchange(
         return messages.filterNot { opcode(it) == 0x0325 } +
             org.logh7.protocol.TacticsMessages.definitions(player.grid, tactical.units,tactical.groundDefinitions)
     }
-    fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
+    /** U-25 defection ends the connection after its reply; the client reconnects on the new side. */
+    @Volatile private var defectedLogout=false
+    fun obsolete() = defectedLogout || ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running && !sessionEndingAvailable())
     // ByteArray convenience is retained for codec callers. Gateway always writes the bound outbound batch.
     fun finishJoin(result: Admission): ByteArray? = finishJoinOutbound(result)?.bytes
@@ -1555,7 +1557,15 @@ class GameExchange(
                                         base=query.base,identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),
                                             id.power,id.rank,id.origin,id.abilities.toList())}))
                                     pendingWorld=administration.social(request).thenApply {result ->
-                                        val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                        val player=checkNotNull(result.player)
+                                        if(result.defected!=0) {
+                                            // U-25 defection: the registered character and its mail identity follow the committed
+                                            // world and session; this connection then ends so the client reconnects on the new side.
+                                            check(characters.defect(identity.account,character.id,result.defected))
+                                            communicationIdentity(characters,character.id.toInt())?.let {communication?.defect(it,checkNotNull(generation))?.join()}
+                                            defectedLogout=true
+                                        }
+                                        val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
                                         refreshPaid(result.navigators)
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,

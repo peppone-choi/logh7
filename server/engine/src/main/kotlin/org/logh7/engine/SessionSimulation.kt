@@ -89,6 +89,12 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
         participants[account]?.let { if (connection == null || it.connection == connection) participants[account] = it.copy(online = false, connection = null) }
     }
     fun exclude(account: String) { participants.remove(account)?.let { excluded[account] = it.power } }
+    /** U-25 亡命 (user decision 2026-11-01): the only sanctioned faction change of a participant. */
+    fun defect(account: String, power: Power) {
+        val current = checkNotNull(participants[account]) { "Unknown participant" }
+        require(current.power != power)
+        participants[account] = current.copy(power = power)
+    }
     fun openBattle(id: String) {
         require(id.isNotBlank() && ended == null)
         require(id !in battles)

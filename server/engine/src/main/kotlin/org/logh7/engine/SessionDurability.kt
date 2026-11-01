@@ -25,6 +25,8 @@ sealed interface SessionAction {
     data class Territory(val systems: Map<Power, Int>, val capitals: Set<Power>) : SessionAction
     data object Restart : SessionAction
     data object RecoverConnections : SessionAction
+    /** U-25 亡命: the participant's sanctioned faction change. */
+    data class Defect(val account: String, val power: Power) : SessionAction
 }
 
 data class SessionTransition(val state: DurableWorldState, val admission: Admission? = null,
@@ -67,6 +69,7 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
         }
         SessionAction.Restart -> restart()
         SessionAction.RecoverConnections -> { before.session.participants.keys.forEach { simulation.disconnect(it) }; emptyList() }
+        is SessionAction.Defect -> { simulation.defect(action.account, action.power); emptyList() }
     } } catch (failure: RuntimeException) {
         if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException) throw failure
         return SessionTransition(before.copy(revision = Math.addExact(before.revision, 1),

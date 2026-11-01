@@ -3,7 +3,7 @@
 // 執行命令 first picks the listed person (strategyBase, preview value 0) and then the grantee (preview value 1).
 // Author: Peppone Choi.
 #pragma once
-static bool justiceCommand(unsigned command) {return command==19 || command==68 || command==69 || command==70 || command==71 || command==73 || command==74;}
+static bool justiceCommand(unsigned command) {return command==19 || command==68 || command==69 || command==70 || command==71 || command==73 || command==74 || command==86;}
 static bool justiceCard(unsigned card) {return card==7 || card==10 || card==32 || card==137 || card==157 || card==160 ||
     card==20 || card==58 || card==158 || card==162 || card==194;}
 static const wchar_t* justiceCharge(unsigned value) {
@@ -43,6 +43,7 @@ static bool readJusticeAction(void* record) {
         reply==7 ? L"진행 중인 작업이 있거나 구금 중입니다." : reply==8 ? L"MCP가 부족합니다." :
         reply==10 ? L"체포 리스트에 없거나 기한이 지났습니다." : reply==13 ? L"직무 권한 밖의 대상입니다." :
         reply ? L"실행할 수 없습니다. 대상·카드·위치를 확인하세요." :
+        state.strategyCommand==86 ? L"망명했습니다. 상대 진영 수도의 구금실로 옮겨지며 곧 접속이 끊깁니다. 다시 접속하십시오." :
         state.strategyCommand==74 ? L"감시 중입니다. 같은 대상에 다시 실행하면 현재 위치를 무료로 알려 줍니다." :
         state.strategyCommand==68 ? (outcome==1 ? L"찾았습니다. 같은 거점에 머물고 있습니다(위 스폿 ID)." : L"찾지 못했습니다.") :
         state.strategyCommand==73 ? (outcome==1 ? L"습격에 성공했습니다. 대상이 부상했습니다(게임 1일)." :
@@ -56,10 +57,27 @@ static bool readJusticeAction(void* record) {
 }
 static bool updateJusticeAction() {
     auto& state=taxWindow;unsigned command=state.strategyCommand;
-    taxText(0,command==19 ? L"처단" : command==68 ? L"일제 수색" : command==73 ? L"습격" : command==74 ? L"감시" : command==69 ? L"체포 허가" : command==70 ? L"집행 명령" : L"체포 명령");
+    taxText(0,command==19 ? L"처단" : command==68 ? L"일제 수색" : command==73 ? L"습격" : command==74 ? L"감시" : command==86 ? L"망명" : command==69 ? L"체포 허가" : command==70 ? L"집행 명령" : L"체포 명령");
     const StrategyDirectory::Person* row=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
     wchar_t label[160];
+    if(command==86) {
+        taxText(1,L"상대 진영으로 망명합니다(PCP 320).");
+        taxText(2,L"직무·부대·기함을 잃고 상대 수도 구금실에서 처단을 기다립니다. 주소록은 비워집니다.");
+        taxText(3,L"되돌릴 수 없습니다. 실행 후 다시 접속하십시오.");
+        taxText(4,L"");taxText(5,L"");taxText(6,state.message);
+        taxText(10,L"-");taxText(11,L"-");taxText(12,L"-");taxText(13,L"-");taxText(14,L"망명");taxText(15,L"닫기");
+        for(int id=10;id<=13;++id)taxEnabled(id,false);
+        taxEnabled(14,!state.pending);
+        if(GetTickCount64()<state.acceptAfter)return true;
+        BYTE event[52]={};
+        for(int id=14;id<=15;++id)if(reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(state.root,2,taxWidget(1,id),event,0)) {
+            state.acceptAfter=GetTickCount64()+250;
+            if(id==15)closeTaxWindow();else if(!state.pending)sendJusticeAction(false);
+            break;
+        }
+        return true;
+    }
     if(command==70 && !state.strategyBase) {
         if(row)swprintf_s(label,L"체포 리스트: %ls (ID %u)",row->name,row->id);else swprintf_s(label,L"체포 리스트가 비어 있습니다.");
         taxText(1,label);taxText(2,L"대상을 고른 뒤 '받을 사람'으로 넘어갑니다.");

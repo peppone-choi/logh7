@@ -39,7 +39,9 @@ object Justice {
     const val SEARCH=68
     const val RAID=73
     const val WATCH=74
-    val commands=setOf(JUDGMENT,PERMIT,EXECUTION,ARREST,SEARCH,RAID,WATCH)
+    /** 亡命 86, a personal-card command paid in PCP (design §3.5). */
+    const val DEFECT=86
+    val commands=setOf(JUDGMENT,PERMIT,EXECUTION,ARREST,SEARCH,RAID,WATCH,DEFECT)
     val costs=mapOf(JUDGMENT to 320L,PERMIT to 800L,EXECUTION to 800L,ARREST to 160L,SEARCH to 160L,RAID to 160L,WATCH to 160L)
     /** Daily chance (percent) that the target notices a watch: 30 + (target - watcher intelligence)/2, 5..60 (evidence:guess). */
     fun detection(watcherIntelligence:Int,targetIntelligence:Int)=(30+(targetIntelligence-watcherIntelligence)/2).coerceIn(5,60)
