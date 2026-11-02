@@ -23,7 +23,7 @@ static bool readSuccessionAction(void* record) {
         at<unsigned short>(record,6)!=state.strategyCommand || at<unsigned short>(record,32)!=state.strategyToken)return false;
     state.pending=false;unsigned reply=at<unsigned short>(record,10),command=state.strategyCommand;
     // SocialRejection ordinal + 1: CARD 4, BUSY 7, CP 8, STALE 10, TARGET 13.
-    state.message=reply==4 ? (command==233 ? L"황제만 후계를 지명할 수 있습니다." : L"개인 카드로 실행하세요.") :
+    state.message=reply==4 ? (command==233 ? L"황제만 후계를 지명할 수 있습니다." : L"제국 인물만 계승을 거부할 수 있습니다.") :
         reply==7 ? L"이미 반란 중이거나 행동할 수 없습니다." : reply==8 ? L"CP가 부족합니다." :
         reply==10 ? L"계승을 거부할 수 있는 2순위 후보가 아니거나 기한(즉위 후 7일)이 지났습니다." :
         reply==13 ? L"지명할 수 없는 인물입니다." : reply ? L"실행할 수 없습니다." :
@@ -38,7 +38,7 @@ static bool updateSuccessionAction() {
     wchar_t label[160];
     if(command==233) {
         if(row)swprintf_s(label,L"후계자: %ls (ID %u)",row->name,row->id);else swprintf_s(label,L"지명할 인물이 없습니다.");
-    } else swprintf_s(label,L"새 황제의 즉위에 반대해 반란을 일으킵니다.");
+    } else swprintf_s(label,L"새 황제의 즉위에 반대해 반란을 일으킵니다(제국 인물 전용).");
     taxText(1,label);
     taxText(2,command==233 ? L"목록은 현재 계승 서열 순입니다. 지명된 후계자가 서열 1위가 됩니다." :
         L"직전 즉위의 2순위 후보만, 즉위 후 7일 안에 한 번 할 수 있습니다.");
