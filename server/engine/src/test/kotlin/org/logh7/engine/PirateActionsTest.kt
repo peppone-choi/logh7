@@ -40,4 +40,13 @@ class PirateActionsTest {
         assertEquals(2L,TradeActions.routeProfit(withAdults,route,galaxy),"halved")
         assertEquals(4L,TradeActions.routeProfit(withAdults,route))
     }
+    @Test fun aFleetOutOfBattleDriftsToANearbyFrontierGridEverySevenDays() {
+        val g=Galaxy(galaxy.systems+GalaxySystem(5,2492,4,"Next",0),galaxy.bases,galaxy.starts)
+        val spawned=PirateActions.settle(g,PirateActions.settle(g,stocks,100),100+7*86400)
+        val from=spawned.social.pirates.fleets.values.single().grid
+        assertSame(spawned,PirateActions.move(g,spawned,100+8*86400,emptySet()),"not yet")
+        assertSame(spawned,PirateActions.move(g,spawned,100+14*86400,setOf(from)),"in battle")
+        val moved=PirateActions.move(g,spawned,100+14*86400,emptySet()).social.pirates.fleets.values.single()
+        assertNotEquals(from,moved.grid);assertEquals(100+14*86400L,moved.since)
+    }
 }

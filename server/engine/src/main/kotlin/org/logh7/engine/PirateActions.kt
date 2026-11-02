@@ -9,9 +9,11 @@ package org.logh7.engine
 data class PirateUnit(val id:Int,val boats:Int) {
     init {require(id>0 && boats in 0..PirateActions.UNIT_BOATS)}
 }
-data class PirateFleet(val id:Int,val grid:Int,val since:Long,val units:List<PirateUnit>) {
+data class PirateFleet(val id:Int,val grid:Int,val since:Long,val units:List<PirateUnit>,
+    /** U-32: game second of the fleet's last counterattack volley (0 = never). */
+    val firedAt:Long=0) {
     init {require(id>0 && grid in 0..4999 && since in 0..0xffffffffL && units.size in 1..PirateActions.MAX_UNITS &&
-        units.map {it.id}.distinct().size==units.size)}
+        units.map {it.id}.distinct().size==units.size && firedAt in 0..0xffffffffL)}
     val alive get()=units.any {it.boats>0}
 }
 data class PirateState(val fleets:Map<Int,PirateFleet> = emptyMap(),val nextId:Int=1,val nextSpawnAt:Long=0,
@@ -36,11 +38,67 @@ object PirateActions {
     const val MERIT=50L
     const val PEACE_REWARD=5
     const val HARM=1
+    /** U-32 (user decision 2026-11-02, evidence:guess): a volley every 20 game seconds, beam power 900 per full unit. */
+    const val FIRE_SECONDS=20L
+    const val UNIT_POWER=900L
+    /** Strategic move: every [SPAWN_DAYS] a fleet shifts to a frontier grid within [MOVE_CELLS], trade-route grids first. */
+    const val MOVE_CELLS=3
 
     /** Frontier grids: systems with no base held by the empire or the alliance. */
     fun frontier(g:Galaxy,s:PlanetStocks)=g.systems.map {it.grid}.filter {grid->
         g.bases.none {b->b.grid==grid && s.bases[b.id]?.power in 2..3}}.distinct().sorted()
 
+    /** U-32 strategic movement: fleets not in battle drift to a nearby frontier grid, preferring trade-route ends. */
+    fun move(g:Galaxy,s:PlanetStocks,now:Long,engaged:Set<Int>):PlanetStocks {
+        var p=s.social.pirates
+        val due=p.fleets.values.filter {it.alive && it.grid !in engaged && now-it.since>=SPAWN_DAYS*Justice.DAY}
+        if(due.isEmpty())return s
+        val frontier=frontier(g,s)
+        val routeGrids=s.social.trade.routes.values.flatMap {r->listOf(r.from,r.to)}.mapNotNull {id->g.bases.singleOrNull {it.id==id}?.grid}.toSet()
+        for(f in due.sortedBy {it.id}) {
+            val taken=p.fleets.values.filter {it.id!=f.id}.map {it.grid}.toSet()
+            val near=frontier.filter {it!=f.grid && it !in taken && EspionageActions.cells(it,f.grid)<=MOVE_CELLS}
+            val targets=g.bases.filter {it.grid in routeGrids}.map {it.grid}.toSet()
+            val choice=near.minByOrNull {grid->(if(targets.any {EspionageActions.cells(it,grid)<=1})0 else 1000)+java.util.Random(now*7+f.id+grid).nextInt(1000)}
+            p=p.copy(fleets=p.fleets+(f.id to f.copy(grid=choice ?: f.grid,since=now)))
+        }
+        return s.copy(social=s.social.copy(pirates=p))
+    }
+    /** U-32 counterattack: each living pirate unit fires at the nearest ship in range in its grid every [FIRE_SECONDS]. */
+    internal fun counter(session:SessionState,g:Galaxy,players:MutableMap<String,Navigator>,start:PlanetStocks,now:Long,
+        impacts:MutableList<TacticalImpact>):PlanetStocks {
+        var s=start
+        for(fleet in start.social.pirates.fleets.values.filter {it.alive && now-it.firedAt>=FIRE_SECONDS}.sortedBy {it.id}) {
+            val engaged=players.values.any {it.cpPaused && it.grid==fleet.grid && it.baseId==0}
+            if(!engaged)continue
+            for(unit in fleet.units.filter {it.boats>0}) {
+                val origin=pose(s,unit.id) ?: continue
+                val candidates=players.values.filter {it.cpPaused && it.grid==fleet.grid && it.baseId==0 && it.hull!=null}.map {it.unitId to it.power} +
+                    s.outfits.values.filter {it.positionIn(g)==OutfitPosition(fleet.grid)}.flatMap {o->o.activeShips?.values.orEmpty()
+                        .filter {it.boats>0}.map {it.id to if(o.power==2)Power.EMPIRE else Power.ALLIANCE}}
+                val victim=candidates.mapNotNull {(id,power)->
+                    val hostile=if(power==Power.EMPIRE)Power.ALLIANCE else Power.EMPIRE
+                    TacticalCombat.target(id,fleet.grid,hostile,s,g,players)?.let {t->
+                        val at=t.personal?.second?.let {p->p.motion?.pose(now,p.posture,g,s)?.position ?:
+                            TacticalDeployment.initial(p.unitId,p.power,p.grid,players.values,s,g).position} ?:
+                            t.regular?.second?.tactical?.motion?.pose(now,t.regular.second.posture,g,s)?.position ?:
+                            TacticalDeployment.initial(id,power,fleet.grid,players.values,s,g).position
+                        Triple(id,t,at)}}
+                    .minByOrNull {(_,_,at)->kotlin.math.hypot((at.x-origin.position.x).toDouble(),(at.y-origin.position.y).toDouble())} ?: continue
+                val (id,target,at)=victim
+                // The turret faces its target (pirate ships are not manoeuvred).
+                val aim=TacticalPose(origin.position,kotlin.math.atan2((at.x-origin.position.x).toDouble(),(at.y-origin.position.y).toDouble()).toFloat())
+                val mount=TacticalWeaponMount(0,63,(UNIT_POWER*unit.boats/UNIT_BOATS).toInt().coerceAtLeast(1),0)
+                val effect=TacticalArmaments.effectiveness(mount,aim,at)
+                if(effect<=0)continue
+                val resolved=TacticalCombat.strike(session,g,players,s,unit.id,fleet.grid,now,now,id,TacticalWeapon.BEAM,mount,effect,aim,target)
+                s=resolved.first;impacts+=resolved.second
+            }
+            val current=s.social.pirates.fleets[fleet.id] ?: continue
+            s=s.copy(social=s.social.copy(pirates=s.social.pirates.copy(fleets=s.social.pirates.fleets+(fleet.id to current.copy(firedAt=now)))))
+        }
+        return s
+    }
     /** Every [SPAWN_DAYS] one fleet of 1..3 units appears on a frontier grid, up to [MAX_FLEETS] alive. */
     fun settle(g:Galaxy,s:PlanetStocks,now:Long):PlanetStocks {
         var p=s.social.pirates;var bases=s.bases
