@@ -80,6 +80,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var supportSubscription: AutoCloseable? = null
     private var civicSubscription:AutoCloseable?=null
     private var budgetSubscription:AutoCloseable?=null
+    private var successionSubscription:AutoCloseable?=null
     private var identitySubscription:AutoCloseable?=null
     private var fameSubscription:AutoCloseable?=null
     private var communication:GameCommunication?=null
@@ -100,6 +101,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById)}}
         fameSubscription=stock?.observeSessionResults {s->s.session?.generation?.let {g->
             characterStores.fame.settle(s,characterStores.get(g))}}
         identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
@@ -277,7 +279,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         postureSubscription?.close()
         tacticalCommandSubscription?.close()
         supportSubscription?.close()
-        civicSubscription?.close()
+        civicSubscription?.close();successionSubscription?.close()
         budgetSubscription?.close()
         identitySubscription?.close()
         fameSubscription?.close()

@@ -80,6 +80,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     fun observeCivic(observer:(CivicChange)->Unit):AutoCloseable {
         civicObservers+=observer;return AutoCloseable {civicObservers.remove(observer)}
     }
+    private val successionObservers=java.util.concurrent.CopyOnWriteArrayList<(SuccessionNotice)->Unit>()
+    fun observeSuccession(observer:(SuccessionNotice)->Unit):AutoCloseable {
+        successionObservers+=observer;return AutoCloseable {successionObservers.remove(observer)}
+    }
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
     private val occupationObservers=java.util.concurrent.CopyOnWriteArrayList<(BaseOccupation)->Unit>()
     private val experienceObservers=java.util.concurrent.CopyOnWriteArrayList<(List<Int>)->Unit>()
@@ -253,6 +257,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val event=CivicChange(inventory.generation,inventory,affected)
             for(observer in civicObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Civic delivery failed: ${failure.javaClass.simpleName}")}
+        }
+        if(inventory!=null && old!=null)SuccessionActions.notice(old,inventory,snapshot.session?.gameSeconds ?: 0L)?.let {event->
+            for(observer in successionObservers)try {observer(event)}
+            catch(failure:Exception){System.err.println("Succession delivery failed: ${failure.javaClass.simpleName}")}
         }
         val session=durableState?.session ?: simulation.exportState()
         val personal=snapshot.navigators.values.asSequence().filter {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.hull!=null}

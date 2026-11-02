@@ -21,7 +21,20 @@ data class SuccessionState(
     init {require(heir>=0 && emperor>=0 && rival>=0 && at in 0..0xffffffffL && (rival==0 || emperor>0))}
 }
 
+/** Announcement of an accession (claimant 0) or of the runner-up's refusal (claimant set), detected between two published stocks. */
+data class SuccessionNotice(val generation:Long,val emperor:Int,val claimant:Int=0,val seconds:Long=0)
+
 object SuccessionActions {
+    /** The change from [old] to [new] that the whole session hears, if any. */
+    fun notice(old:PlanetStocks,new:PlanetStocks,seconds:Long=0):SuccessionNotice? {
+        if(old.generation!=new.generation)return null
+        val was=old.social.succession;val now=new.social.succession
+        if(now.emperor>0 && now.at!=was.at)
+            return SuccessionNotice(new.generation,now.emperor,seconds=seconds)
+        if(was.rival>0 && now.rival==0 && CoupActions.rebel(new,was.rival) && !CoupActions.rebel(old,was.rival))
+            return SuccessionNotice(new.generation,now.emperor,was.rival,seconds)
+        return null
+    }
     const val DESIGNATE=233
     const val CONTEST=234
     val commands=setOf(DESIGNATE,CONTEST)

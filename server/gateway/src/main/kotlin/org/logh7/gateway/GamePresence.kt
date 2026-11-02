@@ -46,6 +46,15 @@ class GamePresence {
                     org.logh7.engine.BudgetActions.rate(s,base.baseId,event.defaultRate))))
         }
     }
+    /** Accession and succession war: one public chat line to everyone in the session (evidence:guess). */
+    @Synchronized fun succession(event:org.logh7.engine.SuccessionNotice,characterById:(Int)->CharacterMessages.Generate?) {
+        val speaker=if(event.claimant>0)event.claimant else event.emperor
+        fun name(id:Int)=characterById(id)?.let {if(it.generated)it else KoreanDisplayNames.original(it)}?.let {(it.surname+" "+it.givenName).trim()}?.takeIf {it.isNotEmpty()} ?: "ID $id"
+        val line=(if(event.claimant>0)"[황위] ${name(event.claimant)}이(가) 계승을 거부하고 반란을 일으켰습니다."
+            else "[황위] ${name(event.emperor)}이(가) 황제로 즉위했습니다.").take(65)
+        val packet=ChatMessages.spot(ChatMessages.Spot(speaker,line),event.seconds.coerceIn(0,0xffffffffL))
+        members.values.filter {it.player.generation==event.generation}.forEach {send(it,listOf(packet))}
+    }
     /** Durable local duties update existing public conditions and authorized stock/party views. */
     @Synchronized fun civic(event:org.logh7.engine.CivicChange,world:WorldBootstrap) {
         for(viewer in members.values.filter {it.player.generation==event.generation}) {
