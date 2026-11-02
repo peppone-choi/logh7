@@ -427,6 +427,7 @@ static bool tacticalNoticesTest() {
         std::string encoded;std::wstring back;
         if (!logh::encodeKoreanResource(L"[ \ub300\uc9c0 \uacf5\uaca9 ]\n\uc801 \ud589\uc131\uc758 \uc218\ube44\ub300\ub97c \uacf5\uaca9\ud569\ub2c8\ub2e4.\n\uae30\ud568 \ubb3c\uc790 100",encoded))return false;
         if (logh::encodeKoreanResource(L"\u3042",encoded))return false;
+        if (!logh::hasHangul(L"A\uc591") || logh::hasHangul(L"\u30e4\u30f3") || logh::hasHangul(nullptr))return false;
         logh::encodeKoreanResource(L"A\uac00",encoded);
         if (encoded.size()!=3 || encoded[0]!='A' || static_cast<unsigned char>(encoded[1])!=0xf0 || static_cast<unsigned char>(encoded[2])!=0x41)return false;
     }

@@ -44,7 +44,16 @@ static void* __fastcall appendKoreanCString(void* string,void*,const char* text)
     return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAppendTrampoline+0)
         (string,logh::koreanStaticResource(text));
 }
+// U-27: runtime Hangul (a server-sent name) narrowed through ACP 949 and decoded as CP932 turns into
+// half-width kana. Narrow it into the catalogue's private CP932 form instead; the CD's Japanese decode and
+// restoreKoreanGlyphs then return the same Hangul. Text with a glyph outside the catalogue keeps the native path.
+static thread_local std::string koreanRuntimeNarrow;
+static const char* koreanRuntimeText(const wchar_t* text) {
+    return logh::hasHangul(text) && logh::encodeKoreanResource(text,koreanRuntimeNarrow) ? koreanRuntimeNarrow.c_str() : nullptr;
+}
 static void* __fastcall constructKoreanWideCString(void* string,void*,const wchar_t* text) {
+    if (const char* narrow=koreanRuntimeText(text)) return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanConstructTrampoline+0)
+        (string,narrow);
     const auto row=logh::koreanWideResource(text);
     // Preserve our resource-only CP932 representation through ANSI CString.
     // The original wide overload narrows through ACP and would lose Hangul.
@@ -53,6 +62,8 @@ static void* __fastcall constructKoreanWideCString(void* string,void*,const wcha
     return reinterpret_cast<void*(__thiscall*)(void*,const wchar_t*)>(koreanWideConstructTrampoline+0)(string,text);
 }
 static void* __fastcall assignKoreanWideCString(void* string,void*,const wchar_t* text) {
+    if (const char* narrow=koreanRuntimeText(text)) return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAssignTrampoline+0)
+        (string,narrow);
     const auto row=logh::koreanWideResource(text);
     if (row) return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAssignTrampoline+0)
         (string,row->narrow);
