@@ -48,7 +48,7 @@ class TradeActionsTest {
         val s=policy.set(stocks(),OfficeHolding(5,1049,10000))
         val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)
         assertNull(r.rejection)
-        if(r.outcome==1) {assertEquals(777,r.found);assertEquals(70*256+80,r.report);assertEquals(100_000_000L,r.stocks?.nationalTreasuries?.get(2))}
+        if(r.outcome==1) {assertEquals(0,r.found,"777 marks in units of 10,000");assertEquals(70*256+80,r.report);assertEquals(100_000_000L,r.stocks?.nationalTreasuries?.get(2))}
         else assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(2))
     }
     @Test fun shipsEnteringFezzanWithoutPassageViolateNeutralityAndPayTheEnemyTwelveTimes() {

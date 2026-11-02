@@ -151,7 +151,8 @@ object TradeActions {
                         val capital=g.bases.singleOrNull {Capital.of(it)?.power==5-own}?.let {s.bases[it.id]}
                         // A leaking enemy's secrets come free (U-07).
                         val next=if(leak)s else s.copy(nationalTreasuries=s.nationalTreasuries+(own to (s.nationalTreasuries[own] ?: 0)-INTEL_PRICE))
-                        SocialResult(payer,next,changed=true,outcome=1,found=minOf(capital?.treasury ?: 0,0x7fffffffL).toInt(),
+                        // The treasury travels in units of 10,000 marks: whole-capital treasuries overflow 32 bits.
+                        SocialResult(payer,next,changed=true,outcome=1,found=minOf((capital?.treasury ?: 0)/10_000,0x7fffffffL).toInt(),
                             report=(capital?.economy?.approval ?: 0)*256+(capital?.economy?.peace ?: 0))
                     }
                 }

@@ -38,7 +38,7 @@ static bool readTradeAction(void* record) {
         else if(command==40)swprintf_s(tradeReport,L"국고 수입(관세 뒤): %u",found);
         else if(command==17)swprintf_s(tradeReport,L"관세율: %u%%",found);
         else if(tradeValue==2) {unsigned mixed=at<unsigned short>(record,24);
-            swprintf_s(tradeReport,L"적 수도 금고 %u · 지지율 %u · 치안 %u",found,mixed>>8,mixed&255);}
+            swprintf_s(tradeReport,L"적 수도 금고 %u만 · 지지율 %u · 치안 %u",found,mixed>>8,mixed&255);}
     }
     state.message=reply==4 ? L"이 명령을 쓸 카드가 아닙니다." : reply==6 ? L"이 위치에서 할 수 없습니다(정박한 자진영 거점·자기 수송함대)." :
         reply==7 ? L"이미 무역로가 있거나 행동할 수 없습니다." : reply==8 ? L"CP가 부족합니다." : reply==9 ? L"선단은 하루에 한 번만 무역합니다." :
@@ -49,7 +49,7 @@ static bool readTradeAction(void* record) {
 }
 static bool updateTradeAction() {
     auto& state=taxWindow;unsigned command=state.strategyCommand;
-    static const wchar_t* deals[]={L"통상 협정(30일 선단 이익 +20%)",L"회랑 통행(30일)",L"정보 매입(국고 1억)"};
+    static const wchar_t* deals[]={L"통상 협정(30일 선단 이익 +20%)",L"회랑 통행(30일)",L"정보 매입(국고 1억, 상대 페잔 침범 90일 동안 무료)"};
     taxText(0,command==39 ? L"항로 무역" : command==40 ? L"선단 무역" : command==17 ? L"관세율 변경" : L"외교");
     const StrategyDirectory::Person* row=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
