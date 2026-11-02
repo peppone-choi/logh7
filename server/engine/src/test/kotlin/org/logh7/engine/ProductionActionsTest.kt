@@ -45,6 +45,14 @@ class ProductionActionsTest {
         val recruited=assertNotNull(act(ProductionActions.RECRUIT,stocks,troop.kind).stocks).bases.getValue(1049)
         assertEquals(1,recruited.units.troops[UnitStack(troop.kind)]);assertEquals(299_000,recruited.economy?.adults)
     }
+    @Test fun aFullStackKeepsTheOrderWaitingAndAFullTroopStackRefusesRecruiting() {
+        val ship=ProductionActions.kinds(2,true).first();val troop=ProductionActions.kinds(2,false).first()
+        val base=stocks.bases.getValue(1049)
+        val full=stocks.copy(bases=stocks.bases+(1049 to base.copy(units=UnitInventory(mapOf(UnitStack(ship.kind) to 65535),
+            mapOf(UnitStack(troop.kind) to 65535)))),social=stocks.social.copy(production=ProductionState(orders=mapOf(1049 to ShipOrder(ship.kind,now)))))
+        assertSame(full,ProductionActions.settle(full,now+1),"no out-of-range stack; the order waits")
+        assertEquals(SocialRejection.MAXIMUM,act(ProductionActions.RECRUIT,full,troop.kind).rejection)
+    }
     @Test fun orderListNamesAreKorean() {
         assertEquals("전함Ⅰ",ProductionActions.koreanName("戦艦Ⅰ"));assertEquals("경장육전병",ProductionActions.koreanName("軽装陸戦兵"))
         assertTrue(ProductionActions.kinds(2,true).all {ProductionActions.koreanName(it.name).none {c->c in '぀'..'ヿ'}})

@@ -84,7 +84,9 @@ internal object BaseOccupationOperations {
                     fiefs=stocks.strategic.fiefs-base.id,offices=stocks.strategic.offices.filter {holding ->
                         if(OrganizationOffices.of(holding.card)?.scope==OfficeScope.OUTFIT)
                             stocks.outfits[holding.seat]?.baseId!=base.id else holding.seat!=base.id
-                    }))
+                    }),
+                // U-08: like automatic production, a pending manual ship order does not survive the capture.
+                social=stocks.social.copy(production=stocks.social.production.let {it.copy(orders=it.orders-base.id)}))
             val expelled=linkedMapOf<String,Navigator>()
             var offset=0
             for((account,p) in players.toMap()) {

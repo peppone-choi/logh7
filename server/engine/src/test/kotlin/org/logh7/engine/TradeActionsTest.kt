@@ -81,4 +81,9 @@ class TradeActionsTest {
         val later=TradeActions.neutrality(galaxy,occupied,now+40*86400)
         assertEquals(occupied.nationalTreasuries,later.nationalTreasuries,"no more subsidies after the occupation")
     }
+    @Test fun diplomacyIsRefusedOnceFezzanIsOccupied() {
+        val s=policy.set(stocks(),OfficeHolding(5,1049,10000)).let {it.copy(bases=it.bases+(1210 to it.bases.getValue(1210).copy(power=2)))}
+        val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)
+        assertEquals(SocialRejection.TARGET,r.rejection);assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(2))
+    }
 }

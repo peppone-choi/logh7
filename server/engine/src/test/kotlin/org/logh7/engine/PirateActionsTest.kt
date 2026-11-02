@@ -49,4 +49,17 @@ class PirateActionsTest {
         val moved=PirateActions.move(g,spawned,100+14*86400,emptySet()).social.pirates.fleets.values.single()
         assertNotEquals(from,moved.grid);assertEquals(100+14*86400L,moved.since)
     }
+    @Test fun aFleetNextToARouteEndAlsoHalvesItsProfit() {
+        val route=TradeRoute(1,1049,1050,10_000_000,0)
+        val rich=stocks.copy(bases=stocks.bases+(1049 to stocks.bases.getValue(1049).copy(economy=PlanetEconomy(10000,8000,50,50)))+
+            (1050 to stocks.bases.getValue(1050).copy(economy=PlanetEconomy(10000,4000,50,50))))
+        fun at(grid:Int)=rich.copy(social=rich.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,grid,0,listOf(PirateUnit(900_001,300)))),2)))
+        assertEquals(2L,TradeActions.routeProfit(at(2488),route,galaxy),"one cell from the route end at 2487")
+        assertEquals(4L,TradeActions.routeProfit(at(2687),route,galaxy),"two cells away is out of reach")
+    }
+    @Test fun theSharedFleetPoseResolverPlacesAPirateTarget() {
+        val s=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,2490,0,listOf(PirateUnit(900_001,300),PirateUnit(900_002,300)))),2)))
+        val target=TacticalCombat.Target(pirate=900_002,spec=PirateActions.spec())
+        assertEquals(PirateActions.pose(s,900_002),TacticalFleetAttack.pose(target,0,emptyMap(),s,galaxy))
+    }
 }

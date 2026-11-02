@@ -119,7 +119,8 @@ internal object TacticalFleetAttack {
     }
 
     internal fun pose(target:TacticalCombat.Target,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose =
-        target.personal?.second?.let {it.motion?.pose(now,it.posture,galaxy,stocks) ?: TacticalDeployment.initial(it.unitId,it.power,it.grid,players.values,stocks,galaxy)}
+        target.pirate?.let {PirateActions.pose(stocks,it)}
+            ?: target.personal?.second?.let {it.motion?.pose(now,it.posture,galaxy,stocks) ?: TacticalDeployment.initial(it.unitId,it.power,it.grid,players.values,stocks,galaxy)}
             ?: target.regular!!.let {(o,u)->u.tactical?.motion?.pose(now,u.posture,galaxy,stocks) ?: TacticalDeployment.initial(u.id,
                 if(o.power==2)Power.EMPIRE else Power.ALLIANCE,o.positionIn(galaxy).grid,players.values,stocks,galaxy)}
 }

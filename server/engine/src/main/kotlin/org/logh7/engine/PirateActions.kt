@@ -106,6 +106,8 @@ object PirateActions {
     /** Every [SPAWN_DAYS] one fleet of 1..3 units appears on a frontier grid, up to [MAX_FLEETS] alive. */
     fun settle(g:Galaxy,s:PlanetStocks,now:Long):PlanetStocks {
         var p=s.social.pirates;var bases=s.bases
+        // A map with no fleet and no frontier system has nothing to clock (and no world save to make).
+        if(p.fleets.isEmpty() && frontier(g,s).isEmpty())return s
         if(p.nextSpawnAt==0L)p=p.copy(nextSpawnAt=now+SPAWN_DAYS*Justice.DAY)
         // A wiped-out fleet is suppressed: the bases of its grid regain public order.
         val wiped=p.fleets.values.filter {!it.alive}

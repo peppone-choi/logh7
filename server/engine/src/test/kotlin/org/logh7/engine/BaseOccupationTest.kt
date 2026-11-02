@@ -46,6 +46,11 @@ class BaseOccupationTest {
         assertEquals(original.nextShipId,captured.nextShipId)
         assertSame(captured,advance(captured,events=events));assertEquals(1,events.size)
     }
+    @Test fun captureDropsThePreviousOwnersPendingManualShipOrder() {
+        val s=stocks().let {it.copy(social=it.social.copy(production=ProductionState(orders=mapOf(1000 to ShipOrder(64,now+3600)))))}
+        val next=advance(s)
+        assertEquals(2,next.bases.getValue(1000).power);assertTrue(next.social.production.orders.isEmpty())
+    }
     @Test fun bothSidesGoneAndEligibleDefenderPreventOccupation() {
         val original=stocks();val attacker=original.outfits.getValue(1)
         val empty=original.copy(outfits=original.outfits+(1 to attacker.copy(units=UnitInventory(),activeGround=ActiveGroundUnits(emptyList()))))

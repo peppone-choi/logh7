@@ -63,15 +63,18 @@ object TradeActions {
     const val PASSAGE=1
     const val INTELLIGENCE=2
 
+    const val RAID_CELLS=1
     const val FEZZAN_NAME="フェザーン"
     /** Neutral Fezzan's base, or null once it was occupied (U-07). */
     fun fezzan(g:Galaxy,s:PlanetStocks)=g.bases.firstOrNull {it.name==FEZZAN_NAME && s.bases[it.id]?.power==1}?.id
     /** Daily profit of a route: the smaller side's adults / 1000. */
     fun routeProfit(s:PlanetStocks,r:TradeRoute,galaxy:Galaxy?=null):Long {
         val base=minOf(s.bases[r.from]?.economy?.adults ?: 0,s.bases[r.to]?.economy?.adults ?: 0)/1000L
-        // U-32a phase 2: a route touching a pirate-held grid earns half.
+        // U-32a phase 2: a route whose end lies within [RAID_CELLS] of a pirate-held grid earns half. Pirates never stand
+        // on an owned base's grid, but their movement seeks the grids next to route ends (PirateActions.move).
         val grids=s.social.pirates.grids()
-        val raided=galaxy!=null && grids.isNotEmpty() && galaxy.bases.any {(it.id==r.from || it.id==r.to) && it.grid in grids}
+        val raided=galaxy!=null && grids.isNotEmpty() && galaxy.bases.any {b->(b.id==r.from || b.id==r.to) &&
+            grids.any {EspionageActions.cells(it,b.grid)<=RAID_CELLS}}
         return if(raided)base/2 else base
     }
     fun roll(actor:Int,kind:Int,seconds:Long)=java.util.Random(seconds*1_000_003L+actor*131L+kind*17L+97).nextInt(100)
@@ -112,6 +115,8 @@ object TradeActions {
             TARIFF -> if(i.value !in 0..MAX_TARIFF)return reject(SocialRejection.TARGET)
             DIPLOMACY -> {
                 if(i.value !in COMMERCE..INTELLIGENCE)return reject(SocialRejection.TARGET)
+                // U-07: an occupied Fezzan is no longer a neutral party to negotiate with.
+                if(fezzan(g,s)==null)return reject(SocialRejection.TARGET)
                 if(i.value==INTELLIGENCE && !t.leaking(5-own,now) && (s.nationalTreasuries[own] ?: 0)<INTEL_PRICE)return reject(SocialRejection.MAXIMUM)
             }
         }

@@ -97,6 +97,8 @@ object ProductionActions {
                 if(unit==null || e==null)return reject(SocialRejection.TARGET)
                 if(e.adults<policy.peoplePerUnit || stock.food<policy.foodPerTroop || stock.supplies<policy.suppliesPerTroop)
                     return reject(SocialRejection.MAXIMUM)
+                val held=stock.units.troops[UnitStack(unit.kind)] ?: 0
+                if(held>=65535 || held==0 && stock.units.troops.size>=24)return reject(SocialRejection.MAXIMUM)
             }
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==RECRUIT)160L else 80L,CpPool.MCP)
@@ -133,8 +135,14 @@ object ProductionActions {
         val due=prod.orders.filterValues {it.readyAt<=now}
         if(due.isEmpty())return s
         var bases=s.bases
+        val done=mutableSetOf<Int>()
         for((base,order) in due)bases[base]?.let {stock->val key=UnitStack(order.kind)
-            bases=bases+(base to stock.copy(units=UnitInventory(stock.units.ships+(key to (stock.units.ships[key] ?: 0)+1),stock.units.troops,stock.units.work)))}
-        return s.copy(bases=bases,social=s.social.copy(production=prod.copy(orders=prod.orders-due.keys)))
+            val held=stock.units.ships[key] ?: 0
+            // A full stack (or a full kind list) keeps the order waiting, as automatic production stops at the cap.
+            if(held>=65535 || held==0 && stock.units.ships.size>=99)return@let
+            bases=bases+(base to stock.copy(units=UnitInventory(stock.units.ships+(key to held+1),stock.units.troops,stock.units.work)))
+            done+=base}
+        if(done.isEmpty())return s
+        return s.copy(bases=bases,social=s.social.copy(production=prod.copy(orders=prod.orders-done)))
     }
 }
