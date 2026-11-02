@@ -1,7 +1,7 @@
 # ADR-0003 서버 로직 재구현 원칙
 
 - 상태: 채택 (2026-09-27)
-- 작성: 최병호
+- 작성: Peppone Choi
 - 관련: CLAUDE.md §5, docs/manual/*, docs/manual/unimplemented-candidates.md
 
 ## 맥락

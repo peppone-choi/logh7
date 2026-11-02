@@ -1,4 +1,4 @@
-// Repair only the supported CD editor's missing overflow marker. Author: 최병호.
+// Repair only the supported CD editor's missing overflow marker. Author: Peppone Choi.
 #pragma once
 static bool installOutfitWarnings() {
     // 005329c0 and 00533500 wrap excessive counts with constmsg 22/139, absent from the CD.

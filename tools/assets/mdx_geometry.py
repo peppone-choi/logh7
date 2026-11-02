@@ -1,4 +1,4 @@
-"""Extract bounded CD-client MDX render-stream candidates. Author: 최병호.
+"""Extract bounded CD-client MDX render-stream candidates. Author: Peppone Choi.
 
 This is a signature scanner for the observed planet/fortress assets, not a
 general MDX parser. Serialized heap pointers are not file offsets. Output omits

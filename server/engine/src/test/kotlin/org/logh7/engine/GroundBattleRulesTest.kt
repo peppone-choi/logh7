@@ -7,6 +7,17 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class GroundBattleRulesTest {
+    @Test fun u09_planetModelsSelectTheSiteAndOnlyArmorIsBarredFromSpecialSites() {
+        fun base(kind:Int,model:Int)=GalaxyBase(1000,1,model,kind,"B",0,10f,86400,0,0f,2f)
+        assertEquals(GroundSite.NORMAL_PLANET,GroundBattleRules.site(base(0,60)))
+        assertEquals(GroundSite.SPECIAL_PLANET,GroundBattleRules.site(base(0,30)))
+        assertEquals(GroundSite.FORTRESS,GroundBattleRules.site(base(1,110)))
+        assertTrue(GroundBattleRules.admitsCrewType(base(0,60),2))
+        assertFalse(GroundBattleRules.admitsCrewType(base(0,30),2))
+        assertFalse(GroundBattleRules.admitsCrewType(base(1,110),2))
+        assertTrue(GroundBattleRules.admitsCrewType(base(0,30),0) && GroundBattleRules.admitsCrewType(base(0,30),1))
+    }
+
     @Test fun manualW51_normalPlanetAllowsAllThreeKinds() {
         assertEquals(GroundUnitKind.entries.toSet(), GroundBattleRules.eligibleKinds(GroundSite.NORMAL_PLANET))
     }

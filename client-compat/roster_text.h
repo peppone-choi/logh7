@@ -1,5 +1,5 @@
 // UTF-8 backing text for the ANSI CString in the same-spot roster only.
-// The shared list-cell boundary removes the private marker. Author: 최병호.
+// The shared list-cell boundary removes the private marker. Author: Peppone Choi.
 #pragma once
 #include "input_text.h"
 #include <cstring>

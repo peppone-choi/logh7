@@ -63,6 +63,9 @@ class CompletenessSupplyWireTest {
     }
     @Test fun encryptedTransferIgnoresForgedOutcomesAndQueriesStayConsistentAfterReconnect() {
         val state=State()
+        val target=state.stocks.outfits.getValue(2)
+        state.stocks=state.stocks.copy(outfits=state.stocks.outfits+(2 to target.copy(activeShips=ActiveShipUnits(
+            target.activeShips!!.values.mapIndexed {index,u->if(index==0)u.copy(boats=150) else u}))))
         fixture(state,"first").use { server ->
             val client=server.join(server.account(0),true,false).client;start(client)
             client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(14).putShort(124)
@@ -70,6 +73,7 @@ class CompletenessSupplyWireTest {
             client.expect(0x1200)
             val directory=ByteBuffer.wrap(client.expect(0x120b))
             assertEquals(1,directory.getShort(6).toInt());assertEquals(0,directory.getInt(8))
+            assertEquals(450*760,directory.getInt(12))
             assertEquals(2,directory.getInt(16));client.expect(0x1201)
             client.send(request());acknowledge(client,true)
             assertEquals(0,state.stocks.outfits.getValue(1).supplies)

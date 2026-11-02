@@ -1,0 +1,126 @@
+package org.logh7.engine
+
+import org.logh7.engine.strategy.*
+
+/** One transport package. [carrier] 0 = in the source transport warehouse; otherwise the transport outfit
+ * carrying it, which had [carrierBoats] live boats at loading. */
+data class TransportPackage(val id:Int,val power:Int,val source:Int,val destination:Int,val supplies:Int,
+    val units:UnitInventory=UnitInventory(),val carrier:Int=0,val carrierBoats:Int=0) {
+    init {require(id>0 && power in 2..3 && source in 1..65535 && destination in 1..65535 && source!=destination &&
+        supplies>=0 && (supplies>0 || units.ships.isNotEmpty() || units.troops.isNotEmpty()) && carrier>=0 &&
+        (carrier==0) == (carrierBoats==0) && carrierBoats>=0)}
+}
+
+/**
+ * 輸送計画 28 (MCP80), 輸送中止 29 (MCP80), 搬出入 65 (MCP160): W p.71/72 command table.
+ * Package flow, cards, the per-base limit of 20 and the proportional loss of a sunk carrier are the design
+ * approved 2026-10-31 (design-strategic-transport.md, evidence:guess).
+ * Request fields: 28 base=source, target=destination, amount=supplies, value=ship kind or 1000+troop kind
+ * (0xffff none), argument=unit count; 29 and 65 target=package id, 65 outfit=the transport outfit.
+ * Author: Peppone Choi.
+ */
+object TransportActions {
+    const val PLAN=28
+    const val CANCEL=29
+    const val LOAD=65
+    val supported=setOf(PLAN,CANCEL,LOAD)
+    const val PER_BASE=20
+    const val NO_UNIT=0xffff
+    private val commanders=setOf(44,180)
+
+    /** Package unit slots per live ship unit: cargo and troop hulls 10, others 2, the approved carrying split (evidence:guess). */
+    fun slots(kind:Int):Int = ProductionUnits.definitions.singleOrNull {it.ship && it.kind==kind}?.name?.let {name ->
+        if(listOf("輸送艦","商船").any {name.startsWith(it)})GroundTransfer.CARRIER_SLOTS else GroundTransfer.capacity(kind)} ?: GroundTransfer.WARSHIP_SLOTS
+    fun unitSlots(o:OutfitStock):Int = o.activeShips?.values.orEmpty().filter {it.boats>0}.sumOf {slots(it.stack.kind)}
+    fun unitCount(units:UnitInventory)=units.ships.values.sum()+units.troops.values.sum()
+    fun boats(o:OutfitStock)=o.activeShips?.values.orEmpty().sumOf {it.boats}
+
+    private fun add(a:Map<UnitStack,Int>,b:Map<UnitStack,Int>,sign:Int)=(a.keys+b.keys).associateWith {
+        (a[it] ?: 0)+sign*(b[it] ?: 0)}.filterValues {it!=0}
+    private fun plus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,1),add(a.troops,b.troops,1),a.work)
+    private fun minus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,-1),add(a.troops,b.troops,-1),a.work)
+
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
+        fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
+        val power=if(r.power==Power.EMPIRE)2 else 3
+        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return reject(StrategyActionRejection.BUSY)
+        val packages=stocks.strategic.transports
+        var next:PlanetStocks
+        when(r.command) {
+            PLAN -> {
+                val office=stocks.logisticsOfficers[r.characterId]
+                if(office==null || office.power!=power || office.card!=r.card)return reject(StrategyActionRejection.CARD)
+                val source=stocks.bases[r.base] ?: return reject(StrategyActionRejection.TARGET)
+                val destination=stocks.bases[r.target] ?: return reject(StrategyActionRejection.TARGET)
+                if(source.baseId==destination.baseId || source.power!=power || destination.power!=power ||
+                    source.camp!=0 || destination.camp!=0)return reject(StrategyActionRejection.TARGET)
+                if(r.amount !in 0..source.supplies.toLong() || r.argument<0 || r.value!=NO_UNIT && r.argument==0 ||
+                    r.value==NO_UNIT && r.argument!=0)return reject(StrategyActionRejection.RESOURCE)
+                if(packages.count {it.source==source.baseId && it.carrier==0}>=PER_BASE || packages.size>=4096)
+                    return reject(StrategyActionRejection.MAXIMUM)
+                var remaining=r.argument
+                val ships=linkedMapOf<UnitStack,Int>();val troops=linkedMapOf<UnitStack,Int>()
+                if(r.value!=NO_UNIT) {
+                    val troop=r.value>=1000
+                    val kind=if(troop)r.value-1000 else r.value
+                    val pool=if(troop)source.units.troops else source.units.ships
+                    for((stack,count) in pool.entries.filter {it.key.kind==kind}.sortedBy {it.key.level}) {
+                        val moved=minOf(count,remaining);if(moved>0)(if(troop)troops else ships)[stack]=moved;remaining-=moved
+                    }
+                }
+                if(remaining!=0)return reject(StrategyActionRejection.RESOURCE)
+                val units=UnitInventory(ships,troops)
+                if(r.amount==0L && unitCount(units)==0)return reject(StrategyActionRejection.RESOURCE)
+                val made=TransportPackage((packages.maxOfOrNull {it.id} ?: 0)+1,power,source.baseId,destination.baseId,r.amount.toInt(),units)
+                next=stocks.copy(bases=stocks.bases+(source.baseId to source.copy(supplies=source.supplies-made.supplies,
+                    units=minus(source.units,units))),strategic=stocks.strategic.copy(transports=packages+made))
+            }
+            CANCEL -> {
+                val office=stocks.logisticsOfficers[r.characterId]
+                if(office==null || office.power!=power || office.card!=r.card)return reject(StrategyActionRejection.CARD)
+                val pack=packages.singleOrNull {it.id==r.target && it.power==power} ?: return reject(StrategyActionRejection.TARGET)
+                if(pack.carrier!=0)return reject(StrategyActionRejection.BUSY)
+                val source=stocks.bases[pack.source]?.takeIf {it.power==power && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
+                next=stocks.copy(bases=stocks.bases+(source.baseId to source.copy(supplies=Math.addExact(source.supplies,pack.supplies),
+                    units=plus(source.units,pack.units))),strategic=stocks.strategic.copy(transports=packages-pack))
+            }
+            else -> {
+                if(r.card !in commanders)return reject(StrategyActionRejection.CARD)
+                val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
+                if(o.kind!=OutfitKind.TRANSPORT || o.commanderId!=r.characterId || o.power!=power)return reject(StrategyActionRejection.AUTHORITY)
+                val position=o.positionIn(galaxy)
+                if(position.baseId==0 || position.grid!=p.grid || position.baseId!=p.baseId || p.mode !in 1..4)
+                    return reject(StrategyActionRejection.LOCATION)
+                val base=stocks.bases[position.baseId]?.takeIf {it.power==power && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
+                val pack=packages.singleOrNull {it.id==r.target && it.power==power} ?: return reject(StrategyActionRejection.TARGET)
+                if(o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
+                next=if(pack.carrier==0) {
+                    if(pack.source!=base.baseId)return reject(StrategyActionRejection.LOCATION)
+                    val carried=packages.filter {it.carrier==o.id}
+                    val room=OutfitSupplies.capacity(o)-o.supplies-carried.sumOf {it.supplies}
+                    val slots=unitSlots(o)-(o.activeGround?.values.orEmpty().count {it.carrier>0})-carried.sumOf {unitCount(it.units)}
+                    val alive=boats(o)
+                    if(alive<=0 || pack.supplies>room || unitCount(pack.units)>slots)return reject(StrategyActionRejection.TROOPS)
+                    stocks.copy(strategic=stocks.strategic.copy(transports=packages.map {if(it.id==pack.id)it.copy(carrier=o.id,carrierBoats=alive) else it}))
+                } else {
+                    if(pack.carrier!=o.id)return reject(StrategyActionRejection.AUTHORITY)
+                    if(pack.destination!=base.baseId)return reject(StrategyActionRejection.LOCATION)
+                    // Boats lost since loading take the same share of the cargo (approved §2.3).
+                    val (supplies,units)=delivered(pack,boats(o))
+                    stocks.copy(bases=stocks.bases+(base.baseId to base.copy(supplies=Math.addExact(base.supplies,supplies),
+                        units=plus(base.units,units))),strategic=stocks.strategic.copy(transports=packages-pack))
+                }
+            }
+        }
+        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(r.command==LOAD)160L else 80L,CpPool.MCP)
+        if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
+        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
+    }
+    /** The share of a carried package that survives with [boats] of its [TransportPackage.carrierBoats]. */
+    fun delivered(pack:TransportPackage,boats:Int):Pair<Int,UnitInventory> {
+        if(boats>=pack.carrierBoats)return pack.supplies to pack.units
+        fun scale(v:Int)=(v.toLong()*maxOf(0,boats)/pack.carrierBoats).toInt()
+        return scale(pack.supplies) to UnitInventory(pack.units.ships.mapValues {scale(it.value)}.filterValues {it>0},
+            pack.units.troops.mapValues {scale(it.value)}.filterValues {it>0})
+    }
+}

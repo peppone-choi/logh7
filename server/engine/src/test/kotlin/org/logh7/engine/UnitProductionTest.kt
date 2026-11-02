@@ -49,15 +49,17 @@ class UnitProductionTest {
         assertTrue(stock.units.ships.keys.all { it.kind >= 119 })
         assertTrue(stock.units.troops.keys.all { it.kind in 4..7 || it.kind == 10 })
         val occupied = initial().copy(baseId = 2015, power = 2)
-        assertEquals(occupied, producer.advance(occupied, occupied))
+        val converted=producer.advance(occupied, occupied)
+        assertTrue(converted.units.work.isNotEmpty())
+        assertTrue(converted.units.work.keys.none { it in recipes.map { line -> line.unit.key } })
     }
     @Test fun fortressHasTheShipyardNeededByItsProductionRecipes() {
         val fortress = galaxy.bases.single().copy(kind = 1)
         assertTrue(Places.forBase(fortress, 2).any { it.kind == 10 })
     }
-    @Test fun shortagesCapacityAndWrongOwnerDoNotMintUnitsOrChargeFailedBatches() {
+    @Test fun shortagesCapacityAndNeutralOrRebelOwnerDoNotMintUnitsOrChargeFailedBatches() {
         val producer = producer(); val before = initial()
-        for (stock in listOf(before.copy(power = 3), before.copy(camp = 1),
+        for (stock in listOf(before.copy(power = 0), before.copy(camp = 1),
             before.copy(food = 0, economy = before.economy!!.copy(adults = 1)))) {
             assertEquals(stock, producer.advance(stock, stock))
         }
@@ -90,4 +92,37 @@ class UnitProductionTest {
         val fresh = production.settle(2, 0)
         assertTrue(fresh.bases.getValue(1049).units.ships.isEmpty())
     }
+    @Test fun capturedRecipesUseSameNamedCaptorKindsAndDoNotInventExclusiveTechnology() {
+        val producer=producer()
+        val converted=producer.forOwner(1049,3).associate { it.unit.key to it.batch }
+        assertEquals(mapOf("S119" to 1,"S127" to 1,"S139" to 2,"S140" to 1,"T7" to 5,"T4" to 2),converted)
+        assertEquals(producer.lines.getValue(1049),producer.forOwner(1049,2))
+        assertTrue(producer.forOwner(1049,0).isEmpty())
+        assertTrue(producer.forOwner(9999,3).isEmpty())
+        var captured=initial().copy(power=3,units=UnitInventory(work=mapOf("S32" to 89,"T3" to 119)))
+        captured=producer.advance(captured,captured)
+        assertEquals(24,captured.units.work["S119"])
+        assertEquals(24,captured.units.work["T7"])
+        assertFalse("S32" in captured.units.work || "T3" in captured.units.work)
+        assertTrue(captured.units.ships.isEmpty() && captured.units.troops.isEmpty())
+        repeat(9) {captured=producer.advance(captured,captured)}
+        assertTrue(captured.units.ships.keys.all {it.kind in 119..146})
+        assertTrue(captured.units.troops.keys.all {it.kind in 4..7})
+        assertTrue(captured.units.ships.getValue(UnitStack(119))>0)
+        assertTrue(captured.mineral<100000 && captured.supplies<100000)
+    }
+    @Test fun capturedProductionSurvivesPartitionedDurableDaysWithoutRepeatingOutput() {
+        class Store:PlanetStockStore {
+            var value:PlanetStocks?=PlanetStocks(1,0,mapOf(1049 to initial().copy(power=3)),deploymentInitialized=true)
+            override fun load()=value
+            override fun save(stocks:PlanetStocks){value=stocks}
+        }
+        val whole=Store();val split=Store()
+        val expected=PlanetProduction(galaxy,whole,0,policy).settle(1,10*86400L)
+        for(day in 0..10)PlanetProduction(galaxy,split,0,policy).settle(1,day*86400L)
+        assertEquals(expected,split.value)
+        assertEquals(expected,PlanetProduction(galaxy,split,0,policy).settle(1,10*86400L))
+        assertEquals(3,expected.bases.getValue(1049).power)
+    }
+
 }

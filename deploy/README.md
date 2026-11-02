@@ -1,6 +1,6 @@
 # 로컬 운영 리허설
 
-작성: 최병호 · 2026-09-27 · LOGH-42
+작성: Peppone Choi · 2026-09-27 · LOGH-42
 
 이 구성은 PostgreSQL·Prometheus·Grafana와 선택형 `game` 프로필의 Kotlin 게임 서버 이미지를 정의한다. 게임 서버 빌드·단독 기동·실제 환경 변수·볼륨·검증 제한은 [게임 서버 문서](../docs/ops/deploy.md)를 따른다. PostgreSQL은 게임 서버에 미연결이다. 기본 포트 게시는 Prometheus·Grafana의 호스트 loopback에 한정하며 게임 포트는 게시하지 않는다. `evidence:guess`
 

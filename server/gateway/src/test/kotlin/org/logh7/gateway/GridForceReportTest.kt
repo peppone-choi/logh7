@@ -31,13 +31,28 @@ class GridForceReportTest {
         assertEquals(mapOf(2487 to 2), counts(state.copy(navigators=state.navigators+("offline" to offline.copy(grid=2487)))))
         assertNull(GridForceReport.message(state.copy(session=session.copy(generation=2)), galaxy, viewer, 1))
     }
-    @Test fun countsDeployedShipsAndGroundTroopsButNotCrewOrWarehouses() {
+    @Test fun countsDeployedShipBoatsButNotGroundTroopsCrewOrWarehouses() {
         val stock = PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
             mapOf(1 to OutfitStock(1,2,OutfitKind.PATROL,1049,10,
-                units=UnitInventory(mapOf(UnitStack(0) to 10),mapOf(UnitStack(0) to 2,UnitStack(3) to 40)))),
+                units=UnitInventory(mapOf(UnitStack(32) to 10),mapOf(UnitStack(0) to 2,UnitStack(3) to 40)))),
             mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1049,
                 units=UnitInventory(mapOf(UnitStack(0) to 1000)))))
-        assertEquals(mapOf(2487 to 13), counts(WorldSnapshot(0,0,session,navigators=mapOf("self" to viewer),planetStocks=stock)))
+        assertEquals(mapOf(2487 to 3001), counts(WorldSnapshot(0,0,session,navigators=mapOf("self" to viewer),planetStocks=stock)))
+    }
+    @Test fun partialLossChangesMapShipsWithoutChangingGridEntryUnitSlots() {
+        val stack=UnitStack(32)
+        val roster=ActiveShipUnits(listOf(ActiveShipUnit(1,stack),ActiveShipUnit(2,stack,123,damaged=23),ActiveShipUnit(3,stack,0)))
+        val outfit=OutfitStock(1,2,OutfitKind.FLEET,1049,10,units=UnitInventory(mapOf(stack to 3)),activeShips=roster)
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),mapOf(1 to outfit),
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1)),nextShipId=4)
+        fun state(value:PlanetStocks)=WorldSnapshot(0,0,session,navigators=mapOf("self" to viewer),planetStocks=value)
+        assertEquals(mapOf(2487 to 424),counts(state(stocks)))
+        assertEquals(3,GridForces.collect(galaxy,1,listOf(viewer),stocks).getValue(2487).single().units)
+        val lost=stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(roster.values.map {
+            if(it.id==2)it.copy(boats=100) else it
+        }))))
+        assertEquals(mapOf(2487 to 401),counts(state(lost)))
+        assertEquals(3,GridForces.collect(galaxy,1,listOf(viewer),lost).getValue(2487).single().units)
     }
     @Test fun windowEdgesDoNotWrapAcrossGalaxyRows() {
         val edge=viewer.copy(grid=2499)

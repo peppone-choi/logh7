@@ -40,6 +40,8 @@ class OriginalCharacterMessagesTest {
         assertFails { OriginalCharacterMessages.entryId(byteArrayOf(0x10, 4)) }
         val request = ByteBuffer.allocate(31).putShort(0x1200).putInt(0).putShort(0x13).array()
         assertTrue(OriginalCharacterMessages.catalogueRequest(request))
-        assertFalse(OriginalCharacterMessages.catalogueRequest(request.also { it[8] = 1 }))
+        assertTrue(OriginalCharacterMessages.catalogueRequest(request.copyOf().also { it[9] = 0x4a }), "current CD lobby")
+        assertFalse(OriginalCharacterMessages.catalogueRequest(request.copyOf().also { it[9] = 1 }))
+        assertFalse(OriginalCharacterMessages.catalogueRequest(request.also { it[12] = 1 }))
     }
 }

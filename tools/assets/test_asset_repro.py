@@ -1,4 +1,4 @@
-"""Synthetic preview and native/offline comparison checks. Author: 최병호."""
+"""Synthetic preview and native/offline comparison checks. Author: Peppone Choi."""
 import importlib.util
 import json
 from pathlib import Path

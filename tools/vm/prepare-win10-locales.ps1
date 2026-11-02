@@ -5,7 +5,7 @@
 .DESCRIPTION
   Run inside the Windows guest as its auto-login user with an elevated PowerShell.
   Prepare requires temporary NAT for Windows language capabilities. Verify is offline.
-  Author: 최병호. Source: Microsoft Learn (links in docs/ops/isolation-vm.md).
+  Author: Peppone Choi. Source: Microsoft Learn (links in docs/ops/isolation-vm.md).
 #>
 [CmdletBinding()]
 param(

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 import org.logh7.engine.*
 import kotlin.test.*
 
-/** Native editor classes: 004c6d20 mask and 00534160 totals. Author: 최병호. */
+/** Native editor classes: 004c6d20 mask and 00534160 totals. Author: Peppone Choi. */
 class UnitClassCatalogueTest {
     private val catalogues=WorldBootstrap(Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),emptyList(),
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))).catalogues
@@ -22,7 +22,7 @@ class UnitClassCatalogueTest {
             input.position(start+106+length*2)
         }
         assertFalse(input.hasRemaining())
-        assertEquals(112,classes.size)
+        assertEquals(114,classes.size)
         // Both factions' existing deployment: battleship, cruiser, destroyer.
         for ((kind,type) in mapOf(32 to 3,48 to 5,56 to 6,119 to 3,131 to 5,139 to 6)) {
             assertEquals(type,classes.getValue(kind))

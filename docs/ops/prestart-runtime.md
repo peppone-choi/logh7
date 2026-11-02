@@ -155,7 +155,7 @@ hostile-code sandbox; concurrent same-user mutation has validation/use races.
 
 ## 실제 오디오 대상 커버리지 증거 설계
 
-작성: 최병호. 아래는 시험 설계이며 이번 구현에서 제품/API 시험을 실행했다는 뜻이 아니다.
+작성: Peppone Choi. 아래는 시험 설계이며 이번 구현에서 제품/API 시험을 실행했다는 뜻이 아니다.
 
 - 독립 리뷰 뒤 t_78eb1710에서만 exact SHA, 외부 manifest SHA, 원본 exe SHA,
   실제 DLL 경로/바이트 SHA, API 주소와 호출자 모듈/RVA를 실행 로그에 연결한다.

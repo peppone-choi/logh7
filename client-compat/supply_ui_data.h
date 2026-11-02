@@ -1,4 +1,4 @@
-// Native supply record offsets verified against 120b and the selected variable. Author: 최병호.
+// Native supply record offsets verified against 120b and the selected variable. Author: Peppone Choi.
 #pragma once
 #include <string>
 static bool supplyCommandContext() {

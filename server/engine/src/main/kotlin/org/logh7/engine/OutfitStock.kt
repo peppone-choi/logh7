@@ -30,7 +30,7 @@ class LogisticsOfficePolicy(private val galaxy: Galaxy) {
     }
 }
 
-/** Current deployment is independent of the permanent supply depot. Author: 최병호. */
+/** Current deployment is independent of the permanent supply depot. Author: Peppone Choi. */
 data class OutfitPosition(val grid: Int, val baseId: Int = 0) {
     init { require(grid in 0..4999 && baseId in 0..65535) }
 }
@@ -42,8 +42,14 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
     val warehouseId: Int, val commanderId: Int = 0, val units: UnitInventory = UnitInventory(),
     val number: Int = 0, val supplies: Int = 0,
     val activeShips: ActiveShipUnits? = if (units.ships.isEmpty()) ActiveShipUnits(emptyList()) else null,
-    val aideId: Int = 0, val staff: FleetStaff = FleetStaff(), val position: OutfitPosition? = null) {
+    val aideId: Int = 0, val staff: FleetStaff = FleetStaff(), val position: OutfitPosition? = null,
+    val activeGround:ActiveGroundUnits?=null, val strategy:NpcStrategicState?=null,
+    /** U-13 guard unit: ship unit ID -> GuardShips option index. Shown to the CD as a patrol. */
+    val guard:Map<Int,Int>?=null) {
     init {
+        require(guard==null || kind==OutfitKind.PATROL && guard.size in 1..GuardShips.MAXIMUM_UNITS &&
+            guard.values.all {GuardShips.option(it)?.power==power} &&
+            activeShips?.values?.map {it.id}?.toSet()==guard.keys) {"Invalid guard roster"}
         require(id > 0 && power in 2..3 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
         require(number in 0..255 && supplies >= 0)
         require(aideId >= 0 && (aideId == 0 || kind == OutfitKind.FLEET && aideId != commanderId))
@@ -53,6 +59,11 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
         require(units.work.isEmpty()) { "An outfit cannot own a production line" }
         require(position == null || kind != OutfitKind.GROUND || position.baseId != 0)
         require(activeShips == null || activeShips.quantities() == units.ships) { "Outfit ship identities differ from inventory" }
+        require(activeGround==null || activeGround.quantities()==GroundUnits.quantities(units)) {"Outfit ground identities differ from inventory"}
+        require(activeGround?.values.orEmpty().all {u->
+            UnitSpecifications.crews.single {it.kind==u.stack.kind}.power==power &&
+                (u.carrier==0 || activeShips?.values?.any {it.id==u.carrier && it.boats>0}==true)
+        }) {"Invalid ground carrier or faction"}
     }
 }
 

@@ -1,4 +1,4 @@
-// Decoded own-character cards and location. Author: 최병호.
+// Decoded own-character cards and location. Author: Peppone Choi.
 #pragma once
 #include "planet_info_data.h"
 namespace logh {

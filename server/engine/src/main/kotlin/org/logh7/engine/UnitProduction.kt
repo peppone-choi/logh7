@@ -36,6 +36,19 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
             if (products.isNotEmpty()) put(base.id, products.groupingBy { it }.eachCount().map { Line(it.key, it.value) })
         }
     }
+    // Occupation policy: restart shared named recipes in the captor's catalogue.
+    // Faction-exclusive technology has no inferred replacement. Original manual rows stay intact.
+    private val ownedLines = (2..3).associateWith { power ->
+        lines.mapValues { (_, source) ->
+            source.mapNotNull { line ->
+                ProductionUnits.definitions.singleOrNull {
+                    it.power == power && it.ship == line.unit.ship && it.name == line.unit.name
+                }?.let { Line(it, line.batch) }
+            }.groupBy { it.unit }.map { (unit, batches) -> Line(unit, batches.sumOf { it.batch }) }
+        }
+    }
+    fun forOwner(base: Int, power: Int): List<Line> = ownedLines[power]?.get(base).orEmpty()
+
     fun advance(stock: PlanetStock, dayStart: PlanetStock): PlanetStock {
         val people = checkNotNull(stock.economy)
         val startPeople = checkNotNull(dayStart.economy)
@@ -46,9 +59,11 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         val needed = (startPeople.population.toLong() + policyEconomy.foodPeoplePerUnit - 1) / policyEconomy.foodPeoplePerUnit
         if (available < needed || stock.camp != 0 || stock.power !in 2..3 || people.adults == 0) return stock
         val shipyard = galaxy.facilities.getValue(stock.baseId).any { it.kind == 10 }
-        val ships = stock.units.ships.toMutableMap(); val troops = stock.units.troops.toMutableMap(); val work = stock.units.work.toMutableMap()
+        val ships = stock.units.ships.toMutableMap(); val troops = stock.units.troops.toMutableMap(); val work = stock.units.work.filterKeys { key ->
+            ProductionUnits.definitions.singleOrNull { it.key == key }?.let { it.power == stock.power } ?: true
+        }.toMutableMap()
         var food = stock.food; var mineral = stock.mineral; var supplies = stock.supplies; var population = people.population; var adults = people.adults
-        for (line in lines[stock.baseId].orEmpty().sortedBy { it.unit.key }) {
+        for (line in forOwner(stock.baseId, stock.power).sortedBy { it.unit.key }) {
             val unit = line.unit
             if (unit.power != stock.power || unit.ship && !shipyard) continue
             var hours = (work[unit.key] ?: 0) + 24

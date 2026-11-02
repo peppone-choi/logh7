@@ -48,6 +48,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                     val kind = Flagships.forType(data.power, data.shipType).kind
                     if (kind != data.shipKind) data = data.copy(shipKind = kind)
                 }
+                // A defector (U-25) flies the new side's flagship of the same type.
+                if (data.power in 2..3 && data.shipKind > 0 && Flagships.find(data.shipKind)?.let { it.power != data.power } == true)
+                    data = data.copy(shipKind = Flagships.forType(data.power, data.shipType).kind)
                 registered[account] = data
                 nextId = maxOf(nextId, data.id + 1)
             }
@@ -56,13 +59,31 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 ids.distinct().size == ids.size && ids.all { id -> originals.any { it.character.id == id } } })
         }
     }
-    @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account] }
+    private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
+    @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.let(::displayed) }
+    /** U-11: a character that died in battle leaves the account, which may then create a new one. */
+    @Synchronized fun retire(account: String, id: Long): Boolean {
+        if (registered[account]?.id != id) return false
+        val next = registered - account
+        save(next); registered.remove(account); pending.remove(account); return true
+    }
+    /** U-25 defection (user decision 2026-11-01): the one sanctioned change of a registered character's side. */
+    @Synchronized fun defect(account: String, id: Long, power: Int): Boolean {
+        val current = registered[account]?.takeIf { it.id == id && it.power != power } ?: return false
+        require(power in 2..3)
+        val next = registered + (account to current.copy(power = power,
+            shipKind = Flagships.forType(power, current.shipType).kind))
+        save(next); registered[account] = next.getValue(account); return true
+    }
     @Synchronized fun registeredCharacters():List<CharacterMessages.Generate> {
-        resolveLottery();return registered.values.sortedBy { it.id }
+        resolveLottery();return registered.values.sortedBy { it.id }.map(::displayed)
+    }
+    @Synchronized fun accountByCharacter(id:Int):String? {
+        resolveLottery();return registered.entries.singleOrNull {it.value.id==id.toLong()}?.key
     }
     @Synchronized fun characterById(id: Int): CharacterMessages.Generate? {
         resolveLottery()
-        return registered.values.singleOrNull { it.id == id.toLong() }
+        return registered.values.singleOrNull { it.id == id.toLong() }?.let(::displayed)
     }
     @Synchronized fun entries(account: String): List<Long> { resolveLottery(); return applications[account].orEmpty().toList() }
     @Synchronized fun candidates(account: String): List<OriginalCharacterMessages.Candidate> {
@@ -70,6 +91,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         if (account in registered || account in pending) return emptyList()
         // Local accounts have fame 0. Original numeric conditions are unknown.
         return originals.filter { it.minimumFame <= fame(account) && registered.values.none { owned -> owned.id == it.character.id } }
+            .map {it.copy(character=KoreanDisplayNames.original(it.character))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0
     @Synchronized fun entryState(account: String, id: Long): ByteArray {
@@ -134,7 +156,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         require(account !in registered) { "Account already owns a character in this session" }
         val previous = pending[account]
         val response = if (message.category == 0) {
-            require(originals.none { normalized(it.character.surname) == normalized(message.surname) }) { "Surname already reserved" }
+            require(originals.none { normalized(it.character.surname) == normalized(message.surname) ||
+                normalized(KoreanDisplayNames.original(it.character).surname) == normalized(message.surname) }) { "Surname already reserved" }
             require((pending + registered).none { (owner, data) -> owner != account && normalized(data.surname) == normalized(message.surname) }) { "Surname already reserved" }
             check(pending.size < 4096 || previous != null)
             message.copy(id = previous?.id ?: nextId++, check = 1)

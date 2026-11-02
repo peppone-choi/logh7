@@ -7,7 +7,7 @@ import org.logh7.engine.*
 import java.nio.file.Path
 import kotlin.test.*
 
-/** Assignment persists both physical stock balances and payment in one world switch. Author: 최병호. */
+/** Assignment persists both physical stock balances and payment in one world switch. Author: Peppone Choi. */
 class BaseRemainderTransactionTest {
     @TempDir lateinit var directory:Path
     private val rules=SessionRules.load()

@@ -13,7 +13,7 @@ data class LogisticsRequest(val account: String, val connection: String, val cha
 data class LogisticsResult(val stocks: PlanetStocks? = null, val rejection: LogisticsRejection? = null,
     val reservation: Long? = null)
 
-/** World-actor-owned reservations. Only COMMIT changes durable stock. Author: 최병호. */
+/** World-actor-owned reservations. Only COMMIT changes durable stock. Author: Peppone Choi. */
 internal class OutfitLogistics(private val clock: () -> Long, private val leaseMillis: Long = 120_000) {
     private data class Reservation(val id: Long, val request: LogisticsRequest, val warehouse: Int, val base: Int, val expires: Long)
     private val reservations = mutableListOf<Reservation>()
@@ -101,7 +101,7 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 val crewKinds = UnitSpecifications.crews.filter { it.power == power && it.type == 3 }.map { it.kind }.toSet()
                 val crew = destination.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
                 if (required != crew) return reject(LogisticsRejection.CREW)
-                if (outfit.supplies > OutfitSupplies.capacity(destination.units)) return reject(LogisticsRejection.STOCK)
+                if (outfit.supplies > OutfitSupplies.capacity(destination)) return reject(LogisticsRejection.STOCK)
                 reorganized
             }
         } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }

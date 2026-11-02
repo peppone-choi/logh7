@@ -28,7 +28,7 @@ docker compose -f deploy/docker-compose.yml --profile game stop game-server
 
 ### 격리 전체 스택 smoke CI
 
-작성: 최병호
+작성: Peppone Choi
 
 `container/game-image`는 기존 game-only 검사와 정리를 마친 뒤 `deploy/ci/stack_smoke.py run`으로 네 서비스 전체를 기동한다. 실행별 프로젝트 이름은 `logh7-stack-ci-${github.run_id}-${github.run_attempt}`이며 기존 Compose 이미지·네트워크·loopback 게시 설정을 사용한다. GitHub-hosted runner 전용이다. VPS·운영·실제 데이터 환경에서 실행하지 않는다.
 
@@ -49,7 +49,7 @@ PostgreSQL은 **게임 서버에 미연결**이다. 앱은 파일 기반 세션 
 
 ## 호스트 게임 연결의 후속 계약
 
-작성: 최병호
+작성: Peppone Choi
 
 [`Gateway.kt`의 `checkedBindAddress`](../../server/gateway/src/main/kotlin/org/logh7/gateway/Gateway.kt)는 정확히 `127.0.0.1`을 허용하며 그 외 주소에는 private/link-local IPv4 및 활성 VirtualBox host-only 어댑터를 요구한다. Docker bridge는 이 어댑터가 아니다. `0.0.0.0`, relay, host networking으로 우회하지 않는다.
 

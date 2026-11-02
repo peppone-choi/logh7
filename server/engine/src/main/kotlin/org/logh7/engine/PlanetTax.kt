@@ -12,9 +12,13 @@ enum class TaxRejection { SESSION, IDENTITY, ACCESS, CARD, BASE, LOCATION, BUSY,
 data class TaxResult(val player: Navigator?, val stocks: PlanetStocks?, val rejection: TaxRejection? = null,
     val changed: Boolean = false, val recovery: NavigationResult? = null)
 
-/** Civil planetary offices; capital administrator tax authority is restoration policy. Author: 최병호. */
+/** Civil planetary offices; capital administrator tax authority is restoration policy. Author: Peppone Choi. */
 internal object PlanetTax {
     const val COST = 160 // Original constmsg group 0, entry 97: MCP 160, no wait or duration.
+    fun effectiveRate(stock: PlanetStock, base: BaseCondition): Int {
+        require(stock.baseId == base.baseId)
+        return stock.taxRate ?: base.tax
+    }
     fun evaluate(galaxy: Galaxy, request: TaxRequest, session: SessionState, player: Navigator?, stocks: PlanetStocks): TaxResult {
         fun reject(reason: TaxRejection) = TaxResult(player, stocks, reason)
         val participant = session.participants[request.account] ?: return reject(TaxRejection.SESSION)
@@ -32,10 +36,10 @@ internal object PlanetTax {
         if (seed.habitability == 0) return reject(TaxRejection.BASE)
         if (player.baseId != base.baseId) return reject(TaxRejection.LOCATION)
         if (player.cpPaused || player.fuelReadyAt != null || player.dockTarget != null) return reject(TaxRejection.BUSY)
-        if (request.rate == (base.taxRate ?: seed.tax)) return TaxResult(player, stocks)
+        if (request.rate == effectiveRate(base, seed)) return TaxResult(player, stocks)
         val payment = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), COST.toLong(), CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(TaxRejection.CP)
-        return TaxResult(player.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp)),
+        return TaxResult(player.paidWith(payment.balance),
             stocks.copy(bases = stocks.bases + (base.baseId to base.copy(taxRate = request.rate))), changed = true)
     }
 }

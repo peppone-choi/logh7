@@ -12,11 +12,14 @@ import java.util.concurrent.*
 
 class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetrics, private val galaxy: Galaxy? = null, ticking: Boolean = true,
     stockStore: PlanetStockStore? = null, navigationStore: NavigationStore? = null,
-    worldStateCommitter: WorldStateCommitter? = null) : AutoCloseable {
+    worldStateCommitter: WorldStateCommitter? = null,
+    private val navigationDecorator: (GameNavigation) -> GameNavigation = { it },
+    private val powerByIndex: (Int) -> Int = {2},npcTactics:Boolean=false,npcStrategy:Boolean=false) : AutoCloseable {
     val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,
-        stockStore = stockStore, navigationStore = navigationStore, worldStateCommitter = worldStateCommitter)
+        stockStore = stockStore, navigationStore = navigationStore, worldStateCommitter = worldStateCommitter,
+        npcPolicy=NpcTacticalPolicy(enabled=npcTactics || npcStrategy,strategic=npcStrategy))
     val access = EngineGameAdmission(engine, scope)
     private val clients = ConcurrentLinkedQueue<SyntheticClient>()
     private val characters = ConcurrentHashMap<String, CharacterMessages.Generate>()
@@ -56,7 +59,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
             } finally { reservations.forEach { it.close() } }
             val candidate = Gateway(directory.resolve("captures"), accounts, directory.resolve("characters.properties"),
                 gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission,
-                world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { EngineGameNavigation(engine, scope) },
+                world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { navigationDecorator(EngineGameNavigation(engine, scope)) },
                 stock = galaxy?.let { EngineGameStock(engine, scope) }, administration = galaxy?.let { EngineGameAdministration(engine, scope, it) })
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
@@ -107,7 +110,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
         } catch (failure: Throwable) { game.close(); throw failure }
     }
     private fun create(client: SyntheticClient, index: Int): CharacterMessages.Generate = metrics.measure("create") {
-        var current = CharacterMessages.Generate(0, 0, 2, 0, 0, "Load%03d".format(index), "Test", 30,
+        var current = CharacterMessages.Generate(0, 0, powerByIndex(index), if(powerByIndex(index)==3)3 else 0, 0, "Load%03d".format(index), "Test", 30,
             1, 1, 1, List(8) { 0 }, 0, 0, 0, 0, 0, 0, "", 0)
         for (category in 0..4) {
             current = current.copy(category = category, shipName = if (category >= 3) "Ship%03d".format(index) else "")

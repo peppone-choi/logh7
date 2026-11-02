@@ -4,11 +4,13 @@ import java.nio.file.Path
 
 /** Preserve previous generations' files; a new session never reuses its previous characters. */
 class CharacterStores(private val file: Path?) {
+    /** U-27: account fame carried across generations. */
+    val fame = FameLedger(file?.resolveSibling("${file.fileName}.fame"))
     private var cached: Pair<Long, CharacterCreation>? = null
     @Synchronized fun get(generation: Long): CharacterCreation {
         require(generation > 0)
         cached?.takeIf { it.first == generation }?.let { return it.second }
         val path = if (generation == 1L) file else file?.resolveSibling("${file.fileName}.session-$generation")
-        return CharacterCreation(path).also { cached = generation to it }
+        return CharacterCreation(path, accountFame = fame.fame()).also { cached = generation to it }
     }
 }

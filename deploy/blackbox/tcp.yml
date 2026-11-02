@@ -1,4 +1,4 @@
-# 작성: 최병호 | LOGH-46 | No handshake, credentials or game command is sent.
+# 작성: Peppone Choi | LOGH-46 | No handshake, credentials or game command is sent.
 modules:
   logh7_tcp_connect:
     prober: tcp

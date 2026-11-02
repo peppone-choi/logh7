@@ -1,6 +1,6 @@
 # Wayback Machine 보존 URL 목록 — gineiden.com 및 관련 도메인
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27
 - 모든 URL·CDX 조회의 확인 날짜: 2026-09-27
 - 근거 태그: `evidence:manual`(공식 사이트 아카이브 본문), `evidence:web`(제3자), `evidence:guess`(추정)

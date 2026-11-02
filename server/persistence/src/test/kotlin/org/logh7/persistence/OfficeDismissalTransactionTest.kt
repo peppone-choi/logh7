@@ -25,7 +25,7 @@ class OfficeDismissalTransactionTest {
     }
     private suspend fun dismiss(engine:WorldEngine,card:Int):OfficeDismissalResult {
         val result=CompletableDeferred<OfficeDismissalResult>()
-        engine.submit(WorldCommand.DismissOffice(OfficeDismissalRequest("pilot","c",10000,Power.EMPIRE,1,10001,card,2,2),result))
+        engine.submit(WorldCommand.DismissOffice(OfficeDismissalRequest("pilot","c",10000,Power.EMPIRE,1,10001,card,if(card==55)1 else 2,2),result))
         return result.await()
     }
     @Test fun paymentAndEveryStoredOfficeFamilyPublishTogetherOrNotAtAll()=runBlocking {

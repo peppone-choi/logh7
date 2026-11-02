@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Native 0c0b moves between base stock and reserved outfit stock. Author: 최병호. */
+/** Native 0c0b moves between base stock and reserved outfit stock. Author: Peppone Choi. */
 class StockAssignmentRequest(val account: String, val connection: String, val characterId: Int, val power: Power,
     val generation: Long, val base: Int, val outfit: Int, val kind: Int,
     ships: List<ReorganizationShip>, troops: List<ReorganizationTroop>, val supplies: Int,

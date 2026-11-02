@@ -1,6 +1,6 @@
 ---
 title: 검증된 조직·초기 카드 시드 정의
-author: 최병호
+author: Peppone Choi
 created: 2026-10-09
 ---
 

@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD CommandSpotChat: 00465810/00465960, receiver 004be680. Author: 최병호. */
+/** CD CommandSpotChat: 00465810/00465960, receiver 004be680. Author: Peppone Choi. */
 object ChatMessages {
     data class Spot(val characterId: Int, val text: String)
     /** CD cast_type: 0=all, 1=same faction, 2=same fleet, within the current grid. */

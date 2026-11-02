@@ -9,7 +9,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
 
-/** Encrypted native assignment requests through the world actor and combined store. Author: 최병호. */
+/** Encrypted native assignment requests through the world actor and combined store. Author: Peppone Choi. */
 class StockAssignmentWireTest {
     @TempDir lateinit var directory: Path
     private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
@@ -209,7 +209,7 @@ class StockAssignmentWireTest {
                 if(permitted) {
                     assertEquals(1049,reply.getInt(7))
                     assertEquals(2487,reply.getShort(11).toInt())
-                    assertEquals("オーディン\u0000", String(ByteArray(reply.get(15).toInt()*2).also { reply.position(16);reply.get(it) }, Charsets.UTF_16BE))
+                    assertEquals("오딘\u0000", String(ByteArray(reply.get(15).toInt()*2).also { reply.position(16);reply.get(it) }, Charsets.UTF_16BE))
                 }
                 client.expect(0x1201)
                 assertEquals(before,state.stocks);assertEquals(saves,state.saves)

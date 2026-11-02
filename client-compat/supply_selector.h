@@ -1,5 +1,5 @@
 // Supply is the first selection, so TARGET_SELECT_S_BASE has no preceding value.
-// Keep the native filter vector and resolve its grid from the current unit. Author: 최병호.
+// Keep the native filter vector and resolve its grid from the current unit. Author: Peppone Choi.
 #pragma once
 static void __fastcall supplySelectFilter(void* step, void*, unsigned kind, const char* variable) {
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);

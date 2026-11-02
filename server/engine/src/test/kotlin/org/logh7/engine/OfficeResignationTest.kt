@@ -41,6 +41,14 @@ class OfficeResignationTest {
             assertFalse(replay.changed);assertEquals(result.player,replay.player);assertEquals(result.stocks,replay.stocks)
         }
     }
+    @Test fun aNationalSeatKeptInTheGeneralSeatListIsAlsoCleared() {
+        val base=stock(161,0)
+        val listed=base.copy(strategic=base.strategic.copy(offices=listOf(OfficeHolding(161,1177,10000))))
+        val result=act(request(161),listed)
+        assertNull(result.rejection);assertTrue(result.changed)
+        assertTrue(result.stocks!!.strategic.offices.isEmpty());assertTrue(result.stocks.nationalOffices.isEmpty())
+        assertEquals(ResignationRejection.AUTHORITY,act(request(161),result.stocks,result.player!!).rejection)
+    }
     @Test fun forgedIdentityStaleConnectionAndUnsupportedOrMissingAuthorityNeverPay() {
         val q=request(57);val s=stock(57)
         assertEquals(ResignationRejection.SESSION,act(q.copy(connection="old")).rejection)

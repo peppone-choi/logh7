@@ -42,7 +42,7 @@ class OfficeDismissalTest {
             val initial=stock();val b=initial.bases.getValue(base).copy(governorId=10000)
             val stocks=initial.copy(bases=initial.bases+(base to (rule?.assign(b,10001) ?: b.copy(garrisonCommanderId=10001))),
                 nationalOffices=if(rule==null)emptyMap() else mapOf(rule.authority to 10000))
-            val q=OfficeDismissalRequest("actor","c",10000,power,1,10001,card,if(card==192)1 else 2,if(power==Power.EMPIRE)2 else 3)
+            val q=OfficeDismissalRequest("actor","c",10000,power,1,10001,card,if(card==192 || card==55)1 else 2,if(power==Power.EMPIRE)2 else 3)
             val result=OfficeDismissal.evaluate(galaxy,q,session(power),player(power),stocks)
             assertNull(result.rejection,"card $card");assertEquals(840,result.player!!.mcp)
             assertEquals(b,result.stocks!!.bases.getValue(base));assertEquals(stocks.nationalOffices,result.stocks!!.nationalOffices)
@@ -60,7 +60,7 @@ class OfficeDismissalTest {
     }
     @Test fun invalidIdentityAmbiguityBusyAndInsufficientCpNeverClearOrCharge() {
         val b=stock();val stocks=b.copy(bases=b.bases+(1048 to b.bases.getValue(1048).copy(governorId=10000,garrisonCommanderId=10001)))
-        val q=OfficeDismissalRequest("actor","c",10000,Power.EMPIRE,1,10001,55,2,2);val p=player(Power.EMPIRE)
+        val q=OfficeDismissalRequest("actor","c",10000,Power.EMPIRE,1,10001,55,1,2);val p=player(Power.EMPIRE)
         fun act(r:OfficeDismissalRequest=q,nav:Navigator=p,s:PlanetStocks=stocks)=OfficeDismissal.evaluate(galaxy,r,session(Power.EMPIRE),nav,s)
         for((r,reason) in listOf(q.copy(connection="old") to DismissalRejection.SESSION,q.copy(generation=2) to DismissalRejection.SESSION,
             q.copy(characterId=10002) to DismissalRejection.IDENTITY,q.copy(target=10000) to DismissalRejection.TARGET,
@@ -76,6 +76,6 @@ class OfficeDismissalTest {
         val dup=stocks.copy(bases=stocks.bases+(1047 to stocks.bases.getValue(1048).copy(baseId=1047)))
         val denied=OfficeDismissal.evaluate(g,q,session(Power.EMPIRE),p,dup)
         assertEquals(DismissalRejection.AMBIGUOUS,denied.rejection);assertEquals(dup,denied.stocks);assertEquals(p,denied.player)
-        assertTrue(OfficeDismissalPolicy(g).available(dup,10000,2,2).isEmpty())
+        assertTrue(OfficeDismissalPolicy(g).available(dup,10000,2,1).isEmpty())
     }
 }

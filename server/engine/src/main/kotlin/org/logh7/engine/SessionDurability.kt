@@ -25,6 +25,8 @@ sealed interface SessionAction {
     data class Territory(val systems: Map<Power, Int>, val capitals: Set<Power>) : SessionAction
     data object Restart : SessionAction
     data object RecoverConnections : SessionAction
+    /** U-25 亡命: the participant's sanctioned faction change. */
+    data class Defect(val account: String, val power: Power) : SessionAction
 }
 
 data class SessionTransition(val state: DurableWorldState, val admission: Admission? = null,
@@ -67,6 +69,7 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
         }
         SessionAction.Restart -> restart()
         SessionAction.RecoverConnections -> { before.session.participants.keys.forEach { simulation.disconnect(it) }; emptyList() }
+        is SessionAction.Defect -> { simulation.defect(action.account, action.power); emptyList() }
     } } catch (failure: RuntimeException) {
         if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException) throw failure
         return SessionTransition(before.copy(revision = Math.addExact(before.revision, 1),
@@ -91,11 +94,16 @@ fun WorldCommand.sessionAction(): SessionAction = when (this) {
     is WorldCommand.Stock -> error("Production uses its own forced store on the world actor")
     is WorldCommand.Logistics -> error("Logistics uses the combined inventory store on the world actor")
     is WorldCommand.Tax -> error("Tax uses the combined world store on the world actor")
+    is WorldCommand.Budget -> error("Budget uses the combined world store on the world actor")
+    is WorldCommand.Social -> error("Social uses the combined world store on the world actor")
+    is WorldCommand.StrategyAction -> error("Strategy actions use the combined world store on the world actor")
+    is WorldCommand.FormOutfit -> error("Outfit formation uses the combined world store on the world actor")
     is WorldCommand.AppointGarrison -> error("Appointment uses the combined world store on the world actor")
     is WorldCommand.DismissOffice -> error("Dismissal uses the combined world store on the world actor")
     is WorldCommand.ResignOffice -> error("Resignation uses the combined world store on the world actor")
     is WorldCommand.Reorganize -> error("Reorganization uses the combined world store on the world actor")
     is WorldCommand.SupplyOutfit -> error("Supply uses the combined world store on the world actor")
+    is WorldCommand.TransferGround -> error("Ground transfer uses the combined world store on the world actor")
     is WorldCommand.SupplementOutfit -> error("Supplement uses the combined world store on the world actor")
     is WorldCommand.AssignStock -> error("Stock assignment uses the combined world store on the world actor")
 }

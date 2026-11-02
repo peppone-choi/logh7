@@ -47,8 +47,14 @@ class FleetCommanderAppointmentWireTest {
             fun query(search:Int,flags:Int,role:Int=0)=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
                 .putShort(search.toShort()).putShort(flags.toShort()).putShort(role.toShort()).array()
             actor.send(query(18,123));next(actor,0x1200)
-            val roles=next(actor,0x1208);assertEquals(3,ByteBuffer.wrap(roles).getShort(6).toInt())
-            assertEquals(39,ByteBuffer.wrap(roles).getShort(8).toInt());next(actor,0x1201)
+            val roles=ByteBuffer.wrap(next(actor,0x1208));roles.position(6)
+            val listed=List(roles.short.toInt()) {
+                val id=roles.short.toInt();assertEquals(0,roles.int)
+                assertTrue(roles.get().toInt()>0);id
+            }
+            assertEquals(listed.sorted().distinct(),listed)
+            assertTrue(39 in listed,"The fleet commander appointment must remain available")
+            assertFalse(roles.hasRemaining());next(actor,0x1201)
             actor.send(query(27,80,39));next(actor,0x1200)
             val seats=next(actor,0x120c);assertEquals(1,seats[6].toInt());assertEquals(200,ByteBuffer.wrap(seats).getInt(8));next(actor,0x1201)
             actor.send(query(4,80,39));next(actor,0x1200)

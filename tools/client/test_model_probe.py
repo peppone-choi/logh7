@@ -1,4 +1,4 @@
-"""Portable probe configuration/recording tests; no client execution. Author: 최병호."""
+"""Portable probe configuration/recording tests; no client execution. Author: Peppone Choi."""
 import importlib.util
 from pathlib import Path
 import tempfile

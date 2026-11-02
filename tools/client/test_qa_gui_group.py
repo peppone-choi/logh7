@@ -1,4 +1,4 @@
-"""Keep a two-client GUI group exclusive from other GUI tests. Author: 최병호."""
+"""Keep a two-client GUI group exclusive from other GUI tests. Author: Peppone Choi."""
 import subprocess
 import sys
 import threading
@@ -17,10 +17,26 @@ class GuiTestGroupTest(unittest.TestCase):
             first.close(); second.close()
         assert_no_gui_group()
 
+    def test_three_copy_group_admits_exactly_three(self):
+        with self.assertRaises(ValueError): GuiTestGroup(copies=4)
+        with GuiTestGroup(copies=3) as group:
+            leases = [group.claim(name) for name in ('first-client', 'second-client', 'third-client')]
+            with self.assertRaises(RuntimeError): group.claim('fourth-client')
+            for lease in leases: lease.close()
+
     def test_same_copy_cannot_be_reused_after_member_exits(self):
         with GuiTestGroup() as group:
             first = group.claim('first-client'); first.close()
             with self.assertRaises(RuntimeError): group.claim('FIRST-CLIENT')
+
+    def test_reconnect_reclaims_only_released_copy_and_retains_two_copy_limit(self):
+        with GuiTestGroup(reusable=True) as group:
+            first, second = group.claim('first-client'), group.claim('second-client')
+            with self.assertRaises(RuntimeError): group.claim('FIRST-CLIENT')
+            first.close()
+            resumed = group.claim('FIRST-CLIENT')
+            with self.assertRaises(RuntimeError): group.claim('third-client')
+            resumed.close(); second.close()
 
     def test_other_process_cannot_acquire_gui_mutex(self):
         with GuiTestGroup():

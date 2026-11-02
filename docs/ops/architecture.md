@@ -1,6 +1,6 @@
 ---
 title: 목표 구성도
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: ADR-0001, ADR-0002, ADR-0004, ADR-0005, docs/re/connection-flow.md
 ---

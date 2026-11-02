@@ -2,7 +2,7 @@
 
 > 2026-09-27 T2 정정 (`evidence:client`, E-300~E-304): 이 문서는 초기 조사 기록이다. 키 교환 phase4는 `0x00645a80`, 실제 로그인 요청은 `0x7000`, 업데이터의 `0x80xx`는 응답 opcode가 아닌 본문 오류값이다. float32 스트림은 BE 비트패턴이며, 송수신 응용 헤더는 비대칭이다. 구현 시 [키 교환·봉투](kex-envelope.md), [로그인](login-messages.md), [업데이터](update-protocol.md), [지도](../re/galaxy-map.md)의 구체적인 정정을 우선한다.
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27
 - 상태: 초기 조사 당시 전 항목 **candidate**. 2026-10-08 초기 프레이밍·키 교환·첫 로그인 봉투의 동적 검증은 [키 교환·봉투](kex-envelope.md)의 LOGH-22 절을 따른다. 나머지 항목의 상태는 별도 검증 전 유지한다.
 - 근거: Evidence E-014, E-016, E-017, E-018, E-023, E-024. 태그 `evidence:client`(관찰)/`evidence:guess`(추정).

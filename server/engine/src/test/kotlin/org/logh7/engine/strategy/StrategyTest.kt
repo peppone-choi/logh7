@@ -55,7 +55,7 @@ class StrategyTest {
             javaClass.getResourceAsStream("/strategy/strategy-commands.csv")!!.readBytes())
         val manualStatuses = java.nio.file.Files.readAllLines(root.resolve("docs/manual/07-command-table.md"))
             .filter { it.startsWith("| ") }.map { it.trim('|').split('|').map(String::trim) }
-            .filter { it.size == 6 }.associate { it[0] to it[5].replace("**", "") }
+            .filter { it.size == 7 }.associate { it[0] to it[5].replace("**", "") }
         val raw = csv.lineSequence().filter { it.isNotEmpty() }.drop(1).toList()
         commands.zip(raw).forEach { (command,line) ->
             assertEquals(listOf(command.group.sourceName,command.sourceName,command.rawCp,command.rawWait,command.rawDuration,command.page.toString()),line.split(','))

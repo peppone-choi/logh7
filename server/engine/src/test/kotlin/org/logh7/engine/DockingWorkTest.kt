@@ -49,6 +49,18 @@ class DockingWorkTest {
         assertEquals(1L, next.strategy!!.jobs.single().id)
         assertEquals(1001, nav.apply(request, session(57600)).player!!.baseId)
     }
+    @Test fun aDestinationLostBeforeExecutionKeepsTheShipAtItsOriginWithoutRefund() {
+        val store = Store()
+        val nav = Navigation(galaxy, store, NavigationPolicy())
+        fun stocks(owner: Int) = PlanetStocks(1, 0, listOf(1000, 1001).associateWith { PlanetStock(it, if (it == 1000) owner else 2, 0, 0, 0, 0) })
+        val queued = nav.apply(request.copy(place = PlaceMove.Dock(1000, 4)), session(0), stocks(2)).player!!
+        assertEquals(840, queued.mcp)
+        val arrival = nav.apply(request, session(28800), stocks(0))
+        assertTrue(arrival.completedDock)
+        val stayed = arrival.player!!
+        assertEquals(0, stayed.baseId); assertEquals(5, stayed.mode); assertEquals(0, stayed.moves)
+        assertNull(stayed.dockTarget); assertTrue(stayed.strategy!!.jobs.isEmpty())
+    }
     @Test fun failedAcceptanceAndArrivalWritesCannotPublishJobPaymentOrLocation() {
         val store = Store()
         val nav = Navigation(galaxy, store, NavigationPolicy())

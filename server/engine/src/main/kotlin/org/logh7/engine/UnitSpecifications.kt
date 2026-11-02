@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import org.logh7.engine.worldseed.*
 
-/** Manual statistics joined to native IDs. Model/class assignments beyond the six flagships are designed. */
+/** Manual statistics joined to native IDs. Extended models and assault flagship output are designed. */
 data class ShipSpecification(val kind: Int, val type: Int, val category: Int, val model: Int,
     val name: String, val manual: ShipUnitDefinition, val number: Int) {
     fun number(column: String, part: Int = 0): Int = manual.stats.getValue(column).let {

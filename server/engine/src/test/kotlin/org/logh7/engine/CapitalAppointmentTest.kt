@@ -39,7 +39,7 @@ class CapitalAppointmentTest {
             assertEquals(AppointmentRejection.BASE,act(rule,q.copy(base=1048)).rejection)
             assertEquals(AppointmentRejection.TARGET,act(rule,q.copy(targetPower=if(rule.power==2)3 else 2)).rejection)
             assertEquals(AppointmentRejection.RANK,act(rule,q.copy(targetRank=20)).rejection)
-            assertEquals(AppointmentRejection.RANK,act(rule,q.copy(actorRank=20)).rejection)
+            assertEquals(AppointmentRejection.AUTHORITY,act(rule,q.copy(actorRank=20)).rejection)
             assertEquals(AppointmentRejection.CP,act(rule,p=result.player.copy(mcp=159,pcp=319)).rejection)
             val taken=rule.assign(original.bases.getValue(q.base),10002)
             assertEquals(AppointmentRejection.OCCUPIED,act(rule,s=original.copy(bases=original.bases+(q.base to taken))).rejection)

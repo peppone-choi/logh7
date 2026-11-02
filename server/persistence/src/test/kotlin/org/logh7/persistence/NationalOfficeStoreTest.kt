@@ -38,7 +38,7 @@ class NationalOfficeStoreTest {
         val valid=Files.readString(path)
         val bad=listOf(valid.replace("N\t17\t10017","N\t2\t10017"),valid.replace("N\t2\t10002","N\t260\t10002"),
             valid.replace("N\t2\t10002","N\t2\t-1"),valid.replace("N\t2\t10002\n",""),
-            valid.replace("\t1\t7\nP","\t1\t6\nP"))
+            valid.replace("\t1\t8\nP","\t1\t7\nP"))
         for(value in bad) {
             assertNotEquals(valid,value)
             Files.writeString(path,value)

@@ -6,6 +6,18 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class OutfitDirectoryTest {
+    @Test fun partyUsesSurvivingBoatsAndKeepsLegacyOverloadReadableWithNoFreeRoom() {
+        val stack=UnitStack(32)
+        for(cargo in listOf(100000,200000)) {
+            val outfit=stocks.outfits.getValue(10).copy(units=UnitInventory(mapOf(stack to 1)),supplies=cargo,
+                activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack,150,supplies=cargo))))
+            val state=stocks.copy(outfits=stocks.outfits+(10 to outfit),nextShipId=2)
+            val packet=WorldBootstrap(galaxy).outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(10,1049,0),2,state)
+            val input=ByteBuffer.wrap(packet);input.position(packet.size-17)
+            assertEquals(cargo,input.int);assertEquals((150*760-cargo).coerceAtLeast(0),input.int)
+            assertEquals(cargo,state.outfits.getValue(10).supplies)
+        }
+    }
     @Test fun partyPublishesCarriedPlusFreeCapacityAndNeverChangesTheStoredCargo() {
         val original=stocks.outfits.getValue(10).copy(units=UnitInventory(mapOf(UnitStack(32) to 2)),supplies=100000,activeShips=null)
         val state=ActiveShips.initialize(stocks.copy(outfits=stocks.outfits+(10 to original)))

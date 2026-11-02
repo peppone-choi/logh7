@@ -1,6 +1,6 @@
 ---
 title: 캐릭터 능력치와 성장
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: gin7manual.pdf(웹판) p.14–15 / CD판 p.12–13
 ---

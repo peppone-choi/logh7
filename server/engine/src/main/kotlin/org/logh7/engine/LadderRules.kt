@@ -20,10 +20,13 @@ data class LadderEntry(
     val peerage: Peerage?,
     val influence: Long,
     val abilityTotal: Long,
+    /** U-05: highest held decoration number (higher number needs more merit, so it ranks higher); -1 none. */
+    val highestDecoration: Int = -1,
 ) {
     init {
         require(characterId.isNotBlank()) { "Blank characterId" }
         require(abilityTotal >= 0) { "Negative abilityTotal" }
+        require(highestDecoration in -1..127) { "Invalid highestDecoration" }
     }
 }
 
@@ -33,7 +36,8 @@ data class LadderEntry(
  * SHA-256: ff9b7b638582febba723413d9956f4166aecbc20746cb35bb4afddcef9515080
  *
  * 공적 많은 순 → 작위 높은 순(EMPIRE만) → 훈장 → 영향력 높은 순 → 전 능력치 합계.
- * 제3법칙은 원문 "現在叙勲は未実装"에 따라 건너뛰며 훈장 키를 만들지 않는다.
+ * 제3법칙: 원문은 "現在叙勲は未実装"이었으나 叙勲을 구현했으므로(U-05) 보유 최고 훈장 번호가 높은 순으로 비교한다.
+ * 훈장 번호가 높을수록 叙勲에 필요한 공적이 크므로 높은 훈장으로 본다(evidence:guess).
  * U1(evidence:guess): 원문에 방향 없는 능력 합계는 높은 순으로 승인됐다.
  * U2(evidence:guess): 작위 서열·작위 없음 위치는 [Peerage]의 승인 추정이다.
  * 이 두 결정을 검증된 원작 사실로 간주하지 않는다.
@@ -63,6 +67,7 @@ object LadderRules {
     private fun comparator(power: Power): Comparator<LadderEntry> =
         compareByDescending<LadderEntry> { it.meritPoints }
             .thenBy { if (power == Power.EMPIRE) it.peerage?.ordinal ?: Int.MAX_VALUE else 0 }
+            .thenByDescending { it.highestDecoration }
             .thenByDescending { it.influence }
             .thenByDescending { it.abilityTotal }
 }

@@ -27,7 +27,7 @@ class GarrisonAppointmentTest {
         assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(targetCard=59)).rejection)
         assertEquals(AppointmentRejection.IDENTITY,act(request.copy(power=Power.ALLIANCE),player.copy(power=Power.ALLIANCE)).rejection)
         for(rank in listOf(-1,0,1,7,11,20)) assertEquals(AppointmentRejection.RANK,act(request.copy(targetRank=rank)).rejection)
-        assertEquals(AppointmentRejection.RANK,act(request.copy(actorRank=10)).rejection)
+        assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(actorRank=10)).rejection)
         assertNull(act(request.copy(actorRank=1)).rejection)
         assertEquals(AppointmentRejection.TARGET,act(request.copy(target=10000)).rejection)
         assertEquals(AppointmentRejection.TARGET,act(request.copy(targetPower=3)).rejection)
@@ -45,5 +45,12 @@ class GarrisonAppointmentTest {
         val rejected=GarrisonAppointment.evaluate(extended,request,session,player,many)
         assertEquals(AppointmentRejection.CAPACITY,rejected.rejection)
         assertEquals(player,rejected.player);assertEquals(many,rejected.stocks)
+    }
+    @Test fun aPersonAlreadyHoldingTheSameCardKindElsewhereIsNotAppointedAgain() {
+        val extended=Galaxy(galaxy.systems,galaxy.bases+galaxy.bases.single().copy(id=1050),galaxy.starts)
+        val held=stocks.copy(bases=stocks.bases+(1050 to PlanetStock(1050,2,0,0,0,0,garrisonCommanderId=10001)))
+        val rejected=GarrisonAppointment.evaluate(extended,request,session,player,held)
+        assertEquals(AppointmentRejection.TARGET,rejected.rejection);assertEquals(player,rejected.player);assertEquals(held,rejected.stocks)
+        assertNull(GarrisonAppointment.evaluate(extended,request.copy(target=10002),session,player,held).rejection)
     }
 }

@@ -5,8 +5,8 @@ import kotlin.test.*
 
 class FlagshipsTest {
     @Test fun factionKindsUseDistinctModelsAndReviewedManualStatistics() {
-        assertEquals(listOf(0, 2, 3), Flagships.forPower(2).map { it.kind })
-        assertEquals(listOf(89, 90, 93), Flagships.forPower(3).map { it.kind })
+        assertEquals(listOf(0, 2, 3, 4), Flagships.forPower(2).map { it.kind })
+        assertEquals(listOf(89, 90, 93, 94), Flagships.forPower(3).map { it.kind })
         val empire = Flagships.forType(2, 3)
         val alliance = Flagships.forType(3, 3)
         assertEquals(18, empire.model); assertEquals(1014, alliance.model)
@@ -15,7 +15,8 @@ class FlagshipsTest {
         assertEquals(200, empire.number("出力:出力")); assertEquals(220, alliance.number("出力:出力"))
         assertEquals(30_000, empire.number("最高速度（km/1G秒）:最高速度（km/1G秒）"))
         assertEquals(8, empire.number("装甲:前")); assertEquals(10, alliance.number("装甲:前"))
-        assertTrue(Flagships.definitions.all { it.manual.verificationStatus == "reviewed" })
+        assertTrue(Flagships.definitions.filter {it.type!=4}.all { it.manual.verificationStatus == "reviewed" })
+        assertEquals("designed-assault-flagship",Flagships.forType(2,4).manual.verificationStatus)
         assertNull(Flagships.find(65535))
         assertFailsWith<IllegalArgumentException> { Flagships.forPower(4) }
     }

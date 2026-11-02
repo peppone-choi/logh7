@@ -1,4 +1,4 @@
-"""최병호 — evidence:client/guess, candidate. Fixed synthetic deep-login vectors.
+"""Peppone Choi — evidence:client/guess, candidate. Fixed synthetic deep-login vectors.
 Run: python -B docs/protocol/generate_deep_vectors.py CLIENT.exe OUTPUT_DIRECTORY
 Does not run or modify the client. Cipher implementation reused from generate_vectors.
 """
@@ -65,7 +65,7 @@ def main():
     app('ss-login-ok',0x201,bytes(1))
     app('ss-login-ng',0x202,bytes([1,0]))
     out=Path(sys.argv[2])/'mps-login-deep.json'
-    payload=dict(author='최병호',status='candidate',evidence=['E-310','E-311','E-312','E-314'],
+    payload=dict(author='Peppone Choi',status='candidate',evidence=['E-310','E-311','E-312','E-314'],
                  provenance='Synthetic fixed inputs; no captured game bytes. Each application vector is independent, not one sequence.',
                  source_sha256=source_hash,client_key_hex=a.hex(),server_key_hex=b.hex(),vectors=rows)
     out.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')

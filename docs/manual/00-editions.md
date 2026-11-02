@@ -1,6 +1,6 @@
 ---
 title: 매뉴얼 판본과 공식 사이트 스냅샷 대조
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: 銀英伝７マニュアル.pdf(CD 동봉, 69p) / gin7manual.pdf(웹, 101p) / E:\manual-variants\wayback\*.utf8.txt / manual-internet-archive-variants.csv
 ---

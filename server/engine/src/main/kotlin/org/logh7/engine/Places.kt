@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** CD manual PDF p.32-34: kinds are constmsg groups 73/74/75. Author: 최병호. */
+/** CD manual PDF p.32-34: kinds are constmsg groups 73/74/75. Author: Peppone Choi. */
 enum class SpotAccess(val wire: Int) { CLOSED(0), PUBLIC(1), PRIVATE(2), RANK(3), GUARDED(4) }
 data class PlanetSpot(val id: Int, val kind: Int, val image: Int, val access: SpotAccess)
 data class PlanetFacility(val id: Int, val kind: Int, val baseId: Int, val spots: List<PlanetSpot>)
@@ -49,26 +49,31 @@ object Places {
     fun access(kind: Int): SpotAccess = when (kind) {
         0 -> SpotAccess.GUARDED
         18 -> SpotAccess.CLOSED
-        6, 12, 13, 16, 17, 19, 20 -> SpotAccess.PRIVATE
+        // Academy classroom/simulator (W69–71 commands run there); own-faction access is design (evidence:guess).
+        16, 17 -> SpotAccess.GUARDED
+        // 14 ballroom / 15 hunting ground are the host's own mansion rooms (U-18 夜会/狩猟, evidence:guess).
+        6, 12, 13, 14, 15, 19, 20 -> SpotAccess.PRIVATE
         9, 10 -> SpotAccess.RANK
         in 22..104 -> SpotAccess.PRIVATE
         else -> SpotAccess.PUBLIC
     }
-    fun forBase(base: GalaxyBase, power: Int = 0): List<PlanetFacility> {
+    /** [estate]: the base is someone's fief, so it holds a mansion (18) for 狩猟 (U-18, design-social-gatherings.md). */
+    fun forBase(base: GalaxyBase, power: Int = 0, estate: Boolean = false): List<PlanetFacility> {
         val capitalEmpire = base.grid == 2487 && base.name == "オーディン"
         val capitalAlliance = base.grid == 2015 && base.name == "ハイネセン"
         val kinds = when {
             // The manual's automatic-production table includes ships at fortresses too.
-            base.kind == 1 -> listOf(1, 4, 9, 10, 11, 13, 17, 21)
+            base.kind == 1 -> listOf(1, 2, 4, 9, 10, 11, 13, 17, 21)
             BaseCondition.habitable(base) -> (0..17).toList() + listOf(19)
             else -> listOf(0, 1, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 17)
         }
         val additions = when {
             capitalEmpire -> listOf(18, 20, 22, 23, 29, 30, 31, 32, 35, 37, 38)
-            capitalAlliance -> listOf(20, 23, 24, 29, 33, 34, 36)
+            // The alliance capital mansion hosts 夜会 (design-social-gatherings.md §2.1, evidence:guess).
+            capitalAlliance -> listOf(18, 20, 23, 24, 29, 33, 34, 36)
             else -> emptyList()
         }
-        return (kinds + additions).distinct().map { kind ->
+        return (kinds + additions + if (estate) listOf(18) else emptyList()).distinct().map { kind ->
             val facilityId = Math.addExact(Math.multiplyExact(base.id, 100), kind + 1)
             val offices = when {
                 kind == 0 && power == 2 -> listOf(63)

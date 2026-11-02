@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD 00465240: time, character and return base, each u32. Author: 최병호. */
+/** CD 00465240: time, character and return base, each u32. Author: Peppone Choi. */
 object ReturnBaseMessages {
     data class Selection(val character: Int, val base: Int)
     fun selection(message: ByteArray): Selection {

@@ -1,6 +1,6 @@
 ---
 title: 전략 게임 핵심 — 직무권한 카드·CP·조직·그리드·이동
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: gin7manual.pdf(웹판) p.19–33 / CD판 p.16–33
 ---

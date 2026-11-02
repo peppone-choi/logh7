@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Designed economy parameters; no original server formulas survived. Author: 최병호. */
+/** Designed economy parameters; no original server formulas survived. Author: Peppone Choi. */
 data class PlanetEconomy(val population: Int, val adults: Int, val approval: Int, val peace: Int) {
     init { require(population >= 0 && adults in 0..population && approval in 0..100 && peace in 0..100) }
 }

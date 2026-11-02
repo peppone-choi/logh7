@@ -1,6 +1,6 @@
 # 계획 요약
 
-작성: 최병호 · 2026-09-27 · **단일 원천: Linear `LOGH` 팀** (https://linear.app/peppone-choi/team/LOGH)
+작성: Peppone Choi · 2026-09-27 · **단일 원천: Linear `LOGH` 팀** (https://linear.app/peppone-choi/team/LOGH)
 
 이 문서는 요약과 링크만 담는다. 일정·상태·담당은 Linear가 기준이다.
 

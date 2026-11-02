@@ -1,6 +1,6 @@
 # 키 교환·암호 봉투 정적 명세
 
-작성자: 최병호 · 2026-10-12 갱신 · 상태: 초기 키 교환·첫 로그인 봉투 **validated**, 재키 서버 후보 구현·원본 상호운용 미검증.
+작성자: Peppone Choi · 2026-10-12 갱신 · 상태: 초기 키 교환·첫 로그인 봉투 **validated**, 재키 서버 후보 구현·원본 상호운용 미검증.
 근거: `evidence:client`, E-300/E-301. 주소는 CD판 `G7MTClient.exe` VA이며 SHA256은 벡터 JSON에 기록한다.
 
 ## 재키 정적 계약과 서버 후보 (2026-10-12)
@@ -114,7 +114,7 @@ phase1/2는 송신 초기 sequence가 0이면 1로 바꾼다. phase3의 잔여 s
 
 ## phase3 수용 조건·실패 처리 (T2 심화, candidate)
 
-작성자: 최병호 · 2026-09-28. 근거 `evidence:client`, E-310. 디스어셈블리 `notes/t2deep-phase3.asm`을 Ghidra 출력과 대조했다. 아래 순서를 서버 체크리스트로 사용한다.
+작성자: Peppone Choi · 2026-09-28. 근거 `evidence:client`, E-310. 디스어셈블리 `notes/t2deep-phase3.asm`을 Ghidra 출력과 대조했다. 아래 순서를 서버 체크리스트로 사용한다.
 
 - [ ] 외부 type=0x35, wrapping ciphertext는 8바이트 배수. `0x00612d80`은 다른 type을 받으면 연결을 닫는다.
 - [ ] 복호 성공 후 checksum 필드 2바이트, A_len 2바이트, A[A_len]가 존재한다.

@@ -1,5 +1,5 @@
 // Connect the spot menu to the existing native character information tabs.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "spot_presence.h"
 #include "character_cards.h"

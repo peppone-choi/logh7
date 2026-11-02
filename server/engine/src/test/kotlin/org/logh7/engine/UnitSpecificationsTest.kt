@@ -7,7 +7,9 @@ class UnitSpecificationsTest {
     @Test fun everyProducedShipAndTroopHasAReviewedDefinitionWithSeparateFlagshipAndUnitSizes() {
         val ships = UnitSpecifications.ships.associateBy { it.kind }
         val crews = UnitSpecifications.crews.associateBy { it.kind }
-        assertEquals(112, ships.size); assertEquals(11, crews.size)
+        assertEquals(114, ships.size); assertEquals(11, crews.size)
+        assertEquals(setOf(4,94),ships.values.filter {it.manual.verificationStatus=="designed-assault-flagship"}.map {it.kind}.toSet())
+        for(kind in listOf(4,94))assertEquals(1,ships.getValue(kind).number)
         ProductionUnits.definitions.forEach { unit ->
             if (unit.ship) {
                 val definition = ships.getValue(unit.kind)

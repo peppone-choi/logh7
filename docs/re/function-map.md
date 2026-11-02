@@ -1,6 +1,6 @@
 # 함수 맵 (트랙 B)
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27
 - 표기: VA(ImageBase 0x00400000 기준) → 제안 이름 → 역할 → 근거. 근거 태그 `evidence:client`(디컴파일 관찰) 기본. 신뢰도는 제안 이름에 대한 것(high=문자열/시그니처로 확정, medium=구조로 추정, low=주변 정황).
 - 디컴파일 원문: `work\logh7-client-triage\ghidra\export\*.decomp.txt` (툴 `LoghExport.java`).

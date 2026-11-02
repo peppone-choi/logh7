@@ -1,4 +1,4 @@
-"""Cache wiki reference image candidates under work/. Author: 최병호.
+"""Cache wiki reference image candidates under work/. Author: Peppone Choi.
 
 Images remain unverified references, never recovered VII face mappings.
 Only the explicit roster pages and their namu.moe image hosts are fetched.

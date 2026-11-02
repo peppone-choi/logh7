@@ -16,7 +16,7 @@ data class SupplementResult(val player: Navigator?,val stocks: PlanetStocks?,val
 
 /** Manual §7.5: one exact ship kind, warehouse replacements and automatic crew.
  * Keep active unit identity/grade; unpacked boats remain in the warehouse. Partial crew and
- * signed supply return are designed policies, not a recovered original server formula. Author: 최병호.
+ * signed supply return are designed policies, not a recovered original server formula. Author: Peppone Choi.
  */
 internal object Supplement {
     const val COST=160
@@ -29,6 +29,8 @@ internal object Supplement {
             return reject(LogisticsRejection.IDENTITY)
         if(r.mode !in 0..1)return reject(LogisticsRejection.MODE)
         val outfit=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
+        // update03: guard ships are never replenished; disband and buy again instead.
+        if(outfit.guard!=null)return reject(LogisticsRejection.ACCESS)
         val power=if(r.power==Power.EMPIRE)2 else 3
         val owner=stocks.bases.getValue(outfit.baseId)
         if(outfit.power!=power || owner.power!=power || owner.camp!=0 || outfit.commanderId!=r.characterId)
@@ -70,7 +72,7 @@ internal object Supplement {
         }
         if(required>0 && current+moved.values.sumOf {it.toLong()}==0L) return reject(LogisticsRejection.CREW)
         val cargo=outfit.supplies.toLong()+r.supplies;val stockCargo=warehouse.supplies.toLong()-r.supplies
-        if(cargo !in 0..OutfitSupplies.capacity(outfit.units).toLong() || stockCargo !in 0..Int.MAX_VALUE.toLong())
+        if(cargo !in 0..OutfitSupplies.capacity(outfit.copy(activeShips=ActiveShipUnits(restored))).toLong() || stockCargo !in 0..Int.MAX_VALUE.toLong())
             return reject(LogisticsRejection.STOCK)
         val nextOutfit=outfit.copy(activeShips=ActiveShipUnits(restored),
             units=UnitInventory(outfit.units.ships,troops),supplies=cargo.toInt())
@@ -81,7 +83,7 @@ internal object Supplement {
             troops=moved,supplies=r.supplies,maxCrew=required)
         val payment=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),COST.toLong(),CpPool.MCP)
         if(payment !is PaymentResult.Paid)return reject(LogisticsRejection.CP)
-        return SupplementResult(p.copy(pcp=Math.toIntExact(payment.balance.pcp),mcp=Math.toIntExact(payment.balance.mcp)),
+        return SupplementResult(p.paidWith(payment.balance),
             next,changed=true,troops=moved,supplies=r.supplies,maxCrew=required)
     }
 }

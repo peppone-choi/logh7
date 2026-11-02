@@ -1,4 +1,4 @@
-"""Observe selected models in one owned inactive-desktop run. Author: 최병호.
+"""Observe selected models in one owned inactive-desktop run. Author: Peppone Choi.
 
 Requires an existing work/ client copy with the documented dxwrapper setup.
 No game files are copied by this entry point. Windows execution is opt-in.

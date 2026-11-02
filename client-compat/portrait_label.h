@@ -1,4 +1,4 @@
-// Preserve Unicode names in the native two-line portrait label. Author: 최병호.
+// Preserve Unicode names in the native two-line portrait label. Author: Peppone Choi.
 #pragma once
 #include <string>
 

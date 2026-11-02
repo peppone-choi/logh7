@@ -1,4 +1,4 @@
-"""Model table IDs, holes, detail pairs and absent assets. Author: 최병호."""
+"""Model table IDs, holes, detail pairs and absent assets. Author: Peppone Choi."""
 import struct
 import unittest
 from planet_models import decode_tables

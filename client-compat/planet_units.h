@@ -1,5 +1,5 @@
 // Original grid/party serializers and decoders; read-only standing-unit view.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "planet_unit_data.h"
 static SRWLOCK planetUnitLock=SRWLOCK_INIT;

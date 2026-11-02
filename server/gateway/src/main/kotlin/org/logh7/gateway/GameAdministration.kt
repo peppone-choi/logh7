@@ -6,6 +6,14 @@ import java.util.concurrent.CompletableFuture
 
 fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
+    fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Budget is unavailable"))
+    fun social(request:SocialRequest):CompletableFuture<SocialResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Social command is unavailable"))
+    fun strategyAction(request:StrategyActionRequest):CompletableFuture<StrategyActionResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Strategy action is unavailable"))
+    fun formOutfit(request:OutfitFormationRequest):CompletableFuture<OutfitFormationResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Formation is unavailable"))
     fun appointGarrison(request: GarrisonAppointmentRequest): CompletableFuture<GarrisonAppointmentResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Appointment is unavailable"))
     fun dismissOffice(request:OfficeDismissalRequest):CompletableFuture<OfficeDismissalResult> =
@@ -14,6 +22,8 @@ fun interface GameAdministration {
         CompletableFuture.failedFuture(UnsupportedOperationException("Resignation is unavailable"))
     fun reorganize(request: ReorganizationRequest): CompletableFuture<ReorganizationResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Reorganization is unavailable"))
+    fun transferGround(request:GroundTransferRequest):CompletableFuture<GroundTransferResult> =
+        CompletableFuture.failedFuture(UnsupportedOperationException("Ground transfer is unavailable"))
     fun supplementOutfit(request: SupplementRequest): CompletableFuture<SupplementResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Supplement is unavailable"))
     fun supplyOutfit(request: CompletenessSupplyRequest): CompletableFuture<CompletenessSupplyResult> =
@@ -24,9 +34,43 @@ fun interface GameAdministration {
     fun stationedOutfit(player: Navigator): Int = 0
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, private val galaxy: Galaxy) : GameAdministration {
+    override fun social(request:SocialRequest):CompletableFuture<SocialResult> {
+        val future=CompletableFuture<SocialResult>()
+        scope.launch {try {
+            val result=CompletableDeferred<SocialResult>();engine.submit(WorldCommand.Social(request,result));future.complete(result.await())
+        } catch(failure:Throwable){future.completeExceptionally(failure)}}
+        return future
+    }
+    override fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> {
+        val future=CompletableFuture<BudgetResult>()
+        scope.launch {try {
+            val result=CompletableDeferred<BudgetResult>();engine.submit(WorldCommand.Budget(request,result));future.complete(result.await())
+        } catch(failure:Throwable){future.completeExceptionally(failure)}}
+        return future
+    }
     private val baseOffices=BaseOfficeCards(galaxy)
     private val nationalOffices=NationalOfficePolicy(galaxy)
     private val logisticsOffices=LogisticsOfficePolicy(galaxy)
+    override fun formOutfit(request:OutfitFormationRequest):CompletableFuture<OutfitFormationResult> {
+        val future=CompletableFuture<OutfitFormationResult>()
+        scope.launch {
+            try {
+                val result=CompletableDeferred<OutfitFormationResult>()
+                engine.submit(WorldCommand.FormOutfit(request,result));future.complete(result.await())
+            } catch(failure:Throwable){future.completeExceptionally(failure)}
+        }
+        return future
+    }
+    override fun strategyAction(request:StrategyActionRequest):CompletableFuture<StrategyActionResult> {
+        val future=CompletableFuture<StrategyActionResult>()
+        scope.launch {
+            try {
+                val result=CompletableDeferred<StrategyActionResult>()
+                engine.submit(WorldCommand.StrategyAction(request,result));future.complete(result.await())
+            } catch(failure:Throwable){future.completeExceptionally(failure)}
+        }
+        return future
+    }
     override fun resignOffice(request:OfficeResignationRequest):CompletableFuture<OfficeResignationResult> {
         val future=CompletableFuture<OfficeResignationResult>()
         scope.launch {
@@ -65,6 +109,16 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         return stocks.outfits.values.singleOrNull { player.characterId in it.members() &&
             it.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
                 it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId } }?.id ?: 0
+    }
+    override fun transferGround(request: GroundTransferRequest): CompletableFuture<GroundTransferResult> {
+        val future = CompletableFuture<GroundTransferResult>()
+        scope.launch {
+            try {
+                val result = CompletableDeferred<GroundTransferResult>()
+                engine.submit(WorldCommand.TransferGround(request, result)); future.complete(result.await())
+            } catch (failure: Throwable) { future.completeExceptionally(failure) }
+        }
+        return future
     }
     override fun supplementOutfit(request: SupplementRequest): CompletableFuture<SupplementResult> {
         val future = CompletableFuture<SupplementResult>()
@@ -110,26 +164,15 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
     override fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> {
         val stocks = engine.snapshot().planetStocks ?: return emptyList()
         if (stocks.generation != generation) return emptyList()
-        val appointed = stocks.bases.values.filter { it.power == power }.sortedBy { it.baseId }
-            .flatMap { baseOffices.cards(it,characterId) }
-        val commanders = stocks.outfits.values.filter { it.commanderId == characterId && it.power == power }
-            .sortedBy { it.id }.map { outfit ->
-                val kind = when (outfit.kind) {
-                    OutfitKind.FLEET -> 39
-                    OutfitKind.TRANSPORT -> 44
-                    OutfitKind.PATROL -> 47
-                    OutfitKind.GROUND -> 50
-                } + if (power == 3) 136 else 0
-                org.logh7.protocol.BootstrapMessages.OfficeCard(kind,outfit.id)
-            }
-        val national=nationalOffices.cards(stocks,characterId,power).map { (card,seat) ->
-            org.logh7.protocol.BootstrapMessages.OfficeCard(card,seat) }
-        val logistics=logisticsOffices.cards(stocks,characterId,power).map { (card,seat) ->
-            org.logh7.protocol.BootstrapMessages.OfficeCard(card,seat) }
-        val staff=stocks.outfits.values.filter {it.kind==OutfitKind.FLEET && it.power==power}.sortedBy {it.id}.flatMap {outfit ->
-            FleetOffice.entries.filter {it.power==power && it.offset!=0 && characterId in it.holders(outfit)}
-                .map {org.logh7.protocol.BootstrapMessages.OfficeCard(it.card,outfit.id)} }
-        return (national + logistics + appointed + commanders + staff).take(14)
+        val policy=OrganizationalOfficePolicy(galaxy)
+        val cards=(policy.held(stocks,characterId).filter {OrganizationOffices.of(it.card)?.power==power}.map {holding ->
+            org.logh7.protocol.BootstrapMessages.OfficeCard(holding.card,policy.target(checkNotNull(OrganizationOffices.of(holding.card)),holding.seat))
+        }+stocks.strategic.people[characterId]?.peerage?.let {title->
+            listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(60+title.ordinal,0))}.orEmpty()+
+            stocks.strategic.fiefs.filterValues {it==characterId}.keys.map {org.logh7.protocol.BootstrapMessages.OfficeCard(66,it)})
+            .distinct().sortedWith(compareBy({it.kind},{it.target}))
+        require(cards.size<=14) {"Stored offices exceed character card capacity"}
+        return cards
     }
     override fun tax(request: TaxRequest): CompletableFuture<TaxResult> {
         val future = CompletableFuture<TaxResult>()
