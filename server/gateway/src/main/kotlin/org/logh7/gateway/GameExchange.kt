@@ -1622,7 +1622,7 @@ class GameExchange(
                                 if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands ||
                                     query.command in org.logh7.engine.CoupActions.commands || query.command==org.logh7.engine.FundActions.FUNDS ||
                                     query.command in org.logh7.engine.GoalActions.commands || query.command in org.logh7.engine.TradeActions.commands ||
-                                    query.command in org.logh7.engine.ProductionActions.commands) {
+                                    query.command in org.logh7.engine.ProductionActions.commands || query.command in org.logh7.engine.OrbitalStrikeActions.commands) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
@@ -1646,8 +1646,19 @@ class GameExchange(
                                         val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
                                         refreshPaid(result.navigators)
+                                        // U-31: the orbital ground attack button has no window, so its result is a tactical chat line.
+                                        val strike=if(query.command!=org.logh7.engine.OrbitalStrikeActions.STRIKE)emptyList() else listOf(
+                                            org.logh7.protocol.ChatMessages.grid(org.logh7.protocol.ChatMessages.Grid(character.id.toInt(),1,
+                                                // The CD's latest-line box shows one short line only.
+                                                (if(result.outcome==1)"[대지] "+KoreanDisplayNames.base(checkNotNull(world).galaxy.bases.single {it.id==result.found}.name).take(6)+
+                                                    " 수비 -${org.logh7.engine.OrbitalStrikeActions.DAMAGE}"+(if(result.report>0)" 격멸${result.report}" else "")
+                                                else "[대지] "+when(result.rejection) {
+                                                    org.logh7.engine.SocialRejection.LOCATION->"전술 중만"
+                                                    org.logh7.engine.SocialRejection.TARGET->"사정 밖"
+                                                    org.logh7.engine.SocialRejection.MAXIMUM->"물자 부족"
+                                                    else->"불가"}).take(65)),gameSeconds()))
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
-                                            outcome=result.outcome,found=result.found,report=result.report)+listOf(characterMessage(updated,player,true))
+                                            outcome=result.outcome,found=result.found,report=result.report)+listOf(characterMessage(updated,player,true))+strike
                                     }
                                     return null
                                 }

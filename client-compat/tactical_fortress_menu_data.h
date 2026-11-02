@@ -25,8 +25,20 @@ inline int corpsChief(const BYTE* decoded,unsigned character) {
 }
 // update04 added the supreme commander's mission (index 20) and emergency supply (23)
 // to the commander tab, whose CD table at 00785bc8 is all zero.
+// U-31 (user decision 2026-11-02): the empty slot 21 (widget 0x1b, no commander-tab branch in 0050d230)
+// becomes the orbital ground attack button for everyone in tactics; the server checks range and supplies.
+constexpr unsigned orbitalStrikeSlot=21,orbitalStrikeCommand=230;
 inline void commanderMenu(bool chief,BYTE enabled[24]) {
     for(unsigned i=0;i<24;++i)enabled[i]=0;
     if(chief)enabled[20]=enabled[23]=1;
+    enabled[orbitalStrikeSlot]=1;
+}
+// The 0x7f00 strategy record (ordinal 0x46) that asks the server for one orbital ground attack.
+inline void orbitalStrikeRecord(BYTE record[36],unsigned character,unsigned short token) {
+    for(unsigned i=0;i<36;++i)record[i]=0;
+    *reinterpret_cast<unsigned*>(record)=character;
+    *reinterpret_cast<unsigned short*>(record+4)=0x7f00;
+    *reinterpret_cast<unsigned short*>(record+6)=static_cast<unsigned short>(orbitalStrikeCommand);
+    *reinterpret_cast<unsigned short*>(record+32)=token;
 }
 }

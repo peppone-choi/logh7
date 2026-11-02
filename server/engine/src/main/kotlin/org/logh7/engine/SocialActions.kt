@@ -72,6 +72,7 @@ object SocialActions {
         if(r.identity.command in GoalActions.commands)return GoalActions.evaluate(g,r,session,p,s)
         if(r.identity.command in TradeActions.commands)return TradeActions.evaluate(g,r,session,p,s)
         if(r.identity.command in ProductionActions.commands)return ProductionActions.evaluate(g,r,session,p,s)
+        if(r.identity.command in OrbitalStrikeActions.commands)return OrbitalStrikeActions.evaluate(g,r,session,p,s,navigators)
         // A detainee (U-25) cannot run social commands.
         if(p!=null && s.social.justice.detained(p.characterId))return SocialResult(p,s,SocialRejection.BUSY)
         if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts)
