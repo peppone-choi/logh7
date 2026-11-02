@@ -8,6 +8,8 @@ package org.logh7.engine
  * spends [SUPPLIES] of its flagship's supplies; each defending ground unit there loses [DAMAGE] strength (removed at 0)
  * and the planet's public order falls by [PEACE]. Each living ship unit the character commands within [RANGE] of the same
  * planet joins the attack and adds another [DAMAGE] (at most [MAX_ATTACKERS] attackers in all).
+ * A planet with a running ground battle refuses the attack (user decision 2026-11-02, COOLDOWN).
+ * A garrison saved only as quantities gets per-unit identities first (GroundUnits.reorganize).
  * The result's outcome is the number of attackers (>= 1 on success), report the destroyed defenders.
  * Author: Peppone Choi.
  */
@@ -38,6 +40,8 @@ object OrbitalStrikeActions {
             .map {b->b to TacticalBasePosition.at(b,now,s).let {c->kotlin.math.hypot((c.x-at.x).toDouble(),(c.y-at.y).toDouble())-b.diameter}}
             .filter {it.second<=RANGE}.minByOrNull {it.second}?.first ?: return reject(SocialRejection.TARGET)
         val owner=s.bases.getValue(base.id)
+        // User decision 2026-11-02: no bombardment while a ground battle runs on that planet (preparation fire only).
+        if(base.id in s.groundBattles || GroundBattleOperations.contested(s,base))return reject(SocialRejection.COOLDOWN)
         val centre=TacticalBasePosition.at(base,now,s)
         fun inRange(x:Float,y:Float)=kotlin.math.hypot((centre.x-x).toDouble(),(centre.y-y).toDouble())-base.diameter<=RANGE
         val escorts=s.outfits.values.filter {it.power==own && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
@@ -46,15 +50,23 @@ object OrbitalStrikeActions {
                     .let {inRange(it.x,it.y)}}}
         val attackers=minOf(MAX_ATTACKERS,1+escorts);val damage=DAMAGE*attackers
         var destroyed=0
-        val outfits=s.outfits.mapValues {(_,o)->
+        // A legacy garrison (quantities only) first gets identities at full strength, as ground battle would need.
+        var cursor=s.nextShipId
+        val known=s.outfits.mapValues {(_,o)->
+            if(o.power!=owner.power || CoupActions.outfitCamp(s,o)!=owner.camp || o.activeGround!=null || o.kind!=OutfitKind.GROUND ||
+                (o.position?.baseId ?: o.baseId)!=base.id)o
+            else GroundUnits.reorganize(o,o.units,o.activeShips,cursor).let {(roster,next)->cursor=next;o.copy(activeGround=roster)}
+        }
+        val outfits=known.mapValues {(_,o)->
             val ground=o.activeGround
-            if(o.power!=owner.power || ground==null || ground.values.none {it.base==base.id})return@mapValues o
+            // Only the planet holder's camp defends; a revolt's other camp may have troops landed there too.
+            if(o.power!=owner.power || CoupActions.outfitCamp(s,o)!=owner.camp || ground==null || ground.values.none {it.base==base.id})return@mapValues o
             val roster=ActiveGroundUnits(ground.values.mapNotNull {u->
                 if(u.base!=base.id)u else (u.strength-damage).let {left->if(left<=0){destroyed++;null} else u.copy(strength=left)}})
             o.copy(activeGround=roster,units=UnitInventory(o.units.ships,o.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}+roster.quantities(),o.units.work))
         }
         val economy=owner.economy?.let {it.copy(peace=maxOf(0,it.peace-PEACE))}
-        val next=s.copy(outfits=outfits,bases=s.bases+(base.id to owner.copy(economy=economy)))
+        val next=s.copy(outfits=outfits,nextShipId=cursor,bases=s.bases+(base.id to owner.copy(economy=economy)))
         return SocialResult(p.copy(supplies=p.supplies-SUPPLIES),next,changed=true,outcome=attackers,found=base.id,report=destroyed)
     }
 }

@@ -56,4 +56,25 @@ class OrbitalStrikeActionsTest {
         assertNull(r.rejection,"${r.rejection}");assertEquals(2,r.outcome,"the flagship and the one unit in range")
         assertTrue(assertNotNull(r.stocks).outfits.getValue(1).activeGround!!.values.all {it.strength==1000-2*OrbitalStrikeActions.DAMAGE})
     }
+    @Test fun aGarrisonSavedOnlyAsQuantitiesGetsIdentitiesAndIsDamaged() {
+        val legacy=OutfitStock(3,3,OutfitKind.GROUND,1000,101,units=UnitInventory(troops=mapOf(UnitStack(4) to 2)))
+        val s=stocks().let {it.copy(outfits=it.outfits-1+(3 to legacy))}
+        val r=act(player(10f),s)
+        assertNull(r.rejection,"${r.rejection}")
+        val roster=assertNotNull(r.stocks).outfits.getValue(3).activeGround!!.values
+        assertEquals(2,roster.size);assertTrue(roster.all {it.base==1000 && it.strength==1000-OrbitalStrikeActions.DAMAGE})
+        assertEquals(s.nextShipId+2,r.stocks!!.nextShipId)
+    }
+    @Test fun aPlanetUnderGroundBattleCannotBeBombarded() {
+        // User decision 2026-11-02: orbital fire prepares a landing; it does not support a running ground battle.
+        val s=stocks().let {it.copy(groundBattles=mapOf(1000 to now))}
+        assertEquals(SocialRejection.COOLDOWN,act(player(10f),s).rejection)
+    }
+    @Test fun onlyThePlanetHoldersCampDefends() {
+        // A rebel-held planet (camp 1): the regular side's troops landed there are not its garrison.
+        val s=stocks().let {it.copy(bases=it.bases+(1000 to it.bases.getValue(1000).copy(camp=1)))}
+        val r=act(player(10f),s)
+        assertNull(r.rejection,"${r.rejection}");assertEquals(0,r.report)
+        assertEquals(s.outfits.getValue(1),assertNotNull(r.stocks).outfits.getValue(1))
+    }
 }

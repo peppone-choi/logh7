@@ -1656,9 +1656,15 @@ class GameExchange(
                                                     org.logh7.engine.SocialRejection.LOCATION->"전술 중만"
                                                     org.logh7.engine.SocialRejection.TARGET->"사정 밖"
                                                     org.logh7.engine.SocialRejection.MAXIMUM->"물자 부족"
+                                                    org.logh7.engine.SocialRejection.COOLDOWN->"지상전 중"
                                                     else->"불가"}).take(65)),gameSeconds()))
+                                        if(strike.isNotEmpty() && result.outcome>=1)navigation?.snapshot()?.let {snapshot->
+                                            presence?.groundRefresh(checkNotNull(generation),player.grid,result.found,gameSeconds(),snapshot,
+                                                checkNotNull(world).galaxy,::currentCharacterById)}
+                                        // The strike's outcome is its attacker count (1..10); the native reply only carries success.
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
-                                            outcome=result.outcome,found=result.found,report=result.report)+listOf(characterMessage(updated,player,true))+strike
+                                            outcome=if(strike.isNotEmpty())minOf(result.outcome,1) else result.outcome,found=result.found,report=result.report)+
+                                            listOf(characterMessage(updated,player,true))+strike
                                     }
                                     return null
                                 }
