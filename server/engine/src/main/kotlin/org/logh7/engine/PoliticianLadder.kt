@@ -40,7 +40,8 @@ object PoliticianLadder {
         val role=OrganizationOffices.of(EMPEROR_CARD)
         if(capital!=null && role!=null && policy.active(next,role,capital.id) && policy.holders(next,EMPEROR_CARD).isEmpty() &&
             !next.social.coup.revolting(2)) {
-            val heir=identities.filter {it.power==2 && (people[it.id]?.rank ?: it.rank)==POLITICIAN}
+            // A character killed in battle (U-11) can neither inherit nor be elected.
+            val heir=identities.filter {it.power==2 && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L}
                 .sortedWith(compareByDescending<StrategicIdentity> {people[it.id]?.merit ?: 0}.thenBy {it.id}).firstOrNull()
             if(heir!=null)next=policy.set(next,OfficeHolding(EMPEROR_CARD,capital.id,heir.id))
         }
@@ -56,7 +57,7 @@ object PoliticianLadder {
     fun election(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>):PlanetStocks {
         if(!chairmanVacant(galaxy,stocks))return stocks
         val people=stocks.strategic.people;val support=stocks.social.funds.support
-        val candidates=identities.filter {it.power==3 && (people[it.id]?.rank ?: it.rank)==POLITICIAN}
+        val candidates=identities.filter {it.power==3 && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L}
         val winner=candidates.sortedWith(compareByDescending<StrategicIdentity> {support[it.id] ?: 0L}
             .thenByDescending {people[it.id]?.merit ?: 0L}.thenBy {it.id}).firstOrNull() ?: return stocks
         val capital=galaxy.bases.single {Capital.of(it)==Capital.ALLIANCE}

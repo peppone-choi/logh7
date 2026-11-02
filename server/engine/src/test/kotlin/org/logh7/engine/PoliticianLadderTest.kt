@@ -51,6 +51,14 @@ class PoliticianLadderTest {
         val trusted=seated.copy(social=seated.social.copy(funds=FundState(confidence=mapOf(3 to (500L to 100L)))))
         assertEquals(listOf(11),OrganizationalOfficePolicy(galaxy).holders(PoliticianLadder.monthly(galaxy,trusted,ids,1),132).map {it.character})
     }
+    @Test fun aDeadPoliticianNeitherInheritsNorIsElected() {
+        val people=mapOf(4 to StrategicPerson(merit=90,deceasedAt=5),2 to StrategicPerson(merit=10),
+            11 to StrategicPerson(merit=90,deceasedAt=5),12 to StrategicPerson(merit=1))
+        val result=PoliticianLadder.monthly(galaxy,stocks.copy(strategic=StrategicState(people=people)),
+            listOf(id(2,2),id(4,2),id(11,3),id(12,3)),1)
+        assertEquals(listOf(2),OrganizationalOfficePolicy(galaxy).holders(result,1).map {it.character})
+        assertEquals(listOf(12),OrganizationalOfficePolicy(galaxy).holders(result,132).map {it.character})
+    }
     @Test fun aRevoltKeepsTheThroneForTheCoupsOutcome() {
         // CD p.38: succession applies to a vacancy other than by coup.
         val people=mapOf(4 to StrategicPerson(merit=90))
