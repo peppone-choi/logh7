@@ -173,6 +173,8 @@ class GamePresence {
                 send(viewer,frozen+packet)
             }
     }
+    /** 0421 mission kinds in the CD's submenu order (constmsg group 118 notices 14..19). */
+    private val missionNames=listOf("유격","방위","점령","요격","정찰","철수")
     @Synchronized fun tacticalCommand(event:org.logh7.engine.TacticalCommandResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.order.grid &&
@@ -201,6 +203,9 @@ class GamePresence {
                     val payload=it.payload.toMutableList()
                     java.nio.ByteBuffer.allocate(4).putInt(current.characterId).array().forEachIndexed {i,b->payload[8+i]=b.toInt() and 255}
                     packets+=org.logh7.protocol.TacticalCommandMessages.reply(it.copy(character=current.characterId,payload=payload),event.seconds,0)
+                    // The CD shows no window for that result, so the subordinate also gets a same-side tactical chat line.
+                    missionNames.getOrNull(event.order.command.kind)?.let {name->
+                        packets+=ChatMessages.grid(ChatMessages.Grid(event.order.character,1,"[임무] $name 임무를 지시합니다."),event.seconds)}
                 } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
                     TacticalCommandWire.command(event.order)?.let {
                         packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
