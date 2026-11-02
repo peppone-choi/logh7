@@ -232,7 +232,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                 }
                                                 else if (!ctx.channel().isActive || failure != null) {
                                                     if(failure != null) {val cause=failure.cause ?: failure
-                                                        System.err.println("gateway async: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}")}
+                                                        System.err.println("gateway async: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}" +
+                                                            (generateSequence(cause.cause) {it.cause}.take(64).lastOrNull()?.let {root->" caused by ${root.javaClass.simpleName}: ${root.message} at ${root.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}"} ?: ""))}
                                                     try { exchange.close() } finally { ctx.close() }
                                                 }
                                                 else try {

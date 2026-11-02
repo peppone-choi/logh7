@@ -67,6 +67,15 @@ class SuccessionActionsTest {
         val abdicated=assertNotNull(OfficeResignation.evaluate(galaxy,OfficeResignationRequest("a","a",10000,Power.EMPIRE,1,1),session,a,first).stocks)
         assertEquals(listOf(22),policy.holders(SuccessionActions.accede(galaxy,abdicated,ids,now),1).map {it.character},"not straight back")
     }
+    @Test fun theEmperorRankFollowsTheThrone() {
+        val soldier=stocks.copy(strategic=stocks.strategic.copy(people=people+(22 to people.getValue(22).copy(rank=1,militaryRank=4))))
+        val crowned=SuccessionActions.ranked(SuccessionActions.accede(galaxy,
+            StrategyActions.clearOffices(policy.set(soldier,OfficeHolding(1,1049,10000)),10000),ids,now))
+        assertEquals(0,crowned.strategic.people.getValue(22).rank)
+        val deposed=SuccessionActions.ranked(StrategyActions.clearOffices(crowned,22))
+        assertEquals(1,deposed.strategic.people.getValue(22).rank)
+        assertSame(deposed,SuccessionActions.ranked(deposed))
+    }
     @Test fun anAccessionIsAnnouncedOnce() {
         val crowned=SuccessionActions.accede(galaxy,StrategyActions.clearOffices(policy.set(stocks,OfficeHolding(1,1049,10000)),10000),ids,now)
         assertEquals(listOf(SuccessionNotice(1,22,SuccessionNotice.Kind.ACCESSION,5)),SuccessionActions.notices(stocks,crowned,5))

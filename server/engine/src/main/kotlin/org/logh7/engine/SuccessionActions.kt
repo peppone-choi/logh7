@@ -79,6 +79,16 @@ object SuccessionActions {
         return crowned.copy(social=crowned.social.copy(succession=SuccessionState(heir=0,vacant=false,emperor=emperor,
             rival=line.getOrElse(1) {0},at=maxOf(now,1L))))
     }
+    /** 皇帝 rank (0) follows the throne (card 1, or its rebel alias 68): the holder takes it and anyone else who
+     * held it returns to 政治家 (1). Without it a crowned politician has no authority of the emperor card. The
+     * throne ends a politician's kept military ladder (militaryRank). */
+    fun ranked(s:PlanetStocks):PlanetStocks {
+        val emperors=s.strategic.offices.filter {it.card==EMPEROR || it.card==68}.map {it.character}.toSet()
+        var people=s.strategic.people
+        for(id in emperors)if(people[id]?.rank!=0)people=people+(id to (people[id] ?: StrategicPerson()).copy(rank=0,militaryRank=0))
+        for((id,p) in s.strategic.people)if(p.rank==0 && id !in emperors)people=people+(id to p.copy(rank=1))
+        return if(people==s.strategic.people)s else s.copy(strategic=s.strategic.copy(people=people))
+    }
     /** StrategyActions.clearOffices marks a vacated throne here. */
     fun vacated(s:PlanetStocks,character:Int)=if(s.strategic.offices.any {it.card==EMPEROR && it.character==character})
         s.copy(social=s.social.copy(succession=s.social.succession.copy(vacant=true,emperor=character))) else s
