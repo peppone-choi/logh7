@@ -62,7 +62,8 @@ class GamePresence {
     /** Black-hole tidal loss (design-blackhole-tactical-terrain.md §2.4): a spot chat line to each online member of the outfit. */
     @Synchronized fun tides(event:org.logh7.engine.TidalLoss) {
         for(character in event.characters) {
-            val line="[중력] 블랙홀 중력으로 부대 함정 ${event.boats}척을 잃었습니다.".take(65)
+            val line=(if(event.pulled)"[중력] 워프 오차로 블랙홀 중력권에 끌려 들어가 함정 ${event.boats}척을 잃었습니다."
+                else "[중력] 블랙홀 중력으로 부대 함정 ${event.boats}척을 잃었습니다.").take(65)
             toCharacter(character,event.generation,listOf(ChatMessages.spot(ChatMessages.Spot(character,line),event.seconds.coerceIn(0,0xffffffffL))))
         }
     }

@@ -266,7 +266,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             for(observer in successionObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Succession delivery failed: ${failure.javaClass.simpleName}")}
         }
-        if(inventory!=null && old!=null)for(event in BlackHoleTides.losses(old,inventory,snapshot.session?.gameSeconds ?: 0L)) {
+        if(inventory!=null && old!=null)for(event in BlackHoleTides.losses(old,inventory,snapshot.session?.gameSeconds ?: 0L,galaxy)) {
             for(observer in tidalObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Tidal delivery failed: ${failure.javaClass.simpleName}")}
         }
