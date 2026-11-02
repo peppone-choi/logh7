@@ -19,7 +19,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             if(org.logh7.engine.OutfitFormationPolicy.kinds(role.card).isNotEmpty())addAll(listOf(25,26))
             if(role.card in org.logh7.engine.CivicActions.commandingCards)addAll(listOf(52,54,56))
             when(role.card) {
-                8,136->addAll(listOf(16,18))
+                8,136->addAll(listOf(16,17,18))
                 // U-25 (design-arrest-judgment.md): list/grant/arrest and judgment by duty (CM group 6).
                 7,10,137->addAll(listOf(69,70,71,19,68))
                 32,157->addAll(listOf(69,70,71,68,73,74))
@@ -36,6 +36,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             if(role.card in org.logh7.engine.Justice.searchCards)add(72)
             // 国家目標 on the head of state and the prime minister.
             if(role.card in org.logh7.engine.GoalActions.nationalCards)add(15)
+            if(role.card in org.logh7.engine.TradeActions.diplomacyCards)add(20)
             if(role.card==160)add(19)
             if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
             add(7)

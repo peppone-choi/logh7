@@ -1,0 +1,54 @@
+package org.logh7.engine
+
+import org.junit.jupiter.api.Test
+import kotlin.test.*
+
+/** 무역: 항로 무역 일일 이익·만료, 선단 무역과 상대 관세, 관세율, 외교 정보 매입. 작성: Peppone Choi. */
+class TradeActionsTest {
+    private val rules=SessionRules.load()
+    private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2490,4,"Near",2),GalaxySystem(5,2015,4,"Haine",3),
+        GalaxySystem(6,2300,4,"Fez",1)),listOf(
+        GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),GalaxyBase(1050,2490,80,0,"Near",0,20f,86400,0,0f,2f),
+        GalaxyBase(1177,2015,80,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f),GalaxyBase(1210,2300,80,0,"フェザーン",0,20f,86400,0,0f,2f)),
+        mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
+    private val policy=OrganizationalOfficePolicy(galaxy)
+    private val session=SessionSimulation(rules).also {it.join("a",Power.EMPIRE,false,"a")}.exportState()
+    private val now=session.gameMillis/1000
+    private val a=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,spotId=10490001)
+    private fun stocks()=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300,PlanetEconomy(500_000,300_000,60,60)),
+        1050 to PlanetStock(1050,2,0,1,1,1,PlanetEconomy(200_000,100_000,60,60)),
+        1177 to PlanetStock(1177,3,0,1,1,1,PlanetEconomy(500_000,300_000,70,80),treasury=777),1210 to PlanetStock(1210,1,0,1,1,1)),
+        outfits=mapOf(7 to OutfitStock(7,2,OutfitKind.TRANSPORT,1049,11,commanderId=10000,supplies=1000,position=OutfitPosition(2487,1049))),
+        warehouses=mapOf(11 to OutfitWarehouse(11,2,OutfitKind.TRANSPORT,1049,7)),nationalTreasuries=mapOf(2 to 200_000_000L,3 to 0L))
+    private fun act(command:Int,card:Int,s:PlanetStocks,target:Int=0,value:Int=0,amount:Long=0)=SocialActions.evaluate(galaxy,SocialRequest(
+        StrategyActionRequest("a","a",10000,Power.EMPIRE,1,command,card,1,target=target,value=value,amount=amount)),session,a,s,listOf(a),mapOf("a" to a))
+
+    @Test fun aRoutePaysBothTreasuriesEachDayUntilItEnds() {
+        assertEquals(SocialRejection.TARGET,act(TradeActions.ROUTE,0,stocks(),target=1177).rejection,"enemy base")
+        val r=act(TradeActions.ROUTE,0,stocks(),target=1050)
+        assertNull(r.rejection);assertEquals(840,r.player?.pcp);assertEquals(100,r.found)
+        val s=assertNotNull(r.stocks)
+        val day2=TradeActions.settle(s,now+2*86400+5)
+        assertEquals(200,day2.bases.getValue(1050).treasury);assertEquals(200,day2.bases.getValue(1049).treasury)
+        val ended=TradeActions.settle(day2,now+30*86400)
+        assertEquals(700,ended.bases.getValue(1050).treasury,"seven days in all");assertTrue(ended.social.trade.routes.isEmpty())
+    }
+    @Test fun aConvoySellsSuppliesAndTheOtherSidesTariffTakesItsCut() {
+        val s=policy.set(stocks(),OfficeHolding(44,7,10000))
+        val tariff=assertNotNull(act(TradeActions.TARIFF,8,policy.set(s,OfficeHolding(8,1049,10000)),value=20).stocks)
+        assertEquals(20,tariff.social.trade.tariff(2))
+        val withAllianceTariff=s.copy(social=s.social.copy(trade=TradeState(tariffs=mapOf(3 to 20))))
+        val sold=act(TradeActions.CONVOY,44,withAllianceTariff,amount=1000)
+        assertNull(sold.rejection);assertEquals(1200,sold.found)
+        val st=assertNotNull(sold.stocks)
+        assertEquals(0,st.outfits.getValue(7).supplies);assertEquals(200_001_200L,st.nationalTreasuries[2]);assertEquals(300L,st.nationalTreasuries[3])
+        assertEquals(SocialRejection.COOLDOWN,act(TradeActions.CONVOY,44,st.copy(outfits=st.outfits+(7 to st.outfits.getValue(7).copy(supplies=10))),amount=5).rejection)
+    }
+    @Test fun buyingIntelligenceReportsTheEnemyCapitalOrSpendsNothingOnFailure() {
+        val s=policy.set(stocks(),OfficeHolding(5,1049,10000))
+        val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)
+        assertNull(r.rejection)
+        if(r.outcome==1) {assertEquals(777,r.found);assertEquals(70*256+80,r.report);assertEquals(100_000_000L,r.stocks?.nationalTreasuries?.get(2))}
+        else assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(2))
+    }
+}

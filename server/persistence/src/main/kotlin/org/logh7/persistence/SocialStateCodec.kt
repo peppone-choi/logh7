@@ -12,7 +12,7 @@ internal object SocialStateCodec {
         // Optional fields 5..9 are written up to the last one that differs from its default.
         val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
             (s.gatherings!=GatheringState()) to {gatherings(s.gatherings)},(s.proposals!=ProposalState()) to {proposals(s.proposals)},
-            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)},(s.goals!=GoalState()) to {goals(s.goals)})
+            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)},(s.goals!=GoalState()) to {goals(s.goals)},(s.trade!=TradeState()) to {trade(s.trade)})
         val last=optional.indexOfLast {it.first}
         return (base+optional.take(last+1).map {it.second()}).joinToString("|")
     }
@@ -148,8 +148,20 @@ internal object SocialStateCodec {
             e.split(':').also {require(it.size==4)}.let {v->v[0].toInt() to NationalGoal(v[1].toInt(),v[2].toInt(),v[3].toLong())}},
             if(focus=="-")emptyMap() else focus.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toInt()}})
     }
+    /** Optional thirteenth field (trade, 2026-11-02): routes "character:from:to:until:paidThrough,.." / tariffs / convoys /
+     * pacts / passages, each "key:value,.." ("-" when empty). */
+    private fun pairs(m:Map<Int,Long>)=m.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
+    private fun pairs(text:String)=if(text=="-")emptyMap() else text.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toLong()}}
+    private fun trade(t:TradeState)=listOf(t.routes.toSortedMap().values.joinToString(",") {listOf(it.character,it.from,it.to,it.until,it.paidThrough)
+        .joinToString(":")}.ifEmpty {"-"},pairs(t.tariffs.mapValues {it.value.toLong()}),pairs(t.convoys),pairs(t.pacts),pairs(t.passages)).joinToString("/")
+    private fun trade(text:String):TradeState {
+        val v=text.split('/');require(v.size==5)
+        return TradeState(if(v[0]=="-")emptyMap() else v[0].split(',').associate {e->e.split(':').also {require(it.size==5)}.let {x->
+            x[0].toInt() to TradeRoute(x[0].toInt(),x[1].toInt(),x[2].toInt(),x[3].toLong(),x[4].toLong())}},
+            pairs(v[1]).mapValues {it.value.toInt()},pairs(v[2]),pairs(v[3]),pairs(v[4]))
+    }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..12)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..13)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -161,7 +173,7 @@ internal object SocialStateCodec {
             if(f.size>=6)meeting(f[5]) else MeetingState(),if(f.size>=7)gatherings(f[6]) else GatheringState(),
             if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size>=9)justice(f[8]) else JusticeState(),
             if(f.size>=10)coup(f[9]) else CoupState(),if(f.size>=11)funds(f[10]) else FundState(),
-            if(f.size==12)goals(f[11]) else GoalState())
+            if(f.size>=12)goals(f[11]) else GoalState(),if(f.size==13)trade(f[12]) else TradeState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }
