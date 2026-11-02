@@ -109,6 +109,8 @@ object TradeActions {
                 outfit=s.outfits.values.singleOrNull {it.kind==OutfitKind.TRANSPORT && it.power==own && it.commanderId==i.characterId &&
                     it.positionIn(g).baseId==p.baseId && p.baseId!=0} ?: return reject(SocialRejection.LOCATION)
                 if(fezzan(g,s)==null)return reject(SocialRejection.TARGET)
+                // U-07: Fezzan's merchant fleets no longer trade with a side that violated its neutrality.
+                if(own in t.violations)return reject(SocialRejection.STALE)
                 if(i.amount<=0 || i.amount>outfit.supplies)return reject(SocialRejection.MAXIMUM)
                 if((t.convoys[outfit.id] ?: 0)>now)return reject(SocialRejection.COOLDOWN)
             }
@@ -117,6 +119,8 @@ object TradeActions {
                 if(i.value !in COMMERCE..INTELLIGENCE)return reject(SocialRejection.TARGET)
                 // U-07: an occupied Fezzan is no longer a neutral party to negotiate with.
                 if(fezzan(g,s)==null)return reject(SocialRejection.TARGET)
+                // U-07: Fezzan withdraws its investment from a violator; no new commerce pact.
+                if(i.value==COMMERCE && own in t.violations)return reject(SocialRejection.STALE)
                 if(i.value==INTELLIGENCE && !t.leaking(5-own,now) && (s.nationalTreasuries[own] ?: 0)<INTEL_PRICE)return reject(SocialRejection.MAXIMUM)
             }
         }
@@ -177,7 +181,9 @@ object TradeActions {
         for(power in 2..3) {
             if(power !in t.violations && (t.passages[power] ?: 0)<=now && s.outfits.values.any {o->o.power==power &&
                 o.positionIn(g).grid==fezzan.grid && o.activeShips?.values.orEmpty().any {it.boats>0}})
-                t=t.copy(violations=t.violations+(power to now))
+                // U-07 (CD manual p.39): Fezzan-flagged merchant ships vanish and its investment falls; here the
+                // violator loses its commerce pact and convoy trade with Fezzan (evidence:guess mapping).
+                t=t.copy(violations=t.violations+(power to now),pacts=t.pacts-power)
             val since=t.violations[power] ?: continue
             val due=minOf(SUBSIDIES.toLong(),(now-since)/(SUBSIDY_DAYS*Justice.DAY)+1).toInt()
             val paid=t.subsidies[power] ?: 0

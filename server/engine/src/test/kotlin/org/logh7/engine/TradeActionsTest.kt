@@ -63,6 +63,17 @@ class TradeActionsTest {
         assertEquals(TradeActions.SUBSIDY*12,year.nationalTreasuries[3]);assertEquals(12,year.social.trade.subsidies[2])
         assertEquals(now,year.social.trade.violations[2],"only the first entry counts")
     }
+    @Test fun aViolatorLosesFezzanMerchantsAndInvestment() {
+        val pacted=stocks().let {it.copy(social=it.social.copy(trade=TradeState(pacts=mapOf(2 to now+100,3 to now+100))))}
+        val inFezzan=pacted.copy(outfits=pacted.outfits+(7 to pacted.outfits.getValue(7).copy(position=OutfitPosition(2300),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(70,UnitStack(76),300))),units=UnitInventory(mapOf(UnitStack(76) to 1)))),nextShipId=71)
+        val violated=TradeActions.neutrality(galaxy,inFezzan,now).social.trade
+        assertEquals(mapOf(3 to now+100),violated.pacts,"the violator's commerce pact ends")
+        val s=policy.set(policy.set(pacted.copy(social=pacted.social.copy(trade=violated)),OfficeHolding(44,7,10000)),OfficeHolding(5,1049,10000))
+        assertEquals(SocialRejection.STALE,act(TradeActions.CONVOY,44,s,amount=10).rejection,"no Fezzan merchants")
+        assertEquals(SocialRejection.STALE,act(TradeActions.DIPLOMACY,5,s,value=TradeActions.COMMERCE).rejection,"no new pact")
+        assertNull(act(TradeActions.CONVOY,44,policy.set(pacted,OfficeHolding(44,7,10000)),amount=10).rejection,"before the violation")
+    }
     @Test fun aViolatedFezzanIsContestedAndOneSidesLandedTroopsOccupyItEndingNeutrality() {
         val fezzan=galaxy.bases.single {it.id==1210}
         val ships=stocks().let {it.copy(outfits=it.outfits+(7 to it.outfits.getValue(7).copy(position=OutfitPosition(2300),
