@@ -138,7 +138,7 @@ class SocialStoreTest {
         assertEquals(12,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }
     @Test fun tradeRoundTripsAsAnOptionalThirteenthField() {
-        val state=SocialState(trade=TradeState(mapOf(10000 to TradeRoute(10000,1049,1050,900,100)),mapOf(3 to 20),mapOf(7 to 50L),mapOf(2 to 60L),mapOf(3 to 70L)))
+        val state=SocialState(trade=TradeState(mapOf(10000 to TradeRoute(10000,1049,1050,900,100)),mapOf(3 to 20),mapOf(7 to 50L),mapOf(2 to 60L),mapOf(3 to 70L),mapOf(2 to 80L),mapOf(2 to 3)))
         val encoded=SocialStateCodec.encode(state)
         assertEquals(13,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }

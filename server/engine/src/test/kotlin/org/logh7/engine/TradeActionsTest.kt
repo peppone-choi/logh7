@@ -28,9 +28,9 @@ class TradeActionsTest {
         val r=act(TradeActions.ROUTE,0,stocks(),target=1050)
         assertNull(r.rejection);assertEquals(840,r.player?.pcp);assertEquals(100,r.found)
         val s=assertNotNull(r.stocks)
-        val day2=TradeActions.settle(s,now+2*86400+5)
+        val day2=TradeActions.settle(galaxy,s,now+2*86400+5)
         assertEquals(200,day2.bases.getValue(1050).treasury);assertEquals(200,day2.bases.getValue(1049).treasury)
-        val ended=TradeActions.settle(day2,now+30*86400)
+        val ended=TradeActions.settle(galaxy,day2,now+30*86400)
         assertEquals(700,ended.bases.getValue(1050).treasury,"seven days in all");assertTrue(ended.social.trade.routes.isEmpty())
     }
     @Test fun aConvoySellsSuppliesAndTheOtherSidesTariffTakesItsCut() {
@@ -50,5 +50,17 @@ class TradeActionsTest {
         assertNull(r.rejection)
         if(r.outcome==1) {assertEquals(777,r.found);assertEquals(70*256+80,r.report);assertEquals(100_000_000L,r.stocks?.nationalTreasuries?.get(2))}
         else assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(2))
+    }
+    @Test fun shipsEnteringFezzanWithoutPassageViolateNeutralityAndPayTheEnemyTwelveTimes() {
+        val inFezzan=stocks().let {it.copy(outfits=it.outfits+(7 to it.outfits.getValue(7).copy(position=OutfitPosition(2300),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(70,UnitStack(76),300))),units=UnitInventory(mapOf(UnitStack(76) to 1)))),nextShipId=71)}
+        val passage=inFezzan.copy(social=inFezzan.social.copy(trade=TradeState(passages=mapOf(2 to now+100))))
+        assertSame(passage,TradeActions.neutrality(galaxy,passage,now),"a corridor passage is not a violation")
+        val first=TradeActions.neutrality(galaxy,inFezzan,now)
+        assertEquals(now,first.social.trade.violations[2]);assertEquals(TradeActions.SUBSIDY,first.nationalTreasuries[3])
+        assertTrue(first.social.trade.leaking(2,now+89*86400));assertFalse(first.social.trade.leaking(2,now+90*86400))
+        val year=TradeActions.neutrality(galaxy,first,now+1000*86400)
+        assertEquals(TradeActions.SUBSIDY*12,year.nationalTreasuries[3]);assertEquals(12,year.social.trade.subsidies[2])
+        assertEquals(now,year.social.trade.violations[2],"only the first entry counts")
     }
 }

@@ -153,12 +153,14 @@ internal object SocialStateCodec {
     private fun pairs(m:Map<Int,Long>)=m.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
     private fun pairs(text:String)=if(text=="-")emptyMap() else text.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toLong()}}
     private fun trade(t:TradeState)=listOf(t.routes.toSortedMap().values.joinToString(",") {listOf(it.character,it.from,it.to,it.until,it.paidThrough)
-        .joinToString(":")}.ifEmpty {"-"},pairs(t.tariffs.mapValues {it.value.toLong()}),pairs(t.convoys),pairs(t.pacts),pairs(t.passages)).joinToString("/")
+        .joinToString(":")}.ifEmpty {"-"},pairs(t.tariffs.mapValues {it.value.toLong()}),pairs(t.convoys),pairs(t.pacts),pairs(t.passages))
+        .plus(if(t.violations.isEmpty())emptyList() else listOf(pairs(t.violations),pairs(t.subsidies.mapValues {it.value.toLong()}))).joinToString("/")
     private fun trade(text:String):TradeState {
-        val v=text.split('/');require(v.size==5)
+        val v=text.split('/');require(v.size==5 || v.size==7 && v[5]!="-")
         return TradeState(if(v[0]=="-")emptyMap() else v[0].split(',').associate {e->e.split(':').also {require(it.size==5)}.let {x->
             x[0].toInt() to TradeRoute(x[0].toInt(),x[1].toInt(),x[2].toInt(),x[3].toLong(),x[4].toLong())}},
-            pairs(v[1]).mapValues {it.value.toInt()},pairs(v[2]),pairs(v[3]),pairs(v[4]))
+            pairs(v[1]).mapValues {it.value.toInt()},pairs(v[2]),pairs(v[3]),pairs(v[4]),
+            if(v.size==7)pairs(v[5]) else emptyMap(),if(v.size==7)pairs(v[6]).mapValues {it.value.toInt()} else emptyMap())
     }
     fun decode(text:String):SocialState {
         require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..13)

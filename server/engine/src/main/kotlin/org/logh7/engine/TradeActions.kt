@@ -17,15 +17,23 @@ data class TradeState(val routes:Map<Int,TradeRoute> = emptyMap(),
     val convoys:Map<Int,Long> = emptyMap(),
     /** power -> commerce pact until. */
     val pacts:Map<Int,Long> = emptyMap(),
-    /** power -> Fezzan corridor passage until (enforced once Fezzan neutrality, U-07, exists). */
-    val passages:Map<Int,Long> = emptyMap()) {
+    /** power -> Fezzan corridor passage until: its ships may enter Fezzan without violating neutrality. */
+    val passages:Map<Int,Long> = emptyMap(),
+    /** U-07: power -> game second it violated Fezzan's neutrality (CD manual p.39). */
+    val violations:Map<Int,Long> = emptyMap(),
+    /** power that violated -> subsidies already paid to its enemy (up to [TradeActions.SUBSIDIES]). */
+    val subsidies:Map<Int,Int> = emptyMap()) {
     init {require(routes.size<=4096 && routes.all {(k,v)->k==v.character} && tariffs.all {(k,v)->k in 2..3 && v in 0..TradeActions.MAX_TARIFF} &&
         convoys.size<=1024 && convoys.all {(k,v)->k>0 && v in 0..0xffffffffL} &&
-        listOf(pacts,passages).all {m->m.all {(k,v)->k in 2..3 && v in 0..0xffffffffL}})}
+        listOf(pacts,passages,violations).all {m->m.all {(k,v)->k in 2..3 && v in 0..0xffffffffL}} &&
+        subsidies.all {(k,v)->k in violations && v in 1..TradeActions.SUBSIDIES})}
+    /** The enemy of a violator reads its secrets for [TradeActions.LEAK_DAYS] days (CD p.39 "information leak"). */
+    fun leaking(power:Int,now:Long)=violations[power]?.let {now<it+TradeActions.LEAK_DAYS*Justice.DAY}==true
     fun tariff(power:Int)=tariffs[power] ?: TradeActions.DEFAULT_TARIFF
     fun detached()=copy(routes=java.util.Collections.unmodifiableMap(LinkedHashMap(routes)),tariffs=java.util.Collections.unmodifiableMap(LinkedHashMap(tariffs)),
         convoys=java.util.Collections.unmodifiableMap(LinkedHashMap(convoys)),pacts=java.util.Collections.unmodifiableMap(LinkedHashMap(pacts)),
-        passages=java.util.Collections.unmodifiableMap(LinkedHashMap(passages)))
+        passages=java.util.Collections.unmodifiableMap(LinkedHashMap(passages)),violations=java.util.Collections.unmodifiableMap(LinkedHashMap(violations)),
+        subsidies=java.util.Collections.unmodifiableMap(LinkedHashMap(subsidies)))
 }
 
 object TradeActions {
@@ -40,6 +48,11 @@ object TradeActions {
     const val ROUTE_CELLS=10
     const val PACT_DAYS=30L
     const val INTEL_PRICE=100_000_000L
+    /** CD manual p.39: the violator's enemy receives 30 billion marks every 30 days, 12 times; secrets leak 90 days. */
+    const val SUBSIDY=30_000_000_000L
+    const val SUBSIDIES=12
+    const val SUBSIDY_DAYS=30L
+    const val LEAK_DAYS=90L
     /** 財務尚書 8 / 財政委員長 136. */
     val tariffCards=setOf(8,136)
     /** 帝国宰相 5, 議長 132 and the Fezzan commissioners 14 / 144. */
@@ -91,7 +104,7 @@ object TradeActions {
             TARIFF -> if(i.value !in 0..MAX_TARIFF)return reject(SocialRejection.TARGET)
             DIPLOMACY -> {
                 if(i.value !in COMMERCE..INTELLIGENCE)return reject(SocialRejection.TARGET)
-                if(i.value==INTELLIGENCE && (s.nationalTreasuries[own] ?: 0)<INTEL_PRICE)return reject(SocialRejection.MAXIMUM)
+                if(i.value==INTELLIGENCE && !t.leaking(5-own,now) && (s.nationalTreasuries[own] ?: 0)<INTEL_PRICE)return reject(SocialRejection.MAXIMUM)
             }
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==ROUTE)160L else 320L,
@@ -121,7 +134,8 @@ object TradeActions {
             DIPLOMACY -> {
                 val politics=s.strategic.people[i.characterId]?.abilities?.getOrNull(1)
                     ?: i.identities.singleOrNull {it.id==i.characterId}?.abilities?.getOrNull(1) ?: 50
-                if(roll(i.characterId,i.value,now)>=(50+(politics-50)/2).coerceIn(20,80))
+                val leak=i.value==INTELLIGENCE && t.leaking(5-own,now)
+                if(!leak && roll(i.characterId,i.value,now)>=(50+(politics-50)/2).coerceIn(20,80))
                     return SocialResult(payer,s,changed=true,outcome=3)
                 val until=now+PACT_DAYS*Justice.DAY
                 return when(i.value) {
@@ -129,7 +143,8 @@ object TradeActions {
                     PASSAGE -> SocialResult(payer,trade(t.copy(passages=t.passages+(own to until))),changed=true,outcome=1)
                     else -> {
                         val capital=g.bases.singleOrNull {Capital.of(it)?.power==5-own}?.let {s.bases[it.id]}
-                        val next=s.copy(nationalTreasuries=s.nationalTreasuries+(own to (s.nationalTreasuries[own] ?: 0)-INTEL_PRICE))
+                        // A leaking enemy's secrets come free (U-07).
+                        val next=if(leak)s else s.copy(nationalTreasuries=s.nationalTreasuries+(own to (s.nationalTreasuries[own] ?: 0)-INTEL_PRICE))
                         SocialResult(payer,next,changed=true,outcome=1,found=minOf(capital?.treasury ?: 0,0x7fffffffL).toInt(),
                             report=(capital?.economy?.approval ?: 0)*256+(capital?.economy?.peace ?: 0))
                     }
@@ -139,10 +154,32 @@ object TradeActions {
         return reject(SocialRejection.COMMAND)
     }
 
+    /** U-07 (CD manual p.39): a side whose ship units (not a lone flagship) first stand in Fezzan's grid without a
+     * corridor passage violates its neutrality; its enemy then receives [SUBSIDY] every [SUBSIDY_DAYS] days,
+     * [SUBSIDIES] times in all, starting at once. */
+    fun neutrality(g:Galaxy,s:PlanetStocks,now:Long):PlanetStocks {
+        val fezzan=fezzan(g,s)?.let {id->g.bases.single {it.id==id}} ?: return s
+        var t=s.social.trade;var treasuries=s.nationalTreasuries
+        for(power in 2..3) {
+            if(power !in t.violations && (t.passages[power] ?: 0)<=now && s.outfits.values.any {o->o.power==power &&
+                o.positionIn(g).grid==fezzan.grid && o.activeShips?.values.orEmpty().any {it.boats>0}})
+                t=t.copy(violations=t.violations+(power to now))
+            val since=t.violations[power] ?: continue
+            val due=minOf(SUBSIDIES.toLong(),(now-since)/(SUBSIDY_DAYS*Justice.DAY)+1).toInt()
+            val paid=t.subsidies[power] ?: 0
+            if(due>paid) {
+                val enemy=5-power
+                treasuries=treasuries+(enemy to Math.addExact(treasuries[enemy] ?: 0,SUBSIDY*(due-paid)))
+                t=t.copy(subsidies=t.subsidies+(power to due))
+            }
+        }
+        return if(t==s.social.trade)s else s.copy(nationalTreasuries=treasuries,social=s.social.copy(trade=t))
+    }
     /** Pays each route for its whole elapsed days; a route ends when it expires or either base leaves the owner's regular camp. */
-    fun settle(s:PlanetStocks,now:Long):PlanetStocks {
+    fun settle(g:Galaxy,start:PlanetStocks,now:Long):PlanetStocks {
+        val s=neutrality(g,start,now)
         val t=s.social.trade
-        if(t.routes.isEmpty())return s
+        if(t.routes.isEmpty() && t.convoys.isEmpty() && t.pacts.isEmpty() && t.passages.isEmpty())return s
         var bases=s.bases;val routes=LinkedHashMap<Int,TradeRoute>()
         for(r in t.routes.values.sortedBy {it.character}) {
             val power=bases[r.from]?.power
