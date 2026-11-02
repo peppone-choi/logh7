@@ -1,6 +1,6 @@
 # MsgDat 변환·사본 패치 도구
 
-작성자: 최병호 · 2026-09-27
+작성자: Peppone Choi · 2026-09-27
 
 - Python 표준 라이브러리만 사용한다. 게임 실행 없이 파일을 읽고 새 출력만 만든다. 기존 출력은 덮어쓰지 않으며 `E:\logh7-original` 아래 쓰기를 거부한다. `evidence:client`(도구 테스트).
 - HFWR의 그룹 인덱스·패딩·빈 문자열을 보존한다. CP932의 중복 Unicode 매핑은 원바이트를 보존하므로 무편집 JSON 왕복도 동일하다. GFWR 길이는 UTF-16 코드 유닛 단위다. `evidence:client`(E-400, 합성 테스트).
@@ -31,7 +31,7 @@ $python = 'C:\Users\user\AppData\Local\Programs\Python\Python311\python.exe'
 
 ## 검수 이미지의 백업·적용·복구 (2026-10-29)
 
-작성자: 최병호. `image_patch.py`는 Python 표준 라이브러리만 사용하며, 검수한 TGA를 재인코딩 없이 복사한다. PNG 시안의 번역·폰트 보정·TGA 변환을 수행하지 않는다. 실제 화면 확인은 [이미지 한국어화](../../docs/l10n/image-localization.md)의 절차를 따른다.
+작성자: Peppone Choi. `image_patch.py`는 Python 표준 라이브러리만 사용하며, 검수한 TGA를 재인코딩 없이 복사한다. PNG 시안의 번역·폰트 보정·TGA 변환을 수행하지 않는다. 실제 화면 확인은 [이미지 한국어화](../../docs/l10n/image-localization.md)의 절차를 따른다.
 
 1. `source_root`는 원본 설치본의 `data/image`, `replacement_root`는 검수 TGA의 루트로 지정한다. 두 루트에 같은 상대 경로가 있어야 한다.
 2. `inspect`로 각 원본/교체 파일의 SHA256과 TGA 메타데이터를 읽는다. 선택 JSON에는 적용할 자산만 넣는다. 해시는 실제 `inspect` 결과의 소문자 64자리 값으로 채운다.
@@ -76,7 +76,7 @@ $target = 'E:/logh7/work/<실행 케이스>/client/data/image'
 
 ## 전체 카탈로그·한국어 TGA 재생성 및 인계 (2026-10-29)
 
-작성: 최병호. 아래 명령은 전담 작업 폴더에서 실행하며 새 출력 폴더만 사용한다. Python/Pillow는 기존 설치를 사용한다. 원본 이미지·게임 파일은 저장소에 넣지 않는다. 번역 구조와 미확인 범위는 [텍스트 문서](../../docs/l10n/text-format.md#7-전체-번역-카탈로그와-네이티브-연결-후보-2026-10-29), [이미지 문서](../../docs/l10n/image-localization.md#원래-저장-형식의-한국어-tga-후보-29개-2026-10-29)에 있다.
+작성: Peppone Choi. 아래 명령은 전담 작업 폴더에서 실행하며 새 출력 폴더만 사용한다. Python/Pillow는 기존 설치를 사용한다. 원본 이미지·게임 파일은 저장소에 넣지 않는다. 번역 구조와 미확인 범위는 [텍스트 문서](../../docs/l10n/text-format.md#7-전체-번역-카탈로그와-네이티브-연결-후보-2026-10-29), [이미지 문서](../../docs/l10n/image-localization.md#원래-저장-형식의-한국어-tga-후보-29개-2026-10-29)에 있다.
 
 ```powershell
 Set-Location 'E:/logh7/work/full-korean-localization-wt'
@@ -117,7 +117,7 @@ try { & ./gradlew.bat :gateway:test --tests org.logh7.gateway.KoreanLocalization
 
 `build.ps1`은 DLL과 guard를 함께 빌드/실행한다. 생성 문자열 전부의 Unicode 복원, 원문 불일치 시 거부, Windows 리소스의 작은 버퍼/DBCS 경계를 guard에서 확인한다. Gradle 검사는 실제 생성 단계·코덱·파일 재개방을 사용하며 실제 IME나 두 클라이언트 검증을 대신하지 않는다.
 
-두 번째 묶음(작성: 최병호, 2026-10-29)은 `E:/logh7/work/korean-stage2-wt`에 있다. 위 명령의 작업 경로/출력 경로만 새 작업 폴더로 바꾸고 새 출력 디렉터리를 쓴다. 현재 `work/catalog-stage2-02/coverage.json`은 고정 UI 137개를 포함한 4,843개·누락 0이다. Python 30개가 통과했으며 두 검사가 실제 CD의 표시 전용 CALL과 문자열 인자 전용 서식을 추가 대조한다. x86 guard의 새 이름 복원 검사는 아직 실행하지 않았다. 이미지 후보는 첫 묶음을 유지하며 이 작업에서 변경하지 않았다.
+두 번째 묶음(작성: Peppone Choi, 2026-10-29)은 `E:/logh7/work/korean-stage2-wt`에 있다. 위 명령의 작업 경로/출력 경로만 새 작업 폴더로 바꾸고 새 출력 디렉터리를 쓴다. 현재 `work/catalog-stage2-02/coverage.json`은 고정 UI 137개를 포함한 4,843개·누락 0이다. Python 30개가 통과했으며 두 검사가 실제 CD의 표시 전용 CALL과 문자열 인자 전용 서식을 추가 대조한다. x86 guard의 새 이름 복원 검사는 아직 실행하지 않았다. 이미지 후보는 첫 묶음을 유지하며 이 작업에서 변경하지 않았다.
 
 ```powershell
 Set-Location 'E:/logh7/work/korean-stage2-wt'
@@ -130,7 +130,7 @@ Set-Location 'E:/logh7/work/korean-stage2-wt'
 
 ## Windows 오류창·추가 제목판의 세 번째 묶음 (2026-10-29)
 
-작성: 최병호. 작업 위치는 `E:/logh7/work/korean-stage3-wt`, 기준 `11f71ec`이다. Python 33개가 통과했다. `work/catalog-stage3-01/coverage.json`은 고정 UI 138개를 포함한 4,844개·누락 0이며 헤더 재생성이 일치했다. `test_display_hooks.py`는 MessageBoxA의 실제 IAT 이름/네 CALL, 화면 경고의 세 push와 복사 허용 목록도 검사한다. guard의 오류창 본문/제목·기존 번역 복원·미등록/변경 거부·ACP 짝 검사는 창을 열지 않으며 아직 실행하지 않았다.
+작성: Peppone Choi. 작업 위치는 `E:/logh7/work/korean-stage3-wt`, 기준 `11f71ec`이다. Python 33개가 통과했다. `work/catalog-stage3-01/coverage.json`은 고정 UI 138개를 포함한 4,844개·누락 0이며 헤더 재생성이 일치했다. `test_display_hooks.py`는 MessageBoxA의 실제 IAT 이름/네 CALL, 화면 경고의 세 push와 복사 허용 목록도 검사한다. guard의 오류창 본문/제목·기존 번역 복원·미등록/변경 거부·ACP 짝 검사는 창을 열지 않으며 아직 실행하지 않았다.
 
 ```powershell
 Set-Location 'E:/logh7/work/korean-stage3-wt'
@@ -155,7 +155,7 @@ $source = Join-Path (Split-Path (Split-Path $msg)) 'image'
 
 ## UTF-16 고정 UI·CString 및 전체 이미지 후보 보완 (2026-10-29)
 
-작성: 최병호. 최신 작업 사본은 `E:/logh7/work/korean-completion-wt`다. 카탈로그는 4,967개(별도 UTF-16 UI 121개 포함)이며 아래 Python46개는 이 사본에서 통과했다. 새 DLL/guard·실제 게임은 실행 담당만 확인한다. 기존 카탈로그 원본과 새 `l10n/exe-wide-ui.ko.json`, `static_resources.py`, 생성기를 함께 통합해야 한다. 헤더를 이전 글리프 표와 섞지 않는다.
+작성: Peppone Choi. 최신 작업 사본은 `E:/logh7/work/korean-completion-wt`다. 카탈로그는 4,967개(별도 UTF-16 UI 121개 포함)이며 아래 Python46개는 이 사본에서 통과했다. 새 DLL/guard·실제 게임은 실행 담당만 확인한다. 기존 카탈로그 원본과 새 `l10n/exe-wide-ui.ko.json`, `static_resources.py`, 생성기를 함께 통합해야 한다. 헤더를 이전 글리프 표와 섞지 않는다.
 
 ```powershell
 Set-Location 'E:/logh7/work/korean-completion-wt'

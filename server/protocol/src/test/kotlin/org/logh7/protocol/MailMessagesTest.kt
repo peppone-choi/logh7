@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test
 import java.nio.ByteBuffer
 import kotlin.test.*
 
-/** 코덱 단위 검사이며 원본 UI의 송신 완료 증거가 아니다. 작성: 최병호. */
+/** 코덱 단위 검사이며 원본 UI의 송신 완료 증거가 아니다. 작성: Peppone Choi. */
 class MailMessagesTest {
     private val a=MailMessages.Peer(10000,"한글 日本",1,20)
     private val b=MailMessages.Peer(10001,"수신인",2,20)
@@ -53,5 +53,21 @@ class MailMessagesTest {
         assertFails {MailMessages.rejected(0x0f10,"bad\u0000text")}
         assertFails {MailMessages.rejected(0x0f10,"")}
         assertFails {MailMessages.rejected(0x0700,"오류")}
+    }
+    @Test fun aProposalMailEndsWithCommandTypeInfluenceAndBothCp() {
+        val packet=MailMessages.suggest(MailMessages.Suggest(7,0,0,MailMessages.Peer(10002,"갑"),
+            MailMessages.Peer(10004,"을",extra=listOf(0,0,25)),99,0x0709,1,1,0,80))
+        val b=java.nio.ByteBuffer.wrap(packet)
+        assertEquals(0x0f13,b.getShort(4).toInt() and 65535);assertEquals(7,b.getInt(6))
+        val end=packet.size
+        assertEquals(80,b.getInt(end-4));assertEquals(0,b.getInt(end-8));assertEquals(1,packet[end-9].toInt())
+        assertEquals(1,packet[end-10].toInt());assertEquals(0x0709,b.getShort(end-12).toInt());assertEquals(99,b.getInt(end-16))
+    }
+    @Test fun aCapturedReplyDecodesItsReferenceAndValue() {
+        // run-r510 (拒絶): id 0, refer 1, both peers swapped, value 1.
+        val reply=MailMessages.Reply(0,1,0,MailMessages.Peer(10002,"Gamma Pilot"),MailMessages.Peer(10002,"Gamma Pilot",extra=listOf(0,0,25)),0,0,0,1)
+        val packet=MailMessages.reply(reply)
+        assertEquals(reply,MailMessages.reply(packet.copyOfRange(4,packet.size)))
+        assertFailsWith<IllegalArgumentException>{MailMessages.reply(MailMessages.reply(reply.copy(value=4)).let {it.copyOfRange(4,it.size)})}
     }
 }

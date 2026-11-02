@@ -21,13 +21,16 @@ object NavigationMessages {
         require(id > 0 && grid in 0..4999 && base in 0..65535 && mode == 5)
         return Warp(id, card, grid, base, mode)
     }
-    private fun reply(command: Warp, seconds: Long, pcp: Int, mcp: Int): ByteArray {
-        require(seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0)
+    private fun reply(command: Warp, seconds: Long, pcp: Int, mcp: Int, wait: Long = 0): ByteArray {
+        require(seconds in 0..0xffffffffL && pcp >= 0 && mcp >= 0 && wait in 0..0xffffffffL)
         return LoginMessages.sessionMessage(MessageId.CommandMoveGrid.opcode, ByteBuffer.allocate(31)
-            .putInt(seconds.toInt()).putInt(0).putInt(command.characterId).putShort(command.card.toShort())
+            .putInt(seconds.toInt()).putInt(wait.toInt()).putInt(command.characterId).putShort(command.card.toShort())
             .putInt(pcp).putInt(mcp).putShort(command.grid.toShort()).put(0).putInt(command.base).putShort(command.mode.toShort()).array())
     }
     fun accepted(command: Warp, seconds: Long, pcp: Int, mcp: Int): ByteArray = reply(command.copy(base = 0, mode = 5), seconds, pcp, mcp)
+    /** A reserved warp: the ACK carries the remaining game seconds; 0b07 follows at execution. */
+    fun reserved(command: Warp, seconds: Long, pcp: Int, mcp: Int, wait: Long): ByteArray =
+        reply(command.copy(base = 0, mode = 5), seconds, pcp, mcp, wait)
     fun moved(command: Warp, seconds: Long, unit: Int, cruise: Int): ByteArray =
         LoginMessages.sessionMessage(MessageId.NotifyMovedGrid.opcode, ByteBuffer.allocate(27)
             .putInt(seconds.toInt()).putInt(command.characterId).putInt(command.grid).putInt(0).putShort(5)

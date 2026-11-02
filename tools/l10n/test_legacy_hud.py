@@ -1,4 +1,4 @@
-"""기존 ANSI HUD의 원바이트·숫자 서식·글리프 호출 경계 검사. 작성: 최병호."""
+"""기존 ANSI HUD의 원바이트·숫자 서식·글리프 호출 경계 검사. 작성: Peppone Choi."""
 import re
 import struct
 import unittest

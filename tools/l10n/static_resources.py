@@ -1,4 +1,4 @@
-"""검토한 EXE 고정 UI 주소의 번역. 원본은 읽기 전용. 작성: 최병호."""
+"""검토한 EXE 고정 UI 주소의 번역. 원본은 읽기 전용. 작성: Peppone Choi."""
 from pathlib import Path
 import struct
 import re

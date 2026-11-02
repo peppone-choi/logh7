@@ -2,7 +2,7 @@ package org.logh7.persistence
 
 import org.logh7.engine.FlagshipHull
 
-/** NAV-14: kind, shield clock, hull, injury deadline, scale and six shield pools. Author: 최병호. */
+/** NAV-14: kind, shield clock, hull, injury deadline, scale and six shield pools. Author: Peppone Choi. */
 internal object FlagshipHullCodec {
     fun encode(hull:FlagshipHull) = (listOf(hull.kind,hull.at,hull.hp,hull.woundedUntil,hull.clockScale)+hull.shields).joinToString(",")
     fun decode(value:String):FlagshipHull {

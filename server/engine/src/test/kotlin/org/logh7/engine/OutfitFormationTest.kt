@@ -5,7 +5,7 @@ import java.io.IOException
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 결성/해산의 자산 보존·권한·예약·원자 저장. 작성: 최병호. 실행은 리드 담당. */
+/** 결성/해산의 자산 보존·권한·예약·원자 저장. 작성: Peppone Choi. 실행은 리드 담당. */
 class OutfitFormationTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),

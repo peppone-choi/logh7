@@ -9,7 +9,7 @@ enum class DismissalRejection { SESSION,IDENTITY,TARGET,CARD,AUTHORITY,AMBIGUOUS
 data class OfficeDismissalResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:DismissalRejection?=null,
     val changed:Boolean=false,val recovery:NavigationResult?=null,val targetPlayer:Navigator?=null)
 
-/** Native 0708 identifies the person and card kind, without a base/outfit identity. Author: 최병호. */
+/** Native 0708 identifies the person and card kind, without a base/outfit identity. Author: Peppone Choi. */
 class OfficeDismissalPolicy(private val galaxy:Galaxy) {
     data class Seat(val card:Int,val target:Int,val base:Int,val outfit:Int=0)
     private val offices=OrganizationalOfficePolicy(galaxy)
@@ -54,6 +54,6 @@ internal object OfficeDismissal {
         if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(DismissalRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(DismissalRejection.CP)
-        return OfficeDismissalResult(player.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),policy.clear(stocks,seat),changed=true)
+        return OfficeDismissalResult(player.paidWith(paid.balance),policy.clear(stocks,seat),changed=true)
     }
 }

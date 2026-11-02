@@ -3,7 +3,7 @@ package org.logh7.persistence
 import java.util.Base64
 import org.logh7.engine.*
 
-/** STOCK-16 canonical bounded autonomous state. Author: 최병호. */
+/** STOCK-16 canonical bounded autonomous state. Author: Peppone Choi. */
 internal object NpcTacticalCodec {
     fun encode(state:NpcTacticalState):String = Base64.getUrlEncoder().withoutPadding().encodeToString(
         listOf(TacticalMotionCodec.encode(state.motion),state.nextDecisionAt,state.nextFireAt,state.sequence,state.target,

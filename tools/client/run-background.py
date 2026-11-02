@@ -447,6 +447,10 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             observed = script.exports_sync.fortressstate(base)
                             with (out / "fortress-state.jsonl").open("a", encoding="utf-8") as evidence:
                                 evidence.write(json.dumps(observed) + "\n")
+                        elif action == {"inspectPick": True}:
+                            observed = script.exports_sync.pickstate()
+                            with (out / "pick-state.jsonl").open("a", encoding="utf-8") as evidence:
+                                evidence.write(json.dumps(observed) + "\n")
                         elif action == {"stop": True}:
                             deadline = time.monotonic()
                         else:

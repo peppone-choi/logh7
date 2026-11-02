@@ -1,6 +1,6 @@
 ---
 title: 메일·메신저·채팅
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: gin7manual.pdf(웹판) p.16–18 / CD판 p.13–15 / wayback update01(2005-02-07 캡처), update02(2005-02-07 캡처), ns-update(2004-10-16 캡처)
 ---

@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Parametric flagship charge; rate/capacity are replacement-server design. Author: 최병호.
+/** Parametric flagship charge; rate/capacity are replacement-server design. Author: Peppone Choi.
  * Work is allocation * elapsed G-seconds, preserving fractions across allocation changes.
  * At allocation 100 a full charge takes ten real seconds at the session clock scale.
  */

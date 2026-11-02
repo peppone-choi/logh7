@@ -1,5 +1,5 @@
 // Native text controls already contain UTF-16. Decode only the new ANSI fragment.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include <windows.h>
 #include <string>

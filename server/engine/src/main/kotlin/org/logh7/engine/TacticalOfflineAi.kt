@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.*
 
 /** Manual: offline AI accepts tactical missions (update04). Steering, allocation and five-real-second
- * decisions below are replacement policy. Uses the normal motion, reload and damage models. Author: 최병호. */
+ * decisions below are replacement policy. Uses the normal motion, reload and damage models. Author: Peppone Choi. */
 internal object TacticalOfflineAi {
     fun eligible(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks)=session.ended==null &&
         session.participants[account]?.online==false && p.generation==session.generation && p.cpPaused &&
@@ -25,7 +25,7 @@ internal object TacticalOfflineAi {
             val mission=stocks.tacticalCommands.missions[p.characterId]?.takeUnless {it.completed}
             val kind=if(stocks.tacticalCommands.confused(p.unitId))5 else mission?.mission ?: 0
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}).distinct()
-            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,p.power,stocks,g,players)?.let {
+            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,p.power,stocks,g,players,CoupActions.camp(stocks,p.characterId))?.let {
                 id to TacticalFleetAttack.pose(it,now,players,stocks,g)}}
             val enemy=enemies.singleOrNull {kind in 3..4 && it.first==mission?.target}
                 ?: if(kind==0)enemies.minWithOrNull(compareBy<Pair<Int,TacticalPose>> {

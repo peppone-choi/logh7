@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 연설 전용 요청 경계와 음수 결과/영속 번호의 응답. 작성: 최병호. */
+/** 연설 전용 요청 경계와 음수 결과/영속 번호의 응답. 작성: Peppone Choi. */
 class SocialMessagesTest {
     private fun request(phase:Int=0,ticket:Int=0)=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
         .putShort(0x7f10).putShort(14).putShort(0).putShort(0).putInt(ticket).put(phase.toByte()).putInt(0).putShort(0).putInt(0).putShort(37).array()

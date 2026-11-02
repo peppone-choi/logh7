@@ -3,7 +3,7 @@ package org.logh7.protocol
 import java.nio.ByteBuffer
 
 /** CD writer 00464f70: clock, character, five AI switches (operation is not sent).
- * Order follows native character offsets 5f..63. Author: 최병호. */
+ * Order follows native character offsets 5f..63. Author: Peppone Choi. */
 object OfflineDirectionMessages {
     data class Settings(val character:Int,val switches:List<Int>) {
         init {require(character>0 && switches.size==5 && switches.all {it in 0..1})}

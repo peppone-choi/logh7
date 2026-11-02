@@ -5,7 +5,7 @@ import kotlinx.coroutines.*
 import java.io.IOException
 import kotlin.test.*
 
-/** 손상·재고·오프라인 부원 기함과 거부의 원자성. 작성: 최병호. */
+/** 손상·재고·오프라인 부원 기함과 거부의 원자성. 작성: Peppone Choi. */
 class CompleteRepairActionsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),

@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import kotlin.math.hypot
 
-/** Manual W53: five seconds to begin, 150 seconds preparation. Author: 최병호. */
+/** Manual W53: five seconds to begin, 150 seconds preparation. Author: Peppone Choi. */
 data class TacticalRetreat(val destination: Int, val acceptedAt: Long, val waitSeconds: Long,
     val preparationSeconds: Long,val membershipChecked:Boolean=false) {
     val startsAt get() = acceptedAt + waitSeconds

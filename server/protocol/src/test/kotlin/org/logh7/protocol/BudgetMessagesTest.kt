@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 금고는 잘리지 않는 64비트이며 요청 CP/금액/시각을 신뢰하지 않는다. 작성: 최병호. */
+/** 금고는 잘리지 않는 64비트이며 요청 CP/금액/시각을 신뢰하지 않는다. 작성: Peppone Choi. */
 class BudgetMessagesTest {
     private fun request(phase:Int=0,base:Int=0,rate:Int=0,quote:Int=0)=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
         .putShort(0x7f02).putShort(18).putShort(8).putShort(rate.toShort()).putInt(quote).put(phase.toByte())

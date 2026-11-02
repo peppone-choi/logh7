@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD 0045aca0 / 00472e40 InformationMail, 00482620 address list. 작성: 최병호. */
+/** CD 0045aca0 / 00472e40 InformationMail, 00482620 address list. 작성: Peppone Choi. */
 object MailMessages {
     data class Peer(val id:Int,val name:String="",val origin:Int=0,val rank:Int=0,val title:String="",
         val extra:List<Int> = List(3){0}) {
@@ -85,6 +85,26 @@ object MailMessages {
         peer(exchange.first);peer(exchange.second);put(exchange.phase.toByte());put(exchange.result.toByte())
     }
     fun deleteAddress(value:Peer)=packet(0x0f0c){peer(value)}
+    /** 0x0f13 CommandOrderSuggestMail (decoder 004799c0, evidence:client static analysis). */
+    data class Suggest(val id:Int,val refer:Int,val status:Int,val sender:Peer,val recipient:Peer,val seconds:Long,
+        val command:Int,val type:Int,val influence:Int,val pcp:Int,val mcp:Int)
+    /** 0x0f14 CommandReplyOrderSuggestMail (decoder 0047ce40): the 0x0f13 order without CP, ending in the reply value
+     * (client: 0 拒否 · 1 拒絶 · 2 オウム返し, the compatibility approval button 3; server rows carry reply+1 for display). */
+    data class Reply(val id:Int,val refer:Int,val status:Int,val sender:Peer,val recipient:Peer,val seconds:Long,
+        val command:Int,val type:Int,val value:Int)
+    fun reply(bytes:ByteArray):Reply=with(input(bytes,0x0f14)) {
+        Reply(int,int,u8(),peer(),peer(),int.toLong() and 0xffffffffL,u16(),u8(),u8()).also {require(it.value in 0..3 && !hasRemaining())}
+    }
+    fun reply(value:Reply)=packet(0x0f14) {
+        require(value.value in 0..5)
+        putInt(value.id);putInt(value.refer);put(value.status.toByte());peer(value.sender);peer(value.recipient)
+        putInt(value.seconds.toInt());putShort(value.command.toShort());put(value.type.toByte());put(value.value.toByte())
+    }
+    fun suggest(value:Suggest)=packet(0x0f13) {
+        putInt(value.id);putInt(value.refer);put(value.status.toByte());peer(value.sender);peer(value.recipient)
+        putInt(value.seconds.toInt());putShort(value.command.toShort());put(value.type.toByte());put(value.influence.toByte())
+        putInt(value.pcp);putInt(value.mcp)
+    }
     /** 004391f0 reader: type:u16, error:raw u8, count:u8, UTF-16BE.
      * type=failed opcode/error=0 is our correlation policy, not a recovered enum.
      * Dispatch adds another NUL at count; keep that inside its 128-unit array. */

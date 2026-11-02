@@ -7,7 +7,7 @@ import java.nio.ByteBuffer
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Delayed tactical events must stay in their committed battlefield. Author: 최병호. */
+/** Delayed tactical events must stay in their committed battlefield. Author: Peppone Choi. */
 class GamePresenceBattlefieldTest {
     private val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
         emptyList(), Power.entries.associateWith { 2487 })
@@ -75,8 +75,9 @@ class GamePresenceBattlefieldTest {
         assertEquals(returned, hub.detail("viewer", 10000)?.player)
         received.clear()
         hub.combat(impact, committed)
-        assertEquals(listOf(0x0f1f), received.flatten().map(::opcode))
-        val exit = ByteBuffer.wrap(received.single().single())
+        // U-24: the exit is followed by the refreshed character (sinking changed its abilities).
+        assertEquals(listOf(0x0f1f, 0x0356), received.flatten().map(::opcode))
+        val exit = ByteBuffer.wrap(received.single().first())
         assertEquals(0, exit.get(6).toInt())
         assertEquals(2487, exit.getInt(7))
     }
@@ -92,7 +93,7 @@ class GamePresenceBattlefieldTest {
         hub.update(viewer)
         // The original in-battle presence still needs its exit before publishing its return.
         hub.combat(impact, snapshot.copy(navigators = mapOf("victim" to returned)))
-        assertEquals(listOf(0x0f1f), received.flatten().map(::opcode))
+        assertEquals(listOf(0x0f1f, 0x0356), received.flatten().map(::opcode))
         for (current in listOf(
             returned.copy(grid = 2487, baseId = 0, mode = 5, cpPaused = true),
             returned.copy(baseId = 0, mode = 5, cpPaused = true),

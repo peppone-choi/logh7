@@ -9,7 +9,7 @@ import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import kotlin.test.*
 
-/** 실제 암호화 봉투→저장·두 접속 조건 갱신·취소/이탈·서버 재시작. 작성: 최병호. 실행은 리드 담당. */
+/** 실제 암호화 봉투→저장·두 접속 조건 갱신·취소/이탈·서버 재시작. 작성: Peppone Choi. 실행은 리드 담당. */
 class CivicActionsWireTest {
     @TempDir lateinit var directory:Path
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2200,4,"Foreign",3)),listOf(

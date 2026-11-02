@@ -2,7 +2,7 @@ package org.logh7.persistence
 
 import org.logh7.engine.*
 
-/** NAV-12 pending command and last absolute loss notification. Author: 최병호. */
+/** NAV-12 pending command and last absolute loss notification. Author: Peppone Choi. */
 internal object TacticalFireCodec {
     fun encode(fire: TacticalFire): String = listOf(fire.sequence.toString(), fire.pending?.let {
         listOf(it.sequence,it.grid,it.shipKind,it.target,it.acceptedAt,it.firesAt).let { fields ->

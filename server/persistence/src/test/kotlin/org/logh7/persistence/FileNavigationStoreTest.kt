@@ -7,6 +7,17 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun unconvertedStrategicCpIsAnOptionalNav19Column() {
+        val player=Navigator(1,10000,Power.EMPIRE,2017,1000,840,900,pcpUsed=7,mcpUsed=165)
+        val path=directory.resolve("cp-used")
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to player))}
+        assertTrue(java.nio.file.Files.readAllLines(path).first()=="LOGH7-NAV-19")
+        FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
+        val plain=player.copy(pcpUsed=0,mcpUsed=0)
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to plain))}
+        assertFalse(java.nio.file.Files.readAllLines(path).first()=="LOGH7-NAV-19")
+        FileNavigationStore(path).use {assertEquals(plain,it.load().getValue("pilot"))}
+    }
     @Test fun angularScheduleReopensAndLegacyMotionRetainsItsLinearMeaning() {
         val legacy=TacticalMotion(2017,100,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
             listOf(TacticalPoint(0f,10f),TacticalPoint(0f,0f)))

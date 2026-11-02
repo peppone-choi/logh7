@@ -2,7 +2,7 @@ package org.logh7.engine
 
 import java.util.Collections
 
-/** Commissioned unit identity, not a ship-kind ID or a personal flagship ID. Author: 최병호. */
+/** Commissioned unit identity, not a ship-kind ID or a personal flagship ID. Author: Peppone Choi. */
 data class ActiveShipUnit(val id: Int, val stack: UnitStack,
     val boats: Int = UnitSpecifications.ships.single { it.kind == stack.kind }.number,
     val tactical: NpcTacticalState? = null, val supplies: Int? = null,

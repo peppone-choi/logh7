@@ -27,7 +27,7 @@ data class BudgetChange(val stocks:PlanetStocks,val bases:Set<Int>,val defaultRa
 
 /** Manual W73/native constmsg: MCP320, immediate, aid is a budget percentage.
  * Finance-only authority, capital presence, per-base rates and durable quote/confirmation
- * are explicit restoration policy. No private account or military supply is money. Author: 최병호. */
+ * are explicit restoration policy. No private account or military supply is money. Author: Peppone Choi. */
 object BudgetActions {
     val cards=setOf(8,136)
     const val QUOTE_SECONDS=86400L
@@ -102,7 +102,7 @@ object BudgetActions {
         if(i.command==16)next=next.copy(budget=next.budget.copy(remittanceRates=next.budget.remittanceRates+(baseId to r.rate)))
         else next=next.copy(nationalTreasuries=next.nationalTreasuries+(power to national-q.amount),
             bases=next.bases+(baseId to b.copy(treasury=b.treasury+q.amount)))
-        return BudgetResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true,
+        return BudgetResult(p.paidWith(paid.balance),next,changed=true,
             view=BudgetView(baseId,power,next.nationalTreasuries[power] ?: 0,next.bases.getValue(baseId).treasury,
                 rate(next,baseId,defaultRate),completed))
     }

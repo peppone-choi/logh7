@@ -1,4 +1,4 @@
-// Fortress charge, authoritative partial base hits and emergency-supply HUD. Author: 최병호.
+// Fortress charge, authoritative partial base hits and emergency-supply HUD. Author: Peppone Choi.
 #pragma once
 #include "tactical_base_data.h"
 static void __fastcall receivedFortressCharge(void* world,void*,void* message,BYTE pending) {

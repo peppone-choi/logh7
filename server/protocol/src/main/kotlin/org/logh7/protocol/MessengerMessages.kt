@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD 0046c560/0046ded0/00471260/00484280 수신 계약. 작성: 최병호. */
+/** CD 0046c560/0046ded0/00471260/00484280 수신 계약. 작성: Peppone Choi. */
 object MessengerMessages {
     data class Status(val peer:MailMessages.Peer,val status:Int)
     data class Link(val close:Boolean,val first:MailMessages.Peer,val second:MailMessages.Peer,

@@ -1,4 +1,4 @@
-// Display-only composition beyond the native 128-byte scratch array. Author: 최병호.
+// Display-only composition beyond the native 128-byte scratch array. Author: Peppone Choi.
 #pragma once
 #include "display_text.h"
 namespace logh {

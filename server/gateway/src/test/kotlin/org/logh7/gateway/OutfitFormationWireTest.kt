@@ -8,7 +8,7 @@ import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import kotlin.test.*
 
-/** 암호화 편집→확정→관찰자 목록/카드→해산→재시작. 작성: 최병호. 실행은 리드 담당. */
+/** 암호화 편집→확정→관찰자 목록/카드→해산→재시작. 작성: Peppone Choi. 실행은 리드 담당. */
 class OutfitFormationWireTest {
     @TempDir lateinit var directory:Path
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(

@@ -1,4 +1,4 @@
-// Dedicated 0355 decoded record (0042a420), distinct from the world cache. Author: 최병호.
+// Dedicated 0355 decoded record (0042a420), distinct from the world cache. Author: Peppone Choi.
 #pragma once
 #include "outfit_info_data.h"
 namespace logh {

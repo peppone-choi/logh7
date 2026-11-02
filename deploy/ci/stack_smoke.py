@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""작성: 최병호. GitHub-hosted 전용 일회성 Compose smoke; 운영 데이터에 사용 금지."""
+"""작성: Peppone Choi. GitHub-hosted 전용 일회성 Compose smoke; 운영 데이터에 사용 금지."""
 import argparse
 import json
 import os

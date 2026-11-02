@@ -1,5 +1,5 @@
 // Rebuild the missing CD presence notices without changing world membership.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 
 static const char peerNoticeMarker[] = "LOGH7_PEER_NOTICE";

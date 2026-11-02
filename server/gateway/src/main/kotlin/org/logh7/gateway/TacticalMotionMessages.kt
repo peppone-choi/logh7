@@ -3,7 +3,7 @@ package org.logh7.gateway
 import org.logh7.engine.Navigator
 import org.logh7.protocol.TacticalMoveMessages
 
-/** Only called after durable navigation commit, or to restore an already committed path. Author: 최병호. */
+/** Only called after durable navigation commit, or to restore an already committed path. Author: Peppone Choi. */
 internal object TacticalMotionMessages {
     fun formation(motions:Map<Int,org.logh7.engine.TacticalMotion>,seconds:Long,character:Int):List<ByteArray> {
         require(motions.size in 1..32 && character>0)

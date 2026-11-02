@@ -8,7 +8,7 @@ import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import kotlin.test.*
 
-/** 암호화 요청→수리/구매/합의 교환→양측 알림과 재접속. 작성: 최병호. 실행은 리드 담당. */
+/** 암호화 요청→수리/구매/합의 교환→양측 알림과 재접속. 작성: Peppone Choi. 실행은 리드 담당. */
 class FlagshipMarketWireTest {
     @TempDir lateinit var directory:Path
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(

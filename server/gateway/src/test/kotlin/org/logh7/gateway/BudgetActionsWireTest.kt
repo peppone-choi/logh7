@@ -9,7 +9,7 @@ import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import kotlin.test.*
 
-/** 암호화 조회/견적/확정·재시작·일일 정산·비권한 접속 금고 비공개. 작성: 최병호. */
+/** 암호화 조회/견적/확정·재시작·일일 정산·비권한 접속 금고 비공개. 작성: Peppone Choi. */
 class BudgetActionsWireTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds

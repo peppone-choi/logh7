@@ -1,4 +1,4 @@
-# 작성: 최병호 | evidence:guess | 생성하지 않은 검토용 초안
+# 작성: Peppone Choi | evidence:guess | 생성하지 않은 검토용 초안
 terraform {
   required_version = ">= 1.5.0, < 2.0.0"
   required_providers {

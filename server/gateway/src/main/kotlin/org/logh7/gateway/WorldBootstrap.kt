@@ -20,12 +20,23 @@ class WorldBootstrap(val galaxy: Galaxy) {
             if(role.card in org.logh7.engine.CivicActions.commandingCards)addAll(listOf(52,54,56))
             when(role.card) {
                 8,136->addAll(listOf(16,18))
+                // U-25 (design-arrest-judgment.md): list/grant/arrest and judgment by duty (CM group 6).
+                7,10,137->addAll(listOf(69,70,71,19,68))
+                32,157->addAll(listOf(69,70,71,68,73,74))
+                158->addAll(listOf(68,73,74))
+                // U-17 工作 (design-espionage.md): intelligence cards also run the operations.
+                20,58,162,194->addAll(listOf(68,73,74,75,76,77,78,79,80,81))
                 1->addAll(listOf(0,1,2,3,8,9))
                 17,135->addAll(listOf(0,1,2,4))
                 19,160->addAll(listOf(0,1,2))
                 24,25,26,147,148,149->addAll(listOf(22,23))
                 28,29,30,169,170,171->add(24)
             }
+            // U-10 査閲 on the police/intelligence cards that search.
+            if(role.card in org.logh7.engine.Justice.searchCards)add(72)
+            // 国家目標 on the head of state and the prime minister.
+            if(role.card in org.logh7.engine.GoalActions.nationalCards)add(15)
+            if(role.card==160)add(19)
             if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
             add(7)
         }.distinct()
@@ -33,7 +44,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             role.ranks.max(),role.ranks.min(),commands)
     }.plus(((60..66).toList()+(124..130).toList()).associateWith {card ->
         WorldMessages.CardDefinition(card,2,if(card>=124)1 else 0,if(card in setOf(66,130))16 else 0,1,20,0,
-            if(card in setOf(66,130))listOf(11) else emptyList())
+            // 封土 cards host 狩猟 and the lord's 統治目標.
+            if(card in setOf(66,130))listOf(11,21) else emptyList())
     })
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices=org.logh7.engine.LogisticsOfficePolicy(galaxy)
@@ -69,7 +81,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val allocator=editor>0 && stocks.logisticsOfficers[editor]?.permits(power,outfit.kind)==true &&
             owner.power==power && owner.camp==0
         require(query.mode == 0 || owner.power == power && owner.camp == 0 && editor > 0 &&
-            (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId || allocator && query.base == 0)) {
+            // The native allocation editor (00585150) sends the selected depot base, not 0.
+            (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId ||
+                allocator && (query.base == 0 || query.base == outfit.baseId))) {
             "Only the stationed commander or authorized allocator may open the editor"
         }
         val members = outfit.members().map {id ->
@@ -102,7 +116,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         val rows=outfit.activeGround?.values.orEmpty().filter {it.id>query.base}.sortedBy {it.id}.take(70).map {u->
             val grid=if(u.base>0)galaxy.bases.single {it.id==u.base}.grid else position.grid
             OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,grid,outfit.id,u.base,carrier=u.carrier,
-                mode=if(u.carrier>0)10 else if(u.base>0)if(u.origin>0)9 else 4 else 0)
+                mode=if(u.carrier>0)10 else if(u.base>0)if(u.origin>0)9 else 4 else 0,rebellion=stocks.social.coup.loyalty[outfit.id] ?: 0)
         }
         // Echo the extension identity/cursor before 0331, including an empty page. This
         // prevents an unrelated or delayed native unit reply from satisfying the page.
@@ -117,7 +131,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             val unit = outfit.activeShips!!.values.single { it.id == id }
             listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,position.baseId,
                 org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id),unit.unavailable,
-                UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number-unit.boats))
+                UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number-unit.boats,
+                rebellion=stocks.social.coup.loyalty[outfit.id] ?: 0))
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
     }
@@ -128,8 +143,10 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks): ByteArray =
         LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
             (query.grid == -1 || outfit.positionIn(galaxy).grid == query.grid) &&
-                (query.power == 255 || outfit.power == query.power) && (query.camp == 255 || query.camp == 0)
-        }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,0,it.number,it.supplies) }))
+                (query.power == 255 || outfit.power == query.power) &&
+                (query.camp == 255 || query.camp == org.logh7.engine.CoupActions.outfitCamp(stocks,outfit))
+        }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,
+            org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number,it.supplies) }))
     private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?,
         spare: Map<org.logh7.engine.UnitStack,Int> = emptyMap()) = (values.orEmpty().keys+spare.keys).map {it.kind}.distinct().sorted().map { kind ->
             val stacks=values.orEmpty().entries.filter {it.key.kind==kind}
@@ -206,9 +223,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
             })
         }))
     val catalogues: Map<Int, ByteArray> = mapOf(
+        // Row 89 renders a black hole (004d40bc: type 3, fixedstar 8 -> model 7) under the
+        // "impassable grid" name; it is excluded from the 3..88 star-system index.
         0x0312 to WorldMessages.types(List(89) { kind ->
             Triple(kind, if (kind >= 3) 3 else kind, galaxy.systems.find { it.kind == kind }?.star ?: 4)
-        }),
+        } + Triple(org.logh7.engine.Galaxy.IMPASSABLE_CELL, 3, 8)),
         0x0314 to WorldMessages.grid(galaxy.cells),
         0x031c to WorldMessages.bases(galaxy.bases.map(::baseWire)),
         0x0306 to WorldMessages.captainCommands(officeCards.mapValues {it.value.commands}),
@@ -237,6 +256,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 cargo = ship.number("物資搭載量:物資搭載量"),
                 beamArms = beam.profile, beamAngles = beam.angles, gunArms = gun.profile, gunAngles = gun.angles,
                 missileArms = missile.profile, missileAngles = missile.angles,
+                antiaircraftArms = if (ship.number("対空兵装破壊力:対空兵装破壊力") > 0) org.logh7.engine.TacticalArmaments.ANTIAIR_NAME else 255,
                 commandRange=if(ship.number==1)org.logh7.engine.TacticalSupportRules.COMMAND_RANGE else 0f)
         }),
         0x030c to WorldMessages.crews(UnitSpecifications.crews.map { crew ->

@@ -4,7 +4,7 @@ import kotlin.math.hypot
 
 /** Regular-unit retreat uses the same 5 + 150 real-second schedule as the flagship.
  * A selected subset becomes a detached outfit with stable unit IDs; landed troops stay behind.
- * Detachment identities are replacement policy, not recovered original organisation data. Author: 최병호. */
+ * Detachment identities are replacement policy, not recovered original organisation data. Author: Peppone Choi. */
 internal object TacticalFleetRetreat {
     fun accept(r:NavigationRequest,session:SessionState,g:Galaxy,n:Navigation,production:PlanetProduction,s:PlanetStocks,
         committer:WorldStateCommitter?,scale:Long):NavigationResult {

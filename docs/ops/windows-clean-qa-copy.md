@@ -1,6 +1,6 @@
 # 정확 SHA Windows QA 사본 준비
 
-작성: 최병호
+작성: Peppone Choi
 
 E:\logh7은 사용자 dirty 원본이다. 이 절차는 원본에 fetch/reset/clean/checkout,
 파일 쓰기, untracked 코드 복사·실행을 하지 않는다. 제품 QA는 NOT_RUN이다.

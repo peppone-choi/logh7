@@ -1,5 +1,5 @@
 // Native lookup -> native ANSI formatting -> native UTF-16 pool.
-// Author: 최병호. Original EXE hash and complete instructions are checked first.
+// Author: Peppone Choi. Original EXE hash and complete instructions are checked first.
 #pragma once
 #include "korean_text.h"
 #include "korean_windows.h"

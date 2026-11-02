@@ -1,5 +1,5 @@
 // Keep live local and peer unit state in sync with authoritative 0325 replies.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 
 static struct {void* world;void* element;BYTE enabled;} pausedFleetInput={};

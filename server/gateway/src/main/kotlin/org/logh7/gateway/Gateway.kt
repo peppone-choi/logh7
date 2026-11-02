@@ -72,6 +72,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var movementSubscription: AutoCloseable? = null
     private var strategicMovementSubscription: AutoCloseable? = null
     private var occupationSubscription:AutoCloseable?=null
+    private var experienceSubscription:AutoCloseable?=null
     private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
     private var postureSubscription:AutoCloseable? = null
@@ -79,6 +80,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var supportSubscription: AutoCloseable? = null
     private var civicSubscription:AutoCloseable?=null
     private var budgetSubscription:AutoCloseable?=null
+    private var identitySubscription:AutoCloseable?=null
+    private var fameSubscription:AutoCloseable?=null
     private var communication:GameCommunication?=null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
@@ -89,16 +92,23 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         val tickets = SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
+        presence?.disguise = { id -> navigation?.snapshot()?.planetStocks?.social?.justice?.disguises?.get(id)?.let {
+            org.logh7.engine.EspionageActions.aliases[it.alias] to it.power } }
         tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        fameSubscription=stock?.observeSessionResults {s->s.session?.generation?.let {g->
+            characterStores.fame.settle(s,characterStores.get(g))}}
+        identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
+            org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList(),c.age)}}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
             {generation,id->communicationIdentity(characterStores.get(generation),id)},
             {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},
-            {generation->communicationStore(characterFile,generation)})}
+            {generation->communicationStore(characterFile,generation)},
+            proposals={_->navigation?.snapshot()?.planetStocks?.social?.proposals})}
         strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
             navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
         }}
@@ -108,6 +118,15 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         occupationSubscription=presence?.let {p->navigation!!.observeOccupations {event->
             navigation.snapshot()?.let {snapshot->p.occupation(event,snapshot,world!!,currentCharacters()::characterById,
                 {id,power,generation->administration?.offices(id,power,generation).orEmpty()})}
+        }}
+        // CP-experience settlement changes abilities outside a request; refresh the owner's own record.
+        experienceSubscription=presence?.let {p->navigation!!.observeExperience {ids->
+            navigation.snapshot()?.let {snapshot->for(id in ids) {
+                val character=currentCharacters().characterById(id)?.let {WorldCharacters.view(it,snapshot)} ?: continue
+                val player=snapshot.navigators.values.singleOrNull {it.characterId==id} ?: continue
+                p.refreshCharacter(character,player,administration?.offices(id,character.power,player.generation).orEmpty(),
+                    snapshot.session?.gameSeconds ?: 0L,administration?.stationedOutfit(player) ?: 0)
+            }}
         }}
         groundBattleSubscription=presence?.let {p->navigation!!.observeGroundBattles {event->
             navigation.snapshot()?.let {snapshot->p.groundBattle(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
@@ -210,7 +229,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                     while(waitingFrames.isNotEmpty() && ctx.channel().isActive)process(ctx,waitingFrames.removeFirst())
                                                 }
                                                 else if (!ctx.channel().isActive || failure != null) {
-                                                    if(failure != null) System.err.println("gateway async: ${failure.cause?.message ?: failure.message}")
+                                                    if(failure != null) {val cause=failure.cause ?: failure
+                                                        System.err.println("gateway async: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}")}
                                                     try { exchange.close() } finally { ctx.close() }
                                                 }
                                                 else try {
@@ -231,7 +251,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         }
                                     }
                                     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-                                        System.err.println("gateway: ${cause.message}")
+                                        // The first project frame locates a failed requirement without a full trace.
+                                        System.err.println("gateway: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}")
                                         try { exchange.close() } finally { ctx.close() }
                                     }
                                     override fun channelInactive(ctx: ChannelHandlerContext) {
@@ -252,12 +273,14 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         combatSubscription?.close()
         movementSubscription?.close()
         strategicMovementSubscription?.close()
-        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close()
+        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close();experienceSubscription?.close()
         postureSubscription?.close()
         tacticalCommandSubscription?.close()
         supportSubscription?.close()
         civicSubscription?.close()
         budgetSubscription?.close()
+        identitySubscription?.close()
+        fameSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
         finally {
             try {communication?.close()} finally {

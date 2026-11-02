@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 새 opcode 없이 엄격한 복원 명령·단계·상태 봉투. 작성: 최병호. */
+/** 새 opcode 없이 엄격한 복원 명령·단계·상태 봉투. 작성: Peppone Choi. */
 class CivicMessagesTest {
     private fun request(command:Int=52,mode:Int=0,outfit:Int=200)=ByteBuffer.allocate(31)
         .putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(command.toShort()).putShort(59).putShort(mode.toShort())

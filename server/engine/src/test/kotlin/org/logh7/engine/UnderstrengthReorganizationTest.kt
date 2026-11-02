@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** A remainder is selectable stock, never a freshly filled unit. Author: 최병호. */
+/** A remainder is selectable stock, never a freshly filled unit. Author: Peppone Choi. */
 class UnderstrengthReorganizationTest {
     private val ship=UnitStack(32)
     private fun initial()=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),

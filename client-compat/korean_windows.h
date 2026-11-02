@@ -1,4 +1,4 @@
-// Only the game's RT_STRING on an ACP 949 host. Author: 최병호.
+// Only the game's RT_STRING on an ACP 949 host. Author: Peppone Choi.
 #pragma once
 #include "unicode_text.h"
 

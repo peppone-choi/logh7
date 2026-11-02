@@ -1,4 +1,4 @@
-"""편지/명함/메신저 표시의 실제 CD 호출·배열·분기 대조. 작성: 최병호."""
+"""편지/명함/메신저 표시의 실제 CD 호출·배열·분기 대조. 작성: Peppone Choi."""
 import re
 import struct
 import unittest

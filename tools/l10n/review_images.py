@@ -1,4 +1,4 @@
-"""이미지 전수 목록과 해시가 고정된 육안 분류·교체 패키지를 대조한다. 작성: 최병호.
+"""이미지 전수 목록과 해시가 고정된 육안 분류·교체 패키지를 대조한다. 작성: Peppone Choi.
 
 접촉 시트에서 글자가 없다는 판정은 실제 사용·확대 표시·게임 화면 검증이 아니다.
 새 파일·변경 파일은 기존 분류를 계승하지 않고 pending으로 되돌린다.
@@ -53,7 +53,7 @@ def review(inventory, document, packages=()):
     removed=sorted(row['asset'] for key,row in known.items() if key not in seen)
     counts=dict(Counter(row['text_review'] for row in rows))
     missing=[row['asset'] for row in rows if row['text_review']=='translation_candidate' and not row['replacement_verified']]
-    return dict(author='최병호',assets=rows,counts=counts,removed_assets=removed,
+    return dict(author='Peppone Choi',assets=rows,counts=counts,removed_assets=removed,
         missing_replacements=missing,display_validated=False,
         inventory_matches_review=not removed and not counts.get('pending',0),
         translation_candidates_packaged=not missing)

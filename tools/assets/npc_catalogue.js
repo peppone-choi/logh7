@@ -1,4 +1,4 @@
-/* Offline NPC worksheet. Author: 최병호. No network or server writes. */
+/* Offline NPC worksheet. Author: Peppone Choi. No network or server writes. */
 'use strict';
 (() => {
   const abilities = ['leadership', 'politics', 'administration', 'intelligence', 'command', 'mobility', 'attack', 'defense'];

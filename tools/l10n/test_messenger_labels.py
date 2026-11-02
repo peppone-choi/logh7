@@ -1,4 +1,4 @@
-"""run-332 메신저 상태·그룹·인원·미치환 서식의 CD 경계 검사. 작성: 최병호."""
+"""run-332 메신저 상태·그룹·인원·미치환 서식의 CD 경계 검사. 작성: Peppone Choi."""
 import re
 import struct
 import unittest

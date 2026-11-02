@@ -1,4 +1,4 @@
-// Native selector card identity. Author: 최병호.
+// Native selector card identity. Author: Peppone Choi.
 #pragma once
 namespace logh {
 inline bool appointmentAuthorityCard(unsigned card) {

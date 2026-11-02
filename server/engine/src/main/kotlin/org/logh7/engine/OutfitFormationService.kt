@@ -1,7 +1,7 @@
 package org.logh7.engine
 
 /** Actor-owned soft editing leases. No stock/CP changes before COMMIT; disconnect,
- * session change or 120 seconds of inactivity releases the lease. Author: 최병호. */
+ * session change or 120 seconds of inactivity releases the lease. Author: Peppone Choi. */
 internal class OutfitFormationService(private val clock:()->Long) {
     private data class Draft(val id:Int,val request:OutfitFormationRequest,val rows:Map<Int,Int>,val supplies:Int,val expires:Long)
     private var sequence=0

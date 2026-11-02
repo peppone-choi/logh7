@@ -146,4 +146,14 @@ class LadderRulesTest {
             assertEquals(listOf("high", "low"), ids(ordered))
         }
     }
+    @Test fun theThirdLawRanksTheHighestDecorationAfterPeerageAndBeforeInfluence() {
+        val low=LadderEntry("low",100,null,90,10,highestDecoration=0)
+        val high=LadderEntry("high",100,null,10,10,highestDecoration=3)
+        val none=LadderEntry("none",100,null,99,99)
+        assertEquals(listOf("high","low","none"),ids(LadderRules.order(Power.ALLIANCE,listOf(none,low,high))))
+        val baron=LadderEntry("baron",100,Peerage.BARON,0,0)
+        val knight=LadderEntry("knight",100,Peerage.IMPERIAL_KNIGHT,0,0,highestDecoration=5)
+        assertEquals(listOf("baron","knight"),ids(LadderRules.order(Power.EMPIRE,listOf(knight,baron))),"peerage comes first")
+        assertEquals(setOf("high"),LadderRules.topIds(Power.ALLIANCE,listOf(none,low,high)))
+    }
 }

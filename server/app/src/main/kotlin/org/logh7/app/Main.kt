@@ -89,7 +89,7 @@ fun main() {
         }
         val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store,
             galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
-            npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true)) }
+            npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true), awaitIdentities = world != null) }
         catch (failure: Throwable) {
             try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }

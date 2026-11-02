@@ -1,4 +1,4 @@
-// Private resource glyphs in the older ANSI outline renderer. Author: 최병호.
+// Private resource glyphs in the older ANSI outline renderer. Author: Peppone Choi.
 #pragma once
 #include <windows.h>
 #include "korean_text.h"

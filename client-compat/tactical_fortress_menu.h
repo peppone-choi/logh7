@@ -1,6 +1,7 @@
 // Restore fortress commands from the authenticated character's exact office seat.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
+#include <cmath>
 #include "tactical_fortress_menu_data.h"
 static bool selectedCommandFortress(unsigned base) {
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
@@ -10,11 +11,27 @@ static bool selectedCommandFortress(unsigned base) {
     return reinterpret_cast<void*(__cdecl*)(void*,unsigned,BYTE,BYTE,BYTE,BYTE)>(0x4c7cd0)
         (world+0x126718,base,0,255,255,255)!=nullptr;
 }
+static volatile LONG ownSupremeCommander=0;
+static unsigned __stdcall decodedCommandCorps(void* record,void* reader) {
+    unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x422d80)(record,reader);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    int chief=!result && own ? logh::corpsChief(static_cast<const BYTE*>(record),at<unsigned>(own,0x24)) : -1;
+    if(chief>=0)InterlockedExchange(&ownSupremeCommander,chief);
+    return result;
+}
 static void __cdecl fortressCommandMenu(void* manager,BYTE wait,unsigned tab,unsigned forts,unsigned ships) {
+    if (manager && tab==4) {
+        BYTE enabled[24];logh::commanderMenu(InterlockedCompareExchange(&ownSupremeCommander,0,0)!=0,enabled);
+        auto menu=at<void*>(manager,0xd4);
+        if (menu) reinterpret_cast<void(__thiscall*)(void*,unsigned,const BYTE*,unsigned,unsigned)>(0x508930)
+            (menu,1,enabled,6,24);
+    }
     if (manager && tab==5) {
         BYTE enabled[24]={};
         unsigned base=*reinterpret_cast<unsigned*>(0x2215528);
-        if (forts==1 && selectedCommandFortress(base)) enabled[6]=enabled[9]=enabled[15]=enabled[21]=enabled[22]=1;
+        // Slot 0 is 【移動】 (CD manual p.54, mobile fortresses only); the server rejects fixed fortresses.
+        if (forts==1 && selectedCommandFortress(base)) enabled[0]=enabled[6]=enabled[9]=enabled[15]=enabled[21]=enabled[22]=1;
         auto menu=at<void*>(manager,0xd4);
         if (menu) reinterpret_cast<void(__thiscall*)(void*,unsigned,const BYTE*,unsigned,unsigned)>(0x508930)
             (menu,1,enabled,6,24);
@@ -258,6 +275,58 @@ static void __declspec(naked) fortressStopState() {
         jmp dword ptr [originalFortressStopState]
     }
 }
+// CD state 0x16 (fortress tab 【移動】, button 6) compares the fortress owner word with the player's
+// side and falls back to state 1 on mismatch; tactical bases carry no owner word, so the commander's
+// own selected fortress takes the player's side. 004b3b20 then sends the native 041f (ordinal 0x60).
+static bool __cdecl fortressMoveOwned(BYTE* object) {
+    auto ctx=*reinterpret_cast<BYTE**>(0x2215e2c);
+    return ctx && object && at<unsigned>(ctx,4)==0x16 && *reinterpret_cast<unsigned*>(0x77a8f8)==5 &&
+        *reinterpret_cast<unsigned*>(0x221666c)==1 && at<BYTE>(object,8)==0 &&
+        at<unsigned>(object,4)==*reinterpret_cast<unsigned*>(0x2215528) && selectedCommandFortress(at<unsigned>(object,4));
+}
+static unsigned nativeUnitOwner=0x4b5f10;
+static void __declspec(naked) fortressMoveOwner() {
+    __asm {
+        push ecx
+        call dword ptr [nativeUnitOwner]
+        pop ecx
+        cmp eax,ebx
+        je done
+        pushad
+        push ecx
+        call fortressMoveOwned
+        add esp,4
+        test al,al
+        popad
+        jz done
+        mov eax,ebx
+    done:
+        ret
+    }
+}
+// 004bf4c0 stores a fortress path (041f OK, 0435) on the base object, but the per-frame base update
+// 004b2740 only orbits; only ships are integrated (004b2c80). Advance a moving base along that stored
+// path at its stored speed in game seconds, the same rule the server uses, and stop at the last point.
+static unsigned __cdecl movingBaseTick(BYTE* object,unsigned elapsed) {
+    unsigned result=reinterpret_cast<unsigned(__cdecl*)(BYTE*,unsigned)>(0x4b2740)(object,elapsed);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    if(!world || !object || !object[0] || object[8]!=0 || object[0x60]!=1)return result;
+    unsigned count=at<unsigned>(object,0x10c);
+    float speed=at<float>(object,0x418);
+    if(count<2 || count>33 || !(speed>0.f) || speed>1000.f)return result;
+    unsigned now=reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4c53b0)(world),start=at<unsigned>(object,0x64);
+    double travel=now>start ? static_cast<double>(now-start)*speed : 0.;
+    auto point=[object](unsigned i,unsigned axis){return at<float>(object,0x110+i*24+axis*8);};
+    float x=point(0,0),z=point(0,1);
+    for(unsigned i=1;i<count;++i) {
+        double dx=point(i,0)-x,dz=point(i,1)-z,length=std::sqrt(dx*dx+dz*dz);
+        if(travel<length) {x+=static_cast<float>(dx*travel/length);z+=static_cast<float>(dz*travel/length);travel=-1.;break;}
+        travel-=length;x=point(i,0);z=point(i,1);
+    }
+    *reinterpret_cast<float*>(object+0x14)=x;*reinterpret_cast<float*>(object+0x1c)=z;
+    if(travel>=0.)object[0x60]=0;
+    return result;
+}
 static bool installFortressCommandMenu() {
     const BYTE rowExpected[5]={0xe8,0xe4,0x56,0xff,0xff};
     if(memcmp(reinterpret_cast<void*>(0x510467),rowExpected,sizeof(rowExpected)))return false;
@@ -294,6 +363,25 @@ static bool installFortressCommandMenu() {
     }
     unsigned replacement=static_cast<unsigned>(reinterpret_cast<uintptr_t>(&fortressStopState));
     if(!patchBytes(reinterpret_cast<void*>(0x512278),&originalFortressStopState,&replacement,sizeof(replacement)))return false;
+    // CD air battle (menu 0x11, 00510ec3) picks enemies with 0x1181, but registers no weapon-range
+    // preview (+0xa764 stays 0), so 004f1180 is always false and no target passes.
+    // 0x40000 inverts that preview check; the server still validates the launch.
+    const BYTE airMask[5]={0x68,0x81,0x11,0,0},airEnemyMask[5]={0x68,0x81,0x11,0x04,0};
+    if(!patchBytes(reinterpret_cast<void*>(0x510ec3),airMask,airEnemyMask,5))return false;
+    const unsigned corpsDecoder=0x422d80,corpsReplacement=static_cast<unsigned>(reinterpret_cast<uintptr_t>(&decodedCommandCorps));
+    if(memcmp(reinterpret_cast<void*>(0x66c400),&corpsDecoder,4) ||
+       !patchBytes(reinterpret_cast<void*>(0x66c400),&corpsDecoder,&corpsReplacement,4))return false;
+    const unsigned baseTicks[]={0x4c5c56,0x4c5c80};
+    const BYTE baseTickExpected[2][5]={{0xe8,0xe5,0xca,0xfe,0xff},{0xe8,0xbb,0xca,0xfe,0xff}};
+    for(unsigned i=0;i<2;++i) {
+        BYTE call[5]={0xe8};
+        *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&movingBaseTick)-reinterpret_cast<BYTE*>(baseTicks[i])-5);
+        if(!patchBytes(reinterpret_cast<void*>(baseTicks[i]),baseTickExpected[i],call,5))return false;
+    }
+    const BYTE ownerExpected[5]={0xe8,0xeb,0x74,0xfa,0xff};
+    BYTE ownerCall[5]={0xe8};
+    *reinterpret_cast<LONG*>(ownerCall+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&fortressMoveOwner)-reinterpret_cast<BYTE*>(0x50ea20)-5);
+    if(!patchBytes(reinterpret_cast<void*>(0x50ea20),ownerExpected,ownerCall,5))return false;
     BYTE rowCall[5]={0xe8};
     *reinterpret_cast<LONG*>(rowCall+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&fortressSupportRow)-reinterpret_cast<BYTE*>(0x510467)-5);
     return patchBytes(reinterpret_cast<void*>(0x510467),rowExpected,rowCall,sizeof(rowCall));

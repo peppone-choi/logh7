@@ -1,4 +1,4 @@
-"""원본 버튼 배경을 보존한 한글 글꼴 렌더 시안·복구 패키지. 작성: 최병호.
+"""원본 버튼 배경을 보존한 한글 글꼴 렌더 시안·복구 패키지. 작성: Peppone Choi.
 
 원본 제작 글꼴은 미확인이다. Windows 맑은 고딕으로 만든 검토 후보이며,
 실제 게임의 상태/UV/가독성 확인은 실행 담당이 수행한다.
@@ -141,7 +141,7 @@ def render(source, output, font_path):
                                font=str(font_path),font_pixels=14,original_font_confirmed=False,
                                metadata=info,display_validated=False))
     (output/'selection.json').write_text(json.dumps(selection,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
-    (output/'render.json').write_text(json.dumps(dict(author='최병호',font_sha256=image_patch.sha(font_path.read_bytes()),
+    (output/'render.json').write_text(json.dumps(dict(author='Peppone Choi',font_sha256=image_patch.sha(font_path.read_bytes()),
         assets=report,display_validated=False),ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
     sheet.resize((sheet.width*3,sheet.height*3),Image.Resampling.NEAREST).save(output/'preview.png')
     image_patch.prepare(Path(source),output/'replacement',output/'selection.json',output/'package')

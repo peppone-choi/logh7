@@ -5,7 +5,7 @@ import org.logh7.engine.Messenger
 import org.logh7.protocol.MailMessages
 import org.logh7.protocol.MessengerMessages as Wire
 
-/** GameCommunication의 직렬 실행/잠금 안에서만 사용한다. 작성: 최병호. */
+/** GameCommunication의 직렬 실행/잠금 안에서만 사용한다. 작성: Peppone Choi. */
 internal class GameMessenger(private val presence:GamePresence,private val generation:Long,
     currentGeneration:()->Long,private val identity:(Long,Int)->MailIdentity?) {
     private val model=Messenger(generation,currentGeneration)

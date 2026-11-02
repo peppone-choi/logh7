@@ -1,7 +1,7 @@
 package org.logh7.engine
 
 /** Committed ground exchange. Formula/cadence are revival policy; manual p.51 supplies
- * automatic combat, per-side 30-unit boxes and crew tables supply attack/defense. Author: 최병호. */
+ * automatic combat, per-side 30-unit boxes and crew tables supply attack/defense. Author: Peppone Choi. */
 data class GroundBattleResult(val generation:Long,val grid:Int,val base:Int,val seconds:Long,
     val damaged:List<Int>,val destroyed:List<Int>,val recipients:Map<Int,String>)
 
@@ -9,7 +9,7 @@ internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
     fun participants(stocks:PlanetStocks,base:GalaxyBase,power:Int):List<ActiveGroundUnit> =
         stocks.outfits.values.filter {it.power==power}.flatMap {it.activeGround?.values.orEmpty()}
-            .filter {it.base==base.id && (base.kind!=1 || specifications.getValue(it.stack.kind).type!=2)}
+            .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
 
     fun contested(stocks:PlanetStocks,base:GalaxyBase)=participants(stocks,base,2).isNotEmpty() && participants(stocks,base,3).isNotEmpty()

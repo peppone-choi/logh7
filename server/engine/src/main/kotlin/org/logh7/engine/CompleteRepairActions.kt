@@ -5,7 +5,7 @@ import org.logh7.engine.strategy.*
 /** W71: MCP160, repair surviving ships, consume all carried supplies. The personal
  * captain path, same-location member flagships and zero-damage free no-op are explicit
  * restoration policy. Destroyed boats and injured characters are never resurrected.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 internal object CompleteRepairActions {
     val supported=setOf(61)
     private fun busy(p:Navigator)=p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null
@@ -48,7 +48,8 @@ internal object CompleteRepairActions {
             val damage=ships.values.any {it.boats>0 && it.damaged>0} || nearby.values.any {it.hull?.hp?.let {hp->hp<100}==true}
             if(!damage)return StrategyActionResult(p,stocks)
             if(outfit.supplies==0)return reject(StrategyActionRejection.RESOURCE)
-            val repaired=outfit.copy(activeShips=ActiveShipUnits(ships.values.map {it.copy(damaged=0)}),supplies=0)
+            // update03: guard ships cannot be repaired; only crewed members are restored.
+            val repaired=outfit.copy(activeShips=ActiveShipUnits(ships.values.map {if(outfit.guard!=null)it else it.copy(damaged=0)}),supplies=0)
             val emptyCargo=if(ships.values.isEmpty())repaired else OutfitSupplies.withBalances(repaired,ships.values.associate {it.id to 0})
             next=stocks.copy(outfits=stocks.outfits+(outfit.id to emptyCargo))
             updates=nearby.mapValues {(_,member)->member.hull?.let {member.copy(hull=it.copy(hp=100))} ?: member}
@@ -56,7 +57,7 @@ internal object CompleteRepairActions {
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(after.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
+        return StrategyActionResult(after.paidWith(paid.balance),next,
             changed=true,navigators=updates-r.account)
     }
 }

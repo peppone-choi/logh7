@@ -1,5 +1,5 @@
 // Dedicated end-of-session view using native controls and the surviving panel frame.
-// The 035a handler otherwise only hides the HUD. Author: 최병호.
+// The 035a handler otherwise only hides the HUD. Author: Peppone Choi.
 #pragma once
 #include "session_ending_data.h"
 static struct {void* world=nullptr;void* root=nullptr;void* gui=nullptr;bool active=false;bool lobby=false;ULONGLONG acceptAfter=0;logh::SessionEndingData data;} sessionEnding;

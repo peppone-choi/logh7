@@ -8,7 +8,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.*
 
-/** CP·훈련/계급·예약을 같은 월드 슬롯에 저장. 작성: 최병호. */
+/** CP·훈련/계급·예약을 같은 월드 슬롯에 저장. 작성: Peppone Choi. */
 class StrategicStateStoreTest {
     @TempDir lateinit var directory:Path
     private val navigator=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000)
@@ -26,6 +26,20 @@ class StrategicStateStoreTest {
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode(encoded.replace(":1:2:3000000:",":1:4:3000000:"))}
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode("0$encoded")}
         assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode("-|-|-|-|-|-")}
+    }
+    @Test fun airTacticsIsAnOptionalTwelfthPersonFieldThatKeepsOlderRowsCanonical() {
+        val trained=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(airTactics=2)))
+        val encoded=StrategicStateCodec.encode(trained);assertEquals(trained,StrategicStateCodec.decode(encoded))
+        assertTrue(encoded.substringBefore('|').endsWith(":0,127:2"))
+        assertFalse(StrategicStateCodec.encode(state).substringBefore('|').endsWith(":0"))
+        for(bad in listOf(encoded.replace(":0,127:2",":0,127:0"),encoded.replace(":0,127:2",":0,127:4")))
+            assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(bad)}
+    }
+    @Test fun deathIsAnOptionalThirteenthPersonFieldAfterAnExplicitAirTactics() {
+        val dead=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(deceasedAt=777)))
+        val encoded=StrategicStateCodec.encode(dead);assertEquals(dead,StrategicStateCodec.decode(encoded))
+        assertTrue(encoded.substringBefore('|').endsWith(":0,127:0:777"))
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":0,127:0:777",":0,127:0:0"))}
     }
     @Test fun format29ReopensAlongsideLegacyEmptyStrategicState() {
         val path=directory.resolve("stocks.tsv")
@@ -67,5 +81,20 @@ class StrategicStateStoreTest {
         repeat(2){FilePlanetStockStore(path).use {assertEquals(combined,it.load())}}
         Files.write(path,lines.filterNot {it.startsWith("S\t")})
         FilePlanetStockStore(path).use {assertFailsWith<IllegalArgumentException>{it.load()}}
+    }
+    @Test fun transportPackagesAreAnOptionalSixthSection() {
+        assertEquals(5,StrategicStateCodec.encode(state).split('|').size)
+        val packed=state.copy(transports=listOf(TransportPackage(1,2,1049,1050,1000,UnitInventory(mapOf(UnitStack(32,1) to 2),mapOf(UnitStack(3) to 1))),
+            TransportPackage(2,2,1049,1050,5,carrier=200,carrierBoats=300)))
+        val encoded=StrategicStateCodec.encode(packed);assertEquals(packed,StrategicStateCodec.decode(encoded))
+        assertEquals("1:2:1049:1050:1000:32.1.2:3.0.1:0:0;2:2:1049:1050:5:-:-:200:300",encoded.substringAfterLast('|'))
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode("$encoded|")}
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":200:300",":200:0"))}
+    }
+    @Test fun anEmpirePoliticiansKeptMilitaryRankIsAnOptionalFourteenthField() {
+        val politician=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(rank=1,militaryRank=6)))
+        val encoded=StrategicStateCodec.encode(politician);assertEquals(politician,StrategicStateCodec.decode(encoded))
+        assertTrue(encoded.substringBefore('|').endsWith(":0,127:0:0:6"))
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":0,127:0:0:6",":0,127:0:0:0"))}
     }
 }

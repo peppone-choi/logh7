@@ -2,7 +2,7 @@ package org.logh7.persistence
 
 import org.logh7.engine.*
 
-/** STOCK34 B: versioned independently from S/C/M/F/V. Author: 최병호. */
+/** STOCK34 B: versioned independently from S/C/M/F/V. Author: Peppone Choi. */
 internal object BudgetStateCodec {
     fun encode(s:BudgetState)=listOf(s.nextId,s.remittanceRates.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"},
         s.quotes.toSortedMap().values.joinToString(";") {q->listOf(q.id,q.character,q.command,q.card,q.power,q.base,q.rate,q.beforeRate,

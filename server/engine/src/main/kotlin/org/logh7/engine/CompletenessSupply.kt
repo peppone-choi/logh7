@@ -15,7 +15,7 @@ data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetSt
 /** Manual command table: MCP160, no wait/duration. Native 004b4da0 identifies two outfits.
  * Same-base bulk transfer and partial delivery when cargo runs out are designed policy until
  * moving-outfit logistics is connected. Individual flagship cargo is a separate pending task.
- * Author: 최병호.
+ * Author: Peppone Choi.
  */
 internal object CompletenessSupply {
     fun evaluate(r: CompletenessSupplyRequest, session: SessionState, player: Navigator?,
@@ -49,7 +49,7 @@ internal object CompletenessSupply {
         if (amount == 0) return CompletenessSupplyResult(player, stocks)
         val paid = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), 160, CpPool.MCP)
         if (paid !is PaymentResult.Paid) return reject(LogisticsRejection.CP)
-        val after = player.copy(pcp = paid.balance.pcp.toInt(), mcp = paid.balance.mcp.toInt())
+        val after = player.paidWith(paid.balance)
         val next = stocks.copy(outfits = stocks.outfits + mapOf(
             from.id to from.copy(supplies = from.supplies - amount),
             to.id to to.copy(supplies = Math.addExact(to.supplies, amount))))

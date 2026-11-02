@@ -13,6 +13,8 @@ object CharacterMessages {
         val shipName: String, val check: Int, val generated: Boolean = true,
         val merit:Long=0,val influence:Int=0,val evaluation:Long=0,val money:Long=0,val decorations:Set<Int> = emptySet(),
         val ai:List<Int> = List(6){0},
+        /** Per-ability experience 0..99, shown beside each ability in the native information sheet. */
+        val experience:List<Int> = List(8){0},
     )
     fun generate(bytes: ByteArray): Generate {
         val input = ByteBuffer.wrap(bytes)

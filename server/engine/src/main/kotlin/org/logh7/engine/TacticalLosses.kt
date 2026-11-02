@@ -2,7 +2,7 @@ package org.logh7.engine
 
 /** W p.52: cargo follows surviving boats; damaged survivors remain repairable.
  * Disable half as many additional boats (minimum one); destroy already damaged boats first.
- * Damage allocation/rounding and total-carrier troop loss are replacement policy. Author: 최병호. */
+ * Damage allocation/rounding and total-carrier troop loss are replacement policy. Author: Peppone Choi. */
 internal object TacticalLosses {
     fun apply(outfit:OutfitStock,id:Int,damage:Int):OutfitStock {
         require(damage>0)

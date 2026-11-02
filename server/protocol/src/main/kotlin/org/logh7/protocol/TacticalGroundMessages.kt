@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD 0049f860 (040f), 0049fd50 (0410), 004a01e0 (0411). Author: 최병호. */
+/** CD 0049f860 (040f), 0049fd50 (0410), 004a01e0 (0411). Author: Peppone Choi. */
 object TacticalGroundMessages {
     enum class Action(val opcode:Int) { DEPLOY(0x040f), WITHDRAW(0x0410), SORTIE(0x0412) }
     /** Skill is an opaque wire byte. Deployment eligibility belongs to the world actor. */

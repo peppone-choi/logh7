@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** CD writers 00551a80/00553fc0, readers 00555eb0/00558b70. Author: 최병호. */
+/** CD writers 00551a80/00553fc0, readers 00555eb0/00558b70. Author: Peppone Choi. */
 object LogisticsMessages {
     // Client clock, identity and balances are transport fields, never authority.
     data class Header(val time: Int, val characterId: Int, val pcp: Int, val mcp: Int)

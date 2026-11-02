@@ -1,4 +1,4 @@
-# 작성: 최병호 | LOGH-46 | Virtual samples test the unchanged one-minute rules.
+# 작성: Peppone Choi | LOGH-46 | Virtual samples test the unchanged one-minute rules.
 rule_files: [tcp-alerts.yml]
 evaluation_interval: 5s
 

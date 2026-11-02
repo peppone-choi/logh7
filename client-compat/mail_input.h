@@ -1,4 +1,4 @@
-// Verified mail/messenger call sites only. Author: 최병호.
+// Verified mail/messenger call sites only. Author: Peppone Choi.
 #pragma once
 #include "mail_text.h"
 #include "mail_delivery.h"
@@ -7,6 +7,17 @@
 static thread_local logh::MailDelivery mailDelivery;
 static thread_local void* mailEditorContext=nullptr;
 static thread_local logh::MailRefresh mailRefresh;
+// New-mail mark (user decision 2026-11-01: the CD has no closed-mailbox notice, so the DLL marks the HUD). The server
+// pushes the whole personal inbox on every delivery; the native list (world+0x457770 count, 0x75c records from
+// world+0x457774, +8 read flag) holds it until another folder's 0x0f08 replaces it.
+static void* mailInboxWorld=nullptr;
+static unsigned mailInboxOwner=0;
+static unsigned unreadPersonalMail(BYTE* world,unsigned owner) {
+    if(!world || world!=mailInboxWorld || owner!=mailInboxOwner || !owner)return 0;
+    unsigned count=at<unsigned>(world,0x457770),unread=0;
+    for(unsigned i=0;i<count && i<100;++i)if(!at<BYTE>(world,0x457774+i*0x75c+8))++unread;
+    return unread;
+}
 static bool mailRefreshView(void* context,void* world,unsigned owner,bool includeDraft=false) {
     const unsigned mode=at<unsigned>(context,0xa00);
     if(!world || !owner || mailDelivery.pending || at<unsigned>(context,0xa08)!=3 ||
@@ -57,6 +68,8 @@ static void receivedMailOutcome(void* world,unsigned opcode,const BYTE* record) 
         const auto data=const_cast<BYTE*>(record);
         mailRefresh.begin(world,at<unsigned>(data,0),at<BYTE>(data,0x125)!=0,
             logh::personalMailAddress(data));
+        const bool inbox=at<BYTE>(data,0x125)!=0 && logh::personalMailAddress(data);
+        mailInboxWorld=inbox ? world : nullptr;mailInboxOwner=inbox ? at<unsigned>(data,0) : 0;
     } else if ((opcode&0xffff)==0x0f09)mailRefresh.end(world);
 }
 static void __fastcall mailEditorTick(void* context,void*,void* input) {

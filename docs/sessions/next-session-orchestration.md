@@ -1,6 +1,6 @@
 # 세션 2 오케스트레이션 — 요구사항과 프롬프트 (Codex CLI 기준)
 
-작성: 최병호 · 2026-09-27 · 선행: [BOOTSTRAP-REPORT](../BOOTSTRAP-REPORT.md) · 실행 도구: **OpenAI Codex CLI**(Windows 네이티브, 멀티 에이전트)
+작성: Peppone Choi · 2026-09-27 · 선행: [BOOTSTRAP-REPORT](../BOOTSTRAP-REPORT.md) · 실행 도구: **OpenAI Codex CLI**(Windows 네이티브, 멀티 에이전트)
 
 구성: **A 요구사항** → **B 실행 준비(사용자)** → **C 리드 프롬프트**(Codex에 붙여넣기) → **D 트랙 프롬프트 T1~T5**(리드가 서브에이전트에 넘김)
 
@@ -138,7 +138,7 @@ D-1 VirtualBox(G:) · D-2 GCP 전제·로컬 연습(과금 금지) · D-3 revers
 공통 머리말(모든 트랙 앞에 붙인다):
 
 ````markdown
-너는 LOGH7 부활 프로젝트의 서브에이전트다. 규칙은 `E:\logh7\AGENTS.md`. 요약: 문서는 한국어·작성자 "최병호"·근거 태그(evidence:manual|client|guess), 원문 장문 전재·게임 자산 커밋 금지, C:에 아무것도 쓰지 말 것(캐시 포함 E:), 도구 경로는 `E:\reverse-skill\skills\tool-index.md`, 새 도구는 `E:\Tools\`. **git 금지, 아래 쓰기 경로에만 쓴다. 파일을 쓴 뒤 끝부분을 다시 읽어 잘림이 없는지 확인한다.** Evidence는 `E:\reverse-skill\skills\scripts\append-evidence.ps1` 로 배정 번호 대역만 쓴다. 게임 클라이언트를 호스트에서 실행하지 않는다. 끝나면 10줄 이내로 결과·산출물 경로·미해결을 보고한다.
+너는 LOGH7 부활 프로젝트의 서브에이전트다. 규칙은 `E:\logh7\AGENTS.md`. 요약: 문서는 한국어·작성자 "Peppone Choi"·근거 태그(evidence:manual|client|guess), 원문 장문 전재·게임 자산 커밋 금지, C:에 아무것도 쓰지 말 것(캐시 포함 E:), 도구 경로는 `E:\reverse-skill\skills\tool-index.md`, 새 도구는 `E:\Tools\`. **git 금지, 아래 쓰기 경로에만 쓴다. 파일을 쓴 뒤 끝부분을 다시 읽어 잘림이 없는지 확인한다.** Evidence는 `E:\reverse-skill\skills\scripts\append-evidence.ps1` 로 배정 번호 대역만 쓴다. 게임 클라이언트를 호스트에서 실행하지 않는다. 끝나면 10줄 이내로 결과·산출물 경로·미해결을 보고한다.
 ````
 
 ### T1 `server-core`

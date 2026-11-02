@@ -1,4 +1,4 @@
-// Revival unit formation/dissolution editor. Native 1200 selector 0x46. Author: 최병호.
+// Revival unit formation/dissolution editor. Native 1200 selector 0x46. Author: Peppone Choi.
 #pragma once
 static struct OutfitFormationWindow {
     struct Item {unsigned code,available,selected;wchar_t name[13];} items[200];

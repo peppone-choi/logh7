@@ -1,4 +1,4 @@
-"""번역 경계·원본 불변·손실 없는 문자열 검사. 작성: 최병호."""
+"""번역 경계·원본 불변·손실 없는 문자열 검사. 작성: Peppone Choi."""
 import copy
 import json
 from pathlib import Path
@@ -70,7 +70,7 @@ class CatalogueTest(unittest.TestCase):
 
     def test_catalogue_files_are_valid(self):
         doc = catalog.read_json(catalog.ROOT/'l10n/constmsg.ko.json')
-        self.assertEqual('최병호',doc['author'])
+        self.assertEqual('Peppone Choi',doc['author'])
         self.assertEqual(64,len(doc['source_sha256']))
         self.assertGreater(len(catalog.terms(catalog.ROOT/'l10n/ui-terms.ko.tsv')),500)
         for values in doc['groups'].values():

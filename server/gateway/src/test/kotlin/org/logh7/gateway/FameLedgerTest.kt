@@ -1,0 +1,36 @@
+package org.logh7.gateway
+
+import java.nio.file.Files
+import java.util.HexFormat
+import org.junit.jupiter.api.Test
+import org.logh7.engine.*
+import org.logh7.protocol.*
+import kotlin.test.*
+
+/** 세션 결과의 명성 환산: 승리 생존자·준장 이상 전사자 보상, 세대당 1회, 다음 세대 공급. 작성: Peppone Choi. */
+class FameLedgerTest {
+    private fun character(id:Long,power:Int,rank:Int)=CharacterMessages.Generate(4,id,power,0,0,"N$id","Pilot",18,1,1,1000001,
+        List(8){50},0,0,0,rank,3,0,"Ship$id",1)
+    @Test fun aResultConvertsEvaluationAndRewardsOncePerGenerationIntoTheNextLottery() {
+        val dir=Files.createTempDirectory("fame")
+        val file=dir.resolve("characters.properties")
+        val props=java.util.Properties()
+        for((account,c) in listOf("winner" to character(10000,2,8),"fallen" to character(10001,3,5),"loser" to character(10002,3,9))) {
+            val encoded=CharacterMessages.generateReply(c);props.setProperty(account,HexFormat.of().formatHex(encoded.copyOfRange(4,encoded.size)))
+        }
+        Files.newBufferedWriter(file).use {props.store(it,null)}
+        val end=SessionEnd(EndReason.CAPITAL_CAPTURED,setOf(Power.ALLIANCE),123)
+        val result=SessionResults.assess(end,SessionStatistics(4,2,100_000_000_001,1010,66),mapOf(
+            Power.EMPIRE to SessionStatistics(2,1,90_000_009_999,1000,33),Power.ALLIANCE to SessionStatistics(2,1,9_999_990_002,10,33)),
+            VictoryConditions(true,true))
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(10000 to StrategicPerson(evaluation=250),
+            10001 to StrategicPerson(evaluation=30,deceasedAt=50),10002 to StrategicPerson(evaluation=99))))
+        val world=WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),planetStocks=stocks,result=result)
+        val stores=CharacterStores(file)
+        assertEquals(683L,FameLedger.reward(8));assertEquals(1000L,FameLedger.reward(2));assertEquals(50L,FameLedger.reward(20))
+        assertEquals(mapOf("winner" to 9,"fallen" to 8),stores.fame.settle(world,stores.get(1)))
+        assertTrue(stores.fame.settle(world,stores.get(1)).isEmpty(),"one settlement per generation")
+        assertEquals(mapOf("winner" to 9,"fallen" to 8),CharacterStores(file).fame.fame())
+        assertEquals(9,stores.get(2).fame("winner"))
+    }
+}

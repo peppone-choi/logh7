@@ -1,6 +1,6 @@
 # 도구·서버 스택 최신 버전과 설치 방법 (Windows 10 x64 기준)
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27
 - 버전·URL 확인 날짜: 2026-09-27 (GitHub Releases API, 공식 다운로드 페이지, Adoptium API, nodejs.org dist 인덱스, postgresql.org versions.json 조회)
 - 근거 태그: `evidence:web`(공식 배포처라도 게임과 무관한 제3자 자료이므로 web으로 표기), `evidence:guess`(추정·일반 관행)

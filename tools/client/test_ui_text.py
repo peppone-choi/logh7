@@ -1,4 +1,4 @@
-"""Prevent partial/unsupported text injection into the owned view. Author: 최병호."""
+"""Prevent partial/unsupported text injection into the owned view. Author: Peppone Choi."""
 import unittest
 from ui_text import cp949_ui_bytes
 

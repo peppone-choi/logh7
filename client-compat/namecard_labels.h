@@ -1,4 +1,4 @@
-// Verified CD name-card literal copies and paired display names. Author: 최병호.
+// Verified CD name-card literal copies and paired display names. Author: Peppone Choi.
 #pragma once
 #include "namecard_text.h"
 #include "korean_text.h"

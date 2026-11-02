@@ -1,5 +1,5 @@
 // Native base picker: preserve its IDs/actions and render authoritative Unicode data.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 #include "appointment_ui_data.h"
 #include <stdlib.h>

@@ -177,7 +177,7 @@ rpc.exports.fortressstate = function(id) {
     if(!unit.readU8() || unit.add(8).readU8()!==1)continue;
     ships.push({id:unit.add(4).readU32(),kind:unit.add(0x8bc).readU16(),
       normal:unit.add(0x8d4).readU32(),alive:unit.add(0x8d8).readU32(),supplies:unit.add(0x950).readU32(),
-      morale:unit.add(0x954).readU8(),mode:unit.add(0x974).readU8(),base:unit.add(0x978).readU32(),
+      morale:unit.add(0x954).readU8(),mode:unit.add(0x974).readU8(),base:unit.add(0x978).readU32(),ready:unit.add(0x8c5).readU8(),
       subtype:unit.add(9).readU8(),effectiveMode:modeOf(unit),effectiveBase:baseOf(unit),
       specName:world.add(0x2c1a78+unit.add(0x8bc).readU16()*0x2a8+12).readUtf16String(32).split('\0')[0],
       pose:[0x14,0x18,0x1c].map(i=>unit.add(i).readFloat())});
@@ -207,12 +207,16 @@ rpc.exports.fortressstate = function(id) {
   } catch(e) {supportList={...supportList,error:String(e)};}
   return {base:base.isNull()?null:{id:base.add(4).readU32(),type:base.add(8).readU8(),owner:base.add(0x8c8).readU32(),
     pose:[0x14,0x18,0x1c].map(i=>base.add(i).readFloat()),
-    kind:base.add(0x8bc).readU16(),charge:[base.add(0x5bc).readU32(),base.add(0x5c0).readU32()]},
+    kind:base.add(0x8bc).readU16(),charge:[base.add(0x5bc).readU32(),base.add(0x5c0).readU32()],
+    motion:{moving:base.add(0x60).readU8(),start:base.add(0x64).readU32(),points:base.add(0x10c).readFloat(),
+      speed:[0x418,0x41c,0x420].map(i=>base.add(i).readFloat())}},
     projection:{viewport:display.isNull()?null:[display.add(0x2a4c8).readU32(),display.add(0x2a4cc).readU32()],
       scale:[ptr(0x2229970).readFloat(),ptr(0x2229984).readFloat()],matrix:Array.from({length:16},(_,i)=>ptr(0x2229674+i*4).readFloat())},
     ships,supportList,input:fortressInputEvents.slice(),aimBase:ptr(0x2216674).readU32(),command:ptr(0x22166a9).readU8(),
     tab:ptr(0x77a8f8).readU32(),mode:ptr(0x2216694).readU32(),
-    fortCount:ptr(0x221666c).readU32(),fortId:ptr(0x2215528).readU32(),selected:ptr(0x2216664).readU32(),menu:tacticalMenuState()};
+    fortCount:ptr(0x221666c).readU32(),fortId:ptr(0x2215528).readU32(),selected:ptr(0x2216664).readU32(),
+    uiState:(()=>{const c=ptr(0x2215e2c).readPointer();return c.isNull()?null:c.add(4).readU32();})(),
+    path:[ptr(0x22166a0).readU32(),ptr(0x221669c).readU32()],menu:tacticalMenuState()};
 };
 // Opt-in, bounded observation of the owned renderer. No return value, resource,
 // shader, declaration or draw argument is replaced by this diagnostic.
@@ -430,3 +434,31 @@ Process.attachModuleObserver({onAdded(module){
     }
   }
 }});
+
+// Read-only tactical pick table (manager 0xc515f0, 60-byte rows from +0x48, count +0x44).
+rpc.exports.pickstate = function() {
+  const m=ptr(0xc515f0),world=ptr(0x7ccffc).readPointer();
+  const lookup=new NativeFunction(ptr(0x4c7cd0),'pointer',['pointer','uint','uint8','uint8','uint8','uint8'],'mscdecl');
+  const count=Math.min(m.add(0x44).readS32(),700),rows=[];
+  for(let i=0;i<count;++i) {
+    const e=m.add(0x48+i*0x3c),id=e.add(0x20).readU32();
+    const row={id:id,x:e.add(0xc).readFloat(),y:e.add(0x10).readFloat(),flags:e.add(0x24).readU32(),
+      level:e.add(0x2d).readU8(),side:e.add(0x2c).readS8(),type:e.add(0x2e).readU8()};
+    if(!world.isNull() && id) {const u=lookup(world.add(0x126718),id,1,255,255,255);
+      if(!u.isNull())row.unit=[8,9,10,11].map(o=>u.add(o).readU8());}
+    rows.push(row);
+  }
+  // Command range circle (CRC) and command lists (U-09, 004ec600/004ee250/0050fac3): charge a70c/a710,
+  // radius a714/a718, flagship a71c, centre a724; flagship +0x8c4/+0x8c5/+0x5ba; selection/commandable counts.
+  const crc={charge:m.add(0xa70c).readFloat(),full:m.add(0xa710).readFloat(),radius:m.add(0xa714).readFloat(),
+    maximum:m.add(0xa718).readFloat(),flagship:m.add(0xa71c).readU32(),centre:[0xa724,0xa728].map(o=>m.add(o).readFloat()),
+    selected:ptr(0x2216660).readS32(),commandable:ptr(0x2216664).readS32(),posting:ptr(0x2216668).readS32()};
+  if(!world.isNull() && crc.flagship) {const f=lookup(world.add(0x126718),crc.flagship,1,255,255,255);
+    if(!f.isNull())crc.flags=[0x8c4,0x8c5,0x5ba].map(o=>f.add(o).readU8());}
+  // Base pick rows (004ef740): count +0xa468, at most 10 rows of 0x3c from +0xa46c; level 1 needs 0<depth<1 and distance<=80.
+  const bases=[];
+  for(let i=0;i<Math.min(m.add(0xa468).readS32(),10);++i) {const e=m.add(0xa46c+i*0x3c);
+    bases.push({id:e.add(0x20).readU32(),x:e.add(0xc).readFloat(),y:e.add(0x10).readFloat(),depth:e.add(0x14).readFloat(),
+      distance:e.add(0x1c).readFloat(),flags:e.add(0x24).readU32(),level:e.add(0x2d).readU8()});}
+  return {mask:m.add(0xa75c).readU32(),blocked:m.add(0xa758).readU8(),airPush:Array.from(new Uint8Array(ptr(0x510ec3).readByteArray(5))),dllStatus:null,crc:crc,bases:bases,rows:rows};
+};

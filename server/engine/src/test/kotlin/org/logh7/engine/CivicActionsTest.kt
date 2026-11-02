@@ -5,7 +5,7 @@ import java.io.IOException
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 치안/행진/징발/경비의 실제 효과·예약·취소·이탈·저장 경계. 작성: 최병호. 실행은 리드 담당. */
+/** 치안/행진/징발/경비의 실제 효과·예약·취소·이탈·저장 경계. 작성: Peppone Choi. 실행은 리드 담당. */
 class CivicActionsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2200,4,"Foreign",3)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),
@@ -19,7 +19,7 @@ class CivicActionsTest {
         UnitSpecifications.ships.single {s->s.kind==it.kind}.category==3}.kind,1)
     private val troop=UnitStack(UnitSpecifications.crews.first {it.power==2 && it.type!=3}.kind)
     private val player=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,cpRecoveryAt=now)
-    private val guarded=galaxy.facilities.getValue(1049).flatMap {it.spots}.first {it.access==SpotAccess.GUARDED}.id
+    private val guarded=galaxy.facilities.getValue(1049).flatMap {it.spots}.first {it.kind==0 && it.access==SpotAccess.GUARDED}.id
     private fun stocks():PlanetStocks {
         val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,ship,supplies=100)))
         val ground=ActiveGroundUnits(listOf(ActiveGroundUnit(2,troop,base=1049),ActiveGroundUnit(3,troop,base=1049)))
@@ -97,6 +97,8 @@ class CivicActionsTest {
         assertEquals(StrategyActionRejection.LOCATION,act(request(55),p=p.copy(spotOwner=10000)).rejection)
         val publicSpot=galaxy.facilities.getValue(1049).flatMap {it.spots}.first {it.access==SpotAccess.PUBLIC}.id
         assertEquals(StrategyActionRejection.LOCATION,act(request(55),p=p.copy(spotId=publicSpot)).rejection)
+        val classroom=galaxy.facilities.getValue(1049).single {it.kind==20}.spots.single {it.kind==AcademyActions.CLASSROOM}.id
+        assertEquals(StrategyActionRejection.LOCATION,act(request(55),p=p.copy(spotId=classroom)).rejection)
     }
     @Test fun cancellationIsFreeAndLostAuthorityBaseTroopsOrLocationNeverMatureLater() {
         val accepted=act();val pending=assertNotNull(accepted.stocks);val paid=assertNotNull(accepted.player)

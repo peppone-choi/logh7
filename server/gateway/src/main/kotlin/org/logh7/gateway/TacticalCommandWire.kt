@@ -4,7 +4,7 @@ import org.logh7.engine.TacticalQueuedCommand
 import org.logh7.protocol.TacticalCommandMessages
 import java.nio.ByteBuffer
 
-/** Reconnect replays the accepted command, with only its remaining server delay. Author: 최병호. */
+/** Reconnect replays the accepted command, with only its remaining server delay. Author: Peppone Choi. */
 internal object TacticalCommandWire {
     fun command(order:TacticalQueuedCommand):TacticalCommandMessages.Command? {
         if(order.command.payload.isEmpty())return null

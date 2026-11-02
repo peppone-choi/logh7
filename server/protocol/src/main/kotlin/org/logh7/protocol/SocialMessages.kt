@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Social revival extension 7f10, speech only. Original 1200 envelope, no invented opcode. Author: 최병호. */
+/** Social revival extension 7f10, speech only. Original 1200 envelope, no invented opcode. Author: Peppone Choi. */
 object SocialMessages {
     const val SEARCH=0x7f10
     data class Query(val character:Int,val phase:Int,val ticket:Int,val raw:ByteArray)

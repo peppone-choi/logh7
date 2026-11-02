@@ -1,4 +1,4 @@
-// Native mail date prefix fits in 16 bytes before its numeric buffer. Author: 최병호.
+// Native mail date prefix fits in 16 bytes before its numeric buffer. Author: Peppone Choi.
 #pragma once
 #include "unicode_text.h"
 

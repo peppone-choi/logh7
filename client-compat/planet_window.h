@@ -1,6 +1,6 @@
 // Dedicated planet browser using the native controls and original frame asset.
 // The layout is reconstructed, not an original CD screen implementation.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 static void* planetWindowManager = nullptr;
 static void* planetWindowRoot = nullptr;

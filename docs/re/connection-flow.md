@@ -2,7 +2,7 @@
 
 > 세션 2 정정: 아래는 초기 조사 기록이며, 로그인 송신 opcode는 0x7000, LGLoginOK의 주소는 u32 IPv4다. 업데이터 0x80xx는 오류 본문 값이다. 구현 시 [로그인 명세](../protocol/login-messages.md)와 [업데이터 명세](../protocol/update-protocol.md)를 우선한다. `evidence:client` (E-302·E-303).
 
-- 작성자: 최병호
+- 작성자: Peppone Choi
 - 작성일: 2026-09-27 · 작업 디렉터리 정정 2026-09-28
 - 근거: Evidence E-011, E-012, E-013, E-014, E-018. 태그 `evidence:client`(관찰) / `evidence:guess`(추정), 신뢰도 high/medium/low.
 
@@ -98,4 +98,4 @@ sequenceDiagram
 
 ## T2 심화 정정 (2026-09-28)
 
-작성자: 최병호. `evidence:client`, E-311/E-312, 상태 candidate. [세션 로그인 심화](../protocol/session-login.md)가 위 argv 의미와 재접속 설명을 보완·정정한다. argv[3]의 기본 `ginei00`는 실제 0x7000 첫 인증 문자열로 들어가며 UI 계정 입력이 같은 포인터를 갱신한다. 따라서 “계정이 아니다”라는 기존 단정은 철회한다. argv[4]는 선택 세션 ID 후보, argv[5]는 둘째 인증 문자열이다. 0x7001 직후 연결은 새 키 교환 → 0x0020 → 0x2000 로비 로그인 순서이며, 0x0200/0201은 로비 세션 선택과 다음 연결 뒤의 게임 세션 인증이다.
+작성자: Peppone Choi. `evidence:client`, E-311/E-312, 상태 candidate. [세션 로그인 심화](../protocol/session-login.md)가 위 argv 의미와 재접속 설명을 보완·정정한다. argv[3]의 기본 `ginei00`는 실제 0x7000 첫 인증 문자열로 들어가며 UI 계정 입력이 같은 포인터를 갱신한다. 따라서 “계정이 아니다”라는 기존 단정은 철회한다. argv[4]는 선택 세션 ID 후보, argv[5]는 둘째 인증 문자열이다. 0x7001 직후 연결은 새 키 교환 → 0x0020 → 0x2000 로비 로그인 순서이며, 0x0200/0201은 로비 세션 선택과 다음 연결 뒤의 게임 세션 인증이다.

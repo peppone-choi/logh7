@@ -5,7 +5,7 @@ import org.logh7.engine.*
 import org.logh7.protocol.TacticalMoveMessages
 import kotlin.test.*
 
-/** Zero engine must freeze the native plan without rewriting the stored route. Author: 최병호. */
+/** Zero engine must freeze the native plan without rewriting the stored route. Author: Peppone Choi. */
 class TacticalMotionMessagesTest {
     @Test fun zeroSpeedPublishesOneCurrentPoseForPersonalAndRegularUnits() {
         for(parallel in listOf(false,true)) {

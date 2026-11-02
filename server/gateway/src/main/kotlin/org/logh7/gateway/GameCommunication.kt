@@ -7,10 +7,12 @@ import org.logh7.protocol.MailMessages as Wire
 import java.nio.ByteBuffer
 import java.nio.file.Path
 
-/** 개인 명함·편지. 클라이언트가 보낸 이름/권한·시각은 저장 근거로 쓰지 않는다. 작성: 최병호. */
+/** 개인 명함·편지. 클라이언트가 보낸 이름/권한·시각은 저장 근거로 쓰지 않는다. 작성: Peppone Choi. */
 class GameCommunication(private val presence:GamePresence,private val generation:()->Long,
     private val directory:(Long,Int)->MailIdentity?,private val inTactics:(String)->Boolean,
-    private val store:(Long)->CommunicationStore,private val now:()->Long=System::currentTimeMillis):AutoCloseable {
+    private val store:(Long)->CommunicationStore,private val now:()->Long=System::currentTimeMillis,
+    /** 命令/提案 rows of the world state (design-proposals-orders.md). */
+    private val proposals:(Long)->ProposalState?={null}):AutoCloseable {
     private var current:Triple<Long,CommunicationStore,Communication>?=null
     private var messenger:Pair<Long,GameMessenger>?=null
     private data class Offer(val from:String,val to:String,val expires:Long)
@@ -19,6 +21,20 @@ class GameCommunication(private val presence:GamePresence,private val generation
     private val executor=java.util.concurrent.Executors.newSingleThreadExecutor {task->
         Thread(task,"logh7-personal-mail").apply {isDaemon=true}
     }
+    /** The personal inbox when it holds unread mail, sent at strategy entry: the CD never queries a closed mailbox,
+     * and the compatibility DLL marks the HUD from this list (user decision 2026-11-01). */
+    fun unreadInbox(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.supplyAsync({
+        runCatching {
+            val engine=engine(expected)
+            if(engine.list(owner,true).none {!it.read})emptyList() else inbox(engine,owner,true)
+        }.getOrDefault(emptyList())
+    },executor)
+    /** U-25 defection: record the new side and clear the address book, on the mail executor. */
+    fun defect(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.runAsync({engine(expected).defect(owner)},executor)
+    /** A server-written notice from [sender] to [recipient] (U-10 謀議 refusal), on the mail executor. */
+    fun notice(sender:MailIdentity,recipient:MailIdentity,subject:String,body:String,expected:Long,seconds:Long)=
+        java.util.concurrent.CompletableFuture.runAsync({runCatching {engine(expected).send(sender,recipient,subject,body,seconds,
+            "coup-${sender.character}-${recipient.character}-$seconds")}},executor)
     fun submit(connection:String,owner:MailIdentity,expected:Long,body:ByteArray,seconds:Long)=
         java.util.concurrent.CompletableFuture.supplyAsync({handle(connection,owner,expected,body,seconds)},executor)
     private fun engine(expected:Long):Communication {
@@ -35,7 +51,12 @@ class GameCommunication(private val presence:GamePresence,private val generation
         val current=if(p.face==-1 && expected!=null)directory(expected,p.character)?.takeIf {it.account==p.account} else null
         return (current?.let {p.copy(face=it.face,ageSeconds=it.ageSeconds)} ?: p).communicationPeer()
     }
-    private fun item(p:StoredMail)=Wire.Item(p.id,-1,p.read,peer(p.sender),peer(p.recipient),p.seconds,p.subject,p.body)
+    /** An office address is the holder's peer with the card number in native +120. */
+    private fun peer(p:MailIdentity,post:Int)=peer(p).let {if(post==0)it else it.copy(extra=listOf(it.extra[0],it.extra[1],post))}
+    private fun item(p:StoredMail)=Wire.Item(p.id,-1,p.read,peer(p.sender,p.senderPost),peer(p.recipient,p.recipientPost),p.seconds,p.subject,p.body)
+    /** The card number of an office address; a proposal row's address carries an unset value instead (36173 observed). */
+    private fun post(p:Wire.Peer)=p.extra[2].takeIf {it in 0..260} ?: -1
+    private fun holds(member:GamePresence.Member,post:Int)=post==0 || member.offices.any {it.kind==post}
     private fun member(connection:String,owner:MailIdentity,expected:Long):GamePresence.Member {
         require(expected==generation() && directory(expected,owner.character)==owner)
         return checkNotNull(presence.communicationMember(connection)).also {
@@ -43,11 +64,49 @@ class GameCommunication(private val presence:GamePresence,private val generation
         }
     }
     private fun books(engine:Communication,owner:MailIdentity)=Wire.addresses(engine.addressBook(owner).map(::peer))
-    private fun inbox(engine:Communication,owner:MailIdentity,received:Boolean,all:Boolean=false):List<ByteArray> {
-        val query=Wire.Query(peer(owner),all,received)
+    private fun inbox(engine:Communication,owner:MailIdentity,received:Boolean,all:Boolean=false,post:Int=0):List<ByteArray> {
+        val query=Wire.Query(peer(owner,post),all,received)
         // The CD cache has 100 slots immediately before its next object. The
         // manual's 120 remain stored; deleting visible mail reveals older rows.
-        return listOf(Wire.begin(query))+engine.list(owner,received).take(100).map {Wire.item(item(it))}+Wire.end()
+        return listOf(Wire.begin(query))+engine.list(owner,received,post).take(100).map {Wire.item(item(it))}+Wire.end()
+    }
+    private companion object {const val REPLY_ROWS=true}
+    /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
+    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;else -> 0}
+    /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
+    private fun paired(mail:ProposalMail)=when(mail.command) {
+        ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
+            org.logh7.protocol.ResignationMessages.Query(mail.recipient,mail.card),0,0,mail.mcp,true)
+        ProposalActions.DISMISSAL -> org.logh7.protocol.DismissalMessages.response(
+            org.logh7.protocol.DismissalMessages.Query(mail.recipient,mail.target,mail.targetCard),0,0,mail.mcp,true)
+        // Appointment: changed=false keeps target 0 so 004c5580 appends no card; +0x14 still names the card.
+        ProposalActions.APPOINTMENT -> org.logh7.protocol.AppointmentMessages.response(
+            org.logh7.protocol.AppointmentMessages.Query(mail.recipient,mail.target,mail.targetCard,0,0),0,0,mail.mcp,true,false)
+        else -> error("Unsupported proposal command")
+    }
+    /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
+    private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean):List<ByteArray> {
+        // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
+        if(post<=0 || org.logh7.engine.OrganizationOffices.of(post)==null)return emptyList()
+        val state=proposals(expected) ?: return emptyList()
+        fun who(id:Int,card:Int)=directory(expected,id)?.let {peer(it,card)} ?: Wire.Peer(id,extra=listOf(0,0,card))
+        val rows=mutableListOf<ByteArray>()
+        for(mail in state.mails.sortedBy {it.id}) {
+            val type=if(mail.order)1 else 0
+            if(received && mail.pending && mail.recipient==owner.character && mail.card==post)
+                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),peer(owner,post),mail.createdAt,
+                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
+            // Reply rows need the compatibility DLL's 0053c933 null fix (proposal_approval.h). +0x25b 0 shows 22/77 承諾,
+            // 1..3 show 22/78..80 (拒否·拒絶·オウム返し).
+            if(REPLY_ROWS && received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
+                // status 1 = already read (no 22/76 pending-read text); approval 5 keeps 22/77 with the reply buttons off.
+                rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,1,who(mail.recipient,mail.card),peer(owner,post),mail.createdAt,
+                    commandNumber(mail),0,if(mail.reply==Proposals.APPROVE)5 else mail.reply+1)),paired(mail))
+            if(!received && mail.pending && mail.sender==owner.character && mail.senderCard==post)
+                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,peer(owner,post),who(mail.recipient,mail.card),mail.createdAt,
+                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
+        }
+        return rows
     }
     private fun publish(expected:Long,owner:MailIdentity,messages:List<ByteArray>,except:String) {
         presence.communicationSend(expected,owner.character,messages,except)
@@ -92,18 +151,18 @@ class GameCommunication(private val presence:GamePresence,private val generation
         }
         val actor=member(connection,owner,expected)
         val engine=engine(expected)
-        fun own(p:Wire.Peer) {require(p.id==owner.character && p.personal) {"Personal mail owner mismatch"}}
+        fun own(p:Wire.Peer) {require(p.id==owner.character && holds(actor,post(p))) {"Mail owner mismatch"}}
         return when(opcode) {
             0x0f08 -> {
                 val query=Wire.query(body)
                 require(query.owner.id==owner.character) {"Mail owner mismatch"}
-                // Opening the CD mailbox automatically queries every card
-                // address after the personal inbox/outbox. An unconnected
-                // office mailbox is a normal outcome, not lost authentication.
-                if(!query.owner.personal) return listOf(Wire.rejected(opcode,
-                    "직무 주소 편지함은 아직 연결되지 않았습니다. 개인 주소를 선택해 주세요."),Wire.end())
-                views[connection]=query.inbox
-                inbox(engine,owner,query.inbox,query.all)
+                // Opening the CD mailbox queries the personal inbox/outbox and then every held card
+                // address (+120 = card number). A card that is no longer held simply lists nothing.
+                val post=post(query.owner)
+                if(!holds(actor,post))return listOf(Wire.begin(query),Wire.end())
+                if(post==0)views[connection]=query.inbox
+                val listed=inbox(engine,owner,query.inbox,query.all,post)
+                listed.dropLast(1)+proposalRows(expected,owner,post,query.inbox)+listed.last()
             }
             0x0f0b -> {
                 val command=Wire.exchange(body)
@@ -139,30 +198,36 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 listOf(Wire.deleteAddress(Wire.Peer(target.id)),books(engine,owner))
             }
             0x0f10 -> {
-                val command=Wire.item(body);own(command.sender);require(command.recipient.personal)
+                val command=Wire.item(body);own(command.sender)
+                val senderPost=post(command.sender);val recipientPost=post(command.recipient)
                 val recipient=directory(expected,command.recipient.id)
                 // Compatibility DLL puts a random 63-bit nonce in the existing
                 // request ID/ref words. Legacy ID=0 requests keep per-call keys.
                 // Account + character + generation bind the untrusted nonce.
                 val key=if(command.id<=-2)"native:${owner.account}:${owner.character}:${command.id}:${command.reference}" else operation
                 val result=engine.send(owner,recipient,command.subject,command.text,seconds,key,
-                    recipient?.let {inTactics(it.account)} ?: false)
+                    recipient?.let {inTactics(it.account)} ?: false,senderPost,recipientPost)
                 result.rejection?.let {return rejection(opcode,it)}
                 val saved=checkNotNull(result.mail)
                 if(result.changed) {
                     // CD opening queries both folders, so the last query is
                     // not the visible tab. Delivery always changes the inbox.
-                    publish(expected,saved.recipient,inbox(engine,saved.recipient,true),connection)
+                    publish(expected,saved.recipient,inbox(engine,saved.recipient,true,post=saved.recipientPost),connection)
                 }
                 // Echo the nonce's low word only in the command ACK. Stored
                 // inbox/outbox rows keep the ordinary reference=-1 value.
-                listOf(Wire.item(item(saved).copy(reference=command.reference),0x0f10))+inbox(engine,owner,views[connection] ?: true)
+                listOf(Wire.item(item(saved).copy(reference=command.reference),0x0f10))+
+                    inbox(engine,owner,if(senderPost==0)views[connection] ?: true else false,post=senderPost)
             }
             0x0f11,0x0f12 -> {
-                val command=Wire.change(body,opcode);own(command.owner)
-                val result=engine.change(owner,command.id,command.inbox,opcode==0x0f12)
+                val command=Wire.change(body,opcode)
+                // Proposal/order rows (0x0f13) are not stored mail yet: acknowledge their read/delete marks only.
+                // Their +120 is not filled in (36173 and in-range values were both seen), so anything but a held card is acknowledged.
+                if(command.owner.id==owner.character && post(command.owner).let {it!=0 && !holds(actor,it)})return listOf(Wire.change(command,opcode))
+                own(command.owner);val post=post(command.owner)
+                val result=engine.change(owner,command.id,command.inbox,opcode==0x0f12,post)
                 result.rejection?.let {return rejection(opcode,it)}
-                listOf(Wire.change(command.copy(owner=peer(owner)),opcode))+inbox(engine,owner,command.inbox)
+                listOf(Wire.change(command.copy(owner=peer(owner,post)),opcode))+inbox(engine,owner,command.inbox,post=post)
             }
             else -> error("Unsupported communication opcode")
         }

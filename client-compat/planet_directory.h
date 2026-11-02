@@ -1,7 +1,8 @@
 // Original scrolling-list control and selection event, with the surviving
 // group-54 list fields. The layout is reconstructed, not a recovered screen.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
+#include "unicode_text.h"
 static unsigned planetDirectoryStates[350];
 static void planetDirectoryCell(unsigned row, unsigned col, const wchar_t* text) {
     reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*,int,int)>(0x505b50)
@@ -86,8 +87,9 @@ static void rebuildPlanetDirectory() {
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x505a70)(planetWindowRoot,planetDirectoryList,0);
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x505a00)(planetWindowRoot,planetDirectoryList,0);
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5053d0)(planetWindowRoot,planetDirectoryList,6);
-    const int widths[]={88,134,162,62,58,108};
-    const wchar_t* headers[]={L"소속",L"성계",L"행성·요새",L"구분",L"거주",L"인구(만 명)"};
+    // Original group 54 columns: faction, system, name, kind, state, population (no habitability).
+    const int widths[]={88,128,152,56,80,108};
+    const wchar_t* headers[]={L"소속",L"성계",L"행성·요새",L"구분",L"상태",L"인구(만 명)"};
     for (unsigned i=0;i<6;++i) {
         reinterpret_cast<void(__thiscall*)(void*,void*,int,int)>(0x5054b0)(planetWindowRoot,planetDirectoryList,widths[i],i);
         planetDirectoryCell(0,i,headers[i]);
@@ -117,15 +119,21 @@ static void renderPlanetDirectory() {
             wchar_t name[13]={};planetName(row.id,name);planetDirectoryCell(i+1,2,name[0] ? name : L"이름 미수신");
             auto grid=reinterpret_cast<const BYTE*(__stdcall*)(int,int)>(0x4c8b70)(row.grid%100,row.grid/100);
             auto label=grid ? reinterpret_cast<const char*(__stdcall*)(unsigned)>(0x4c8c90)(grid[0]) : nullptr;
-            wchar_t system[64]={};if (label) MultiByteToWideChar(932,0,label,-1,system,_countof(system));
-            planetDirectoryCell(i+1,1,system[0] ? system : L"성계명 미수신");
+            // Catalog names are Korean in the private CP932 glyph range; decode them like other catalog labels.
+            std::wstring system;
+            if (label && !logh::japaneseFragment(label,system)) {
+                wchar_t raw[64]={};MultiByteToWideChar(932,0,label,-1,raw,_countof(raw));system=raw;
+            }
+            planetDirectoryCell(i+1,1,!system.empty() ? system.c_str() : L"성계명 미수신");
             auto base=planetBase(row.id);unsigned kind=base ? logh::infoShort(base,0x14) : ~0u;
             planetDirectoryCell(i+1,3,kind==0 ? L"행성" : kind==1 ? L"요새" : L"미확인");
         }
         bool ready=row.state==2;
         const wchar_t* queryStatus=row.state==3 ? L"응답 없음" : L"조회 중";
         planetDirectoryCell(i+1,0,ready ? logh::planetAffiliation(row.power,row.camp) : queryStatus);
-        planetDirectoryCell(i+1,4,ready ? logh::planetHabitability(row.habitable) : L"—");
+        // 状態 has no surviving value strings (group 54). Tactical supply/repair draw on the base's
+        // stored supplies (031f record +0x18), so the state shows that availability (evidence:guess, approved).
+        planetDirectoryCell(i+1,4,ready ? (row.supplies ? L"보급 가능" : L"물자 없음") : L"—");
         if (ready) _snwprintf_s(text,_countof(text),_TRUNCATE,L"%u.%04u",row.population/10000,row.population%10000);
         else wcscpy_s(text,L"—");
         planetDirectoryCell(i+1,5,text);

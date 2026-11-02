@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Shared deployed-force accounting for map reports and movement. Author: 최병호. */
+/** Shared deployed-force accounting for map reports and movement. Author: Peppone Choi. */
 object GridForces {
     private val ground = UnitSpecifications.crews.filter { it.category != 19 }.map { it.kind }.toSet()
     private fun ships(outfit: OutfitStock): Long = outfit.activeShips?.values?.count { it.boats > 0 }?.toLong()
@@ -34,7 +34,8 @@ object GridForces {
                 player.characterId in outfit.members() && outfit.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
                     outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
             } == true
-            add(it.grid, Force(Camp(it.power, false), 1, nonSolo = grouped, ship = true))
+            // U-10: a revolt's rebels count as their side's rebel camp (manual p.31).
+            add(it.grid, Force(Camp(it.power, stocks?.let { s -> CoupActions.rebel(s, player.characterId) } == true), 1, nonSolo = grouped, ship = true))
         }
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)
@@ -47,17 +48,17 @@ object GridForces {
             val ships = ships(outfit)
             val count = mobileUnits(outfit)
             if (count > 0) add(outfit.positionIn(galaxy).grid,
-                Force(checkNotNull(camp(outfit.power)), count, nonSolo = true, ship = ships > 0))
+                Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))), count, nonSolo = true, ship = ships > 0))
             outfit.activeGround?.values.orEmpty().filter {it.base>0}.groupingBy {it.base}.eachCount().forEach { (base,count) ->
                 add(galaxy.bases.single {it.id==base}.grid,
-                    Force(checkNotNull(camp(outfit.power)),count.toLong(),nonSolo=true))
+                    Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))),count.toLong(),nonSolo=true))
             }
         }
         return result.mapValues { it.value.values.toList() }
     }
 
     fun state(galaxy: Galaxy, grid: Int, forces: Map<Int, List<Force>>): GridState =
-        GridState(galaxy.kind(grid), GridTerrain.NONE, TacticalContact.contested(forces[grid].orEmpty()), forces[grid].orEmpty().map {
+        GridState(galaxy.kind(grid), galaxy.terrain(grid), TacticalContact.contested(forces[grid].orEmpty()), forces[grid].orEmpty().map {
             // Capacity decisions need only distinguish counts above 300. Keep the
             // full Long total in collect(), including for native map reports.
             CampPresence(it.camp, it.units.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), it.nonSolo, it.ship, it.base)

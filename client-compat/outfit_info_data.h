@@ -1,4 +1,4 @@
-// Native 0041cba0 main standing-outfit record. Author: 최병호.
+// Native 0041cba0 main standing-outfit record. Author: Peppone Choi.
 #pragma once
 #include "planet_info_data.h"
 
@@ -74,12 +74,17 @@ struct OutfitReplyQueue {
         requests[(head + count++) % 8] = {id, base, token, warehouse};
         return true;
     }
+    // Replies arrive in request order. A reply matching a later entry means the earlier
+    // entries were never answered (e.g. a closed window's warehouse query); drop them too,
+    // otherwise one stale head blocks every later reopen of the window.
     bool take(unsigned id, unsigned base, bool warehouse, unsigned& token) {
-        if (!count) return false;
-        const auto& request = requests[head];
-        if (request.id != id || request.warehouse != warehouse || (request.base && request.base != base)) return false;
-        token = request.token; head = (head + 1) % 8; --count;
-        return true;
+        for (unsigned i = 0; i < count; ++i) {
+            const auto& request = requests[(head + i) % 8];
+            if (request.id != id || request.warehouse != warehouse || (request.base && request.base != base)) continue;
+            token = request.token; head = (head + i + 1) % 8; count -= i + 1;
+            return true;
+        }
+        return false;
     }
 };
 }

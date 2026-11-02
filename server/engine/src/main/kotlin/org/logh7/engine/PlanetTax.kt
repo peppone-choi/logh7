@@ -12,7 +12,7 @@ enum class TaxRejection { SESSION, IDENTITY, ACCESS, CARD, BASE, LOCATION, BUSY,
 data class TaxResult(val player: Navigator?, val stocks: PlanetStocks?, val rejection: TaxRejection? = null,
     val changed: Boolean = false, val recovery: NavigationResult? = null)
 
-/** Civil planetary offices; capital administrator tax authority is restoration policy. Author: 최병호. */
+/** Civil planetary offices; capital administrator tax authority is restoration policy. Author: Peppone Choi. */
 internal object PlanetTax {
     const val COST = 160 // Original constmsg group 0, entry 97: MCP 160, no wait or duration.
     fun effectiveRate(stock: PlanetStock, base: BaseCondition): Int {
@@ -39,7 +39,7 @@ internal object PlanetTax {
         if (request.rate == effectiveRate(base, seed)) return TaxResult(player, stocks)
         val payment = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), COST.toLong(), CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(TaxRejection.CP)
-        return TaxResult(player.copy(pcp = Math.toIntExact(payment.balance.pcp), mcp = Math.toIntExact(payment.balance.mcp)),
+        return TaxResult(player.paidWith(payment.balance),
             stocks.copy(bases = stocks.bases + (base.baseId to base.copy(taxRate = request.rate))), changed = true)
     }
 }

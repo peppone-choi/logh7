@@ -1,6 +1,6 @@
 package org.logh7.gateway
 
-/** Display-only names; source rule keys and saved identities remain unchanged. Author: 최병호. */
+/** Display-only names; source rule keys and saved identities remain unchanged. Author: Peppone Choi. */
 internal object KoreanDisplayNames {
     /** Only reviewed built-in identities; never translate arbitrary player names. */
     fun original(character: org.logh7.protocol.CharacterMessages.Generate): org.logh7.protocol.CharacterMessages.Generate {

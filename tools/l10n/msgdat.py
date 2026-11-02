@@ -1,4 +1,4 @@
-"""LOGH7 MsgDat codec and copy-only locale patcher. Author: 최병호."""
+"""LOGH7 MsgDat codec and copy-only locale patcher. Author: Peppone Choi."""
 import argparse
 from collections import Counter
 import hashlib

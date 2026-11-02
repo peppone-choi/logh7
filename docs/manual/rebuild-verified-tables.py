@@ -1,4 +1,4 @@
-"""부록 CSV 보정. 작성자: 최병호. evidence:manual (웹판 p.56–100).
+"""부록 CSV 보정. 작성자: Peppone Choi. evidence:manual (웹판 p.56–100).
 
 PYTHONPATH=E:\Tools\pylib, PYTHONDONTWRITEBYTECODE=1 환경에서 실행.
 기본 추출기를 재사용하되 병합 행 중심·초기 카드 열·생산표 연속쪽을 보정한다.

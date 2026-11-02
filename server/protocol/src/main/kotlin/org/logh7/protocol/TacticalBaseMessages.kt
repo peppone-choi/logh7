@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native fortress/base notifications; separate layouts, no guessed shared clock. Author: 최병호. */
+/** Native fortress/base notifications; separate layouts, no guessed shared clock. Author: Peppone Choi. */
 object TacticalBaseMessages {
     /** CD 0433 reader 004a7670: absolute base balance and unavailable target boats. */
     fun repaired(base:Int,target:Int,available:Int,unavailable:Int):ByteArray {

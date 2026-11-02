@@ -1,4 +1,4 @@
-// Cards in the native world character, not a wire or query record. Author: 최병호.
+// Cards in the native world character, not a wire or query record. Author: Peppone Choi.
 #pragma once
 #include <stddef.h>
 #include <stdint.h>

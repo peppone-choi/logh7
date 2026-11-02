@@ -1,4 +1,4 @@
-"""친구 목록 최종 표시 경계와 원본 ID 대조. 작성: 최병호."""
+"""친구 목록 최종 표시 경계와 원본 ID 대조. 작성: Peppone Choi."""
 import re
 import unittest
 import catalog

@@ -1,4 +1,4 @@
-// Decode the native IME status CString at its ACP boundary. Author: 최병호.
+// Decode the native IME status CString at its ACP boundary. Author: Peppone Choi.
 #pragma once
 #include "input_text.h"
 

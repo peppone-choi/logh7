@@ -1,6 +1,6 @@
 # 원본 VM 설치와 정적 추출본 비교
 
-작성: 최병호 · 2026-09-27 · LOGH-6. 근거는 `evidence:client` (동적 케이스 E-103~107)이다.
+작성: Peppone Choi · 2026-09-27 · LOGH-6. 근거는 `evidence:client` (동적 케이스 E-103~107)이다.
 
 일본어 Windows 10 x64 격리 VM `logh7-win`에서 InstallShield를 실행했다. 게임 ISO는 사용자 소유 원본을 읽기 전용 광학 드라이브로 연결했고, 설치 전후에 파일 경로·크기·수정 시각과 레지스트리를 수집했다. 설치 후 게임 디렉터리의 모든 파일을 SHA-256으로 해시하여 오프라인 InstallShield 추출본과 상대 경로로 대조했다. 원본 파일은 수정하지 않았다. `evidence:client`
 

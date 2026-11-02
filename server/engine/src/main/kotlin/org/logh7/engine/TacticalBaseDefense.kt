@@ -4,7 +4,7 @@ package org.logh7.engine
  * the base bar maximum. Mapping each whole unit to 1000 is a display policy;
  * The live overload sums the first thirty eligible defenders and their saved remaining strength;
  * occupation remains separate.
- * Author: 최병호.
+ * Author: Peppone Choi.
  */
 object TacticalBaseDefense {
     const val MAXIMUM_STRENGTH=30_000

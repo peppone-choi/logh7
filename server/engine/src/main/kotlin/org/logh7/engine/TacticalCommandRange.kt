@@ -1,7 +1,7 @@
 package org.logh7.engine
 
 /** Native CRC growth uses command ability and stamina (004b2740 unit update).
- * Maximum radius remains a provisional shared ship policy. Author: 최병호. */
+ * Maximum radius remains a provisional shared ship policy. Author: Peppone Choi. */
 data class TacticalCommandRange(val at:Long,val radius:Float=0f,val command:Int=50,val stamina:Int=100) {
     init {require(at in 0..0xffffffffL && radius.isFinite() && radius in 0f..MAXIMUM &&
         command in 0..32767 && stamina in 0..100)}

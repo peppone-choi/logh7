@@ -314,4 +314,21 @@ class TacticalCombatTest {
         assertNotNull(nav.apply(exit,duel.copy(gameMillis=(now+240+86400)*1000),stock.snapshot(1)).player)
     }
 
+    @Test fun aRebelFlagshipShootsARegularFlagshipOfItsOwnSide() {
+        val state=state()
+        // U-10: the pilot leads a revolt holding base 1000; the victim stays in the alliance's regular camp.
+        state.stocks=state.stocks.copy(bases=state.stocks.bases+(1000 to PlanetStock(1000,3,1,100,100,100)),
+            social=state.stocks.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,3,0,revolt=1,bases=setOf(1000))))))
+        val victimPoint=TacticalPoint(180f,-95f)
+        val victim=state.players.getValue("pilot").copy(characterId=10001,returnBase=1000,energy=TacticalEnergy.ZERO,charge=null,
+            hull=FlagshipHull(89,now),motion=TacticalMotion(2488,now,TacticalPose(victimPoint,Math.PI.toFloat()),0f,Math.PI.toFloat(),listOf(victimPoint)))
+        state.players+= "victim" to victim
+        val duel=session.copy(participants=session.participants+("victim" to Participant(Power.ALLIANCE,false,connection="v")))
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        val shot=request.copy(tacticalShoot=request.tacticalShoot!!.copy(target=victim.unitId))
+        assertNotNull(TacticalCombat.accept(shot,duel,galaxy,nav,stock.snapshot(1)!!,state.commit,24).player)
+        val hit=TacticalCombat.settle(duel.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit).single()
+        assertEquals(victim.unitId,hit.hit.target);assertTrue(hit.hit.shieldDamage>0)
+        assertTrue(nav.snapshot(1).getValue("victim").hull!!.levels()[0]<FlagshipHull.capacity(89))
+    }
 }

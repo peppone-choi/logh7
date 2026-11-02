@@ -11,7 +11,7 @@ data class FlagshipDefinition(val kind: Int, val type: Int, val model: Int, val 
     }
 }
 
-/** Kinds: constmsg group 85. Model codes use native 004f3e30 faction encoding. Author: 최병호. */
+/** Kinds: constmsg group 85. Model codes use native 004f3e30 faction encoding. Author: Peppone Choi. */
 object Flagships {
     private val manual = ShipUnitSeedLoader.load().units
     val definitions: List<FlagshipDefinition> = listOf(
@@ -40,4 +40,11 @@ object Flagships {
     fun find(kind: Int): FlagshipDefinition? = definitions.singleOrNull { it.kind == kind }
     fun forPower(power: Int): List<FlagshipDefinition> = definitions.filter { it.power == power }.also { require(it.isNotEmpty()) }
     fun forType(power: Int, type: Int): FlagshipDefinition = forPower(power).single { it.type == type }
+    /** U-24 (2004-05-28 patch "promotion changes the flagship"; detailed rule unrecovered, user decision
+     * 2026-10-31, evidence:guess): commodore and above a standard battleship, captain to lieutenant
+     * commander a cruiser, lower ranks a destroyer — the same rank bands as the flagship yard catalogue. */
+    fun rankDefault(power: Int, rank: Int): FlagshipDefinition =
+        forType(power, if (rank in 1..7) 0 else if (rank in 8..10) 2 else 3)
+    /** Battleship over cruiser/assault over destroyer; a promotion never trades a hull down. */
+    fun tier(kind: Int): Int = when (find(kind)?.type) { 0 -> 2; 2, 4 -> 1; else -> 0 }
 }

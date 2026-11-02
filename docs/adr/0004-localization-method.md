@@ -1,7 +1,7 @@
 # ADR-0004 한국어화 방식
 
 - 상태: **제안(우선안 선정)** — 한글 표시 PoC(Linear LOGH-36)로 확정
-- 작성: 최병호
+- 작성: Peppone Choi
 - 관련: ADR-0002, docs/l10n/text-format.md, docs/l10n/glossary.md, Evidence E-019~E-021, E-026, E-027
 
 ## 맥락 (트랙 B 정적 분석, `evidence:client`)

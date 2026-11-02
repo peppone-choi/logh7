@@ -13,7 +13,7 @@ data class LogisticsRequest(val account: String, val connection: String, val cha
 data class LogisticsResult(val stocks: PlanetStocks? = null, val rejection: LogisticsRejection? = null,
     val reservation: Long? = null)
 
-/** World-actor-owned reservations. Only COMMIT changes durable stock. Author: 최병호. */
+/** World-actor-owned reservations. Only COMMIT changes durable stock. Author: Peppone Choi. */
 internal class OutfitLogistics(private val clock: () -> Long, private val leaseMillis: Long = 120_000) {
     private data class Reservation(val id: Long, val request: LogisticsRequest, val warehouse: Int, val base: Int, val expires: Long)
     private val reservations = mutableListOf<Reservation>()

@@ -1,4 +1,4 @@
-"""이미지 추가·변경을 오래된 육안 확인으로 숨기지 않는 검사. 작성: 최병호."""
+"""이미지 추가·변경을 오래된 육안 확인으로 숨기지 않는 검사. 작성: Peppone Choi."""
 import unittest
 
 import review_images

@@ -3,7 +3,7 @@ package org.logh7.engine
 import java.util.Collections
 
 /** Ground identities share the commissioned-unit sequence. Zero carrier/base retains legacy
- * outfit membership without inventing a physical carrier. Author: 최병호. */
+ * outfit membership without inventing a physical carrier. Author: Peppone Choi. */
 data class ActiveGroundUnit(val id:Int,val stack:UnitStack,val carrier:Int=0,val base:Int=0,val origin:Int=0,val order:TacticalGroundOrder?=null,val strength:Int=1000) {
     init {
         require(id in 1..999_999 && GroundUnits.isGround(stack.kind) && strength in 1..1000)

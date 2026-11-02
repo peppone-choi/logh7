@@ -8,7 +8,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
 
-/** Regression for a second player's strategy presence replacing the native battlefield. Author: 최병호. */
+/** Regression for a second player's strategy presence replacing the native battlefield. Author: Peppone Choi. */
 class TacticalEntryWireTest {
     @TempDir lateinit var directory:Path
     @Test fun peerJoinPreservesAllBattlefieldDefinitionsAndQueriesStayWithinGrid() {

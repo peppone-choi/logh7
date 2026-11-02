@@ -1,4 +1,4 @@
-// Preserve the CD menu distinction lost by its shared missile/AA arm byte. Author: 최병호.
+// Preserve the CD menu distinction lost by its shared missile/AA arm byte. Author: Peppone Choi.
 #pragma once
 #include <string.h>
 namespace logh {
@@ -33,7 +33,7 @@ struct TacticalWeaponSelection {
 };
 /** Native 004c7820 output: active/type, 6x8 effect samples, six radial lengths.
  * Type 5 is an existing renderer style, not a weapon-array subscript. AA range/effect
- * follows the replacement server's <8 map-unit dispersal policy. Author: 최병호. */
+ * follows the replacement server's <8 map-unit dispersal policy. Author: Peppone Choi. */
 struct TacticalAntiAirPreview {
     enum { SIZE=0xdc, STYLE=5 };
     static bool write(unsigned char* record,unsigned power) {

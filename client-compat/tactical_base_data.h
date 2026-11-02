@@ -1,4 +1,4 @@
-// Decoded base notifications; no process addresses in these state helpers. Author: 최병호.
+// Decoded base notifications; no process addresses in these state helpers. Author: Peppone Choi.
 #pragma once
 #include <stdint.h>
 #include <string.h>

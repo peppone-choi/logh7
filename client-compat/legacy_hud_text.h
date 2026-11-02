@@ -1,4 +1,4 @@
-// Fixed CD debug HUD formats and its private ANSI glyph consumer. Author: 최병호.
+// Fixed CD debug HUD formats and its private ANSI glyph consumer. Author: Peppone Choi.
 #pragma once
 #include "legacy_korean_glyph.h"
 

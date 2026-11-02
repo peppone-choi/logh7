@@ -1,4 +1,4 @@
-// Unicode names in CD strategy spot portraits and roster rows. Author: 최병호.
+// Unicode names in CD strategy spot portraits and roster rows. Author: Peppone Choi.
 #pragma once
 #include "portrait_label.h"
 #include "roster_text.h"

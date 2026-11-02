@@ -1,4 +1,4 @@
-"""Read the CD client's planet/fortress model-number tables. Author: 최병호.
+"""Read the CD client's planet/fortress model-number tables. Author: Peppone Choi.
 
 Input assets are read-only; save derived catalogues under work/.
 pefile is needed only when reading the executable, not in synthetic tests.

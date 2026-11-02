@@ -1,4 +1,4 @@
-"""Synthetic map annotation/alignment checks. Author: 최병호."""
+"""Synthetic map annotation/alignment checks. Author: Peppone Choi."""
 import unittest
 from manual_map import grid_at, parse_note, reconcile
 

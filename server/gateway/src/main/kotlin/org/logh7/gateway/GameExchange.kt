@@ -5,6 +5,7 @@ import org.logh7.protocol.LobbyMessages
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.OriginalCharacterMessages
+import org.logh7.engine.positionIn
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.SecureRandom
@@ -112,11 +113,31 @@ class GameExchange(
         return listOf(org.logh7.protocol.TacticsMessages.corps(
             TacticalBootstrap(snapshot,checkNotNull(world).galaxy,player,::currentCharacterById).corps))
     }
+    /** 命令/提案 pairs (CD p.28): same side; same spot inside a facility, else the same grid; not in tactics.
+     * Each target is paired with my card and theirs of the same institution; the emperor card pairs with any office. */
+    private fun proposalPairs(inventory:org.logh7.engine.PlanetStocks,me:org.logh7.engine.Navigator):List<Triple<Int,Int,Int>> {
+        val policy=org.logh7.engine.OrganizationalOfficePolicy(checkNotNull(world).galaxy)
+        fun institution(card:Int)=org.logh7.engine.OrganizationOffices.of(card)?.institution
+        val mine=policy.held(inventory,me.characterId).map {it.card}.filter {institution(it)!=null}.distinct()
+        val players=navigation?.snapshot()?.navigators.orEmpty().values.filter {it.generation==me.generation &&
+            it.characterId!=me.characterId && it.power==me.power && !it.cpPaused && it.grid==me.grid &&
+            (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
+        return players.sortedBy {it.characterId}.mapNotNull {other ->
+            val theirs=policy.held(inventory,other.characterId).map {it.card}.filter {institution(it)!=null}.distinct()
+            mine.firstNotNullOfOrNull {card->theirs.firstOrNull {card==1 || institution(it)==institution(card)}?.let {Triple(other.characterId,card,it)}}
+        }
+    }
+    /** Other people whose CP changed in the same commit (a proposal refund) see it at once. */
+    private fun refreshPaid(navigators:Map<String,org.logh7.engine.Navigator>) {
+        navigators.values.forEach {other->currentCharacterById(other.characterId)?.let {c->
+            presence?.refreshCharacter(c,other,offices(c,other),gameSeconds(),administration?.stationedOutfit(other) ?: 0)}}
+    }
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
     private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
         player.hull?.let { hull -> org.logh7.engine.Flagships.find(hull.kind)?.let {
             character.copy(shipKind=it.kind,shipType=it.type) } } ?: character
+    private val traceOpcodes = System.getenv("LOGH7_TRACE_OPCODES") == "1"
     private fun currentCharacterById(id:Int):CharacterMessages.Generate? = characters.characterById(id)?.let {
         WorldCharacters.view(it,navigation?.snapshot())
     }
@@ -136,6 +157,13 @@ class GameExchange(
                 org.logh7.protocol.TacticalRetreatMessages.Retreat(player.characterId,listOf(player.unitId)),
                 gameSeconds(),maxOf(0,retreat.startsAt-gameSeconds())))
         }
+        player.warpTarget?.let { warp ->
+            // Same restore order as docking: the HUD module records the reserved ACK.
+            val seconds = gameSeconds()
+            return listOf(org.logh7.protocol.NavigationMessages.reserved(org.logh7.protocol.NavigationMessages.Warp(
+                player.characterId, if (player.power == org.logh7.engine.Power.EMPIRE) 59 else 195, warp, 0, 5),
+                seconds, player.pcp, player.mcp, maxOf(0, checkNotNull(player.warpReadyAt) - seconds)))
+        }
         val target = player.dockTarget ?: return emptyList()
         val seconds = gameSeconds()
         return listOf(org.logh7.protocol.PlaceMessages.docked(org.logh7.protocol.PlaceMessages.Dock(
@@ -143,14 +171,19 @@ class GameExchange(
             seconds, player.pcp, player.mcp, waitSeconds = maxOf(0, checkNotNull(player.dockReadyAt) - seconds)))
     }
     private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate): List<ByteArray> {
-        if (!result.completedFuel && !result.completedDock) return emptyList()
+        if (!result.completedFuel && !result.completedDock && !result.warpRejected) return emptyList()
         val player = checkNotNull(result.player ?: result.previous)
         val seconds = gameSeconds()
         return (if (result.completedFuel) listOf(org.logh7.protocol.FuelMessages.supplied(seconds,
             player.characterId, player.unitId, player.cruise)) else emptyList()) +
             (if (result.completedDock) listOf(unitMessage(character, player),
                 org.logh7.protocol.PlaceMessages.dockNotification(player.characterId, player.baseId, player.mode, seconds,
-                    player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList())
+                    player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList()) +
+            // A reserved warp that can no longer enter still ends the native 0b07 wait at its origin.
+            (if (result.warpRejected) listOf(characterMessage(character, player, true), unitMessage(character, player),
+                org.logh7.protocol.NavigationMessages.grid(player.grid, player.cpPaused),
+                org.logh7.protocol.NavigationMessages.moved(org.logh7.protocol.NavigationMessages.Warp(player.characterId,
+                    if (character.power == 2) 59 else 195, player.grid, 0, 5), seconds, player.unitId, player.cruise)) else emptyList())
     }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
@@ -260,7 +293,9 @@ class GameExchange(
         return messages.filterNot { opcode(it) == 0x0325 } +
             org.logh7.protocol.TacticsMessages.definitions(player.grid, tactical.units,tactical.groundDefinitions)
     }
-    fun obsolete() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
+    /** U-25 defection ends the connection after its reply; the client reconnects on the new side. */
+    @Volatile private var defectedLogout=false
+    fun obsolete() = defectedLogout || ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running && !sessionEndingAvailable())
     // ByteArray convenience is retained for codec callers. Gateway always writes the bound outbound batch.
     fun finishJoin(result: Admission): ByteArray? = finishJoinOutbound(result)?.bytes
@@ -293,6 +328,8 @@ class GameExchange(
             val body = handshake.receive(type, data) ?: return null
             val opcode = java.nio.ByteBuffer.wrap(body).short.toInt() and 65535
             val identity = checkNotNull(ticket)
+            // Opt-in QA trace of authenticated game requests (no payload, which may hold chat text).
+            if(traceOpcodes)System.err.println("trace ${identity.account} <- 0x%04x (%d bytes)".format(opcode,body.size))
             if(sessionEndingAvailable()) {
                 // Consume and validate encrypted in-flight requests without reopening commands.
                 // Clock polling remains safe while the player reads the final result.
@@ -314,6 +351,7 @@ class GameExchange(
                             tacticalGround=org.logh7.engine.TacticalGroundCommand(
                                 if(opcode==0x040f)org.logh7.engine.TacticalGroundAction.DEPLOY else org.logh7.engine.TacticalGroundAction.WITHDRAW,
                                 command.units,command.skill))).thenApply {result->
+                            if(result.player==null)println("tactical ground rejected account=${identity.account} opcode=0x${opcode.toString(16)} units=${command.units} reason=${result.rejection}")
                             val now=gameSeconds()
                             listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,now,
                                 result.groundReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))+commandCorps(identity.account)
@@ -348,6 +386,7 @@ class GameExchange(
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
                             tacticalPosture=org.logh7.engine.TacticalPostureChange(command.units,mode,command.base))).thenApply {result->
                             val player=checkNotNull(result.player ?: result.previous)
+                            if(result.player==null)println("tactical posture rejected account=${identity.account} units=${command.units} mode=$mode base=${command.base} reason=${result.rejection}")
                             publication=Publication(character,player,false)
                             val now=gameSeconds()
                             listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,now,
@@ -424,7 +463,9 @@ class GameExchange(
                     in org.logh7.protocol.TacticalCommandMessages.opcodes -> {
                         check(gameStarted && worldInitialized && navigation!=null && world!=null)
                         val character=checkNotNull(currentCharacter(identity.account))
-                        val command=org.logh7.protocol.TacticalCommandMessages.command(body)
+                        val command=org.logh7.protocol.TacticalCommandMessages.command(body).let {
+                            if(it.opcode==0x041f)org.logh7.protocol.TacticalCommandMessages.withFortressVelocity(it,
+                                org.logh7.engine.TacticalFortressMotion.VELOCITY) else it}
                         require(command.character==character.id.toInt() && command.points.all {it.z==0f})
                         pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,character.id.toInt(),
                             if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
@@ -436,6 +477,7 @@ class GameExchange(
                                 command.targetKind,command.target,command.velocity,command.direction,
                                 command.points.map {org.logh7.engine.TacticalPoint(it.x,it.y)},command.payload))).thenApply {result->
                             val player=checkNotNull(result.player ?: result.previous)
+                            if(traceOpcodes && result.player==null)System.err.println("trace ${identity.account} 0x%04x rejected: ${result.rejection}".format(command.opcode))
                             publication=Publication(character,player,false)
                             listOf(org.logh7.protocol.TacticalCommandMessages.reply(command,gameSeconds(),
                                 (result.commandReadyAt?.minus(gameSeconds()) ?: 0).coerceAtLeast(0),result.player!=null))+
@@ -480,6 +522,7 @@ class GameExchange(
                                     TacticalMotionMessages.npc(id,motion,gameSeconds(),player.characterId)}
                                 else listOf(checkNotNull(TacticalMotionMessages.reply(player,gameSeconds())))
                             } else {
+                                println("tactical move rejected account=${identity.account} units=${move.units.map {it.id}} reason=${result.rejection}")
                                 val unit=TacticalBootstrap(checkNotNull(navigation.snapshot()),world.galaxy,player,::currentCharacterById)
                                     .units.single {it.id==player.unitId}
                                 val pose=org.logh7.protocol.TacticalMoveMessages.Point(unit.x,unit.y,0f)
@@ -634,6 +677,7 @@ class GameExchange(
                             politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
                             val player = checkNotNull(result.player ?: result.previous) { "Place request lost its authenticated session" }
                             val accepted = result.player != null
+                            if(traceOpcodes && !accepted && move!=null)System.err.println("trace ${identity.account} spot ${move.spot} owner ${move.owner} rejected: ${result.rejection}")
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
                             // The CD's 004beaa0 applies ACK coordinates even on a rejection.
@@ -1033,7 +1077,8 @@ class GameExchange(
                         // cannot silently become a quantity or an individual unit ID.
                         if(command.values.isNotEmpty()) {
                             val p=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
-                            return handshake.stageAll(listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),p.pcp,p.mcp,false)),clearHeader=0)
+                            return handshake.stageAll(listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),p.pcp,p.mcp,false,
+                                org.logh7.engine.LogisticsRejection.MODE.ordinal+1)),clearHeader=0)
                         }
                         pendingWorld=administration.transferGround(org.logh7.engine.GroundTransferRequest(identity.account,connection,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
@@ -1045,7 +1090,9 @@ class GameExchange(
                             val accepted=result.rejection==null
                             val stored=checkNotNull(result.stocks ?: navigation?.snapshot()?.planetStocks)
                             val outfit=stored.outfits[command.outfit]
-                            listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),player.pcp,player.mcp,accepted),
+                            // Reason = rejection ordinal+1; an accepted request that moved nothing reports NO_CHANGE.
+                            val reason=result.rejection?.let {it.ordinal+1} ?: if(result.changed)0 else org.logh7.protocol.GroundTransferMessages.NO_CHANGE
+                            listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),player.pcp,player.mcp,accepted,reason),
                                 characterMessage(character,player,true))+
                                 (if(accepted && outfit!=null)listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
                                     outfit.id,0,0),character.power,stored,characterById=::currentCharacterById)) else emptyList())+
@@ -1100,6 +1147,12 @@ class GameExchange(
                             }
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
+                            player.warpReadyAt?.let { readyAt ->
+                                // Reserved: keep the origin, report CP and the wait; 0b07 is sent on execution.
+                                return@thenApply listOf(org.logh7.protocol.NavigationMessages.reserved(command,
+                                    seconds, player.pcp, player.mcp, maxOf(0, readyAt - seconds)),
+                                    characterMessage(character, player, true)) + completedWork(result, character)
+                            }
                             // A long warp may land on a neighbouring space grid; report the server's arrival.
                             val arrived = command.copy(grid = player.grid)
                             listOf(org.logh7.protocol.NavigationMessages.accepted(arrived, seconds, player.pcp, player.mcp),
@@ -1123,6 +1176,28 @@ class GameExchange(
                         require(message.characterId.toLong() == checkNotNull(currentCharacter(identity.account)).id)
                         if (message.text.isBlank()) return null
                         presence.spotChat(connection, message, gameSeconds())
+                    }
+                    0x0f13 -> {
+                        // The CD's own proposal send needs the 命令/提案 tab rows the CD never draws; the compatibility
+                        // window sends 0x7f00 command 98 instead (design-proposals-orders.md).
+                        check(gameStarted && worldInitialized)
+                        return null
+                    }
+                    0x0f14 -> {
+                        check(gameStarted && worldInitialized && administration!=null)
+                        val reply=org.logh7.protocol.MailMessages.reply(body)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        require(reply.sender.id==character.id.toInt()) {"Proposal reply owner mismatch"}
+                        val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            checkNotNull(generation),org.logh7.engine.ProposalActions.REPLY,0,character.rank,target=reply.refer,value=reply.value))
+                        pendingWorld=administration.social(request).thenApply {result ->
+                            val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                            publication=Publication(updated,player,false)
+                            refreshPaid(result.navigators)
+                            listOf(characterMessage(updated,player,true))
+                        }
+                        return null
                     }
                     0x0f04,0x0f06,0x0f0b,0x0f0c,0x0f0d,0x0f0e,0x0f0f,0x0f10,0x0f11,0x0f12 -> {
                         if(opcode==0x0f06 && !worldInitialized) {
@@ -1159,6 +1234,72 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.GatheringMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.GatheringMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
+                                val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),q.command,0,character.rank,target=q.target,value=q.value),q.phase,q.ticket)
+                                pendingWorld=administration.social(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    val now=gameSeconds()
+                                    val view=result.gathering?.let {g->org.logh7.protocol.GatheringMessages.View(g.ticket,g.target,g.friendship,g.hostWait,
+                                        g.invite?.host ?: 0,g.invite?.let {(it.expiresAt-now).coerceAtLeast(0)} ?: 0,
+                                        g.grade?.let {it.ordinal+1} ?: 0,g.hostInfluence,g.guestInfluence,g.friendshipDelta)}
+                                    // A new invitation reaches the guest's live connections at once.
+                                    val opened=result.gathering?.invite?.takeIf {result.changed && q.value==0}
+                                    // The host paid on acceptance; refresh its own CP display.
+                                    result.navigators.values.forEach {host->currentCharacterById(host.characterId)?.let {c->
+                                        presence?.refreshCharacter(c,host,offices(c,host),now,administration.stationedOutfit(host))}}
+                                    if(opened!=null)presence?.toCharacter(opened.guest,checkNotNull(generation),
+                                        listOf(org.logh7.protocol.GatheringMessages.invited(opened.guest,opened.command,opened.host,(opened.expiresAt-now).coerceAtLeast(0))))
+                                    org.logh7.protocol.GatheringMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
+                            if(org.logh7.protocol.MeetingMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.MeetingMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
+                                val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),org.logh7.engine.MeetingActions.MEETING,0,character.rank,target=q.target),q.phase,q.ticket)
+                                pendingWorld=administration.social(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    val view=result.meeting?.let {org.logh7.protocol.MeetingMessages.View(it.ticket,it.target,it.friendship,it.wait,it.gained)}
+                                    org.logh7.protocol.MeetingMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
+                            if(org.logh7.protocol.AcademyMessages.matches(body)) {
+                                check(administration!=null)
+                                val q=org.logh7.protocol.AcademyMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
+                                val profile=org.logh7.engine.StrategicPerson(rank=character.rank,
+                                    peerage=org.logh7.engine.Peerage.entries.getOrNull(character.title-1),merit=character.merit,
+                                    influence=character.influence,evaluation=character.evaluation,money=character.money,
+                                    abilities=character.abilities,decorations=character.decorations)
+                                val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    checkNotNull(generation),q.command,q.card,character.rank,argument=q.argument),q.phase,q.ticket,profile)
+                                pendingWorld=administration.social(request).thenApply {result ->
+                                    val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                    publication=Publication(updated,player,false)
+                                    val view=result.academy?.let {org.logh7.protocol.AcademyMessages.View(it.ticket,it.base,it.content,
+                                        it.lectureRemaining,it.usesLeft,it.ability,it.value,it.experience,it.wait,it.gained)}
+                                    org.logh7.protocol.AcademyMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
+                                        listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
+                                        result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
+                                }
+                                return null
+                            }
                             if(org.logh7.protocol.SocialMessages.matches(body)) {
                                 check(administration!=null)
                                 val q=org.logh7.protocol.SocialMessages.query(body)
@@ -1246,9 +1387,11 @@ class GameExchange(
                                     org.logh7.protocol.OutfitFormationMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,
                                         result.changed,if(result.changed)result.outfit else result.lease,result.base,result.supplies,result.crew,rows)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
-                                        (if(result.changed)listOf(world.outfits(listOf(result.outfit),inventory),
-                                            world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory),
-                                            world.warehouse(result.base,inventory)) else emptyList())+
+                                        (if(result.changed)inventory.outfits.values.filter {it.power==character.power &&
+                                                it.positionIn(world.galaxy).grid==player.grid}.map {it.id}.sorted().chunked(100)
+                                                .map {world.outfits(it,inventory)}.ifEmpty {listOf(world.outfits(listOf(result.outfit),inventory))}+
+                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory),
+                                            world.warehouse(result.base,inventory))+presence?.outfitListRefresh(connection).orEmpty() else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }
                                 return null
@@ -1262,12 +1405,159 @@ class GameExchange(
                                     pendingWorld=stocks().thenApply {stored ->
                                         val inventory=checkNotNull(stored)
                                         val policy=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
+                                        if(query.command==87) {
+                                            // 会見 directory: people whose saved place is the requester's exact spot (online or not).
+                                            val players=navigation?.snapshot()?.navigators.orEmpty()
+                                            val me=checkNotNull(players[identity.account])
+                                            val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                                it.characterId>query.target && me.spotId!=0 && it.grid==me.grid && it.baseId==me.baseId &&
+                                                it.spotId==me.spotId && it.spotOwner==me.spotOwner}.map {it.characterId}.toSet()
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
+                                        if(query.command in 10..13) {
+                                            // 会談/談話 directory: same-side people stationed at the requester's base (online or not).
+                                            val players=navigation?.snapshot()?.navigators.orEmpty()
+                                            val me=checkNotNull(players[identity.account])
+                                            val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                                it.characterId>query.target && me.baseId!=0 && it.power==me.power && it.grid==me.grid &&
+                                                it.baseId==me.baseId}.map {it.characterId}.toSet()
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
+                                        if(query.command in org.logh7.engine.GoalActions.commands) {
+                                            // 国家目標: enemy-held bases; 統治目標: the planets this character governs.
+                                            val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
+                                            val ids=if(query.command==org.logh7.engine.GoalActions.NATIONAL)
+                                                stocks.bases.values.filter {it.power in 2..3 && it.power!=character.power}.map {it.baseId}
+                                                else org.logh7.engine.FundActions.governed(stocks,character.id.toInt(),character.power)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it>query.target}.sorted().take(200)
+                                                .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")})
+                                        }
+                                        if(query.command==org.logh7.engine.FundActions.FUNDS) {
+                                            // 資金投入 targets: governed planets, the two confidence choices, or same-side candidates.
+                                            val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
+                                            val rows=when(query.value) {
+                                                0 -> org.logh7.engine.FundActions.governed(stocks,character.id.toInt(),character.power).filter {it>query.target}
+                                                    .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")}
+                                                1 -> listOf(1 to "지지",2 to "불지지").filter {it.first>query.target}
+                                                    .map {org.logh7.protocol.StrategyActionMessages.Selection(it.first,it.second)}
+                                                else -> characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .filter {it.power==character.power && it.id!=character.id && it.id>query.target}.sortedBy {it.id}
+                                                    .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
+                                            }.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
+                                        }
+                                        if(query.command==org.logh7.engine.CoupActions.CONSPIRACY) {
+                                            // 謀議: same-side people in the requester's spot who are not in a plot.
+                                            val snapshot=navigation?.snapshot();val players=snapshot?.navigators.orEmpty()
+                                            val me=checkNotNull(players[identity.account]);val coup=snapshot?.planetStocks?.social?.coup
+                                            val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                                it.characterId>query.target && me.baseId!=0 && it.power==me.power && it.baseId==me.baseId &&
+                                                it.spotId==me.spotId && coup?.plotOf(it.characterId)==null}.map {it.characterId}.toSet()
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                                    .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
+                                        if(query.command==org.logh7.engine.EspionageActions.INTRUDE || query.command==org.logh7.engine.EspionageActions.RETURN) {
+                                            // U-17: bases within 10 grid cells, of another side (侵入) or this side (帰還).
+                                            val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            val here=world.galaxy.bases.singleOrNull {it.id==me.baseId}
+                                            val own=character.power
+                                            val rows=if(here==null)emptyList() else world.galaxy.bases.filter {b->b.id!=here.id && b.id>query.target &&
+                                                org.logh7.engine.EspionageActions.cells(here.grid,b.grid)<=org.logh7.engine.EspionageActions.RANGE_CELLS &&
+                                                inventory.bases[b.id]?.power?.let {if(query.command==org.logh7.engine.EspionageActions.INTRUDE)it in 2..3 && it!=own else it==own}==true}
+                                                .sortedBy {it.id}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {
+                                                org.logh7.protocol.StrategyActionMessages.Selection(it.id,it.name.take(12))})
+                                        }
+                                        if(query.command==org.logh7.engine.EspionageActions.INFILTRATE) {
+                                            // U-17: the spots of this base's facilities (row id = spot, name = facility/room numbers).
+                                            val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            val spots=if(me.baseId==0)emptyList() else world.galaxy.facilitiesAt(me.baseId,inventory)
+                                                .flatMap {f->f.spots.map {sp->Triple(sp.id,f.kind,sp.kind)}}.filter {it.first>query.target && it.first!=me.spotId}
+                                                .sortedBy {it.first}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,spots.map {(id,kind,room)->
+                                                org.logh7.protocol.StrategyActionMessages.Selection(id,"F$kind R$room")})
+                                        }
+                                        if(query.command in org.logh7.engine.Justice.commands) {
+                                            // U-25 directories: 69 same-side people in the card's scope, 70 value 0 the arrest list /
+                                            // value 1 same-side grantees, 71 listed people this character may arrest, 19 detainees in scope.
+                                            val justice=inventory.social.justice;val now=gameSeconds()
+                                            val people=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
+                                                .filter {(it.power==character.power || query.command in setOf(68,73,74)) && it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
+                                            fun rankOf(id:Int,fallback:Int)=inventory.strategic.people[id]?.rank ?: fallback
+                                            val rows=when(query.command) {
+                                                org.logh7.engine.Justice.PERMIT -> people.filter {org.logh7.engine.Justice.arrests(query.card,rankOf(it.id.toInt(),it.rank)) &&
+                                                    !justice.detained(it.id.toInt())}
+                                                org.logh7.engine.Justice.EXECUTION -> if(query.value==0)people.filter {justice.permits[it.id.toInt()]?.let {p->p.until>now}==true}
+                                                    else people.filter {!justice.detained(it.id.toInt()) && it.id.toInt()!=query.base}
+                                                org.logh7.engine.Justice.ARREST -> people.filter {p->justice.permits[p.id.toInt()]?.let {it.until>now}==true &&
+                                                    (justice.rights[character.id.toInt()]?.target==p.id.toInt() ||
+                                                        org.logh7.engine.Justice.arrests(query.card,rankOf(p.id.toInt(),p.rank)))}
+                                                org.logh7.engine.Justice.SEARCH -> people
+                                                org.logh7.engine.Justice.WATCH -> {
+                                                    // The current watch target first (asking again reports its place), then the same spot.
+                                                    val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                                    val watched=justice.watches[character.id.toInt()]?.target
+                                                    val here=navigation?.snapshot()?.navigators.orEmpty().values.filter {me.spotId!=0 && it.baseId==me.baseId &&
+                                                        it.spotId==me.spotId && it.spotOwner==me.spotOwner}.map {it.characterId}.toSet()
+                                                    people.filter {it.id.toInt()==watched || it.id.toInt() in here}
+                                                }
+                                                org.logh7.engine.Justice.RAID -> {
+                                                    val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                                    val here=navigation?.snapshot()?.navigators.orEmpty().values.filter {me.spotId!=0 && it.baseId==me.baseId &&
+                                                        it.spotId==me.spotId && it.spotOwner==me.spotOwner && it.power!=me.power}.map {it.characterId}.toSet()
+                                                    people.filter {it.id.toInt() in here}
+                                                }
+                                                else -> people.filter {p->justice.detentions[p.id.toInt()]?.let {!it.severe}==true &&
+                                                    org.logh7.engine.Justice.judges(query.card,rankOf(p.id.toInt(),p.rank))}
+                                            }.sortedBy {it.id}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {
+                                                org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,minOf(20,rankOf(it.id.toInt(),it.rank)))})
+                                        }
+                                        if(query.command==org.logh7.engine.ProposalActions.OPEN) {
+                                            val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            if(query.value==org.logh7.engine.ProposalActions.DISMISSAL) {
+                                                // Seats the chosen recipient may dismiss; row id = person*512+card, name = surname.
+                                                val recipient=currentCharacterById(query.base)
+                                                val seats=if(recipient==null)emptyList() else org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
+                                                    .available(inventory,query.base,recipient.power,
+                                                        (inventory.strategic.people[query.base] ?: org.logh7.engine.StrategicPerson()).ladderRank(recipient.rank)).filter {it.target*512+it.card>query.target}.take(200)
+                                                return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,seats.mapNotNull {seat->
+                                                    currentCharacterById(seat.target)?.let {org.logh7.protocol.StrategyActionMessages.Selection(seat.target*512+seat.card,it.surname,
+                                                        minOf(20,it.rank))}})
+                                            }
+                                            if(query.value==org.logh7.engine.ProposalActions.APPOINTMENT) {
+                                                // Vacancies the chosen recipient may fill with this sender; row id = seat*512+card, name = seat base.
+                                                val recipient=currentCharacterById(query.base)
+                                                val people=inventory.strategic.people
+                                                val rows=if(recipient==null)emptyList() else org.logh7.engine.ProposalActions.vacancies(world.galaxy,inventory,
+                                                    query.base,recipient.power,(people[query.base] ?: org.logh7.engine.StrategicPerson()).ladderRank(recipient.rank),
+                                                    me.characterId,(people[me.characterId] ?: org.logh7.engine.StrategicPerson()).ladderRank(character.rank))
+                                                    .filter {it.second*512+it.first>query.target}.take(200)
+                                                return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {(card,seat)->
+                                                    val baseId=inventory.outfits[seat]?.baseId ?: seat
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(seat*512+card,
+                                                        (world.galaxy.bases.singleOrNull {it.id==baseId}?.name ?: "#$seat").take(12))})
+                                            }
+                                            val pairs=proposalPairs(inventory,me).filter {it.first>query.target}.take(200)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,pairs.mapNotNull {(id,_,_)->
+                                                currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname,it.rank)}})
+                                        }
                                         require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {it.card==query.card}) {"Strategy directory requires a held office"}
                                         if(query.command==96) {
                                             if(query.argument==0)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
                                                 org.logh7.engine.FlagshipMarketCatalog.options(character.power).map {option->
                                                     org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,
                                                         "${checkNotNull(org.logh7.engine.Flagships.find(option.kind)).name} ${option.price}",option.maximumRank)})
+                                            // U-13 guard ships: row id = catalogue index + 1, shown as "code price".
+                                            if(query.argument==4)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
+                                                org.logh7.engine.GuardShips.forPower(character.power)
+                                                    .filter {it.index+1>query.target}.map {option->
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,option.label,option.maximumRank)})
                                             val eligible=if(query.argument==2)inventory.flagshipMarket.offers.filter {
                                                 it.receiver==character.id.toInt() && it.expiresAt>gameSeconds()}.map {it.giver}.toSet() else null
                                             val candidates=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}.filter {
@@ -1275,6 +1565,21 @@ class GameExchange(
                                                     (eligible==null || it.id.toInt() in eligible)}.sortedBy {it.id}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,candidates.map {
                                                 org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
+                                        }
+                                        if(query.command in setOf(29,65)) {
+                                            // U-15 package rows: name "destination/supplies", "+" with units, "*" aboard.
+                                            val power=character.power
+                                            val outfit=if(query.command==65)inventory.outfits[query.outfit]?.takeIf {
+                                                it.power==power && it.commanderId==character.id.toInt()} else null
+                                            val here=outfit?.positionIn(world.galaxy)?.baseId ?: 0
+                                            val rows=inventory.strategic.transports.filter {it.power==power && it.id>query.target &&
+                                                (if(query.command==29)it.carrier==0 else outfit!=null &&
+                                                    (it.carrier==outfit.id || it.carrier==0 && it.source==here && here!=0))}
+                                                .sortedBy {it.id}.take(200).map {p ->
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(p.id,("${p.destination}/${p.supplies}"+
+                                                        (if(p.units.ships.isEmpty() && p.units.troops.isEmpty())"" else "+")+
+                                                        (if(p.carrier!=0)"*" else "")).take(12))}
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
                                         }
                                         if(query.command==24) {
                                             val force=when(query.card) {
@@ -1297,6 +1602,55 @@ class GameExchange(
                                             org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
                                                 listOf(0,if(target.power==2)59 else 195)+administration.offices(target.id.toInt(),target.power,
                                                     checkNotNull(generation)).map {it.kind})})
+                                    }
+                                    return null
+                                }
+                                if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands ||
+                                    query.command in org.logh7.engine.CoupActions.commands || query.command==org.logh7.engine.FundActions.FUNDS ||
+                                    query.command in org.logh7.engine.GoalActions.commands) {
+                                    val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                        query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                        checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
+                                        base=query.base,amount=query.amount.toLong(),identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),
+                                            id.power,id.rank,id.origin,id.abilities.toList())}))
+                                    pendingWorld=administration.social(request).thenApply {result ->
+                                        val player=checkNotNull(result.player)
+                                        if(result.defected!=0) {
+                                            // U-25 defection: the registered character and its mail identity follow the committed
+                                            // world and session; this connection then ends so the client reconnects on the new side.
+                                            check(characters.defect(identity.account,character.id,result.defected))
+                                            communicationIdentity(characters,character.id.toInt())?.let {communication?.defect(it,checkNotNull(generation))?.join()}
+                                            defectedLogout=true
+                                        }
+                                        if(query.command==org.logh7.engine.CoupActions.CONSPIRACY && result.outcome==3 && result.found>0) {
+                                            // 謀議 refused: the target learns who asked (user decision 2026-11-01).
+                                            val from=communicationIdentity(characters,character.id.toInt());val to=communicationIdentity(characters,result.found)
+                                            if(from!=null && to!=null)communication?.notice(from,to,"모의 제안",
+                                                "${from.name}이(가) 쿠데타 참가를 제안했습니다. 거절했습니다.",checkNotNull(generation),gameSeconds())
+                                        }
+                                        val updated=checkNotNull(currentCharacter(identity.account))
+                                        publication=Publication(updated,player,false)
+                                        refreshPaid(result.navigators)
+                                        org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
+                                            outcome=result.outcome,found=result.found,report=result.report)+listOf(characterMessage(updated,player,true))
+                                    }
+                                    return null
+                                }
+                                if(query.command==org.logh7.engine.ProposalActions.OPEN) {
+                                    // The compatibility window may leave both cards 0: use the target's pair.
+                                    val pair=if(query.card!=0 && query.argument!=0)Triple(query.target,query.card,query.argument) else
+                                        navigation?.snapshot()?.let {s->proposalPairs(checkNotNull(s.planetStocks),checkNotNull(s.navigators[identity.account]))}
+                                            ?.firstOrNull {it.first==query.target} ?: Triple(query.target,0,0)
+                                    val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                        query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                        checkNotNull(generation),query.command,pair.second,character.rank,target=query.target,value=query.value,
+                                        argument=pair.third,base=query.base,amount=query.amount.toLong()))
+                                    pendingWorld=administration.social(request).thenApply {result ->
+                                        val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
+                                        publication=Publication(updated,player,false)
+                                        refreshPaid(result.navigators)
+                                        org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
+                                            listOf(characterMessage(updated,player,true))
                                     }
                                     return null
                                 }
@@ -1332,6 +1686,17 @@ class GameExchange(
                                             (if(civicOutfit!=null)
                                                 listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(civicOutfit.id,0,0),
                                                     character.power,checkNotNull(result.stocks),character.id.toInt(),::currentCharacterById)) else emptyList()) else emptyList())+
+                                        // U-13: guard purchase/disband changes this grid's outfits; refresh like outfit formation.
+                                        (if(query.command==96 && query.argument>=4 && result.changed)result.stocks?.let {inventory ->
+                                            inventory.outfits.values.filter {it.power==character.power && it.positionIn(world.galaxy).grid==player.grid}
+                                                .map {it.id}.sorted().chunked(100).map {world.outfits(it,inventory)}+
+                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory))+
+                                            presence?.outfitListRefresh(connection).orEmpty()}.orEmpty() else emptyList())+
+                                        // U-15: refresh the warehouse a transport command changed.
+                                        (if(query.command in org.logh7.engine.TransportActions.supported && result.changed)result.stocks?.let {inventory ->
+                                            listOf(if(query.command==28)query.base else player.baseId).filter {
+                                                inventory.bases[it]?.let {b->b.power==character.power && b.camp==0}==true}.map {world.warehouse(it,inventory)}}.orEmpty()
+                                        else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }
                                 return null
@@ -1409,6 +1774,34 @@ class GameExchange(
                                 val dismissals=org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
                                     .available(inventory,character.id.toInt(),character.power,character.rank)
                                 when(query.search) {
+                                    // The new-mail office tab: the CD's office mailbox shows only 命令/提案 mail (0f13/0f14), so
+                                    // ordinary mail to an office address could never be read there. Answer an empty directory
+                                    // instead of the old unsupported-search disconnect (design-proposals-orders.md).
+                                    15 -> org.logh7.protocol.AppointmentDirectoryMessages.orderSuggest(query,emptyList())
+                                    // 命令/提案 targets (CD p.28): same side; same spot inside a facility, else the same grid.
+                                    // One group per own office card; targets hold a card of the same institution. A higher
+                                    // rank receives a proposal (1), others an order (0); the emperor orders everyone (evidence:guess).
+                                    29 -> {
+                                        val players=navigation?.snapshot()?.navigators.orEmpty()
+                                        val me=checkNotNull(players[identity.account])
+                                        val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                            it.power==me.power && !it.cpPaused && it.grid==me.grid &&
+                                            (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
+                                            .map {it.characterId}.toSet()
+                                        fun cards(id:Int,power:Int)=administration!!.offices(id,power,checkNotNull(generation)).map {it.kind}
+                                        fun institution(card:Int)=org.logh7.engine.OrganizationOffices.of(card)?.institution
+                                        val people=characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
+                                            .sortedBy {it.id}.map {it to cards(it.id.toInt(),it.power)}
+                                        val own=cards(character.id.toInt(),character.power).filter {institution(it)!=null}.distinct()
+                                        org.logh7.protocol.AppointmentDirectoryMessages.orderSuggest(query,own.take(10).map {card ->
+                                            val group=institution(card)
+                                            org.logh7.protocol.AppointmentDirectoryMessages.OrderSuggest(card,people.filter {(_,held)->
+                                                card==1 || held.any {institution(it)==group}}.take(10).map {(target,held)->
+                                                val proposal=card!=1 && target.rank in 1..20 && character.rank in 1..20 && target.rank<character.rank
+                                                (if(proposal)1 else 0) to org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
+                                                    listOf(0,if(target.power==2)59 else 195)+held)})
+                                        }.filter {it.targets.isNotEmpty()})
+                                    }
                                     18 -> {
                                         val vacancies=available.mapValues { (card,seats)->
                                             val definition=checkNotNull(org.logh7.engine.OrganizationOffices.of(card))
@@ -1454,6 +1847,7 @@ class GameExchange(
                             }
                             return null
                         }
+                        if(traceOpcodes && !OriginalCharacterMessages.catalogueRequest(body))System.err.println("trace ${identity.account} 1200 body ${java.util.HexFormat.of().formatHex(body)}")
                         check(gameLoggedIn && OriginalCharacterMessages.catalogueRequest(body))
                         val messages = listOf(LoginMessages.sessionMessage(0x1200, body.copyOfRange(2, body.size)),
                             OriginalCharacterMessages.catalogue(characters.candidates(identity.account)), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
@@ -1501,7 +1895,12 @@ class GameExchange(
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
                                     tactical?.initialize(::offices).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player) + tactical?.resume().orEmpty()
-                            } }
+                            } }.let {initialized ->
+                                val owner=if(opcode==0x0f00)communicationIdentity(characters,character.id.toInt()) else null
+                                if(communication==null || owner==null)initialized
+                                else initialized.thenCompose {messages ->
+                                    communication.unreadInbox(owner,checkNotNull(generation)).thenApply {messages+it}}
+                            }
                             return null
                         }
                         val messages = listOf(BootstrapMessages.characterId(character),
@@ -1520,8 +1919,11 @@ class GameExchange(
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
                 0x2003 -> {
                     check(lobbyLoggedIn && body.size==2)
-                    val character=characters.character(identity.account)
                     val snapshot=navigation?.snapshot()
+                    // U-11: a character killed in battle is removed here; the lobby then offers creation.
+                    characters.character(identity.account)?.takeIf {snapshot?.session?.generation==admission?.generation &&
+                        org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}?.let {characters.retire(identity.account,it.id)}
+                    val character=characters.character(identity.account)
                     // Lobby accounts may inspect their own ended character without joining,
                     // changing CP/navigation, or obtaining a playable ended-session ticket.
                     if(characters!==characterProvider())LobbyMessages.noCharacters()

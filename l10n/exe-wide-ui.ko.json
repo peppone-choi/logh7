@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "author": "최병호",
+  "author": "Peppone Choi",
   "source_sha256": "bd19263c10decc3d58373165a82d42a9267868400d407da87d5f4f4109ab6e16",
   "note": "고정 UTF-16 UI 주소와 원문 해시가 일치할 때만 표시 경로에서 적용한다. 서버 규칙이나 명령 허용 조건을 바꾸지 않는다.",
   "entries": {

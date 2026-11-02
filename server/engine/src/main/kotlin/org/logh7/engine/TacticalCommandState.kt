@@ -1,7 +1,7 @@
 package org.logh7.engine
 
 /** Additional native tactical commands. Opaque bytes are retained only for native replies.
- * Timing, CP costs, formation geometry and combat magnitudes are replacement policy. Author: 최병호. */
+ * Timing, CP costs, formation geometry and combat magnitudes are replacement policy. Author: Peppone Choi. */
 data class TacticalCommand(val opcode:Int,val units:List<Int> = emptyList(),val base:Int=0,val kind:Int=0,
     val targetKind:Int=0,val target:Int=0,val velocity:Float=0f,val direction:Float=0f,
     val points:List<TacticalPoint> = emptyList(),val payload:List<Int> = emptyList()) {
@@ -24,6 +24,11 @@ data class TacticalAirWing(val character:Int,val grid:Int,val source:Int,val tar
 }
 data class TacticalFortressMotion(val grid:Int,val motion:TacticalMotion,val reportedAt:Long=motion.acceptedAt) {
     init {require(grid==motion.grid && reportedAt in motion.acceptedAt..0xffffffffL)}
+    companion object {
+        /** The CD 004b3b20 041f record never writes its velocity word, so the speed is server-owned.
+         * Mobile fortresses use the slowest ship speed (the 0.1 lower bound of ship speeds), evidence:guess. */
+        const val VELOCITY=.1f
+    }
 }
 data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyList(),
     val morale:Map<Int,Int> = emptyMap(),val authority:Map<Int,Int> = emptyMap(),val formations:Map<Int,Int> = emptyMap(),

@@ -42,4 +42,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\fetch-original.ps1 -Ro
 | `Logh7.cue` | 71 | `878418e704a913f7baac67b38b10e680` | `9bff4ea17ca6ff7b088440bd7f8a5206cd2dfe81` |
 | `G7UPD040514.exe` | 10,913,837 | — | SHA256 `0bd0cd52eca4050e8045cf9e469788f222333e0509b8259f64ce93736a2e489c` |
 
-작성: 최병호
+작성: Peppone Choi

@@ -68,7 +68,8 @@ object BootstrapMessages {
         u8(1); string(character.surname); string(character.givenName); string(character.surname)
         out.putShort(character.origin.toShort()).putShort(character.rank.toShort()); string(peerageTitle(character))
         out.putInt(character.face).putInt(character.merit.toInt()).putInt(0).putInt(0)
-        character.abilities.forEach { out.putShort(it.toShort()).putShort(0) }
+        require(character.experience.size==8 && character.experience.all {it in 0..99})
+        character.abilities.forEachIndexed { i,it -> out.putShort(it.toShort()).putShort(character.experience[i].toShort()) }
         u8(character.influence); u8(100); u8(0)
         u8(2 + offices.size)
         out.putShort(0).putInt(0) // personal card, no institution restriction

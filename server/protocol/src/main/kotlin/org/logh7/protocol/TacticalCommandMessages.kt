@@ -3,7 +3,7 @@ package org.logh7.protocol
 import java.nio.ByteBuffer
 
 /** Packed command families from 00496050..0049a340 and 004b4370..004b4850.
- * Client time, wait, formation origins and ability bytes are never server authority. Author: 최병호. */
+ * Client time, wait, formation origins and ability bytes are never server authority. Author: Peppone Choi. */
 object TacticalCommandMessages {
     val opcodes=setOf(0x0407,0x0408,0x0409,0x040b,0x040d,0x040e,0x0419,0x041b,0x041c,0x041d,0x041e,0x041f,0x0420,0x0421,0x0422)
     data class Point(val x:Float,val y:Float,val z:Float=0f) {
@@ -61,6 +61,13 @@ object TacticalCommandMessages {
         require(!input.hasRemaining())
         require(units.isNotEmpty() || base>0)
         return Command(op,character,units,base,kind,targetKind,target,velocity,direction,points,message.drop(2).map {it.toInt() and 255})
+    }
+    /** CD 004b3b20 leaves the 041f velocity word unset; the server replaces it with its own speed. */
+    fun withFortressVelocity(command:Command,velocity:Float):Command {
+        require(command.opcode==0x041f && velocity.isFinite() && velocity in 0f..1f)
+        val payload=command.payload.toMutableList()
+        java.nio.ByteBuffer.allocate(4).putFloat(velocity).array().forEachIndexed {i,b->payload[16+i]=b.toInt() and 255}
+        return command.copy(velocity=velocity,payload=payload)
     }
     /** Preserve native opaque fields, replacing only the two server scheduling words. */
     fun reply(command:Command,seconds:Long,wait:Long,accepted:Boolean=true):ByteArray {

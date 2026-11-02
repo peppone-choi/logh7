@@ -78,6 +78,9 @@ class NavigationTest {
         assertEquals(NavigationRejection.ACCESS, denied.rejection)
         assertEquals(arrived, denied.previous)
         assertEquals(arrived, store.saved.getValue("pilot"))
+        // U-18: a habitable non-capital base has no mansion, so its ballroom/forest are absent;
+        // the hunting ground of a fief mansion is entered with owner 0 and stored as the mover's own room.
+        assertTrue(galaxy.facilities.getValue(1000).none { it.kind == 18 })
         assertEquals(NavigationRejection.SPOT, act(PlaceMove.Spot(1, 0)).rejection)
         assertEquals(NavigationRejection.EMBARKED, act(PlaceMove.Dock(0, 5)).rejection)
         assertNotNull(act(PlaceMove.Spot(0, 10000)).player)

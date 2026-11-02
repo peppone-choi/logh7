@@ -1,4 +1,4 @@
-"""표시 전용 호출·서식의 실제 CD 원바이트 대조. 작성: 최병호."""
+"""표시 전용 호출·서식의 실제 CD 원바이트 대조. 작성: Peppone Choi."""
 from pathlib import Path
 import re
 import struct

@@ -192,7 +192,16 @@ class GamePresence {
             if(!event.cancelled && !event.stateOnly && event.order.command.opcode in setOf(0x408,0x421)) {
                 val proposed=snapshot.planetStocks!!.tacticalCommands.proposals[event.order.character]?.let {
                     it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
-                if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
+                val assigned=event.order.command.opcode==0x421 && current.characterId!=event.order.character &&
+                    snapshot.planetStocks!!.tacticalCommands.missions[current.characterId]?.let {
+                        it.assignedAt==event.seconds && it.mission==event.order.command.kind}==true
+                if(assigned) TacticalCommandWire.command(event.order)?.let {
+                    // CD 004ba2b0 applies a 0421 result only when its character is the receiver.
+                    // A supreme-commander mission (update04) is addressed to every recipient.
+                    val payload=it.payload.toMutableList()
+                    java.nio.ByteBuffer.allocate(4).putInt(current.characterId).array().forEachIndexed {i,b->payload[8+i]=b.toInt() and 255}
+                    packets+=org.logh7.protocol.TacticalCommandMessages.reply(it.copy(character=current.characterId,payload=payload),event.seconds,0)
+                } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
                     TacticalCommandWire.command(event.order)?.let {
                         packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
             }
@@ -358,7 +367,11 @@ class GamePresence {
                         (viewer.player!=departed && !awaitingReturn))return@forEach
                     // 004c96c0 requires a living own flagship while rendering any tactical unit.
                     // Leave the victim's view before destroying that native anchor; bootstrap returns the replacement.
-                    send(viewer,listOf(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false)))
+                    // U-24: the sinking also lowered ability experience/values; refresh the victim's status panel.
+                    val changed=snapshot?.let {s->WorldCharacters.view(viewer.character,s)}?.let {c->
+                        BootstrapMessages.changedCharacter(c,departed.pcp,departed.mcp,departed.spotId,departed.spotOwner,
+                            departed.returnBase,viewer.offices)}
+                    send(viewer,listOfNotNull(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false),changed))
                 } else {
                     if(viewer.player.grid!=impact.hit.grid)return@forEach
                     val leave=impact.departed?.let {
@@ -389,6 +402,11 @@ class GamePresence {
                 viewer.player.spotId == other.player.spotId && viewer.player.spotOwner == other.player.spotOwner))
     private fun peers(viewer: Member) = members.values.filter { visible(viewer, it) }.sortedBy { it.character.id }
     /** Public profiles follow the same live visibility boundary as the strategy character cache. */
+    /** Delivers to every live connection of one character (e.g. a 会談/談話 invitation). */
+    @Synchronized fun toCharacter(characterId: Int, generation: Long, messages: List<ByteArray>): Boolean {
+        val targets = members.values.filter { it.character.id == characterId.toLong() && it.player.generation == generation }
+        targets.forEach { send(it, messages) };return targets.isNotEmpty()
+    }
     @Synchronized fun detail(connection: String, id: Int): Member? {
         val viewer = members[connection] ?: return null
         return members.values.singleOrNull { it.character.id == id.toLong() &&
@@ -398,6 +416,7 @@ class GamePresence {
     @Synchronized fun spotChat(connection: String, message: ChatMessages.Spot, seconds: Long): ByteArray {
         val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
         require(message.characterId.toLong() == sender.character.id)
+        ChatChannel.parse(message.text)?.let {(channel,text) -> return channelChat(sender,channel,text,seconds)}
         val packet = ChatMessages.spot(message, seconds)
         val location = sender.player
         if (location.baseId != 0 && location.spotId != 0) members.values.filter {
@@ -407,13 +426,28 @@ class GamePresence {
         }.forEach { send(it, listOf(packet)) }
         return packet // The sender's echo uses its own exchange/cipher queue exactly once.
     }
+    /** U-06: same-side channel members anywhere in the session; the sender must belong to the channel. */
+    private fun channelChat(sender:Member,channel:ChatChannel,text:String,seconds:Long):ByteArray {
+        fun cards(member:Member)=member.offices.map {it.kind}
+        val allowed=channel.admits(cards(sender),sender.outfit)
+        val line=("[${channel.label}] "+(if(!allowed)"이 채널을 쓸 수 있는 직무·소속이 아닙니다." else text)).take(65)
+        val packet=ChatMessages.spot(ChatMessages.Spot(sender.character.id.toInt(),line),seconds)
+        if(allowed && text.isNotBlank())members.values.filter {
+            it.connection!=sender.connection && it.player.generation==sender.player.generation &&
+                it.character.power==sender.character.power && channel.admits(cards(it),it.outfit) &&
+                (channel!=ChatChannel.OWN_OUTFIT || it.outfit==sender.outfit)
+        }.forEach {send(it,listOf(packet))}
+        return packet
+    }
     @Synchronized fun gridChat(connection: String, message: ChatMessages.Grid, seconds: Long): ByteArray {
         val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
         require(message.characterId.toLong() == sender.character.id)
         val packet = ChatMessages.grid(message, seconds)
+        // Manual W p.25: tactical chat reaches only the same battle's participants, and a battle is not heard outside.
+        fun inTactics(member: Member) = member.player.cpPaused && member.player.baseId == 0
         members.values.filter { other ->
             other.connection != connection && other.player.generation == sender.player.generation &&
-                other.player.grid == sender.player.grid && when (message.cast) {
+                other.player.grid == sender.player.grid && inTactics(other) == inTactics(sender) && when (message.cast) {
                     0 -> true
                     1 -> other.player.power == sender.player.power
                     2 -> sender.outfit > 0 && other.outfit == sender.outfit && other.player.power == sender.player.power
@@ -422,9 +456,15 @@ class GamePresence {
         }.forEach { send(it, listOf(packet)) }
         return packet
     }
-    fun character(member: Member) = BootstrapMessages.character(member.character, member.player.pcp,
-        member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
-    fun unit(member: Member) = BootstrapMessages.unit(member.character.copy(shipKind=member.player.hull?.kind ?: member.character.shipKind),member.player.grid,member.player.cruise,
+    /** U-17 侵入: a forged identity (alias, side) by character id, shown to everyone else. */
+    @Volatile var disguise: (Int) -> Pair<String, Int>? = { null }
+    private fun shown(member: Member): CharacterMessages.Generate = disguise(member.character.id.toInt())?.let { (alias, power) ->
+        member.character.copy(surname = alias, givenName = "", power = power,
+            shipKind = org.logh7.engine.Flagships.forType(power, member.character.shipType).kind) } ?: member.character
+    fun character(member: Member) = shown(member).let { c -> BootstrapMessages.character(c, member.player.pcp,
+        member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase,
+        if (c === member.character) member.offices else emptyList()) }
+    fun unit(member: Member) = BootstrapMessages.unit(shown(member).let { c -> if (c === member.character) c.copy(shipKind=member.player.hull?.kind ?: c.shipKind) else c },member.player.grid,member.player.cruise,
         member.player.baseId,member.player.mode,member.outfit,member.player.supplies,if(member.player.hull?.hp?.let {it<100}==true)1 else 0)
     private fun location(previous: Member?, member: Member, seconds: Long) {
         if (previous == null) return
@@ -464,8 +504,10 @@ class GamePresence {
             val before = character(previous)
             val after = character(member)
             if (!before.contentEquals(after)) {
-                val changed = BootstrapMessages.changedCharacter(member.character, member.player.pcp,
-                    member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase, member.offices)
+                val shownCharacter = shown(member)
+                val changed = BootstrapMessages.changedCharacter(shownCharacter, member.player.pcp,
+                    member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase,
+                    if (shownCharacter === member.character) member.offices else emptyList())
                 members.values.filter { visible(it, member) }.forEach { send(it, listOf(changed)) }
             }
             location(previous, member, seconds)
@@ -514,9 +556,13 @@ class GamePresence {
             val power=viewer.character.power
             val ids=stocks.outfits.values.filter {it.power==power && it.positionIn(world.galaxy).grid==grid}.map {it.id}
             send(viewer,ids.chunked(100).map {world.outfits(it,stocks)}+
-                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks))
+                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks)+refresh(peers(viewer),peers(viewer)))
         }
     }
+    /** Native 032b only fills the detail slot; 0b0a's 004c2a80(1) merges the last 032b into the
+     * 100-row outfit list. Re-sending the current peers keeps its character import unchanged. */
+    @Synchronized fun outfitListRefresh(connection: String): List<ByteArray> =
+        members[connection]?.let { refresh(peers(it), peers(it)) }.orEmpty()
     @Synchronized fun remove(connection: String) {
         motionPaths.keys.removeIf { it.first==connection }
         val leaving = members[connection] ?: return

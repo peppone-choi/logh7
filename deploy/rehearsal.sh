@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 작성: 최병호 | evidence:guess | Ubuntu VM 안에서만 실행하는 운영 리허설
+# 작성: Peppone Choi | evidence:guess | Ubuntu VM 안에서만 실행하는 운영 리허설
 set -euo pipefail
 cd "$(dirname "$0")"
 compose=(sudo docker compose)

@@ -3,7 +3,7 @@ package org.logh7.persistence
 import org.logh7.engine.FlagshipExchangeOffer
 import org.logh7.engine.FlagshipMarketState
 
-/** STOCK31 M record; S/C grammars are unchanged. Author: 최병호. */
+/** STOCK31 M record; S/C grammars are unchanged. Author: Peppone Choi. */
 internal object FlagshipMarketStateCodec {
     fun encode(state:FlagshipMarketState)=state.offers.joinToString(";") {
         "${it.giver}:${it.receiver}:${it.giverKind}:${it.receiverKind}:${it.base}:${it.spot}:${it.expiresAt}"

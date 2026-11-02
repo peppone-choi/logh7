@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** 0048cb80: u8 state followed by u32 grid, with no native padding. Author: 최병호. */
+/** 0048cb80: u8 state followed by u32 grid, with no native padding. Author: Peppone Choi. */
 object TacticsMessages {
     data class Control(val character: Int, val unit: Int, val energy: List<Int>) {
         init { require(character > 0 && unit > 0 && energy.size == 11 && energy.all { it in 0..255 }) }

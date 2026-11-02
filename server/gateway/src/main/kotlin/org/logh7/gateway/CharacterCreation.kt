@@ -48,6 +48,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                     val kind = Flagships.forType(data.power, data.shipType).kind
                     if (kind != data.shipKind) data = data.copy(shipKind = kind)
                 }
+                // A defector (U-25) flies the new side's flagship of the same type.
+                if (data.power in 2..3 && data.shipKind > 0 && Flagships.find(data.shipKind)?.let { it.power != data.power } == true)
+                    data = data.copy(shipKind = Flagships.forType(data.power, data.shipType).kind)
                 registered[account] = data
                 nextId = maxOf(nextId, data.id + 1)
             }
@@ -58,6 +61,20 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
     @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.let(::displayed) }
+    /** U-11: a character that died in battle leaves the account, which may then create a new one. */
+    @Synchronized fun retire(account: String, id: Long): Boolean {
+        if (registered[account]?.id != id) return false
+        val next = registered - account
+        save(next); registered.remove(account); pending.remove(account); return true
+    }
+    /** U-25 defection (user decision 2026-11-01): the one sanctioned change of a registered character's side. */
+    @Synchronized fun defect(account: String, id: Long, power: Int): Boolean {
+        val current = registered[account]?.takeIf { it.id == id && it.power != power } ?: return false
+        require(power in 2..3)
+        val next = registered + (account to current.copy(power = power,
+            shipKind = Flagships.forType(power, current.shipType).kind))
+        save(next); registered[account] = next.getValue(account); return true
+    }
     @Synchronized fun registeredCharacters():List<CharacterMessages.Generate> {
         resolveLottery();return registered.values.sortedBy { it.id }.map(::displayed)
     }

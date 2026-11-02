@@ -3,7 +3,7 @@ package org.logh7.persistence
 import org.logh7.engine.*
 import java.util.Base64
 
-/** STOCK33 V section; old S/C/M/F grammars are unchanged. Author: 최병호. */
+/** STOCK33 V section; old S/C/M/F grammars are unchanged. Author: Peppone Choi. */
 internal object CivicStateCodec {
     fun encode(state:CivicState)=state.orders.toSortedMap().values.joinToString(";") {o->
         listOf(o.character,o.command,o.card,o.power,o.rank,o.base,o.outfit,o.spot,o.acceptedAt,o.readyAt,o.phase.ordinal,

@@ -1,5 +1,5 @@
 // Signed radar coordinates must never index outside the ten-digit atlas.
-// Author: 최병호
+// Author: Peppone Choi
 #pragma once
 #include <intrin.h>
 

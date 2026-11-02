@@ -1,5 +1,5 @@
 // Keep authoritative UTF-16 location names out of the CD's ANSI round trip.
-// Author: 최병호.
+// Author: Peppone Choi.
 #pragma once
 static void __fastcall setHudBaseText(void* root,void*,void* widget,const char* original) {
     // This consumes the original by-value CString and retains its cleanup.

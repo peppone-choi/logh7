@@ -6,7 +6,11 @@ data class SessionStatistics(val planets:Int=0,val fortresses:Int=0,val populati
     val shipUnits:Long=0,val groundUnits:Long=0) {
     init {require(planets>=0 && fortresses>=0 && population>=0 && shipUnits>=0 && groundUnits>=0)}
 }
-data class VictoryConditions(val noCoupAtEnd:Boolean?=null,val imperialLeaderAtEnemyCapital:Boolean?=null)
+data class VictoryConditions(val noCoupAtEnd:Boolean?=null,val imperialLeaderAtEnemyCapital:Boolean?=null,
+    /** Sides with a revolt under way at the end (U-10); used when [noCoupAtEnd] is not given. */
+    val coupSides:Set<Power>?=null) {
+    fun noCoup(side:Power)=noCoupAtEnd ?: coupSides?.let {side !in it}
+}
 data class SessionPowerResult(val statistics:SessionStatistics,val grade:SessionGrade,
     val populationDominance:Boolean,val fleetDominance:Boolean)
 data class SessionResult(val end:SessionEnd,val total:SessionStatistics,val powers:Map<Power,SessionPowerResult>,
@@ -26,7 +30,7 @@ object SessionResults {
             val population=total.population>0 && own.population.toBigInteger()*10.toBigInteger()>=total.population.toBigInteger()*9.toBigInteger()
             // Zero against zero is not fleet superiority; a nonzero force against zero is.
             val fleet=own.shipUnits>0 && own.shipUnits.toBigInteger()>=enemy.shipUnits.toBigInteger()*10.toBigInteger()
-            val requirements=listOf(population,fleet,conditions.noCoupAtEnd)+
+            val requirements=listOf(population,fleet,conditions.noCoup(side))+
                 if(side==Power.EMPIRE)listOf(conditions.imperialLeaderAtEnemyCapital) else emptyList()
             val grade=when {
                 end.reason==EndReason.CAPITAL_CAPTURED && capitalWinner==null->SessionGrade.UNRESOLVED
@@ -46,9 +50,11 @@ object SessionResults {
     /** Current ownership and surviving physical units; aggregate outfit quantities are not counted twice.
      * Warehoused/unused full units and one selectable unit per partial stack are included (revival policy).
      * Personal flagships count separately; unfinished construction does not count as commissioned forces. */
-    fun fromWorld(galaxy:Galaxy,snapshot:WorldSnapshot,conditions:VictoryConditions=VictoryConditions()):SessionResult {
+    fun fromWorld(galaxy:Galaxy,snapshot:WorldSnapshot,given:VictoryConditions=VictoryConditions()):SessionResult {
         val session=checkNotNull(snapshot.session);val end=checkNotNull(session.ended)
         val stocks=checkNotNull(snapshot.planetStocks)
+        val conditions=if(given.coupSides!=null)given else given.copy(coupSides=Power.entries.filter {
+            stocks.social.coup.revolting(if(it==Power.EMPIRE)2 else 3)}.toSet())
         require(stocks.generation==session.generation && stocks.bases.keys==galaxy.bases.map {it.id}.toSet())
         data class Totals(var planets:Int=0,var fortresses:Int=0,var population:Long=0,var ships:Long=0,var ground:Long=0) {
             fun value()=SessionStatistics(planets,fortresses,population,ships,ground)

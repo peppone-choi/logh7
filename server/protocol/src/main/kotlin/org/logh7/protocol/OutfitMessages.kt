@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.nio.ByteBuffer
 
-/** Native 0040c560/0041bbd0 and 0040c780/0041c5f0; no C++ padding. Author: 최병호. */
+/** Native 0040c560/0041bbd0 and 0040c780/0041c5f0; no C++ padding. Author: Peppone Choi. */
 object OutfitMessages {
     data class Definition(val id: Int, val kind: Int, val power: Int, val camp: Int, val number: Int,
         val achievement: Int = 0, val strategy: Int = 0, val practice: List<Int> = List(10) { 0 })

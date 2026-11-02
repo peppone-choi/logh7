@@ -1,4 +1,4 @@
-"""전략/HUD 시안 자산의 일본어를 한국어로 조판한다. 작성: 최병호.
+"""전략/HUD 시안 자산의 일본어를 한국어로 조판한다. 작성: Peppone Choi.
 
 실제 사용 여부·원본 제작 폰트는 미확인이다. 원본/새 캔버스·알파와
 편집 상자 밖 픽셀을 보존하고, TGA 원바이트/PNG 메타데이터를 유지한다.
@@ -159,7 +159,7 @@ def render(source, output, font_path):
         if data != path.read_bytes():
             raise ValueError('original changed')
     (output/'selection.json').write_text(json.dumps(selection, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
-    (output/'render.json').write_text(json.dumps(dict(author='최병호', font=str(font_path),
+    (output/'render.json').write_text(json.dumps(dict(author='Peppone Choi', font=str(font_path),
         font_sha256=image_patch.sha(font_path.read_bytes()), assets=report), ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
     image_patch.prepare(source, output/'replacement', output/'selection.json', output/'package')
     return output

@@ -1,8 +1,20 @@
-// Hooks only the verified tactical guidance lookups. Author: 최병호.
+// Hooks only the verified tactical guidance lookups. Author: Peppone Choi.
 #pragma once
 #include "tactical_notice_data.h"
 static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08, 0x50f6b3, 0x50f426,
-    0x50ffa5, 0x50ffe3, 0x510363, 0x5104b2};
+    0x50ffa5, 0x50ffe3, 0x510363, 0x5104b2,
+    // update04 mission prompts (state 0x1a): group 118 indices 14..19 are absent from the CD.
+    0x50f096, 0x50f0b0, 0x50f0e2, 0x50f111, 0x50f128, 0x50f157,
+    // Attack order sent (0050d230 state 7): 118/21 and 118/22, then the attack mode 118/25, 24 or 23.
+    0x50f812, 0x50f83c, 0x50f87f, 0x50f896, 0x50f8ad,
+    // Stance (004b4490): pick the base for 4 STATIONED 118/26 or 5 ANCHORED 118/27, then the request 118/32..35.
+    0x50f9cd, 0x50fa06, 0x50fc01, 0x50fc1c, 0x50fc37, 0x50fc52,
+    // 7 BATTLE refused for a selected unit the native unit table does not hold (118/28).
+    0x50fa98,
+    // 所属変更 target prompt (118/12) and the 鼓舞 request (118/43).
+    0x50f2b2, 0x5100f4,
+    // Ship-group tab: 鼓舞 request for fleet units (118/29) and 出撃 refused without stationed units (118/39).
+    0x51008a, 0x50fcbb};
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);

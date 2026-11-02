@@ -8,7 +8,7 @@ enum class StrategicPlanState { PLANNED, ISSUED, STARTED, WITHDRAWN, ENDED }
 
 /** Manual W38–40 lifecycle. CP interpolation and the 100/50 merit award are restoration
  * coefficients, not recovered server formulas. A plan announces an objective; it does
- * not replace a player's navigation orders. Author: 최병호. */
+ * not replace a player's navigation orders. Author: Peppone Choi. */
 data class StrategicOperation(val id:Int,val planner:Int,val card:Int,val power:Int,val grid:Int,
     val force:StrategicForce,val purpose:StrategicPurpose,val units:Int,val activatesAt:Long,
     val state:StrategicPlanState=StrategicPlanState.PLANNED,val issuedAt:Long?=null,
@@ -128,7 +128,7 @@ internal object StrategicOperations {
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         val next=stocks.copy(strategic=stocks.strategic.copy(operations=plans))
-        return StrategyActionResult(p.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,changed=true)
+        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
     }
     fun settle(galaxy:Galaxy,stocks:PlanetStocks,seconds:Long,navigators:Map<String,Navigator> = emptyMap()):PlanetStocks {
         if(stocks.strategic.operations.none {it.live})return stocks

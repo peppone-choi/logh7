@@ -1,6 +1,6 @@
 # 로그인 메시지 본문
 
-작성자: 최병호 · 2026-10-08 갱신 · 상태: 0x7000 요청·0x7001 재접속·0x7002 오류 표시 **동적 검증 완료**. 후속 로비는 별도 작업.
+작성자: Peppone Choi · 2026-10-08 갱신 · 상태: 0x7000 요청·0x7001 재접속·0x7002 오류 표시 **동적 검증 완료**. 후속 로비는 별도 작업.
 근거: `evidence:client`, E-302. 대상 `G7MTClient.exe`, 모든 코드 주소는 VA.
 
 ## 기존 초안 정정: 요청은 0x7000
@@ -64,7 +64,7 @@ Ghidra 기존 프로젝트를 `-readOnly -noanalysis`로 열어 `LoghExport.java
 
 ## T2 심화 보완 (2026-09-28)
 
-작성자: 최병호. `evidence:client`, E-311~E-314, 상태 candidate. 첫 요청의 UI/명령행 조건, 계정·인증 문자열 전달 경로, 0x0020 뒤 로비 단계, 오류 코드 표시 위치는 [session-login.md](session-login.md)에 기록했다. 실제 argv[3] 포인터는 0x7000 첫 인증 문자열로 쓰이고 UI 계정 입력도 같은 포인터를 갱신한다. 두 인증 문자열을 단순히 세션명·암호키라고 부르지 않는다. 추가 합성 벡터는 `mps-login-deep.json`이며 각 응용 벡터는 독립 연결의 sequence 예시다.
+작성자: Peppone Choi. `evidence:client`, E-311~E-314, 상태 candidate. 첫 요청의 UI/명령행 조건, 계정·인증 문자열 전달 경로, 0x0020 뒤 로비 단계, 오류 코드 표시 위치는 [session-login.md](session-login.md)에 기록했다. 실제 argv[3] 포인터는 0x7000 첫 인증 문자열로 쓰이고 UI 계정 입력도 같은 포인터를 갱신한다. 두 인증 문자열을 단순히 세션명·암호키라고 부르지 않는다. 추가 합성 벡터는 `mps-login-deep.json`이며 각 응용 벡터는 독립 연결의 sequence 예시다.
 
 ## 실제 인증 성공·실패 확인 (2026-10-08, LOGH-23)
 

@@ -1,4 +1,4 @@
-// Apply authoritative support completions to live CD tactical objects. Author: 최병호.
+// Apply authoritative support completions to live CD tactical objects. Author: Peppone Choi.
 #pragma once
 #include "tactical_support_data.h"
 static BYTE* supportUnit(void* world,unsigned id) {

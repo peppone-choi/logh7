@@ -1,4 +1,4 @@
-// Author: 최병호. The wire damage counter includes destroyed boats.
+// Author: Peppone Choi. The wire damage counter includes destroyed boats.
 #pragma once
 namespace logh {
 inline bool repairedNormal(unsigned maximum,unsigned alive,unsigned unavailable,unsigned& normal) {

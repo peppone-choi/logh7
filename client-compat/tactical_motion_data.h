@@ -1,4 +1,4 @@
-// Decoded native 0400/0402 origins, before interpolation. Author: 최병호.
+// Decoded native 0400/0402 origins, before interpolation. Author: Peppone Choi.
 #pragma once
 #include <string.h>
 #include <float.h>

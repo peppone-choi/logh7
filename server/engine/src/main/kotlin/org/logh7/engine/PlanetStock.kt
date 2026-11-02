@@ -23,7 +23,13 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
     val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
     val outfitSequence:OutfitSequence=OutfitSequence(),val civic:CivicState=CivicState(),val budget:BudgetState=BudgetState(),
-    val social:SocialState=SocialState()) {
+    val social:SocialState=SocialState(),
+    /** 軍紀維持: outfit ID → stored discipline and when it was stored (OutfitDiscipline). */
+    val discipline:Map<Int,OutfitDiscipline> = emptyMap(),
+    /** Last game hour whose black-hole tidal loss was applied (BlackHoleTides); 0 before the first settlement. */
+    val tidalHour:Long=0,
+    /** Air (fighter) training level 1..3 per outfit from 空戦訓練; absent means 0. */
+    val airTraining:Map<Int,Int> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -38,6 +44,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
         require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}
         require(social.squares.keys.all {it in bases} && social.speeches.values.all {it.base in bases}) {"Unknown social base"}
+        require(discipline.size<=1000 && discipline.keys.all {it>0}) {"Invalid outfit discipline"}
+        require(tidalHour in 0..0xffffffffL/3600) {"Invalid tidal hour"}
+        require(airTraining.size<=1000 && airTraining.all {(id,level)->id>0 && level in 1..3}) {"Invalid air training"}
     }
 }
 interface PlanetStockStore : AutoCloseable {
@@ -84,12 +93,16 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached(),social=stocks.social.detached())
     val maximumStock: Int get() = policy.maximumStock
     val defaultRemittanceRate:Int get()=policy.tax.remittanceRate
+    /** Registered characters for periodic personnel rules; supplied by the gateway's character store.
+     * Null means the supplier is not wired yet: production then stops just before the next 30-day
+     * boundary instead of crossing it with nobody to process (startup catch-up runs before the gateway). */
+    @Volatile var identities:(()->List<StrategicIdentity>)? = {emptyList()}
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun settle(generation: Long, seconds: Long): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
         val previous = current
         require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
-        val days = (seconds - startSeconds) / 86400
+        val reached = (seconds - startSeconds) / 86400
         val initial = ActiveShips.initialize(deployment.initialize(previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
             galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) })))
         // Upgrade old rows at their existing watermark; never replay already-produced days.
@@ -98,22 +111,45 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 stock.copy(economy = PlanetEconomy(base.population, base.adultPopulation, base.approval, base.peace))
             }
         })
+        val supplier=identities
+        val days=if(supplier!=null)reached else minOf(reached,maxOf(initialized.producedDays,
+            (initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1)*PoliticianLadder.PERIOD_DAYS-1))
         // A non-durable test clock may rewind. Keep stock and the watermark; never produce a day twice.
         val national = initialized.nationalTreasuries.toMutableMap()
+        // U-20: the 封土 card text (constmsg, evidence:client) gives a fief's taxes to its lord,
+        // so the whole collected amount goes to the lord's private money, not the treasuries.
+        val lords = linkedMapOf<Int, Long>()
         val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
             bases = initialized.bases.mapValues { (id, stock) ->
                 var next = stock
-                repeat(Math.toIntExact(days - initialized.producedDays)) {
+                repeat(Math.toIntExact(days - initialized.producedDays)) {day->
                     val base=galaxy.conditions.getValue(id)
+                    // U-17: a sabotaged base keeps collecting taxes but produces nothing until the stop ends.
+                    val stopped=EspionageActions.disabled(initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L))
                     val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
-                    if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
+                    val lord=initialized.strategic.fiefs[id]
+                    if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
+                    else if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
                     val previousDay=next
-                    next = units.advance(next.nextDay(base, policy), previousDay)
-                        .copy(treasury=Math.addExact(previousDay.treasury,revenue.local))
+                    next = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), previousDay))
+                        .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
+                        .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }
                 next
-            }, nationalTreasuries=national)
-        val settled=CivicActions.settle(galaxy,StrategyActions.settle(result,seconds,galaxy),seconds,civicPlayers(generation))
+            }, nationalTreasuries=national).let {produced ->
+                if(lords.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+
+                    lords.mapValues {(lord,amount)->(produced.strategic.people[lord] ?: StrategicPerson()).let {
+                        it.copy(money=minOf(0xffffffffL,it.money+amount))}}))
+            }
+        // U-28: politician-ladder rules run once per crossed 30-day boundary, in order.
+        var monthly=result
+        val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
+        if(days>initialized.producedDays && lastMonth>=firstMonth) {
+            val people=checkNotNull(supplier)()
+            if(people.isNotEmpty())for(month in firstMonth..lastMonth)
+                monthly=AbilityAging.monthly(PoliticianLadder.monthly(galaxy,monthly,people,month),people,month)
+        }
+        val settled=CivicActions.settle(galaxy,StrategyActions.settle(monthly,seconds,galaxy),seconds,civicPlayers(generation))
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.

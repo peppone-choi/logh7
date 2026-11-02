@@ -1,5 +1,5 @@
 // Rebuild the CD's missing command 30 screen with native widgets and transport.
-// UI layout is reconstructed; authority and payment remain on the server. Author: 최병호.
+// UI layout is reconstructed; authority and payment remain on the server. Author: Peppone Choi.
 #pragma once
 #include "planet_tax_data.h"
 
@@ -158,6 +158,7 @@ static unsigned __fastcall readTaxResponse(void* codec,void*,void* record,void* 
 static bool updateTaxWindow(void* gui) {
     auto& state=taxWindow;
     state.manager=gui;
+    proposalWindowTick();
     if(state.visible && state.strategyActive)return updateStrategyAction(gui);
     if (!state.visible) return false;
     auto world=*reinterpret_cast<void**>(0x7ccffc);

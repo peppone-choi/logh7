@@ -8,7 +8,7 @@ import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
 
-/** 암호화 송수신→월드 액터→CP/병력/예약 저장 경로. 실행은 리드 담당. 작성: 최병호. */
+/** 암호화 송수신→월드 액터→CP/병력/예약 저장 경로. 실행은 리드 담당. 작성: Peppone Choi. */
 class StrategyActionsWireTest {
     @TempDir lateinit var directory:Path
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),

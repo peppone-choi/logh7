@@ -1,6 +1,6 @@
 # LOGH7 Windows 런처
 
-작성자: 최병호 · 2026-10-08 · LOGH-26
+작성자: Peppone Choi · 2026-10-08 · LOGH-26
 
 `logh7-launcher.exe`와 `launcher.ini`로 게임 클라이언트를 대체 서버에 연결한다. 실행 전에 기본 오디오 출력 장치의 활성 상태를 확인하고, `exe/G7MTClient.exe`를 작업 디렉터리 `exe/`에서 실행한다. 게임 파일·주소 문자열·레지스트리·시스템 설정을 수정하지 않는다.
 

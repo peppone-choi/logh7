@@ -5,7 +5,7 @@
 > 세션 3 정정: argv[3]은 실제 게임 로그인 경로에서 0x7000의 첫 계정 문자열로 전달된다. argv[4]는 선택 세션 ID 후보, argv[5]는 둘째 인증 문자열이다. 옛 robot usage 문자열의 "세션 서버 이름" 표기보다 실제 코드 흐름을 우선한다. [세션 로그인 정적 명세](../protocol/session-login.md), `evidence:client` E-311. 동적 상호운용은 미검증이다.
 
 - 상태: 채택 — 명령행 인자 방식(정적 근거 high), P2 동적 확인으로 validated 예정
-- 작성: 최병호
+- 작성: Peppone Choi
 - 관련: ADR-0001, ADR-0004, docs/re/connection-flow.md, docs/protocol/protocol-draft.md
 
 ## 맥락

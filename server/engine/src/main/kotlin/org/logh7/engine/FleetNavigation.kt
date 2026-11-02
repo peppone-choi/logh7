@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Commander-led deployment uses the same durable transaction as the flagship. Author: 최병호. */
+/** Commander-led deployment uses the same durable transaction as the flagship. Author: Peppone Choi. */
 internal object FleetNavigation {
     fun apply(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?, blocked: (Int) -> Boolean): NavigationResult {
@@ -46,7 +46,8 @@ internal object FleetNavigation {
             return NavigationResult(null, before, NavigationRejection.BUSY)
         if (followers.values.any { it.cpPaused || it.fuelReadyAt != null || it.dockTarget != null })
             return NavigationResult(null, before, NavigationRejection.BUSY)
-        val cruiseCost = if (request.destination != null) (before.cruise - after.cruise).coerceAtLeast(0) else 0
+        // A reserved warp moves the fleet when its job completes, not on the accepting request.
+        val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0
         if (followers.values.any { it.cruise < cruiseCost }) return NavigationResult(null, before, NavigationRejection.CRUISE)
         val moved = followers.mapValues { (_, player) -> player.copy(grid = after.grid, baseId = after.baseId,
             mode = after.mode, spotId = 0, spotOwner = 0, cruise = player.cruise - cruiseCost,
@@ -54,7 +55,11 @@ internal object FleetNavigation {
             commandRange=if(after.cpPaused)TacticalCommandRange(session.gameMillis/1000,command=player.commandRange?.command ?: 50) else null,
             moves = Math.addExact(player.moves, 1), motion = null) }
         val next = players + moved + (request.account to after)
-        val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to outfit.copy(position = position)))
+        // A reserved warp whose error pulled the fleet into a black hole's gravity zone damages it on arrival.
+        val pulled = preview.completedWarp && before.warpTarget != null && after.grid != before.warpTarget &&
+            BlackHoleTides.inGravity(galaxy, after.grid)
+        val moving = outfit.copy(position = position).let { if (pulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
+        val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to moving))
         val prepared = production.prepareReplacement(stocks,CivicActions.settle(galaxy,deployed,session.gameMillis/1000,next.values))
         committer.saveWorld(next, prepared)
         navigation.publishCommitted(players, next, session.generation)

@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Tactical reward ledger -> strategic personnel, once per durable after-image. Author: 최병호. */
+/** Tactical reward ledger -> strategic personnel, once per durable after-image. Author: Peppone Choi. */
 object TacticalPersonnel {
     private const val MAXIMUM_MERIT=0xffffffffL
     fun rank(stocks:PlanetStocks,character:Int)=stocks.strategic.people[character]?.rank

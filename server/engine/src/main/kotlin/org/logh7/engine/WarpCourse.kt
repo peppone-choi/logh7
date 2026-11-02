@@ -4,7 +4,7 @@ import kotlin.math.ceil
 import kotlin.math.sqrt
 
 /**
- * 워프 항속 소비와 오차 도착점. Author: 최병호.
+ * 워프 항속 소비와 오차 도착점. Author: Peppone Choi.
  *
  * 그리드 한 변 100광년(W 전략 화면 설명)과 완충 항속 1,000광년(CD p.31)에 맞춰 이동 거리(광년)만큼 항속을 소비한다.
  * 장거리 워프는 목표에 인접한 공간 그리드에 도착할 수 있다(W p.32). 거리 계산·오차 확률·후보 선택은
@@ -32,7 +32,10 @@ object WarpCourse {
      * [salt]는 같은 인물의 같은 이동 차례를 구분하는 값이며 클라이언트 입력으로 고를 수 없어야 한다.
      */
     fun arrival(galaxy: Galaxy, origin: Int, destination: Int, salt: Long, enterable: (Int) -> Boolean): Int {
-        val percent = errorPercent(origin, destination, galaxy.kind(destination) == GridKind.STAR_SYSTEM)
+        val holes = galaxy.blackHoles
+        val gravity = holes.any { chebyshev(it, destination) == 1 }
+        val percent = (errorPercent(origin, destination, galaxy.kind(destination) == GridKind.STAR_SYSTEM) +
+            if (gravity) GRAVITY_PERCENT else 0).coerceAtMost(100)
         if (percent == 0) return destination
         val roll = mix(salt xor (origin.toLong() shl 32) xor destination.toLong())
         if (java.lang.Long.remainderUnsigned(roll, 100) >= percent) return destination
@@ -43,8 +46,19 @@ object WarpCourse {
             .map { (dx, dy) -> (y + dy) * 100 + x + dx }
             .filter { it != origin && galaxy.kind(it) == GridKind.SPACE && enterable(it) }
         if (candidates.isEmpty()) return destination
-        return candidates[java.lang.Long.remainderUnsigned(mix(roll), candidates.size.toLong()).toInt()]
+        // A black hole's gravity pulls a drifting fleet to the neighbour nearest to it (never into it).
+        val pool = if (!gravity) candidates else {
+            val pull = candidates.associateWith { cell -> holes.minOf { squared(it, cell) } }
+            val nearest = pull.values.min()
+            candidates.filter { pull.getValue(it) == nearest }
+        }
+        return pool[java.lang.Long.remainderUnsigned(mix(roll), pool.size.toLong()).toInt()]
     }
+
+    /** Design 2026-10-30 (evidence:guess): the 8 grids around a black hole add this drift chance. */
+    const val GRAVITY_PERCENT = 20
+    private fun chebyshev(a: Int, b: Int) = maxOf(kotlin.math.abs(a % 100 - b % 100), kotlin.math.abs(a / 100 - b / 100))
+    private fun squared(a: Int, b: Int): Int { val dx = a % 100 - b % 100; val dy = a / 100 - b / 100; return dx * dx + dy * dy }
 
     private fun mix(value: Long): Long { // SplitMix64 finalizer
         var z = value + -0x61c8864680b583ebL

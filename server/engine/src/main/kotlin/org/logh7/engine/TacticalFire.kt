@@ -1,11 +1,11 @@
 package org.logh7.engine
 
-/** Personal flagship weapons; fleet/CRC authority remains separate work. Author: 최병호. */
+/** Personal flagship weapons; fleet/CRC authority remains separate work. Author: Peppone Choi. */
 data class TacticalShoot(val units: List<Int>, val arms: Int, val targetKind: Int, val target: Int)
 
 /** Native 0405 uses its suffix byte as attack mode (0 stop, 1 salvo, 2 continuous).
  * Salvo waits for every fitted charged weapon; continuous fires each ready weapon.
- * The cadence and salvo charge gate are replacement-server policy. Author: 최병호. */
+ * The cadence and salvo charge gate are replacement-server policy. Author: Peppone Choi. */
 data class TacticalAttack(val units: List<Int>, val mode: Int, val target: Int = 0)
 data class TacticalAttackOrder(val mode: Int, val acceptedAt: Long, val startsAt: Long, val nextAt: Long) {
     init { require(mode in 1..2 && acceptedAt in 0..0xffffffffL && startsAt in acceptedAt..0xffffffffL &&
@@ -25,7 +25,7 @@ data class TacticalHit(val sequence: Long, val grid: Int, val seconds: Long, val
 }
 internal fun validCombatTarget(id:Int) = id in 1..999999 || id in 1_000_001..Int.MAX_VALUE
 
-/** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: 최병호. */
+/** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: Peppone Choi. */
 data class TacticalImpact(val generation: Long, val source: Int, val weapon: TacticalWeapon, val hit: TacticalHit,
     val recipients: Map<Int,String>, val departed: Navigator? = null,val airBattle:Boolean=false,val boarding:Boolean=false,val fortress:Boolean=false) {
     init { require(generation > 0 && source > 0 && recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }
@@ -42,15 +42,16 @@ data class TacticalFire(val sequence: Long, val pending: TacticalPendingFire? = 
 internal object TacticalCombat {
     internal data class Target(val regular:Pair<OutfitStock,ActiveShipUnit>?=null,
         val personal:Pair<String,Navigator>?=null,val spec:ShipSpecification)
+    /** [camp] is the attacker's camp: a rebel camp (U-10) and its side's regular camp are enemies of each other. */
     internal fun target(id:Int,grid:Int,power:Power,stocks:PlanetStocks,galaxy:Galaxy,
-        players:Map<String,Navigator>):Target? {
+        players:Map<String,Navigator>,camp:Int=0):Target? {
         if(id>1_000_000) {
             val victim=players.entries.singleOrNull { (_,p)->p.unitId==id && p.grid==grid && p.baseId==0 &&
-                p.cpPaused && p.power!=power && p.hull!=null } ?: return null
+                p.cpPaused && (p.power!=power || CoupActions.camp(stocks,p.characterId)!=camp) && p.hull!=null } ?: return null
             return Target(personal=victim.key to victim.value,
                 spec=UnitSpecifications.ships.single {it.kind==victim.value.hull!!.kind})
         }
-        return stocks.outfits.values.asSequence().filter {it.power != if(power==Power.EMPIRE)2 else 3}
+        return stocks.outfits.values.asSequence().filter {it.power != (if(power==Power.EMPIRE)2 else 3) || CoupActions.outfitCamp(stocks,it)!=camp}
             .filter {it.positionIn(galaxy)==OutfitPosition(grid)}
             .mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id && it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}?.let {o to it}}
             .singleOrNull()?.let {Target(regular=it,spec=UnitSpecifications.ships.single {s->s.kind==it.second.stack.kind})}
@@ -78,7 +79,7 @@ internal object TacticalCombat {
         val now = session.gameMillis / 1000
         if (now > 0xffffffffL - 5 * scale || player.fire?.sequence == Long.MAX_VALUE) return reject(NavigationRejection.CLOCK)
         val players = navigation.snapshot(session.generation)
-        val victim = target(shoot.target, player.grid, player.power, stocks, galaxy, players) ?: return reject(NavigationRejection.TARGET)
+        val victim = target(shoot.target, player.grid, player.power, stocks, galaxy, players, CoupActions.camp(stocks, player.characterId)) ?: return reject(NavigationRejection.TARGET)
         if (effectiveness(player, mount, victim, now, players.values, stocks, galaxy) == 0) return reject(NavigationRejection.RANGE)
         val charge = player.charge?.settle(now, player.energy ?: TacticalEnergy.ZERO)
         if (!ready(charge, weapon)) return reject(NavigationRejection.ENERGY)
@@ -118,7 +119,7 @@ internal object TacticalCombat {
             !ready(player.charge?.settle(now,player.energy ?: TacticalEnergy.ZERO),weapon))return null
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
         val preferred=stocks.tacticalCommands.missions[player.characterId]?.takeIf {it.mission==3 && !it.completed}?.target
-        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).firstOrNull {id -> target(id,player.grid,player.power,stocks,galaxy,players)?.let {
+        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).firstOrNull {id -> target(id,player.grid,player.power,stocks,galaxy,players,CoupActions.camp(stocks,player.characterId))?.let {
             effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
 
@@ -147,7 +148,7 @@ internal object TacticalCombat {
         source:Int,grid:Int,sequence:Long,seconds:Long,targetId:Int,weapon:TacticalWeapon,
         mount:TacticalWeaponMount,effect:Int,origin:TacticalPose,victim:Target):Pair<PlanetStocks,TacticalImpact> {
         var inventory=stocks
-        val divisor = 100L * maxOf(1, victim.spec.number("装甲:前"))
+        val divisor = 100L * maxOf(1, GuardCombat.armor(victim.spec.number("装甲:前"),victim.regular?.first,victim.regular?.second?.id ?: 0))
         val damage = ((mount.power.toLong()*effect+divisor-1)/divisor).coerceAtLeast(1).toInt()
         val audience = players.mapNotNull { (viewerAccount, viewer) ->
             val member=session.participants[viewerAccount]
@@ -156,10 +157,12 @@ internal object TacticalCombat {
             else member.connection?.let {viewer.characterId to it}
         }.toMap()
         var departed:Navigator?=null
+        var earned=0L
         val hit = if(victim.regular!=null) {
             val (outfit,unit)=victim.regular
             val changed=TacticalLosses.apply(outfit,unit.id,damage)
             val survivor=changed.activeShips!!.values.single {it.id==targetId}
+            earned=EvaluationPoints.sunk(unit.boats-survivor.boats)
             inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to changed))
             TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-survivor.boats,
                 damaged=survivor.unavailable)
@@ -176,14 +179,18 @@ internal object TacticalCombat {
             val shields=hull.shields.toMutableList().also {it[face]-=absorbed*100*hull.clockScale}
             val lost=FlagshipHull.capacity(hull.kind)-(shields[face]/(100*hull.clockScale)).toInt()
             if(hp<=0) {
-                departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory)
+                earned=EvaluationPoints.FLAGSHIP
+                departed=FlagshipRecovery.defeated(defender,seconds,galaxy,inventory,players.values)
                 players[victimAccount]=departed
             } else players[victimAccount]=defender.copy(hull=hull.copy(hp=hp,shields=shields))
             TacticalHit(sequence,grid,seconds,targetId,if(hp<=0)1 else 0,
                 if(hp<hull.hp || hull.hp<100)1 else 0,face,lost)
         }
-        val morale=(inventory.tacticalCommands.morale[targetId] ?: 100)-minOf(20,damage)
+        val outfit=inventory.outfits.values.singleOrNull {o->o.activeShips?.values.orEmpty().any {it.id==targetId}}?.id
+        val morale=(inventory.tacticalCommands.morale[targetId] ?: 100)-OutfitDiscipline.moraleLoss(minOf(20,damage),
+            if(outfit==null)OutfitDiscipline.BASELINE else OutfitDiscipline.value(inventory,outfit,seconds))
         inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(morale=inventory.tacticalCommands.morale+(targetId to morale.coerceAtLeast(0))))
+        inventory=EvaluationPoints.award(inventory,EvaluationPoints.shooter(source,players,stocks),earned)
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed)
     }
 
@@ -191,7 +198,7 @@ internal object TacticalCombat {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
         // Hostile bases/ground troops can retain tactical contact but are never auto-fire targets.
         for((account,p) in players.toMap()) if(p.attack!=null &&
-            ids.none {target(it,p.grid,p.power,stocks,galaxy,players)!=null})players[account]=p.copy(attack=null)
+            ids.none {target(it,p.grid,p.power,stocks,galaxy,players,CoupActions.camp(stocks,p.characterId))!=null})players[account]=p.copy(attack=null)
         TacticalContact.endUncontested(galaxy,players,stocks,now)
     }
 
@@ -238,7 +245,7 @@ internal object TacticalCombat {
             } else player.fire?.pending?.takeIf {it==scheduled} ?: continue
             val fire=if(automatic)TacticalFire(shot.sequence,last=player.fire?.last) else checkNotNull(player.fire)
             var next = player.copy(fire = fire.copy(pending = null))
-            val victim = target(shot.target, shot.grid, player.power, inventory, galaxy, players)
+            val victim = target(shot.target, shot.grid, player.power, inventory, galaxy, players, CoupActions.camp(inventory, player.characterId))
             if (session.ended == null && player.cpPaused && player.grid == shot.grid && player.baseId == 0 &&
                 victim != null && (player.charge == null || player.charge.at <= shot.firesAt)) {
                 val charge = player.charge?.settle(shot.firesAt, player.energy ?: TacticalEnergy.ZERO)
@@ -282,7 +289,11 @@ internal object TacticalCombat {
         val occupations=mutableListOf<BaseOccupation>()
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players)
+        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {EspionageActions.caughtBy={st,pl,id,side,at->JusticeActions.detain(galaxy,st,pl,id,side,at)};inventory=EspionageActions.settle(session,players,inventory);inventory=CoupActions.settle(galaxy,inventory,session.gameMillis/1000)}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
+        inventory=BattleDeath.apply(inventory,impacts.mapNotNull {it.departed?.characterId},now)
+        inventory=SinkingExperience.apply(inventory,impacts.mapNotNull {it.departed?.characterId}.distinct(),
+            impacts.takeIf {it.any {i->i.departed!=null}}?.let {production.identities?.invoke()}.orEmpty())
         clearFinishedOrders(players,galaxy,inventory,now)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)

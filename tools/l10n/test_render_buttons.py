@@ -1,4 +1,4 @@
-"""TGA 원바이트·원점·팔레트·편집 범위 보존. 작성: 최병호."""
+"""TGA 원바이트·원점·팔레트·편집 범위 보존. 작성: Peppone Choi."""
 import struct
 import unittest
 

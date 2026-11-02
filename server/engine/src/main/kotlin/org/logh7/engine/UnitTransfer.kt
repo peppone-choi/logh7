@@ -1,6 +1,6 @@
 package org.logh7.engine
 
-/** Validated, signed transfer amounts; positive moves source -> destination. Author: 최병호. */
+/** Validated, signed transfer amounts; positive moves source -> destination. Author: Peppone Choi. */
 class UnitTransfer(ships: Map<UnitStack, Int> = emptyMap(), troops: Map<UnitStack, Int> = emptyMap()) {
     val ships: Map<UnitStack, Int> = java.util.Collections.unmodifiableMap(LinkedHashMap(ships))
     val troops: Map<UnitStack, Int> = java.util.Collections.unmodifiableMap(LinkedHashMap(troops))

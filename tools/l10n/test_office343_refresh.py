@@ -1,4 +1,4 @@
-"""친구·그룹의 지속적인 native 목록 재표시 경계. 작성: 최병호."""
+"""친구·그룹의 지속적인 native 목록 재표시 경계. 작성: Peppone Choi."""
 import re
 import unittest
 import catalog

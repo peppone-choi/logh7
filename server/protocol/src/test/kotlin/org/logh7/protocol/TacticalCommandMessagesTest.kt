@@ -17,6 +17,17 @@ class TacticalCommandMessagesTest {
             assertEquals(degrees,ByteBuffer.wrap(reply).getFloat(reply.size-4))
         }
     }
+    @Test fun nativeFortressMoveWithoutVelocityTakesTheServerSpeedInItsReply() {
+        // CD 004b3b20 fills time/character/base/count/points of 0x7cc088 but never the velocity word.
+        val c=TacticalCommandMessages.command(packet(0x41f,ByteBuffer.allocate(33).putInt(1040).putFloat(0f)
+            .putFloat(0f).putFloat(0f).putFloat(0f).put(1).putFloat(30f).putFloat(-20f).putFloat(0f).array()))
+        assertEquals(0f,c.velocity);assertEquals(listOf(TacticalCommandMessages.Point(30f,-20f)),c.points)
+        val fixed=TacticalCommandMessages.withFortressVelocity(c,.1f)
+        assertEquals(.1f,fixed.velocity)
+        val reply=ByteBuffer.wrap(TacticalCommandMessages.reply(fixed,123,5))
+        assertEquals(0x41f,reply.getShort(4).toInt());assertEquals(1040,reply.getInt(18));assertEquals(.1f,reply.getFloat(22))
+        assertEquals(1,reply.get(38).toInt());assertEquals(30f,reply.getFloat(39))
+    }
     @Test fun everyNewNativeCommandFamilyHasAnIndependentPackedFixture() {
         val fixtures=mapOf(
             0x407 to (int(1010000)+ByteArray(12)+int(1010001)),

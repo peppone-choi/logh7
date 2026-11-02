@@ -41,7 +41,8 @@ object OriginalCharacterMessages {
         require(bytes.size == 31)
         val data = ByteBuffer.wrap(bytes)
         require(data.short.toInt() and 65535 == 0x1200)
-        return data.int == 0 && data.short.toInt() == 0x13 && data.remaining() == 23 &&
+        // The current CD lobby fills the command word with 74 (0x4a); run-20 recorded 0.
+        return data.int == 0 && data.short.toInt() == 0x13 && data.short.toInt() in setOf(0, 0x4a) && data.remaining() == 21 &&
             ByteArray(data.remaining()).also(data::get).all { it == 0.toByte() }
     }
     fun entryId(bytes: ByteArray): Long {

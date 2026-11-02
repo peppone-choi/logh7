@@ -1,5 +1,5 @@
 // Restore the manual's game-settings entry on the earlier CD client.
-// Native widgets, serializer and authoritative replies. Author: 최병호.
+// Native widgets, serializer and authoritative replies. Author: Peppone Choi.
 #pragma once
 
 static struct ReturnBaseSettings {

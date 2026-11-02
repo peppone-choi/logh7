@@ -1,4 +1,4 @@
-"""Validate controlled IME results for an owned ANSI view. Author: 최병호."""
+"""Validate controlled IME results for an owned ANSI view. Author: Peppone Choi."""
 
 
 def cp949_ui_bytes(value, acp):

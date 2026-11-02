@@ -1,5 +1,5 @@
 // Preserve the two texture-coordinate dot products of the CD extra pass.
-// DX9 assembly rejects a masked m4x4 destination. Author: 최병호.
+// DX9 assembly rejects a masked m4x4 destination. Author: Peppone Choi.
 #pragma once
 #include <string.h>
 namespace logh {

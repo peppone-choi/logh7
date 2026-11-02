@@ -1,4 +1,4 @@
-// LOGH7 CD client compatibility module. Author: 최병호
+// LOGH7 CD client compatibility module. Author: Peppone Choi
 // The original executable stays unchanged. DINPUT8 forwards to the Windows DLL.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -126,6 +126,7 @@ static bool updateTaxWindow(void* gui);
 static bool strategyActionCommand(unsigned command);
 static BYTE openStrategyAction(void* manager,int command,unsigned card);
 static bool updateStrategyAction(void* gui);
+static void proposalWindowTick();
 static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
@@ -164,10 +165,16 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "display_hooks.h"
 #include "mail_input.h"
 #include "mail_labels.h"
+#include "proposal_approval.h"
+#include "proposal_body.h"
 #include "korean_dialogs.h"
 #include "literal_text.h"
 #include "legacy_hud_text.h"
 #include "warp_prompt.h"
+#include "character_refresh.h"
+#include "flagship_info_groups.h"
+#include "flagship_spec_lookup.h"
+#include "outfit_list_names.h"
 #include "namecard_labels.h"
 
 #include "tactical_base_ui.h"
@@ -565,6 +572,11 @@ static void install() {
     if (!installReturnSettings()) { status = -3; return; }
     if (!installTaxWindow()) { status = -3; return; }
     if (!installStrategyActions()) { status = -3; return; }
+    if (!installProposalApproval()) { status = -3; return; }
+    if (!installProposalReplyRows()) { status = -3; return; }
+    if (!installProposalBody()) { status = -3; return; }
+    if (!installSuggestVariant()) { status = -3; return; }
+    if (!installReplyVariant()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
     if (!installSupplySelector()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }
@@ -627,7 +639,7 @@ static void install() {
     if (!installMailInput()) { status = -3; return; }
     if (!installMailLabels()) { status = -3; return; }
     if (!installKoreanDialogs() || !installKoreanLiteralText() || !installKoreanLegacyHud() || !installNameCardLabels() ||
-        !installWarpPrompt()) { status = -3; return; }
+        !installWarpPrompt() || !installCharacterRefresh() || !installFlagshipInfoGroups() || !installFlagshipSpecLookup() || !installOutfitListNames()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);
         BYTE replacement[6] = {0xe8,0,0,0,0,0x90};

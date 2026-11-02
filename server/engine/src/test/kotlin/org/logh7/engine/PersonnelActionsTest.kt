@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
-/** 실제 인사 결과와 래더/정원/직무 상실/봉토 상태를 검사한다. 작성: 최병호. */
+/** 실제 인사 결과와 래더/정원/직무 상실/봉토 상태를 검사한다. 작성: Peppone Choi. */
 class PersonnelActionsTest {
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),
@@ -31,6 +31,14 @@ class PersonnelActionsTest {
         assertEquals(10L,stored.strategic.people.getValue(10002).merit)
         val denied=act(request(0,10002),s)
         assertEquals(StrategyActionRejection.RANK,denied.rejection);assertEquals(s,denied.stocks);assertEquals(p,denied.player)
+    }
+    @Test fun promotionRaisesTheFlagshipToTheNewRankDefaultButNeverTradesItDown() {
+        // U-24: rank 9 -> 8 is the cruiser band; a destroyer is replaced, a battleship is kept.
+        val target=Navigator(1,10001,Power.EMPIRE,2487,1000,1000,1000)
+        fun promote(kind:Int)=act(request(0).copy(navigators=mapOf("target" to target.copy(hull=FlagshipHull(kind,0))))).navigators["target"]
+        assertEquals(Flagships.forType(2,2).kind,assertNotNull(promote(3)).hull?.kind)
+        assertNull(promote(0))
+        assertNull(act(request(2,10002).copy(navigators=mapOf("target" to target.copy(characterId=10002,hull=FlagshipHull(3,0))))).navigators["target"])
     }
     @Test fun specialPromotionAndDemotionExcludeTheTopAndUseTheManualCosts() {
         val s=stocks()
@@ -73,5 +81,14 @@ class PersonnelActionsTest {
         assertEquals(setOf(0),awarded.stocks?.strategic?.people?.get(10001)?.decorations)
         val replay=act(q,assertNotNull(awarded.stocks))
         assertEquals(StrategyActionRejection.MAXIMUM,replay.rejection);assertEquals(p,replay.player)
+    }
+    @Test fun anEmpirePoliticianStaysOnItsMilitaryLadderAndIsPromotedThere() {
+        // U-28 (CD manual p.37): 10001 retired from rank 9 as a politician that keeps rank 9's military ladder.
+        val s=stocks().let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+
+            (10001 to StrategicPerson(rank=1,militaryRank=9,merit=30))))}
+        val promoted=act(request(0),s);assertNull(promoted.rejection)
+        val person=assertNotNull(promoted.stocks).strategic.people.getValue(10001)
+        assertEquals(1,person.rank,"still a politician");assertEquals(8,person.militaryRank);assertEquals(0L,person.merit)
+        assertEquals(StrategyActionRejection.RANK,act(request(0,10002),s).rejection,"the politician tops rank 9")
     }
 }

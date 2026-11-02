@@ -1,6 +1,6 @@
 ---
 title: 세션·시간·접속·승패 규칙
-author: 최병호
+author: Peppone Choi
 created: 2026-09-27
 source: gin7manual.pdf(웹판, 2004-10-07) p.7–13 / 銀英伝７マニュアル.pdf(CD판, 2004-04-11) p.7–12
 ---

@@ -1,4 +1,4 @@
-// Mail counterpart names remain outside native ANSI row storage. Author: 최병호.
+// Mail counterpart names remain outside native ANSI row storage. Author: Peppone Choi.
 #pragma once
 #include "office_text.h"
 

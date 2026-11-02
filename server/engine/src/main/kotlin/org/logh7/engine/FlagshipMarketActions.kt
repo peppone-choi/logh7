@@ -4,7 +4,7 @@ import org.logh7.engine.strategy.*
 
 /** Offer/accept is an explicit revival extension requested for flagship transfers.
  * Both owners consent, keep their own supplies, and exchange the entire surviving hull.
- * Offers expire after 24 game hours; no fee before acceptance. Author: 최병호. */
+ * Offers expire after 24 game hours; no fee before acceptance. Author: Peppone Choi. */
 data class FlagshipExchangeOffer(val giver:Int,val receiver:Int,val giverKind:Int,val receiverKind:Int,
     val base:Int,val spot:Int,val expiresAt:Long) {
     init {require(giver>0 && receiver>0 && giver!=receiver && Flagships.find(giverKind)!=null &&
@@ -19,7 +19,7 @@ data class FlagshipPurchaseOption(val index:Int,val kind:Int,val price:Long,val 
 /** REVIEW05: personal card, owned capital flagship-yard spot, evaluation currency,
  * rank limit. The four supported classes, prices/rank thresholds and exchange acceptance
  * PCP80 are evidence:guess. Special flagship definitions are not fabricated.
- * Author: 최병호. */
+ * Author: Peppone Choi. */
 object FlagshipMarketCatalog {
     fun options(power:Int):List<FlagshipPurchaseOption> {
         require(power in 2..3)
@@ -53,7 +53,8 @@ internal object FlagshipMarketActions {
         var after=p
         var updates=emptyMap<String,Navigator>()
         var cost=0L
-        if(r.argument !in 0..3)return reject(StrategyActionRejection.COMMAND)
+        if(r.argument !in 0..5)return reject(StrategyActionRejection.COMMAND)
+        if(r.argument>=4)return GuardUnitActions.evaluate(galaxy,r,s,p,stocks)
         // Cancellation remains available after moving, injury or loss of the capital.
         if(r.argument==3) {
             val remaining=live.filter {it.giver!=r.characterId && it.receiver!=r.characterId}
@@ -113,7 +114,61 @@ internal object FlagshipMarketActions {
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.PCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(after.copy(pcp=paid.balance.pcp.toInt(),mcp=paid.balance.mcp.toInt()),next,
+        return StrategyActionResult(after.paidWith(paid.balance),next,
             changed=true,navigators=updates)
+    }
+}
+
+/** U-13 guard units (update01/03): the personal card's guard purchase at the capital flagship yard,
+ * up to three unmanned 300-ship units paid with evaluation points, and disbanding. Purchase is
+ * argument 4 (value = GuardShips index), disbanding argument 5. A guard unit is stored as a patrol
+ * commanded by the buyer (the CD has no guard outfit kind). The PCP 80 cost mirrors the flagship
+ * purchase (evidence:guess). Author: Peppone Choi. */
+internal object GuardUnitActions {
+    const val COST=80L
+    val GUARD_NUMBERS=201..255
+    fun guardOf(stocks:PlanetStocks,character:Int)=stocks.outfits.values.singleOrNull {it.guard!=null && it.commanderId==character}
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
+        fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
+        val now=s.gameMillis/1000
+        val power=if(p.power==Power.EMPIRE)2 else 3
+        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || (p.hull?.woundedUntil ?: 0)>now)return reject(StrategyActionRejection.BUSY)
+        val own=guardOf(stocks,r.characterId)
+        val next:PlanetStocks
+        if(r.argument==5) {
+            if(r.value!=0 || r.target!=0)return reject(StrategyActionRejection.COMMAND)
+            val outfit=own ?: return reject(StrategyActionRejection.TROOPS)
+            next=stocks.copy(outfits=stocks.outfits-outfit.id)
+        } else {
+            val choice=GuardShips.option(r.value)?.takeIf {it.power==power && r.target==0} ?: return reject(StrategyActionRejection.COMMAND)
+            val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
+            if(rank !in 2..choice.maximumRank && rank!=0)return reject(StrategyActionRejection.RANK)
+            if(!FlagshipMarketCatalog.atYard(galaxy,stocks,p))return reject(StrategyActionRejection.LOCATION)
+            // update03: only characters outside fleets, patrols and ground forces may form a guard unit.
+            if(stocks.outfits.values.any {it.guard==null && r.characterId in it.members()})return reject(StrategyActionRejection.AUTHORITY)
+            if((own?.guard?.size ?: 0)>=GuardShips.MAXIMUM_UNITS)return reject(StrategyActionRejection.MAXIMUM)
+            val person=stocks.strategic.people[r.characterId] ?: StrategicPerson()
+            if(person.evaluation<choice.price)return reject(StrategyActionRejection.POINTS)
+            val warehouse=stocks.warehouses.values.singleOrNull {it.power==power && it.baseId==p.baseId &&
+                it.kind.warehouseKind==OutfitKind.PATROL && it.outfitId==0} ?: return reject(StrategyActionRejection.LOCATION)
+            val stack=UnitStack(choice.baseKind)
+            val unit=ActiveShipUnit(stocks.nextShipId,stack,GuardShips.BOATS)
+            val base=galaxy.bases.single {it.id==p.baseId}
+            val outfit=if(own!=null) own.copy(units=UnitInventory(own.units.ships+(stack to (own.units.ships[stack] ?: 0)+1),own.units.troops),
+                activeShips=ActiveShipUnits(own.activeShips!!.values+unit),guard=own.guard!!+(unit.id to choice.index))
+            else {
+                val id=(stocks.outfits.keys.maxOrNull() ?: 0)+1
+                // Guard units take patrol numbers 201..255 so the client can tell them from regular patrols.
+                val used=stocks.outfits.values.filter {it.power==power && it.guard!=null}.map {it.number}.toSet()
+                val number=(GUARD_NUMBERS).firstOrNull {it !in used} ?: return reject(StrategyActionRejection.MAXIMUM)
+                OutfitStock(id,power,OutfitKind.PATROL,base.id,warehouse.id,r.characterId,UnitInventory(mapOf(stack to 1)),number,
+                    activeShips=ActiveShipUnits(listOf(unit)),position=OutfitPosition(base.grid,base.id),guard=mapOf(unit.id to choice.index))
+            }
+            next=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit),nextShipId=stocks.nextShipId+1,
+                strategic=stocks.strategic.copy(people=stocks.strategic.people+(r.characterId to person.copy(evaluation=person.evaluation-choice.price))))
+        }
+        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),COST,CpPool.PCP)
+        if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
+        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
     }
 }

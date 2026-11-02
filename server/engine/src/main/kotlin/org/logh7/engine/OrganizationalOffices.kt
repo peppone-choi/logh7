@@ -29,7 +29,7 @@ data class OfficeHolding(val card:Int,val seat:Int,val character:Int) {
 /** Exact appointed_by edges are read from the reviewed 121-row manual source. Empty edges
  * stay empty: elections, succession and missing appointers are never replaced by rank checks.
  * Rebel aliases retain the matching office edge as an explicit restoration policy; the two
- * rebel leaders have no ordinary appointment edge. Author: 최병호. */
+ * rebel leaders have no ordinary appointment edge. Author: Peppone Choi. */
 object OrganizationOffices {
     private val institutions=listOf("皇宮","内閣","駐フェザーン弁務官事務所","軍務省","統帥本部","宇宙艦隊司令部",
         "憲兵本部","装甲擲弾兵総監部","科学技術総監部","帝国軍士官学校","同盟軍士官学校","艦隊","輸送艦隊",
@@ -123,6 +123,13 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy) {
     fun target(role:OrganizationalOffice,seat:Int):Int = if(role.scope==OfficeScope.NATIONAL && role.facility>=0)
         galaxy.facilities[seat]?.singleOrNull {it.kind==role.facility}?.id ?: seat else seat
     fun set(stocks:PlanetStocks,holding:OfficeHolding,remove:Boolean=false):PlanetStocks {
+        if(!remove)return store(stocks,holding,false)
+        // A seat may sit in its concrete field or in the general seat list; removal clears both.
+        val cleared=store(stocks,holding,true)
+        return if(holding in cleared.strategic.offices)
+            cleared.copy(strategic=cleared.strategic.copy(offices=cleared.strategic.offices-holding)) else cleared
+    }
+    private fun store(stocks:PlanetStocks,holding:OfficeHolding,remove:Boolean):PlanetStocks {
         val role=checkNotNull(OrganizationOffices.of(holding.card));val card=holding.card
         require(active(stocks,role,holding.seat))
         if(role.camp==0) {

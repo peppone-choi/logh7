@@ -1,7 +1,7 @@
 # ADR-0005 운영 구조
 
 - 상태: 채택 — 개정 1(2026-09-27), GCP 배포 전제·현재 로컬 연습(D-2)
-- 작성: 최병호
+- 작성: Peppone Choi
 - 관련: ADR-0001, docs/ops/, docs/research/public-exposure-options.md
 
 ## 맥락

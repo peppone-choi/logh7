@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-/** Wire map coordinates are x/y, imported into native world x/z. Author: 최병호. */
+/** Wire map coordinates are x/y, imported into native world x/z. Author: Peppone Choi. */
 data class TacticalPoint(val x: Float, val y: Float) {
     init { require(x.isFinite() && y.isFinite() && kotlin.math.abs(x) <= 100_000 && kotlin.math.abs(y) <= 100_000) }
 }
@@ -149,19 +149,25 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
 /** Same provisional formation for initialization and a first authoritative move origin. */
 object TacticalDeployment {
     /** Native radar uses a radius of 250; keep every initial unit inside it. */
-    fun formation(index: Int, power: Power): TacticalPose {
+    /** A side's rebel camp (U-10) deploys facing its regular camp from the other edge, like an enemy. */
+    fun formation(index: Int, power: Power, insurgent: Boolean = false): TacticalPose {
         require(index in 0..599)
-        val side = if (power == Power.EMPIRE) 1 else -1
+        val east = (power == Power.EMPIRE) != insurgent
+        val side = if (east) 1 else -1
         return TacticalPose(TacticalPoint(side * (180f - index / 20 * 4f), (index % 20 - 9.5f) * 10f),
-            if (power == Power.EMPIRE) (-Math.PI / 2).toFloat() else (Math.PI / 2).toFloat())
+            if (east) (-Math.PI / 2).toFloat() else (Math.PI / 2).toFloat())
     }
     fun initial(unit: Int, power: Power, grid: Int, players: Collection<Navigator>, stocks: PlanetStocks?, galaxy: Galaxy): TacticalPose {
         val wirePower = if (power == Power.EMPIRE) 2 else 3
-        val ids = (players.filter { it.power == power && it.grid == grid && it.baseId == 0 }.map { it.unitId } +
-            stocks?.outfits?.values.orEmpty().filter { it.power == wirePower && it.positionIn(galaxy) == OutfitPosition(grid) }
+        fun playerCamp(p: Navigator) = stocks?.let { CoupActions.camp(it, p.characterId) } ?: 0
+        fun outfitCamp(o: OutfitStock) = stocks?.let { CoupActions.outfitCamp(it, o) } ?: 0
+        val camp = players.singleOrNull { it.unitId == unit }?.let(::playerCamp) ?: stocks?.outfits?.values
+            ?.singleOrNull { o -> o.activeShips?.values.orEmpty().any { it.id == unit } }?.let(::outfitCamp) ?: 0
+        val ids = (players.filter { it.power == power && it.grid == grid && it.baseId == 0 && playerCamp(it) == camp }.map { it.unitId } +
+            stocks?.outfits?.values.orEmpty().filter { it.power == wirePower && it.positionIn(galaxy) == OutfitPosition(grid) && outfitCamp(it) == camp }
                 .flatMap { it.activeShips?.values.orEmpty().map { ship -> ship.id } }).distinct().sorted()
         val index = ids.indexOf(unit)
         require(index >= 0)
-        return formation(index, power)
+        return formation(index, power, camp == 1)
     }
 }

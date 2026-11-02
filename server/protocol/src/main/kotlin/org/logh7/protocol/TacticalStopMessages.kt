@@ -2,7 +2,7 @@ package org.logh7.protocol
 
 import java.nio.ByteBuffer
 
-/** Native 004952b0/0049dc30: packed CommandStop, no structure padding. Author: 최병호. */
+/** Native 004952b0/0049dc30: packed CommandStop, no structure padding. Author: Peppone Choi. */
 object TacticalStopMessages {
     data class Stop(val character: Int, val units: List<Int>, val bases: List<Int> = emptyList()) {
         init {

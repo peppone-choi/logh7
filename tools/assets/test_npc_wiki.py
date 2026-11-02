@@ -1,4 +1,4 @@
-"""Reference extraction guards; no network access. Author: 최병호."""
+"""Reference extraction guards; no network access. Author: Peppone Choi."""
 import tempfile
 from pathlib import Path
 import unittest
