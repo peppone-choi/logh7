@@ -83,7 +83,7 @@ internal object TacticalFleetAttack {
             if(stocks.tacticalCommands.confused(id) || now<command.order.nextAt || now>0xffffffffL-5*scale || unit.tactical.sequence>Long.MAX_VALUE-3)continue
             val power=if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
-            val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}})
+            val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks))
                 .distinct().sorted()
             if(ids.none {TacticalCombat.target(it,position.grid,power,stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit))!=null}) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue

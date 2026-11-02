@@ -59,6 +59,15 @@ object PirateActions {
         return if(p==s.social.pirates && bases==s.bases)s else s.copy(bases=bases,social=s.social.copy(pirates=p))
     }
 
+    fun ids(s:PlanetStocks)=s.social.pirates.fleets.values.flatMap {f->f.units.filter {it.boats>0}.map {it.id}}
+    /** Pirate ships use the merchant ship's specification; their armour counts 1.5 times (approved design). */
+    fun spec()=UnitSpecifications.ships.first {it.category==14}
+    /** Pirates hold a column at the grid's centre facing north. */
+    fun pose(s:PlanetStocks,unit:Int):TacticalPose? {
+        val (fleet,_)=s.social.pirates.unit(unit) ?: return null
+        val index=fleet.units.indexOfFirst {it.id==unit}
+        return TacticalPose(TacticalPoint(0f,(index-1)*10f),0f)
+    }
     /** Applies losses to a pirate unit; returns the new state and how many boats were destroyed. */
     fun damage(s:PlanetStocks,unit:Int,boats:Int):Pair<PlanetStocks,Int> {
         val (fleet,u)=s.social.pirates.unit(unit) ?: return s to 0

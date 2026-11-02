@@ -54,6 +54,9 @@ object GridForces {
                     Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))),count.toLong(),nonSolo=true))
             }
         }
+        stocks?.social?.pirates?.fleets?.values?.filter { it.alive }?.forEach { fleet ->
+            add(fleet.grid, Force(Camp.PIRATES, fleet.units.count { it.boats > 0 }.toLong(), nonSolo = true, ship = true))
+        }
         return result.mapValues { it.value.values.toList() }
     }
 
