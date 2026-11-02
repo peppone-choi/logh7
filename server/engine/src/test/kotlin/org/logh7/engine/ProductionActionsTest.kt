@@ -45,4 +45,8 @@ class ProductionActionsTest {
         val recruited=assertNotNull(act(ProductionActions.RECRUIT,stocks,troop.kind).stocks).bases.getValue(1049)
         assertEquals(1,recruited.units.troops[UnitStack(troop.kind)]);assertEquals(299_000,recruited.economy?.adults)
     }
+    @Test fun orderListNamesAreKorean() {
+        assertEquals("전함Ⅰ",ProductionActions.koreanName("戦艦Ⅰ"));assertEquals("경장육전병",ProductionActions.koreanName("軽装陸戦兵"))
+        assertTrue(ProductionActions.kinds(2,true).all {ProductionActions.koreanName(it.name).none {c->c in '぀'..'ヿ'}})
+    }
 }

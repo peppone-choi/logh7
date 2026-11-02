@@ -1431,7 +1431,7 @@ class GameExchange(
                                             // U-08: the unit kinds this side may order (ships for 35, troops for 36).
                                             val kinds=org.logh7.engine.ProductionActions.kinds(character.power,query.command==org.logh7.engine.ProductionActions.SHIP)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,kinds.filter {it.kind+1>query.target}.take(200)
-                                                .map {org.logh7.protocol.StrategyActionMessages.Selection(it.kind+1,it.name.take(12))})
+                                                .map {org.logh7.protocol.StrategyActionMessages.Selection(it.kind+1,org.logh7.engine.ProductionActions.koreanName(it.name))})
                                         }
                                         if(query.command==org.logh7.engine.TradeActions.ROUTE) {
                                             // 航路貿易: own regular bases within 10 cells of the requester's base.

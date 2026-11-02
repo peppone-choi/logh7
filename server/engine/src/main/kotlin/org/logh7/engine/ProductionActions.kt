@@ -48,6 +48,15 @@ object ProductionActions {
     }
     private fun original(g:Galaxy,s:PlanetStocks,base:Int)=base !in s.social.production.destroyed && g.facilities[base].orEmpty().any {it.kind==SHIPYARD}
     fun hasShipyard(g:Galaxy,s:PlanetStocks,base:Int)=original(g,s,base) || base in s.social.production.built
+    /** Korean unit names for the order list (localization term list, user decision D-4); the numeral suffix is kept. */
+    private val korean=mapOf("戦艦" to "전함","高速戦艦" to "고속전함","巡航艦" to "순항함","駆逐艦" to "구축함",
+        "戦闘艇母艦" to "전투정모함","雷撃艇母艦" to "뇌격정모함","工作艦" to "공작함","輸送艦" to "수송함","兵員輸送艦" to "병력수송함",
+        "揚陸艦" to "상륙함","打撃巡航艦" to "타격순항함","商船" to "상선","軽装陸戦兵" to "경장육전병","装甲擲弾兵" to "장갑척탄병",
+        "装甲兵" to "장갑병","艦隊乗組員" to "함대 승조원","近衛兵" to "근위병","擲弾兵教導" to "척탄병 교도대","薔薇の騎士" to "로젠리터")
+    fun koreanName(name:String):String {
+        val stem=name.replace(Regex("[ⅠⅡⅢⅣⅤⅥⅦⅧ0-9 ]+$"),"")
+        return (korean[stem]?.plus(name.substring(stem.length)) ?: name).take(12)
+    }
     /** Ship kinds (35) or troop kinds (36) the base's side may order. */
     fun kinds(power:Int,ship:Boolean)=ProductionUnits.definitions.filter {it.power==power && it.ship==ship}.distinctBy {it.kind}.sortedBy {it.kind}
 
