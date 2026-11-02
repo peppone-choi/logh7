@@ -12,9 +12,9 @@ inline bool legacyKoreanGlyph(UINT code,wchar_t& glyph) {
     wchar_t decoded=0;
     if (MultiByteToWideChar(932,MB_ERR_INVALID_CHARS,bytes,2,&decoded,1)!=1) return false;
     const unsigned index=static_cast<unsigned>(decoded)-0xe000u;
-    if (index>=koreanGlyphCount) return false;
-    glyph=koreanGlyphs()[index];
-    return true;
+    if (index>=koreanGlyphSlots) return false;
+    glyph=koreanGlyphAt(index);
+    return glyph!=0;
 }
 inline DWORD legacyKoreanOutline(HDC dc,UINT character,UINT format,LPGLYPHMETRICS metrics,
                                  DWORD capacity,LPVOID buffer,const MAT2* matrix) {

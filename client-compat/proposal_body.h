@@ -8,7 +8,7 @@
 // The CD text path is CP932 with the Korean glyphs in the private-use area (restoreKoreanGlyphs reverses it).
 static int bodyText(BYTE* ctx,const wchar_t* text) {
     std::wstring mapped(text);
-    for(auto& ch:mapped)for(unsigned i=0;i<logh::koreanGlyphCount;++i)if(logh::koreanGlyphs()[i]==ch) {ch=static_cast<wchar_t>(0xe000+i);break;}
+    for(auto& ch:mapped) {size_t i=0;if(logh::koreanGlyphIndex(ch,i))ch=static_cast<wchar_t>(0xe000+i);}
     char out[32]={};WideCharToMultiByte(932,0,mapped.c_str(),-1,out,sizeof(out)-1,nullptr,nullptr);
     memcpy(ctx+0x24,out,strlen(out)+1);return 1;
 }

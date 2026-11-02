@@ -600,7 +600,23 @@ static bool sessionEndingDataTest() {
     }
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
+// An uncatalogued Hangul syllable (a player's name) takes a runtime EUDC slot and comes back unchanged.
+static bool runtimeKoreanGlyphTest() {
+    std::string narrow;std::wstring wide;
+    if (!logh::encodeKoreanResource(L"김하나 이",narrow) || narrow.size()!=9) return false;
+    if (!logh::japaneseFragment(narrow.c_str(),wide) || wide!=L"김하나 이") return false;
+    size_t first=0,again=0;
+    if (!logh::koreanGlyphIndex(0xae40,first) || !logh::koreanGlyphIndex(0xae40,again) || first!=again || first<logh::koreanGlyphCount)
+        return false;
+    wchar_t value=0;char bytes[2]={};const wchar_t slot=static_cast<wchar_t>(0xe000+first);
+    if (WideCharToMultiByte(932,WC_NO_BEST_FIT_CHARS,&slot,1,bytes,2,nullptr,nullptr)!=2) return false;
+    if (!logh::legacyKoreanGlyph((static_cast<unsigned char>(bytes[0])<<8)|static_cast<unsigned char>(bytes[1]),value) || value!=0xae40)
+        return false;
+    size_t none=0;
+    return !logh::koreanGlyphIndex(0x3042,none) && !logh::koreanGlyphIndex(0xae41,none,false);
+}
 static int runGuard(int argc, wchar_t** argv) {
+    if(!runtimeKoreanGlyphTest())return 95;
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
     if(!commanderMenuTest())return 196;
