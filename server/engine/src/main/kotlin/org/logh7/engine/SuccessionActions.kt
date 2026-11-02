@@ -64,7 +64,9 @@ object SuccessionActions {
     fun accede(g:Galaxy,s:PlanetStocks,identities:List<StrategicIdentity>,now:Long):PlanetStocks {
         val cleared=if(s.social.succession.vacant)s.copy(social=s.social.copy(succession=s.social.succession.copy(vacant=false))) else s
         if(!throneVacant(g,cleared))return if(cleared.social.succession==s.social.succession)s else cleared
-        val line=order(cleared,identities)
+        // The emperor who abdicated or was removed does not take the throne straight back.
+        val previous=s.social.succession.emperor.takeIf {s.social.succession.vacant}
+        val line=order(cleared,identities).filter {it!=previous}
         val emperor=line.firstOrNull() ?: return cleared
         val crowned=OrganizationalOfficePolicy(g).set(cleared,OfficeHolding(EMPEROR,checkNotNull(throne(g,cleared)),emperor))
         return crowned.copy(social=crowned.social.copy(succession=SuccessionState(heir=0,vacant=false,emperor=emperor,
@@ -72,7 +74,7 @@ object SuccessionActions {
     }
     /** StrategyActions.clearOffices marks a vacated throne here. */
     fun vacated(s:PlanetStocks,character:Int)=if(s.strategic.offices.any {it.card==EMPEROR && it.character==character})
-        s.copy(social=s.social.copy(succession=s.social.succession.copy(vacant=true))) else s
+        s.copy(social=s.social.copy(succession=s.social.succession.copy(vacant=true,emperor=character))) else s
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000

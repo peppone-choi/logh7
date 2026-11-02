@@ -57,6 +57,16 @@ class SuccessionActionsTest {
         assertEquals(SocialRejection.STALE,act(SuccessionActions.CONTEST,0,0,s,rival).rejection,"once")
         assertEquals(SuccessionNotice(1,22,21,9),SuccessionActions.notice(crowned,s,9))
     }
+    @Test fun anAbdicationLeavesTheThroneToTheLine() {
+        val reigning=policy.set(stocks,OfficeHolding(1,1049,10000))
+        val r=OfficeResignation.evaluate(galaxy,OfficeResignationRequest("a","a",10000,Power.EMPIRE,1,1),session,a,reigning)
+        val s=assertNotNull(r.stocks);assertTrue(r.changed);assertTrue(s.social.succession.vacant)
+        assertEquals(listOf(22),policy.holders(SuccessionActions.accede(galaxy,s,ids,now),1).map {it.character})
+        val first=policy.set(stocks.copy(strategic=stocks.strategic.copy(people=people+(10000 to StrategicPerson(peerage=Peerage.DUKE,influence=99)))),
+            OfficeHolding(1,1049,10000))
+        val abdicated=assertNotNull(OfficeResignation.evaluate(galaxy,OfficeResignationRequest("a","a",10000,Power.EMPIRE,1,1),session,a,first).stocks)
+        assertEquals(listOf(22),policy.holders(SuccessionActions.accede(galaxy,abdicated,ids,now),1).map {it.character},"not straight back")
+    }
     @Test fun anAccessionIsAnnouncedOnce() {
         val crowned=SuccessionActions.accede(galaxy,StrategyActions.clearOffices(policy.set(stocks,OfficeHolding(1,1049,10000)),10000),ids,now)
         assertEquals(SuccessionNotice(1,22,seconds=5),SuccessionActions.notice(stocks,crowned,5))
