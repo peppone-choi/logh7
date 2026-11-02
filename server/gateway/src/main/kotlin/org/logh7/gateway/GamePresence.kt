@@ -206,9 +206,13 @@ class GamePresence {
                     // The CD shows no window for that result, so the subordinate also gets a same-side tactical chat line.
                     missionNames.getOrNull(event.order.command.kind)?.let {name->
                         packets+=ChatMessages.grid(ChatMessages.Grid(event.order.character,1,"[임무] $name 임무를 지시합니다."),event.seconds)}
-                } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
+                } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief}) {
                     TacticalCommandWire.command(event.order)?.let {
                         packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
+                    // The CD ignores a 0421 result for another character, so the chief reads a 具申 as chat.
+                    if(proposed && current.characterId!=event.order.character)missionNames.getOrNull(event.order.command.kind)?.let {name->
+                        packets+=ChatMessages.grid(ChatMessages.Grid(event.order.character,1,"[구신] $name 임무를 구신합니다."),event.seconds)}
+                }
             }
             if(!event.cancelled && event.order.command.opcode==0x419) {
                 tactical.bases.singleOrNull {it.id==event.order.command.base}?.let {b->

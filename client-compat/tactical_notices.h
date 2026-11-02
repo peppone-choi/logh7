@@ -15,10 +15,13 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     0x50f2b2, 0x5100f4,
     // Ship-group tab: 鼓舞 request for fleet units (118/29) and 出撃 refused without stationed units (118/39).
     0x51008a, 0x50fcbb};
+// Own supreme-commander flag from 033f (set in tactical_fortress_menu.h).
+static volatile LONG ownSupremeCommander=0;
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);
-    return logh::tacticalNoticeFallback(group, index, original, *reinterpret_cast<const BYTE*>(0x221669c));
+    return logh::tacticalMissionNotice(logh::tacticalNoticeFallback(group, index, original, *reinterpret_cast<const BYTE*>(0x221669c)),
+        InterlockedCompareExchange(&ownSupremeCommander, 0, 0) != 0);
 }
 // Preserve the native dialog state machine and its confirm/cancel result.
 // Only the withdrawal call is redirected; ordinary dialogs retain their text.

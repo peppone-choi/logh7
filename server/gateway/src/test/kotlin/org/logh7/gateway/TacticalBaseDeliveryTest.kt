@@ -70,6 +70,23 @@ class TacticalBaseDeliveryTest {
         assertEquals(10002,ByteBuffer.wrap(sub.flatten().single {opcode(it)==0x421}).getInt(14))
         assertTrue(own.flatten().none {it.contentEquals(line)})
     }
+    @Test fun subordinateProposalReachesTheChiefAsATacticalChatLine() {
+        // Equal rank and merit: the lower character id (10000) is the chief, 10002 proposes.
+        val ally=player.copy(characterId=10002);val allyPerson=person.copy(id=10002)
+        val hub=GamePresence();val chief=mutableListOf<List<ByteArray>>();val proposer=mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("one",person,player,chief::add))
+        hub.update(GamePresence.Member("three",allyPerson,ally,proposer::add));chief.clear();proposer.clear()
+        val payload=ByteBuffer.allocate(23).putLong(0).putInt(10002).put(1).putInt(player.unitId).put(5).put(0).putInt(0).array()
+            .map {it.toInt() and 255}
+        val order=TacticalQueuedCommand(10002,2487,100,120,TacticalCommand(0x421,listOf(player.unitId),kind=5,payload=payload))
+        val state=snapshot(TacticalCommandState(proposals=mapOf(10002 to TacticalMissionState(10002,5,0,0,120,grid=2487))))
+            .let {it.copy(navigators=it.navigators+("ally" to ally))}
+        hub.tacticalCommand(TacticalCommandResult(1,order,120,mapOf(10000 to "one",10002 to "three")),state,galaxy,
+            {id->if(id==10002)allyPerson else character(id)})
+        val line=ChatMessages.grid(ChatMessages.Grid(10002,1,"[구신] 철수 임무를 구신합니다."),120)
+        assertTrue(chief.flatten().any {it.contentEquals(line)})
+        assertTrue(proposer.flatten().none {it.contentEquals(line)})
+    }
     @Test fun finishedMissionIsToldOnlyToItsHolder() {
         val hub=GamePresence();val own=mutableListOf<List<ByteArray>>();val peer=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,own::add))

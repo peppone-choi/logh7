@@ -29,6 +29,8 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {17, 0, "LOGH7_TACTICAL_MISSION_INTERCEPT", L"요격 임무: 격파할 적 유닛을 선택하세요.\n"},
         {18, 0, "LOGH7_TACTICAL_MISSION_RECON", L"정찰 임무: 정찰할 적 유닛을 선택하세요.\n"},
         {19, 0, "LOGH7_TACTICAL_MISSION_RETREAT", L"철수 임무를 지시했습니다.\n"},
+        // Not a group-118 index: a non-chief's 0421 is a 具申 (the server keeps it as a proposal).
+        {1019, 0, "LOGH7_TACTICAL_MISSION_PROPOSED", L"철수 임무를 구신했습니다.\n"},
         {20, 0, "LOGH7_TACTICAL_FIRE_STOP", L"공격 중지 명령을 요청했습니다.\n"},
         {21, 0, "LOGH7_TACTICAL_ATTACK_REQUEST", L"공격 명령을 요청했습니다.\n"},
         {22, 0, "LOGH7_TACTICAL_ATTACK_AUTO", L"사정 안의 적을 자동으로 공격합니다.\n"},
@@ -53,6 +55,9 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
     };
     count = sizeof(rows) / sizeof(rows[0]);
     return rows;
+}
+inline const char* tacticalMissionNotice(const char* marker, bool chief) {
+    return !chief && marker && !strcmp(marker, "LOGH7_TACTICAL_MISSION_RETREAT") ? "LOGH7_TACTICAL_MISSION_PROPOSED" : marker;
 }
 inline const char* tacticalNoticeFallback(unsigned group, unsigned index, const char* original, unsigned motion = 0) {
     if (group != 118 || !missingTacticalText(original)) return original;
