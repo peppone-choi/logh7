@@ -21,19 +21,26 @@ data class SuccessionState(
     init {require(heir>=0 && emperor>=0 && rival>=0 && at in 0..0xffffffffL && (rival==0 || emperor>0))}
 }
 
-/** Announcement of an accession (claimant 0) or of the runner-up's refusal (claimant set), detected between two published stocks. */
-data class SuccessionNotice(val generation:Long,val emperor:Int,val claimant:Int=0,val seconds:Long=0)
+/** A head-of-state change the whole session hears, detected between two published stocks (evidence:guess). */
+data class SuccessionNotice(val generation:Long,val character:Int,val kind:Kind,val seconds:Long=0) {
+    enum class Kind {ACCESSION,CONTEST,CHAIRMAN_ELECTED,CHAIRMAN_DISMISSED}
+}
 
 object SuccessionActions {
-    /** The change from [old] to [new] that the whole session hears, if any. */
-    fun notice(old:PlanetStocks,new:PlanetStocks,seconds:Long=0):SuccessionNotice? {
-        if(old.generation!=new.generation)return null
+    /** Accession, the runner-up's refusal, and the alliance chairman's election or no-confidence dismissal. */
+    fun notices(old:PlanetStocks,new:PlanetStocks,seconds:Long=0):List<SuccessionNotice> {
+        if(old.generation!=new.generation)return emptyList()
+        val out=mutableListOf<SuccessionNotice>()
+        fun add(character:Int,kind:SuccessionNotice.Kind) {out+=SuccessionNotice(new.generation,character,kind,seconds)}
         val was=old.social.succession;val now=new.social.succession
-        if(now.emperor>0 && now.at!=was.at)
-            return SuccessionNotice(new.generation,now.emperor,seconds=seconds)
+        if(now.emperor>0 && now.at!=was.at)add(now.emperor,SuccessionNotice.Kind.ACCESSION)
         if(was.rival>0 && now.rival==0 && CoupActions.rebel(new,was.rival) && !CoupActions.rebel(old,was.rival))
-            return SuccessionNotice(new.generation,now.emperor,was.rival,seconds)
-        return null
+            add(was.rival,SuccessionNotice.Kind.CONTEST)
+        fun chairmen(s:PlanetStocks)=s.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.map {it.character}.toSet()
+        val (yes,no)=old.social.funds.confidence[3] ?: (0L to 0L)
+        if(no>yes && new.social.funds.confidence.isEmpty())(chairmen(old)-chairmen(new)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_DISMISSED)}
+        (chairmen(new)-chairmen(old)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_ELECTED)}
+        return out
     }
     const val DESIGNATE=233
     const val CONTEST=234

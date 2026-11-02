@@ -46,13 +46,17 @@ class GamePresence {
                     org.logh7.engine.BudgetActions.rate(s,base.baseId,event.defaultRate))))
         }
     }
-    /** Accession and succession war: one public chat line to everyone in the session (evidence:guess). */
+    /** Head-of-state changes (accession, succession war, chairman election/dismissal): one public chat line to everyone. */
     @Synchronized fun succession(event:org.logh7.engine.SuccessionNotice,characterById:(Int)->CharacterMessages.Generate?) {
-        val speaker=if(event.claimant>0)event.claimant else event.emperor
-        fun name(id:Int)=characterById(id)?.let {if(it.generated)it else KoreanDisplayNames.original(it)}?.let {(it.surname+" "+it.givenName).trim()}?.takeIf {it.isNotEmpty()} ?: "ID $id"
-        val line=(if(event.claimant>0)"[황위] ${name(event.claimant)}이(가) 계승을 거부하고 반란을 일으켰습니다."
-            else "[황위] ${name(event.emperor)}이(가) 황제로 즉위했습니다.").take(65)
-        val packet=ChatMessages.spot(ChatMessages.Spot(speaker,line),event.seconds.coerceIn(0,0xffffffffL))
+        val name=characterById(event.character)?.let {if(it.generated)it else KoreanDisplayNames.original(it)}
+            ?.let {(it.surname+" "+it.givenName).trim()}?.takeIf {it.isNotEmpty()} ?: "ID ${event.character}"
+        val line=when(event.kind) {
+            org.logh7.engine.SuccessionNotice.Kind.ACCESSION -> "[황위] ${name}이(가) 황제로 즉위했습니다."
+            org.logh7.engine.SuccessionNotice.Kind.CONTEST -> "[황위] ${name}이(가) 계승을 거부하고 반란을 일으켰습니다."
+            org.logh7.engine.SuccessionNotice.Kind.CHAIRMAN_ELECTED -> "[의장] ${name}이(가) 최고평의회 의장으로 선출됐습니다."
+            org.logh7.engine.SuccessionNotice.Kind.CHAIRMAN_DISMISSED -> "[의장] 불신임으로 ${name}이(가) 의장직에서 해임됐습니다."
+        }.take(65)
+        val packet=ChatMessages.spot(ChatMessages.Spot(event.character,line),event.seconds.coerceIn(0,0xffffffffL))
         members.values.filter {it.player.generation==event.generation}.forEach {send(it,listOf(packet))}
     }
     /** Durable local duties update existing public conditions and authorized stock/party views. */

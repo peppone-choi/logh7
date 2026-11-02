@@ -258,7 +258,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             for(observer in civicObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Civic delivery failed: ${failure.javaClass.simpleName}")}
         }
-        if(inventory!=null && old!=null)SuccessionActions.notice(old,inventory,snapshot.session?.gameSeconds ?: 0L)?.let {event->
+        if(inventory!=null && old!=null)for(event in SuccessionActions.notices(old,inventory,snapshot.session?.gameSeconds ?: 0L)) {
             for(observer in successionObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Succession delivery failed: ${failure.javaClass.simpleName}")}
         }

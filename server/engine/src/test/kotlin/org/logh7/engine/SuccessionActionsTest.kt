@@ -55,7 +55,7 @@ class SuccessionActionsTest {
         assertTrue(CoupActions.rebel(s,21));assertEquals(1,s.bases.getValue(1049).camp,"the claimant's base rises")
         assertEquals(0,s.social.succession.rival)
         assertEquals(SocialRejection.STALE,act(SuccessionActions.CONTEST,0,0,s,rival).rejection,"once")
-        assertEquals(SuccessionNotice(1,22,21,9),SuccessionActions.notice(crowned,s,9))
+        assertEquals(listOf(SuccessionNotice(1,21,SuccessionNotice.Kind.CONTEST,9)),SuccessionActions.notices(crowned,s,9))
     }
     @Test fun anAbdicationLeavesTheThroneToTheLine() {
         val reigning=policy.set(stocks,OfficeHolding(1,1049,10000))
@@ -69,8 +69,8 @@ class SuccessionActionsTest {
     }
     @Test fun anAccessionIsAnnouncedOnce() {
         val crowned=SuccessionActions.accede(galaxy,StrategyActions.clearOffices(policy.set(stocks,OfficeHolding(1,1049,10000)),10000),ids,now)
-        assertEquals(SuccessionNotice(1,22,seconds=5),SuccessionActions.notice(stocks,crowned,5))
-        assertNull(SuccessionActions.notice(crowned,crowned,5))
-        assertNull(SuccessionActions.notice(crowned,crowned.copy(social=crowned.social.copy(succession=crowned.social.succession.copy(heir=20))),5))
+        assertEquals(listOf(SuccessionNotice(1,22,SuccessionNotice.Kind.ACCESSION,5)),SuccessionActions.notices(stocks,crowned,5))
+        assertEquals(emptyList(),SuccessionActions.notices(crowned,crowned,5))
+        assertEquals(emptyList(),SuccessionActions.notices(crowned,crowned.copy(social=crowned.social.copy(succession=crowned.social.succession.copy(heir=20))),5))
     }
 }
