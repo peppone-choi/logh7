@@ -10,6 +10,8 @@ import zlib
 
 
 WORK = Path('E:/logh7/work')
+# A git worktree keeps its own ignored work/ beside the checkout; it is the same kind of scratch area.
+LOCAL_WORK = Path(__file__).resolve().parents[2]/'work'
 ORIGINAL = Path('E:/logh7-original')
 FORMAT = 'logh7-image-patch-v1'
 
@@ -20,7 +22,7 @@ def sha(data):
 
 def writable(path):
     path = Path(path).resolve()
-    if not path.is_relative_to(WORK.resolve()) or path.is_relative_to(ORIGINAL.resolve()):
+    if not (path.is_relative_to(WORK.resolve()) or path.is_relative_to(LOCAL_WORK.resolve())) or path.is_relative_to(ORIGINAL.resolve()):
         raise ValueError('writes are restricted to E:/logh7/work')
     return path
 
