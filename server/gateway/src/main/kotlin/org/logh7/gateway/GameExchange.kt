@@ -1650,8 +1650,8 @@ class GameExchange(
                                         val strike=if(query.command!=org.logh7.engine.OrbitalStrikeActions.STRIKE)emptyList() else listOf(
                                             org.logh7.protocol.ChatMessages.grid(org.logh7.protocol.ChatMessages.Grid(character.id.toInt(),1,
                                                 // The CD's latest-line box shows one short line only.
-                                                (if(result.outcome==1)"[대지] "+KoreanDisplayNames.base(checkNotNull(world).galaxy.bases.single {it.id==result.found}.name).take(6)+
-                                                    " 수비 -${org.logh7.engine.OrbitalStrikeActions.DAMAGE}"+(if(result.report>0)" 격멸${result.report}" else "")
+                                                (if(result.outcome>=1)"[대지] "+KoreanDisplayNames.base(checkNotNull(world).galaxy.bases.single {it.id==result.found}.name).take(6)+
+                                                    " 수비 -${org.logh7.engine.OrbitalStrikeActions.DAMAGE*result.outcome}"+(if(result.report>0)" 격멸${result.report}" else "")
                                                 else "[대지] "+when(result.rejection) {
                                                     org.logh7.engine.SocialRejection.LOCATION->"전술 중만"
                                                     org.logh7.engine.SocialRejection.TARGET->"사정 밖"

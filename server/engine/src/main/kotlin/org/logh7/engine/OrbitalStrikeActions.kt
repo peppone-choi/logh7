@@ -6,7 +6,9 @@ package org.logh7.engine
  * sends this request over the 0x7f00 strategy channel. Every rule below is evidence:guess:
  * a character in tactics, not wounded, whose flagship is within [RANGE] of an enemy planet's surface in the same grid,
  * spends [SUPPLIES] of its flagship's supplies; each defending ground unit there loses [DAMAGE] strength (removed at 0)
- * and the planet's public order falls by [PEACE].
+ * and the planet's public order falls by [PEACE]. Each living ship unit the character commands within [RANGE] of the same
+ * planet joins the attack and adds another [DAMAGE] (at most [MAX_ATTACKERS] attackers in all).
+ * The result's outcome is the number of attackers (>= 1 on success), report the destroyed defenders.
  * Author: Peppone Choi.
  */
 object OrbitalStrikeActions {
@@ -16,6 +18,7 @@ object OrbitalStrikeActions {
     const val SUPPLIES=100
     const val DAMAGE=150
     const val PEACE=2
+    const val MAX_ATTACKERS=10
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,players:Collection<Navigator>):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
@@ -35,16 +38,23 @@ object OrbitalStrikeActions {
             .map {b->b to TacticalBasePosition.at(b,now,s).let {c->kotlin.math.hypot((c.x-at.x).toDouble(),(c.y-at.y).toDouble())-b.diameter}}
             .filter {it.second<=RANGE}.minByOrNull {it.second}?.first ?: return reject(SocialRejection.TARGET)
         val owner=s.bases.getValue(base.id)
+        val centre=TacticalBasePosition.at(base,now,s)
+        fun inRange(x:Float,y:Float)=kotlin.math.hypot((centre.x-x).toDouble(),(centre.y-y).toDouble())-base.diameter<=RANGE
+        val escorts=s.outfits.values.filter {it.power==own && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
+            o.activeShips?.values.orEmpty().count {u->u.boats>0 && TacticalAuthority.commander(o,u,s)==p.characterId &&
+                (u.tactical?.motion?.pose(now,u.posture,g,s)?.position ?: TacticalDeployment.initial(u.id,p.power,p.grid,players,s,g).position)
+                    .let {inRange(it.x,it.y)}}}
+        val attackers=minOf(MAX_ATTACKERS,1+escorts);val damage=DAMAGE*attackers
         var destroyed=0
         val outfits=s.outfits.mapValues {(_,o)->
             val ground=o.activeGround
             if(o.power!=owner.power || ground==null || ground.values.none {it.base==base.id})return@mapValues o
             val roster=ActiveGroundUnits(ground.values.mapNotNull {u->
-                if(u.base!=base.id)u else (u.strength-DAMAGE).let {left->if(left<=0){destroyed++;null} else u.copy(strength=left)}})
+                if(u.base!=base.id)u else (u.strength-damage).let {left->if(left<=0){destroyed++;null} else u.copy(strength=left)}})
             o.copy(activeGround=roster,units=UnitInventory(o.units.ships,o.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}+roster.quantities(),o.units.work))
         }
         val economy=owner.economy?.let {it.copy(peace=maxOf(0,it.peace-PEACE))}
         val next=s.copy(outfits=outfits,bases=s.bases+(base.id to owner.copy(economy=economy)))
-        return SocialResult(p.copy(supplies=p.supplies-SUPPLIES),next,changed=true,outcome=1,found=base.id,report=destroyed)
+        return SocialResult(p.copy(supplies=p.supplies-SUPPLIES),next,changed=true,outcome=attackers,found=base.id,report=destroyed)
     }
 }

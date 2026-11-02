@@ -42,4 +42,18 @@ class OrbitalStrikeActionsTest {
         val own=stocks().let {it.copy(bases=it.bases+(1000 to it.bases.getValue(1000).copy(power=2)))}
         assertEquals(SocialRejection.TARGET,act(player(10f),own).rejection,"own planets are not targets")
     }
+    @Test fun shipUnitsTheCharacterCommandsNearThePlanetJoinTheAttack() {
+        val centre=TacticalBasePosition.at(base,now,stocks())
+        fun ship(id:Int,dx:Float):ActiveShipUnit {
+            val at=TacticalPoint(centre.x+base.diameter+dx,centre.y)
+            return ActiveShipUnit(id,UnitStack(0),tactical=NpcTacticalState(TacticalMotion(2487,now,TacticalPose(at,0f),0f,0f,listOf(at)),now,now))
+        }
+        val ships=ActiveShipUnits(listOf(ship(11,5f),ship(12,OrbitalStrikeActions.RANGE+30f)))
+        val fleet=OutfitStock(2,2,OutfitKind.FLEET,1000,102,commanderId=10000,units=UnitInventory(ships.quantities()),activeShips=ships,
+            position=OutfitPosition(2487))
+        val s=stocks().let {it.copy(outfits=it.outfits+(2 to fleet),warehouses=it.warehouses+(102 to OutfitWarehouse(102,2,OutfitKind.FLEET,1000,2)),nextShipId=13)}
+        val r=act(player(10f),s)
+        assertNull(r.rejection,"${r.rejection}");assertEquals(2,r.outcome,"the flagship and the one unit in range")
+        assertTrue(assertNotNull(r.stocks).outfits.getValue(1).activeGround!!.values.all {it.strength==1000-2*OrbitalStrikeActions.DAMAGE})
+    }
 }
