@@ -14,9 +14,13 @@ data class PirateFleet(val id:Int,val grid:Int,val since:Long,val units:List<Pir
         units.map {it.id}.distinct().size==units.size)}
     val alive get()=units.any {it.boats>0}
 }
-data class PirateState(val fleets:Map<Int,PirateFleet> = emptyMap(),val nextId:Int=1,val nextSpawnAt:Long=0) {
+data class PirateState(val fleets:Map<Int,PirateFleet> = emptyMap(),val nextId:Int=1,val nextSpawnAt:Long=0,
+    /** Phase 2: game second through which the daily public-order harm has been applied (0 = not started). */
+    val harmedThrough:Long=0) {
     init {require(fleets.size<=PirateActions.MAX_FLEETS && fleets.all {(k,v)->k==v.id && v.id<nextId} && nextId>0 &&
-        nextSpawnAt in 0..0xffffffffL)}
+        nextSpawnAt in 0..0xffffffffL && harmedThrough in 0..0xffffffffL)}
+    /** Grids a living pirate fleet holds. */
+    fun grids()=fleets.values.filter {it.alive}.map {it.grid}.toSet()
     fun unit(id:Int)=fleets.values.firstNotNullOfOrNull {f->f.units.singleOrNull {it.id==id}?.let {f to it}}
     fun detached()=copy(fleets=java.util.Collections.unmodifiableMap(LinkedHashMap(fleets)))
 }
@@ -31,6 +35,7 @@ object PirateActions {
     const val UNIT_BASE=900_000
     const val MERIT=50L
     const val PEACE_REWARD=5
+    const val HARM=1
 
     /** Frontier grids: systems with no base held by the empire or the alliance. */
     fun frontier(g:Galaxy,s:PlanetStocks)=g.systems.map {it.grid}.filter {grid->
@@ -45,6 +50,15 @@ object PirateActions {
         for(f in wiped)for(b in g.bases.filter {it.grid==f.grid})bases[b.id]?.let {stock->stock.economy?.let {e->
             bases=bases+(b.id to stock.copy(economy=e.copy(peace=minOf(100,e.peace+PEACE_REWARD))))}}
         if(wiped.isNotEmpty())p=p.copy(fleets=p.fleets-wiped.map {it.id}.toSet())
+        // Phase 2: each whole day a living fleet costs the bases of its grid one point of public order.
+        if(p.harmedThrough==0L)p=p.copy(harmedThrough=now)
+        val days=(now-p.harmedThrough)/Justice.DAY
+        if(days>0) {
+            val grids=p.grids()
+            for(b in g.bases.filter {it.grid in grids})bases[b.id]?.let {stock->stock.economy?.let {e->
+                bases=bases+(b.id to stock.copy(economy=e.copy(peace=maxOf(0,e.peace-days.toInt()*HARM))))}}
+            p=p.copy(harmedThrough=p.harmedThrough+days*Justice.DAY)
+        }
         if(now>=p.nextSpawnAt) {
             val grids=frontier(g,s).filter {grid->p.fleets.values.none {it.grid==grid}}
             if(p.fleets.size<MAX_FLEETS && grids.isNotEmpty()) {

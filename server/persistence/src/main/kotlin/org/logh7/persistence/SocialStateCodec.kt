@@ -165,12 +165,13 @@ internal object SocialStateCodec {
     /** Optional fourteenth field (pirates, 2026-11-02): "nextId/nextSpawnAt/fleet;fleet" with fleet
      * "id:grid:since:unit=boats,..". */
     private fun pirates(p:PirateState)=listOf(p.nextId.toString(),p.nextSpawnAt.toString(),p.fleets.toSortedMap().values.joinToString(";") {f->
-        listOf(f.id,f.grid,f.since).joinToString(":")+":"+f.units.joinToString(",") {"${it.id}=${it.boats}"}}.ifEmpty {"-"}).joinToString("/")
+        listOf(f.id,f.grid,f.since).joinToString(":")+":"+f.units.joinToString(",") {"${it.id}=${it.boats}"}}.ifEmpty {"-"})
+        .plus(if(p.harmedThrough>0)listOf(p.harmedThrough.toString()) else emptyList()).joinToString("/")
     private fun pirates(text:String):PirateState {
-        val v=text.split('/');require(v.size==3)
+        val v=text.split('/');require(v.size in 3..4)
         return PirateState(if(v[2]=="-")emptyMap() else v[2].split(';').associate {row->val x=row.split(':');require(x.size==4)
             x[0].toInt() to PirateFleet(x[0].toInt(),x[1].toInt(),x[2].toLong(),x[3].split(',').map {u->u.split('=').let {(id,b)->PirateUnit(id.toInt(),b.toInt())}})},
-            v[0].toInt(),v[1].toLong())
+            v[0].toInt(),v[1].toLong(),if(v.size==4)v[3].toLong().also {require(it>0)} else 0)
     }
     fun decode(text:String):SocialState {
         require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..14)

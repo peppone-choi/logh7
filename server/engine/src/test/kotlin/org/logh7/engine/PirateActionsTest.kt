@@ -30,4 +30,14 @@ class PirateActionsTest {
         val cleared=PirateActions.settle(galaxy,s,100+8*86400)
         assertTrue(cleared.social.pirates.fleets.isEmpty());assertEquals(45,cleared.bases.getValue(1050).economy?.peace)
     }
+    @Test fun aLivingFleetWearsDownOrderAndHalvesRoutesThroughItsGrid() {
+        val spawned=PirateActions.settle(galaxy,PirateActions.settle(galaxy,stocks,100),100+7*86400)
+        val later=PirateActions.settle(galaxy,spawned,100+10*86400)
+        assertEquals(37,later.bases.getValue(1050).economy?.peace,"three days of harm")
+        val route=TradeRoute(1,1049,1050,10_000_000,0)
+        val withAdults=later.copy(bases=later.bases+(1049 to later.bases.getValue(1049).copy(economy=PlanetEconomy(10000,8000,50,50)))+
+            (1050 to later.bases.getValue(1050).copy(economy=PlanetEconomy(10000,4000,50,37))))
+        assertEquals(2L,TradeActions.routeProfit(withAdults,route,galaxy),"halved")
+        assertEquals(4L,TradeActions.routeProfit(withAdults,route))
+    }
 }

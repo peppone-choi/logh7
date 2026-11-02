@@ -65,7 +65,13 @@ object TradeActions {
 
     fun fezzan(g:Galaxy,s:PlanetStocks)=g.bases.firstOrNull {it.name=="フェザーン" && s.bases[it.id]?.power==1}?.id
     /** Daily profit of a route: the smaller side's adults / 1000. */
-    fun routeProfit(s:PlanetStocks,r:TradeRoute)=minOf(s.bases[r.from]?.economy?.adults ?: 0,s.bases[r.to]?.economy?.adults ?: 0)/1000L
+    fun routeProfit(s:PlanetStocks,r:TradeRoute,galaxy:Galaxy?=null):Long {
+        val base=minOf(s.bases[r.from]?.economy?.adults ?: 0,s.bases[r.to]?.economy?.adults ?: 0)/1000L
+        // U-32a phase 2: a route touching a pirate-held grid earns half.
+        val grids=s.social.pirates.grids()
+        val raided=galaxy!=null && grids.isNotEmpty() && galaxy.bases.any {(it.id==r.from || it.id==r.to) && it.grid in grids}
+        return if(raided)base/2 else base
+    }
     fun roll(actor:Int,kind:Int,seconds:Long)=java.util.Random(seconds*1_000_003L+actor*131L+kind*17L+97).nextInt(100)
     fun routeTargets(g:Galaxy,s:PlanetStocks,p:Navigator,own:Int)=g.bases.filter {b->b.id!=p.baseId &&
         s.bases[b.id]?.let {it.power==own && it.camp==0}==true &&
@@ -187,7 +193,7 @@ object TradeActions {
             val end=minOf(now,r.until)
             val days=if(alive)(end-r.paidThrough)/Justice.DAY else 0
             if(days>0) {
-                val profit=routeProfit(s,r)*days
+                val profit=routeProfit(s,r,g)*days
                 for(b in listOf(r.from,r.to))bases=bases+(b to bases.getValue(b).let {it.copy(treasury=Math.addExact(it.treasury,profit))})
             }
             val paid=r.paidThrough+days*Justice.DAY
