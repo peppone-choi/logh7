@@ -17,15 +17,19 @@ class ProductionActionsTest {
         "a","a",10000,Power.EMPIRE,1,command,66,1,value=value)),session,a,s,listOf(a),mapOf("a" to a))
 
     @Test fun aLordBuildsPausesAndDestroysAShipyard() {
-        val shipyardHere=ProductionActions.hasShipyard(galaxy,stocks,1049)
-        if(shipyardHere)return
-        val built=assertNotNull(act(ProductionActions.BUILD,stocks).stocks)
+        // Every seeded base starts with a shipyard: destroy it first, then build a new one.
+        assertTrue(ProductionActions.hasShipyard(galaxy,stocks,1049))
+        assertEquals(SocialRejection.TARGET,act(ProductionActions.BUILD,stocks).rejection)
+        val razed=assertNotNull(act(ProductionActions.DESTROY,stocks).stocks)
+        assertFalse(ProductionActions.hasShipyard(galaxy,razed,1049));assertEquals(setOf(1049),razed.social.production.destroyed)
+        val built=assertNotNull(act(ProductionActions.BUILD,razed).stocks)
         assertEquals(100_000_000,built.bases.getValue(1049).treasury)
         assertFalse(ProductionActions.shipyard(galaxy,built,1049,now));assertTrue(ProductionActions.shipyard(galaxy,built,1049,now+30*86400))
         val paused=assertNotNull(act(ProductionActions.PAUSE,built).stocks)
         assertFalse(ProductionActions.shipyard(galaxy,paused,1049,now+30*86400))
         assertTrue(ProductionActions.shipyard(galaxy,assertNotNull(act(ProductionActions.RESUME,paused).stocks),1049,now+30*86400))
-        assertTrue(assertNotNull(act(ProductionActions.DESTROY,paused).stocks).social.production.built.isEmpty())
+        val again=assertNotNull(act(ProductionActions.DESTROY,paused).stocks).social.production
+        assertTrue(again.built.isEmpty());assertEquals(setOf(1049),again.destroyed)
     }
     @Test fun aShipOrderArrivesAfterItsHoursAndRecruitingTurnsAdultsIntoTroops() {
         val withYard=stocks.copy(social=stocks.social.copy(production=ProductionState(built=mapOf(1049 to 0L))))

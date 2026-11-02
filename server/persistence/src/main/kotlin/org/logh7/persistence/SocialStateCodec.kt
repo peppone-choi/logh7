@@ -175,11 +175,13 @@ internal object SocialStateCodec {
     }
     /** Optional fifteenth field (U-08, 2026-11-02): built "base:opensAt,.." / paused "base,.." / orders "base:kind:readyAt,..". */
     private fun production(p:ProductionState)=listOf(pairs(p.built),p.paused.sorted().joinToString(",").ifEmpty {"-"},
-        p.orders.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value.kind}:${it.value.readyAt}"}.ifEmpty {"-"}).joinToString("/")
+        p.orders.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value.kind}:${it.value.readyAt}"}.ifEmpty {"-"})
+        .plus(if(p.destroyed.isEmpty())emptyList() else listOf(p.destroyed.sorted().joinToString(","))).joinToString("/")
     private fun production(text:String):ProductionState {
-        val v=text.split('/');require(v.size==3)
+        val v=text.split('/');require(v.size in 3..4)
         return ProductionState(pairs(v[0]),if(v[1]=="-")emptySet() else v[1].split(',').map {it.toInt()}.toSet(),
-            if(v[2]=="-")emptyMap() else v[2].split(',').associate {e->e.split(':').also {require(it.size==3)}.let {x->x[0].toInt() to ShipOrder(x[1].toInt(),x[2].toLong())}})
+            if(v[2]=="-")emptyMap() else v[2].split(',').associate {e->e.split(':').also {require(it.size==3)}.let {x->x[0].toInt() to ShipOrder(x[1].toInt(),x[2].toLong())}},
+            if(v.size==4)v[3].split(',').map {it.toInt()}.toSet() else emptySet())
     }
     fun decode(text:String):SocialState {
         require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..15)

@@ -18,11 +18,14 @@ data class ProductionState(
     /** Bases whose shipyard is paused. */
     val paused:Set<Int> = emptySet(),
     /** base -> the one manual ship order in progress. */
-    val orders:Map<Int,ShipOrder> = emptyMap()) {
+    val orders:Map<Int,ShipOrder> = emptyMap(),
+    /** Bases whose original shipyard was destroyed (every seeded base starts with one). */
+    val destroyed:Set<Int> = emptySet()) {
     init {require(built.size<=350 && built.all {(k,v)->k in 1..65535 && v in 0..0xffffffffL} && paused.all {it in 1..65535} &&
         orders.size<=350 && orders.keys.all {it in 1..65535})}
     fun detached()=copy(built=java.util.Collections.unmodifiableMap(LinkedHashMap(built)),
-        paused=java.util.Collections.unmodifiableSet(LinkedHashSet(paused)),orders=java.util.Collections.unmodifiableMap(LinkedHashMap(orders)))
+        paused=java.util.Collections.unmodifiableSet(LinkedHashSet(paused)),orders=java.util.Collections.unmodifiableMap(LinkedHashMap(orders)),
+        destroyed=java.util.Collections.unmodifiableSet(LinkedHashSet(destroyed)))
 }
 
 object ProductionActions {
@@ -41,9 +44,10 @@ object ProductionActions {
     fun shipyard(g:Galaxy,s:PlanetStocks,base:Int,seconds:Long):Boolean {
         val p=s.social.production
         if(base in p.paused)return false
-        return g.facilities[base].orEmpty().any {it.kind==SHIPYARD} || (p.built[base] ?: Long.MAX_VALUE)<=seconds
+        return original(g,s,base) || (p.built[base] ?: Long.MAX_VALUE)<=seconds
     }
-    fun hasShipyard(g:Galaxy,s:PlanetStocks,base:Int)=g.facilities[base].orEmpty().any {it.kind==SHIPYARD} || base in s.social.production.built
+    private fun original(g:Galaxy,s:PlanetStocks,base:Int)=base !in s.social.production.destroyed && g.facilities[base].orEmpty().any {it.kind==SHIPYARD}
+    fun hasShipyard(g:Galaxy,s:PlanetStocks,base:Int)=original(g,s,base) || base in s.social.production.built
     /** Ship kinds (35) or troop kinds (36) the base's side may order. */
     fun kinds(power:Int,ship:Boolean)=ProductionUnits.definitions.filter {it.power==power && it.ship==ship}.distinctBy {it.kind}.sortedBy {it.kind}
 
@@ -72,7 +76,7 @@ object ProductionActions {
             }
             PAUSE -> if(!hasShipyard(g,s,base) || base in prod.paused)return reject(SocialRejection.TARGET)
             RESUME -> if(base !in prod.paused)return reject(SocialRejection.TARGET)
-            DESTROY -> if(base !in prod.built)return reject(SocialRejection.TARGET)
+            DESTROY -> if(!hasShipyard(g,s,base))return reject(SocialRejection.TARGET)
             SHIP -> {
                 if(unit==null || !shipyard(g,s,base,now))return reject(SocialRejection.TARGET)
                 if(base in prod.orders)return reject(SocialRejection.BUSY)
@@ -95,7 +99,8 @@ object ProductionActions {
                 s.copy(bases=s.bases+(base to stock.copy(treasury=stock.treasury-BUILD_PRICE))))
             PAUSE -> with(prod.copy(paused=prod.paused+base))
             RESUME -> with(prod.copy(paused=prod.paused-base))
-            DESTROY -> with(prod.copy(built=prod.built-base,paused=prod.paused-base,orders=prod.orders-base))
+            DESTROY -> with(prod.copy(built=prod.built-base,paused=prod.paused-base,orders=prod.orders-base,
+                destroyed=if(base in prod.built)prod.destroyed else prod.destroyed+base))
             SHIP -> {
                 val u=checkNotNull(unit)
                 with(prod.copy(orders=prod.orders+(base to ShipOrder(u.kind,now+u.hours*3600L))),

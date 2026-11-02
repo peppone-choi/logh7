@@ -148,7 +148,7 @@ class SocialStoreTest {
         assertEquals(14,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }
     @Test fun productionRoundTripsAsAnOptionalFifteenthField() {
-        val state=SocialState(production=ProductionState(mapOf(1049 to 9L),setOf(1050),mapOf(1049 to ShipOrder(3,77))))
+        val state=SocialState(production=ProductionState(mapOf(1049 to 9L),setOf(1050),mapOf(1049 to ShipOrder(3,77)),setOf(1051)))
         val encoded=SocialStateCodec.encode(state)
         assertEquals(15,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }
