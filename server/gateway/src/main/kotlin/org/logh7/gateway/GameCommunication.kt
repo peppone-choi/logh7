@@ -12,7 +12,9 @@ class GameCommunication(private val presence:GamePresence,private val generation
     private val directory:(Long,Int)->MailIdentity?,private val inTactics:(String)->Boolean,
     private val store:(Long)->CommunicationStore,private val now:()->Long=System::currentTimeMillis,
     /** 命令/提案 rows of the world state (design-proposals-orders.md). */
-    private val proposals:(Long)->ProposalState?={null}):AutoCloseable {
+    private val proposals:(Long)->ProposalState?={null},
+    /** Current rank (promotion, accession) over the character file's creation rank; null keeps the file's. */
+    private val rank:(Int)->Int?={null}):AutoCloseable {
     private var current:Triple<Long,CommunicationStore,Communication>?=null
     private var messenger:Pair<Long,GameMessenger>?=null
     private data class Offer(val from:String,val to:String,val expires:Long)
@@ -89,21 +91,23 @@ class GameCommunication(private val presence:GamePresence,private val generation
         // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
         if(post<=0 || org.logh7.engine.OrganizationOffices.of(post)==null)return emptyList()
         val state=proposals(expected) ?: return emptyList()
-        fun who(id:Int,card:Int)=directory(expected,id)?.let {peer(it,card)} ?: Wire.Peer(id,extra=listOf(0,0,card))
+        fun ranked(p:MailIdentity)=rank(p.character)?.let {p.copy(rank=it)} ?: p
+        fun who(id:Int,card:Int)=directory(expected,id)?.let {peer(ranked(it),card)} ?: Wire.Peer(id,extra=listOf(0,0,card))
+        val self=peer(ranked(owner),post)
         val rows=mutableListOf<ByteArray>()
         for(mail in state.mails.sortedBy {it.id}) {
             val type=if(mail.order)1 else 0
             if(received && mail.pending && mail.recipient==owner.character && mail.card==post)
-                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),peer(owner,post),mail.createdAt,
+                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),self,mail.createdAt,
                     commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
             // Reply rows need the compatibility DLL's 0053c933 null fix (proposal_approval.h). +0x25b 0 shows 22/77 承諾,
             // 1..3 show 22/78..80 (拒否·拒絶·オウム返し).
             if(REPLY_ROWS && received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
                 // status 1 = already read (no 22/76 pending-read text); approval 5 keeps 22/77 with the reply buttons off.
-                rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,1,who(mail.recipient,mail.card),peer(owner,post),mail.createdAt,
+                rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,1,who(mail.recipient,mail.card),self,mail.createdAt,
                     commandNumber(mail),0,if(mail.reply==Proposals.APPROVE)5 else mail.reply+1)),paired(mail))
             if(!received && mail.pending && mail.sender==owner.character && mail.senderCard==post)
-                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,peer(owner,post),who(mail.recipient,mail.card),mail.createdAt,
+                rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,self,who(mail.recipient,mail.card),mail.createdAt,
                     commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
         }
         return rows

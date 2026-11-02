@@ -1,7 +1,7 @@
 // 命令/提案 mail body keywords (design-proposals-orders.md). The CD's handler 00521670 copies 未実装 for 131 keywords;
 // this fills the ones the resignation template (messages_0.dat row 8) uses. Handler: int __cdecl h(ctx), ctx+0x20 is the
 // format scratch S (world+0x126454), output is an ACP string written at ctx+0x24 (yname writes up to 0x20 bytes).
-// S: +0x66 sender name, +0x18a recipient name, +0x1a4 recipient rank, +0x2a8 time, +0x2ac command, +0x2ae type
+// S: +0x60 sender and +0x184 recipient records (0x124 each: id +0, name +6 (13 UTF-16), origin +0x20, rank +0x22), +0x2a8 time, +0x2ac command, +0x2ae type
 // (0 proposal, 1 order), +0x2af influence, +0x2b0 PCP, +0x2b4 MCP. Native pair record at world+0x43c990 (+0x10 card).
 // Offsets: work/mailbox-re (static analysis). Author: Peppone Choi.
 #pragma once
@@ -60,8 +60,8 @@ static int __cdecl bodyTargetName(BYTE* ctx) {
 }
 static int __cdecl bodyTargetRank(BYTE* ctx) {
     if(bodyDismissal(ctx)) {ctx[0x24]=0;return 1;} // the third person's rank is not known to this client
-    if(bodyAppointment(ctx))return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x84)); // sender SIC rank
-    return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x1a4));
+    if(bodyAppointment(ctx))return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x82)); // sender SIC rank
+    return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x1a6));
 }
 static int __cdecl bodyTargetCard(BYTE* ctx) {
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
