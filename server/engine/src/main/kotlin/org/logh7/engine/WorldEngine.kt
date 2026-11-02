@@ -84,6 +84,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     fun observeSuccession(observer:(SuccessionNotice)->Unit):AutoCloseable {
         successionObservers+=observer;return AutoCloseable {successionObservers.remove(observer)}
     }
+    private val tidalObservers=java.util.concurrent.CopyOnWriteArrayList<(TidalLoss)->Unit>()
+    fun observeTides(observer:(TidalLoss)->Unit):AutoCloseable {
+        tidalObservers+=observer;return AutoCloseable {tidalObservers.remove(observer)}
+    }
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
     private val occupationObservers=java.util.concurrent.CopyOnWriteArrayList<(BaseOccupation)->Unit>()
     private val experienceObservers=java.util.concurrent.CopyOnWriteArrayList<(List<Int>)->Unit>()
@@ -261,6 +265,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         if(inventory!=null && old!=null)for(event in SuccessionActions.notices(old,inventory,snapshot.session?.gameSeconds ?: 0L)) {
             for(observer in successionObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Succession delivery failed: ${failure.javaClass.simpleName}")}
+        }
+        if(inventory!=null && old!=null)for(event in BlackHoleTides.losses(old,inventory,snapshot.session?.gameSeconds ?: 0L)) {
+            for(observer in tidalObservers)try {observer(event)}
+            catch(failure:Exception){System.err.println("Tidal delivery failed: ${failure.javaClass.simpleName}")}
         }
         val session=durableState?.session ?: simulation.exportState()
         val personal=snapshot.navigators.values.asSequence().filter {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.hull!=null}

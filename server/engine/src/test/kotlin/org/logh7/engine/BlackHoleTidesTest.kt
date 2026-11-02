@@ -36,6 +36,11 @@ class BlackHoleTidesTest {
         assertEquals(102L, later.tidalHour)
         assertEquals(listOf(295, 295), boats(later.outfits.getValue(1)))
         assertEquals(stocks.outfits.getValue(2), later.outfits.getValue(2))
+        assertEquals(emptyList(), BlackHoleTides.losses(stocks, first, 5), "no loss before the first settled hour")
+        assertEquals(emptyList(), BlackHoleTides.losses(first, later, 5), "an outfit without members tells no one")
+        val led = { s: PlanetStocks -> s.copy(outfits = s.outfits + (1 to s.outfits.getValue(1).copy(commanderId = 10002))) }
+        assertEquals(listOf(TidalLoss(1, 1, listOf(10002), 10, 7)),
+            BlackHoleTides.losses(led(first), led(later), 7))
         val closed = BlackHoleTides.settle(galaxy, first, 1000 * 3600L)
         assertEquals(listOf(251, 251), boats(closed.outfits.getValue(1))) // at most 24 hours are applied
         val away = later.copy(outfits = later.outfits - 1, warehouses = later.warehouses - 10)

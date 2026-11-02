@@ -59,6 +59,13 @@ class GamePresence {
         val packet=ChatMessages.spot(ChatMessages.Spot(event.character,line),event.seconds.coerceIn(0,0xffffffffL))
         members.values.filter {it.player.generation==event.generation}.forEach {send(it,listOf(packet))}
     }
+    /** Black-hole tidal loss (design-blackhole-tactical-terrain.md §2.4): a spot chat line to each online member of the outfit. */
+    @Synchronized fun tides(event:org.logh7.engine.TidalLoss) {
+        for(character in event.characters) {
+            val line="[중력] 블랙홀 중력으로 부대 함정 ${event.boats}척을 잃었습니다.".take(65)
+            toCharacter(character,event.generation,listOf(ChatMessages.spot(ChatMessages.Spot(character,line),event.seconds.coerceIn(0,0xffffffffL))))
+        }
+    }
     /** Durable local duties update existing public conditions and authorized stock/party views. */
     @Synchronized fun civic(event:org.logh7.engine.CivicChange,world:WorldBootstrap) {
         for(viewer in members.values.filter {it.player.generation==event.generation}) {

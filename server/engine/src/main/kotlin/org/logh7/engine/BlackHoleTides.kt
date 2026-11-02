@@ -9,6 +9,9 @@ import kotlin.math.hypot
  * fleet into the zone, are the design approved 2026-10-30 (docs/server/design-blackhole-tactical-terrain.md
  * §2.4, evidence:guess). Flagship hulls are not damaged. Author: Peppone Choi.
  */
+/** Boats an outfit lost to the black-hole tide in one settlement, told to its members (design §2.4 notice). */
+data class TidalLoss(val generation: Long, val outfit: Int, val characters: List<Int>, val boats: Int, val seconds: Long)
+
 object BlackHoleTides {
     const val TIDAL_PERCENT = 1
     const val PULL_PERCENT = 3
@@ -56,6 +59,17 @@ object BlackHoleTides {
             if (lost > 0) next = TacticalLosses.apply(next, unit.id, lost)
         }
         return next
+    }
+    /** Losses of a settlement that advanced the tidal hour: the drop of each outfit's boats between two published stocks. */
+    fun losses(old: PlanetStocks, new: PlanetStocks, seconds: Long): List<TidalLoss> {
+        if (old.generation != new.generation || old.tidalHour == 0L || new.tidalHour <= old.tidalHour) return emptyList()
+        fun boats(o: OutfitStock) = o.activeShips?.values.orEmpty().sumOf { it.boats }
+        return new.outfits.values.mapNotNull { outfit ->
+            val before = old.outfits[outfit.id] ?: return@mapNotNull null
+            val lost = boats(before) - boats(outfit)
+            if (lost <= 0 || outfit.members().isEmpty()) null
+            else TidalLoss(new.generation, outfit.id, outfit.members().toList(), lost, seconds)
+        }
     }
     /** The hour watermark is kept only while some outfit stays in a gravity zone, so a fleet entering the
      * zone starts losing boats from the next full game hour and other worlds never change. */
