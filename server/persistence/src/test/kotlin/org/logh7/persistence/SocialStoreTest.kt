@@ -142,4 +142,9 @@ class SocialStoreTest {
         val encoded=SocialStateCodec.encode(state)
         assertEquals(13,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }
+    @Test fun piratesRoundTripAsAnOptionalFourteenthField() {
+        val state=SocialState(pirates=PirateState(mapOf(1 to PirateFleet(1,2490,7,listOf(PirateUnit(900003,300),PirateUnit(900004,0)))),2,99))
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(14,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+    }
 }

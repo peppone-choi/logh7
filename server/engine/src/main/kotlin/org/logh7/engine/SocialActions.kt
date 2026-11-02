@@ -26,7 +26,9 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
     /** 国家目標 / 統治目標 (GoalActions). */
     val goals:GoalState=GoalState(),
     /** 航路貿易·船団貿易·関税·外交 (TradeActions). */
-    val trade:TradeState=TradeState()) {
+    val trade:TradeState=TradeState(),
+    /** U-32a 우주해적 (PirateActions). */
+    val pirates:PirateState=PirateState()) {
     init {require(nextId>0 && speeches.size<=256 && speeches.all {(id,r)->id==r.character && r.id<nextId} &&
         speeches.values.map {it.id}.distinct().size==speeches.size && speakers.size<=4096 && squares.size<=350 &&
         speakers.all {(id,at)->id>0 && at in 0..0xffffffffL} && squares.all {(base,at)->base in 1..65535 && at in 0..0xffffffffL} &&
@@ -34,7 +36,7 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
     fun detached()=copy(speeches=java.util.Collections.unmodifiableMap(LinkedHashMap(speeches)),
         speakers=java.util.Collections.unmodifiableMap(LinkedHashMap(speakers)),squares=java.util.Collections.unmodifiableMap(LinkedHashMap(squares)),
         academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached(),proposals=proposals.detached(),
-        justice=justice.detached(),coup=coup.detached(),funds=funds.detached(),goals=goals.detached(),trade=trade.detached())
+        justice=justice.detached(),coup=coup.detached(),funds=funds.detached(),goals=goals.detached(),trade=trade.detached(),pirates=pirates.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
 enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE, TARGET }
