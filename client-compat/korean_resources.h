@@ -166,6 +166,12 @@ static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned 
         static const bool ready=logh::encodeKoreanResource(L"[ \ub300\uc9c0 \uacf5\uaca9 ]\n\uc801 \ud589\uc131\uc758 \uc218\ube44\ub300\ub97c \uacf5\uaca9\ud569\ub2c8\ub2e4.\n\uae30\ud568 \ubb3c\uc790 100",strike);
         if (ready) return strike.c_str();
     }
+    // U-01: command 179 (personal card オフライン設定) lies past the CD's 97 command names in group 18.
+    if (group==18 && index==179) {
+        static std::string offline;
+        static const bool encoded=logh::encodeKoreanResource(L"오프라인 설정",offline);
+        if (encoded) return offline.c_str();
+    }
     return logh::koreanResource(group,index,original);
 }
 static wchar_t* __cdecl decodeKoreanResource(const char* text) {
