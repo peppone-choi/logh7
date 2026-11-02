@@ -12,7 +12,7 @@ internal object SocialStateCodec {
         // Optional fields 5..9 are written up to the last one that differs from its default.
         val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
             (s.gatherings!=GatheringState()) to {gatherings(s.gatherings)},(s.proposals!=ProposalState()) to {proposals(s.proposals)},
-            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)},(s.goals!=GoalState()) to {goals(s.goals)},(s.trade!=TradeState()) to {trade(s.trade)},(s.pirates!=PirateState()) to {pirates(s.pirates)})
+            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)},(s.goals!=GoalState()) to {goals(s.goals)},(s.trade!=TradeState()) to {trade(s.trade)},(s.pirates!=PirateState()) to {pirates(s.pirates)},(s.production!=ProductionState()) to {production(s.production)})
         val last=optional.indexOfLast {it.first}
         return (base+optional.take(last+1).map {it.second()}).joinToString("|")
     }
@@ -173,8 +173,16 @@ internal object SocialStateCodec {
             x[0].toInt() to PirateFleet(x[0].toInt(),x[1].toInt(),x[2].toLong(),x[3].split(',').map {u->u.split('=').let {(id,b)->PirateUnit(id.toInt(),b.toInt())}},if(x.size==5)x[4].toLong().also {require(it>0)} else 0)},
             v[0].toInt(),v[1].toLong(),if(v.size==4)v[3].toLong().also {require(it>0)} else 0)
     }
+    /** Optional fifteenth field (U-08, 2026-11-02): built "base:opensAt,.." / paused "base,.." / orders "base:kind:readyAt,..". */
+    private fun production(p:ProductionState)=listOf(pairs(p.built),p.paused.sorted().joinToString(",").ifEmpty {"-"},
+        p.orders.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value.kind}:${it.value.readyAt}"}.ifEmpty {"-"}).joinToString("/")
+    private fun production(text:String):ProductionState {
+        val v=text.split('/');require(v.size==3)
+        return ProductionState(pairs(v[0]),if(v[1]=="-")emptySet() else v[1].split(',').map {it.toInt()}.toSet(),
+            if(v[2]=="-")emptyMap() else v[2].split(',').associate {e->e.split(':').also {require(it.size==3)}.let {x->x[0].toInt() to ShipOrder(x[1].toInt(),x[2].toLong())}})
+    }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..14)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..15)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -187,7 +195,7 @@ internal object SocialStateCodec {
             if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size>=9)justice(f[8]) else JusticeState(),
             if(f.size>=10)coup(f[9]) else CoupState(),if(f.size>=11)funds(f[10]) else FundState(),
             if(f.size>=12)goals(f[11]) else GoalState(),if(f.size>=13)trade(f[12]) else TradeState(),
-            if(f.size==14)pirates(f[13]) else PirateState())
+            if(f.size>=14)pirates(f[13]) else PirateState(),if(f.size==15)production(f[14]) else ProductionState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }

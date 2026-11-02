@@ -1427,6 +1427,12 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command==org.logh7.engine.ProductionActions.SHIP || query.command==org.logh7.engine.ProductionActions.RECRUIT) {
+                                            // U-08: the unit kinds this side may order (ships for 35, troops for 36).
+                                            val kinds=org.logh7.engine.ProductionActions.kinds(character.power,query.command==org.logh7.engine.ProductionActions.SHIP)
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,kinds.filter {it.kind+1>query.target}.take(200)
+                                                .map {org.logh7.protocol.StrategyActionMessages.Selection(it.kind+1,it.name.take(12))})
+                                        }
                                         if(query.command==org.logh7.engine.TradeActions.ROUTE) {
                                             // 航路貿易: own regular bases within 10 cells of the requester's base.
                                             val snapshot=navigation?.snapshot();val stocks=checkNotNull(snapshot?.planetStocks)
@@ -1615,7 +1621,8 @@ class GameExchange(
                                 }
                                 if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands ||
                                     query.command in org.logh7.engine.CoupActions.commands || query.command==org.logh7.engine.FundActions.FUNDS ||
-                                    query.command in org.logh7.engine.GoalActions.commands || query.command in org.logh7.engine.TradeActions.commands) {
+                                    query.command in org.logh7.engine.GoalActions.commands || query.command in org.logh7.engine.TradeActions.commands ||
+                                    query.command in org.logh7.engine.ProductionActions.commands) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,

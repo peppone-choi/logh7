@@ -37,6 +37,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
             // 国家目標 on the head of state and the prime minister.
             if(role.card in org.logh7.engine.GoalActions.nationalCards)add(15)
             if(role.card in org.logh7.engine.TradeActions.diplomacyCards)add(20)
+            // U-08 production on the governor and capital administrator cards.
+            if(role.card in setOf(54,190,192))addAll(org.logh7.engine.ProductionActions.commands.sorted())
             if(role.card==160)add(19)
             if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
             add(7)
@@ -46,7 +48,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
     }.plus(((60..66).toList()+(124..130).toList()).associateWith {card ->
         WorldMessages.CardDefinition(card,2,if(card>=124)1 else 0,if(card in setOf(66,130))16 else 0,1,20,0,
             // 封土 cards host 狩猟 and the lord's 統治目標.
-            if(card in setOf(66,130))listOf(11,21) else emptyList())
+            if(card in setOf(66,130))listOf(11,21)+org.logh7.engine.ProductionActions.commands.sorted() else emptyList())
     })
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices=org.logh7.engine.LogisticsOfficePolicy(galaxy)
