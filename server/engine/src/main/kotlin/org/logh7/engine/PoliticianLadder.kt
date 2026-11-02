@@ -3,9 +3,9 @@ package org.logh7.engine
 /** U-28 politician-ladder special rules (CD manual p.38, evidence:manual CD edition).
  * Every 30 game days a politician (rank 1) with zero merit is handled by faction:
  * the alliance turns them into a civilian official at lieutenant-commander rank (10),
- * the empire lowers one random ability. When the emperor's seat is vacant (no coup
- * mechanism exists yet, so every vacancy counts as non-coup), the top of the empire
- * politician ladder (highest merit, then lowest ID) becomes emperor.
+ * the empire lowers one random ability. When the emperor's seat is vacant for a reason other
+ * than a coup, the top of the empire politician ladder (highest merit, then lowest ID) becomes
+ * emperor; while an empire revolt is under way (U-10) the seat stays to the coup's outcome.
  * The ability decrease of 1 and the deterministic per-person random are evidence:guess.
  * Author: Peppone Choi. */
 object PoliticianLadder {
@@ -29,7 +29,8 @@ object PoliticianLadder {
         val policy=OrganizationalOfficePolicy(galaxy)
         val capital=galaxy.bases.singleOrNull {Capital.of(it)==Capital.EMPIRE}
         val role=OrganizationOffices.of(EMPEROR_CARD)
-        if(capital!=null && role!=null && policy.active(next,role,capital.id) && policy.holders(next,EMPEROR_CARD).isEmpty()) {
+        if(capital!=null && role!=null && policy.active(next,role,capital.id) && policy.holders(next,EMPEROR_CARD).isEmpty() &&
+            !next.social.coup.revolting(2)) {
             val heir=identities.filter {it.power==2 && (people[it.id]?.rank ?: it.rank)==POLITICIAN}
                 .sortedWith(compareByDescending<StrategicIdentity> {people[it.id]?.merit ?: 0}.thenBy {it.id}).firstOrNull()
             if(heir!=null)next=policy.set(next,OfficeHolding(EMPEROR_CARD,capital.id,heir.id))
