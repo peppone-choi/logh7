@@ -36,15 +36,8 @@ object PoliticianLadder {
         val (yes,no)=funds.confidence[3] ?: (0L to 0L)
         if(no>yes)policy.holders(next,CHAIRMAN_CARD).forEach {next=policy.set(next,it,remove=true)}
         if(funds.confidence.isNotEmpty())next=next.copy(social=next.social.copy(funds=funds.copy(confidence=emptyMap())))
-        val capital=galaxy.bases.singleOrNull {Capital.of(it)==Capital.EMPIRE}
-        val role=OrganizationOffices.of(EMPEROR_CARD)
-        if(capital!=null && role!=null && policy.active(next,role,capital.id) && policy.holders(next,EMPEROR_CARD).isEmpty() &&
-            !next.social.coup.revolting(2)) {
-            // A character killed in battle (U-11) can neither inherit nor be elected.
-            val heir=identities.filter {it.power==2 && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L}
-                .sortedWith(compareByDescending<StrategicIdentity> {people[it.id]?.merit ?: 0}.thenBy {it.id}).firstOrNull()
-            if(heir!=null)next=policy.set(next,OfficeHolding(EMPEROR_CARD,capital.id,heir.id))
-        }
+        // Imperial succession (SuccessionActions, user decision 2026-11-02) replaces the politician-ladder heir.
+        next=SuccessionActions.accede(galaxy,next,identities,month*PERIOD_DAYS*Justice.DAY)
         return election(galaxy,next,identities)
     }
     fun chairmanVacant(galaxy:Galaxy,stocks:PlanetStocks):Boolean {

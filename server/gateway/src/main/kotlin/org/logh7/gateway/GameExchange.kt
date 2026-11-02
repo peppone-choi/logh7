@@ -1427,6 +1427,13 @@ class GameExchange(
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .sortedBy {it.id}.take(200).map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
+                                        if(query.command==org.logh7.engine.SuccessionActions.DESIGNATE) {
+                                            // 後継指名: living empire characters other than the emperor, in the current line of succession.
+                                            val ids=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),id.power,id.rank,id.origin,id.abilities.toList())}
+                                            val line=org.logh7.engine.SuccessionActions.order(inventory,ids).filter {it!=character.id.toInt() && it>query.target}
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,line.take(200).mapNotNull {id->
+                                                currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname.take(12))}})
+                                        }
                                         if(query.command==org.logh7.engine.ProductionActions.SHIP || query.command==org.logh7.engine.ProductionActions.RECRUIT) {
                                             // U-08: the unit kinds this side may order (ships for 35, troops for 36).
                                             val kinds=org.logh7.engine.ProductionActions.kinds(character.power,query.command==org.logh7.engine.ProductionActions.SHIP)
@@ -1622,7 +1629,8 @@ class GameExchange(
                                 if(query.command in org.logh7.engine.Justice.commands || query.command in org.logh7.engine.EspionageActions.commands ||
                                     query.command in org.logh7.engine.CoupActions.commands || query.command==org.logh7.engine.FundActions.FUNDS ||
                                     query.command in org.logh7.engine.GoalActions.commands || query.command in org.logh7.engine.TradeActions.commands ||
-                                    query.command in org.logh7.engine.ProductionActions.commands || query.command in org.logh7.engine.OrbitalStrikeActions.commands) {
+                                    query.command in org.logh7.engine.ProductionActions.commands || query.command in org.logh7.engine.OrbitalStrikeActions.commands ||
+                                    query.command in org.logh7.engine.SuccessionActions.commands) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,

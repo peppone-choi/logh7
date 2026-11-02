@@ -158,6 +158,12 @@ object CoupActions {
         return reject(SocialRejection.COMMAND)
     }
 
+    /** 継承拒否 (SuccessionActions): the runner-up rises at once as 盟主 of a one-person revolt holding [stations]. */
+    internal fun contest(g:Galaxy,s:PlanetStocks,leader:Int,stations:Set<Int>,now:Long):PlanetStocks {
+        val c=s.social.coup
+        return turnOver(g,coup(s,c.copy(plots=c.plots+(leader to Plot(leader,2,now,revolt=maxOf(now,1L))))),listOf(leader),leader,stations,deputy=true)
+    }
+
     /** Outfits the character serves in through an outfit card. */
     fun outfits(policy:OrganizationalOfficePolicy,s:PlanetStocks,character:Int)=policy.held(s,character)
         .filter {OrganizationOffices.of(it.card)?.scope==OfficeScope.OUTFIT && it.seat in s.outfits}.map {it.seat}.distinct()

@@ -167,6 +167,13 @@ static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned 
         if (ready) return strike.c_str();
     }
     // U-01: command 179 (personal card オフライン設定) lies past the CD's 97 command names in group 18.
+    // Imperial succession commands 233 後継指名 / 234 継承拒否 (SuccessionActions), also past the CD's names.
+    if (group==18 && (index==233 || index==234)) {
+        static std::string designate,contest;
+        static const bool encoded=logh::encodeKoreanResource(L"후계 지명",designate) &&
+            logh::encodeKoreanResource(L"계승 거부",contest);
+        if (encoded) return index==233 ? designate.c_str() : contest.c_str();
+    }
     if (group==18 && index==179) {
         static std::string offline;
         static const bool encoded=logh::encodeKoreanResource(L"오프라인 설정",offline);

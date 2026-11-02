@@ -12,7 +12,7 @@ internal object SocialStateCodec {
         // Optional fields 5..9 are written up to the last one that differs from its default.
         val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
             (s.gatherings!=GatheringState()) to {gatherings(s.gatherings)},(s.proposals!=ProposalState()) to {proposals(s.proposals)},
-            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)},(s.goals!=GoalState()) to {goals(s.goals)},(s.trade!=TradeState()) to {trade(s.trade)},(s.pirates!=PirateState()) to {pirates(s.pirates)},(s.production!=ProductionState()) to {production(s.production)})
+            (s.justice!=JusticeState()) to {justice(s.justice)},(s.coup!=CoupState()) to {coup(s.coup)},(s.funds!=FundState()) to {funds(s.funds)},(s.goals!=GoalState()) to {goals(s.goals)},(s.trade!=TradeState()) to {trade(s.trade)},(s.pirates!=PirateState()) to {pirates(s.pirates)},(s.production!=ProductionState()) to {production(s.production)},(s.succession!=SuccessionState()) to {succession(s.succession)})
         val last=optional.indexOfLast {it.first}
         return (base+optional.take(last+1).map {it.second()}).joinToString("|")
     }
@@ -183,8 +183,14 @@ internal object SocialStateCodec {
             if(v[2]=="-")emptyMap() else v[2].split(',').associate {e->e.split(':').also {require(it.size==3)}.let {x->x[0].toInt() to ShipOrder(x[1].toInt(),x[2].toLong())}},
             if(v.size==4)v[3].split(',').map {it.toInt()}.toSet() else emptySet())
     }
+    /** Optional sixteenth field (2026-11-02): succession "heir:vacant:emperor:rival:at". */
+    private fun succession(s:SuccessionState)=listOf(s.heir,if(s.vacant)1 else 0,s.emperor,s.rival,s.at).joinToString(":")
+    private fun succession(text:String):SuccessionState {
+        val v=text.split(':');require(v.size==5 && v[1] in setOf("0","1"))
+        return SuccessionState(v[0].toInt(),v[1]=="1",v[2].toInt(),v[3].toInt(),v[4].toLong())
+    }
     fun decode(text:String):SocialState {
-        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..15)
+        require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..16)
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
@@ -197,7 +203,7 @@ internal object SocialStateCodec {
             if(f.size>=8)proposals(f[7]) else ProposalState(),if(f.size>=9)justice(f[8]) else JusticeState(),
             if(f.size>=10)coup(f[9]) else CoupState(),if(f.size>=11)funds(f[10]) else FundState(),
             if(f.size>=12)goals(f[11]) else GoalState(),if(f.size>=13)trade(f[12]) else TradeState(),
-            if(f.size>=14)pirates(f[13]) else PirateState(),if(f.size==15)production(f[14]) else ProductionState())
+            if(f.size>=14)pirates(f[13]) else PirateState(),if(f.size>=15)production(f[14]) else ProductionState(),if(f.size==16)succession(f[15]) else SuccessionState())
             .also {require(encode(it)==text) {"Noncanonical social state"}}
     }
 }
