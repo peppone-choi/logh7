@@ -41,7 +41,7 @@ object PirateActions {
     /** U-32 (user decision 2026-11-02, evidence:guess): a volley every 20 game seconds, beam power 900 per full unit. */
     const val FIRE_SECONDS=20L
     const val UNIT_POWER=900L
-    /** Strategic move: every [SPAWN_DAYS] a fleet shifts to a frontier grid within [MOVE_CELLS], trade-route grids first. */
+    /** Strategic move: every [SPAWN_DAYS] a fleet shifts to an open grid within [MOVE_CELLS], next to trade-route bases first. */
     const val MOVE_CELLS=3
 
     /** Frontier grids: systems with no base held by the empire or the alliance. */
@@ -53,11 +53,15 @@ object PirateActions {
         var p=s.social.pirates
         val due=p.fleets.values.filter {it.alive && it.grid !in engaged && now-it.since>=SPAWN_DAYS*Justice.DAY}
         if(due.isEmpty())return s
-        val frontier=frontier(g,s)
+        // Any passable grid without a base of either side, open space included.
+        val owned=g.bases.filter {s.bases[it.id]?.power in 2..3}.map {it.grid}.toSet()
+        fun open(grid:Int)=grid in 0..4999 && grid !in owned && g.kind(grid)!=GridKind.IMPASSABLE && g.terrain(grid)==GridTerrain.NONE
         val routeGrids=s.social.trade.routes.values.flatMap {r->listOf(r.from,r.to)}.mapNotNull {id->g.bases.singleOrNull {it.id==id}?.grid}.toSet()
         for(f in due.sortedBy {it.id}) {
             val taken=p.fleets.values.filter {it.id!=f.id}.map {it.grid}.toSet()
-            val near=frontier.filter {it!=f.grid && it !in taken && EspionageActions.cells(it,f.grid)<=MOVE_CELLS}
+            val near=(-MOVE_CELLS..MOVE_CELLS).flatMap {dy->(-MOVE_CELLS..MOVE_CELLS).mapNotNull {dx->
+                val x=f.grid%100+dx;val y=f.grid/100+dy
+                if(x !in 0..99 || y !in 0..49 || dx==0 && dy==0)null else y*100+x}}.filter {it !in taken && open(it)}
             val targets=g.bases.filter {it.grid in routeGrids}.map {it.grid}.toSet()
             val choice=near.minByOrNull {grid->(if(targets.any {EspionageActions.cells(it,grid)<=1})0 else 1000)+java.util.Random(now*7+f.id+grid).nextInt(1000)}
             p=p.copy(fleets=p.fleets+(f.id to f.copy(grid=choice ?: f.grid,since=now)))
