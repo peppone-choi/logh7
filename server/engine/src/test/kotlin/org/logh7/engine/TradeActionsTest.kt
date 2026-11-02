@@ -63,4 +63,22 @@ class TradeActionsTest {
         assertEquals(TradeActions.SUBSIDY*12,year.nationalTreasuries[3]);assertEquals(12,year.social.trade.subsidies[2])
         assertEquals(now,year.social.trade.violations[2],"only the first entry counts")
     }
+    @Test fun aViolatedFezzanIsContestedAndOneSidesLandedTroopsOccupyItEndingNeutrality() {
+        val fezzan=galaxy.bases.single {it.id==1210}
+        val ships=stocks().let {it.copy(outfits=it.outfits+(7 to it.outfits.getValue(7).copy(position=OutfitPosition(2300),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(70,UnitStack(76),300))),units=UnitInventory(mapOf(UnitStack(76) to 1)))),nextShipId=71)}
+        assertTrue(GridForces.collect(galaxy,1,emptyList(),ships)[2300].orEmpty().none {it.camp==Camp.FEZZAN},"an untouched Fezzan is no party")
+        val violated=TradeActions.neutrality(galaxy,ships,now)
+        val forces=GridForces.collect(galaxy,1,emptyList(),violated)[2300].orEmpty()
+        assertTrue(forces.any {it.camp==Camp.FEZZAN && it.base});assertTrue(TacticalContact.contested(forces))
+        assertNull(BaseOccupationOperations.victor(violated,fezzan))
+        val landed=violated.copy(outfits=violated.outfits+(7 to violated.outfits.getValue(7).copy(
+            units=UnitInventory(mapOf(UnitStack(76) to 1),mapOf(UnitStack(0) to 1)),
+            activeGround=ActiveGroundUnits(listOf(ActiveGroundUnit(71,UnitStack(0),base=1210))))),nextShipId=72)
+        assertEquals(2,BaseOccupationOperations.victor(landed,fezzan))
+        val occupied=landed.copy(bases=landed.bases+(1210 to landed.bases.getValue(1210).copy(power=2)))
+        assertNull(TradeActions.fezzan(galaxy,occupied),"occupation abandons neutrality")
+        val later=TradeActions.neutrality(galaxy,occupied,now+40*86400)
+        assertEquals(occupied.nationalTreasuries,later.nationalTreasuries,"no more subsidies after the occupation")
+    }
 }

@@ -8,6 +8,9 @@ data class BaseOccupation(val generation:Long,val grid:Int,val base:Int,val prev
 internal object BaseOccupationOperations {
     fun victor(stocks:PlanetStocks,base:GalaxyBase):Int? {
         val owner=stocks.bases.getValue(base.id)
+        // U-07 (CD manual p.39): armed occupation of neutral Fezzan ends its neutrality; it becomes the occupier's planet.
+        if(owner.power==1 && owner.camp==0 && base.name==TradeActions.FEZZAN_NAME)
+            return listOf(2,3).filter {GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}.singleOrNull()
         if(owner.power !in 2..3 || owner.camp!=0)return null
         val enemy=5-owner.power
         return enemy.takeIf {GroundBattleOperations.participants(stocks,base,it).isNotEmpty() &&
