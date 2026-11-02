@@ -53,13 +53,15 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                     UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats,
                     ship.posture?.takeIf {it.grid==viewer.grid},org.logh7.engine.CoupActions.outfitCamp(stocks,fleet))
             }
-        }
+        } + stocks.social.pirates.fleets.values.filter {it.grid==viewer.grid}.flatMap {f->f.units.map {u->
+            Source(u.id,org.logh7.engine.PirateActions.kind(),org.logh7.engine.PirateActions.OUTFIT_BASE+f.id,0,
+                org.logh7.engine.PirateActions.POWER,0,0f,org.logh7.engine.PirateActions.UNIT_BOATS-u.boats)}}
         val indices=mutableMapOf<Pair<Int,Int>,Int>()
         sources.sortedBy {it.id}.map {u->
             // Same grouping as TacticalDeployment.initial: power and camp (U-10 rebels deploy apart).
             val index=indices[u.power to u.camp] ?: 0;indices[u.power to u.camp]=index+1
             val initial=TacticalDeployment.formation(index,if(u.power==2)Power.EMPIRE else Power.ALLIANCE,u.camp==1)
-            val pose=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
+            val pose=(if(u.power==org.logh7.engine.PirateActions.POWER)org.logh7.engine.PirateActions.pose(stocks,u.id) else null) ?: people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
                 ?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks) ?: stocks.outfits[u.outfit]?.activeShips?.values
                 ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks)
             val berth=u.posture?.takeIf {it.mode.requiresBase}?.let {state->

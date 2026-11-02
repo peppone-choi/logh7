@@ -139,8 +139,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
     }
     fun outfits(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks): ByteArray = LoginMessages.sessionMessage(0x032b,
         OutfitMessages.information(ids.distinct().mapNotNull(stocks.outfits::get).map {
-            OutfitMessages.Definition(it.id,it.kind.wire,it.power,0,it.number)
-        }))
+            OutfitMessages.Definition(it.id,it.kind.wire,it.power,org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number)
+        }+ids.distinct().filter {it>org.logh7.engine.PirateActions.OUTFIT_BASE}.mapNotNull {id->
+            // U-32a: a pirate fleet is an outfit of power 4 (海賊).
+            stocks.social.pirates.fleets[id-org.logh7.engine.PirateActions.OUTFIT_BASE]?.let {f->
+                OutfitMessages.Definition(id,0,org.logh7.engine.PirateActions.POWER,0,f.id%256)}}))
     fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks): ByteArray =
         LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
             (query.grid == -1 || outfit.positionIn(galaxy).grid == query.grid) &&
@@ -197,6 +200,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             LoginMessages.sessionMessage(0x1204, WorldMessages.simpleBases(chunk.map(::baseWire)))
         } else emptyList()) + (stocks?.let { state -> state.outfits.values
             .filter { it.positionIn(galaxy).grid == grid }.sortedBy { it.id }.map { it.id }
+            .plus(state.social.pirates.fleets.values.filter { it.grid == grid }.map { org.logh7.engine.PirateActions.OUTFIT_BASE + it.id })
             .chunked(100).ifEmpty { listOf(emptyList()) }.map { outfits(it,state) } }.orEmpty()) +
             // Ownership is public map state. The original 031f cache holds only four
             // records; the compatibility map keeps each decoded base independently.

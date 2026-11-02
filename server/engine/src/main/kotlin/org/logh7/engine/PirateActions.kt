@@ -59,6 +59,10 @@ object PirateActions {
         return if(p==s.social.pirates && bases==s.bases)s else s.copy(bases=bases,social=s.social.copy(pirates=p))
     }
 
+    /** Pirate fleets travel to the client as outfit records of power 4 with these ids. */
+    const val OUTFIT_BASE=800_000
+    /** Pirate units are drawn with the merchant ship model (no 海賊船 specification survives). */
+    fun kind()=spec().kind
     fun ids(s:PlanetStocks)=s.social.pirates.fleets.values.flatMap {f->f.units.filter {it.boats>0}.map {it.id}}
     /** Pirate ships use the merchant ship's specification; their armour counts 1.5 times (approved design). */
     fun spec()=UnitSpecifications.ships.first {it.category==14}
