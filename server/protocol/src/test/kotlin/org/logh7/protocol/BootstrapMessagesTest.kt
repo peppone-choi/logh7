@@ -71,6 +71,14 @@ class BootstrapMessagesTest {
         assertFails { BootstrapMessages.character(character,offices=offices+offices) }
         assertFails { BootstrapMessages.character(character,offices=List(15) { BootstrapMessages.OfficeCard(54,1000+it) }) }
     }
+    @Test fun theStrategyHudMeritFieldCarriesTheCurrentMerit() {
+        val record=BootstrapMessages.character(character.copy(merit=110))
+        // face, merit, 0, HUD merit, then eight ability/experience pairs, influence, 100, 0 and the card list.
+        val abilities=8*4+3
+        val cards=1+6+6+1
+        val hud=ByteBuffer.wrap(record,record.size-cards-abilities-16,16)
+        assertEquals(character.face,hud.int);assertEquals(110,hud.int);assertEquals(0,hud.int);assertEquals(110,hud.int)
+    }
     @Test fun commanderCardKindsPreserveOutfitTargetsAndTheirFaction() {
         for (power in 2..3) for (empire in listOf(39,44,47,50)) {
             val kind=empire + if (power == 3) 136 else 0
