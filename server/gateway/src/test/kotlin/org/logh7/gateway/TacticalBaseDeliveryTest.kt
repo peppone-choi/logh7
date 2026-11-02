@@ -53,6 +53,53 @@ class TacticalBaseDeliveryTest {
             assertTrue((own+peer).flatten().none {opcode(it) in setOf(0x433,0x434)})
         }
     }
+    @Test fun supremeCommanderMissionAlsoReachesTheSubordinateAsATacticalChatLine() {
+        val ally=player.copy(characterId=10002);val allyPerson=person.copy(id=10002)
+        val hub=GamePresence();val own=mutableListOf<List<ByteArray>>();val sub=mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("one",person,player,own::add))
+        hub.update(GamePresence.Member("three",allyPerson,ally,sub::add));own.clear();sub.clear()
+        val payload=ByteBuffer.allocate(23).putLong(0).putInt(10000).put(1).putInt(player.unitId).put(5).put(0).putInt(0).array()
+            .map {it.toInt() and 255}
+        val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(0x421,listOf(player.unitId),kind=5,payload=payload))
+        val missions=listOf(10000,10002).associateWith {TacticalMissionState(it,5,0,0,120,grid=2487)}
+        val state=snapshot(TacticalCommandState(missions=missions)).let {it.copy(navigators=it.navigators+("ally" to ally))}
+        hub.tacticalCommand(TacticalCommandResult(1,order,120,mapOf(10000 to "one",10002 to "three")),state,galaxy,
+            {id->if(id==10002)allyPerson else character(id)})
+        val line=ChatMessages.grid(ChatMessages.Grid(10000,1,"[임무] 철수 임무를 지시합니다."),120)
+        assertTrue(sub.flatten().any {it.contentEquals(line)})
+        assertEquals(10002,ByteBuffer.wrap(sub.flatten().single {opcode(it)==0x421}).getInt(14))
+        assertTrue(own.flatten().none {it.contentEquals(line)})
+    }
+    @Test fun subordinateProposalReachesTheChiefAsATacticalChatLine() {
+        // Equal rank and merit: the lower character id (10000) is the chief, 10002 proposes.
+        val ally=player.copy(characterId=10002);val allyPerson=person.copy(id=10002)
+        val hub=GamePresence();val chief=mutableListOf<List<ByteArray>>();val proposer=mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("one",person,player,chief::add))
+        hub.update(GamePresence.Member("three",allyPerson,ally,proposer::add));chief.clear();proposer.clear()
+        val payload=ByteBuffer.allocate(23).putLong(0).putInt(10002).put(1).putInt(player.unitId).put(5).put(0).putInt(0).array()
+            .map {it.toInt() and 255}
+        val order=TacticalQueuedCommand(10002,2487,100,120,TacticalCommand(0x421,listOf(player.unitId),kind=5,payload=payload))
+        val state=snapshot(TacticalCommandState(proposals=mapOf(10002 to TacticalMissionState(10002,5,0,0,120,grid=2487))))
+            .let {it.copy(navigators=it.navigators+("ally" to ally))}
+        hub.tacticalCommand(TacticalCommandResult(1,order,120,mapOf(10000 to "one",10002 to "three")),state,galaxy,
+            {id->if(id==10002)allyPerson else character(id)})
+        val line=ChatMessages.grid(ChatMessages.Grid(10002,1,"[구신] 철수 임무를 구신합니다."),120)
+        assertTrue(chief.flatten().any {it.contentEquals(line)})
+        assertTrue(proposer.flatten().none {it.contentEquals(line)})
+    }
+    @Test fun finishedMissionIsToldOnlyToItsHolder() {
+        val hub=GamePresence();val own=mutableListOf<List<ByteArray>>();val peer=mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("one",person,player,own::add))
+        hub.update(GamePresence.Member("two",enemy,opposing,peer::add));own.clear();peer.clear()
+        val order=TacticalQueuedCommand(10000,2487,120,120,TacticalCommand(0x421))
+        val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one",10001 to "two"),stateOnly=true,
+            finishedMissions=mapOf(10000 to (5 to 10L)))
+        hub.tacticalCommand(event,snapshot(TacticalCommandState()),galaxy,::character)
+        val line=ChatMessages.grid(ChatMessages.Grid(10000,1,"[임무] 철수 임무 완료(공적 +10)."),120)
+        assertTrue(own.flatten().any {it.contentEquals(line)});assertTrue(peer.flatten().none {it.contentEquals(line)})
+        own.clear();hub.tacticalCommand(event.copy(finishedMissions=mapOf(10000 to (1 to 0L))),snapshot(TacticalCommandState()),galaxy,::character)
+        assertTrue(own.flatten().any {it.contentEquals(ChatMessages.grid(ChatMessages.Grid(10000,1,"[임무] 방위 임무 종료."),120))})
+    }
     @Test fun encouragementUpdatesTheLiveMoraleAndConfusionFlagsAfterCommit() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()

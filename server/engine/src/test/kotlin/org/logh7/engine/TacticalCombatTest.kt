@@ -331,4 +331,33 @@ class TacticalCombatTest {
         assertEquals(victim.unitId,hit.hit.target);assertTrue(hit.hit.shieldDamage>0)
         assertTrue(nav.snapshot(1).getValue("victim").hull!!.levels()[0]<FlagshipHull.capacity(89))
     }
+    @Test fun aFlagshipShootsAPirateUnitAndGridContactIncludesPirates() {
+        val state=state()
+        val point=TacticalPoint(0f,-2f)
+        state.players=state.players.mapValues {(_,p)->p.copy(motion=TacticalMotion(2488,now,TacticalPose(point,0f),0f,0f,listOf(point)))}
+        state.stocks=state.stocks.copy(social=state.stocks.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,2488,now,
+            listOf(PirateUnit(900003,300),PirateUnit(900004,300),PirateUnit(900005,300)))),2,now+86400)))
+        assertTrue(GridForces.collect(galaxy,1,state.players.values,state.stocks).getValue(2488).any {it.camp==Camp.PIRATES})
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        val shot=request.copy(tacticalShoot=request.tacticalShoot!!.copy(target=900004))
+        val accepted=TacticalCombat.accept(shot,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24)
+        assertNotNull(accepted.player,"${accepted.rejection}")
+        val hit=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit).single {it.hit.target==900004}
+        assertEquals(1010000,hit.source)
+        assertTrue(state.stocks.social.pirates.unit(900004)!!.second.boats<300)
+    }
+    @Test fun piratesCounterattackANearbyFlagshipEveryTwentySeconds() {
+        val state=state()
+        val point=TacticalPoint(0f,-8f)
+        state.players=state.players.mapValues {(_,p)->p.copy(hull=FlagshipHull(89,now),
+            motion=TacticalMotion(2488,now,TacticalPose(point,0f),0f,0f,listOf(point)))}
+        state.stocks=state.stocks.copy(social=state.stocks.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,2488,now,
+            listOf(PirateUnit(900003,300)))),2,now+86400)))
+        val players=state.players.toMutableMap();val impacts=mutableListOf<TacticalImpact>()
+        val fired=PirateActions.counter(session,galaxy,players,state.stocks,now+100,impacts)
+        assertEquals(1,impacts.size);assertEquals(1010000,impacts.single().hit.target)
+        assertTrue(players.getValue("pilot").hull!!.levels().sum()<FlagshipHull(89,now).levels().sum())
+        assertEquals(now+100,fired.social.pirates.fleets.getValue(1).firedAt)
+        assertTrue(PirateActions.counter(session,galaxy,players,fired,now+110,mutableListOf()).let {it==fired},"waits 20 seconds")
+    }
 }

@@ -49,7 +49,7 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
     }
     fun forOwner(base: Int, power: Int): List<Line> = ownedLines[power]?.get(base).orEmpty()
 
-    fun advance(stock: PlanetStock, dayStart: PlanetStock): PlanetStock {
+    fun advance(stock: PlanetStock, dayStart: PlanetStock, shipyardOpen: Boolean? = null): PlanetStock {
         val people = checkNotNull(stock.economy)
         val startPeople = checkNotNull(dayStart.economy)
         val base = galaxy.conditions.getValue(stock.baseId)
@@ -58,7 +58,8 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         val available = if (dayStart.food >= maximumStock) dayStart.food.toLong() else minOf(maximumStock.toLong(), dayStart.food + farm)
         val needed = (startPeople.population.toLong() + policyEconomy.foodPeoplePerUnit - 1) / policyEconomy.foodPeoplePerUnit
         if (available < needed || stock.camp != 0 || stock.power !in 2..3 || people.adults == 0) return stock
-        val shipyard = galaxy.facilities.getValue(stock.baseId).any { it.kind == 10 }
+        // U-08: a built or paused shipyard overrides the original facility list.
+        val shipyard = shipyardOpen ?: galaxy.facilities.getValue(stock.baseId).any { it.kind == 10 }
         val ships = stock.units.ships.toMutableMap(); val troops = stock.units.troops.toMutableMap(); val work = stock.units.work.filterKeys { key ->
             ProductionUnits.definitions.singleOrNull { it.key == key }?.let { it.power == stock.power } ?: true
         }.toMutableMap()

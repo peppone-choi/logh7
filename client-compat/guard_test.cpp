@@ -417,6 +417,9 @@ static bool tacticalNoticesTest() {
             logh::tacticalNoticeFallback(117, rows[i].index, missing, rows[i].motion) != missing ||
             logh::tacticalNoticeFallback(118, rows[i].index, nullptr, rows[i].motion)) return false;
     }
+    if (strcmp(logh::tacticalMissionNotice("LOGH7_TACTICAL_MISSION_RETREAT", false), "LOGH7_TACTICAL_MISSION_PROPOSED") ||
+        strcmp(logh::tacticalMissionNotice("LOGH7_TACTICAL_MISSION_RETREAT", true), "LOGH7_TACTICAL_MISSION_RETREAT") ||
+        logh::tacticalMissionNotice(missing, false) != missing) return false;
     if (logh::tacticalNoticeFallback(118, 0, missing) != missing ||
         logh::tacticalNoticeFallback(118, 63, missing) != missing) return false;
     if (strcmp(logh::tacticalNoticeFallback(118, 10, missing, 3), "LOGH7_TACTICAL_TURN") ||

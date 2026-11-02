@@ -11,7 +11,6 @@ static bool selectedCommandFortress(unsigned base) {
     return reinterpret_cast<void*(__cdecl*)(void*,unsigned,BYTE,BYTE,BYTE,BYTE)>(0x4c7cd0)
         (world+0x126718,base,0,255,255,255)!=nullptr;
 }
-static volatile LONG ownSupremeCommander=0;
 static unsigned __stdcall decodedCommandCorps(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x422d80)(record,reader);
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);

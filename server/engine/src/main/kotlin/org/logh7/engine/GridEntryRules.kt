@@ -4,7 +4,11 @@ enum class GridKind { SPACE, STAR_SYSTEM, IMPASSABLE }
 enum class GridTerrain { NONE, PLASMA_STORM, SARGASSO_SPACE }
 
 /** 같은 세력이라도 정규군과 반란군은 별도 진영이다. W p.31. */
-data class Camp(val power: Power, val insurgent: Boolean)
+data class Camp(val power: Power, val insurgent: Boolean, /** U-32a: the pirate camp (wire power 4) is apart from both sides. */ val pirate: Boolean = false) {
+    companion object { val PIRATES = Camp(Power.EMPIRE, false, true)
+        /** U-07: neutral Fezzan once its neutrality was violated (distinct from [PIRATES]). */
+        val FEZZAN = Camp(Power.ALLIANCE, false, true) }
+}
 
 /** units 집계는 호출자 책임이며 기함/탑재 유닛 계산을 추측하지 않는다. */
 data class CampPresence(

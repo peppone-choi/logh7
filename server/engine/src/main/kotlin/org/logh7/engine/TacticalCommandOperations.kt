@@ -462,13 +462,14 @@ internal object TacticalCommandOperations {
         }
         fun advanceMissions() {
             val state=stocks.tacticalCommands;val missions=state.missions.toMutableMap();val merits=state.merits.toMutableMap()
+            val finished=mutableMapOf<Int,Pair<Int,Long>>()
             for((id,m) in state.missions) {
                 if(m.completed || m.mission==0)continue
                 if(session.ended!=null) {missions[id]=m.copy(completed=true);continue}
                 val p=players.values.singleOrNull {it.characterId==id} ?: continue
                 val checks=TacticalMissionRules.completedCheckIntervals(m.checkedAt,now)
                 var reward=0L;var completed=false
-                if(m.mission!=5 && m.grid!=null && p.grid!=m.grid) {missions[id]=m.copy(completed=true);continue}
+                if(m.mission!=5 && m.grid!=null && p.grid!=m.grid) {missions[id]=m.copy(completed=true);finished[id]=m.mission to 0L;continue}
                 val active=TacticalContact.contested(GridForces.collect(g,session.generation,players.values,stocks)[p.grid].orEmpty())
                 when(m.mission) {
                     1 -> if((m.grid==null || p.grid==m.grid) && stocks.bases[m.target]?.let {it.power==wire(p) && it.camp==0}==true && active)reward=checks else completed=true
@@ -489,13 +490,17 @@ internal object TacticalCommandOperations {
                 if(!active && m.mission!=5)completed=true
                 if(reward>0)merits[id]=Math.addExact(merits[id] ?: 0,reward)
                 if(checks>0 || completed)missions[id]=m.copy(checkedAt=m.checkedAt+checks*TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS,completed=completed)
+                if(completed)finished[id]=m.mission to reward
             }
             val before=stocks.strategic.people
             stocks=TacticalPersonnel.credit(stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(missions=missions,merits=merits)))
-            for((id,profile) in stocks.strategic.people)if(profile.merit!=(before[id]?.merit ?: 0)) {
+            val changed=stocks.strategic.people.filter {(id,profile)->profile.merit!=(before[id]?.merit ?: 0)}.keys
+            for(id in (changed+finished.keys).sorted()) {
                 val p=players.values.singleOrNull {it.characterId==id} ?: continue
                 events+=TacticalCommandResult(session.generation,TacticalQueuedCommand(id,p.grid,now,now,
-                    TacticalCommand(0x421)),now,audience(session,p.grid,players),stateOnly=true,merits=mapOf(id to profile.merit))
+                    TacticalCommand(0x421)),now,audience(session,p.grid,players),stateOnly=true,
+                    merits=if(id in changed)mapOf(id to stocks.strategic.people.getValue(id).merit) else emptyMap(),
+                    finishedMissions=finished[id]?.let {mapOf(id to it)} ?: emptyMap())
             }
         }
         fun advanceFortresses() {

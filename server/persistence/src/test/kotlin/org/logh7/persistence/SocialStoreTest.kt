@@ -137,4 +137,19 @@ class SocialStoreTest {
         val encoded=SocialStateCodec.encode(state)
         assertEquals(12,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }
+    @Test fun tradeRoundTripsAsAnOptionalThirteenthField() {
+        val state=SocialState(trade=TradeState(mapOf(10000 to TradeRoute(10000,1049,1050,900,100)),mapOf(3 to 20),mapOf(7 to 50L),mapOf(2 to 60L),mapOf(3 to 70L),mapOf(2 to 80L),mapOf(2 to 3)))
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(13,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+    }
+    @Test fun piratesRoundTripAsAnOptionalFourteenthField() {
+        val state=SocialState(pirates=PirateState(mapOf(1 to PirateFleet(1,2490,7,listOf(PirateUnit(900003,300),PirateUnit(900004,0)))),2,99))
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(14,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+    }
+    @Test fun productionRoundTripsAsAnOptionalFifteenthField() {
+        val state=SocialState(production=ProductionState(mapOf(1049 to 9L),setOf(1050),mapOf(1049 to ShipOrder(3,77)),setOf(1051)))
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(15,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+    }
 }

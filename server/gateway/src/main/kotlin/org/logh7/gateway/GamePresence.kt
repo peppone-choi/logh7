@@ -173,6 +173,8 @@ class GamePresence {
                 send(viewer,frozen+packet)
             }
     }
+    /** 0421 mission kinds in the CD's submenu order (constmsg group 118 notices 14..19). */
+    private val missionNames=listOf("유격","방위","점령","요격","정찰","철수")
     @Synchronized fun tacticalCommand(event:org.logh7.engine.TacticalCommandResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.order.grid &&
@@ -201,9 +203,16 @@ class GamePresence {
                     val payload=it.payload.toMutableList()
                     java.nio.ByteBuffer.allocate(4).putInt(current.characterId).array().forEachIndexed {i,b->payload[8+i]=b.toInt() and 255}
                     packets+=org.logh7.protocol.TacticalCommandMessages.reply(it.copy(character=current.characterId,payload=payload),event.seconds,0)
-                } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief})
+                    // The CD shows no window for that result, so the subordinate also gets a same-side tactical chat line.
+                    missionNames.getOrNull(event.order.command.kind)?.let {name->
+                        packets+=ChatMessages.grid(ChatMessages.Grid(event.order.character,1,"[임무] $name 임무를 지시합니다."),event.seconds)}
+                } else if(!proposed || tactical.corps.any {it.character==current.characterId && it.chief}) {
                     TacticalCommandWire.command(event.order)?.let {
                         packets+=org.logh7.protocol.TacticalCommandMessages.reply(it,event.seconds,0)}
+                    // The CD ignores a 0421 result for another character, so the chief reads a 具申 as chat.
+                    if(proposed && current.characterId!=event.order.character)missionNames.getOrNull(event.order.command.kind)?.let {name->
+                        packets+=ChatMessages.grid(ChatMessages.Grid(event.order.character,1,"[구신] $name 임무를 구신합니다."),event.seconds)}
+                }
             }
             if(!event.cancelled && event.order.command.opcode==0x419) {
                 tactical.bases.singleOrNull {it.id==event.order.command.base}?.let {b->
@@ -240,6 +249,10 @@ class GamePresence {
                     }
                 }
             }
+            // A finished supreme-commander mission is told only to its holder, as a tactical chat line.
+            event.finishedMissions[current.characterId]?.let {(kind,reward)->missionNames.getOrNull(kind)?.let {name->
+                packets+=ChatMessages.grid(ChatMessages.Grid(current.characterId,1,
+                    "[임무] $name 임무 "+(if(reward>0)"완료(공적 +$reward)." else "종료.")),event.seconds)}}
             for((id,merit) in event.merits) {
                 val person=snapshot.navigators.values.singleOrNull {it.characterId==id} ?: continue
                 val character=characterById(id)?.let {WorldCharacters.view(it,snapshot)}?.copy(merit=merit) ?: continue

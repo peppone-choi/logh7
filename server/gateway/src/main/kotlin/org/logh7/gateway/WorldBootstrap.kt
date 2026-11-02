@@ -19,7 +19,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             if(org.logh7.engine.OutfitFormationPolicy.kinds(role.card).isNotEmpty())addAll(listOf(25,26))
             if(role.card in org.logh7.engine.CivicActions.commandingCards)addAll(listOf(52,54,56))
             when(role.card) {
-                8,136->addAll(listOf(16,18))
+                8,136->addAll(listOf(16,17,18))
                 // U-25 (design-arrest-judgment.md): list/grant/arrest and judgment by duty (CM group 6).
                 7,10,137->addAll(listOf(69,70,71,19,68))
                 32,157->addAll(listOf(69,70,71,68,73,74))
@@ -36,6 +36,9 @@ class WorldBootstrap(val galaxy: Galaxy) {
             if(role.card in org.logh7.engine.Justice.searchCards)add(72)
             // 国家目標 on the head of state and the prime minister.
             if(role.card in org.logh7.engine.GoalActions.nationalCards)add(15)
+            if(role.card in org.logh7.engine.TradeActions.diplomacyCards)add(20)
+            // U-08 production on the governor and capital administrator cards.
+            if(role.card in setOf(54,190,192))addAll(org.logh7.engine.ProductionActions.commands.sorted())
             if(role.card==160)add(19)
             if(org.logh7.engine.OrganizationOffices.all.values.any {it.authority==role.card}) {add(5);add(6)}
             add(7)
@@ -45,7 +48,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
     }.plus(((60..66).toList()+(124..130).toList()).associateWith {card ->
         WorldMessages.CardDefinition(card,2,if(card>=124)1 else 0,if(card in setOf(66,130))16 else 0,1,20,0,
             // 封土 cards host 狩猟 and the lord's 統治目標.
-            if(card in setOf(66,130))listOf(11,21) else emptyList())
+            if(card in setOf(66,130))listOf(11,21)+org.logh7.engine.ProductionActions.commands.sorted() else emptyList())
     })
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices=org.logh7.engine.LogisticsOfficePolicy(galaxy)
@@ -138,8 +141,11 @@ class WorldBootstrap(val galaxy: Galaxy) {
     }
     fun outfits(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks): ByteArray = LoginMessages.sessionMessage(0x032b,
         OutfitMessages.information(ids.distinct().mapNotNull(stocks.outfits::get).map {
-            OutfitMessages.Definition(it.id,it.kind.wire,it.power,0,it.number)
-        }))
+            OutfitMessages.Definition(it.id,it.kind.wire,it.power,org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number)
+        }+ids.distinct().filter {it>org.logh7.engine.PirateActions.OUTFIT_BASE}.mapNotNull {id->
+            // U-32a: a pirate fleet is an outfit of power 4 (海賊).
+            stocks.social.pirates.fleets[id-org.logh7.engine.PirateActions.OUTFIT_BASE]?.let {f->
+                OutfitMessages.Definition(id,0,org.logh7.engine.PirateActions.POWER,0,f.id%256)}}))
     fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks): ByteArray =
         LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
             (query.grid == -1 || outfit.positionIn(galaxy).grid == query.grid) &&
@@ -196,6 +202,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
             LoginMessages.sessionMessage(0x1204, WorldMessages.simpleBases(chunk.map(::baseWire)))
         } else emptyList()) + (stocks?.let { state -> state.outfits.values
             .filter { it.positionIn(galaxy).grid == grid }.sortedBy { it.id }.map { it.id }
+            .plus(state.social.pirates.fleets.values.filter { it.grid == grid }.map { org.logh7.engine.PirateActions.OUTFIT_BASE + it.id })
             .chunked(100).ifEmpty { listOf(emptyList()) }.map { outfits(it,state) } }.orEmpty()) +
             // Ownership is public map state. The original 031f cache holds only four
             // records; the compatibility map keeps each decoded base independently.

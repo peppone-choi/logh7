@@ -43,6 +43,9 @@ object GridForces {
             camp(stock?.power ?: initial.power, stock?.camp ?: initial.camp)?.let {
                 add(base.grid, Force(it, base = true))
             }
+            // U-07 (CD p.39, evidence:guess): after a violation, neutral Fezzan is a planet troops may land on and occupy.
+            if (stocks != null && stocks.social.trade.violations.isNotEmpty() && TradeActions.fezzan(galaxy, stocks) == base.id)
+                add(base.grid, Force(Camp.FEZZAN, base = true))
         }
         stocks?.outfits?.values?.forEach { outfit ->
             val ships = ships(outfit)
@@ -53,6 +56,9 @@ object GridForces {
                 add(galaxy.bases.single {it.id==base}.grid,
                     Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))),count.toLong(),nonSolo=true))
             }
+        }
+        stocks?.social?.pirates?.fleets?.values?.filter { it.alive }?.forEach { fleet ->
+            add(fleet.grid, Force(Camp.PIRATES, fleet.units.count { it.boats > 0 }.toLong(), nonSolo = true, ship = true))
         }
         return result.mapValues { it.value.values.toList() }
     }

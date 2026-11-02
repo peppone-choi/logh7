@@ -306,6 +306,7 @@ class TacticalCommandOperationsTest {
         assertEquals(30L,next.strategic.people.getValue(10000).merit)
         assertEquals(30L,next.tacticalCommands.creditedMerits[10000]);assertTrue(next.tacticalCommands.missions.getValue(10000).completed)
         assertTrue(events.single().stateOnly);assertEquals(mapOf(10000 to 30L),events.single().merits)
+        assertEquals(mapOf(10000 to (3 to 30L)),events.single().finishedMissions)
         assertEquals(next,TacticalCommandOperations.finishMissions(session,galaxy,players,next,1,mutableListOf(),impacts))
         val another=impacts.map {it.copy(source=1010001)}.toMutableList()
         assertTrue(TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,mutableListOf(),another)
