@@ -326,6 +326,31 @@ static unsigned __cdecl movingBaseTick(BYTE* object,unsigned elapsed) {
     if(travel>=0.)object[0x60]=0;
     return result;
 }
+// U-31: commander-tab widget 0x1b (jump-table case 21 at 005122f0) has no commander branch in the CD.
+// On tab 4 it sends the orbital ground attack request; the result returns as a tactical chat line.
+static void __cdecl orbitalStrikeClicked() {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(!world || !own || !at<BYTE>(world,0x126718))return;
+    strategyRequestToken=strategyRequestToken%65535+1;
+    BYTE record[36];logh::orbitalStrikeRecord(record,at<unsigned>(own,0x24),static_cast<unsigned short>(strategyRequestToken));
+    reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x46,record);
+}
+static unsigned orbitalStrikeOriginal=0x510efb,orbitalStrikeContinue=0x510ee4;
+static void __declspec(naked) orbitalStrikeCase() {
+    __asm {
+        cmp dword ptr ds:[0x77a8f8],4
+        jne original
+        pushfd
+        pushad
+        call orbitalStrikeClicked
+        popad
+        popfd
+        jmp dword ptr [orbitalStrikeContinue]
+    original:
+        jmp dword ptr [orbitalStrikeOriginal]
+    }
+}
 static bool installFortressCommandMenu() {
     const BYTE rowExpected[5]={0xe8,0xe4,0x56,0xff,0xff};
     if(memcmp(reinterpret_cast<void*>(0x510467),rowExpected,sizeof(rowExpected)))return false;
@@ -360,6 +385,8 @@ static bool installFortressCommandMenu() {
         *reinterpret_cast<LONG*>(jump+1)=static_cast<LONG>(static_cast<const BYTE*>(supportTargets[i])-reinterpret_cast<BYTE*>(supportSites[i])-5);
         if(!patchBytes(reinterpret_cast<void*>(supportSites[i]),supportExpected[i],jump,supportLengths[i]))return false;
     }
+    const unsigned strikeEntry=static_cast<unsigned>(reinterpret_cast<uintptr_t>(&orbitalStrikeCase));
+    if(!patchBytes(reinterpret_cast<void*>(0x5122f0+logh::orbitalStrikeSlot*4),&orbitalStrikeOriginal,&strikeEntry,4))return false;
     unsigned replacement=static_cast<unsigned>(reinterpret_cast<uintptr_t>(&fortressStopState));
     if(!patchBytes(reinterpret_cast<void*>(0x512278),&originalFortressStopState,&replacement,sizeof(replacement)))return false;
     // CD air battle (menu 0x11, 00510ec3) picks enemies with 0x1181, but registers no weapon-range

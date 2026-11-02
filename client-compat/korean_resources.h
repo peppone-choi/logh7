@@ -147,7 +147,15 @@ static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned 
         (table,group,index);
     // Verified CD constmsg instance; other message tables keep their own
     // indices. Identical Japanese words may mean a name or a count unit.
-    return table == reinterpret_cast<void*>(0x2217400) ? logh::koreanResource(group,index,original) : original;
+    if (table != reinterpret_cast<void*>(0x2217400)) return original;
+    // U-31: commander tab slot 21 is the orbital ground attack button (help index = slot + 4).
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    if (group==0 && index==25 && *reinterpret_cast<unsigned*>(0x77a8f8)==4 && world && at<BYTE>(world,0x126718)) {
+        static std::string strike;
+        static const bool ready=logh::encodeKoreanResource(L"[ \ub300\uc9c0 \uacf5\uaca9 ]\n\uc801 \ud589\uc131\uc758 \uc218\ube44\ub300\ub97c \uacf5\uaca9\ud569\ub2c8\ub2e4.\n\uae30\ud568 \ubb3c\uc790 100",strike);
+        if (ready) return strike.c_str();
+    }
+    return logh::koreanResource(group,index,original);
 }
 static wchar_t* __cdecl decodeKoreanResource(const char* text) {
     // Keep the original allocator/lifetime, error handling, and Japanese CRT

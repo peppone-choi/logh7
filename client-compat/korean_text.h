@@ -100,4 +100,21 @@ inline void restoreKoreanGlyphs(wchar_t* text) {
 inline void restoreKoreanGlyphs(std::wstring& text) {
     if (!text.empty()) restoreKoreanGlyphs(&text[0]);
 }
+// The catalogue's own form: ASCII stays, glyph n becomes CP932 EUDC (lead 0xf0+n/188, trail 0x40.., 0x7f skipped),
+// which the CD decodes to U+E000+n and restoreKoreanGlyphs turns back into Hangul. False when a glyph is absent.
+inline bool encodeKoreanResource(const wchar_t* text,std::string& out) {
+    out.clear();
+    if (!text) return false;
+    const wchar_t* glyphs=koreanGlyphs();
+    for (; *text; ++text) {
+        if (*text<128) {out.push_back(static_cast<char>(*text));continue;}
+        size_t n=0;
+        while (n<koreanGlyphCount && glyphs[n]!=*text) ++n;
+        if (n==koreanGlyphCount) return false;
+        unsigned trail=0x40+static_cast<unsigned>(n%188);
+        if (trail>=0x7f) ++trail;
+        out.push_back(static_cast<char>(0xf0+n/188));out.push_back(static_cast<char>(trail));
+    }
+    return true;
+}
 }
