@@ -70,6 +70,19 @@ class TacticalBaseDeliveryTest {
         assertEquals(10002,ByteBuffer.wrap(sub.flatten().single {opcode(it)==0x421}).getInt(14))
         assertTrue(own.flatten().none {it.contentEquals(line)})
     }
+    @Test fun finishedMissionIsToldOnlyToItsHolder() {
+        val hub=GamePresence();val own=mutableListOf<List<ByteArray>>();val peer=mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("one",person,player,own::add))
+        hub.update(GamePresence.Member("two",enemy,opposing,peer::add));own.clear();peer.clear()
+        val order=TacticalQueuedCommand(10000,2487,120,120,TacticalCommand(0x421))
+        val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one",10001 to "two"),stateOnly=true,
+            finishedMissions=mapOf(10000 to (5 to 10L)))
+        hub.tacticalCommand(event,snapshot(TacticalCommandState()),galaxy,::character)
+        val line=ChatMessages.grid(ChatMessages.Grid(10000,1,"[임무] 철수 임무 완료(공적 +10)."),120)
+        assertTrue(own.flatten().any {it.contentEquals(line)});assertTrue(peer.flatten().none {it.contentEquals(line)})
+        own.clear();hub.tacticalCommand(event.copy(finishedMissions=mapOf(10000 to (1 to 0L))),snapshot(TacticalCommandState()),galaxy,::character)
+        assertTrue(own.flatten().any {it.contentEquals(ChatMessages.grid(ChatMessages.Grid(10000,1,"[임무] 방위 임무 종료."),120))})
+    }
     @Test fun encouragementUpdatesTheLiveMoraleAndConfusionFlagsAfterCommit() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()

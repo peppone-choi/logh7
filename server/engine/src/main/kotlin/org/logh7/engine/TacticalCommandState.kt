@@ -69,7 +69,9 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
 data class TacticalCommandResult(val generation:Long,val order:TacticalQueuedCommand,val seconds:Long,
     val recipients:Map<Int,String>,val cancelled:Boolean=false,val motions:Map<Int,TacticalMotion> = emptyMap(),
     val destroyedUnits:List<Int> = emptyList(),val morale:Map<Int,Int> = emptyMap(),
-    val stateOnly:Boolean=false,val merits:Map<Int,Long> = emptyMap())
+    val stateOnly:Boolean=false,val merits:Map<Int,Long> = emptyMap(),
+    /** Missions that ended this tick: character -> (mission kind, merit reward). */
+    val finishedMissions:Map<Int,Pair<Int,Long>> = emptyMap())
 
 /** Tactical reassignment changes per-unit command, never the strategic personnel appointment. */
 object TacticalAuthority {

@@ -245,6 +245,10 @@ class GamePresence {
                     }
                 }
             }
+            // A finished supreme-commander mission is told only to its holder, as a tactical chat line.
+            event.finishedMissions[current.characterId]?.let {(kind,reward)->missionNames.getOrNull(kind)?.let {name->
+                packets+=ChatMessages.grid(ChatMessages.Grid(current.characterId,1,
+                    "[임무] $name 임무 "+(if(reward>0)"완료(공적 +$reward)." else "종료.")),event.seconds)}}
             for((id,merit) in event.merits) {
                 val person=snapshot.navigators.values.singleOrNull {it.characterId==id} ?: continue
                 val character=characterById(id)?.let {WorldCharacters.view(it,snapshot)}?.copy(merit=merit) ?: continue
