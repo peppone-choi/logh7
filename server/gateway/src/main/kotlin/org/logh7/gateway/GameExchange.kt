@@ -2026,8 +2026,7 @@ class GameExchange(
             Role.LOGIN -> {
                 val request = LoginMessages.request(body)
                 val expected = accounts[request.account]
-                val accepted = expected != null && java.security.MessageDigest.isEqual(
-                    expected.toByteArray(Charsets.UTF_8), request.credential.toByteArray(Charsets.UTF_8))
+                val accepted = expected != null && AccountPassword.matches(expected, request.credential)
                 val reply = if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account)) else LoginMessages.failure()
                 state = if (accepted) State.AUTHENTICATED else State.REJECTED
                 handshake.stageAll(listOf(reply))
@@ -2052,6 +2051,7 @@ fun loadTestAccounts(path: Path?): Map<String, String> {
     if (path == null) return emptyMap()
     val properties = Properties().also { Files.newBufferedReader(path).use(it::load) }
     return properties.stringPropertyNames().associateWith { properties.getProperty(it) }.also { accounts ->
-        require(accounts.all { (name, password) -> name.length in 1..30 && !name.startsWith('@') && password.length <= 10 })
+        require(accounts.all { (name, password) -> name.length in 1..30 && !name.startsWith('@') &&
+            (password.length <= 10 || AccountPassword.isHashed(password)) })
     }
 }

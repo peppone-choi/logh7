@@ -16,7 +16,10 @@ class FileAccountsTest {
         assertEquals("dummy", accounts["multi0"])
         accounts.set("pilot.1", "s3cret")
         assertEquals(listOf("multi0", "pilot.1"), accounts.names())
-        assertEquals("s3cret", FileAccounts(file)["pilot.1"], "written to the file, not only memory")
+        val stored = checkNotNull(FileAccounts(file)["pilot.1"]) { "written to the file, not only memory" }
+        assertTrue(AccountPassword.isHashed(stored) && "s3cret" !in Files.readString(file))
+        assertTrue(AccountPassword.matches(stored, "s3cret"));assertFalse(AccountPassword.matches(stored, "s3creT"))
+        assertTrue(AccountPassword.matches("dummy", "dummy"), "plain test entries keep working")
         assertTrue(accounts.remove("multi0"));assertFalse(accounts.remove("multi0"))
         assertNull(accounts["multi0"])
         assertFalse(Files.exists(directory.resolve("accounts.properties.tmp")))

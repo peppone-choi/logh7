@@ -8,7 +8,8 @@ import java.util.Properties
 /**
  * The local account file as a live map (2026-11-03 account management, file storage chosen as the default):
  * a login reads the current file, so accounts added, reset or removed by the operator page apply without a
- * restart. Writes go to a sibling temp file and replace the original atomically. Passwords are never listed.
+ * restart. Writes go to a sibling temp file and replace the original atomically. Passwords are stored hashed
+ * ([AccountPassword]) and never listed.
  * Author: Peppone Choi.
  */
 class FileAccounts(private val path: Path) : AbstractMap<String, String>() {
@@ -36,7 +37,7 @@ class FileAccounts(private val path: Path) : AbstractMap<String, String>() {
 
     @Synchronized fun set(account: String, password: String) {
         require(validName(account) && validPassword(password)) { "invalid account or password" }
-        write(fresh() + (account to password))
+        write(fresh() + (account to AccountPassword.hash(password)))
     }
 
     @Synchronized fun remove(account: String): Boolean {
