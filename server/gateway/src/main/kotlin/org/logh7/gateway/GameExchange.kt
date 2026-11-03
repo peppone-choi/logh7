@@ -1662,7 +1662,10 @@ class GameExchange(
                                             org.logh7.protocol.ChatMessages.grid(org.logh7.protocol.ChatMessages.Grid(character.id.toInt(),1,
                                                 // The CD's latest-line box shows one short line only.
                                                 (if(result.outcome>=1)"[대지] "+KoreanDisplayNames.base(checkNotNull(world).galaxy.bases.single {it.id==result.found}.name).take(6)+
-                                                    " 수비 -${org.logh7.engine.OrbitalStrikeActions.DAMAGE*result.outcome}"+(if(result.report>0)" 격멸${result.report}" else "")
+                                                    " 수비 -${org.logh7.engine.OrbitalStrikeActions.DAMAGE*result.outcome}"+(if(result.report>0)" 격멸${result.report}" else "")+
+                                                    // CD p.46: a fortress also shows its remaining armor (FortressArmor).
+                                                    (result.stocks?.takeIf {checkNotNull(world).galaxy.bases.single {it.id==result.found}.kind==1}?.let {
+                                                        " 장갑 ${org.logh7.engine.FortressArmor.remaining(it,result.found)}"} ?: "")
                                                 else "[대지] "+when(result.rejection) {
                                                     org.logh7.engine.SocialRejection.LOCATION->"전술 중만"
                                                     org.logh7.engine.SocialRejection.TARGET->"사정 밖"
