@@ -382,6 +382,11 @@ class TacticalCommandOperationsTest {
         assertEquals(NavigationRejection.BASE,TacticalCommandOperations.accept(request(TacticalCommand(0x41f,base=1000,velocity=.5f,
             points=listOf(TacticalPoint(20f,0f)))),session,fixed,r.navigation,r.production,r.production.snapshot(1)!!,r.state.commit,1).rejection)
     }
+    @Test fun aMobileFortressWithBrokenPropulsionCannotMove() {
+        // CD manual p.46: orbital attack can destroy a mobile fortress's propulsion (FortressArmor).
+        val s=state();s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(brokenPropulsion=setOf(1000)))
+        assertEquals(NavigationRejection.BASE,accept(run(s),TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).rejection)
+    }
     @Test fun baseStopAlsoCancelsTheActualMovingFortressWithoutSnappingToItsSeed() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).player)
         settle(r,now+20)
