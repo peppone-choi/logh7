@@ -3,7 +3,7 @@
 // CD's unsent 0417 CommandAttackTroop / 0418 CommandStopTroop records through the native transport. Author: Peppone Choi.
 #pragma once
 static struct GroundBattleWindow {
-    bool visible,pending; unsigned own,target,base,orderUnit,orderTarget; ULONGLONG acceptAfter,sentAt; const wchar_t* message;
+    bool visible,pending; unsigned own,target,base,orderUnit,orderTarget,commander; ULONGLONG acceptAfter,sentAt; const wchar_t* message;
 } groundWindow={};
 // Thumbnail/Unit it001~013 (64x36): crew 1/2, light 3/4, grenadier 5/6, armored 7/8, 擲弾兵教導 9, 薔薇の騎士 10.
 // Faction pairs follow the art (empire dark/blue, alliance green/tan); the kind mapping is evidence:guess
@@ -14,6 +14,7 @@ static unsigned groundThumbnail(unsigned kind) {
     return kind<_countof(art) ? art[kind] : 0;
 }
 static void* groundArtRoot=nullptr;
+static void* groundControlsRoot=nullptr;
 static constexpr int groundArtBase=120;
 static void createGroundArt() {
     if (groundArtRoot==taxWindow.root) return;
@@ -45,9 +46,21 @@ static bool groundWindowSide(unsigned i,bool friendly) {
     auto own=groundPanel.world ? at<BYTE*>(groundPanel.world,8) : nullptr;
     return own && (groundPanelEmpire(groundPanel.rows[i].kind)==(own[0x28]==2))==friendly;
 }
+static void groundWindowCommander(int step) {
+    unsigned ids[70]={},n=0,selected=0;
+    for(unsigned i=0;i<groundPanel.count;++i)if(groundWindowSide(i,true) && !groundPanel.rows[i].reserve) {
+        const unsigned id=groundPanel.rows[i].commander;bool found=false;
+        for(unsigned j=0;j<n;++j)if(ids[j]==id)found=true;
+        if(!found)ids[n++]=id;
+    }
+    if(!n){groundWindow.commander=0;groundWindow.own=0;return;}
+    for(unsigned i=0;i<n;++i)if(ids[i]==groundWindow.commander)selected=i;
+    groundWindow.commander=ids[(selected+n+step)%n];groundWindow.own=0;
+}
 static void groundWindowCycle(unsigned& id,bool friendly,int step) {
     unsigned list[70],n=0,at=0;
-    for (unsigned i=0;i<groundPanel.count;++i) if (groundWindowSide(i,friendly) && !groundPanel.rows[i].reserve) list[n++]=groundPanel.rows[i].id;
+    for (unsigned i=0;i<groundPanel.count;++i) if (groundWindowSide(i,friendly) && !groundPanel.rows[i].reserve &&
+        (!friendly || groundPanel.rows[i].commander==groundWindow.commander)) list[n++]=groundPanel.rows[i].id;
     if (!n) {id=0;return;}
     for (unsigned i=0;i<n;++i) if (list[i]==id) at=i;
     id=list[(at+n+(id ? step : 0))%n];
@@ -58,6 +71,14 @@ static const GroundPanelRow* groundWindowRow(unsigned id) {
 }
 static void closeGroundWindow() {
     hideGroundArt();
+    if(groundWindow.visible && taxWindow.root) {
+        for(int id : {7,8,16,17})if(auto widget=taxWidget(1,id))
+            reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(taxWindow.root,widget,0);
+        for(int id=96;id<108;++id)if(auto widget=taxWidget(2,id))
+            reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(taxWindow.root,widget,0);
+        int rect[]={234,218,0,550,30};auto widget=taxWidget(1,2);
+        reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(taxWindow.root,widget,rect);
+    }
     if (groundWindow.visible && taxWindow.root) reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(taxWindow.root,0);
     groundWindow.visible=false;
 }
@@ -66,11 +87,29 @@ static bool openGroundWindow(void* gui) {
     taxWindow.manager=gui;
     if (!createTaxWindow()) return false;
     createGroundArt();
+    // Extra controls belong only to the ground view; shared tax/ship screens keep their original layout.
+    if(groundControlsRoot!=taxWindow.root) {
+        groundControlsRoot=taxWindow.root;
+        for(int id : {7,8,16,17}) {
+            if(id<=8)taxControl(id,id==7 ? 234 : 520,296,260,18,L"",false);
+            else taxControl(id,id==16 ? 624 : 704,212,72,32,id==16 ? L"◀ 지휘관" : L"지휘관 ▶",true);
+        }
+    }
+    for(int id : {7,8,16,17})reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(taxWindow.root,taxWidget(1,id),1);
+    for(int id=96;id<108;++id)if(auto widget=taxWidget(2,id))
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(taxWindow.root,widget,1);
+    int commanderRect[]={234,218,0,380,30};
+    reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(taxWindow.root,taxWidget(1,2),commanderRect);
     auto& w=groundWindow;w={};w.visible=true;w.base=groundPanel.activeBase;w.acceptAfter=GetTickCount64()+250;
+    auto self=groundPanel.world ? at<BYTE*>(groundPanel.world,8) : nullptr;
+    w.commander=self ? at<unsigned>(self,0x24) : 0;
+    bool commanding=false;
+    for(unsigned i=0;i<groundPanel.count;++i)if(groundWindowSide(i,true) && groundPanel.rows[i].commander==w.commander && !groundPanel.rows[i].reserve)commanding=true;
+    if(!commanding)groundWindowCommander(0);
     groundWindowCycle(w.own,true,0);groundWindowCycle(w.target,false,0);
     auto first=groundWindowRow(w.own);
     if (first && first->target) w.target=first->target;
-    w.message=L"내 육전대와 공격할 적을 고른 뒤 「공격 지정」을 누르세요.";
+    w.message=L"기존 지휘관을 선택해 담당 병력을 확인하세요.";
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(taxWindow.root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,taxWindow.root);
     return true;
@@ -100,23 +139,36 @@ static bool updateGroundWindow() {
     auto& w=groundWindow;
     if (!w.visible) return false;
     if (!groundWindowAvailable() || groundPanel.activeBase!=w.base || !taxWindow.root || !at<BYTE>(taxWindow.root,4)) {closeGroundWindow();return false;}
-    if (!groundWindowRow(w.own)) groundWindowCycle(w.own,true,0);
+    auto selected=groundWindowRow(w.own);
+    if(!selected || selected->reserve || selected->commander!=w.commander) {
+        groundWindowCycle(w.own,true,0);
+        if(!w.own){groundWindowCommander(0);groundWindowCycle(w.own,true,0);}
+    }
     if (!groundWindowRow(w.target)) groundWindowCycle(w.target,false,0);
     wchar_t name[32]={},text[180];pickerName(w.base,name);
     unsigned friends=0,foes=0,reserve=0;
     for (unsigned i=0;i<groundPanel.count;++i) if (groundPanel.rows[i].reserve) ++reserve; else (groundWindowSide(i,true) ? friends : foes)++;
     taxText(0,L"지상전");
     _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls · 교전 아군 %u · 적군 %u · 예비 %u",name,friends,foes,reserve);taxText(1,text);
-    taxText(2,L"◀▶ 왼쪽: 내 육전대 · 오른쪽: 공격할 적");
+    wchar_t commanderName[32];groundCommanderName(w.commander,commanderName);
+    auto self=at<BYTE*>(groundPanel.world,8);
+    bool commanding=w.commander && self && w.commander==at<unsigned>(self,0x24);
+    _snwprintf_s(text,_countof(text),_TRUNCATE,L"담당: %ls%ls",commanderName,commanding ? L" (본인 지휘)" : L" (관찰)");taxText(2,text);
     auto row=groundWindowRow(w.own),enemy=groundWindowRow(w.target);
     wchar_t kind[32];
     showGroundArt(0,row ? groundThumbnail(row->kind) : 0);showGroundArt(1,enemy ? groundThumbnail(enemy->kind) : 0);
-    if (row) {groundPanelName(row->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u 전력 %u 사기 %u%ls",kind,row->id,row->strength,row->morale,row->target ? L" (지정됨)" : L"");}
+    if (row) {groundPanelName(row->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u",kind,row->id);}
     else wcscpy_s(text,L"내 육전대 없음");
     taxText(3,text);
-    if (enemy) {groundPanelName(enemy->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u 전력 %u 사기 %u",kind,enemy->id,enemy->strength,enemy->morale);}
+    if (enemy) {groundPanelName(enemy->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u",kind,enemy->id);}
     else wcscpy_s(text,L"적 육전대 없음");
     taxText(4,text);
+    for(unsigned side=0;side<2;++side) {
+        auto unit=side ? enemy : row;
+        if(unit)_snwprintf_s(text,_countof(text),_TRUNCATE,L"전력 %u/1000 · 사기 %u%ls",unit->strength,unit->morale,unit->morale<=20 ? L" (혼란)" : L"");
+        else text[0]=0;
+        taxText(side ? 8 : 7,text);
+    }
     if (row && row->target) _snwprintf_s(text,_countof(text),_TRUNCATE,L"현재 공격 대상 #%u",row->target);
     else wcscpy_s(text,L"공격 대상 없음(순서대로 공격)");
     taxText(5,text);
@@ -131,17 +183,19 @@ static bool updateGroundWindow() {
     taxText(6,w.message ? w.message : L"");
     taxText(10,L"◀");taxText(11,L"▶");taxText(12,L"◀");taxText(13,L"▶");
     bool assigned=row && enemy && row->target==enemy->id;
-    taxText(14,assigned ? L"지정 해제" : L"공격 지정");taxText(15,L"닫기");
+    taxText(14,!commanding ? L"담당 지휘관만 명령" : assigned ? L"지정 해제" : L"공격 지정");taxText(15,L"닫기");
     for (int i=10;i<=13;++i) taxEnabled(i,!w.pending);
-    taxEnabled(14,!w.pending && row && enemy);
+    taxEnabled(14,!w.pending && commanding && row && enemy);
+    taxEnabled(16,!w.pending);taxEnabled(17,!w.pending);
     if (GetTickCount64()<w.acceptAfter) return true;
     BYTE event[52]={};
-    for (int i=10;i<=15;++i) if (reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(taxWindow.root,2,taxWidget(1,i),event,0)) {
+    for (int i=10;i<=17;++i) if (reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(taxWindow.root,2,taxWidget(1,i),event,0)) {
         w.acceptAfter=GetTickCount64()+200;
         if (i==15) closeGroundWindow();
+        else if(i>=16){groundWindowCommander(i==16 ? -1 : 1);groundWindowCycle(w.own,true,0);}
         else if (i<=11) groundWindowCycle(w.own,true,i==10 ? -1 : 1);
         else if (i<=13) groundWindowCycle(w.target,false,i==12 ? -1 : 1);
-        else if (row && enemy && !w.pending) sendGroundOrder(row->id,assigned ? 0 : enemy->id);
+        else if (row && enemy && commanding && !w.pending) sendGroundOrder(row->id,assigned ? 0 : enemy->id);
         break;
     }
     return true;

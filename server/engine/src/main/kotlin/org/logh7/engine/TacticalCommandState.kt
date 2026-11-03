@@ -84,3 +84,17 @@ data class TacticalCommandResult(val generation:Long,val order:TacticalQueuedCom
 object TacticalAuthority {
     fun commander(outfit:OutfitStock,unit:ActiveShipUnit,stocks:PlanetStocks)=stocks.tacticalCommands.authority[unit.id] ?: outfit.commanderId
 }
+
+/** Existing outfit command takes precedence; unassigned local ground defenders follow their garrison office.
+ * No appointment or delegation is made by choosing a commander in the ground window. Author: 최병호. */
+object GroundCommandAuthority {
+    fun commander(outfit:OutfitStock,unit:ActiveGroundUnit,stocks:PlanetStocks,galaxy:Galaxy):Int {
+        if(outfit.commanderId>0)return outfit.commanderId
+        if(outfit.kind!=OutfitKind.GROUND || unit.base==0 || unit.origin!=0 || outfit.baseId!=unit.base ||
+            outfit.positionIn(galaxy)!=OutfitPosition(galaxy.bases.single {it.id==unit.base}.grid,unit.base))return 0
+        val owner=stocks.bases[unit.base] ?: return 0
+        if(owner.power!=outfit.power || owner.camp!=0)return 0
+        return BaseOfficePolicy(galaxy).holders(owner).entries.singleOrNull {
+            it.key in setOf(52,55,56,188,191,193)}?.value ?: 0
+    }
+}

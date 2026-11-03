@@ -950,7 +950,7 @@ class GameExchange(
                         pendingWorld = stocks().thenApply { stored ->
                             if(party?.mode==2)world.outfitGround(party,character.power,checkNotNull(stored))
                             else if(party?.mode==3)world.outfitBattle(party,character.power,checkNotNull(stored),
-                                navigation?.snapshot()?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid)
+                                navigation?.snapshot()?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid,::currentCharacterById)
                             else listOf(if(party!=null)world.outfitParty(party,character.power,checkNotNull(stored),character.id.toInt(),::currentCharacterById)
                                 else world.outfitUnit(checkNotNull(unit).id,character.power,checkNotNull(stored),unit.base))
                         }

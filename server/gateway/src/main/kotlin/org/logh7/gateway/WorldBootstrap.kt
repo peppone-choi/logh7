@@ -130,7 +130,8 @@ class WorldBootstrap(val galaxy: Galaxy) {
     /** Reconstructed ground battle window (design-ground-battle-window.md), query mode 3: both sides' landed troops on
      * one base as 0331 rows. Kind 1000+k already names the faction; damaged carries strength (0..1000) and supplies the
      * troop's ordered target. Only a viewer in tactics on that grid may read it. */
-    fun outfitBattle(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?):List<ByteArray> {
+    fun outfitBattle(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?,
+        characterById:(Int)->org.logh7.protocol.CharacterMessages.Generate? = {null}):List<ByteArray> {
         require(query.mode==3 && query.outfit==0)
         val base=galaxy.bases.singleOrNull {it.id==query.base}
         val fighting=base?.let {org.logh7.engine.GroundBattleView.fighting(stocks,it)}.orEmpty()
@@ -142,9 +143,13 @@ class WorldBootstrap(val galaxy: Galaxy) {
                     // destroyed=1 marks a reserve beyond the side's 30 fighting units (window display only).
                     supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
                     morale=stocks.tacticalCommands.morale[u.id] ?: 100,
+                    commander=if(o.power==power)org.logh7.engine.GroundCommandAuthority.commander(o,u,stocks,galaxy) else 0,
                     mode=if(u.origin>0)9 else 4)}
         }.sortedBy {it.id}.take(70)
-        return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0)),
+        val commanders=rows.map {it.commander}.filter {it>0}.distinct().sorted().take(10).mapNotNull {id->
+            characterById(id)?.takeIf {it.id==id.toLong() && it.power==power}?.let {
+                OutfitPartyMessages.Member(id,0,it.rank,it.surname)}}
+        return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0,commanders)),
             LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
     }
     fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {

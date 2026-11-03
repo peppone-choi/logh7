@@ -28,6 +28,7 @@
 #include "character_info_data.h"
 #include "outfit_info_data.h"
 #include "ground_info_data.h"
+#include "ground_panel_layout.h"
 #include "planet_unit_data.h"
 #include "appointment_ui_data.h"
 #include "planet_tax_data.h"
@@ -616,6 +617,10 @@ static bool runtimeKoreanGlyphTest() {
     return !logh::koreanGlyphIndex(0x3042,none) && !logh::koreanGlyphIndex(0xae41,none,false);
 }
 static int runGuard(int argc, wchar_t** argv) {
+    if(logh::groundMeter(0,1000,70)!=0 || logh::groundMeter(500,1000,70)!=35 ||
+        logh::groundMeter(1000,1000,70)!=70 || logh::groundMeter(1001,1000,70)!=70 ||
+        logh::groundMeter(~0u,1000,70)!=70 || logh::groundMeter(500,0,70)!=0 ||
+        logh::groundPanelTop+logh::groundPanelHeight>600) return 270;
     if(!runtimeKoreanGlyphTest())return 95;
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;

@@ -120,7 +120,8 @@ static void __fastcall drawBaseStatusRadar(void* manager,void*,int x,int y) {
     drawSignedRadar(manager,nullptr,x,y);drawTacticalBaseStatus();
     updateGroundPanel();
     auto display=*reinterpret_cast<BYTE**>(0x7c1b4c);
-    if (display && at<void*>(display,0x2a418)) drawGroundPanel(display);
+    if (display && at<void*>(display,0x2a418) && radarDigits.count)
+        drawGroundPanel(display,radarDigits.rows[0].texture,radarDigits.rows[0].depth);
 }
 static bool installTacticalBaseUi() {
     const unsigned sites[]={0x4b9167,0x4bb9c4,0x4bc2fa,0x4bc3f2,0x50d1d2,0x4bba45};
