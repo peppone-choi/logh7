@@ -133,12 +133,15 @@ class WorldBootstrap(val galaxy: Galaxy) {
     fun outfitBattle(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?):List<ByteArray> {
         require(query.mode==3 && query.outfit==0)
         val base=galaxy.bases.singleOrNull {it.id==query.base}
+        val fighting=base?.let {org.logh7.engine.GroundBattleView.fighting(stocks,it)}.orEmpty()
         val rows=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.power in 2..3}.flatMap {o->
             // Only troops that may fight here (p.51: no 装甲兵 on special planets/fortresses).
             o.activeGround?.values.orEmpty().filter {it.base==base.id && org.logh7.engine.GroundBattleRules.admitsCrewType(base,
                 UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}.map {u->
                 OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
-                    supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,mode=if(u.origin>0)9 else 4)}
+                    // destroyed=1 marks a reserve beyond the side's 30 fighting units (window display only).
+                    supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
+                    mode=if(u.origin>0)9 else 4)}
         }.sortedBy {it.id}.take(70)
         return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0)),
             LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))

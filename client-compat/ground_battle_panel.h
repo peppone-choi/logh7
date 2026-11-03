@@ -6,7 +6,7 @@
 #include "planet_info_data.h"
 static void pickerName(unsigned id, wchar_t (&name)[32]);
 static SRWLOCK groundPanelLock=SRWLOCK_INIT;
-struct GroundPanelRow {unsigned id,kind,strength,target;};
+struct GroundPanelRow {unsigned id,kind,strength,target;bool reserve;};
 static struct GroundPanel {
     BYTE* world; unsigned grid,base,count,cursor,activeBase;
     GroundPanelRow rows[70];
@@ -35,7 +35,7 @@ static bool groundPanelRoster(const BYTE* record,unsigned result) {
         for (unsigned i=0;i<n && i<70;++i) {
             auto row=record+4+i*88;unsigned kind=logh::infoShort(row,4);
             if (kind<1000 || kind>1015 || logh::infoWord(row,64)!=q.base) continue;
-            q.rows[q.count++]={logh::infoWord(row,0),kind-1000,logh::infoShort(row,70),logh::infoWord(row,76)};
+            q.rows[q.count++]={logh::infoWord(row,0),kind-1000,logh::infoShort(row,70),logh::infoWord(row,76),logh::infoShort(row,72)==1};
         }
         q.ready=q.base;
     }
@@ -102,19 +102,21 @@ static void drawGroundPanel(BYTE* display) {
     reinterpret_cast<void(__thiscall*)(void*,float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48),1.0f);
     wchar_t base[32]={},line[128];pickerName(s.activeBase,base);
     if (!base[0]) _snwprintf_s(base,_countof(base),_TRUNCATE,L"거점 %u",s.activeBase);
-    unsigned friends=0,foes=0,friendPower=0,foePower=0;
+    unsigned friends=0,foes=0,friendPower=0,foePower=0,friendReserve=0,foeReserve=0;
     for (unsigned i=0;i<s.count;++i) {
         bool mine=groundPanelEmpire(s.rows[i].kind)==ownEmpire;
+        if (s.rows[i].reserve) {(mine ? friendReserve : foeReserve)++;continue;}
         (mine ? friends : foes)++;(mine ? friendPower : foePower)+=s.rows[i].strength;
     }
     int y=260;
-    _snwprintf_s(line,_countof(line),_TRUNCATE,L"[지상전] %ls  아군 %u (전력 %u) · 적군 %u (전력 %u)",base,friends,friendPower,foes,foePower);
+    _snwprintf_s(line,_countof(line),_TRUNCATE,L"[지상전] %ls  아군 %u (전력 %u, 예비 %u) · 적군 %u (전력 %u, 예비 %u)",
+        base,friends,friendPower,friendReserve,foes,foePower,foeReserve);
     draw(at<void*>(display,0x2a418),reinterpret_cast<void*>(0xbffa48),line,16,y,0xffffe080,6);
     for (unsigned side=0;side<2;++side) {
         unsigned shown=0;y+=4;
         for (unsigned i=0;i<s.count && shown<8;++i) {
             auto& r=s.rows[i];
-            if ((groundPanelEmpire(r.kind)==ownEmpire)!=(side==0)) continue;
+            if ((groundPanelEmpire(r.kind)==ownEmpire)!=(side==0) || r.reserve) continue;
             wchar_t name[32],bar[11];groundPanelName(r.kind,name);
             unsigned filled=(r.strength*10+999)/1000;
             for (unsigned b=0;b<10;++b) bar[b]=b<filled ? L'■' : L'□';bar[10]=0;

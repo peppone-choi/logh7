@@ -47,7 +47,7 @@ static bool groundWindowSide(unsigned i,bool friendly) {
 }
 static void groundWindowCycle(unsigned& id,bool friendly,int step) {
     unsigned list[70],n=0,at=0;
-    for (unsigned i=0;i<groundPanel.count;++i) if (groundWindowSide(i,friendly)) list[n++]=groundPanel.rows[i].id;
+    for (unsigned i=0;i<groundPanel.count;++i) if (groundWindowSide(i,friendly) && !groundPanel.rows[i].reserve) list[n++]=groundPanel.rows[i].id;
     if (!n) {id=0;return;}
     for (unsigned i=0;i<n;++i) if (list[i]==id) at=i;
     id=list[(at+n+(id ? step : 0))%n];
@@ -103,9 +103,10 @@ static bool updateGroundWindow() {
     if (!groundWindowRow(w.own)) groundWindowCycle(w.own,true,0);
     if (!groundWindowRow(w.target)) groundWindowCycle(w.target,false,0);
     wchar_t name[32]={},text[180];pickerName(w.base,name);
-    unsigned friends=0,foes=0;for (unsigned i=0;i<groundPanel.count;++i) (groundWindowSide(i,true) ? friends : foes)++;
+    unsigned friends=0,foes=0,reserve=0;
+    for (unsigned i=0;i<groundPanel.count;++i) if (groundPanel.rows[i].reserve) ++reserve; else (groundWindowSide(i,true) ? friends : foes)++;
     taxText(0,L"지상전");
-    _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls · 아군 %u유닛 · 적군 %u유닛",name,friends,foes);taxText(1,text);
+    _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls · 교전 아군 %u · 적군 %u · 예비 %u",name,friends,foes,reserve);taxText(1,text);
     taxText(2,L"◀▶ 왼쪽: 내 육전대 · 오른쪽: 공격할 적");
     auto row=groundWindowRow(w.own),enemy=groundWindowRow(w.target);
     wchar_t kind[32];

@@ -5,6 +5,11 @@ package org.logh7.engine
 data class GroundBattleResult(val generation:Long,val grid:Int,val base:Int,val seconds:Long,
     val damaged:List<Int>,val destroyed:List<Int>,val recipients:Map<Int,String>)
 
+/** Public read of who actually fights on a base (manual p.51: 30 units per side; the rest wait in reserve). */
+object GroundBattleView {
+    fun fighting(stocks:PlanetStocks,base:GalaxyBase):Set<Int> =
+        (2..3).flatMap {GroundBattleOperations.participants(stocks,base,it)}.map {it.id}.toSet()
+}
 internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
     fun participants(stocks:PlanetStocks,base:GalaxyBase,power:Int):List<ActiveGroundUnit> =
