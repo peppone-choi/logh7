@@ -708,3 +708,5 @@ W p.32의 장거리 워프 오차를 연결했다. 목표가 공간 그리드이
 이후 두 원본과 QA 서버를 정상 종료하고 같은 저장 월드를 다시 열었다(`run-256`, 재시드 없음). 두 원본을 새로 로그인시켜 베라의 녹색 이름·동맹 표식을 다시 확인했다. 원본 네 실행 모두 성공·프로세스 종료·Job 잔존 0·원본 해시 보존을 확인했고 QA 서버 두 실행도 정상 종료했다. 일반 runtime-236은 이번 시험으로 교체하지 않았다.
 
 산출물은 `E:/logh7/work/native-multiplayer-20261028/occupation209-affiliation255-before0.png`, `occupation209-affiliation255-mixed0.png`, `occupation209-affiliation255-mixed1.png`, `occupation209-affiliation255-alliance0.png`, `occupation209-affiliation255-alliance1.png`, `occupation209-affiliation256-restored0.png`, `occupation209-affiliation256-restored1.png`, `fleet256-restored-owners.txt`다. 따라서 위 run-254 당시 미확인이던 혼재·실제 점령 직후 변경·서버와 클라이언트 재시작 복원은 이 범위에서 확인했다. 반군/중립의 실제 지도, 점령 후 모든 시설·직위·창고 조작, 모든 전투 종료 경로의 전략 복귀를 완료했다는 뜻은 아니다.
+
+2026-11-03 페잔 무력 점령(`work/esp-20261101` run-156)에서 페잔 행성(1210)만 제국 소유가 되자 성계 이름이 혼재 보라색·아이콘 없음으로 표시됐다. 사용자는 페잔이라도 성계 전체 거점이 같은 세력일 때만 단일 진영 색·아이콘을 쓰는 지금 규칙을 유지하기로 결정했다(남은 페잔 소유 행성은 따로 점령해야 한다).

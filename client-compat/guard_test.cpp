@@ -788,6 +788,10 @@ static int runGuard(int argc, wchar_t** argv) {
         strcmp(logh::koreanResource(85,0,"modified catalogue"),"modified catalogue") ||
         logh::koreanResource(999,0,battleship)!=battleship ||
         logh::koreanResource(85,0,nullptr)!=nullptr) return 82;
+    wchar_t catalogue[16];logh::catalogueText(translated,catalogue);
+    if (wcscmp(catalogue,L"전함")) return 82;
+    logh::catalogueText(nullptr,catalogue);
+    if (catalogue[0]) return 82;
     const char* error="\x83\x47\x83\x89\x81\x5b";
     if (!logh::japaneseFragment(logh::koreanResource(65535,0x78,0x6ab4,error),korean) || korean!=L"오류" ||
         logh::koreanStaticResource(error)!=error ||

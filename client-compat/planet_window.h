@@ -245,7 +245,7 @@ static void planetPlaceName(unsigned kind, bool spot, wchar_t (&name)[64]) {
     if (kind<(spot?105u:39u)) {
         auto original=reinterpret_cast<const char*(__thiscall*)(void*,int,int)>(0x522010)
             (reinterpret_cast<void*>(0x2217400),spot?74:73,kind);
-        if (original) MultiByteToWideChar(932,0,original,-1,name,_countof(name));
+        logh::catalogueText(original,name);
     }
     if (!name[0]) wcscpy_s(name,L"이름 미확인");
 }
@@ -482,7 +482,7 @@ static void renderPlanetWindow() {
         if (kind < (ship ? 179u : 11u)) {
             auto original = reinterpret_cast<const char*(__thiscall*)(void*, int, int)>(0x522010)
                 (reinterpret_cast<void*>(0x2217400), ship ? 85 : 86, kind);
-            if (original) MultiByteToWideChar(932, 0, original, -1, label, _countof(label));
+            logh::catalogueText(original,label);
         }
         if (!label[0]) _snwprintf_s(label, _countof(label), _TRUNCATE, L"미등록 품목 %u", kind);
         planetCell(40 + row * 4, label);

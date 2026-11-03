@@ -20,4 +20,11 @@ inline bool japaneseFragment(const char* fragment, std::wstring& decoded) {
     decoded.swap(converted);
     return true;
 }
+// Catalogue lookups through the hooked 00522010 return Korean in private CP932
+// glyphs; decode them with restoration instead of a plain CP932 conversion.
+template <size_t N> inline void catalogueText(const char* original, wchar_t (&out)[N]) {
+    out[0] = 0;
+    std::wstring decoded;
+    if (japaneseFragment(original, decoded)) wcsncpy_s(out, decoded.c_str(), _TRUNCATE);
+}
 }
