@@ -7,8 +7,9 @@ class TacticalGroundOperationsTest {
     private val rules=SessionRules.load()
     private val session=SessionSimulation(rules).also {it.join("pilot",Power.EMPIRE,false,"current")}.exportState()
     private val now=session.gameMillis/1000
-    private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2)),
-        listOf(GalaxyBase(1000,2487,80,0,"Here",0,0f,86400,0,0f,2f),GalaxyBase(1001,2487,80,0,"Enemy",0,0f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+    private fun galaxy(model:Int)=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2)),
+        listOf(GalaxyBase(1000,2487,model,0,"Here",0,0f,86400,0,0f,2f),GalaxyBase(1001,2487,80,0,"Enemy",0,0f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+    private var galaxy=galaxy(80)
     private fun motion()=TacticalMotion(2487,now,TacticalPose(TacticalPoint(0f,0f),0f),0f,0f,listOf(TacticalPoint(0f,0f)))
     private class State(var players:Map<String,Navigator>,var stocks:PlanetStocks) {
         var fail=false;var saves=0
@@ -16,10 +17,10 @@ class TacticalGroundOperationsTest {
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(stocks:PlanetStocks){this@State.stocks=stocks}}
         val commit=WorldStateCommitter {p,s->if(fail)throw java.io.IOException("disk");saves++;players=p.toMap();stocks=checkNotNull(s)}
     }
-    private fun state(defenders:Int=0):State {
+    private fun state(defenders:Int=0,kind:Int=0):State {
         val ships=ActiveShipUnits(listOf(1,4).map {ActiveShipUnit(it,UnitStack(32),
             tactical=NpcTacticalState(motion(),now,now),posture=TacticalPosture(2487,TacticalShipMode.ANCHORED,1000))})
-        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=1),ActiveGroundUnit(3,UnitStack(1),carrier=1),
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(kind),carrier=1),ActiveGroundUnit(3,UnitStack(1),carrier=1),
             ActiveGroundUnit(5,UnitStack(0),carrier=4))+(0 until defenders).map {ActiveGroundUnit(100+it,UnitStack(0),base=1000)})
         val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,10000,UnitInventory(ships.quantities(),troops.quantities()),
             activeShips=ships,activeGround=troops,position=OutfitPosition(2487))
@@ -58,6 +59,13 @@ class TacticalGroundOperationsTest {
         assertNotNull(accept(s,n,p).player)
         assertEquals(NavigationRejection.GRID,accept(s,n,p,request(ids=listOf(4))).rejection)
         assertNull(s.stocks.outfits.getValue(1).activeGround!!.values.single {it.id==5}.order)
+    }
+    @Test fun armoredInfantryIsRefusedOnlyAtSpecialPlanetsWithItsOwnReason() {
+        galaxy=galaxy(30)
+        val s=state(kind=2);val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s);val before=s.stocks
+        assertEquals(NavigationRejection.CREW,accept(s,n,p).rejection);assertEquals(before,s.stocks)
+        galaxy=galaxy(80)
+        val h=state(kind=2);assertNotNull(accept(h,Navigation(galaxy,h.nav,NavigationPolicy()),production(h)).player)
     }
     @Test fun forgedIdentityConnectionAndNonzeroSkillCannotStartLanding() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s);val before=s.stocks

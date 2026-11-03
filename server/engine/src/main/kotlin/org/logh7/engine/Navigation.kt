@@ -109,7 +109,9 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
             tacticalMove == null && tacticalStop == null && shipKind != null))) }
 }
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
-    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR, WEAPON, TARGET, SUPPLY, WOUNDED }
+    BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR, WEAPON, TARGET, SUPPLY, WOUNDED,
+    /** A crew type the landing site bars (p.51: 装甲兵 on special planets/fortresses). Appended to keep wire ordinals. */
+    CREW }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false, val supportReadyAt: Long? = null,
     /** A reserved warp reached its execution time; [warpRejected] keeps the fleet at its origin. */
