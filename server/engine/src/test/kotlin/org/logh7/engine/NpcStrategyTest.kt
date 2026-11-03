@@ -39,6 +39,20 @@ class NpcStrategyTest {
         assertEquals(fleet.position,waiting.outfits.getValue(1).position);assertEquals(fleet.supplies,waiting.outfits.getValue(1).supplies)
         assertNull(waiting.outfits.getValue(1).strategy!!.destination);assertEquals(1,events.size)
     }
+    @Test fun outmatchedFleetHoldsAtItsDepotAndWithdrawsFromAStrongerEnemyGrid() {
+        // One ship against three enemy flagships (more than twice): no advance from the depot.
+        val players=players()
+        for(i in 1..2)players["enemy$i"]=Navigator(1,10000+i,Power.ALLIANCE,2488,1000,1000,1000,hull=FlagshipHull(89,0))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val held=advance(0,stocks(),players,events)
+        assertEquals(NpcStrategicState(21600),held.outfits.getValue(1).strategy)
+        // Caught out on the enemy grid, it reserves the jump back towards its own depot.
+        val out=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2488))})}
+        assertEquals(NpcStrategicState(21600,2487,3600),advance(0,out,players,events).outfits.getValue(1).strategy)
+        // An even fight on that grid is accepted: it stays to fight rather than withdrawing.
+        assertEquals(NpcStrategicState(21600),advance(0,out,players(),events).outfits.getValue(1).strategy)
+        assertTrue(events.isEmpty())
+    }
     @Test fun appointedCommanderOrCapturedDepotCancelsWithoutChargingOrMoving() {
         for(appointed in listOf(true,false)) {
             val players=players();val events=mutableListOf<NpcStrategicMovement>()
