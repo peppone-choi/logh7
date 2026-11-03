@@ -141,6 +141,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
                 OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
                     // destroyed=1 marks a reserve beyond the side's 30 fighting units (window display only).
                     supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
+                    morale=stocks.tacticalCommands.morale[u.id] ?: 100,
                     mode=if(u.origin>0)9 else 4)}
         }.sortedBy {it.id}.take(70)
         return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0)),

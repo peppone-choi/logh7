@@ -335,6 +335,14 @@ class TacticalCommandOperationsTest {
         assertEquals(35,events.single().morale[1])
         assertEquals(90,s.players.getValue("pilot").pcp)
     }
+    @Test fun garrisonEncouragementAlsoLiftsItsLandedGroundTroops() {
+        val s=state();val o=s.stocks.outfits.getValue(1)
+        val ground=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(1),base=1000,origin=1)))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to o.copy(activeGround=ground,units=UnitInventory(o.units.ships,ground.quantities()))),
+            tacticalCommands=TacticalCommandState(morale=mapOf(3 to 50)))
+        val r=run(s);assertNotNull(accept(r,TacticalCommand(0x41d,base=1000)).player);settle(r,now+5)
+        assertEquals(70,s.stocks.tacticalCommands.morale[3])
+    }
     @Test fun regularRetreatMovesOnlySelectedStableIdsAndLeavesLandedTroopsBehind() {
         val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
         val o=s.stocks.outfits.getValue(1)

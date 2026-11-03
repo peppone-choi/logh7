@@ -6,7 +6,7 @@
 #include "planet_info_data.h"
 static void pickerName(unsigned id, wchar_t (&name)[32]);
 static SRWLOCK groundPanelLock=SRWLOCK_INIT;
-struct GroundPanelRow {unsigned id,kind,strength,target;bool reserve;};
+struct GroundPanelRow {unsigned id,kind,strength,target,morale;bool reserve;};
 static struct GroundPanel {
     BYTE* world; unsigned grid,base,count,cursor,activeBase;
     GroundPanelRow rows[70];
@@ -25,7 +25,7 @@ static bool groundPanelMarked(const BYTE* party) {
     ReleaseSRWLockExclusive(&groundPanelLock);
     return true;
 }
-// 0331 decoder side: native 88-byte rows, base +64, strength in damaged +70, ordered target in supplies +76.
+// 0331 decoder side: native 88-byte rows, base +64, morale +68, strength in damaged +70, ordered target in supplies +76.
 static bool groundPanelRoster(const BYTE* record,unsigned result) {
     AcquireSRWLockExclusive(&groundPanelLock);
     auto& q=groundPanelInbox;bool mine=q.pending && q.marked;
@@ -35,7 +35,7 @@ static bool groundPanelRoster(const BYTE* record,unsigned result) {
         for (unsigned i=0;i<n && i<70;++i) {
             auto row=record+4+i*88;unsigned kind=logh::infoShort(row,4);
             if (kind<1000 || kind>1015 || logh::infoWord(row,64)!=q.base) continue;
-            q.rows[q.count++]={logh::infoWord(row,0),kind-1000,logh::infoShort(row,70),logh::infoWord(row,76),logh::infoShort(row,72)==1};
+            q.rows[q.count++]={logh::infoWord(row,0),kind-1000,logh::infoShort(row,70),logh::infoWord(row,76),row[68],logh::infoShort(row,72)==1};
         }
         q.ready=q.base;
     }
@@ -120,8 +120,10 @@ static void drawGroundPanel(BYTE* display) {
             wchar_t name[32],bar[11];groundPanelName(r.kind,name);
             unsigned filled=(r.strength*10+999)/1000;
             for (unsigned b=0;b<10;++b) bar[b]=b<filled ? L'■' : L'□';bar[10]=0;
-            if (r.target) _snwprintf_s(line,_countof(line),_TRUNCATE,L"%ls #%u %ls %4u → #%u",name,r.id,bar,r.strength,r.target);
-            else _snwprintf_s(line,_countof(line),_TRUNCATE,L"%ls #%u %ls %4u",name,r.id,bar,r.strength);
+            // Morale 20 or below is the confused band (CD p.48).
+            const wchar_t* mood=r.morale<=20 ? L" 혼란" : L"";
+            if (r.target) _snwprintf_s(line,_countof(line),_TRUNCATE,L"%ls #%u %ls %4u 사기 %u%ls → #%u",name,r.id,bar,r.strength,r.morale,mood,r.target);
+            else _snwprintf_s(line,_countof(line),_TRUNCATE,L"%ls #%u %ls %4u 사기 %u%ls",name,r.id,bar,r.strength,r.morale,mood);
             y+=16;draw(at<void*>(display,0x2a418),reinterpret_cast<void*>(0xbffa48),line,24,y,side==0 ? 0xff80c0ff : 0xffff8080,6);
             ++shown;
         }

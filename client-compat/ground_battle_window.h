@@ -111,10 +111,10 @@ static bool updateGroundWindow() {
     auto row=groundWindowRow(w.own),enemy=groundWindowRow(w.target);
     wchar_t kind[32];
     showGroundArt(0,row ? groundThumbnail(row->kind) : 0);showGroundArt(1,enemy ? groundThumbnail(enemy->kind) : 0);
-    if (row) {groundPanelName(row->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u 전력 %u%ls",kind,row->id,row->strength,row->target ? L" (지정됨)" : L"");}
+    if (row) {groundPanelName(row->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u 전력 %u 사기 %u%ls",kind,row->id,row->strength,row->morale,row->target ? L" (지정됨)" : L"");}
     else wcscpy_s(text,L"내 육전대 없음");
     taxText(3,text);
-    if (enemy) {groundPanelName(enemy->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u 전력 %u",kind,enemy->id,enemy->strength);}
+    if (enemy) {groundPanelName(enemy->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u 전력 %u 사기 %u",kind,enemy->id,enemy->strength,enemy->morale);}
     else wcscpy_s(text,L"적 육전대 없음");
     taxText(4,text);
     if (row && row->target) _snwprintf_s(text,_countof(text),_TRUNCATE,L"현재 공격 대상 #%u",row->target);

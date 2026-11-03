@@ -47,6 +47,19 @@ class GroundBattleOperationsTest {
         val finished=advance(advance(ordered,0),2000)
         assertTrue(finished.tacticalCommands.groundTargets.isEmpty(),"the order ends once either troop is gone")
     }
+    @Test fun lossesLowerMoraleAndAUnitAtZeroSurrendersBeforeItsStrengthRunsOut() {
+        val first=advance(advance(stocks(),0),5)
+        // 20% of strength lost at discipline 50 costs 20 morale (ship rule on the lost share, evidence:guess).
+        assertEquals(mapOf(1 to 80,2 to 80),first.tacticalCommands.morale)
+        val shaken=stocks().let {it.copy(tacticalCommands=TacticalCommandState(morale=mapOf(2 to 10)))}
+        val events=mutableListOf<GroundBattleResult>()
+        val after=advance(advance(shaken,0),5,events)
+        assertTrue(after.outfits.getValue(2).activeGround!!.values.isEmpty(),"morale 0 surrenders the alliance unit")
+        assertEquals(listOf(2),events.single().destroyed);assertFalse(2 in after.tacticalCommands.morale)
+        // A confused attacker (morale <= 20) strikes at half strength.
+        val confused=advance(advance(stocks().copy(tacticalCommands=TacticalCommandState(morale=mapOf(1 to 20))),0),5)
+        assertEquals(900,confused.outfits.getValue(2).activeGround!!.values.single().strength)
+    }
     @Test fun elapsedSettlementMatchesFrequentTicksAndStrongerSurvivorKeepsRealId() {
         val initial=advance(stocks(empireKind=2),0)
         val fast=advance(initial,500)
