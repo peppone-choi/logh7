@@ -42,7 +42,7 @@ static bool readTradeAction(void* record) {
     }
     state.message=reply==4 ? L"이 명령을 쓸 카드가 아닙니다." : reply==6 ? L"이 위치에서 할 수 없습니다(정박한 자진영 거점·자기 수송함대)." :
         reply==7 ? L"이미 무역로가 있거나 행동할 수 없습니다." : reply==8 ? L"CP가 부족합니다." : reply==9 ? L"선단은 하루에 한 번만 무역합니다." :
-        reply==11 ? L"물자나 국고가 부족합니다." : reply==13 ? L"대상이 맞지 않습니다." : reply ? L"실행할 수 없습니다." :
+        reply==10 ? L"페잔 중립을 침범해 페잔 상선과 투자가 끊겼습니다." : reply==11 ? L"물자나 국고가 부족합니다." : reply==13 ? L"대상이 맞지 않습니다." : reply ? L"실행할 수 없습니다." :
         outcome==1 ? (command==39 ? L"무역로를 열었습니다(7G일)." : command==40 ? L"선단 무역을 마쳤습니다." :
             command==17 ? L"관세율을 바꿨습니다." : L"교섭에 성공했습니다.") : L"교섭이 결렬됐습니다.";
     memset(static_cast<BYTE*>(record)+4,0,32);return true;

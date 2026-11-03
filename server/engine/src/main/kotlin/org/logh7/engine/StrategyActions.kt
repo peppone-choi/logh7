@@ -182,7 +182,8 @@ internal object StrategyActions {
             changed=true,readyAt=readyAt)
     }
     /** Retirement abandons offices, retaining other people's appointments in the same outfit. */
-    fun clearOffices(stocks:PlanetStocks,character:Int):PlanetStocks {
+    fun clearOffices(start:PlanetStocks,character:Int):PlanetStocks {
+        val stocks=SuccessionActions.vacated(start,character)
         val bases=stocks.bases.mapValues {(_,b)->b.copy(
             governorId=b.governorId.takeUnless {it==character} ?: 0,
             garrisonCommanderId=b.garrisonCommanderId.takeUnless {it==character} ?: 0,

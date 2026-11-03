@@ -44,7 +44,16 @@ static void* __fastcall appendKoreanCString(void* string,void*,const char* text)
     return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAppendTrampoline+0)
         (string,logh::koreanStaticResource(text));
 }
+// U-27: runtime Hangul (a server-sent name) narrowed through ACP 949 and decoded as CP932 turns into
+// half-width kana. Narrow it into the catalogue's private CP932 form instead; the CD's Japanese decode and
+// restoreKoreanGlyphs then return the same Hangul. Text with a glyph outside the catalogue keeps the native path.
+static thread_local std::string koreanRuntimeNarrow;
+static const char* koreanRuntimeText(const wchar_t* text) {
+    return logh::hasHangul(text) && logh::encodeKoreanResource(text,koreanRuntimeNarrow) ? koreanRuntimeNarrow.c_str() : nullptr;
+}
 static void* __fastcall constructKoreanWideCString(void* string,void*,const wchar_t* text) {
+    if (const char* narrow=koreanRuntimeText(text)) return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanConstructTrampoline+0)
+        (string,narrow);
     const auto row=logh::koreanWideResource(text);
     // Preserve our resource-only CP932 representation through ANSI CString.
     // The original wide overload narrows through ACP and would lose Hangul.
@@ -53,6 +62,8 @@ static void* __fastcall constructKoreanWideCString(void* string,void*,const wcha
     return reinterpret_cast<void*(__thiscall*)(void*,const wchar_t*)>(koreanWideConstructTrampoline+0)(string,text);
 }
 static void* __fastcall assignKoreanWideCString(void* string,void*,const wchar_t* text) {
+    if (const char* narrow=koreanRuntimeText(text)) return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAssignTrampoline+0)
+        (string,narrow);
     const auto row=logh::koreanWideResource(text);
     if (row) return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAssignTrampoline+0)
         (string,row->narrow);
@@ -154,6 +165,19 @@ static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned 
         static std::string strike;
         static const bool ready=logh::encodeKoreanResource(L"[ \ub300\uc9c0 \uacf5\uaca9 ]\n\uc801 \ud589\uc131\uc758 \uc218\ube44\ub300\ub97c \uacf5\uaca9\ud569\ub2c8\ub2e4.\n\uae30\ud568 \ubb3c\uc790 100",strike);
         if (ready) return strike.c_str();
+    }
+    // U-01: command 179 (personal card オフライン設定) lies past the CD's 97 command names in group 18.
+    // Imperial succession commands 233 後継指名 / 234 継承拒否 (SuccessionActions), also past the CD's names.
+    if (group==18 && (index==233 || index==234)) {
+        static std::string designate,contest;
+        static const bool encoded=logh::encodeKoreanResource(L"후계 지명",designate) &&
+            logh::encodeKoreanResource(L"계승 거부",contest);
+        if (encoded) return index==233 ? designate.c_str() : contest.c_str();
+    }
+    if (group==18 && index==179) {
+        static std::string offline;
+        static const bool encoded=logh::encodeKoreanResource(L"오프라인 설정",offline);
+        if (encoded) return offline.c_str();
     }
     return logh::koreanResource(group,index,original);
 }

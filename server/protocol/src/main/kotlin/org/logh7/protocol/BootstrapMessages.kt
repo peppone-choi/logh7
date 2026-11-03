@@ -67,7 +67,7 @@ object BootstrapMessages {
         out.putInt(character.money.toInt()).put(decorations); u8(0); u8(1)
         u8(1); string(character.surname); string(character.givenName); string(character.surname)
         out.putShort(character.origin.toShort()).putShort(character.rank.toShort()); string(peerageTitle(character))
-        out.putInt(character.face).putInt(character.merit.toInt()).putInt(0).putInt(0)
+        out.putInt(character.face).putInt(character.merit.toInt()).putInt(0).putInt(character.merit.toInt()) // the strategy HUD shows the third (work/chair-20261102 run-06·07)
         require(character.experience.size==8 && character.experience.all {it in 0..99})
         character.abilities.forEachIndexed { i,it -> out.putShort(it.toShort()).putShort(character.experience[i].toShort()) }
         u8(character.influence); u8(100); u8(0)

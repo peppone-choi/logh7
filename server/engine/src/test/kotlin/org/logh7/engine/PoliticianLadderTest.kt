@@ -29,6 +29,47 @@ class PoliticianLadderTest {
         val again=PoliticianLadder.monthly(galaxy,result,listOf(id(2,2),id(4,2),id(7,2)),2)
         assertEquals(listOf(4),OrganizationalOfficePolicy(galaxy).holders(again,1).map {it.character})
     }
+    @Test fun aVacantChairmanSeatGoesToTheLargestSupportBoxThenTheLadder() {
+        val people=mapOf(11 to StrategicPerson(merit=90),12 to StrategicPerson(merit=10))
+        val ids=listOf(id(11,3),id(12,3),id(13,2))
+        val backed=stocks.copy(strategic=StrategicState(people=people),social=stocks.social.copy(funds=FundState(support=mapOf(12 to 5000L,13 to 100L))))
+        val elected=PoliticianLadder.election(galaxy,backed,ids)
+        assertEquals(listOf(12),OrganizationalOfficePolicy(galaxy).holders(elected,132).map {it.character},"the support box decides")
+        assertEquals(mapOf(13 to 100L),elected.social.funds.support,"the alliance support box is emptied")
+        val ladder=PoliticianLadder.election(galaxy,stocks.copy(strategic=StrategicState(people=people)),ids)
+        assertEquals(listOf(11),OrganizationalOfficePolicy(galaxy).holders(ladder,132).map {it.character},"no support: the ladder top")
+        assertSame(ladder,PoliticianLadder.election(galaxy,ladder,ids),"a filled seat stays")
+    }
+    @Test fun aLostConfidenceVoteRemovesTheChairmanAndElectsAnother() {
+        val people=mapOf(11 to StrategicPerson(merit=90),12 to StrategicPerson(merit=10))
+        val ids=listOf(id(11,3),id(12,3))
+        val seated=OrganizationalOfficePolicy(galaxy).set(stocks.copy(strategic=StrategicState(people=people)),OfficeHolding(132,1177,11))
+        val distrust=seated.copy(social=seated.social.copy(funds=FundState(confidence=mapOf(3 to (100L to 500L)),support=mapOf(12 to 50L))))
+        val after=PoliticianLadder.monthly(galaxy,distrust,ids,1)
+        assertEquals(listOf(12),OrganizationalOfficePolicy(galaxy).holders(after,132).map {it.character})
+        assertTrue(after.social.funds.confidence.isEmpty())
+        val heard=SuccessionActions.notices(distrust,after,7).filter {it.kind!=SuccessionNotice.Kind.ACCESSION}
+        assertEquals(listOf(SuccessionNotice(after.generation,11,SuccessionNotice.Kind.CHAIRMAN_DISMISSED,7),
+            SuccessionNotice(after.generation,12,SuccessionNotice.Kind.CHAIRMAN_ELECTED,7)),heard)
+        val trusted=seated.copy(social=seated.social.copy(funds=FundState(confidence=mapOf(3 to (500L to 100L)))))
+        assertEquals(listOf(11),OrganizationalOfficePolicy(galaxy).holders(PoliticianLadder.monthly(galaxy,trusted,ids,1),132).map {it.character})
+    }
+    @Test fun aDeadPoliticianNeitherInheritsNorIsElected() {
+        val people=mapOf(4 to StrategicPerson(merit=90,deceasedAt=5),2 to StrategicPerson(merit=10),
+            11 to StrategicPerson(merit=90,deceasedAt=5),12 to StrategicPerson(merit=1))
+        val result=PoliticianLadder.monthly(galaxy,stocks.copy(strategic=StrategicState(people=people)),
+            listOf(id(2,2),id(4,2),id(11,3),id(12,3)),1)
+        assertEquals(listOf(2),OrganizationalOfficePolicy(galaxy).holders(result,1).map {it.character})
+        assertEquals(listOf(12),OrganizationalOfficePolicy(galaxy).holders(result,132).map {it.character})
+    }
+    @Test fun aRevoltKeepsTheThroneForTheCoupsOutcome() {
+        // CD p.38: succession applies to a vacancy other than by coup.
+        val people=mapOf(4 to StrategicPerson(merit=90))
+        val revolt=CoupState(mapOf(9 to Plot(9,2,0,revolt=1)))
+        val s=stocks.copy(strategic=StrategicState(people=people),social=stocks.social.copy(coup=revolt))
+        val result=PoliticianLadder.monthly(galaxy,s,listOf(id(4,2),id(9,2)),1)
+        assertTrue(OrganizationalOfficePolicy(galaxy).holders(result,1).isEmpty())
+    }
 }
 
 /** The daily settlement runs the ladder rules once per crossed 30-day boundary. Author: Peppone Choi. */

@@ -14,7 +14,12 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     // 所属変更 target prompt (118/12) and the 鼓舞 request (118/43).
     0x50f2b2, 0x5100f4,
     // Ship-group tab: 鼓舞 request for fleet units (118/29) and 出撃 refused without stationed units (118/39).
-    0x51008a, 0x50fcbb};
+    0x51008a, 0x50fcbb,
+    // Fortress tab support sent (state 0x13 supply 118/2, state 0x12 repair 118/3; "%s\n%s" after the unit name)
+    // and the ship tab's repair/supply target prompts (state 0xe 118/49, state 0xf 118/50).
+    0x5105ce, 0x5105eb, 0x51072a, 0x510753,
+    // Fortress tab 鼓舞 sent (state 0x14 after 004b4710): 118/44, the fortress counterpart of 118/43.
+    0x51012c};
 // Own supreme-commander flag from 033f (set in tactical_fortress_menu.h).
 static volatile LONG ownSupremeCommander=0;
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {

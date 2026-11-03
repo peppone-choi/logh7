@@ -49,10 +49,12 @@ object StrategyActionMessages {
         val production=command in 31..36
         // U-31 orbital ground attack from the compatibility DLL's commander-tab button: no card, no arguments.
         val strike=command==230
+        // Imperial succession: 233 後継指名 on the emperor card (target = heir; previews list empire people), 234 継承拒否 on the personal card.
+        val succession=command in setOf(233,234)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,233,234,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command in setOf(10,11,12,13,19,29,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39,35,36))
+        require(!preview || personnel || command==24 || market || command in setOf(233,10,11,12,13,19,29,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39,35,36))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
@@ -84,6 +86,8 @@ object StrategyActionMessages {
         else if(espionage)require(card in 1..260 && argument==0 && amount==0 && target==0 &&
             (if(preview)command in setOf(75,80,81) && base==0 else if(command in setOf(75,80,81))base>0 else base==0) &&
             (value==0 || command==80 && !preview && value in 0..7))
+        else if(succession)require(base==0 && argument==0 && amount==0 && value==0 &&
+            (if(command==234)card==0 && target==0 && !preview else card==1 && (preview || target>0)))
         else if(strike)require(!preview && card==0 && base==0 && argument==0 && amount==0 && target==0 && value==0)
         else if(production)require(card in 1..260 && base==0 && argument==0 && amount==0 && target==0 &&
             (if(preview)command in setOf(35,36) && value==0 else value==0 || command in setOf(35,36) && value in 0..199))
@@ -107,7 +111,7 @@ object StrategyActionMessages {
         else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        val listed=personnel || operation || market || transport || proposal || justice || espionage || coup || funds || goal || trade || production || strike || command in setOf(10,11,12,13,87)
+        val listed=personnel || operation || market || transport || proposal || justice || espionage || coup || funds || goal || trade || production || strike || succession || command in setOf(10,11,12,13,87)
         return Query(character,command,card,if(command==65)argument else if(listed)0 else target,message.copyOfRange(2,message.size),
             if(listed)target else 0,base,value,preview,amount,argument)
     }
@@ -140,7 +144,7 @@ object StrategyActionMessages {
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
-        require(q.preview && q.command in setOf(10,11,12,13,15,21,39,35,36,19,24,29,65,68,69,70,71,73,74,75,80,81,87,89,95,96,98) && rows.size<=200)
+        require(q.preview && q.command in setOf(10,11,12,13,15,21,39,35,36,233,19,24,29,65,68,69,70,71,73,74,75,80,81,87,89,95,96,98) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
             out.writeByte(rows.size)

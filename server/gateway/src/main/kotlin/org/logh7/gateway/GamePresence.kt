@@ -46,6 +46,27 @@ class GamePresence {
                     org.logh7.engine.BudgetActions.rate(s,base.baseId,event.defaultRate))))
         }
     }
+    /** Head-of-state changes (accession, succession war, chairman election/dismissal): one public chat line to everyone. */
+    @Synchronized fun succession(event:org.logh7.engine.SuccessionNotice,characterById:(Int)->CharacterMessages.Generate?) {
+        val name=characterById(event.character)?.let {if(it.generated)it else KoreanDisplayNames.original(it)}
+            ?.let {(it.surname+" "+it.givenName).trim()}?.takeIf {it.isNotEmpty()} ?: "ID ${event.character}"
+        val line=when(event.kind) {
+            org.logh7.engine.SuccessionNotice.Kind.ACCESSION -> "[황위] ${name}이(가) 황제로 즉위했습니다."
+            org.logh7.engine.SuccessionNotice.Kind.CONTEST -> "[황위] ${name}이(가) 계승을 거부하고 반란을 일으켰습니다."
+            org.logh7.engine.SuccessionNotice.Kind.CHAIRMAN_ELECTED -> "[의장] ${name}이(가) 최고평의회 의장으로 선출됐습니다."
+            org.logh7.engine.SuccessionNotice.Kind.CHAIRMAN_DISMISSED -> "[의장] 불신임으로 ${name}이(가) 의장직에서 해임됐습니다."
+        }.take(65)
+        val packet=ChatMessages.spot(ChatMessages.Spot(event.character,line),event.seconds.coerceIn(0,0xffffffffL))
+        members.values.filter {it.player.generation==event.generation}.forEach {send(it,listOf(packet))}
+    }
+    /** Black-hole tidal loss (design-blackhole-tactical-terrain.md §2.4): a spot chat line to each online member of the outfit. */
+    @Synchronized fun tides(event:org.logh7.engine.TidalLoss) {
+        for(character in event.characters) {
+            val line=(if(event.pulled)"[중력] 워프 오차로 블랙홀 중력권에 끌려 들어가 함정 ${event.boats}척을 잃었습니다."
+                else "[중력] 블랙홀 중력으로 부대 함정 ${event.boats}척을 잃었습니다.").take(65)
+            toCharacter(character,event.generation,listOf(ChatMessages.spot(ChatMessages.Spot(character,line),event.seconds.coerceIn(0,0xffffffffL))))
+        }
+    }
     /** Durable local duties update existing public conditions and authorized stock/party views. */
     @Synchronized fun civic(event:org.logh7.engine.CivicChange,world:WorldBootstrap) {
         for(viewer in members.values.filter {it.player.generation==event.generation}) {

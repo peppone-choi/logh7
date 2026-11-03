@@ -427,6 +427,7 @@ static bool tacticalNoticesTest() {
         std::string encoded;std::wstring back;
         if (!logh::encodeKoreanResource(L"[ \ub300\uc9c0 \uacf5\uaca9 ]\n\uc801 \ud589\uc131\uc758 \uc218\ube44\ub300\ub97c \uacf5\uaca9\ud569\ub2c8\ub2e4.\n\uae30\ud568 \ubb3c\uc790 100",encoded))return false;
         if (logh::encodeKoreanResource(L"\u3042",encoded))return false;
+        if (!logh::hasHangul(L"A\uc591") || logh::hasHangul(L"\u30e4\u30f3") || logh::hasHangul(nullptr))return false;
         logh::encodeKoreanResource(L"A\uac00",encoded);
         if (encoded.size()!=3 || encoded[0]!='A' || static_cast<unsigned char>(encoded[1])!=0xf0 || static_cast<unsigned char>(encoded[2])!=0x41)return false;
     }
@@ -599,7 +600,23 @@ static bool sessionEndingDataTest() {
     }
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
+// An uncatalogued Hangul syllable (a player's name) takes a runtime EUDC slot and comes back unchanged.
+static bool runtimeKoreanGlyphTest() {
+    std::string narrow;std::wstring wide;
+    if (!logh::encodeKoreanResource(L"김하나 이",narrow) || narrow.size()!=9) return false;
+    if (!logh::japaneseFragment(narrow.c_str(),wide) || wide!=L"김하나 이") return false;
+    size_t first=0,again=0;
+    if (!logh::koreanGlyphIndex(0xae40,first) || !logh::koreanGlyphIndex(0xae40,again) || first!=again || first<logh::koreanGlyphCount)
+        return false;
+    wchar_t value=0;char bytes[2]={};const wchar_t slot=static_cast<wchar_t>(0xe000+first);
+    if (WideCharToMultiByte(932,WC_NO_BEST_FIT_CHARS,&slot,1,bytes,2,nullptr,nullptr)!=2) return false;
+    if (!logh::legacyKoreanGlyph((static_cast<unsigned char>(bytes[0])<<8)|static_cast<unsigned char>(bytes[1]),value) || value!=0xae40)
+        return false;
+    size_t none=0;
+    return !logh::koreanGlyphIndex(0x3042,none) && !logh::koreanGlyphIndex(0xae41,none,false);
+}
 static int runGuard(int argc, wchar_t** argv) {
+    if(!runtimeKoreanGlyphTest())return 95;
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
     if(!commanderMenuTest())return 196;

@@ -2,7 +2,9 @@
 // Author: Peppone Choi.
 #pragma once
 #include "korean_catalog_data.h"
+#include <atomic>
 #include <cstring>
+#include <mutex>
 #include <string>
 
 namespace logh {
@@ -90,27 +92,62 @@ inline unsigned koreanFormatStringArguments(uintptr_t address,const char* format
     }
     return 0;
 }
+// CP932 EUDC F040..F9FC carries 1880 private glyphs. The catalogue fixes the first koreanGlyphCount; any other
+// Hangul syllable (a player's name, say) takes the next free slot for the life of the process, so encoding and
+// restoring stay inverse within the one client that does both.
+static constexpr size_t koreanGlyphSlots = 1880;
+struct KoreanRuntimeGlyphs { wchar_t glyphs[koreanGlyphSlots-koreanGlyphCount]={}; std::atomic<size_t> count{0}; std::mutex append; };
+inline KoreanRuntimeGlyphs& koreanRuntimeGlyphs() { static KoreanRuntimeGlyphs table; return table; }
+inline wchar_t koreanGlyphAt(size_t index) {
+    if (index < koreanGlyphCount) return koreanGlyphs()[index];
+    auto& runtime=koreanRuntimeGlyphs();
+    index-=koreanGlyphCount;
+    return index<runtime.count.load(std::memory_order_acquire) ? runtime.glyphs[index] : 0;
+}
+// The slot of [glyph], assigning a runtime slot to an uncatalogued Hangul syllable when [assign]. False when absent/full.
+inline bool koreanGlyphIndex(wchar_t glyph,size_t& index,bool assign=true) {
+    const wchar_t* glyphs=koreanGlyphs();
+    for (index=0;index<koreanGlyphCount;++index) if (glyphs[index]==glyph) return true;
+    auto& runtime=koreanRuntimeGlyphs();
+    auto find=[&](size_t count) {
+        for (size_t i=0;i<count;++i) if (runtime.glyphs[i]==glyph) {index=koreanGlyphCount+i;return true;}
+        return false;
+    };
+    if (find(runtime.count.load(std::memory_order_acquire))) return true;
+    if (!assign || glyph<0xac00 || glyph>0xd7a3) return false;
+    std::lock_guard<std::mutex> lock(runtime.append);
+    const size_t count=runtime.count.load(std::memory_order_relaxed);
+    if (find(count)) return true;
+    if (koreanGlyphCount+count>=koreanGlyphSlots) return false;
+    runtime.glyphs[count]=glyph;runtime.count.store(count+1,std::memory_order_release);
+    index=koreanGlyphCount+count;
+    return true;
+}
 inline void restoreKoreanGlyphs(wchar_t* text) {
     if (!text) return;
     for (; *text; ++text) {
         const unsigned index = static_cast<unsigned>(*text)-0xe000u;
-        if (index < koreanGlyphCount) *text = koreanGlyphs()[index];
+        if (index >= koreanGlyphSlots) continue;
+        if (const wchar_t glyph=koreanGlyphAt(index)) *text = glyph;
     }
 }
 inline void restoreKoreanGlyphs(std::wstring& text) {
     if (!text.empty()) restoreKoreanGlyphs(&text[0]);
 }
 // The catalogue's own form: ASCII stays, glyph n becomes CP932 EUDC (lead 0xf0+n/188, trail 0x40.., 0x7f skipped),
-// which the CD decodes to U+E000+n and restoreKoreanGlyphs turns back into Hangul. False when a glyph is absent.
+// which the CD decodes to U+E000+n and restoreKoreanGlyphs turns back into Hangul. False when a glyph has no slot.
+inline bool hasHangul(const wchar_t* text) {
+    if (!text) return false;
+    for (; *text; ++text) if (*text>=0xac00 && *text<=0xd7a3) return true;
+    return false;
+}
 inline bool encodeKoreanResource(const wchar_t* text,std::string& out) {
     out.clear();
     if (!text) return false;
-    const wchar_t* glyphs=koreanGlyphs();
     for (; *text; ++text) {
         if (*text<128) {out.push_back(static_cast<char>(*text));continue;}
         size_t n=0;
-        while (n<koreanGlyphCount && glyphs[n]!=*text) ++n;
-        if (n==koreanGlyphCount) return false;
+        if (!koreanGlyphIndex(*text,n)) return false;
         unsigned trail=0x40+static_cast<unsigned>(n%188);
         if (trail>=0x7f) ++trail;
         out.push_back(static_cast<char>(0xf0+n/188));out.push_back(static_cast<char>(trail));

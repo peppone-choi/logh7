@@ -80,6 +80,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var supportSubscription: AutoCloseable? = null
     private var civicSubscription:AutoCloseable?=null
     private var budgetSubscription:AutoCloseable?=null
+    private var successionSubscription:AutoCloseable?=null
+    private var tidalSubscription:AutoCloseable?=null
     private var identitySubscription:AutoCloseable?=null
     private var fameSubscription:AutoCloseable?=null
     private var communication:GameCommunication?=null
@@ -100,6 +102,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById)}}
+        tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
         fameSubscription=stock?.observeSessionResults {s->s.session?.generation?.let {g->
             characterStores.fame.settle(s,characterStores.get(g))}}
         identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
@@ -108,7 +112,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             {generation,id->communicationIdentity(characterStores.get(generation),id)},
             {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},
             {generation->communicationStore(characterFile,generation)},
-            proposals={_->navigation?.snapshot()?.planetStocks?.social?.proposals})}
+            proposals={_->navigation?.snapshot()?.planetStocks?.social?.proposals},
+            rank={id->navigation?.snapshot()?.planetStocks?.strategic?.people?.get(id)?.rank})}
         strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
             navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
         }}
@@ -230,7 +235,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                 }
                                                 else if (!ctx.channel().isActive || failure != null) {
                                                     if(failure != null) {val cause=failure.cause ?: failure
-                                                        System.err.println("gateway async: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}")}
+                                                        System.err.println("gateway async: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}" +
+                                                            (generateSequence(cause.cause) {it.cause}.take(64).lastOrNull()?.let {root->" caused by ${root.javaClass.simpleName}: ${root.message} at ${root.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}"} ?: ""))}
                                                     try { exchange.close() } finally { ctx.close() }
                                                 }
                                                 else try {
@@ -277,7 +283,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         postureSubscription?.close()
         tacticalCommandSubscription?.close()
         supportSubscription?.close()
-        civicSubscription?.close()
+        civicSubscription?.close();successionSubscription?.close();tidalSubscription?.close()
         budgetSubscription?.close()
         identitySubscription?.close()
         fameSubscription?.close()

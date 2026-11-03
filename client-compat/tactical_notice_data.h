@@ -50,6 +50,11 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {35, 0, "LOGH7_TACTICAL_STANCE_BATTLE", L"전투 태세로 전환을 요청했습니다.\n"},
         {41, 0, "LOGH7_TACTICAL_RETREAT_CANCEL", L"철수 명령을 취소했습니다.\n"},
         {42, 0, "LOGH7_TACTICAL_RETREAT_REQUEST", L"철수 명령을 요청했습니다.\n"},
+        {2, 0, "LOGH7_TACTICAL_BASE_SUPPLY_SENT", L"보급을 요청했습니다.\n"},
+        {3, 0, "LOGH7_TACTICAL_BASE_REPAIR_SENT", L"수리를 요청했습니다.\n"},
+        {44, 0, "LOGH7_TACTICAL_FORTRESS_ENCOURAGE", L"요새 고무 명령을 요청했습니다.\n"},
+        {49, 0, "LOGH7_TACTICAL_REPAIR_SELECT", L"수리할 함정을 선택하세요.\n"},
+        {50, 0, "LOGH7_TACTICAL_SUPPLY_SELECT", L"보급할 함정을 선택하세요.\n"},
         {47, 0, "LOGH7_TACTICAL_BASE_SUPPORT_SELECT", L"수리·보급할 주둔 함정을 목록에서 선택하세요.\n"},
         {60, 0, "LOGH7_TACTICAL_BASE_SUPPORT_EMPTY", L"이 거점에 주둔한 함정이 없습니다.\n"},
     };
