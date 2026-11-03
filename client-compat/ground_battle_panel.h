@@ -91,9 +91,10 @@ static void updateGroundPanel() {
     ReleaseSRWLockExclusive(&groundPanelLock);
     if (send) reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x10,query);
 }
+static bool groundWindowShown();
 static void drawGroundPanel(BYTE* display) {
     auto& s=groundPanel;
-    if (!s.activeBase || GetTickCount64()>=s.activeUntil) return;
+    if (!s.activeBase || GetTickCount64()>=s.activeUntil || groundWindowShown()) return;
     auto own=s.world ? at<BYTE*>(s.world,8) : nullptr;
     if (!own) return;
     bool ownEmpire=own[0x28]==2;
