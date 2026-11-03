@@ -99,11 +99,18 @@ fn get(base: &str, relative: &str) -> Result<Vec<u8>, String> {
     Ok(body)
 }
 
-pub fn download(base: &str, out: &Path) -> Result<usize, String> {
+/// `expected`는 신뢰할 수 있는 다른 경로(배포 공지·런처 설정)로 받은 목록의 SHA-256이다. 주면 목록이
+/// 그 값과 같을 때만 받는다. HTTP 경로의 변조를 막는 유일한 고정점이다.
+pub fn download(base: &str, out: &Path, expected: Option<&str>) -> Result<usize, String> {
     if out.exists() {
         return Err(format!("받을 디렉터리가 이미 있습니다: {}", out.display()));
     }
     let manifest = get(base, "patch.manifest")?;
+    if let Some(expected) = expected {
+        if sha256(&manifest) != expected.to_ascii_lowercase() {
+            return Err("패치 목록 해시가 고정값과 다릅니다. 받지 않았습니다".into());
+        }
+    }
     let text =
         String::from_utf8(manifest.clone()).map_err(|_| "patch.manifest가 UTF-8이 아닙니다")?;
     let mut files = Vec::new();
@@ -199,11 +206,30 @@ mod tests {
         ]);
         let out = std::env::temp_dir().join(format!("logh7-download-ok-{}", std::process::id()));
         let _ = fs::remove_dir_all(&out);
-        assert_eq!(1, download(&base, &out).unwrap());
+        assert_eq!(1, download(&base, &out, None).unwrap());
         assert_eq!(b"dll", &fs::read(out.join("exe/dinput8.dll")).unwrap()[..]);
         assert!(
-            download(&base, &out).is_err(),
+            download(&base, &out, None).is_err(),
             "an existing directory is not overwritten"
+        );
+        fs::remove_dir_all(&out).unwrap();
+    }
+
+    #[test]
+    fn a_pinned_manifest_hash_must_match() {
+        let listed = manifest(&sha256(b"dll"));
+        let routes = vec![
+            ("/patch/patch.manifest", listed.clone()),
+            ("/patch/exe/dinput8.dll", b"dll".to_vec()),
+        ];
+        let out = std::env::temp_dir().join(format!("logh7-download-pin-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&out);
+        let wrong = sha256(b"another list");
+        assert!(download(&serve(routes.clone()), &out, Some(&wrong)).is_err());
+        assert!(!out.exists());
+        assert_eq!(
+            1,
+            download(&serve(routes), &out, Some(&sha256(&listed))).unwrap()
         );
         fs::remove_dir_all(&out).unwrap();
     }
@@ -216,8 +242,8 @@ mod tests {
         ]);
         let out = std::env::temp_dir().join(format!("logh7-download-bad-{}", std::process::id()));
         let _ = fs::remove_dir_all(&out);
-        assert!(download(&base, &out).is_err());
+        assert!(download(&base, &out, None).is_err());
         assert!(!out.exists() && !out.with_extension("partial").exists());
-        assert!(download("https://example.invalid/", &out).is_err());
+        assert!(download("https://example.invalid/", &out, None).is_err());
     }
 }

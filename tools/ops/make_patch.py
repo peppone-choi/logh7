@@ -62,7 +62,8 @@ def main(argv: list[str] | None = None) -> None:
         shutil.copy2(prepared / relative, target)
         lines.append(f"file\t{relative}\t{sha256(target)}")
     (out / "patch.manifest").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"patch {out}: {len(files)} files")
+    # Publish this value through a channel other than the patch server (launcher --expect-manifest).
+    print(f"patch {out}: {len(files)} files, manifest sha256 {sha256(out / 'patch.manifest')}")
 
 
 if __name__ == "__main__":

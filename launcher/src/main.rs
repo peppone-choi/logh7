@@ -41,13 +41,35 @@ fn run() -> Result<i32, String> {
                     .to_str()
                     .ok_or("패치 주소는 ASCII여야 합니다")?
                     .to_string();
-                let count = download::download(&url, &PathBuf::from(out))?;
-                println!("패치 파일 {count}개를 받아 해시를 확인했습니다");
+                // Optional pin: --expect-manifest <SHA-256> right after the directory.
+                let expected = match args.next() {
+                    None => None,
+                    Some(flag) if flag.to_str() == Some("--expect-manifest") => Some(
+                        args.next()
+                            .and_then(|v| v.to_str().map(str::to_string))
+                            .filter(|v| v.len() == 64 && v.bytes().all(|b| b.is_ascii_hexdigit()))
+                            .ok_or("--expect-manifest 뒤에 64자리 SHA-256을 지정하세요")?,
+                    ),
+                    Some(_) => {
+                        return Err(
+                            "--download-patch 뒤에는 --expect-manifest만 올 수 있습니다".into()
+                        );
+                    }
+                };
+                let count = download::download(&url, &PathBuf::from(out), expected.as_deref())?;
+                println!(
+                    "패치 파일 {count}개를 받아 해시를 확인했습니다{}",
+                    if expected.is_some() {
+                        " (목록 고정값 일치)"
+                    } else {
+                        " (목록 고정값 없음)"
+                    }
+                );
                 return Ok(0);
             }
             Some("--help") => {
                 println!(
-                    "logh7-launcher [--config launcher.ini] [--check | --apply-patch DIR | --revert-patch | --download-patch URL DIR]\n설정·오디오 출력 점검 후 원본 클라이언트를 실행합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
+                    "logh7-launcher [--config launcher.ini] [--check | --apply-patch DIR | --revert-patch | --download-patch URL DIR [--expect-manifest SHA256]]\n설정·오디오 출력 점검 후 원본 클라이언트를 실행합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
                 );
                 return Ok(0);
             }
