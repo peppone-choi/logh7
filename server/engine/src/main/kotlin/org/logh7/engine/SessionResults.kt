@@ -47,14 +47,32 @@ object SessionResults {
         return SessionResult(end,total,results,conditions)
     }
 
+    /** W p.13 決定的勝利 (empire only): the emperor (card 1, rebel alias 68) or the 帝国軍最高司令官 (national office 2)
+     * is in the enemy capital system when the session ends. True when any holder's flagship is on that grid, false
+     * when every holder is located elsewhere (or nobody holds either seat), null when a holder has no recorded
+     * position (an NPC), so the grade stays UNRESOLVED rather than guessed. */
+    fun imperialLeaderAtEnemyCapital(stocks:PlanetStocks,navigators:Collection<Navigator>):Boolean? {
+        val holders=stocks.strategic.offices.filter {it.card==1 || it.card==68}.map {it.character}.toSet()+
+            listOfNotNull(stocks.nationalOffices[NationalOffice.IMPERIAL_SUPREME_COMMANDER])
+        if(holders.isEmpty())return false
+        val located=navigators.filter {it.characterId in holders}
+        return when {
+            located.any {it.grid==Capital.ALLIANCE.grid}->true
+            located.map {it.characterId}.toSet().containsAll(holders)->false
+            else->null
+        }
+    }
+
     /** Current ownership and surviving physical units; aggregate outfit quantities are not counted twice.
      * Warehoused/unused full units and one selectable unit per partial stack are included (revival policy).
      * Personal flagships count separately; unfinished construction does not count as commissioned forces. */
     fun fromWorld(galaxy:Galaxy,snapshot:WorldSnapshot,given:VictoryConditions=VictoryConditions()):SessionResult {
         val session=checkNotNull(snapshot.session);val end=checkNotNull(session.ended)
         val stocks=checkNotNull(snapshot.planetStocks)
-        val conditions=if(given.coupSides!=null)given else given.copy(coupSides=Power.entries.filter {
+        val withCoup=if(given.coupSides!=null)given else given.copy(coupSides=Power.entries.filter {
             stocks.social.coup.revolting(if(it==Power.EMPIRE)2 else 3)}.toSet())
+        val conditions=if(withCoup.imperialLeaderAtEnemyCapital!=null)withCoup else
+            withCoup.copy(imperialLeaderAtEnemyCapital=imperialLeaderAtEnemyCapital(stocks,snapshot.navigators.values))
         require(stocks.generation==session.generation && stocks.bases.keys==galaxy.bases.map {it.id}.toSet())
         data class Totals(var planets:Int=0,var fortresses:Int=0,var population:Long=0,var ships:Long=0,var ground:Long=0) {
             fun value()=SessionStatistics(planets,fortresses,population,ships,ground)
