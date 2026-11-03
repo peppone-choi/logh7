@@ -12,7 +12,7 @@ class TacticalGroundNoticesTest {
             assertTrue(text.length<=32,text) // about two lines of the tactical chat box
             ChatMessages.spot(ChatMessages.Spot(10002,text),100)
         }
-        assertTrue(TacticalGroundNotices.text(true,NavigationRejection.BASE)!!.contains("장갑병"))
+        assertTrue(TacticalGroundNotices.text(true,NavigationRejection.CREW)!!.contains("장갑병"))
         assertNull(TacticalGroundNotices.text(true,null))
     }
 }
