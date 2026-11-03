@@ -418,7 +418,7 @@ run-84에서는 양쪽 실행 객체의 함명/함종 적용과 기함 표시를
 
 호환 DLL x86 경고 없는 빌드와 다른 실행 파일 후킹 거부 검사가 통과했다. 관찰은 `work/native-multiplayer-20261028/labels83-before.json`, `labels85-after0.json`, `labels85-after1.json`, `labels85-build.log`와 원본 run-85 캡처에 보존한다.
 
-2026-11-03 보완: 함종 라벨이 「▪ Ⅰ」처럼 깨졌다. 후킹된 그룹 85 조회는 한국어를 CP932 사설 글자로 돌려주는데, `tactical_labels.h`가 이를 일반 CP932로만 풀어 사설 글자가 복원되지 않았다. `logh::japaneseFragment`(사설 글자·표시 이름 복원)로 바꿔 원본(`work/esp-20261101/run-150`)에서 「전함 Ⅰ」 표시를 확인했다. guard 검사 통과.
+2026-11-03 보완: 함종 라벨이 「▪ Ⅰ」처럼 깨졌다. 후킹된 그룹 85 조회는 한국어를 CP932 사설 글자로 돌려주는데, `tactical_labels.h`가 이를 일반 CP932로만 풀어 사설 글자가 복원되지 않았다. `logh::japaneseFragment`(사설 글자·표시 이름 복원)로 바꿔 원본(`work/esp-20261101/run-150`)에서 「전함 Ⅰ」 표시를 확인했다. guard 검사 통과. 같은 날 카탈로그 생성기(`tools/l10n/catalog.py`)로 constmsg 전체를 다시 대조해 그룹 85의 함종 이름 179개를 포함한 미번역 0건을 확인했다. 다른 함종도 같은 경로로 한국어가 나오지만 원본 화면에서 본 것은 전함 Ⅰ뿐이다.
 
 run-85의 두 클라이언트는 정상 종료·잔류 Job 0·원본 해시 보존을 확인했다. 함명/함종 캡처는 `labels85-camera.png`, `labels85-peer.png`에 보존한다.
 
