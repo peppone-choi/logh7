@@ -546,6 +546,7 @@ static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     }
     if (result || !logh::validOutfitParty(p,id)) return result;
     planetUnitsParty(p);
+    outfitListParty(p);
     AcquireSRWLockExclusive(&outfitReplyLock);
     if (outfitInbox.queue.take(id,logh::infoWord(p,4),false,token) && token==outfitInbox.token) {
         memcpy(outfitInbox.party,p,sizeof(outfitInbox.party));outfitInbox.partyToken=token;
