@@ -66,7 +66,8 @@ object OrbitalStrikeActions {
             o.copy(activeGround=roster,units=UnitInventory(o.units.ships,o.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}+roster.quantities(),o.units.work))
         }
         val economy=owner.economy?.let {it.copy(peace=maxOf(0,it.peace-PEACE))}
-        val next=s.copy(outfits=outfits,nextShipId=cursor,bases=s.bases+(base.id to owner.copy(economy=economy)))
+        // CD manual p.46: a fortress also loses armor, and a mobile fortress its propulsion (FortressArmor).
+        val next=FortressArmor.strike(base,s.copy(outfits=outfits,nextShipId=cursor,bases=s.bases+(base.id to owner.copy(economy=economy))),attackers)
         return SocialResult(p.copy(supplies=p.supplies-SUPPLIES),next,changed=true,outcome=attackers,found=base.id,report=destroyed)
     }
 }

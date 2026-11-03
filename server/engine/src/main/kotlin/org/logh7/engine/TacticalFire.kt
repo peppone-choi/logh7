@@ -248,7 +248,7 @@ internal object TacticalCombat {
                 due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
             }
         }
-        if(stocks.tacticalCommands.emergencySupplies.isEmpty() && stocks.tacticalCommands.fortresses.values.none {it.motion.velocity>0} && stocks.tacticalCommands.orders.isEmpty() && stocks.tacticalCommands.air.isEmpty() && stocks.tacticalCommands.missions.isEmpty() && !BaseOccupationOperations.pending(stocks,galaxy) && stocks.groundBattles.isEmpty() && galaxy.bases.none {GroundBattleOperations.contested(stocks,it)} && due.isEmpty() && players.values.none {it.posture?.order!=null} && players==original && inventory==stocks && !npcPolicy.enabled && (session.ended!=null || committer==null || economy(galaxy,session,players,stocks)==stocks) && stocks.social.pirates.fleets.values.none {f->f.alive && players.values.any {it.cpPaused && it.grid==f.grid}} && stocks.outfits.values.none {
+        if(stocks.tacticalCommands.emergencySupplies.isEmpty() && stocks.tacticalCommands.fortresses.values.none {it.motion.velocity>0} && stocks.tacticalCommands.orders.isEmpty() && stocks.tacticalCommands.air.isEmpty() && stocks.tacticalCommands.missions.isEmpty() && !BaseOccupationOperations.pending(stocks,galaxy) && !FortressArmor.pending(stocks,galaxy,players.values) && stocks.groundBattles.isEmpty() && galaxy.bases.none {GroundBattleOperations.contested(stocks,it)} && due.isEmpty() && players.values.none {it.posture?.order!=null} && players==original && inventory==stocks && !npcPolicy.enabled && (session.ended!=null || committer==null || economy(galaxy,session,players,stocks)==stocks) && stocks.social.pirates.fleets.values.none {f->f.alive && players.values.any {it.cpPaused && it.grid==f.grid}} && stocks.outfits.values.none {
             it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true || it.activeGround?.values?.any {u->u.order!=null}==true})return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         val impacts = mutableListOf<TacticalImpact>()
@@ -305,13 +305,16 @@ internal object TacticalCombat {
         val groundBattles=mutableListOf<GroundBattleResult>()
         inventory=GroundBattleOperations.advance(session,galaxy,players,inventory,scale,groundBattles)
         val occupations=mutableListOf<BaseOccupation>()
+        val fortressSunk=mutableListOf<Navigator>()
+        inventory=FortressArmor.advance(session,galaxy,players,inventory,fortressSunk)
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players)
         if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {EspionageActions.caughtBy={st,pl,id,side,at->JusticeActions.detain(galaxy,st,pl,id,side,at)};inventory=EspionageActions.settle(session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
-        inventory=BattleDeath.apply(inventory,impacts.mapNotNull {it.departed?.characterId},now)
-        inventory=SinkingExperience.apply(inventory,impacts.mapNotNull {it.departed?.characterId}.distinct(),
-            impacts.takeIf {it.any {i->i.departed!=null}}?.let {production.identities?.invoke()}.orEmpty())
+        val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}
+        inventory=BattleDeath.apply(inventory,departedIds,now)
+        inventory=SinkingExperience.apply(inventory,departedIds.distinct(),
+            departedIds.takeIf {it.isNotEmpty()}?.let {production.identities?.invoke()}.orEmpty())
         clearFinishedOrders(players,galaxy,inventory,now)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)

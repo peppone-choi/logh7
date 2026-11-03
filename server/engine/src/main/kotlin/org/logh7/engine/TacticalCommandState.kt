@@ -36,7 +36,9 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
     val air:Map<Int,TacticalAirWing> = emptyMap(),val fortresses:Map<Int,TacticalFortressMotion> = emptyMap(),
     val ranks:Map<Int,Int> = emptyMap(),val merits:Map<Int,Long> = emptyMap(),val emergencySupplies:Map<Int,Int> = emptyMap(),
     val formationLeaders:Map<Int,Int> = emptyMap(),val aiSwitches:Map<Int,Int> = emptyMap(),
-    val creditedMerits:Map<Int,Long> = emptyMap(),val aiNextAt:Map<Int,Long> = emptyMap()) {
+    val creditedMerits:Map<Int,Long> = emptyMap(),val aiNextAt:Map<Int,Long> = emptyMap(),
+    /** CD p.46 orbital attack on fortresses: armor damage taken (0..[FortressArmor.ARMOR]) and mobile fortresses whose propulsion broke. */
+    val fortressDamage:Map<Int,Int> = emptyMap(),val brokenPropulsion:Set<Int> = emptySet()) {
     init {require(orders.size<=1000 && listOf(morale.size,authority.size,formations.size,missions.size,proposals.size,air.size,ranks.size,merits.size).all {it<=1000} &&
         morale.all {(id,v)->id>0 && v in 0..100} && authority.all {(id,v)->id in 1..999999 && v>0} &&
         formations.all {(id,v)->id>0 && v in 0..7} && missions.all {(id,v)->id==v.character} && proposals.all {(id,v)->id==v.character} &&
@@ -46,7 +48,9 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
         formationLeaders.size<=1000 && formationLeaders.all {(unit,leader)->unit>0 && leader>0} &&
         aiSwitches.size<=1000 && aiSwitches.all {(id,v)->id>0 && v in 0..31} &&
         creditedMerits.size<=1000 && creditedMerits.all {(id,v)->id>0 && v in 0..(merits[id] ?: 0)} &&
-        aiNextAt.size<=1000 && aiNextAt.all {(id,v)->id>0 && v in 0..0xffffffffL})}
+        aiNextAt.size<=1000 && aiNextAt.all {(id,v)->id>0 && v in 0..0xffffffffL} &&
+        fortressDamage.size<=350 && fortressDamage.all {(id,v)->id in 1..65535 && v in 1..FortressArmor.ARMOR} &&
+        brokenPropulsion.size<=350 && brokenPropulsion.all {it in 1..65535})}
     val empty get()=this==TacticalCommandState()
     fun confused(unit:Int)=morale[unit]?.let {it<=20}==true
     /** Native setting order: strategy, commanded, suggested, announcement, tactics. */
