@@ -23,7 +23,8 @@ object OutfitPartyMessages {
             // Mode 2 is the revival ground-location page: base carries an exclusive unit-ID cursor.
             // The native editor sends the character's own outfit field, which is 0 away from the
             // flagship dock (e.g. a commander in a lobby); it is answered as an empty roster.
-            require(it.outfit >= 0 && it.base in 0..(if(it.mode==2)999999 else 65535))
+            // Mode 3 is the reconstructed ground battle window: base is the battle base, outfit 0.
+            require(it.outfit >= 0 && it.base in 0..(if(it.mode==2)999999 else 65535) && (it.mode!=3 || it.outfit==0 && it.base>0))
         }
     }
     fun unitQuery(bytes: ByteArray): UnitQuery {
