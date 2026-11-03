@@ -2,9 +2,12 @@ package org.logh7.engine
 
 import kotlin.math.hypot
 
-enum class TacticalGroundAction { DEPLOY, WITHDRAW }
-data class TacticalGroundCommand(val action:TacticalGroundAction,val units:List<Int>,val skill:Int=0) {
-    init {require(units.size in 1..32 && units.all {it in 1..999999} && units.distinct().size==units.size && skill in 0..255)}
+/** TARGET/CLEAR are the reconstructed ground battle window's 0417/0418 orders (design-ground-battle-window.md). */
+enum class TacticalGroundAction { DEPLOY, WITHDRAW, TARGET, CLEAR }
+data class TacticalGroundCommand(val action:TacticalGroundAction,val units:List<Int>,val skill:Int=0,val target:Int=0) {
+    init {require(units.size in 1..32 && units.all {it in 1..999999} && units.distinct().size==units.size && skill in 0..255 &&
+        (if(action==TacticalGroundAction.TARGET)target in 1..999999 && target !in units else target==0) &&
+        (action==TacticalGroundAction.DEPLOY || skill==0))}
 }
 /** Manual waiting five seconds plus twenty seconds operation, separate from automatic ground exchanges. Author: Peppone Choi. */
 data class TacticalGroundOrder(val action:TacticalGroundAction,val character:Int,val grid:Int,val carrier:Int,val base:Int,
@@ -34,8 +37,41 @@ internal object TacticalGroundOperations {
         return if(stocks.outfits.values.any {o->o.activeGround?.values?.any {it.order?.carrier in ids}==true})
             NavigationResult(null,p,NavigationRejection.BUSY) else null
     }
+    /** The commander of a landed troop's outfit chooses which enemy troop on the same base it attacks (evidence:guess). */
+    private fun assign(request:NavigationRequest,session:SessionState,galaxy:Galaxy,navigation:Navigation,production:PlanetProduction,
+        stocks:PlanetStocks,committer:WorldStateCommitter?):NavigationResult {
+        val preview=navigation.apply(request.copy(tacticalGround=null),session,stocks,persist=false)
+        val p=preview.player ?: return preview
+        fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
+        if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
+        val now=session.gameMillis/1000;val command=checkNotNull(request.tacticalGround)
+        if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
+        val own=if(p.power==Power.EMPIRE)2 else 3
+        fun landed(id:Int)=stocks.outfits.values.firstNotNullOfOrNull {o->o.activeGround?.values?.singleOrNull {it.id==id && it.base>0}?.let {o to it}}
+        val sites=command.units.map {id->
+            val (outfit,unit)=landed(id) ?: return reject(NavigationRejection.UNIT)
+            if(outfit.power!=own || outfit.commanderId!=p.characterId)return reject(NavigationRejection.CARD)
+            if(galaxy.bases.singleOrNull {it.id==unit.base}?.grid!=p.grid)return reject(NavigationRejection.GRID)
+            unit.base
+        }.toSet()
+        val c=stocks.tacticalCommands
+        val targets=if(command.action==TacticalGroundAction.CLEAR)c.groundTargets-command.units.toSet() else {
+            val (enemy,victim)=landed(command.target) ?: return reject(NavigationRejection.TARGET)
+            if(enemy.power==own || enemy.power !in 2..3 || sites!=setOf(victim.base))return reject(NavigationRejection.TARGET)
+            c.groundTargets+command.units.associateWith {command.target}
+        }
+        val players=navigation.snapshot(session.generation)
+        val next=stocks.copy(tacticalCommands=c.copy(groundTargets=targets))
+        val prepared=production.prepareReplacement(stocks,next)
+        committer.saveWorld(players,prepared)
+        production.publishCommitted(stocks,prepared)
+        return NavigationResult(p,preview.previous)
+    }
     fun accept(request:NavigationRequest,session:SessionState,galaxy:Galaxy,navigation:Navigation,production:PlanetProduction,
         stocks:PlanetStocks,committer:WorldStateCommitter?,scale:Long):NavigationResult {
+        if(request.tacticalGround?.action.let {it==TacticalGroundAction.TARGET || it==TacticalGroundAction.CLEAR})
+            return assign(request,session,galaxy,navigation,production,stocks,committer)
         val preview=navigation.apply(request.copy(tacticalGround=null),session,stocks,persist=false)
         val p=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)

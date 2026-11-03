@@ -32,7 +32,9 @@ internal object GroundBattleOperations {
                 val losses=mutableMapOf<Int,Int>()
                 fun attack(from:List<ActiveGroundUnit>,targets:List<ActiveGroundUnit>) {
                     from.forEachIndexed {i,attacker->
-                        val target=targets[i%targets.size]
+                        // An ordered target (reconstructed 0417) is attacked while it still fights here; otherwise round-robin.
+                        val target=next.tacticalCommands.groundTargets[attacker.id]?.let {chosen->targets.singleOrNull {it.id==chosen}}
+                            ?: targets[i%targets.size]
                         val offense=checkNotNull(specifications.getValue(attacker.stack.kind).manual.groundAttack)
                         val defense=checkNotNull(specifications.getValue(target.stack.kind).manual.groundDefense)
                         val amount=(offense.toLong()*(100+20*attacker.stack.level)*attacker.strength*StrategicGroundTactics.factor(next,attacker.id) /
@@ -65,6 +67,10 @@ internal object GroundBattleOperations {
                 events+=GroundBattleResult(session.generation,base.grid,base.id,at,damaged.toList(),destroyed.toList(),recipients)
             }
         }
+        // Orders end with either troop: a destroyed, withdrawn or re-embarked unit no longer holds or receives one.
+        val landed=next.outfits.values.flatMap {it.activeGround?.values.orEmpty()}.filter {it.base>0}.map {it.id}.toSet()
+        val orders=next.tacticalCommands.groundTargets.filter {(unit,target)->unit in landed && target in landed}
+        if(orders!=next.tacticalCommands.groundTargets)next=next.copy(tacticalCommands=next.tacticalCommands.copy(groundTargets=orders))
         return if(next==stocks && clocks==stocks.groundBattles)stocks else next.copy(groundBattles=clocks)
     }
 }

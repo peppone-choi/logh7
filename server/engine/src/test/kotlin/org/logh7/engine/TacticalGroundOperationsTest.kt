@@ -67,6 +67,21 @@ class TacticalGroundOperationsTest {
         galaxy=galaxy(80)
         val h=state(kind=2);assertNotNull(accept(h,Navigation(galaxy,h.nav,NavigationPolicy()),production(h)).player)
     }
+    @Test fun aCommanderOrdersItsLandedTroopsAtAnEnemyTroopOnTheSameBaseAndClearsIt() {
+        val s=state();val own=s.stocks.outfits.getValue(1)
+        val landed=ActiveGroundUnits(own.activeGround!!.values.map {if(it.id==2)it.copy(carrier=0,base=1000,origin=1) else it})
+        val enemy=ActiveGroundUnits(listOf(ActiveGroundUnit(50,UnitStack(4),base=1000)))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(activeGround=landed))+
+            (9 to OutfitStock(9,3,OutfitKind.GROUND,1001,11,10009,UnitInventory(troops=enemy.quantities()),activeGround=enemy)),
+            warehouses=s.stocks.warehouses+(11 to OutfitWarehouse(11,3,OutfitKind.GROUND,1001)))
+        val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        fun order(units:List<Int>,target:Int)=accept(s,n,p,request().copy(tacticalGround=TacticalGroundCommand(
+            if(target>0)TacticalGroundAction.TARGET else TacticalGroundAction.CLEAR,units,target=target)))
+        assertNotNull(order(listOf(2),50).player);assertEquals(mapOf(2 to 50),s.stocks.tacticalCommands.groundTargets)
+        assertEquals(NavigationRejection.TARGET,order(listOf(2),3).rejection,"own troops are no target")
+        assertEquals(NavigationRejection.UNIT,order(listOf(3),50).rejection,"a troop still aboard has no ground battle")
+        assertNotNull(order(listOf(2),0).player);assertTrue(s.stocks.tacticalCommands.groundTargets.isEmpty())
+    }
     @Test fun forgedIdentityConnectionAndNonzeroSkillCannotStartLanding() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s);val before=s.stocks
         assertEquals(NavigationRejection.IDENTITY,accept(s,n,p,request().copy(characterId=10001)).rejection)

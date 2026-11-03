@@ -338,6 +338,25 @@ class GameExchange(
             }
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0417,0x0418 -> {
+                        // Reconstructed ground battle window (design-ground-battle-window.md): the CD's unsent attack/stop troop orders.
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val command=org.logh7.protocol.TacticalGroundMessages.target(body)
+                        require(command.character==character.id.toInt())
+                        if(command.units.any {it !in 1..999999} || command.target !in 0..999999 || command.target in command.units)
+                            return handshake.stageAll(listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),false)),clearHeader=0)
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
+                            tacticalGround=org.logh7.engine.TacticalGroundCommand(
+                                if(command.target>0)org.logh7.engine.TacticalGroundAction.TARGET else org.logh7.engine.TacticalGroundAction.CLEAR,
+                                command.units,target=command.target))).thenApply {result->
+                            if(result.player==null)println("tactical ground target rejected account=${identity.account} units=${command.units} target=${command.target} reason=${result.rejection}")
+                            listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),result.player!=null))
+                        }
+                        return null
+                    }
                     0x040f,0x0410 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(currentCharacter(identity.account))

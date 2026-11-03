@@ -36,6 +36,17 @@ class GroundBattleOperationsTest {
         assertTrue(finished.outfits.values.all {it.activeGround!!.values.isEmpty() && it.units.troops.isEmpty()})
         assertTrue(finished.groundBattles.isEmpty());assertEquals(original.warehouses,finished.warehouses)
     }
+    @Test fun anOrderedTargetDrawsTheAttackAndTheOrderEndsWithTheTarget() {
+        // Empire unit 1 attacks; alliance units 2 and 3 defend. Without an order unit 1 hits unit 2 (round-robin).
+        val base=stocks(empire=1,alliance=2)
+        val plain=advance(advance(base,0),5).outfits.getValue(2).activeGround!!.values.associate {it.id to it.strength}
+        assertTrue(plain.getValue(2)<1000);assertEquals(1000,plain.getValue(3))
+        val ordered=base.copy(tacticalCommands=TacticalCommandState(groundTargets=mapOf(1 to 3)))
+        val hit=advance(advance(ordered,0),5).outfits.getValue(2).activeGround!!.values.associate {it.id to it.strength}
+        assertEquals(1000,hit.getValue(2));assertTrue(hit.getValue(3)<1000)
+        val finished=advance(advance(ordered,0),2000)
+        assertTrue(finished.tacticalCommands.groundTargets.isEmpty(),"the order ends once either troop is gone")
+    }
     @Test fun elapsedSettlementMatchesFrequentTicksAndStrongerSurvivorKeepsRealId() {
         val initial=advance(stocks(empireKind=2),0)
         val fast=advance(initial,500)
