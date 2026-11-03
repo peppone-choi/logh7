@@ -1,5 +1,6 @@
 mod audio;
 mod config;
+mod patch;
 use config::Config;
 use std::{
     env, fs,
@@ -12,6 +13,8 @@ fn run() -> Result<i32, String> {
         .map_err(|_| "런처 경로를 찾지 못했습니다")?
         .with_file_name("launcher.ini");
     let mut check = false;
+    let mut apply_patch: Option<PathBuf> = None;
+    let mut revert_patch = false;
     let mut args = env::args_os().skip(1);
     while let Some(arg) = args.next() {
         match arg.to_str() {
@@ -19,9 +22,16 @@ fn run() -> Result<i32, String> {
                 path = PathBuf::from(args.next().ok_or("--config 뒤에 파일 경로를 지정하세요")?)
             }
             Some("--check") => check = true,
+            Some("--apply-patch") => {
+                apply_patch = Some(PathBuf::from(
+                    args.next()
+                        .ok_or("--apply-patch 뒤에 패치 디렉터리를 지정하세요")?,
+                ))
+            }
+            Some("--revert-patch") => revert_patch = true,
             Some("--help") => {
                 println!(
-                    "logh7-launcher [--config launcher.ini] [--check]\n설정·오디오 출력 점검 후 원본 클라이언트를 실행합니다. --check는 실행 없이 점검합니다."
+                    "logh7-launcher [--config launcher.ini] [--check | --apply-patch DIR | --revert-patch]\n설정·오디오 출력 점검 후 원본 클라이언트를 실행합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
                 );
                 return Ok(0);
             }
@@ -40,6 +50,16 @@ fn run() -> Result<i32, String> {
         &text,
         path.parent().ok_or("설정 디렉터리를 찾지 못했습니다")?,
     )?;
+    if let Some(patch) = apply_patch {
+        let count = patch::apply(&config.client_root, &patch)?;
+        println!("패치 파일 {count}개를 적용했습니다");
+        return Ok(0);
+    }
+    if revert_patch {
+        let count = patch::revert(&config.client_root)?;
+        println!("패치 파일 {count}개를 되돌렸습니다");
+        return Ok(0);
+    }
     let exe = config.executable()?;
     audio::check()?;
     println!(

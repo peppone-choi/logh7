@@ -19,6 +19,12 @@
 
 기본 오디오 출력이 없거나 비활성이면 원인을 표시하고 게임을 실행하지 않는다. 점검은 [GetDefaultAudioEndpoint](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint)와 [GetState](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdevice-getstate)를 사용하며 볼륨·음소거·장치를 바꾸지 않는다. 이 점검은 실제 게임 오디오 초기화 성공을 보장하지 않으므로 실행 관찰과 구분한다.
 
+## 패치 적용·되돌리기 (2026-11-03)
+
+`--apply-patch <패치 디렉터리>`는 패치 디렉터리의 `patch.manifest`(첫 줄 `LOGH7-PATCH-1`, `client<TAB>exe/G7MTClient.exe SHA-256`, `file<TAB>상대 경로<TAB>SHA-256` 줄들)를 읽는다. 클라이언트 실행 파일 해시와 모든 패치 파일 해시를 먼저 확인하고, 하나라도 다르면 아무 파일도 바꾸지 않는다. 클라이언트 루트 밖 경로와 원본 실행 파일 자체는 거부한다. 바꿀 원래 파일은 `logh7-patch-backup/`에 보관하고, 설치 목록은 파일마다 `logh7-patch.state`에 기록한다. 이미 적용된 상태에서 다시 적용하면 거부한다. `--revert-patch`는 설치한 파일이 그대로일 때만 원래 파일을 복원하거나 새로 더한 파일을 지운다. 하나라도 바뀌었으면 아무것도 되돌리지 않는다. SHA-256은 외부 크레이트 없이 구현했다(표준 시험 벡터 검사).
+
+로컬 확인(`work/patch-20261103`, 단위 검사 5개 통과): release 런처로 클라이언트 `exe` 사본의 이전 호환 DLL(`975091ce…`)을 새 DLL(`0206917d…`)로 바꾸고, 재적용 거부와 되돌리기 뒤 원래 해시 복귀·상태 파일 삭제를 확인했다. 한국어 문자열·이미지 묶음의 실제 패치 목록 작성과 업데이트 서버 다운로드는 아직 없다.
+
 ## 빌드·배포
 
 외부 Rust 크레이트 없이 표준 라이브러리와 Windows Core Audio를 사용한다. [Rust 1.99.0](https://doc.rust-lang.org/releases.html#version-1990-2026-10-01) MSVC 도구 체인과 Windows C++ 빌드 도구가 필요하다. 로컬에서는 기존 도구 체인을 재사용하며 빌드·캐시를 E:에 둔다.
@@ -31,7 +37,7 @@ cargo test --locked
 cargo build --release --locked
 ```
 
-출력은 `target/release/logh7-launcher.exe`다. GitHub의 launcher CI는 Windows에서 검사·빌드하고 실행 파일과 설정 예제를 artifact로 보관한다. 게임 자산·dxwrapper·실제 계정 설정은 포함하지 않는다. 배포용 런처의 기능은 직접 인자 실행이며, 업데이터 주소 문자열 패치와 한국어 패치 적용기는 후속 통합 대상으로 남긴다.
+출력은 `target/release/logh7-launcher.exe`다. GitHub의 launcher CI는 Windows에서 검사·빌드하고 실행 파일과 설정 예제를 artifact로 보관한다. 게임 자산·dxwrapper·실제 계정 설정은 포함하지 않는다. 배포용 런처의 기능은 직접 인자 실행이며, 업데이터 주소 문자열 패치와 패치 내려받기는 후속 통합 대상으로 남긴다(로컬 패치 적용·되돌리기는 위 절).
 
 ## 호스트 시험
 
