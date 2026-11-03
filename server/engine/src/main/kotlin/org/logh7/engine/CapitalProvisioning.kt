@@ -4,8 +4,8 @@ package org.logh7.engine
  * Daily provisioning of uninhabitable bases (fortresses, gas planets) from their side's capital (2026-11-04 balance fix,
  * evidence:guess). Such a base grows no food and its garrison population starved from day 11, emptying every fortress
  * within months when nobody runs transports. Each day a regular (camp 0) imperial/alliance uninhabitable base receives
- * exactly its missing daily ration while its side still holds its own capital; the total is taken from that capital's
- * food after the settlement loop (never below zero). Captured or neutral bases and lost capitals get nothing.
+ * its missing daily ration, limited to its capital's remaining food after that day's local settlement. Every transfer
+ * debits the capital immediately. Captured or neutral bases and lost capitals get nothing.
  * Author: Peppone Choi.
  */
 internal object CapitalProvisioning {
@@ -16,24 +16,16 @@ internal object CapitalProvisioning {
     }.toMap()
 
     /** The stock topped up to today's ration and the amount shipped, or null when nothing is shipped. */
-    fun topUp(stock: PlanetStock, base: BaseCondition, policy: PlanetProductionPolicy, capitals: Map<Int, Int>): Pair<PlanetStock, Long>? {
+    fun topUp(stock: PlanetStock, base: BaseCondition, policy: PlanetProductionPolicy, capitals: Map<Int, Int>,
+        availableFood: Int): Pair<PlanetStock, Int>? {
         val people = stock.economy ?: return null
-        if (base.habitability != 0 || stock.camp != 0 || stock.power !in capitals || stock.baseId == capitals[stock.power]) return null
+        if (base.habitability != 0 || stock.camp != 0 || stock.power != base.power ||
+            stock.power !in capitals || stock.baseId == capitals[stock.power]) return null
         val per = policy.economy.foodPeoplePerUnit
         val required = (people.population.toLong() + per - 1) / per
         val missing = required - stock.food
-        if (missing <= 0) return null
-        return stock.copy(food = Math.toIntExact(required)) to missing
-    }
-
-    fun charge(stocks: PlanetStocks, capitals: Map<Int, Int>, shipped: Map<Int, Long>): PlanetStocks {
-        if (shipped.isEmpty()) return stocks
-        var bases = stocks.bases
-        for ((power, amount) in shipped) {
-            val id = capitals[power] ?: continue
-            val capital = bases.getValue(id)
-            bases = bases + (id to capital.copy(food = maxOf(0L, capital.food - amount).toInt()))
-        }
-        return stocks.copy(bases = bases)
+        val amount = minOf(missing, availableFood.toLong(), maxOf(0L, policy.maximumStock.toLong() - stock.food)).toInt()
+        if (amount <= 0) return null
+        return stock.copy(food = stock.food + amount) to amount
     }
 }
