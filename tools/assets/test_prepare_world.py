@@ -51,6 +51,18 @@ class PrepareWorldTest(unittest.TestCase):
             prepare(data, dict(schema=1, source='bad', bases=[
                 dict(grid=2487, name=next(iter(CAPITALS))[1], planet_type=3)]), design_fallback=True)
 
+    def test_fezzan_is_a_settled_terrestrial_planet_not_a_gas_fallback(self):
+        data = world()
+        data['systems'][2]['grid']['index'] = 3751
+        data['systems'][2]['bases'][1]['name'] = 'フェザーン'
+        p = properties(prepare(data, design_fallback=True))
+        fezzan = next(k for k, v in p.items() if v == 'フェザーン').replace('.name', '')
+        self.assertEqual(p[fezzan + '.model'], '100')
+        self.assertIn(100, HABITABLE_MODELS)
+        with self.assertRaisesRegex(ValueError, 'Capital'):
+            prepare(data, dict(schema=1, source='bad', bases=[
+                dict(grid=3751, name='フェザーン', planet_type=3)]), design_fallback=True)
+
     def test_design_keeps_supplied_values_and_is_independent_of_system_order(self):
         data = world()
         data['systems'][0]['bases'][0]['model_file'] = 81

@@ -14,6 +14,8 @@ PLANET_MODELS = {row * 10 + variant for row in range(11)
                  for variant in range(3 if row == 10 else 2)}
 HABITABLE_MODELS = (60, 61, 80, 81, 100, 101, 102)
 CAPITALS = {(2487, 'オーディン'): 60, (2015, 'ハイネセン'): 61}
+# Inhabited trade capital in the setting; a gas fallback would also bar armored landings (U-09).
+SETTLED = {(3751, 'フェザーン'): 100}
 
 
 MOBILE_FORTRESSES = {'ガイエスブルク'}
@@ -23,6 +25,8 @@ def designed_model(grid, name, ordinal):
     """User-authorized fallback, never a claim about original server assignments."""
     if (grid, name) in CAPITALS:
         return CAPITALS[grid, name]
+    if (grid, name) in SETTLED:
+        return SETTLED[grid, name]
     if grid == 375:
         solar = {'水星': 0, '金星': 70, '地球': 101, '火星': 1}
         if name in solar:
@@ -99,7 +103,7 @@ def prepare(manual, appearances=None, design_fallback=False):
                     source = 'design-fallback-v1'
                 else:
                     model = 0
-            if design_fallback and target in CAPITALS and model not in HABITABLE_MODELS:
+            if design_fallback and (target in CAPITALS or target in SETTLED) and model not in HABITABLE_MODELS:
                 raise ValueError('Capital must use a habitable terrestrial model')
             if type(model) is not int or model not in (PLANET_MODELS if base['kind_code'] == 0 else set(range(110, 120))):
                 raise ValueError('Unsupported model for base kind')
