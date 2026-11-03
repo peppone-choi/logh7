@@ -73,7 +73,7 @@ static void outfitItemName(bool ship,unsigned kind,wchar_t (&name)[64]) {
     if (kind < (ship ? 179u : 16u)) {
         auto value=reinterpret_cast<const char*(__thiscall*)(void*,int,int)>(0x522010)
             (reinterpret_cast<void*>(0x2217400),ship ? 85 : 86,kind);
-        if (value) MultiByteToWideChar(932,0,value,-1,name,_countof(name));
+        logh::catalogueText(value,name);
     }
     if (!name[0]) _snwprintf_s(name,_countof(name),_TRUNCATE,L"미등록 품목 %u",kind);
 }
