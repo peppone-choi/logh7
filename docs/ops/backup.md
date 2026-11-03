@@ -41,3 +41,11 @@
 
 로컬 리허설(`work/gb-20261103`, 단위 검사 3개 통과): 지상전 8대8 상태를 백업하고 서버를 30초 돌려 전력 1000→369로 바꾼 뒤 강제 종료했다. 실행 중 백업 요청은 거부됐고, `--force` 없는 복원도 거부됐다. 복원 뒤 재시작한 서버는 백업 시점(게임 시각 1331121→1330377, 전력 1000)으로 돌아왔다. 복원+재시작의 RTO는 4.6초였다. 이 결과는 오프라인 백업 한 가지이며, 주기 실행·외부 보관·RPO 감시·실행 중 일관 스냅샷은 미구현이다. `evidence:guess`
 
+## 서버 릴리스 전환·롤백 (2026-11-03)
+
+`tools/ops/server_release.py`는 Gradle `installDist` 결과(`server/app/build/install/app`)를 `RELEASES/<이름>`에 해시 매니페스트와 함께 복사하고, `CURRENT`/`PREVIOUS` 파일로 활성 릴리스를 바꾼다. 실행 중(`/health` 응답)이면 전환을 거부하고, 매니페스트와 다른 파일이 있는 릴리스는 활성화하지 않는다. 시작 스크립트는 `classpath` 출력(`<릴리스>/lib/*`)을 `java -cp`에 넘긴다.
+
+업데이트 절차: 서버 정지 → `state_backup.py backup` → `server_release.py install`·`activate` → 시작·확인. 실패하면 정지 → `rollback` → `state_backup.py restore --force` → 시작.
+
+로컬 리허설(`work/release-20261103`, 단위 검사 2개 통과): 정상 릴리스 `good`로 시작·정지하고 상태를 백업한 뒤, 앱 jar를 잘라 만든 `broken` 릴리스를 활성화하자 서버가 `ClassNotFoundException`으로 시작하지 못했다. `rollback`(good 복귀)과 상태 복원 뒤 재시작해 `/health` 응답과 백업 시점 게임 시각을 확인했다. 무중단 전환·자동 상태 확인·원격 배포는 미구현이다. `evidence:guess`
+
