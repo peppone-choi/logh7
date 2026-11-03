@@ -66,6 +66,15 @@ class OpsHealthTest {
             assertEquals(11, values.size)
         }
     }
+    @Test fun adminPageIsReadOnlyHtmlAndEscapesValues() {
+        val page = opsAdminPage(EngineHealth.RUNNING, WorldSnapshot(7, 3))
+        assertTrue(page.startsWith("<!doctype html>") && "RUNNING" in page && "<td>7</td>" in page)
+        serve(snapshots(EngineHealth.RUNNING)) { endpoint ->
+            val response = endpoint.get("/admin")
+            assertEquals(200, response.statusCode())
+            assertTrue(response.headers().firstValue("Content-Type").get().startsWith("text/html"))
+        }
+    }
     @Test fun snapshotSourceDefaultHealthKeepsExistingFakesRunning() {
         val source = object : SnapshotSource { override fun snapshot() = snapshot }
         serve(source) { endpoint ->
