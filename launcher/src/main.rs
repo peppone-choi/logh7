@@ -1,5 +1,6 @@
 mod audio;
 mod config;
+mod download;
 mod patch;
 use config::Config;
 use std::{
@@ -29,9 +30,24 @@ fn run() -> Result<i32, String> {
                 ))
             }
             Some("--revert-patch") => revert_patch = true,
+            Some("--download-patch") => {
+                let url = args
+                    .next()
+                    .ok_or("--download-patch 뒤에 http 주소를 지정하세요")?;
+                let out = args
+                    .next()
+                    .ok_or("--download-patch 주소 뒤에 받을 디렉터리를 지정하세요")?;
+                let url = url
+                    .to_str()
+                    .ok_or("패치 주소는 ASCII여야 합니다")?
+                    .to_string();
+                let count = download::download(&url, &PathBuf::from(out))?;
+                println!("패치 파일 {count}개를 받아 해시를 확인했습니다");
+                return Ok(0);
+            }
             Some("--help") => {
                 println!(
-                    "logh7-launcher [--config launcher.ini] [--check | --apply-patch DIR | --revert-patch]\n설정·오디오 출력 점검 후 원본 클라이언트를 실행합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
+                    "logh7-launcher [--config launcher.ini] [--check | --apply-patch DIR | --revert-patch | --download-patch URL DIR]\n설정·오디오 출력 점검 후 원본 클라이언트를 실행합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
                 );
                 return Ok(0);
             }
