@@ -174,6 +174,29 @@ class OpsApiTest {
         assertEquals(listOf("ACCOUNT_SET:CHANGED", "ACCOUNT_SET:INVALID", "ACCOUNT_REMOVE:NOT_FOUND", "ACCOUNT_REMOVE:CHANGED"), outcomes)
     }
 
+    @Test fun namedOperatorLoginBecomesTheAuditOperator() {
+        // Written by tools/ops/ops_user.py entry("operator-pass1", 1000, b"A"*16): Python and Kotlin must agree.
+        val users = directory.resolve("ops-users.properties")
+        Files.writeString(users, "alice=pbkdf2-sha256\\:1000\\:QUFBQUFBQUFBQUFBQUFBQQ==\\:Ab+PsEbuYY5gqqi/zTGWoVe2/14/f98p/qvoQSF3qVU=\n")
+        val sink = Sink();val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(sink, snapshots, port, audit, users = OpsUsers(users)).use {
+            HttpClient.newHttpClient().use { client ->
+                fun basic(pair: String) = "Basic " + java.util.Base64.getEncoder().encodeToString(pair.toByteArray())
+                fun probe(auth: String?): HttpResponse<String> {
+                    val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:$port/commands/probe")).header("X-LOGH7-Operator", "mallory")
+                    if (auth != null) builder.header("Authorization", auth)
+                    return client.send(builder.POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString())
+                }
+                assertEquals(401, probe(null).statusCode())
+                assertEquals(401, probe(basic("alice:wrong")).statusCode())
+                assertEquals(200, probe(basic("alice:operator-pass1")).statusCode())
+            }
+        } }
+        assertEquals(listOf(WorldCommand.Probe), sink.commands)
+        assertTrue(rows().all { it["operator"] == "alice" }, "the login, not the self-reported header, is recorded")
+        assertFailsWith<IllegalArgumentException> { startOpsApi(sink, snapshots, port, null, null, "0.0.0.0") }
+    }
+
     @Test fun restartSuccess() {
         val sink = Sink()
         OpsAudit.open(file, clock).use { audit -> serve(sink, audit) { endpoint ->

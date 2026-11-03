@@ -27,16 +27,24 @@ interface AccountAdmin {
 }
 
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
-    audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null): AutoCloseable {
+    audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null,
+    users: OpsUsers? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
-    require(token != null || java.net.InetAddress.getByName(host).isLoopbackAddress) { "a non-loopback ops bind requires LOGH7_OPS_TOKEN" }
+    require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
+        "a non-loopback ops bind requires LOGH7_OPS_TOKEN or LOGH7_OPS_USERS_FILE" }
     val server = embeddedServer(Netty, host = host, port = port) {
         intercept(io.ktor.server.application.ApplicationCallPipeline.Plugins) {
-            if (token != null && call.request.local.uri.substringBefore('?') != "/health" && !opsAuthorized(call.request.headers["Authorization"], token)) {
-                call.response.headers.append("WWW-Authenticate", "Basic realm=\"LOGH7 ops\", charset=\"UTF-8\"")
-                call.respondText("ops token required", status = HttpStatusCode.Unauthorized)
-                finish()
+            if ((token != null || users != null) && call.request.local.uri.substringBefore('?') != "/health") {
+                val header = call.request.headers["Authorization"]
+                // A named operator login sets the audit operator; the shared token (machines) leaves it self-reported.
+                val operator = users?.let { opsUser(header, it) }
+                if (operator != null) call.attributes.put(opsOperatorKey, operator)
+                else if (token == null || !opsAuthorized(header, token)) {
+                    call.response.headers.append("WWW-Authenticate", "Basic realm=\"LOGH7 ops\", charset=\"UTF-8\"")
+                    call.respondText("ops login required", status = HttpStatusCode.Unauthorized)
+                    finish()
+                }
             }
         }
         routing {
@@ -109,6 +117,15 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     return AutoCloseable { server.stop(500, 2000) }
 }
 
+private val opsOperatorKey = io.ktor.util.AttributeKey<String>("logh7.opsOperator")
+
+internal fun opsUser(header: String?, users: OpsUsers): String? {
+    if (header == null || !header.startsWith("Basic ")) return null
+    val pair = runCatching { String(Base64.getDecoder().decode(header.removePrefix("Basic ").trim()), Charsets.UTF_8) }.getOrNull() ?: return null
+    val name = pair.substringBefore(':', "");val password = pair.substringAfter(':', "")
+    return if (name.isEmpty()) null else users.authenticate(name, password)
+}
+
 internal fun opsAuthorized(header: String?, token: String): Boolean {
     val presented = when {
         header == null -> return false
@@ -131,7 +148,8 @@ private suspend fun ApplicationCall.adminForm(port: Int): io.ktor.http.Parameter
 }
 
 private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
-    operator: String? = request.headers["X-LOGH7-Operator"], operation: suspend () -> OpsOutcome) {
+    reported: String? = request.headers["X-LOGH7-Operator"], operation: suspend () -> OpsOutcome) {
+    val operator = attributes.getOrNull(opsOperatorKey) ?: reported
     if (audit == null) {
         respondText("ops audit log is not configured", status = HttpStatusCode.ServiceUnavailable)
         return

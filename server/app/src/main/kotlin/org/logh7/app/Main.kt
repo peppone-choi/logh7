@@ -113,7 +113,9 @@ fun main() {
         val opsToken = System.getenv("LOGH7_OPS_TOKEN")?.takeIf { it.isNotEmpty() }
             ?: System.getenv("LOGH7_OPS_TOKEN_FILE")?.let { java.nio.file.Files.readString(Path.of(it)).trim() }?.takeIf { it.isNotEmpty() }
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,
-            host = System.getenv("LOGH7_OPS_BIND") ?: "127.0.0.1", accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
+            host = System.getenv("LOGH7_OPS_BIND") ?: "127.0.0.1",
+            users = System.getenv("LOGH7_OPS_USERS_FILE")?.let { org.logh7.ops.OpsUsers(Path.of(it)) },
+            accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()
                 override fun set(account: String, password: String) =
                     org.logh7.gateway.FileAccounts.validName(account) && org.logh7.gateway.FileAccounts.validPassword(password) && run { file.set(account, password); true }
