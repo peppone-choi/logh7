@@ -87,6 +87,8 @@ internal object BaseOccupationOperations {
                     }),
                 // U-08: like automatic production, a pending manual ship order does not survive the capture.
                 social=stocks.social.copy(production=stocks.social.production.let {it.copy(orders=it.orders-base.id)}))
+            // User decision 2026-11-03: the new owner repairs the fortress armor and propulsion (FortressArmor).
+            stocks=FortressArmor.restore(stocks,base.id)
             val expelled=linkedMapOf<String,Navigator>()
             var offset=0
             for((account,p) in players.toMap()) {
