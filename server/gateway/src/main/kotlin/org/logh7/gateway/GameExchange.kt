@@ -1716,6 +1716,11 @@ class GameExchange(
                                         val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
                                         refreshPaid(result.navigators)
+                                        // The CD has no closed-mailbox alert for office rows (only opening re-queries them):
+                                        // tell an online recipient in the chat log (design-proposals-orders.md, evidence:guess).
+                                        if(result.rejection==null && result.changed)presence?.toCharacter(query.target,checkNotNull(generation),
+                                            listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(query.target,
+                                                ProposalNotice.arrived(character.surname)),gameSeconds())))
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
                                             listOf(characterMessage(updated,player,true))
                                     }
