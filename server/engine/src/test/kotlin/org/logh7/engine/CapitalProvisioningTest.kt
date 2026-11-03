@@ -21,4 +21,89 @@ class CapitalProvisioningTest {
         val lost=CapitalProvisioning.capitals(galaxy,month.copy(bases=month.bases+(1049 to month.bases.getValue(1049).copy(power=3))))
         assertTrue(lost.isEmpty(),"a captured capital supplies nobody")
     }
+
+    private val policy=PlanetProductionPolicy(economy=PlanetEconomyPolicy(dailyGrowthPerMillion=0))
+    private class Store(var value:PlanetStocks):PlanetStockStore {
+        var fail=false
+        override fun load()=value
+        override fun save(stocks:PlanetStocks) {
+            if(fail)throw java.io.IOException("disk failure")
+            value=stocks
+        }
+    }
+    private fun stock(capitalFood:Int,world:Galaxy=galaxy,adults:Int=0)=PlanetStocks(1,0,
+        world.bases.associate {base->base.id to PlanetStock(base.id,2,0,100_000,
+            if(base.id==1049)capitalFood else 0,100_000,PlanetEconomy(100_000,adults,70,80))},
+        deploymentInitialized=true)
+
+    @Test fun onlyTheCapitalsRemainingFoodCanFeedAFortress() {
+        for((food,population) in listOf(100 to 99_000,175 to 99_750)) {
+            val next=PlanetProduction(galaxy,Store(stock(food)),0,policy).settle(1,86400)
+            assertEquals(0,next.bases.getValue(1049).food)
+            assertEquals(100_000,next.bases.getValue(1049).economy!!.population,"the capital eats first")
+            assertEquals(population,next.bases.getValue(1040).economy!!.population,"short rations cause real starvation")
+            assertEquals(0,next.bases.getValue(1040).food)
+        }
+    }
+
+    @Test fun multipleFortressesShareOneFiniteDailyBalanceRegardlessOfSeedOrder() {
+        val extra=galaxy.bases[1].copy(id=1041,name="Second")
+        val forward=Galaxy(galaxy.systems,galaxy.bases+extra,galaxy.starts)
+        val reversed=Galaxy(galaxy.systems,(galaxy.bases+extra).reversed(),galaxy.starts)
+        fun settle(world:Galaxy)=PlanetProduction(world,Store(stock(250,world)),0,policy).settle(1,86400)
+        val next=settle(forward)
+        assertEquals(next,settle(reversed))
+        assertEquals(100_000,next.bases.getValue(1040).economy!!.population)
+        assertEquals(99_500,next.bases.getValue(1041).economy!!.population)
+        assertEquals(0,next.bases.getValue(1049).food)
+    }
+
+    @Test fun dailyHarvestCannotBeBorrowedFromAFutureDayDuringCatchup() {
+        val initial=stock(0,adults=60_000)
+        val one=PlanetProduction(galaxy,Store(initial),0,policy).settle(1,86400)
+        assertEquals(99_200,one.bases.getValue(1040).economy!!.population,"only today's 20 surplus can be shipped")
+        val batch=PlanetProduction(galaxy,Store(initial),0,policy).settle(1,20*86400L)
+        val saved=Store(initial)
+        for(day in 1..20)PlanetProduction(galaxy,saved,0,policy).settle(1,day*86400L)
+        assertEquals(batch,saved.value,"daily queries and server restarts must not change rations")
+    }
+
+    @Test fun failedSaveDoesNotPublishOrDuplicateEitherSideOfTheTransfer() {
+        val saved=Store(stock(175))
+        val production=PlanetProduction(galaxy,saved,0,policy)
+        val before=production.settle(1,0)
+        saved.fail=true
+        assertFailsWith<java.io.IOException> {production.settle(1,86400)}
+        assertEquals(before,production.snapshot(1));assertEquals(before,saved.value)
+        saved.fail=false
+        val after=production.settle(1,86400)
+        assertEquals(99_750,after.bases.getValue(1040).economy!!.population)
+        assertEquals(after,production.settle(1,86400))
+        assertEquals(after,PlanetProduction(galaxy,saved,0,policy).settle(1,86400))
+    }
+
+    @Test fun transfersRespectCapacityOwnershipAndIntegerBounds() {
+        val base=galaxy.conditions.getValue(1040)
+        val row=stock(0).bases.getValue(1040).copy(economy=PlanetEconomy(Int.MAX_VALUE,0,70,80))
+        val capitals=mapOf(2 to 1049,3 to 1177)
+        val bounded=policy.copy(maximumStock=25,economy=policy.economy.copy(foodPeoplePerUnit=1))
+        val (fed,amount)=checkNotNull(CapitalProvisioning.topUp(row,base,bounded,capitals,Int.MAX_VALUE))
+        assertEquals(25,amount);assertEquals(25,fed.food)
+        assertNull(CapitalProvisioning.topUp(row.copy(food=26),base,bounded,capitals,Int.MAX_VALUE))
+        for(ineligible in listOf(row.copy(power=3),row.copy(camp=1),row.copy(power=0),row.copy(economy=null)))
+            assertNull(CapitalProvisioning.topUp(ineligible,base,policy,capitals,1000))
+        assertNull(CapitalProvisioning.topUp(row,base.copy(habitability=1),policy,capitals,1000))
+        val full=bounded.copy(maximumStock=Int.MAX_VALUE)
+        val last=checkNotNull(CapitalProvisioning.topUp(row.copy(food=Int.MAX_VALUE-1),base,full,capitals,Int.MAX_VALUE))
+        assertEquals(1,last.second);assertEquals(Int.MAX_VALUE,last.first.food)
+    }
+
+    @Test fun provisionedFoodAlsoCountsWhenCheckingDailyUnitProduction() {
+        val world=Galaxy(listOf(galaxy.systems[0],galaxy.systems[1].copy(name="イゼルローン")),
+            listOf(galaxy.bases[0],galaxy.bases[1].copy(name="イゼルローン")),galaxy.starts)
+        val next=PlanetProduction(world,Store(stock(1000,world,60_000)),0,policy).settle(1,86400)
+        val fortress=next.bases.getValue(1040)
+        assertEquals(100_000,fortress.economy!!.population)
+        assertTrue(fortress.units.work.values.any {it==24},"fed workers advance the existing production recipes")
+    }
 }

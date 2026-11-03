@@ -119,13 +119,15 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         // U-20: the 封土 card text (constmsg, evidence:client) gives a fief's taxes to its lord,
         // so the whole collected amount goes to the lord's private money, not the treasuries.
         val lords = linkedMapOf<Int, Long>()
-        // Food shipped to uninhabitable bases per side, charged to that side's capital after the loop (CapitalProvisioning).
-        val shipped = linkedMapOf<Int, Long>()
         val capitals = CapitalProvisioning.capitals(galaxy, initialized)
-        val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
-            bases = initialized.bases.mapValues { (id, stock) ->
-                var next = stock
-                repeat(Math.toIntExact(days - initialized.producedDays)) {day->
+        val result = if (days <= initialized.producedDays) initialized else {
+            val bases=initialized.bases.toMutableMap()
+            // Settle capitals first each day; recipients share only today's real surplus in stable base-id order.
+            val order=(capitals.values.sorted()+bases.keys.sorted()).distinct()
+            repeat(Math.toIntExact(days - initialized.producedDays)) {day->
+                for(id in order) {
+                    val previousDay=bases.getValue(id)
+                    var next=previousDay
                     val base=galaxy.conditions.getValue(id)
                     // U-17: a sabotaged base keeps collecting taxes but produces nothing until the stop ends.
                     val stopped=EspionageActions.disabled(initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L))
@@ -133,20 +135,24 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     val lord=initialized.strategic.fiefs[id]
                     if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
                     else if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
-                    val previousDay=next
-                    if(!stopped)CapitalProvisioning.topUp(next,base,policy,capitals)?.let {(fed,amount)->
-                        next=fed;shipped[fed.power]=Math.addExact(shipped[fed.power] ?: 0,amount)}
-                    next = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), previousDay,
+                    val capital=capitals[next.power]?.let(bases::getValue)
+                    if(!stopped)CapitalProvisioning.topUp(next,base,policy,capitals,capital?.food ?: 0)?.let {(fed,amount)->
+                        next=fed
+                        val source=checkNotNull(capital)
+                        bases[source.baseId]=source.copy(food=source.food-amount)
+                    }
+                    bases[id] = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), next,
                         ProductionActions.shipyard(galaxy,initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L))))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                         .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }
-                next
-            }, nationalTreasuries=national).let {produced ->CapitalProvisioning.charge(produced,capitals,shipped)}.let {produced ->
+            }
+            initialized.copy(producedDays=days,bases=bases,nationalTreasuries=national).let {produced ->
                 if(lords.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+
                     lords.mapValues {(lord,amount)->(produced.strategic.people[lord] ?: StrategicPerson()).let {
                         it.copy(money=minOf(0xffffffffL,it.money+amount))}}))
             }
+        }
         // U-28: politician-ladder rules run once per crossed 30-day boundary, in order.
         var monthly=result
         val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
