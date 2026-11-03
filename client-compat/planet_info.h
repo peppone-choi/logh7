@@ -248,6 +248,7 @@ static int __cdecl planetInfoMenu(void* gui) {
     if(updateSessionEnding(gui))return -1;
     updateCharacterInformation(gui);
     updateOutfitInformation(gui);
+    updateOutfitListColumns(gui);
     if (updateTaxWindow(gui)) return -1;
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
