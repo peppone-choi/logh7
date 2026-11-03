@@ -21,13 +21,15 @@ static void applyTacticalLabels(void* world) {
         }
         if (!label[0]) {
             unsigned kind=at<unsigned short>(unit,0x8bc);
-            wchar_t type[64]={};
+            std::wstring type;
             if (kind<179) {
+                // The hooked lookup returns Korean in private CP932 glyphs; a plain
+                // CP932 decode would leave those slots unrestored on screen.
                 auto value=reinterpret_cast<const char*(__thiscall*)(void*,int,int)>(0x522010)
                     (reinterpret_cast<void*>(0x2217400),85,kind);
-                if (value) MultiByteToWideChar(932,0,value,-1,type,_countof(type));
+                if (!logh::japaneseFragment(value,type)) type.clear();
             }
-            if (type[0]) _snwprintf_s(label,_countof(label),_TRUNCATE,L"%s",type);
+            if (!type.empty()) _snwprintf_s(label,_countof(label),_TRUNCATE,L"%s",type.c_str());
             else _snwprintf_s(label,_countof(label),_TRUNCATE,L"함정");
         }
         memcpy(unit+0x6bc,label,sizeof(label));
