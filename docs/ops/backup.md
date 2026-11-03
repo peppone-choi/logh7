@@ -30,3 +30,14 @@
 테스트 데이터에 초 단위 시각과 연속 명령 번호를 넣고 10분 이상 기록한다. 종료 직전 번호를 저장한 뒤 원본 볼륨을 사용하지 않는 격리 복원으로 마지막 복원 commit을 비교한다. 손실 ≤300초, 중복 적용 0, 누락된 WAL 0, 측정한 RTO를 기록한다. 외부 아카이브 전송 차단 시 경고와 쓰기 중지가 동작하는지도 시험한다. 백업 도구·외부 저장소·알림/쓰기 중지 기능은 미구현이며 시험 역시 미실행이다. `evidence:guess`
 
 참고(2026-09-27): [PostgreSQL 연속 아카이빙/PITR](https://www.postgresql.org/docs/18/continuous-archiving.html), [WAL archive_timeout](https://www.postgresql.org/docs/18/runtime-config-wal.html), [Compute 디스크 스냅샷](https://cloud.google.com/compute/docs/disks/snapshots). 배포 전 해당 설정과 선택한 백업 도구의 복원 절차를 함께 검증한다. `evidence:guess`
+
+## 파일 상태 오프라인 백업·복원 도구 (2026-11-03)
+
+현재 게임 서버는 PostgreSQL이 아니라 파일 저장소 세 개(월드 슬롯 `LOGH7_WORLD_STATE_DIR`, 세션 checkpoint·journal `LOGH7_SESSION_STORE_DIR`, 인물 파일 `LOGH7_CHARACTERS_FILE`과 형제 파일 `.*`)를 쓴다. `tools/ops/state_backup.py`가 이 세 저장소를 함께 백업·검증·복원한다.
+
+- `backup`: 서버 운영 API `/health`가 응답하면 거부한다(세 저장소는 실행 사이에만 서로 일관). `*.world-owner` 표지가 지정한 월드 경로와 다르면 거부한다. `*.lock`은 복사하지 않고, 파일마다 크기·SHA-256을 `manifest.json`에 적는다.
+- `verify`: 매니페스트의 모든 파일 해시를 다시 확인한다.
+- `restore`: 검증 뒤 원래 경로에만 복원한다(world-owner가 절대 경로로 묶여 있어서다). 대상에 상태가 있으면 `--force`가 있어야 하고, 이때 현재 파일을 `<백업>.replaced-<시각>`으로 먼저 옮겨 되돌릴 수 있게 한다.
+
+로컬 리허설(`work/gb-20261103`, 단위 검사 3개 통과): 지상전 8대8 상태를 백업하고 서버를 30초 돌려 전력 1000→369로 바꾼 뒤 강제 종료했다. 실행 중 백업 요청은 거부됐고, `--force` 없는 복원도 거부됐다. 복원 뒤 재시작한 서버는 백업 시점(게임 시각 1331121→1330377, 전력 1000)으로 돌아왔다. 복원+재시작의 RTO는 4.6초였다. 이 결과는 오프라인 백업 한 가지이며, 주기 실행·외부 보관·RPO 감시·실행 중 일관 스냅샷은 미구현이다. `evidence:guess`
+
