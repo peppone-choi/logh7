@@ -118,7 +118,8 @@ class TacticalMotionTest {
         var navigation=Navigation(galaxy,store,NavigationPolicy())
         assertEquals(NavigationRejection.UNIT,navigation.apply(request.copy(tacticalMove=request.tacticalMove!!.copy(units=listOf(1010001))),session,stocks).rejection)
         assertEquals(NavigationRejection.CARD,navigation.apply(request.copy(captainCard=59),session,stocks).rejection)
-        assertEquals(NavigationRejection.ENERGY,navigation.apply(request.copy(tacticalMove=request.tacticalMove!!.copy(velocity=1f)),session,stocks).rejection)
+        // The CD always sends full speed: it is capped to the ENGINE allocation (persist=false keeps the store untouched).
+        assertEquals(0.5f,navigation.apply(request.copy(tacticalMove=request.tacticalMove!!.copy(velocity=1f)),session,stocks,persist=false).player!!.motion!!.velocity)
         assertNull(store.state.getValue("pilot").motion)
         val after=navigation.apply(request,session,stocks).player!!
         val motion=after.motion!!
