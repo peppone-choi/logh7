@@ -136,6 +136,7 @@ static bool updateSessionEnding(void* manager);
 static void receivedSessionEnding(void* world,const BYTE* record);
 #include "system_affiliation.h"
 #include "planet_info.h"
+#include "ground_battle_panel.h"
 #include "outfit_list_columns.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"

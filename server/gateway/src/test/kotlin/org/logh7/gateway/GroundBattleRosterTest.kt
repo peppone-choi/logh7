@@ -29,5 +29,8 @@ class GroundBattleRosterTest {
     @Test fun bothSidesLandedTroopsWithStrengthAndTargetOnlyForATacticalViewerOnThatGrid() {
         assertEquals(listOf(Triple(11,1002,700_000_021),Triple(21,1010,1000_000_000)),rows(2487),"the troop still aboard is left out")
         assertTrue(rows(2490).isEmpty());assertTrue(rows(null).isEmpty())
+        val special=Galaxy(galaxy.systems,listOf(base.copy(model=41)),galaxy.starts)
+        val packets=WorldBootstrap(special).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,2487)
+        assertEquals(1,ByteBuffer.wrap(packets[1]).get(6).toInt(),"the empire's armored infantry cannot fight on a special planet")
     }
 }
