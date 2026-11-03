@@ -81,6 +81,25 @@ class TacticalGroundOperationsTest {
         assertEquals(NavigationRejection.TARGET,order(listOf(2),3).rejection,"own troops are no target")
         assertEquals(NavigationRejection.UNIT,order(listOf(3),50).rejection,"a troop still aboard has no ground battle")
         assertNotNull(order(listOf(2),0).player);assertTrue(s.stocks.tacticalCommands.groundTargets.isEmpty())
+        val changed=p.snapshot(1)!!.let {it.copy(outfits=it.outfits+(1 to it.outfits.getValue(1).copy(commanderId=10001)))}
+        p.replace(p.snapshot(1)!!,changed)
+        assertEquals(NavigationRejection.CARD,order(listOf(2),50).rejection,"observing another commander does not grant command")
+        assertTrue(s.stocks.tacticalCommands.groundTargets.isEmpty())
+    }
+    @Test fun anExistingGarrisonCommanderCanOrderLocalUnassignedGroundDefendersUntilDismissed() {
+        val s=state();val defenders=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),base=1000)))
+        val enemy=ActiveGroundUnits(listOf(ActiveGroundUnit(50,UnitStack(4),base=1000)))
+        s.stocks=s.stocks.copy(bases=s.stocks.bases+(1000 to s.stocks.bases.getValue(1000).copy(garrisonCommanderId=10000)),
+            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.GROUND,1000,10,
+                units=UnitInventory(troops=defenders.quantities()),activeGround=defenders),
+                9 to OutfitStock(9,3,OutfitKind.GROUND,1001,11,units=UnitInventory(troops=enemy.quantities()),activeGround=enemy)),
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.GROUND,1000),11 to OutfitWarehouse(11,3,OutfitKind.GROUND,1001)))
+        val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        assertNotNull(accept(s,n,p,request().copy(tacticalGround=TacticalGroundCommand(TacticalGroundAction.TARGET,listOf(2),target=50))).player)
+        val before=p.snapshot(1)!!
+        p.replace(before,before.copy(bases=before.bases+(1000 to before.bases.getValue(1000).copy(garrisonCommanderId=10001))))
+        assertEquals(NavigationRejection.CARD,accept(s,n,p,request().copy(tacticalGround=TacticalGroundCommand(TacticalGroundAction.CLEAR,listOf(2)))).rejection)
+        assertEquals(50,p.snapshot(1)!!.tacticalCommands.groundTargets[2])
     }
     @Test fun forgedIdentityConnectionAndNonzeroSkillCannotStartLanding() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s);val before=s.stocks

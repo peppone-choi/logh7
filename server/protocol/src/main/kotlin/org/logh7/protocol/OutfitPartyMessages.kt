@@ -16,7 +16,9 @@ object OutfitPartyMessages {
         /** 叛乱忠誠度 0..100 (U-10 説得). */
         val rebellion:Int=0,
         /** 士気 0..100 (ground battle window; other views keep the initial 100). */
-        val morale:Int=100)
+        val morale:Int=100,
+        /** Revival mode-3 ground view only: existing allied commander in the unused mobilization field. */
+        val commander:Int=0)
     fun query(bytes: ByteArray): Query {
         require(bytes.size == 11)
         val input = ByteBuffer.wrap(bytes)
@@ -88,7 +90,8 @@ object OutfitPartyMessages {
             require(unit.damaged in 0..65535 && unit.destroyed in 0..unit.damaged)
             writeShort(unit.damaged); writeShort(unit.destroyed)
             require(unit.supplies >= 0)
-            writeInt(unit.supplies); writeInt(0); writeFloat(0f) // Mobilization and cruising not assigned yet.
+            require(unit.commander>=0 && (unit.commander==0 || unit.kind>=1000))
+            writeInt(unit.supplies); writeInt(unit.commander); writeFloat(0f)
         }
     }
 }

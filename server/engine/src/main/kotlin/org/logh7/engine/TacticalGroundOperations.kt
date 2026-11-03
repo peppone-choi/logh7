@@ -51,7 +51,7 @@ internal object TacticalGroundOperations {
         fun landed(id:Int)=stocks.outfits.values.firstNotNullOfOrNull {o->o.activeGround?.values?.singleOrNull {it.id==id && it.base>0}?.let {o to it}}
         val sites=command.units.map {id->
             val (outfit,unit)=landed(id) ?: return reject(NavigationRejection.UNIT)
-            if(outfit.power!=own || outfit.commanderId!=p.characterId)return reject(NavigationRejection.CARD)
+            if(outfit.power!=own || GroundCommandAuthority.commander(outfit,unit,stocks,galaxy)!=p.characterId)return reject(NavigationRejection.CARD)
             if(galaxy.bases.singleOrNull {it.id==unit.base}?.grid!=p.grid)return reject(NavigationRejection.GRID)
             unit.base
         }.toSet()

@@ -46,4 +46,17 @@ class GroundBattleRosterTest {
         }.filter {it.second==1}.map {it.first}
         assertEquals(listOf(131,132),reserve)
     }
+    @Test fun theRosterCarriesOnlyAlliedExistingCommandersWithoutChangingAnyAppointment() {
+        val s=stocks.copy(outfits=stocks.outfits.mapValues {(id,o)->o.copy(commanderId=10000+id)})
+        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,s,2487) {id->
+            org.logh7.protocol.CharacterMessages.Generate(1,id.toLong(),2,0,0,"지휘관","",20,1,1,0,List(8){50},0,0,0,20,1,0,"Ship",0)
+        }
+        val b=ByteBuffer.wrap(packets[1]);b.position(7)
+        b.position(b.position()+34);assertEquals(10001,b.int)
+        b.position(b.position()+4+34);assertEquals(0,b.int,"enemy commander remains undisclosed")
+        val members=ByteBuffer.wrap(packets[0]);members.position(25)
+        assertEquals(1,members.get().toInt());assertEquals(10001,members.int)
+        assertEquals(10001,s.outfits.getValue(1).commanderId)
+        assertEquals(7,WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,s,null)[1].size)
+    }
 }
