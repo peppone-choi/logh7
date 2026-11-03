@@ -210,6 +210,11 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot): String =
     metric("session_ended", "gauge", "1 once the session has ended.", if (session?.ended != null) 1 else 0)
     metric("tactical_instances", "gauge", "Running tactical instances.", session?.tacticalTicks?.size ?: 0)
     metric("ground_battles", "gauge", "Bases with a running ground battle.", snapshot.planetStocks?.groundBattles?.size ?: 0)
+    // Process health for long-running soak checks (item 269).
+    val runtime = Runtime.getRuntime()
+    metric("jvm_heap_used_bytes", "gauge", "JVM heap in use.", runtime.totalMemory() - runtime.freeMemory())
+    metric("jvm_heap_max_bytes", "gauge", "JVM heap limit.", runtime.maxMemory())
+    metric("jvm_threads", "gauge", "Live JVM threads.", Thread.activeCount())
 }
 
 /** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */
