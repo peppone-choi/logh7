@@ -100,8 +100,14 @@ fn get(base: &str, relative: &str) -> Result<Vec<u8>, String> {
 }
 
 /// `expected`는 신뢰할 수 있는 다른 경로(배포 공지·런처 설정)로 받은 목록의 SHA-256이다. 주면 목록이
-/// 그 값과 같을 때만 받는다. HTTP 경로의 변조를 막는 유일한 고정점이다.
-pub fn download(base: &str, out: &Path, expected: Option<&str>) -> Result<usize, String> {
+/// 그 값과 같을 때만 받는다. `trusted`는 `patch_sign.py`의 공개키다. 주면 `patch.manifest.sig`가
+/// 그 키로 맞을 때만 받는다(패치마다 고정값을 다시 알릴 필요가 없는 고정점).
+pub fn download(
+    base: &str,
+    out: &Path,
+    expected: Option<&str>,
+    trusted: Option<&str>,
+) -> Result<usize, String> {
     if out.exists() {
         return Err(format!("받을 디렉터리가 이미 있습니다: {}", out.display()));
     }
@@ -111,6 +117,16 @@ pub fn download(base: &str, out: &Path, expected: Option<&str>) -> Result<usize,
             return Err("패치 목록 해시가 고정값과 다릅니다. 받지 않았습니다".into());
         }
     }
+    let signature = match trusted {
+        Some(key) => {
+            let signature = get(base, "patch.manifest.sig")?;
+            let text =
+                String::from_utf8(signature.clone()).map_err(|_| "서명 파일 형식이 아닙니다")?;
+            crate::signature::verify(key, &manifest, &text)?;
+            Some(signature)
+        }
+        None => None,
+    };
     let text =
         String::from_utf8(manifest.clone()).map_err(|_| "patch.manifest가 UTF-8이 아닙니다")?;
     let mut files = Vec::new();
@@ -146,6 +162,9 @@ pub fn download(base: &str, out: &Path, expected: Option<&str>) -> Result<usize,
         fs::write(&target, data).map_err(|_| format!("받은 파일을 쓰지 못했습니다: {relative}"))?;
     }
     fs::write(staging.join("patch.manifest"), manifest).map_err(|e| e.to_string())?;
+    if let Some(signature) = signature {
+        fs::write(staging.join("patch.manifest.sig"), signature).map_err(|e| e.to_string())?;
+    }
     // 모두 받고 확인한 뒤에만 최종 이름으로 바꾼다.
     fs::rename(&staging, out).map_err(|_| "받은 패치를 최종 위치로 옮기지 못했습니다")?;
     Ok(files.len())
@@ -206,10 +225,10 @@ mod tests {
         ]);
         let out = std::env::temp_dir().join(format!("logh7-download-ok-{}", std::process::id()));
         let _ = fs::remove_dir_all(&out);
-        assert_eq!(1, download(&base, &out, None).unwrap());
+        assert_eq!(1, download(&base, &out, None, None).unwrap());
         assert_eq!(b"dll", &fs::read(out.join("exe/dinput8.dll")).unwrap()[..]);
         assert!(
-            download(&base, &out, None).is_err(),
+            download(&base, &out, None, None).is_err(),
             "an existing directory is not overwritten"
         );
         fs::remove_dir_all(&out).unwrap();
@@ -225,13 +244,48 @@ mod tests {
         let out = std::env::temp_dir().join(format!("logh7-download-pin-{}", std::process::id()));
         let _ = fs::remove_dir_all(&out);
         let wrong = sha256(b"another list");
-        assert!(download(&serve(routes.clone()), &out, Some(&wrong)).is_err());
+        assert!(download(&serve(routes.clone()), &out, Some(&wrong), None).is_err());
         assert!(!out.exists());
         assert_eq!(
             1,
-            download(&serve(routes), &out, Some(&sha256(&listed))).unwrap()
+            download(&serve(routes), &out, Some(&sha256(&listed)), None).unwrap()
         );
         fs::remove_dir_all(&out).unwrap();
+    }
+
+    #[test]
+    fn a_trusted_key_requires_a_matching_signature() {
+        // signature.rs의 시험 벡터: 고정 개인키로 서명한 목록.
+        let listed = b"LOGH7-PATCH-1
+client	00
+file	exe/dinput8.dll	11
+"
+        .to_vec();
+        let key = "471c3e758c4904285bba7e53118ed0f524adeb0757d25bd2f8e7b0d76dfa714cdd520f7aca8a8b917acc37f51de8f0c9bbe3ad858382e702dc25a12d09f7a858";
+        let signed = b"c855369447a8585fe2a521392b5d54486faf2234ddc37e33c318333ece592a223f273ee2a05ee7ff9e180d7e5c57b1238644056aae7460a8e8c1c9bdc60d3e13
+".to_vec();
+        let out = std::env::temp_dir().join(format!("logh7-download-sig-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&out);
+        let mut forged = listed.clone();
+        forged.extend_from_slice(
+            b"file	exe/evil.dll	22
+",
+        );
+        let base = serve(vec![
+            ("/patch/patch.manifest", forged),
+            ("/patch/patch.manifest.sig", signed.clone()),
+        ]);
+        assert!(download(&base, &out, None, Some(key)).is_err());
+        assert!(!out.exists());
+        // 서명은 맞지만 목록 해시 11은 받은 파일과 달라 실패해야 한다(서명 뒤에도 파일 해시를 확인).
+        let base = serve(vec![
+            ("/patch/patch.manifest", listed),
+            ("/patch/patch.manifest.sig", signed),
+            ("/patch/exe/dinput8.dll", b"dll".to_vec()),
+        ]);
+        let failure = download(&base, &out, None, Some(key)).unwrap_err();
+        assert!(failure.contains("exe/dinput8.dll"), "{failure}");
+        assert!(!out.exists());
     }
 
     #[test]
@@ -242,8 +296,8 @@ mod tests {
         ]);
         let out = std::env::temp_dir().join(format!("logh7-download-bad-{}", std::process::id()));
         let _ = fs::remove_dir_all(&out);
-        assert!(download(&base, &out, None).is_err());
+        assert!(download(&base, &out, None, None).is_err());
         assert!(!out.exists() && !out.with_extension("partial").exists());
-        assert!(download("https://example.invalid/", &out, None).is_err());
+        assert!(download("https://example.invalid/", &out, None, None).is_err());
     }
 }
