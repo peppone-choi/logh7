@@ -353,8 +353,11 @@ class GameExchange(
                                 command.units,command.skill))).thenApply {result->
                             if(result.player==null)println("tactical ground rejected account=${identity.account} opcode=0x${opcode.toString(16)} units=${command.units} reason=${result.rejection}")
                             val now=gameSeconds()
+                            // The CD shows nothing for a failed 040f/0410 reply (004be8c0 ignores it); say why in the log.
+                            val notice=if(result.player==null)TacticalGroundNotices.text(opcode==0x040f,result.rejection)?.let {
+                                listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(character.id.toInt(),it),now))} else null
                             listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,now,
-                                result.groundReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))+commandCorps(identity.account)
+                                result.groundReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))+notice.orEmpty()+commandCorps(identity.account)
                         }
                         return null
                     }
