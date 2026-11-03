@@ -49,3 +49,7 @@
 
 로컬 리허설(`work/release-20261103`, 단위 검사 2개 통과): 정상 릴리스 `good`로 시작·정지하고 상태를 백업한 뒤, 앱 jar를 잘라 만든 `broken` 릴리스를 활성화하자 서버가 `ClassNotFoundException`으로 시작하지 못했다. `rollback`(good 복귀)과 상태 복원 뒤 재시작해 `/health` 응답과 백업 시점 게임 시각을 확인했다. 무중단 전환·자동 상태 확인·원격 배포는 미구현이다. `evidence:guess`
 
+## 운영 지표 `/metrics` (2026-11-03)
+
+운영 API(`127.0.0.1`, 기본 47901·시험 47951)에 Prometheus 텍스트 형식 `/metrics`를 더했다. 엔진 정상 여부(`logh7_engine_up`), 월드 리비전·명령 접수/거부 누계, 세션 세대·게임 시각·참가/접속 수·종료 여부, 전술 인스턴스 수, 진행 중 지상전 거점 수 11개다(검사 `metricsExposeHealthAndCountersInPrometheusText`). 실제 시험 서버에서 `engine_up 1`, 참가 6·접속 0, 지상전 1을 확인했다. 운영 API는 루프백에만 묶여 있어 Compose의 Prometheus 컨테이너는 아직 긁어 갈 수 없다. 같은 호스트의 수집기나 바인딩 정책이 정해진 뒤 `deploy/prometheus/prometheus.yml`에 넣는다. 지연·송신 큐·메모리 지표는 미구현이다. `evidence:guess`
+

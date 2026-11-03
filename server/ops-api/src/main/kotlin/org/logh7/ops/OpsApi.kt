@@ -25,6 +25,10 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                 }
             }
             get("/snapshot") { call.respondText(snapshots.snapshot().toString()) }
+            get("/metrics") {
+                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot()),
+                    io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
+            }
             post("/commands/probe") {
                 call.audited(audit, OpsAction.PROBE) {
                     commands.submit(WorldCommand.Probe)
@@ -84,4 +88,25 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
         OpsOutcome.CONFLICT -> respondText("session is running or restart failed", status = HttpStatusCode.Conflict)
         OpsOutcome.FAILED -> respondText("operation failed; outcome unknown", status = HttpStatusCode.InternalServerError)
     }
+}
+
+/** Prometheus text exposition of engine health and counters (deploy/prometheus scrapes this). */
+internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot): String = buildString {
+    fun metric(name: String, type: String, help: String, value: Number) {
+        append("# HELP logh7_").append(name).append(' ').append(help).append('\n')
+        append("# TYPE logh7_").append(name).append(' ').append(type).append('\n')
+        append("logh7_").append(name).append(' ').append(value).append('\n')
+    }
+    val session = snapshot.session
+    metric("engine_up", "gauge", "1 while the world engine runs and stores normally.", if (health == EngineHealth.RUNNING) 1 else 0)
+    metric("world_revision", "counter", "Committed world revisions.", snapshot.revision)
+    metric("commands_accepted_total", "counter", "World commands accepted.", snapshot.acceptedCommands)
+    metric("commands_rejected_total", "counter", "World commands rejected.", snapshot.rejectedCommands)
+    metric("session_generation", "gauge", "Current session generation (0 without a session).", session?.generation ?: 0)
+    metric("session_game_seconds", "gauge", "Game clock in seconds.", session?.gameSeconds ?: 0)
+    metric("session_participants", "gauge", "Session participants.", session?.participants ?: 0)
+    metric("session_online", "gauge", "Participants online now.", session?.online ?: 0)
+    metric("session_ended", "gauge", "1 once the session has ended.", if (session?.ended != null) 1 else 0)
+    metric("tactical_instances", "gauge", "Running tactical instances.", session?.tacticalTicks?.size ?: 0)
+    metric("ground_battles", "gauge", "Bases with a running ground battle.", snapshot.planetStocks?.groundBattles?.size ?: 0)
 }
