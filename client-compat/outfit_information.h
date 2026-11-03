@@ -109,6 +109,8 @@ static void invalidateOutfitGround(bool reset=false) {
 // Extension pages are view-only records. Keep them out of the native party/unit
 // editor caches, including when a delayed page arrives after the view is closed.
 static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcode,void* record) {
+    groundOrderReplied(opcode,static_cast<const BYTE*>(record));
+    if(groundPanelConsumes(opcode,static_cast<const BYTE*>(record)))return;
     bool consume=(opcode&65535)==0x032f && at<BYTE>(record,8)==2;
     AcquireSRWLockExclusive(&outfitReplyLock);
     auto& q=outfitInbox.groundRequest;
@@ -126,6 +128,7 @@ static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcod
 }
 static unsigned __stdcall decodedOutfitGround(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41f3d0)(record,reader);
+    if(groundPanelRoster(static_cast<const BYTE*>(record),result))return result;
     AcquireSRWLockExclusive(&outfitReplyLock);
     auto& q=outfitInbox.groundRequest;
     if(q.pending && q.marked) {
@@ -538,6 +541,7 @@ static void closeStationedOutfit(void* manager) {
 static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41cba0)(record,reader);
     auto p=static_cast<const BYTE*>(record);unsigned id=logh::infoWord(p,0),token=0;
+    if(!result && groundPanelMarked(p))return result;
     if(!result && p[8]==2) {
         AcquireSRWLockExclusive(&outfitReplyLock);
         auto& q=outfitInbox.groundRequest;

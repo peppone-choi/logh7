@@ -99,6 +99,128 @@ class OpsApiTest {
         } }
     }
 
+    @Test fun tokenGuardsEveryRouteButHealthAndAcceptsBearerOrBasic() {
+        val sink = Sink();val token = "0123456789abcdef-secret"
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(sink, snapshots, port, audit, token).use {
+            HttpClient.newHttpClient().use { client ->
+                fun get(path: String, auth: String? = null): HttpResponse<String> {
+                    val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path")).timeout(Duration.ofSeconds(10))
+                    if (auth != null) builder.header("Authorization", auth)
+                    return client.send(builder.GET().build(), HttpResponse.BodyHandlers.ofString())
+                }
+                assertEquals(200, get("/health").statusCode())
+                for (path in listOf("/admin", "/metrics", "/snapshot")) {
+                    val refused = get(path)
+                    assertEquals(401, refused.statusCode(), path)
+                    assertTrue(refused.headers().firstValue("WWW-Authenticate").get().startsWith("Basic"))
+                    assertEquals(401, get(path, "Bearer wrong-token-wrong-token").statusCode())
+                }
+                assertEquals(200, get("/admin", "Bearer $token").statusCode())
+                val basic = java.util.Base64.getEncoder().encodeToString("ops:$token".toByteArray())
+                assertEquals(200, get("/metrics", "Basic $basic").statusCode())
+                val post = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/commands/probe"))
+                    .header("X-LOGH7-Operator", "op1").POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString())
+                assertEquals(401, post.statusCode());assertTrue(sink.commands.isEmpty())
+            }
+        } }
+        assertFailsWith<IllegalArgumentException> { startOpsApi(sink, snapshots, port, null, "short") }
+        assertFailsWith<IllegalArgumentException> { startOpsApi(sink, snapshots, port, null, null, "0.0.0.0") }
+    }
+
+    @Test fun adminFormButtonsAreAuditedAndRefuseCrossOriginPosts() {
+        val sink = Sink()
+        OpsAudit.open(file, clock).use { audit -> serve(sink, audit) { endpoint ->
+            HttpClient.newHttpClient().use { client ->
+                fun form(path: String, origin: String?): HttpResponse<String> {
+                    val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:${endpoint.port}$path"))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                    if (origin != null) builder.header("Origin", origin)
+                    return client.send(builder.POST(HttpRequest.BodyPublishers.ofString("operator=op1")).build(), HttpResponse.BodyHandlers.ofString())
+                }
+                assertEquals(403, form("/admin/probe", "http://evil.example").statusCode());assertTrue(sink.commands.isEmpty())
+                val ok = form("/admin/probe", "http://127.0.0.1:${endpoint.port}")
+                assertEquals(200, ok.statusCode());assertEquals("queued", ok.body())
+                assertEquals(listOf(WorldCommand.Probe), sink.commands)
+                assertPair("PROBE", "QUEUED")
+            }
+        } }
+        assertTrue("/admin/restart" in opsAdminPage(EngineHealth.RUNNING, snapshot))
+    }
+
+    @Test fun adminAccountFormsAreAuditedAndNeverShowPasswords() {
+        val names = sortedMapOf("multi0" to "dummy")
+        val admin = object : AccountAdmin {
+            override fun names() = names.keys.toList()
+            override fun set(account: String, password: String) = (account.isNotEmpty() && password.length in 1..10).also { if (it) names[account] = password }
+            override fun remove(account: String) = names.remove(account) != null
+        }
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(Sink(), snapshots, port, audit, accounts = admin).use {
+            HttpClient.newHttpClient().use { client ->
+                fun form(path: String, body: String) = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path"))
+                    .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                    HttpResponse.BodyHandlers.ofString())
+                assertEquals("changed", form("/admin/account/set", "operator=op1&account=pilot&password=pw12").body())
+                assertEquals(400, form("/admin/account/set", "operator=op1&account=pilot&password=").statusCode())
+                assertEquals(404, form("/admin/account/remove", "operator=op1&account=ghost").statusCode())
+                assertEquals("changed", form("/admin/account/remove", "operator=op1&account=multi0").body())
+                val page = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
+                assertTrue("pilot" in page && "pw12" !in page && "/admin/account/set" in page)
+            }
+        } }
+        assertEquals(mapOf("pilot" to "pw12"), names.toMap())
+        val outcomes = rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] }
+        assertEquals(listOf("ACCOUNT_SET:CHANGED", "ACCOUNT_SET:INVALID", "ACCOUNT_REMOVE:NOT_FOUND", "ACCOUNT_REMOVE:CHANGED"), outcomes)
+    }
+
+    @Test fun backupRoutesAreAuditedAndReportTheLastSuccess() {
+        var taken = 0
+        val backups = object : StateBackups {
+            override suspend fun take(): String { if (taken == 1) error("disk full"); taken++; return "state-20261104-120000" }
+            override fun lastSuccess(): Long? = if (taken > 0) 1_793_000_000L else null
+        }
+        assertTrue("logh7_backup_last_success_seconds 0" in opsMetrics(EngineHealth.RUNNING, snapshot, backups))
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(Sink(), snapshots, port, audit, backups = backups).use {
+            HttpClient.newHttpClient().use { client ->
+                fun form() = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin/backup"))
+                    .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString("operator=op1")).build(),
+                    HttpResponse.BodyHandlers.ofString())
+                assertEquals("changed", form().body())
+                assertEquals(500, form().statusCode())
+                val page = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
+                assertTrue("/admin/backup" in page && "2026-10-26T" in page)
+            }
+        } }
+        assertTrue("logh7_backup_last_success_seconds 1793000000" in opsMetrics(EngineHealth.RUNNING, snapshot, backups))
+        assertTrue("/admin/backup" !in opsAdminPage(EngineHealth.RUNNING, snapshot))
+        assertEquals(listOf("BACKUP:CHANGED", "BACKUP:FAILED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
+    }
+
+    @Test fun namedOperatorLoginBecomesTheAuditOperator() {
+        // Written by tools/ops/ops_user.py entry("operator-pass1", 1000, b"A"*16): Python and Kotlin must agree.
+        val users = directory.resolve("ops-users.properties")
+        Files.writeString(users, "alice=pbkdf2-sha256\\:1000\\:QUFBQUFBQUFBQUFBQUFBQQ==\\:Ab+PsEbuYY5gqqi/zTGWoVe2/14/f98p/qvoQSF3qVU=\n")
+        val sink = Sink();val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(sink, snapshots, port, audit, users = OpsUsers(users)).use {
+            HttpClient.newHttpClient().use { client ->
+                fun basic(pair: String) = "Basic " + java.util.Base64.getEncoder().encodeToString(pair.toByteArray())
+                fun probe(auth: String?): HttpResponse<String> {
+                    val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:$port/commands/probe")).header("X-LOGH7-Operator", "mallory")
+                    if (auth != null) builder.header("Authorization", auth)
+                    return client.send(builder.POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString())
+                }
+                assertEquals(401, probe(null).statusCode())
+                assertEquals(401, probe(basic("alice:wrong")).statusCode())
+                assertEquals(200, probe(basic("alice:operator-pass1")).statusCode())
+            }
+        } }
+        assertEquals(listOf(WorldCommand.Probe), sink.commands)
+        assertTrue(rows().all { it["operator"] == "alice" }, "the login, not the self-reported header, is recorded")
+        assertFailsWith<IllegalArgumentException> { startOpsApi(sink, snapshots, port, null, null, "0.0.0.0") }
+    }
+
     @Test fun restartSuccess() {
         val sink = Sink()
         OpsAudit.open(file, clock).use { audit -> serve(sink, audit) { endpoint ->

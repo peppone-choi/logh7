@@ -102,4 +102,15 @@ class TacticalGroundMessagesTest {
         }
     }
 
+    @Test fun reconstructedAttackAndStopTroopOrdersKeepTheCdLayout() {
+        fun raw(opcode:Int,target:Int?)=java.nio.ByteBuffer.allocate(19+(if(target!=null)4 else 0)).putShort(opcode.toShort())
+            .putInt(7).putInt(0).putInt(10002).put(1).putInt(1811).also {if(target!=null)it.putInt(target)}.array()
+        val attack=TacticalGroundMessages.target(raw(0x0417,1902))
+        kotlin.test.assertEquals(TacticalGroundMessages.Target(10002,listOf(1811),1902),attack)
+        kotlin.test.assertEquals(0,TacticalGroundMessages.target(raw(0x0418,null)).target)
+        kotlin.test.assertFails {TacticalGroundMessages.target(raw(0x0417,0))}
+        kotlin.test.assertFails {TacticalGroundMessages.target(raw(0x0418,1902))}
+        val reply=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(attack,100))
+        kotlin.test.assertEquals(0x0417,reply.getShort(4).toInt())
+    }
 }

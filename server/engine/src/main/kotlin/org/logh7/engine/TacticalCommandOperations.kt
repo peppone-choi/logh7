@@ -333,8 +333,11 @@ internal object TacticalCommandOperations {
                         else stocks.outfits.values.filter {it.power==wire(p) && it.positionIn(g)==OutfitPosition(p.grid)}.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}
                     val centre=if(c.base==0)pose(p.unitId,p.grid,now,players,stocks,g)!!.position else basePoint(g.bases.single {it.id==c.base},now,stocks)
                     val eligible=ids.filter {id->pose(id,p.grid,now,players,stocks,g)?.position?.let {hypot((it.x-centre.x).toDouble(),(it.y-centre.y).toDouble())<=TacticalCommandRange.MAXIMUM}==true}
+                    // CD p.52 鼓舞 from a garrison also lifts its side's ground troops landed on that base (evidence:guess +20).
+                    val ground=if(c.base==0)emptyList() else stocks.outfits.values.filter {it.power==wire(p)}
+                        .flatMap {it.activeGround?.values.orEmpty().filter {u->u.base==c.base}.map {u->u.id}}
                     val morale=stocks.tacticalCommands.morale.toMutableMap()
-                    for(id in eligible)morale[id]=minOf(100,(morale[id] ?: 100)+20)
+                    for(id in eligible+ground)morale[id]=minOf(100,(morale[id] ?: 100)+20)
                     stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(morale=morale))
                 }
                 0x40b,0x420 -> stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(

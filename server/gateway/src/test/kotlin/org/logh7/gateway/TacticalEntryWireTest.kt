@@ -116,8 +116,10 @@ class TacticalEntryWireTest {
             sendMove(move.copy(units=listOf(move.units.single().copy(id=1010001))))
             assertEquals(1,ByteBuffer.wrap(through(first,0x0400)).getInt(0))
             assertEquals(savedMotion,savedPlayers.getValue(fixture.account(0)).motion)
+            // The CD always sends full speed (run-32): above the ENGINE allocation it is capped, not refused.
             sendMove(move.copy(velocity=0.41f))
-            assertEquals(1,ByteBuffer.wrap(through(first,0x0400)).getInt(0))
+            val capped=through(first,0x0400)
+            assertEquals(0.4f,org.logh7.protocol.TacticalMoveMessages.move(capped.copyOfRange(4,capped.size)).velocity)
             assertEquals(savedMotion,savedPlayers.getValue(fixture.account(0)).motion)
             first.send(SyntheticClient.opcode(0x0f02))
             val corps=ByteBuffer.wrap(through(first,0x033f))

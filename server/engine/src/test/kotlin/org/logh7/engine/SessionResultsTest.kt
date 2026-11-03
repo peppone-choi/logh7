@@ -69,4 +69,16 @@ class SessionResultsTest {
         assertFailsWith<IllegalArgumentException>{SessionResults.fromWorld(galaxy,snapshot.copy(planetStocks=stock.copy(generation=2)))}
         assertFailsWith<IllegalStateException>{SessionResults.fromWorld(galaxy,snapshot.copy(session=session.copy(ended=null)))}
     }
+    @Test fun imperialLeaderConditionUsesTheEmperorAndSupremeCommanderPositions() {
+        fun leader(id:Int,grid:Int)=Navigator(1,id,Power.EMPIRE,grid,0,0,0)
+        val none=PlanetStocks(1,0,emptyMap())
+        assertEquals(false,SessionResults.imperialLeaderAtEnemyCapital(none,emptyList()),"nobody holds either seat")
+        val emperor=none.copy(strategic=StrategicState(offices=listOf(OfficeHolding(1,1049,10001))))
+        assertEquals(true,SessionResults.imperialLeaderAtEnemyCapital(emperor,listOf(leader(10001,Capital.ALLIANCE.grid))))
+        assertEquals(false,SessionResults.imperialLeaderAtEnemyCapital(emperor,listOf(leader(10001,Capital.EMPIRE.grid))))
+        assertNull(SessionResults.imperialLeaderAtEnemyCapital(emperor,emptyList()),"an NPC emperor has no recorded position")
+        val both=emperor.copy(nationalOffices=mapOf(NationalOffice.IMPERIAL_SUPREME_COMMANDER to 10002))
+        assertEquals(true,SessionResults.imperialLeaderAtEnemyCapital(both,
+            listOf(leader(10001,Capital.EMPIRE.grid),leader(10002,Capital.ALLIANCE.grid))),"the supreme commander suffices")
+    }
 }

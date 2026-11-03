@@ -5,6 +5,11 @@ package org.logh7.engine
 data class GroundBattleResult(val generation:Long,val grid:Int,val base:Int,val seconds:Long,
     val damaged:List<Int>,val destroyed:List<Int>,val recipients:Map<Int,String>)
 
+/** Public read of who actually fights on a base (manual p.51: 30 units per side; the rest wait in reserve). */
+object GroundBattleView {
+    fun fighting(stocks:PlanetStocks,base:GalaxyBase):Set<Int> =
+        (2..3).flatMap {GroundBattleOperations.participants(stocks,base,it)}.map {it.id}.toSet()
+}
 internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
     fun participants(stocks:PlanetStocks,base:GalaxyBase,power:Int):List<ActiveGroundUnit> =
@@ -32,29 +37,40 @@ internal object GroundBattleOperations {
                 val losses=mutableMapOf<Int,Int>()
                 fun attack(from:List<ActiveGroundUnit>,targets:List<ActiveGroundUnit>) {
                     from.forEachIndexed {i,attacker->
-                        val target=targets[i%targets.size]
+                        // An ordered target (reconstructed 0417) is attacked while it still fights here; otherwise round-robin.
+                        val target=next.tacticalCommands.groundTargets[attacker.id]?.let {chosen->targets.singleOrNull {it.id==chosen}}
+                            ?: targets[i%targets.size]
                         val offense=checkNotNull(specifications.getValue(attacker.stack.kind).manual.groundAttack)
                         val defense=checkNotNull(specifications.getValue(target.stack.kind).manual.groundDefense)
-                        val amount=(offense.toLong()*(100+20*attacker.stack.level)*attacker.strength*StrategicGroundTactics.factor(next,attacker.id) /
+                        val full=(offense.toLong()*(100+20*attacker.stack.level)*attacker.strength*StrategicGroundTactics.factor(next,attacker.id) /
                             (maxOf(1,defense).toLong()*(100+20*target.stack.level)*5*StrategicGroundTactics.factor(next,target.id))).coerceAtLeast(1).toInt()
+                        // CD p.48: low morale confuses a unit; a confused unit strikes at half strength (evidence:guess).
+                        val amount=if(next.tacticalCommands.confused(attacker.id))maxOf(1,full/2) else full
                         losses[target.id]=(losses[target.id] ?: 0)+amount
                     }
                 }
                 // Both sides attack the same pre-exchange roster, including simultaneous losses.
                 attack(empire,alliance);attack(alliance,empire)
+                val morale=next.tacticalCommands.morale.toMutableMap()
                 val outfits=next.outfits.mapValues {(_,outfit)->
                     val old=outfit.activeGround
                     if(old==null || old.values.none {it.id in losses})outfit else {
+                        val discipline=OutfitDiscipline.value(next,outfit.id,at)
                         val roster=ActiveGroundUnits(old.values.mapNotNull {unit->
                             val loss=losses[unit.id] ?: return@mapNotNull unit
                             damaged+=unit.id
-                            if(loss>=unit.strength){destroyed+=unit.id;null} else unit.copy(strength=unit.strength-loss)
+                            // CD p.48: damage lowers morale and a unit at 0 surrenders and leaves the field. The ship rule
+                            // is reused on the share of strength lost, capped at 20 per exchange (evidence:guess).
+                            val left=(morale[unit.id] ?: 100)-OutfitDiscipline.moraleLoss(
+                                minOf(20,((loss.toLong()*100+unit.strength-1)/unit.strength).toInt()),discipline)
+                            if(loss>=unit.strength || left<=0){destroyed+=unit.id;morale-=unit.id;null}
+                            else {morale[unit.id]=left;unit.copy(strength=unit.strength-loss)}
                         })
                         val crew=outfit.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}
                         outfit.copy(units=UnitInventory(outfit.units.ships,crew+roster.quantities()),activeGround=roster)
                     }
                 }
-                next=next.copy(outfits=outfits);at+=step
+                next=next.copy(outfits=outfits,tacticalCommands=next.tacticalCommands.copy(morale=morale));at+=step
             }
             if(contested(next,base))clocks[base.id]=at else clocks.remove(base.id)
             if(damaged.isNotEmpty()) {
@@ -65,6 +81,10 @@ internal object GroundBattleOperations {
                 events+=GroundBattleResult(session.generation,base.grid,base.id,at,damaged.toList(),destroyed.toList(),recipients)
             }
         }
+        // Orders end with either troop: a destroyed, withdrawn or re-embarked unit no longer holds or receives one.
+        val landed=next.outfits.values.flatMap {it.activeGround?.values.orEmpty()}.filter {it.base>0}.map {it.id}.toSet()
+        val orders=next.tacticalCommands.groundTargets.filter {(unit,target)->unit in landed && target in landed}
+        if(orders!=next.tacticalCommands.groundTargets)next=next.copy(tacticalCommands=next.tacticalCommands.copy(groundTargets=orders))
         return if(next==stocks && clocks==stocks.groundBattles)stocks else next.copy(groundBattles=clocks)
     }
 }

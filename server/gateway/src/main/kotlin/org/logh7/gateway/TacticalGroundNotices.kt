@@ -21,3 +21,6 @@ object TacticalGroundNotices {
         return "[$action] $why"
     }
 }
+
+/** Refused 041f of a mobile fortress whose propulsion an orbital attack broke (CD p.46); the CD shows no result. */
+internal const val FORTRESS_PROPULSION_LOST = "[이동] 추진 장치가 파괴되어 요새를 움직일 수 없습니다."

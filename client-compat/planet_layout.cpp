@@ -130,12 +130,18 @@ static void proposalWindowTick();
 static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void updateOutfitListColumns(void* manager);
+static bool updateGroundWindow();
+static bool openGroundWindow(void* gui);
+static bool updateUnitWindow();
+static bool openUnitWindow(void* gui);
+static void groundOrderReplied(unsigned opcode,const BYTE* record);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
 static bool updateSessionEnding(void* manager);
 static void receivedSessionEnding(void* world,const BYTE* record);
 #include "system_affiliation.h"
 #include "planet_info.h"
+#include "ground_battle_panel.h"
 #include "outfit_list_columns.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"
@@ -144,6 +150,8 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "navigation_status.h"
 #include "return_base.h"
 #include "planet_tax.h"
+#include "ground_battle_window.h"
+#include "unit_info_window.h"
 #include "strategy_actions.h"
 #include "session_ending.h"
 #include "appointment_information.h"

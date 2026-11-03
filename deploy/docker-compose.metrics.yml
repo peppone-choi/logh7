@@ -1,0 +1,16 @@
+# 작성: Peppone Choi | evidence:guess | 선택 덮어쓰기: Prometheus가 게임 서버 /metrics를 토큰으로 수집
+# docker compose -f docker-compose.yml -f docker-compose.metrics.yml --profile game up -d
+# secrets/ops_token.txt(16자 이상 무작위 한 줄)가 필요하다. 운영 API는 토큰 없이 비루프백 바인딩을 거부한다.
+services:
+  game-server:
+    environment:
+      LOGH7_OPS_BIND: 0.0.0.0
+      LOGH7_OPS_TOKEN_FILE: /run/secrets/ops_token
+    secrets: [ops_token]
+  prometheus:
+    volumes:
+      - ./prometheus/prometheus-game.yml:/etc/prometheus/prometheus.yml:ro
+    secrets: [ops_token]
+secrets:
+  ops_token:
+    file: ./secrets/ops_token.txt

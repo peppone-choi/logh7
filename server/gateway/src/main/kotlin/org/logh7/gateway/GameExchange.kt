@@ -338,6 +338,25 @@ class GameExchange(
             }
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
+                    0x0417,0x0418 -> {
+                        // Reconstructed ground battle window (design-ground-battle-window.md): the CD's unsent attack/stop troop orders.
+                        check(gameStarted && worldInitialized && navigation != null && world != null)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        val command=org.logh7.protocol.TacticalGroundMessages.target(body)
+                        require(command.character==character.id.toInt())
+                        if(command.units.any {it !in 1..999999} || command.target !in 0..999999 || command.target in command.units)
+                            return handshake.stageAll(listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),false)),clearHeader=0)
+                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
+                            tacticalGround=org.logh7.engine.TacticalGroundCommand(
+                                if(command.target>0)org.logh7.engine.TacticalGroundAction.TARGET else org.logh7.engine.TacticalGroundAction.CLEAR,
+                                command.units,target=command.target))).thenApply {result->
+                            if(result.player==null)println("tactical ground target rejected account=${identity.account} units=${command.units} target=${command.target} reason=${result.rejection}")
+                            listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),result.player!=null))
+                        }
+                        return null
+                    }
                     0x040f,0x0410 -> {
                         check(gameStarted && worldInitialized && navigation != null && world != null)
                         val character=checkNotNull(currentCharacter(identity.account))
@@ -482,8 +501,13 @@ class GameExchange(
                             val player=checkNotNull(result.player ?: result.previous)
                             if(traceOpcodes && result.player==null)System.err.println("trace ${identity.account} 0x%04x rejected: ${result.rejection}".format(command.opcode))
                             publication=Publication(character,player,false)
+                            // The CD shows nothing for a refused 041f; name the cause when the fortress lost its propulsion (CD p.46).
+                            val broken=command.opcode==0x041f && result.player==null &&
+                                navigation.snapshot()?.planetStocks?.tacticalCommands?.brokenPropulsion?.contains(command.base)==true
+                            val notice=if(broken)listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(
+                                character.id.toInt(),FORTRESS_PROPULSION_LOST),gameSeconds())) else emptyList()
                             listOf(org.logh7.protocol.TacticalCommandMessages.reply(command,gameSeconds(),
-                                (result.commandReadyAt?.minus(gameSeconds()) ?: 0).coerceAtLeast(0),result.player!=null))+
+                                (result.commandReadyAt?.minus(gameSeconds()) ?: 0).coerceAtLeast(0),result.player!=null))+notice+
                                 characterMessage(character,player,true)+commandCorps(identity.account)
                         }
                         return null
@@ -525,7 +549,7 @@ class GameExchange(
                                     TacticalMotionMessages.npc(id,motion,gameSeconds(),player.characterId)}
                                 else listOf(checkNotNull(TacticalMotionMessages.reply(player,gameSeconds())))
                             } else {
-                                println("tactical move rejected account=${identity.account} units=${move.units.map {it.id}} reason=${result.rejection}")
+                                println("tactical move rejected account=${identity.account} units=${move.units.map {it.id}} reason=${result.rejection} velocity=${move.velocity} engine=${player.energy?.values?.get(0)}")
                                 val unit=TacticalBootstrap(checkNotNull(navigation.snapshot()),world.galaxy,player,::currentCharacterById)
                                     .units.single {it.id==player.unitId}
                                 val pose=org.logh7.protocol.TacticalMoveMessages.Point(unit.x,unit.y,0f)
@@ -925,6 +949,8 @@ class GameExchange(
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
                         pendingWorld = stocks().thenApply { stored ->
                             if(party?.mode==2)world.outfitGround(party,character.power,checkNotNull(stored))
+                            else if(party?.mode==3)world.outfitBattle(party,character.power,checkNotNull(stored),
+                                navigation?.snapshot()?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid)
                             else listOf(if(party!=null)world.outfitParty(party,character.power,checkNotNull(stored),character.id.toInt(),::currentCharacterById)
                                 else world.outfitUnit(checkNotNull(unit).id,character.power,checkNotNull(stored),unit.base))
                         }
@@ -1662,7 +1688,10 @@ class GameExchange(
                                             org.logh7.protocol.ChatMessages.grid(org.logh7.protocol.ChatMessages.Grid(character.id.toInt(),1,
                                                 // The CD's latest-line box shows one short line only.
                                                 (if(result.outcome>=1)"[대지] "+KoreanDisplayNames.base(checkNotNull(world).galaxy.bases.single {it.id==result.found}.name).take(6)+
-                                                    " 수비 -${org.logh7.engine.OrbitalStrikeActions.DAMAGE*result.outcome}"+(if(result.report>0)" 격멸${result.report}" else "")
+                                                    " 수비 -${org.logh7.engine.OrbitalStrikeActions.DAMAGE*result.outcome}"+(if(result.report>0)" 격멸${result.report}" else "")+
+                                                    // CD p.46: a fortress also shows its remaining armor (FortressArmor).
+                                                    (result.stocks?.takeIf {checkNotNull(world).galaxy.bases.single {it.id==result.found}.kind==1}?.let {
+                                                        " 장갑 ${org.logh7.engine.FortressArmor.remaining(it,result.found)}"} ?: "")
                                                 else "[대지] "+when(result.rejection) {
                                                     org.logh7.engine.SocialRejection.LOCATION->"전술 중만"
                                                     org.logh7.engine.SocialRejection.TARGET->"사정 밖"
@@ -1692,6 +1721,11 @@ class GameExchange(
                                         val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
                                         refreshPaid(result.navigators)
+                                        // The CD has no closed-mailbox alert for office rows (only opening re-queries them):
+                                        // tell an online recipient in the chat log (design-proposals-orders.md, evidence:guess).
+                                        if(result.rejection==null && result.changed)presence?.toCharacter(query.target,checkNotNull(generation),
+                                            listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(query.target,
+                                                ProposalNotice.arrived(character.surname)),gameSeconds())))
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
                                             listOf(characterMessage(updated,player,true))
                                     }
@@ -1992,8 +2026,7 @@ class GameExchange(
             Role.LOGIN -> {
                 val request = LoginMessages.request(body)
                 val expected = accounts[request.account]
-                val accepted = expected != null && java.security.MessageDigest.isEqual(
-                    expected.toByteArray(Charsets.UTF_8), request.credential.toByteArray(Charsets.UTF_8))
+                val accepted = expected != null && AccountPassword.matches(expected, request.credential)
                 val reply = if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account)) else LoginMessages.failure()
                 state = if (accepted) State.AUTHENTICATED else State.REJECTED
                 handshake.stageAll(listOf(reply))
@@ -2018,6 +2051,7 @@ fun loadTestAccounts(path: Path?): Map<String, String> {
     if (path == null) return emptyMap()
     val properties = Properties().also { Files.newBufferedReader(path).use(it::load) }
     return properties.stringPropertyNames().associateWith { properties.getProperty(it) }.also { accounts ->
-        require(accounts.all { (name, password) -> name.length in 1..30 && !name.startsWith('@') && password.length <= 10 })
+        require(accounts.all { (name, password) -> name.length in 1..30 && !name.startsWith('@') &&
+            (password.length <= 10 || AccountPassword.isHashed(password)) })
     }
 }

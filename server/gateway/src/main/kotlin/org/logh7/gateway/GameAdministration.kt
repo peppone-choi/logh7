@@ -171,8 +171,10 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
             listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(60+title.ordinal,0))}.orEmpty()+
             stocks.strategic.fiefs.filterValues {it==characterId}.keys.map {org.logh7.protocol.BootstrapMessages.OfficeCard(66,it)})
             .distinct().sortedWith(compareBy({it.kind},{it.target}))
-        require(cards.size<=14) {"Stored offices exceed character card capacity"}
-        return cards
+        // W p.27: 16 cards with the two basic ones (個人·艦長), so 14 offices. Appointments, peerages and fiefs refuse a
+        // 15th card; automatic grants (coup, succession, election) are not refused, so show the first 14 rather than fail.
+        if(cards.size>14)System.err.println("character $characterId holds ${cards.size} office cards; showing the first 14")
+        return cards.take(14)
     }
     override fun tax(request: TaxRequest): CompletableFuture<TaxResult> {
         val future = CompletableFuture<TaxResult>()

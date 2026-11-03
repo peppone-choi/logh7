@@ -105,7 +105,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById)}}
         tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
         fameSubscription=stock?.observeSessionResults {s->s.session?.generation?.let {g->
-            characterStores.fame.settle(s,characterStores.get(g))}}
+            characterStores.fame.settle(s,characterStores.get(g))
+            characterStores.carryOver(s).takeIf {it.isNotEmpty()}?.let {println("carried over ${it.size} characters to generation ${g+1}")}}}
         identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
             org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList(),c.age)}}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},

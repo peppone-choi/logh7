@@ -273,14 +273,17 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
             val maximum = (before.energy ?: TacticalEnergy.ZERO).values[0] / 100f
-            if (move.velocity > maximum) return reject(NavigationRejection.ENERGY)
+            // The CD sends its full speed (1.0) whatever the ENGINE slider says (run-32, ENGINE 10): cap it to the
+            // allocation, as an energy change caps a running motion, and refuse only a move without any ENGINE.
+            if (move.velocity > 0f && maximum <= 0f) return reject(NavigationRejection.ENERGY)
+            val velocity = minOf(move.velocity, maximum)
             if (now > 0xffffffffL - 5*clockScale) return reject(NavigationRejection.CLOCK)
             val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now,before.posture,galaxy) ?:
                 TacticalDeployment.initial(before.unitId, before.power, before.grid,
                     snapshot(session.generation).values + before, stocks, galaxy)
             if (TacticalTerrain.pathBlocked(galaxy, before.grid, origin.position, move.waypoints)) return reject(NavigationRejection.RANGE)
             val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
-                move.velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel,
+                velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel,
                 turnRate=TacticalMotion.NATIVE_TURN_RATE,waitSeconds=5*clockScale))
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before)

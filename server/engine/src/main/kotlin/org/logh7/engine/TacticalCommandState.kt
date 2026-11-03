@@ -38,7 +38,9 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
     val formationLeaders:Map<Int,Int> = emptyMap(),val aiSwitches:Map<Int,Int> = emptyMap(),
     val creditedMerits:Map<Int,Long> = emptyMap(),val aiNextAt:Map<Int,Long> = emptyMap(),
     /** CD p.46 orbital attack on fortresses: armor damage taken (0..[FortressArmor.ARMOR]) and mobile fortresses whose propulsion broke. */
-    val fortressDamage:Map<Int,Int> = emptyMap(),val brokenPropulsion:Set<Int> = emptySet()) {
+    val fortressDamage:Map<Int,Int> = emptyMap(),val brokenPropulsion:Set<Int> = emptySet(),
+    /** Ground unit -> enemy ground unit it attacks (reconstructed 0417, design-ground-battle-window.md). */
+    val groundTargets:Map<Int,Int> = emptyMap()) {
     init {require(orders.size<=1000 && listOf(morale.size,authority.size,formations.size,missions.size,proposals.size,air.size,ranks.size,merits.size).all {it<=1000} &&
         morale.all {(id,v)->id>0 && v in 0..100} && authority.all {(id,v)->id in 1..999999 && v>0} &&
         formations.all {(id,v)->id>0 && v in 0..7} && missions.all {(id,v)->id==v.character} && proposals.all {(id,v)->id==v.character} &&
@@ -50,7 +52,8 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
         creditedMerits.size<=1000 && creditedMerits.all {(id,v)->id>0 && v in 0..(merits[id] ?: 0)} &&
         aiNextAt.size<=1000 && aiNextAt.all {(id,v)->id>0 && v in 0..0xffffffffL} &&
         fortressDamage.size<=350 && fortressDamage.all {(id,v)->id in 1..65535 && v in 1..FortressArmor.ARMOR} &&
-        brokenPropulsion.size<=350 && brokenPropulsion.all {it in 1..65535})}
+        brokenPropulsion.size<=350 && brokenPropulsion.all {it in 1..65535} &&
+        groundTargets.size<=1000 && groundTargets.all {(unit,target)->unit in 1..999999 && target in 1..999999 && unit!=target})}
     val empty get()=this==TacticalCommandState()
     fun confused(unit:Int)=morale[unit]?.let {it<=20}==true
     /** Native setting order: strategy, commanded, suggested, announcement, tactics. */

@@ -335,6 +335,14 @@ class TacticalCommandOperationsTest {
         assertEquals(35,events.single().morale[1])
         assertEquals(90,s.players.getValue("pilot").pcp)
     }
+    @Test fun garrisonEncouragementAlsoLiftsItsLandedGroundTroops() {
+        val s=state();val o=s.stocks.outfits.getValue(1)
+        val ground=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(1),base=1000,origin=1)))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to o.copy(activeGround=ground,units=UnitInventory(o.units.ships,ground.quantities()))),
+            tacticalCommands=TacticalCommandState(morale=mapOf(3 to 50)))
+        val r=run(s);assertNotNull(accept(r,TacticalCommand(0x41d,base=1000)).player);settle(r,now+5)
+        assertEquals(70,s.stocks.tacticalCommands.morale[3])
+    }
     @Test fun regularRetreatMovesOnlySelectedStableIdsAndLeavesLandedTroopsBehind() {
         val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
         val o=s.stocks.outfits.getValue(1)
@@ -381,6 +389,11 @@ class TacticalCommandOperationsTest {
         val r=run()
         assertEquals(NavigationRejection.BASE,TacticalCommandOperations.accept(request(TacticalCommand(0x41f,base=1000,velocity=.5f,
             points=listOf(TacticalPoint(20f,0f)))),session,fixed,r.navigation,r.production,r.production.snapshot(1)!!,r.state.commit,1).rejection)
+    }
+    @Test fun aMobileFortressWithBrokenPropulsionCannotMove() {
+        // CD manual p.46: orbital attack can destroy a mobile fortress's propulsion (FortressArmor).
+        val s=state();s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(brokenPropulsion=setOf(1000)))
+        assertEquals(NavigationRejection.BASE,accept(run(s),TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).rejection)
     }
     @Test fun baseStopAlsoCancelsTheActualMovingFortressWithoutSnappingToItsSeed() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).player)

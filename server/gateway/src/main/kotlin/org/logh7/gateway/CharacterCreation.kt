@@ -75,6 +75,17 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             shipKind = Flagships.forType(power, current.shipType).kind))
         save(next); registered[account] = next.getValue(account); return true
     }
+    /** U-27 carry-over source: generated characters as stored (originals never carry over, W p.11). */
+    @Synchronized fun generatedCharacters():Map<String,CharacterMessages.Generate> {
+        resolveLottery();return registered.filterValues {it.generated}.toSortedMap()
+    }
+    /** U-27 carry-over into this (next) generation; an account that already has a character keeps it. */
+    @Synchronized fun carry(account:String,data:CharacterMessages.Generate):Boolean {
+        require(data.generated && data.category==4 && data.id>0)
+        if (account in registered || registered.values.any {it.id==data.id}) return false
+        val next=registered+(account to data)
+        save(next);registered[account]=data;nextId=maxOf(nextId,data.id+1);return true
+    }
     @Synchronized fun registeredCharacters():List<CharacterMessages.Generate> {
         resolveLottery();return registered.values.sortedBy { it.id }.map(::displayed)
     }

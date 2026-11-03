@@ -55,6 +55,26 @@ class OpsHealthTest {
         }
     }
 
+    @Test fun metricsExposeHealthAndCountersInPrometheusText() {
+        serve(snapshots(EngineHealth.STORAGE_FAILED)) { endpoint ->
+            val response = endpoint.get("/metrics")
+            assertEquals(200, response.statusCode())
+            assertTrue(response.headers().firstValue("Content-Type").get().startsWith("text/plain"))
+            val values = response.body().lines().filter { it.startsWith("logh7_") }.associate { it.substringBefore(' ') to it.substringAfter(' ') }
+            assertEquals("0", values["logh7_engine_up"]);assertEquals("7", values["logh7_world_revision"])
+            assertEquals("3", values["logh7_commands_accepted_total"]);assertEquals("0", values["logh7_session_online"])
+            assertEquals(14, values.size);assertTrue(values.getValue("logh7_jvm_heap_used_bytes").toLong()>0)
+        }
+    }
+    @Test fun adminPageIsReadOnlyHtmlAndEscapesValues() {
+        val page = opsAdminPage(EngineHealth.RUNNING, WorldSnapshot(7, 3))
+        assertTrue(page.startsWith("<!doctype html>") && "RUNNING" in page && "<td>7</td>" in page)
+        serve(snapshots(EngineHealth.RUNNING)) { endpoint ->
+            val response = endpoint.get("/admin")
+            assertEquals(200, response.statusCode())
+            assertTrue(response.headers().firstValue("Content-Type").get().startsWith("text/html"))
+        }
+    }
     @Test fun snapshotSourceDefaultHealthKeepsExistingFakesRunning() {
         val source = object : SnapshotSource { override fun snapshot() = snapshot }
         serve(source) { endpoint ->

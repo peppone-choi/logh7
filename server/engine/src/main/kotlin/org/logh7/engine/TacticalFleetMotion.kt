@@ -46,11 +46,14 @@ internal object TacticalFleetMotion {
                         checkNotNull(player.commandRange).radius(now))return reject(NavigationRejection.RANGE)
                 }
         }}
-        if(command.maneuver==null && player.unitId in command.units && command.velocity>(player.energy ?: TacticalEnergy.ZERO).values[0]/100f)
+        // The CD sends full speed whatever ENGINE says (run-32): the own flagship is capped to its allocation
+        // (as Navigation caps a single move); only a flagship without any ENGINE is refused.
+        val engineCap=(player.energy ?: TacticalEnergy.ZERO).values[0]/100f
+        if(command.maneuver==null && player.unitId in command.units && command.velocity>0f && engineCap<=0f)
             return reject(NavigationRejection.ENERGY)
         // 004c8110 anchors offsets to the first selected unit, not the formation centroid.
         val anchor=poses.getValue(command.units.first()).position
-        val requestedMotions=poses.mapValues {(_,pose)->if(rotation!=null) {
+        val requestedMotions=poses.mapValues {(id,pose)->if(rotation!=null) {
             val direction=if(rotation.kind==TacticalManeuver.REVERSE)
                 (pose.direction+(if(command.reverseSide==0)-Math.PI else Math.PI)).let {
                     kotlin.math.atan2(kotlin.math.sin(it),kotlin.math.cos(it)).toFloat()}
@@ -62,7 +65,8 @@ internal object TacticalFleetMotion {
             if(kotlin.math.abs(x)>100000 || kotlin.math.abs(y)>100000)return reject(NavigationRejection.RANGE)
             TacticalMotion(player.grid,now,pose,0f,direction,listOf(TacticalPoint(x,y)),rotation=rotation)
         } else TacticalMotion(player.grid,now,pose,
-            command.velocity*(if(command.parallel)0.5f else 1f),if(command.parallel)pose.direction else command.direction,
+            (if(id==player.unitId)minOf(command.velocity,engineCap) else command.velocity)*(if(command.parallel)0.5f else 1f),
+            if(command.parallel)pose.direction else command.direction,
             command.waypoints.map {
                 val x=it.x+(pose.position.x-anchor.x);val y=it.y+(pose.position.y-anchor.y)
                 if(kotlin.math.abs(x)>100000 || kotlin.math.abs(y)>100000)return reject(NavigationRejection.RANGE)

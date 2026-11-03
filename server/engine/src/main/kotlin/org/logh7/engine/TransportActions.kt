@@ -104,7 +104,10 @@ object TransportActions {
                     stocks.copy(strategic=stocks.strategic.copy(transports=packages.map {if(it.id==pack.id)it.copy(carrier=o.id,carrierBoats=alive) else it}))
                 } else {
                     if(pack.carrier!=o.id)return reject(StrategyActionRejection.AUTHORITY)
-                    if(pack.destination!=base.baseId)return reject(StrategyActionRejection.LOCATION)
+                    // A destination lost to capture or revolt while the cargo is aboard would strand it: the carrier
+                    // may then unload at the own regular base it docks at (2026-11-04 rerouting, evidence:guess).
+                    val lost=stocks.bases[pack.destination]?.let {it.power!=power || it.camp!=0} ?: true
+                    if(pack.destination!=base.baseId && !lost)return reject(StrategyActionRejection.LOCATION)
                     // Boats lost since loading take the same share of the cargo (approved §2.3).
                     val (supplies,units)=delivered(pack,boats(o))
                     stocks.copy(bases=stocks.bases+(base.baseId to base.copy(supplies=Math.addExact(base.supplies,supplies),

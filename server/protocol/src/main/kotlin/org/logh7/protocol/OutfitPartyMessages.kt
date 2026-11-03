@@ -14,7 +14,9 @@ object OutfitPartyMessages {
     data class UnitInformation(val id: Int, val kind: Int, val grid: Int, val outfit: Int, val base: Int, val supplies: Int = 0,
         val damaged:Int=0,val destroyed:Int=0,val carrier:Int=0,val mode:Int=if(base==0)5 else 4,
         /** 叛乱忠誠度 0..100 (U-10 説得). */
-        val rebellion:Int=0)
+        val rebellion:Int=0,
+        /** 士気 0..100 (ground battle window; other views keep the initial 100). */
+        val morale:Int=100)
     fun query(bytes: ByteArray): Query {
         require(bytes.size == 11)
         val input = ByteBuffer.wrap(bytes)
@@ -23,7 +25,8 @@ object OutfitPartyMessages {
             // Mode 2 is the revival ground-location page: base carries an exclusive unit-ID cursor.
             // The native editor sends the character's own outfit field, which is 0 away from the
             // flagship dock (e.g. a commander in a lobby); it is answered as an empty roster.
-            require(it.outfit >= 0 && it.base in 0..(if(it.mode==2)999999 else 65535))
+            // Mode 3 is the reconstructed ground battle window: base is the battle base, outfit 0.
+            require(it.outfit >= 0 && it.base in 0..(if(it.mode==2)999999 else 65535) && (it.mode!=3 || it.outfit==0 && it.base>0))
         }
     }
     fun unitQuery(bytes: ByteArray): UnitQuery {
@@ -80,8 +83,8 @@ object OutfitPartyMessages {
                 else when(unit.mode){0->unit.base==0 && unit.carrier==0;4,9->unit.base>0 && unit.carrier==0;10->unit.carrier>0 && unit.base==0;else->false})
             writeInt(unit.id); writeShort(unit.kind); writeByte(unit.mode)
             writeInt(unit.grid); writeInt(unit.outfit); writeInt(unit.carrier); writeByte(0) // No nested troop list in this single-unit view.
-            require(unit.rebellion in 0..100)
-            writeInt(unit.base); writeByte(100); writeByte(unit.rebellion) // Initial morale, then the unit's rebel loyalty.
+            require(unit.rebellion in 0..100 && unit.morale in 0..100)
+            writeInt(unit.base); writeByte(unit.morale); writeByte(unit.rebellion) // Morale, then the unit's rebel loyalty.
             require(unit.damaged in 0..65535 && unit.destroyed in 0..unit.damaged)
             writeShort(unit.damaged); writeShort(unit.destroyed)
             require(unit.supplies >= 0)

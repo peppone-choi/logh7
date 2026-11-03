@@ -40,6 +40,19 @@ class SupplementTest {
         assertNull(reused.rejection);assertEquals(total(damaged),total(reused.stocks!!))
         assertEquals(270,reused.stocks!!.warehouses.getValue(101).spareShips.values[UnitStack(32)])
     }
+    @Test fun battleLossesAreRefilledOnlyAfterTheFleetLeavesTactics() {
+        // Tactical fire reduces the same active unit (TacticalLosses); supplement then refills it from the warehouse.
+        val full=stocks(boats=300)
+        val battered=full.copy(outfits=full.outfits+(1 to TacticalLosses.apply(full.outfits.getValue(1),1,40)))
+        assertEquals(260,battered.outfits.getValue(1).activeShips!!.values.single().boats)
+        val inTactics=player.copy(baseId=0,mode=5,cpPaused=true)
+        assertEquals(LogisticsRejection.LOCATION,Supplement.evaluate(request(),session,inTactics,battered).rejection,
+            "no supplement while the commander is in tactics")
+        val refilled=Supplement.evaluate(request(supplies=0),session,player,battered)
+        assertNull(refilled.rejection)
+        assertEquals(300,refilled.stocks!!.outfits.getValue(1).activeShips!!.values.single().boats)
+        assertEquals(total(battered),total(refilled.stocks!!),"the warehouse pays exactly the lost boats")
+    }
     @Test fun previewNeverChangesCpAndSupplyReturnIsBoundedAndConserved() {
         val initial=stocks();val preview=Supplement.evaluate(request(mode=0),session,player,initial)
         assertNull(preview.rejection);assertFalse(preview.changed);assertEquals(player,preview.player)

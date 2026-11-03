@@ -1,6 +1,8 @@
 // Hooks only the verified tactical guidance lookups. Author: Peppone Choi.
 #pragma once
 #include "tactical_notice_data.h"
+#include "korean_text.h"
+#include <intrin.h>
 static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x50eb08, 0x50f6b3, 0x50f426,
     0x50ffa5, 0x50ffe3, 0x510363, 0x5104b2,
     // update04 mission prompts (state 0x1a): group 118 indices 14..19 are absent from the CD.
@@ -19,14 +21,29 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     // and the ship tab's repair/supply target prompts (state 0xe 118/49, state 0xf 118/50).
     0x5105ce, 0x5105eb, 0x51072a, 0x510753,
     // Fortress tab 鼓舞 sent (state 0x14 after 004b4710): 118/44, the fortress counterpart of 118/43.
-    0x51012c};
+    0x51012c,
+    // Fortress tab 補給 target prompt (state 0x13, 118/46), the supply twin of the repair prompt 0x510363 (118/47).
+    0x51033a};
+// 0x5104b2 (118/60) fills the base-support window's empty-list text, not the chat log, so the chat marker would show raw
+// (seen 2026-11-03, work/fortress-tab-20261103): that one caller gets the catalogue's private CP932 form instead.
+static const char* tacticalWindowNotice(unsigned index, const char* marker) {
+    static std::string encoded;
+    size_t count; const auto rows = logh::tacticalNotices(count);
+    for (size_t i = 0; i < count; ++i) if (rows[i].index == index && rows[i].marker == marker) {
+        std::wstring text = rows[i].text;
+        while (!text.empty() && text.back() == L'\n') text.pop_back();
+        return logh::encodeKoreanResource(text.c_str(), encoded) ? encoded.c_str() : marker;
+    }
+    return marker;
+}
 // Own supreme-commander flag from 033f (set in tactical_fortress_menu.h).
 static volatile LONG ownSupremeCommander=0;
 static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned group, unsigned index) {
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);
-    return logh::tacticalMissionNotice(logh::tacticalNoticeFallback(group, index, original, *reinterpret_cast<const BYTE*>(0x221669c)),
-        InterlockedCompareExchange(&ownSupremeCommander, 0, 0) != 0);
+    const auto text = logh::tacticalNoticeFallback(group, index, original, *reinterpret_cast<const BYTE*>(0x221669c));
+    if (text != original && _ReturnAddress() == reinterpret_cast<void*>(0x5104b2 + 5)) return tacticalWindowNotice(index, text);
+    return logh::tacticalMissionNotice(text, InterlockedCompareExchange(&ownSupremeCommander, 0, 0) != 0);
 }
 // Preserve the native dialog state machine and its confirm/cancel result.
 // Only the withdrawal call is redirected; ordinary dialogs retain their text.

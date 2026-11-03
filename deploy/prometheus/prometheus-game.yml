@@ -1,0 +1,14 @@
+# 작성: Peppone Choi | evidence:guess | docker-compose.metrics.yml 전용: 게임 서버 운영 API /metrics 수집
+global:
+  scrape_interval: 15s
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+  - job_name: game-server
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/ops_token
+    static_configs:
+      - targets: ["game-server:47901"]

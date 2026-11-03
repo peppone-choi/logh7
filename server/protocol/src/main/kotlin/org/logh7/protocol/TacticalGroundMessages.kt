@@ -36,6 +36,20 @@ object TacticalGroundMessages {
         val (input,source)=read(message,opcode,if(action==Action.DEPLOY)1 else 0)
         return Command(action,source.first,source.second,if(action==Action.DEPLOY)input.get().toInt() and 255 else 0)
     }
+    /** Unsent CD commands 0417 CommandAttackTroop (debug printer 004a1d10: units then target u32) and
+     * 0418 CommandStopTroop, reused by the reconstructed ground battle window. [target] 0 clears the order. */
+    data class Target(val character:Int,val units:List<Int>,val target:Int) {
+        init {validate(character,units);require(target>=0)}
+    }
+    fun target(message:ByteArray):Target {
+        require(message.size>=2)
+        val opcode=ByteBuffer.wrap(message).short.toInt() and 65535
+        require(opcode==0x0417 || opcode==0x0418)
+        val (input,source)=read(message,opcode,if(opcode==0x0417)4 else 0)
+        return Target(source.first,source.second,if(opcode==0x0417)input.int.also {require(it>0)} else 0)
+    }
+    fun reply(command:Target,seconds:Long,accepted:Boolean=true)=reply(if(command.target>0)0x0417 else 0x0418,command.character,
+        command.units,if(command.target>0)ByteBuffer.allocate(4).putInt(command.target).array() else byteArrayOf(),seconds,0,accepted)
     fun posture(message:ByteArray):Posture {
         val (input,source)=read(message,0x0411,5)
         return Posture(source.first,source.second,input.get().toInt() and 255,input.int)

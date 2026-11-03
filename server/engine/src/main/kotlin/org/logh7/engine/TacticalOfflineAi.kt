@@ -41,6 +41,8 @@ internal object TacticalOfflineAi {
             val energy=allocation(hull.kind,kind==5)
             val nextPose=if(goal==null)pose else TacticalPose(pose.position,atan2(goal.x-pose.position.x,goal.y-pose.position.y))
             val stop=if(kind==4)10f else if(kind in 1..2)3f else if(kind==5)0f else 2f
+            // 占領 (mission 2): carriers with troops close in to anchor at the target base and land them (U-01).
+            val occupied=if(kind==2)g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid} else null
             val motion=path(p.grid,now,nextPose,goal,stop,energy.values[0]/100f)
             val retreat=if(kind==5 && RetreatRules.outside(pose))RetreatRules.destination(g,p,players.values,stocks,pose)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
@@ -54,6 +56,10 @@ internal object TacticalOfflineAi {
             // Every regular ship remains subject to ownership, CRC, confusion and pending-job guards.
             for((outfitId,original) in stocks.outfits.toSortedMap()) {
                 if(original.power!=(if(p.power==Power.EMPIRE)2 else 3) || original.positionIn(g)!=OutfitPosition(p.grid))continue
+                if(occupied!=null) {
+                    val landed=occupation(original,occupied,p,now,scale,stocks,g,players.values)
+                    if(landed!==original) {stocks=stocks.copy(outfits=stocks.outfits+(outfitId to landed));commanded=true;continue}
+                }
                 val updated=original.activeShips?.values?.map {unit ->
                     if(TacticalAuthority.commander(original,unit,stocks)!=p.characterId || unit.boats<=unit.damaged ||
                         stocks.tacticalCommands.confused(unit.id) || unit.support!=null || unit.shot!=null ||
@@ -66,7 +72,9 @@ internal object TacticalOfflineAi {
                     val velocity=(spec.number("最高速度（km/1G秒）:最高速度（km/1G秒）")/20000f).coerceIn(.1f,1f)
                     val lateral=((unit.id%5)-2)*1.5f
                     val destination=goal?.let {TacticalPoint(it.x+lateral,it.y)}
-                    val moving=path(p.grid,now,at,destination,stop,velocity)
+                    val carrying=occupied!=null && original.activeGround?.values.orEmpty().any {it.carrier==unit.id && it.order==null}
+                    val moving=path(p.grid,now,at,if(carrying)TacticalCommandOperations.basePoint(occupied!!,now,stocks) else destination,
+                        if(carrying)0.2f else stop,velocity)
                     val old=unit.tactical
                     val withdraw=if(kind==5 && retreat!=null)retreat.copy(membershipChecked=false) else null
                     val state=(old ?: NpcTacticalState(moving,now,now)).copy(motion=moving,nextDecisionAt=now+5*scale,retreat=withdraw)
@@ -85,6 +93,43 @@ internal object TacticalOfflineAi {
         return stocks
     }
     private fun distance(a:TacticalPoint,b:TacticalPoint)=hypot(a.x-b.x,a.y-b.y)
+
+    /** U-01 占領 for one outfit: a troop carrier within docking reach of [base] is ordered to anchor there (the player's
+     * 10-second 0x041c wait); an anchored carrier's troops get the player's 25-second landing order. Armored troops on
+     * special planets/fortresses and the 30-unit box stay aboard, as for a player's 040f. Returns [outfit] when unchanged. */
+    private fun occupation(outfit:OutfitStock,base:GalaxyBase,p:Navigator,now:Long,scale:Long,stocks:PlanetStocks,g:Galaxy,
+        players:Collection<Navigator>):OutfitStock {
+        val ships=outfit.activeShips ?: return outfit
+        val ground=outfit.activeGround ?: return outfit
+        val point=TacticalBasePosition.at(base,now,stocks)
+        val reach=maxOf(1.0,base.diameter.toDouble(),if(base.kind==0)5.5 else 0.5)
+        var units=ships.values;var troops=ground.values;var changed=false
+        var box=stocks.outfits.values.filter {it.power==outfit.power}.sumOf {o->o.activeGround?.values.orEmpty()
+            .count {it.base==base.id || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==base.id}==true}}
+        for(unit in ships.values) {
+            val aboard=troops.filter {it.carrier==unit.id && it.order==null && GroundBattleRules.admitsCrewType(base,
+                UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}
+            if(aboard.isEmpty() || unit.boats==0 || TacticalAuthority.commander(outfit,unit,stocks)!=p.characterId ||
+                unit.support!=null || unit.tactical?.retreat!=null)continue
+            val posture=unit.posture?.takeIf {it.grid==p.grid}
+            if(posture?.order!=null)continue
+            if(posture?.mode==TacticalShipMode.ANCHORED && posture.base==base.id) {
+                val landing=aboard.take(maxOf(0,GroundBattleRules.BOX_CAPACITY_PER_FACTION-box))
+                if(landing.isEmpty())continue
+                val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,p.characterId,p.grid,unit.id,base.id,now,now+25*scale)
+                val ids=landing.map {it.id}.toSet()
+                troops=troops.map {if(it.id in ids)it.copy(order=order) else it};box+=landing.size;changed=true
+                continue
+            }
+            val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
+                ?: TacticalDeployment.initial(unit.id,p.power,p.grid,players,stocks,g)
+            if(hypot((at.position.x-point.x).toDouble(),(at.position.y-point.y).toDouble())>reach)continue
+            val current=posture ?: TacticalPosture(p.grid)
+            val anchor=current.copy(order=TacticalPostureOrder(p.characterId,TacticalShipMode.ANCHORED,base.id,now,now+10*scale))
+            units=units.map {if(it.id==unit.id)it.copy(posture=anchor,attack=null,shot=null) else it};changed=true
+        }
+        return if(!changed)outfit else outfit.copy(activeShips=ActiveShipUnits(units),activeGround=ActiveGroundUnits(troops))
+    }
     private fun path(grid:Int,now:Long,pose:TacticalPose,goal:TacticalPoint?,stop:Float,velocity:Float):TacticalMotion {
         val length=goal?.let {distance(pose.position,it)} ?: 0f
         val end=if(goal==null || length<=stop)pose.position else TacticalPoint(

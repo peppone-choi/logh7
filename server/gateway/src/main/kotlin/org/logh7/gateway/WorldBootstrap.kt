@@ -127,6 +127,26 @@ class WorldBootstrap(val galaxy: Galaxy) {
         return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,outfit.kind.wire,
             outfit.number,emptyList(),emptyList(),0,0)),LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
     }
+    /** Reconstructed ground battle window (design-ground-battle-window.md), query mode 3: both sides' landed troops on
+     * one base as 0331 rows. Kind 1000+k already names the faction; damaged carries strength (0..1000) and supplies the
+     * troop's ordered target. Only a viewer in tactics on that grid may read it. */
+    fun outfitBattle(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?):List<ByteArray> {
+        require(query.mode==3 && query.outfit==0)
+        val base=galaxy.bases.singleOrNull {it.id==query.base}
+        val fighting=base?.let {org.logh7.engine.GroundBattleView.fighting(stocks,it)}.orEmpty()
+        val rows=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.power in 2..3}.flatMap {o->
+            // Only troops that may fight here (p.51: no 装甲兵 on special planets/fortresses).
+            o.activeGround?.values.orEmpty().filter {it.base==base.id && org.logh7.engine.GroundBattleRules.admitsCrewType(base,
+                UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}.map {u->
+                OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
+                    // destroyed=1 marks a reserve beyond the side's 30 fighting units (window display only).
+                    supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
+                    morale=stocks.tacticalCommands.morale[u.id] ?: 100,
+                    mode=if(u.origin>0)9 else 4)}
+        }.sortedBy {it.id}.take(70)
+        return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0)),
+            LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
+    }
     fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
         val outfit = stocks.outfits.values.singleOrNull { owner -> owner.activeShips?.values?.any { it.id == id } == true }
         val units = if (outfit == null) emptyList() else {

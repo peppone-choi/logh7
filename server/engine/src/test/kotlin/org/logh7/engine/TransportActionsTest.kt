@@ -43,6 +43,17 @@ class TransportActionsTest {
         val after=assertNotNull(done.stocks);assertTrue(after.strategic.transports.isEmpty())
         assertEquals(1100,after.bases.getValue(1050).supplies);assertEquals(2,after.bases.getValue(1050).units.ships[cargo])
     }
+    @Test fun cargoBoundForACapturedDestinationCanBeUnloadedAtAnyOwnBase() {
+        val s=assertNotNull(act(plan(),stocks()).stocks);val pack=s.strategic.transports.single()
+        val aboard=assertNotNull(act(load(pack.id),s).stocks)
+        assertEquals(StrategyActionRejection.LOCATION,act(load(pack.id),aboard).rejection,"while the destination holds, only it accepts the cargo")
+        // The alliance takes the destination while the package is aboard: the carrier unloads back at Odin instead.
+        val captured=aboard.copy(bases=aboard.bases+(1050 to aboard.bases.getValue(1050).copy(power=3)))
+        val rerouted=act(load(pack.id),captured);assertNull(rerouted.rejection)
+        val after=assertNotNull(rerouted.stocks);assertTrue(after.strategic.transports.isEmpty())
+        assertEquals(5000,after.bases.getValue(1049).supplies);assertEquals(4,after.bases.getValue(1049).units.ships[cargo])
+        assertEquals(100,after.bases.getValue(1050).supplies,"the enemy receives nothing")
+    }
     @Test fun cancellingReturnsAnUnloadedPackageAndASunkCarrierLosesItsShare() {
         val s=assertNotNull(act(plan(),stocks()).stocks);val id=s.strategic.transports.single().id
         val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=id)
