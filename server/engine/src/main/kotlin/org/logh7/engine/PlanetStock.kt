@@ -119,6 +119,9 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         // U-20: the 封土 card text (constmsg, evidence:client) gives a fief's taxes to its lord,
         // so the whole collected amount goes to the lord's private money, not the treasuries.
         val lords = linkedMapOf<Int, Long>()
+        // Food shipped to uninhabitable bases per side, charged to that side's capital after the loop (CapitalProvisioning).
+        val shipped = linkedMapOf<Int, Long>()
+        val capitals = CapitalProvisioning.capitals(galaxy, initialized)
         val result = if (days <= initialized.producedDays) initialized else initialized.copy(producedDays = days,
             bases = initialized.bases.mapValues { (id, stock) ->
                 var next = stock
@@ -131,13 +134,15 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
                     else if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
                     val previousDay=next
+                    if(!stopped)CapitalProvisioning.topUp(next,base,policy,capitals)?.let {(fed,amount)->
+                        next=fed;shipped[fed.power]=Math.addExact(shipped[fed.power] ?: 0,amount)}
                     next = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), previousDay,
                         ProductionActions.shipyard(galaxy,initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L))))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                         .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }
                 next
-            }, nationalTreasuries=national).let {produced ->
+            }, nationalTreasuries=national).let {produced ->CapitalProvisioning.charge(produced,capitals,shipped)}.let {produced ->
                 if(lords.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+
                     lords.mapValues {(lord,amount)->(produced.strategic.people[lord] ?: StrategicPerson()).let {
                         it.copy(money=minOf(0xffffffffL,it.money+amount))}}))
