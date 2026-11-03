@@ -35,5 +35,10 @@ class LiveStateBackupTest {
         backup.finish(backup.copy(LocalDateTime.of(2026, 11, 4, 13, 0, 0)))
         assertEquals(listOf("state-20261104-123000", "state-20261104-130000"),
             Files.list(root).use { it.map { p -> p.fileName.toString() }.sorted().toList() })
+        val other = directory.resolve("other-disk")
+        val exported = backup.export(root.resolve("state-20261104-130000"), other)
+        assertEquals(Files.readString(root.resolve("state-20261104-130000/manifest.json")), Files.readString(exported.resolve("manifest.json")))
+        assertEquals("journal", Files.readString(exported.resolve("session/g1/journal")))
+        assertFailsWith<IllegalArgumentException> { backup.export(root.resolve("state-20261104-130000"), other) }
     }
 }

@@ -10,10 +10,12 @@ import org.logh7.persistence.LiveStateBackup
 
 /**
  * Live backups while the server runs (docs/ops/backup.md): the copy runs on the world actor as a Quiesce
- * command, hashing afterwards. One at a time; [intervalMinutes] > 0 also takes one on that period.
+ * command, hashing (and the optional export) afterwards. One at a time; [intervalMinutes] > 0 also takes one on that period.
  * Author: Peppone Choi.
  */
-class ScheduledBackups(private val engine: CommandSink, private val backup: LiveStateBackup) : StateBackups {
+class ScheduledBackups(private val engine: CommandSink, private val backup: LiveStateBackup,
+    /** LOGH7_BACKUP_EXPORT_DIR: another disk or share that receives a verified copy of every backup. */
+    private val exportTo: java.nio.file.Path? = null) : StateBackups {
     private val lock = Mutex()
     @Volatile private var last: Long? = null
 
@@ -23,7 +25,7 @@ class ScheduledBackups(private val engine: CommandSink, private val backup: Live
         engine.submit(WorldCommand.Quiesce({ backup.copy() }, copied))
         val pending = copied.await()
         val paused = (System.nanoTime() - started) / 1_000_000
-        val target = withContext(Dispatchers.IO) { backup.finish(pending) }
+        val target = withContext(Dispatchers.IO) { backup.finish(pending).also { done -> exportTo?.let { backup.export(done, it) } } }
         last = System.currentTimeMillis() / 1000
         println("Backup ${target.fileName}: engine held ${paused} ms")
         target.fileName.toString()

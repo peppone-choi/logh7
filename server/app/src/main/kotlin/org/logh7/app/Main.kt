@@ -118,7 +118,8 @@ fun main() {
                 requireNotNull(characterFile) { "Live backups need LOGH7_CHARACTERS_FILE" },
                 Path.of(requireNotNull(System.getenv("LOGH7_WORLD_STATE_DIR")) { "Live backups need LOGH7_WORLD_STATE_DIR" }),
                 requireNotNull(sessionDirectory) { "Live backups need LOGH7_SESSION_STORE_DIR" }, Path.of(dir),
-                keep = System.getenv("LOGH7_BACKUP_KEEP")?.toInt() ?: 48))
+                keep = System.getenv("LOGH7_BACKUP_KEEP")?.toInt() ?: 48),
+                System.getenv("LOGH7_BACKUP_EXPORT_DIR")?.let { Path.of(it) })
         }
         backups?.schedule(scope, System.getenv("LOGH7_BACKUP_INTERVAL_MINUTES")?.toLong() ?: 0)
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,

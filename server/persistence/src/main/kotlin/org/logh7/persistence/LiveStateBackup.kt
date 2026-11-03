@@ -85,7 +85,28 @@ class LiveStateBackup(characters: Path, world: Path, session: Path, private val 
         return pending.target
     }
 
-    private fun prune() {
+    /**
+     * Copies a finished backup to [destination] (another disk or a mounted share, like `state_backup.py export`),
+     * re-reads every copied file from there and compares it with the source before naming it complete, then keeps
+     * the newest [keep] there as well.
+     */
+    fun export(backup: Path, destination: Path): Path {
+        val target = destination.resolve(backup.name)
+        require(!Files.exists(target)) { "export target already exists: $target" }
+        val partial = destination.resolve("${backup.name}.partial")
+        if (Files.exists(partial)) partial.toFile().deleteRecursively()
+        Files.walk(backup).use { paths -> paths.filter { Files.isRegularFile(it) }.toList() }.forEach { file ->
+            val copy = partial.resolve(backup.relativize(file).toString())
+            Files.createDirectories(copy.parent)
+            Files.copy(file, copy)
+            check(sha256(copy) == sha256(file)) { "export copy differs: $copy" }
+        }
+        Files.move(partial, target, StandardCopyOption.ATOMIC_MOVE)
+        prune(destination)
+        return target
+    }
+
+    private fun prune(root: Path = this.root) {
         val finished = Files.list(root).use { paths ->
             paths.filter { Files.isDirectory(it) && Regex("state-\\d{8}-\\d{6}").matches(it.name) && Files.exists(it.resolve("manifest.json")) }.toList()
         }.sortedByDescending { it.name }
