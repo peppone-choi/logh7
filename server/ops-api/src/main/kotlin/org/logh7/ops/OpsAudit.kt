@@ -7,7 +7,7 @@ import java.nio.file.StandardOpenOption.*
 import java.time.Clock
 import java.util.UUID
 
-enum class OpsAction { PROBE, SESSION_RESTART, ACCOUNT_SET, ACCOUNT_REMOVE }
+enum class OpsAction { PROBE, SESSION_RESTART, ACCOUNT_SET, ACCOUNT_REMOVE, BACKUP }
 enum class OpsOutcome { QUEUED, RESTARTED, CONFLICT, FAILED, CHANGED, NOT_FOUND, INVALID }
 
 /** Append-only JSON Lines. Each line is fsync'd before the call returns. */

@@ -35,6 +35,8 @@ sealed interface WorldCommand {
     data class AssignStock(val request: StockAssignmentRequest, val result: CompletableDeferred<StockAssignmentResult>) : WorldCommand
     data class StrategyAction(val request:StrategyActionRequest,val result:CompletableDeferred<StrategyActionResult>) : WorldCommand
     data class FormOutfit(val request:OutfitFormationRequest,val result:CompletableDeferred<OutfitFormationResult>) : WorldCommand
+    /** Runs [action] on the actor between commits (live backups); nothing commits until it returns. */
+    data class Quiesce<T>(val action: () -> T, val result: CompletableDeferred<T>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
 enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
@@ -347,6 +349,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val command = if(queued.advanceNow) WorldCommand.AdvanceTo(
                 maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
                     else durableState?.elapsed ?: elapsed)) else queued.command
+            if(command is WorldCommand.Quiesce<*>) {
+                @Suppress("UNCHECKED_CAST") val quiesce=command as WorldCommand.Quiesce<Any?>
+                try {quiesce.result.complete(quiesce.action())} catch(failure:Exception) {quiesce.result.completeExceptionally(failure)}
+                continue
+            }
             if(command is WorldCommand.FormOutfit) {
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
@@ -1018,6 +1025,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.AssignStock -> error("Stock assignment is handled before session commands")
                 is WorldCommand.StrategyAction -> error("Strategy action is handled before session commands")
                 is WorldCommand.FormOutfit -> error("Outfit formation is handled before session commands")
+                is WorldCommand.Quiesce<*> -> error("Quiesce is handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

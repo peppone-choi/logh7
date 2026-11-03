@@ -112,9 +112,18 @@ fun main() {
         // LOGH7_OPS_TOKEN_FILE suits container secrets; a trailing newline in the file is not part of the token.
         val opsToken = System.getenv("LOGH7_OPS_TOKEN")?.takeIf { it.isNotEmpty() }
             ?: System.getenv("LOGH7_OPS_TOKEN_FILE")?.let { java.nio.file.Files.readString(Path.of(it)).trim() }?.takeIf { it.isNotEmpty() }
+        // LOGH7_BACKUP_DIR enables live backups (operator button); LOGH7_BACKUP_INTERVAL_MINUTES schedules them.
+        val backups = System.getenv("LOGH7_BACKUP_DIR")?.let { dir ->
+            ScheduledBackups(engine, org.logh7.persistence.LiveStateBackup(
+                requireNotNull(characterFile) { "Live backups need LOGH7_CHARACTERS_FILE" },
+                Path.of(requireNotNull(System.getenv("LOGH7_WORLD_STATE_DIR")) { "Live backups need LOGH7_WORLD_STATE_DIR" }),
+                requireNotNull(sessionDirectory) { "Live backups need LOGH7_SESSION_STORE_DIR" }, Path.of(dir),
+                keep = System.getenv("LOGH7_BACKUP_KEEP")?.toInt() ?: 48))
+        }
+        backups?.schedule(scope, System.getenv("LOGH7_BACKUP_INTERVAL_MINUTES")?.toLong() ?: 0)
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,
             host = System.getenv("LOGH7_OPS_BIND") ?: "127.0.0.1",
-            users = System.getenv("LOGH7_OPS_USERS_FILE")?.let { org.logh7.ops.OpsUsers(Path.of(it)) },
+            users = System.getenv("LOGH7_OPS_USERS_FILE")?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()
                 override fun set(account: String, password: String) =

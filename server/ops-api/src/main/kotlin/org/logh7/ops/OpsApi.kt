@@ -26,9 +26,17 @@ interface AccountAdmin {
     fun remove(account: String): Boolean
 }
 
+/** Live state backups (LOGH7_BACKUP_DIR): on demand from the operator page and on the app's schedule. */
+interface StateBackups {
+    /** Takes one backup now; returns its directory name. */
+    suspend fun take(): String
+    /** Epoch seconds of the last successful backup, or null before the first. */
+    fun lastSuccess(): Long?
+}
+
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
     audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null,
-    users: OpsUsers? = null): AutoCloseable {
+    users: OpsUsers? = null, backups: StateBackups? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -57,10 +65,10 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             }
             get("/snapshot") { call.respondText(snapshots.snapshot().toString()) }
             get("/admin") {
-                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names()), io.ktor.http.ContentType.Text.Html)
+                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names(), backups), io.ktor.http.ContentType.Text.Html)
             }
             get("/metrics") {
-                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot()),
+                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
             }
             // Admin page buttons: same audit as the header routes, operator from the form, same-origin only.
@@ -79,6 +87,14 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                         if (admin.remove(form["account"].orEmpty())) OpsOutcome.CHANGED else OpsOutcome.NOT_FOUND
                     }
                 }
+            }
+            post("/admin/backup") {
+                call.adminForm(port)?.get("operator")?.let { operator ->
+                    call.audited(audit, OpsAction.BACKUP, operator) { backups?.take() ?: return@audited OpsOutcome.FAILED; OpsOutcome.CHANGED }
+                }
+            }
+            post("/commands/backup") {
+                call.audited(audit, OpsAction.BACKUP) { backups?.take() ?: return@audited OpsOutcome.FAILED; OpsOutcome.CHANGED }
             }
             post("/admin/probe") {
                 call.adminForm(port)?.get("operator")?.let { operator ->
@@ -192,7 +208,7 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
 }
 
 /** Prometheus text exposition of engine health and counters (deploy/prometheus scrapes this). */
-internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot): String = buildString {
+internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: StateBackups? = null): String = buildString {
     fun metric(name: String, type: String, help: String, value: Number) {
         append("# HELP logh7_").append(name).append(' ').append(help).append('\n')
         append("# TYPE logh7_").append(name).append(' ').append(type).append('\n')
@@ -215,10 +231,13 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot): String =
     metric("jvm_heap_used_bytes", "gauge", "JVM heap in use.", runtime.totalMemory() - runtime.freeMemory())
     metric("jvm_heap_max_bytes", "gauge", "JVM heap limit.", runtime.maxMemory())
     metric("jvm_threads", "gauge", "Live JVM threads.", Thread.activeCount())
+    // RPO watch: alert when time() minus this grows past the backup interval.
+    if (backups != null) metric("backup_last_success_seconds", "gauge", "Epoch seconds of the last live backup (0 before the first).", backups.lastSuccess() ?: 0)
 }
 
 /** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */
-internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, accounts: List<String>? = null): String = buildString {
+internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, accounts: List<String>? = null,
+    backups: StateBackups? = null): String = buildString {
     fun esc(value: Any?) = value.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     fun row(vararg cells: Any?) { append("<tr>"); cells.forEach { append("<td>").append(esc(it)).append("</td>") }; append("</tr>") }
     val session = snapshot.session
@@ -235,11 +254,14 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
     row("세션 종료", session?.ended ?: "진행 중")
     row("전술 인스턴스", session?.tacticalTicks?.size ?: 0)
     row("진행 중 지상전 거점", snapshot.planetStocks?.groundBattles?.keys?.sorted()?.joinToString(", ")?.ifEmpty { "없음" } ?: "-")
+    if (backups != null) row("마지막 백업", backups.lastSuccess()?.let { java.time.Instant.ofEpochSecond(it).toString() } ?: "없음")
     append("</tbody></table><h2>인물</h2><table><thead><tr><th>계정</th><th>인물</th><th>세력</th><th>그리드</th><th>거점</th><th>전술</th><th>PCP/MCP</th></tr></thead><tbody>")
     for ((account, n) in snapshot.navigators.toSortedMap())
         row(account, n.characterId, n.power, n.grid, n.baseId, if (n.cpPaused) "전술" else "전략", "${n.pcp} / ${n.mcp}")
     append("</tbody></table><h2>조작</h2><p>조작은 감사 기록에 운영자 이름과 함께 남는다.</p>")
-    for ((path, label) in listOf("/admin/probe" to "엔진 응답 확인(probe)", "/admin/restart" to "세션 재시작(종료된 세션만)"))
+    val actions = listOf("/admin/probe" to "엔진 응답 확인(probe)", "/admin/restart" to "세션 재시작(종료된 세션만)") +
+        listOfNotNull(backups?.let { "/admin/backup" to "지금 백업" })
+    for ((path, label) in actions)
         append("<form method=\"post\" action=\"").append(path).append("\">운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required> ")
             .append("<button>").append(label).append("</button></form>")
     if (accounts != null) {

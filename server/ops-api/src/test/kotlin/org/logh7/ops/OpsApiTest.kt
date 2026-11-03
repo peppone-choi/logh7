@@ -174,6 +174,30 @@ class OpsApiTest {
         assertEquals(listOf("ACCOUNT_SET:CHANGED", "ACCOUNT_SET:INVALID", "ACCOUNT_REMOVE:NOT_FOUND", "ACCOUNT_REMOVE:CHANGED"), outcomes)
     }
 
+    @Test fun backupRoutesAreAuditedAndReportTheLastSuccess() {
+        var taken = 0
+        val backups = object : StateBackups {
+            override suspend fun take(): String { if (taken == 1) error("disk full"); taken++; return "state-20261104-120000" }
+            override fun lastSuccess(): Long? = if (taken > 0) 1_793_000_000L else null
+        }
+        assertTrue("logh7_backup_last_success_seconds 0" in opsMetrics(EngineHealth.RUNNING, snapshot, backups))
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(Sink(), snapshots, port, audit, backups = backups).use {
+            HttpClient.newHttpClient().use { client ->
+                fun form() = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin/backup"))
+                    .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString("operator=op1")).build(),
+                    HttpResponse.BodyHandlers.ofString())
+                assertEquals("changed", form().body())
+                assertEquals(500, form().statusCode())
+                val page = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
+                assertTrue("/admin/backup" in page && "2026-10-26T" in page)
+            }
+        } }
+        assertTrue("logh7_backup_last_success_seconds 1793000000" in opsMetrics(EngineHealth.RUNNING, snapshot, backups))
+        assertTrue("/admin/backup" !in opsAdminPage(EngineHealth.RUNNING, snapshot))
+        assertEquals(listOf("BACKUP:CHANGED", "BACKUP:FAILED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
+    }
+
     @Test fun namedOperatorLoginBecomesTheAuditOperator() {
         // Written by tools/ops/ops_user.py entry("operator-pass1", 1000, b"A"*16): Python and Kotlin must agree.
         val users = directory.resolve("ops-users.properties")

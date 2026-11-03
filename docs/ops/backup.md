@@ -81,3 +81,13 @@
 
 확인: 운영 API 검사 17개 통과. 그중 하나는 Python 도구가 만든 해시를 Kotlin이 검증하는지 본다. `ops_user.py` 검사 1개도 통과했다. 실제 서버에서 로그인 없음·틀린 비밀번호는 401, 맞는 로그인은 200을 받았다. 폼에 `operator=someone`을 적어 보낸 probe가 감사 기록에는 로그인한 `peppone`으로 남았다. `evidence:guess`
 
+## 실행 중 백업과 주기 실행 (2026-11-04)
+
+`LOGH7_BACKUP_DIR`을 주면 서버가 멈추지 않고 백업한다. 복사는 월드 액터의 `Quiesce` 명령으로 커밋 사이에서만 일어난다. 모든 저장소는 원자적 교체나 액터만 쓰는 저널 덧붙이기로 기록하므로, 이 복사본은 커밋 사이에서 강제 종료한 상태와 같다. 해시와 매니페스트는 액터가 다시 돌기 시작한 뒤 계산한다. 다 끝나야 `.partial`을 `state-YYYYMMDD-HHMMSS`로 이름 바꾼다. 형식은 `state_backup.py`의 `LOGH7-STATE-BACKUP-1`이고 `"live": true`가 붙는다. 그래서 `verify`·`restore`·`export`·`prune`을 그대로 쓴다.
+
+- 주기: `LOGH7_BACKUP_INTERVAL_MINUTES`(0 또는 없음 = 수동만). 보존 개수는 `LOGH7_BACKUP_KEEP`(기본 48)이다. 오래된 실행 중 백업은 서버가 지운다.
+- 수동: `/admin`의 「지금 백업」 버튼 또는 `POST /commands/backup`(감사 `BACKUP` 요청·결과 두 줄).
+- 감시: `/metrics`의 `logh7_backup_last_success_seconds`(마지막 성공 시각, 처음엔 0). `time() - 이 값`이 주기의 2배를 넘으면 경보를 낸다(RPO 감시). `/admin`에도 마지막 백업 시각을 보인다.
+
+로컬 리허설(`work/gb-20261103`, 세션 저장소 77MB). 서버를 주기 1분·보존 3으로 띄웠다. 1분 뒤 주기 백업이, 이어서 수동 백업이 생겼다. 엔진이 멈춘 시간은 각각 61ms와 34ms였다. 수동 백업 직후 게임 시각은 1332135였다. 30초 더 돌려 1333173이 된 뒤 강제 종료했다. 그 수동 백업을 `state_backup.py verify`(10개 파일)로 확인하고 `restore --force`로 복원해 다시 시작했다. 엔진은 정상이었고, 시작 약 10초 뒤 게임 시각은 1332447이었다. 백업 시점에서 이어진 것이다. 감사 기록에는 `BACKUP` 요청과 `CHANGED`가 남았다. 남은 것: 백업 디렉터리를 다른 매체로 옮기는 `export`의 자동 실행(지금은 운영자가 실행)과 무중단 서버 전환. `evidence:guess`
+
