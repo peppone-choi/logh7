@@ -8,14 +8,27 @@ import org.logh7.engine.*
 import kotlinx.coroutines.CompletableDeferred
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.call
 import io.ktor.server.plugins.origin
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
+import io.ktor.server.request.receiveParameters
+import java.security.MessageDigest
+import java.util.Base64
 
-/** Operator headers are self-reported, not authentication. Loopback binding is the only access control. */
+/** Operator names are self-reported. Loopback binding is the base access control; with [token] every route but
+ * /health also needs `Authorization: Bearer <token>` or HTTP Basic with the token as password (browsers prompt). */
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
-    audit: OpsAudit? = null): AutoCloseable {
+    audit: OpsAudit? = null, token: String? = null): AutoCloseable {
+    require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     val server = embeddedServer(Netty, host = "127.0.0.1", port = port) {
+        intercept(io.ktor.server.application.ApplicationCallPipeline.Plugins) {
+            if (token != null && call.request.local.uri.substringBefore('?') != "/health" && !opsAuthorized(call.request.headers["Authorization"], token)) {
+                call.response.headers.append("WWW-Authenticate", "Basic realm=\"LOGH7 ops\", charset=\"UTF-8\"")
+                call.respondText("ops token required", status = HttpStatusCode.Unauthorized)
+                finish()
+            }
+        }
         routing {
             get("/health") {
                 when (snapshots.health()) {
@@ -31,6 +44,21 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             get("/metrics") {
                 call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot()),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
+            }
+            // Admin page buttons: same audit as the header routes, operator from the form, same-origin only.
+            post("/admin/probe") {
+                call.adminForm(port)?.let { operator ->
+                    call.audited(audit, OpsAction.PROBE, operator) { commands.submit(WorldCommand.Probe); OpsOutcome.QUEUED }
+                }
+            }
+            post("/admin/restart") {
+                call.adminForm(port)?.let { operator ->
+                    call.audited(audit, OpsAction.SESSION_RESTART, operator) {
+                        val result = CompletableDeferred<Boolean>()
+                        commands.submit(WorldCommand.RequestRestart(result))
+                        if (result.await()) OpsOutcome.RESTARTED else OpsOutcome.CONFLICT
+                    }
+                }
             }
             post("/commands/probe") {
                 call.audited(audit, OpsAction.PROBE) {
@@ -55,13 +83,33 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     return AutoCloseable { server.stop(500, 2000) }
 }
 
+internal fun opsAuthorized(header: String?, token: String): Boolean {
+    val presented = when {
+        header == null -> return false
+        header.startsWith("Bearer ") -> header.removePrefix("Bearer ")
+        header.startsWith("Basic ") -> runCatching { String(Base64.getDecoder().decode(header.removePrefix("Basic ").trim()), Charsets.UTF_8) }
+            .getOrNull()?.substringAfter(':', "") ?: return false
+        else -> return false
+    }
+    return MessageDigest.isEqual(presented.toByteArray(Charsets.UTF_8), token.toByteArray(Charsets.UTF_8))
+}
+
+/** Reads the operator field of an admin form; refuses a cross-origin post (a page elsewhere cannot drive the buttons). */
+private suspend fun ApplicationCall.adminForm(port: Int): String? {
+    val origin = request.headers["Origin"]
+    if (origin != null && origin != "http://127.0.0.1:$port" && origin != "http://localhost:$port") {
+        respondText("cross-origin admin request", status = HttpStatusCode.Forbidden)
+        return null
+    }
+    return receiveParameters()["operator"].orEmpty()
+}
+
 private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
-    operation: suspend () -> OpsOutcome) {
+    operator: String? = request.headers["X-LOGH7-Operator"], operation: suspend () -> OpsOutcome) {
     if (audit == null) {
         respondText("ops audit log is not configured", status = HttpStatusCode.ServiceUnavailable)
         return
     }
-    val operator = request.headers["X-LOGH7-Operator"]
     if (operator == null || !OpsAudit.operatorPattern.matches(operator)) {
         respondText("invalid X-LOGH7-Operator", status = HttpStatusCode.BadRequest)
         return
@@ -114,12 +162,12 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot): String =
     metric("ground_battles", "gauge", "Bases with a running ground battle.", snapshot.planetStocks?.groundBattles?.size ?: 0)
 }
 
-/** Read-only operator page (loopback only, like every ops route). Commands stay on audited POST routes. */
+/** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */
 internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot): String = buildString {
     fun esc(value: Any?) = value.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     fun row(vararg cells: Any?) { append("<tr>"); cells.forEach { append("<td>").append(esc(it)).append("</td>") }; append("</tr>") }
     val session = snapshot.session
-    append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><meta http-equiv=\"refresh\" content=\"10\">")
+    append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">")
     append("<title>LOGH7 운영</title><style>body{font-family:sans-serif;margin:16px}table{border-collapse:collapse;margin-bottom:16px}")
     append("td,th{border:1px solid #999;padding:2px 8px;text-align:left}</style></head><body><h1>LOGH7 운영 상태</h1>")
     append("<table><tbody>")
@@ -135,5 +183,9 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot): String
     append("</tbody></table><h2>인물</h2><table><thead><tr><th>계정</th><th>인물</th><th>세력</th><th>그리드</th><th>거점</th><th>전술</th><th>PCP/MCP</th></tr></thead><tbody>")
     for ((account, n) in snapshot.navigators.toSortedMap())
         row(account, n.characterId, n.power, n.grid, n.baseId, if (n.cpPaused) "전술" else "전략", "${n.pcp} / ${n.mcp}")
-    append("</tbody></table><p>읽기 전용. 명령은 감사 기록이 남는 POST 경로로만 보낸다. 10초마다 새로 고침.</p></body></html>")
+    append("</tbody></table><h2>조작</h2><p>조작은 감사 기록에 운영자 이름과 함께 남는다.</p>")
+    for ((path, label) in listOf("/admin/probe" to "엔진 응답 확인(probe)", "/admin/restart" to "세션 재시작(종료된 세션만)"))
+        append("<form method=\"post\" action=\"").append(path).append("\">운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required> ")
+            .append("<button>").append(label).append("</button></form>")
+    append("<p>최신 값은 새로 고침으로 다시 읽는다.</p></body></html>")
 }

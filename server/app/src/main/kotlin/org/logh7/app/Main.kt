@@ -108,7 +108,7 @@ fun main() {
         resources.addFirst(gateway)
         val audit = System.getenv("LOGH7_OPS_AUDIT_FILE")?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)
-        val ops = startOpsApi(engine, engine, port = opsPort, audit = audit)
+        val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = System.getenv("LOGH7_OPS_TOKEN")?.takeIf { it.isNotEmpty() })
         resources.addFirst(ops)
         val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
         gateway.start(gamePort = gamePort, updatePort = updatePort, bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress,

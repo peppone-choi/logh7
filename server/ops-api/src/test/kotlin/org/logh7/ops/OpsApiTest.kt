@@ -99,6 +99,54 @@ class OpsApiTest {
         } }
     }
 
+    @Test fun tokenGuardsEveryRouteButHealthAndAcceptsBearerOrBasic() {
+        val sink = Sink();val token = "0123456789abcdef-secret"
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(sink, snapshots, port, audit, token).use {
+            HttpClient.newHttpClient().use { client ->
+                fun get(path: String, auth: String? = null): HttpResponse<String> {
+                    val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path")).timeout(Duration.ofSeconds(10))
+                    if (auth != null) builder.header("Authorization", auth)
+                    return client.send(builder.GET().build(), HttpResponse.BodyHandlers.ofString())
+                }
+                assertEquals(200, get("/health").statusCode())
+                for (path in listOf("/admin", "/metrics", "/snapshot")) {
+                    val refused = get(path)
+                    assertEquals(401, refused.statusCode(), path)
+                    assertTrue(refused.headers().firstValue("WWW-Authenticate").get().startsWith("Basic"))
+                    assertEquals(401, get(path, "Bearer wrong-token-wrong-token").statusCode())
+                }
+                assertEquals(200, get("/admin", "Bearer $token").statusCode())
+                val basic = java.util.Base64.getEncoder().encodeToString("ops:$token".toByteArray())
+                assertEquals(200, get("/metrics", "Basic $basic").statusCode())
+                val post = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/commands/probe"))
+                    .header("X-LOGH7-Operator", "op1").POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString())
+                assertEquals(401, post.statusCode());assertTrue(sink.commands.isEmpty())
+            }
+        } }
+        assertFailsWith<IllegalArgumentException> { startOpsApi(sink, snapshots, port, null, "short") }
+    }
+
+    @Test fun adminFormButtonsAreAuditedAndRefuseCrossOriginPosts() {
+        val sink = Sink()
+        OpsAudit.open(file, clock).use { audit -> serve(sink, audit) { endpoint ->
+            HttpClient.newHttpClient().use { client ->
+                fun form(path: String, origin: String?): HttpResponse<String> {
+                    val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:${endpoint.port}$path"))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                    if (origin != null) builder.header("Origin", origin)
+                    return client.send(builder.POST(HttpRequest.BodyPublishers.ofString("operator=op1")).build(), HttpResponse.BodyHandlers.ofString())
+                }
+                assertEquals(403, form("/admin/probe", "http://evil.example").statusCode());assertTrue(sink.commands.isEmpty())
+                val ok = form("/admin/probe", "http://127.0.0.1:${endpoint.port}")
+                assertEquals(200, ok.statusCode());assertEquals("queued", ok.body())
+                assertEquals(listOf(WorldCommand.Probe), sink.commands)
+                assertPair("PROBE", "QUEUED")
+            }
+        } }
+        assertTrue("/admin/restart" in opsAdminPage(EngineHealth.RUNNING, snapshot))
+    }
+
     @Test fun restartSuccess() {
         val sink = Sink()
         OpsAudit.open(file, clock).use { audit -> serve(sink, audit) { endpoint ->
