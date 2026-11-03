@@ -501,8 +501,13 @@ class GameExchange(
                             val player=checkNotNull(result.player ?: result.previous)
                             if(traceOpcodes && result.player==null)System.err.println("trace ${identity.account} 0x%04x rejected: ${result.rejection}".format(command.opcode))
                             publication=Publication(character,player,false)
+                            // The CD shows nothing for a refused 041f; name the cause when the fortress lost its propulsion (CD p.46).
+                            val broken=command.opcode==0x041f && result.player==null &&
+                                navigation.snapshot()?.planetStocks?.tacticalCommands?.brokenPropulsion?.contains(command.base)==true
+                            val notice=if(broken)listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(
+                                character.id.toInt(),FORTRESS_PROPULSION_LOST),gameSeconds())) else emptyList()
                             listOf(org.logh7.protocol.TacticalCommandMessages.reply(command,gameSeconds(),
-                                (result.commandReadyAt?.minus(gameSeconds()) ?: 0).coerceAtLeast(0),result.player!=null))+
+                                (result.commandReadyAt?.minus(gameSeconds()) ?: 0).coerceAtLeast(0),result.player!=null))+notice+
                                 characterMessage(character,player,true)+commandCorps(identity.account)
                         }
                         return null

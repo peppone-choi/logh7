@@ -14,5 +14,7 @@ class TacticalGroundNoticesTest {
         }
         assertTrue(TacticalGroundNotices.text(true,NavigationRejection.CREW)!!.contains("장갑병"))
         assertNull(TacticalGroundNotices.text(true,null))
+        assertTrue(FORTRESS_PROPULSION_LOST.length<=32,FORTRESS_PROPULSION_LOST)
+        ChatMessages.spot(ChatMessages.Spot(10003,FORTRESS_PROPULSION_LOST),100)
     }
 }
