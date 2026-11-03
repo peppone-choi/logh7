@@ -3,7 +3,7 @@
 // CD's unsent 0417 CommandAttackTroop / 0418 CommandStopTroop records through the native transport. Author: Peppone Choi.
 #pragma once
 static struct GroundBattleWindow {
-    bool visible,pending; unsigned own,target,base; ULONGLONG acceptAfter,sentAt; const wchar_t* message;
+    bool visible,pending; unsigned own,target,base,orderUnit,orderTarget; ULONGLONG acceptAfter,sentAt; const wchar_t* message;
 } groundWindow={};
 static bool groundWindowShown() {return groundWindow.visible;}
 static bool groundWindowAvailable() {return groundPanel.activeBase && GetTickCount64()<groundPanel.activeUntil;}
@@ -47,7 +47,8 @@ static void sendGroundOrder(unsigned own,unsigned target) {
     BYTE record[0x94]={};at<unsigned>(record,8)=at<unsigned>(self,0x24);record[0xc]=1;at<unsigned>(record,0x10)=own;
     if (target) at<unsigned>(record,0x90)=target;
     auto transport=at<void*>(service,0x44);auto table=at<void**>(transport,0);
-    groundWindow.pending=true;groundWindow.sentAt=GetTickCount64();
+    groundWindow.pending=true;groundWindow.sentAt=GetTickCount64();groundWindow.orderUnit=own;groundWindow.orderTarget=target;
+    groundPanel.pollAt=0;
     groundWindow.message=target ? L"공격 대상 지정을 요청했습니다." : L"공격 대상 해제를 요청했습니다.";
     reinterpret_cast<unsigned(__thiscall*)(void*,void*,unsigned,void*)>(table[6])(transport,at<void*>(service,0x40),target ? 0x0417 : 0x0418,record);
 }
@@ -81,7 +82,14 @@ static bool updateGroundWindow() {
     if (row && row->target) _snwprintf_s(text,_countof(text),_TRUNCATE,L"현재 공격 대상 #%u",row->target);
     else wcscpy_s(text,L"공격 대상 없음(순서대로 공격)");
     taxText(5,text);
-    if (w.pending && GetTickCount64()-w.sentAt>8000) {w.pending=false;w.message=L"응답이 없습니다.";}
+    // The CD has no world case for the 0417/0418 reply; confirm the order from the next roster instead.
+    if (w.pending && GetTickCount64()-w.sentAt>=500) {
+        auto ordered=groundWindowRow(w.orderUnit);
+        if (ordered && ordered->target==w.orderTarget) {
+            w.pending=false;w.message=w.orderTarget ? L"공격 대상을 지정했습니다." : L"공격 대상을 해제했습니다.";
+        }
+    }
+    if (w.pending && GetTickCount64()-w.sentAt>8000) {w.pending=false;w.message=L"지정되지 않았습니다(지휘권·위치·대상 확인).";}
     taxText(6,w.message ? w.message : L"");
     taxText(10,L"◀");taxText(11,L"▶");taxText(12,L"◀");taxText(13,L"▶");
     bool assigned=row && enemy && row->target==enemy->id;
