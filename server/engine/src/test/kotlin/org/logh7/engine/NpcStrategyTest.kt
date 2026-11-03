@@ -49,8 +49,12 @@ class NpcStrategyTest {
         // Caught out on the enemy grid, it reserves the jump back towards its own depot.
         val out=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2488))})}
         assertEquals(NpcStrategicState(21600,2487,3600),advance(0,out,players,events).outfits.getValue(1).strategy)
-        // An even fight on that grid is accepted: it stays to fight rather than withdrawing.
-        assertEquals(NpcStrategicState(21600),advance(0,out,players(),events).outfits.getValue(1).strategy)
+        // An even fight on that grid is accepted while the fuel lasts: it stays to fight rather than withdrawing.
+        val fuelled=out.copy(outfits=out.outfits.mapValues {(_,o)->OutfitSupplies.withBalances(o,mapOf(1 to 2700))})
+        assertEquals(NpcStrategicState(21600),advance(0,fuelled,players(),events).outfits.getValue(1).strategy)
+        // Fuel for fewer than two more jumps (the unit's 300 boats need 600) sends it home first.
+        val short=out.copy(outfits=out.outfits.mapValues {(_,o)->OutfitSupplies.withBalances(o,mapOf(1 to 599))})
+        assertEquals(NpcStrategicState(21600,2487,3600),advance(0,short,players(),events).outfits.getValue(1).strategy)
         assertTrue(events.isEmpty())
     }
     @Test fun appointedCommanderOrCapturedDepotCancelsWithoutChargingOrMoving() {

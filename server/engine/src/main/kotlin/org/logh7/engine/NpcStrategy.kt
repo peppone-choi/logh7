@@ -40,7 +40,7 @@ internal object NpcStrategy {
         forces[grid].orEmpty().filter {it.camp!=camp}.sumOf {it.units}
     /**
      * Next adjacent grid: towards the nearest enemy it can take on (at most twice its own mobile units), or, when
-     * every enemy outmatches it or a stronger enemy shares its grid, back towards the nearest own depot
+     * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards the nearest own depot
      * (`evidence:guess`, 2026-11-04 replacement policy).
      */
     private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? {
@@ -51,9 +51,13 @@ internal object NpcStrategy {
         val enemies=forces.entries.filter {(_,rows)->rows.any {it.camp!=camp && (it.units>0 || it.base)}}.map {it.key}
         if(enemies.isEmpty())return null
         val goal=enemies.filter(::beatable).minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it})
-        if(goal!=null && beatable(origin))return if(goal==origin)null else step(galaxy,forces,outfit,origin,goal)
-        val home=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.power==outfit.power && it.camp==0}==true && beatable(b.grid)}
-            .map {it.grid}.minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it}) ?: return null
+        val homes=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.power==outfit.power && it.camp==0}==true && beatable(b.grid)}.map {it.grid}
+        // Away from its depots with fuel for fewer than two more jumps, it turns back while it still can.
+        val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
+        val balances=OutfitSupplies.distribution(outfit)
+        val short=origin !in homes && live.any {balances[it.id]?.let {b->b<it.boats*2}!=false}
+        if(goal!=null && beatable(origin) && !short)return if(goal==origin)null else step(galaxy,forces,outfit,origin,goal)
+        val home=homes.minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it}) ?: return null
         return if(home==origin)null else step(galaxy,forces,outfit,origin,home)
     }
     private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy):Pair<PlanetStocks,OutfitStock>? {
