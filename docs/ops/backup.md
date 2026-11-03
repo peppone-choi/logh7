@@ -51,7 +51,7 @@
 
 ## 운영 지표 `/metrics` (2026-11-03)
 
-운영 API(`127.0.0.1`, 기본 47901·시험 47951)에 Prometheus 텍스트 형식 `/metrics`를 더했다. 엔진 정상 여부(`logh7_engine_up`), 월드 리비전·명령 접수/거부 누계, 세션 세대·게임 시각·참가/접속 수·종료 여부, 전술 인스턴스 수, 진행 중 지상전 거점 수 11개다(검사 `metricsExposeHealthAndCountersInPrometheusText`). 실제 시험 서버에서 `engine_up 1`, 참가 6·접속 0, 지상전 1을 확인했다. 운영 API는 루프백에만 묶여 있어 Compose의 Prometheus 컨테이너는 아직 긁어 갈 수 없다. 같은 호스트의 수집기나 바인딩 정책이 정해진 뒤 `deploy/prometheus/prometheus.yml`에 넣는다. 지연·송신 큐·메모리 지표는 미구현이다. `evidence:guess`
+운영 API(`127.0.0.1`, 기본 47901·시험 47951)에 Prometheus 텍스트 형식 `/metrics`를 더했다. 엔진 정상 여부(`logh7_engine_up`), 월드 리비전·명령 접수/거부 누계, 세션 세대·게임 시각·참가/접속 수·종료 여부, 전술 인스턴스 수, 진행 중 지상전 거점 수 11개다(검사 `metricsExposeHealthAndCountersInPrometheusText`). 실제 시험 서버에서 `engine_up 1`, 참가 6·접속 0, 지상전 1을 확인했다. 수집기 연결(2026-11-03 추가): 운영 API 바인드 주소를 `LOGH7_OPS_BIND`로 바꿀 수 있게 했고, 루프백이 아닌 주소는 토큰(`LOGH7_OPS_TOKEN` 또는 비밀 파일 `LOGH7_OPS_TOKEN_FILE`)이 없으면 서버 시작을 거부한다(실제 서버에서 `0.0.0.0` 무토큰 시작 거부 확인). 선택 덮어쓰기 `deploy/docker-compose.metrics.yml`이 게임 서버를 백엔드 망에 토큰과 함께 열고, Prometheus가 `prometheus-game.yml`의 Bearer 설정으로 `game-server:47901/metrics`를 긁는다. 기본 Compose와 CI 계약(게임 서비스 비밀 없음·루프백 수신)은 그대로다. `docker compose config`로 병합 결과를 확인했으나, Linux Docker에서 실제 수집은 실행하지 않았다. 지연·송신 큐·메모리 지표는 미구현이다. `evidence:guess`
 
 ## 읽기 전용 관리 화면 `/admin` (2026-11-03)
 

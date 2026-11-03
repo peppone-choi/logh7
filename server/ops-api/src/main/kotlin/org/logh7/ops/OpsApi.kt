@@ -16,12 +16,14 @@ import io.ktor.server.request.receiveParameters
 import java.security.MessageDigest
 import java.util.Base64
 
-/** Operator names are self-reported. Loopback binding is the base access control; with [token] every route but
+/** Operator names are self-reported. Loopback binding is the default access control; with [token] every route but
  * /health also needs `Authorization: Bearer <token>` or HTTP Basic with the token as password (browsers prompt). */
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
-    audit: OpsAudit? = null, token: String? = null): AutoCloseable {
+    audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1"): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
-    val server = embeddedServer(Netty, host = "127.0.0.1", port = port) {
+    // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
+    require(token != null || java.net.InetAddress.getByName(host).isLoopbackAddress) { "a non-loopback ops bind requires LOGH7_OPS_TOKEN" }
+    val server = embeddedServer(Netty, host = host, port = port) {
         intercept(io.ktor.server.application.ApplicationCallPipeline.Plugins) {
             if (token != null && call.request.local.uri.substringBefore('?') != "/health" && !opsAuthorized(call.request.headers["Authorization"], token)) {
                 call.response.headers.append("WWW-Authenticate", "Basic realm=\"LOGH7 ops\", charset=\"UTF-8\"")

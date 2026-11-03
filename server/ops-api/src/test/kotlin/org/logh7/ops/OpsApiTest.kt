@@ -125,6 +125,7 @@ class OpsApiTest {
             }
         } }
         assertFailsWith<IllegalArgumentException> { startOpsApi(sink, snapshots, port, null, "short") }
+        assertFailsWith<IllegalArgumentException> { startOpsApi(sink, snapshots, port, null, null, "0.0.0.0") }
     }
 
     @Test fun adminFormButtonsAreAuditedAndRefuseCrossOriginPosts() {
