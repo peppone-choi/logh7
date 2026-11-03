@@ -61,6 +61,23 @@ class StateBackupTest(unittest.TestCase):
             self.run_tool("backup", "--characters", str(self.characters), "--world", str(self.world),
                           "--session", str(self.session), "--out", str(self.archive) + "2")
 
+    def test_export_verifies_the_copy_and_prune_keeps_the_newest(self):
+        self.take()
+        remote = self.archive.parent / "remote"
+        remote.mkdir()
+        self.run_tool("export", str(self.archive), "--dest", str(remote))
+        self.run_tool("verify", str(remote / "backup"))
+        with self.assertRaises(SystemExit):
+            self.run_tool("export", str(self.archive), "--dest", str(remote))
+        root = self.archive.parent / "daily"
+        root.mkdir()
+        for name in ("a", "b", "c"):
+            self.run_tool("backup", "--characters", str(self.characters), "--world", str(self.world),
+                          "--session", str(self.session), "--out", str(root / name))
+        (root / "unrelated").mkdir()
+        self.run_tool("prune", str(root), "--keep", "2")
+        self.assertEqual(["b", "c", "unrelated"], sorted(p.name for p in root.iterdir()))
+
     def test_running_server_is_refused(self):
         original = state_backup.server_running
         state_backup.server_running = lambda url: True

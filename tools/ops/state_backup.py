@@ -11,6 +11,8 @@ same paths only. The server must be stopped: a running server is refused through
     state_backup.py backup  --characters F --world D --session D --out ARCHIVE_DIR
     state_backup.py verify  ARCHIVE_DIR
     state_backup.py restore ARCHIVE_DIR [--force]
+    state_backup.py export  ARCHIVE_DIR --dest OTHER_DISK_OR_SHARE
+    state_backup.py prune   BACKUP_ROOT --keep N
 
 ``restore --force`` first moves the current files into ``ARCHIVE_DIR.replaced-<time>`` so the
 replaced state can be put back. Lock files (``*.lock``) are never copied.
@@ -85,7 +87,7 @@ def backup(args: argparse.Namespace) -> None:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
             files.append({"group": group, "name": name, "size": target.stat().st_size, "sha256": sha256(target)})
-    manifest = {"format": FORMAT, "created": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+    manifest = {"format": FORMAT, "created": time.strftime("%Y-%m-%dT%H:%M:%S") + f".{time.time_ns() % 1_000_000_000:09d}",
                 "roots": {k: str(v) for k, v in roots.items()}, "characters": characters.name, "files": files}
     (out / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"backup {out}: {len(files)} files")
@@ -101,6 +103,39 @@ def load(archive: Path) -> dict:
     if bad:
         raise SystemExit("backup damaged: " + ", ".join(bad))
     return manifest
+
+
+def export(args: argparse.Namespace) -> None:
+    """Copy a verified backup to another place (a mounted remote share or disk) and verify the copy there."""
+    source = Path(args.archive)
+    load(source)
+    target = Path(args.dest) / source.name
+    if target.exists():
+        raise SystemExit(f"export target already exists: {target}")
+    partial = target.with_name(target.name + ".partial")
+    shutil.rmtree(partial, ignore_errors=True)
+    shutil.copytree(source, partial)
+    load(partial)  # re-read every file from the destination medium before naming it complete
+    partial.rename(target)
+    print(f"exported {source} -> {target}")
+
+
+def prune(args: argparse.Namespace) -> None:
+    """Keep the newest ``--keep`` verified backups directly under ROOT (by manifest time); remove older ones."""
+    root = Path(args.root)
+    backups = []
+    for child in root.iterdir() if root.is_dir() else []:
+        if (child / MANIFEST).is_file():
+            manifest = json.loads((child / MANIFEST).read_text(encoding="utf-8"))
+            if manifest.get("format") == FORMAT:
+                backups.append((manifest["created"], child.name, child))
+    backups.sort(reverse=True)
+    if args.keep < 1:
+        raise SystemExit("--keep must be at least 1")
+    for _, _, old in backups[args.keep:]:
+        shutil.rmtree(old)
+        print(f"removed {old}")
+    print(f"kept {min(len(backups), args.keep)} of {len(backups)} backups")
 
 
 def verify(args: argparse.Namespace) -> None:
@@ -149,6 +184,14 @@ def main(argv: list[str] | None = None) -> None:
     check = commands.add_parser("verify")
     check.add_argument("archive")
     check.set_defaults(run=verify)
+    out = commands.add_parser("export")
+    out.add_argument("archive")
+    out.add_argument("--dest", required=True)
+    out.set_defaults(run=export)
+    keep = commands.add_parser("prune")
+    keep.add_argument("root")
+    keep.add_argument("--keep", type=int, required=True)
+    keep.set_defaults(run=prune)
     put = commands.add_parser("restore")
     put.add_argument("archive")
     put.add_argument("--force", action="store_true")
