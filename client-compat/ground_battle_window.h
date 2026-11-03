@@ -5,6 +5,40 @@
 static struct GroundBattleWindow {
     bool visible,pending; unsigned own,target,base,orderUnit,orderTarget; ULONGLONG acceptAfter,sentAt; const wchar_t* message;
 } groundWindow={};
+// Thumbnail/Unit it001~013 (64x36): crew 1/2, light 3/4, grenadier 5/6, armored 7/8, 擲弾兵教導 9, 薔薇の騎士 10.
+// Faction pairs follow the art (empire dark/blue, alliance green/tan); the kind mapping is evidence:guess
+// except 9/10 (user 2026-11-03). Server kinds: empire 0 light,1 grenadier,2 armored,3 crew,8 guard,9 教導;
+// alliance 4 light,5 grenadier,6 armored,7 crew,10 薔薇の騎士.
+static unsigned groundThumbnail(unsigned kind) {
+    static const unsigned art[]={3,5,7,1,4,6,8,2,3,9,10};
+    return kind<_countof(art) ? art[kind] : 0;
+}
+static void* groundArtRoot=nullptr;
+static constexpr int groundArtBase=120;
+static void createGroundArt() {
+    if (groundArtRoot==taxWindow.root) return;
+    groundArtRoot=taxWindow.root;
+    static char paths[13][48];
+    for (unsigned i=0;i<13;++i) {
+        sprintf_s(paths[i],"/../data/image/Thumbnail/Unit/it%03u.tga",i+1);
+        for (unsigned side=0;side<2;++side) {
+            unsigned art[40]={};
+            for (unsigned s=0;s<4;++s) {art[s*5]=reinterpret_cast<unsigned>(paths[i]);art[s*5+3]=64;art[s*5+4]=36;}
+            auto image=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)
+                (taxWindow.root,2,groundArtBase+i*2+side,art);
+            int rect[]={side ? 716 : 430,264,0,64,36};
+            reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(taxWindow.root,image,rect);
+            reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(taxWindow.root,image,0);
+        }
+    }
+}
+static void showGroundArt(unsigned side,unsigned thumbnail) {
+    for (unsigned i=0;i<13;++i) {
+        auto image=taxWidget(2,groundArtBase+i*2+side);
+        if (image) reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(taxWindow.root,image,thumbnail==i+1 ? 1 : 0);
+    }
+}
+static void hideGroundArt() {if (groundArtRoot && groundArtRoot==taxWindow.root) {showGroundArt(0,0);showGroundArt(1,0);}}
 static bool groundWindowShown() {return groundWindow.visible;}
 static bool groundWindowAvailable() {return groundPanel.activeBase && GetTickCount64()<groundPanel.activeUntil;}
 static bool groundWindowSide(unsigned i,bool friendly) {
@@ -23,6 +57,7 @@ static const GroundPanelRow* groundWindowRow(unsigned id) {
     return nullptr;
 }
 static void closeGroundWindow() {
+    hideGroundArt();
     if (groundWindow.visible && taxWindow.root) reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(taxWindow.root,0);
     groundWindow.visible=false;
 }
@@ -30,6 +65,7 @@ static bool openGroundWindow(void* gui) {
     if (!groundWindowAvailable() || taxWindow.visible) return false;
     taxWindow.manager=gui;
     if (!createTaxWindow()) return false;
+    createGroundArt();
     auto& w=groundWindow;w={};w.visible=true;w.base=groundPanel.activeBase;w.acceptAfter=GetTickCount64()+250;
     groundWindowCycle(w.own,true,0);groundWindowCycle(w.target,false,0);
     auto first=groundWindowRow(w.own);
@@ -73,6 +109,7 @@ static bool updateGroundWindow() {
     taxText(2,L"◀▶ 왼쪽: 내 육전대 · 오른쪽: 공격할 적");
     auto row=groundWindowRow(w.own),enemy=groundWindowRow(w.target);
     wchar_t kind[32];
+    showGroundArt(0,row ? groundThumbnail(row->kind) : 0);showGroundArt(1,enemy ? groundThumbnail(enemy->kind) : 0);
     if (row) {groundPanelName(row->kind,kind);_snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls #%u 전력 %u%ls",kind,row->id,row->strength,row->target ? L" (지정됨)" : L"");}
     else wcscpy_s(text,L"내 육전대 없음");
     taxText(3,text);
