@@ -39,6 +39,28 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun occupationAnchorsTroopCarriersAtTheEnemyBaseAndThenLandsTheirTroops() {
+        // The fortress belongs to the alliance; the pilot's mission 2 (占領) targets it with a light infantry unit aboard ship 1.
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),carrier=1),ActiveGroundUnit(6,UnitStack(2),carrier=1)))
+        val plain=stocks(2)
+        val outfit=plain.outfits.getValue(1)
+        val start=plain.copy(bases=mapOf(1000 to PlanetStock(1000,3,0,100,0,0)),
+            outfits=plain.outfits+(1 to outfit.copy(units=UnitInventory(outfit.units.ships,troops.quantities()),activeGround=troops)),
+            tacticalCommands=plain.tacticalCommands.copy(missions=mapOf(10000 to TacticalMissionState(10000,2,1,1000,now,grid=2488))))
+        val anchored=TacticalOfflineAi.advance(offline,galaxy,players(),start,1,mutableListOf())
+        val ship=anchored.outfits.getValue(1).activeShips!!.values.single()
+        assertEquals(TacticalShipMode.ANCHORED,ship.posture!!.order!!.mode);assertEquals(1000,ship.posture!!.order!!.base)
+        assertEquals(now+10,ship.posture!!.order!!.readyAt,"the player's 10-second stance wait")
+        assertTrue(anchored.outfits.getValue(1).activeGround!!.values.all {it.order==null},"no landing before the carrier is anchored")
+        // Once the stance order has executed, the next decision lands the admissible troops.
+        val docked=anchored.copy(outfits=anchored.outfits+(1 to anchored.outfits.getValue(1).let {o->o.copy(activeShips=ActiveShipUnits(
+            o.activeShips!!.values.map {it.copy(posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,1000))}))}),
+            tacticalCommands=anchored.tacticalCommands.copy(aiNextAt=emptyMap()))
+        val landed=TacticalOfflineAi.advance(offline.copy(gameMillis=(now+10)*1000),galaxy,players(),docked,1,mutableListOf())
+        val orders=landed.outfits.getValue(1).activeGround!!.values.associate {it.id to it.order}
+        assertEquals(TacticalGroundAction.DEPLOY,orders.getValue(5)!!.action);assertEquals(1000,orders.getValue(5)!!.base)
+        assertNull(orders.getValue(6),"armored troops stay aboard at a fortress (W p.51)")
+    }
     @Test fun onlineOrDisabledCharactersAreNotDrivenAndPendingPersonalShotsArePreserved() {
         for((session,stock) in listOf(baseSession to stocks(),offline to stocks().copy(tacticalCommands=TacticalCommandState()))) {
             val p=players();val before=p.toMap()
