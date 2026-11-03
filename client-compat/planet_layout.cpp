@@ -132,6 +132,8 @@ static void updateOutfitInformation(void* manager);
 static void updateOutfitListColumns(void* manager);
 static bool updateGroundWindow();
 static bool openGroundWindow(void* gui);
+static bool updateUnitWindow();
+static bool openUnitWindow(void* gui);
 static void groundOrderReplied(unsigned opcode,const BYTE* record);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
@@ -149,6 +151,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "return_base.h"
 #include "planet_tax.h"
 #include "ground_battle_window.h"
+#include "unit_info_window.h"
 #include "strategy_actions.h"
 #include "session_ending.h"
 #include "appointment_information.h"

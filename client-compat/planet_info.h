@@ -250,6 +250,7 @@ static int __cdecl planetInfoMenu(void* gui) {
     updateOutfitInformation(gui);
     updateOutfitListColumns(gui);
     if (updateGroundWindow()) return -1;
+    if (updateUnitWindow()) return -1;
     if (updateTaxWindow(gui)) return -1;
     auto& info = planetInformation;
     void* world = *reinterpret_cast<void**>(0x7ccffc);
@@ -373,6 +374,8 @@ static int __cdecl planetInfoMenu(void* gui) {
     // Categories 1/3/5 (ship, squadron, ground troops) have no CD window; 0054bb50 only deselects them.
     // Reconstructed ground battle window: the ground category reopens it while a battle runs on this grid.
     if (selected == 5 && !*reinterpret_cast<void**>(0xc9e2f8) && openGroundWindow(gui)) return -1;
+    // Reconstructed ship information: in tactics the ship category shows the selected unit (stage 2).
+    if (selected == 1 && !*reinterpret_cast<void**>(0xc9e2f8) && openUnitWindow(gui)) return -1;
     if ((selected == 1 || selected == 3 || selected == 5) && !*reinterpret_cast<void**>(0xc9e2f8)) {
         ownOutfitPending=true;
         return selected;
