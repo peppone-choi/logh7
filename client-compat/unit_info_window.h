@@ -55,7 +55,11 @@ static bool updateUnitWindow() {
         _snwprintf_s(text,_countof(text),_TRUNCATE,L"척수 %u (정상 %u · 손상 %u)",alive,normal,alive>normal ? alive-normal : 0);taxText(2,text);
         // Morale 20 or below is the confused band (TacticalCommandState.confused).
         _snwprintf_s(text,_countof(text),_TRUNCATE,L"사기 %u%ls",morale,morale<=20 ? L" (혼란)" : L"");taxText(3,text);
-        _snwprintf_s(text,_countof(text),_TRUNCATE,L"군수물자 %u",logh::infoWord(unit,0x950));taxText(4,text);
+        // Effective stance (004b5d50, as the capture tool reads it): wire 4 주류, 5 정박, 6 항행, 7 전투 (TacticalShipMode).
+        static const wchar_t* const stances[]={L"주류",L"정박",L"항행",L"전투"};
+        const BYTE stance=reinterpret_cast<BYTE(__thiscall*)(const void*)>(0x4b5d50)(unit);
+        _snwprintf_s(text,_countof(text),_TRUNCATE,L"군수물자 %u%ls%ls",logh::infoWord(unit,0x950),
+            stance>=4 && stance<=7 ? L" · 태세 " : L"",stance>=4 && stance<=7 ? stances[stance-4] : L"");taxText(4,text);
     } else {
         taxText(1,L"선택한 유닛 정보를 찾을 수 없습니다.");taxText(2,L"");taxText(3,L"");taxText(4,L"");
     }
