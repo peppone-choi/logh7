@@ -18,8 +18,16 @@ import java.util.Base64
 
 /** Operator names are self-reported. Loopback binding is the default access control; with [token] every route but
  * /health also needs `Authorization: Bearer <token>` or HTTP Basic with the token as password (browsers prompt). */
+/** Login accounts the operator page manages (names only are ever shown). */
+interface AccountAdmin {
+    fun names(): List<String>
+    /** Adds the account or resets its password; false when the name or password breaks the login rules. */
+    fun set(account: String, password: String): Boolean
+    fun remove(account: String): Boolean
+}
+
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
-    audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1"): AutoCloseable {
+    audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || java.net.InetAddress.getByName(host).isLoopbackAddress) { "a non-loopback ops bind requires LOGH7_OPS_TOKEN" }
@@ -41,20 +49,36 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             }
             get("/snapshot") { call.respondText(snapshots.snapshot().toString()) }
             get("/admin") {
-                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot()), io.ktor.http.ContentType.Text.Html)
+                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names()), io.ktor.http.ContentType.Text.Html)
             }
             get("/metrics") {
                 call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot()),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
             }
             // Admin page buttons: same audit as the header routes, operator from the form, same-origin only.
+            post("/admin/account/set") {
+                call.adminForm(port)?.let { form ->
+                    call.audited(audit, OpsAction.ACCOUNT_SET, form["operator"].orEmpty()) {
+                        val admin = accounts ?: return@audited OpsOutcome.FAILED
+                        if (admin.set(form["account"].orEmpty(), form["password"].orEmpty())) OpsOutcome.CHANGED else OpsOutcome.INVALID
+                    }
+                }
+            }
+            post("/admin/account/remove") {
+                call.adminForm(port)?.let { form ->
+                    call.audited(audit, OpsAction.ACCOUNT_REMOVE, form["operator"].orEmpty()) {
+                        val admin = accounts ?: return@audited OpsOutcome.FAILED
+                        if (admin.remove(form["account"].orEmpty())) OpsOutcome.CHANGED else OpsOutcome.NOT_FOUND
+                    }
+                }
+            }
             post("/admin/probe") {
-                call.adminForm(port)?.let { operator ->
+                call.adminForm(port)?.get("operator")?.let { operator ->
                     call.audited(audit, OpsAction.PROBE, operator) { commands.submit(WorldCommand.Probe); OpsOutcome.QUEUED }
                 }
             }
             post("/admin/restart") {
-                call.adminForm(port)?.let { operator ->
+                call.adminForm(port)?.get("operator")?.let { operator ->
                     call.audited(audit, OpsAction.SESSION_RESTART, operator) {
                         val result = CompletableDeferred<Boolean>()
                         commands.submit(WorldCommand.RequestRestart(result))
@@ -96,14 +120,14 @@ internal fun opsAuthorized(header: String?, token: String): Boolean {
     return MessageDigest.isEqual(presented.toByteArray(Charsets.UTF_8), token.toByteArray(Charsets.UTF_8))
 }
 
-/** Reads the operator field of an admin form; refuses a cross-origin post (a page elsewhere cannot drive the buttons). */
-private suspend fun ApplicationCall.adminForm(port: Int): String? {
+/** Reads an admin form; refuses a cross-origin post (a page elsewhere cannot drive the buttons). */
+private suspend fun ApplicationCall.adminForm(port: Int): io.ktor.http.Parameters? {
     val origin = request.headers["Origin"]
     if (origin != null && origin != "http://127.0.0.1:$port" && origin != "http://localhost:$port") {
         respondText("cross-origin admin request", status = HttpStatusCode.Forbidden)
         return null
     }
-    return receiveParameters()["operator"].orEmpty()
+    return receiveParameters()
 }
 
 private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
@@ -131,6 +155,9 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
             OpsOutcome.RESTARTED -> "operation restarted"
             OpsOutcome.CONFLICT -> "operation conflict"
             OpsOutcome.FAILED -> "operation failed; outcome unknown"
+            OpsOutcome.CHANGED -> "operation changed"
+            OpsOutcome.NOT_FOUND -> "operation found nothing"
+            OpsOutcome.INVALID -> "operation refused as invalid"
         }
         respondText("$state; audit result not recorded", status = HttpStatusCode.InternalServerError)
         return
@@ -140,6 +167,9 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
         OpsOutcome.RESTARTED -> respondText("restarted")
         OpsOutcome.CONFLICT -> respondText("session is running or restart failed", status = HttpStatusCode.Conflict)
         OpsOutcome.FAILED -> respondText("operation failed; outcome unknown", status = HttpStatusCode.InternalServerError)
+        OpsOutcome.CHANGED -> respondText("changed")
+        OpsOutcome.NOT_FOUND -> respondText("no such account", status = HttpStatusCode.NotFound)
+        OpsOutcome.INVALID -> respondText("account 1-30 of [A-Za-z0-9._-], password 1-10 printable ASCII", status = HttpStatusCode.BadRequest)
     }
 }
 
@@ -165,7 +195,7 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot): String =
 }
 
 /** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */
-internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot): String = buildString {
+internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, accounts: List<String>? = null): String = buildString {
     fun esc(value: Any?) = value.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     fun row(vararg cells: Any?) { append("<tr>"); cells.forEach { append("<td>").append(esc(it)).append("</td>") }; append("</tr>") }
     val session = snapshot.session
@@ -189,5 +219,15 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot): String
     for ((path, label) in listOf("/admin/probe" to "엔진 응답 확인(probe)", "/admin/restart" to "세션 재시작(종료된 세션만)"))
         append("<form method=\"post\" action=\"").append(path).append("\">운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required> ")
             .append("<button>").append(label).append("</button></form>")
+    if (accounts != null) {
+        append("<h2>계정</h2><p>로그인 계정 ").append(accounts.size).append("개(비밀번호는 표시하지 않음): ")
+            .append(esc(accounts.joinToString(", "))).append("</p>")
+        val operator = "운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required> "
+        append("<form method=\"post\" action=\"/admin/account/set\">").append(operator)
+            .append("계정 <input name=\"account\" pattern=\"[A-Za-z0-9._-]{1,30}\" required> ")
+            .append("비밀번호 <input name=\"password\" type=\"password\" maxlength=\"10\" required> <button>추가·비밀번호 변경</button></form>")
+        append("<form method=\"post\" action=\"/admin/account/remove\">").append(operator)
+            .append("계정 <input name=\"account\" required> <button>삭제</button></form>")
+    }
     append("<p>최신 값은 새로 고침으로 다시 읽는다.</p></body></html>")
 }

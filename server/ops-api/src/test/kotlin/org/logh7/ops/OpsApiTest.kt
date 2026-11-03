@@ -148,6 +148,32 @@ class OpsApiTest {
         assertTrue("/admin/restart" in opsAdminPage(EngineHealth.RUNNING, snapshot))
     }
 
+    @Test fun adminAccountFormsAreAuditedAndNeverShowPasswords() {
+        val names = sortedMapOf("multi0" to "dummy")
+        val admin = object : AccountAdmin {
+            override fun names() = names.keys.toList()
+            override fun set(account: String, password: String) = (account.isNotEmpty() && password.length in 1..10).also { if (it) names[account] = password }
+            override fun remove(account: String) = names.remove(account) != null
+        }
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(Sink(), snapshots, port, audit, accounts = admin).use {
+            HttpClient.newHttpClient().use { client ->
+                fun form(path: String, body: String) = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path"))
+                    .header("Content-Type", "application/x-www-form-urlencoded").POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                    HttpResponse.BodyHandlers.ofString())
+                assertEquals("changed", form("/admin/account/set", "operator=op1&account=pilot&password=pw12").body())
+                assertEquals(400, form("/admin/account/set", "operator=op1&account=pilot&password=").statusCode())
+                assertEquals(404, form("/admin/account/remove", "operator=op1&account=ghost").statusCode())
+                assertEquals("changed", form("/admin/account/remove", "operator=op1&account=multi0").body())
+                val page = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
+                assertTrue("pilot" in page && "pw12" !in page && "/admin/account/set" in page)
+            }
+        } }
+        assertEquals(mapOf("pilot" to "pw12"), names.toMap())
+        val outcomes = rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] }
+        assertEquals(listOf("ACCOUNT_SET:CHANGED", "ACCOUNT_SET:INVALID", "ACCOUNT_REMOVE:NOT_FOUND", "ACCOUNT_REMOVE:CHANGED"), outcomes)
+    }
+
     @Test fun restartSuccess() {
         val sink = Sink()
         OpsAudit.open(file, clock).use { audit -> serve(sink, audit) { endpoint ->

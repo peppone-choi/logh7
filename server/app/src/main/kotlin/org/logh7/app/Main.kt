@@ -8,7 +8,6 @@ import org.logh7.persistence.FileSessionGenerationStore
 import org.logh7.persistence.FileSessionStore
 import org.logh7.gateway.Gateway
 import org.logh7.gateway.captureDirectoryFrom
-import org.logh7.gateway.loadTestAccounts
 import org.logh7.gateway.EngineGameAdmission
 import org.logh7.gateway.WorldBootstrap
 import org.logh7.engine.Galaxy
@@ -98,8 +97,10 @@ fun main() {
         }
         resources.addFirst(AutoCloseable { runBlocking { engine.drainAndClose() } })
         val captureDirectory = captureDirectoryFrom(System.getenv("LOGH7_CAPTURE_DIR"))
+        // A live view of the account file: the operator page edits it and new logins read the change.
+        val accountFile = System.getenv("LOGH7_ACCOUNTS_FILE")?.let { org.logh7.gateway.FileAccounts(Path.of(it)).also { a -> a.names() } }
         val gateway = Gateway(captureDirectory,
-            loadTestAccounts(System.getenv("LOGH7_ACCOUNTS_FILE")?.let { Path.of(it) }),
+            accountFile ?: emptyMap(),
             characterFile,
             gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope), world = world,
             navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
@@ -112,7 +113,12 @@ fun main() {
         val opsToken = System.getenv("LOGH7_OPS_TOKEN")?.takeIf { it.isNotEmpty() }
             ?: System.getenv("LOGH7_OPS_TOKEN_FILE")?.let { java.nio.file.Files.readString(Path.of(it)).trim() }?.takeIf { it.isNotEmpty() }
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,
-            host = System.getenv("LOGH7_OPS_BIND") ?: "127.0.0.1")
+            host = System.getenv("LOGH7_OPS_BIND") ?: "127.0.0.1", accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
+                override fun names() = file.names()
+                override fun set(account: String, password: String) =
+                    org.logh7.gateway.FileAccounts.validName(account) && org.logh7.gateway.FileAccounts.validPassword(password) && run { file.set(account, password); true }
+                override fun remove(account: String) = file.remove(account)
+            } })
         resources.addFirst(ops)
         val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
         gateway.start(gamePort = gamePort, updatePort = updatePort, bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress,
