@@ -1,5 +1,6 @@
 // Restore the server's current CRC from the decoded 033f corps cache. Author: Peppone Choi.
 #pragma once
+#include "tactical_charge_data.h"
 static void applyTacticalCommandRange(void* world) {
     if (!world || !at<BYTE>(world,0x126718)) return;
     unsigned count=at<unsigned short>(world,0x4044b8);
@@ -11,6 +12,7 @@ static void applyTacticalCommandRange(void* world) {
         for (unsigned j=0;j<count;++j) {
             auto row=static_cast<BYTE*>(world)+0x4044bc+j*0x3c;
             if (at<unsigned>(row,0)!=character) continue;
+            logh::applyTacticalFlagshipCharge(unit,row);
             float radius=at<float>(row,0xc),maximum=at<float>(unit,0x8c8);
             if (!_finite(radius) || !_finite(maximum) || radius<0 || radius>maximum) break;
             for (unsigned k=0;k<600;++k) {

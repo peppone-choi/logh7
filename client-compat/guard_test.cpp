@@ -36,6 +36,7 @@
 #include "tactical_support_data.h"
 #include "tactical_motion_data.h"
 #include "tactical_weapon_data.h"
+#include "tactical_charge_data.h"
 #include "tactical_base_data.h"
 #include "tactical_notice_data.h"
 #include "session_ending_data.h"
@@ -271,6 +272,32 @@ static bool dialogTextTest() {
     for (unsigned address:logh::dialogMessageBoxCalls)
         if (!logh::dialogMessageBoxCaller(address+6) || logh::dialogMessageBoxCaller(address)) return false;
     return !logh::dialogMessageBoxCaller(0x12345678);
+}
+static bool tacticalChargeDataTest() {
+    BYTE unit[0x9ec]={},row[60]={},before[sizeof(unit)];
+    unsigned character=10000,other=10001;
+    unit[0]=unit[8]=1;memcpy(unit+0x984,&character,4);memcpy(row,&character,4);
+    unsigned short beam=100,gun=0;
+    memcpy(row+30,&beam,2);memcpy(row+32,&gun,2);
+    if (!logh::applyTacticalFlagshipCharge(unit,row) || memcmp(unit+0x9ce,row+30,4)) return false;
+    beam=0;gun=100;memcpy(row+30,&beam,2);memcpy(row+32,&gun,2);
+    if (!logh::applyTacticalFlagshipCharge(unit,row) || memcmp(unit+0x9ce,row+30,4)) return false;
+    memcpy(before,unit,sizeof(unit));
+    for (unsigned offset : {30u,32u}) {
+        row[offset]=101;
+        if (logh::applyTacticalFlagshipCharge(unit,row) || memcmp(unit,before,sizeof(unit))) return false;
+        memcpy(row+30,&beam,2);memcpy(row+32,&gun,2);
+    }
+    memcpy(row,&other,4);
+    if (logh::applyTacticalFlagshipCharge(unit,row) || memcmp(unit,before,sizeof(unit))) return false;
+    memcpy(row,&character,4);
+    for (unsigned offset : {0u,8u,9u}) {
+        unit[offset]=offset==9 ? 1 : 0;
+        memcpy(before,unit,sizeof(unit));
+        if (logh::applyTacticalFlagshipCharge(unit,row) || memcmp(unit,before,sizeof(unit))) return false;
+        unit[offset]=offset==9 ? 0 : 1;
+    }
+    return !logh::applyTacticalFlagshipCharge(nullptr,row) && !logh::applyTacticalFlagshipCharge(unit,nullptr);
 }
 static bool tacticalBaseDataTest() {
     BYTE stopRecord[16]={};unsigned stopCharacter=10000,stopBase=1000,wait=1;
@@ -838,6 +865,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if (!tacticalNoticesTest()) return 82;
     if (!tacticalWeaponSelectionTest()) return 87;
     if (!tacticalBaseDataTest()) return 88;
+    if (!tacticalChargeDataTest()) return 89;
     if (!stationaryTacticalPoseTest()) return 83;
     if (!tacticalWaypointOrderTest()) return 84;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
