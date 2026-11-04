@@ -57,6 +57,60 @@ class NpcStrategyTest {
         assertEquals(NpcStrategicState(21600,2487,3600),advance(0,short,players(),events).outfits.getValue(1).strategy)
         assertTrue(events.isEmpty())
     }
+    @Test fun lowFuelFleetReturnsToItsDepotReloadsAndCanLaunchAgain() {
+        val players=players().also {it["pilot"]=it.getValue("pilot").copy(grid=2588)}
+        val events=mutableListOf<NpcStrategicMovement>()
+        val before=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->
+            OutfitSupplies.withBalances(o.copy(position=OutfitPosition(2488)),mapOf(1 to 300))})}
+        val reserved=advance(0,before,players,events)
+        assertEquals(2487,reserved.outfits.getValue(1).strategy!!.destination)
+        val home=advance(3600,reserved,players,events)
+        assertEquals(OutfitPosition(2487,1000),home.outfits.getValue(1).position)
+        assertEquals(3000,home.outfits.getValue(1).supplies)
+        assertEquals(97000,home.bases.getValue(1000).supplies)
+        assertEquals(home,advance(3600,home,players,events))
+        val outbound=advance(25200,home,players,events)
+        assertEquals(2588,outbound.outfits.getValue(1).strategy!!.destination)
+        val arrived=advance(28800,outbound,players,events)
+        assertEquals(OutfitPosition(2588),arrived.outfits.getValue(1).position)
+        assertEquals(2700,arrived.outfits.getValue(1).supplies)
+        assertEquals(97000,arrived.bases.getValue(1000).supplies)
+        assertEquals(listOf(2487,2588),events.map {it.destination})
+    }
+    @Test fun changedThreatCancelsTheOldAdvanceBeforeItSpendsFuel() {
+        val players=players().also {it["pilot"]=it.getValue("pilot").copy(grid=2688)}
+        val events=mutableListOf<NpcStrategicMovement>()
+        val before=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->
+            OutfitSupplies.withBalances(o.copy(position=OutfitPosition(2488)),mapOf(1 to 2700))})}
+        val reserved=advance(0,before,players,events)
+        assertEquals(2587,reserved.outfits.getValue(1).strategy!!.destination)
+        for(i in 1..2)players["enemy$i"]=players.getValue("pilot").copy(characterId=10000+i)
+        val cancelled=advance(3600,reserved,players,events)
+        assertEquals(OutfitPosition(2488),cancelled.outfits.getValue(1).position)
+        assertEquals(2700,cancelled.outfits.getValue(1).supplies)
+        assertEquals(before.bases,cancelled.bases);assertTrue(events.isEmpty())
+        val returning=advance(25200,cancelled,players,events)
+        assertEquals(2487,returning.outfits.getValue(1).strategy!!.destination)
+        // A different beatable enemy beyond a newly stronger intermediate grid cannot legitimize the old jump.
+        for(i in 1..3)players["enemy$i"]=players.getValue("pilot").copy(characterId=10000+i,grid=2587)
+        val blockedRoute=advance(3600,reserved,players,events)
+        assertEquals(OutfitPosition(2488),blockedRoute.outfits.getValue(1).position)
+        assertEquals(2700,blockedRoute.outfits.getValue(1).supplies)
+        assertTrue(events.isEmpty())
+    }
+    @Test fun strandedFleetCanDockAndReloadWithoutAnotherJumpAndCannotUseAnOccupiedDepot() {
+        val events=mutableListOf<NpcStrategicMovement>()
+        val stranded=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2487))})}
+        val docked=advance(0,stranded,mutableMapOf(),events)
+        assertEquals(OutfitPosition(2487,1000),docked.outfits.getValue(1).position)
+        assertEquals(3000,docked.outfits.getValue(1).supplies)
+        assertEquals(97000,docked.bases.getValue(1000).supplies)
+        assertTrue(events.isEmpty())
+        val occupied=advance(0,stranded,players().also {it["pilot"]=it.getValue("pilot").copy(grid=2487)},events)
+        assertEquals(OutfitPosition(2487),occupied.outfits.getValue(1).position)
+        assertEquals(0,occupied.outfits.getValue(1).supplies)
+        assertEquals(stranded.bases,occupied.bases)
+    }
     @Test fun appointedCommanderOrCapturedDepotCancelsWithoutChargingOrMoving() {
         for(appointed in listOf(true,false)) {
             val players=players();val events=mutableListOf<NpcStrategicMovement>()
@@ -136,6 +190,28 @@ class NpcStrategyTest {
         assertEquals(fuel,saved.outfits.getValue(1).supplies);assertEquals(1,events.size)
     }
 
+    @Test fun failedReturnCommitKeepsDepotAndFleetThenRetryRefuelsOnce() {
+        var saved=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->
+            OutfitSupplies.withBalances(o.copy(position=OutfitPosition(2488)),mapOf(1 to 300))})}
+        var navigators=players().mapValues {(_,p)->p.copy(grid=2588)};var fail=false
+        val stockStore=object:PlanetStockStore {override fun load()=saved;override fun save(stocks:PlanetStocks){saved=stocks}}
+        val navStore=object:NavigationStore {override fun load()=navigators;override fun save(players:Map<String,Navigator>){navigators=players}}
+        val production=PlanetProduction(galaxy,stockStore,0,PlanetProductionPolicy()).also {it.settle(1,0)}
+        val navigation=Navigation(galaxy,navStore,NavigationPolicy())
+        val commit=WorldStateCommitter {p,s->if(fail)throw java.io.IOException("disk");navigators=p.toMap();saved=checkNotNull(s)}
+        val events=mutableListOf<NpcStrategicMovement>()
+        fun settle(at:Long)=TacticalCombat.settle(simulation.copy(gameMillis=at*1000),galaxy,navigation,production,commit,
+            NpcTacticalPolicy(strategic=true),onStrategicMovement=events::add)
+        settle(0);val reserved=saved
+        fail=true;assertFailsWith<java.io.IOException> {settle(3600)}
+        assertEquals(reserved,production.snapshot(1));assertEquals(reserved,saved);assertTrue(events.isEmpty())
+        fail=false;settle(3600)
+        assertEquals(OutfitPosition(2487,1000),saved.outfits.getValue(1).position)
+        assertEquals(3000,saved.outfits.getValue(1).supplies);assertEquals(97000,saved.bases.getValue(1000).supplies)
+        settle(3600)
+        assertEquals(3000,saved.outfits.getValue(1).supplies);assertEquals(97000,saved.bases.getValue(1000).supplies)
+        assertEquals(1,events.size)
+    }
     @Test fun invalidStrategicStateDoesNotLoadAHalfReservation() {
         assertFailsWith<IllegalArgumentException> {NpcStrategicState(10,2488,null)}
         assertFailsWith<IllegalArgumentException> {NpcStrategicState(10,null,9)}

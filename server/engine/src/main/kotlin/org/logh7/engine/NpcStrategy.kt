@@ -28,12 +28,13 @@ internal object NpcStrategy {
         if(count !in 1..300)return false
         return GridEntryRules.evaluate(GridForces.state(galaxy,target,forces),GridEntry(Camp(power(outfit),false),count.toInt(),false))==GridEntryVerdict.ALLOWED
     }
-    private fun step(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,origin:Int,goal:Int):Int? {
+    private fun step(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,origin:Int,goal:Int,preferred:Int?=null):Int? {
         val x=origin%100;val y=origin/100
+        val camp=Camp(power(outfit),false);val strength=GridForces.mobileUnits(outfit)
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
             if(dx==0 && dy==0 || x+dx !in 0..99 || y+dy !in 0..49)null else (y+dy)*100+x+dx
-        }}.filter {distance(it,goal)<distance(origin,goal) && allowed(galaxy,forces,outfit,it)}
-            .minWithOrNull(compareBy<Int> {distance(it,goal)}.thenBy {it})
+        }}.filter {distance(it,goal)<distance(origin,goal) && hostile(forces,it,camp)<=strength*2 && allowed(galaxy,forces,outfit,it)}
+            .minWithOrNull(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {distance(it,goal)}.thenBy {it})
     }
     /** Hostile mobile units on [grid] against [camp]. */
     private fun hostile(forces:Map<Int,List<GridForces.Force>>,grid:Int,camp:Camp)=
@@ -43,33 +44,39 @@ internal object NpcStrategy {
      * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards the nearest own depot
      * (`evidence:guess`, 2026-11-04 replacement policy).
      */
-    private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? {
-        val origin=outfit.positionIn(galaxy).grid
+    private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,preferred:Int?=null):OutfitPosition? {
+        val position=outfit.positionIn(galaxy)
+        val origin=position.grid
         val camp=Camp(power(outfit),false)
         val own=GridForces.mobileUnits(outfit)
         fun beatable(grid:Int)=hostile(forces,grid,camp)<=own*2
         val enemies=forces.entries.filter {(_,rows)->rows.any {it.camp!=camp && (it.units>0 || it.base)}}.map {it.key}
-        if(enemies.isEmpty())return null
-        val goal=enemies.filter(::beatable).minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it})
-        val homes=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.power==outfit.power && it.camp==0}==true && beatable(b.grid)}.map {it.grid}
+        val candidates=enemies.filter(::beatable)
+        // Keep a reserved route towards a still-valid enemy when an unrelated enemy appears.
+        val continuing=if(origin in candidates)listOf(origin) else if(preferred==null)candidates else
+            candidates.filter {distance(preferred,it)<distance(origin,it)}.ifEmpty {candidates}
+        val goal=continuing.minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it})
+        val homes=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.power==outfit.power && it.camp==0}==true &&
+            !TacticalContact.contested(forces[b.grid].orEmpty())}
         // Away from its depots with fuel for fewer than two more jumps, it turns back while it still can.
         val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit)
-        val short=origin !in homes && live.any {balances[it.id]?.let {b->b<it.boats*2}!=false}
-        if(goal!=null && beatable(origin) && !short)return if(goal==origin)null else step(galaxy,forces,outfit,origin,goal)
-        val home=homes.minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it}) ?: return null
-        return if(home==origin)null else step(galaxy,forces,outfit,origin,home)
+        val short=position.baseId==0 && live.any {balances[it.id]?.let {b->b<it.boats*2}!=false}
+        if(goal!=null && beatable(origin) && !short)return if(goal==origin)null else step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition)
+        val home=homes.minWithOrNull(compareBy<GalaxyBase> {distance(origin,it.grid)}.thenBy {it.grid}.thenBy {it.id}) ?: return null
+        if(home.grid==origin)return if(position.baseId!=0)null else OutfitPosition(origin,home.id)
+        return step(galaxy,forces,outfit,origin,home.grid,preferred)?.let {OutfitPosition(it,if(it==home.grid)home.id else 0)}
     }
-    private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy):Pair<PlanetStocks,OutfitStock>? {
+    private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy,departing:Boolean=true):Pair<PlanetStocks,OutfitStock>? {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit).toMutableMap()
         val baseId=outfit.positionIn(galaxy).baseId
         val depot=stocks.bases[baseId]?.takeIf {it.power==outfit.power && it.camp==0}
         var available=depot?.supplies ?: 0
-        val missing=live.sumOf {max(0,it.boats-balances.getValue(it.id)).toLong()}
+        val missing=live.sumOf {max(0,(if(departing)it.boats else 0)-balances.getValue(it.id)).toLong()}
         if(missing>available)return null
         for(unit in live) {
-            val amount=max(0,unit.boats-balances.getValue(unit.id))
+            val amount=max(0,(if(departing)unit.boats else 0)-balances.getValue(unit.id))
             balances[unit.id]=balances.getValue(unit.id)+amount;available-=amount
         }
         // Carry several future jumps where the real depot and surviving cargo permit it.
@@ -78,7 +85,7 @@ internal object NpcStrategy {
             val amount=minOf(available,max(0,goal-balances.getValue(unit.id)))
             balances[unit.id]=balances.getValue(unit.id)+amount;available-=amount
         }
-        for(unit in live)balances[unit.id]=balances.getValue(unit.id)-unit.boats
+        if(departing)for(unit in live)balances[unit.id]=balances.getValue(unit.id)-unit.boats
         val inventory=if(depot==null)stocks else stocks.copy(bases=stocks.bases+(baseId to depot.copy(supplies=available)))
         return inventory to OutfitSupplies.withBalances(outfit,balances)
     }
@@ -102,8 +109,9 @@ internal object NpcStrategy {
             val pending=outfit.strategy
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
+                val planned=target(galaxy,forces(),outfit,stocks,destination)
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
-                if(distance(position.grid,destination)!=1 || target(galaxy,forces(),outfit,stocks)==null || !allowed(galaxy,forces(),outfit,destination)) {
+                if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination)) {
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=NpcStrategicState(now+21600))))
                     continue
                 }
@@ -113,9 +121,13 @@ internal object NpcStrategy {
                     continue
                 }
                 stocks=provision.first;outfit=provision.second
-                val moved=outfit.copy(position=OutfitPosition(destination),strategy=NpcStrategicState(now+21600),
+                var moved=outfit.copy(position=planned,strategy=NpcStrategicState(now+21600),
                     activeShips=ActiveShipUnits(outfit.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,
                         posture=null,attack=null,shot=null)}))
+                if(planned.baseId!=0) {
+                    val replenished=checkNotNull(supplied(stocks,moved,galaxy,departing=false))
+                    stocks=replenished.first;moved=replenished.second
+                }
                 stocks=stocks.copy(outfits=stocks.outfits+(id to moved))
                 forceCache=null // Later arrivals must see this move when checking the 300-unit cap.
                 for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&
@@ -130,8 +142,17 @@ internal object NpcStrategy {
                     moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
                 val destination=target(galaxy,forces(),outfit,stocks)
-                val next=if(destination==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination,now+3600)
-                stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
+                if(destination?.grid==position.grid) {
+                    // Recover older fleets stranded in orbit over an available depot.
+                    val replenished=checkNotNull(supplied(stocks,outfit.copy(position=destination),galaxy,departing=false))
+                    val docked=replenished.second.copy(strategy=NpcStrategicState(now+21600),
+                        activeShips=ActiveShipUnits(replenished.second.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0)}))
+                    stocks=replenished.first.copy(outfits=replenished.first.outfits+(id to docked))
+                    forceCache=null
+                } else {
+                    val next=if(destination==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination.grid,now+3600)
+                    stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
+                }
             }
         }
         return stocks
