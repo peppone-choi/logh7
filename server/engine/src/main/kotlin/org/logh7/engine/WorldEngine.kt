@@ -1079,7 +1079,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if(wait>0 && withTimeoutOrNull(wait) {tickPulse.receive();true}==true)continue
             scheduled?.let { duration(ActorTiming.TICK_WAKE_LAG, it, metricNanos()) }
             val applied=CompletableDeferred<Unit>()
-            enqueue(WorldCommand.AdvanceTo(Math.addExact(initialElapsed, monotonicMillis() - origin)), scheduled,applied)
+            enqueue(WorldCommand.AdvanceTo(0), scheduled,applied,advanceNow=true)
             applied.await() // A slow commit cannot queue multiple overdue deadline ticks.
             val after=monotonicMillis()
             if(after>=regularAt)regularAt=Math.addExact(after,interval-(after-origin)%interval)
