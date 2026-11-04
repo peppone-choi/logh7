@@ -451,6 +451,10 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                             observed = script.exports_sync.pickstate()
                             with (out / "pick-state.jsonl").open("a", encoding="utf-8") as evidence:
                                 evidence.write(json.dumps(observed) + "\n")
+                        elif action == {"expectExit": True}:
+                            report["ui_expect_exit"] = True
+                            if audio is not None:
+                                audio.closing = True
                         elif action == {"stop": True}:
                             deadline = time.monotonic()
                         else:
@@ -473,7 +477,11 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         pass
                     if upstream is not None:
                         try:
-                            reply = upstream.recv(4096)
+                            try:
+                                reply = upstream.recv(4096)
+                            except ConnectionResetError:
+                                reply = b""
+                                report["upstream_reset"] = True
                             if reply:
                                 connection.sendall(reply)
                                 report["server_bytes"] = report.get("server_bytes", 0) + len(reply)
@@ -501,8 +509,13 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                     report["captures"].append(capture(hwnd, out / f"window-{hwnd}.png"))
             report["exit_code_before_cleanup"] = win32process.GetExitCodeProcess(process)
     except Exception as error:
-        report["error"] = str(error)
-        report["traceback"] = traceback.format_exc()
+        # A native Exit button may finish between the mouse-down/audio RPC and its reply.
+        if (report.get("ui_expect_exit") and isinstance(error, frida.InvalidOperationError)
+                and process is not None and win32process.GetExitCodeProcess(process) == 0):
+            report["exit_code_before_cleanup"] = 0
+        else:
+            report["error"] = str(error)
+            report["traceback"] = traceback.format_exc()
     finally:
         if connection is not None:
             connection.close()
@@ -564,7 +577,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
         report["success"] = (any(c["valid"] and c["size"][0] >= 400 and c["size"][1] >= 300
                                  for c in report["captures"])
                              and report["complete_first_0x34"] and report.get("process_stopped", False)
-                             and report.get("exit_code_before_cleanup") == win32con.STILL_ACTIVE
+                             and report.get("exit_code_before_cleanup") == (0 if report.get("ui_expect_exit") else win32con.STILL_ACTIVE)
                              and report.get("job_active_after_cleanup") == 0
                              and report["source_hash_unchanged"] and "error" not in report
                              and "client_exception" not in report
