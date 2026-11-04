@@ -278,7 +278,7 @@ static void __declspec(naked) __cdecl originalSwitchMode(BYTE) {
 static void __cdecl requestDeparture(BYTE mode) {
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     void* command = *reinterpret_cast<void**>(0xc9e2f8);
-    if (!world || mode != 5 || !command || at<int>(command, 0x28) != 60) { originalSwitchMode(mode); return; }
+    if (!world || (mode != 4 && mode != 5) || !command || at<int>(command, 0x28) != 60) { originalSwitchMode(mode); return; }
     if (!at<BYTE>(world, 0x2a58f8) || at<BYTE>(world, 0x3579cc)) return;
     void* character = at<void*>(world, 8);
     if (!character || !at<BYTE>(character, 0) ||
@@ -288,7 +288,8 @@ static void __cdecl requestDeparture(BYTE mode) {
     BYTE record[0x164] = {};
     at<unsigned>(record, 4) = at<unsigned>(character, 0x24);
     at<unsigned short>(record, 8) = static_cast<unsigned short>(card);
-    at<unsigned short>(record, 0x14) = mode;
+    // The CD's aboard departure path also supplies 4; command 60 always requests sailing.
+    at<unsigned short>(record, 0x14) = 5;
     reinterpret_cast<unsigned(__thiscall*)(void*, char, unsigned, const void*)>(0x4b78a0)(world, 0, 0x42, record);
 }
 static void __cdecl requestFuel() {
