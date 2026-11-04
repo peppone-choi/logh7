@@ -476,6 +476,20 @@ static bool tacticalNoticesTest() {
     decoded = L"unchanged";
     return !logh::tacticalNoticeFragment(invalid.c_str(), decoded) && decoded == L"unchanged";
 }
+static bool tacticalClockScaleTest() {
+    const unsigned ticks[]={0,12561,25087,37631};
+    const unsigned games[]={0,301,602,903};
+    double integrated=0;
+    for (unsigned i=1;i<4;++i) integrated+=logh::tacticalClockScale(
+        games[i-1],games[i],ticks[i-1],ticks[i],1.0f)*(ticks[i]-ticks[i-1])*24.0/1000.0;
+    if (fabs(integrated-903.0)>0.001) return false;
+    if (logh::tacticalClockScale(0,600,0,12500,1)!=2.0f ||
+        fabs(logh::tacticalClockScale(0,12,0,12000,1)-1.0f/24.0f)>0.000001f) return false;
+    return logh::tacticalClockScale(20,20,10,20,0.5f)==0.5f &&
+        logh::tacticalClockScale(20,19,10,20,0.5f)==0.5f &&
+        logh::tacticalClockScale(20,21,20,20,0.5f)==0.5f &&
+        logh::tacticalClockScale(20,21,0xfffffff0,10,0.5f)==0.5f;
+}
 static bool tacticalMotionOriginsTest() {
     BYTE message[0x41c]={};message[12]=1;message[0x298]=1;
     unsigned id=3;float x=1,y=-8,angle=0.7f;
@@ -871,6 +885,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(!sessionEndingDataTest())return 86;
     if (!groundLocationPageTest()) return 85;
     if (!tacticalMotionOriginsTest()) return 81;
+    if (!tacticalClockScaleTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
     if (!tacticalWeaponSelectionTest()) return 87;
     if (!tacticalBaseDataTest()) return 88;

@@ -1,6 +1,6 @@
 # 현재 호스트의 로컬 플레이 실행
 
-작성: 최병호 · 2026-11-04
+작성: 최병호 · 2026-11-05
 
 현재 로컬 시작 경로는 `E:\logh7\work\playable-20261025\start.ps1`이다.
 이 파일은 `E:\logh7\work\playable-main-refresh-20261104\start.ps1`을 호출한다.
@@ -28,11 +28,12 @@
 
 ## 실행 파일과 저장 위치
 
-서버는 현재 main `5deb3f3d`에서 `:app:installDist`로 확인한
-`E:\logh7\work\playable-main-refresh-20261104\releases\main-5deb3f3d`를 사용한다.
+서버는 현재 main `1de20d38`에 병합한 PR #242의 배포본
+`E:\logh7\work\playable-main-refresh-20261104\releases\main-pr242-e271ed2c`를 사용한다.
 시작할 때 `server_release.py classpath`가 릴리스의 80개 파일을 검증한다.
 두 클라이언트는 같은 작업 디렉터리의 `client-empire`와 `client-alliance` 사본이며,
-한글 생성 수정까지 포함한 호환 DLL을 적용했다. 원본 게임 파일은 보존한다.
+한글 생성·세션 종료 안내와 원본 시각 배율의 분모 절삭 보완을 포함한 호환 DLL을
+적용했다. 두 런처의 `--check`를 다시 통과했다. 원본 게임 파일은 보존한다.
 
 현재 저장은 그 디렉터리의 `state\characters.properties`, `state\world`,
 `state\session`에 이어 쓴다. 원래 저장 파일은 기존 위치에 보존했고,
