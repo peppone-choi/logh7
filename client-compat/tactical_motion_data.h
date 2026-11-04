@@ -3,6 +3,12 @@
 #include <string.h>
 #include <float.h>
 namespace logh {
+// Preserve fractional G-seconds; flooring the timer interval biases frame speed upward.
+inline float tacticalClockScale(unsigned previousGame,unsigned game,unsigned previousTick,unsigned tick,float current) {
+    if (previousGame>=game || previousTick>=tick) return current;
+    return static_cast<float>(static_cast<double>(game-previousGame)*1000.0/
+        (static_cast<double>(tick-previousTick)*24.0));
+}
 struct TacticalMoveOrigins {
     struct Origin { unsigned id; float direction,x,y; } units[32];
     unsigned count=0;
