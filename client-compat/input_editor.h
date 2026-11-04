@@ -9,6 +9,12 @@ static const wchar_t* __cdecl decodeInputText(const char* text) {
     // Consumers immediately copy into the native UTF-16 pool or name field.
     return converted.c_str();
 }
+static void* __cdecl readGeneratedInput(void* output,const void* source) {
+    // Display-only CString narrowing uses private CP932 glyphs. Editable
+    // names must use the original ACP constructor before decodeInputText.
+    const auto text=reinterpret_cast<const wchar_t*(__cdecl*)(const void*)>(0x4eae30)(source);
+    return reinterpret_cast<void*(__thiscall*)(void*,const wchar_t*)>(koreanWideConstructTrampoline+0)(output,text);
+}
 static const wchar_t* __cdecl decodeImeStatus(const char* text) {
     static thread_local std::wstring converted;
     const auto keyboard=LOWORD(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(0)));
@@ -76,13 +82,18 @@ static bool installInputEditor() {
     const BYTE nameExpected[][5]={{0xe8,0x66,0x41,0xf5,0xff},{0xe8,0x4b,0x41,0xf5,0xff},
         {0xe8,0xf4,0x40,0xf5,0xff},{0xe8,0x95,0x40,0xf5,0xff},
         {0xe8,0x6c,0x33,0xf5,0xff},{0xe8,0xe8,0x32,0xf5,0xff}};
+    const unsigned getterAddresses[]={0x596a9c,0x596acc,0x596b3b,0x596b9a,0x5978c5,0x597947};
+    const BYTE getterExpected[][5]={{0xe8,0xaf,0x43,0xf5,0xff},{0xe8,0x7f,0x43,0xf5,0xff},
+        {0xe8,0x10,0x43,0xf5,0xff},{0xe8,0xb1,0x42,0xf5,0xff},
+        {0xe8,0x86,0x35,0xf5,0xff},{0xe8,0x04,0x35,0xf5,0xff}};
     if (memcmp(reinterpret_cast<void*>(0x4ff9fd),oldResult,sizeof(oldResult)) ||
         memcmp(reinterpret_cast<void*>(0x4ffa18),oldArgument,sizeof(oldArgument)) ||
         memcmp(reinterpret_cast<void*>(0x4e72be),oldReturn,sizeof(oldReturn))) return false;
     for (unsigned i=0;i<8;++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
     for (unsigned i=0;i<6;++i)
-        if (memcmp(reinterpret_cast<void*>(nameAddresses[i]),nameExpected[i],5)) return false;
+        if (memcmp(reinterpret_cast<void*>(nameAddresses[i]),nameExpected[i],5) ||
+            memcmp(reinterpret_cast<void*>(getterAddresses[i]),getterExpected[i],5)) return false;
     for (unsigned i=0;i<8;++i) {
         BYTE call[5]={0xe8};
         auto function=i==7?reinterpret_cast<BYTE*>(&decodeImeStatus):i==6?reinterpret_cast<BYTE*>(&chatCastLabel):i==3?reinterpret_cast<BYTE*>(&updateImeEvent):
@@ -96,6 +107,9 @@ static bool installInputEditor() {
         *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&decodeInputText)-
             reinterpret_cast<BYTE*>(nameAddresses[i])-5);
         if (!patchBytes(reinterpret_cast<void*>(nameAddresses[i]),nameExpected[i],call,5)) return false;
+        *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&readGeneratedInput)-
+            reinterpret_cast<BYTE*>(getterAddresses[i])-5);
+        if (!patchBytes(reinterpret_cast<void*>(getterAddresses[i]),getterExpected[i],call,5)) return false;
     }
     *reinterpret_cast<LONG*>(resultReturn+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&consumedImeResult)-
         reinterpret_cast<BYTE*>(0x4e72be)-5);
