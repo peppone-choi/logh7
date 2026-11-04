@@ -105,7 +105,7 @@ internal object TacticalGroundOperations {
                 val occupied=next.outfits.values.filter {it.power==o.power}.sumOf {other->
                     other.activeGround?.values.orEmpty().count {it.base==base.id || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==base.id}==true}}
                 if(occupied+troops.size>GroundBattleRules.BOX_CAPACITY_PER_FACTION)return reject(NavigationRejection.GRID)
-            } else if(o.activeGround!!.values.count {it.carrier==id}+troops.size>10)return reject(NavigationRejection.UNIT)
+            } else if(o.activeGround!!.values.count {it.carrier==id}+troops.size>GroundTransfer.capacity(ship.stack.kind))return reject(NavigationRejection.UNIT)
             val order=TacticalGroundOrder(command.action,p.characterId,p.grid,id,state.base,now,now+25*scale)
             val selected=troops.map {it.id}.toSet()
             val changed=o.copy(activeGround=ActiveGroundUnits(o.activeGround!!.values.map {if(it.id in selected)it.copy(order=order) else it}))

@@ -60,6 +60,35 @@ class TacticalGroundOperationsTest {
         assertEquals(NavigationRejection.GRID,accept(s,n,p,request(ids=listOf(4))).rejection)
         assertNull(s.stocks.outfits.getValue(1).activeGround!!.values.single {it.id==5}.order)
     }
+    @Test fun withdrawalUsesHullCapacityIncludingTroopsAlreadyAboard() {
+        fun checkWithdrawal(kind:Int,landed:Int,aboard:Int,accepted:Boolean) {
+            val s=state();val own=s.stocks.outfits.getValue(1)
+            val ships=ActiveShipUnits(own.activeShips!!.values.map {if(it.id==1)it.copy(stack=UnitStack(kind)) else it})
+            val troops=ActiveGroundUnits(List(landed){ActiveGroundUnit(100+it,UnitStack(0),base=1000,origin=1)}+
+                List(aboard){ActiveGroundUnit(200+it,UnitStack(0),carrier=1)})
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(activeShips=ships,activeGround=troops,
+                units=UnitInventory(ships.quantities(),troops.quantities()))))
+            val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+            val before=s.stocks;val players=s.players
+            val result=accept(s,n,p,request(TacticalGroundAction.WITHDRAW))
+            if(accepted) {
+                assertNotNull(result.player);assertEquals(now+600,result.groundReadyAt)
+                val events=mutableListOf<TacticalGroundResult>();settle(s,n,p,now+600,events)
+                assertEquals(landed,events.single().troops.size)
+                assertTrue(s.stocks.outfits.getValue(1).activeGround!!.values.all {it.carrier==1 && it.base==0 && it.order==null})
+                assertEquals(landed+aboard,s.stocks.outfits.getValue(1).activeGround!!.values.size)
+            } else {
+                assertEquals(NavigationRejection.UNIT,result.rejection)
+                assertEquals(before,s.stocks);assertEquals(players,s.players);assertEquals(0,s.saves)
+            }
+        }
+        checkWithdrawal(32,2,0,true)
+        checkWithdrawal(32,3,0,false)
+        checkWithdrawal(32,2,1,false)
+        checkWithdrawal(80,3,0,true)
+        checkWithdrawal(80,9,1,true)
+        checkWithdrawal(80,10,1,false)
+    }
     @Test fun armoredInfantryIsRefusedOnlyAtSpecialPlanetsWithItsOwnReason() {
         galaxy=galaxy(30)
         val s=state(kind=2);val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s);val before=s.stocks
