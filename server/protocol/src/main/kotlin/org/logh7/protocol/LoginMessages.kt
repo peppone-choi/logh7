@@ -44,4 +44,6 @@ object LoginMessages {
     }
     fun sessionMessage(opcode: Int, body: ByteArray, field50: Int = 0): ByteArray =
         ByteBuffer.allocate(6 + body.size).putInt(field50).putShort(opcode.toShort()).put(body).array()
+    /** SSLoginNG: local generic error type, null-terminated UTF-16 message (u8 count). */
+    fun sessionRejection(): ByteArray = sessionMessage(0x0202, byteArrayOf(1, 1, 0, 0))
 }

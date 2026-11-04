@@ -320,7 +320,8 @@ class GameExchange(
         joining = false
         gameStarted = result == Admission.ACCEPTED
         if (!gameStarted) state = State.REJECTED
-        return handshake.stageAll(listOf(LoginMessages.sessionMessage(0x0206, byteArrayOf(if (gameStarted) 0 else 1))), clearHeader = 0)
+        val reply = if (gameStarted) LoginMessages.sessionMessage(0x0206, byteArrayOf(0)) else LoginMessages.sessionRejection()
+        return handshake.stageAll(listOf(reply), clearHeader = 0)
     }
     private fun acceptCore(type: Int, data: ByteArray): OutboundBatch? {
         check(state != State.CLOSED && state != State.REJECTED)

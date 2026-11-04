@@ -58,6 +58,35 @@ class SecureWriterTest {
         return Fixture(h, exchange, held, channel, channel.pipeline().context(bridge))
     }
     private fun app() = LoginMessages.sessionMessage(0x0301, byteArrayOf())
+    @Test fun rejectedGameJoinSendsLoginNgInsteadOfSuccessAndCloses() {
+        var now = Instant.parse("2026-11-04T00:00:00Z")
+        val clock = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+            override fun withZone(zone: ZoneId) = this
+            override fun instant() = now
+        }
+        val characters = CharacterCreation(clock = clock, lotteryWindowMillis = 1)
+        characters.apply("user", listOf(1001)); now = now.plusMillis(2)
+        val access = object : GameAdmission {
+            override val generation = 1L; override val running = true
+            override fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long) =
+                CompletableFuture.completedFuture(Admission.IDENTITY_CHANGED)
+            override fun disconnect(account: String, connection: String) {}
+        }
+        val f = fixture(admission = access, characters = characters, purpose = SessionTickets.Purpose.GAME)
+        try {
+            f.exchange.acceptOutbound(0x30, encrypted(byteArrayOf(2, 0), 2))!!.let(f::write)
+            f.held.complete(0); f.channel.runPendingTasks()
+            assertNull(f.exchange.acceptOutbound(0x30, encrypted(byteArrayOf(2, 5), 3)))
+            val batch = assertNotNull(f.exchange.finishJoinOutbound(f.exchange.takePendingJoin()!!.join()))
+            val body = Envelope.decode(LegacyBlowfish(b).decrypt(batch.bytes.copyOfRange(8, batch.bytes.size)), -1).second
+            assertContentEquals(byteArrayOf(2, 2, 1, 1, 0, 0), body.copyOfRange(4, body.size))
+            f.write(batch)
+            f.held.complete(1); f.channel.runPendingTasks()
+            assertFalse(f.channel.isActive)
+            assertEquals(GameExchange.State.CLOSED, f.exchange.state)
+        } finally { f.cleanup() }
+    }
     @Test fun delayedWritesUseCandidatesAndCommitOnlyTheSuccessfulPrefix() {
         val f = fixture(0x7fffffff)
         try {

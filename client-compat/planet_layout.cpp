@@ -143,6 +143,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "planet_info.h"
 #include "ground_battle_panel.h"
 #include "outfit_list_columns.h"
+#include "game_admission.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"
 #include "outfit_editor.h"
@@ -570,6 +571,7 @@ static void install() {
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installSessionEnding()) { status = -3; return; }
+    if (!installGameAdmission()) { status = -3; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }
     if (!installOutfitListColumns()) { status = -3; return; }

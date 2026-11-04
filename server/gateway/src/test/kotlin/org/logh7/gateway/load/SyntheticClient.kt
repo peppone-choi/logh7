@@ -74,15 +74,17 @@ class SyntheticClient(port: Int, private val metrics: LoadMetrics, fragmentedHan
         val decoded = Envelope.decode(incoming.decrypt(bytes), previous); previous = decoded.first
         return decoded.second
     }
-    fun expect(opcode: Int): ByteArray {
+    fun expect(opcode: Int): ByteArray = expectAny(setOf(opcode))
+    fun expectAny(opcodes: Set<Int>): ByteArray {
+        require(opcodes.isNotEmpty())
         repeat(300) {
             val message=receive()
             check(message.size >= 6 && ByteBuffer.wrap(message).int == 0)
             val actual=ByteBuffer.wrap(message).getShort(4).toInt() and 65535
-            if(actual==opcode)return message
+            if(actual in opcodes)return message
             // A periodic map snapshot is independent of a request/reply transaction.
             // GridForceWireTest requests this opcode explicitly and validates its body.
-            check(actual==0x0b0d && opcode!=0x0b0d) { "Expected $opcode, received $actual" }
+            check(actual==0x0b0d && 0x0b0d !in opcodes) { "Expected $opcodes, received $actual" }
         }
         error("Response missing after periodic map snapshots")
     }
