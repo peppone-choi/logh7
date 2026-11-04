@@ -8,6 +8,7 @@
 #include <string.h>
 #include "hud_atlas.h"
 #include "spot_presence.h"
+#include "creation_menu_data.h"
 
 #pragma comment(lib, "advapi32.lib")
 #pragma comment(lib, "gdi32.lib")
@@ -26,6 +27,13 @@ static bool patchBytes(void* target, const void* expected, const void* replaceme
     FlushInstructionCache(GetCurrentProcess(), target, size);
     DWORD ignored = 0; VirtualProtect(target, size, previous, &ignored);
     return true;
+}
+static bool installCreationMenus() {
+    auto code=reinterpret_cast<BYTE*>(0x51ab3a);
+    const auto state=logh::creationMenuState(code,sizeof(logh::creationMenuDisabled));
+    if(state==logh::CreationMenuState::Enabled)return true;
+    return state==logh::CreationMenuState::Disabled && patchBytes(code,logh::creationMenuDisabled,
+        logh::creationMenuEnabled,sizeof(logh::creationMenuDisabled));
 }
 static bool verifiedClient() {
     if (GetModuleHandleW(nullptr) != reinterpret_cast<HMODULE>(0x400000)) return false;
@@ -571,7 +579,7 @@ static void install() {
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installSessionEnding()) { status = -3; return; }
-    if (!installGameAdmission()) { status = -3; return; }
+    if (!installCreationMenus() || !installGameAdmission()) { status = -3; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }
     if (!installOutfitListColumns()) { status = -3; return; }

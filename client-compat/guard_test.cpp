@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <cstdio>
 #include "hud_atlas.h"
+#include "creation_menu_data.h"
 #include "planet_info_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
@@ -1209,6 +1210,17 @@ static int runGuard(int argc, wchar_t** argv) {
     if(logh::gameAdmissionRejected(0x0206,true) || logh::gameAdmissionRejected(0x0201,true) ||
         logh::gameAdmissionRejected(0x0202,false) || !logh::gameAdmissionRejected(0x0202,true) ||
         !logh::gameAdmissionRejected(0x10000202,true))return 81;
+    unsigned char creation[sizeof(logh::creationMenuDisabled)];
+    memcpy(creation,logh::creationMenuDisabled,sizeof(creation));
+    if(logh::creationMenuState(creation,sizeof(creation))!=logh::CreationMenuState::Disabled)return 82;
+    memcpy(creation,logh::creationMenuEnabled,sizeof(creation));
+    if(logh::creationMenuState(creation,sizeof(creation))!=logh::CreationMenuState::Enabled)return 82;
+    creation[4]=0; // A partially patched pair is not a supported lobby initializer.
+    if(logh::creationMenuState(creation,sizeof(creation))!=logh::CreationMenuState::Unsupported)return 82;
+    memcpy(creation,logh::creationMenuDisabled,sizeof(creation));creation[0]=0x90;
+    if(logh::creationMenuState(creation,sizeof(creation))!=logh::CreationMenuState::Unsupported ||
+        logh::creationMenuState(nullptr,sizeof(creation))!=logh::CreationMenuState::Unsupported ||
+        logh::creationMenuState(creation,sizeof(creation)-1)!=logh::CreationMenuState::Unsupported)return 82;
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));
