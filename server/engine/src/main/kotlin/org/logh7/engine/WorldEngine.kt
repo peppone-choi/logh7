@@ -895,8 +895,6 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     settleCombat(session,published.get()) {reconcileTerritory()}
                     session=durableState?.session ?: simulation.exportState()
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
-                        if(command.request.offlineDirection!=null)TacticalOfflineSettings.accept(command.request,session,navigation,production,
-                            checkNotNull(production.snapshot(session.generation)),worldStateCommitter) else
                         TacticalCommandOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalGroundOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalPostureOperations.guard(command.request,session,navigation,
