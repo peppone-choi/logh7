@@ -58,7 +58,10 @@ static bool showSessionEnding(void* gui) {
         swprintf_s(text,L"인구 90%%: %s  /  전력 10배: %s",population,fleet);
         endingText(128+static_cast<int>(i),x,414,294,text);
     }
-    endingText(130,184,450,640,L"평가·명성 보상은 아직 확정되지 않았습니다.");
+    if(data.evaluationPresent)swprintf_s(text,L"평가 %u → %u  |  명성 %u → %u",
+        data.previousEvaluation,data.finalEvaluation,data.previousFame,data.finalFame);
+    else wcscpy_s(text,L"개인 정산 기록이 없습니다.");
+    endingText(130,184,450,640,text);
     endingText(131,184,486,520,sessionEnding.lobby ? L"종료된 세션의 저장된 결과입니다." : L"다음 세션 준비 후 다시 접속해 주세요.");
     endingText(132,720,477,100,sessionEnding.lobby ? L"돌아가기" : L"게임 종료",true);
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);

@@ -48,13 +48,18 @@ class SessionEndingLobbyWireTest {
             val ids=(0..1).map {f.engine.snapshot().navigators.getValue(f.account(it)).characterId}
             f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
             f.await("ended") {f.engine.snapshot().result!=null}
-            peers.forEach {it.expect(0x035a);it.close()}
+            val endings=peers.map {it.expect(0x035a).also {_->it.close()}}
             f.await("no ended players online") {f.engine.snapshot().session!!.online==0 && f.access.trackedConnections()==0}
             val before=f.engine.snapshot()
+            val registered=CharacterStores(directory.resolve("characters.properties")).get(1).registeredCharacters()
+            val sessionBytes=org.logh7.protocol.SessionEndingMessages.information(SessionEndingReport.session(before,registered)).size
             for(index in 0..1)lobby(f,index).use {client->
                 client.send(SyntheticClient.opcode(0x2003));val reply=client.expect(0x2004)
                 assertEquals(ids[index] to if(index==0)2 else 3,charged(reply))
-                assertEquals(1,reply[reply.size-18].toInt());assertTrue(reply.takeLast(17).all {it==0.toByte()})
+                assertEquals(1,reply[reply.size-18].toInt())
+                val ending=endings[index];val evaluationAt=ending.size-sessionBytes-17
+                assertContentEquals(ending.copyOfRange(evaluationAt,evaluationAt+17),reply.takeLast(17).toByteArray(),
+                    "game ending and read-only lobby query use the same settled statement")
                 client.send(ByteBuffer.allocate(4).putShort(0x2009).putShort(1).array());client.expect(0x200b)
                 assertEquals(0,f.access.trackedConnections());assertEquals(before.navigators,f.engine.snapshot().navigators)
                 assertEquals(before.planetStocks,f.engine.snapshot().planetStocks)

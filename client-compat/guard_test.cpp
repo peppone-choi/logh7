@@ -604,10 +604,13 @@ static bool sessionEndingDataTest() {
     record[0x3a0]=1;record[0x3e8]=1;record[0x3c2]=3;record[0x40a]=0;
     record[0x3c3]=255;record[0x3c4]=1;record[0x40b]=0;record[0x40c]=1;
     record[0x3c8]=7;record[0x410]=9;record[0x420]=1;record[0x424]=16;
+    const unsigned awards[]={250,933,12,21};memcpy(record+0x2d4,awards,sizeof(awards));
     logh::SessionEndingData data;
     if(!data.read(record) || data.character!=id || data.power!=2 || data.reason!=3 || data.name[0]!='A' ||
         data.sides[0].power!=2 || data.sides[0].grade!=0 || data.sides[0].statistics.planets!=9 ||
-        data.sides[1].grade!=3 || data.sides[1].populationCondition!=255 || data.total.planets!=16)return false;
+        data.sides[1].grade!=3 || data.sides[1].populationCondition!=255 || data.total.planets!=16 ||
+        !data.evaluationPresent || data.previousEvaluation!=250 || data.finalEvaluation!=933 ||
+        data.previousFame!=12 || data.finalFame!=21)return false;
     for(unsigned offset : {0x2ebu,0x3a0u,0x3c2u,0x3c3u,0x420u}) {
         BYTE before=record[offset];record[offset]=offset==0x2eb ? 14 : 4;
         if(data.read(record) || data.character!=id || data.total.planets!=16)return false;
@@ -619,15 +622,21 @@ static bool sessionEndingDataTest() {
     BYTE lobby[0x6d8]={};lobby[0]=1;
     memcpy(lobby+4,record+0x2e8,0x14c);memcpy(lobby+0x2a4,&id,4);lobby[0x2a8]=2;
     lobby[0x2a0]=2;lobby[0x2a1]=1;lobby[0x358]=1;
-    if(!data.readLobby(lobby,sizeof(lobby),0) || data.character!=id || data.sides[0].grade!=255 || data.total.planets!=16)return false;
+    memcpy(lobby+0x35c,awards,sizeof(awards));
+    if(!data.readLobby(lobby,sizeof(lobby),0) || data.character!=id || data.sides[0].grade!=255 || data.total.planets!=16 ||
+        !data.evaluationPresent || data.previousEvaluation!=250 || data.finalEvaluation!=933 ||
+        data.previousFame!=12 || data.finalFame!=21)return false;
+    lobby[0x358]=0;if(!data.readLobby(lobby,sizeof(lobby),0) || data.evaluationPresent)return false;lobby[0x358]=1;
     if(data.readLobby(lobby,0x36b,0) || data.readLobby(lobby,sizeof(lobby),1) || data.readLobby(nullptr,0,0))return false;
     lobby[0]=2;memcpy(lobby+0x36c+4,lobby+4,0x368);
     lobby[0x36c+0x2a8]=3;
-    if(!data.readLobby(lobby,sizeof(lobby),1) || data.power!=3)return false;
+    if(!data.readLobby(lobby,sizeof(lobby),1) || data.power!=3 || data.finalFame!=21)return false;
     for(unsigned offset:{0u,0x2a0u,0x2a1u,0x358u}) {
         BYTE before=lobby[offset];lobby[offset]=4;
         if(data.readLobby(lobby,sizeof(lobby),0))return false;lobby[offset]=before;
     }
+    const unsigned maximum=0xffffffffu;memcpy(record+0x2e0,&maximum,4);
+    if(!data.read(record) || data.finalFame!=maximum)return false;
     return !wcscmp(logh::endingGrade(2),L"결정적 승리") && !wcscmp(logh::endingGrade(255),L"승패 집계 중");
 }
 // An uncatalogued Hangul syllable (a player's name) takes a runtime EUDC slot and comes back unchanged.

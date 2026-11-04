@@ -27,10 +27,33 @@ class FameLedgerTest {
             10001 to StrategicPerson(evaluation=30,deceasedAt=50),10002 to StrategicPerson(evaluation=99))))
         val world=WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),planetStocks=stocks,result=result)
         val stores=CharacterStores(file)
+        assertNull(stores.fame.evaluation(world,stores.get(1),"winner"))
         assertEquals(683L,FameLedger.reward(8));assertEquals(1000L,FameLedger.reward(2));assertEquals(50L,FameLedger.reward(20))
         assertEquals(mapOf("winner" to 9,"fallen" to 8),stores.fame.settle(world,stores.get(1)))
         assertTrue(stores.fame.settle(world,stores.get(1)).isEmpty(),"one settlement per generation")
         assertEquals(mapOf("winner" to 9,"fallen" to 8),CharacterStores(file).fame.fame())
         assertEquals(9,stores.get(2).fame("winner"))
+        val winner=org.logh7.protocol.SessionEndingMessages.Evaluation(250,933,0,9,0)
+        assertEquals(winner,stores.fame.evaluation(world,stores.get(1),"winner"))
+        assertEquals(org.logh7.protocol.SessionEndingMessages.Evaluation(30,872,0,8,0),
+            stores.fame.evaluation(world,stores.get(1),"fallen"))
+        assertEquals(org.logh7.protocol.SessionEndingMessages.Evaluation(99,99,0,0,0),
+            stores.fame.evaluation(world,stores.get(1),"loser"),"zero awards remain known statements")
+        val reloaded=CharacterStores(file);val bytes=Files.readAllBytes(file.resolveSibling("${file.fileName}.fame"))
+        repeat(2) {assertEquals(winner,reloaded.fame.evaluation(world,reloaded.get(1),"winner"))}
+        assertContentEquals(bytes,Files.readAllBytes(file.resolveSibling("${file.fileName}.fame")),"queries never rewrite or grant")
+        val next=world.copy(session=world.session!!.copy(generation=2),planetStocks=stocks.copy(generation=2))
+        assertEquals(mapOf("winner" to 9,"fallen" to 8),reloaded.fame.settle(next,reloaded.get(1)))
+        assertEquals(winner,reloaded.fame.evaluation(world,reloaded.get(1),"winner"),"a later generation cannot rewrite the earlier statement")
+        assertEquals(org.logh7.protocol.SessionEndingMessages.Evaluation(250,933,9,18,0),
+            reloaded.fame.evaluation(next,reloaded.get(1),"winner"))
+        val fameFile=file.resolveSibling("${file.fileName}.fame")
+        val legacy=java.util.Properties().also {Files.newBufferedReader(fameFile).use(it::load)}
+        legacy.stringPropertyNames().filter {it.startsWith("@evaluation/")}.forEach(legacy::remove)
+        Files.newBufferedWriter(fameFile).use {legacy.store(it,null)}
+        assertNull(reloaded.fame.evaluation(world,reloaded.get(1),"winner"),"old missing history cannot use a newer generation's total")
+        assertEquals(org.logh7.protocol.SessionEndingMessages.Evaluation(250,933,9,18,0),
+            reloaded.fame.evaluation(next,reloaded.get(1),"winner"),"latest legacy result derives the unchanged award without regranting")
+        assertEquals(18,reloaded.fame.fame().getValue("winner"))
     }
 }

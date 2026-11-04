@@ -10,12 +10,13 @@ internal object SessionEndingReport {
         value.population/10_000,value.shipUnits,value.groundUnits)
     private fun flag(value:Boolean?)=when(value){true->1;false->0;null->255}
     fun message(world:WorldSnapshot,character:CharacterMessages.Generate,player:Navigator,
-        registered:List<CharacterMessages.Generate>,offices:List<BootstrapMessages.OfficeCard>):ByteArray {
+        registered:List<CharacterMessages.Generate>,offices:List<BootstrapMessages.OfficeCard>,
+        evaluation:SessionEndingMessages.Evaluation=SessionEndingMessages.Evaluation(0,0,0,0,0)):ByteArray {
         val session=checkNotNull(world.session)
         require(player.generation==session.generation && character.id==player.characterId.toLong())
         require(character.power in 2..3 && player.power==if(character.power==2)Power.EMPIRE else Power.ALLIANCE)
-        // No award is granted here. The compatibility result panel labels evaluation/fame as pending.
-        return SessionEndingMessages.ended(character,SessionEndingMessages.Evaluation(0,0,0,0,0),session(world,registered),
+        // The result observer grants fame; rendering only uses its persisted statement.
+        return SessionEndingMessages.ended(character,evaluation,session(world,registered),
             player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices)
     }
     fun session(world:WorldSnapshot,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
