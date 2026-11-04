@@ -170,8 +170,10 @@ class GameExchange(
             player.characterId, if (player.power == org.logh7.engine.Power.EMPIRE) 59 else 195, target, 4),
             seconds, player.pcp, player.mcp, waitSeconds = maxOf(0, checkNotNull(player.dockReadyAt) - seconds)))
     }
-    private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate): List<ByteArray> {
-        if (!result.completedFuel && !result.completedDock && !result.warpRejected) return emptyList()
+    private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate,
+        warpNotified: Boolean = false): List<ByteArray> {
+        val warpFinished = !warpNotified && (result.completedWarp || result.warpRejected)
+        if (!result.completedFuel && !result.completedDock && !warpFinished) return emptyList()
         val player = checkNotNull(result.player ?: result.previous)
         val seconds = gameSeconds()
         return (if (result.completedFuel) listOf(org.logh7.protocol.FuelMessages.supplied(seconds,
@@ -179,11 +181,14 @@ class GameExchange(
             (if (result.completedDock) listOf(unitMessage(character, player),
                 org.logh7.protocol.PlaceMessages.dockNotification(player.characterId, player.baseId, player.mode, seconds,
                     player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList()) +
-            // A reserved warp that can no longer enter still ends the native 0b07 wait at its origin.
-            (if (result.warpRejected) listOf(characterMessage(character, player, true), unitMessage(character, player),
+            // Every completed reserved warp must end the native 0b07 wait, including failed entry.
+            (if (warpFinished) listOf(characterMessage(character, player, true), unitMessage(character, player),
                 org.logh7.protocol.NavigationMessages.grid(player.grid, player.cpPaused),
                 org.logh7.protocol.NavigationMessages.moved(org.logh7.protocol.NavigationMessages.Warp(player.characterId,
-                    if (character.power == 2) 59 else 195, player.grid, 0, 5), seconds, player.unitId, player.cruise)) else emptyList())
+                    if (character.power == 2) 59 else 195, player.grid, 0, 5), seconds, player.unitId, player.cruise)) +
+                (if(player.baseId!=0 || player.mode!=5 || player.spotId!=0) listOf(
+                    org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,seconds,
+                        player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) else emptyList())
     }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
@@ -198,7 +203,9 @@ class GameExchange(
         checkNotNull(navigation).apply(org.logh7.engine.NavigationRequest(account,
             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
             connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
-            val player = checkNotNull(result.player) { "CP refresh lost its authenticated session" }
+            val player = checkNotNull(result.player ?: result.previous?.takeIf { it.navigationPending &&
+                (result.rejection == org.logh7.engine.NavigationRejection.BUSY ||
+                    result.rejection == org.logh7.engine.NavigationRejection.CRUISE) }) { "CP refresh lost its authenticated session" }
             val previous = deliveredPlayer ?: result.previous
             if (player != previous) publication = Publication(character, player, false)
             val changed = previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
@@ -1172,7 +1179,7 @@ class GameExchange(
                                         org.logh7.protocol.NavigationMessages.grid(origin.grid,origin.cpPaused),
                                         org.logh7.protocol.NavigationMessages.moved(command.copy(grid = origin.grid),
                                             gameSeconds(), origin.unitId, origin.cruise)) else emptyList()) +
-                                    completedWork(result, character)
+                                    completedWork(result, character, warpNotified = origin.baseId == 0 && origin.mode == 5)
                             }
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
@@ -1188,7 +1195,7 @@ class GameExchange(
                                 characterMessage(character, player, true),
                                 unitMessage(character, player),
                                 org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused),
-                                org.logh7.protocol.NavigationMessages.moved(arrived, seconds, player.unitId, player.cruise)) + completedWork(result, character)
+                                org.logh7.protocol.NavigationMessages.moved(arrived, seconds, player.unitId, player.cruise)) + completedWork(result, character, warpNotified = true)
                         }
                         return null
                     }

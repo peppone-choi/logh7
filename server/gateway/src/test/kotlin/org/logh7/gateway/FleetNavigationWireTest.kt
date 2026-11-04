@@ -1,5 +1,6 @@
 package org.logh7.gateway
 
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
@@ -126,5 +127,87 @@ class FleetNavigationWireTest {
                 connected(commander);connected(aide)
             }
         }
+    }
+
+    @Test fun resigningAtWarpCompletionSendsArrivalToBothFlagshipsAndDoesNotMoveOrChargeOnReplay()=runBlocking {
+        val state=State(aide=true)
+        LoadFixture(directory.resolve("recover"),2,LoadMetrics(),galaxy,ticking=false,
+            stockStore=state.inventory,navigationStore=state.nav,worldStateCommitter=state).use {fixture ->
+            val commander=fixture.join(fixture.account(0),true,false).client
+            commander.send(SyntheticClient.opcode(0x0f00));through(commander,0x0f01)
+            val aide=fixture.join(fixture.account(1),true,false).client
+            aide.send(SyntheticClient.opcode(0x0f00));through(aide,0x0f01)
+            val depart=PlaceMessages.switched(PlaceMessages.SwitchMode(10000,59,5),0,0,0,5,0,0,true)
+            commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)
+            val warp=NavigationMessages.accepted(NavigationMessages.Warp(10000,59,2489,0,5),0,0,0)
+            commander.send(warp.copyOfRange(4,warp.size))
+            assertEquals(3600,ByteBuffer.wrap(through(commander,0x0b01)).getInt(10))
+            fixture.engine.submit(WorldCommand.AdvanceTo(150_000))
+            val resign=ByteBuffer.allocate(27).putShort(0x709).putInt(-1).putInt(10000)
+                .putInt(-1).putInt(-1).putInt(39).putInt(0).put(0).array()
+            commander.send(resign)
+            val accepted=ByteBuffer.wrap(through(commander,0x709))
+            assertEquals(0,accepted.getInt(0));assertEquals(840,accepted.getInt(18))
+            assertEquals(2489,ByteBuffer.wrap(through(commander,0x0b07,10000)).getInt(14))
+            aide.send(SyntheticClient.opcode(0x0300))
+            assertEquals(2489,ByteBuffer.wrap(through(aide,0x0b07,10001)).getInt(14))
+            assertEquals(OutfitPosition(2489),state.stocks.outfits.getValue(1).position)
+            assertEquals(0,state.stocks.outfits.getValue(1).commanderId)
+            assertEquals(2489,state.players.getValue("load-001").grid)
+            assertEquals(1000,state.players.getValue("load-001").mcp)
+            assertEquals(800,state.players.getValue("load-001").cruise)
+            commander.send(resign)
+            val replay=ByteBuffer.wrap(through(commander,0x709))
+            assertEquals(1,replay.getInt(0));assertEquals(840,replay.getInt(18))
+            assertEquals(800,state.players.getValue("load-000").cruise)
+            assertEquals(OutfitPosition(2489),state.stocks.outfits.getValue(1).position)
+        }
+    }
+
+    @Test fun deferredFleetArrivalsKeepClockRefreshAliveUntilTheBlockingMemberMoves()=runBlocking {
+      for(lowFuel in listOf(false,true)) {
+        val state=State(aide=true)
+        if(lowFuel)state.players=state.players+("load-001" to state.players.getValue("load-001").copy(cruise=100))
+        LoadFixture(directory.resolve("deferred-$lowFuel"),2,LoadMetrics(),galaxy,ticking=false,
+            stockStore=state.inventory,navigationStore=state.nav,worldStateCommitter=state).use {fixture ->
+            val commander=fixture.join(fixture.account(0),true,false).client
+            commander.send(SyntheticClient.opcode(0x0f00));through(commander,0x0f01)
+            val aide=fixture.join(fixture.account(1),true,false).client
+            aide.send(SyntheticClient.opcode(0x0f00));through(aide,0x0f01)
+            val depart=PlaceMessages.switched(PlaceMessages.SwitchMode(10000,59,5),0,0,0,5,0,0,true)
+            commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)
+            fun reserve(client:SyntheticClient,id:Int) {
+                val warp=NavigationMessages.accepted(NavigationMessages.Warp(id,59,2489,0,5),0,0,0)
+                client.send(warp.copyOfRange(4,warp.size))
+                assertEquals(3600,ByteBuffer.wrap(through(client,0x0b01)).getInt(10))
+            }
+            reserve(commander,10000)
+            if(!lowFuel) {
+                fixture.engine.submit(WorldCommand.AdvanceTo(42))
+                reserve(aide,10001)
+            }
+            fixture.engine.submit(WorldCommand.AdvanceTo(150_000))
+            commander.send(SyntheticClient.opcode(0x0300));through(commander,0x0301)
+            assertEquals(2487,state.players.getValue("load-000").grid)
+            assertEquals(2489,state.players.getValue("load-000").warpTarget)
+            assertEquals(920,state.players.getValue("load-000").mcp)
+            assertEquals(OutfitPosition(2487),state.stocks.outfits.getValue(1).position)
+            if(lowFuel) {
+                val leave=NavigationMessages.accepted(NavigationMessages.Warp(10001,59,2488,0,5),0,0,0)
+                aide.send(leave.copyOfRange(4,leave.size));through(aide,0x0b07,10001)
+            } else {
+                fixture.engine.submit(WorldCommand.AdvanceTo(150_042))
+                aide.send(SyntheticClient.opcode(0x0300));through(aide,0x0b07,10001)
+            }
+            commander.send(SyntheticClient.opcode(0x0300));through(commander,0x0b07,10000)
+            val leader=state.players.getValue("load-000");val member=state.players.getValue("load-001")
+            assertEquals(2489,leader.grid);assertNull(leader.warpTarget)
+            assertEquals(920,leader.mcp);assertEquals(800,leader.cruise);assertEquals(2L,leader.moves)
+            assertEquals(if(lowFuel)2488 else 2489,member.grid);assertNull(member.warpTarget)
+            assertEquals(if(lowFuel)960 else 920,member.mcp);assertEquals(if(lowFuel)0 else 800,member.cruise)
+            assertEquals(2L,member.moves)
+            assertEquals(OutfitPosition(2489),state.stocks.outfits.getValue(1).position)
+        }
+      }
     }
 }
