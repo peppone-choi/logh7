@@ -70,6 +70,8 @@ internal object NpcTactics {
         var stocks=original
         val now=session.gameMillis/1000
         if(now>0xffffffffL-155*scale)return stocks
+        var forceCache:Map<Int,List<GridForces.Force>>?=null
+        fun forces()=forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks).also {forceCache=it}
         for(outfitId in original.outfits.keys.sorted()) {
             var outfit=stocks.outfits.getValue(outfitId)
             val position=outfit.positionIn(galaxy)
@@ -96,10 +98,13 @@ internal object NpcTactics {
             val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
             if(live.isEmpty())continue
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy)
+            val returnJumps=if(policy.strategic)NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
+            val cargo=OutfitSupplies.distribution(outfit)
             val retreat=live.mapNotNull {it.tactical?.takeIf {s->s.motion.grid==position.grid}?.retreat}.minByOrNull {it.acceptedAt}
             val critical=live.sumOf {it.boats.toLong()}*4 <= outfit.activeShips!!.values.sumOf {
                 UnitSpecifications.ships.single {s->s.kind==it.stack.kind}.number.toLong()} ||
                 live.all {stocks.tacticalCommands.confused(it.id)} ||
+                (returnJumps!=null && returnJumps>0 && live.any {cargo.getValue(it.id)<it.boats}) ||
                 live.all {u->TacticalWeapon.entries.all {TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},it).power==0}}
             val withdrawal=retreat ?: if(critical && enemies.isNotEmpty()) exit(galaxy,outfit,position.grid,players,stocks)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
@@ -147,6 +152,8 @@ internal object NpcTactics {
                     val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
                     val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                     if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
+                    if(cost>0 && returnJumps!=null &&
+                        OutfitSupplies.distribution(outfit).getValue(id)-cost<returnJumps*unit.boats)continue
                     val victim=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.firstOrNull {
                         TacticalArmaments.effectiveness(mount,pose,it.pose.position)>0 &&
                             !TacticalLineOfFire.blocked(id,position.grid,power(outfit),pose.position,it.pose.position,now,players.values,stocks,galaxy)} ?: continue
@@ -154,7 +161,7 @@ internal object NpcTactics {
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
                         weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,pose,
                         checkNotNull(TacticalCombat.target(victim.id,position.grid,power(outfit),stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit))))
-                    stocks=resolved.first;impacts+=resolved.second
+                    stocks=resolved.first;impacts+=resolved.second;forceCache=null
                     outfit=stocks.outfits.getValue(outfitId)
                     firing=firing.copy(nextFireAt=now+5*scale,sequence=firing.sequence+1)
                     // Debit this firing unit, not whichever unit bulk ID-order storage fills last.
@@ -172,8 +179,9 @@ internal object NpcTactics {
                 val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
                 val count=GridForces.mobileUnits(outfit).toInt().coerceAtLeast(1)
                 if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(power(outfit),false),count,false))==GridEntryVerdict.ALLOWED) {
-                    stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),
+                    stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),strategy=null,
                         activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null)}))))
+                    forceCache=null
                     current.forEach {u->movements+=TacticalMovement(session.generation,u.id,position.grid,now,null,
                         audience(session,position.grid,players),withdrawal.destination)}
                 }
