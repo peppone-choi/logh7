@@ -98,4 +98,33 @@ class FleetNavigationWireTest {
             }
         }
     }
+
+    @Test fun aMembersReservedWarpRejectsTheCommandersMoveWithoutPaymentOrConnectionLoss() {
+        val state=State(aide=true)
+        LoadFixture(directory.resolve("pending"),2,LoadMetrics(),galaxy,ticking=false,
+            stockStore=state.inventory,navigationStore=state.nav,worldStateCommitter=state).use {fixture ->
+            fun connected(client:SyntheticClient) {
+                client.send(SyntheticClient.opcode(0x0300));through(client,0x0301)
+            }
+            val commander=fixture.join(fixture.account(0),true,false).client
+            commander.send(SyntheticClient.opcode(0x0f00));through(commander,0x0f01)
+            val aide=fixture.join(fixture.account(1),true,false).client
+            aide.send(SyntheticClient.opcode(0x0f00));through(aide,0x0f01)
+            val depart=PlaceMessages.switched(PlaceMessages.SwitchMode(10000,59,5),0,0,0,5,0,0,true)
+            commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)
+            val personal=NavigationMessages.accepted(NavigationMessages.Warp(10001,59,2489,0,5),0,0,0)
+            aide.send(personal.copyOfRange(4,personal.size))
+            val reserved=ByteBuffer.wrap(through(aide,0x0b01))
+            assertEquals(0,reserved.getInt(0));assertEquals(3600,reserved.getInt(10))
+            connected(aide) // Drain experience earned by the accepted reservation before comparing later rejections.
+            val before=state.players.toMap();val stocks=state.stocks
+            for(destination in listOf(2488,2489)) {
+                val fleet=NavigationMessages.accepted(NavigationMessages.Warp(10000,59,destination,0,5),0,0,0)
+                commander.send(fleet.copyOfRange(4,fleet.size))
+                assertEquals(1,ByteBuffer.wrap(through(commander,0x0b01)).getInt(0))
+                assertEquals(before,state.players);assertEquals(stocks,state.stocks)
+                connected(commander);connected(aide)
+            }
+        }
+    }
 }

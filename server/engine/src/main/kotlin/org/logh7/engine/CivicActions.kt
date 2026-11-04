@@ -36,7 +36,7 @@ object CivicActions {
     private fun lobby(spot:PlanetSpot)=spot.kind==0 && spot.access==SpotAccess.GUARDED
     private fun power(p:Navigator)=if(p.power==Power.EMPIRE)2 else 3
     private fun location(g:Galaxy,p:Navigator,base:Int)=p.baseId==base && p.mode in 1..4 &&
-        g.bases.singleOrNull {it.id==base}?.grid==p.grid && !p.cpPaused && p.dockTarget==null && p.fuelReadyAt==null
+        g.bases.singleOrNull {it.id==base}?.grid==p.grid && !p.cpPaused && !p.navigationPending
     private fun card(g:Galaxy,stocks:PlanetStocks,character:Int,power:Int,rank:Int,card:Int,outfit:Int):Boolean {
         if(card==if(power==2)59 else 195)return rank in 2..20
         val role=OrganizationOffices.of(card) ?: return false
@@ -85,7 +85,7 @@ object CivicActions {
         if(stocks.civic.active.any {it.character==r.characterId || r.outfit>0 && it.outfit==r.outfit} ||
             stocks.strategic.suppressions.any {it.character==r.characterId || r.outfit>0 && it.outfit==r.outfit})return reject(StrategyActionRejection.BUSY)
         if(stocks.civic.active.size>=128)return reject(StrategyActionRejection.MAXIMUM)
-        if(p.cpPaused || p.dockTarget!=null || p.fuelReadyAt!=null)return reject(StrategyActionRejection.BUSY)
+        if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val base=stocks.bases[p.baseId] ?: return reject(StrategyActionRejection.LOCATION)
         if(base.power!=power || base.camp!=0 || !location(g,p,base.baseId))return reject(StrategyActionRejection.LOCATION)
         val now=session.gameMillis/1000

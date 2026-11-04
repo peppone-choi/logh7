@@ -39,12 +39,14 @@ internal object FleetNavigation {
         val preview = navigation.apply(request, session, stocks, persist = false, movingUnits = units, soloShip = false)
         val after = preview.player ?: preview.previous ?: return preview
         val position = OutfitPosition(after.grid, after.baseId)
+        val starting = preview.rejection == null && (request.destination != null || request.place is PlaceMove.Dock ||
+            request.place == PlaceMove.SwitchMode(5))
+        if ((starting || position != outfit.positionIn(galaxy)) && followers.values.any { it.cpPaused || it.navigationPending })
+            return NavigationResult(null, before, NavigationRejection.BUSY)
         if (position == outfit.positionIn(galaxy))
             return personal(units,false)
         if (committer == null) return NavigationResult(null, before, NavigationRejection.DISABLED)
         if ((request.destination != null || request.place == PlaceMove.SwitchMode(5)) && blocked(outfit.id))
-            return NavigationResult(null, before, NavigationRejection.BUSY)
-        if (followers.values.any { it.cpPaused || it.fuelReadyAt != null || it.dockTarget != null })
             return NavigationResult(null, before, NavigationRejection.BUSY)
         // A reserved warp moves the fleet when its job completes, not on the accepting request.
         val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0

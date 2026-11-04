@@ -60,7 +60,7 @@ internal object StrategicOperations {
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val power=if(r.power==Power.EMPIRE)2 else 3
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return reject(StrategyActionRejection.BUSY)
+        if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val role=OrganizationOffices.of(r.card) ?: return reject(StrategyActionRejection.CARD)
         if(role.power!=power || role.camp!=0 || OrganizationalOfficePolicy(galaxy).holders(stocks,r.card).none {it.character==r.characterId})
             return reject(StrategyActionRejection.AUTHORITY)

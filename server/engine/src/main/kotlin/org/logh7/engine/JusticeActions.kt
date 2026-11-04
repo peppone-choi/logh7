@@ -25,7 +25,8 @@ object JusticeActions {
         val key=players.entries.singleOrNull {it.value.characterId==target}?.key ?: return null
         val n=players.getValue(key)
         if(n.cpPaused)return null
-        players[key]=n.copy(grid=capital.grid,baseId=capital.id,mode=4,spotId=cell,spotOwner=0,dockTarget=null,fuelReadyAt=null)
+        players[key]=n.copy(grid=capital.grid,baseId=capital.id,mode=4,spotId=cell,spotOwner=0,
+            strategy=null,dockTarget=null,fuelReadyAt=null,warpTarget=null)
         val cleared=StrategyActions.clearOffices(s,target)
         val justice=cleared.social.justice
         return cleared.copy(social=cleared.social.copy(justice=justice.copy(permits=justice.permits-target,
@@ -96,7 +97,7 @@ object JusticeActions {
             rights=j.rights.filterValues {it.holder!=id && it.target!=id},watches=j.watches.filterValues {it.watcher!=id && it.target!=id},
             detentions=j.detentions+(id to Detention(id,destination,now,now+Justice.DETENTION_DAYS*Justice.DAY)))))
         val moved=p.paidWith(paid.balance).copy(power=if(destination==2)Power.EMPIRE else Power.ALLIANCE,grid=capital.grid,
-            baseId=capital.id,mode=4,spotId=cell,spotOwner=0,hull=null,dockTarget=null,fuelReadyAt=null,returnBase=0)
+            baseId=capital.id,mode=4,spotId=cell,spotOwner=0,hull=null,strategy=null,dockTarget=null,fuelReadyAt=null,warpTarget=null,returnBase=0)
         return SocialResult(moved,next,changed=true,defected=destination)
     }
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
@@ -107,7 +108,7 @@ object JusticeActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
             return reject(SocialRejection.IDENTITY)
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return reject(SocialRejection.BUSY)
+        if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
         val j=s.social.justice
         if(j.detained(i.characterId))return reject(SocialRejection.BUSY)
         val power=powerOf(p);val ids=i.identities

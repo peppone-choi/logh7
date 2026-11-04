@@ -110,7 +110,7 @@ object ProposalActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
             return reject(SocialRejection.IDENTITY)
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return reject(SocialRejection.BUSY)
+        if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
         val policy=OrganizationalOfficePolicy(g)
         val proposals=s.social.proposals
         if(i.command==REPLY) {

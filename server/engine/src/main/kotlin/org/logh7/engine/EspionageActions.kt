@@ -83,7 +83,7 @@ object EspionageActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
             return reject(SocialRejection.IDENTITY)
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
+        if(p.cpPaused || p.navigationPending || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(OrganizationalOfficePolicy(g).held(s,i.characterId).none {it.card==i.card} || i.card !in cards)return reject(SocialRejection.CARD)
         if(p.baseId==0)return reject(SocialRejection.LOCATION)
         val j=s.social.justice;val inside=j.infiltrations[i.characterId]?.takeIf {it.base==p.baseId && it.spot==p.spotId}

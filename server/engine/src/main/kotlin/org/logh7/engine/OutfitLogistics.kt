@@ -66,7 +66,7 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
         } else {
             if (outfit.commanderId != request.characterId) return reject(LogisticsRejection.ACCESS)
             if (player.baseId != outfit.baseId || (outfit.position?.baseId ?: outfit.baseId) != outfit.baseId ||
-                player.dockTarget != null || player.fuelReadyAt != null || player.cpPaused)
+                player.navigationPending || player.cpPaused)
                 return reject(LogisticsRejection.LOCATION)
             if (request.supplies != 0) return reject(LogisticsRejection.STOCK)
         }

@@ -51,7 +51,7 @@ internal object OfficeDismissal {
         if(seats.size!=1) return reject(DismissalRejection.AMBIGUOUS)
         val seat=seats.single()
         if(!policy.authorized(stocks,seat,r.characterId,power,r.actorRank)) return reject(DismissalRejection.AUTHORITY)
-        if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(DismissalRejection.BUSY)
+        if(player.cpPaused || player.navigationPending) return reject(DismissalRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(DismissalRejection.CP)
         return OfficeDismissalResult(player.paidWith(paid.balance),policy.clear(stocks,seat),changed=true)

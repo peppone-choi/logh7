@@ -34,7 +34,7 @@ internal object GroundTransfer {
         val owner=stocks.bases[base] ?: return reject(LogisticsRejection.LOCATION)
         if(o.commanderId!=r.characterId || o.power!=power || owner.power!=power || owner.camp!=0)
             return reject(LogisticsRejection.ACCESS)
-        if(p.baseId!=base || p.cpPaused || p.dockTarget!=null || p.fuelReadyAt!=null)return reject(LogisticsRejection.LOCATION)
+        if(p.baseId!=base || p.cpPaused || p.navigationPending)return reject(LogisticsRejection.LOCATION)
         val roster=o.activeGround ?: return reject(LogisticsRejection.STOCK)
         val ships=o.activeShips ?: return reject(LogisticsRejection.STOCK)
         if(roster.values.any {it.order!=null} || ships.values.any {it.support!=null || it.posture?.order!=null ||

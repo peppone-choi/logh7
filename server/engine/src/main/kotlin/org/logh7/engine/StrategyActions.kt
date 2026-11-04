@@ -85,7 +85,7 @@ internal object StrategyActions {
         if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks)
         val power=if(r.power==Power.EMPIRE)2 else 3
         if(r.card!=if(r.command==84)0 else if(power==2)59 else 195)return reject(StrategyActionRejection.CARD)
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null ||
+        if(p.cpPaused || p.navigationPending ||
             stocks.strategic.suppressions.any {it.character==r.characterId} ||
             stocks.civic.active.any {it.character==r.characterId || r.outfit>0 && it.outfit==r.outfit})return reject(StrategyActionRejection.BUSY)
         val person=stocks.strategic.people[r.characterId] ?: StrategicPerson()

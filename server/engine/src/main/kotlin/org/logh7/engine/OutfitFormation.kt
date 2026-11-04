@@ -55,7 +55,7 @@ object OutfitFormationPolicy {
         val base=stocks.bases[r.base] ?: return StrategyActionRejection.LOCATION
         if(base.power!=power || base.camp!=0 || p.baseId!=r.base || p.mode !in 1..4 ||
             galaxy.bases.singleOrNull {it.id==r.base}?.grid!=p.grid)return StrategyActionRejection.LOCATION
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return StrategyActionRejection.BUSY
+        if(p.cpPaused || p.navigationPending)return StrategyActionRejection.BUSY
         return null
     }
     private fun sequence(stocks:PlanetStocks):OutfitSequence {
@@ -145,7 +145,7 @@ object OutfitFormationPolicy {
             stocks.tacticalCommands.air.values.any {it.source in removed || it.target in removed})return reject(StrategyActionRejection.BUSY)
         val members=outfit.members().toSet()+stocks.strategic.offices.filter {
             OrganizationOffices.of(it.card)?.scope==OfficeScope.OUTFIT && it.seat==outfit.id}.map {it.character}
-        if(r.identity.navigators.values.any {it.characterId in members && (it.cpPaused || it.dockTarget!=null || it.fuelReadyAt!=null)})
+        if(r.identity.navigators.values.any {it.characterId in members && (it.cpPaused || it.navigationPending)})
             return reject(StrategyActionRejection.BUSY)
         val warehouse=stocks.warehouses.getValue(outfit.warehouseId)
         val private=warehouse.outfitId>0

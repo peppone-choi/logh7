@@ -179,4 +179,57 @@ class FleetNavigationTest {
         assertEquals(4,state.players.getValue("aide").mode)
         assertEquals(600,state.players.getValue("aide").mcp)
     }
+
+    private fun reserveAide(state:State,kind:Int,at:SessionState=session):Navigator {
+        val online=SessionSimulation(SessionRules.load()).also {
+            it.join("pilot",Power.ALLIANCE,false,"c");it.join("aide",Power.ALLIANCE,false,"a")
+        }.exportState().copy(gameMillis=at.gameMillis)
+        if(kind==0)state.players=state.players+("aide" to state.players.getValue("aide").copy(cruise=900))
+        val order=NavigationRequest("aide",10001,Power.ALLIANCE,"a",1,unitId=1010001,captainCard=195)
+        val request=when(kind) {0->order.copy(supplyFuel=true);1->order.copy(place=PlaceMove.Dock(1000,4));else->order.copy(destination=2489)}
+        val result=Navigation(galaxy,state.nav,NavigationPolicy()).apply(request,online,state.stocks)
+        assertNull(result.rejection)
+        return assertNotNull(result.player)
+    }
+
+    @Test fun membersWithPersonalNavigationJobsBlockFleetWarpAndDockReservationsBeforePayment() {
+        val orders=listOf(request.copy(destination=2488),request.copy(destination=2489),request.copy(place=PlaceMove.Dock(1000,4)))
+        for(kind in 0..2)for(order in orders) {
+            val state=state();addAide(state)
+            apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
+            reserveAide(state,kind)
+            val before=state.players.toMap();val inventory=state.stocks
+            assertEquals(NavigationRejection.BUSY,apply(state,order).single().rejection,
+                "personal job $kind must block fleet movement before payment")
+            assertEquals(before,state.players);assertEquals(inventory,state.stocks)
+        }
+    }
+
+    @Test fun aMembersLaterWarpCannotBeOverwrittenWhenTheCommandersReservationCompletes() {
+        val state=state();addAide(state)
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2489))
+        reserveAide(state,2,session.copy(gameMillis=session.gameMillis+1000))
+        val before=state.players.toMap();val inventory=state.stocks
+        val due=session.copy(gameMillis=session.gameMillis+3600_000)
+        val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
+        val production=PlanetProduction(galaxy,state.inventory,0,PlanetProductionPolicy())
+        val result=FleetNavigation.apply(request,due,galaxy,navigation,production,
+            production.settle(1,due.gameMillis/1000),state.commit) {false}
+        assertEquals(NavigationRejection.BUSY,result.rejection)
+        assertEquals(before,state.players);assertEquals(inventory,state.stocks)
+        assertEquals(920,state.players.getValue("pilot").mcp,"reserved payment is not repeated")
+        val next=SessionSimulation(SessionRules.load()).also {
+            it.join("pilot",Power.ALLIANCE,false,"c");it.join("aide",Power.ALLIANCE,false,"a")
+        }.exportState().copy(gameMillis=due.gameMillis+1000)
+        val aide=NavigationRequest("aide",10001,Power.ALLIANCE,"a",1,unitId=1010001,captainCard=195)
+        assertNull(navigation.apply(aide,next,state.stocks).rejection)
+        val completedAide=state.players.getValue("aide")
+        assertNull(completedAide.warpTarget)
+        val retried=FleetNavigation.apply(request,next,galaxy,navigation,production,
+            production.settle(1,next.gameMillis/1000),state.commit) {false}
+        assertNull(retried.rejection);assertTrue(retried.completedWarp)
+        assertEquals(completedAide,state.players.getValue("aide"),"the member's completed personal warp is preserved")
+        assertEquals(920,state.players.getValue("pilot").mcp)
+        assertEquals(OutfitPosition(retried.player!!.grid),state.stocks.outfits.getValue(1).position)
+    }
 }

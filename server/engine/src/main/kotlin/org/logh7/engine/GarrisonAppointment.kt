@@ -35,7 +35,7 @@ internal object GarrisonAppointment {
         if(!policy.authorized(stocks,role,seat,r.characterId,r.actorRank))return reject(AppointmentRejection.AUTHORITY)
         if(r.target<=0 || r.target==r.characterId || r.targetPower!=power)return reject(AppointmentRejection.TARGET)
         if(!role.eligible(r.actorRank,r.targetRank))return reject(AppointmentRejection.RANK)
-        if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null)return reject(AppointmentRejection.BUSY)
+        if(player.cpPaused || player.navigationPending)return reject(AppointmentRejection.BUSY)
         val current=policy.holders(stocks,r.targetCard).filter {it.seat==seat}
         if(current.any {it.character==r.target})return GarrisonAppointmentResult(player,stocks)
         if(current.size>=role.seats)return reject(AppointmentRejection.OCCUPIED)
