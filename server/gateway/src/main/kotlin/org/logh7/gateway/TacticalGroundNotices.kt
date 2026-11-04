@@ -10,7 +10,7 @@ object TacticalGroundNotices {
             NavigationRejection.BASE->"정박·주둔 거점이 없습니다."
             NavigationRejection.CREW->"장갑병은 특수 행성·요새에 강하할 수 없습니다."
             NavigationRejection.RANGE->"함정이 명령 범위 밖입니다."
-            NavigationRejection.UNIT->if(deploy)"탑재한 육전대가 없습니다." else "철수할 육전대가 없거나 탑재 한도 초과입니다."
+            NavigationRejection.UNIT->if(deploy)"탑재한 육전대가 없습니다." else "병력 없음·탑재 정원 초과"
             NavigationRejection.BUSY->"이미 다른 명령을 수행 중입니다."
             NavigationRejection.GRID->"거점 육전대 정원 30유닛 초과입니다."
             NavigationRejection.CARD->"이 함정의 지휘 권한이 없습니다."
