@@ -15,6 +15,7 @@ class FleetNavigationTest {
         var stocks=initial
         var players=mapOf("pilot" to player)
         var fail=false
+        var commits=0
         val nav=object:NavigationStore {
             override fun load()=players
             override fun save(players:Map<String,Navigator>) {this@State.players=players.toMap()}
@@ -25,6 +26,7 @@ class FleetNavigationTest {
         }
         val commit=WorldStateCommitter { navigation, inventory ->
             if(fail)throw java.io.IOException("atomic save failed")
+            commits++
             players=navigation.toMap();stocks=checkNotNull(inventory)
         }
     }
@@ -300,6 +302,73 @@ class FleetNavigationTest {
             assertFailsWith<java.io.IOException> {resigned.await()}
             assertEquals(EngineHealth.STORAGE_FAILED,engine.health())
             assertEquals(players,state.players);assertEquals(inventory,state.stocks)
+            assertEquals(before.navigators,engine.snapshot().navigators)
+            assertEquals(before.planetStocks,engine.snapshot().planetStocks)
+        } finally {engine.drainAndClose()}
+    }
+
+    @Test fun changingAiSettingsAtArrivalCommitsTheFleetAideAndSettingsTogether()=runBlocking {
+      for(docking in listOf(false,true)) {
+        val state=state();addAide(state)
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),
+            if(docking)request.copy(place=PlaceMove.Dock(1000,4)) else request.copy(destination=2489))
+        val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
+            stockStore=state.inventory,worldStateCommitter=state.commit,npcPolicy=NpcTacticalPolicy(enabled=false))
+        try {
+            val joined=CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1));joined.await()
+            engine.submit(WorldCommand.AdvanceTo(if(docking)1_200_000 else 150_000))
+            val commits=state.commits
+            val changed=CompletableDeferred<NavigationResult>()
+            engine.submit(WorldCommand.Navigate(request.copy(offlineDirection=21),changed))
+            val result=changed.await();assertNull(result.rejection)
+            val player=checkNotNull(result.player);val aide=state.players.getValue("aide")
+            assertEquals(OutfitPosition(player.grid,player.baseId),state.stocks.outfits.getValue(1).position)
+            assertEquals(player.grid,aide.grid);assertEquals(player.baseId,aide.baseId)
+            assertEquals(docking,result.completedDock);assertEquals(!docking,result.completedWarp)
+            assertEquals(21,state.stocks.tacticalCommands.aiSwitches[10000])
+            assertEquals(commits+1,state.commits)
+        } finally {engine.drainAndClose()}
+      }
+    }
+
+    @Test fun aiSettingsCanChangeWithoutBypassingOrCancellingADeferredFleetArrival()=runBlocking {
+      for(lowFuel in listOf(false,true)) {
+        val state=state();addAide(state)
+        if(lowFuel)state.players=state.players+("aide" to state.players.getValue("aide").copy(cruise=100))
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2489))
+        if(!lowFuel)reserveAide(state,2,session.copy(gameMillis=1000))
+        val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
+            stockStore=state.inventory,worldStateCommitter=state.commit,npcPolicy=NpcTacticalPolicy(enabled=false))
+        try {
+            val joined=CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1));joined.await()
+            engine.submit(WorldCommand.AdvanceTo(150_000))
+            val players=state.players.toMap();val position=state.stocks.outfits.getValue(1).position;val commits=state.commits
+            val changed=CompletableDeferred<NavigationResult>()
+            engine.submit(WorldCommand.Navigate(request.copy(offlineDirection=21),changed))
+            val result=changed.await();assertNull(result.rejection);assertFalse(result.completedWarp)
+            assertEquals(players,state.players);assertEquals(position,state.stocks.outfits.getValue(1).position)
+            assertEquals(21,state.stocks.tacticalCommands.aiSwitches[10000]);assertEquals(commits+1,state.commits)
+        } finally {engine.drainAndClose()}
+      }
+    }
+
+    @Test fun failedAiSettingsAtArrivalPublishNeitherMovementNorSettings()=runBlocking {
+        val state=state();addAide(state)
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2489))
+        val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
+            stockStore=state.inventory,worldStateCommitter=state.commit,npcPolicy=NpcTacticalPolicy(enabled=false))
+        try {
+            val joined=CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1));joined.await()
+            engine.submit(WorldCommand.AdvanceTo(150_000))
+            val before=engine.snapshot();val players=state.players.toMap();val stocks=state.stocks;val commits=state.commits
+            state.fail=true
+            val changed=CompletableDeferred<NavigationResult>()
+            engine.submit(WorldCommand.Navigate(request.copy(offlineDirection=21),changed))
+            assertFailsWith<java.io.IOException> {changed.await()}
+            assertEquals(players,state.players);assertEquals(stocks,state.stocks);assertEquals(commits,state.commits)
             assertEquals(before.navigators,engine.snapshot().navigators)
             assertEquals(before.planetStocks,engine.snapshot().planetStocks)
         } finally {engine.drainAndClose()}

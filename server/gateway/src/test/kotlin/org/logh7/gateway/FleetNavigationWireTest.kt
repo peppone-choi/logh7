@@ -164,6 +164,54 @@ class FleetNavigationWireTest {
         }
     }
 
+    @Test fun aiSwitchesAtWarpCompletionMoveTheWholeFleetOrKeepTheReservationIntact()=runBlocking {
+      for(blocker in 0..2) {
+        val state=State(aide=true)
+        if(blocker==2)state.players=state.players+("load-001" to state.players.getValue("load-001").copy(cruise=100))
+        LoadFixture(directory.resolve("ai-arrival-$blocker"),2,LoadMetrics(),galaxy,ticking=false,
+            stockStore=state.inventory,navigationStore=state.nav,worldStateCommitter=state).use {fixture ->
+            val commander=fixture.join(fixture.account(0),true,false).client
+            commander.send(SyntheticClient.opcode(0x0f00));through(commander,0x0f01)
+            val aide=fixture.join(fixture.account(1),true,false).client
+            aide.send(SyntheticClient.opcode(0x0f00));through(aide,0x0f01)
+            val depart=PlaceMessages.switched(PlaceMessages.SwitchMode(10000,59,5),0,0,0,5,0,0,true)
+            commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)
+            fun reserve(client:SyntheticClient,id:Int) {
+                val warp=NavigationMessages.accepted(NavigationMessages.Warp(id,59,2489,0,5),0,0,0)
+                client.send(warp.copyOfRange(4,warp.size))
+                assertEquals(3600,ByteBuffer.wrap(through(client,0x0b01)).getInt(10))
+            }
+            reserve(commander,10000)
+            if(blocker==1) {fixture.engine.submit(WorldCommand.AdvanceTo(42));reserve(aide,10001)}
+            fixture.engine.submit(WorldCommand.AdvanceTo(150_000))
+            val settings=ByteBuffer.allocate(15).putShort(0x0f18).putInt(0).putInt(10000)
+                .put(byteArrayOf(1,0,1,0,1)).array()
+            commander.send(settings)
+            val accepted=ByteBuffer.wrap(through(commander,0x0f18))
+            assertEquals(0,accepted.getInt(0));assertEquals(10000,accepted.getInt(10))
+            assertContentEquals(byteArrayOf(1,0,1,0,1),accepted.array().copyOfRange(14,19))
+            if(blocker==0) {
+                assertEquals(2489,ByteBuffer.wrap(through(commander,0x0b07,10000)).getInt(14))
+                aide.send(SyntheticClient.opcode(0x0300))
+                assertEquals(2489,ByteBuffer.wrap(through(aide,0x0b07,10001)).getInt(14))
+            }
+            commander.send(SyntheticClient.opcode(0x0300));through(commander,0x0301)
+            val leader=state.players.getValue("load-000");val member=state.players.getValue("load-001")
+            assertEquals(if(blocker==0)2489 else 2487,leader.grid);assertEquals(leader.grid,member.grid)
+            assertEquals(if(blocker==0)null else 2489,leader.warpTarget)
+            assertEquals(920,leader.mcp);assertEquals(if(blocker==0)800 else 1000,leader.cruise)
+            assertEquals(if(blocker==1)2489 else null,member.warpTarget)
+            assertEquals(if(blocker==1)920 else 1000,member.mcp)
+            assertEquals(if(blocker==2)100 else if(blocker==0)800 else 1000,member.cruise)
+            assertEquals(OutfitPosition(leader.grid),state.stocks.outfits.getValue(1).position)
+            assertEquals(21,state.stocks.tacticalCommands.aiSwitches[10000])
+            commander.send(settings);assertEquals(0,ByteBuffer.wrap(through(commander,0x0f18)).getInt(0))
+            commander.send(SyntheticClient.opcode(0x0300));through(commander,0x0301)
+            assertEquals(leader,state.players.getValue("load-000"))
+        }
+      }
+    }
+
     @Test fun deferredFleetArrivalsKeepClockRefreshAliveUntilTheBlockingMemberMoves()=runBlocking {
       for(lowFuel in listOf(false,true)) {
         val state=State(aide=true)

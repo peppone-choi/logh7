@@ -18,8 +18,9 @@ class TacticalOfflineSettingsTest {
         val request=NavigationRequest("pilot",10000,Power.EMPIRE,"one",1,offlineDirection=21)
         var fail=false
         val commit=WorldStateCommitter {p,s->if(fail)throw java.io.IOException("disk");players=p;stocks=checkNotNull(s)}
-        fun accept(r:NavigationRequest=request)=TacticalOfflineSettings.accept(r,session,n,production,production.snapshot(1)!!,commit)
+        fun accept(r:NavigationRequest=request)=FleetNavigation.apply(r,session,galaxy,n,production,production.snapshot(1)!!,commit) {false}
         assertEquals(NavigationRejection.IDENTITY,accept(request.copy(characterId=10001)).rejection)
+        assertEquals(NavigationRejection.SESSION,accept(request.copy(connection="other")).rejection)
         assertTrue(stocks.tacticalCommands.aiSwitches.isEmpty())
         val result=accept();assertNotNull(result.player)
         assertEquals(listOf(1,0,1,0,1),stocks.tacticalCommands.ai(10000))

@@ -6,27 +6,36 @@ internal object FleetNavigation {
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?, blocked: (Int) -> Boolean): NavigationResult {
         val players = navigation.snapshot(session.generation)
         val before = players[request.account]
-        fun personal(movingUnits:Int=1,soloShip:Boolean=true):NavigationResult {
-            if(before==null || stocks.civic.active.none {it.character==before.characterId})
-                return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
-            if(committer==null)return NavigationResult(null,before,NavigationRejection.DISABLED)
-            val result=navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip)
+        fun configured(inventory:PlanetStocks,player:Navigator)=request.offlineDirection?.let {mask ->
+            inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(
+                aiSwitches=inventory.tacticalCommands.aiSwitches+(player.characterId to mask)))
+        } ?: inventory
+        fun commitPersonal(result:NavigationResult):NavigationResult {
             val after=result.player ?: return result
+            if(committer==null)return NavigationResult(null,before ?: after,NavigationRejection.DISABLED)
             val next=players+(request.account to after)
             val settled=CivicActions.settle(galaxy,stocks,session.gameMillis/1000,next.values)
-            val prepared=production.prepareReplacement(stocks,settled)
+            val prepared=production.prepareReplacement(stocks,configured(settled,after))
             committer.saveWorld(next,prepared)
             navigation.publishCommitted(players,next,session.generation);production.publishCommitted(stocks,prepared)
             return result
         }
+        fun personal(movingUnits:Int=1,soloShip:Boolean=true):NavigationResult {
+            if(request.offlineDirection==null && (before==null || stocks.civic.active.none {it.character==before.characterId}))
+                return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
+            return commitPersonal(navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip))
+        }
         // Personal flagship retreat must not transport the commander's unimplemented fleet/CRC selection.
-        if (request.tacticalRetreat != null || before?.retreat != null) return navigation.apply(request, session, stocks)
+        if (request.tacticalRetreat != null || before?.retreat != null)
+            return if(request.offlineDirection!=null)personal() else navigation.apply(request, session, stocks)
         val outfit = before?.let { player -> stocks.outfits.values.singleOrNull {
             it.commanderId == player.characterId && it.kind != OutfitKind.GROUND &&
                 it.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
                 it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
         } }
         if (before == null || outfit == null) return personal()
+        fun deferred(reason:NavigationRejection)=if(request.offlineDirection!=null)
+            commitPersonal(NavigationResult(before,before)) else NavigationResult(null,before,reason)
         val followers = players.filter { (account, player) ->
             account != request.account && player.power == before.power && player.characterId in outfit.members() &&
                 player.grid == before.grid && player.baseId == before.baseId && player.mode in 4..5 &&
@@ -42,7 +51,7 @@ internal object FleetNavigation {
         val starting = preview.rejection == null && (request.destination != null || request.place is PlaceMove.Dock ||
             request.place == PlaceMove.SwitchMode(5))
         if ((starting || position != outfit.positionIn(galaxy)) && followers.values.any { it.cpPaused || it.navigationPending })
-            return NavigationResult(null, before, NavigationRejection.BUSY)
+            return deferred(NavigationRejection.BUSY)
         if (position == outfit.positionIn(galaxy))
             return personal(units,false)
         if (committer == null) return NavigationResult(null, before, NavigationRejection.DISABLED)
@@ -50,7 +59,7 @@ internal object FleetNavigation {
             return NavigationResult(null, before, NavigationRejection.BUSY)
         // A reserved warp moves the fleet when its job completes, not on the accepting request.
         val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0
-        if (followers.values.any { it.cruise < cruiseCost }) return NavigationResult(null, before, NavigationRejection.CRUISE)
+        if (followers.values.any { it.cruise < cruiseCost }) return deferred(NavigationRejection.CRUISE)
         val moved = followers.mapValues { (_, player) -> player.copy(grid = after.grid, baseId = after.baseId,
             mode = after.mode, spotId = 0, spotOwner = 0, cruise = player.cruise - cruiseCost,
             cpPaused = after.cpPaused, cpRecoveryAt = if(player.cpPaused != after.cpPaused)session.gameMillis/1000 else player.cpRecoveryAt,
@@ -62,7 +71,8 @@ internal object FleetNavigation {
             BlackHoleTides.inGravity(galaxy, after.grid)
         val moving = outfit.copy(position = position).let { if (pulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
         val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to moving))
-        val prepared = production.prepareReplacement(stocks,CivicActions.settle(galaxy,deployed,session.gameMillis/1000,next.values))
+        val settled=CivicActions.settle(galaxy,deployed,session.gameMillis/1000,next.values)
+        val prepared = production.prepareReplacement(stocks,configured(settled,after))
         committer.saveWorld(next, prepared)
         navigation.publishCommitted(players, next, session.generation)
         production.publishCommitted(stocks, prepared)
