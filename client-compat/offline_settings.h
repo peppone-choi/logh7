@@ -17,10 +17,9 @@ static void sendOfflineSettings() {
     state.message=L"오프라인 설정을 서버에 보냈습니다.";
 }
 static void openOfflineSettings(void* own) {
-    // The 0323 handler (004ba2b0 case 0x323) copies the parsed own record to world+0x36a5e0; its +5f..+63 are the five
-    // switches. The record behind world+8 holds other data there (run-139..141 showed constant values).
-    (void)own;auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
-    for(unsigned i=0;i<5;++i)offlineFlags[i]=world && at<BYTE>(world,0x36a5e0+0x5f+i) ? 1 : 0;
+    // 004c0400 applies confirmed 0356 switches (+0x63..0x67) to the live own record (+0x83..0x87).
+    // The 0323 snapshot at world+0x36a5e0 is only the login copy and remains stale after a save.
+    for(unsigned i=0;i<5;++i)offlineFlags[i]=own && at<BYTE>(own,0x83+i) ? 1 : 0;
     offlineCursor=4;
     taxWindow.message=L"항목을 고르고 켬/끔을 바꾼 뒤 저장하세요.";
 }
