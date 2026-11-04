@@ -232,4 +232,76 @@ class FleetNavigationTest {
         assertEquals(920,state.players.getValue("pilot").mcp)
         assertEquals(OutfitPosition(retried.player!!.grid),state.stocks.outfits.getValue(1).position)
     }
+
+    @Test fun resigningAfterScheduledTravelCompletesMovesTheFleetAndItsAideBeforeRemovingTheOffice()=runBlocking {
+        for(docking in listOf(false,true)) {
+            val state=state();addAide(state)
+            apply(state,request.copy(place=PlaceMove.SwitchMode(5)),
+                if(docking)request.copy(place=PlaceMove.Dock(1000,4)) else request.copy(destination=2489))
+            val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
+                stockStore=state.inventory,worldStateCommitter=state.commit,npcPolicy=NpcTacticalPolicy(enabled=false))
+            try {
+                val joined=CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1));assertEquals(Admission.ACCEPTED,joined.await())
+                engine.submit(WorldCommand.AdvanceTo(if(docking)1_200_000 else 150_000))
+                val resigned=CompletableDeferred<OfficeResignationResult>()
+                engine.submit(WorldCommand.ResignOffice(OfficeResignationRequest("pilot","c",10000,Power.ALLIANCE,1,175),resigned))
+                val result=resigned.await();assertNull(result.rejection)
+                val arrived=checkNotNull(result.player)
+                assertEquals(OutfitPosition(arrived.grid,arrived.baseId),state.stocks.outfits.getValue(1).position,
+                    "a strategic command's recovery must move the fleet before resigning")
+                val aide=state.players.getValue("aide")
+                assertEquals(arrived.grid,aide.grid);assertEquals(arrived.baseId,aide.baseId)
+                assertEquals(0,state.stocks.outfits.getValue(1).commanderId)
+                val recovery=checkNotNull(result.recovery)
+                assertEquals(checkNotNull(recovery.player).mcp-80,arrived.mcp)
+                assertEquals(docking,recovery.completedDock)
+                assertEquals(!docking,recovery.completedWarp)
+            } finally {engine.drainAndClose()}
+        }
+    }
+
+    @Test fun strategicRecoveryCannotBypassAMembersBlockingStateWhenTheCommandersWarpBecomesDue()=runBlocking {
+      for(lowFuel in listOf(false,true)) {
+        val state=state();addAide(state)
+        if(lowFuel)state.players=state.players+("aide" to state.players.getValue("aide").copy(cruise=100))
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2489))
+        if(!lowFuel)reserveAide(state,2,session.copy(gameMillis=1000))
+        val before=state.players.toMap();val inventory=state.stocks
+        val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
+            stockStore=state.inventory,worldStateCommitter=state.commit,npcPolicy=NpcTacticalPolicy(enabled=false))
+        try {
+            val joined=CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1));joined.await()
+            engine.submit(WorldCommand.AdvanceTo(150_000))
+            val resigned=CompletableDeferred<OfficeResignationResult>()
+            engine.submit(WorldCommand.ResignOffice(OfficeResignationRequest("pilot","c",10000,Power.ALLIANCE,1,175),resigned))
+            val result=resigned.await()
+            assertEquals(ResignationRejection.BUSY,result.rejection)
+            assertEquals(if(lowFuel)NavigationRejection.CRUISE else NavigationRejection.BUSY,result.recovery!!.rejection)
+            assertEquals(before,state.players);assertEquals(inventory,state.stocks)
+        } finally {engine.drainAndClose()}
+      }
+    }
+
+    @Test fun aFailedArrivalCommitStopsTheStrategicCommandWithoutPublishingOrRemovingTheOffice()=runBlocking {
+        val state=state()
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2489))
+        val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
+            stockStore=state.inventory,worldStateCommitter=state.commit,npcPolicy=NpcTacticalPolicy(enabled=false))
+        try {
+            val joined=CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1));joined.await()
+            engine.submit(WorldCommand.AdvanceTo(150_000))
+            val before=engine.snapshot();val players=state.players.toMap();val inventory=state.stocks
+            state.fail=true
+            val resigned=CompletableDeferred<OfficeResignationResult>()
+            engine.submit(WorldCommand.ResignOffice(OfficeResignationRequest("pilot","c",10000,Power.ALLIANCE,1,175),resigned))
+            assertFailsWith<java.io.IOException> {resigned.await()}
+            assertEquals(EngineHealth.STORAGE_FAILED,engine.health())
+            assertEquals(players,state.players);assertEquals(inventory,state.stocks)
+            assertEquals(before.navigators,engine.snapshot().navigators)
+            assertEquals(before.planetStocks,engine.snapshot().planetStocks)
+        } finally {engine.drainAndClose()}
+    }
 }

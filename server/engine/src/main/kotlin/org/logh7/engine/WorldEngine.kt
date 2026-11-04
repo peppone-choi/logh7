@@ -224,6 +224,23 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private var elapsed = initialElapsed
     private val logistics = OutfitLogistics(monotonicMillis)
     private val formations=OutfitFormationService(monotonicMillis)
+    private fun recoverNavigation(request:NavigationRequest,session:SessionState):NavigationResult? {
+        val navigation=navigation ?: return null
+        val player=navigation.snapshot(session.generation)[request.account]
+        val now=session.gameMillis/1000
+        if(player?.warpReadyAt?.let {it<=now}!=true && player?.dockReadyAt?.let {it<=now}!=true)
+            return navigation.apply(request,session)
+        val galaxy=galaxy ?: return navigation.apply(request,session)
+        val production=production ?: return navigation.apply(request,session)
+        val result=FleetNavigation.apply(request,session,galaxy,navigation,production,
+            production.settle(session.generation,session.gameMillis/1000),worldStateCommitter) {
+            logistics.blocksMovement(session,it)
+        }
+        // A deferred fleet arrival leaves the authenticated actor's pending work in place.
+        // Let the strategic command's own policy return BUSY without charging it.
+        return if(result.rejection==NavigationRejection.BUSY || result.rejection==NavigationRejection.CRUISE)
+            result.copy(player=result.previous) else result
+    }
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
     private val profiles = java.util.concurrent.ConcurrentHashMap<String, StrategicPerson>()
@@ -359,7 +376,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) {"World storage is unavailable"}
                     val r=command.request;val i=r.identity
                     val session=durableState?.session ?: simulation.exportState()
-                    val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     val before=recovered?.player
@@ -395,7 +412,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) {"World storage is unavailable"}
                     val request=command.request
                     val session=durableState?.session ?: simulation.exportState()
-                    val recovered=navigation?.apply(NavigationRequest(request.account,request.characterId,request.power,
+                    val recovered=recoverNavigation(NavigationRequest(request.account,request.characterId,request.power,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
@@ -435,7 +452,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     val before = recovered?.player
@@ -491,7 +508,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     var result = GroundTransfer.evaluate(request, session, recovered?.player, inventory)
@@ -524,7 +541,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     var result = Supplement.evaluate(request, session, recovered?.player, inventory)
@@ -557,7 +574,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     var result = CompletenessSupply.evaluate(request, session, recovered?.player, inventory)
@@ -590,7 +607,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     val before = recovered?.player
@@ -651,7 +668,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
                     var result = GarrisonAppointment.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
@@ -682,7 +699,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
                     var result = OfficeDismissal.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
@@ -713,7 +730,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request=command.request
                     val session=durableState?.session ?: simulation.exportState()
-                    val recovered=navigation?.apply(NavigationRequest(request.account,request.characterId,request.power,
+                    val recovered=recoverNavigation(NavigationRequest(request.account,request.characterId,request.power,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
                     val inventory=checkNotNull(production) { "World production is disabled" }.settle(session.generation,session.gameMillis/1000)
                     var result=OfficeResignation.evaluate(checkNotNull(galaxy),request,session,recovered?.player,inventory)
@@ -740,7 +757,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
-                    val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     val accounts=navigation?.snapshot(session.generation).orEmpty().let {s->recovered?.player?.let {s+(i.account to it)} ?: s}
@@ -782,7 +799,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
-                    val recovered=navigation?.apply(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     var result=BudgetActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,production.defaultRemittanceRate)
@@ -809,7 +826,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = navigation?.apply(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
                     var result = PlanetTax.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
