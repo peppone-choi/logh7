@@ -2,11 +2,46 @@ package org.logh7.engine
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.advanceTimeBy
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class WorldEngineTest {
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun periodicTickCannotRewindAClockSampleQueuedBeforeIt() = runTest {
+        val rules=SessionRules.load()
+        val interval=minOf(rules.strategyTickRealMillis,rules.tacticsTickRealMillis)
+        for(durable in listOf(false,true)) {
+            var now=0L
+            var intercept:(()->Unit)?=null
+            val store=if(!durable)null else object:SessionDurability {
+                private var saved=DurableWorldState(SessionSimulation(rules).exportState())
+                override fun load()=saved
+                override fun commit(action:SessionAction,transition:SessionTransition){saved=transition.state}
+                override fun close() {}
+            }
+            val engine=WorldEngine(this,rules,durability=store,monotonicMillis={
+                val sampled=now
+                intercept?.let {intercept=null;it()}
+                sampled
+            })
+            try {
+                runCurrent()
+                now=interval
+                lateinit var sample:Deferred<WorldSnapshot>
+                // Queue a fresh sample between a periodic tick's time read and its enqueue.
+                intercept={
+                    now=2*interval
+                    sample=async(start=CoroutineStart.UNDISPATCHED){engine.synchronizeTime()}
+                }
+                advanceTimeBy(interval);runCurrent()
+                sample.await()
+                assertEquals(2*interval*rules.speed/1000,engine.snapshot().session!!.gameSeconds)
+                assertEquals(0L,engine.snapshot().rejectedCommands)
+            } finally {engine.drainAndClose()}
+        }
+    }
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test fun clockSampleReadsMonotonicTimeWhenDequeuedRatherThanWhenRequested() = runTest {
         var now=0L
