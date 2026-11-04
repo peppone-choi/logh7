@@ -47,6 +47,81 @@ class NpcTacticsTest {
         assertEquals(listOf(TacticalWeapon.BEAM),settle(now,emptyNav,emptyStock,empty,moves).map {it.weapon})
         assertEquals(0,empty.stocks.outfits.getValue(1).supplies)
     }
+    @Test fun strategicFireKeepsTheWholeReturnTripAndThenReloadsAtTheRealDepot() {
+        for(jumps in listOf(1,3)) {
+            val state=state();val grid=2487+jumps
+            val point=TacticalPoint(-178f,-95f);val heading=(-Math.PI/2).toFloat()
+            val ai=NpcTacticalState(TacticalMotion(grid,now,TacticalPose(point,heading),0f,heading,listOf(point)),now,now)
+            state.players=state.players.mapValues {(_,p)->p.copy(grid=grid,motion=p.motion!!.copy(grid=grid))}
+            val original=state.stocks.outfits.getValue(1)
+            var stocks=state.stocks.copy(bases=state.stocks.bases.mapValues {(_,b)->b.copy(supplies=100000)},
+                outfits=mapOf(1 to OutfitSupplies.withBalances(original.copy(position=OutfitPosition(grid),
+                    activeShips=ActiveShipUnits(original.activeShips!!.values.map {it.copy(tactical=ai)})),mapOf(1 to 2700))))
+            val players=state.players.toMutableMap();val hits=mutableListOf<TacticalImpact>()
+            val moves=mutableListOf<TacticalMovement>()
+            fun sessionAt(at:Long)=session.copy(gameMillis=at*1000)
+            stocks=NpcTactics.advance(sessionAt(now),galaxy,players,stocks,NpcTacticalPolicy(strategic=true),24,hits,moves)
+            assertEquals(TacticalWeapon.entries,hits.map {it.weapon})
+            assertEquals(900,stocks.outfits.getValue(1).supplies)
+            for(pulse in 1..3) {
+                hits.clear()
+                stocks=NpcTactics.advance(sessionAt(now+480*pulse),galaxy,players,stocks,NpcTacticalPolicy(strategic=true),24,hits,moves)
+                assertEquals(if(jumps==1 && pulse<3)listOf(TacticalWeapon.BEAM,TacticalWeapon.GUN) else
+                    listOf(TacticalWeapon.BEAM),hits.map {it.weapon})
+                assertTrue(stocks.outfits.getValue(1).supplies>=jumps*300)
+            }
+            assertEquals(jumps*300,stocks.outfits.getValue(1).supplies)
+            var at=now+1440
+            val travel=mutableListOf<NpcStrategicMovement>()
+            repeat(jumps) {
+                stocks=NpcStrategy.advance(sessionAt(at),galaxy,players,stocks,travel)
+                assertNotNull(stocks.outfits.getValue(1).strategy!!.destination)
+                at+=3600
+                stocks=NpcStrategy.advance(sessionAt(at),galaxy,players,stocks,travel)
+                at+=21600
+            }
+            assertEquals(OutfitPosition(2487,1000),stocks.outfits.getValue(1).position)
+            assertEquals(3000,stocks.outfits.getValue(1).supplies)
+            assertEquals(97000,stocks.bases.getValue(1000).supplies)
+            assertEquals(jumps,travel.size)
+        }
+    }
+    @Test fun strandedStrategicFleetUsesNormalRetreatThenDocksWithoutReplayingItsOldJump() {
+        val state=state();val original=state.stocks.outfits.getValue(1)
+        val before=state.stocks.copy(bases=state.stocks.bases.mapValues {(_,b)->b.copy(supplies=100000)},
+            outfits=mapOf(1 to OutfitSupplies.withBalances(original.copy(
+                strategy=NpcStrategicState(now+21600,2487,now+3600)),mapOf(1 to 0))))
+        val players=state.players.toMutableMap();val hits=mutableListOf<TacticalImpact>();val moves=mutableListOf<TacticalMovement>()
+        val preparing=NpcTactics.advance(session,galaxy,players,before,NpcTacticalPolicy(strategic=true),24,hits,moves)
+        val retreat=assertNotNull(preparing.outfits.getValue(1).activeShips!!.values.single().tactical!!.retreat)
+        assertEquals(now+3720,retreat.completesAt);assertEquals(2487,retreat.destination)
+        assertEquals(before.bases,preparing.bases);assertEquals(0,preparing.outfits.getValue(1).supplies)
+        val escaped=NpcTactics.advance(session.copy(gameMillis=retreat.completesAt*1000),galaxy,players,
+            preparing,NpcTacticalPolicy(strategic=true),24,hits,moves)
+        assertEquals(OutfitPosition(2487),escaped.outfits.getValue(1).position)
+        assertNull(escaped.outfits.getValue(1).strategy)
+        assertEquals(0,escaped.outfits.getValue(1).supplies)
+        val docked=NpcStrategy.advance(session.copy(gameMillis=retreat.completesAt*1000),galaxy,players,escaped,mutableListOf())
+        assertEquals(OutfitPosition(2487,1000),docked.outfits.getValue(1).position)
+        assertEquals(3000,docked.outfits.getValue(1).supplies)
+        assertEquals(97000,docked.bases.getValue(1000).supplies)
+    }
+    @Test fun aReservedJumpCannotInterruptAnActiveTacticalWithdrawal() {
+        val state=state(75);val original=state.stocks.outfits.getValue(1)
+        val stocks=state.stocks.copy(outfits=mapOf(1 to OutfitSupplies.withBalances(original.copy(
+            strategy=NpcStrategicState(now+21600,2487,now+3600)),mapOf(1 to 300))))
+        val players=state.players.toMutableMap();val moves=mutableListOf<TacticalMovement>()
+        val preparing=NpcTactics.advance(session,galaxy,players,stocks,NpcTacticalPolicy(strategic=true),24,mutableListOf(),moves)
+        val retreat=assertNotNull(preparing.outfits.getValue(1).activeShips!!.values.single().tactical!!.retreat)
+        assertTrue(retreat.completesAt>now+3600)
+        val travel=mutableListOf<NpcStrategicMovement>()
+        val beforeExit=NpcStrategy.advance(session.copy(gameMillis=(now+3600)*1000),galaxy,players,preparing,travel)
+        assertEquals(OutfitPosition(2488),beforeExit.outfits.getValue(1).position)
+        assertEquals(300,beforeExit.outfits.getValue(1).supplies)
+        assertEquals(preparing.bases,beforeExit.bases)
+        assertEquals(retreat,beforeExit.outfits.getValue(1).activeShips!!.values.single().tactical!!.retreat)
+        assertNull(beforeExit.outfits.getValue(1).strategy);assertTrue(travel.isEmpty())
+    }
     private val rules=SessionRules.load()
     private val session=SessionSimulation(rules).also {it.join("pilot",Power.ALLIANCE,false,"current")}.exportState()
     private val now=session.gameMillis/1000

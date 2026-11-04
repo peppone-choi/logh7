@@ -21,7 +21,7 @@ internal object NpcStrategy {
     private fun distance(a:Int,b:Int)=max(abs(a%100-b%100),abs(a/100-b/100))
     private fun eligible(outfit:OutfitStock)=outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) &&
         outfit.members().isEmpty() && outfit.activeGround?.values.orEmpty().none {it.order!=null} && outfit.activeShips?.values?.any {it.boats>0}==true &&
-        outfit.activeShips.values.none {it.support!=null || it.attack!=null || it.shot!=null || it.posture?.order!=null}
+        outfit.activeShips.values.none {it.support!=null || it.attack!=null || it.shot!=null || it.posture?.order!=null || it.tactical?.retreat!=null}
     private fun power(outfit:OutfitStock)=if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE
     private fun allowed(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,target:Int):Boolean {
         val count=GridForces.mobileUnits(outfit)
@@ -39,6 +39,16 @@ internal object NpcStrategy {
     /** Hostile mobile units on [grid] against [camp]. */
     private fun hostile(forces:Map<Int,List<GridForces.Force>>,grid:Int,camp:Camp)=
         forces[grid].orEmpty().filter {it.camp!=camp}.sumOf {it.units}
+    private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):GalaxyBase? {
+        val origin=outfit.positionIn(galaxy).grid
+        return galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.power==outfit.power && it.camp==0}==true &&
+            !TacticalContact.contested(forces[b.grid].orEmpty())}
+            .minWithOrNull(compareBy<GalaxyBase> {distance(origin,it.grid)}.thenBy {it.grid}.thenBy {it.id})
+    }
+    /** Reserve real cargo for every remaining jump to the nearest currently safe depot. */
+    fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? =
+        if(!eligible(outfit) || outfit.positionIn(galaxy).baseId!=0)null else
+            home(galaxy,forces,outfit,stocks)?.let {distance(outfit.positionIn(galaxy).grid,it.grid)}
     /**
      * Next adjacent grid: towards the nearest enemy it can take on (at most twice its own mobile units), or, when
      * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards the nearest own depot
@@ -56,14 +66,20 @@ internal object NpcStrategy {
         val continuing=if(origin in candidates)listOf(origin) else if(preferred==null)candidates else
             candidates.filter {distance(preferred,it)<distance(origin,it)}.ifEmpty {candidates}
         val goal=continuing.minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it})
-        val homes=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.power==outfit.power && it.camp==0}==true &&
-            !TacticalContact.contested(forces[b.grid].orEmpty())}
-        // Away from its depots with fuel for fewer than two more jumps, it turns back while it still can.
+        val home=home(galaxy,forces,outfit,stocks)
+        // Turn back before the next ammunition payment could consume the return trip.
         val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit)
-        val short=position.baseId==0 && live.any {balances[it.id]?.let {b->b<it.boats*2}!=false}
+        val short=position.baseId==0 && live.any {unit->
+            val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
+            val shot=TacticalWeapon.entries.maxOf {weapon->
+                val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
+                if(mount.power==0)0 else TacticalFleetShoot.cost(unit,mount,weapon)}
+            val required=maxOf(unit.boats*2,(home?.let {distance(origin,it.grid)*unit.boats+shot} ?: 0))
+            balances.getValue(unit.id)<required
+        }
         if(goal!=null && beatable(origin) && !short)return if(goal==origin)null else step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition)
-        val home=homes.minWithOrNull(compareBy<GalaxyBase> {distance(origin,it.grid)}.thenBy {it.grid}.thenBy {it.id}) ?: return null
+        if(home==null)return null
         if(home.grid==origin)return if(position.baseId!=0)null else OutfitPosition(origin,home.id)
         return step(galaxy,forces,outfit,origin,home.grid,preferred)?.let {OutfitPosition(it,if(it==home.grid)home.id else 0)}
     }
