@@ -289,12 +289,13 @@ static bool updateStrategyAction(void*) {
         const StrategyDirectory::Person* person=nullptr;
         for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)person=&strategyDirectory.people[i];
         if(person)swprintf_s(label,L"대상  %ls · 계급 %u",person->name,person->rank);else swprintf_s(label,L"대상 인물을 선택해 주세요.");
-    } else if(army)swprintf_s(label,L"대상 부대 ID  %u",state.strategyOutfit);else swprintf_s(label,L"대상: 본인");
+    } else if(army && !state.strategyOutfit)wcscpy_s(label,L"지휘 중인 부대가 없습니다.");
+    else if(army)swprintf_s(label,L"대상 부대 ID  %u",state.strategyOutfit);else swprintf_s(label,L"대상: 본인");
     taxText(3,label);
     if(estate) {wchar_t name[32]={};pickerName(state.strategyBase,name);swprintf_s(label,L"봉토: %ls (%u)",name,state.strategyBase);taxText(4,label);}
     else if(title) {static const wchar_t* titles[]={L"공작",L"후작",L"백작",L"자작",L"남작",L"제국기사"};
         if(command==3)swprintf_s(label,L"작위: %ls",titles[state.strategyValue%6]);else swprintf_s(label,L"훈장 종류: %u",state.strategyValue+1);taxText(4,label);}
-    else taxText(4,L"");
+    else taxText(4,army && !state.strategyOutfit ? L"부대 지휘 직무 필요" : L"");
     unsigned cost=command==1 || estate ? 640 : command==2 ? 320 : command==46 || command==47 || command==48 || command==49 || command==50 || command==51 ? 80 : 160;
     swprintf_s(label,L"MCP %u · 부족 시 PCP %u 전액 대용",cost,cost*2);taxText(5,label);
     taxText(6,state.message);taxText(10,L"선택 항목");taxText(11,L"이전 / −");taxText(12,L"다음 / +");taxText(13,L"목록 갱신");taxText(14,L"실행");
