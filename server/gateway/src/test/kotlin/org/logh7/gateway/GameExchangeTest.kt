@@ -327,6 +327,61 @@ class GameExchangeTest {
             game.close()
         }
     }
+    @Test fun asynchronousBattleEntryCannotPreemptTheSendersStrategicWarp() {
+        var now=java.time.Instant.EPOCH
+        val clock=object:java.time.Clock() {
+            override fun getZone()=java.time.ZoneOffset.UTC
+            override fun withZone(zone:java.time.ZoneId):java.time.Clock=this
+            override fun instant()=now
+        }
+        val characters=CharacterCreation(clock=clock,lotteryWindowMillis=1)
+        characters.apply("user",listOf(1001));now=now.plusMillis(1)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Origin",2),GalaxySystem(4,2488,4,"Battle",3)),
+            emptyList(),Power.entries.associateWith {2487})
+        var player=Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000)
+        val navigation=object:GameNavigation {
+            override fun snapshot()=WorldSnapshot(1,0,SessionSnapshot(1,0,0,0,emptyMap(),1,1,null),
+                navigators=mapOf("user" to player),planetStocks=PlanetStocks(1,0,emptyMap()))
+            override fun apply(request:NavigationRequest):CompletableFuture<NavigationResult> {
+                val before=player
+                request.destination?.let {player=player.copy(grid=it,cpPaused=true,mcp=960,cruise=900,moves=1)}
+                return CompletableFuture.completedFuture(NavigationResult(player,before))
+            }
+        }
+        val tickets=SessionTickets()
+        val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
+            Handshake(b,2),characters,expectedGeneration=1,connection="owned",navigation=navigation,world=WorldBootstrap(galaxy))
+        fun delivered():List<ByteArray> {
+            val batch=assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join()))
+            val bytes=batch.bytes;var offset=0;val result=mutableListOf<ByteArray>()
+            while(offset<bytes.size) {
+                val end=offset+2+(ByteBuffer.wrap(bytes).getShort(offset).toInt() and 65535)
+                result+=Envelope.decode(LegacyBlowfish(b).decrypt(bytes.copyOfRange(offset+8,end)),-1).second
+                offset=end
+            }
+            return result
+        }
+        fun opcode(message:ByteArray)=ByteBuffer.wrap(message).getShort(4).toInt() and 65535
+        try {
+            game.accept(0x34,initial);game.accept(0x36,confirm)
+            val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+            game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+            game.accept(0x30,encrypted(hex("0200"),2));game.accept(0x30,encrypted(hex("0205"),3))
+            game.accept(0x30,encrypted(hex("0f00"),4));assertFalse(delivered().any {opcode(it)==0x0f1f})
+            game.accept(0x30,encrypted(hex("0f02"),5));assertFalse(delivered().any {opcode(it)==0x0f1f})
+            val warp=NavigationMessages.Warp(1001,59,2488,0,5)
+            game.accept(0x30,encrypted(NavigationMessages.accepted(warp,0,1000,1000).copyOfRange(4,37),6))
+            // Engine/presence observers may announce the destination battle before
+            // this sender has received its own persisted warp completion.
+            assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2488,true))))
+            val arrival=delivered()
+            assertEquals(listOf(0x0b01,0x0356,0x0325,0x0317,0x0b07),arrival.map(::opcode))
+            assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2488,true))))
+            game.accept(0x30,encrypted(hex("0f02"),7))
+            assertFalse(delivered().any {opcode(it)==0x0f1f},"Completed tactical initialization must not loop")
+            assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2488,true))))
+        } finally {game.close()}
+    }
     @Test fun warpWaitsForNavigationPersistenceThenPublishesAuthoritativeState() {
         var now = java.time.Instant.EPOCH
         val clock = object : java.time.Clock() {

@@ -242,7 +242,12 @@ class GameExchange(
                 deliveredTactics = it.player.cpPaused
                 if(changed) listOf(org.logh7.protocol.TacticsMessages.notify(it.player.grid,it.player.cpPaused)) else emptyList()
             }.orEmpty()
-            if (update != null) deliveredPlayer = update.player
+            if (update != null) {
+                // A strategic warp starts its own grid initialization after 0b07.
+                if(worldInitialized && update.player.cpPaused && deliveredPlayer?.grid?.let {it!=update.player.grid}==true)
+                    tacticalInitializationPending=true
+                deliveredPlayer = update.player
+            }
             if (update?.initialize == true) {
                 worldInitialized = true
                 tacticalInitializationPending = update.player.cpPaused && (update.stage != 0x0f02 || repeatTactical)
@@ -268,7 +273,9 @@ class GameExchange(
                 java.nio.ByteBuffer.wrap(message).getShort(4).toInt() and 65535==0x0f1f && message[6].toInt()==1
             val output=if(current.any(::entering)) {
                 rememberTacticalRefresh()
-                if(tacticalInitializationPending)current.filterNot(::entering)
+                val relocating=navigation?.snapshot()?.navigators?.get(ticket?.account)?.let {player ->
+                    deliveredPlayer?.grid?.let {it!=player.grid}==true}==true
+                if(tacticalInitializationPending || relocating)current.filterNot(::entering)
                 else current.also {tacticalInitializationPending=true}
             } else current
             if(output.isEmpty())null else {
