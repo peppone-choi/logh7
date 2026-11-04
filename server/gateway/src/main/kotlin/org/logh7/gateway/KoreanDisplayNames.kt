@@ -1,6 +1,6 @@
 package org.logh7.gateway
 
-/** Display-only names; source rule keys and saved identities remain unchanged. Author: Peppone Choi. */
+/** Display-only original identities; source rule keys and saved identities remain unchanged. Author: Peppone Choi. */
 internal object KoreanDisplayNames {
     /** Only reviewed built-in identities; never translate arbitrary player names. */
     fun original(character: org.logh7.protocol.CharacterMessages.Generate): org.logh7.protocol.CharacterMessages.Generate {
@@ -8,7 +8,10 @@ internal object KoreanDisplayNames {
             it.character.id == character.id && it.character.power == character.power &&
                 it.character.surname == character.surname && it.character.givenName == character.givenName
         } ?: return character
-        return character.copy(surname = catalogue(source.character.surname), givenName = catalogue(source.character.givenName))
+        return character.copy(surname = catalogue(source.character.surname), givenName = catalogue(source.character.givenName),
+            face = if (character.face == 1000001) source.character.face else character.face,
+            shipKind = if (character.shipKind == 0 && character.shipType == source.character.shipType)
+                source.character.shipKind else character.shipKind)
     }
     private val translations: Map<String, String> by lazy {
         buildMap {
