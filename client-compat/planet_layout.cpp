@@ -168,7 +168,6 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "unicode_text.h"
 #include "spot_labels.h"
 #include "character_information.h"
-#include "input_editor.h"
 #include "peer_notices.h"
 #include "tactical_notices.h"
 #include "unit_presence.h"
@@ -181,6 +180,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "tactical_weapon.h"
 #include "tactical_radar.h"
 #include "korean_resources.h"
+#include "input_editor.h"
 #include "display_hooks.h"
 #include "mail_input.h"
 #include "mail_labels.h"
@@ -585,7 +585,6 @@ static void install() {
     if (!installOutfitListColumns()) { status = -3; return; }
     if (!installOutfitWarnings()) { status = -3; return; }
     if (!installOutfitEditor()) { status = -3; return; }
-    if (!installInputEditor()) { status = -3; return; }
     if (!installSpotLabels()) { status = -3; return; }
     if (!installCharacterInformation()) { status = -3; return; }
     if (!installDockingInformation()) { status = -3; return; }
@@ -652,6 +651,7 @@ static void install() {
     }
     if (!installTacticalRadar()) { status = -3; return; }
     if (!installKoreanResources()) { status = -3; return; }
+    if (!installInputEditor()) { status = -3; return; }
 
     if (!installTacticalBaseUi()) { status = -3; return; }
     if (!installFortressCommandMenu()) { status = -3; return; }
