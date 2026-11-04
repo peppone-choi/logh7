@@ -5,6 +5,8 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.Properties
 import org.logh7.engine.*
+import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.SessionEndingMessages
 
 /** U-27 fame (W p.34; amounts are the user-approved 2026-10-31 proposal, evidence:guess).
  * When a session result first appears, every registered character converts its evaluation points
@@ -27,26 +29,50 @@ class FameLedger(private val file:Path?) {
     }
     @Synchronized fun fame():Map<String,Int> = load().let {p->
         p.stringPropertyNames().filter {!it.startsWith("@")}.associateWith {p.getProperty(it).toInt()}}
+    private fun points(snapshot:WorldSnapshot,c:CharacterMessages.Generate):Pair<Long,Long> {
+        val person=checkNotNull(snapshot.planetStocks).strategic.people[c.id.toInt()]
+        val rank=person?.rank ?: c.rank
+        val dead=(person?.deceasedAt ?: 0)>0
+        val power=if(c.power==2)Power.EMPIRE else Power.ALLIANCE
+        val bonus=if(!dead && power in winners(checkNotNull(snapshot.result)) || dead && rank in 2..7)reward(rank) else 0
+        val before=person?.evaluation ?: 0
+        return before to Math.addExact(before,bonus)
+    }
+    /** A read never grants fame; the result observer must have durably settled this generation. */
+    @Synchronized fun evaluation(snapshot:WorldSnapshot,characters:CharacterCreation,account:String):SessionEndingMessages.Evaluation? {
+        val generation=snapshot.session?.generation ?: return null
+        val p=load();if(p.getProperty("@settled/$generation")==null)return null
+        val saved=p.getProperty("@evaluation/$generation/$account")
+        val values=if(saved!=null)saved.split(',').map(String::toLong) else {
+            // shortcut: Old ledgers lack snapshots. Derive only the latest settlement under the unchanged reward policy;
+            // migrate these old records before changing that policy.
+            if(p.stringPropertyNames().any {it.startsWith("@settled/") && it.substringAfterLast('/').toLong()>generation})return null
+            if(snapshot.result==null || snapshot.planetStocks==null)return null
+            val c=characters.character(account) ?: return null
+            val (before,after)=points(snapshot,c)
+            val finalFame=p.getProperty(account,"0").toLong();val gained=after/POINTS_PER_FAME
+            check(finalFame>=gained) {"Fame ledger is inconsistent with the settled result"}
+            listOf(before,after,finalFame-gained,finalFame)
+        }
+        require(values.size==4 && values.all {it>=0} && values[1]>=values[0] && values[3]>=values[2])
+        return SessionEndingMessages.Evaluation(values[0],values[1],values[2],values[3],0)
+    }
     /** Returns the fame added per account, empty when this generation was already settled. */
     @Synchronized fun settle(snapshot:WorldSnapshot,characters:CharacterCreation):Map<String,Int> {
-        val result=snapshot.result ?: return emptyMap()
+        if(snapshot.result==null || snapshot.planetStocks==null)return emptyMap()
         val generation=snapshot.session?.generation ?: return emptyMap()
-        val stocks=snapshot.planetStocks ?: return emptyMap()
         val properties=load()
         if(properties.getProperty("@settled/$generation")!=null)return emptyMap()
-        val winners=winners(result)
         val added=linkedMapOf<String,Int>()
         for(c in characters.registeredCharacters()) {
             val account=characters.accountByCharacter(c.id.toInt()) ?: continue
-            val person=stocks.strategic.people[c.id.toInt()]
-            val rank=person?.rank ?: c.rank
-            val dead=(person?.deceasedAt ?: 0)>0
-            val power=if(c.power==2)Power.EMPIRE else Power.ALLIANCE
-            val bonus=if(!dead && power in winners || dead && rank in 2..7)reward(rank) else 0
-            val gained=((person?.evaluation ?: 0)+bonus)/POINTS_PER_FAME
-            if(gained<=0)continue
-            added[account]=Math.toIntExact(gained)
-            properties.setProperty(account,(properties.getProperty(account)?.toInt() ?: 0).plus(gained.toInt()).toString())
+            val (before,after)=points(snapshot,c);val gained=Math.toIntExact(after/POINTS_PER_FAME)
+            val previousFame=properties.getProperty(account,"0").toInt()
+            val finalFame=Math.addExact(previousFame,gained)
+            if(gained>0) {
+                added[account]=gained;properties.setProperty(account,finalFame.toString())
+            }
+            properties.setProperty("@evaluation/$generation/$account","$before,$after,$previousFame,$finalFame")
         }
         properties.setProperty("@settled/$generation","1")
         save(properties)

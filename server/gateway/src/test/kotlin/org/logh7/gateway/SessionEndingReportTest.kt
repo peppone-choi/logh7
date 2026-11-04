@@ -61,4 +61,11 @@ class SessionEndingReportTest {
         assertFailsWith<IllegalArgumentException>{message(world,who=actor.copy(id=10001))}
         assertFailsWith<IllegalArgumentException>{message(world,who=actor.copy(power=3))}
     }
+    @Test fun settledEvaluationAndFameAreTransmittedWithoutAnotherAward() {
+        val (world,_)=report()
+        val evaluation=SessionEndingMessages.Evaluation(250,933,12,21,0)
+        val packet=SessionEndingReport.message(world,actor,player,listOf(actor),emptyList(),evaluation)
+        val at=BootstrapMessages.character(actor,840,920).size
+        assertContentEquals(SessionEndingMessages.evaluation(evaluation),packet.copyOfRange(at,at+17))
+    }
 }

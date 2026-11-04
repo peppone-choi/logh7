@@ -8,6 +8,7 @@ struct EndingPower { unsigned power=0,characters=0,grade=255;bool present=false;
     unsigned populationCondition=255,fleetCondition=255;EndingStatistics statistics; };
 struct SessionEndingData {
     unsigned character=0,power=0,reason=0,seconds=0;wchar_t name[14]={};
+    unsigned previousEvaluation=0,finalEvaluation=0,previousFame=0,finalFame=0;bool evaluationPresent=false;
     EndingPower sides[2];EndingStatistics total;bool totalPresent=false;
     static EndingStatistics statistics(const unsigned char* p) {
         return {infoShort(p,0),infoShort(p,2),infoWord(p,4),infoWord(p,8),infoWord(p,12)};
@@ -20,12 +21,16 @@ struct SessionEndingData {
         if(q[0x2a0]!=2 || q[0x2a1]!=1 || q[0x358]>1)return false;
         unsigned char record[0x434]={};
         memcpy(record,q+0x2a4,4);record[4]=q[0x2a8];memcpy(record+0x2e8,q+4,0x14c);
-        return read(record);
+        if(q[0x358])memcpy(record+0x2d4,q+0x35c,16);
+        if(!read(record))return false;
+        evaluationPresent=q[0x358]!=0;return true;
     }
     bool read(const unsigned char* p,size_t length=0x434) {
         if(!p || length!=0x434 || !infoWord(p,0) || (p[4]!=2 && p[4]!=3) ||
             p[0x2ea]<3 || p[0x2ea]>5 || p[0x2eb]>13 || p[0x420]>1)return false;
         SessionEndingData next;next.character=infoWord(p,0);next.power=p[4];next.reason=p[0x2ea];next.seconds=infoWord(p,0x38c);
+        next.previousEvaluation=infoWord(p,0x2d4);next.finalEvaluation=infoWord(p,0x2d8);
+        next.previousFame=infoWord(p,0x2dc);next.finalFame=infoWord(p,0x2e0);next.evaluationPresent=true;
         if(p[0x2eb]) {
             if(infoShort(p,0x2ec+(p[0x2eb]-1)*2))return false;
             memcpy(next.name,p+0x2ec,p[0x2eb]*2);

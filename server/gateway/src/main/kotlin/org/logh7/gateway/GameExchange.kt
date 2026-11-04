@@ -53,6 +53,7 @@ class GameExchange(
     private val stock: GameStock? = null,
     private val administration: GameAdministration? = null,
     private val communication:GameCommunication? = null,
+    private val fame:FameLedger? = null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -90,7 +91,9 @@ class GameExchange(
             val account=checkNotNull(ticket).account
             val player=checkNotNull(snapshot.navigators[account])
             val character=checkNotNull(currentCharacter(account))
-            val message=SessionEndingReport.message(snapshot,character,player,characters.registeredCharacters(),offices(character,player))
+            val evaluation=if(fame==null)org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0)
+                else fame.evaluation(snapshot,characters,account) ?: return@prepared null
+            val message=SessionEndingReport.message(snapshot,character,player,characters.registeredCharacters(),offices(character,player),evaluation)
             endingPrepared=true
             handshake.stageAll(listOf(message),clearHeader=0)
         }
@@ -2026,7 +2029,8 @@ class GameExchange(
                     if(characters!==characterProvider())LobbyMessages.noCharacters()
                     else if(character!=null && snapshot?.result!=null && snapshot.session?.generation==admission?.generation)
                         LobbyMessages.characters(character,SessionEndingReport.session(snapshot,characters.registeredCharacters()),
-                            org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0))
+                            if(fame==null)org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0)
+                            else fame.evaluation(snapshot,characters,identity.account))
                     else LobbyMessages.characters(if(admission?.running==false)null else character)
                 }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2); LobbyMessages.sessions(admission?.running != false) }

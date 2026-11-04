@@ -158,7 +158,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 clients.add(ch)
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
-                                stock = stock, administration = administration, communication=communication, presence = presence, onPresence = { messages ->
+                                stock = stock, administration = administration, communication=communication, fame=characterStores.fame, presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
                                 val updateExchange = UpdateExchange()
