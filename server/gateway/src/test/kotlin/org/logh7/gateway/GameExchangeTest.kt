@@ -497,6 +497,22 @@ class GameExchangeTest {
             rejection = org.logh7.engine.NavigationRejection.BASE))
         assertEquals(listOf(0x0b06, 0x0356, 0x0325), opcodes(repeated.join()))
         assertEquals(1, ByteBuffer.wrap(repeated.join().first()).int)
+        pending = CompletableFuture()
+        game.accept(0x30, encrypted(departure, 9))
+        val woundedDeparture = assertNotNull(game.takePendingWorld())
+        val wounded = player.copy(spotId = 0, hull = org.logh7.engine.FlagshipHull(3, 100, woundedUntil = 999))
+        pending.complete(org.logh7.engine.NavigationResult(null, previous = wounded,
+            rejection = org.logh7.engine.NavigationRejection.WOUNDED))
+        val woundedMessages = woundedDeparture.join()
+        assertEquals(listOf(0x0b06, 0x0356, 0x0325, 0x0f1d), opcodes(woundedMessages))
+        val woundedReply = ByteBuffer.wrap(woundedMessages.first())
+        assertEquals(1, woundedReply.int)
+        assertEquals(wounded.pcp, woundedReply.getInt(16))
+        assertEquals(wounded.mcp, woundedReply.getInt(20))
+        val notice = woundedMessages.last()
+        assertEquals(ChatMessages.Spot(1001,
+            "[부상] 출항·승하선 불가"),
+            ChatMessages.spot(notice.copyOfRange(4, notice.size)))
         game.close()
     }
     @Test fun goldenCapturedInitialFrameWhenAvailable() {

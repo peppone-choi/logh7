@@ -695,12 +695,17 @@ class GameExchange(
                             val accepted = result.player != null
                             publication = Publication(character, player, false)
                             val seconds = gameSeconds()
+                            // The default native chat pane exposes one line; keep the refusal short.
+                            val notice = if (result.rejection == org.logh7.engine.NavigationRejection.WOUNDED)
+                                listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(id,
+                                    "[부상] 출항·승하선 불가"), seconds))
+                                else emptyList()
                             listOf(org.logh7.protocol.PlaceMessages.switched(command, seconds, player.pcp, player.mcp,
                                 player.mode, player.spotId, if (player.spotId == 0) id else player.spotOwner, accepted),
                                 characterMessage(character, player, true),
                                 unitMessage(character, player)) +
                                 (if (accepted && !result.completedDock) listOf(org.logh7.protocol.PlaceMessages.dockNotification(id,
-                                    player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character)
+                                    player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character) + notice
                         }
                         return null
                     }
