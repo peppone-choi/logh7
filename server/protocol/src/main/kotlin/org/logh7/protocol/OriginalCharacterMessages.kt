@@ -5,14 +5,15 @@ import java.nio.ByteBuffer
 /** Account/application codecs: CD readers 00407920 and 00409b60. */
 object OriginalCharacterMessages {
     data class Candidate(val character: CharacterMessages.Generate, val minimumFame: Int = 0)
-    // Names occur in manual initial-card-holders.csv. All other values are local P2 placeholders.
+    // Names: initial-card-holders.csv. Portraits: reviewed npc-face-matches.json (evidence:guess).
+    // Other character values remain local P2 placeholders; hull kinds follow the declared faction/type.
     val localCandidates = listOf(
-        Candidate(localCharacter(1001, 2, "キルヒアイス", "ジークフリード")),
-        Candidate(localCharacter(1002, 3, "ヤン", "ウェンリー")),
+        Candidate(localCharacter(1001, 2, "キルヒアイス", "ジークフリード", 26)),
+        Candidate(localCharacter(1002, 3, "ヤン", "ウェンリー", 100074)),
     )
-    private fun localCharacter(id: Long, power: Int, surname: String, given: String) =
+    private fun localCharacter(id: Long, power: Int, surname: String, given: String, face: Int) =
         CharacterMessages.Generate(4, id, power, if (power == 2) 0 else 3, 0, surname, given,
-            18, 1, 1, 1000001, List(8) { 50 }, 0, 0, 0, 20, 3, 0, "Local $id", 1)
+            18, 1, 1, face, List(8) { 50 }, 0, 0, 0, 20, 3, if (power == 2) 3 else 93, "Local $id", 1)
 
     fun account(fame: Int = 0, entries: List<Long> = emptyList()): ByteArray {
         require(fame >= 0 && entries.size <= 5)
