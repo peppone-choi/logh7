@@ -41,6 +41,15 @@ class OfficeResignationTest {
             assertFalse(replay.changed);assertEquals(result.player,replay.player);assertEquals(result.stocks,replay.stocks)
         }
     }
+    @Test fun aCommanderCannotResignWhileItsWarpIsReserved() {
+        val q=request(39);val stocks=stock(39)
+        val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,false,"c")}.exportState()
+        val warp=NavigationRequest("pilot",10000,Power.EMPIRE,"c",1,unitId=1010000,captainCard=59,destination=2489)
+        val pending=assertNotNull(Navigation(galaxy,null,NavigationPolicy()).apply(warp,session,stocks).player)
+        val result=act(q,stocks,pending)
+        assertEquals(ResignationRejection.BUSY,result.rejection)
+        assertEquals(stocks,result.stocks);assertEquals(pending,result.player);assertFalse(result.changed)
+    }
     @Test fun aNationalSeatKeptInTheGeneralSeatListIsAlsoCleared() {
         val base=stock(161,0)
         val listed=base.copy(strategic=base.strategic.copy(offices=listOf(OfficeHolding(161,1177,10000))))

@@ -101,7 +101,7 @@ object SocialActions {
         if(r.ticket==view.last?.id)return SocialResult(p,s,view=view)
         if(r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
         if(rank!=1)return reject(SocialRejection.RANK,view)
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return reject(SocialRejection.BUSY,view)
+        if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY,view)
         val power=if(p.power==Power.EMPIRE)2 else 3
         if(base==null || base.power!=power || base.camp!=0 || p.mode !in 1..4 || p.spotOwner!=0 ||
             g.bases.single {it.id==p.baseId}.grid!=p.grid || g.facilitiesAt(p.baseId,s).none {facility ->

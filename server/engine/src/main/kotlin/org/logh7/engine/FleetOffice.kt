@@ -66,7 +66,7 @@ internal object FleetOfficeAppointment {
         if(r.base!=0 && r.base!=outfit.baseId || !role.friendly(stocks,outfit)) return reject(AppointmentRejection.BASE)
         if(r.target<=0 || r.target==r.characterId || r.targetPower!=power) return reject(AppointmentRejection.TARGET)
         if(!role.eligible(r.actorRank,r.targetRank)) return reject(AppointmentRejection.RANK)
-        if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(AppointmentRejection.BUSY)
+        if(player.cpPaused || player.navigationPending) return reject(AppointmentRejection.BUSY)
         if(r.target in role.holders(outfit)) return GarrisonAppointmentResult(player,stocks)
         if(role.holders(outfit).size>=role.seats) return reject(AppointmentRejection.OCCUPIED)
         if(r.target in outfit.members()) return reject(AppointmentRejection.TARGET)

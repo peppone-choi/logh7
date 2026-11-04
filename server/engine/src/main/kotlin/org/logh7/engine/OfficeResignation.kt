@@ -24,7 +24,7 @@ internal object OfficeResignation {
         val holdings=policy.holders(stocks,r.card).filter {it.character==r.characterId}
         if(holdings.isEmpty())return reject(ResignationRejection.AUTHORITY)
         if(holdings.size!=1)return reject(ResignationRejection.AMBIGUOUS)
-        if(player.cpPaused || player.fuelReadyAt!=null || player.dockTarget!=null) return reject(ResignationRejection.BUSY)
+        if(player.cpPaused || player.navigationPending) return reject(ResignationRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),80,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(ResignationRejection.CP)
         // An abdicating emperor leaves the throne to the line of succession at the next settlement.

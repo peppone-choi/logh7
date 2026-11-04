@@ -4,6 +4,20 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class FlagshipHullTest {
+    @Test fun destructionClearsAReservedWarpBeforeReturningTheFlagshipHome() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3)),
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val session=SessionSimulation(SessionRules.load()).also {it.join("p",Power.ALLIANCE,false,"c")}.exportState()
+        val stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,100,200,300)))
+        val order=NavigationRequest("p",10000,Power.ALLIANCE,"c",1,unitId=1010000,captainCard=195,shipKind=89,destination=2489)
+        val pending=assertNotNull(Navigation(galaxy,null,NavigationPolicy()).apply(order,session,stocks).player)
+        assertEquals(2489,pending.warpTarget)
+        val returned=FlagshipRecovery.defeated(pending,10,galaxy,stocks)
+        assertEquals(1000,returned.baseId);assertEquals(4,returned.mode)
+        assertEquals(93,returned.hull!!.kind);assertEquals(86410,returned.hull!!.woundedUntil)
+        assertNull(returned.warpTarget);assertNull(returned.strategy);assertEquals(pending.mcp,returned.mcp)
+    }
+
     @Test fun shieldFractionAndPerFaceRegenerationSurviveAllocationChangesWithoutRetroactiveEnergy() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})

@@ -14,7 +14,7 @@ internal object PersonnelActions {
         if(r.identities.size>4096 || r.identities.distinctBy {it.id}.size!=r.identities.size)return reject(StrategyActionRejection.IDENTITY)
         val identity=r.identities.singleOrNull {it.id==r.target} ?: return reject(StrategyActionRejection.IDENTITY)
         if(identity.power!=power || identity.id==r.characterId)return reject(StrategyActionRejection.IDENTITY)
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return reject(StrategyActionRejection.BUSY)
+        if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val policy=OrganizationalOfficePolicy(galaxy)
         val person=stocks.strategic.people[r.target] ?: StrategicPerson()
         val rank=person.rank ?: identity.rank

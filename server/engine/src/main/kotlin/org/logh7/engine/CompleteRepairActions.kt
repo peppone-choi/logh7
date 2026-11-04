@@ -8,7 +8,7 @@ import org.logh7.engine.strategy.*
  * Author: Peppone Choi. */
 internal object CompleteRepairActions {
     val supported=setOf(61)
-    private fun busy(p:Navigator)=p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null
+    private fun busy(p:Navigator)=p.cpPaused || p.navigationPending
     private val commanders=mapOf(39 to OutfitKind.FLEET,44 to OutfitKind.TRANSPORT,47 to OutfitKind.PATROL,
         50 to OutfitKind.GROUND,175 to OutfitKind.FLEET,180 to OutfitKind.TRANSPORT,183 to OutfitKind.PATROL,186 to OutfitKind.GROUND)
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {

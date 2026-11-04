@@ -36,7 +36,7 @@ internal object CompletenessSupply {
         if (base.power != power || base.camp != 0 || from.baseId != to.baseId || player.baseId != from.baseId ||
             (from.position?.baseId ?: from.baseId) != from.baseId || (to.position?.baseId ?: to.baseId) != to.baseId)
             return reject(LogisticsRejection.LOCATION)
-        if (player.cpPaused || player.fuelReadyAt != null || player.dockTarget != null)
+        if (player.cpPaused || player.navigationPending)
             return reject(LogisticsRejection.BUSY)
         // Native result arrays have hard limits; never truncate a successful transaction.
         val sourceUnits = from.activeShips?.values ?: return reject(LogisticsRejection.STOCK)

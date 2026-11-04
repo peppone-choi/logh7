@@ -37,7 +37,7 @@ internal object Supplement {
             return reject(LogisticsRejection.ACCESS)
         if(r.base!=outfit.baseId || (outfit.position?.baseId ?: outfit.baseId)!=outfit.baseId ||
             r.kind!=outfit.kind.wire || p.baseId!=outfit.baseId || p.cpPaused ||
-            p.dockTarget!=null || p.fuelReadyAt!=null) return reject(LogisticsRejection.LOCATION)
+            p.navigationPending) return reject(LogisticsRejection.LOCATION)
         val active=outfit.activeShips ?: return reject(LogisticsRejection.STOCK)
         if(r.units.size>1 || r.units.values.any {it.isEmpty()} ||
             r.units.values.flatten().let {it.distinct().size!=it.size}) return reject(LogisticsRejection.STOCK)

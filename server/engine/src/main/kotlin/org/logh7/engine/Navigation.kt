@@ -28,6 +28,7 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     val warpReadyAt: Long? get() = if (warpTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
+    val navigationPending: Boolean get() = fuelReadyAt != null || dockTarget != null || warpTarget != null
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && pcpUsed in 0..CpExperience.USED_LIMIT && mcpUsed in 0..CpExperience.USED_LIMIT && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && supplies in 0..10_000 &&

@@ -70,7 +70,7 @@ object BudgetActions {
                     changed=true,view=view.copy(quote=cancelled))
             }
         }
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null)return reject(BudgetRejection.BUSY,view)
+        if(p.cpPaused || p.navigationPending)return reject(BudgetRejection.BUSY,view)
         if(p.baseId!=holding.seat || p.mode !in 1..4 || g.bases.single {it.id==holding.seat}.grid!=p.grid)
             return reject(BudgetRejection.LOCATION,view)
         if(r.phase==1) {

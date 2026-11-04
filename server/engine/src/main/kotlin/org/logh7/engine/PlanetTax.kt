@@ -35,7 +35,7 @@ internal object PlanetTax {
         val seed = galaxy.conditions[base.baseId] ?: return reject(TaxRejection.BASE)
         if (seed.habitability == 0) return reject(TaxRejection.BASE)
         if (player.baseId != base.baseId) return reject(TaxRejection.LOCATION)
-        if (player.cpPaused || player.fuelReadyAt != null || player.dockTarget != null) return reject(TaxRejection.BUSY)
+        if (player.cpPaused || player.navigationPending) return reject(TaxRejection.BUSY)
         if (request.rate == effectiveRate(base, seed)) return TaxResult(player, stocks)
         val payment = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), COST.toLong(), CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(TaxRejection.CP)

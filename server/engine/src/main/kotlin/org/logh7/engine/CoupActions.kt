@@ -76,7 +76,7 @@ object CoupActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
             return reject(SocialRejection.IDENTITY)
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
+        if(p.cpPaused || p.navigationPending || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         val policy=OrganizationalOfficePolicy(g)
         if(if(i.command==INSPECTION)i.card !in Justice.searchCards || policy.held(s,i.characterId).none {it.card==i.card} else i.card!=0)
             return reject(SocialRejection.CARD)

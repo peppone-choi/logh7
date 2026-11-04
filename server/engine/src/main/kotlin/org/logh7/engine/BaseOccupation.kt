@@ -100,7 +100,7 @@ internal object BaseOccupationOperations {
                     val point=TacticalPoint(centre.x+base.diameter+2f+offset++*2f,centre.y)
                     val pose=TacticalPose(point,0f)
                     next=next.copy(baseId=0,mode=5,spotId=0,spotOwner=0,cpPaused=true,cpRecoveryAt=now,
-                        fuelReadyAt=null,strategy=null,dockTarget=null,retreat=null,attack=null,
+                        fuelReadyAt=null,strategy=null,dockTarget=null,warpTarget=null,retreat=null,attack=null,
                         fire=next.fire?.copy(pending=null),
                         motion=TacticalMotion(base.grid,now,pose,0f,pose.direction,listOf(point)),
                         posture=TacticalPosture(base.grid,TacticalShipMode.ANCHORED,base.id),

@@ -37,7 +37,7 @@ object FlagshipMarketCatalog {
 }
 internal object FlagshipMarketActions {
     val supported=setOf(96)
-    private fun busy(p:Navigator,now:Long)=p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || (p.hull?.woundedUntil ?: 0)>now
+    private fun busy(p:Navigator,now:Long)=p.cpPaused || p.navigationPending || (p.hull?.woundedUntil ?: 0)>now
     fun settle(stocks:PlanetStocks,now:Long):PlanetStocks {
         val remaining=stocks.flagshipMarket.offers.filter {it.expiresAt>now}
         return if(remaining.size==stocks.flagshipMarket.offers.size)stocks else stocks.copy(flagshipMarket=FlagshipMarketState(remaining))
@@ -132,7 +132,7 @@ internal object GuardUnitActions {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val now=s.gameMillis/1000
         val power=if(p.power==Power.EMPIRE)2 else 3
-        if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || (p.hull?.woundedUntil ?: 0)>now)return reject(StrategyActionRejection.BUSY)
+        if(p.cpPaused || p.navigationPending || (p.hull?.woundedUntil ?: 0)>now)return reject(StrategyActionRejection.BUSY)
         val own=guardOf(stocks,r.characterId)
         val next:PlanetStocks
         if(r.argument==5) {

@@ -28,6 +28,28 @@ class JusticeActionsTest {
         SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(account,account,who.characterId,Power.EMPIRE,1,command,card,9,
             target=target,value=value,base=base,identities=ids)),session,who,s,accounts.values,accounts)
 
+    @Test fun detentionCancelsEveryPersonalNavigationJobWithoutRefundOrLaterEscape() {
+        for(kind in 0..2) {
+            var players=accounts+("c" to c.copy(baseId=0,mode=5,spotId=0,cruise=500))
+            val store=object:NavigationStore {
+                override fun load()=players
+                override fun save(value:Map<String,Navigator>) {players=value.toMap()}
+            }
+            val order=NavigationRequest("c",10002,Power.EMPIRE,"c",1,unitId=1010002,captainCard=59)
+            val request=when(kind) {0->order.copy(supplyFuel=true);1->order.copy(place=PlaceMove.Dock(1049,4));else->order.copy(destination=2489)}
+            val pending=assertNotNull(Navigation(galaxy,store,NavigationPolicy()).apply(request,session,stocks()).player)
+            val detainedPlayers=players.toMutableMap()
+            val detained=assertNotNull(JusticeActions.detain(galaxy,stocks(),detainedPlayers,10002,2,session.gameMillis/1000))
+            val prisoner=detainedPlayers.getValue("c")
+            assertEquals(10490019,prisoner.spotId);assertEquals(pending.mcp,prisoner.mcp)
+            assertNull(prisoner.strategy);assertNull(prisoner.fuelReadyAt);assertNull(prisoner.dockTarget);assertNull(prisoner.warpTarget)
+            players=detainedPlayers
+            val late=session.copy(gameMillis=session.gameMillis+100*86400_000L)
+            val after=assertNotNull(Navigation(galaxy,store,NavigationPolicy()).apply(order,late,detained).player)
+            assertEquals(1049,after.baseId);assertEquals(10490019,after.spotId,"the cancelled job cannot move the prisoner later")
+        }
+    }
+
     @Test fun aMinisterListsGrantsAndTheHolderArrestsOnce() {
         val listed=act(a,"a",Justice.PERMIT,7,10002,value=3,s=stocks())
         assertNull(listed.rejection);assertEquals(200,listed.player?.mcp,"MCP 800")
