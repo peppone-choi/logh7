@@ -510,7 +510,7 @@ class GameExchangeTest {
             pending.complete(decision)
             val response = game.finishJoin(decision)!!
             val body = Envelope.decode(LegacyBlowfish(b).decrypt(response.copyOfRange(8, response.size)), 2).second
-            assertContentEquals(hex(if (decision == Admission.ACCEPTED) "00000000020600" else "00000000020601"), body)
+            assertContentEquals(hex(if (decision == Admission.ACCEPTED) "00000000020600" else "00000000020201010000"), body)
             if (decision == Admission.FULL) assertFails { game.accept(0x30, encrypted(hex("0300"), 4)) }
             game.close(); game.close()
             assertEquals(listOf("user"), closed)

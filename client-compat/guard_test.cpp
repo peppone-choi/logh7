@@ -38,6 +38,7 @@
 #include "tactical_base_data.h"
 #include "tactical_notice_data.h"
 #include "session_ending_data.h"
+#include "game_admission_data.h"
 #include "system_affiliation_data.h"
 #include "environment_shader_data.h"
 #include "tactical_fortress_menu_data.h"
@@ -1205,6 +1206,9 @@ static int runGuard(int argc, wchar_t** argv) {
         !logh::definitionShipCounts(1,1,0,normal,alive) || normal!=0 || alive!=1 ||
         logh::definitionShipCounts(300,10,20,normal,alive) || logh::definitionShipCounts(300,301,0,normal,alive) ||
         logh::definitionShipCounts(0,0,0,normal,alive) || logh::definitionShipCounts(301,0,0,normal,alive))return 80;
+    if(logh::gameAdmissionRejected(0x0206,true) || logh::gameAdmissionRejected(0x0201,true) ||
+        logh::gameAdmissionRejected(0x0202,false) || !logh::gameAdmissionRejected(0x0202,true) ||
+        !logh::gameAdmissionRejected(0x10000202,true))return 81;
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));

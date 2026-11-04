@@ -123,9 +123,12 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     fun join(account: String, create: Boolean, initialize: Boolean = true): Joined {
         val client = game(account, create)
         try {
-            val body = client.request(SyntheticClient.opcode(0x0205), 0x0206, "join")
-            check(body.size == 7 && body[6].toInt() in 0..1)
-            val accepted = body[6] == 0.toByte()
+            val body = metrics.measure("join") {
+                client.send(SyntheticClient.opcode(0x0205)); client.expectAny(setOf(0x0206, 0x0202))
+            }
+            val accepted = ByteBuffer.wrap(body).getShort(4).toInt() == 0x0206
+            check(if (accepted) body.size == 7 && body[6] == 0.toByte()
+                else body.contentEquals(LoginMessages.sessionRejection()))
             if (accepted && initialize) bootstrap(client, characters.getValue(account)) else if (!accepted) client.expectClosed()
             return Joined(client, accepted)
         } catch (failure: Throwable) { client.close(); throw failure }
