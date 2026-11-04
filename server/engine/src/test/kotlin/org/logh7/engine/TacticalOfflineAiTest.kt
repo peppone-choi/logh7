@@ -61,6 +61,31 @@ class TacticalOfflineAiTest {
         assertEquals(TacticalGroundAction.DEPLOY,orders.getValue(5)!!.action);assertEquals(1000,orders.getValue(5)!!.base)
         assertNull(orders.getValue(6),"armored troops stay aboard at a fortress (W p.51)")
     }
+    @Test fun occupationRespectsRangeConfusionAndExistingOrdersBeforeAnchoringOrLanding() {
+        for(anchored in listOf(false,true))for(block in listOf("range","confusion","order","shot","ground")) {
+            val plain=stocks(2)
+            val outfit=plain.outfits.getValue(1)
+            val troop=ActiveGroundUnit(5,UnitStack(0),carrier=1)
+            val troops=ActiveGroundUnits(if(block=="ground")listOf(
+                troop.copy(order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2488,1,1000,now,now+25)),troop.copy(id=6)) else listOf(troop))
+            val ship=outfit.activeShips!!.values.single().copy(
+                posture=if(anchored)TacticalPosture(2488,TacticalShipMode.ANCHORED,1000) else null,
+                shot=if(block=="shot")TacticalUnitShot(10000,TacticalWeapon.BEAM,99,now,now+5) else null)
+            val owned=outfit.copy(units=UnitInventory(outfit.units.ships,troops.quantities()),
+                activeShips=ActiveShipUnits(listOf(ship)),activeGround=troops)
+            val start=plain.copy(bases=mapOf(1000 to PlanetStock(1000,3,0,100,0,0)),outfits=plain.outfits+(1 to owned),
+                tacticalCommands=plain.tacticalCommands.copy(
+                    missions=mapOf(10000 to TacticalMissionState(10000,2,1,1000,now,grid=2488)),
+                    morale=if(block=="confusion")mapOf(1 to 20) else emptyMap(),
+                    orders=if(block=="order")listOf(TacticalQueuedCommand(10000,2488,now,now+50,TacticalCommand(0x407,units=listOf(1)))) else emptyList()))
+            val players=players()
+            if(block=="range")players["pilot"]=players.getValue("pilot").copy(commandRange=TacticalCommandRange(now,0f))
+            val range=players.getValue("pilot").commandRange
+            val next=TacticalOfflineAi.advance(offline,galaxy,players,start,1,mutableListOf())
+            assertEquals(owned,next.outfits.getValue(1),"$block, anchored=$anchored: keep the ship, shot and troops unchanged")
+            assertEquals(range,players.getValue("pilot").commandRange,"a blocked unit must not consume command range")
+        }
+    }
     @Test fun onlineOrDisabledCharactersAreNotDrivenAndPendingPersonalShotsArePreserved() {
         for((session,stock) in listOf(baseSession to stocks(),offline to stocks().copy(tacticalCommands=TacticalCommandState()))) {
             val p=players();val before=p.toMap()

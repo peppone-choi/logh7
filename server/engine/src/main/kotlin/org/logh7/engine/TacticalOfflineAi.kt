@@ -56,18 +56,25 @@ internal object TacticalOfflineAi {
             // Every regular ship remains subject to ownership, CRC, confusion and pending-job guards.
             for((outfitId,original) in stocks.outfits.toSortedMap()) {
                 if(original.power!=(if(p.power==Power.EMPIRE)2 else 3) || original.positionIn(g)!=OutfitPosition(p.grid))continue
+                val commandable=original.activeShips?.values.orEmpty().filter {unit->
+                    TacticalAuthority.commander(original,unit,stocks)==p.characterId && unit.boats>unit.damaged &&
+                        !stocks.tacticalCommands.confused(unit.id) && unit.support==null && unit.shot==null &&
+                        unit.tactical?.retreat==null && unit.posture?.order==null &&
+                        stocks.tacticalCommands.orders.none {unit.id in it.command.units} &&
+                        original.activeGround?.values.orEmpty().none {it.order?.carrier==unit.id}
+                }.filter {unit->
+                    val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
+                        ?: TacticalDeployment.initial(unit.id,p.power,p.grid,players.values,stocks,g)
+                    distance(pose.position,at.position)<=(p.commandRange?.radius(now) ?: 0f)
+                }.map {it.id}.toSet()
                 if(occupied!=null) {
-                    val landed=occupation(original,occupied,p,now,scale,stocks,g,players.values)
+                    val landed=occupation(original,occupied,p,now,scale,stocks,g,players.values,commandable)
                     if(landed!==original) {stocks=stocks.copy(outfits=stocks.outfits+(outfitId to landed));commanded=true;continue}
                 }
                 val updated=original.activeShips?.values?.map {unit ->
-                    if(TacticalAuthority.commander(original,unit,stocks)!=p.characterId || unit.boats<=unit.damaged ||
-                        stocks.tacticalCommands.confused(unit.id) || unit.support!=null || unit.shot!=null ||
-                        unit.tactical?.retreat!=null || unit.posture?.let {it.mode.requiresBase || it.order!=null}==true ||
-                        stocks.tacticalCommands.orders.any {unit.id in it.command.units})return@map unit
+                    if(unit.id !in commandable || unit.posture?.mode?.requiresBase==true)return@map unit
                     val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
                         ?: TacticalDeployment.initial(unit.id,p.power,p.grid,players.values,stocks,g)
-                    if(distance(pose.position,at.position)>(p.commandRange?.radius(now) ?: 0f))return@map unit
                     val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
                     val velocity=(spec.number("最高速度（km/1G秒）:最高速度（km/1G秒）")/20000f).coerceIn(.1f,1f)
                     val lateral=((unit.id%5)-2)*1.5f
@@ -98,7 +105,7 @@ internal object TacticalOfflineAi {
      * 10-second 0x041c wait); an anchored carrier's troops get the player's 25-second landing order. Armored troops on
      * special planets/fortresses and the 30-unit box stay aboard, as for a player's 040f. Returns [outfit] when unchanged. */
     private fun occupation(outfit:OutfitStock,base:GalaxyBase,p:Navigator,now:Long,scale:Long,stocks:PlanetStocks,g:Galaxy,
-        players:Collection<Navigator>):OutfitStock {
+        players:Collection<Navigator>,commandable:Set<Int>):OutfitStock {
         val ships=outfit.activeShips ?: return outfit
         val ground=outfit.activeGround ?: return outfit
         val point=TacticalBasePosition.at(base,now,stocks)
@@ -109,8 +116,7 @@ internal object TacticalOfflineAi {
         for(unit in ships.values) {
             val aboard=troops.filter {it.carrier==unit.id && it.order==null && GroundBattleRules.admitsCrewType(base,
                 UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}
-            if(aboard.isEmpty() || unit.boats==0 || TacticalAuthority.commander(outfit,unit,stocks)!=p.characterId ||
-                unit.support!=null || unit.tactical?.retreat!=null)continue
+            if(aboard.isEmpty() || unit.id !in commandable)continue
             val posture=unit.posture?.takeIf {it.grid==p.grid}
             if(posture?.order!=null)continue
             if(posture?.mode==TacticalShipMode.ANCHORED && posture.base==base.id) {
