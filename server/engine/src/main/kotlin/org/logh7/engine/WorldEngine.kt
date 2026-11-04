@@ -987,7 +987,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         planetStocks = production?.snapshot(current.session.generation)))
                     if (command is WorldCommand.Join) {
                         if (next.rejected) command.result.completeExceptionally(IllegalArgumentException("Invalid join"))
-                        else command.result.complete(checkNotNull(next.admission))
+                        else {
+                            if (next.admission == Admission.ACCEPTED) command.profile?.let { profiles[command.account] = it }
+                            command.result.complete(checkNotNull(next.admission))
+                        }
                     }
                     if (command is WorldCommand.RequestRestart) command.result.complete(!next.rejected)
                     next.events.forEach(onEvent)
@@ -1014,7 +1017,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }
-                is WorldCommand.Join -> { command.profile?.let { profiles[command.account] = it }; admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION else simulation.join(command.account, command.power, command.original, command.connection); emptyList() }
+                is WorldCommand.Join -> {
+                    admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION
+                        else simulation.join(command.account, command.power, command.original, command.connection)
+                    if (admission == Admission.ACCEPTED) command.profile?.let { profiles[command.account] = it }
+                    emptyList()
+                }
                 is WorldCommand.Disconnect -> { simulation.disconnect(command.account, command.connection); emptyList() }
                 is WorldCommand.Exclude -> { simulation.exclude(command.account); emptyList() }
                 is WorldCommand.OpenBattle -> { simulation.openBattle(command.id); emptyList() }
