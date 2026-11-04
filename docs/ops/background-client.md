@@ -2,6 +2,14 @@
 
 작성: Peppone Choi · 2026-10-07 · 관련: ADR-0006 / D-7
 
+## 승인된 로컬 시험의 정상 종료 확인 (2026-11-05)
+
+작성: 최병호
+
+D-7에 따라 승인된 로컬 사본 시험에서 기본 성공 조건은 관찰 종료까지 프로세스가 실행 중인 것이다. 결과창의 종료 버튼처럼 원본이 스스로 닫혀야 하는 시험은 해당 사본의 `ui-commands.jsonl`에 `{"expectExit":true}`를 추가한 뒤 버튼을 누른다. 이 경우에만 정리 전 종료 코드 0을 요구한다. 실행 중인 채 관찰 시간이 끝나거나 0 이외로 종료하면 성공 처리하지 않는다. 다른 예외·클라이언트 예외·해시·Job 정리·시작 전 무음 조건은 그대로 검사한다. 종료 중 Frida 입력/무음 RPC가 사라지는 경합은 명시된 종료 기대와 소유 핸들의 종료 코드 0이 함께 확인될 때만 허용한다. 이 설정은 다른 시험이나 클라이언트에 적용되지 않는다.
+
+로컬 로그인 중계의 상류 연결이 TCP 리셋되면 `upstream_reset=true`를 기록하고 원본에 EOF를 전달한다. 중계기 예외가 원본을 먼저 종료시켜 원래 연결 종료 안내를 관찰하지 못하던 문제를 보완한 것이다. 시험 도구의 성공은 제품 기능의 성공이나 로그인 전체 검증을 뜻하지 않으므로, 실제 화면·게임 응답과 구분해 기록한다.
+
 ## 받은 방법과 적용
 
 Breaking Point 「채팅 오케스트레이션 시작」 채팅에서 `BP_GUI_TEST` 실행·캡처 기록과 `E:\hoi4-mods\Breaking-Point-New\tools\bp_background_game.py`, `bp_virtual_input.py`, `docs\branding\hud\BACKGROUND-GAME-CHECK.md`를 확인했다. 핵심은 `CreateDesktop`, `STARTUPINFO.lpDesktop`, 대상 창 `PrintWindow`, 자식 종료까지 데스크톱 핸들 유지다. HOI4 전용 DLL·설정은 가져오지 않았다. `evidence:client` (외부 채팅 기록 및 로컬 소스 읽음)

@@ -130,12 +130,32 @@ static unsigned __fastcall lobbyEndingFrame(void* controller,void*) {
     }
     return reinterpret_cast<unsigned(__thiscall*)(void*)>(0x51a370)(controller);
 }
+// After a validated ending, the old session's socket closes on generation change.
+// Its modal would cover the saved result. Other disconnects retain the native dialog.
+static bool hasCurrentSessionEnding() {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    return sessionEnding.active && !sessionEnding.lobby && world==sessionEnding.world &&
+        own && at<unsigned>(own,0x24)==sessionEnding.data.character;
+}
+static BYTE __fastcall sessionEndingDisconnect(void* controller,void*,int kind) {
+    if(kind==0 && hasCurrentSessionEnding())return 1;
+    return reinterpret_cast<BYTE(__thiscall*)(void*,int)>(0x54eda0)(controller,kind);
+}
+static int __fastcall sessionEndingDisconnectFrame(void* controller,void*) {
+    if(hasCurrentSessionEnding()) {
+        // The disconnected frame otherwise returns early or treats no modal (-1) as exit.
+        updateSessionEnding(at<void*>(controller,12));return 0;
+    }
+    return reinterpret_cast<int(__thiscall*)(void*)>(0x54ee60)(controller);
+}
 static bool installSessionEnding() {
-    const unsigned addresses[]={0x54ef34,0x4b698a};
-    const BYTE expected[][5]={{0xe8,0x17,0xcc,0xff,0xff},{0xe8,0xe1,0x39,0x06,0x00}};
-    const void* functions[]={&sessionEndingFrame,&lobbyEndingFrame};
-    for(unsigned i=0;i<2;++i)if(memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5))return false;
-    for(unsigned i=0;i<2;++i) {
+    const unsigned addresses[]={0x54ef34,0x4b698a,0x4b6914,0x4b691f};
+    const BYTE expected[][5]={{0xe8,0x17,0xcc,0xff,0xff},{0xe8,0xe1,0x39,0x06,0x00},
+        {0xe8,0x87,0x84,0x09,0x00},{0xe8,0x3c,0x85,0x09,0x00}};
+    const void* functions[]={&sessionEndingFrame,&lobbyEndingFrame,&sessionEndingDisconnect,&sessionEndingDisconnectFrame};
+    for(unsigned i=0;i<4;++i)if(memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5))return false;
+    for(unsigned i=0;i<4;++i) {
         BYTE call[5]={0xe8};auto address=reinterpret_cast<BYTE*>(addresses[i]);
         *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(static_cast<const BYTE*>(functions[i])-address-5);
         if(!patchBytes(address,expected[i],call,5))return false;
