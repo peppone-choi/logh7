@@ -4,6 +4,8 @@
 #include <cstdio>
 #include "hud_atlas.h"
 #include "navigation_hud_data.h"
+#include "country_colors_data.h"
+#include "country_icon_data.h"
 #include "creation_menu_data.h"
 #include "planet_info_data.h"
 #include "spot_presence.h"
@@ -1301,6 +1303,34 @@ static int runGuard(int argc, wchar_t** argv) {
         !logh::formatNavigationHud(4*31104000u,1000,1000,logh::countryCalendars[2],navigationCp,navigationDate) ||
         wcscmp(navigationDate,L"신제국력 1년  1월  1일  0시  0분") ||
         logh::navigationHudText(0,1000,1000,100,navigationCp,navigationDate))return 294;
+    BYTE paintPacket[24+6*36]={};
+    *reinterpret_cast<unsigned*>(paintPacket)=2;*reinterpret_cast<unsigned*>(paintPacket+4)=17;
+    paintPacket[8]=4;paintPacket[20]=6;
+    auto paintField=[&](unsigned index,const wchar_t* value) {
+        auto row=paintPacket+24+index*36;*reinterpret_cast<unsigned*>(row)=index+1;
+        row[4]=static_cast<BYTE>(index);row[6]=static_cast<BYTE>(wcslen(value)+1);
+        wcscpy_s(reinterpret_cast<wchar_t*>(row+8),13,value);
+    };
+    paintField(0,L"123456");paintField(1,L"inherit");paintField(2,L"000000");paintField(3,L"FFFFFF");
+    paintField(4,L"900719925474");paintField(5,L"0993");logh::CountryPaint paint;
+    if(!logh::readCountryPaint(paintPacket,sizeof(paintPacket),2,17,paint) || paint.id!=2 || paint.mask!=13 ||
+        paint.rgb[0]!=0x123456 || paint.rgb[2] || paint.rgb[3]!=0xffffff || paint.revision!=9007199254740993ULL ||
+        logh::readCountryPaint(paintPacket,sizeof(paintPacket),2,18,paint) ||
+        logh::readCountryPaint(paintPacket,sizeof(paintPacket)-1,2,17,paint))return 295;
+    paintField(4,L"922337203685");paintField(5,L"4775808");
+    if(logh::readCountryPaint(paintPacket,sizeof(paintPacket),2,17,paint))return 296;
+    paintField(4,L"0");paintField(5,L"");paintField(0,L"url(x)");
+    if(logh::readCountryPaint(paintPacket,sizeof(paintPacket),2,17,paint))return 297;
+    BYTE iconPixels[]={255,128,64,73,7,7,7,255,91,92,93,94,0,0,255,0,100,100,100,9,81,82,83,84};
+    if(!logh::neutralCountryPixels(iconPixels,12,2,2) || iconPixels[0]!=iconPixels[1] || iconPixels[1]!=iconPixels[2] ||
+        iconPixels[3]!=73 || iconPixels[4]!=7 || iconPixels[7]!=255 || iconPixels[8]!=91 || iconPixels[11]!=94 ||
+        iconPixels[12]!=iconPixels[13] || iconPixels[13]!=iconPixels[14] || iconPixels[15]!=0 || iconPixels[19]!=9 || iconPixels[23]!=84)return 298;
+    BYTE unchanged[sizeof(iconPixels)];memcpy(unchanged,iconPixels,sizeof(iconPixels));
+    if(!logh::neutralCountryPixels(iconPixels,12,2,2) || memcmp(unchanged,iconPixels,sizeof(iconPixels)))return 299;
+    if(logh::neutralCountryPixels(nullptr,12,2,2) || logh::neutralCountryPixels(iconPixels,-12,2,2) ||
+        logh::neutralCountryPixels(iconPixels,7,2,2) || logh::neutralCountryPixels(iconPixels,4097,2,2) ||
+        logh::neutralCountryPixels(iconPixels,12,129,2) || logh::neutralCountryPixels(iconPixels,12,2,129) ||
+        logh::neutralCountryPixels(iconPixels,12,0,2) || memcmp(unchanged,iconPixels,sizeof(iconPixels)))return 300;
     return 0;
 }
 

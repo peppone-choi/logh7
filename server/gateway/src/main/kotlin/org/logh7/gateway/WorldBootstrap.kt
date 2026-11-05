@@ -13,6 +13,19 @@ import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy) {
+    @Volatile private var countryAppearances:List<org.logh7.engine.CountryAppearance> = emptyList()
+    @Synchronized fun publishCountryAppearances(values:List<org.logh7.engine.CountryAppearance>) {
+        require(values.map {it.countryId}.distinct().size==values.size)
+        val previous=countryAppearances.associateBy {it.countryId}
+        // A polling read started before a web save may finish after its newer snapshot.
+        countryAppearances=values.map {value->previous[value.countryId]?.takeIf {it.revision>value.revision} ?: value}
+    }
+    fun countryColors(query:OutfitPartyMessages.Query,viewerPower:Int):ByteArray {
+        val appearance=countryAppearances.firstOrNull {it.countryId==query.outfit}
+        val colors=appearance?.colors ?: org.logh7.engine.CountryColors()
+        val fields=listOf(colors.primary,colors.secondary,colors.map,colors.fleet).map {org.logh7.engine.CountryColors.hex(it).removePrefix("#")}
+        return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryColorMessages.reply(query,viewerPower,fields,appearance?.revision ?: 0))
+    }
     private val officeCards=org.logh7.engine.OrganizationOffices.all.mapValues {(_,role)->
         val commands=buildList {
             addAll(WorldMessages.commandsForCard(role.card).filter {it !in 25..26})
