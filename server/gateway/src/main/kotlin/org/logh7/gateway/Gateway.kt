@@ -67,7 +67,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val stock: GameStock? = null, private val administration: GameAdministration? = null,
     private val sessionDirectory:GameSessionDirectory?=null,
     private val sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,
-    private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME) : AutoCloseable {
+    private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,
+    private val accountFame:FameLedger?=null) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
@@ -109,7 +110,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
-        val characterStores = CharacterStores(characterFile)
+        val characterStores = CharacterStores(characterFile,accountFame)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         fun information(snapshot:org.logh7.engine.WorldSnapshot?,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
             if(snapshot?.result!=null && snapshot.session?.generation==(admission?.generation ?: 1L))
@@ -137,9 +138,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             }),accounts)
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById)}}
         tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
-        fameSubscription=stock?.observeSessionResults {s->s.session?.generation?.let {g->
+        fun settleResult(s:org.logh7.engine.WorldSnapshot) {s.session?.generation?.let {g->
             characterStores.fame.settle(s,characterStores.get(g))
             characterStores.carryOver(s).takeIf {it.isNotEmpty()}?.let {println("carried over ${it.size} characters to generation ${g+1}")}}}
+        fameSubscription=stock?.observeSessionResults(::settleResult)
+        // An ended world can have been committed before the award observer ran; replay the durable result on boot.
+        if(stock!=null)navigation?.snapshot()?.takeIf {it.result!=null}?.let(::settleResult)
         identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
             org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList(),c.age)}}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},

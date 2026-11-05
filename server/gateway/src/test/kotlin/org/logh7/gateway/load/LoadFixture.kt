@@ -16,10 +16,12 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     private val navigationDecorator: (GameNavigation) -> GameNavigation = { it },
     private val powerByIndex: (Int) -> Int = {2},npcTactics:Boolean=false,npcStrategy:Boolean=false,
     private val sessionDirectory:GameSessionDirectory?=null,private val sessionId:Int=1,
-    private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,accountSource:Map<String,String>?=null) : AutoCloseable {
+    private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,accountSource:Map<String,String>?=null,
+    private val accountFame:FameLedger?=null,sessionDurability:SessionDurability?=null,
+    prepare:(WorldEngine)->Unit = {}) : AutoCloseable {
     val accounts = accountSource ?: (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,
+    val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,durability=sessionDurability,
         stockStore = stockStore, navigationStore = navigationStore, worldStateCommitter = worldStateCommitter,
         npcPolicy=NpcTacticalPolicy(enabled=npcTactics || npcStrategy,strategic=npcStrategy))
     val access = EngineGameAdmission(engine, scope)
@@ -48,6 +50,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     init {
         Files.createDirectories(directory)
         try {
+            prepare(engine)
             val started = startGateway()
             gateway = started.first; loginPort = started.second[0]; sessionPort = started.second[2]
         } catch (failure: Throwable) { engine.close(); scope.cancel(); throw failure }
@@ -63,7 +66,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
                 gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission,
                 world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { navigationDecorator(EngineGameNavigation(engine, scope)) },
                 stock = galaxy?.let { EngineGameStock(engine, scope) }, administration = galaxy?.let { EngineGameAdministration(engine, scope, it) },
-                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName)
+                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,accountFame=accountFame)
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 metrics.observe("bindRetries", attempt.toLong()); return candidate to ports
