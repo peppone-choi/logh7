@@ -1,0 +1,110 @@
+package org.logh7.persistence
+
+import java.sql.Connection
+import java.sql.DriverManager
+import java.sql.PreparedStatement
+import java.lang.reflect.Proxy
+import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
+import org.junit.jupiter.api.Assumptions.assumeTrue
+import org.junit.jupiter.api.Test
+import org.logh7.engine.*
+import kotlin.test.*
+
+class PostgresCountryDefinitionsTest {
+    private fun fixture(block:((()->Connection))->Unit) {
+        val url=System.getenv("LOGH7_TEST_DATABASE_URL")
+        assumeTrue(!url.isNullOrBlank(),"PostgreSQL definitions run in country-schema CI")
+        val schema="definitions_"+UUID.randomUUID().toString().replace("-","")
+        fun connect()=DriverManager.getConnection(url,System.getenv("PGUSER") ?: "postgres",System.getenv("PGPASSWORD") ?: "").also {it.schema=schema}
+        DriverManager.getConnection(url,System.getenv("PGUSER") ?: "postgres",System.getenv("PGPASSWORD") ?: "").use {admin->
+            admin.createStatement().use {it.execute("CREATE SCHEMA $schema")}
+            try {
+                connect().use {db->
+                    for(file in listOf("V1__national_definitions.sql","V2__country_colors.sql","V3__country_definition_revision.sql"))
+                        db.createStatement().use {it.execute(checkNotNull(javaClass.getResourceAsStream("/db/migration/$file")).bufferedReader().use {r->r.readText()})}
+                    fun insert(sql:String,values:List<Any>) {db.prepareStatement(sql).use {query->values.forEachIndexed {i,value->query.setObject(i+1,value)};query.executeUpdate()}}
+                    val catalog=CountryCatalogLoader.load()
+                    insert("INSERT INTO nation_currency VALUES (?,?,?,?)",listOf("fixture","시험 통화","Q",0))
+                    for(c in catalog.calendars.values)insert("INSERT INTO nation_calendar VALUES (?,?,?)",listOf(c.key,c.name,c.yearOffset))
+                    for((table,values) in mapOf("nation_command_system" to catalog.families.values.map {it.commands},"nation_rank_system" to catalog.families.values.map {it.ranks},
+                        "nation_office_system" to catalog.families.values.map {it.offices},"nation_peerage_system" to catalog.families.values.map {it.peerage}))
+                        for(value in values.distinct())insert("INSERT INTO $table VALUES (?)",listOf(value))
+                    for(style in catalog.families.values.map {it.shipStyle}.distinct())insert("INSERT INTO nation_ship_style VALUES (?,?)",listOf(style,style))
+                    for(profile in catalog.countries.values.map {it.assets}.distinct())insert("INSERT INTO nation_asset_profile (profile_key,native_key) VALUES (?,?)",listOf(profile,profile))
+                    for(f in catalog.families.values)insert("INSERT INTO nation_family VALUES (?,?,?,?,?,?,?,?,?)",listOf(f.key,f.name,f.calendar,"fixture",f.commands,f.ranks,f.offices,f.peerage,f.shipStyle))
+                    for(c in catalog.countries.values)insert("INSERT INTO nation_country (country_id,country_key,display_name,family_key,native_power,native_camp,asset_profile) VALUES (?,?,?,?,?,?,?)",
+                        listOf(c.id,c.key,c.name,c.family,c.nativePower,c.nativeCamp,c.assets))
+                }
+                block(::connect)
+            } finally {admin.createStatement().use {it.execute("DROP SCHEMA $schema CASCADE")}}
+        }
+    }
+
+    @Test fun definitionsPersistOverridesNewEntriesAndRejectInvalidOrStaleEdits()=fixture {connect->
+        val store=PostgresCountryDefinitions(connect);val initial=store.load()
+        assertEquals(0,initial.revision);assertEquals(CountryCatalogLoader.load().countries,initial.catalog.countries)
+        val empire=initial.catalog.countries.getValue(2)
+        val swapped=empire.copy(name="제국 시험",shipStyleOverride="alliance")
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(0,CountryDefinitionEdit.Country(swapped)))
+        assertEquals(ShipStyleId("alliance"),store.load().catalog.shipStyle(CountryId(2)))
+        assertEquals(CountryDefinitionOutcome.CONFLICT,store.save(0,CountryDefinitionEdit.Country(empire)))
+        assertEquals(CountryDefinitionOutcome.UNCHANGED,store.save(1,CountryDefinitionEdit.Country(swapped)))
+        for(invalid in listOf(swapped.copy(nativePower=3),swapped.copy(shipStyleOverride="missing"),swapped.copy(assets="missing"),swapped.copy(name="\n")))
+            assertEquals(CountryDefinitionOutcome.INVALID,store.save(1,CountryDefinitionEdit.Country(invalid)))
+        assertEquals(1,store.load().revision)
+        assertEquals(CountryDefinitionOutcome.INVALID,store.save(1,CountryDefinitionEdit.Country(swapped,create=true)))
+        val calendar=CountryCalendar("fixture","시험력",-310)
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(1,CountryDefinitionEdit.Calendar(calendar,create=true)))
+        val custom=swapped.copy(id=42,key="fixture",calendarOverride=calendar.key)
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(2,CountryDefinitionEdit.Country(custom,create=true)))
+        val reopened=PostgresCountryDefinitions(connect).load()
+        assertEquals(3,reopened.revision);assertEquals(485,reopened.catalog.year(42,795))
+        val family=reopened.catalog.families.getValue("empire").copy(key="fixture",name="시험 계열",calendar=calendar.key,shipStyle="alliance")
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(3,CountryDefinitionEdit.Family(family,"fixture",create=true)))
+        val changed=custom.copy(family=family.key,calendarOverride=null,shipStyleOverride=null)
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(4,CountryDefinitionEdit.Country(changed)))
+        assertEquals(485,store.load().catalog.year(42,795));assertEquals(ShipStyleId("alliance"),store.load().catalog.shipStyle(CountryId(42)))
+        connect().use {db->db.createStatement().use {statement->
+            statement.executeQuery("SELECT count(*) FROM nation_membership").use {assertTrue(it.next());assertEquals(0,it.getInt(1))}
+            statement.executeQuery("SELECT count(*) FROM nation_territory").use {assertTrue(it.next());assertEquals(0,it.getInt(1))}
+            statement.executeQuery("SELECT count(*) FROM nation_money_account").use {assertTrue(it.next());assertEquals(0,it.getInt(1))}
+        }}
+    }
+
+    @Test fun editsOfDifferentDefinitionsStillConflictAtTheSharedVersion()=fixture {connect->
+        val store=PostgresCountryDefinitions(connect);val initial=store.load()
+        Executors.newFixedThreadPool(2).use {pool->
+            val gate=java.util.concurrent.CountDownLatch(1)
+            val edits=listOf(CountryDefinitionEdit.Country(initial.catalog.countries.getValue(2).copy(name="시험 제국")),
+                CountryDefinitionEdit.Calendar(initial.catalog.calendars.getValue("imperial").copy(name="시험력")))
+            val jobs=edits.map {edit->CompletableFuture.supplyAsync({gate.await();store.save(0,edit)},pool)}
+            gate.countDown();val result=jobs.map {it.get()}
+            assertEquals(1,result.count {it==CountryDefinitionOutcome.CHANGED});assertEquals(1,result.count {it==CountryDefinitionOutcome.CONFLICT})
+        }
+        assertEquals(1,store.load().revision)
+    }
+
+    @Test fun aReadBegunBeforeACommitCannotMixItsOldRevisionWithNewCountryRows()=fixture {connect->
+        val store=PostgresCountryDefinitions(connect);val before=store.load()
+        val reader=PostgresCountryDefinitions {
+            val db=connect()
+            Proxy.newProxyInstance(javaClass.classLoader,arrayOf(Connection::class.java)) {_,method,args->
+                val value=try {method.invoke(db,*(args ?: emptyArray()))}catch(e:java.lang.reflect.InvocationTargetException){throw e.targetException}
+                if(method.name=="prepareStatement" && args?.firstOrNull()=="SELECT revision FROM nation_definition_revision WHERE singleton=TRUE") {
+                    val query=value as PreparedStatement
+                    Proxy.newProxyInstance(javaClass.classLoader,arrayOf(PreparedStatement::class.java)) {_,operation,parameters->
+                        val result=try {operation.invoke(query,*(parameters ?: emptyArray()))}catch(e:java.lang.reflect.InvocationTargetException){throw e.targetException}
+                        if(operation.name=="executeQuery")assertEquals(CountryDefinitionOutcome.CHANGED,
+                            store.save(0,CountryDefinitionEdit.Country(before.catalog.countries.getValue(2).copy(name="새 제국"))))
+                        result
+                    }
+                } else value
+            } as Connection
+        }
+        val read=reader.load()
+        assertEquals(0,read.revision);assertEquals(before.catalog.countries,read.catalog.countries)
+        assertEquals(1,store.load().revision);assertEquals("새 제국",store.load().catalog.countries.getValue(2).name)
+    }
+}

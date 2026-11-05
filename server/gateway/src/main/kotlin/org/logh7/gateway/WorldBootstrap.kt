@@ -13,7 +13,8 @@ import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy,
-    private val countryCatalog:org.logh7.engine.CountryCatalog=org.logh7.engine.CountryCatalogLoader.load()) {
+    private val configuredCountryCatalog:org.logh7.engine.CountryCatalog?=null) {
+    private val countryCatalog get()=configuredCountryCatalog ?: org.logh7.engine.CountryCatalogLoader.current()
     @Volatile private var countryAppearances:List<org.logh7.engine.CountryAppearance> = emptyList()
     @Synchronized fun publishCountryAppearances(values:List<org.logh7.engine.CountryAppearance>) {
         require(values.map {it.countryId}.distinct().size==values.size)
@@ -26,6 +27,13 @@ class WorldBootstrap(val galaxy: Galaxy,
         val colors=appearance?.colors ?: org.logh7.engine.CountryColors()
         val fields=listOf(colors.primary,colors.secondary,colors.map,colors.fleet).map {org.logh7.engine.CountryColors.hex(it).removePrefix("#")}
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryColorMessages.reply(query,viewerPower,fields,appearance?.revision ?: 0))
+    }
+    fun countryMetadata(query:OutfitPartyMessages.Query,viewerPower:Int):ByteArray {
+        val snapshot=org.logh7.engine.CountryCatalogLoader.snapshot()
+        val catalog=configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog
+        val country=catalog.countries[query.outfit];val calendar=catalog.calendar(query.outfit)
+        return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryMetadataMessages.reply(query,viewerPower,
+            country?.name.orEmpty(),calendar?.name.orEmpty(),calendar?.yearOffset ?: 0,if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0))
     }
     private val officeCards=org.logh7.engine.OrganizationOffices.all.mapValues {(_,role)->
         val commands=buildList {
@@ -252,8 +260,9 @@ class WorldBootstrap(val galaxy: Galaxy,
             // Restore the native four-record current-grid cache after the map snapshot.
             listOf(conditions(ids,stocks), places(ids, stocks))
     }
-    fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x031f,
-        WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
+    fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
+        val countryCatalog=this.countryCatalog
+        return LoginMessages.sessionMessage(0x031f,WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
             val stored = stocks?.let { state -> checkNotNull(state.bases[it.baseId]) }
             val people = stored?.economy
             WorldMessages.Condition(it.baseId, it.grid, stored?.let {s->countryCatalog.nativePower(s.owner)} ?: it.power, stored?.camp ?: it.camp,
@@ -261,6 +270,7 @@ class WorldBootstrap(val galaxy: Galaxy,
                 stored?.taxRate ?: it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
                 stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)
         }))
+    }
     fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->
             WorldMessages.BaseInstitutions(base.id, galaxy.facilitiesAt(base.id, stocks).map { facility ->

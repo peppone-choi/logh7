@@ -19,7 +19,7 @@ data class OutfitFormationResult(val player:Navigator?,val stocks:PlanetStocks?,
  * returning inventory and damaged-unit restrictions are evidence:guess. W70/71 fixes
  * MCP320/160, unit formation and stationed dissolution. Author: Peppone Choi. */
 object OutfitFormationPolicy {
-    private val countries by lazy {CountryCatalogLoader.load()}
+    private val countries get()=CountryCatalogLoader.current()
     fun kinds(card:Int):Set<OutfitKind> = when(card) {
         24->setOf(OutfitKind.FLEET)
         25->setOf(OutfitKind.TRANSPORT,OutfitKind.PATROL,OutfitKind.GROUND)

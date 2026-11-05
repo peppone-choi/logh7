@@ -13,7 +13,7 @@ data class UnitProductionPolicy(val peoplePerUnit: Int = 1000, val foodPerTroop:
 /** Manual products/terms; hours, batch interpretation and material/manpower costs are designed policy. */
 internal class UnitProduction(private val galaxy: Galaxy, private val policy: UnitProductionPolicy,
     private val policyEconomy: PlanetEconomyPolicy, private val maximumStock: Int,
-    private val countries:CountryCatalog=CountryCatalogLoader.load()) {
+    private val countries:CountryCatalog?=null) {
     data class Line(val unit: ProductionUnit, val batch: Int)
     private val names = mapOf("ギンヌンガガプ" to "ギンヌンガガガブ", "テルモピュレー" to "テルモビュレー",
         "ラヴンストラップ" to "ラブンストラップ", "タフテ・ジャムシード" to "タフテ・ジャムジード", "アパダナ" to "アバダナ",
@@ -48,10 +48,11 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
             }.groupBy { it.unit }.map { (unit, batches) -> Line(unit, batches.sumOf { it.batch }) }
         }
     }
-    fun forCountry(base:Int,country:CountryId?):List<Line> = country?.takeIf {it.value in countries.countries}
-        ?.let {modelLines[countries.shipStyle(it).nativePower]?.get(base)}.orEmpty()
+    fun forCountry(base:Int,country:CountryId?,catalog:CountryCatalog=countries ?: CountryCatalogLoader.current()):List<Line> =
+        country?.takeIf {it.value in catalog.countries}?.let {modelLines[catalog.shipStyle(it).nativePower]?.get(base)}.orEmpty()
 
-    fun advance(stock: PlanetStock, dayStart: PlanetStock, shipyardOpen: Boolean? = null): PlanetStock {
+    fun advance(stock: PlanetStock, dayStart: PlanetStock, shipyardOpen: Boolean? = null,
+        countries:CountryCatalog=this.countries ?: CountryCatalogLoader.current()): PlanetStock {
         val country=stock.country?.takeIf {it.value in countries.countries} ?: return stock
         val style=countries.shipStyle(country)
         val people = checkNotNull(stock.economy)
@@ -65,7 +66,7 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         // U-08: a built or paused shipyard overrides the original facility list.
         val shipyard = shipyardOpen ?: galaxy.facilities.getValue(stock.baseId).any { it.kind == 10 }
         val ships = stock.units.ships.toMutableMap(); val troops = stock.units.troops.toMutableMap()
-        val configured=forCountry(stock.baseId,country).associateBy {it.unit.key}
+        val configured=forCountry(stock.baseId,country,countries).associateBy {it.unit.key}
         val work=stock.units.work.filterKeys {key->when(stock.productionCountry) {
             country->true
             null->ProductionUnits.definitions.singleOrNull {it.key==key}?.let {it.power==country.value} ?: true

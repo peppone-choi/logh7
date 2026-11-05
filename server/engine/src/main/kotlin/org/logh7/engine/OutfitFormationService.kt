@@ -2,7 +2,8 @@ package org.logh7.engine
 
 /** Actor-owned soft editing leases. No stock/CP changes before COMMIT; disconnect,
  * session change or 120 seconds of inactivity releases the lease. Author: Peppone Choi. */
-internal class OutfitFormationService(private val countries:CountryCatalog=CountryCatalogLoader.load(),private val clock:()->Long) {
+internal class OutfitFormationService(private val configuredCountries:CountryCatalog?=null,private val clock:()->Long) {
+    private val countries get()=configuredCountries ?: CountryCatalogLoader.current()
     private data class Draft(val id:Int,val request:OutfitFormationRequest,val rows:Map<Int,Int>,val supplies:Int,val expires:Long)
     private var sequence=0
     private val drafts=linkedMapOf<String,Draft>()

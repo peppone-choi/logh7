@@ -20,12 +20,13 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val originals: List<OriginalCharacterMessages.Candidate> = OriginalCharacterMessages.localCandidates,
     private val accountFame: Map<String, Int> = emptyMap(),
     starterKinds: Map<Int, List<Int>>? = null,
-    shipStyles:Map<Int,ShipStyleId> = CountryCatalogLoader.load().let {catalog->
-        setOf(2,3).associateWith {catalog.shipStyle(CountryId(it))}}) {
-    private val styles=shipStyles.toMap()
+    shipStyles:Map<Int,ShipStyleId>? = null) {
+    private val configuredStyles=shipStyles?.toMap()
+    private val styles get()=configuredStyles ?: CountryCatalogLoader.current().let {catalog->
+        setOf(2,3).associateWith {catalog.shipStyle(CountryId(it))}}
     // Current user policy: standard battleship. A later grant policy may supply multiple kinds.
-    private val starters = (starterKinds ?: styles.mapValues {(_,style)->listOf(Flagships.forType(style.nativePower,0).kind)})
-        .mapValues { (_, kinds) -> kinds.toList() }
+    private val configuredStarters=starterKinds?.mapValues {(_,kinds)->kinds.toList()}
+    private val starters get()=configuredStarters ?: styles.mapValues {(_,style)->listOf(Flagships.forType(style.nativePower,0).kind)}
     private var nextId = 10_000L
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
     private val registered = mutableMapOf<String, CharacterProfile>()
@@ -57,7 +58,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         }
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
-    private fun profile(data:CharacterMessages.Generate)=CharacterProfile(data,CountryId(data.power),styles.getValue(data.power))
+    // Preserve the model already chosen if the administrator changes definitions during the wizard.
+    private fun profile(data:CharacterMessages.Generate)=CharacterProfile(data,CountryId(data.power),
+        ShipStyleId.fromLegacy(checkNotNull(Flagships.find(data.shipKind)).power))
     @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.character?.let(::displayed) }
     @Synchronized fun profiles():Map<String,CharacterProfile> { resolveLottery();return registered.toMap() }
     /** U-11: a character that died in battle leaves the account, which may then create a new one. */

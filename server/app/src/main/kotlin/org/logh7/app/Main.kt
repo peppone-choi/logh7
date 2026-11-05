@@ -73,6 +73,30 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         failure?.let { throw it }
     }
     try {
+        val definitionsConnect:(()->java.sql.Connection)?=environment["LOGH7_DEFINITIONS_JDBC_URL"]?.takeIf {it.isNotBlank()}?.let {url ->
+                require(url.startsWith("jdbc:postgresql:")) {"LOGH7_DEFINITIONS_JDBC_URL must select PostgreSQL"}
+                val properties=java.util.Properties().apply {
+                    environment["LOGH7_DEFINITIONS_DB_USER"]?.let {setProperty("user",it)}
+                    environment["LOGH7_DEFINITIONS_DB_PASSWORD"]?.let {setProperty("password",it)}
+                    setProperty("connectTimeout","2");setProperty("socketTimeout","5")
+                }
+                val connect={java.sql.DriverManager.getConnection(url,properties)}
+                connect
+            }
+        val countryDefinitions=definitionsConnect?.let {connect->
+            val delegate=org.logh7.persistence.PostgresCountryDefinitions(connect)
+            object:org.logh7.engine.CountryDefinitionStore {
+                override fun load()=delegate.load().also {org.logh7.engine.CountryCatalogLoader.publish(it)}
+                override fun save(expectedRevision:Long,edit:org.logh7.engine.CountryDefinitionEdit)=delegate.save(expectedRevision,edit).also {
+                    if(it==org.logh7.engine.CountryDefinitionOutcome.CHANGED || it==org.logh7.engine.CountryDefinitionOutcome.UNCHANGED)
+                        try {load()} catch(_:java.sql.SQLException) {System.err.println("Country definitions saved; game refresh deferred")}
+                }
+            }
+        }
+        // Load the chosen source before deployment, character creation or recovery can write.
+        if(countryDefinitions!=null)try {countryDefinitions.load()} catch(_:Exception) {
+            error("Country definitions DB must be available and valid before starting this runtime")
+        }
         val rules = environment["LOGH7_SESSION_RULES"]?.let { path -> java.nio.file.Files.newInputStream(Path.of(path)).use { SessionRules.load(it) } } ?: SessionRules.load()
         val characterFile = environment["LOGH7_CHARACTERS_FILE"]?.let { Path.of(it) }
         val generationFile = environment["LOGH7_SESSION_GENERATION_FILE"]?.let { Path.of(it) }
@@ -170,14 +194,17 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 (environment["LOGH7_CAPTURE_MAX_MB"]?.toLong() ?: 512) * 1024 * 1024).also { it.schedule(scope) }
         }
         val auditPath = environment["LOGH7_OPS_AUDIT_FILE"]?.let { Path.of(it) }
-        val countryColors=environment["LOGH7_DEFINITIONS_JDBC_URL"]?.takeIf {it.isNotBlank()}?.let {url ->
-                require(url.startsWith("jdbc:postgresql:")) {"LOGH7_DEFINITIONS_JDBC_URL must select PostgreSQL"}
-                val properties=java.util.Properties().apply {
-                    environment["LOGH7_DEFINITIONS_DB_USER"]?.let {setProperty("user",it)}
-                    environment["LOGH7_DEFINITIONS_DB_PASSWORD"]?.let {setProperty("password",it)}
-                    setProperty("connectTimeout","2");setProperty("socketTimeout","5")
-                }
-                val delegate=org.logh7.persistence.PostgresCountryColors {java.sql.DriverManager.getConnection(url,properties)}
+        if(countryDefinitions!=null)scope.launch(Dispatchers.IO) {
+            var failed=false
+            while(isActive) {
+                try {countryDefinitions.load();failed=false}
+                catch(_:java.sql.SQLException) {if(!failed)System.err.println("Country definitions DB unavailable; retaining the last valid definitions");failed=true}
+                catch(_:IllegalArgumentException) {if(!failed)System.err.println("Country definitions invalid; retaining the last valid definitions");failed=true}
+                delay(5000)
+            }
+        }
+        val countryColors=definitionsConnect?.let {connect->
+                val delegate=org.logh7.persistence.PostgresCountryColors(connect)
                 object:org.logh7.engine.CountryColorStore {
                     override fun list()=delegate.list().also {world?.publishCountryAppearances(it)}
                     override fun save(countryId:Int,expectedRevision:Long,colors:org.logh7.engine.CountryColors)=
@@ -203,6 +230,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             host = environment["LOGH7_OPS_BIND"] ?: "127.0.0.1",
             users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             countryColors=countryColors,
+            countryDefinitions=countryDefinitions,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
             actorTimings=actorTimings,

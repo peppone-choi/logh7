@@ -7,7 +7,7 @@ import java.nio.file.StandardOpenOption.*
 import java.time.Clock
 import java.util.UUID
 
-enum class OpsAction { PROBE, SESSION_RESTART, ACCOUNT_SET, ACCOUNT_REMOVE, BACKUP, WORLD_BASE_EDIT, COUNTRY_COLOR_EDIT, MAINTENANCE, NOTICE }
+enum class OpsAction { PROBE, SESSION_RESTART, ACCOUNT_SET, ACCOUNT_REMOVE, BACKUP, WORLD_BASE_EDIT, COUNTRY_COLOR_EDIT, COUNTRY_DEFINITION_EDIT, MAINTENANCE, NOTICE }
 enum class OpsOutcome { QUEUED, RESTARTED, CONFLICT, FAILED, CHANGED, NOT_FOUND, INVALID, UNCHANGED, UNAVAILABLE }
 
 /** Append-only JSON Lines. Each line is fsync'd before the call returns. */
@@ -22,10 +22,19 @@ class OpsAudit private constructor(private val channel: FileChannel, private val
 
     fun requested(action: OpsAction, operator: String, remote: String, details:String?=null): String {
         require(operatorPattern.matches(operator))
-        require(details==null || details.length<=512 && details.all {it.code in 32..126 && it!='"' && it!='\\'})
+        require(details==null || details.length<=4096 && details.none {it.isSurrogate()})
         val requestId = UUID.randomUUID().toString()
         val address = remote.takeIf(remotePattern::matches) ?: "invalid"
-        val context=details?.let {",\"details\":\"$it\""}.orEmpty()
+        val context=details?.let {text->",\"details\":"+buildString {
+            append('"')
+            for(c in text)when(c) {
+                '"'->append("\\\"")
+                '\\'->append("\\\\")
+                in '\u0000'..'\u001f'->append("\\u%04x".format(c.code))
+                else->append(c)
+            }
+            append('"')
+        }}.orEmpty()
         append("\"requestId\":\"$requestId\",\"phase\":\"REQUESTED\",\"action\":\"$action\",\"operator\":\"$operator\",\"remote\":\"$address\"$context")
         return requestId
     }
