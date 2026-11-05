@@ -17,13 +17,15 @@ uses a record format the target release cannot read. An older release still star
 ``/health`` with such state; it fails only when the character store is first opened (a login), so
 the operator must restore the pre-upgrade backup first. ``--world`` (``LOGH7_WORLD_STATE_DIR``) adds
 the versioned store headers (``LOGH7-STOCK-N``, ``LOGH7-NAV-N``, ``LOGH7-WORLD-N``): each must be an
-exact string constant of the matching store class in the target release.
+exact string constant of the matching store class in the target release. ``--definitions-db``
+(implied when ``LOGH7_DEFINITIONS_JDBC_URL`` is set) requires the PostgreSQL country definition reader.
     server_release.py classpath --releases DIR
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 import zipfile
@@ -34,6 +36,9 @@ from state_backup import server_running, sha256  # noqa: E402
 
 MANIFEST = "release.json"
 FORMAT = "LOGH7-SERVER-RELEASE-1"
+# Country definitions in PostgreSQL (LOGH7_DEFINITIONS_JDBC_URL): a release without this reader starts
+# on its built-in catalog and silently ignores the published definitions.
+DEFINITIONS_READER = "org/logh7/persistence/PostgresCountryDefinitions.class"
 # Saved-record formats and the class a release needs to read them (PR #290: character profile v2).
 RECORD_FORMATS = (("character profile v2", "v2:", "org/logh7/gateway/CharacterProfile.class"),)
 
@@ -142,13 +147,17 @@ def install(args: argparse.Namespace) -> None:
 
 
 def switch(releases: Path, name: str, health: str | None, characters: Path | None = None,
-           world: Path | None = None) -> None:
+           world: Path | None = None, definitions_db: bool = False) -> None:
     if server_running(health):
         raise SystemExit(f"server may be running ({health}); confirm it is stopped before switching releases")
-    missing = unreadable(checked(releases, name), characters, world)
+    root = checked(releases, name)
+    missing = unreadable(root, characters, world)
+    if definitions_db and DEFINITIONS_READER not in release_classes(root):
+        missing.append("country definitions database")
     if missing:
         raise SystemExit(f"release {name} cannot read the saved state ({', '.join(missing)}); "
-                         "restore the pre-upgrade backup (state_backup.py restore) before switching")
+                         "restore the pre-upgrade backup (state_backup.py restore, and the definitions database dump "
+                         "when one is used) before switching, or choose a newer release")
     current = pointer(releases, "CURRENT")
     if current == name:
         print(f"{name} is already active")
@@ -159,9 +168,14 @@ def switch(releases: Path, name: str, health: str | None, characters: Path | Non
     print(f"active {name} (previous {current or '-'})")
 
 
+def definitions_db(args: argparse.Namespace) -> bool:
+    """Explicit flag, or the deployment environment names a definitions database (value never read)."""
+    return args.definitions_db or bool(os.environ.get("LOGH7_DEFINITIONS_JDBC_URL"))
+
+
 def activate(args: argparse.Namespace) -> None:
     switch(Path(args.releases), args.name, args.health, args.characters and Path(args.characters),
-           args.world and Path(args.world))
+           args.world and Path(args.world), definitions_db(args))
 
 
 def rollback(args: argparse.Namespace) -> None:
@@ -169,7 +183,8 @@ def rollback(args: argparse.Namespace) -> None:
     previous = pointer(releases, "PREVIOUS")
     if not previous:
         raise SystemExit("no previous release to roll back to")
-    switch(releases, previous, args.health, args.characters and Path(args.characters), args.world and Path(args.world))
+    switch(releases, previous, args.health, args.characters and Path(args.characters), args.world and Path(args.world),
+           definitions_db(args))
 
 
 def classpath(args: argparse.Namespace) -> None:
@@ -195,11 +210,15 @@ def main(argv: list[str] | None = None) -> None:
     use.add_argument("--releases", required=True)
     use.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     use.add_argument("--world", help="LOGH7_WORLD_STATE_DIR; refuse a release that cannot read its file headers")
+    use.add_argument("--definitions-db", action="store_true",
+                   help="country definitions come from PostgreSQL (implied when LOGH7_DEFINITIONS_JDBC_URL is set)")
     use.set_defaults(run=activate)
     back = commands.add_parser("rollback")
     back.add_argument("--releases", required=True)
     back.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     back.add_argument("--world", help="LOGH7_WORLD_STATE_DIR; refuse a release that cannot read its file headers")
+    back.add_argument("--definitions-db", action="store_true",
+                   help="country definitions come from PostgreSQL (implied when LOGH7_DEFINITIONS_JDBC_URL is set)")
     back.set_defaults(run=rollback)
     path = commands.add_parser("classpath")
     path.add_argument("--releases", required=True)
