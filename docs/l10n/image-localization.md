@@ -132,3 +132,57 @@ $python = 'C:/Users/user/AppData/Local/Programs/Python/Python311/python.exe'
 `inventory_images.py --all`은 이제 TCF 시트도 만들고 헤더 인덱스를 검사한다. 전체 796파일은 일본어 미발견 754·기존 교체 후보 33·메타데이터 3·각인 미판독 6으로 분류했다. 읽기 오류 2개는 기존 `_CATALOG.VIX`/`Thumbs.db`다. `no_japanese_visible`은 파일/프레임 검토 결과이며 실제 클라이언트 노출 검증이 아니다.
 
 미판독 6파일은 `Medal/m_f006`, `m_f007`, `m_f008`의 PNG/TGA 쌍이다. 각 80×80 원본과 최근접 확대를 확인했지만 각인 원문을 확정하지 못했다. 문장 여섯 개나 번역 완료로 처리하지 않는다. 문구를 추측해 덧그리지 않았으며 원본 폰트·크기·각인/질감 보존을 포함한 번역은 미완료다. 기존 33개 후보의 원본 제작 글꼴 일치·실기 상태/UV/가독성도 계속 미확인이다.
+
+## 전술 탭 이미지의 런처 적용과 복구 (2026-11-05)
+
+작성: 최병호
+
+정상 플레이용 `work/playable-main-refresh-20261104/client-empire`와
+`client-alliance`의 전술 탭 이미지는 일본어 원본 해시였다. 기존 한국어 후보는
+다른 시험 사본에 적용돼 있었으며 기본 실행 사본에 반영하는 단계가 남아 있었다.
+
+`work/full-korean-localization-wt/work/korean-buttons-01/package`의 20개를
+기존 검사기로 검증하고 미리보기를 읽었다. 선택한 자산은 `icon_normal`,
+`icon_mover`, `icon_down`, `icon_kj`, `icon_kj_d`의 `kojin.tga`, `shokumu.tga`,
+`senjutsu.tga`, `yousai.tga`다. 기존 한국어 후보를 그대로 사용했다.
+
+`work/tactical-tabs-launcher-20261105/`에서 원본 설치본을 새로 복사하고
+2,194개 파일의 바이트를 대조했다. 실행에 필요한 기존 호환 파일 네 개
+(`d3d8.dll`, `dinput8.dll`, `dxwrapper.dll`, `dxwrapper.ini`)를 준비했다.
+이미지 패치의 준비 디렉터리 `prepared-images`에는 원본 EXE와 선택한 20개
+교체 이미지만 넣었다. 기존 `tools/ops/make_patch.py`로 런처용 목록을 만들었다.
+
+```powershell
+python -B tools/ops/make_patch.py `
+  --original 'E:/logh7-original/extracted/install/ｱﾌﾟﾘｹｰｼｮﾝ実行可能ﾌｧｲﾙ' `
+  --prepared work/tactical-tabs-launcher-20261105/prepared-images `
+  --out work/tactical-tabs-launcher-20261105/launcher-patch
+```
+
+패키지는 20개 파일이며 `patch.manifest` SHA-256은
+`118fdc2c14da73b6c016cd0d7a800776e28739dd40ed3e99a5f05256e4e15eeb`다.
+실제로 생성한 패키지는 이미 존재하므로 재생성에는 새 출력 경로를 사용한다.
+게임 이미지와 패키지·백업은 `work/`에 보존하며 커밋하지 않는다.
+
+기존 제품 런처에 이 케이스의 `launcher.ini`를 지정해 `--apply-patch`를 실행했다.
+run-01의 비활성 데스크톱 원본에서 1024×768 전술 화면의 네 탭이 한국어로
+표시됐고, 네 탭 가리킴과 기함/함정 탭 전환에서도 글자가 버튼 안에 들어갔다
+(`korean-default.png`, `korean-*-hover.png`, `korean-*-selected.png`).
+
+클라이언트를 종료한 뒤 같은 런처의 `--revert-patch`로 복구했다. 20개 이미지의
+원본 해시와 설치 상태 파일 제거를 확인했다. run-02로 다시 실행하자 전술 탭이
+일본어 원본으로 표시됐다(`restored-original.png`). 이후 같은 패키지를 재적용하고
+교체 이미지·원본 백업의 해시를 다시 대조했다. 두 원본 실행의 종료 후 Job 0과
+EXE 보존, 사용자 원본 2,194개 파일의 불변도 확인했다. 문자열과 글꼴 호환 계층은
+이미지 복구 시험 동안 유지했다.
+
+정상 플레이용 제국·동맹 사본에도 각 기본 런처의 `--apply-patch`로 같은 20개를
+적용했다. 두 사본의 설치 이미지와 원본 백업이 패키지 해시와 일치하고
+두 런처 `--check`도 통과했다. 실행을 위한 서버는 계속 47900 포트의 정상
+서버를 사용하며, 위 실기는 별도 QA 서버/저장에서 수행했다.
+
+현재 두 사본에는 `logh7-patch.state`와 `logh7-patch-backup`이 있다.
+기존 런처는 패치가 설치된 동안 재적용을 거부하므로 다른 패키지로 바꿀 때는
+종료한 사본에서 기존 패치를 먼저 되돌린다. 이미지 5상태 전체의 실제 참조/UV,
+원본 제작 글꼴의 동일성, 나머지 후보 13개와 문자열/글꼴 패치까지 포함한 전체
+설치·복구는 계속 미확인이다.
