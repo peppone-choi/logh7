@@ -26,7 +26,7 @@ class PlanetTaxRevenueTest {
     }
 
     @Test fun currentOwnerAndCurrentAdultPopulationDetermineRevenueRatherThanSeedOrWarehouses() {
-        val reduced = stock.copy(power = 3, economy = stock.economy!!.copy(population = 90_000_000, adults = 50_000_000))
+        val reduced = stock.copy(owner=Allegiance.fromLegacy(3), economy = stock.economy!!.copy(population = 90_000_000, adults = 50_000_000))
         assertEquals(10_000_000, PlanetTaxRevenue.assess(reduced, base, policy).collected)
         val warehouseOnly = stock.copy(supplies = 0, food = 0, mineral = 0,
             units = UnitInventory(ships = mapOf(UnitStack(32) to 1)))
@@ -50,7 +50,7 @@ class PlanetTaxRevenueTest {
     @Test fun neutralRebelNonhabitableAndNoAdultPopulationHaveNoTaxIncome() {
         val none = PlanetTaxRevenueAssessment(0, 0, 0, 0)
         for (power in listOf(0, 1, 4)) {
-            assertEquals(none, PlanetTaxRevenue.assess(stock.copy(power = power), base, policy))
+            assertEquals(none, PlanetTaxRevenue.assess(stock.copy(owner=Allegiance.fromLegacy(power)), base, policy))
         }
         assertEquals(none, PlanetTaxRevenue.assess(stock.copy(camp = 1), base, policy))
         assertEquals(none, PlanetTaxRevenue.assess(stock, base.copy(habitability = 0), policy))

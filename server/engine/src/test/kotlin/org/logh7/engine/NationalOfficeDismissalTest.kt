@@ -59,7 +59,7 @@ class NationalOfficeDismissalTest {
             val unauthorized=listOf(
                 s.copy(nationalOffices=mapOf(role to 10001)),
                 s.copy(nationalOffices=s.nationalOffices+(checkNotNull(role.appointer) to 10002)),
-                s.copy(bases=s.bases+(base to capital.copy(power=if(role.power==2)3 else 2))),
+                s.copy(bases=s.bases+(base to capital.copy(owner=Allegiance.fromLegacy(if(role.power==2)3 else 2)))),
                 s.copy(bases=s.bases+(base to capital.copy(camp=1))))
             for(stocks in unauthorized) {
                 assertTrue(OfficeDismissalPolicy(galaxy).available(stocks,10000,role.power,q.actorRank).isEmpty())

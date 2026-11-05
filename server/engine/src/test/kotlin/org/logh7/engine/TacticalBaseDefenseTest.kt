@@ -28,11 +28,11 @@ class TacticalBaseDefenseTest {
     }
     @Test fun currentOwnershipControlsTheBarAndRegularTroopsDoNotBecomeRebels() {
         val state=mixed();val base=state.bases.getValue(1000)
-        val captured=state.copy(bases=state.bases+(1000 to base.copy(power=3)))
+        val captured=state.copy(bases=state.bases+(1000 to base.copy(owner=Allegiance.fromLegacy(3))))
         assertEquals(1000,TacticalBaseDefense.strength(captured,1000))
-        val rebel=captured.copy(bases=captured.bases+(1000 to base.copy(power=3,camp=1)))
+        val rebel=captured.copy(bases=captured.bases+(1000 to base.copy(owner=Allegiance.fromLegacy(3),camp=1)))
         assertEquals(0,TacticalBaseDefense.strength(rebel,1000))
-        assertEquals(0,TacticalBaseDefense.strength(state.copy(bases=state.bases+(1000 to base.copy(power=0))),1000))
+        assertEquals(0,TacticalBaseDefense.strength(state.copy(bases=state.bases+(1000 to base.copy(owner=Allegiance.fromLegacy(0)))),1000))
     }
     @Test fun legacyKnownGroundBaseWorksButUnresolvedFleetTroopsAreNotInventedAshore() {
         val state=mixed();val outfit=state.outfits.getValue(1)

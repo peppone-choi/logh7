@@ -58,7 +58,7 @@ class OutfitWarehouseWireTest {
     @Test fun encryptedFacilityQueryUsesSavedOwnerDespiteDifferentSeed() = runBlocking<Unit> {
         val original = snapshot()
         val captured = original.copy(bases=original.bases +
-            (1049 to original.bases.getValue(1049).copy(power=3)))
+            (1049 to original.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
         val store = object : PlanetStockStore {
             override fun load() = captured
             override fun save(stocks: PlanetStocks) {}
@@ -93,7 +93,7 @@ class OutfitWarehouseWireTest {
         val original = snapshot()
         for ((power,camp) in listOf(3 to 0,2 to 1)) {
             val stocks = original.copy(bases=original.bases +
-                (1049 to original.bases.getValue(1049).copy(power=power,camp=camp)))
+                (1049 to original.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(power),camp=camp)))
             for(character in listOf(10000,40000)) {
                 assertFailsWith<IllegalArgumentException> { world.outfitWarehouse(1049,1,character,2,stocks) }
             }
@@ -105,7 +105,7 @@ class OutfitWarehouseWireTest {
         val world = WorldBootstrap(galaxy)
         val original = snapshot()
         val captured = original.copy(bases=original.bases +
-            (1049 to original.bases.getValue(1049).copy(power=3)))
+            (1049 to original.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
         val expected = org.logh7.protocol.LoginMessages.sessionMessage(0x0321,
             org.logh7.protocol.WorldMessages.institutions(listOf(
                 org.logh7.protocol.WorldMessages.BaseInstitutions(1049,

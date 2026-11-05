@@ -55,7 +55,7 @@ class OfficeDismissalTest {
         assertTrue(FleetOffice.EMPIRE_STAFF.available(galaxy,s,10000,5).isEmpty())
         val policy=OfficeDismissalPolicy(galaxy)
         assertEquals((10001..10006).toList(),policy.available(s,10000,2,5).map {it.target})
-        val captured=s.copy(bases=s.bases+(1049 to s.bases.getValue(1049).copy(power=3)))
+        val captured=s.copy(bases=s.bases+(1049 to s.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
         assertTrue(policy.available(captured,10000,2,5).isEmpty())
     }
     @Test fun invalidIdentityAmbiguityBusyAndInsufficientCpNeverClearOrCharge() {

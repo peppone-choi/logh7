@@ -2,17 +2,26 @@ package org.logh7.engine
 
 import java.util.Collections
 
-data class PlanetStock(val baseId: Int, val power: Int, val camp: Int,
+data class PlanetStock(val baseId: Int, val owner: Allegiance, val camp: Int,
     val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null,
     val units: UnitInventory = UnitInventory(), val taxRate: Int? = null, val governorId: Int = 0, val garrisonCommanderId: Int = 0,
     val capitalAdministratorId: Int = 0, val capitalDefenseCommanderId: Int = 0, val guardInspectorId: Int = 0, val spareShips: SpareShipBoats = SpareShipBoats(),
     val treasury: Long = 0) {
-    init { require(baseId in 1..65535 && power in 0..4 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0 &&
-        (taxRate == null || taxRate in 0..100) && governorId >= 0 && (governorId == 0 || power in 2..3 && camp == 0) &&
-        garrisonCommanderId >= 0 && (garrisonCommanderId == 0 || power in 2..3 && camp == 0) &&
-        capitalAdministratorId>=0 && (capitalAdministratorId==0 || power==3 && camp==0) &&
-        capitalDefenseCommanderId>=0 && (capitalDefenseCommanderId==0 || power in 2..3 && camp==0) &&
-        guardInspectorId>=0 && (guardInspectorId==0 || power==2 && camp==0) && treasury>=0) }
+    constructor(baseId:Int,power:Int,camp:Int,supplies:Int,food:Int,mineral:Int,economy:PlanetEconomy?=null,
+        units:UnitInventory=UnitInventory(),taxRate:Int?=null,governorId:Int=0,garrisonCommanderId:Int=0,
+        capitalAdministratorId:Int=0,capitalDefenseCommanderId:Int=0,guardInspectorId:Int=0,
+        spareShips:SpareShipBoats=SpareShipBoats(),treasury:Long=0):this(baseId,Allegiance.fromLegacy(power),camp,
+            supplies,food,mineral,economy,units,taxRate,governorId,garrisonCommanderId,capitalAdministratorId,
+            capitalDefenseCommanderId,guardInspectorId,spareShips,treasury)
+    val power:Int get()=owner.legacyPower()
+    val country:CountryId? get()=owner.country
+    fun belongsTo(country:CountryId)=owner==Allegiance.Country(country)
+    init { require(baseId in 1..65535 && camp in 0..1 && supplies >= 0 && food >= 0 && mineral >= 0 &&
+        (taxRate == null || taxRate in 0..100) && governorId >= 0 && (governorId == 0 || owner is Allegiance.Country && camp == 0) &&
+        garrisonCommanderId >= 0 && (garrisonCommanderId == 0 || owner is Allegiance.Country && camp == 0) &&
+        capitalAdministratorId>=0 && (capitalAdministratorId==0 || country==CountryId(3) && camp==0) &&
+        capitalDefenseCommanderId>=0 && (capitalDefenseCommanderId==0 || owner is Allegiance.Country && camp==0) &&
+        guardInspectorId>=0 && (guardInspectorId==0 || country==CountryId(2) && camp==0) && treasury>=0) }
 }
 data class PlanetStocks(val generation: Long, val producedDays: Long, val bases: Map<Int, PlanetStock>,
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
@@ -69,10 +78,11 @@ data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumSto
 /** World-actor-owned. Lazy settlement gives the same result regardless of query frequency or logins. */
 internal class PlanetProduction(private val galaxy: Galaxy, private val store: PlanetStockStore?,
     private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1,
+    restored:PlanetStocks?=store?.load(),
     private val civicPlayers:(Long)->Collection<Navigator>? = {null}) {
     private val units = UnitProduction(galaxy, policy.units, policy.economy, policy.maximumStock)
     private val deployment = InitialOutfitDeployment(galaxy)
-    private var current = store?.load()?.also { restored ->
+    private var current = restored?.also { restored ->
         require(restored.bases.keys == galaxy.bases.map { it.id }.toSet()) { "Inventory bases differ from the world seed" }
         require(restored.outfits.values.all { outfit -> outfit.position?.let { position ->
             position.baseId == 0 || galaxy.bases.single { it.id == position.baseId }.grid == position.grid

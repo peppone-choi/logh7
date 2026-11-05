@@ -52,7 +52,7 @@ class TacticalContactTest {
         assertFalse(TacticalContact.active(galaxy,pilot.copy(baseId=1000,mode=4),listOf(enemy),stocks))
         assertTrue(TacticalContact.active(galaxy,pilot.copy(grid=2488),emptyList(),stocks))
         assertFalse(TacticalContact.active(galaxy,pilot.copy(grid=2488),emptyList(),
-            stocks.copy(bases=stocks.bases+(1001 to stocks.bases.getValue(1001).copy(power=4)))))
+            stocks.copy(bases=stocks.bases+(1001 to stocks.bases.getValue(1001).copy(owner=Allegiance.fromLegacy(4))))))
     }
     @Test fun contactStopsRecoveryAndStrategicWarpAndSurvivesReloadThenEndsWithoutBackdatedCp() {
         val store=object:NavigationStore {

@@ -29,7 +29,7 @@ class BaseOfficePolicyTest {
         assertNull(Capital.of(empire.copy(name="Home")))
         val base=PlanetStock(1048,2,0,0,0,0)
         assertFails { policy.validate(base.copy(capitalDefenseCommanderId=10000)) }
-        assertFails { policy.validate(base.copy(baseId=1049,power=3,capitalDefenseCommanderId=10000)) }
+        assertFails { policy.validate(base.copy(baseId=1049,owner=Allegiance.fromLegacy(3),capitalDefenseCommanderId=10000)) }
         assertFails { base.copy(capitalAdministratorId=10000) }
         assertFails { base.copy(guardInspectorId=-1) }
     }

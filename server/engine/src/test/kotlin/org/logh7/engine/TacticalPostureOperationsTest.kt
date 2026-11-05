@@ -116,7 +116,7 @@ class TacticalPostureOperationsTest {
     @Test fun lostTargetOwnershipCancelsAtExecutionAndAChangedConnectionReceivesOnlyCurrentEvents() {
         val s=state();var n=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
         accept(s,n,p,request(TacticalShipMode.STATIONED,1000))
-        s.stocks=s.stocks.copy(bases=s.stocks.bases+(1000 to s.stocks.bases.getValue(1000).copy(power=3)))
+        s.stocks=s.stocks.copy(bases=s.stocks.bases+(1000 to s.stocks.bases.getValue(1000).copy(owner=Allegiance.fromLegacy(3))))
         n=Navigation(galaxy,s.nav,NavigationPolicy());p=production(s)
         val out=mutableListOf<TacticalPostureResult>()
         val changed=session.copy(gameMillis=(now+240)*1000,participants=session.participants.mapValues {(_,m)->m.copy(connection="new")})

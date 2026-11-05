@@ -48,7 +48,7 @@ class TransportActionsTest {
         val aboard=assertNotNull(act(load(pack.id),s).stocks)
         assertEquals(StrategyActionRejection.LOCATION,act(load(pack.id),aboard).rejection,"while the destination holds, only it accepts the cargo")
         // The alliance takes the destination while the package is aboard: the carrier unloads back at Odin instead.
-        val captured=aboard.copy(bases=aboard.bases+(1050 to aboard.bases.getValue(1050).copy(power=3)))
+        val captured=aboard.copy(bases=aboard.bases+(1050 to aboard.bases.getValue(1050).copy(owner=Allegiance.fromLegacy(3))))
         val rerouted=act(load(pack.id),captured);assertNull(rerouted.rejection)
         val after=assertNotNull(rerouted.stocks);assertTrue(after.strategic.transports.isEmpty())
         assertEquals(5000,after.bases.getValue(1049).supplies);assertEquals(4,after.bases.getValue(1049).units.ships[cargo])

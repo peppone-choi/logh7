@@ -59,7 +59,7 @@ class CompletenessSupplyTest {
         }
         val away = player.copy(baseId = 1050)
         assertEquals(LogisticsRejection.LOCATION, CompletenessSupply.evaluate(request, session, away, stock).rejection)
-        val captured = stock.copy(bases = stock.bases + (1049 to stock.bases.getValue(1049).copy(power = 3)))
+        val captured = stock.copy(bases = stock.bases + (1049 to stock.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
         assertEquals(LogisticsRejection.LOCATION, CompletenessSupply.evaluate(request, session, player, captured).rejection)
         val wrongRole = stock.copy(outfits=stock.outfits+(1 to stock.outfits.getValue(1).copy(kind=OutfitKind.FLEET)),
             warehouses=stock.warehouses+(101 to stock.warehouses.getValue(101).copy(kind=OutfitKind.FLEET)))

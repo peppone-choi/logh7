@@ -36,7 +36,7 @@ class FleetAideAppointmentTest {
         val occupied=stocks.copy(outfits=mapOf(200 to stocks.outfits.getValue(200).copy(aideId=10002)))
         val rejected=act(s=occupied)
         assertEquals(AppointmentRejection.OCCUPIED,rejected.rejection);assertEquals(occupied,rejected.stocks);assertEquals(player,rejected.player)
-        assertEquals(AppointmentRejection.BASE,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(power=3)))).rejection)
+        assertEquals(AppointmentRejection.BASE,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))).rejection)
         assertFails {stocks.outfits.getValue(200).copy(aideId=10000)}
     }
     @Test fun aideCardsCountTowardCapacityAndResigningDoesNotRemoveTheCommander() {
@@ -54,7 +54,7 @@ class FleetAideAppointmentTest {
         assertEquals(stocks.outfits,resigned.stocks!!.outfits)
     }
     @Test fun allianceUsesItsOwnCardAndStoredFleetAuthority() {
-        val allied=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(power=3)),
+        val allied=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))),
             outfits=mapOf(200 to stocks.outfits.getValue(200).copy(power=3)),
             warehouses=mapOf(300 to stocks.warehouses.getValue(300).copy(power=3)))
         val state=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.ALLIANCE,false,"c")}.exportState()

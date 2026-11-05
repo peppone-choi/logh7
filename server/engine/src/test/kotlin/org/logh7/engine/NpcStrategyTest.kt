@@ -116,7 +116,7 @@ class NpcStrategyTest {
             val players=players();val events=mutableListOf<NpcStrategicMovement>()
             var reserved=advance(0,stocks(),players,events)
             reserved=if(appointed)reserved.copy(outfits=reserved.outfits.mapValues {(_,o)->o.copy(commanderId=10001)})
-                else reserved.copy(bases=reserved.bases.mapValues {(_,b)->b.copy(power=3)})
+                else reserved.copy(bases=reserved.bases.mapValues {(_,b)->b.copy(owner=Allegiance.fromLegacy(3))})
             val result=advance(3600,reserved,players,events)
             assertNull(result.outfits.getValue(1).strategy)
             assertEquals(reserved.bases,result.bases);assertEquals(OutfitPosition(2487,1000),result.outfits.getValue(1).position)

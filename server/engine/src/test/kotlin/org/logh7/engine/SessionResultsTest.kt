@@ -64,7 +64,7 @@ class SessionResultsTest {
         assertEquals(SessionStatistics(1,0,10,10,6),report.powers.getValue(Power.EMPIRE).statistics)
         assertEquals(SessionStatistics(0,1,20),report.powers.getValue(Power.ALLIANCE).statistics)
         assertEquals(SessionStatistics(3,1,100,10,6),report.total)
-        val capturedBase=stock.copy(bases=bases+(2 to bases.getValue(2).copy(power=2)))
+        val capturedBase=stock.copy(bases=bases+(2 to bases.getValue(2).copy(owner=Allegiance.fromLegacy(2))))
         assertEquals(30,SessionResults.fromWorld(galaxy,snapshot.copy(planetStocks=capturedBase),known).powers.getValue(Power.EMPIRE).statistics.population)
         assertFailsWith<IllegalArgumentException>{SessionResults.fromWorld(galaxy,snapshot.copy(planetStocks=stock.copy(generation=2)))}
         assertFailsWith<IllegalStateException>{SessionResults.fromWorld(galaxy,snapshot.copy(session=session.copy(ended=null)))}

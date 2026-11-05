@@ -38,7 +38,7 @@ class FleetCommanderAppointmentTest {
         assertEquals(AppointmentRejection.TARGET,act(request.copy(target=10000)).rejection)
         assertEquals(AppointmentRejection.BASE,act(request.copy(outfit=999)).rejection)
         assertEquals(AppointmentRejection.BASE,act(request.copy(base=1177)).rejection)
-        assertEquals(AppointmentRejection.BASE,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(power=3)))).rejection)
+        assertEquals(AppointmentRejection.BASE,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))).rejection)
         assertEquals(AppointmentRejection.SESSION,act(request.copy(connection="old")).rejection)
         assertEquals(AppointmentRejection.IDENTITY,act(request.copy(characterId=999)).rejection)
         assertEquals(AppointmentRejection.BUSY,act(p=player.copy(cpPaused=true)).rejection)

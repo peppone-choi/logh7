@@ -25,6 +25,14 @@ class BudgetActionsTest {
     private fun act(r:BudgetRequest=request(),s:PlanetStocks=stocks(),p:Navigator=player)=BudgetActions.evaluate(galaxy,r,session,p,s)
     private fun confirm(prepared:BudgetResult,r:BudgetRequest=request()):BudgetResult=act(r.copy(phase=2,quote=assertNotNull(prepared.view?.quote).id),
         assertNotNull(prepared.stocks),assertNotNull(prepared.player))
+    @Test fun anotherCountryBaseIsDeniedWithoutUsingItsEmpireDisplayCode() {
+        val before=stocks().let {s->s.copy(bases=s.bases+(1050 to s.bases.getValue(1050)
+            .copy(owner=Allegiance.Country(CountryId(42)))))}
+        val result=act(s=before)
+        assertEquals(BudgetRejection.BASE,result.rejection)
+        assertEquals(before,result.stocks)
+        assertEquals(1000,result.player?.mcp)
+    }
     @Test fun aidDoesNotReadOrSpendAnotherCountryAccountEvenWhenItUsesTheSameEmpireAppearance() {
         val catalog=CountryCatalogLoader.load()
         val another=catalog.countries.getValue(2).copy(id=42,key="another_empire")
