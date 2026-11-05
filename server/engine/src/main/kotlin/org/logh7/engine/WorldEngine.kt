@@ -58,7 +58,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     productionPolicy: PlanetProductionPolicy = PlanetProductionPolicy(),
     private val worldStateCommitter: WorldStateCommitter? = null,
     private val npcPolicy:NpcTacticalPolicy=NpcTacticalPolicy(),
-    /** The app wires character identities after construction; hold month boundaries until then. */
+    /** The app wires recovery and character identities after construction; hold the clock until then. */
     private val awaitIdentities:Boolean=false) : CommandSink, SnapshotSource, AutoCloseable {
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null,
@@ -367,6 +367,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val command = if(queued.advanceNow) WorldCommand.AdvanceTo(
                 maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
                     else durableState?.elapsed ?: elapsed)) else queued.command
+            if(command is WorldCommand.AdvanceTo && awaitIdentities && production!=null && production.identities==null)continue
             if(command is WorldCommand.Quiesce<*>) {
                 @Suppress("UNCHECKED_CAST") val quiesce=command as WorldCommand.Quiesce<Any?>
                 try {quiesce.result.complete(quiesce.action())} catch(failure:Exception) {quiesce.result.completeExceptionally(failure)}

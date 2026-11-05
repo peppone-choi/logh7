@@ -143,7 +143,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             characterStores.carryOver(s).takeIf {it.isNotEmpty()}?.let {println("carried over ${it.size} characters to generation ${g+1}")}}}
         fameSubscription=stock?.observeSessionResults(::settleResult)
         // An ended world can have been committed before the award observer ran; replay the durable result on boot.
-        if(stock!=null)navigation?.snapshot()?.takeIf {it.result!=null}?.let(::settleResult)
+        val recovered=navigation?.snapshot()
+        if(stock!=null && recovered?.session?.ended!=null) {
+            val generation=checkNotNull(recovered.session).generation
+            stock.snapshot(generation).get(10,java.util.concurrent.TimeUnit.SECONDS)
+            navigation?.snapshot()?.takeIf {it.result!=null}?.let(::settleResult)
+        }
         identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
             org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList(),c.age)}}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},

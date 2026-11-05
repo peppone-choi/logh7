@@ -44,18 +44,20 @@ class SharedFameWireTest {
         fun stocks()=org.logh7.persistence.FilePlanetStockStore(directory.resolve("planet-stocks"))
         fun navigation()=org.logh7.persistence.FileNavigationStore(directory.resolve("navigation"))
         fun hydrate(engine:WorldEngine)=runBlocking {
+            engine.submit(WorldCommand.AdvanceTo(rules.restartDelayRealMillis+1))
             val loaded=kotlinx.coroutines.CompletableDeferred<PlanetStocks>()
             engine.submit(WorldCommand.Stock(1,loaded));loaded.await();Unit
         }
         LoadFixture(root,2,LoadMetrics(),galaxy,ticking=false,stockStore=stocks(),navigationStore=navigation(),
-            accountFame=FameLedger(null),sessionDurability=durability(),prepare=::hydrate).use {f->
+            accountFame=FameLedger(null),sessionDurability=durability(),awaitIdentities=true,prepare=::hydrate).use {f->
             f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
             f.await("durable ended world") {f.engine.snapshot().result!=null}
         }
         FameLedger.openShared(directory.resolve("common.fame"),false).use {bank->
-            repeat(2) {
+            repeat(2) {boot->
                 LoadFixture(root,2,LoadMetrics(),galaxy,ticking=false,stockStore=stocks(),navigationStore=navigation(),
-                    accountFame=bank.forWorld("restored"),sessionDurability=durability(),prepare=::hydrate).use {f->
+                    accountFame=bank.forWorld("restored"),sessionDurability=durability(),awaitIdentities=true,
+                    prepare={engine->if(boot==0)runBlocking {engine.submit(WorldCommand.AdvanceTo(rules.restartDelayRealMillis+1))} else hydrate(engine)}).use {f->
                     assertNotNull(f.engine.snapshot().result)
                     assertEquals(10,bank.fame().getValue("load-000"))
                     assertEquals(0,f.engine.snapshot().session!!.online)
