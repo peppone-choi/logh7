@@ -19,6 +19,8 @@ services:
     volumes:
       - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     secrets: [alert_webhook_url]
+    # Same network as Prometheus (alertmanager:9093); backend is not internal, so the operator webhook is reachable.
+    networks: [backend]
     restart: unless-stopped
 secrets:
   ops_token:
