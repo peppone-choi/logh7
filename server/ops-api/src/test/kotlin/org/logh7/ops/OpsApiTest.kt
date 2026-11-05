@@ -230,11 +230,21 @@ class OpsApiTest {
                 assertTrue("차단 중" in page && "/admin/notice" in page)
                 assertEquals("changed", post("/commands/maintenance/off").body())
                 assertFalse(control.closed)
+                // A browser-driven cross-origin POST is refused before anything runs (PR #283 review).
+                for (path in listOf("/commands/maintenance/on", "/commands/notice", "/commands/probe", "/commands/backup", "/session/restart")) {
+                    val foreign = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path")).header("X-LOGH7-Operator", "op1")
+                        .header("Origin", "https://evil.example").POST(HttpRequest.BodyPublishers.ofString("공격")).build(), HttpResponse.BodyHandlers.ofString())
+                    assertEquals(403, foreign.statusCode(), path)
+                }
+                assertFalse(control.closed); assertEquals(1, control.notices.size)
+                val same = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/commands/maintenance/on")).header("X-LOGH7-Operator", "op1")
+                    .header("Origin", "http://127.0.0.1:$port").POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString())
+                assertEquals("changed", same.body(), "the operator page's own origin is allowed")
             }
         } }
         assertEquals(listOf("오늘 22시 점검합니다"), control.notices)
         assertEquals(listOf("MAINTENANCE:CHANGED", "MAINTENANCE:UNCHANGED", "MAINTENANCE:INVALID", "NOTICE:INVALID", "NOTICE:INVALID",
-            "NOTICE:CHANGED", "MAINTENANCE:CHANGED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
+            "NOTICE:CHANGED", "MAINTENANCE:CHANGED", "MAINTENANCE:CHANGED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
     }
     @Test fun backupRoutesAreAuditedAndReportTheLastSuccess() {
         var taken = 0

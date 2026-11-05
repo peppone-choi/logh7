@@ -93,6 +93,19 @@ class GameExchangeTest {
         assertEquals(GameExchange.State.AUTHENTICATED, open.state)
         assertEquals(1, gate.refused.get(), "an open gate counts nothing")
     }
+    @Test fun aClosedDestinationWorldRefusesANewSessionAdmissionEvenWithAValidTicket() {
+        val tickets = SessionTickets()
+        val login = exchange(GameExchange.Role.LOGIN, tickets)
+        val response = login.accept(0x30, encrypted(request()))!!
+        val body = Envelope.decode(LegacyBlowfish(b).decrypt(response.copyOfRange(4, response.size)), 1).second
+        val auth = ByteBuffer.allocate(6).putShort(0x20).putInt(ByteBuffer.wrap(body, 14, 4).int).array()
+        val gate = MaintenanceGate().also { it.setClosed(true) }
+        val session = GameExchange(GameExchange.Role.SESSION, mapOf("user" to "pw"), tickets, "127.0.0.1", 47903, Handshake(b, 2),
+            maintenance = gate).also { it.accept(0x34, initial); it.accept(0x36, confirm) }
+        assertFails { session.accept(0x30, encrypted(auth)) }
+        assertNotEquals(GameExchange.State.AUTHENTICATED, session.state)
+        assertEquals(1, gate.refused.get())
+    }
     @Test fun badAccountGetsDirectionalFailureHeader() {
         val counters = GatewayCounters()
         val login = exchange(GameExchange.Role.LOGIN, counters = counters)

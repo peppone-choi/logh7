@@ -2101,6 +2101,9 @@ class GameExchange(
                     counters?.sessionTicketRejected?.incrementAndGet()
                 ticket = requireNotNull(taken) { "Invalid or expired session token" }
                 require(ticket!!.sessionId==sessionId && (ticket!!.generation==null || ticket!!.generation==(generation ?: 1L))) {"Session ticket destination or generation mismatch"}
+                // The destination world's own gate (PR #283 review): a ticket issued by another world's open login
+                // listener must not admit a new player here while this world is closed. Open connections stay.
+                check(maintenance?.refuses() != true) { "World closed for maintenance" }
                 state = State.AUTHENTICATED
                 null // No invented response: session acceptance opcode is not established yet.
             }
