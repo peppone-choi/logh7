@@ -66,7 +66,7 @@ class CardCharacterWorldTest {
         for (power in listOf(2,3)) {
             val offset=if (power==3) 136 else 0
             val assigned=stocks.copy(bases=stocks.bases.mapValues { (_,base) ->
-                base.copy(power=power,governorId=0,garrisonCommanderId=10000) })
+                base.copy(owner=Allegiance.fromLegacy(power),governorId=0,garrisonCommanderId=10000) })
             for ((card,base) in listOf(55+offset to 1048,52+offset to 1049)) {
                 val response=garrisonWorld.cardCharacters(card,assigned) { character.copy(power=power) }
                 assertEquals(1,response[8].toInt())

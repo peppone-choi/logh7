@@ -18,7 +18,7 @@ class CapitalProvisioningTest {
         val alone=PlanetProduction(Galaxy(listOf(galaxy.systems[0]),listOf(galaxy.bases[0]),galaxy.starts),null,0,PlanetProductionPolicy())
             .settle(1,30*86400L).bases.getValue(1049).food
         assertEquals(alone-2000,month.bases.getValue(1049).food)
-        val lost=CapitalProvisioning.capitals(galaxy,month.copy(bases=month.bases+(1049 to month.bases.getValue(1049).copy(power=3))))
+        val lost=CapitalProvisioning.capitals(galaxy,month.copy(bases=month.bases+(1049 to month.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3)))))
         assertTrue(lost.isEmpty(),"a captured capital supplies nobody")
     }
 
@@ -90,7 +90,7 @@ class CapitalProvisioningTest {
         val (fed,amount)=checkNotNull(CapitalProvisioning.topUp(row,base,bounded,capitals,Int.MAX_VALUE))
         assertEquals(25,amount);assertEquals(25,fed.food)
         assertNull(CapitalProvisioning.topUp(row.copy(food=26),base,bounded,capitals,Int.MAX_VALUE))
-        for(ineligible in listOf(row.copy(power=3),row.copy(camp=1),row.copy(power=0),row.copy(economy=null)))
+        for(ineligible in listOf(row.copy(owner=Allegiance.fromLegacy(3)),row.copy(camp=1),row.copy(owner=Allegiance.fromLegacy(0)),row.copy(economy=null)))
             assertNull(CapitalProvisioning.topUp(ineligible,base,policy,capitals,1000))
         assertNull(CapitalProvisioning.topUp(row,base.copy(habitability=1),policy,capitals,1000))
         val full=bounded.copy(maximumStock=Int.MAX_VALUE)

@@ -15,7 +15,7 @@ class WorldTerritoryTest {
         base.id to PlanetStock(base.id,galaxy.conditions.getValue(base.id).power,0,100,100,100)
     },deploymentInitialized=true)
     private fun capture(original:PlanetStocks,id:Int)=original.copy(bases=original.bases+
-        (id to original.bases.getValue(id).copy(power=2)))
+        (id to original.bases.getValue(id).copy(owner=Allegiance.fromLegacy(2))))
 
     @Test fun capitalOwnerIsTheDefeatedPowerAndCapitalTakesPrecedenceOverTerritoryReduction() {
         val territory=WorldTerritory(galaxy);assertNull(territory.ending(stocks()))
@@ -32,7 +32,7 @@ class WorldTerritoryTest {
         assertTrue(result.capitals.isEmpty());assertEquals(3,result.systems[Power.ALLIANCE])
         for((power,camp) in listOf(0 to 0,3 to 1)) {
             val original=stocks();val changed=original.copy(bases=original.bases+
-                (1005 to original.bases.getValue(1005).copy(power=power,camp=camp)))
+                (1005 to original.bases.getValue(1005).copy(owner=Allegiance.fromLegacy(power),camp=camp)))
             assertEquals(3,territory.controlled(changed)[Power.ALLIANCE])
         }
     }

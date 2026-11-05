@@ -137,7 +137,7 @@ class BaseOccupationTest {
             logisticsOfficers=mapOf(10001 to LogisticsOffice.ALLIANCE_THIRD))
         val captured=advance(original,world=world)
         assertTrue(captured.nationalOffices.isEmpty());assertTrue(captured.logisticsOfficers.isEmpty())
-        val recaptured=captured.copy(bases=captured.bases+(1000 to captured.bases.getValue(1000).copy(power=3)))
+        val recaptured=captured.copy(bases=captured.bases+(1000 to captured.bases.getValue(1000).copy(owner=Allegiance.fromLegacy(3))))
         assertTrue(NationalOfficePolicy(world).cards(recaptured,10001,3).isEmpty())
         assertTrue(LogisticsOfficePolicy(world).cards(recaptured,10001,3).isEmpty())
     }

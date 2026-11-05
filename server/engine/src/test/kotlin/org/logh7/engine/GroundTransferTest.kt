@@ -48,7 +48,7 @@ class GroundTransferTest {
         assertEquals(LogisticsRejection.IDENTITY,GroundTransfer.evaluate(request().copy(characterId=10001),session,pilot,before).rejection)
         assertEquals(LogisticsRejection.CP,GroundTransfer.evaluate(request(),session,pilot.copy(mcp=79),before).rejection)
         assertEquals(LogisticsRejection.LOCATION,GroundTransfer.evaluate(request(),session,pilot.copy(baseId=1050),before).rejection)
-        assertEquals(LogisticsRejection.ACCESS,GroundTransfer.evaluate(request(),session,pilot,before.copy(bases=before.bases+(1049 to before.bases.getValue(1049).copy(power=3)))).rejection)
+        assertEquals(LogisticsRejection.ACCESS,GroundTransfer.evaluate(request(),session,pilot,before.copy(bases=before.bases+(1049 to before.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))).rejection)
         assertEquals(LogisticsRejection.ACCESS,GroundTransfer.evaluate(request(),session,pilot,before.copy(outfits=before.outfits+(1 to before.outfits.getValue(1).copy(commanderId=10001)))).rejection)
     }
     @Test fun currentStationedBaseRatherThanWarehouseHomeDeterminesTransferLocation() {

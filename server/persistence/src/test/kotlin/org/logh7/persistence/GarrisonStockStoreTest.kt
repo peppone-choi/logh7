@@ -50,7 +50,7 @@ class GarrisonStockStoreTest {
             FilePlanetStockStore(path).use { assertFails { it.load() } }
             assertEquals(bad,Files.readString(path))
         }
-        assertFails { stock.bases.getValue(1049).copy(power=0) }
+        assertFails { stock.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(0)) }
         assertFails { stock.bases.getValue(1049).copy(camp=1) }
     }
 }

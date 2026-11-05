@@ -70,7 +70,7 @@ internal object BaseOccupationOperations {
                 if(warehouse.baseId!=base.id || warehouse.power!=loser)warehouse else warehouse.copy(
                     supplies=0,units=UnitInventory(troops=warehouse.units.troops),spareShips=SpareShipBoats())
             }
-            val occupied=previous.copy(power=winner,camp=0,supplies=supplies,
+            val occupied=previous.copy(owner=Allegiance.Country(CountryId(winner)),camp=0,supplies=supplies,
                 governorId=0,garrisonCommanderId=0,capitalAdministratorId=0,capitalDefenseCommanderId=0,guardInspectorId=0,
                 // Captured works restart, including recruitment; never revive progress on recapture.
                 units=UnitInventory(troops=previous.units.troops),

@@ -53,7 +53,7 @@ class PlanetTreasuryTest {
         assertEquals(0L,legacy.bases.getValue(1000).treasury)
         assertTrue(legacy.nationalTreasuries.isEmpty())
         val taxed=reopened.settle(1,6*86400L)
-        val seized=taxed.copy(bases=taxed.bases.mapValues {(_,base)->base.copy(power=3)})
+        val seized=taxed.copy(bases=taxed.bases.mapValues {(_,base)->base.copy(owner=Allegiance.fromLegacy(3))})
         reopened.replace(taxed,seized)
         val next=reopened.settle(1,7*86400L)
         assertEquals(taxed.nationalTreasuries[CountryId(2)],next.nationalTreasuries[CountryId(2)])

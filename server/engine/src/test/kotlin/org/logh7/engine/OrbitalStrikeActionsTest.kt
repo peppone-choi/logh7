@@ -39,7 +39,7 @@ class OrbitalStrikeActionsTest {
         assertEquals(SocialRejection.TARGET,act(player(OrbitalStrikeActions.RANGE+5f)).rejection)
         assertEquals(SocialRejection.LOCATION,act(Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,mode=5)).rejection)
         assertEquals(SocialRejection.MAXIMUM,act(player(10f).copy(supplies=50)).rejection)
-        val own=stocks().let {it.copy(bases=it.bases+(1000 to it.bases.getValue(1000).copy(power=2)))}
+        val own=stocks().let {it.copy(bases=it.bases+(1000 to it.bases.getValue(1000).copy(owner=Allegiance.fromLegacy(2))))}
         assertEquals(SocialRejection.TARGET,act(player(10f),own).rejection,"own planets are not targets")
     }
     @Test fun shipUnitsTheCharacterCommandsNearThePlanetJoinTheAttack() {

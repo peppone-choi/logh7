@@ -60,7 +60,7 @@ class CapitalAppointmentTest {
             val cards=NationalOfficePolicy(galaxy).cards(s,10000,office.power)
             assertEquals(listOf(office.card to ((if(office.power==2)1049 else 1177)*100+office.facility+1)),cards)
             val id=if(office.power==2)1049 else 1177
-            val changed=s.copy(bases=s.bases+(id to s.bases.getValue(id).copy(power=0)))
+            val changed=s.copy(bases=s.bases+(id to s.bases.getValue(id).copy(owner=Allegiance.fromLegacy(0))))
             assertTrue(NationalOfficePolicy(galaxy).cards(changed,10000,office.power).isEmpty())
             assertFalse(office.active(galaxy,changed))
             if(rule!=null) {
