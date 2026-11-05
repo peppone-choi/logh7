@@ -60,8 +60,10 @@ fun interface WorldStateCommitter {
 /** Only the supply interval is recovered; quantities, economy formulas and caps are designed policy. */
 data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumStock: Int = Int.MAX_VALUE,
     val economy: PlanetEconomyPolicy = PlanetEconomyPolicy(), val units: UnitProductionPolicy = UnitProductionPolicy(),
-    val tax: PlanetTaxRevenuePolicy = PlanetTaxRevenuePolicy(1,50)) {
-    init { require(suppliesPerDay >= 0 && maximumStock > 0) }
+    val tax: PlanetTaxRevenuePolicy = PlanetTaxRevenuePolicy(1,50),
+    /** National treasury cost per living ship per day (FleetUpkeep); 0 disables upkeep. */
+    val fleetUpkeepPerShip: Long = 800) {
+    init { require(suppliesPerDay >= 0 && maximumStock > 0 && fleetUpkeepPerShip >= 0) }
 }
 
 /** World-actor-owned. Lazy settlement gives the same result regardless of query frequency or logins. */
@@ -146,6 +148,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                         .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }
+                // The day's income first, then that day's fleet upkeep (FleetUpkeep).
+                FleetUpkeep.pay(initialized,national,policy.fleetUpkeepPerShip)
             }
             initialized.copy(producedDays=days,bases=bases,nationalTreasuries=national).let {produced ->
                 if(lords.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+
