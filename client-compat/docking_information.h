@@ -74,8 +74,8 @@ static int __fastcall pickerDetails(void* selector, void*, const BYTE* row) {
         return 0;
     }
     unsigned power = condition[4];
-    const wchar_t* powerName = logh::planetAffiliation(power,condition[5]);
-    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls\n소속: %ls\n대기: %ls / 거주: %ls", name, powerName,
+    const auto powerName = runtimeCountryAffiliation(power,condition[5],48);
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls\n소속: %ls\n대기: %ls / 거주: %ls", name, powerName.c_str(),
         logh::planetAtmosphere(condition[0x174]), logh::planetHabitability(condition[0x175]));
     pickerText(selector, 2, text);
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"인구: %u\n성인 인구: %u\n세율: %u%%\n민심: %u / 치안: %u",

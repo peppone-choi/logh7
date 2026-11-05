@@ -327,7 +327,7 @@ static void renderOutfitInformation() {
     _snwprintf_s(title,_countof(title),_TRUNCATE,L"제%u%ls · 부대 정보",state.number,kinds[state.kind]);
     outfitText(state.root,2,title);
     _snwprintf_s(summary,_countof(summary),_TRUNCATE,L"%ls · 제%u%ls",
-        state.power==2 ? L"은하제국" : L"자유행성동맹",state.number,kinds[state.kind]);
+        runtimeCountryAffiliation(state.power,0,54).c_str(),state.number,kinds[state.kind]);
     outfitText(state.root,20,summary);
     outfitClear(0,L"부대 현황",L"값",L"설명");
     outfitClear(1,L"함종",L"함선 유닛",L"척수");

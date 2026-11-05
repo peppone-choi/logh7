@@ -1342,14 +1342,28 @@ static int runGuard(int argc, wchar_t** argv) {
         metadata.revision!=9007199254740993ULL || logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,18,metadata) ||
         logh::readCountryMetadata(paintPacket,sizeof(paintPacket)-1,2,17,metadata))return 505;
     publishCountryMetadata(metadata);
+    if(runtimeCountryAffiliation(2)!=L"제국 시험" || runtimeCountryAffiliation(2,1)!=L"제국 시험 반란군" ||
+        runtimeCountryAffiliation(3)!=L"자유행성동맹" || runtimeCountryAffiliation(2,2)!=L"미확인")return 514;
+    unsigned nameSequence=countryNameSequence.load();publishCountryMetadata(metadata);
+    if(countryNameSequence.load()!=nameSequence || logh::fitCountryLabel(L"자유행성동맹",12)!=L"자유행성동맹" ||
+        logh::fitCountryLabel(L"긴국가이름이반복되는국가이름",12)!=L"긴국가이..." ||
+        logh::fitCountryLabel(L"abcdefghijklmnop",12)!=L"abcdefghi..." ||
+        logh::fitCountryLabel(L"abc",2)!=L"" || logh::fitCountryLabel(L"abc",3)!=L"abc")return 515;
     if(!runtimeNavigationHud(0,1000,675,2,navigationCp,navigationDate) || !wcsstr(navigationDate,L"시험력 485년"))return 506;
     auto staleCountryMetadata=metadata;staleCountryMetadata.yearOffset=-309;--staleCountryMetadata.revision;publishCountryMetadata(staleCountryMetadata);
+    wcscpy_s(staleCountryMetadata.name,L"옛 국가 이름");publishCountryMetadata(staleCountryMetadata);
+    if(runtimeCountryAffiliation(2)!=L"제국 시험" || countryNameSequence.load()!=nameSequence)return 516;
+    auto renamedCountry=metadata;wcscpy_s(renamedCountry.name,L"새 국가 이름");++renamedCountry.revision;publishCountryMetadata(renamedCountry);
+    if(runtimeCountryAffiliation(2)!=L"새 국가 이름" || countryNameSequence.load()!=nameSequence+1)return 517;
+    auto otherCountry=renamedCountry;otherCountry.id=42;wcscpy_s(otherCountry.name,L"같은 외형의 다른 국가");publishCountryMetadata(otherCountry);
+    if(runtimeCountryAffiliation(42)!=L"같은 외형의 다른 국가" || runtimeCountryAffiliation(2)!=L"새 국가 이름")return 518;
     if(!runtimeNavigationHud(0,1000,675,2,navigationCp,navigationDate) || !wcsstr(navigationDate,L"시험력 485년"))return 507;
     paintField(3,L"-0");if(logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,17,metadata))return 508;
     paintField(3,L"-310");paintField(2,L"시험\n력");if(logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,17,metadata))return 509;
     paintField(2,L"시험력");paintField(4,L"922337203685");paintField(5,L"4775808");
     if(logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,17,metadata))return 510;
     resetCountryMetadata();
+    if(runtimeCountryAffiliation(2)!=L"은하제국" || runtimeCountryAffiliation(42)!=L"미확인")return 519;
     if(!runtimeNavigationHud(0,1000,675,2,navigationCp,navigationDate) || !wcsstr(navigationDate,L"제국력 486년"))return 511;
     const logh::CountryCalendar beforeNewEmpire={L"new_empire",L"신제국력",-798};
     if(!logh::formatNavigationHud(0,1000,675,beforeNewEmpire,navigationCp,navigationDate) || !wcsstr(navigationDate,L"신제국력 개원전 4년"))return 512;

@@ -130,7 +130,8 @@ static void renderPlanetDirectory() {
         }
         bool ready=row.state==2;
         const wchar_t* queryStatus=row.state==3 ? L"응답 없음" : L"조회 중";
-        planetDirectoryCell(i+1,0,ready ? logh::planetAffiliation(row.power,row.camp) : queryStatus);
+        const auto affiliation=runtimeCountryAffiliation(row.power,row.camp,12);
+        planetDirectoryCell(i+1,0,ready ? affiliation.c_str() : queryStatus);
         // 状態 has no surviving value strings (group 54). Tactical supply/repair draw on the base's
         // stored supplies (031f record +0x18), so the state shows that availability (evidence:guess, approved).
         planetDirectoryCell(i+1,4,ready ? (row.supplies ? L"보급 가능" : L"물자 없음") : L"—");

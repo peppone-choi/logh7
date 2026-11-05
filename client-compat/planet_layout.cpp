@@ -346,12 +346,29 @@ static void drawHudIcon(int slot, int atlasX, int atlasY, float x, float y, unsi
         (reinterpret_cast<void*>(0x9d29a0), scale, x, y, 33, 33, &sprite, 0, color, 0, 0);
 }
 
+static void refreshCountryNamePanels(void* world) {
+    static unsigned rendered=0;
+    unsigned sequence=countryNameSequence.load();
+    if(rendered==sequence)return;
+    rendered=sequence;
+    // Refresh existing read-only views on the GUI thread. Never create or reopen a panel.
+    if(world && planetInformation.world==world && planetInformation.popup==planetWindowRoot &&
+        planetWindowManager && planetWindowRoot && !sessionEnding.active &&
+        at<void*>(planetWindowManager,4+planetWindowId*4)==planetWindowRoot && at<BYTE>(planetWindowRoot,4)) {
+        for(auto& value:planetDirectoryStates)value=~0u;
+        renderPlanetWindow();
+    }
+    if(world && outfitInformation.world==world && outfitInformation.manager &&
+        stationedOutfitVisible(outfitInformation.manager))renderOutfitInformation();
+}
+
 static void __fastcall drawHud(void* map, void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x4d5610)(map);
     drawDockingStatus();
     drawSystemAffiliationIcons(map);
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     pollCountryPaint(world);
+    refreshCountryNamePanels(world);
     if (!world || !at<BYTE>(world, 0x2b6a6c)) return;
     int grid = at<int>(world, 0x2b6a70);
     if (grid < 0 || grid >= 5000) return;

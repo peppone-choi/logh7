@@ -44,7 +44,7 @@ static bool showSessionEnding(void* gui) {
     endingText(111,184,126,640,text);
     for(unsigned i=0;i<2;++i) {
         int x=190+static_cast<int>(i)*320;const auto& side=data.sides[i];const auto& v=side.statistics;
-        endingText(112+static_cast<int>(i),x,164,290,i ? L"자유행성동맹" : L"은하제국");
+        endingText(112+static_cast<int>(i),x,164,290,runtimeCountryAffiliation(i+2,0,38).c_str());
         endingText(114+static_cast<int>(i),x,196,290,logh::endingGrade(side.grade));
         const unsigned values[]={v.planets,v.fortresses,v.population,v.ships,v.troops,side.characters};
         const wchar_t* labels[]={L"행성",L"요새",L"인구(만 명)",L"함정 유닛",L"육전대 유닛",L"등록 인물"};
