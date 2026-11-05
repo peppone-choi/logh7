@@ -4,7 +4,7 @@ import java.security.MessageDigest
 
 /** Operator edits carry a base-specific version, unaffected by ordinary clock ticks. Author: Peppone Choi (peppone-choi). */
 data class AdminBaseEdit(val generation:Long,val baseId:Int,val expected:String,
-    val supplies:Int,val food:Int,val mineral:Int,val treasury:Long)
+    val supplies:Int,val food:Int,val mineral:Int,val treasury:Long,val economy:PlanetEconomy?=null)
 
 enum class AdminEditOutcome { CHANGED, UNCHANGED, CONFLICT, INVALID, NOT_FOUND, UNAVAILABLE }
 data class AdminBaseEditResult(val outcome:AdminEditOutcome,val stocks:PlanetStocks?=null)
@@ -21,7 +21,8 @@ object AdminWorldEditing {
         if(stocks.generation!=request.generation)return AdminBaseEditResult(AdminEditOutcome.CONFLICT)
         val base=stocks.bases[request.baseId] ?: return AdminBaseEditResult(AdminEditOutcome.NOT_FOUND)
         if(version(stocks.generation,base)!=request.expected)return AdminBaseEditResult(AdminEditOutcome.CONFLICT)
-        val next=base.copy(supplies=request.supplies,food=request.food,mineral=request.mineral,treasury=request.treasury)
+        val next=base.copy(supplies=request.supplies,food=request.food,mineral=request.mineral,treasury=request.treasury,
+            economy=request.economy ?: base.economy)
         if(next==base)return AdminBaseEditResult(AdminEditOutcome.UNCHANGED,stocks)
         return AdminBaseEditResult(AdminEditOutcome.CHANGED,stocks.copy(bases=stocks.bases+(base.baseId to next)))
     }

@@ -54,13 +54,32 @@ class WorldEditorTest {
             assertEquals(400,request("/admin/world/base",edit(treasury="9223372036854775808")).statusCode())
             assertEquals(400,request("/admin/world/base",edit(supplies=-1)).statusCode())
             assertEquals("unchanged",request("/admin/world/base",edit()).body());assertEquals(1,commits)
+            val stale=edit()
+            val people="&population=12345&adults=6789&approval=73&peace=81"
+            assertEquals(200,request("/admin/world/base",edit()+people).statusCode());assertEquals(2,commits)
+            assertEquals(PlanetEconomy(12345,6789,73,81),stored.bases.getValue(1001).economy)
+            assertTrue(request("/admin/world/live?base=1001").body().contains("\"economy\":{\"population\":12345,\"adults\":6789,\"approval\":73,\"peace\":81}"))
+            val page=request("/admin/world").body()
+            assertTrue(page.contains("name=\"population\""));assertTrue(page.contains("민심 (%)"));assertTrue(page.contains("치안 (%)"))
+            val demographic=stored
+            for(invalid in listOf("&population=12345",people.replace("adults=6789","adults=12346"),
+                people.replace("population=12345","population=2147483648"),people.replace("adults=6789","adults=-1"),
+                people.replace("approval=73","approval=101"),people.replace("peace=81","peace=-1"),
+                people.replace("approval=73","approval=73.5"))) {
+                val refused=request("/admin/world/base",edit()+invalid)
+                assertEquals(400,refused.statusCode());assertTrue(refused.body().contains("값을 확인하세요"))
+                assertEquals(demographic,stored);assertEquals(2,commits)
+            }
+            assertEquals(409,request("/admin/world/base",stale+people).statusCode())
+            assertEquals("unchanged",request("/admin/world/base",edit()).body());assertEquals(demographic,stored)
             val before=stored;fail=true
-            assertEquals(500,request("/admin/world/base",edit(supplies=999)).statusCode())
+            assertEquals(500,request("/admin/world/base",edit(supplies=999)+people.replace("population=12345","population=20000")).statusCode())
             assertEquals(before,stored);assertEquals(before,engine.snapshot().planetStocks)
-            assertEquals(EngineHealth.STORAGE_FAILED,engine.health());assertEquals(1,commits)
+            assertEquals(EngineHealth.STORAGE_FAILED,engine.health());assertEquals(2,commits)
             assertEquals(503,request("/admin/world/base",edit(supplies=999)).statusCode())
             val log=Files.readString(file)
             assertTrue(log.contains("base=1001,generation=1,supplies=123"))
+            assertTrue(log.contains("population=12345,adults=6789,approval=73,peace=81"))
             for(outcome in listOf("CHANGED","CONFLICT","INVALID","UNCHANGED","FAILED","UNAVAILABLE"))assertTrue(log.contains("\"outcome\":\"$outcome\""),outcome)
         }}}} finally {withTimeout(5000){engine.drainAndClose()};scope.cancel()}
     }
