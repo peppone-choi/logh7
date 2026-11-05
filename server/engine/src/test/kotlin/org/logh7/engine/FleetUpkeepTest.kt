@@ -15,19 +15,23 @@ class FleetUpkeepTest {
         nextShipId = 1000)
 
     @Test fun onlyLivingShipsOfEachSideAreCharged() {
-        assertEquals((full + half).toLong(), FleetUpkeep.ships(stocks, 2))
-        assertEquals(full.toLong(), FleetUpkeep.ships(stocks, 3))
-        assertEquals((full + half) * 800L, FleetUpkeep.due(stocks, 2, 800))
-        assertEquals(0, FleetUpkeep.due(stocks, 2, 0))
+        assertEquals((full + half).toLong(), FleetUpkeep.ships(stocks, CountryId(2)))
+        assertEquals(full.toLong(), FleetUpkeep.ships(stocks, CountryId(3)))
+        assertEquals((full + half) * 800L, FleetUpkeep.due(stocks, CountryId(2), 800))
+        assertEquals(0, FleetUpkeep.due(stocks, CountryId(2), 0))
     }
 
     @Test fun aShortTreasuryPaysWhatItHoldsAndKeepsNoDebt() {
-        val treasuries = mutableMapOf(2 to 100_000_000L, 3 to 100L)
+        val treasuries = mutableMapOf(CountryId(2) to 100_000_000L, CountryId(3) to 100L, CountryId(42) to 777L)
         FleetUpkeep.pay(stocks, treasuries, 800)
-        assertEquals(100_000_000L - (full + half) * 800L, treasuries[2])
-        assertEquals(0L, treasuries[3])
+        assertEquals(100_000_000L - (full + half) * 800L, treasuries[CountryId(2)])
+        assertEquals(0L, treasuries[CountryId(3)])
         FleetUpkeep.pay(stocks, treasuries, 800)
-        assertEquals(0L, treasuries[3], "never negative, no arrears")
+        assertEquals(0L, treasuries[CountryId(3)], "never negative, no arrears")
+        assertEquals(777L, treasuries[CountryId(42)], "a different country never pays this fleet's bill")
+        val before=treasuries.toMap()
+        assertFailsWith<IllegalArgumentException> {FleetUpkeep.pay(stocks,treasuries,-1)}
+        assertEquals(before,treasuries)
     }
 
     @Test fun blackHoleLossesGiveTheSameBillWhetherSettledHourlyOrAtOnce() {
@@ -43,7 +47,7 @@ class FleetUpkeepTest {
             position = OutfitPosition(3059))
         val initial = stocks.copy(outfits = stocks.outfits + (1 to caughtFleet), deploymentInitialized = true,
             tidalHour = maxOf(1L, start / BlackHoleTides.HOUR), // 0 means "no watermark yet".
-            nationalTreasuries = mapOf(2 to 1_000_000_000L, 3 to 1_000_000_000L))
+            nationalTreasuries = mapOf(CountryId(2) to 1_000_000_000L, CountryId(3) to 1_000_000_000L))
         fun run(times: List<Long>): PlanetStocks {
             var saved: PlanetStocks? = initial
             val store = object : PlanetStockStore {
@@ -55,7 +59,7 @@ class FleetUpkeepTest {
         }
         val hourly = run((1..24).map { start + it * BlackHoleTides.HOUR })
         val atOnce = run(listOf(start + 86400))
-        assertTrue(FleetUpkeep.ships(atOnce, 2) < FleetUpkeep.ships(initial, 2), "the tide removed ships during the day")
+        assertTrue(FleetUpkeep.ships(atOnce, CountryId(2)) < FleetUpkeep.ships(initial, CountryId(2)), "the tide removed ships during the day")
         assertEquals(hourly.outfits, atOnce.outfits)
         assertEquals(hourly.nationalTreasuries, atOnce.nationalTreasuries, "the bill does not depend on settlement frequency")
     }
@@ -65,7 +69,7 @@ class FleetUpkeepTest {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)), listOf(home), Power.entries.associateWith { 2487 })
         val start = SessionRules.load().startSeconds
         val opening = 1_000_000_000L
-        val initial = stocks.copy(deploymentInitialized = true, nationalTreasuries = mapOf(2 to opening, 3 to opening))
+        val initial = stocks.copy(deploymentInitialized = true, nationalTreasuries = mapOf(CountryId(2) to opening, CountryId(3) to opening))
         var saved: PlanetStocks? = initial
         val store = object : PlanetStockStore {
             override fun load() = saved
@@ -73,18 +77,18 @@ class FleetUpkeepTest {
         }
         fun production(perShip: Long) = PlanetProduction(galaxy, store, start, PlanetProductionPolicy(fleetUpkeepPerShip = perShip))
         val free = production(0).settle(1, start + 86400)
-        val income = free.nationalTreasuries.getValue(2) - opening
+        val income = free.nationalTreasuries.getValue(CountryId(2)) - opening
         // Same day replayed with upkeep enabled from the same opening state.
         saved = initial
         val charged = production(800).settle(1, start + 86400)
-        assertEquals(opening + income - (full + half) * 800L, charged.nationalTreasuries[2])
-        assertEquals(opening + (free.nationalTreasuries.getValue(3) - opening) - full * 800L, charged.nationalTreasuries[3])
+        assertEquals(opening + income - (full + half) * 800L, charged.nationalTreasuries[CountryId(2)])
+        assertEquals(opening + (free.nationalTreasuries.getValue(CountryId(3)) - opening) - full * 800L, charged.nationalTreasuries[CountryId(3)])
         // Re-settling the same day (restart or repeated query) never charges again.
         assertEquals(charged.nationalTreasuries, production(800).settle(1, start + 86400).nationalTreasuries)
         // Two more days: exactly three days of upkeep in total, compared with the same days settled without it.
         val third = production(800).settle(1, start + 3 * 86400)
         saved = initial
         val freeThird = production(0).settle(1, start + 3 * 86400)
-        assertEquals(3 * (full + half) * 800L, freeThird.nationalTreasuries.getValue(2) - third.nationalTreasuries.getValue(2))
+        assertEquals(3 * (full + half) * 800L, freeThird.nationalTreasuries.getValue(CountryId(2)) - third.nationalTreasuries.getValue(CountryId(2)))
     }
 }

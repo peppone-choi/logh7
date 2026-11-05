@@ -21,7 +21,7 @@ class SocialActionsTest {
         evaluation=456,money=789,abilities=listOf(50,politics,50,50,50,50,50,50),decorations=setOf(1))
     private fun stocks()=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1177)3 else 2,0,
         2000,200,300,PlanetEconomy(1000,600,70,80),treasury=200)},deploymentInitialized=true,
-        nationalTreasuries=mapOf(2 to 5001L,3 to 1000L),strategic=StrategicState(people=mapOf(10000 to person())))
+        nationalTreasuries=mapOf(CountryId(2) to 5001L,CountryId(3) to 1000L),strategic=StrategicState(people=mapOf(10000 to person())))
     private fun request(phase:Int=1,ticket:Int=1)=SocialRequest(StrategyActionRequest("actor","c",10000,Power.EMPIRE,1,14,0,1),phase,ticket)
     private fun act(r:SocialRequest=request(),s:PlanetStocks=stocks(),p:Navigator=player,clock:SessionState=session)=
         SocialActions.evaluate(galaxy,r,clock,p,s)

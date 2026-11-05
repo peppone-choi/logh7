@@ -67,7 +67,7 @@ class StrategicStateStoreTest {
     }
     @Test fun strategy29MigratesToCombined30WithoutLosingEitherPendingCommandOrTreasury() {
         val path=directory.resolve("combined.tsv")
-        val original=stocks.copy(nationalTreasuries=mapOf(2 to 123L))
+        val original=stocks.copy(nationalTreasuries=mapOf(CountryId(2) to 123L))
         FilePlanetStockStore(path).use {it.save(original)}
         assertEquals("LOGH7-STOCK-29",Files.readAllLines(path).first().substringBefore('\t'))
         val tactical=TacticalCommandState(orders=listOf(TacticalQueuedCommand(10000,2487,100,105,

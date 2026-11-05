@@ -53,7 +53,8 @@ object BudgetActions {
         val baseId=if(r.base>0)r.base else p.baseId.takeIf {s.bases[it]?.let {b->b.power==power && b.camp==0}==true} ?: holding.seat
         val b=s.bases[baseId] ?: return reject(BudgetRejection.BASE)
         if(b.power!=power || b.camp!=0)return reject(BudgetRejection.BASE)
-        val national=s.nationalTreasuries[power] ?: 0L;val currentRate=rate(s,baseId,defaultRate)
+        val country=CountryId(power)
+        val national=s.nationalTreasuries[country] ?: 0L;val currentRate=rate(s,baseId,defaultRate)
         val old=s.budget.quotes[i.characterId]?.takeIf {it.command==i.command && it.base==baseId}
         val now=session.gameMillis/1000
         val visible=old?.takeIf {it.phase!=BudgetPhase.QUOTED || now<it.expiresAt && it.national==national &&
@@ -100,10 +101,10 @@ object BudgetActions {
         val completed=q.copy(phase=BudgetPhase.COMPLETED)
         var next=s.copy(budget=s.budget.copy(quotes=s.budget.quotes+(i.characterId to completed)))
         if(i.command==16)next=next.copy(budget=next.budget.copy(remittanceRates=next.budget.remittanceRates+(baseId to r.rate)))
-        else next=next.copy(nationalTreasuries=next.nationalTreasuries+(power to national-q.amount),
+        else next=next.copy(nationalTreasuries=next.nationalTreasuries+(country to national-q.amount),
             bases=next.bases+(baseId to b.copy(treasury=b.treasury+q.amount)))
         return BudgetResult(p.paidWith(paid.balance),next,changed=true,
-            view=BudgetView(baseId,power,next.nationalTreasuries[power] ?: 0,next.bases.getValue(baseId).treasury,
+            view=BudgetView(baseId,power,next.nationalTreasuries[country] ?: 0,next.bases.getValue(baseId).treasury,
                 rate(next,baseId,defaultRate),completed))
     }
 }

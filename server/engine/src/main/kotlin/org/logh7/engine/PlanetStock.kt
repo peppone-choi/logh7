@@ -18,7 +18,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     val outfits: Map<Int, OutfitStock> = emptyMap(), val warehouses: Map<Int, OutfitWarehouse> = emptyMap(),
     val logisticsOfficers: Map<Int, LogisticsOffice> = emptyMap(), val deploymentInitialized: Boolean = false,
     val nextShipId: Int = 1, val nationalOffices:Map<NationalOffice,Int> = emptyMap(),
-    val groundBattles:Map<Int,Long> = emptyMap(), val nationalTreasuries:Map<Int,Long> = emptyMap(),
+    val groundBattles:Map<Int,Long> = emptyMap(), val nationalTreasuries:Map<CountryId,Long> = emptyMap(),
     val strategic:StrategicState = StrategicState(),
     val tacticalCommands:TacticalCommandState=TacticalCommandState(),
     val flagshipMarket:FlagshipMarketState=FlagshipMarketState(),
@@ -39,7 +39,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(outfits.values.all {it.activeGround?.values.orEmpty().all {u->u.base==0 || u.base in bases}}) {"Unknown ground base"}
         require(groundBattles.size<=350 && groundBattles.all {(base,at)->base in bases && at in 0..0xffffffffL})
         require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
-        require(nationalTreasuries.all {(power,balance)->power in 2..3 && balance>=0}) { "Invalid national treasury" }
+        require(nationalTreasuries.size<=1000 && nationalTreasuries.values.all {it>=0}) { "Invalid national treasury" }
         require(flagshipMarket.offers.all {it.base in bases}) {"Unknown flagship exchange base"}
         require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
         require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}
@@ -136,7 +136,10 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
                     val lord=initialized.strategic.fiefs[id]
                     if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
-                    else if(revenue.central>0)national[next.power]=Math.addExact(national[next.power] ?: 0,revenue.central)
+                    else if(revenue.central>0) {
+                        val country=CountryId(next.power)
+                        national[country]=Math.addExact(national[country] ?: 0,revenue.central)
+                    }
                     val capital=capitals[next.power]?.let(bases::getValue)
                     if(!stopped)CapitalProvisioning.topUp(next,base,policy,capitals,capital?.food ?: 0)?.let {(fed,amount)->
                         next=fed

@@ -121,7 +121,7 @@ object TradeActions {
                 if(fezzan(g,s)==null)return reject(SocialRejection.TARGET)
                 // U-07: Fezzan withdraws its investment from a violator; no new commerce pact.
                 if(i.value==COMMERCE && own in t.violations)return reject(SocialRejection.STALE)
-                if(i.value==INTELLIGENCE && !t.leaking(5-own,now) && (s.nationalTreasuries[own] ?: 0)<INTEL_PRICE)return reject(SocialRejection.MAXIMUM)
+                if(i.value==INTELLIGENCE && !t.leaking(5-own,now) && (s.nationalTreasuries[CountryId(own)] ?: 0)<INTEL_PRICE)return reject(SocialRejection.MAXIMUM)
             }
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==ROUTE)160L else 320L,
@@ -141,8 +141,8 @@ object TradeActions {
                 val gross=i.amount*3/2*(if(pact)6 else 5)/5
                 // The other side's tariff takes its cut into the other side's treasury (trade through Fezzan).
                 val other=5-own;val duty=gross*t.tariff(other)/100;val net=gross-duty
-                val treasuries=s.nationalTreasuries+(own to Math.addExact(s.nationalTreasuries[own] ?: 0,net))+
-                    (other to Math.addExact(s.nationalTreasuries[other] ?: 0,duty))
+                val treasuries=s.nationalTreasuries+(CountryId(own) to Math.addExact(s.nationalTreasuries[CountryId(own)] ?: 0,net))+
+                    (CountryId(other) to Math.addExact(s.nationalTreasuries[CountryId(other)] ?: 0,duty))
                 val next=s.copy(outfits=s.outfits+(o.id to o.copy(supplies=(o.supplies-i.amount).toInt())),nationalTreasuries=treasuries)
                 return SocialResult(payer,trade(t.copy(convoys=t.convoys+(o.id to now+Justice.DAY)),next),changed=true,outcome=1,
                     found=minOf(net,0x7fffffffL).toInt())
@@ -161,7 +161,7 @@ object TradeActions {
                     else -> {
                         val capital=g.bases.singleOrNull {Capital.of(it)?.power==5-own}?.let {s.bases[it.id]}
                         // A leaking enemy's secrets come free (U-07).
-                        val next=if(leak)s else s.copy(nationalTreasuries=s.nationalTreasuries+(own to (s.nationalTreasuries[own] ?: 0)-INTEL_PRICE))
+                        val next=if(leak)s else s.copy(nationalTreasuries=s.nationalTreasuries+(CountryId(own) to (s.nationalTreasuries[CountryId(own)] ?: 0)-INTEL_PRICE))
                         // The treasury travels in units of 10,000 marks: whole-capital treasuries overflow 32 bits.
                         SocialResult(payer,next,changed=true,outcome=1,found=minOf((capital?.treasury ?: 0)/10_000,0x7fffffffL).toInt(),
                             report=(capital?.economy?.approval ?: 0)*256+(capital?.economy?.peace ?: 0))
@@ -189,7 +189,8 @@ object TradeActions {
             val paid=t.subsidies[power] ?: 0
             if(due>paid) {
                 val enemy=5-power
-                treasuries=treasuries+(enemy to Math.addExact(treasuries[enemy] ?: 0,SUBSIDY*(due-paid)))
+                val country=CountryId(enemy)
+                treasuries=treasuries+(country to Math.addExact(treasuries[country] ?: 0,SUBSIDY*(due-paid)))
                 t=t.copy(subsidies=t.subsidies+(power to due))
             }
         }
