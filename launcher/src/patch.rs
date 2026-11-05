@@ -18,6 +18,7 @@ const MANIFEST: &str = "patch.manifest";
 const STATE: &str = "logh7-patch.state";
 const BACKUP: &str = "logh7-patch-backup";
 const PENDING: &str = "pending";
+const NEXT: &str = "logh7-patch.state.next";
 const CLIENT: &str = "exe/G7MTClient.exe";
 
 struct Entry {
@@ -154,6 +155,7 @@ pub fn apply(root: &Path, patch: &Path) -> Result<usize, String> {
             // 적용 도중 실패하면 그때까지 바꾼 파일(쓰다 만 파일 포함)을 바로 되돌린다.
             if !root.join(STATE).exists() {
                 let _ = fs::remove_dir_all(root.join(BACKUP));
+                let _ = fs::remove_file(root.join(NEXT));
                 return Err(format!("{failure}. 바꾼 파일은 없습니다"));
             }
             return Err(match revert(root) {
@@ -187,9 +189,9 @@ fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Resu
     ));
     // 임시 파일에 쓴 뒤 바꿔 넣어, 쓰는 도중 중단돼도 직전 상태 기록이 남는다.
     let record = |text: &str| {
-        let next = root.join(format!("{STATE}.next"));
+        let next = root.join(NEXT);
         fs::write(&next, text)
-            .and_then(|_| fs::rename(&next, root.join(STATE)))
+            .and_then(|_| replace(&next, &root.join(STATE)))
             .map_err(|_| "패치 상태를 기록하지 못했습니다".to_string())
     };
     record(&format!("{state}{PENDING}\n"))?;
@@ -197,6 +199,21 @@ fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Resu
         .map_err(|_| format!("패치 파일을 쓰지 못했습니다: {}", entry.path))?;
     record(state)
 }
+/// Windows에서는 백신·색인기 등이 상태 파일을 잠깐 열고 있으면 바꿔 넣기가 실패한다(2026-11-06 실측).
+/// 짧게 여러 번 다시 시도한다.
+fn replace(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut attempt = 0;
+    loop {
+        match fs::rename(from, to) {
+            Err(_) if attempt < 40 => {
+                attempt += 1;
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+            result => return result,
+        }
+    }
+}
+
 pub fn revert(root: &Path) -> Result<usize, String> {
     let text = fs::read_to_string(root.join(STATE)).map_err(|_| "적용된 패치가 없습니다")?;
     let mut lines = text.lines();
@@ -252,6 +269,7 @@ pub fn revert(root: &Path) -> Result<usize, String> {
         }
     }
     let _ = fs::remove_dir_all(root.join(BACKUP));
+    let _ = fs::remove_file(root.join(NEXT));
     fs::remove_file(root.join(STATE)).map_err(|_| "패치 상태를 지우지 못했습니다")?;
     Ok(entries.len())
 }
