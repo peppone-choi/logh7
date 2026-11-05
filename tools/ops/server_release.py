@@ -19,6 +19,7 @@ the operator must restore the pre-upgrade backup first. ``--world`` (``LOGH7_WOR
 the versioned store headers (``LOGH7-STOCK-N``, ``LOGH7-NAV-N``, ``LOGH7-WORLD-N``): each must be an
 exact string constant of the matching store class in the target release. ``--definitions-db``
 (full definitions published in PostgreSQL, not only colors) requires the PostgreSQL country definition reader.
+``--world-definition`` (``LOGH7_WORLD_FILE``) requires a reader for its ``schema=`` (2: country starts).
     server_release.py classpath --releases DIR
 """
 from __future__ import annotations
@@ -49,13 +50,39 @@ HEADER_READERS = (("LOGH7-STOCK-", "org/logh7/persistence/FilePlanetStockStore.c
                   ("LOGH7-WORLD-", "org/logh7/persistence/FileWorldStateStore.class"))
 
 
+# World definition (LOGH7_WORLD_FILE) ``schema=N``: schema 1 is read by every release; a later schema
+# needs a release whose reader holds the listed exact string constant (codex/live-country-identity).
+WORLD_SCHEMAS = {"2": ("org/logh7/engine/Galaxy$Companion.class", "Country starts require world schema 2")}
+SCHEMA_READERS_CLASSES = {reader for reader, _ in WORLD_SCHEMAS.values()}
+
+
+def unreadable_world_definition(classes: dict[str, bytes], definition: Path | None) -> list[str]:
+    if definition is None:
+        return []
+    schema = "1"
+    for line in definition.read_text(encoding="utf-8", errors="replace").splitlines():
+        key, _, value = line.partition("=")
+        if key.strip() == "schema":
+            schema = value.strip()
+            break
+    if schema == "1":
+        return []
+    reader = WORLD_SCHEMAS.get(schema)
+    if reader is None:
+        return [f"unknown world schema {schema} in {definition.name}"]
+    if not has_constant(classes.get(reader[0], b""), reader[1]):
+        return [f"world schema {schema} in {definition.name}"]
+    return []
+
+
 def release_classes(root: Path) -> dict[str, bytes]:
     classes: dict[str, bytes] = {}
     for jar in (root / "lib").glob("*.jar"):
         try:
             with zipfile.ZipFile(jar) as archive:
                 for name in archive.namelist():
-                    classes[name] = archive.read(name) if name.endswith(".class") and name.startswith("org/logh7/persistence/") else b""
+                    wanted = name.startswith("org/logh7/persistence/") or name in SCHEMA_READERS_CLASSES
+                    classes[name] = archive.read(name) if name.endswith(".class") and wanted else b""
         except zipfile.BadZipFile:
             continue
     return classes
@@ -146,11 +173,11 @@ def install(args: argparse.Namespace) -> None:
 
 
 def switch(releases: Path, name: str, health: str | None, characters: Path | None = None,
-           world: Path | None = None, definitions_db: bool = False) -> None:
+           world: Path | None = None, definitions_db: bool = False, world_definition: Path | None = None) -> None:
     if server_running(health):
         raise SystemExit(f"server may be running ({health}); confirm it is stopped before switching releases")
     root = checked(releases, name)
-    missing = unreadable(root, characters, world)
+    missing = unreadable(root, characters, world) + unreadable_world_definition(release_classes(root), world_definition)
     if definitions_db and DEFINITIONS_READER not in release_classes(root):
         missing.append("country definitions database")
     if missing:
@@ -175,7 +202,7 @@ def definitions_db(args: argparse.Namespace) -> bool:
 
 def activate(args: argparse.Namespace) -> None:
     switch(Path(args.releases), args.name, args.health, args.characters and Path(args.characters),
-           args.world and Path(args.world), definitions_db(args))
+           args.world and Path(args.world), definitions_db(args), args.world_definition and Path(args.world_definition))
 
 
 def rollback(args: argparse.Namespace) -> None:
@@ -184,7 +211,7 @@ def rollback(args: argparse.Namespace) -> None:
     if not previous:
         raise SystemExit("no previous release to roll back to")
     switch(releases, previous, args.health, args.characters and Path(args.characters), args.world and Path(args.world),
-           definitions_db(args))
+           definitions_db(args), args.world_definition and Path(args.world_definition))
 
 
 def classpath(args: argparse.Namespace) -> None:
@@ -210,6 +237,7 @@ def main(argv: list[str] | None = None) -> None:
     use.add_argument("--releases", required=True)
     use.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     use.add_argument("--world", help="LOGH7_WORLD_STATE_DIR; refuse a release that cannot read its file headers")
+    use.add_argument("--world-definition", help="LOGH7_WORLD_FILE; refuse a release that cannot read its schema")
     use.add_argument("--definitions-db", action="store_true",
                    help="full country definitions are published in PostgreSQL (not only colors)")
     use.set_defaults(run=activate)
@@ -217,6 +245,7 @@ def main(argv: list[str] | None = None) -> None:
     back.add_argument("--releases", required=True)
     back.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     back.add_argument("--world", help="LOGH7_WORLD_STATE_DIR; refuse a release that cannot read its file headers")
+    back.add_argument("--world-definition", help="LOGH7_WORLD_FILE; refuse a release that cannot read its schema")
     back.add_argument("--definitions-db", action="store_true",
                    help="full country definitions are published in PostgreSQL (not only colors)")
     back.set_defaults(run=rollback)

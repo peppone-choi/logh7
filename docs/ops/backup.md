@@ -47,7 +47,7 @@
 
 `tools/ops/server_release.py`는 Gradle `installDist` 결과(`server/app/build/install/app`)를 `RELEASES/<이름>`에 해시 매니페스트와 함께 복사하고, `CURRENT`/`PREVIOUS` 파일로 활성 릴리스를 바꾼다. 실행 중(`/health` 응답)이면 전환을 거부하고, 매니페스트와 다른 파일이 있는 릴리스는 활성화하지 않는다. 시작 스크립트는 `classpath` 출력(`<릴리스>/lib/*`)을 `java -cp`에 넘긴다.
 
-업데이트 절차: 서버 정지 → `state_backup.py backup` → `server_release.py install`·`activate` → 시작·확인. 실패하면 정지 → `state_backup.py restore --force` → `rollback --characters <캐릭터 파일> --world <월드 상태 폴더>` → 시작(아래 저장 형식 복귀 참고).
+업데이트 절차: 서버 정지 → `state_backup.py backup` → `server_release.py install`·`activate` → 시작·확인. 실패하면 정지 → `state_backup.py restore --force` → `rollback --characters <캐릭터 파일> --world <월드 상태 폴더> --world-definition <월드 정의 파일>` → 시작(아래 저장 형식 복귀 참고).
 
 로컬 리허설(`work/release-20261103`, 단위 검사 2개 통과): 정상 릴리스 `good`로 시작·정지하고 상태를 백업한 뒤, 앱 jar를 잘라 만든 `broken` 릴리스를 활성화하자 서버가 `ClassNotFoundException`으로 시작하지 못했다. `rollback`(good 복귀)과 상태 복원 뒤 재시작해 `/health` 응답과 백업 시점 게임 시각을 확인했다. 무중단 전환·자동 상태 확인·원격 배포는 미구현이다. `evidence:guess`
 
@@ -73,6 +73,9 @@ PR #290부터 캐릭터 기록은 다음 저장 때 `v2:` 형식으로 바뀐다
 확인: 검사 5개 통과. 실제 릴리스 두 개(PR #290 이전, PR #294 main `931e2b81`)는 둘 다 리더가 없어 `--definitions-db`에서 거부됨을 확인했다(PR #294까지 이 클래스가 없었다). 이전 릴리스를 정의 DB 배포에서 띄우는 시험은 미검증이다.
 
 정의 DB 복원 리허설(같은 날, PR #297 머지 `27eb56ec` 뒤, `work/update-rehearsal-20261106/definitions`, Git 제외): Codex QA의 `pg_dump --format=custom` 덤프(PostgreSQL 18.6, 표 29개, 국가 2·3·42, `nation_definition_revision` 7)를 새 볼륨 없이 tmpfs로 띄운 전용 QA 컨테이너(`postgres:18`, 127.0.0.1 전용, 시험용 비밀번호)에 `pg_restore --no-owner --exit-on-error`로 복원했다. 복원 DB를 다시 덤프해 또 다른 DB에 복원하자 29개 표의 건수와 내용 해시가 모두 같았다. main 릴리스는 복원한 DB를 정의 원천으로 시작해 월드를 적재했다(이 릴리스는 정의 DB가 유효하지 않으면 시작을 거부한다). 같은 상태에서 `--definitions-db` 판정은 main은 허용, PR #294 릴리스는 거부했다. 컨테이너는 정리했고 기존 Docker 볼륨 163개는 그대로다. 운영 DB의 정기 백업 연결과 리더가 없는 이전 릴리스를 정의 DB 배포에서 띄우는 시험은 미검증이다. 복원 명령 예: `createdb <새 DB>` → `pg_restore --no-owner --exit-on-error -d <새 DB> definitions.dump` → 표 건수 확인 → `LOGH7_DEFINITIONS_JDBC_URL`을 새 DB로 바꿔 시작.
+### 월드 정의 schema와 릴리스 전환 (2026-11-06)
+
+국가별 시작 위치(`start.country.<id>`, Codex `live-country-identity`)가 들어간 월드 정의 파일(`LOGH7_WORLD_FILE`)은 `schema=2`다. 지금까지의 릴리스는 `schema=1`만 받아 시작을 거부한다. `server_release.py activate`·`rollback --world-definition <LOGH7_WORLD_FILE>`은 `schema`가 1이 아니면 대상 릴리스의 `org/logh7/engine/Galaxy$Companion.class`에 `Country starts require world schema 2`가 정확한 상수로 있어야 전환한다. 표에 없는 schema는 거부한다. 확인: 검사 6개 통과. 실제 릴리스(main `1c94aecf` 이전 빌드 `27eb56ec`)는 schema 1 정의는 허용, schema 2로 바꾼 사본은 거부했다. schema 2 리더가 들어간 릴리스로 허용되는지는 해당 PR 머지 뒤 확인한다(미검증).
 ## 운영 지표 `/metrics` (2026-11-03)
 
 운영 API(`127.0.0.1`, 기본 47901·시험 47951)에 Prometheus 텍스트 형식 `/metrics`를 더했다. 엔진 정상 여부(`logh7_engine_up`), 월드 리비전·명령 접수/거부 누계, 세션 세대·게임 시각·참가/접속 수·종료 여부, 전술 인스턴스 수, 진행 중 지상전 거점 수 11개다(검사 `metricsExposeHealthAndCountersInPrometheusText`). 실제 시험 서버에서 `engine_up 1`, 참가 6·접속 0, 지상전 1을 확인했다. 수집기 연결(2026-11-03 추가): 운영 API 바인드 주소를 `LOGH7_OPS_BIND`로 바꿀 수 있게 했고, 루프백이 아닌 주소는 토큰(`LOGH7_OPS_TOKEN` 또는 비밀 파일 `LOGH7_OPS_TOKEN_FILE`)이 없으면 서버 시작을 거부한다(실제 서버에서 `0.0.0.0` 무토큰 시작 거부 확인). 선택 덮어쓰기 `deploy/docker-compose.metrics.yml`이 게임 서버를 백엔드 망에 토큰과 함께 열고, Prometheus가 `prometheus-game.yml`의 Bearer 설정으로 `game-server:47901/metrics`를 긁는다. 기본 Compose와 CI 계약(게임 서비스 비밀 없음·루프백 수신)은 그대로다. `docker compose config`로 병합 결과를 확인했으나, Linux Docker에서 실제 수집은 실행하지 않았다. 지연·송신 큐·메모리 지표는 미구현이다. `evidence:guess`
