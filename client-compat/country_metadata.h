@@ -1,17 +1,30 @@
 // Runtime calendar metadata is copied under a lock before formatting the HUD. Author: Peppone Choi.
 #pragma once
 #include "country_metadata_data.h"
+#include "country_name_data.h"
 #include "navigation_hud_data.h"
+#include <atomic>
 static SRWLOCK countryMetadataLock=SRWLOCK_INIT;
+static std::atomic<unsigned> countryNameSequence{0};
 static struct CountryMetadataCache {unsigned count;logh::CountryMetadata rows[350];} countryMetadataCache={};
 static void resetCountryMetadata() {
-    AcquireSRWLockExclusive(&countryMetadataLock);countryMetadataCache={};ReleaseSRWLockExclusive(&countryMetadataLock);
+    AcquireSRWLockExclusive(&countryMetadataLock);countryMetadataCache={};++countryNameSequence;ReleaseSRWLockExclusive(&countryMetadataLock);
 }
 static void publishCountryMetadata(const logh::CountryMetadata& value) {
     AcquireSRWLockExclusive(&countryMetadataLock);auto& cache=countryMetadataCache;
     unsigned i=0;for(;i<cache.count && cache.rows[i].id!=value.id;++i){}
-    if(i<350 && (i==cache.count || cache.rows[i].revision<=value.revision)) {cache.rows[i]=value;if(i==cache.count)++cache.count;}
+    if(i<350 && (i==cache.count || cache.rows[i].revision<=value.revision)) {
+        if(i==cache.count || wcscmp(cache.rows[i].name,value.name))++countryNameSequence;
+        cache.rows[i]=value;if(i==cache.count)++cache.count;
+    }
     ReleaseSRWLockExclusive(&countryMetadataLock);
+}
+static std::wstring runtimeCountryAffiliation(unsigned id,unsigned camp=0,unsigned columns=80) {
+    logh::CountryMetadata metadata;bool found=false;
+    AcquireSRWLockShared(&countryMetadataLock);
+    for(unsigned i=0;i<countryMetadataCache.count;++i)if(countryMetadataCache.rows[i].id==id) {metadata=countryMetadataCache.rows[i];found=true;break;}
+    ReleaseSRWLockShared(&countryMetadataLock);
+    return logh::countryAffiliationLabel(id,camp,found ? &metadata : nullptr,columns);
 }
 static bool runtimeNavigationHud(unsigned seconds,unsigned pcp,unsigned mcp,unsigned country,wchar_t (&cp)[32],wchar_t (&date)[96]) {
     logh::CountryMetadata metadata;bool found=false;

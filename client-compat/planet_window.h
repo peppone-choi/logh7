@@ -433,13 +433,13 @@ static void renderPlanetWindow() {
         unsigned pages = planetStockPages();
         _snwprintf_s(text, _countof(text), _TRUNCATE, L"재고 조회  ·  %u / %u", pages ? info.page + 1 : 0, pages);
         planetCell(1, text);
-    } else planetCell(1,logh::planetAffiliation(info.condition[4],info.condition[5]));
+    } else planetCell(1,runtimeCountryAffiliation(info.condition[4],info.condition[5],52).c_str());
     if (!stock) {
         planetCell(80, L"항목"); planetRect(80, 392, 206, 180, 24);
         planetCell(81, L"현재 상태"); planetRect(81, 594, 206, 216, 24);
         auto c = info.condition;
         unsigned power = c[4];
-        planetCell(40, L"소속 진영"); planetCell(41, logh::planetAffiliation(power,c[5]));
+        planetCell(40, L"소속 진영"); planetCell(41, runtimeCountryAffiliation(power,c[5],30).c_str());
         if (!planetWindowTab) {
             planetValue(1, L"인구", logh::infoWord(c, 0x120), L" 명");
             planetValue(2, L"성인 인구", logh::infoWord(c, 0x124), L" 명");
