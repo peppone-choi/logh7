@@ -5,6 +5,33 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class LobbyMessagesTest {
+    @Test fun multipleSessionsKeepDistinctIdsAndPerSessionChargedCharacterRecords() {
+        val character=CharacterMessages.Generate(4,10001,2,0,0,"Beta","Pilot",18,1,1,
+            1_000_001,List(8){50},0,0,0,20,3,0,"BetaShip",1)
+        fun session(id:Int)=SessionEndingMessages.Session(id,1,"World$id","",123,
+            listOf(2,3).map {SessionEndingMessages.PowerResult(it,0,id.toLong(),id.toLong(),null)},null)
+        val sessions=listOf(session(1),session(7))
+        val records=sessions.map(SessionEndingMessages::information)
+        assertContentEquals(records[0]+records[1],LobbyMessages.sessions(sessions).copyOfRange(8,8+records.sumOf {it.size}))
+        val entries=sessions.map {LobbyMessages.ChargedSession(character.copy(power=if(it.id==1)2 else 3),it)}
+        val expected=entries.fold(byteArrayOf()) {bytes,entry->
+            val single=LobbyMessages.characters(entry.character,entry.information);bytes+single.copyOfRange(7,single.size)
+        }
+        val actual=LobbyMessages.characters(entries)
+        assertEquals(2,actual[6].toInt());assertContentEquals(expected,actual.copyOfRange(7,actual.size))
+        assertContentEquals(LobbyMessages.noCharacters(),LobbyMessages.characters(emptyList()))
+        assertFailsWith<IllegalArgumentException> {LobbyMessages.sessions(listOf(sessions[0],sessions[0]))}
+        val stats=SessionEndingMessages.Statistics(1,1,1,1,1)
+        val ending=SessionEndingMessages.PowerEnding("X".repeat(12),1,0,0,0,0,0,stats)
+        val worst=(1..128).map {id->LobbyMessages.ChargedSession(character.copy(surname="X".repeat(12),
+            givenName="X".repeat(12),shipName="X".repeat(12)),session(id).copy(name="X".repeat(12),beginDay="X".repeat(64),
+                powers=listOf(2,3).map {SessionEndingMessages.PowerResult(it,0,1,1,ending)},ending=stats),
+            SessionEndingMessages.Evaluation(1,1,1,1,1))}
+        val maximum=LobbyMessages.characters(worst)
+        assertTrue(((8+maximum.size+7)/8)*8+6<=Frames.MAX_PAYLOAD)
+        assertFailsWith<IllegalArgumentException> {LobbyMessages.characters(worst+(129..255).map {id->
+            worst[0].copy(information=worst[0].information!!.copy(id=id))})}
+    }
     @Test fun chargedCharacterUsesSessionRecordAndAgeInSeconds() {
         assertContentEquals(LobbyMessages.noCharacters(), LobbyMessages.characters(null))
         val character = CharacterMessages.Generate(4, 10001, 2, 0, 0, "Beta", "Pilot", 18, 1, 1,

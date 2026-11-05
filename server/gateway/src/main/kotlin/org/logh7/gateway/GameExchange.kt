@@ -18,15 +18,18 @@ import org.logh7.engine.members
 /** evidence:guess — local test accounts and short-lived, single-use session tickets. */
 class SessionTickets(private val clock: Clock = Clock.systemUTC()) {
     enum class Purpose { LOBBY, GAME }
-    data class Ticket(val account: String, val purpose: Purpose, val expiresAt: Long)
+    data class Ticket(val account: String, val purpose: Purpose, val expiresAt: Long,
+        val sessionId:Int=1,val generation:Long?=null)
     private val random = SecureRandom()
     private val tickets = mutableMapOf<Long, Ticket>()
-    @Synchronized fun issue(account: String = "", purpose: Purpose = Purpose.LOBBY): Long {
+    @Synchronized fun issue(account: String = "", purpose: Purpose = Purpose.LOBBY,
+        sessionId:Int=1,generation:Long?=null): Long {
+        require(sessionId in 1..65535 && (generation==null || generation>0))
         tickets.entries.removeIf { it.value.expiresAt <= clock.millis() }
         check(tickets.size < 4096) { "Session ticket capacity exceeded" }
         var token: Long
         do { token = random.nextInt().toLong() and 0xffffffffL } while (token == 0L || token in tickets)
-        tickets[token] = Ticket(account, purpose, clock.millis() + 60_000)
+        tickets[token] = Ticket(account, purpose, clock.millis() + 60_000,sessionId,generation)
         return token
     }
     @Synchronized fun take(token: Long): Ticket? = tickets.remove(token)?.takeIf { it.expiresAt > clock.millis() }
@@ -54,6 +57,10 @@ class GameExchange(
     private val administration: GameAdministration? = null,
     private val communication:GameCommunication? = null,
     private val fame:FameLedger? = null,
+    private val sessionDirectory:GameSessionDirectory?=null,
+    private val sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,
+    private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,
+    private val bindHost:String?=null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -94,7 +101,7 @@ class GameExchange(
             val character=checkNotNull(currentCharacter(account))
             val evaluation=if(fame==null)org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0)
                 else fame.evaluation(snapshot,characters,account) ?: return@prepared null
-            val message=SessionEndingReport.message(snapshot,character,player,characters.registeredCharacters(),offices(character,player),evaluation)
+            val message=SessionEndingReport.message(snapshot,character,player,characters.registeredCharacters(),offices(character,player),evaluation,sessionId,sessionName)
             endingPrepared=true
             handshake.stageAll(listOf(message),clearHeader=0)
         }
@@ -2027,6 +2034,7 @@ class GameExchange(
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
                 0x2003 -> {
                     check(lobbyLoggedIn && body.size==2)
+                    if(sessionDirectory!=null)return handshake.stageAll(listOf(LobbyMessages.characters(sessionDirectory.characters(identity.account))),clearHeader=0)
                     val snapshot=navigation?.snapshot()
                     // U-11: a character killed in battle is removed here; the lobby then offers creation.
                     characters.character(identity.account)?.takeIf {snapshot?.session?.generation==admission?.generation &&
@@ -2041,11 +2049,17 @@ class GameExchange(
                             else fame.evaluation(snapshot,characters,identity.account))
                     else LobbyMessages.characters(if(admission?.running==false)null else character)
                 }
-                0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2); LobbyMessages.sessions(admission?.running != false) }
+                0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2)
+                    sessionDirectory?.let {LobbyMessages.sessions(it.sessions())} ?: LobbyMessages.sessions(admission?.running != false) }
                 0x2009 -> {
                     check(lobbyLoggedIn)
-                    if (LobbyMessages.select(body) == LobbyMessages.LOCAL_SESSION_ID && admission?.running != false) {
-                        LobbyMessages.selected(sessionAddress, sessionPort, tickets.issue(identity.account, SessionTickets.Purpose.GAME))
+                    val selected=LobbyMessages.select(body)
+                    val target=if(sessionDirectory==null) {
+                        if(selected==sessionId && admission?.running!=false)GameSessionDirectory.Target(sessionId,sessionAddress,sessionPort,admission?.generation ?: 1) else null
+                    } else sessionDirectory.target(selected,bindHost)
+                    if (target!=null) {
+                        LobbyMessages.selected(target.address,target.port,tickets.issue(identity.account,SessionTickets.Purpose.GAME,
+                            target.id,target.generation))
                     } else LobbyMessages.selectionFailed()
                 }
                 else -> error("Unsupported lobby opcode 0x${opcode.toString(16)}")
@@ -2059,12 +2073,13 @@ class GameExchange(
                 val request = LoginMessages.request(body)
                 val expected = accounts[request.account]
                 val accepted = expected != null && AccountPassword.matches(expected, request.credential)
-                val reply = if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account)) else LoginMessages.failure()
+                val reply = if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account,sessionId=sessionId)) else LoginMessages.failure()
                 state = if (accepted) State.AUTHENTICATED else State.REJECTED
                 handshake.stageAll(listOf(reply))
             }
             Role.SESSION -> {
                 ticket = requireNotNull(tickets.take(LoginMessages.sessionToken(body))) { "Invalid or expired session token" }
+                require(ticket!!.sessionId==sessionId && (ticket!!.generation==null || ticket!!.generation==(generation ?: 1L))) {"Session ticket destination or generation mismatch"}
                 state = State.AUTHENTICATED
                 null // No invented response: session acceptance opcode is not established yet.
             }

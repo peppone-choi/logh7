@@ -14,8 +14,10 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     stockStore: PlanetStockStore? = null, navigationStore: NavigationStore? = null,
     worldStateCommitter: WorldStateCommitter? = null,
     private val navigationDecorator: (GameNavigation) -> GameNavigation = { it },
-    private val powerByIndex: (Int) -> Int = {2},npcTactics:Boolean=false,npcStrategy:Boolean=false) : AutoCloseable {
-    val accounts = (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
+    private val powerByIndex: (Int) -> Int = {2},npcTactics:Boolean=false,npcStrategy:Boolean=false,
+    private val sessionDirectory:GameSessionDirectory?=null,private val sessionId:Int=1,
+    private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,accountSource:Map<String,String>?=null) : AutoCloseable {
+    val accounts = accountSource ?: (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,
         stockStore = stockStore, navigationStore = navigationStore, worldStateCommitter = worldStateCommitter,
@@ -60,7 +62,8 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
             val candidate = Gateway(directory.resolve("captures"), accounts, directory.resolve("characters.properties"),
                 gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission,
                 world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { navigationDecorator(EngineGameNavigation(engine, scope)) },
-                stock = galaxy?.let { EngineGameStock(engine, scope) }, administration = galaxy?.let { EngineGameAdministration(engine, scope, it) })
+                stock = galaxy?.let { EngineGameStock(engine, scope) }, administration = galaxy?.let { EngineGameAdministration(engine, scope, it) },
+                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName)
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 metrics.observe("bindRetries", attempt.toLong()); return candidate to ports
@@ -96,8 +99,9 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
             // Three complete encrypted frames in one socket write, after authentication.
             lobby.send(SyntheticClient.opcode(0x2000), SyntheticClient.opcode(0x2003), SyntheticClient.opcode(0x2005) + byteArrayOf(0))
             lobby.expect(0x2001); lobby.expect(0x2004)
-            val sessions = lobby.expect(0x2006); check(sessions[6] == 0.toByte() && sessions[7] == 1.toByte())
-            val selected = lobby.request(ByteBuffer.allocate(4).putShort(0x2009).putShort(1).array(), 0x200a, "selectSession")
+            val sessions = lobby.expect(0x2006); check(sessions[6] == 0.toByte() &&
+                sessions[7].toInt() and 255==(sessionDirectory?.sessions()?.size ?: 1))
+            val selected = lobby.request(ByteBuffer.allocate(4).putShort(0x2009).putShort(sessionId.toShort()).array(), 0x200a, "selectSession")
             check(selected.size == 16 && ByteBuffer.wrap(selected).getInt(6) == 0x0100007f)
             check(ByteBuffer.wrap(selected).getShort(10).toInt() and 65535 == sessionPort)
             ByteBuffer.wrap(selected).getInt(12).toLong() and 0xffffffffL

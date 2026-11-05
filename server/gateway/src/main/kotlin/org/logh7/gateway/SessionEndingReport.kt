@@ -11,12 +11,13 @@ internal object SessionEndingReport {
     private fun flag(value:Boolean?)=when(value){true->1;false->0;null->255}
     fun message(world:WorldSnapshot,character:CharacterMessages.Generate,player:Navigator,
         registered:List<CharacterMessages.Generate>,offices:List<BootstrapMessages.OfficeCard>,
-        evaluation:SessionEndingMessages.Evaluation=SessionEndingMessages.Evaluation(0,0,0,0,0)):ByteArray {
+        evaluation:SessionEndingMessages.Evaluation=SessionEndingMessages.Evaluation(0,0,0,0,0),
+        sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,sessionName:String=LobbyMessages.LOCAL_SESSION_NAME):ByteArray {
         val session=checkNotNull(world.session)
         require(player.generation==session.generation && character.id==player.characterId.toLong())
         require(character.power in 2..3 && player.power==if(character.power==2)Power.EMPIRE else Power.ALLIANCE)
         // The result observer grants fame; rendering only uses its persisted statement.
-        return SessionEndingMessages.ended(character,evaluation,session(world,registered),
+        return SessionEndingMessages.ended(character,evaluation,session(world,registered).copy(id=sessionId,name=sessionName),
             player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices)
     }
     fun session(world:WorldSnapshot,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {

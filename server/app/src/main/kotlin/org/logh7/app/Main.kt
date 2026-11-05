@@ -18,6 +18,30 @@ import java.util.concurrent.CountDownLatch
 
 fun main() {
     val environment=RuntimeEnvironment.load()
+    val sessions=SessionRuntimeConfiguration.load(environment)
+    val directory=environment["LOGH7_SESSIONS_FILE"]?.takeIf {it.isNotBlank()}?.let {org.logh7.gateway.GameSessionDirectory()}
+    val accounts=environment["LOGH7_ACCOUNTS_FILE"]?.let {org.logh7.gateway.FileAccounts(Path.of(it)).also {file->file.names()}}
+    val runtimes=ArrayDeque<AutoCloseable>()
+    fun closeAll()=synchronized(runtimes) {
+        var failure:Throwable?=null
+        while(runtimes.isNotEmpty())try {runtimes.removeFirst().close()}catch(caught:Throwable) {
+            if(failure==null)failure=caught else failure.addSuppressed(caught)
+        }
+        failure?.let {throw it}
+    }
+    try {
+        sessions.forEach {
+            it.stateDirectory?.let(java.nio.file.Files::createDirectories)
+            runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts))
+        }
+        Runtime.getRuntime().addShutdownHook(Thread {closeAll()})
+        CountDownLatch(1).await()
+    } finally {closeAll()}
+}
+
+internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gateway.GameSessionDirectory?=null,
+    sessionId:Int=1,sessionName:String=org.logh7.protocol.LobbyMessages.LOCAL_SESSION_NAME,
+    sharedAccounts:org.logh7.gateway.FileAccounts?=null):AutoCloseable {
     fun port(name:String,default:Int):Int {
         val value=environment[name]?.let {it.toIntOrNull() ?: error("$name must be an integer port")} ?: default
         require(value in 1..65535) {"$name must be in 1..65535"}
@@ -99,14 +123,15 @@ fun main() {
         resources.addFirst(AutoCloseable { runBlocking { engine.drainAndClose() } })
         val captureDirectory = captureDirectoryFrom(environment["LOGH7_CAPTURE_DIR"])
         // A live view of the account file: the operator page edits it and new logins read the change.
-        val accountFile = environment["LOGH7_ACCOUNTS_FILE"]?.let { org.logh7.gateway.FileAccounts(Path.of(it)).also { a -> a.names() } }
+        val accountFile = sharedAccounts ?: environment["LOGH7_ACCOUNTS_FILE"]?.let { org.logh7.gateway.FileAccounts(Path.of(it)).also { a -> a.names() } }
         val gateway = Gateway(captureDirectory,
             accountFile ?: emptyMap(),
             characterFile,
             gameSeconds = { checkNotNull(engine.snapshot().session).gameSeconds }, admission = EngineGameAdmission(engine, scope), world = world,
             navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
             stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
-            administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy))
+            administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy),
+            sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName)
         resources.addFirst(gateway)
         val audit = environment["LOGH7_OPS_AUDIT_FILE"]?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)
@@ -167,11 +192,10 @@ fun main() {
         val bindAddress = environment["LOGH7_BIND_ADDRESS"] ?: "127.0.0.1"
         gateway.start(gamePort = gamePort, updatePort = updatePort, bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = environment["LOGH7_SESSION_ADDRESS"] ?: bindAddress,
             additionalBindAddresses = listOfNotNull(environment["LOGH7_HOST_ONLY_ADDRESS"]))
-        Runtime.getRuntime().addShutdownHook(Thread { closeResources() })
-        println("LOGH7 stubs: $bindAddress:$gamePort / $updatePort / $sessionPort; ops: 127.0.0.1:$opsPort; capture: ${captureDirectory?.toAbsolutePath() ?: "off"}")
-        CountDownLatch(1).await()
+        println("LOGH7 session $sessionId ($sessionName): $bindAddress:$gamePort / $updatePort / $sessionPort; ops: 127.0.0.1:$opsPort; capture: ${captureDirectory?.toAbsolutePath() ?: "off"}")
+        return AutoCloseable {closeResources()}
     } catch (failure: Throwable) {
         try { closeResources() } catch (closing: Throwable) { failure.addSuppressed(closing) }
         throw failure
-    } finally { closeResources() }
+    }
 }
