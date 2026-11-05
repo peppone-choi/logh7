@@ -245,6 +245,11 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: 
     }
     val session = snapshot.session
     metric("engine_up", "gauge", "1 while the world engine runs and stores normally.", if (health == EngineHealth.RUNNING) 1 else 0)
+    // One series per state, so alerts tell a storage failure from starting or stopped (engine_up is 0 for all three).
+    append("# HELP logh7_engine_state 1 for the world engine's current state (starting, running, storage_failed, stopped).\n")
+    append("# TYPE logh7_engine_state gauge\n")
+    for (state in EngineHealth.entries)
+        append("logh7_engine_state{state=\"").append(state.name.lowercase()).append("\"} ").append(if (state == health) 1 else 0).append('\n')
     metric("world_revision", "counter", "Committed world revisions.", snapshot.revision)
     metric("commands_accepted_total", "counter", "World commands accepted.", snapshot.acceptedCommands)
     metric("commands_rejected_total", "counter", "World commands rejected.", snapshot.rejectedCommands)

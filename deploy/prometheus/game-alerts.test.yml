@@ -3,12 +3,10 @@ rule_files: [game-alerts.yml]
 evaluation_interval: 15s
 
 tests:
-  - name: unreachable server and stopped engine page after one minute
+  - name: unreachable server pages after one minute
     interval: 15s
     input_series:
       - series: 'up{job="game-server",instance="game-server:47901"}'
-        values: '1x3 0x8'
-      - series: 'logh7_engine_up{job="game-server",instance="game-server:47901"}'
         values: '1x3 0x8'
     alert_rule_test:
       - eval_time: 90s
@@ -21,14 +19,38 @@ tests:
             exp_annotations:
               summary: 'LOGH7 game server ops API unreachable'
               description: 'Prometheus cannot scrape game-server:47901 /metrics for one minute: process down, port closed or token rejected.'
-      - eval_time: 135s
+
+  - name: a storage failure is told apart from starting or stopped
+    interval: 1m
+    input_series:
+      # failed:1 runs, then reports a storage failure from 3m.
+      - series: 'logh7_engine_up{job="game-server",instance="failed:1"}'
+        values: '1x2 0x10'
+      - series: 'logh7_engine_state{job="game-server",instance="failed:1",state="storage_failed"}'
+        values: '0x2 1x10'
+      # starting:1 stays in STARTING (engine_up 0, no storage failure) for the whole window.
+      - series: 'logh7_engine_up{job="game-server",instance="starting:1"}'
+        values: '0x12'
+      - series: 'logh7_engine_state{job="game-server",instance="starting:1",state="storage_failed"}'
+        values: '0x12'
+    alert_rule_test:
+      - eval_time: 5m
         alertname: LOGH7EngineStorageFailed
         exp_alerts:
-          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: critical}
+          - exp_labels: {job: game-server, instance: 'failed:1', state: storage_failed, severity: critical}
             exp_annotations:
-              summary: 'LOGH7 world engine stopped committing'
-              description: 'logh7_engine_up has been 0 for one minute on game-server:47901 (storage failure or engine stop). New commands are refused; check the server log and the state volume.'
-
+              summary: 'LOGH7 world engine storage failed'
+              description: 'The world engine on failed:1 has reported a storage failure for one minute. It refuses new commands until restarted; check the state volume and the server log.'
+      - eval_time: 4m
+        alertname: LOGH7EngineUnavailable
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: LOGH7EngineUnavailable
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'starting:1', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 world engine not running'
+              description: 'The world engine on starting:1 has been starting or stopped (engine_up 0, not a storage failure) for five minutes.'
   - name: a backup older than twice the interval warns, measured from the later of start and last success
     interval: 1m
     input_series:

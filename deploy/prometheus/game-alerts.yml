@@ -12,13 +12,23 @@ groups:
           summary: 'LOGH7 game server ops API unreachable'
           description: 'Prometheus cannot scrape {{ $labels.instance }} /metrics for one minute: process down, port closed or token rejected.'
       - alert: LOGH7EngineStorageFailed
-        expr: logh7_engine_up == 0
+        expr: logh7_engine_state{state="storage_failed"} == 1
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: 'LOGH7 world engine stopped committing'
-          description: 'logh7_engine_up has been 0 for one minute on {{ $labels.instance }} (storage failure or engine stop). New commands are refused; check the server log and the state volume.'
+          summary: 'LOGH7 world engine storage failed'
+          description: 'The world engine on {{ $labels.instance }} has reported a storage failure for one minute. It refuses new commands until restarted; check the state volume and the server log.'
+      # engine_up is 0 while starting, stopped or after a storage failure; the last has its own alert above.
+      # The 5m wait is the current alert condition, not a measured normal startup time.
+      - alert: LOGH7EngineUnavailable
+        expr: logh7_engine_up == 0 unless on(job, instance) logh7_engine_state{state="storage_failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 world engine not running'
+          description: 'The world engine on {{ $labels.instance }} has been starting or stopped (engine_up 0, not a storage failure) for five minutes.'
       - alert: LOGH7BackupStale
         expr: >-
           logh7_backup_interval_seconds > 0

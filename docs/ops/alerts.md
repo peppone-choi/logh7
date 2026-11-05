@@ -18,14 +18,16 @@
 | 경보 | 조건 | 등급 |
 |---|---|---|
 | `LOGH7GameServerUnreachable` | `up{job="game-server"} == 0` 1분 | critical |
-| `LOGH7EngineStorageFailed` | `logh7_engine_up == 0` 1분 | critical |
+| `LOGH7EngineStorageFailed` | `logh7_engine_state{state="storage_failed"} == 1` 1분 | critical |
+| `LOGH7EngineUnavailable` | `logh7_engine_up == 0`이지만 저장 실패가 아님(시작 중·정지) 5분 | warning |
 | `LOGH7BackupStale` | 백업 주기가 있고, 마지막 성공(없으면 프로세스 시작) 뒤 2배 주기 초과 5분 | warning |
 | `LOGH7BackupFailing` | 15분 안에 백업 실패 1회 이상 | warning |
 | `LOGH7HeapNearLimit` | 힙 사용/최대 > 90% 10분 | warning |
 | `LOGH7StateDiskLow` | 상태 볼륨 여유 < 10% 5분 | warning |
 | `LOGH7StateDiskCritical` | 상태 볼륨 여유 < 1 GiB 1분 | critical |
 
-이번에 추가한 지표는 다음 다섯 개다.
+이번에 추가한 지표는 다음 여섯 종이다.
+- `logh7_engine_state{state=...}`: starting·running·storage_failed·stopped 중 현재 상태만 1이다. `engine_up`은 시작 중·정지·저장 실패에서 모두 0이라, 저장 실패 경보는 이 상태로만 판정한다(Codex 검토).
 - `logh7_backup_interval_seconds`: 0은 수동 백업만 쓴다는 뜻이며, 이때 지연 경보는 없다.
 - `logh7_backup_failures_total`
 - `logh7_process_start_seconds`
@@ -45,10 +47,10 @@
 | 주입 | 운영자 수신 | 소요 |
 |---|---|---|
 | 처음부터 64 MiB 볼륨 | `LOGH7StateDiskCritical` | 67초 |
-| 볼륨을 끝까지 채움(67,043,328바이트) | 4초 뒤 `logh7_engine_up` 0, `LOGH7EngineStorageFailed` | 62초 |
+| 볼륨을 끝까지 채움(67,043,328바이트) | 4초 뒤 `logh7_engine_up` 0, `LOGH7EngineStorageFailed` | 62초(첫 실행은 `engine_up` 조건) |
 | 서버 프로세스 정지 | `LOGH7GameServerUnreachable` | 61초 |
 
-경보는 규칙의 `for` 시간(1분)과 Alertmanager 대기 뒤에 도착했다. 백업 지연·백업 실패·힙 경보는 promtool 가상 표본으로만 확인했다.
+경보는 규칙의 `for` 시간(1분)과 Alertmanager 대기 뒤에 도착했다. `LOGH7EngineUnavailable`의 5분은 현재 경보 조건일 뿐이며, 측정한 정상 시작 시간이 아니다. 큰 월드의 실제 시작 시간을 재서 다시 정한다. 백업 지연·백업 실패·힙 경보는 promtool 가상 표본으로만 확인했다.
 
 ## 남은 것
 
