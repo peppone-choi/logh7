@@ -70,6 +70,21 @@ def state_files(characters: Path, world: Path, session: Path, accounts: Path | N
     return groups
 
 
+def surviving_files(characters: Path, world: Path, session: Path, accounts: Path | None) -> dict[str, list[tuple[Path, str]]]:
+    """Like state_files, but only what still exists: a lost state volume must not block its own restore."""
+    def tree(root: Path) -> list[tuple[Path, str]]:
+        return sorted((p, p.relative_to(root).as_posix()) for p in root.rglob("*")
+                      if p.is_file() and not p.name.endswith(".lock")) if root.is_dir() else []
+    siblings = sorted(p for p in characters.parent.glob(characters.name + "*")
+                      if p.is_file() and not p.name.endswith(".lock")
+                      and (p.name == characters.name or p.name.startswith(characters.name + "."))) \
+        if characters.parent.is_dir() else []
+    groups = {"characters": [(p, p.name) for p in siblings], "world": tree(world), "session": tree(session)}
+    if accounts is not None and accounts.is_file():
+        groups["accounts"] = [(accounts, accounts.name)]
+    return groups
+
+
 def check_owner(characters: Path, world: Path) -> None:
     for marker in characters.parent.glob(characters.name + ".*.world-owner"):
         fields = marker.read_text(encoding="utf-8").strip().split("\t")
@@ -168,8 +183,7 @@ def restore(args: argparse.Namespace) -> None:
         if not args.force:
             raise SystemExit("state already exists at the backup paths; rerun with --force to replace it")
         saved = Path(f"{archive}.replaced-{time.strftime('%Y%m%d-%H%M%S')}")
-        current = accounts if accounts is not None and accounts.exists() else None
-        for group, entries in state_files(characters, roots["world"], roots["session"], current).items():
+        for group, entries in surviving_files(characters, roots["world"], roots["session"], accounts).items():
             for source, name in entries:
                 target = saved / group / name
                 target.parent.mkdir(parents=True, exist_ok=True)

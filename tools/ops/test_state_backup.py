@@ -111,6 +111,20 @@ class StateBackupTest(unittest.TestCase):
         self.run_tool("restore-to", str(self.archive), "--to", str(clean))
         self.assertEqual("qa1=pbkdf2-sha256:1:aa:bb\n", (clean / "accounts" / "accounts.properties").read_text())
 
+    def test_a_lost_state_volume_is_restored_even_when_only_the_account_file_survives(self):
+        accounts = self.state.parent / "accounts.properties"
+        accounts.write_text("qa1=kept\n")
+        self.run_tool("backup", "--characters", str(self.characters), "--world", str(self.world),
+                      "--session", str(self.session), "--accounts", str(accounts), "--out", str(self.archive))
+        import shutil
+        shutil.rmtree(self.state)  # the game-state volume is gone; the account file elsewhere survives
+        accounts.write_text("qa1=newer\n")
+        self.run_tool("restore", str(self.archive), "--force")
+        self.assertEqual("stocks\n", (self.world / "slot-1" / "stocks.tsv").read_text())
+        self.assertEqual("qa1=kept\n", accounts.read_text())
+        replaced = next(self.archive.parent.glob("backup.replaced-*"))
+        self.assertEqual("qa1=newer\n", (replaced / "accounts" / "accounts.properties").read_text())
+
     def test_running_server_is_refused(self):
         original = state_backup.server_running
         state_backup.server_running = lambda url: True
