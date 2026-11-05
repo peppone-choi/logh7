@@ -56,6 +56,27 @@ class ServerReleaseTest(unittest.TestCase):
         finally:
             server_release.server_running = original
 
+    def test_rollback_to_a_release_that_cannot_read_v2_characters_is_refused(self):
+        import zipfile
+        with zipfile.ZipFile(self.build / "lib" / "gateway.jar", "w") as jar:
+            jar.writestr("org/logh7/gateway/CharacterCreation.class", b"")
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old")
+        with zipfile.ZipFile(self.build / "lib" / "gateway.jar", "w") as jar:
+            jar.writestr("org/logh7/gateway/CharacterProfile.class", b"")
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new")
+        characters = Path(self.temp.name) / "characters.properties"
+        characters.write_text("#x\nmulti0=1008040000\n", encoding="latin-1")
+        self.tool("activate", "old", "--releases", str(self.releases), "--characters", str(characters))
+        self.tool("activate", "new", "--releases", str(self.releases), "--characters", str(characters))
+        characters.write_text("#x\nmulti0=v2\\:generated\\:3\\:alliance\\:1008\n", encoding="latin-1")
+        with self.assertRaises(SystemExit) as refused:
+            self.tool("rollback", "--releases", str(self.releases), "--characters", str(characters))
+        self.assertIn("character profile v2", str(refused.exception))
+        self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+        # After restoring the pre-upgrade characters the same rollback goes through.
+        characters.write_text("#x\nmulti0=1008040000\n", encoding="latin-1")
+        self.tool("rollback", "--releases", str(self.releases), "--characters", str(characters))
+        self.assertEqual("old", (self.releases / "CURRENT").read_text().strip())
 
 if __name__ == "__main__":
     unittest.main()
