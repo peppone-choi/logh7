@@ -33,6 +33,7 @@
 | `LOGH7TickLagHigh` | 틱 처리 지연 p99 > 2초 5분 | warning |
 | `LOGH7CaptureNearLimit` | 캡처가 보존 한도의 90% 초과 30분 | warning |
 | `LOGH7AuditLogLarge` | 운영 감사 로그 > 1 GiB 1시간 | warning |
+| `LOGH7NotificationOverflow` | 10분 안에 알림 대기열 넘침으로 끊긴 클라이언트 1명 이상 | warning |
 
 이번에 추가한 지표는 다음 여섯 종이다.
 - `logh7_engine_state{state=...}`: starting·running·storage_failed·stopped 중 현재 상태만 1이다. `engine_up`은 시작 중·정지·저장 실패에서 모두 0이라, 저장 실패 경보는 이 상태로만 판정한다(Codex 검토).
@@ -97,7 +98,7 @@
 ## 남은 것
 
 체크리스트 항목 기준으로 남은 것은 다음과 같다.
-- 큐/지연: 월드 액터 지연은 3차에서 넣었다. 클라이언트별 송신 큐(게이트웨이 알림 대기열) 길이는 아직 지표가 없다.
+- 큐/지연: 월드 액터 지연(3차)과 클라이언트 알림 대기열(5차)을 넣었다. 대기열은 요청 처리 중 쌓인 월드 알림 묶음이며, 연결마다 128묶음·512 KiB를 넘으면 끊는다(기존 동작). 5차에서 `logh7_notification_overflow_total`(넘침으로 끊김)과 `logh7_notifications_queued`(전체 대기 묶음 수)를 내보내고 `LOGH7NotificationOverflow` 경보를 더했다. 계수는 단위 검사로만 확인했고, 실제 넘침을 일으키는 연결 시험은 하지 않았다.
 - 연속 접속/패치 실패: 서버 쪽 계수와 경보는 2차에서 넣었다. 런처(클라이언트) 쪽 패치 다운로드·적용 실패는 서버가 볼 수 없으므로 아직 남는다.
 - 보존 정책: 4차에서 캡처 정리와 감사 로그 용량 경보를 넣었다. 감사 로그 보관·교체 절차(운영자 수동)는 문서로만 정했다.
 - 플레이어에게 보이는 오류 표시
