@@ -118,3 +118,20 @@ groups:
         annotations:
           summary: 'LOGH7 world ticks run over 2s late'
           description: 'The 99th percentile delay between a scheduled world tick and its processing on {{ $labels.instance }} has been above two seconds for five minutes; the game clock and battles lag.'
+      # Retention capacity (CaptureRetention, ops audit log). Thresholds are operating policy.
+      - alert: LOGH7CaptureNearLimit
+        expr: logh7_capture_bytes / logh7_capture_limit_bytes > 0.9
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 packet capture near its retention limit'
+          description: 'The packet capture on {{ $labels.instance }} has stayed above 90% of LOGH7_CAPTURE_MAX_MB for 30 minutes (live captures or a failing prune). Captures contain key exchanges: turn LOGH7_CAPTURE_DIR off when not diagnosing.'
+      - alert: LOGH7AuditLogLarge
+        expr: logh7_audit_file_bytes > 1073741824
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 operator audit log over 1 GiB'
+          description: 'The operator audit log on {{ $labels.instance }} is over 1 GiB; archive it off the server and start a new file.'

@@ -31,6 +31,8 @@
 | `LOGH7ConnectionErrorsHigh` | 10분 안에 프로토콜·처리 오류로 끊긴 연결 50회 이상 | warning |
 | `LOGH7ActorQueueLag` | 명령 대기 p99 > 1초 5분 | warning |
 | `LOGH7TickLagHigh` | 틱 처리 지연 p99 > 2초 5분 | warning |
+| `LOGH7CaptureNearLimit` | 캡처가 보존 한도의 90% 초과 30분 | warning |
+| `LOGH7AuditLogLarge` | 운영 감사 로그 > 1 GiB 1시간 | warning |
 
 이번에 추가한 지표는 다음 여섯 종이다.
 - `logh7_engine_state{state=...}`: starting·running·storage_failed·stopped 중 현재 상태만 1이다. `engine_up`은 시작 중·정지·저장 실패에서 모두 0이라, 저장 실패 경보는 이 상태로만 판정한다(Codex 검토).
@@ -61,6 +63,20 @@
 - 로컬 실서버 약 8초 동안 틱 31개가 기록됐다. 명령 대기 평균 0.18ms, 틱 처리 지연 평균 1.4ms였다.
 - 지연 경보는 promtool 가상 표본으로만 확인했다. 실제로 액터를 멈추게 하는 주입은 하지 않았다. CI 주입 시험은 히스토그램이 실제로 쌓이는지만 확인한다.
 
+### 보존 정책 (2026-11-06 4차)
+
+| 대상 | 보존 | 감시 |
+|---|---|---|
+| 컨테이너 표준 출력 로그 | Compose `json-file` 10 MB × 3 (기존) | — |
+| 패킷 캡처(`LOGH7_CAPTURE_DIR`) | `CaptureRetention`: 72시간(`LOGH7_CAPTURE_RETENTION_HOURS`)·512 MiB(`LOGH7_CAPTURE_MAX_MB`), 시작 시와 10분마다 정리 | `logh7_capture_bytes`·`_limit_bytes`·`_removed_files_total`, `LOGH7CaptureNearLimit` |
+| 실행 중 백업 | `LOGH7_BACKUP_KEEP`(기본 48, 기존) | 백업 지연·실패 경보 |
+| 운영 감사 로그 | 자동 삭제 없음(감사 기록이라 지우지 않음) | `logh7_audit_file_bytes`, `LOGH7AuditLogLarge` |
+
+- 캡처에는 키 교환까지 담겨서 로그인 내용을 복호화할 수 있다. 진단할 때만 켠다. 기본 Compose는 캡처를 켜지 않는다.
+- 연결 하나의 파일 묶음(`.tsv`·두 `.bin`)은 함께 지운다. 먼저 보존 시간을 넘은 묶음을 지우고, 그래도 한도를 넘으면 오래된 묶음부터 지운다. 60초 안에 쓰인 묶음은 진행 중인 연결로 보고 남긴다.
+- `logh7_capture_bytes`는 마지막 정리 때 잰 값이다(최대 10분 늦다).
+- 로컬 실서버에서 5일 된 캡처가 시작 정리로 지워진 것과 지표를 확인했다.
+
 ## 실제 주입 시험(CI `game-alerts`)
 
 `deploy/test_game_alerts.py`가 다음을 한 번에 실행한다.
@@ -83,7 +99,7 @@
 체크리스트 항목 기준으로 남은 것은 다음과 같다.
 - 큐/지연: 월드 액터 지연은 3차에서 넣었다. 클라이언트별 송신 큐(게이트웨이 알림 대기열) 길이는 아직 지표가 없다.
 - 연속 접속/패치 실패: 서버 쪽 계수와 경보는 2차에서 넣었다. 런처(클라이언트) 쪽 패치 다운로드·적용 실패는 서버가 볼 수 없으므로 아직 남는다.
-- 로그·캡처·백업 보존 정책과 용량 경보 전체
+- 보존 정책: 4차에서 캡처 정리와 감사 로그 용량 경보를 넣었다. 감사 로그 보관·교체 절차(운영자 수동)는 문서로만 정했다.
 - 플레이어에게 보이는 오류 표시
 - 실제 운영 수신처(채팅/호출 서비스)로의 전달
 
