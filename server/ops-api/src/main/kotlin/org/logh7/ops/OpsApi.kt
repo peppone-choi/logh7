@@ -67,6 +67,15 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             get("/admin") {
                 call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names(), backups), io.ktor.http.ContentType.Text.Html)
             }
+            get("/admin/text") { call.respondRedirect("/admin/text/") }
+            get("/admin/text/") {
+                call.respondText(opsTextResource("editor.html"), io.ktor.http.ContentType.Text.Html)
+            }
+            get("/admin/text/{asset}") {
+                val asset=call.parameters["asset"]
+                if(asset !in setOf("editor.js","editor-ui.js")) call.respondText("not found",status=HttpStatusCode.NotFound)
+                else call.respondText(opsTextResource(checkNotNull(asset)),io.ktor.http.ContentType.parse("text/javascript; charset=utf-8"))
+            }
             get("/metrics") {
                 call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
@@ -134,6 +143,9 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
 }
 
 private val opsOperatorKey = io.ktor.util.AttributeKey<String>("logh7.opsOperator")
+
+private fun opsTextResource(name:String):String = checkNotNull(AccountAdmin::class.java.getResourceAsStream("/admin/text/$name"))
+    .bufferedReader(Charsets.UTF_8).use {it.readText()}
 
 internal fun opsUser(header: String?, users: OpsUsers): String? {
     if (header == null || !header.startsWith("Basic ")) return null
@@ -244,7 +256,7 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
     append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">")
     append("<title>LOGH7 운영</title><style>body{font-family:sans-serif;margin:16px}table{border-collapse:collapse;margin-bottom:16px}")
     append("td,th{border:1px solid #999;padding:2px 8px;text-align:left}</style></head><body><h1>LOGH7 운영 상태</h1>")
-    append("<table><tbody>")
+    append("<nav><a href=\"/admin/text/\">문구 편집</a></nav><table><tbody>")
     row("엔진", health.name)
     row("월드 리비전", snapshot.revision)
     row("명령 접수/거부", "${snapshot.acceptedCommands} / ${snapshot.rejectedCommands}")

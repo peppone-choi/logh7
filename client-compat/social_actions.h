@@ -58,7 +58,7 @@ static void drawSocialAction() {
     swprintf_s(label,L"%ls · 거점 %u · 정치가/개인 카드",name[0] ? name : L"현재 거점",social.base);taxText(1,label);
     taxText(2,L"본인·광장 각각 게임 하루 1회 · 실제 중앙 광장에서 실행");
     swprintf_s(label,L"영향력 %u · 지지 %u%%",social.influence,social.approval);taxText(3,label);
-    swprintf_s(label,L"재실행까지 %uG초",social.wait);taxText(4,label);
+    swprintf_s(label,L"재실행까지 게임 내 %u초",social.wait);taxText(4,label);
     taxText(5,L"MCP 320 · 부족 시 PCP 640 · 반감 결과도 결제");taxText(6,state.message);
     taxText(10,L"기본 연설");taxText(11,L"—");taxText(12,L"—");taxText(13,L"현재/결과 조회");taxText(14,L"연설 실행");taxText(15,L"닫기");
     taxEnabled(10,false);taxEnabled(11,false);taxEnabled(12,false);taxEnabled(13,!state.pending);

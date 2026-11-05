@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOGH7 문구 편집</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101b2a;color:#e6eef8;font:16px/1.6 system-ui,sans-serif}header,main{max-width:1300px;margin:auto;padding:24px}h1{font-size:24px;margin:0 0 8px}p{margin:8px 0;color:#b6c8dd}button,input,textarea{font:inherit}button{padding:8px 16px;border:1px solid #619bd2;border-radius:6px;background:#203c59;color:inherit;cursor:pointer}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #85c8ff;outline-offset:2px}.toolbar{display:flex;gap:12px;flex-wrap:wrap}.layout{display:grid;grid-template-columns:minmax(240px,1fr) minmax(320px,2fr);gap:24px}input,textarea{width:100%;background:#0b1420;border:1px solid #587088;border-radius:5px;color:inherit;padding:12px}textarea{min-height:230px;resize:vertical}#results{max-height:65vh;overflow:auto;margin-top:12px}#results button{display:block;width:100%;text-align:left;margin-bottom:6px;overflow-wrap:anywhere}#results button[aria-pressed=true]{background:#315b81}small{display:block;color:#b6c8dd}#preview{white-space:pre-wrap;overflow-wrap:anywhere;background:#182b41;border:1px solid #587088;padding:20px;min-height:120px;max-width:660px}#error{color:#ffbcac;min-height:26px;white-space:pre-wrap}#key{overflow-wrap:anywhere;color:#a8d6ff}label{display:block;margin:10px 0}#status{min-height:26px}@media(max-width:720px){.layout{grid-template-columns:1fr}#results{max-height:35vh}header,main{padding:16px}}
+</style>
+<header>
+<h1>LOGH7 문구 편집</h1>
+<p>문구 파일을 열고 검색한 뒤 수정하세요. 변수와 서식은 저장 전에 검사합니다.</p>
+<div class="toolbar"><button id="open">문구 열기</button><button id="save" disabled>저장</button><button id="download" disabled>복사본 다운로드</button></div>
+<input type="file" id="file" accept=".json" hidden>
+<p id="status" role="status">l10n 폴더의 messages.ko.json, constmsg.ko.json 또는 UI 번역 JSON을 선택하세요.</p>
+<small>파일은 이 브라우저에서만 처리합니다. 게임 반영에는 카탈로그 재생성과 DLL 빌드가 필요합니다.</small>
+</header>
+<main class="layout">
+<aside><label for="search">문구 또는 키 검색</label><input id="search" type="search" placeholder="예: 출항, MCP, messages_com"><small id="count"></small><div id="results" aria-label="검색 결과"></div></aside>
+<section aria-label="문구 수정"><div id="key">문구를 선택하세요.</div><label for="text">번역 문구</label><textarea id="text" disabled spellcheck="false"></textarea><div id="error" role="alert"></div><small id="tokens"></small><h2>텍스트 미리보기</h2><div id="preview"></div><p>줄바꿈을 확인하는 미리보기입니다. 게임 창의 글꼴·너비·색상 표시는 실제 화면에서 확인해야 합니다. 게임용 인코딩은 빌드에서 최종 검사합니다.</p></section>
+</main>
+<script src="editor.js"></script>
+<script src="editor-ui.js"></script>
+</html>

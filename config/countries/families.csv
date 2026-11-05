@@ -1,0 +1,4 @@
+key,name,calendar,commands,ranks,offices,peerage,ship_style
+alliance,동맹 계열,space,logh7,alliance,alliance,none,alliance
+empire,제국 계열,imperial,logh7,empire,empire,empire,empire
+new_empire,신제국 계열,new_imperial,logh7,empire,empire,empire,empire

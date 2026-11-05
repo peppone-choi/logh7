@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <cstdio>
 #include "hud_atlas.h"
+#include "navigation_hud_data.h"
 #include "creation_menu_data.h"
 #include "planet_info_data.h"
 #include "spot_presence.h"
@@ -1282,6 +1283,24 @@ static int runGuard(int argc, wchar_t** argv) {
     HRESULT result = create(GetModuleHandleW(nullptr), 0, iid, &input, nullptr);
     if (status() != -1 || SUCCEEDED(result) || input) return 4;
     FreeLibrary(module);
+    wchar_t navigationCp[32],navigationDate[96];
+    if(!logh::navigationHudText(0,1000,675,3,navigationCp,navigationDate) ||
+        wcscmp(navigationCp,L"1000             675 ") ||
+        wcscmp(navigationDate,L"우주력 795년  1월  1일  0시  0분") ||
+        !logh::navigationHudText(31104000,0,1000,3,navigationCp,navigationDate) ||
+        wcscmp(navigationDate,L"우주력 796년  1월  1일  0시  0분") ||
+        logh::navigationHudText(0,1001,0,3,navigationCp,navigationDate) ||
+        !logh::navigationHudText(0,1000,1000,2,navigationCp,navigationDate) ||
+        wcscmp(navigationDate,L"제국력 486년  1월  1일  0시  0분") ||
+        !logh::navigationHudText((4*360+5*30+20)*86400u,1000,1000,2,navigationCp,navigationDate) ||
+        wcscmp(navigationDate,L"제국력 490년  6월 21일  0시  0분") ||
+        !logh::navigationHudText((4*360+5*30+21)*86400u,1000,1000,2,navigationCp,navigationDate) ||
+        wcscmp(navigationDate,L"제국력 490년  6월 22일  0시  0분") ||
+        !logh::navigationHudText(5*31104000u,1000,1000,2,navigationCp,navigationDate) ||
+        wcscmp(navigationDate,L"제국력 491년  1월  1일  0시  0분") ||
+        !logh::formatNavigationHud(4*31104000u,1000,1000,logh::countryCalendars[2],navigationCp,navigationDate) ||
+        wcscmp(navigationDate,L"신제국력 1년  1월  1일  0시  0분") ||
+        logh::navigationHudText(0,1000,1000,100,navigationCp,navigationDate))return 294;
     return 0;
 }
 
