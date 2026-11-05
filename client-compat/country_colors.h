@@ -2,9 +2,10 @@
 #pragma once
 #include "country_colors_data.h"
 #include "country_catalog_data.h"
+#include "country_metadata.h"
 static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
-    void* world;unsigned pending,nonce,cursor,count;ULONGLONG sentAt,pollAt;
+    void* world;unsigned pending,mode,nonce,cursor,count;ULONGLONG sentAt,pollAt;
     logh::CountryPaint rows[350];
 } countryPaintInbox={};
 
@@ -18,13 +19,17 @@ static unsigned countryPaintRgb(unsigned country,unsigned field,unsigned fallbac
     ReleaseSRWLockShared(&countryPaintLock);return result;
 }
 static bool receiveCountryPaint(const BYTE* record) {
-    if(record[8]!=4)return false;
+    if(record[8]!=4 && record[8]!=5)return false;
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;logh::CountryPaint paint;
-    if(inbox.pending && logh::readCountryPaint(record,24+6*36,inbox.pending,inbox.nonce,paint)) {
+    if(inbox.pending && inbox.mode==4 && logh::readCountryPaint(record,24+6*36,inbox.pending,inbox.nonce,paint)) {
         unsigned index=0;for(;index<inbox.count;++index)if(inbox.rows[index].id==paint.id)break;
         if(index<350){inbox.rows[index]=paint;if(index==inbox.count)++inbox.count;}
         inbox.pending=0;
+    }
+    logh::CountryMetadata metadata;
+    if(inbox.pending && inbox.mode==5 && logh::readCountryMetadata(record,24+6*36,inbox.pending,inbox.nonce,metadata)) {
+        publishCountryMetadata(metadata);inbox.pending=0;
     }
     ReleaseSRWLockExclusive(&countryPaintLock);return true;
 }
@@ -34,15 +39,15 @@ static void pollCountryPaint(void* world) {
     unsigned query[3]={};auto now=GetTickCount64();
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;
-    if(inbox.world!=world){inbox={};inbox.world=world;}
+    if(inbox.world!=world){inbox={};inbox.world=world;resetCountryMetadata();}
     if(inbox.pending && now-inbox.sentAt>=5000)inbox.pending=0;
     if(!inbox.pending && now>=inbox.pollAt) {
         // shortcut: known current IDs come from the shared catalogue; extend the runtime catalogue before enabling new countries.
         const unsigned count=static_cast<unsigned>(sizeof(logh::countryDisplays)/sizeof(logh::countryDisplays[0]));
         if(count) {
-            inbox.pending=logh::countryDisplays[inbox.cursor++%count].id;
+            inbox.pending=logh::countryDisplays[(inbox.cursor/2)%count].id;inbox.mode=4+inbox.cursor++%2;
             inbox.nonce=(inbox.nonce%65535)+1;inbox.sentAt=now;inbox.pollAt=now+1000;
-            query[0]=inbox.pending;query[1]=inbox.nonce;query[2]=4;
+            query[0]=inbox.pending;query[1]=inbox.nonce;query[2]=inbox.mode;
         }
     }
     ReleaseSRWLockExclusive(&countryPaintLock);

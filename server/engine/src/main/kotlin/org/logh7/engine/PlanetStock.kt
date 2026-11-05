@@ -138,6 +138,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             val bases=initialized.bases.toMutableMap()
             // Settle capitals first each day; recipients share only today's real surplus in stable base-id order.
             val order=(capitals.values.sorted()+bases.keys.sorted()).distinct()
+            val countryDefinitions=CountryCatalogLoader.current()
             repeat(Math.toIntExact(days - initialized.producedDays)) {day->
                 for(id in order) {
                     val previousDay=bases.getValue(id)
@@ -159,7 +160,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         bases[source.baseId]=source.copy(food=source.food-amount)
                     }
                     bases[id] = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), next,
-                        ProductionActions.shipyard(galaxy,initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L))))
+                        ProductionActions.shipyard(galaxy,initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L)),countryDefinitions))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                         .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }

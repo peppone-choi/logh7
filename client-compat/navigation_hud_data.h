@@ -10,7 +10,10 @@ inline bool formatNavigationHud(unsigned seconds,unsigned pcp,unsigned mcp,const
     swprintf_s(cp,L"%-4u             %-4u",pcp,mcp);
     unsigned year=795+days/360,month=days/30%12+1,day=days%30+1;
     int calendarYear=static_cast<int>(year)+calendar.yearOffset;
-    if(calendarYear<1)return false;
+    if(calendarYear<1) {
+        swprintf_s(date,L"%ls 개원전 %d년 %u/%u %02u:%02u",calendar.name,1-calendarYear,month,day,hours%24,minutes%60);
+        return true;
+    }
     swprintf_s(date,L"%ls %d년 %2u월 %2u일 %2u시 %2u분",calendar.name,calendarYear,month,day,hours%24,minutes%60);
     return true;
 }

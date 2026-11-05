@@ -5,6 +5,7 @@
 #include "hud_atlas.h"
 #include "navigation_hud_data.h"
 #include "country_colors_data.h"
+#include "country_metadata.h"
 #include "country_icon_data.h"
 #include "creation_menu_data.h"
 #include "lobby_empty_data.h"
@@ -1333,6 +1334,26 @@ static int runGuard(int argc, wchar_t** argv) {
     if(logh::readCountryPaint(paintPacket,sizeof(paintPacket),2,17,paint))return 296;
     paintField(4,L"0");paintField(5,L"");paintField(0,L"url(x)");
     if(logh::readCountryPaint(paintPacket,sizeof(paintPacket),2,17,paint))return 297;
+    paintPacket[8]=5;
+    paintField(0,L"제국 시험");paintField(1,L"");paintField(2,L"시험력");paintField(3,L"-310");
+    paintField(4,L"900719925474");paintField(5,L"0993");logh::CountryMetadata metadata;
+    if(!logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,17,metadata) ||
+        wcscmp(metadata.name,L"제국 시험") || wcscmp(metadata.calendar,L"시험력") || metadata.yearOffset!=-310 ||
+        metadata.revision!=9007199254740993ULL || logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,18,metadata) ||
+        logh::readCountryMetadata(paintPacket,sizeof(paintPacket)-1,2,17,metadata))return 505;
+    publishCountryMetadata(metadata);
+    if(!runtimeNavigationHud(0,1000,675,2,navigationCp,navigationDate) || !wcsstr(navigationDate,L"시험력 485년"))return 506;
+    auto staleCountryMetadata=metadata;staleCountryMetadata.yearOffset=-309;--staleCountryMetadata.revision;publishCountryMetadata(staleCountryMetadata);
+    if(!runtimeNavigationHud(0,1000,675,2,navigationCp,navigationDate) || !wcsstr(navigationDate,L"시험력 485년"))return 507;
+    paintField(3,L"-0");if(logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,17,metadata))return 508;
+    paintField(3,L"-310");paintField(2,L"시험\n력");if(logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,17,metadata))return 509;
+    paintField(2,L"시험력");paintField(4,L"922337203685");paintField(5,L"4775808");
+    if(logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,17,metadata))return 510;
+    resetCountryMetadata();
+    if(!runtimeNavigationHud(0,1000,675,2,navigationCp,navigationDate) || !wcsstr(navigationDate,L"제국력 486년"))return 511;
+    const logh::CountryCalendar beforeNewEmpire={L"new_empire",L"신제국력",-798};
+    if(!logh::formatNavigationHud(0,1000,675,beforeNewEmpire,navigationCp,navigationDate) || !wcsstr(navigationDate,L"신제국력 개원전 4년"))return 512;
+    if(!logh::formatNavigationHud(4*31104000u,1000,675,beforeNewEmpire,navigationCp,navigationDate) || !wcsstr(navigationDate,L"신제국력 1년"))return 513;
     BYTE iconPixels[]={255,128,64,73,7,7,7,255,91,92,93,94,0,0,255,0,100,100,100,9,81,82,83,84};
     if(!logh::neutralCountryPixels(iconPixels,12,2,2) || iconPixels[0]!=iconPixels[1] || iconPixels[1]!=iconPixels[2] ||
         iconPixels[3]!=73 || iconPixels[4]!=7 || iconPixels[7]!=255 || iconPixels[8]!=91 || iconPixels[11]!=94 ||

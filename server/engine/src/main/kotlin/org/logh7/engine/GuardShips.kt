@@ -23,7 +23,7 @@ data class GuardShipOption(val index:Int,val power:Int,val name:String,val baseK
  * Every modifier is evidence:guess derived from the official description: unmanned ships
  * default to 90% attack ("能力値は元になっているユニットより劣る"). Author: Peppone Choi. */
 object GuardShips {
-    private val countries by lazy {CountryCatalogLoader.load()}
+    private val countries get()=CountryCatalogLoader.current()
     const val MAXIMUM_UNITS=3
     const val BOATS=300
     private const val COMMODORE=7;private const val CAPTAIN=8;private const val COMMANDER=9

@@ -2,6 +2,7 @@
 // Author: Peppone Choi.
 #pragma once
 #include "navigation_hud_data.h"
+#include "country_metadata.h"
 
 static struct DockingStatus {
     void* world;
@@ -29,7 +30,7 @@ static void refreshNavigationHud(BYTE* world,BYTE* own) {
     unsigned pcp=at<unsigned>(own,0x74),mcp=at<unsigned>(own,0x78);
     wchar_t cp[32],date[96];
     unsigned country=at<BYTE>(own,0x28);
-    if(!logh::navigationHudText(now,pcp,mcp,country,cp,date))return;
+    if(!runtimeNavigationHud(now,pcp,mcp,country,cp,date))return;
     static void* previousRoot=nullptr;
     static unsigned previousMinute=~0u,previousPcp=~0u,previousMcp=~0u,previousCountry=~0u;
     if(root==previousRoot && now/60==previousMinute && pcp==previousPcp && mcp==previousMcp && country==previousCountry)return;
@@ -47,7 +48,7 @@ static void __fastcall setHudCalendarText(void* root,void*,void* widget,const ch
     wchar_t cp[32],date[96];
     unsigned now=reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4c53b0)(world);
     // shortcut: current memberships use the CD nation IDs; add an explicit membership ID before enabling new countries.
-    if(logh::navigationHudText(now,at<unsigned>(own,0x74),at<unsigned>(own,0x78),at<BYTE>(own,0x28),cp,date))
+    if(runtimeNavigationHud(now,at<unsigned>(own,0x74),at<unsigned>(own,0x78),at<BYTE>(own,0x28),cp,date))
         reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560)(root,widget,date);
 }
 

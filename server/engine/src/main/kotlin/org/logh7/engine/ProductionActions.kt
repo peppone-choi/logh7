@@ -29,7 +29,7 @@ data class ProductionState(
 }
 
 object ProductionActions {
-    private val countries by lazy {CountryCatalogLoader.load()}
+    private val countries get()=CountryCatalogLoader.current()
     const val BUILD=31
     const val PAUSE=32
     const val RESUME=33

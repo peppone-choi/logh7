@@ -15,7 +15,7 @@ data class InitialOutfitPolicy(val battleships: Int = 10, val cruisers: Int = 10
 }
 
 class InitialOutfitDeployment(private val galaxy: Galaxy, private val policy: InitialOutfitPolicy = InitialOutfitPolicy(),
-    private val countries:CountryCatalog=CountryCatalogLoader.load()) {
+    private val countries:CountryCatalog?=null) {
     data class Placement(val power: Int, val kind: OutfitKind, val number: Int, val base: Int,
         val source: ManualSource?, val designedLocation: Boolean = false)
     private val systems = mapOf("シュバーラ" to "シュパーラ", "ニブルヘイム" to "ニヴルヘイム", "バルドレ" to "バルドル",
@@ -60,6 +60,7 @@ class InitialOutfitDeployment(private val galaxy: Galaxy, private val policy: In
     }.sortedWith(compareBy({ it.power },{ it.kind.wire },{ it.number })).let(java.util.Collections::unmodifiableList)
 
     fun initialize(stocks: PlanetStocks): PlanetStocks {
+        val countries=this.countries ?: CountryCatalogLoader.current()
         if (stocks.deploymentInitialized) return stocks
         // Respect an existing operator/fixture deployment; never overwrite or refill it.
         if (stocks.outfits.isNotEmpty() || stocks.warehouses.isNotEmpty()) return stocks.copy(deploymentInitialized=true)

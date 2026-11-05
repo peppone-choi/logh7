@@ -10,7 +10,7 @@ data class CountryCalendar(val key:String,val name:String,val yearOffset:Int)
 data class CountryFamily(val key:String,val name:String,val calendar:String,val commands:String,
     val ranks:String,val offices:String,val peerage:String,val shipStyle:String)
 data class CountryDefinition(val id:Int,val key:String,val name:String,val family:String,
-    val nativePower:Int,val nativeCamp:Int,val assets:String)
+    val nativePower:Int,val nativeCamp:Int,val assets:String,val calendarOverride:String?=null,val shipStyleOverride:String?=null)
 
 class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily>,countries:List<CountryDefinition>) {
     val calendars=Collections.unmodifiableMap(calendars.associateBy {it.key})
@@ -25,11 +25,13 @@ class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily
         require(families.all { family -> key.matches(family.key) && family.name.isNotBlank() &&
             family.calendar in this.calendars && listOf(family.commands,family.ranks,family.offices,family.peerage,family.shipStyle).all(key::matches)})
         require(countries.all {it.id>0 && key.matches(it.key) && it.name.isNotBlank() && it.family in this.families &&
-            it.nativePower in 0..4 && it.nativeCamp in 0..1 && key.matches(it.assets)})
+            it.nativePower in 0..4 && it.nativeCamp in 0..1 && key.matches(it.assets) &&
+            (it.calendarOverride==null || it.calendarOverride in this.calendars) &&
+            (it.shipStyleOverride==null || key.matches(it.shipStyleOverride))})
     }
-    fun calendar(countryId:Int):CountryCalendar?=countries[countryId]?.let {calendars.getValue(families.getValue(it.family).calendar)}
-    fun shipStyle(country:CountryId):ShipStyleId=ShipStyleId(families.getValue(
-        requireNotNull(countries[country.value]) {"Unknown country definition"}.family).shipStyle)
+    fun calendar(countryId:Int):CountryCalendar?=countries[countryId]?.let {calendars.getValue(it.calendarOverride ?: families.getValue(it.family).calendar)}
+    fun shipStyle(country:CountryId):ShipStyleId= requireNotNull(countries[country.value]) {"Unknown country definition"}.let {
+        ShipStyleId(it.shipStyleOverride ?: families.getValue(it.family).shipStyle)}
     fun year(countryId:Int,spaceYear:Int):Int?=calendar(countryId)?.let {(spaceYear+it.yearOffset).also {year->require(year>0)}}
     /** Display projection only; ownership and authority compare actual country IDs. */
     fun nativePower(owner:Allegiance):Int=when(owner) {
@@ -41,6 +43,18 @@ class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily
 }
 
 object CountryCatalogLoader {
+    private val bundled by lazy {load()}
+    private val published=java.util.concurrent.atomic.AtomicReference<CountryDefinitionSnapshot?>()
+    fun snapshot():CountryDefinitionSnapshot?=published.get()
+    fun current():CountryCatalog=published.get()?.catalog ?: bundled
+    /** A database read begun before a save must not overwrite its newer complete snapshot. */
+    fun publish(value:CountryDefinitionSnapshot) {
+        while(true) {
+            val old=published.get()
+            if(old!=null && old.revision>=value.revision)return
+            if(published.compareAndSet(old,value))return
+        }
+    }
     fun load():CountryCatalog {
         fun resource(name:String)=checkNotNull(javaClass.getResourceAsStream("/countries/$name")) {"Missing country definitions: $name"}
         return resource("calendars.csv").use {calendars->resource("families.csv").use {families->

@@ -125,7 +125,7 @@ internal object FlagshipMarketActions {
  * commanded by the buyer (the CD has no guard outfit kind). The PCP 80 cost mirrors the flagship
  * purchase (evidence:guess). Author: Peppone Choi. */
 internal object GuardUnitActions {
-    private val countries by lazy {CountryCatalogLoader.load()}
+    private val countries get()=CountryCatalogLoader.current()
     const val COST=80L
     val GUARD_NUMBERS=201..255
     fun guardOf(stocks:PlanetStocks,character:Int)=stocks.outfits.values.singleOrNull {it.guard!=null && it.commanderId==character}

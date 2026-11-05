@@ -9,7 +9,7 @@ import org.logh7.engine.strategy.*
  * Author: Peppone Choi.
  */
 object JusticeActions {
-    private val countries by lazy {CountryCatalogLoader.load()}
+    private val countries get()=CountryCatalogLoader.current()
     enum class Outcome { NONE, ARRESTED, EVADED, FAILED }
     /** Deterministic arrest roll, like BattleDeath's per-event roll. */
     fun roll(actor:Int,target:Int,seconds:Long)=java.util.Random(seconds*1_000_003L+actor*131L+target*97L+29).nextInt(100)
