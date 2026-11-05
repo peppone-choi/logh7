@@ -191,6 +191,7 @@ tests:
     interval: 1m
     input_series:
       # Commands keep waiting 1..2.5s: nothing at or below 1s, ten per minute below 2.5s.
+      # rate() over 5m has two samples from 1m, so the alert is pending from 1m and fires from 6m.
       - series: 'logh7_actor_queue_age_seconds_bucket{job="game-server",instance="game-server:47901",le="1"}'
         values: '0x20'
       - series: 'logh7_actor_queue_age_seconds_bucket{job="game-server",instance="game-server:47901",le="2.5"}'
@@ -203,10 +204,10 @@ tests:
       - series: 'logh7_actor_tick_dequeue_lag_seconds_bucket{job="game-server",instance="game-server:47901",le="+Inf"}'
         values: '0+60x20'
     alert_rule_test:
-      - eval_time: 8m
+      - eval_time: 4m
         alertname: LOGH7ActorQueueLag
         exp_alerts: []
-      - eval_time: 12m
+      - eval_time: 8m
         alertname: LOGH7ActorQueueLag
         exp_alerts:
           - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
