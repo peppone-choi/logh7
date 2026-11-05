@@ -219,19 +219,20 @@ tests:
         exp_alerts: []
 
   - name: retention capacity
-    interval: 10m
+    # 1m samples: a sparser input series goes stale after 5 minutes and resets the for-clock.
+    interval: 1m
     input_series:
       - series: 'logh7_capture_bytes{job="game-server",instance="game-server:47901"}'
-        values: '100x2 480x6'
+        values: '100x29 480x80'
       - series: 'logh7_capture_limit_bytes{job="game-server",instance="game-server:47901"}'
-        values: '512x8'
+        values: '512x110'
       - series: 'logh7_audit_file_bytes{job="game-server",instance="game-server:47901"}'
-        values: '1000x2 2000000000x9'
+        values: '1000x29 2000000000x80'
     alert_rule_test:
       - eval_time: 40m
         alertname: LOGH7CaptureNearLimit
         exp_alerts: []
-      - eval_time: 60m
+      - eval_time: 65m
         alertname: LOGH7CaptureNearLimit
         exp_alerts:
           - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
@@ -241,7 +242,7 @@ tests:
       - eval_time: 80m
         alertname: LOGH7AuditLogLarge
         exp_alerts: []
-      - eval_time: 100m
+      - eval_time: 95m
         alertname: LOGH7AuditLogLarge
         exp_alerts:
           - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
