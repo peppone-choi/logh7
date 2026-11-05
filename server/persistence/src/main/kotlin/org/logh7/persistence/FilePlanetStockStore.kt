@@ -10,6 +10,7 @@ import org.logh7.engine.OutfitWarehouse
 import org.logh7.engine.OutfitKind
 import org.logh7.engine.LogisticsOffice
 import org.logh7.engine.NationalOffice
+import org.logh7.engine.CountryId
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -37,7 +38,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
         val header = lines.firstOrNull()?.split('\t').orEmpty()
-        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10","LOGH7-STOCK-11","LOGH7-STOCK-12","LOGH7-STOCK-13","LOGH7-STOCK-14","LOGH7-STOCK-15","LOGH7-STOCK-16","LOGH7-STOCK-17","LOGH7-STOCK-18","LOGH7-STOCK-19","LOGH7-STOCK-20","LOGH7-STOCK-21","LOGH7-STOCK-22","LOGH7-STOCK-23","LOGH7-STOCK-24","LOGH7-STOCK-25","LOGH7-STOCK-26","LOGH7-STOCK-27","LOGH7-STOCK-28","LOGH7-STOCK-29","LOGH7-STOCK-30","LOGH7-STOCK-31","LOGH7-STOCK-32","LOGH7-STOCK-33","LOGH7-STOCK-34","LOGH7-STOCK-35","LOGH7-STOCK-36","LOGH7-STOCK-37","LOGH7-STOCK-38")) return loadCurrent(header, lines.drop(1))
+        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10","LOGH7-STOCK-11","LOGH7-STOCK-12","LOGH7-STOCK-13","LOGH7-STOCK-14","LOGH7-STOCK-15","LOGH7-STOCK-16","LOGH7-STOCK-17","LOGH7-STOCK-18","LOGH7-STOCK-19","LOGH7-STOCK-20","LOGH7-STOCK-21","LOGH7-STOCK-22","LOGH7-STOCK-23","LOGH7-STOCK-24","LOGH7-STOCK-25","LOGH7-STOCK-26","LOGH7-STOCK-27","LOGH7-STOCK-28","LOGH7-STOCK-29","LOGH7-STOCK-30","LOGH7-STOCK-31","LOGH7-STOCK-32","LOGH7-STOCK-33","LOGH7-STOCK-34","LOGH7-STOCK-35","LOGH7-STOCK-36","LOGH7-STOCK-37","LOGH7-STOCK-38","LOGH7-STOCK-39")) return loadCurrent(header, lines.drop(1))
         require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
         val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
@@ -54,7 +55,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
     private fun loadCurrent(header: List<String>, lines: List<String>): PlanetStocks {
-        val aired=header[0]=="LOGH7-STOCK-38"
+        val countryAccounts=header[0]=="LOGH7-STOCK-39"
+        val aired=countryAccounts || header[0]=="LOGH7-STOCK-38"
         val tidal=aired || header[0]=="LOGH7-STOCK-37"
         val disciplined=tidal || header[0]=="LOGH7-STOCK-36"
         val social=disciplined || header[0]=="LOGH7-STOCK-35"
@@ -110,7 +112,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val officers = linkedMapOf<Int, LogisticsOffice>()
         val nationalOffices=linkedMapOf<NationalOffice,Int>()
         val groundBattles=linkedMapOf<Int,Long>()
-        val nationalTreasuries=linkedMapOf<Int,Long>()
+        val nationalTreasuries=linkedMapOf<CountryId,Long>()
         var strategicState:org.logh7.engine.StrategicState?=null
         var commandState:org.logh7.engine.TacticalCommandState?=null
         var marketState:org.logh7.engine.FlagshipMarketState?=null
@@ -220,9 +222,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                 }
                 "T" -> {
                     require(fiscal && f.size==3)
-                    val power=f[1].toInt();val balance=f[2].toLong()
-                    require(power in 2..3 && balance>=0) {"Invalid national treasury"}
-                    require(nationalTreasuries.put(power,balance)==null) {"Duplicate national treasury"}
+                    val id=f[1].toInt();val balance=f[2].toLong()
+                    require((countryAccounts || id in 2..3) && balance>=0) {"Invalid national treasury"}
+                    require(nationalTreasuries.put(CountryId(id),balance)==null) {"Duplicate national treasury"}
                 }
                 "N" -> {
                     require(national && f.size==3)
@@ -250,7 +252,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             outfitSequence=outfitSequence ?: org.logh7.engine.OutfitSequence(),civic=civicState ?: org.logh7.engine.CivicState(),budget=budgetState ?: org.logh7.engine.BudgetState(),social=socialState ?: org.logh7.engine.SocialState(),discipline=disciplineState ?: emptyMap(),tidalHour=tidalHour ?: 0,airTraining=airTraining ?: emptyMap())
     }
     override fun save(stocks: PlanetStocks) {
-        val aired=stocks.airTraining.isNotEmpty()
+        val countryAccounts=stocks.nationalTreasuries.keys.any {it.value !in 2..3}
+        val aired=countryAccounts || stocks.airTraining.isNotEmpty()
         val tidal=aired || stocks.tidalHour!=0L
         val disciplined=tidal || stocks.discipline.isNotEmpty()
         val social=disciplined || stocks.social!=org.logh7.engine.SocialState()
@@ -275,7 +278,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val tactics = cargo || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.tactical!=null}==true}
         val positions = tactics || stocks.outfits.values.any { it.position != null }
         val bytes = buildString {
-            append((listOf(if(aired)"LOGH7-STOCK-38" else if(tidal)"LOGH7-STOCK-37" else if(disciplined)"LOGH7-STOCK-36" else if(social)"LOGH7-STOCK-35" else if(budget)"LOGH7-STOCK-34" else if(civic)"LOGH7-STOCK-33" else if(sequence)"LOGH7-STOCK-32" else if(market)"LOGH7-STOCK-31" else if(commands)"LOGH7-STOCK-30" else if(actions)"LOGH7-STOCK-29" else if(fiscal)"LOGH7-STOCK-28" else if(strategic)"LOGH7-STOCK-27" else if(combat)"LOGH7-STOCK-26" else if(deployments)"LOGH7-STOCK-25" else if(grounds)"LOGH7-STOCK-24" else if(postures)"LOGH7-STOCK-23" else if(reloads)"LOGH7-STOCK-22" else if(shots)"LOGH7-STOCK-21" else if(attacks)"LOGH7-STOCK-20" else if(commanded)"LOGH7-STOCK-19" else if(support)"LOGH7-STOCK-18" else if(cargo)"LOGH7-STOCK-17" else if(tactics)"LOGH7-STOCK-16" else if(positions)"LOGH7-STOCK-15" else "LOGH7-STOCK-14", stocks.generation, stocks.producedDays, stocks.bases.size,
+            append((listOf(if(countryAccounts)"LOGH7-STOCK-39" else if(aired)"LOGH7-STOCK-38" else if(tidal)"LOGH7-STOCK-37" else if(disciplined)"LOGH7-STOCK-36" else if(social)"LOGH7-STOCK-35" else if(budget)"LOGH7-STOCK-34" else if(civic)"LOGH7-STOCK-33" else if(sequence)"LOGH7-STOCK-32" else if(market)"LOGH7-STOCK-31" else if(commands)"LOGH7-STOCK-30" else if(actions)"LOGH7-STOCK-29" else if(fiscal)"LOGH7-STOCK-28" else if(strategic)"LOGH7-STOCK-27" else if(combat)"LOGH7-STOCK-26" else if(deployments)"LOGH7-STOCK-25" else if(grounds)"LOGH7-STOCK-24" else if(postures)"LOGH7-STOCK-23" else if(reloads)"LOGH7-STOCK-22" else if(shots)"LOGH7-STOCK-21" else if(attacks)"LOGH7-STOCK-20" else if(commanded)"LOGH7-STOCK-19" else if(support)"LOGH7-STOCK-18" else if(cargo)"LOGH7-STOCK-17" else if(tactics)"LOGH7-STOCK-16" else if(positions)"LOGH7-STOCK-15" else "LOGH7-STOCK-14", stocks.generation, stocks.producedDays, stocks.bases.size,
                 stocks.outfits.size, stocks.warehouses.size, stocks.logisticsOfficers.size,
                 if (stocks.deploymentInitialized) 1 else 0, stocks.nextShipId,stocks.nationalOffices.size)+(if(combat)listOf(stocks.groundBattles.size) else emptyList())+(if(fiscal)listOf(stocks.nationalTreasuries.size) else emptyList())+(if(actions)listOf(1) else emptyList())+(if(commands)listOf(1) else emptyList())+(if(market)listOf(1) else emptyList())+(if(sequence)listOf(1) else emptyList())+(if(civic)listOf(1) else emptyList())+(if(budget)listOf(1) else emptyList())+(if(social)listOf(1) else emptyList())+(if(disciplined)listOf(1) else emptyList())+(if(tidal)listOf(1) else emptyList())+(if(aired)listOf(1) else emptyList())).joinToString("\t"))
             append('\n')
@@ -306,7 +309,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             stocks.logisticsOfficers.toSortedMap().forEach { (character, office) ->
                 append("A\t$character\t${office.name}\n")
             }
-            stocks.nationalTreasuries.toSortedMap().forEach {(power,balance)->append("T\t$power\t$balance\n")}
+            stocks.nationalTreasuries.entries.sortedBy {it.key.value}.forEach {(country,balance)->append("T\t${country.value}\t$balance\n")}
             if(actions)append("S\t${StrategicStateCodec.encode(stocks.strategic)}\n")
             if(commands)append("C\t${TacticalCommandStateCodec.encode(stocks.tacticalCommands)}\n")
             if(market)append("M\t${FlagshipMarketStateCodec.encode(stocks.flagshipMarket)}\n")
@@ -316,7 +319,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             if(social)append("X\t${SocialStateCodec.encode(stocks.social)}\n")
             if(disciplined)append("L\t${stocks.discipline.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value.value}:${it.value.at}"}.ifEmpty {"-"}}\n")
             if(tidal)append("H\t${stocks.tidalHour}\n")
-            if(aired)append("K\t${stocks.airTraining.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}}\n")
+            if(aired)append("K\t${stocks.airTraining.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}}\n")
             stocks.groundBattles.toSortedMap().forEach {(base,at)->append("G\t$base\t$at\n")}
             stocks.nationalOffices.toSortedMap(compareBy { it.card }).forEach { (office,holder) ->
                 append("N\t${office.card}\t$holder\n")

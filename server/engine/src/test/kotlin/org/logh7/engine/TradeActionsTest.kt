@@ -19,7 +19,7 @@ class TradeActionsTest {
         1050 to PlanetStock(1050,2,0,1,1,1,PlanetEconomy(200_000,100_000,60,60)),
         1177 to PlanetStock(1177,3,0,1,1,1,PlanetEconomy(500_000,300_000,70,80),treasury=777),1210 to PlanetStock(1210,1,0,1,1,1)),
         outfits=mapOf(7 to OutfitStock(7,2,OutfitKind.TRANSPORT,1049,11,commanderId=10000,supplies=1000,position=OutfitPosition(2487,1049))),
-        warehouses=mapOf(11 to OutfitWarehouse(11,2,OutfitKind.TRANSPORT,1049,7)),nationalTreasuries=mapOf(2 to 200_000_000L,3 to 0L))
+        warehouses=mapOf(11 to OutfitWarehouse(11,2,OutfitKind.TRANSPORT,1049,7)),nationalTreasuries=mapOf(CountryId(2) to 200_000_000L,CountryId(3) to 0L))
     private fun act(command:Int,card:Int,s:PlanetStocks,target:Int=0,value:Int=0,amount:Long=0)=SocialActions.evaluate(galaxy,SocialRequest(
         StrategyActionRequest("a","a",10000,Power.EMPIRE,1,command,card,1,target=target,value=value,amount=amount)),session,a,s,listOf(a),mapOf("a" to a))
 
@@ -41,15 +41,15 @@ class TradeActionsTest {
         val sold=act(TradeActions.CONVOY,44,withAllianceTariff,amount=1000)
         assertNull(sold.rejection);assertEquals(1200,sold.found)
         val st=assertNotNull(sold.stocks)
-        assertEquals(0,st.outfits.getValue(7).supplies);assertEquals(200_001_200L,st.nationalTreasuries[2]);assertEquals(300L,st.nationalTreasuries[3])
+        assertEquals(0,st.outfits.getValue(7).supplies);assertEquals(200_001_200L,st.nationalTreasuries[CountryId(2)]);assertEquals(300L,st.nationalTreasuries[CountryId(3)])
         assertEquals(SocialRejection.COOLDOWN,act(TradeActions.CONVOY,44,st.copy(outfits=st.outfits+(7 to st.outfits.getValue(7).copy(supplies=10))),amount=5).rejection)
     }
     @Test fun buyingIntelligenceReportsTheEnemyCapitalOrSpendsNothingOnFailure() {
         val s=policy.set(stocks(),OfficeHolding(5,1049,10000))
         val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)
         assertNull(r.rejection)
-        if(r.outcome==1) {assertEquals(0,r.found,"777 marks in units of 10,000");assertEquals(70*256+80,r.report);assertEquals(100_000_000L,r.stocks?.nationalTreasuries?.get(2))}
-        else assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(2))
+        if(r.outcome==1) {assertEquals(0,r.found,"777 marks in units of 10,000");assertEquals(70*256+80,r.report);assertEquals(100_000_000L,r.stocks?.nationalTreasuries?.get(CountryId(2)))}
+        else assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(CountryId(2)))
     }
     @Test fun shipsEnteringFezzanWithoutPassageViolateNeutralityAndPayTheEnemyTwelveTimes() {
         val inFezzan=stocks().let {it.copy(outfits=it.outfits+(7 to it.outfits.getValue(7).copy(position=OutfitPosition(2300),
@@ -57,10 +57,10 @@ class TradeActionsTest {
         val passage=inFezzan.copy(social=inFezzan.social.copy(trade=TradeState(passages=mapOf(2 to now+100))))
         assertSame(passage,TradeActions.neutrality(galaxy,passage,now),"a corridor passage is not a violation")
         val first=TradeActions.neutrality(galaxy,inFezzan,now)
-        assertEquals(now,first.social.trade.violations[2]);assertEquals(TradeActions.SUBSIDY,first.nationalTreasuries[3])
+        assertEquals(now,first.social.trade.violations[2]);assertEquals(TradeActions.SUBSIDY,first.nationalTreasuries[CountryId(3)])
         assertTrue(first.social.trade.leaking(2,now+89*86400));assertFalse(first.social.trade.leaking(2,now+90*86400))
         val year=TradeActions.neutrality(galaxy,first,now+1000*86400)
-        assertEquals(TradeActions.SUBSIDY*12,year.nationalTreasuries[3]);assertEquals(12,year.social.trade.subsidies[2])
+        assertEquals(TradeActions.SUBSIDY*12,year.nationalTreasuries[CountryId(3)]);assertEquals(12,year.social.trade.subsidies[2])
         assertEquals(now,year.social.trade.violations[2],"only the first entry counts")
     }
     @Test fun aViolatorLosesFezzanMerchantsAndInvestment() {
@@ -95,6 +95,6 @@ class TradeActionsTest {
     @Test fun diplomacyIsRefusedOnceFezzanIsOccupied() {
         val s=policy.set(stocks(),OfficeHolding(5,1049,10000)).let {it.copy(bases=it.bases+(1210 to it.bases.getValue(1210).copy(power=2)))}
         val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)
-        assertEquals(SocialRejection.TARGET,r.rejection);assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(2))
+        assertEquals(SocialRejection.TARGET,r.rejection);assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(CountryId(2)))
     }
 }

@@ -22,7 +22,7 @@ class TacticalCommandStateStoreTest {
     }
     @Test fun allPendingAndExecutingStateRoundTripsInStock30AndKeepsOldTreasury() {
         val stock=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,0,0,treasury=77)),
-            nationalTreasuries=mapOf(2 to 88),tacticalCommands=state())
+            nationalTreasuries=mapOf(CountryId(2) to 88),tacticalCommands=state())
         val path=directory.resolve("stock")
         FilePlanetStockStore(path).use {it.save(stock);assertEquals(stock,it.load())}
         assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-30\t"))

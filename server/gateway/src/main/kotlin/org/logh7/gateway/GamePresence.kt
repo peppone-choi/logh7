@@ -42,7 +42,7 @@ class GamePresence {
             if((s.strategic.people[viewer.character.id.toInt()]?.rank ?: viewer.character.rank) !in role.ranks ||
                 offices.holders(s,card).none {it.character==viewer.character.id.toInt()})continue
             send(viewer,org.logh7.protocol.BudgetMessages.update(viewer.character.id.toInt(),card,
-                org.logh7.protocol.BudgetMessages.View(base.baseId,s.nationalTreasuries[power] ?: 0,base.treasury,
+                org.logh7.protocol.BudgetMessages.View(base.baseId,s.nationalTreasuries[org.logh7.engine.CountryId(power)] ?: 0,base.treasury,
                     org.logh7.engine.BudgetActions.rate(s,base.baseId,event.defaultRate))))
         }
     }

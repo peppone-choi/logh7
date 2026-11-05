@@ -11,20 +11,23 @@ object FleetUpkeep {
     /** Ships per unit when an outfit has no per-unit state yet (the deployment's standard unit). */
     private const val UNIT_SHIPS = 300L
 
-    fun ships(stocks: PlanetStocks, power: Int): Long = stocks.outfits.values.filter { it.power == power }.sumOf { outfit ->
+    fun ships(stocks: PlanetStocks, country: CountryId): Long = stocks.outfits.values.filter { it.power == country.value }.sumOf { outfit ->
         outfit.activeShips?.values?.sumOf { it.boats.toLong() } ?: Math.multiplyExact(outfit.units.ships.values.sumOf { it.toLong() }, UNIT_SHIPS)
     }
 
-    fun due(stocks: PlanetStocks, power: Int, perShip: Long): Long =
-        if (perShip == 0L) 0 else Math.multiplyExact(ships(stocks, power), perShip)
+    fun due(stocks: PlanetStocks, country: CountryId, perShip: Long): Long {
+        require(perShip >= 0)
+        return if (perShip == 0L) 0 else Math.multiplyExact(ships(stocks, country), perShip)
+    }
 
-    /** One day of upkeep for both sides, deducted in place from [treasuries]. */
-    fun pay(stocks: PlanetStocks, treasuries: MutableMap<Int, Long>, perShip: Long) {
-        for (power in 2..3) {
-            val due = due(stocks, power, perShip)
+    /** One day of upkeep, charged only to the actual owners of living ships. */
+    fun pay(stocks: PlanetStocks, treasuries: MutableMap<CountryId, Long>, perShip: Long) {
+        require(perShip >= 0 && treasuries.values.all {it>=0})
+        for (country in stocks.outfits.values.map { CountryId(it.power) }.distinct().sortedBy {it.value}) {
+            val due = due(stocks, country, perShip)
             if (due == 0L) continue
-            val held = treasuries[power] ?: 0L
-            treasuries[power] = held - minOf(held, due)
+            val held = treasuries[country] ?: 0L
+            treasuries[country] = held - minOf(held, due)
         }
     }
 }

@@ -23,7 +23,7 @@ class BudgetActionsWireTest {
             baseId=1049,mode=1,cpRecoveryAt=now)}
         var stocks=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1177)3 else 2,0,2000,200,300,
             PlanetEconomy(1000,600,70,80),taxRate=20,treasury=200)},deploymentInitialized=true,
-            nationalTreasuries=mapOf(2 to 5001L,3 to 1000L),strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=1)),
+            nationalTreasuries=mapOf(CountryId(2) to 5001L,CountryId(3) to 1000L),strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=1)),
                 offices=listOf(OfficeHolding(8,1049,10000))))
         val navigation=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
@@ -54,7 +54,7 @@ class BudgetActionsWireTest {
             action(actor,request());val prepared=action(actor,request(phase=1,rate=33,token=38))
             quote=ByteBuffer.wrap(prepared).getInt(29);assertTrue(quote>0)
             assertEquals(1650L,state.stocks.budget.quotes.getValue(10000).amount)
-            assertEquals(5001L,state.stocks.nationalTreasuries[2]);assertEquals(1000,state.players.getValue("load-000").mcp)
+            assertEquals(5001L,state.stocks.nationalTreasuries[CountryId(2)]);assertEquals(1000,state.players.getValue("load-000").mcp)
         }
         LoadFixture(directory.resolve("commit"),2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
             stockStore=state.inventory,worldStateCommitter=state).use {server ->
@@ -65,7 +65,7 @@ class BudgetActionsWireTest {
             assertEquals(quote,ByteBuffer.wrap(action(actor,request())).getInt(29))
             val committed=action(actor,request(phase=2,rate=33,quote=quote,token=39))
             assertEquals(2,ByteBuffer.wrap(committed).getShort(27).toInt()%4)
-            assertEquals(3351L,state.stocks.nationalTreasuries[2]);assertEquals(1850L,state.stocks.bases.getValue(1050).treasury)
+            assertEquals(3351L,state.stocks.nationalTreasuries[CountryId(2)]);assertEquals(1850L,state.stocks.bases.getValue(1050).treasury)
             assertEquals(680,state.players.getValue("load-000").mcp)
             // Drain to a clock barrier: an unrelated same-grid viewer receives no finance snapshots.
             observer.send(SyntheticClient.opcode(0x0300));var clock=false
@@ -81,7 +81,7 @@ class BudgetActionsWireTest {
             val actor=server.join(server.account(0),true,false).client
             actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
             action(actor,request(phase=2,rate=33,quote=quote,token=41))
-            assertEquals(3351L,state.stocks.nationalTreasuries[2]);assertEquals(1850L,state.stocks.bases.getValue(1050).treasury)
+            assertEquals(3351L,state.stocks.nationalTreasuries[CountryId(2)]);assertEquals(1850L,state.stocks.bases.getValue(1050).treasury)
             assertEquals(680,state.players.getValue("load-000").mcp)
             val r=action(actor,request(16,1,1049,80,token=42));val rateQuote=ByteBuffer.wrap(r).getInt(29)
             action(actor,request(16,2,1049,80,rateQuote,43))
@@ -91,8 +91,8 @@ class BudgetActionsWireTest {
                 server.engine.submit(WorldCommand.AdvanceTo(86400L*1000/SessionRules.load().speed))
                 val reply=CompletableDeferred<PlanetStocks>();server.engine.submit(WorldCommand.Stock(1,reply));withTimeout(5000){reply.await()}
             }
-            assertEquals(3447L,state.stocks.nationalTreasuries[2]);assertEquals(224L,state.stocks.bases.getValue(1049).treasury)
-            action(actor,request(16,0,1049,token=44));assertEquals(3447L,state.stocks.nationalTreasuries[2])
+            assertEquals(3447L,state.stocks.nationalTreasuries[CountryId(2)]);assertEquals(224L,state.stocks.bases.getValue(1049).treasury)
+            action(actor,request(16,0,1049,token=44));assertEquals(3447L,state.stocks.nationalTreasuries[CountryId(2)])
         }
     }
 }

@@ -20,7 +20,7 @@ class PlanetTreasuryTest {
         val people=initial.bases.getValue(1000).economy!!
         val collected=people.adults.toLong()*galaxy.conditions.getValue(1000).tax/100
         val daily=production.settle(1,86400)
-        assertEquals(collected/2,daily.nationalTreasuries[2])
+        assertEquals(collected/2,daily.nationalTreasuries[CountryId(2)])
         assertEquals(collected-collected/2,daily.bases.getValue(1000).treasury)
         assertEquals(daily,production.settle(1,86400))
         assertEquals(daily,PlanetProduction(galaxy,store,0,PlanetProductionPolicy()).settle(1,86400))
@@ -56,8 +56,8 @@ class PlanetTreasuryTest {
         val seized=taxed.copy(bases=taxed.bases.mapValues {(_,base)->base.copy(power=3)})
         reopened.replace(taxed,seized)
         val next=reopened.settle(1,7*86400L)
-        assertEquals(taxed.nationalTreasuries[2],next.nationalTreasuries[2])
-        assertTrue(next.nationalTreasuries.getValue(3)>0)
+        assertEquals(taxed.nationalTreasuries[CountryId(2)],next.nationalTreasuries[CountryId(2)])
+        assertTrue(next.nationalTreasuries.getValue(CountryId(3))>0)
         assertTrue(next.bases.getValue(1000).treasury>taxed.bases.getValue(1000).treasury)
     }
     @Test fun overflowingEitherTreasuryNeverPublishesOrWrapsMoney() {
@@ -65,7 +65,7 @@ class PlanetTreasuryTest {
             val store=Store()
             val production=PlanetProduction(galaxy,store,0,PlanetProductionPolicy())
             val initial=production.settle(1,0)
-            val full=if(central)initial.copy(nationalTreasuries=mapOf(2 to Long.MAX_VALUE)) else
+            val full=if(central)initial.copy(nationalTreasuries=mapOf(CountryId(2) to Long.MAX_VALUE)) else
                 initial.copy(bases=initial.bases.mapValues {(_,base)->base.copy(treasury=Long.MAX_VALUE)})
             production.replace(initial,full)
             assertFailsWith<ArithmeticException> {production.settle(1,86400)}
@@ -83,7 +83,7 @@ class PlanetTreasuryTest {
         production.replace(initial,fief)
         val daily=production.settle(1,86400)
         assertEquals(7+collected,daily.strategic.people.getValue(10004).money)
-        assertEquals(0L,daily.bases.getValue(1000).treasury);assertEquals(0L,daily.nationalTreasuries[2] ?: 0L)
+        assertEquals(0L,daily.bases.getValue(1000).treasury);assertEquals(0L,daily.nationalTreasuries[CountryId(2)] ?: 0L)
         assertEquals(daily,production.settle(1,86400),"a day is paid once")
     }
 }

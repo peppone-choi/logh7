@@ -18,20 +18,33 @@ class BudgetActionsTest {
     private val player=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=1,cpRecoveryAt=now)
     private fun stocks()=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1177)3 else 2,0,2000,200,300,
         PlanetEconomy(1000,600,70,80),taxRate=20,treasury=200)},deploymentInitialized=true,
-        nationalTreasuries=mapOf(2 to 5001L,3 to 1000L),strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=1)),
+        nationalTreasuries=mapOf(CountryId(2) to 5001L,CountryId(3) to 1000L),strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=1)),
             offices=listOf(OfficeHolding(8,1049,10000))))
     private fun request(command:Int=18,phase:Int=1,rate:Int=33,base:Int=1050,quote:Int=0)=BudgetRequest(
         StrategyActionRequest("actor","c",10000,Power.EMPIRE,1,command,8,1),phase,base,rate,quote)
     private fun act(r:BudgetRequest=request(),s:PlanetStocks=stocks(),p:Navigator=player)=BudgetActions.evaluate(galaxy,r,session,p,s)
     private fun confirm(prepared:BudgetResult,r:BudgetRequest=request()):BudgetResult=act(r.copy(phase=2,quote=assertNotNull(prepared.view?.quote).id),
         assertNotNull(prepared.stocks),assertNotNull(prepared.player))
+    @Test fun aidDoesNotReadOrSpendAnotherCountryAccountEvenWhenItUsesTheSameEmpireAppearance() {
+        val catalog=CountryCatalogLoader.load()
+        val another=catalog.countries.getValue(2).copy(id=42,key="another_empire")
+        val definitions=CountryCatalog(catalog.calendars.values.toList(),catalog.families.values.toList(),
+            catalog.countries.values.toList()+another)
+        assertEquals(definitions.countries.getValue(2).nativePower,definitions.countries.getValue(42).nativePower)
+        val before=stocks().copy(nationalTreasuries=stocks().nationalTreasuries+(CountryId(42) to Long.MAX_VALUE))
+        val quote=act(s=before)
+        assertEquals(5001L,quote.view?.national)
+        val after=assertNotNull(confirm(quote).stocks)
+        assertEquals(3351L,after.nationalTreasuries[CountryId(2)])
+        assertEquals(Long.MAX_VALUE,after.nationalTreasuries[CountryId(42)])
+    }
     @Test fun aidTransfersAPercentageOfExistingNationalMoneyAndNeverTouchesSuppliesOrPersonalMoney() {
         val s=stocks();val prepared=act();assertNull(prepared.rejection)
         assertEquals(1650L,prepared.view?.quote?.amount);assertEquals(s.bases,prepared.stocks?.bases)
         assertEquals(s.nationalTreasuries,prepared.stocks?.nationalTreasuries);assertEquals(1000,prepared.player?.mcp)
         val committed=confirm(prepared);assertNull(committed.rejection);val after=assertNotNull(committed.stocks)
-        assertEquals(3351L,after.nationalTreasuries[2]);assertEquals(1850L,after.bases.getValue(1050).treasury)
-        assertEquals(5201L,after.nationalTreasuries.getValue(2)+after.bases.getValue(1050).treasury)
+        assertEquals(3351L,after.nationalTreasuries[CountryId(2)]);assertEquals(1850L,after.bases.getValue(1050).treasury)
+        assertEquals(5201L,after.nationalTreasuries.getValue(CountryId(2))+after.bases.getValue(1050).treasury)
         assertEquals(680,committed.player?.mcp);assertEquals(s.strategic,after.strategic)
         assertEquals(s.bases.getValue(1050).supplies,after.bases.getValue(1050).supplies)
         assertEquals(BudgetPhase.COMPLETED,committed.view?.quote?.phase)
@@ -60,20 +73,20 @@ class BudgetActionsTest {
         val store=object:PlanetStockStore {override fun load()=stored;override fun save(value:PlanetStocks){stored=value}}
         val production=PlanetProduction(galaxy,store,rules.startSeconds,PlanetProductionPolicy())
         val initial=production.settle(1,now);val first=production.settle(1,now+86400)
-        assertEquals(5121L,first.nationalTreasuries[2]);assertEquals(200L,first.bases.getValue(1049).treasury)
+        assertEquals(5121L,first.nationalTreasuries[CountryId(2)]);assertEquals(200L,first.bases.getValue(1049).treasury)
         // Fortresses are not taxable in the existing economy; setting a rate cannot invent taxable population.
         assertEquals(initial.bases.getValue(1050).treasury,first.bases.getValue(1050).treasury)
         val changed=production.replace(first,first.copy(budget=first.budget.copy(remittanceRates=mapOf(1049 to 0,1050 to 100))))
         assertEquals(changed,production.settle(1,now+86400))
         val second=production.settle(1,now+172800)
-        assertEquals(changed.nationalTreasuries[2],second.nationalTreasuries[2])
+        assertEquals(changed.nationalTreasuries[CountryId(2)],second.nationalTreasuries[CountryId(2)])
         assertTrue(second.bases.getValue(1049).treasury>changed.bases.getValue(1049).treasury)
         assertEquals(second,production.settle(1,now+172800))
     }
     @Test fun quoteCancellationAndStaleBalancesCannotPayOrConsumeCpAndIdsNeverRepeat() {
         val first=act();val pending=assertNotNull(first.stocks);val q=assertNotNull(first.view?.quote)
         assertEquals(pending,act(s=pending).stocks);assertFalse(act(s=pending).changed)
-        val stale=pending.copy(nationalTreasuries=pending.nationalTreasuries+(2 to 5002L))
+        val stale=pending.copy(nationalTreasuries=pending.nationalTreasuries+(CountryId(2) to 5002L))
         val rejected=act(request(phase=2,quote=q.id),stale);assertEquals(BudgetRejection.STALE,rejected.rejection)
         assertEquals(stale,rejected.stocks);assertEquals(player,rejected.player)
         assertNull(act(request(phase=0,rate=0),stale).view?.quote)
@@ -115,8 +128,8 @@ class BudgetActionsTest {
         val r=request(base=1177,rate=100).let {it.copy(identity=it.identity.copy(power=Power.ALLIANCE,card=136))}
         val quote=BudgetActions.evaluate(galaxy,r,aSession,p,s);assertNull(quote.rejection)
         val done=BudgetActions.evaluate(galaxy,r.copy(phase=2,quote=quote.view!!.quote!!.id),aSession,p,assertNotNull(quote.stocks))
-        assertEquals(0L,done.stocks?.nationalTreasuries?.get(3));assertEquals(1200L,done.stocks?.bases?.get(1177)?.treasury)
-        assertEquals(5001L,done.stocks?.nationalTreasuries?.get(2))
+        assertEquals(0L,done.stocks?.nationalTreasuries?.get(CountryId(3)));assertEquals(1200L,done.stocks?.bases?.get(1177)?.treasury)
+        assertEquals(5001L,done.stocks?.nationalTreasuries?.get(CountryId(2)))
     }
     @Test fun failedCombinedCommitPublishesNeitherCpMoneyNorCompletedReceipt()=runBlocking {
         val prepared=act();var stored=assertNotNull(prepared.stocks);var players=mapOf("actor" to player);var fail=false

@@ -12,7 +12,7 @@ class PlanetTreasuryPersistenceTest {
     @Test fun localAndNationalBalancesRoundTripAndCorruptFiscalRowsAreRejected() {
         val path=directory.resolve("stocks.tsv")
         val stocks=PlanetStocks(1,5,mapOf(1000 to PlanetStock(1000,2,0,100,100,100,treasury=Long.MAX_VALUE)),
-            nationalTreasuries=mapOf(2 to 76543210000L,3 to 17))
+            nationalTreasuries=mapOf(CountryId(2) to 76543210000L,CountryId(3) to 17))
         FilePlanetStockStore(path).use {it.save(stocks)}
         FilePlanetStockStore(path).use {assertEquals(stocks,it.load())}
         val valid=Files.readString(path)
@@ -48,7 +48,7 @@ class PlanetTreasuryPersistenceTest {
         val before=inventory(first)
         first.submit(WorldCommand.AdvanceTo(3600000))
         val collected=inventory(first)
-        assertTrue(collected.nationalTreasuries.getValue(2)>0)
+        assertTrue(collected.nationalTreasuries.getValue(CountryId(2))>0)
         assertTrue(collected.bases.getValue(1000).treasury>0)
         assertEquals(before.producedDays+1,collected.producedDays)
         first.drainAndClose()

@@ -17,7 +17,7 @@ class BudgetStoreTest {
     private val budget=BudgetState(mapOf(1049 to 75),8,mapOf(10000 to quote))
     private val civic=CivicState(mapOf(10001 to CivicOrder(10001,55,59,2,5,1049,0,10490001,now,now+86400,CivicPhase.GUARDING)))
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,2000,200,300,treasury=200)),
-        nationalTreasuries=mapOf(2 to Long.MAX_VALUE),civic=civic,budget=budget)
+        nationalTreasuries=mapOf(CountryId(2) to Long.MAX_VALUE),civic=civic,budget=budget)
     @Test fun format34PreservesRatesLongTreasuriesQuoteReceiptAndTheExistingVGrammarAndStillReads33() {
         val path=directory.resolve("stocks.tsv")
         FilePlanetStockStore(path).use {it.save(stocks);assertEquals(stocks,it.load())}
@@ -45,7 +45,7 @@ class BudgetStoreTest {
     }
     @Test fun pointerFailurePreservesBothBalancesCpAndQuoteThenReopenRestoresACompletedReceipt() {
         val path=directory.resolve("world");val p=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000)
-        val amount=quote.amount;val next=stocks.copy(nationalTreasuries=mapOf(2 to Long.MAX_VALUE-amount),
+        val amount=quote.amount;val next=stocks.copy(nationalTreasuries=mapOf(CountryId(2) to Long.MAX_VALUE-amount),
             bases=stocks.bases.mapValues {(_,b)->b.copy(treasury=b.treasury+amount)},
             budget=budget.copy(quotes=mapOf(10000 to quote.copy(phase=BudgetPhase.COMPLETED))))
         FileWorldStateStore(path).use {store ->
