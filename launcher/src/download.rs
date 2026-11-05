@@ -99,39 +99,6 @@ fn get(base: &str, relative: &str) -> Result<Vec<u8>, String> {
     Ok(body)
 }
 
-/// `root` 아래에서 `listed`(`/`로 이은 상대 경로)에 없는 파일과 빈 디렉터리를 지운다.
-fn remove_unlisted(
-    root: &Path,
-    dir: &Path,
-    listed: &std::collections::HashSet<String>,
-) -> std::io::Result<()> {
-    if !dir.is_dir() {
-        return Ok(());
-    }
-    for entry in fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() {
-            remove_unlisted(root, &path, listed)?;
-            if fs::read_dir(&path)?.next().is_none() {
-                fs::remove_dir(&path)?;
-            }
-        } else {
-            let relative = path
-                .strip_prefix(root)
-                .map(|p| {
-                    p.components()
-                        .map(|c| c.as_os_str().to_string_lossy())
-                        .collect::<Vec<_>>()
-                        .join("/")
-                })
-                .unwrap_or_default();
-            if !listed.contains(&relative) {
-                fs::remove_file(&path)?;
-            }
-        }
-    }
-    Ok(())
-}
 /// `expected`는 신뢰할 수 있는 다른 경로(배포 공지·런처 설정)로 받은 목록의 SHA-256이다. 주면 목록이
 /// 그 값과 같을 때만 받는다. `trusted`는 `patch_sign.py`의 공개키다. 주면 `patch.manifest.sig`가
 /// 그 키로 맞을 때만 받는다(패치마다 고정값을 다시 알릴 필요가 없는 고정점).
@@ -182,30 +149,45 @@ pub fn download(
     if text.lines().next().map(str::trim) != Some("LOGH7-PATCH-1") || files.is_empty() {
         return Err("지원하지 않는 패치 목록입니다".into());
     }
-    // 이어받기: 이전 시도가 남긴 `.partial`의 파일 중 (확인한) 목록 해시와 같은 것은 다시 받지 않는다.
-    // 해시가 목록과 같아야만 쓰므로, 다른 패치나 변조된 파일이 남아 있어도 섞이지 않는다.
+    // 이어받기(파일 단위): 이전 시도의 `.partial`에서 목록 해시와 같은 내용만 빈 새 디렉터리로 옮겨 쓴다.
+    // - 새 디렉터리에는 목록 철자 그대로 쓰므로 대소문자가 다른 옛 이름이나 옛 파일/디렉터리 충돌이 남지 않는다.
+    // - 옛 디렉터리는 표준 `remove_dir_all`로 지운다. 이 함수는 심볼릭 링크·정션을 따라가지 않는다
+    //   (Rust 1.58.1, CVE-2022-21658). 링크를 통해 읽힌 내용도 목록 해시와 같을 때만 쓰므로 섞이지 않는다.
     let staging = out.with_extension("partial");
+    let fresh = out.with_extension("partial-next");
+    let _ = fs::remove_dir_all(&fresh);
+    fs::create_dir_all(&fresh).map_err(|e| e.to_string())?;
+    let write = |root: &Path, relative: &str, data: &[u8]| -> Result<(), String> {
+        let target = root.join(relative);
+        fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
+        fs::write(&target, data).map_err(|_| format!("받은 파일을 쓰지 못했습니다: {relative}"))
+    };
+    let mut pending = Vec::new();
     let mut reused = 0usize;
     for (relative, hash) in &files {
-        let target = staging.join(relative);
-        if fs::read(&target).is_ok_and(|data| sha256(&data) == *hash) {
-            reused += 1;
-            continue;
+        match fs::read(staging.join(relative)) {
+            Ok(data) if data.len() <= LIMIT && sha256(&data) == *hash => {
+                write(&fresh, relative, &data)?;
+                reused += 1;
+            }
+            _ => pending.push((relative, hash)),
         }
+    }
+    if fs::symlink_metadata(&staging).is_ok() {
+        fs::remove_dir_all(&staging)
+            .or_else(|_| fs::remove_file(&staging))
+            .map_err(|_| "이전 내려받기 디렉터리를 지우지 못했습니다")?;
+    }
+    fs::rename(&fresh, &staging).map_err(|_| "내려받기 디렉터리를 준비하지 못했습니다")?;
+    if reused > 0 {
+        eprintln!("이어받기: 이미 받은 파일 {reused}개를 다시 쓰고 나머지만 받습니다");
+    }
+    for (relative, hash) in pending {
         let data = get(base, relative)?;
         if sha256(&data) != *hash {
-            let _ = fs::remove_file(&target);
             return Err(format!("받은 파일 해시가 목록과 다릅니다: {relative}"));
         }
-        fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
-        fs::write(&target, data).map_err(|_| format!("받은 파일을 쓰지 못했습니다: {relative}"))?;
-    }
-    // 목록에 없는 남은 파일(이전 다른 패치의 잔여)은 최종 디렉터리에 넣지 않는다.
-    let listed: std::collections::HashSet<String> =
-        files.iter().map(|(relative, _)| relative.clone()).collect();
-    remove_unlisted(&staging, &staging, &listed).map_err(|e| e.to_string())?;
-    if reused > 0 {
-        eprintln!("이어받기: 이미 받은 파일 {reused}개를 다시 쓰고 나머지만 받았습니다");
+        write(&staging, relative, &data)?;
     }
     fs::write(staging.join("patch.manifest"), manifest).map_err(|e| e.to_string())?;
     if let Some(signature) = signature {
@@ -406,6 +388,65 @@ file	exe/dinput8.dll	11
         assert_eq!(b"bbb", &fs::read(out.join("data/b.tga")).unwrap()[..]);
         assert!(!out.join("old").exists(), "unlisted leftovers are removed");
         assert!(!staging.exists());
+        fs::remove_dir_all(&out).unwrap();
+    }
+
+    fn two_files(first: &str, second: &str) -> Vec<u8> {
+        format!(
+            "LOGH7-PATCH-1\nclient\t{}\nfile\t{first}\t{}\nfile\t{second}\t{}\n",
+            sha256(b"client"),
+            sha256(b"aaa"),
+            sha256(b"bbb")
+        )
+        .into_bytes()
+    }
+
+    #[test]
+    fn a_resumed_file_is_written_with_the_listed_spelling() {
+        let out = std::env::temp_dir().join(format!("logh7-download-case-{}", std::process::id()));
+        let staging = out.with_extension("partial");
+        let _ = fs::remove_dir_all(&out);
+        let _ = fs::remove_dir_all(&staging);
+        // A previous attempt left `exe/A.dll`; the list now spells it `exe/a.dll`.
+        fs::create_dir_all(staging.join("exe")).unwrap();
+        fs::write(staging.join("exe/A.dll"), b"aaa").unwrap();
+        let mut routes = vec![
+            (
+                "/patch/patch.manifest",
+                two_files("exe/a.dll", "data/b.tga"),
+            ),
+            ("/patch/data/b.tga", b"bbb".to_vec()),
+        ];
+        if !cfg!(windows) {
+            // A case-sensitive file system does not see the old name, so the file is fetched again.
+            routes.push(("/patch/exe/a.dll", b"aaa".to_vec()));
+        }
+        assert_eq!(2, download(&serve(routes), &out, None, None).unwrap());
+        let names: Vec<_> = fs::read_dir(out.join("exe"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(vec!["a.dll".to_string()], names);
+        fs::remove_dir_all(&out).unwrap();
+    }
+
+    #[test]
+    fn an_old_directory_does_not_block_a_listed_file_of_the_same_name() {
+        let out =
+            std::env::temp_dir().join(format!("logh7-download-conflict-{}", std::process::id()));
+        let staging = out.with_extension("partial");
+        let _ = fs::remove_dir_all(&out);
+        let _ = fs::remove_dir_all(&staging);
+        // An earlier patch had `exe/item/` as a directory; this list has `exe/item` as a file.
+        fs::create_dir_all(staging.join("exe/item")).unwrap();
+        fs::write(staging.join("exe/item/old.bin"), b"old").unwrap();
+        let base = serve(vec![
+            ("/patch/patch.manifest", two_files("exe/item", "data/b.tga")),
+            ("/patch/exe/item", b"aaa".to_vec()),
+            ("/patch/data/b.tga", b"bbb".to_vec()),
+        ]);
+        assert_eq!(2, download(&base, &out, None, None).unwrap());
+        assert_eq!(b"aaa", &fs::read(out.join("exe/item")).unwrap()[..]);
         fs::remove_dir_all(&out).unwrap();
     }
 }
