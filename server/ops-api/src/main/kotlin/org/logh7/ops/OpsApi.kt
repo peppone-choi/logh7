@@ -43,7 +43,9 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null,
     users: OpsUsers? = null, backups: StateBackups? = null, galaxy:Galaxy?=null,checklist:Path?=null,countryColors:CountryColorStore?=null,
     /** A path on the state volume (LOGH7_WORLD_STATE_DIR); its file store's free/total space is exported. */
-    stateDisk: Path? = null): AutoCloseable {
+    stateDisk: Path? = null,
+    /** Gateway outcome counters (name without logh7_ -> value), e.g. login_rejected_total. */
+    gatewayCounters: (() -> Map<String, Long>)? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -88,7 +90,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                 else call.respondText(opsTextResource(checkNotNull(asset)),io.ktor.http.ContentType.parse("text/javascript; charset=utf-8"))
             }
             get("/metrics") {
-                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk),
+                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk, gatewayCounters?.invoke()),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
             }
             // Admin page buttons: same audit as the header routes, operator from the form, same-origin only.
@@ -237,7 +239,7 @@ internal suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction
 
 /** Prometheus text exposition of engine health and counters (deploy/prometheus scrapes this). */
 internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: StateBackups? = null,
-    stateDisk: Path? = null): String = buildString {
+    stateDisk: Path? = null, gateway: Map<String, Long>? = null): String = buildString {
     fun metric(name: String, type: String, help: String, value: Number) {
         append("# HELP logh7_").append(name).append(' ').append(help).append('\n')
         append("# TYPE logh7_").append(name).append(' ').append(type).append('\n')
@@ -273,6 +275,11 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: 
         metric("backup_last_success_seconds", "gauge", "Epoch seconds of the last live backup (0 before the first).", backups.lastSuccess() ?: 0)
         metric("backup_interval_seconds", "gauge", "Scheduled live backup period (0 = manual only).", backups.intervalSeconds())
         metric("backup_failures_total", "counter", "Live backups that failed since start.", backups.failures())
+    }
+    // Repeated login/ticket/update/connection failures (counts only; no account names).
+    gateway?.forEach { (name, value) ->
+        require(Regex("[a-z_]+_total").matches(name)) { "gateway counter name: $name" }
+        metric(name, "counter", "Gateway outcome count since start (${name.removeSuffix("_total").replace('_', ' ')}).", value)
     }
     // Capacity alerts (deploy/prometheus/game-alerts.yml); an unreadable store just omits the pair.
     stateDisk?.let { path ->

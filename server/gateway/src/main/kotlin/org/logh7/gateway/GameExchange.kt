@@ -61,6 +61,8 @@ class GameExchange(
     private val sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,
     private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,
     private val bindHost:String?=null,
+    /** Login/ticket outcome counts for the ops metrics; null in tests that do not look at them. */
+    private val counters:GatewayCounters?=null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -2084,12 +2086,16 @@ class GameExchange(
                 val request = LoginMessages.request(body)
                 val expected = accounts[request.account]
                 val accepted = expected != null && AccountPassword.matches(expected, request.credential)
-                val reply = if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account,sessionId=sessionId)) else LoginMessages.failure()
+                (if (accepted) counters?.loginAccepted else counters?.loginRejected)?.incrementAndGet()
+                val reply =if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account,sessionId=sessionId)) else LoginMessages.failure()
                 state = if (accepted) State.AUTHENTICATED else State.REJECTED
                 handshake.stageAll(listOf(reply))
             }
             Role.SESSION -> {
-                ticket = requireNotNull(tickets.take(LoginMessages.sessionToken(body))) { "Invalid or expired session token" }
+                val taken = tickets.take(LoginMessages.sessionToken(body))
+                if (taken == null || taken.sessionId != sessionId || (taken.generation != null && taken.generation != (generation ?: 1L)))
+                    counters?.sessionTicketRejected?.incrementAndGet()
+                ticket = requireNotNull(taken) { "Invalid or expired session token" }
                 require(ticket!!.sessionId==sessionId && (ticket!!.generation==null || ticket!!.generation==(generation ?: 1L))) {"Session ticket destination or generation mismatch"}
                 state = State.AUTHENTICATED
                 null // No invented response: session acceptance opcode is not established yet.

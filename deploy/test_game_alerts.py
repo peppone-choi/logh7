@@ -7,6 +7,7 @@
    (the CI mounts a tmpfs). Prometheus scrapes its ops /metrics and evaluates the same rules;
    Alertmanager routes every alert to a local webhook that stands in for the operator receiver.
 3. Injections and the alerts the operator receiver must get, in order:
+   - six update exchanges start and drop     -> LOGH7UpdateFailuresHigh (a completed one and a bare TCP connect are not failures)
    - the volume is small from the start      -> LOGH7StateDiskCritical
    - the volume is filled until writes fail  -> LOGH7EngineStorageFailed (engine stops committing)
    - the server process is stopped           -> LOGH7GameServerUnreachable
@@ -106,6 +107,16 @@ def fill(volume: Path) -> int:
     return written
 
 
+def update_exchange(port: int, complete: bool) -> None:
+    """One update-port exchange: 0x6810 identification, then 0x6820+BE32 version only when [complete]."""
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as conn:
+        conn.sendall(b"\x00\x02\x68\x10")
+        assert conn.recv(4) == b"\x00\x02\x68\x11"
+        if complete:
+            conn.sendall(b"\x00\x06\x68\x20" + (1).to_bytes(4, "big"))
+            assert conn.recv(4) == b"\x00\x02\x68\x22"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--prometheus", required=True)
@@ -181,6 +192,16 @@ scrape_configs:
         ops = ports["ops"]
         result["server_up_seconds"] = wait("engine_up 1", lambda: metric(ops, "logh7_engine_up") == 1, 90)
         result["volume_free_bytes"] = metric(ops, "logh7_state_disk_free_bytes")
+
+        # Update exchanges: one completes; six start and drop (a bare TCP connect is not counted).
+        update_exchange(ports["update"], complete=True)
+        socket.create_connection(("127.0.0.1", ports["update"]), timeout=5).close()
+        for _ in range(6):
+            update_exchange(ports["update"], complete=False)
+        result["update_counters_seconds"] = wait("update counters", lambda: metric(ops, "logh7_update_failed_total") == 6
+                                                 and metric(ops, "logh7_update_completed_total") == 1, 30)
+        result["update_failures_seconds"] = wait("LOGH7UpdateFailuresHigh at the operator receiver",
+                                                 lambda: receiver.firing("LOGH7UpdateFailuresHigh"), 180)
 
         result["disk_critical_seconds"] = wait("LOGH7StateDiskCritical at the operator receiver",
                                                lambda: receiver.firing("LOGH7StateDiskCritical"), 180)

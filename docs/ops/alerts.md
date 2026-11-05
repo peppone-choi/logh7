@@ -25,6 +25,10 @@
 | `LOGH7HeapNearLimit` | 힙 사용/최대 > 90% 10분 | warning |
 | `LOGH7StateDiskLow` | 상태 볼륨 여유 < 10% 5분 | warning |
 | `LOGH7StateDiskCritical` | 상태 볼륨 여유 < 1 GiB 1분 | critical |
+| `LOGH7LoginFailuresHigh` | 10분 안에 로그인 거부 20회 이상 | warning |
+| `LOGH7SessionTicketRejections` | 10분 안에 세션 토큰 거부 10회 이상 | warning |
+| `LOGH7UpdateFailuresHigh` | 15분 안에 시작했지만 끝나지 않은 업데이트 교환 5회 이상 | warning |
+| `LOGH7ConnectionErrorsHigh` | 10분 안에 프로토콜·처리 오류로 끊긴 연결 50회 이상 | warning |
 
 이번에 추가한 지표는 다음 여섯 종이다.
 - `logh7_engine_state{state=...}`: starting·running·storage_failed·stopped 중 현재 상태만 1이다. `engine_up`은 시작 중·정지·저장 실패에서 모두 0이라, 저장 실패 경보는 이 상태로만 판정한다(Codex 검토).
@@ -34,6 +38,18 @@
 - `logh7_state_disk_free_bytes`·`logh7_state_disk_total_bytes`: 월드 상태 폴더, 없으면 세션 저장소가 있는 볼륨을 잰다.
 
 백업 지연을 프로세스 시작부터 재는 이유가 있다. 서버를 새로 띄우면 마지막 백업 시각이 0이어서, 첫 예약 백업 전부터 경보가 울리기 때문이다.
+
+### 게이트웨이 실패 계수 (2026-11-06 2차)
+
+`GatewayCounters`가 게이트웨이마다 다음을 센다. 계정 이름이나 비밀번호는 남기지 않고 횟수만 센다.
+- `logh7_login_accepted_total`·`_rejected_total`
+- `logh7_session_ticket_rejected_total`: 모르거나 만료됐거나 재사용됐거나 다른 세션·세대로 온 토큰
+- `logh7_update_completed_total`·`_failed_total`
+- `logh7_connection_errors_total`
+
+업데이트 실패는 "식별(`0x6810`)을 보낸 뒤 버전(`0x6820`) 없이 끊긴 교환"만 센다. TCP 감시(blackbox)가 업데이트 포트에 그냥 접속했다 끊는 것은 실패로 세지 않는다. 로컬 실서버에서 완료 1회·식별 뒤 끊기 6회·단순 접속 1회를 주입하자 완료 1·실패 6으로 집계됐다. 로그인·토큰 계수는 기존 로그인·1회용 토큰 재사용 시험에서 확인했다.
+
+경보 문구에는 `increase()` 값을 넣지 않는다. 보간 때문에 소수가 나와 promtool 비교가 흔들리기 때문이다.
 
 ## 실제 주입 시험(CI `game-alerts`)
 
@@ -56,7 +72,7 @@
 
 체크리스트 항목 기준으로 남은 것은 다음과 같다.
 - 큐/지연 경보: 송신 큐·틱 지연 지표가 아직 없다.
-- 연속 접속/패치 실패 경보: 로그인·패치 실패 계수가 아직 없다.
+- 연속 접속/패치 실패: 서버 쪽 계수와 경보는 2차에서 넣었다. 런처(클라이언트) 쪽 패치 다운로드·적용 실패는 서버가 볼 수 없으므로 아직 남는다.
 - 로그·캡처·백업 보존 정책과 용량 경보 전체
 - 플레이어에게 보이는 오류 표시
 - 실제 운영 수신처(채팅/호출 서비스)로의 전달

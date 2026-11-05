@@ -147,3 +147,42 @@ tests:
             exp_annotations:
               summary: 'LOGH7 state volume under 1 GiB free'
               description: 'Under 1 GiB free on the state volume of game-server:47901; a full volume stops the world engine.'
+
+  - name: repeated gateway failures warn within their windows
+    interval: 1m
+    input_series:
+      - series: 'logh7_login_rejected_total{job="game-server",instance="game-server:47901"}'
+        values: '0+1x5 5+5x5'
+      - series: 'logh7_session_ticket_rejected_total{job="game-server",instance="game-server:47901"}'
+        values: '0x10'
+      - series: 'logh7_update_failed_total{job="game-server",instance="game-server:47901"}'
+        values: '0x3 6x7'
+      - series: 'logh7_connection_errors_total{job="game-server",instance="game-server:47901"}'
+        values: '0+2x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: LOGH7LoginFailuresHigh
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: LOGH7LoginFailuresHigh
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 many rejected logins'
+              description: 'At least 20 logins were rejected in ten minutes on game-server:47901 (password guessing or a broken account file).'
+      - eval_time: 10m
+        alertname: LOGH7SessionTicketRejections
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: LOGH7UpdateFailuresHigh
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: LOGH7UpdateFailuresHigh
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 update exchanges failing'
+              description: 'At least 5 update exchanges started but did not complete in fifteen minutes on game-server:47901.'
+      - eval_time: 10m
+        alertname: LOGH7ConnectionErrorsHigh
+        exp_alerts: []
