@@ -17,6 +17,7 @@ use std::{
 const MANIFEST: &str = "patch.manifest";
 const STATE: &str = "logh7-patch.state";
 const BACKUP: &str = "logh7-patch-backup";
+const PENDING: &str = "pending";
 const CLIENT: &str = "exe/G7MTClient.exe";
 
 struct Entry {
@@ -149,57 +150,105 @@ pub fn apply(root: &Path, patch: &Path) -> Result<usize, String> {
     }
     let mut state = String::from("LOGH7-PATCH-STATE-1\n");
     for entry in &files {
-        let destination = target(root, &entry.path)?;
-        let original = destination.exists();
-        if original {
-            let backup = root.join(BACKUP).join(&entry.path);
-            fs::create_dir_all(backup.parent().unwrap()).map_err(|e| e.to_string())?;
-            fs::copy(&destination, &backup)
-                .map_err(|_| format!("원래 파일을 보관하지 못했습니다: {}", entry.path))?;
-        } else if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        if let Err(failure) = install(root, patch, entry, &mut state) {
+            // 적용 도중 실패하면 그때까지 바꾼 파일(쓰다 만 파일 포함)을 바로 되돌린다.
+            if !root.join(STATE).exists() {
+                let _ = fs::remove_dir_all(root.join(BACKUP));
+                return Err(format!("{failure}. 바꾼 파일은 없습니다"));
+            }
+            return Err(match revert(root) {
+                Ok(_) => format!("{failure}. 바꾼 파일을 모두 원래대로 되돌렸습니다"),
+                Err(again) => format!("{failure}. 자동 되돌리기도 실패했습니다: {again}"),
+            });
         }
-        fs::copy(patch.join(&entry.path), &destination)
-            .map_err(|_| format!("패치 파일을 쓰지 못했습니다: {}", entry.path))?;
-        state.push_str(&format!(
-            "{}\t{}\t{}\n",
-            entry.path,
-            entry.hash,
-            u8::from(original)
-        ));
-        // 중간 실패 뒤에도 되돌릴 수 있도록 매 파일마다 기록한다.
-        fs::write(root.join(STATE), &state).map_err(|_| "패치 상태를 기록하지 못했습니다")?;
     }
     Ok(files.len())
 }
 
+/// 파일 하나를 설치한다. 순서: 원래 파일 보관 → 상태에 `pending` 표시와 함께 기록 → 복사 → `pending` 제거.
+/// 복사 중 중단되면(전원 차단 등) 상태의 마지막 항목이 `pending`으로 남아, `revert`가 쓰다 만 그 파일도
+/// 해시 확인 없이 원래대로 돌린다. 보관 중 중단되면 상태에 그 항목이 없고 대상 파일도 아직 그대로다.
+fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Result<(), String> {
+    let destination = target(root, &entry.path)?;
+    let original = destination.exists();
+    if original {
+        let backup = root.join(BACKUP).join(&entry.path);
+        fs::create_dir_all(backup.parent().unwrap()).map_err(|e| e.to_string())?;
+        fs::copy(&destination, &backup)
+            .map_err(|_| format!("원래 파일을 보관하지 못했습니다: {}", entry.path))?;
+    } else if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    state.push_str(&format!(
+        "{}\t{}\t{}\n",
+        entry.path,
+        entry.hash,
+        u8::from(original)
+    ));
+    // 임시 파일에 쓴 뒤 바꿔 넣어, 쓰는 도중 중단돼도 직전 상태 기록이 남는다.
+    let record = |text: &str| {
+        let next = root.join(format!("{STATE}.next"));
+        fs::write(&next, text)
+            .and_then(|_| fs::rename(&next, root.join(STATE)))
+            .map_err(|_| "패치 상태를 기록하지 못했습니다".to_string())
+    };
+    record(&format!("{state}{PENDING}\n"))?;
+    fs::copy(patch.join(&entry.path), &destination)
+        .map_err(|_| format!("패치 파일을 쓰지 못했습니다: {}", entry.path))?;
+    record(state)
+}
 pub fn revert(root: &Path) -> Result<usize, String> {
     let text = fs::read_to_string(root.join(STATE)).map_err(|_| "적용된 패치가 없습니다")?;
     let mut lines = text.lines();
     if lines.next() != Some("LOGH7-PATCH-STATE-1") {
         return Err("패치 상태 형식이 다릅니다".into());
     }
+    let lines: Vec<&str> = lines.filter(|l| !l.is_empty()).collect();
+    // 마지막 줄이 `pending`이면 바로 앞 항목은 쓰다 만 파일일 수 있어 해시를 확인하지 않는다.
+    let (lines, pending) = match lines.split_last() {
+        Some((&PENDING, rest)) if !rest.is_empty() => (rest, true),
+        _ => (&lines[..], false),
+    };
     let mut entries = Vec::new();
-    for line in lines.filter(|l| !l.is_empty()) {
+    for (index, line) in lines.iter().enumerate() {
         let fields: Vec<&str> = line.split('\t').collect();
         let [path, hash, original] = fields.as_slice() else {
             return Err(format!("패치 상태를 해석하지 못했습니다: {line}"));
         };
         let destination = target(root, path)?;
-        if hash_file(&destination)? != *hash {
+        let interrupted = pending && index + 1 == lines.len();
+        let current = destination
+            .exists()
+            .then(|| hash_file(&destination))
+            .transpose()?;
+        let backup = root.join(BACKUP).join(path);
+        // 실패한 자동 되돌리기를 다시 시도할 수 있도록 이미 원래대로 돌아간 파일도 받아들인다.
+        let restored = if *original == "1" {
+            backup.exists() && current == Some(hash_file(&backup)?)
+        } else {
+            current.is_none()
+        };
+        if !interrupted && !restored && current.as_deref() != Some(*hash) {
             return Err(format!(
                 "패치 뒤 바뀐 파일이 있어 되돌리지 않았습니다: {path}"
             ));
         }
-        entries.push((path.to_string(), destination, *original == "1"));
+        entries.push((path.to_string(), destination, *original == "1", restored));
     }
-    for (path, destination, original) in &entries {
+    for (path, destination, original, restored) in &entries {
+        if *restored {
+            continue;
+        }
         if *original {
             fs::copy(root.join(BACKUP).join(path), destination)
                 .map_err(|_| format!("원래 파일을 복원하지 못했습니다: {path}"))?;
         } else {
-            fs::remove_file(destination)
-                .map_err(|_| format!("추가 파일을 지우지 못했습니다: {path}"))?;
+            match fs::remove_file(destination) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                    return Err(format!("추가 파일을 지우지 못했습니다: {path}"));
+                }
+                _ => {}
+            }
         }
     }
     let _ = fs::remove_dir_all(root.join(BACKUP));
@@ -296,5 +345,84 @@ mod tests {
             b"edited",
             &fs::read(root.join("exe/String.txt")).unwrap()[..]
         );
+    }
+
+    #[test]
+    fn a_failure_while_applying_restores_the_files_already_changed() {
+        let (root, patch) = setup("midway");
+        // The second target is occupied by a directory, so it cannot be backed up or written.
+        fs::create_dir_all(root.join("exe/dinput8.dll")).unwrap();
+        let failure = apply(&root, &patch).unwrap_err();
+        assert!(failure.contains("되돌렸습니다"), "{failure}");
+        // A failure on the very first file changes nothing and leaves no backup behind.
+        let (first, patch_first) = setup("first");
+        fs::remove_file(first.join("exe/String.txt")).unwrap();
+        fs::create_dir_all(first.join("exe/String.txt")).unwrap();
+        let failure = apply(&first, &patch_first).unwrap_err();
+        assert!(failure.contains("바꾼 파일은 없습니다"), "{failure}");
+        assert!(!first.join(STATE).exists() && !first.join(BACKUP).exists());
+        assert_eq!(
+            b"original",
+            &fs::read(root.join("exe/String.txt")).unwrap()[..]
+        );
+        assert!(!root.join(STATE).exists() && !root.join(BACKUP).exists());
+        // Once the obstacle is gone the same patch applies normally.
+        fs::remove_dir(root.join("exe/dinput8.dll")).unwrap();
+        assert_eq!(2, apply(&root, &patch).unwrap());
+    }
+
+    #[test]
+    fn an_interrupted_copy_is_reverted_without_a_hash_match() {
+        let (root, patch) = setup("crash");
+        apply(&root, &patch).unwrap();
+        // As if power was lost while the last file was being written.
+        fs::write(root.join("exe/dinput8.dll"), b"d").unwrap();
+        let mut state = fs::read_to_string(root.join(STATE)).unwrap();
+        state.push_str("pending\n");
+        fs::write(root.join(STATE), &state).unwrap();
+        assert_eq!(2, revert(&root).unwrap());
+        assert_eq!(
+            b"original",
+            &fs::read(root.join("exe/String.txt")).unwrap()[..]
+        );
+        assert!(!root.join("exe/dinput8.dll").exists());
+        // Without the marker the same half-written file is protected as a user change.
+        apply(&root, &patch).unwrap();
+        fs::write(root.join("exe/dinput8.dll"), b"d").unwrap();
+        assert!(revert(&root).is_err());
+    }
+
+    #[test]
+    fn a_failed_automatic_rollback_can_be_retried() {
+        let (root, patch) = setup("retry");
+        // The second target exists and is readable but cannot be overwritten.
+        fs::write(root.join("exe/dinput8.dll"), b"old dll").unwrap();
+        let locked = root.join("exe/dinput8.dll");
+        let mut permissions = fs::metadata(&locked).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&locked, permissions.clone()).unwrap();
+        let failure = apply(&root, &patch).unwrap_err();
+        // The untouched pending file is recognised as already original, so the rollback completes.
+        assert!(failure.contains("되돌렸습니다"), "{failure}");
+        assert_eq!(
+            b"original",
+            &fs::read(root.join("exe/String.txt")).unwrap()[..]
+        );
+        assert_eq!(b"old dll", &fs::read(&locked).unwrap()[..]);
+        assert!(!root.join(STATE).exists());
+        // Whether or not the automatic rollback finished, --revert-patch (or a new apply) works
+        // once the obstruction is removed.
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+        fs::set_permissions(&locked, permissions).unwrap();
+        if root.join(STATE).exists() {
+            revert(&root).unwrap();
+        }
+        assert_eq!(
+            b"original",
+            &fs::read(root.join("exe/String.txt")).unwrap()[..]
+        );
+        assert!(!root.join(STATE).exists());
+        assert_eq!(2, apply(&root, &patch).unwrap());
     }
 }
