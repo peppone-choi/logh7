@@ -30,6 +30,36 @@ class FleetUpkeepTest {
         assertEquals(0L, treasuries[3], "never negative, no arrears")
     }
 
+    @Test fun blackHoleLossesGiveTheSameBillWhetherSettledHourlyOrAtOnce() {
+        val home = GalaxyBase(1000, 2487, 80, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)), listOf(home), Power.entries.associateWith { 2487 },
+            terrain = Galaxy.manualTerrain())
+        assertTrue(BlackHoleTides.inGravity(galaxy, 3059))
+        val start = SessionRules.load().startSeconds
+        // A unit large enough for the 1%/hour tide to remove whole ships (integer losses).
+        val big = UnitSpecifications.ships.filter { it.number >= 100 }.maxBy { it.number }
+        val caughtFleet = OutfitStock(1, 2, OutfitKind.FLEET, 1000, 1, units = UnitInventory(mapOf(UnitStack(big.kind) to 2)),
+            activeShips = ActiveShipUnits(listOf(ActiveShipUnit(101, UnitStack(big.kind)), ActiveShipUnit(102, UnitStack(big.kind)))),
+            position = OutfitPosition(3059))
+        val initial = stocks.copy(outfits = stocks.outfits + (1 to caughtFleet), deploymentInitialized = true,
+            tidalHour = maxOf(1L, start / BlackHoleTides.HOUR), // 0 means "no watermark yet".
+            nationalTreasuries = mapOf(2 to 1_000_000_000L, 3 to 1_000_000_000L))
+        fun run(times: List<Long>): PlanetStocks {
+            var saved: PlanetStocks? = initial
+            val store = object : PlanetStockStore {
+                override fun load() = saved
+                override fun save(stocks: PlanetStocks) { saved = stocks }
+            }
+            val production = PlanetProduction(galaxy, store, start, PlanetProductionPolicy())
+            return times.map { production.settle(1, it) }.last()
+        }
+        val hourly = run((1..24).map { start + it * BlackHoleTides.HOUR })
+        val atOnce = run(listOf(start + 86400))
+        assertTrue(FleetUpkeep.ships(atOnce, 2) < FleetUpkeep.ships(initial, 2), "the tide removed ships during the day")
+        assertEquals(hourly.outfits, atOnce.outfits)
+        assertEquals(hourly.nationalTreasuries, atOnce.nationalTreasuries, "the bill does not depend on settlement frequency")
+    }
+
     @Test fun dailySettlementChargesOncePerDayAfterThatDaysIncome() {
         val home = GalaxyBase(1000, 2487, 80, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)), listOf(home), Power.entries.associateWith { 2487 })
