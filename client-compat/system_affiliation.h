@@ -40,6 +40,8 @@ static unsigned __cdecl systemNameColor(const char* name,unsigned color) {
         auto palette=reinterpret_cast<const BYTE*>(0x771f68)+affiliation*3;
         rgb=(palette[0]<<16)|(palette[1]<<8)|palette[2];
     }
+    // Current runtime country IDs match native normal-camp military codes; rebel and mixed markers stay distinct.
+    if(affiliation==4 || affiliation==6)rgb=countryPaintRgb(affiliation/2,2,rgb);
     return (color&0xff000000)|rgb;
 }
 static void drawSystemAffiliationIcons(void* map) {
@@ -51,6 +53,7 @@ static void drawSystemAffiliationIcons(void* map) {
     int width=at<int>(display,0x2a604),height=at<int>(display,0x2a608);
     if (width<743 || width>4096 || height<600 || height>4096) return;
     auto sprites=reinterpret_cast<void**>(0x9d12b8);
+    const bool neutral=neutralizeCountryIcons();
     for (unsigned grid=0;grid<5000;++grid) {
         auto node=reinterpret_cast<BYTE*>(0x983098)+grid*64;
         if (!at<void*>(node,0)) continue; // original star node, not a visiting fleet
@@ -72,9 +75,16 @@ static void drawSystemAffiliationIcons(void* map) {
         float y=static_cast<float>(static_cast<int>(screen[1])-47);
         if (x<0 || x>width-16 || y<0 || y>height-192) continue;
         unsigned color=(static_cast<unsigned>((alpha>1 ? 1 : alpha)*255)<<24)|0xffffff;
+        unsigned rgb=0xffffff;
+        if(neutral && affiliation>=4 && affiliation<=7) {
+            auto nativeRgb=reinterpret_cast<const BYTE*>(0x771f68)+affiliation*3;
+            rgb=(nativeRgb[0]<<16)|(nativeRgb[1]<<8)|nativeRgb[2];
+            if(affiliation==4 || affiliation==6)rgb=countryPaintRgb(affiliation/2,2,rgb);
+        }
+        color=(color&0xff000000)|rgb;
         float scale[]={1,1,1};
         // Queue in the existing HUD/sprite phase, before this frame's native flush.
-        reinterpret_cast<int(__thiscall*)(void*,const float*,float,float,float,float,void*,int,unsigned,int,int)>(0x4cb2b0)
+        originalCountrySpriteQueue
             (reinterpret_cast<void*>(0x9d29a0),scale,x,y,16,16,sprites[affiliation],0,color,0,0);
     }
 }

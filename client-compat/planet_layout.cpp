@@ -147,6 +147,8 @@ static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
 static bool updateSessionEnding(void* manager);
 static void receivedSessionEnding(void* world,const BYTE* record);
+#include "country_colors.h"
+#include "country_icon.h"
 #include "system_affiliation.h"
 #include "planet_info.h"
 #include "ground_battle_panel.h"
@@ -348,6 +350,7 @@ static void __fastcall drawHud(void* map, void*) {
     drawDockingStatus();
     drawSystemAffiliationIcons(map);
     void* world = *reinterpret_cast<void**>(0x7ccffc);
+    pollCountryPaint(world);
     if (!world || !at<BYTE>(world, 0x2b6a6c)) return;
     int grid = at<int>(world, 0x2b6a70);
     if (grid < 0 || grid >= 5000) return;
@@ -524,7 +527,7 @@ static void install() {
     if (!verifiedClient()) { status = -1; return; }
     if (!installEnvironmentShader()) { status = -3; return; }
     if (!verifyTacticalNotices()) { status = -2; return; }
-    if (!installSystemAffiliation()) { status = -2; return; }
+    if (!installSystemAffiliation() || !installCountryIcon()) { status = -2; return; }
     BYTE* target = reinterpret_cast<BYTE*>(0x4d68d0);
     const BYTE expected[] = {0x83,0xec,0x58,0x53,0x56};
     if (memcmp(target, expected, sizeof(expected))) { status = -2; return; }
