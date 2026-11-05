@@ -7,8 +7,8 @@ import java.nio.file.StandardOpenOption.*
 import java.time.Clock
 import java.util.UUID
 
-enum class OpsAction { PROBE, SESSION_RESTART, ACCOUNT_SET, ACCOUNT_REMOVE, BACKUP }
-enum class OpsOutcome { QUEUED, RESTARTED, CONFLICT, FAILED, CHANGED, NOT_FOUND, INVALID }
+enum class OpsAction { PROBE, SESSION_RESTART, ACCOUNT_SET, ACCOUNT_REMOVE, BACKUP, WORLD_BASE_EDIT }
+enum class OpsOutcome { QUEUED, RESTARTED, CONFLICT, FAILED, CHANGED, NOT_FOUND, INVALID, UNCHANGED, UNAVAILABLE }
 
 /** Append-only JSON Lines. Each line is fsync'd before the call returns. */
 class OpsAudit private constructor(private val channel: FileChannel, private val clock: Clock) : AutoCloseable {
@@ -20,11 +20,13 @@ class OpsAudit private constructor(private val channel: FileChannel, private val
             OpsAudit(FileChannel.open(path, CREATE, WRITE, APPEND), clock)
     }
 
-    fun requested(action: OpsAction, operator: String, remote: String): String {
+    fun requested(action: OpsAction, operator: String, remote: String, details:String?=null): String {
         require(operatorPattern.matches(operator))
+        require(details==null || details.length<=512 && details.all {it.code in 32..126 && it!='"' && it!='\\'})
         val requestId = UUID.randomUUID().toString()
         val address = remote.takeIf(remotePattern::matches) ?: "invalid"
-        append("\"requestId\":\"$requestId\",\"phase\":\"REQUESTED\",\"action\":\"$action\",\"operator\":\"$operator\",\"remote\":\"$address\"")
+        val context=details?.let {",\"details\":\"$it\""}.orEmpty()
+        append("\"requestId\":\"$requestId\",\"phase\":\"REQUESTED\",\"action\":\"$action\",\"operator\":\"$operator\",\"remote\":\"$address\"$context")
         return requestId
     }
 
