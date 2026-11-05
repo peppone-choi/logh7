@@ -12,7 +12,8 @@ data class UnitProductionPolicy(val peoplePerUnit: Int = 1000, val foodPerTroop:
 
 /** Manual products/terms; hours, batch interpretation and material/manpower costs are designed policy. */
 internal class UnitProduction(private val galaxy: Galaxy, private val policy: UnitProductionPolicy,
-    private val policyEconomy: PlanetEconomyPolicy, private val maximumStock: Int) {
+    private val policyEconomy: PlanetEconomyPolicy, private val maximumStock: Int,
+    private val countries:CountryCatalog=CountryCatalogLoader.load()) {
     data class Line(val unit: ProductionUnit, val batch: Int)
     private val names = mapOf("ギンヌンガガプ" to "ギンヌンガガガブ", "テルモピュレー" to "テルモビュレー",
         "ラヴンストラップ" to "ラブンストラップ", "タフテ・ジャムシード" to "タフテ・ジャムジード", "アパダナ" to "アバダナ",
@@ -38,7 +39,7 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
     }
     // Occupation policy: restart shared named recipes in the captor's catalogue.
     // Faction-exclusive technology has no inferred replacement. Original manual rows stay intact.
-    private val ownedLines = (2..3).associateWith { power ->
+    private val modelLines = (2..3).associateWith { power ->
         lines.mapValues { (_, source) ->
             source.mapNotNull { line ->
                 ProductionUnits.definitions.singleOrNull {
@@ -47,9 +48,12 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
             }.groupBy { it.unit }.map { (unit, batches) -> Line(unit, batches.sumOf { it.batch }) }
         }
     }
-    fun forOwner(base: Int, power: Int): List<Line> = ownedLines[power]?.get(base).orEmpty()
+    fun forCountry(base:Int,country:CountryId?):List<Line> = country?.takeIf {it.value in countries.countries}
+        ?.let {modelLines[countries.shipStyle(it).nativePower]?.get(base)}.orEmpty()
 
     fun advance(stock: PlanetStock, dayStart: PlanetStock, shipyardOpen: Boolean? = null): PlanetStock {
+        val country=stock.country?.takeIf {it.value in countries.countries} ?: return stock
+        val style=countries.shipStyle(country)
         val people = checkNotNull(stock.economy)
         val startPeople = checkNotNull(dayStart.economy)
         val base = galaxy.conditions.getValue(stock.baseId)
@@ -57,16 +61,27 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         val farm = if (base.habitability != 0) startPeople.adults.toLong() / policyEconomy.foodWorkersPerUnit else 0
         val available = if (dayStart.food >= maximumStock) dayStart.food.toLong() else minOf(maximumStock.toLong(), dayStart.food + farm)
         val needed = (startPeople.population.toLong() + policyEconomy.foodPeoplePerUnit - 1) / policyEconomy.foodPeoplePerUnit
-        if (available < needed || stock.camp != 0 || stock.power !in 2..3 || people.adults == 0) return stock
+        if (available < needed || stock.camp != 0 || people.adults == 0) return stock
         // U-08: a built or paused shipyard overrides the original facility list.
         val shipyard = shipyardOpen ?: galaxy.facilities.getValue(stock.baseId).any { it.kind == 10 }
-        val ships = stock.units.ships.toMutableMap(); val troops = stock.units.troops.toMutableMap(); val work = stock.units.work.filterKeys { key ->
-            ProductionUnits.definitions.singleOrNull { it.key == key }?.let { it.power == stock.power } ?: true
-        }.toMutableMap()
+        val ships = stock.units.ships.toMutableMap(); val troops = stock.units.troops.toMutableMap()
+        val configured=forCountry(stock.baseId,country).associateBy {it.unit.key}
+        val work=stock.units.work.filterKeys {key->when(stock.productionCountry) {
+            country->true
+            null->ProductionUnits.definitions.singleOrNull {it.key==key}?.let {it.power==country.value} ?: true
+            else->false
+        }}.toMutableMap()
+        work.keys.removeIf {it !in configured && work.getValue(it)==0}
+        // A style change finishes each already-started old recipe once. Occupation clears its ownership.
+        val pending=work.keys.filter {it !in configured}.mapNotNull {key->
+            val unit=ProductionUnits.definitions.singleOrNull {it.key==key} ?: return@mapNotNull null
+            modelLines[unit.power]?.get(stock.baseId)?.singleOrNull {it.unit.key==key}
+        }
         var food = stock.food; var mineral = stock.mineral; var supplies = stock.supplies; var population = people.population; var adults = people.adults
-        for (line in forOwner(stock.baseId, stock.power).sortedBy { it.unit.key }) {
+        for (line in (configured.values+pending).sortedBy { it.unit.key }) {
             val unit = line.unit
-            if (unit.power != stock.power || unit.ship && !shipyard) continue
+            if (unit.ship && !shipyard) continue
+            val finishing=unit.key !in configured
             var hours = (work[unit.key] ?: 0) + 24
             val target = if (unit.ship) ships else troops
             val key = UnitStack(unit.kind)
@@ -82,10 +97,12 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
                 mineral -= mineralCost.toInt(); supplies -= supplyCost.toInt(); food -= foodCost.toInt()
                 population -= peopleCost.toInt(); adults -= peopleCost.toInt()
                 hours -= unit.hours
+                if(finishing) {hours=0;break}
             }
-            work[unit.key] = hours
+            if(finishing && hours==0)work.remove(unit.key) else work[unit.key] = hours
         }
         return stock.copy(supplies = supplies, food = food, mineral = mineral, economy = people.copy(population = population, adults = adults),
-            units = UnitInventory(ships, troops, work))
+            units = UnitInventory(ships, troops, work),
+            productionCountry=if(stock.productionCountry!=null || style.nativePower!=country.value)country else null)
     }
 }

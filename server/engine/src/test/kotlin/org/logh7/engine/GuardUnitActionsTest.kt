@@ -20,6 +20,29 @@ class GuardUnitActionsTest {
         argument=argument,identities=identities,navigators=mapOf("actor" to player))
     private fun act(r:StrategyActionRequest=request(),s:PlanetStocks=stocks(),p:Navigator=player)=StrategyActions.evaluate(galaxy,r,session,p,s)
 
+    @Test fun newGuardsUseCountryModelsAndExistingGuardsKeepTheirModelsAfterADefinitionChange() {
+        val before=stocks()
+        val foreign=OutfitWarehouse(6,CountryId(42),OutfitKind.PATROL,1049,shipStyle=ShipStyleId("alliance"))
+        val source=before.copy(warehouses=before.warehouses+(6 to foreign))
+        val first=GuardUnitActions.evaluate(galaxy,request(value=13),session,player,source,countriesWithSwappedShipStyles())
+        assertNull(first.rejection)
+        val created=assertNotNull(first.stocks);val guard=assertNotNull(GuardUnitActions.guardOf(created,10000))
+        assertEquals(CountryId(2),guard.country);assertEquals(ShipStyleId("alliance"),guard.shipStyle)
+        assertEquals(7,guard.warehouseId);assertEquals(before.warehouses[5],created.warehouses[5]);assertEquals(foreign,created.warehouses[6])
+        assertEquals(ShipStyleId("alliance"),created.warehouses.getValue(7).shipStyle)
+        assertEquals(30000L,created.strategic.people.getValue(10000).evaluation)
+        assertEquals(920,first.player?.pcp)
+        assertEquals(ShipStyleId("alliance"),GuardShips.styleFor(created,10000,CountryId(2),CountryCatalogLoader.load()))
+        val second=GuardUnitActions.evaluate(galaxy,request(value=14),session,first.player!!,created)
+        assertNull(second.rejection)
+        assertEquals(2,GuardUnitActions.guardOf(second.stocks!!,10000)?.guard?.size)
+        val disbanded=GuardUnitActions.evaluate(galaxy,request(argument=5),session,second.player!!,second.stocks!!)
+        assertNull(disbanded.rejection)
+        val again=GuardUnitActions.evaluate(galaxy,request(value=25),session,disbanded.player!!,disbanded.stocks!!,countriesWithSwappedShipStyles())
+        assertNull(again.rejection)
+        assertTrue(GuardUnitActions.guardOf(again.stocks!!,10000)!!.id>guard.id,"deleted guard IDs are not reused")
+    }
+
     @Test fun purchaseBuildsAPatrolGuardOfThreeUnitsAndDisbandRemovesIt() {
         var s=stocks();var p=player
         for((n,index) in listOf(0,4,12).withIndex()) {

@@ -6,13 +6,15 @@ data class PlanetStock(val baseId: Int, val owner: Allegiance, val camp: Int,
     val supplies: Int, val food: Int, val mineral: Int, val economy: PlanetEconomy? = null,
     val units: UnitInventory = UnitInventory(), val taxRate: Int? = null, val governorId: Int = 0, val garrisonCommanderId: Int = 0,
     val capitalAdministratorId: Int = 0, val capitalDefenseCommanderId: Int = 0, val guardInspectorId: Int = 0, val spareShips: SpareShipBoats = SpareShipBoats(),
-    val treasury: Long = 0) {
+    val treasury: Long = 0,
+    /** Owner of automatic production progress; null denotes an untagged legacy checkpoint. */
+    val productionCountry:CountryId?=null) {
     constructor(baseId:Int,power:Int,camp:Int,supplies:Int,food:Int,mineral:Int,economy:PlanetEconomy?=null,
         units:UnitInventory=UnitInventory(),taxRate:Int?=null,governorId:Int=0,garrisonCommanderId:Int=0,
         capitalAdministratorId:Int=0,capitalDefenseCommanderId:Int=0,guardInspectorId:Int=0,
-        spareShips:SpareShipBoats=SpareShipBoats(),treasury:Long=0):this(baseId,Allegiance.fromLegacy(power),camp,
+        spareShips:SpareShipBoats=SpareShipBoats(),treasury:Long=0,productionCountry:CountryId?=null):this(baseId,Allegiance.fromLegacy(power),camp,
             supplies,food,mineral,economy,units,taxRate,governorId,garrisonCommanderId,capitalAdministratorId,
-            capitalDefenseCommanderId,guardInspectorId,spareShips,treasury)
+            capitalDefenseCommanderId,guardInspectorId,spareShips,treasury,productionCountry)
     val power:Int get()=owner.legacyPower()
     val country:CountryId? get()=owner.country
     fun belongsTo(country:CountryId)=owner==Allegiance.Country(country)

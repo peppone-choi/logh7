@@ -1515,7 +1515,8 @@ class GameExchange(
                                         }
                                         if(query.command==org.logh7.engine.ProductionActions.SHIP || query.command==org.logh7.engine.ProductionActions.RECRUIT) {
                                             // U-08: the unit kinds this side may order (ships for 35, troops for 36).
-                                            val kinds=org.logh7.engine.ProductionActions.kinds(character.power,query.command==org.logh7.engine.ProductionActions.SHIP)
+                                            val country=checkNotNull(WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account).country)
+                                            val kinds=org.logh7.engine.ProductionActions.kinds(country,query.command==org.logh7.engine.ProductionActions.SHIP)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,kinds.filter {it.kind+1>query.target}.take(200)
                                                 .map {org.logh7.protocol.StrategyActionMessages.Selection(it.kind+1,org.logh7.engine.ProductionActions.koreanName(it.name))})
                                         }
@@ -1656,7 +1657,7 @@ class GameExchange(
                                                         "${checkNotNull(org.logh7.engine.Flagships.find(option.kind)).name} ${option.price}",option.maximumRank)})
                                             // U-13 guard ships: row id = catalogue index + 1, shown as "code price".
                                             if(query.argument==4)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
-                                                org.logh7.engine.GuardShips.forPower(character.power)
+                                                org.logh7.engine.GuardShips.forStyle(org.logh7.engine.GuardShips.styleFor(inventory,character.id.toInt(),checkNotNull(me.country)))
                                                     .filter {it.index+1>query.target}.map {option->
                                                     org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,option.label,option.maximumRank)})
                                             val eligible=if(query.argument==2)inventory.flagshipMarket.offers.filter {

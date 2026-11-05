@@ -10,6 +10,26 @@ class InitialOutfitDeploymentTest {
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
     private fun stocks() = PlanetStocks(1,7,galaxy.conditions.mapValues { (_,c) ->
         PlanetStock(c.baseId,c.power,0,123,456,789,units=UnitInventory(work=mapOf("S32" to 48))) })
+
+    @Test fun newDeploymentsUseCountryStylesAndAnExistingDeploymentIsNeverRetrofitted() {
+        val before=stocks()
+        val legacy=InitialOutfitDeployment(galaxy).initialize(before)
+        val seeded=InitialOutfitDeployment(galaxy,countries=countriesWithSwappedShipStyles()).initialize(before)
+        assertEquals(before.bases,seeded.bases)
+        assertEquals(legacy.outfits.keys,seeded.outfits.keys)
+        for((id,outfit) in seeded.outfits) {
+            val old=legacy.outfits.getValue(id)
+            assertEquals(listOf(old.country,old.kind,old.baseId,old.number,old.warehouseId),
+                listOf(outfit.country,outfit.kind,outfit.baseId,outfit.number,outfit.warehouseId))
+            val model=if(outfit.country==CountryId(2))3 else 2
+            assertEquals(ShipStyleId.fromLegacy(model),outfit.shipStyle)
+            assertTrue(outfit.units.ships.keys.all {key->ProductionUnits.definitions.any {it.ship && it.kind==key.kind && it.power==model}})
+            assertTrue(outfit.units.troops.keys.all {key->ProductionUnits.definitions.any {!it.ship && it.kind==key.kind && it.power==model}})
+            val depot=seeded.warehouses.getValue(outfit.warehouseId)
+            assertEquals(outfit.country,depot.country);assertEquals(outfit.shipStyle,depot.shipStyle)
+        }
+        assertEquals(seeded,InitialOutfitDeployment(galaxy).initialize(seeded))
+    }
     @Test fun manualRangesAndDesignedReservesHaveStableIdsAndSharedLocalWarehouses() {
         val deployment = InitialOutfitDeployment(galaxy)
         val initial = stocks()

@@ -2,7 +2,7 @@ package org.logh7.engine
 
 /** Actor-owned soft editing leases. No stock/CP changes before COMMIT; disconnect,
  * session change or 120 seconds of inactivity releases the lease. Author: Peppone Choi. */
-internal class OutfitFormationService(private val clock:()->Long) {
+internal class OutfitFormationService(private val countries:CountryCatalog=CountryCatalogLoader.load(),private val clock:()->Long) {
     private data class Draft(val id:Int,val request:OutfitFormationRequest,val rows:Map<Int,Int>,val supplies:Int,val expires:Long)
     private var sequence=0
     private val drafts=linkedMapOf<String,Draft>()
@@ -18,9 +18,9 @@ internal class OutfitFormationService(private val clock:()->Long) {
         val i=request.identity
         fun reject(reason:StrategyActionRejection)=OutfitFormationResult(p,stocks,reason,base=request.base)
         if(s.ended!=null || s.generation!=i.generation || stocks.generation!=i.generation ||
-            s.participants[i.account]?.let {it.online && it.connection==i.connection && it.power==i.power}!=true)
+            s.participants[i.account]?.let {it.online && it.connection==i.connection && it.country==i.power.country}!=true)
             return reject(StrategyActionRejection.SESSION)
-        if(p==null || p.characterId!=i.characterId || p.power!=i.power || p.generation!=i.generation)return reject(StrategyActionRejection.IDENTITY)
+        if(p==null || p.characterId!=i.characterId || p.country!=i.power.country || p.generation!=i.generation)return reject(StrategyActionRejection.IDENTITY)
         val r=request.copy(base=request.base.takeIf {it>0} ?: p.baseId)
         val old=drafts[i.account]
         // A moved character may always cancel its own correctly identified draft.
@@ -33,7 +33,7 @@ internal class OutfitFormationService(private val clock:()->Long) {
         if(i.command==26) {
             if(r.phase !in setOf(FormationPhase.BEGIN,FormationPhase.DELETE))return reject(StrategyActionRejection.COMMAND)
             if(r.phase==FormationPhase.BEGIN) {
-                val rows=stocks.outfits.values.filter {it.power==if(i.power==Power.EMPIRE)2 else 3}.filter {
+                val rows=stocks.outfits.values.filter {it.country==i.power.country}.filter {
                     it.kind==r.kind && it.positionIn(galaxy)==OutfitPosition(p.grid,r.base)}.sortedBy {it.id}
                     .map {FormationStock(it.id,GridForces.units(it).coerceAtMost(65535).toInt())}
                 if(rows.size>200)return reject(StrategyActionRejection.MAXIMUM)
@@ -53,7 +53,8 @@ internal class OutfitFormationService(private val clock:()->Long) {
         }
         if(old==null || old.id!=r.target || old.request.base!=r.base || old.request.kind!=r.kind || old.request.identity.card!=i.card)
             return reject(StrategyActionRejection.TARGET)
-        val available=OutfitFormationPolicy.available(stocks,r.base,if(i.power==Power.EMPIRE)2 else 3,r.kind)
+        val style=countries.shipStyle(i.power.country)
+        val available=OutfitFormationPolicy.available(stocks,r.base,style,r.kind)
         var draft=old.copy(expires=Math.addExact(clock(),120_000))
         when(r.phase) {
             FormationPhase.SET_UNIT -> {
@@ -65,7 +66,7 @@ internal class OutfitFormationService(private val clock:()->Long) {
                 if(r.unit !in 0..stocks.bases.getValue(r.base).supplies)return reject(StrategyActionRejection.RESOURCE)
                 draft=draft.copy(supplies=r.unit)
             }
-            FormationPhase.COMMIT -> return guarded(p,stocks,r.base) {OutfitFormationPolicy.create(galaxy,r,p,stocks,draft.rows,draft.supplies)}
+            FormationPhase.COMMIT -> return guarded(p,stocks,r.base) {OutfitFormationPolicy.create(galaxy,r,p,stocks,draft.rows,draft.supplies,style)}
                 .copy(lease=draft.id)
             FormationPhase.REFRESH -> Unit
             else -> return reject(StrategyActionRejection.COMMAND)
@@ -73,8 +74,7 @@ internal class OutfitFormationService(private val clock:()->Long) {
         drafts[i.account]=draft;return view(p,stocks,draft)
     }
     private fun view(p:Navigator,stocks:PlanetStocks,d:Draft):OutfitFormationResult {
-        val power=if(p.power==Power.EMPIRE)2 else 3
-        val available=OutfitFormationPolicy.available(stocks,d.request.base,power,d.request.kind)
+        val available=OutfitFormationPolicy.available(stocks,d.request.base,countries.shipStyle(checkNotNull(p.country)),d.request.kind)
         val rows=(available.keys+d.rows.keys).sorted().map {FormationStock(it,available[it] ?: 0,d.rows[it] ?: 0)}
         return OutfitFormationResult(p,stocks,lease=d.id,base=d.request.base,items=rows,supplies=d.supplies)
     }

@@ -215,12 +215,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // Check before session recovery can write: new owners need the remaining authority migration.
         val stocks=stockStore?.load()?.also {stocks->
             stocks.bases.values.forEach {it.owner.legacyPower()}
-            stocks.outfits.values.forEach {check(it.country.legacyPower()==it.shipStyle.legacyPower()) {
-                "Outfit style requires the remaining model and authority migration"
-            }}
-            stocks.warehouses.values.forEach {check(it.country.legacyPower()==it.shipStyle.legacyPower()) {
-                "Warehouse style requires the remaining model and authority migration"
-            }}
+            stocks.outfits.values.forEach {it.country.legacyPower();it.shipStyle.legacyPower()}
+            stocks.warehouses.values.forEach {it.country.legacyPower();it.shipStyle.legacyPower()}
         }
         val players=if(galaxy==null)emptyMap() else navigationStore?.load().orEmpty()
         players.values.forEach {player->
@@ -258,7 +254,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val origin = monotonicMillis()
     private var elapsed = initialElapsed
     private val logistics = OutfitLogistics(monotonicMillis)
-    private val formations=OutfitFormationService(monotonicMillis)
+    private val formations=OutfitFormationService(clock=monotonicMillis)
     private fun recoverNavigation(request:NavigationRequest,session:SessionState):NavigationResult? {
         val navigation=navigation ?: return null
         val player=navigation.snapshot(session.generation)[request.account]
