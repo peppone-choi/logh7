@@ -395,6 +395,16 @@ class TacticalCommandOperationsTest {
         val s=state();s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(brokenPropulsion=setOf(1000)))
         assertEquals(NavigationRejection.BASE,accept(run(s),TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).rejection)
     }
+    @Test fun destroyedPropulsionHaltsAFortressAlreadyUnderWay() {
+        // PR #214 review: an orbital strike breaking propulsion must also stop the active motion.
+        val r=run();assertNotNull(accept(r,TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).player)
+        settle(r,now+20)
+        r.state.stocks=r.state.stocks.copy(tacticalCommands=r.state.stocks.tacticalCommands.copy(brokenPropulsion=setOf(1000)))
+        settle(run(r.state),now+21)
+        val halted=TacticalBasePosition.at(galaxy.bases.single(),now+21,r.state.stocks)
+        assertEquals(0f,r.state.stocks.tacticalCommands.fortresses.getValue(1000).motion.velocity)
+        assertEquals(halted,TacticalBasePosition.at(galaxy.bases.single(),now+60,r.state.stocks))
+    }
     @Test fun baseStopAlsoCancelsTheActualMovingFortressWithoutSnappingToItsSeed() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x41f,base=1000,velocity=.5f,points=listOf(TacticalPoint(20f,0f)))).player)
         settle(r,now+20)

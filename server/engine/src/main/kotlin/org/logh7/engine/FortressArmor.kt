@@ -32,10 +32,15 @@ object FortressArmor {
     }
     private fun stationed(base:GalaxyBase,galaxy:Galaxy,outfit:OutfitStock,unit:ActiveShipUnit)=unit.posture?.let {
         it.grid==base.grid && it.base==base.id && it.mode==TacticalShipMode.STATIONED} ?: (outfit.positionIn(galaxy)==OutfitPosition(base.grid,base.id))
+    /** The holder's side during a revolt (PR #214 review): same power and the base's camp, as orbital ground defense uses. */
+    private fun holds(stocks:PlanetStocks,owner:PlanetStock,outfit:OutfitStock)=outfit.power==owner.power && CoupActions.outfitCamp(stocks,outfit)==owner.camp
+    private fun holds(stocks:PlanetStocks,owner:PlanetStock,player:Navigator)=
+        (if(player.power==Power.EMPIRE)2 else 3)==owner.power && CoupActions.camp(stocks,player.characterId)==owner.camp
     fun pending(stocks:PlanetStocks,galaxy:Galaxy,players:Collection<Navigator>)=galaxy.bases.any {base->
-        breached(stocks,base.id) && (stocks.outfits.values.any {o->o.power==stocks.bases[base.id]?.power &&
+        val owner=stocks.bases[base.id]
+        owner!=null && breached(stocks,base.id) && (stocks.outfits.values.any {o->holds(stocks,owner,o) &&
             o.activeShips?.values.orEmpty().any {it.boats>0 && stationed(base,galaxy,o,it)}} ||
-            players.any {it.baseId==base.id && it.grid==base.grid && (if(it.power==Power.EMPIRE)2 else 3)==stocks.bases[base.id]?.power})}
+            players.any {it.baseId==base.id && it.grid==base.grid && holds(stocks,owner,it)})}
     /** Sinks the holder's flagships and ship units stationed inside a fortress whose armor is gone. */
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
         sunk:MutableList<Navigator>):PlanetStocks {
@@ -43,16 +48,16 @@ object FortressArmor {
         val now=session.gameMillis/1000
         var stocks=original
         for(base in galaxy.bases.filter {it.kind==1 && breached(original,it.id)}) {
-            val holder=stocks.bases[base.id]?.power ?: continue
+            val owner=stocks.bases[base.id] ?: continue
+            val before=stocks
             stocks=stocks.copy(outfits=stocks.outfits.mapValues {(_,outfit)->
                 var changed=outfit
-                if(outfit.power==holder)for(unit in outfit.activeShips?.values.orEmpty())
+                if(holds(before,owner,outfit))for(unit in outfit.activeShips?.values.orEmpty())
                     if(unit.boats>0 && stationed(base,galaxy,outfit,unit))changed=TacticalLosses.apply(changed,unit.id,unit.boats)
                 changed
             })
             for((account,p) in players.toMap()) {
-                if(p.generation!=session.generation || p.baseId!=base.id || p.grid!=base.grid ||
-                    (if(p.power==Power.EMPIRE)2 else 3)!=holder)continue
+                if(p.generation!=session.generation || p.baseId!=base.id || p.grid!=base.grid || !holds(stocks,owner,p))continue
                 val departed=FlagshipRecovery.defeated(p,now,galaxy,stocks,players.values)
                 players[account]=departed
                 sunk+=departed

@@ -98,6 +98,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     fun observeExperience(observer:(List<Int>)->Unit):AutoCloseable {
         experienceObservers+=observer;return AutoCloseable {experienceObservers.remove(observer)}
     }
+    private val fortressSinkingObservers=java.util.concurrent.CopyOnWriteArrayList<(Navigator)->Unit>()
+    /** The committed replacement navigator of each flagship sunk inside a breached fortress (FortressArmor). */
+    fun observeFortressSinking(observer:(Navigator)->Unit):AutoCloseable {
+        fortressSinkingObservers+=observer;return AutoCloseable {fortressSinkingObservers.remove(observer)}
+    }
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable {
         occupationObservers+=observer;return AutoCloseable {occupationObservers.remove(observer)}
     }
@@ -168,8 +173,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val groundBattles=mutableListOf<GroundBattleResult>()
         val occupations=mutableListOf<BaseOccupation>()
         val commands=mutableListOf<TacticalCommandResult>()
+        val fortressSunk=mutableListOf<Navigator>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add)
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add)
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         // Reconcile durable capital/session endings before observers can start a native
@@ -188,6 +194,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         catch(failure:Exception){System.err.println("Ground battle delivery failed: ${failure.javaClass.simpleName}")}
         for(event in occupations)for(observer in occupationObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("Occupation delivery failed: ${failure.javaClass.simpleName}")}
+        for(event in fortressSunk)for(observer in fortressSinkingObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Fortress sinking delivery failed: ${failure.javaClass.simpleName}")}
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
         for(event in postures)for(observer in postureObservers)try {observer(event)}

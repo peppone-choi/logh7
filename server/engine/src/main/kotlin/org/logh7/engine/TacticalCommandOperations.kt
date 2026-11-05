@@ -513,7 +513,9 @@ internal object TacticalCommandOperations {
                 val base=g.bases.singleOrNull {it.id==id} ?: continue
                 val commander=baseCommander(base,owner,stocks,g)
                 val at=state.motion.pose(now)
-                val done=session.ended!=null || commander==0 || state.motion.completedWaypoints(now)==state.motion.waypoints.size
+                // CD p.46: destroyed propulsion also halts a fortress already under way (PR #214 review).
+                val done=session.ended!=null || commander==0 || !FortressArmor.propulsion(stocks,id) ||
+                    state.motion.completedWaypoints(now)==state.motion.waypoints.size
                 if(done)stocks=rebaseBerths(id,now,players,stocks,g)
                 val changed=state.copy(reportedAt=now,motion=if(done)TacticalMotion(state.grid,now,at,0f,at.direction,listOf(at.position)) else state.motion)
                 stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(fortresses=stocks.tacticalCommands.fortresses+(id to changed)))
