@@ -164,6 +164,12 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 environment["LOGH7_BACKUP_EXPORT_DIR"]?.let { Path.of(it) })
         }
         backups?.schedule(scope, environment["LOGH7_BACKUP_INTERVAL_MINUTES"]?.toLong() ?: 0)
+        // Packet captures hold the key exchange; keep them bounded (default 72 h, 512 MiB).
+        val captureRetention = captureDirectory?.let { dir ->
+            CaptureRetention(dir, (environment["LOGH7_CAPTURE_RETENTION_HOURS"]?.toLong() ?: 72) * 3600,
+                (environment["LOGH7_CAPTURE_MAX_MB"]?.toLong() ?: 512) * 1024 * 1024).also { it.schedule(scope) }
+        }
+        val auditPath = environment["LOGH7_OPS_AUDIT_FILE"]?.let { Path.of(it) }
         val countryColors=environment["LOGH7_DEFINITIONS_JDBC_URL"]?.takeIf {it.isNotBlank()}?.let {url ->
                 require(url.startsWith("jdbc:postgresql:")) {"LOGH7_DEFINITIONS_JDBC_URL must select PostgreSQL"}
                 val properties=java.util.Properties().apply {
@@ -200,6 +206,8 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
             actorTimings=actorTimings,
+            storage={ captureRetention?.metrics().orEmpty() + listOfNotNull(auditPath?.takeIf { java.nio.file.Files.isRegularFile(it) }
+                ?.let { "audit_file_bytes" to java.nio.file.Files.size(it) }) },
             checklist=environment["LOGH7_CHECKLIST_FILE"]?.let {Path.of(it)} ?: listOf(Path.of("docs/IMPLEMENTATION-CHECKLIST.md"),Path.of("../docs/IMPLEMENTATION-CHECKLIST.md")).firstOrNull(java.nio.file.Files::isRegularFile),
             galaxy=world?.galaxy,accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()

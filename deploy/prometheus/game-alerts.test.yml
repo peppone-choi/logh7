@@ -217,3 +217,34 @@ tests:
       - eval_time: 12m
         alertname: LOGH7TickLagHigh
         exp_alerts: []
+
+  - name: retention capacity
+    interval: 10m
+    input_series:
+      - series: 'logh7_capture_bytes{job="game-server",instance="game-server:47901"}'
+        values: '100x2 480x6'
+      - series: 'logh7_capture_limit_bytes{job="game-server",instance="game-server:47901"}'
+        values: '512x8'
+      - series: 'logh7_audit_file_bytes{job="game-server",instance="game-server:47901"}'
+        values: '1000x2 2000000000x9'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: LOGH7CaptureNearLimit
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: LOGH7CaptureNearLimit
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 packet capture near its retention limit'
+              description: 'The packet capture on game-server:47901 has stayed above 90% of LOGH7_CAPTURE_MAX_MB for 30 minutes (live captures or a failing prune). Captures contain key exchanges: turn LOGH7_CAPTURE_DIR off when not diagnosing.'
+      - eval_time: 80m
+        alertname: LOGH7AuditLogLarge
+        exp_alerts: []
+      - eval_time: 100m
+        alertname: LOGH7AuditLogLarge
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 operator audit log over 1 GiB'
+              description: 'The operator audit log on game-server:47901 is over 1 GiB; archive it off the server and start a new file.'
