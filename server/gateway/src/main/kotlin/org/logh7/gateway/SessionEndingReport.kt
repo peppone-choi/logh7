@@ -6,6 +6,16 @@ import org.logh7.protocol.*
 /** Revival presentation codes: atlas order for confirmed grades; 255 means not yet decided.
  * Population is projected in ten-thousands, while the engine retains exact people and ratios. */
 internal object SessionEndingReport {
+    fun information(world:WorldSnapshot?,registered:List<CharacterMessages.Generate>,
+        sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,
+        generation:Long=1):SessionEndingMessages.Session {
+        if(world?.result!=null && world.session?.generation==generation)
+            return session(world,registered).copy(id=sessionId,name=sessionName)
+        val powers=listOf(2,3).map {power->SessionEndingMessages.PowerResult(power,0,
+            registered.count {it.power==power}.toLong(),
+            world?.planetStocks?.bases?.values?.count {it.power==power && it.camp==0}?.toLong() ?: 0,null)}
+        return SessionEndingMessages.Session(sessionId,1,sessionName,"",world?.session?.gameSeconds ?: 0,powers,null)
+    }
     private fun statistics(value:SessionStatistics)=SessionEndingMessages.Statistics(value.planets,value.fortresses,
         value.population/10_000,value.shipUnits,value.groundUnits)
     private fun flag(value:Boolean?)=when(value){true->1;false->0;null->255}

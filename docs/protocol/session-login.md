@@ -8,6 +8,8 @@
 
 확인: 두 독립 월드의 암호화 TCP 테스트 및 원본의 Alpha/Beta 목록→Beta 선택→전용 포트 접속→캐릭터 생성 화면. 운영 설정과 남은 범위는 [여러 세션 운영](../ops/multiple-sessions.md)을 참고한다.
 
+원본 표시 상한 주의: 위 128은 서버의 프레임 크기 검사이며 원본 UI의 지원 개수가 아니다. CD 판독기 `0043fd60`의 담당 세션 상한은 2, `00444900`의 참가 목록 상한은 64다. 그 이상을 실제 원본에서 지원하려면 저장/판독·페이지 표시를 확장해야 하며 아직 완료하지 않았다. `evidence:client`
+
 작성자: Peppone Choi · 2026-09-28 · 상태: **candidate**, 동적 검증은 리드 담당.
 근거: `evidence:client`, E-310~E-313. CD판 G7MTClient.exe 기준이며 VA와 메모리 offset은 wire offset과 구분한다.
 

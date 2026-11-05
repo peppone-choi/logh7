@@ -64,10 +64,17 @@ class SessionEndingLobbyWireTest {
                 assertEquals(0,f.access.trackedConnections());assertEquals(before.navigators,f.engine.snapshot().navigators)
                 assertEquals(before.planetStocks,f.engine.snapshot().planetStocks)
             }
-            lobby(f,2).use {client->client.send(SyntheticClient.opcode(0x2003));assertEquals(0,client.expect(0x2004)[6].toInt())}
+            fun empty(packet:ByteArray,status:Int,informationSize:Int) {
+                assertEquals(1,packet[6].toInt());assertEquals(status,packet[9].toInt())
+                assertEquals(7+informationSize+3,packet.size,"session information only; no other account's character or evaluation")
+                assertContentEquals(byteArrayOf(0,0,0),packet.takeLast(3).toByteArray())
+            }
+            lobby(f,2).use {client->client.send(SyntheticClient.opcode(0x2003));empty(client.expect(0x2004),3,sessionBytes)}
             lobby(f,0).use {client->
                 f.engine.submit(WorldCommand.Restart);f.await("next generation") {f.engine.snapshot().session!!.generation==2L}
-                client.send(SyntheticClient.opcode(0x2003));assertEquals(0,client.expect(0x2004)[6].toInt())
+                client.send(SyntheticClient.opcode(0x2003))
+                val information=SessionEndingReport.information(f.engine.snapshot(),emptyList(),generation=2)
+                empty(client.expect(0x2004),1,org.logh7.protocol.SessionEndingMessages.information(information).size)
                 client.send(SyntheticClient.opcode(0x2005)+byteArrayOf(0))
                 val sessions=client.expect(0x2006);assertEquals(1,sessions[7].toInt());assertEquals(1,sessions[10].toInt())
             }

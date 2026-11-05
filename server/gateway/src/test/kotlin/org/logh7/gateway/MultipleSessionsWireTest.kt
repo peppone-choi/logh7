@@ -15,9 +15,9 @@ class MultipleSessionsWireTest {
         listOf(GalaxyBase(1000,2487,80,0,"A",0,20f,86400,0,0f,2f),GalaxyBase(1001,2015,80,0,"B",0,20f,86400,0,0f,2f)),
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
     private val accounts=(0..4).associate {"load-%03d".format(it) to "fixture"}
-    private fun lobby(f:LoadFixture):SyntheticClient {
+    private fun lobby(f:LoadFixture,index:Int=0):SyntheticClient {
         val token=SyntheticClient(f.loginPort,LoadMetrics()).use {login->
-            login.send(SyntheticClient.login(f.account(0),"fixture"))
+            login.send(SyntheticClient.login(f.account(index),"fixture"))
             ByteBuffer.wrap(login.receive(false)).getInt(14).toLong() and 0xffffffffL
         }
         return SyntheticClient(f.sessionPort,LoadMetrics()).also {it.send(SyntheticClient.token(token),SyntheticClient.opcode(0x2000));it.expect(0x2001)}
@@ -32,6 +32,15 @@ class MultipleSessionsWireTest {
             sessionId=1,sessionName="Alpha",accountSource=accounts).use {a->
             LoadFixture(directory.resolve("b"),2,LoadMetrics(),galaxy,ticking=false,powerByIndex={3},sessionDirectory=registry,
                 sessionId=2,sessionName="Beta",accountSource=accounts).use {b->
+                fun emptyWorld(expected:Int) {
+                    lobby(a,3).use {client->
+                        client.send(SyntheticClient.opcode(0x2003));val packet=client.expect(0x2004)
+                        assertEquals(1,packet[6].toInt());assertEquals(expected,ByteBuffer.wrap(packet).getShort(7).toInt())
+                        assertContentEquals(byteArrayOf(0,0,0),packet.takeLast(3).toByteArray())
+                        assertEquals(7+org.logh7.protocol.SessionEndingMessages.information(registry.sessions().first()).size+3,packet.size)
+                    }
+                }
+                emptyWorld(1)
                 for(fixture in listOf(a,b))fixture.join(fixture.account(0),true,false).client.use {client->
                     client.send(SyntheticClient.opcode(0x0f00))
                     while(ByteBuffer.wrap(client.receive()).getShort(4).toInt() and 65535!=0x0f01) { }
@@ -60,6 +69,7 @@ class MultipleSessionsWireTest {
                     a.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
                     a.await("A ended") {a.engine.snapshot().result!=null}
                     assertEquals(listOf(2),registry.sessions().map {it.id})
+                    emptyWorld(2)
                     a.engine.submit(WorldCommand.Restart)
                     a.await("A restarted") {a.engine.snapshot().session!!.generation==2L}
                     SyntheticClient(a.sessionPort,LoadMetrics()).use {old->old.send(SyntheticClient.token(stale));old.expectClosed()}

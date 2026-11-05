@@ -190,6 +190,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "proposal_body.h"
 #include "korean_dialogs.h"
 #include "literal_text.h"
+#include "lobby_empty.h"
 #include "legacy_hud_text.h"
 #include "warp_prompt.h"
 #include "character_refresh.h"
@@ -663,7 +664,7 @@ static void install() {
     if (!installDisplayNames()) { status = -3; return; }
     if (!installMailInput()) { status = -3; return; }
     if (!installMailLabels()) { status = -3; return; }
-    if (!installKoreanDialogs() || !installKoreanLiteralText() || !installKoreanLegacyHud() || !installNameCardLabels() ||
+    if (!installKoreanDialogs() || !installKoreanLiteralText() || !installLobbyEmptyNotice() || !installKoreanLegacyHud() || !installNameCardLabels() ||
         !installWarpPrompt() || !installCharacterRefresh() || !installFlagshipInfoGroups() || !installFlagshipSpecLookup() || !installOutfitListNames()) { status = -3; return; }
     for (unsigned i = 0; i < 3; ++i) {
         auto address = reinterpret_cast<BYTE*>(glyphAddresses[i]);

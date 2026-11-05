@@ -93,7 +93,9 @@ class GameExchangeTest {
             return Envelope.decode(LegacyBlowfish(b).decrypt(frame.copyOfRange(8, frame.size)), sequence - 1).second
         }
         assertContentEquals(hex("000000002001000000"), request(hex("200047494e3700040000070069006e00650069003000300000"), 2))
-        assertContentEquals(hex("00000000200400"), request(hex("2003"), 3))
+        val empty=request(hex("2003"),3)
+        assertEquals(1,empty[6].toInt())
+        assertContentEquals(hex("000000"),empty.copyOfRange(empty.size-3,empty.size))
         val list = request(hex("200501"), 4)
         assertContentEquals(hex("00000000200600010001010c"), list.copyOfRange(0, 12))
         assertTrue(list.toList().windowed(24).any { it.toByteArray().contentEquals("LOGH7 Local\u0000".toByteArray(Charsets.UTF_16BE)) })
