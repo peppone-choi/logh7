@@ -45,7 +45,7 @@ class OpsHealthTest {
     }
 
     @Test fun unavailableStatesReturnDistinct503Bodies() {
-        for ((state, body) in listOf(EngineHealth.STORAGE_FAILED to "engine storage failed",
+        for ((state, body) in listOf(EngineHealth.STARTING to "engine starting",EngineHealth.STORAGE_FAILED to "engine storage failed",
             EngineHealth.STOPPED to "engine stopped")) {
             serve(snapshots(state)) { endpoint ->
                 val response = endpoint.get("/health")
@@ -112,6 +112,44 @@ class OpsHealthTest {
                 }
             } finally { engine.close() }
         } finally { scope.coroutineContext[Job]!!.cancelAndJoin() }
+    }
+
+    @Test fun restoredWorldIsUnavailableUntilItsInventoryAndNavigationArePublished() = runBlocking {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
+            listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2487,800,700,1000,baseId=1049,mode=4))
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300,treasury=52000)),
+            deploymentInitialized=true,nationalTreasuries=mapOf(CountryId(2) to 450000L))
+        val navigation=object:NavigationStore {
+            override fun load()=players
+            override fun save(players:Map<String,Navigator>) {}
+        }
+        val inventory=object:PlanetStockStore {
+            override fun load()=stocks
+            override fun save(stocks:PlanetStocks) {}
+        }
+        val scope=CoroutineScope(SupervisorJob()+Dispatchers.Default)
+        val engine=WorldEngine(scope,ticking=false,galaxy=galaxy,navigationStore=navigation,stockStore=inventory)
+        try {
+            assertNull(engine.snapshot().planetStocks)
+            assertEquals(EngineHealth.STARTING,engine.health())
+            serve(engine,engine) {endpoint->
+                assertEquals(503,endpoint.get("/health").statusCode())
+                assertEquals("engine starting",endpoint.get("/health").body())
+                assertTrue("logh7_engine_up 0" in endpoint.get("/metrics").body())
+            }
+            engine.synchronizeTime()
+            serve(engine,engine) {endpoint->
+                assertEquals(200,endpoint.get("/health").statusCode())
+                assertEquals("ok",endpoint.get("/health").body())
+                assertTrue("logh7_engine_up 1" in endpoint.get("/metrics").body())
+            }
+            val published=engine.snapshot()
+            assertEquals(1049,published.navigators.getValue("pilot").baseId)
+            assertEquals(Allegiance.Country(CountryId(2)),published.planetStocks!!.bases.getValue(1049).owner)
+            assertEquals(52000L,published.planetStocks!!.bases.getValue(1049).treasury)
+            assertEquals(450000L,published.planetStocks!!.nationalTreasuries.getValue(CountryId(2)))
+        } finally {engine.drainAndClose();scope.cancel()}
     }
 
     @Test fun healthSourceExceptionRetainsDefault500RatherThanReportingHealthy() {

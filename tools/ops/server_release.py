@@ -63,7 +63,7 @@ def install(args: argparse.Namespace) -> None:
 
 def switch(releases: Path, name: str, health: str | None) -> None:
     if server_running(health):
-        raise SystemExit(f"server is running ({health}); stop it before switching releases")
+        raise SystemExit(f"server may be running ({health}); confirm it is stopped before switching releases")
     checked(releases, name)
     current = pointer(releases, "CURRENT")
     if current == name:

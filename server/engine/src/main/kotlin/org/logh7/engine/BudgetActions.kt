@@ -45,15 +45,15 @@ object BudgetActions {
             (r.phase in 0..1 && r.quote!=0) || (r.phase in 2..3 && r.quote==0) ||
             (r.phase==0 && r.rate!=0) || (r.phase!=0 && r.base==0))return reject(BudgetRejection.COMMAND)
         val power=if(p.power==Power.EMPIRE)2 else 3
+        val country=CountryId(power)
         if(i.card!=if(power==2)8 else 136)return reject(BudgetRejection.CARD)
         val role=OrganizationOffices.all.getValue(i.card);val office=OrganizationalOfficePolicy(g)
         val rank=s.strategic.people[i.characterId]?.rank ?: i.rank
         val holding=office.holders(s,i.card).singleOrNull {it.character==i.characterId}
         if(holding==null || rank !in role.ranks)return reject(BudgetRejection.AUTHORITY)
-        val baseId=if(r.base>0)r.base else p.baseId.takeIf {s.bases[it]?.let {b->b.power==power && b.camp==0}==true} ?: holding.seat
+        val baseId=if(r.base>0)r.base else p.baseId.takeIf {s.bases[it]?.let {b->b.belongsTo(country) && b.camp==0}==true} ?: holding.seat
         val b=s.bases[baseId] ?: return reject(BudgetRejection.BASE)
-        if(b.power!=power || b.camp!=0)return reject(BudgetRejection.BASE)
-        val country=CountryId(power)
+        if(!b.belongsTo(country) || b.camp!=0)return reject(BudgetRejection.BASE)
         val national=s.nationalTreasuries[country] ?: 0L;val currentRate=rate(s,baseId,defaultRate)
         val old=s.budget.quotes[i.characterId]?.takeIf {it.command==i.command && it.base==baseId}
         val now=session.gameMillis/1000

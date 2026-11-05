@@ -6,6 +6,25 @@ import org.logh7.engine.*
 import kotlin.test.*
 
 class SystemOwnershipBootstrapTest {
+    @Test fun countryOwnerUsesCatalogAppearanceWithoutTurningNeutralOrPiratesIntoCountries() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val original=CountryCatalogLoader.load()
+        val other=original.countries.getValue(2).copy(id=42,key="other_empire")
+        val catalog=CountryCatalog(original.calendars.values.toList(),original.families.values.toList(),
+            original.countries.values.toList()+other)
+        val world=WorldBootstrap(galaxy,catalog)
+        fun stock(owner:Allegiance)=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,owner,1,100,200,300)))
+        val country=stock(Allegiance.Country(CountryId(42)))
+        assertContentEquals(world.conditions(listOf(1000),stock(Allegiance.Country(CountryId(2)))),
+            world.conditions(listOf(1000),country))
+        assertEquals(CountryId(42),country.bases.getValue(1000).country)
+        for((owner,code) in listOf(Allegiance.Unspecified to 0,Allegiance.Neutral to 1,Allegiance.Pirates to 4)) {
+            val message=world.conditions(listOf(1000),stock(owner))
+            assertEquals(code,message[11].toInt())
+            assertEquals(1,message[12].toInt())
+        }
+    }
     @Test fun loginPublishesEveryCurrentOwnerInNativeFourRecordBatches() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2488,4,"Other",3)),
             (1..7).map { GalaxyBase(it,if(it<=3)2487 else 2488,80,0,"Base$it",0,20f,86400,0,0f,2f) },

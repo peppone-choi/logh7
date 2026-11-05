@@ -12,7 +12,8 @@ import org.logh7.protocol.OutfitMessages
 import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.LogisticsMessages
 
-class WorldBootstrap(val galaxy: Galaxy) {
+class WorldBootstrap(val galaxy: Galaxy,
+    private val countryCatalog:org.logh7.engine.CountryCatalog=org.logh7.engine.CountryCatalogLoader.load()) {
     @Volatile private var countryAppearances:List<org.logh7.engine.CountryAppearance> = emptyList()
     @Synchronized fun publishCountryAppearances(values:List<org.logh7.engine.CountryAppearance>) {
         require(values.map {it.countryId}.distinct().size==values.size)
@@ -255,7 +256,7 @@ class WorldBootstrap(val galaxy: Galaxy) {
         WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
             val stored = stocks?.let { state -> checkNotNull(state.bases[it.baseId]) }
             val people = stored?.economy
-            WorldMessages.Condition(it.baseId, it.grid, stored?.power ?: it.power, stored?.camp ?: it.camp,
+            WorldMessages.Condition(it.baseId, it.grid, stored?.let {s->countryCatalog.nativePower(s.owner)} ?: it.power, stored?.camp ?: it.camp,
                 people?.population ?: it.population, people?.adults ?: it.adultPopulation,
                 stored?.taxRate ?: it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
                 stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)

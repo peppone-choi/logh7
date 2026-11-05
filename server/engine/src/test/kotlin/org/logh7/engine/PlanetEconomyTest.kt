@@ -27,7 +27,7 @@ class PlanetEconomyTest {
         assertEquals(111900, next.mineral) // 12000 output - 100 used by supplies.
         assertEquals(101000, next.supplies)
         assertEquals(PlanetEconomy(100010000, 60006000, 70, 80), next.economy)
-        val neutral = initial.copy(power = 0).nextDay(base, PlanetProductionPolicy())
+        val neutral = initial.copy(owner=Allegiance.fromLegacy(0)).nextDay(base, PlanetProductionPolicy())
         assertEquals(112000, neutral.mineral); assertEquals(initial.supplies, neutral.supplies)
     }
     @Test fun shortagesCannotCreateFoodOrSuppliesAndReducePeopleApprovalAndPeace() {

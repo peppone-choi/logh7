@@ -40,7 +40,7 @@ sealed interface WorldCommand {
     data class Quiesce<T>(val action: () -> T, val result: CompletableDeferred<T>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
-enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
+enum class EngineHealth { STARTING, RUNNING, STORAGE_FAILED, STOPPED }
 interface SnapshotSource {
     fun snapshot(): WorldSnapshot
     fun health(): EngineHealth = EngineHealth.RUNNING
@@ -211,6 +211,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             catch(failure:Exception){System.err.println("Tactical end delivery failed: ${failure.javaClass.simpleName}")}
         }
     }
+    private val initialStocks = try {
+        // Check before session recovery can write: new owners need the remaining authority migration.
+        stockStore?.load()?.also {stocks->stocks.bases.values.forEach {it.owner.legacyPower()}}
+    } catch(failure:Exception) {
+        listOfNotNull(durability,navigationStore,stockStore).forEach {store->
+            try {store.close()} catch(closing:Exception) {failure.addSuppressed(closing)}
+        }
+        throw failure
+    }
     private val simulation = SessionSimulation(rules, generationStore.current())
     private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed) }
     private var durableState = durability?.let { store ->
@@ -227,7 +236,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
-        durableState?.session?.generation ?: simulation.snapshot().generation,{generation->navigation?.snapshot(generation)?.values})
+        durableState?.session?.generation ?: simulation.snapshot().generation,initialStocks,
+        {generation->navigation?.snapshot(generation)?.values})
         .also {if(awaitIdentities)it.identities=null} }
     private val territory=galaxy?.let(::WorldTerritory)
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
@@ -1205,6 +1215,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     override fun health(): EngineHealth = when {
         worker.isCompleted || ticker?.isCompleted == true -> EngineHealth.STOPPED
         storageFailed -> EngineHealth.STORAGE_FAILED
+        galaxy!=null && published.get().planetStocks==null -> EngineHealth.STARTING
         else -> EngineHealth.RUNNING
     }
     suspend fun drainAndClose() { ticker?.cancelAndJoin(); queue.close(); worker.join() }

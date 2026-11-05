@@ -27,7 +27,7 @@ class PlanetTaxTest {
     }
     @Test fun clientCardCannotGrantOwnershipAndLocationFactionAndSessionAreChecked() {
         assertEquals(TaxRejection.ACCESS,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(governorId=0)))).rejection)
-        assertEquals(TaxRejection.ACCESS,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(power=3)))).rejection)
+        assertEquals(TaxRejection.ACCESS,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))).rejection)
         assertEquals(TaxRejection.CARD,act(query.copy(card=59)).rejection)
         assertEquals(TaxRejection.LOCATION,act(p=player.copy(baseId=0,mode=5)).rejection)
         assertEquals(TaxRejection.MODE,act(query.copy(mode=1)).rejection)

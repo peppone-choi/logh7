@@ -29,6 +29,13 @@ class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily
     }
     fun calendar(countryId:Int):CountryCalendar?=countries[countryId]?.let {calendars.getValue(families.getValue(it.family).calendar)}
     fun year(countryId:Int,spaceYear:Int):Int?=calendar(countryId)?.let {(spaceYear+it.yearOffset).also {year->require(year>0)}}
+    /** Display projection only; ownership and authority compare actual country IDs. */
+    fun nativePower(owner:Allegiance):Int=when(owner) {
+        Allegiance.Unspecified->0
+        Allegiance.Neutral->1
+        Allegiance.Pirates->4
+        is Allegiance.Country->requireNotNull(countries[owner.id.value]) {"Unknown country definition"}.nativePower
+    }
 }
 
 object CountryCatalogLoader {

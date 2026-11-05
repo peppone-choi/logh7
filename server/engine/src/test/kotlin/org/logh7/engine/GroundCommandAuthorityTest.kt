@@ -15,7 +15,7 @@ class GroundCommandAuthorityTest {
         assertEquals(10000,GroundCommandAuthority.commander(outfit,troop,stocks,galaxy))
         assertEquals(10001,GroundCommandAuthority.commander(outfit.copy(commanderId=10001),troop,stocks,galaxy))
         assertEquals(0,GroundCommandAuthority.commander(outfit,troop.copy(origin=9),stocks,galaxy))
-        assertEquals(0,GroundCommandAuthority.commander(outfit,troop,stocks.copy(bases=mapOf(1000 to stocks.bases.getValue(1000).copy(power=3))),galaxy))
+        assertEquals(0,GroundCommandAuthority.commander(outfit,troop,stocks.copy(bases=mapOf(1000 to stocks.bases.getValue(1000).copy(owner=Allegiance.fromLegacy(3)))),galaxy))
         assertEquals(0,GroundCommandAuthority.commander(outfit,troop,stocks.copy(bases=mapOf(1000 to stocks.bases.getValue(1000).copy(camp=1,garrisonCommanderId=0))),galaxy))
         assertEquals(0,GroundCommandAuthority.commander(outfit,troop,stocks.copy(bases=mapOf(1000 to stocks.bases.getValue(1000).copy(garrisonCommanderId=0))),galaxy))
     }

@@ -87,13 +87,13 @@ class TradeActionsTest {
             units=UnitInventory(mapOf(UnitStack(76) to 1),mapOf(UnitStack(0) to 1)),
             activeGround=ActiveGroundUnits(listOf(ActiveGroundUnit(71,UnitStack(0),base=1210))))),nextShipId=72)
         assertEquals(2,BaseOccupationOperations.victor(landed,fezzan))
-        val occupied=landed.copy(bases=landed.bases+(1210 to landed.bases.getValue(1210).copy(power=2)))
+        val occupied=landed.copy(bases=landed.bases+(1210 to landed.bases.getValue(1210).copy(owner=Allegiance.fromLegacy(2))))
         assertNull(TradeActions.fezzan(galaxy,occupied),"occupation abandons neutrality")
         val later=TradeActions.neutrality(galaxy,occupied,now+40*86400)
         assertEquals(occupied.nationalTreasuries,later.nationalTreasuries,"no more subsidies after the occupation")
     }
     @Test fun diplomacyIsRefusedOnceFezzanIsOccupied() {
-        val s=policy.set(stocks(),OfficeHolding(5,1049,10000)).let {it.copy(bases=it.bases+(1210 to it.bases.getValue(1210).copy(power=2)))}
+        val s=policy.set(stocks(),OfficeHolding(5,1049,10000)).let {it.copy(bases=it.bases+(1210 to it.bases.getValue(1210).copy(owner=Allegiance.fromLegacy(2))))}
         val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)
         assertEquals(SocialRejection.TARGET,r.rejection);assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(CountryId(2)))
     }

@@ -108,7 +108,7 @@ class CivicActionsTest {
         val old=stocks().outfits.getValue(200)
         val variants=listOf(pending.copy(outfits=mapOf(200 to old.copy(commanderId=10001))),
             pending.copy(outfits=mapOf(200 to old.copy(activeGround=ActiveGroundUnits(old.activeGround!!.values.map {it.copy(base=1050)})))) ,
-            pending.copy(bases=pending.bases+(1049 to pending.bases.getValue(1049).copy(power=3))),
+            pending.copy(bases=pending.bases+(1049 to pending.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3)))),
             pending.copy(outfits=emptyMap(),warehouses=emptyMap()),
             pending.copy(strategic=pending.strategic.copy(people=mapOf(10000 to StrategicPerson(rank=1)))))
         for(s in variants) {
@@ -182,7 +182,7 @@ class CivicActionsTest {
         val stockStore=object:PlanetStockStore {override fun load()=savedStocks;override fun save(value:PlanetStocks){savedStocks=value}}
         val navigation=Navigation(galaxy,navStore,NavigationPolicy())
         val production=PlanetProduction(galaxy,stockStore,SessionRules.load().startSeconds,PlanetProductionPolicy(),1,
-            {generation->navigation.snapshot(generation).values})
+            civicPlayers={generation->navigation.snapshot(generation).values})
         val current=production.settle(1,now);val before=navigation.snapshot(1)
         val publicSpot=galaxy.facilities.getValue(1049).flatMap {it.spots}.first {it.access==SpotAccess.PUBLIC}.id
         val move=NavigationRequest("actor",10000,Power.EMPIRE,"c",1,place=PlaceMove.Spot(publicSpot,0),rank=5)
@@ -201,7 +201,7 @@ class CivicActionsTest {
         val accepted=act(request(56),captured,p);var stored=assertNotNull(accepted.stocks);var fail=false
         val store=object:PlanetStockStore {override fun load()=stored;override fun save(value:PlanetStocks){
             if(fail)throw IOException("injected civic completion failure");stored=value}}
-        val production=PlanetProduction(galaxy,store,SessionRules.load().startSeconds,PlanetProductionPolicy(),1,{listOf(p)})
+        val production=PlanetProduction(galaxy,store,SessionRules.load().startSeconds,PlanetProductionPolicy(),1,civicPlayers={listOf(p)})
         val before=production.settle(1,now);fail=true
         assertFailsWith<IOException>{production.settle(1,now+86400)}
         assertEquals(before,production.snapshot(1));assertEquals(before,stored)

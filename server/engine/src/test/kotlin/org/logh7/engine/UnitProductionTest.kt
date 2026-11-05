@@ -43,12 +43,12 @@ class UnitProductionTest {
         val recipes = producer.lines.getValue(2015)
         assertTrue(recipes.any { it.unit.kind == 119 && it.unit.ship })
         assertTrue(recipes.any { it.unit.kind == 7 && !it.unit.ship })
-        var stock = initial().copy(baseId = 2015, power = 3)
+        var stock = initial().copy(baseId = 2015, owner=Allegiance.fromLegacy(3))
         repeat(10) { stock = producer.advance(stock, stock) }
         assertTrue(stock.units.ships.isNotEmpty() && stock.units.troops.isNotEmpty())
         assertTrue(stock.units.ships.keys.all { it.kind >= 119 })
         assertTrue(stock.units.troops.keys.all { it.kind in 4..7 || it.kind == 10 })
-        val occupied = initial().copy(baseId = 2015, power = 2)
+        val occupied = initial().copy(baseId = 2015, owner=Allegiance.fromLegacy(2))
         val converted=producer.advance(occupied, occupied)
         assertTrue(converted.units.work.isNotEmpty())
         assertTrue(converted.units.work.keys.none { it in recipes.map { line -> line.unit.key } })
@@ -59,7 +59,7 @@ class UnitProductionTest {
     }
     @Test fun shortagesCapacityAndNeutralOrRebelOwnerDoNotMintUnitsOrChargeFailedBatches() {
         val producer = producer(); val before = initial()
-        for (stock in listOf(before.copy(power = 0), before.copy(camp = 1),
+        for (stock in listOf(before.copy(owner=Allegiance.fromLegacy(0)), before.copy(camp = 1),
             before.copy(food = 0, economy = before.economy!!.copy(adults = 1)))) {
             assertEquals(stock, producer.advance(stock, stock))
         }
@@ -99,7 +99,7 @@ class UnitProductionTest {
         assertEquals(producer.lines.getValue(1049),producer.forOwner(1049,2))
         assertTrue(producer.forOwner(1049,0).isEmpty())
         assertTrue(producer.forOwner(9999,3).isEmpty())
-        var captured=initial().copy(power=3,units=UnitInventory(work=mapOf("S32" to 89,"T3" to 119)))
+        var captured=initial().copy(owner=Allegiance.fromLegacy(3),units=UnitInventory(work=mapOf("S32" to 89,"T3" to 119)))
         captured=producer.advance(captured,captured)
         assertEquals(24,captured.units.work["S119"])
         assertEquals(24,captured.units.work["T7"])
@@ -113,7 +113,7 @@ class UnitProductionTest {
     }
     @Test fun capturedProductionSurvivesPartitionedDurableDaysWithoutRepeatingOutput() {
         class Store:PlanetStockStore {
-            var value:PlanetStocks?=PlanetStocks(1,0,mapOf(1049 to initial().copy(power=3)),deploymentInitialized=true)
+            var value:PlanetStocks?=PlanetStocks(1,0,mapOf(1049 to initial().copy(owner=Allegiance.fromLegacy(3))),deploymentInitialized=true)
             override fun load()=value
             override fun save(stocks:PlanetStocks){value=stocks}
         }

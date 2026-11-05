@@ -35,7 +35,7 @@ class StrategicOperationsTest {
         val reached=assigned.copy(outfits=assigned.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2500))})
         val started=StrategicOperations.settle(galaxy,reached,now+1)
         assertEquals(StrategicPlanState.STARTED,started.strategic.operations.single().state)
-        val captured=started.copy(bases=started.bases+(2050 to started.bases.getValue(2050).copy(power=2)))
+        val captured=started.copy(bases=started.bases+(2050 to started.bases.getValue(2050).copy(owner=Allegiance.fromLegacy(2))))
         assertTrue(StrategicOperations.settle(galaxy,captured,now+OperationPlanRules.DURATION_GAME_SECONDS-1).strategic.operations.single().live)
         val ended=StrategicOperations.settle(galaxy,captured,now+OperationPlanRules.DURATION_GAME_SECONDS)
         assertEquals(OperationOutcome.FULL_SUCCESS,ended.strategic.operations.single().outcome)
@@ -64,7 +64,7 @@ class StrategicOperationsTest {
     @Test fun defenseTargetLostToTheOtherFactionWithdrawsImmediately() {
         val q=request(22).copy(target=2487,value=StrategicPurpose.DEFEND.ordinal)
         val stored=assertNotNull(act(22,stocks(),r=q).stocks)
-        val lost=stored.copy(bases=stored.bases+(1049 to stored.bases.getValue(1049).copy(power=3)))
+        val lost=stored.copy(bases=stored.bases+(1049 to stored.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
         val settled=StrategicOperations.settle(galaxy,lost,now+1)
         assertEquals(StrategicPlanState.WITHDRAWN,settled.strategic.operations.single().state)
         assertTrue(settled.strategic.people.isEmpty())
