@@ -186,3 +186,34 @@ tests:
       - eval_time: 10m
         alertname: LOGH7ConnectionErrorsHigh
         exp_alerts: []
+
+  - name: actor queue and tick lag warn on the 99th percentile
+    interval: 1m
+    input_series:
+      # Commands keep waiting 1..2.5s: nothing at or below 1s, ten per minute below 2.5s.
+      # rate() over 5m has two samples from 1m, so the alert is pending from 1m and fires from 6m.
+      - series: 'logh7_actor_queue_age_seconds_bucket{job="game-server",instance="game-server:47901",le="1"}'
+        values: '0x20'
+      - series: 'logh7_actor_queue_age_seconds_bucket{job="game-server",instance="game-server:47901",le="2.5"}'
+        values: '0+10x20'
+      - series: 'logh7_actor_queue_age_seconds_bucket{job="game-server",instance="game-server:47901",le="+Inf"}'
+        values: '0+10x20'
+      # Ticks are processed within 0.1s: no tick alert.
+      - series: 'logh7_actor_tick_dequeue_lag_seconds_bucket{job="game-server",instance="game-server:47901",le="0.1"}'
+        values: '0+60x20'
+      - series: 'logh7_actor_tick_dequeue_lag_seconds_bucket{job="game-server",instance="game-server:47901",le="+Inf"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: LOGH7ActorQueueLag
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: LOGH7ActorQueueLag
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 world commands wait over 1s in the actor queue'
+              description: 'The 99th percentile wait of world commands in the actor queue on game-server:47901 has been above one second for five minutes; players see slow responses.'
+      - eval_time: 12m
+        alertname: LOGH7TickLagHigh
+        exp_alerts: []

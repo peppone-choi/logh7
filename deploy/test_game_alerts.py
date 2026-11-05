@@ -193,6 +193,10 @@ scrape_configs:
         ops = ports["ops"]
         result["server_up_seconds"] = wait("engine_up 1", lambda: metric(ops, "logh7_engine_up") == 1, 90)
         result["volume_free_bytes"] = metric(ops, "logh7_state_disk_free_bytes")
+        # The engine records its queue/tick timings into the ops histograms (lag alerts' input).
+        result["actor_timings_seconds"] = wait("world actor timing histograms", lambda:
+            (metric(ops, "logh7_actor_queue_age_seconds_count") or 0) > 0 and
+            (metric(ops, "logh7_actor_tick_dequeue_lag_seconds_count") or 0) > 0, 30)
 
         # increase() needs a sample from before the failures: wait until Prometheus has scraped the zero value.
         def scraped(query):
