@@ -77,6 +77,22 @@ class GameExchangeTest {
         assertEquals(1, counters.sessionTicketRejected.get(), "a reused single-use token is counted")
         assertFails { session.accept(0x30, encrypted(auth, 2)) }
     }
+    @Test fun maintenanceRefusesEvenACorrectLoginAndReopensAfterwards() {
+        val gate = MaintenanceGate(); val counters = GatewayCounters()
+        assertTrue(gate.setClosed(true)); assertFalse(gate.setClosed(true), "already closed")
+        fun attempt() = GameExchange(GameExchange.Role.LOGIN, mapOf("user" to "pw"), SessionTickets(), "127.0.0.1", 47903, Handshake(b, 2),
+            counters = counters, maintenance = gate).also { it.accept(0x34, initial); it.accept(0x36, confirm) }
+        val closed = attempt()
+        val refused = closed.accept(0x30, encrypted(request()))!!
+        assertContentEquals(hex("7002000000000000010000"), Envelope.decode(LegacyBlowfish(b).decrypt(refused.copyOfRange(4, refused.size)), 1).second)
+        assertEquals(GameExchange.State.REJECTED, closed.state)
+        assertEquals(1, gate.refused.get()); assertEquals(0, counters.loginRejected.get(), "not a login failure")
+        assertTrue(gate.setClosed(false))
+        val open = attempt()
+        open.accept(0x30, encrypted(request()))
+        assertEquals(GameExchange.State.AUTHENTICATED, open.state)
+        assertEquals(1, gate.refused.get(), "an open gate counts nothing")
+    }
     @Test fun badAccountGetsDirectionalFailureHeader() {
         val counters = GatewayCounters()
         val login = exchange(GameExchange.Role.LOGIN, counters = counters)

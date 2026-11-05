@@ -206,6 +206,12 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
             actorTimings=actorTimings,
+            maintenance=object : org.logh7.ops.MaintenanceControl {
+                override fun closed() = gateway.maintenance.closed()
+                override fun setClosed(closed: Boolean) = gateway.maintenance.setClosed(closed)
+                override fun notice(text: String) = gateway.operatorNotice(text)
+                override fun refusedLogins() = gateway.maintenance.refused.get()
+            },
             storage={ captureRetention?.metrics().orEmpty() + gateway.counters.gauges() + listOfNotNull(auditPath?.takeIf { java.nio.file.Files.isRegularFile(it) }
                 ?.let { "audit_file_bytes" to java.nio.file.Files.size(it) }) },
             checklist=environment["LOGH7_CHECKLIST_FILE"]?.let {Path.of(it)} ?: listOf(Path.of("docs/IMPLEMENTATION-CHECKLIST.md"),Path.of("../docs/IMPLEMENTATION-CHECKLIST.md")).firstOrNull(java.nio.file.Files::isRegularFile),

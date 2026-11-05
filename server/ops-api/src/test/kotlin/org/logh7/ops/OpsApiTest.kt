@@ -72,7 +72,8 @@ class OpsApiTest {
             val row = pairs.toMap()
             assertEquals(pairs.size, row.size)
             val common = setOf("at", "requestId", "phase", "action", "operator")
-            assertEquals(common + if (row["phase"] == "REQUESTED") "remote" else "outcome", row.keys)
+            // A requested row may carry optional ASCII details (maintenance mode, notice length/digest).
+            assertEquals(common + (if (row["phase"] == "REQUESTED") setOf("remote") + row.keys.intersect(setOf("details")) else setOf("outcome")), row.keys)
             assertEquals(at, Instant.parse(row["at"]))
             assertEquals(row["requestId"], UUID.fromString(row["requestId"]).toString())
             row
@@ -200,6 +201,41 @@ class OpsApiTest {
         assertFailsWith<IllegalArgumentException> { opsMetrics(EngineHealth.RUNNING, snapshot, gateway = mapOf("bad name" to 1L)) }
     }
 
+    private class FakeMaintenance : MaintenanceControl {
+        var closed = false
+        val notices = mutableListOf<String>()
+        override fun closed() = closed
+        override fun setClosed(closed: Boolean): Boolean { val changed = this.closed != closed; this.closed = closed; return changed }
+        override fun notice(text: String): Int { notices += text; return 2 }
+        override fun refusedLogins() = 5L
+    }
+
+    @Test fun maintenanceAndNoticeRoutesAreAuditedAndValidated() {
+        val control = FakeMaintenance()
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        OpsAudit.open(file, clock).use { audit -> startOpsApi(Sink(), snapshots, port, audit, maintenance = control).use {
+            HttpClient.newHttpClient().use { client ->
+                fun post(path: String, body: String = "") = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path"))
+                    .header("X-LOGH7-Operator", "op1").POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString())
+                assertEquals("changed", post("/commands/maintenance/on").body())
+                assertTrue(control.closed)
+                assertEquals("unchanged", post("/commands/maintenance/on").body())
+                assertEquals(400, post("/commands/maintenance/maybe").statusCode())
+                assertEquals(400, post("/commands/notice", "").statusCode())
+                assertEquals(400, post("/commands/notice", "x".repeat(61)).statusCode())
+                assertEquals("changed", post("/commands/notice", "  오늘 22시 점검합니다  ").body())
+                val metrics = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/metrics")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
+                assertTrue("logh7_maintenance_closed 1" in metrics && "logh7_maintenance_refused_logins_total 5" in metrics)
+                val page = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
+                assertTrue("차단 중" in page && "/admin/notice" in page)
+                assertEquals("changed", post("/commands/maintenance/off").body())
+                assertFalse(control.closed)
+            }
+        } }
+        assertEquals(listOf("오늘 22시 점검합니다"), control.notices)
+        assertEquals(listOf("MAINTENANCE:CHANGED", "MAINTENANCE:UNCHANGED", "MAINTENANCE:INVALID", "NOTICE:INVALID", "NOTICE:INVALID",
+            "NOTICE:CHANGED", "MAINTENANCE:CHANGED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
+    }
     @Test fun backupRoutesAreAuditedAndReportTheLastSuccess() {
         var taken = 0
         val backups = object : StateBackups {

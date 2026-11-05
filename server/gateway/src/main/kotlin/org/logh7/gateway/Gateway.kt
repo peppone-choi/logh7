@@ -77,6 +77,11 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     @Volatile private var started=false
     /** Login/ticket/update/connection outcomes for the ops metrics (repeated-failure alerts). */
     val counters = GatewayCounters()
+    /** Maintenance admission switch shared by every login listener of this gateway. */
+    val maintenance = MaintenanceGate()
+    @Volatile private var livePresence: GamePresence? = null
+    /** Operator notice to every online player as a "[운영]" spot chat line; returns the recipients (0 without a world). */
+    fun operatorNotice(text: String): Int = livePresence?.operatorNotice(text, gameSeconds()) ?: 0
     private var sessionRegistration:AutoCloseable?=null
     private var tacticalEndSubscription: AutoCloseable? = null
     private var combatSubscription: AutoCloseable? = null
@@ -107,7 +112,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(sessionDirectory!=null || sessionId==LobbyMessages.LOCAL_SESSION_ID && sessionName==LobbyMessages.LOCAL_SESSION_NAME)
         val tickets = sessionDirectory?.tickets ?: SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
-        presence?.disguise = { id -> navigation?.snapshot()?.planetStocks?.social?.justice?.disguises?.get(id)?.let {
+        livePresence = presence
+        presence?.disguise ={ id -> navigation?.snapshot()?.planetStocks?.social?.justice?.disguises?.get(id)?.let {
             org.logh7.engine.EspionageActions.aliases[it.alias] to it.power } }
         tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
@@ -208,7 +214,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
                                 stock = stock, administration = administration, communication=communication, fame=characterStores.fame,
-                                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,counters=counters,
+                                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,counters=counters,maintenance=maintenance,
                                 presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
