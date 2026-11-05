@@ -75,6 +75,7 @@ class GameExchange(
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
     private var tacticalInitializationPending = false
+    private var tacticalExitPending = false
     private var pendingTacticalRevision = -1L
     private fun rememberTacticalRefresh() {
         navigation?.snapshot()?.revision?.let {pendingTacticalRevision=maxOf(pendingTacticalRevision,it)}
@@ -243,7 +244,10 @@ class GameExchange(
                     (deliveredTactics != it.player.cpPaused && deliveredPlayer?.grid == it.player.grid ||
                         deliveredTactics == true && deliveredPlayer?.grid != it.player.grid)
                 deliveredTactics = it.player.cpPaused
-                if(changed) listOf(org.logh7.protocol.TacticsMessages.notify(it.player.grid,it.player.cpPaused)) else emptyList()
+                if(changed) {
+                    tacticalExitPending = !it.player.cpPaused
+                    listOf(org.logh7.protocol.TacticsMessages.notify(it.player.grid,it.player.cpPaused))
+                } else emptyList()
             }.orEmpty()
             if (update != null) {
                 // A strategic warp starts its own grid initialization after 0b07.
@@ -253,6 +257,7 @@ class GameExchange(
             }
             if (update?.initialize == true) {
                 worldInitialized = true
+                tacticalExitPending = false
                 tacticalInitializationPending = update.player.cpPaused && (update.stage != 0x0f02 || repeatTactical)
                 if(!tacticalInitializationPending)pendingTacticalRevision=-1
             }
@@ -292,12 +297,14 @@ class GameExchange(
         val account = ticket?.account ?: return messages
         val snapshot = navigation?.snapshot() ?: return messages
         val player = snapshot.navigators[account] ?: return messages
-        if (!player.cpPaused || world == null) return messages
+        if ((!player.cpPaused && !tacticalExitPending && deliveredTactics != true) || world == null) return messages
         fun opcode(message: ByteArray) = java.nio.ByteBuffer.wrap(message).getShort(4).toInt() and 65535
         // 0b09 clears the native character cache; 0325 replaces the entire unit list.
         // A strategy presence transaction containing one peer would discard the battlefield
         // definitions while leaving 033b's unit states live (004c32a0 then imports stale data).
         if (messages.any { opcode(it) == 0x0b09 }) {
+            // 0f1f closes the battlefield asynchronously; its next initialization imports strategic peers.
+            if (!player.cpPaused) return emptyList()
             // A second transition while 0f00 is still loading can rebuild with a null
             // own-character pointer (004b5bb0). The forthcoming 0f02 snapshot includes peers.
             if (tacticalInitializationPending) {rememberTacticalRefresh();return emptyList()}
