@@ -23,25 +23,20 @@ object GridForces {
             camps[force.camp] = Force(force.camp, Math.addExact(previous.units, force.units),
                 previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base)
         }
-        fun camp(power: Int, insurgent: Int = 0): Camp? = when (power) {
-            2 -> Camp(Power.EMPIRE, insurgent == 1)
-            3 -> Camp(Power.ALLIANCE, insurgent == 1)
-            else -> null
-        }
         navigators.filter { it.generation == generation }.forEach {
             val player = it
             val grouped = stocks?.outfits?.values?.any { outfit ->
-                player.characterId in outfit.members() && outfit.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
+                player.characterId in outfit.members() && outfit.country == player.country &&
                     outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
             } == true
             // U-10: a revolt's rebels count as their side's rebel camp (manual p.31).
-            add(it.grid, Force(Camp(it.power, stocks?.let { s -> CoupActions.rebel(s, player.characterId) } == true), 1, nonSolo = grouped, ship = true))
+            add(it.grid, Force(Camp.of(it, stocks?.let { s -> CoupActions.rebel(s, player.characterId) } == true), 1, nonSolo = grouped, ship = true))
         }
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)
             val initial = galaxy.conditions.getValue(base.id)
-            camp(stock?.power ?: initial.power, stock?.camp ?: initial.camp)?.let {
-                add(base.grid, Force(it, base = true))
+            (stock?.owner ?: Allegiance.fromLegacy(initial.power)).country?.let {
+                add(base.grid, Force(Camp(it,(stock?.camp ?: initial.camp)==1), base = true))
             }
             // U-07 (CD p.39, evidence:guess): after a violation, neutral Fezzan is a planet troops may land on and occupy.
             if (stocks != null && stocks.social.trade.violations.isNotEmpty() && TradeActions.fezzan(galaxy, stocks) == base.id)
@@ -51,10 +46,10 @@ object GridForces {
             val ships = ships(outfit)
             val count = mobileUnits(outfit)
             if (count > 0) add(outfit.positionIn(galaxy).grid,
-                Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))), count, nonSolo = true, ship = ships > 0))
+                Force(Camp(outfit.country, CoupActions.outfitCamp(stocks, outfit)==1), count, nonSolo = true, ship = ships > 0))
             outfit.activeGround?.values.orEmpty().filter {it.base>0}.groupingBy {it.base}.eachCount().forEach { (base,count) ->
                 add(galaxy.bases.single {it.id==base}.grid,
-                    Force(checkNotNull(camp(outfit.power, CoupActions.outfitCamp(stocks, outfit))),count.toLong(),nonSolo=true))
+                    Force(Camp(outfit.country, CoupActions.outfitCamp(stocks, outfit)==1),count.toLong(),nonSolo=true))
             }
         }
         stocks?.social?.pirates?.fleets?.values?.filter { it.alive }?.forEach { fleet ->

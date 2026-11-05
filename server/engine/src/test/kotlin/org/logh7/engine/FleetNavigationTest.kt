@@ -57,7 +57,7 @@ class FleetNavigationTest {
         val player=state.players.getValue("pilot")
         assertEquals(2488,player.grid);assertEquals(960,player.mcp);assertEquals(900,player.cruise)
         val forces=GridForces.collect(galaxy,1,state.players.values,state.stocks)
-        assertEquals(14L,forces.getValue(2488).single {it.camp.power==Power.ALLIANCE}.units)
+        assertEquals(14L,forces.getValue(2488).single {it.camp.country==Power.ALLIANCE.country}.units)
         assertEquals(0L,forces.getValue(2487).single().units)
         assertEquals(player,apply(state,request).single().player)
     }
@@ -131,7 +131,7 @@ class FleetNavigationTest {
         assertEquals(0,aide.spotId); assertEquals(900,aide.cruise); assertEquals(2,aide.moves)
         assertEquals(cp.pcp,aide.pcp); assertEquals(cp.mcp,aide.mcp)
         assertEquals(15L,GridForces.collect(galaxy,1,state.players.values,state.stocks)
-            .getValue(2488).single {it.camp.power==Power.ALLIANCE}.units)
+            .getValue(2488).single {it.camp.country==Power.ALLIANCE.country}.units)
         apply(state,request)
         assertEquals(aide,state.players.getValue("aide"))
     }

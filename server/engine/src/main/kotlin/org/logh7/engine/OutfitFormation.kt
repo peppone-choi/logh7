@@ -121,7 +121,7 @@ object OutfitFormationPolicy {
         val forces=GridForces.collect(galaxy,stocks.generation,r.identity.navigators.values,stocks)
         val count=GridForces.units(outfit)
         if(count !in 1..300 || GridEntryRules.evaluate(GridForces.state(galaxy,p.grid,forces),
-                GridEntry(Camp(p.power,false),count.toInt(),false))!=GridEntryVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
+                GridEntry(Camp.of(p),count.toInt(),false))!=GridEntryVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),320,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return OutfitFormationResult(p.paidWith(paid.balance),prepared,

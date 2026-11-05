@@ -31,5 +31,5 @@ internal object RetreatRules {
     }
     fun allowed(galaxy: Galaxy, player: Navigator, destination: Int, forces: Map<Int, List<GridForces.Force>>): Boolean =
         GridEntryRules.evaluate(GridForces.state(galaxy, destination, forces),
-            GridEntry(Camp(player.power, false), 1, true)) == GridEntryVerdict.ALLOWED
+            GridEntry(Camp.of(player), 1, true)) == GridEntryVerdict.ALLOWED
 }

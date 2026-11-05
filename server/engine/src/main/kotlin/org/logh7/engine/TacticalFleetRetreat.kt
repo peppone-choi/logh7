@@ -72,9 +72,8 @@ internal object TacticalFleetRetreat {
                 RetreatRules.outside(u.tactical.motion.pose(now,u.posture,g,stocks))}
             for(group in due.groupBy {it.tactical!!.retreat!!.destination}.values) {
                 val current=stocks.outfits.getValue(outfitId);val target=group.first().tactical!!.retreat!!.destination
-                val power=if(current.power==2)Power.EMPIRE else Power.ALLIANCE
                 val forces=GridForces.collect(g,session.generation,players.values,stocks)
-                if(GridEntryRules.evaluate(GridForces.state(g,target,forces),GridEntry(Camp(power,false),group.size,false))!=GridEntryVerdict.ALLOWED)continue
+                if(GridEntryRules.evaluate(GridForces.state(g,target,forces),GridEntry(Camp(current.country,false),group.size,false))!=GridEntryVerdict.ALLOWED)continue
                 val ids=group.map {it.id}.toSet();val original=current.activeShips!!.values
                 val balances=OutfitSupplies.distribution(current)
                 val moving=ActiveShipUnits(original.filter {it.id in ids}.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null,support=null,posture=null)})

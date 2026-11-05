@@ -60,8 +60,8 @@ internal object NpcTactics {
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
             val x=grid%100+dx;val y=grid/100+dy
             if(dx==0 && dy==0 || x !in 0..99 || y !in 0..49)null else y*100+x
-        }}.filter {g -> GridEntryRules.evaluate(GridForces.state(galaxy,g,forces),GridEntry(Camp(power(outfit),false),count,false))==GridEntryVerdict.ALLOWED}
-            .sortedWith(compareBy<Int> {g -> if(forces[g].orEmpty().any {it.camp.power!=power(outfit)})1 else 0}
+        }}.filter {g -> GridEntryRules.evaluate(GridForces.state(galaxy,g,forces),GridEntry(Camp(outfit.country,false),count,false))==GridEntryVerdict.ALLOWED}
+            .sortedWith(compareBy<Int> {g -> if(forces[g].orEmpty().any {it.camp!=Camp(outfit.country,false)})1 else 0}
                 .thenBy {g -> kotlin.math.abs(g%100-home%100)+kotlin.math.abs(g/100-home/100)}.thenBy {it}).firstOrNull()
     }
 
@@ -178,7 +178,7 @@ internal object NpcTactics {
                     u.tactical?.let {it.retreat==withdrawal && RetreatRules.outside(it.motion.pose(now,u.posture,galaxy))}==true}) {
                 val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
                 val count=GridForces.mobileUnits(outfit).toInt().coerceAtLeast(1)
-                if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(power(outfit),false),count,false))==GridEntryVerdict.ALLOWED) {
+                if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(outfit.country,false),count,false))==GridEntryVerdict.ALLOWED) {
                     stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),strategy=null,
                         activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null)}))))
                     forceCache=null
