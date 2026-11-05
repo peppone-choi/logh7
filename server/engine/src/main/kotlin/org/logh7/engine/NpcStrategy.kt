@@ -10,10 +10,15 @@ data class NpcStrategicState(val nextDecisionAt:Long,val destination:Int?=null,v
         require(destination==null || destination in 0..4999 && arrivesAt!! in 0..nextDecisionAt)
     }
 }
+/**
+ * A committed strategic grid change of uncommanded NPC fleets, and of an offline captain's reserved warp
+ * (outfit 0 and no units for a flagship without a deployed fleet; the flagship has no ship-unit ID).
+ */
 data class NpcStrategicMovement(val generation:Long,val outfit:Int,val source:Int,val destination:Int,
     val seconds:Long,val units:List<Int>,val recipients:Map<Int,String>) {
-    init {require(generation>0 && outfit>0 && source in 0..4999 && destination in 0..4999 && source!=destination &&
-        seconds in 0..0xffffffffL && units.size in 1..300 && units.distinct().size==units.size && units.all {it in 1..999999} &&
+    init {require(generation>0 && outfit>=0 && source in 0..4999 && destination in 0..4999 && source!=destination &&
+        seconds in 0..0xffffffffL && units.size in 0..300 && (outfit>0 || units.isEmpty()) &&
+        units.distinct().size==units.size && units.all {it in 1..999999} &&
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()})}
 }
 

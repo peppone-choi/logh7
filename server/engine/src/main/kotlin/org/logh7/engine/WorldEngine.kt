@@ -250,6 +250,51 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         return if(result.rejection==NavigationRejection.BUSY || result.rejection==NavigationRejection.CRUISE)
             result.copy(player=result.previous) else result
     }
+    /** Due fuel/docking/warp work of an offline captain completes on the world clock (checklist §3, `evidence:guess`). */
+    private fun dueOfflineWork(session:SessionState,account:String,player:Navigator):Boolean {
+        val member=session.participants[account] ?: return false
+        if(member.online || player.cpPaused || player.generation!=session.generation)return false
+        val now=session.gameMillis/1000
+        return player.strategy?.jobs.orEmpty().any {it.completesAtGameMillis/1000<=now} ||
+            (player.strategy==null && player.fuelReadyAt?.let {it<=now}==true)
+    }
+    /**
+     * Runs the login settlement path for each offline captain whose job is due, so the fleet moves with the
+     * flagship and observers see the arrival without waiting for a reconnect. A deferred fleet (a member is busy)
+     * keeps its job and is retried on a later tick; only future deadlines schedule ticks, so it cannot spin.
+     */
+    private fun settleOfflineNavigation(session:SessionState) {
+        val navigation=navigation ?: return
+        if(session.ended!=null)return
+        val movements=mutableListOf<NpcStrategicMovement>()
+        for((account,player) in navigation.snapshot(session.generation).toSortedMap()) {
+            if(!dueOfflineWork(session,account,player))continue
+            val member=session.participants.getValue(account)
+            // CP recovery needs the captain's abilities (last join profile). Without them a warp waits for login:
+            // arriving in contact resets the recovery clock, which would forfeit the CP earned before arrival.
+            val abilities=profiles[account]?.abilities?.takeIf {it.size>2}
+            if(abilities==null && player.warpTarget!=null)continue
+            val result=recoverNavigation(NavigationRequest(account,player.characterId,player.power,member.connection.orEmpty(),
+                session.generation,politics=abilities?.get(1) ?: 50,administration=abilities?.get(2) ?: 50,
+                offlineSettle=true,offlineAbilities=abilities!=null),session) ?: continue
+            val arrived=navigation.snapshot(session.generation)[account] ?: continue
+            if(result.completedWarp && arrived.grid!=player.grid)movements+=offlineArrival(session,player,arrived)
+        }
+        // Same delivery as an NPC fleet arrival: grid force reports, and destination tactical viewers rebuild.
+        for(event in movements)for(observer in strategicMovementObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Offline arrival delivery failed: ${failure.javaClass.simpleName}")}
+    }
+    private fun offlineArrival(session:SessionState,before:Navigator,after:Navigator):NpcStrategicMovement {
+        val stocks=production?.snapshot(session.generation)
+        val outfit=galaxy?.let {g->stocks?.outfits?.values?.singleOrNull {it.commanderId==after.characterId &&
+            it.kind!=OutfitKind.GROUND && it.positionIn(g).grid==after.grid}}
+        val units=outfit?.activeShips?.values.orEmpty().filter {it.boats>0}.map {it.id}.take(300)
+        val audience=session.participants.mapNotNull {(account,member)->
+            navigation?.snapshot(session.generation)?.get(account)?.takeIf {member.online && member.connection!=null}
+                ?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
+        return NpcStrategicMovement(session.generation,if(units.isEmpty())0 else outfit!!.id,before.grid,after.grid,
+            session.gameMillis/1000,units,audience)
+    }
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
     private val profiles = java.util.concurrent.ConcurrentHashMap<String, StrategicPerson>()
@@ -322,7 +367,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if(TacticalOfflineAi.eligible(session,account,p,stocks))maxOf(session.gameMillis/1000+rules.speed,
                 stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0) else null}}.orEmpty()
         val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
+        val nowSeconds=session.gameMillis/1000
+        val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
+            session.participants[account]?.online==false &&
+            (p.warpTarget==null || (profiles[account]?.abilities?.size ?: 0)>2)}.values.flatMap {p->
+            p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null})
+        }.filter {it>nowSeconds}
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -1013,6 +1065,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
                         navigation?.settleRetreats(current, production?.snapshot(current.generation))
+                        settleOfflineNavigation(current)
                     }
                     val current=checkNotNull(durableState)
                     publish(current.snapshot(rules).copy(navigators = navigation?.snapshot(current.session.generation).orEmpty(),
@@ -1046,6 +1099,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
+                    if (!storageFailed) settleOfflineNavigation(simulation.exportState())
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }

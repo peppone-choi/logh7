@@ -78,7 +78,19 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val tacticalShoot: TacticalShoot? = null, val tacticalAttack: TacticalAttack? = null,
     val tacticalSupport: TacticalSupport? = null, val commandAbility:Int?=null,
     val tacticalPosture:TacticalPostureChange?=null,val tacticalGround:TacticalGroundCommand?=null,
-    val tacticalCommand:TacticalCommand?=null,val tacticalRanks:Map<Int,Int> = emptyMap(),val offlineDirection:Int?=null) {
+    val tacticalCommand:TacticalCommand?=null,val tacticalRanks:Map<Int,Int> = emptyMap(),val offlineDirection:Int?=null,
+    /** World-clock settlement of an offline captain's due navigation job; it carries no action of its own. */
+    val offlineSettle:Boolean=false,
+    /**
+     * The offline request carries the captain's last joined abilities, so CP recovery is settled first as at login.
+     * Without them recovery waits for login; the caller must not settle a warp then (tactical contact resets the clock).
+     */
+    val offlineAbilities:Boolean=false) {
+    init {require(!offlineAbilities || offlineSettle)}
+    init {require(!offlineSettle || (offlineDirection==null && destination==null && place==null && !supplyFuel && returnBase==null &&
+        tactical==null && energy==null && shipKind==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
+        tacticalShoot==null && tacticalAttack==null && tacticalSupport==null && tacticalPosture==null && tacticalGround==null &&
+        tacticalCommand==null && tacticalRanks.isEmpty()))}
     init {require(offlineDirection==null || (offlineDirection in 0..31 && destination==null && place==null && !supplyFuel &&
         returnBase==null && tactical==null && energy==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
         tacticalShoot==null && tacticalAttack==null && tacticalSupport==null && tacticalPosture==null && tacticalGround==null && tacticalCommand==null))}
@@ -138,7 +150,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = current, rejection = reason,
             completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
         val member = session.participants[request.account] ?: return reject(NavigationRejection.SESSION)
-        if (session.ended != null || session.generation != request.generation || !member.online || member.connection != request.connection)
+        if (session.ended != null || session.generation != request.generation ||
+            (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
             return reject(NavigationRejection.SESSION)
         if (member.power != request.power) return reject(NavigationRejection.IDENTITY)
         if (persist) settleRetreats(session, stocks)
@@ -147,6 +160,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             !(it.characterId != request.characterId && BattleDeath.deceased(stocks,it.characterId)) }
         if (existing != null && (existing.characterId != request.characterId || existing.power != request.power))
             return reject(NavigationRejection.IDENTITY)
+        // Offline settlement only finishes existing work; it never creates a flagship for an absent captain.
+        if (request.offlineSettle && existing == null) return reject(NavigationRejection.SESSION)
         var initial = existing ?: Navigator(request.generation, request.characterId, request.power,
             galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise)
         val now = session.gameMillis / 1000
@@ -185,7 +200,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val ownWire = if (ranged.power == Power.EMPIRE) 2 else 3
         val docked = if (dueDock != null && stocks?.bases?.get(dueDock)?.let { it.power != ownWire || it.camp != 0 } == true)
             fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
-        val recovered = recover(docked, request, now)
+        // Without known abilities CP recovery waits for the next login (its clock is not advanced).
+        val recovered = if (request.offlineSettle && !request.offlineAbilities) docked else recover(docked, request, now)
         val settled = recovered
         fun contact(player: Navigator): Navigator {
             val active = if(stocks == null) player.cpPaused else
