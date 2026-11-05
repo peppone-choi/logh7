@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from hud_sprite_map import components, solid_error, template_hits
+from hud_sprite_map import components, dedupe, solid_error, template_hits
 
 
 def sprite(w, h, seed):
@@ -42,6 +42,26 @@ class HudSpriteMapTest(unittest.TestCase):
 
     def test_out_of_bounds_is_none(self):
         self.assertEqual(solid_error(np.zeros((10, 10, 3), np.uint8), sprite(8, 8, 4), 5, 5), (None, 0))
+
+
+class DedupeTest(unittest.TestCase):
+    def test_icon_inside_hollow_frame_is_kept(self):
+        frame = np.zeros((64, 64, 4), np.uint8)
+        frame[:4, :, 3] = frame[-4:, :, 3] = frame[:, :4, 3] = frame[:, -4:, 3] = 255
+        icon = np.full((24, 24, 4), 255, np.uint8)
+        atlases = {'frame.tga': frame, 'icon.tga': icon}
+        found = [dict(file='frame.tga', atlas_rect=[0, 0, 64, 64], screen=[10, 10, 64, 64], err=1.0),
+                 dict(file='icon.tga', atlas_rect=[0, 0, 24, 24], screen=[30, 30, 24, 24], err=1.0)]
+        kept, cover = dedupe(found, (100, 100), atlases)
+        self.assertEqual([k['file'] for k in kept], ['frame.tga', 'icon.tga'])
+        self.assertEqual(int(cover.sum()), int((frame[..., 3] == 255).sum()) + 24 * 24)
+
+    def test_duplicate_of_same_pixels_is_dropped(self):
+        icon = np.full((24, 24, 4), 255, np.uint8)
+        found = [dict(file='a.tga', atlas_rect=[0, 0, 24, 24], screen=[5, 5, 24, 24], err=1.0),
+                 dict(file='b.tga', atlas_rect=[0, 0, 24, 24], screen=[5, 5, 24, 24], err=2.0)]
+        kept, _ = dedupe(found, (50, 50), {'a.tga': icon, 'b.tga': icon})
+        self.assertEqual([k['file'] for k in kept], ['a.tga'])
 
 
 if __name__ == '__main__':

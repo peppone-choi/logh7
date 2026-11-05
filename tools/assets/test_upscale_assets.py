@@ -5,7 +5,10 @@ import unittest
 import numpy as np
 from PIL import Image
 
-from upscale_assets import bleed, decode_tga, restore_detail
+import tempfile
+from pathlib import Path
+
+from upscale_assets import bleed, decode_tga, downscale, restore_detail, staging_dir
 
 
 def tga(kind, pixels, palette=None, bits=32, depth=8, top=True, width=2, height=2):
@@ -69,6 +72,27 @@ class RestoreDetailTest(unittest.TestCase):
         base = np.asarray(up, dtype=int)
         self.assertGreater(out[8, 9, 0], base[8, 9, 0] - 1)   # 밝은 쪽은 더 밝거나 같고
         self.assertLess(out[8, 6, 0], base[8, 6, 0] + 1)      # 어두운 쪽은 더 어둡거나 같다
+
+
+class OutputTest(unittest.TestCase):
+    def test_staging_creates_missing_output_parents(self):
+        with tempfile.TemporaryDirectory() as root:
+            out = Path(root) / 'new-case' / 'upscale'
+            stage = staging_dir(out)
+            self.assertTrue(out.is_dir())
+            self.assertEqual(stage.parent, out)
+
+    def test_x2_keeps_binary_alpha(self):
+        im = Image.new('RGBA', (16, 16), (200, 50, 50, 0))
+        im.paste((200, 50, 50, 255), (5, 5, 11, 11))
+        small = downscale(im, (6, 6), binary=True)
+        self.assertTrue(np.isin(np.asarray(small.getchannel('A')), (0, 255)).all())
+
+    def test_x2_keeps_gradient_alpha(self):
+        im = Image.new('RGBA', (16, 16))
+        im.putalpha(Image.linear_gradient('L').resize((16, 16)))
+        small = downscale(im, (8, 8), binary=False)
+        self.assertGreater(len(np.unique(np.asarray(small.getchannel('A')))), 2)
 
 
 if __name__ == '__main__':

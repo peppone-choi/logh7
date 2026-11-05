@@ -117,6 +117,32 @@ def sift_hits(capture_rgb, atlas_rgba, rects, thresh, sift, cap_feat):
     return out
 
 
+def dedupe(found, shape, atlases, overlap=0.85):
+    """큰 조각부터 남기되, 겹침은 사각형이 아니라 실제로 맞춘 불투명 픽셀로 판단한다.
+
+    속이 빈 틀 조각이 먼저 남아도 그 투명한 안쪽에서 따로 맞은 아이콘은 지우지 않는다.
+    반환: (남긴 항목, 덮인 화면 마스크)
+    """
+    cover = np.zeros(shape, bool)
+    kept = []
+    for f in sorted(found, key=lambda f: (-(f['screen'][2] * f['screen'][3]), f['err'] or 0)):
+        ax, ay, w, h = f['atlas_rect']
+        sx, sy = f['screen'][:2]
+        mask = atlases[f['file']][ay:ay + h, ax:ax + w, 3] >= SOLID
+        x0, y0 = max(0, sx), max(0, sy)
+        x1, y1 = min(shape[1], sx + w), min(shape[0], sy + h)
+        if x1 <= x0 or y1 <= y0:
+            continue
+        m = mask[y0 - sy:y1 - sy, x0 - sx:x1 - sx]
+        if not m.any():
+            continue
+        if (cover[y0:y1, x0:x1] & m).sum() > overlap * m.sum():
+            continue
+        cover[y0:y1, x0:x1] |= m
+        kept.append(f)
+    return kept, cover
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--image-root', required=True, help='원본 data/image (읽기 전용)')
@@ -160,16 +186,7 @@ def main(argv=None):
                 for sx, sy, err in template_hits(rgb, arr[y:y + h, x:x + w], args.thresh):
                     found.append(dict(file=rel, method='template', atlas_rect=[x, y, w, h], screen=[sx, sy, w, h],
                                       err=round(err, 1)))
-        found.sort(key=lambda f: (-(f['screen'][2] * f['screen'][3]), f['err'] or 0))
-        cover = np.zeros(rgb.shape[:2], bool)
-        kept = []
-        for f in found:
-            x, y, w, h = f['screen']
-            region = cover[max(0, y):y + h, max(0, x):x + w]
-            if region.size and region.mean() > 0.85:
-                continue
-            cover[max(0, y):y + h, max(0, x):x + w] = True
-            kept.append(f)
+        kept, cover = dedupe(found, rgb.shape[:2], {rel: arr for rel, arr, _ in atlases})
         (out / f'{cap.stem}.json').write_text(json.dumps(kept, ensure_ascii=False, indent=1), encoding='utf-8')
         ov = img.convert('RGBA')
         layer = Image.new('RGBA', ov.size)

@@ -160,6 +160,20 @@ def restore_detail(up, source_rgb, strength):
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), 'RGB')
 
 
+def staging_dir(out):
+    """출력 폴더를 먼저 만들고 그 안에 임시 작업 폴더를 둔다(새 케이스 폴더에서도 첫 실행이 되도록)."""
+    out.mkdir(parents=True, exist_ok=True)
+    return Path(tempfile.mkdtemp(prefix='.upscale-', dir=out))
+
+
+def downscale(image, size, binary):
+    """4배 결과를 축소한다. 원본 알파가 0/255뿐이면 축소 뒤에도 다시 이진화해 색키 가장자리를 지킨다."""
+    small = image.resize(size, Image.Resampling.LANCZOS)
+    if binary and small.mode == 'RGBA':
+        small.putalpha(small.getchannel('A').point(lambda v: 255 if v >= 128 else 0))
+    return small
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--src', required=True, help='원본 data 루트(읽기 전용)')
@@ -181,7 +195,7 @@ def main(argv=None):
         items = [(str(p.relative_to(src)).replace('\\', '/'), args.model)
                  for p in sorted(src.rglob('*')) if p.suffix.lower() in IMAGE_EXT]
     manifest, groups = [], {}
-    stage = Path(tempfile.mkdtemp(prefix='upscale-', dir=out.parent))
+    stage = staging_dir(out)
     try:
         for i, (rel, model) in enumerate(items):
             data = (src / rel).read_bytes()
@@ -217,7 +231,7 @@ def main(argv=None):
                     up.putalpha(a)
                 else:
                     up.putalpha(255)
-                for scale, image in (('x4', up), ('x2', up.resize((size[0] * 2, size[1] * 2), Image.Resampling.LANCZOS))):
+                for scale, image in (('x4', up), ('x2', downscale(up, (size[0] * 2, size[1] * 2), binary))):
                     target = out / scale / (rel + '.png')
                     target.parent.mkdir(parents=True, exist_ok=True)
                     image.save(target, optimize=False)
