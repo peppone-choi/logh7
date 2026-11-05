@@ -118,7 +118,9 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             throw failure
         }
-        val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store,
+        // World actor queue/tick timings for the lag alerts (ops /metrics).
+        val actorTimings = org.logh7.ops.ActorTimingHistograms()
+        val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store, timings = actorTimings,
             galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
             npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true), awaitIdentities = world != null) }
         catch (failure: Throwable) {
@@ -197,6 +199,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             countryColors=countryColors,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
+            actorTimings=actorTimings,
             checklist=environment["LOGH7_CHECKLIST_FILE"]?.let {Path.of(it)} ?: listOf(Path.of("docs/IMPLEMENTATION-CHECKLIST.md"),Path.of("../docs/IMPLEMENTATION-CHECKLIST.md")).firstOrNull(java.nio.file.Files::isRegularFile),
             galaxy=world?.galaxy,accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()
