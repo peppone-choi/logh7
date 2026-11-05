@@ -17,8 +17,9 @@ import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 
 fun main() {
+    val environment=RuntimeEnvironment.load()
     fun port(name:String,default:Int):Int {
-        val value=System.getenv(name)?.let {it.toIntOrNull() ?: error("$name must be an integer port")} ?: default
+        val value=environment[name]?.let {it.toIntOrNull() ?: error("$name must be an integer port")} ?: default
         require(value in 1..65535) {"$name must be in 1..65535"}
         return value
     }
@@ -41,14 +42,14 @@ fun main() {
         failure?.let { throw it }
     }
     try {
-        val rules = System.getenv("LOGH7_SESSION_RULES")?.let { path -> java.nio.file.Files.newInputStream(Path.of(path)).use { SessionRules.load(it) } } ?: SessionRules.load()
-        val characterFile = System.getenv("LOGH7_CHARACTERS_FILE")?.let { Path.of(it) }
-        val generationFile = System.getenv("LOGH7_SESSION_GENERATION_FILE")?.let { Path.of(it) }
+        val rules = environment["LOGH7_SESSION_RULES"]?.let { path -> java.nio.file.Files.newInputStream(Path.of(path)).use { SessionRules.load(it) } } ?: SessionRules.load()
+        val characterFile = environment["LOGH7_CHARACTERS_FILE"]?.let { Path.of(it) }
+        val generationFile = environment["LOGH7_SESSION_GENERATION_FILE"]?.let { Path.of(it) }
             ?: characterFile?.resolveSibling("${characterFile.fileName}.session-generation")
         val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
-        val sessionDirectory = System.getenv("LOGH7_SESSION_STORE_DIR")?.let { Path.of(it) }
-        val world = System.getenv("LOGH7_WORLD_FILE")?.let { WorldBootstrap(Galaxy.load(Path.of(it))) }
-        val directorySync = when (System.getenv("LOGH7_SESSION_DIRECTORY_SYNC")) {
+        val sessionDirectory = environment["LOGH7_SESSION_STORE_DIR"]?.let { Path.of(it) }
+        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it))) }
+        val directorySync = when (environment["LOGH7_SESSION_DIRECTORY_SYNC"]) {
             null, "required" -> org.logh7.persistence.DirectorySync.REQUIRED
             "files-only" -> org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY
             else -> error("LOGH7_SESSION_DIRECTORY_SYNC must be required or files-only")
@@ -57,17 +58,17 @@ fun main() {
         if (store?.directorySync == org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY)
             println("Session persistence: forced file contents; directory power-loss durability is OS-managed")
         val (navigationPath, stockPath) = try { Pair(
-            if (world == null) null else System.getenv("LOGH7_NAVIGATION_FILE")?.let { Path.of(it) }
+            if (world == null) null else environment["LOGH7_NAVIGATION_FILE"]?.let { Path.of(it) }
                 ?: requireNotNull(characterFile) { "World navigation requires LOGH7_CHARACTERS_FILE or LOGH7_NAVIGATION_FILE" }
                     .resolveSibling("${characterFile.fileName}.navigation"),
-            if (world == null) null else System.getenv("LOGH7_PLANET_STOCK_FILE")?.let { Path.of(it) }
+            if (world == null) null else environment["LOGH7_PLANET_STOCK_FILE"]?.let { Path.of(it) }
                 ?: requireNotNull(characterFile) { "World production requires LOGH7_CHARACTERS_FILE or LOGH7_PLANET_STOCK_FILE" }
                     .resolveSibling("${characterFile.fileName}.planet-stocks"))
         } catch (failure: Throwable) {
             try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             throw failure
         }
-        val worldState = try { System.getenv("LOGH7_WORLD_STATE_DIR")?.let {
+        val worldState = try { environment["LOGH7_WORLD_STATE_DIR"]?.let {
             require(world != null && it.isNotBlank()) { "World state storage requires a world and a nonempty directory" }
             org.logh7.persistence.FileWorldStateStore(Path.of(it), navigationPath, stockPath)
         } } catch (failure: Throwable) {
@@ -96,9 +97,9 @@ fun main() {
             throw failure
         }
         resources.addFirst(AutoCloseable { runBlocking { engine.drainAndClose() } })
-        val captureDirectory = captureDirectoryFrom(System.getenv("LOGH7_CAPTURE_DIR"))
+        val captureDirectory = captureDirectoryFrom(environment["LOGH7_CAPTURE_DIR"])
         // A live view of the account file: the operator page edits it and new logins read the change.
-        val accountFile = System.getenv("LOGH7_ACCOUNTS_FILE")?.let { org.logh7.gateway.FileAccounts(Path.of(it)).also { a -> a.names() } }
+        val accountFile = environment["LOGH7_ACCOUNTS_FILE"]?.let { org.logh7.gateway.FileAccounts(Path.of(it)).also { a -> a.names() } }
         val gateway = Gateway(captureDirectory,
             accountFile ?: emptyMap(),
             characterFile,
@@ -107,24 +108,24 @@ fun main() {
             stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
             administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy))
         resources.addFirst(gateway)
-        val audit = System.getenv("LOGH7_OPS_AUDIT_FILE")?.let { OpsAudit.open(Path.of(it)) }
+        val audit = environment["LOGH7_OPS_AUDIT_FILE"]?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)
         // LOGH7_OPS_TOKEN_FILE suits container secrets; a trailing newline in the file is not part of the token.
-        val opsToken = System.getenv("LOGH7_OPS_TOKEN")?.takeIf { it.isNotEmpty() }
-            ?: System.getenv("LOGH7_OPS_TOKEN_FILE")?.let { java.nio.file.Files.readString(Path.of(it)).trim() }?.takeIf { it.isNotEmpty() }
+        val opsToken = environment["LOGH7_OPS_TOKEN"]?.takeIf { it.isNotEmpty() }
+            ?: environment["LOGH7_OPS_TOKEN_FILE"]?.let { java.nio.file.Files.readString(Path.of(it)).trim() }?.takeIf { it.isNotEmpty() }
         // LOGH7_BACKUP_DIR enables live backups (operator button); LOGH7_BACKUP_INTERVAL_MINUTES schedules them.
-        val backups = System.getenv("LOGH7_BACKUP_DIR")?.let { dir ->
+        val backups = environment["LOGH7_BACKUP_DIR"]?.let { dir ->
             ScheduledBackups(engine, org.logh7.persistence.LiveStateBackup(
                 requireNotNull(characterFile) { "Live backups need LOGH7_CHARACTERS_FILE" },
-                Path.of(requireNotNull(System.getenv("LOGH7_WORLD_STATE_DIR")) { "Live backups need LOGH7_WORLD_STATE_DIR" }),
+                Path.of(requireNotNull(environment["LOGH7_WORLD_STATE_DIR"]) { "Live backups need LOGH7_WORLD_STATE_DIR" }),
                 requireNotNull(sessionDirectory) { "Live backups need LOGH7_SESSION_STORE_DIR" }, Path.of(dir),
-                keep = System.getenv("LOGH7_BACKUP_KEEP")?.toInt() ?: 48),
-                System.getenv("LOGH7_BACKUP_EXPORT_DIR")?.let { Path.of(it) })
+                keep = environment["LOGH7_BACKUP_KEEP"]?.toInt() ?: 48),
+                environment["LOGH7_BACKUP_EXPORT_DIR"]?.let { Path.of(it) })
         }
-        backups?.schedule(scope, System.getenv("LOGH7_BACKUP_INTERVAL_MINUTES")?.toLong() ?: 0)
+        backups?.schedule(scope, environment["LOGH7_BACKUP_INTERVAL_MINUTES"]?.toLong() ?: 0)
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,
-            host = System.getenv("LOGH7_OPS_BIND") ?: "127.0.0.1",
-            users = System.getenv("LOGH7_OPS_USERS_FILE")?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
+            host = environment["LOGH7_OPS_BIND"] ?: "127.0.0.1",
+            users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()
                 override fun set(account: String, password: String) =
@@ -132,9 +133,9 @@ fun main() {
                 override fun remove(account: String) = file.remove(account)
             } })
         resources.addFirst(ops)
-        val bindAddress = System.getenv("LOGH7_BIND_ADDRESS") ?: "127.0.0.1"
-        gateway.start(gamePort = gamePort, updatePort = updatePort, bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = System.getenv("LOGH7_SESSION_ADDRESS") ?: bindAddress,
-            additionalBindAddresses = listOfNotNull(System.getenv("LOGH7_HOST_ONLY_ADDRESS")))
+        val bindAddress = environment["LOGH7_BIND_ADDRESS"] ?: "127.0.0.1"
+        gateway.start(gamePort = gamePort, updatePort = updatePort, bindAddress = bindAddress, sessionPort = sessionPort, sessionAddress = environment["LOGH7_SESSION_ADDRESS"] ?: bindAddress,
+            additionalBindAddresses = listOfNotNull(environment["LOGH7_HOST_ONLY_ADDRESS"]))
         Runtime.getRuntime().addShutdownHook(Thread { closeResources() })
         println("LOGH7 stubs: $bindAddress:$gamePort / $updatePort / $sessionPort; ops: 127.0.0.1:$opsPort; capture: ${captureDirectory?.toAbsolutePath() ?: "off"}")
         CountDownLatch(1).await()

@@ -91,7 +91,7 @@ object StrategyCatalogLoader {
         return StrategyDefinitions(StrategyCatalog(definitions), rules)
     }
 
-    private fun csvRows(text: String): List<List<String>> {
+    internal fun csvRows(text: String): List<List<String>> {
         val rows = mutableListOf<List<String>>(); var row = mutableListOf<String>(); val field = StringBuilder()
         var quoted = false; var closed = false; var at = 0
         fun cell() { row += field.toString(); field.clear(); closed = false }

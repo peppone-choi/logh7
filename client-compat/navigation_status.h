@@ -1,6 +1,7 @@
 // Display the server's accepted docking deadline; never predict arrival locally.
 // Author: Peppone Choi.
 #pragma once
+#include "navigation_hud_data.h"
 
 static struct DockingStatus {
     void* world;
@@ -14,6 +15,41 @@ static struct WarpStatus {
     unsigned character, grid;
     unsigned long long deadline;
 } warpStatus = {};
+
+static void refreshNavigationHud(BYTE* world,BYTE* own) {
+    unsigned character=at<unsigned>(own,0x24);
+    if(at<BYTE>(world,0x3579cc) ||
+        !((dockingStatus.world==world && dockingStatus.character==character) ||
+          (warpStatus.world==world && warpStatus.character==character)))return;
+    // The command wait stops 0058ee70; the existing HUD and its bars still draw.
+    auto hud=reinterpret_cast<BYTE*>(0x22225c8);
+    auto root=at<void*>(hud,0);
+    if(!root || !at<BYTE>(root,4))return;
+    unsigned now=reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4c53b0)(world);
+    unsigned pcp=at<unsigned>(own,0x74),mcp=at<unsigned>(own,0x78);
+    wchar_t cp[32],date[96];
+    unsigned country=at<BYTE>(own,0x28);
+    if(!logh::navigationHudText(now,pcp,mcp,country,cp,date))return;
+    static void* previousRoot=nullptr;
+    static unsigned previousMinute=~0u,previousPcp=~0u,previousMcp=~0u,previousCountry=~0u;
+    if(root==previousRoot && now/60==previousMinute && pcp==previousPcp && mcp==previousMcp && country==previousCountry)return;
+    auto text=reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560);
+    text(root,at<void*>(hud,4+8*4),cp);
+    text(root,at<void*>(hud,4+11*4),date);
+    previousRoot=root;previousMinute=now/60;previousPcp=pcp;previousMcp=mcp;previousCountry=country;
+}
+
+static void __fastcall setHudCalendarText(void* root,void*,void* widget,const char* original) {
+    reinterpret_cast<void(__thiscall*)(void*,void*,const char*)>(0x5034d0)(root,widget,original);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(!own || !at<BYTE>(own,0))return;
+    wchar_t cp[32],date[96];
+    unsigned now=reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4c53b0)(world);
+    // shortcut: current memberships use the CD nation IDs; add an explicit membership ID before enabling new countries.
+    if(logh::navigationHudText(now,at<unsigned>(own,0x74),at<unsigned>(own,0x78),at<BYTE>(own,0x28),cp,date))
+        reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560)(root,widget,date);
+}
 
 static void __fastcall acceptedWarp(void* world, void*, void* message, int result) {
     if (!result && world && message) {
@@ -94,6 +130,7 @@ static void drawDockingStatus() {
     auto world = *reinterpret_cast<BYTE**>(0x7ccffc);
     auto own = world ? at<BYTE*>(world, 8) : nullptr;
     if (!world || !at<BYTE>(world, 0x2a58f8)) return;
+    if(own && at<BYTE>(own,0))refreshNavigationHud(world,own);
     drawMailNotice(world, own);
     drawWarpStatus(world, own); // A warp reservation and a dock reservation never coexist.
     if (dockingStatus.world != world) {
@@ -129,9 +166,9 @@ static void drawDockingStatus() {
     draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, width - 205, height - 96, 0xffffdf70, 6);
 }
 static bool installNavigationStatus() {
-    const unsigned calls[] = {0x4bcbcc, 0x4bcfad, 0x4bcc1d, 0x4bcf79};
-    const BYTE expected[][5] = {{0xe8,0xaf,0x8b,0,0}, {0xe8,0xae,0x1e,0,0}, {0xe8,0x6e,0x1e,0,0}, {0xe8,0xa2,0x1e,0,0}};
-    const void* functions[] = {&acceptedDock, &arrivedDock, &acceptedWarp, &movedGrid};
+    const unsigned calls[] = {0x4bcbcc, 0x4bcfad, 0x4bcc1d, 0x4bcf79,0x58f0c6};
+    const BYTE expected[][5] = {{0xe8,0xaf,0x8b,0,0}, {0xe8,0xae,0x1e,0,0}, {0xe8,0x6e,0x1e,0,0}, {0xe8,0xa2,0x1e,0,0},{0xe8,0x05,0x44,0xf7,0xff}};
+    const void* functions[] = {&acceptedDock, &arrivedDock, &acceptedWarp, &movedGrid,&setHudCalendarText};
     for (unsigned i = 0; i < _countof(calls); ++i)
         if (memcmp(reinterpret_cast<void*>(calls[i]), expected[i], 5)) return false;
     for (unsigned i = 0; i < _countof(calls); ++i) {

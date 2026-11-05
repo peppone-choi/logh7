@@ -4,12 +4,16 @@ Java 25 JDK에서 `:app:installDist`로 빌드하고 Java 25 JRE에서 UID/GID 1
 
 매뉴얼 CSV는 BuildKit named context `logh7-manual-data=docs/manual/data`에서 `*.csv`만 빌드 단계의 `/docs/manual/data/`로 복사한다. 기존 Gradle의 `../docs/manual/data` 경로를 유지하며, 추가 context 없이 빌드하면 실패한다. BuildKit과 Compose v2.17+의 `additional_contexts`가 필요하며 Compose도 같은 디렉터리를 별도 context로 전달한다.
 
+국가 정의는 `logh7-country-data=config/countries`, 운영 문구 편집 화면은 `logh7-l10n-editor=tools/l10n` context를 함께 전달한다. 편집 화면의 HTML/JS와 국가 CSV가 실행 JAR에 포함됐는지 CI에서 원바이트를 대조한다.
+
+앱은 작업 디렉터리의 `.env`와 `.env.local`을 읽으며, 저장소의 `server/`에서 실행하면 상위 저장소 파일을 사용한다. 프로세스 환경이 가장 우선하고 `.env.local`이 `.env`를 덮는다. 다른 경로는 `LOGH7_ENV_FILE`로 지정하면 같은 파일명에 `.local`을 붙인 비밀 파일을 함께 읽는다. `.env.example`만 Git에 포함하고 실제 키는 저장소에 넣지 않는다. 값은 셸로 실행하거나 변수 치환하지 않는다.
+
 ## 명령
 
 승인된 개발 환경에서 저장소 루트 기준:
 
 ```sh
-docker build --build-context logh7-manual-data=docs/manual/data -t logh7/game-server:local server
+docker build --build-context logh7-manual-data=docs/manual/data --build-context logh7-country-data=config/countries --build-context logh7-l10n-editor=tools/l10n -t logh7/game-server:local server
 docker compose -f deploy/docker-compose.yml --profile game config --quiet
 docker compose -f deploy/docker-compose.yml --profile game up -d --no-build --wait --wait-timeout 120 game-server
 docker compose -f deploy/docker-compose.yml --profile game ps

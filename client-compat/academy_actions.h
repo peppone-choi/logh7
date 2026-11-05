@@ -60,7 +60,7 @@ static bool readAcademyAction(void* record) {
             else {
                 academy.loaded=true;
                 if(flag==12) {
-                    if(state.strategyCommand==27)swprintf_s(academy.outcome,L"강의 개시 · %ls · 120G분",academyContent(academy.content ? academy.content-1 : 4));
+                    if(state.strategyCommand==27)swprintf_s(academy.outcome,L"강의 개시 · %ls · 게임 내 120분",academyContent(academy.content ? academy.content-1 : 4));
                     else swprintf_s(academy.outcome,L"경험치 +%u · %ls %u (경험 %u/100)",academy.gained,academyAbility(academy.ability),academy.value,academy.experience);
                     state.message=academy.outcome;
                 } else if(academy.outcome[0])state.message=academy.outcome;
@@ -78,15 +78,15 @@ static void drawAcademyAction() {
     wchar_t name[32]={},label[180];pickerName(academy.base,name);
     swprintf_s(label,L"%ls · %ls",name[0] ? name : L"현재 거점",command==94 ? L"시뮬레이터실" : L"교실");taxText(1,label);
     if(command==27)swprintf_s(label,L"강의 내용: %ls",academyContent(academy.argument));
-    else if(command==93 && academy.content)swprintf_s(label,L"진행 중 강의: %ls · 남은 %uG초",academyContent(academy.content-1),academy.remaining);
+    else if(command==93 && academy.content)swprintf_s(label,L"진행 중 강의: %ls · 남은 게임 내 %u초",academyContent(academy.content-1),academy.remaining);
     else swprintf_s(label,L"선택 능력: %ls",academyAbility(academy.argument));
     taxText(2,label);
     swprintf_s(label,L"%ls %u · 경험 %u/100",academyAbility(academy.ability),academy.value,academy.experience);taxText(3,label);
-    if(command==94)swprintf_s(label,L"오늘 남은 횟수 %u/5 · 대기 %uG초",academy.usesLeft,academy.wait);
-    else if(command==27 && academy.content)swprintf_s(label,L"내 강의 진행 중 · 남은 %uG초",academy.remaining);
-    else swprintf_s(label,L"재실행까지 %uG초",academy.wait);
+    if(command==94)swprintf_s(label,L"오늘 남은 횟수 %u/5 · 대기 게임 내 %u초",academy.usesLeft,academy.wait);
+    else if(command==27 && academy.content)swprintf_s(label,L"내 강의 진행 중 · 남은 게임 내 %u초",academy.remaining);
+    else swprintf_s(label,L"재실행까지 게임 내 %u초",academy.wait);
     taxText(4,label);
-    taxText(5,command==94 ? L"MCP 10 · 경험치 +5" : command==27 ? L"MCP 160 · 120G분, 수강생 두 능력 +50" : L"MCP 160 · 강의 중 두 능력 +50, 없으면 +20 · 하루 1회");
+    taxText(5,command==94 ? L"MCP 10 · 경험치 +5" : command==27 ? L"MCP 160 · 게임 내 120분, 수강생 두 능력 +50" : L"MCP 160 · 강의 중 두 능력 +50, 없으면 +20 · 하루 1회");
     taxText(6,state.message);
     bool fixed=command==93 && academy.content;
     taxText(10,L"◀");taxText(11,command==27 ? L"내용 변경" : L"능력 변경");taxText(12,L"▶");

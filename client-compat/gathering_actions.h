@@ -91,14 +91,14 @@ static void drawGatheringAction() {
     if(state.strategyTarget)swprintf_s(label,L"상대: %ls",gatheringName(state.strategyTarget));
     else swprintf_s(label,L"같은 거점에 초대할 인물이 없습니다");
     taxText(1,label);
-    if(gatheringIncoming())swprintf_s(label,L"받은 초대 · 남은 %uG초",gathering.inviteWait);
-    else if(gatheringOutgoing())swprintf_s(label,L"보낸 초대 · 수락 대기 %uG초",gathering.inviteWait);
+    if(gatheringIncoming())swprintf_s(label,L"받은 초대 · 남은 게임 내 %u초",gathering.inviteWait);
+    else if(gatheringOutgoing())swprintf_s(label,L"보낸 초대 · 수락 대기 게임 내 %u초",gathering.inviteWait);
     else swprintf_s(label,L"초대 없음");
     taxText(2,label);
     if(state.strategyTarget && gathering.target==state.strategyTarget)swprintf_s(label,L"나와의 우호도 %u/100",gathering.friendship);
     else swprintf_s(label,L"나와의 우호도 -");
     taxText(3,label);
-    swprintf_s(label,L"다시 주최까지 %uG초",gathering.target==state.strategyTarget ? gathering.wait : 0);taxText(4,label);
+    swprintf_s(label,L"다시 주최까지 게임 내 %u초",gathering.target==state.strategyTarget ? gathering.wait : 0);taxText(4,label);
     taxText(5,command==10 ? L"주최자 MCP 320 · 영향력 +5/+2/-2(1.5배)" : discussion ? L"주최자 MCP 320 · 영향력 +3/+1/-1 · 우호도 +10/+5/-3" : L"주최자 MCP 320 · 영향력 +3/+1/-1");
     taxText(6,state.message);
     bool incoming=gatheringIncoming();

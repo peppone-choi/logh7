@@ -6,6 +6,10 @@ testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
 
 // Keep the reviewed CSV authoritative; no copied command table in Kotlin.
 tasks.processResources {
+    from(rootProject.projectDir.resolve("../config/countries")) {
+        include("*.csv")
+        into("countries")
+    }
     from(rootProject.projectDir.resolve("../docs/manual/data")) {
         include("strategy-commands.csv")
         into("strategy")

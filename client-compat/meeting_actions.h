@@ -66,7 +66,7 @@ static void drawMeetingAction() {
     if(state.strategyTarget && meeting.target==state.strategyTarget)swprintf_s(label,L"나와의 우호도 %u/100",meeting.friendship);
     else swprintf_s(label,L"나와의 우호도 -");
     taxText(3,label);
-    swprintf_s(label,L"같은 상대와 다시 회견까지 %uG초",meeting.target==state.strategyTarget ? meeting.wait : 0);taxText(4,label);
+    swprintf_s(label,L"같은 상대와 다시 회견까지 게임 내 %u초",meeting.target==state.strategyTarget ? meeting.wait : 0);taxText(4,label);
     taxText(5,L"MCP 10 · 우호도 +3 · 같은 상대 하루 1회");taxText(6,state.message);
     taxText(10,L"◀");taxText(11,L"상대 변경");taxText(12,L"▶");
     taxText(13,L"조회");taxText(14,L"회견 실행");taxText(15,L"닫기");

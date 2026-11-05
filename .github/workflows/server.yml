@@ -1,12 +1,35 @@
 name: server
 on:
   push:
-    paths: ['server/**', '.github/workflows/server.yml']
+    paths: ['server/**', 'config/countries/**', 'tools/l10n/editor*', '.github/workflows/server.yml']
   pull_request:
-    paths: ['server/**', '.github/workflows/server.yml']
+    paths: ['server/**', 'config/countries/**', 'tools/l10n/editor*', '.github/workflows/server.yml']
 permissions:
   contents: read
 jobs:
+  country-schema:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: logh7_test
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGDATABASE: logh7_test
+      PGUSER: postgres
+      PGPASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v4
+      - run: psql -v ON_ERROR_STOP=1 -f server/persistence/src/main/resources/db/migration/V1__national_definitions.sql -f server/persistence/src/test/resources/sql/national_definitions_test.sql
   build:
     runs-on: ubuntu-latest
     defaults:
