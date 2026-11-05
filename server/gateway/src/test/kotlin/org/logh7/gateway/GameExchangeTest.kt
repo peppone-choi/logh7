@@ -281,9 +281,12 @@ class GameExchangeTest {
                 }
             }
             val tickets=SessionTickets()
+            val presence=GamePresence()
+            val peer=assertNotNull(characters.character("user")).copy(id=1002)
+            presence.update(GamePresence.Member("peer",peer,player.copy(characterId=1002),{}))
             val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
                 Handshake(b,2),characters,gameSeconds={seconds},expectedGeneration=1,connection="owned",
-                navigation=navigation,world=WorldBootstrap(galaxy))
+                navigation=navigation,world=WorldBootstrap(galaxy),presence=presence)
             game.accept(0x34,initial);game.accept(0x36,confirm)
             val token=tickets.issue("user",SessionTickets.Purpose.GAME)
             game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
@@ -310,7 +313,21 @@ class GameExchangeTest {
                 if(outcome=="retreat") {
                     assertEquals(0,position.getShort(6).toInt());assertEquals(2,recoveries)
                     assertTrue(messages.any {ByteBuffer.wrap(it).getShort(4).toInt()==0x0356})
-                    assertNotNull(game.finishWorld(messages))
+                    val bytes=assertNotNull(game.finishWorld(messages)).bytes
+                    var offset=0;val opcodes=mutableListOf<Int>()
+                    while(offset<bytes.size) {
+                        val end=offset+2+(ByteBuffer.wrap(bytes).getShort(offset).toInt() and 65535)
+                        val body=Envelope.decode(LegacyBlowfish(b).decrypt(bytes.copyOfRange(offset+8,end)),-1).second
+                        opcodes+=ByteBuffer.wrap(body).getShort(4).toInt() and 65535;offset=end
+                    }
+                    assertTrue(0x0f1f in opcodes)
+                    assertFalse(0x0b09 in opcodes || 0x0b0a in opcodes,"A retiring battlefield must not rebuild live native models")
+                    val queuedPresence=listOf(LoginMessages.sessionMessage(0x0b09,byteArrayOf(0)),
+                        LoginMessages.sessionMessage(0x0b0a,byteArrayOf(0)))
+                    assertNull(game.notifyWorld(queuedPresence),"Queued presence must wait for strategic initialization")
+                    game.accept(0x30,encrypted(hex("0f00"),6))
+                    game.finishWorld(assertNotNull(game.takePendingWorld()).join())
+                    assertNotNull(game.notifyWorld(queuedPresence),"Strategic initialization must resume normal presence updates")
                 } else {
                     assertEquals(1,position.getShort(6).toInt());assertEquals(player.unitId,position.getInt(8))
                     assertEquals(0f,position.getFloat(12));assertEquals(5f,position.getFloat(16))
