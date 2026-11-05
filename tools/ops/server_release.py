@@ -9,8 +9,13 @@ no longer match its manifest is never activated. Pair a switch with
 ``state_backup.py backup`` so a failed update can restore both code and state.
 
     server_release.py install  BUILD_DIR --releases DIR --name NAME
-    server_release.py activate NAME --releases DIR
-    server_release.py rollback --releases DIR
+    server_release.py activate NAME --releases DIR [--characters FILE]
+    server_release.py rollback --releases DIR [--characters FILE]
+
+With ``--characters`` (the live ``LOGH7_CHARACTERS_FILE``) a switch is refused when the saved state
+uses a record format the target release cannot read. An older release still starts and answers
+``/health`` with such state; it fails only when the character store is first opened (a login), so
+the operator must restore the pre-upgrade backup first.
     server_release.py classpath --releases DIR
 """
 from __future__ import annotations
@@ -19,6 +24,7 @@ import argparse
 import json
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,6 +32,34 @@ from state_backup import server_running, sha256  # noqa: E402
 
 MANIFEST = "release.json"
 FORMAT = "LOGH7-SERVER-RELEASE-1"
+# Saved-record formats and the class a release needs to read them (PR #290: character profile v2).
+RECORD_FORMATS = (("character profile v2", "v2:", "org/logh7/gateway/CharacterProfile.class"),)
+
+
+def unreadable(root: Path, characters: Path | None) -> list[str]:
+    """Record formats present in ``characters`` that the release at ``root`` has no reader for."""
+    if characters is None:
+        return []
+    # Generation 1 uses the file itself; later session generations use `<file>.session-<n>`
+    # (CharacterStores.path). Every generation on disk may be loaded, so check them all.
+    stores = [characters] + [p for p in characters.parent.glob(f"{characters.name}.session-*")
+                             if p.name.rsplit("-", 1)[1].isdigit()]
+    values = []
+    for store in stores:
+        if not store.is_file():
+            continue
+        for line in store.read_text(encoding="latin-1").splitlines():
+            if line and not line.startswith(("#", "!")) and "=" in line:
+                values.append(line.split("=", 1)[1].replace("\\", ""))
+    classes = set()
+    for jar in (root / "lib").glob("*.jar"):
+        try:
+            with zipfile.ZipFile(jar) as archive:
+                classes.update(archive.namelist())
+        except zipfile.BadZipFile:
+            continue
+    return [name for name, prefix, reader in RECORD_FORMATS
+            if reader not in classes and any(value.startswith(prefix) for value in values)]
 
 
 def pointer(releases: Path, name: str) -> str | None:
@@ -61,10 +95,13 @@ def install(args: argparse.Namespace) -> None:
     print(f"installed {args.name}: {len(files)} files")
 
 
-def switch(releases: Path, name: str, health: str | None) -> None:
+def switch(releases: Path, name: str, health: str | None, characters: Path | None = None) -> None:
     if server_running(health):
         raise SystemExit(f"server may be running ({health}); confirm it is stopped before switching releases")
-    checked(releases, name)
+    missing = unreadable(checked(releases, name), characters)
+    if missing:
+        raise SystemExit(f"release {name} cannot read the saved state ({', '.join(missing)}); "
+                         "restore the pre-upgrade backup (state_backup.py restore) before switching")
     current = pointer(releases, "CURRENT")
     if current == name:
         print(f"{name} is already active")
@@ -76,7 +113,7 @@ def switch(releases: Path, name: str, health: str | None) -> None:
 
 
 def activate(args: argparse.Namespace) -> None:
-    switch(Path(args.releases), args.name, args.health)
+    switch(Path(args.releases), args.name, args.health, args.characters and Path(args.characters))
 
 
 def rollback(args: argparse.Namespace) -> None:
@@ -84,7 +121,7 @@ def rollback(args: argparse.Namespace) -> None:
     previous = pointer(releases, "PREVIOUS")
     if not previous:
         raise SystemExit("no previous release to roll back to")
-    switch(releases, previous, args.health)
+    switch(releases, previous, args.health, args.characters and Path(args.characters))
 
 
 def classpath(args: argparse.Namespace) -> None:
@@ -108,9 +145,11 @@ def main(argv: list[str] | None = None) -> None:
     use = commands.add_parser("activate")
     use.add_argument("name")
     use.add_argument("--releases", required=True)
+    use.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     use.set_defaults(run=activate)
     back = commands.add_parser("rollback")
     back.add_argument("--releases", required=True)
+    back.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     back.set_defaults(run=rollback)
     path = commands.add_parser("classpath")
     path.add_argument("--releases", required=True)
