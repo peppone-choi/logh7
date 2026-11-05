@@ -1,9 +1,9 @@
 name: game-alerts
 on:
   push:
-    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
+    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/docker-compose.yml', 'deploy/docker-compose.metrics.yml', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
   pull_request:
-    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
+    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/docker-compose.yml', 'deploy/docker-compose.metrics.yml', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
 permissions:
   contents: read
 jobs:
@@ -37,6 +37,24 @@ jobs:
           tar --extract --gzip --file prometheus.tar.gz --strip-components=1 prometheus-3.13.3.linux-amd64/prometheus prometheus-3.13.3.linux-amd64/promtool
           tar --extract --gzip --file alertmanager.tar.gz --strip-components=1 alertmanager-0.34.1.linux-amd64/alertmanager alertmanager-0.34.1.linux-amd64/amtool
           ./amtool check-config "$GITHUB_WORKSPACE/deploy/alertmanager/alertmanager.yml"
+      - name: Check the metrics Compose wiring (Prometheus reaches Alertmanager)
+        working-directory: deploy
+        run: |
+          mkdir -p secrets
+          test -e secrets/ops_token.txt || printf 'ci-placeholder-token-0123456789\n' > secrets/ops_token.txt
+          test -e secrets/alert_webhook_url.txt || printf 'http://127.0.0.1:9/ci-placeholder\n' > secrets/alert_webhook_url.txt
+          docker compose -f docker-compose.yml -f docker-compose.metrics.yml --profile game config --format json > "$RUNNER_TEMP/compose-metrics.json"
+          python3 - "$RUNNER_TEMP/compose-metrics.json" <<'PY'
+          import json, sys
+          services = json.load(open(sys.argv[1]))['services']
+          prometheus, alertmanager = services['prometheus'], services['alertmanager']
+          shared = set(prometheus.get('networks', {})) & set(alertmanager.get('networks', {}))
+          assert shared, f"prometheus and alertmanager share no network: {prometheus.get('networks')} / {alertmanager.get('networks')}"
+          mounts = {v['target'] for v in prometheus.get('volumes', [])}
+          assert '/etc/prometheus/game-alerts.yml' in mounts, mounts
+          assert 'alert_webhook_url' in {s['source'] for s in alertmanager.get('secrets', [])}
+          print('compose wiring ok:', sorted(shared))
+          PY
       - name: Mount a small state volume for the disk-full injection
         run: |
           mkdir -p "$RUNNER_TEMP/logh7-state"
