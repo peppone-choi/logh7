@@ -64,8 +64,8 @@ class CompletenessSupplyTest {
         val wrongRole = stock.copy(outfits=stock.outfits+(1 to stock.outfits.getValue(1).copy(kind=OutfitKind.FLEET)),
             warehouses=stock.warehouses+(101 to stock.warehouses.getValue(101).copy(kind=OutfitKind.FLEET)))
         assertEquals(LogisticsRejection.ACCESS,CompletenessSupply.evaluate(request,session,player,wrongRole).rejection)
-        val enemy = stock.copy(outfits=stock.outfits+(2 to stock.outfits.getValue(2).copy(power=3)),
-            warehouses=stock.warehouses+(102 to stock.warehouses.getValue(102).copy(power=3)))
+        val enemy = stock.copy(outfits=stock.outfits+(2 to stock.outfits.getValue(2).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))),
+            warehouses=stock.warehouses+(102 to stock.warehouses.getValue(102).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))))
         assertEquals(LogisticsRejection.ACCESS,CompletenessSupply.evaluate(request,session,player,enemy).rejection)
         assertEquals(LogisticsRejection.BUSY, CompletenessSupply.evaluate(request, session, player.copy(cpPaused = true), stock).rejection)
     }

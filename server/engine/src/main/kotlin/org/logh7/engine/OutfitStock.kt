@@ -38,19 +38,28 @@ data class OutfitPosition(val grid: Int, val baseId: Int = 0) {
 fun OutfitStock.positionIn(galaxy: Galaxy): OutfitPosition = position ?:
     OutfitPosition(galaxy.bases.single { it.id == baseId }.grid, baseId)
 
-data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val baseId: Int,
+data class OutfitStock(val id: Int, val country: CountryId, val kind: OutfitKind, val baseId: Int,
     val warehouseId: Int, val commanderId: Int = 0, val units: UnitInventory = UnitInventory(),
     val number: Int = 0, val supplies: Int = 0,
     val activeShips: ActiveShipUnits? = if (units.ships.isEmpty()) ActiveShipUnits(emptyList()) else null,
     val aideId: Int = 0, val staff: FleetStaff = FleetStaff(), val position: OutfitPosition? = null,
     val activeGround:ActiveGroundUnits?=null, val strategy:NpcStrategicState?=null,
     /** U-13 guard unit: ship unit ID -> GuardShips option index. Shown to the CD as a patrol. */
-    val guard:Map<Int,Int>?=null) {
+    val guard:Map<Int,Int>?=null,
+    val shipStyle:ShipStyleId=ShipStyleId.fromLegacy(country.legacyPower())) {
+    constructor(id:Int,power:Int,kind:OutfitKind,baseId:Int,warehouseId:Int,commanderId:Int=0,
+        units:UnitInventory=UnitInventory(),number:Int=0,supplies:Int=0,
+        activeShips:ActiveShipUnits?=if(units.ships.isEmpty())ActiveShipUnits(emptyList()) else null,
+        aideId:Int=0,staff:FleetStaff=FleetStaff(),position:OutfitPosition?=null,
+        activeGround:ActiveGroundUnits?=null,strategy:NpcStrategicState?=null,guard:Map<Int,Int>?=null):this(
+            id,CountryId(power),kind,baseId,warehouseId,commanderId,units,number,supplies,activeShips,
+            aideId,staff,position,activeGround,strategy,guard,ShipStyleId.fromLegacy(power))
+    val power:Int get()=when(country.legacyPower()) {Power.EMPIRE->2;Power.ALLIANCE->3}
     init {
         require(guard==null || kind==OutfitKind.PATROL && guard.size in 1..GuardShips.MAXIMUM_UNITS &&
-            guard.values.all {GuardShips.option(it)?.power==power} &&
+            guard.values.all {GuardShips.option(it)?.power==shipStyle.nativePower} &&
             activeShips?.values?.map {it.id}?.toSet()==guard.keys) {"Invalid guard roster"}
-        require(id > 0 && power in 2..3 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
+        require(id > 0 && baseId in 1..65535 && warehouseId > 0 && commanderId >= 0)
         require(number in 0..255 && supplies >= 0)
         require(aideId >= 0 && (aideId == 0 || kind == OutfitKind.FLEET && aideId != commanderId))
         require(staff.members.isEmpty() || kind==OutfitKind.FLEET)
@@ -61,20 +70,25 @@ data class OutfitStock(val id: Int, val power: Int, val kind: OutfitKind, val ba
         require(activeShips == null || activeShips.quantities() == units.ships) { "Outfit ship identities differ from inventory" }
         require(activeGround==null || activeGround.quantities()==GroundUnits.quantities(units)) {"Outfit ground identities differ from inventory"}
         require(activeGround?.values.orEmpty().all {u->
-            UnitSpecifications.crews.single {it.kind==u.stack.kind}.power==power &&
+            UnitSpecifications.crews.single {it.kind==u.stack.kind}.power==shipStyle.nativePower &&
                 (u.carrier==0 || activeShips?.values?.any {it.id==u.carrier && it.boats>0}==true)
         }) {"Invalid ground carrier or faction"}
     }
 }
 
-data class OutfitWarehouse(val id: Int, val power: Int, val kind: OutfitKind, val baseId: Int, val outfitId: Int = 0,
+data class OutfitWarehouse(val id: Int, val country: CountryId, val kind: OutfitKind, val baseId: Int, val outfitId: Int = 0,
     val units: UnitInventory = UnitInventory(), val supplies: Int = 0, val food: Int = 0, val mineral: Int = 0,
-    val spareShips: SpareShipBoats = SpareShipBoats()) {
+    val spareShips: SpareShipBoats = SpareShipBoats(),
+    val shipStyle:ShipStyleId=ShipStyleId.fromLegacy(country.legacyPower())) {
+    constructor(id:Int,power:Int,kind:OutfitKind,baseId:Int,outfitId:Int=0,units:UnitInventory=UnitInventory(),
+        supplies:Int=0,food:Int=0,mineral:Int=0,spareShips:SpareShipBoats=SpareShipBoats()):this(
+            id,CountryId(power),kind,baseId,outfitId,units,supplies,food,mineral,spareShips,ShipStyleId.fromLegacy(power))
+    val power:Int get()=when(country.legacyPower()) {Power.EMPIRE->2;Power.ALLIANCE->3}
     init {
-        require(id > 0 && power in 2..3 && baseId in 1..65535 && supplies >= 0 && food >= 0 && mineral >= 0)
+        require(id > 0 && baseId in 1..65535 && supplies >= 0 && food >= 0 && mineral >= 0)
         require(if (kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT)) outfitId > 0 else outfitId == 0)
         require(units.work.isEmpty()) { "An outfit warehouse cannot own a production line" }
-        require(spareShips.values.keys.all { stack -> ProductionUnits.definitions.any { it.ship && it.kind==stack.kind && it.power==power } })
+        require(spareShips.values.keys.all { stack -> ProductionUnits.definitions.any { it.ship && it.kind==stack.kind && it.power==shipStyle.nativePower } })
     }
 }
 
@@ -83,15 +97,16 @@ internal fun validateOutfitStocks(bases: Map<Int, PlanetStock>, outfits: Map<Int
     warehouses: Map<Int, OutfitWarehouse>, officers: Map<Int, LogisticsOffice>) {
     require(outfits.size <= 1000 && warehouses.size <= 1000 && officers.size <= 1000)
     require(warehouses.all { (id, warehouse) -> id == warehouse.id && warehouse.baseId in bases &&
-        (warehouse.outfitId == 0 || outfits[warehouse.outfitId]?.let { it.power == warehouse.power && it.kind == warehouse.kind } == true) })
-    require(warehouses.values.map { listOf(it.baseId,it.power,it.kind.warehouseKind,it.outfitId) }.distinct().size == warehouses.size) {
+        (warehouse.outfitId == 0 || outfits[warehouse.outfitId]?.let { it.country == warehouse.country &&
+            it.shipStyle==warehouse.shipStyle && it.kind == warehouse.kind } == true) })
+    require(warehouses.values.map { listOf(it.baseId,it.country,it.shipStyle,it.kind.warehouseKind,it.outfitId) }.distinct().size == warehouses.size) {
         "Duplicate warehouse owner at a base"
     }
     require(officers.keys.all { it > 0 })
     require(officers.values.distinct().size == officers.size) { "A logistics office has multiple holders" }
     require(outfits.all { (id, outfit) -> id == outfit.id && outfit.baseId in bases &&
         (outfit.position == null || outfit.position.baseId == 0 || outfit.position.baseId in bases) &&
-        warehouses[outfit.warehouseId]?.let { it.power == outfit.power && it.kind.warehouseKind == outfit.kind.warehouseKind && it.baseId == outfit.baseId &&
+        warehouses[outfit.warehouseId]?.let { it.country == outfit.country && it.shipStyle==outfit.shipStyle && it.kind.warehouseKind == outfit.kind.warehouseKind && it.baseId == outfit.baseId &&
             (it.outfitId == 0 || it.outfitId == outfit.id) } == true })
     outfits.values.groupBy { it.warehouseId }.values.forEach { members ->
         require(members.size == 1 || members.first().kind in setOf(OutfitKind.PATROL, OutfitKind.GROUND)) {
@@ -99,7 +114,7 @@ internal fun validateOutfitStocks(bases: Map<Int, PlanetStock>, outfits: Map<Int
         }
     }
     outfits.values.filter { it.kind in setOf(OutfitKind.PATROL, OutfitKind.GROUND) }
-        .groupBy { Triple(it.power,it.kind.warehouseKind,it.baseId) }.values.forEach { members ->
+        .groupBy { listOf(it.country,it.shipStyle,it.kind.warehouseKind,it.baseId) }.values.forEach { members ->
             require(members.map { it.warehouseId }.distinct().size == 1) { "Shared outfit warehouse is split" }
         }
 }
