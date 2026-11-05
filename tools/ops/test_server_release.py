@@ -118,5 +118,28 @@ class ServerReleaseTest(unittest.TestCase):
         self.assertIn("LOGH7-STOCK-42", str(refused.exception))
         self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
 
+    def test_definitions_database_needs_the_postgres_reader(self):
+        import os
+        import zipfile
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old")
+        with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
+            jar.writestr("org/logh7/persistence/PostgresCountryDefinitions.class", b"\xca\xfe")
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new")
+        self.tool("activate", "new", "--releases", str(self.releases), "--definitions-db")
+        with self.assertRaises(SystemExit) as refused:
+            self.tool("activate", "old", "--releases", str(self.releases), "--definitions-db")
+        self.assertIn("country definitions database", str(refused.exception))
+        self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+        # The same JDBC variable also serves the color-only database, so it alone does not refuse.
+        saved = os.environ.get("LOGH7_DEFINITIONS_JDBC_URL")
+        os.environ["LOGH7_DEFINITIONS_JDBC_URL"] = "jdbc:postgresql://127.0.0.1/test"
+        try:
+            self.tool("activate", "old", "--releases", str(self.releases))
+        finally:
+            if saved is None:
+                os.environ.pop("LOGH7_DEFINITIONS_JDBC_URL")
+            else:
+                os.environ["LOGH7_DEFINITIONS_JDBC_URL"] = saved
+
 if __name__ == "__main__":
     unittest.main()

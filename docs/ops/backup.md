@@ -62,6 +62,15 @@ PR #290부터 캐릭터 기록은 다음 저장 때 `v2:` 형식으로 바뀐다
 그래서 `server_release.py activate`·`rollback`에 `--characters <LOGH7_CHARACTERS_FILE>`를 더했다. 캐릭터 기록에 대상 릴리스가 읽지 못하는 형식이 있으면 전환을 거부하고 업그레이드 전 백업 복원을 안내한다. 기본 파일과 이후 세션 세대 파일(`<파일>.session-<n>`)을 모두 본다. 판정은 대상 릴리스 jar에 그 형식의 해석 클래스(`org/logh7/gateway/CharacterProfile.class`)가 있는지로 한다. 실제 두 릴리스에서 `v2:` 상태의 이전 릴리스 복귀는 거부, 업그레이드 전 캐릭터로는 허용, 새 릴리스 전환은 허용됨을 확인했다(검사 3개 통과). 업데이트 절차의 복귀는 따라서 **정지 → `state_backup.py restore --force`(업그레이드 전 백업) → `rollback --characters …` → 시작** 순서다. 캐릭터 외 저장 파일은 아래 `--world`가 본다.
 
 `--world <LOGH7_WORLD_STATE_DIR>`(같은 날, PR #294 형식42 반영): 창고·항행·월드 저장 파일의 머리말(`LOGH7-STOCK-N`, `LOGH7-NAV-N`, `LOGH7-WORLD-N`)은 그동안 여러 번 올라갔고(창고 42판까지), 이전 릴리스는 모르는 머리말이면 시작하지 못한다. 그래서 대상 릴리스의 해당 저장소 클래스(`FilePlanetStockStore`·`FileNavigationStore`·`FileWorldStateStore`)에 그 머리말이 **정확한 문자열 상수**로 있는지 본다(`LOGH7-STOCK-4`처럼 앞부분만 같은 상수는 인정하지 않는다). 월드 폴더는 `CURRENT`가 가리키는 슬롯만 본다(실패한 업데이트가 비활성 슬롯에 남긴 새 형식은 다음 저장이 덮어쓰므로 막지 않는다). `--characters`를 주면 옛 단독 파일(`.navigation`·`.planet-stocks`)도 본다. 실제 세 릴리스(PR #290 이전·PR #291 이후·PR #294 main `931e2b81`)로 확인: 실제 시험 상태(STOCK-38·NAV-14)는 셋 다 허용, 창고 머리말을 `LOGH7-STOCK-42`로 둔 사본은 main만 허용하고 두 이전 릴리스는 거부했다. 거부가 맞는지 이전 릴리스를 그 상태로 띄우자 `Invalid planet stock header`로 시작에 실패했다(캐릭터 `v2:`와 달리 바로 드러난다). 검사 4개 통과. 세션 기록·계정·평판 파일의 형식 판정은 아직 없다.
+### 국가 정의 DB와 릴리스 복귀 (2026-11-06)
+
+국가 정의 편집(Codex `country-definition-editor`, 새 `PostgresCountryDefinitions`·`V3__country_definition_revision.sql`) 이후 `LOGH7_DEFINITIONS_JDBC_URL`이 설정된 배포에서는 국가·계열·역법 정의의 원천이 PostgreSQL이다. 이 정의는 `state_backup.py`의 파일 백업에 들어가지 않는다.
+
+- 업데이트 전: 파일 백업과 함께 정의 DB를 따로 백업한다(예: 정의 테이블 `pg_dump --format=custom`, 또는 위 2번의 물리 백업 시점 기록). 두 백업의 시각을 같이 남긴다.
+- 복귀: `server_release.py activate`·`rollback --definitions-db`는 대상 릴리스에 `org/logh7/persistence/PostgresCountryDefinitions.class`가 없을 때 전환을 거부한다. 같은 `LOGH7_DEFINITIONS_JDBC_URL`이 기존 국가 색상 DB(`PostgresCountryColors`)에도 쓰이므로 환경 변수만으로는 켜지 않는다. 전체 정의를 DB에 게시한 뒤부터 이 플래그를 준다. 이 리더가 없는 릴리스는 DB에 게시된 정의를 무시하고 내장 목록으로 시작하므로, 오류 없이 다른 국가 정의로 돌게 된다(Codex 설명, 이 리허설에서 기동 재현은 하지 않음).
+- 리더가 없는 릴리스로 꼭 돌아가야 하면 정의 DB 사용을 끄고(`LOGH7_DEFINITIONS_JDBC_URL` 제거) 그 릴리스 시점의 파일 상태와 정의로 복원한다.
+
+확인: 검사 5개 통과. 실제 릴리스 두 개(PR #290 이전, PR #294 main `931e2b81`)는 둘 다 리더가 없어 `--definitions-db`에서 거부됨을 확인했다(PR #294까지 이 클래스가 없었다). 정의 DB 백업·복원 자체와 Flyway V3가 적용된 DB에서 이전 릴리스의 동작은 미검증이다.
 ## 운영 지표 `/metrics` (2026-11-03)
 
 운영 API(`127.0.0.1`, 기본 47901·시험 47951)에 Prometheus 텍스트 형식 `/metrics`를 더했다. 엔진 정상 여부(`logh7_engine_up`), 월드 리비전·명령 접수/거부 누계, 세션 세대·게임 시각·참가/접속 수·종료 여부, 전술 인스턴스 수, 진행 중 지상전 거점 수 11개다(검사 `metricsExposeHealthAndCountersInPrometheusText`). 실제 시험 서버에서 `engine_up 1`, 참가 6·접속 0, 지상전 1을 확인했다. 수집기 연결(2026-11-03 추가): 운영 API 바인드 주소를 `LOGH7_OPS_BIND`로 바꿀 수 있게 했고, 루프백이 아닌 주소는 토큰(`LOGH7_OPS_TOKEN` 또는 비밀 파일 `LOGH7_OPS_TOKEN_FILE`)이 없으면 서버 시작을 거부한다(실제 서버에서 `0.0.0.0` 무토큰 시작 거부 확인). 선택 덮어쓰기 `deploy/docker-compose.metrics.yml`이 게임 서버를 백엔드 망에 토큰과 함께 열고, Prometheus가 `prometheus-game.yml`의 Bearer 설정으로 `game-server:47901/metrics`를 긁는다. 기본 Compose와 CI 계약(게임 서비스 비밀 없음·루프백 수신)은 그대로다. `docker compose config`로 병합 결과를 확인했으나, Linux Docker에서 실제 수집은 실행하지 않았다. 지연·송신 큐·메모리 지표는 미구현이다. `evidence:guess`
