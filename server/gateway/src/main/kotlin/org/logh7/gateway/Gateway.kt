@@ -75,6 +75,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val clients = DefaultChannelGroup(GlobalEventExecutor.INSTANCE, true)
     private val closed = AtomicBoolean()
     @Volatile private var started=false
+    /** Login/ticket/update/connection outcomes for the ops metrics (repeated-failure alerts). */
+    val counters = GatewayCounters()
     private var sessionRegistration:AutoCloseable?=null
     private var tacticalEndSubscription: AutoCloseable? = null
     private var combatSubscription: AutoCloseable? = null
@@ -206,7 +208,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
                                 stock = stock, administration = administration, communication=communication, fame=characterStores.fame,
-                                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,
+                                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,counters=counters,
                                 presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
@@ -265,6 +267,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                             val response = updateExchange.accept(payload)
                                             val written = ctx.writeAndFlush(Unpooled.wrappedBuffer(response))
                                             if (updateExchange.state == UpdateExchange.State.COMPLETE) {
+                                                counters.updateCompleted.incrementAndGet()
                                                 written.addListener(ChannelFutureListener.CLOSE)
                                             }
                                         }
@@ -307,11 +310,15 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         }
                                     }
                                     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
+                                        counters.connectionErrors.incrementAndGet()
                                         // The first project frame locates a failed requirement without a full trace.
                                         System.err.println("gateway: ${cause.message} at ${cause.stackTrace.firstOrNull { it.className.startsWith("org.logh7") }}")
                                         try { exchange.close() } finally { ctx.close() }
                                     }
                                     override fun channelInactive(ctx: ChannelHandlerContext) {
+                                        // A bare TCP probe never sends a frame; only a started, unfinished update is a failure.
+                                        if (port == updatePort && updateExchange.state == UpdateExchange.State.AWAITING_VERSION)
+                                            counters.updateFailed.incrementAndGet()
                                         lifecycleCheck?.cancel(false); waitingFrames.clear(); notifications.clear(); notificationBytes = 0
                                         exchange.close(); ctx.fireChannelInactive()
                                     }

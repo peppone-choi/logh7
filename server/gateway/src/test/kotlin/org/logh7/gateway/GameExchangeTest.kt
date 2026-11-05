@@ -26,8 +26,8 @@ class GameExchangeTest {
         name.forEach { out.putChar(it) }; out.put(secret.length.toByte()); secret.forEach { out.putChar(it) }
         return out.array()
     }
-    private fun exchange(role: GameExchange.Role, tickets: SessionTickets = SessionTickets()) =
-        GameExchange(role, mapOf("user" to "pw"), tickets, "127.0.0.1", 47903, Handshake(b, 2)).also {
+    private fun exchange(role: GameExchange.Role, tickets: SessionTickets = SessionTickets(), counters: GatewayCounters? = null) =
+        GameExchange(role, mapOf("user" to "pw"), tickets, "127.0.0.1", 47903, Handshake(b, 2), counters = counters).also {
             it.accept(0x34, initial); it.accept(0x36, confirm)
         }
     @Test fun responderMatchesSyntheticKexAndDirectionalCipher() {
@@ -61,21 +61,27 @@ class GameExchangeTest {
         assertContentEquals(request(), h.receive(0x30, encrypted(request())))
     }
     @Test fun loginRedirectAndSingleUseSessionToken() {
-        val tickets = SessionTickets(); val login = exchange(GameExchange.Role.LOGIN, tickets)
+        val counters = GatewayCounters()
+        val tickets = SessionTickets(); val login = exchange(GameExchange.Role.LOGIN, tickets, counters)
         val response = login.accept(0x30, encrypted(request()))!!
+        assertEquals(1, counters.loginAccepted.get()); assertEquals(0, counters.loginRejected.get())
         val body = Envelope.decode(LegacyBlowfish(b).decrypt(response.copyOfRange(4, response.size)), 1).second
         assertContentEquals(hex("70010000000000000100007fbb1f"), body.copyOfRange(0, 14))
         val token = ByteBuffer.wrap(body, 14, 4).int
         val auth = ByteBuffer.allocate(6).putShort(0x20).putInt(token).array()
-        val session = exchange(GameExchange.Role.SESSION, tickets)
+        val session = exchange(GameExchange.Role.SESSION, tickets, counters)
         assertNull(session.accept(0x30, encrypted(auth)))
         assertEquals(GameExchange.State.AUTHENTICATED, session.state)
-        assertFails { exchange(GameExchange.Role.SESSION, tickets).accept(0x30, encrypted(auth)) }
+        assertEquals(0, counters.sessionTicketRejected.get())
+        assertFails { exchange(GameExchange.Role.SESSION, tickets, counters).accept(0x30, encrypted(auth)) }
+        assertEquals(1, counters.sessionTicketRejected.get(), "a reused single-use token is counted")
         assertFails { session.accept(0x30, encrypted(auth, 2)) }
     }
     @Test fun badAccountGetsDirectionalFailureHeader() {
-        val login = exchange(GameExchange.Role.LOGIN)
+        val counters = GatewayCounters()
+        val login = exchange(GameExchange.Role.LOGIN, counters = counters)
         val response = login.accept(0x30, encrypted(request("bad")))!!
+        assertEquals(1, counters.loginRejected.get()); assertEquals(0, counters.loginAccepted.get())
         val body = Envelope.decode(LegacyBlowfish(b).decrypt(response.copyOfRange(4, response.size)), 1).second
         assertContentEquals(hex("7002000000000000010000"), body)
         assertEquals(GameExchange.State.REJECTED, login.state)

@@ -72,3 +72,32 @@ groups:
         annotations:
           summary: 'LOGH7 state volume under 1 GiB free'
           description: 'Under 1 GiB free on the state volume of {{ $labels.instance }}; a full volume stops the world engine.'
+      # Repeated failures at the gateway (counts only). Windows and thresholds are operating policy.
+      - alert: LOGH7LoginFailuresHigh
+        expr: increase(logh7_login_rejected_total[10m]) >= 20
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 many rejected logins'
+          description: 'At least 20 logins were rejected in ten minutes on {{ $labels.instance }} (password guessing or a broken account file).'
+      - alert: LOGH7SessionTicketRejections
+        expr: increase(logh7_session_ticket_rejected_total[10m]) >= 10
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 session tickets rejected'
+          description: 'At least 10 session-port tickets were rejected in ten minutes on {{ $labels.instance }} (expired, reused or sent to the wrong session address).'
+      - alert: LOGH7UpdateFailuresHigh
+        expr: increase(logh7_update_failed_total[15m]) >= 5
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 update exchanges failing'
+          description: 'At least 5 update exchanges started but did not complete in fifteen minutes on {{ $labels.instance }}.'
+      - alert: LOGH7ConnectionErrorsHigh
+        expr: increase(logh7_connection_errors_total[10m]) >= 50
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 many failed connections'
+          description: 'At least 50 connections closed on protocol or handler errors in ten minutes on {{ $labels.instance }}.'

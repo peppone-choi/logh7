@@ -1,9 +1,9 @@
 name: game-alerts
 on:
   push:
-    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/docker-compose.yml', 'deploy/docker-compose.metrics.yml', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
+    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/docker-compose.yml', 'deploy/docker-compose.metrics.yml', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/gateway/**', 'server/app/**', '.github/workflows/game-alerts.yml']
   pull_request:
-    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/docker-compose.yml', 'deploy/docker-compose.metrics.yml', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
+    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/docker-compose.yml', 'deploy/docker-compose.metrics.yml', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/gateway/**', 'server/app/**', '.github/workflows/game-alerts.yml']
 permissions:
   contents: read
 jobs:

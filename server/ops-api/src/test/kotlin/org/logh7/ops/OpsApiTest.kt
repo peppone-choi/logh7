@@ -192,6 +192,14 @@ class OpsApiTest {
         assertFalse("state_disk" in opsMetrics(EngineHealth.RUNNING, snapshot, manual))
     }
 
+    @Test fun gatewayOutcomeCountersAreExportedAsCountersAndMalformedNamesAreRefused() {
+        val text = opsMetrics(EngineHealth.RUNNING, snapshot, gateway = linkedMapOf("login_rejected_total" to 3L, "update_failed_total" to 1L))
+        assertTrue("# TYPE logh7_login_rejected_total counter\nlogh7_login_rejected_total 3\n" in text)
+        assertTrue("logh7_update_failed_total 1" in text)
+        assertFalse("login_rejected" in opsMetrics(EngineHealth.RUNNING, snapshot))
+        assertFailsWith<IllegalArgumentException> { opsMetrics(EngineHealth.RUNNING, snapshot, gateway = mapOf("bad name" to 1L)) }
+    }
+
     @Test fun backupRoutesAreAuditedAndReportTheLastSuccess() {
         var taken = 0
         val backups = object : StateBackups {
