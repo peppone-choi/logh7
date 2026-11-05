@@ -7,6 +7,11 @@ import java.util.Collections
 /** Process > local secrets > shared settings. Files are data, never shell code. Author: Peppone Choi (peppone-choi). */
 class RuntimeEnvironment private constructor(private val values:Map<String,String>) {
     operator fun get(name:String):String?=values[name]
+    internal fun overlay(changes:Map<String,String?>):RuntimeEnvironment {
+        val merged=values.toMutableMap()
+        changes.forEach {(key,value)->if(value==null)merged.remove(key) else merged[key]=value}
+        return RuntimeEnvironment(Collections.unmodifiableMap(merged))
+    }
 
     companion object {
         fun load(process:Map<String,String> = System.getenv(), directory:Path = Path.of("").toAbsolutePath()):RuntimeEnvironment {

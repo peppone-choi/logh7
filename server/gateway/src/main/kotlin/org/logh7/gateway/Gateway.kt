@@ -9,6 +9,9 @@ import io.netty.channel.socket.SocketChannel
 import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder
 import org.logh7.protocol.Frames
+import org.logh7.protocol.LobbyMessages
+import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.SessionEndingMessages
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.nio.file.*
@@ -61,12 +64,17 @@ internal class CaptureHandler(private val capture: Capture, private val id: Stri
 class Gateway(private val captureDirectory: Path? = null, private val accounts: Map<String, String> = emptyMap(), private val characterFile: Path? = null,
     private val gameSeconds: () -> Long = { 0 }, private val admission: GameAdmission? = null,
     private val world: WorldBootstrap? = null, private val navigation: GameNavigation? = null,
-    private val stock: GameStock? = null, private val administration: GameAdministration? = null) : AutoCloseable {
+    private val stock: GameStock? = null, private val administration: GameAdministration? = null,
+    private val sessionDirectory:GameSessionDirectory?=null,
+    private val sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,
+    private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
     private val clients = DefaultChannelGroup(GlobalEventExecutor.INSTANCE, true)
     private val closed = AtomicBoolean()
+    @Volatile private var started=false
+    private var sessionRegistration:AutoCloseable?=null
     private var tacticalEndSubscription: AutoCloseable? = null
     private var combatSubscription: AutoCloseable? = null
     private var movementSubscription: AutoCloseable? = null
@@ -92,7 +100,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         val hosts = (listOf(bindAddress) + additionalBindAddresses).map(::checkedBindAddress)
         require(hosts.distinct().size == hosts.size)
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
-        val tickets = SessionTickets()
+        require(sessionDirectory!=null || sessionId==LobbyMessages.LOCAL_SESSION_ID && sessionName==LobbyMessages.LOCAL_SESSION_NAME)
+        val tickets = sessionDirectory?.tickets ?: SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
         presence?.disguise = { id -> navigation?.snapshot()?.planetStocks?.social?.justice?.disguises?.get(id)?.let {
             org.logh7.engine.EspionageActions.aliases[it.alias] to it.power } }
@@ -102,6 +111,30 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        fun information(snapshot:org.logh7.engine.WorldSnapshot?,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
+            if(snapshot?.result!=null && snapshot.session?.generation==(admission?.generation ?: 1L))
+                return SessionEndingReport.session(snapshot,registered).copy(id=sessionId,name=sessionName)
+            val powers=listOf(2,3).map {power->SessionEndingMessages.PowerResult(power,0,
+                registered.count {it.power==power}.toLong(),
+                snapshot?.planetStocks?.bases?.values?.count {it.power==power && it.camp==0}?.toLong() ?: 0,null)}
+            return SessionEndingMessages.Session(sessionId,1,sessionName,"",snapshot?.session?.gameSeconds ?: 0,powers,null)
+        }
+        sessionRegistration=sessionDirectory?.register(GameSessionDirectory.Entry(sessionId,sessionName,sessionAddress,sessionPort,hosts.toSet(),
+            generation={admission?.generation ?: 1L},available={started && !closed.get() && admission?.running!=false},
+            information={information(navigation?.snapshot(),currentCharacters().registeredCharacters())},
+            character={account->
+                val snapshot=navigation?.snapshot();val characters=currentCharacters()
+                val generation=snapshot?.session?.generation
+                if(!started || closed.get() || generation!=null && generation!=(admission?.generation ?: 1L))null else {
+                    characters.character(account)?.takeIf {org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}
+                        ?.let {characters.retire(account,it.id)}
+                    characters.character(account)?.takeIf {admission?.running!=false || snapshot?.result!=null}?.let {character->
+                        val info=information(snapshot,characters.registeredCharacters())
+                        val evaluation=if(snapshot?.result==null)null else characterStores.fame.evaluation(snapshot,characters,account)
+                        LobbyMessages.ChargedSession(character,info,evaluation)
+                    }
+                }
+            }),accounts)
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById)}}
         tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
         fameSubscription=stock?.observeSessionResults {s->s.session?.generation?.let {g->
@@ -158,7 +191,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 clients.add(ch)
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
-                                stock = stock, administration = administration, communication=communication, fame=characterStores.fame, presence = presence, onPresence = { messages ->
+                                stock = stock, administration = administration, communication=communication, fame=characterStores.fame,
+                                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,
+                                presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
                                 val updateExchange = UpdateExchange()
@@ -272,10 +307,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                     channels += bootstrap.bind(host, port).sync().channel()
                 }
             }
+            started=true
         } catch (failure: Throwable) { close(); throw failure }
     }
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
+        started=false;sessionRegistration?.close()
         tacticalEndSubscription?.close()
         combatSubscription?.close()
         movementSubscription?.close()

@@ -8,6 +8,23 @@ object LobbyMessages {
     const val LOCAL_SESSION_NAME = "LOGH7 Local"
     fun loginOk() = LoginMessages.sessionMessage(0x2001, byteArrayOf(0, 0, 0))
     fun noCharacters() = LoginMessages.sessionMessage(0x2004, byteArrayOf(0))
+    data class ChargedSession(val character:CharacterMessages.Generate,val information:SessionEndingMessages.Session?,
+        val evaluation:SessionEndingMessages.Evaluation?=null)
+    fun characters(entries:List<ChargedSession>):ByteArray {
+        require(entries.size<=255 && entries.map {it.information?.id}.distinct().size==entries.size)
+        val bodies=entries.map {entry->characters(entry.character,entry.information,entry.evaluation).let {it.copyOfRange(7,it.size)}}
+        return checkedLobbyMessage(0x2004,byteArrayOf(entries.size.toByte())+bodies.fold(byteArrayOf()){a,b->a+b})
+    }
+    fun sessions(entries:List<SessionEndingMessages.Session>):ByteArray {
+        require(entries.size<=255 && entries.map {it.id}.distinct().size==entries.size)
+        return checkedLobbyMessage(0x2006,byteArrayOf(0,entries.size.toByte())+
+            entries.fold(byteArrayOf()){bytes,entry->bytes+SessionEndingMessages.information(entry)})
+    }
+    private fun checkedLobbyMessage(opcode:Int,body:ByteArray):ByteArray {
+        val message=LoginMessages.sessionMessage(opcode,body)
+        require(((8+message.size+7)/8)*8+6<=Frames.MAX_PAYLOAD) {"Session list exceeds the native encrypted frame budget"}
+        return message
+    }
     /** 0043fd60: session information, next-session count, entry state, charged character summary. */
     fun characters(character: CharacterMessages.Generate?,
         information:SessionEndingMessages.Session?=null,evaluation:SessionEndingMessages.Evaluation?=null): ByteArray {
