@@ -18,14 +18,13 @@ uses a record format the target release cannot read. An older release still star
 the operator must restore the pre-upgrade backup first. ``--world`` (``LOGH7_WORLD_STATE_DIR``) adds
 the versioned store headers (``LOGH7-STOCK-N``, ``LOGH7-NAV-N``, ``LOGH7-WORLD-N``): each must be an
 exact string constant of the matching store class in the target release. ``--definitions-db``
-(implied when ``LOGH7_DEFINITIONS_JDBC_URL`` is set) requires the PostgreSQL country definition reader.
+(full definitions published in PostgreSQL, not only colors) requires the PostgreSQL country definition reader.
     server_release.py classpath --releases DIR
 """
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
 import sys
 import zipfile
@@ -169,8 +168,9 @@ def switch(releases: Path, name: str, health: str | None, characters: Path | Non
 
 
 def definitions_db(args: argparse.Namespace) -> bool:
-    """Explicit flag, or the deployment environment names a definitions database (value never read)."""
-    return args.definitions_db or bool(os.environ.get("LOGH7_DEFINITIONS_JDBC_URL"))
+    # Explicit only: LOGH7_DEFINITIONS_JDBC_URL also serves the older color-only database
+    # (PostgresCountryColors), which every current release reads.
+    return args.definitions_db
 
 
 def activate(args: argparse.Namespace) -> None:
@@ -211,14 +211,14 @@ def main(argv: list[str] | None = None) -> None:
     use.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     use.add_argument("--world", help="LOGH7_WORLD_STATE_DIR; refuse a release that cannot read its file headers")
     use.add_argument("--definitions-db", action="store_true",
-                   help="country definitions come from PostgreSQL (implied when LOGH7_DEFINITIONS_JDBC_URL is set)")
+                   help="full country definitions are published in PostgreSQL (not only colors)")
     use.set_defaults(run=activate)
     back = commands.add_parser("rollback")
     back.add_argument("--releases", required=True)
     back.add_argument("--characters", help="live characters file; refuse a release that cannot read its records")
     back.add_argument("--world", help="LOGH7_WORLD_STATE_DIR; refuse a release that cannot read its file headers")
     back.add_argument("--definitions-db", action="store_true",
-                   help="country definitions come from PostgreSQL (implied when LOGH7_DEFINITIONS_JDBC_URL is set)")
+                   help="full country definitions are published in PostgreSQL (not only colors)")
     back.set_defaults(run=rollback)
     path = commands.add_parser("classpath")
     path.add_argument("--releases", required=True)

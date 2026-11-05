@@ -67,7 +67,7 @@ PR #290부터 캐릭터 기록은 다음 저장 때 `v2:` 형식으로 바뀐다
 국가 정의 편집(Codex `country-definition-editor`, 새 `PostgresCountryDefinitions`·`V3__country_definition_revision.sql`) 이후 `LOGH7_DEFINITIONS_JDBC_URL`이 설정된 배포에서는 국가·계열·역법 정의의 원천이 PostgreSQL이다. 이 정의는 `state_backup.py`의 파일 백업에 들어가지 않는다.
 
 - 업데이트 전: 파일 백업과 함께 정의 DB를 따로 백업한다(예: 정의 테이블 `pg_dump --format=custom`, 또는 위 2번의 물리 백업 시점 기록). 두 백업의 시각을 같이 남긴다.
-- 복귀: `server_release.py activate`·`rollback`은 `--definitions-db`를 주거나 환경에 `LOGH7_DEFINITIONS_JDBC_URL`이 있으면(값은 읽지 않음) 대상 릴리스에 `org/logh7/persistence/PostgresCountryDefinitions.class`가 없을 때 전환을 거부한다. 이 리더가 없는 릴리스는 DB에 게시된 정의를 무시하고 내장 목록으로 시작하므로, 오류 없이 다른 국가 정의로 돌게 된다(Codex 설명, 이 리허설에서 기동 재현은 하지 않음).
+- 복귀: `server_release.py activate`·`rollback --definitions-db`는 대상 릴리스에 `org/logh7/persistence/PostgresCountryDefinitions.class`가 없을 때 전환을 거부한다. 같은 `LOGH7_DEFINITIONS_JDBC_URL`이 기존 국가 색상 DB(`PostgresCountryColors`)에도 쓰이므로 환경 변수만으로는 켜지 않는다. 전체 정의를 DB에 게시한 뒤부터 이 플래그를 준다. 이 리더가 없는 릴리스는 DB에 게시된 정의를 무시하고 내장 목록으로 시작하므로, 오류 없이 다른 국가 정의로 돌게 된다(Codex 설명, 이 리허설에서 기동 재현은 하지 않음).
 - 리더가 없는 릴리스로 꼭 돌아가야 하면 정의 DB 사용을 끄고(`LOGH7_DEFINITIONS_JDBC_URL` 제거) 그 릴리스 시점의 파일 상태와 정의로 복원한다.
 
 확인: 검사 5개 통과. 실제 릴리스 두 개(PR #290 이전, PR #294 main `931e2b81`)는 둘 다 리더가 없어 `--definitions-db`에서 거부됨을 확인했다(PR #294까지 이 클래스가 없었다). 정의 DB 백업·복원 자체와 Flyway V3가 적용된 DB에서 이전 릴리스의 동작은 미검증이다.

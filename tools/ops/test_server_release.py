@@ -129,19 +129,17 @@ class ServerReleaseTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as refused:
             self.tool("activate", "old", "--releases", str(self.releases), "--definitions-db")
         self.assertIn("country definitions database", str(refused.exception))
+        self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+        # The same JDBC variable also serves the color-only database, so it alone does not refuse.
         saved = os.environ.get("LOGH7_DEFINITIONS_JDBC_URL")
         os.environ["LOGH7_DEFINITIONS_JDBC_URL"] = "jdbc:postgresql://127.0.0.1/test"
         try:
-            with self.assertRaises(SystemExit):
-                self.tool("activate", "old", "--releases", str(self.releases))
+            self.tool("activate", "old", "--releases", str(self.releases))
         finally:
             if saved is None:
                 os.environ.pop("LOGH7_DEFINITIONS_JDBC_URL")
             else:
                 os.environ["LOGH7_DEFINITIONS_JDBC_URL"] = saved
-        self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
-        # Without a definitions database the old release is a valid rollback target.
-        self.tool("activate", "old", "--releases", str(self.releases))
 
 if __name__ == "__main__":
     unittest.main()
