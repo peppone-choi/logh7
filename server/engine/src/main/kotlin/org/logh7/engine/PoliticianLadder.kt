@@ -21,9 +21,12 @@ object PoliticianLadder {
     fun monthly(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>,month:Long):PlanetStocks {
         var people=stocks.strategic.people
         for(identity in identities.sortedBy {it.id}) {
+            // These restored political ladders belong to the original two countries. A new country
+            // sharing their portraits or ships does not inherit their government rules.
+            if(identity.country!=Power.EMPIRE.country && identity.country!=Power.ALLIANCE.country)continue
             val person=people[identity.id] ?: StrategicPerson()
             if((person.rank ?: identity.rank)!=POLITICIAN || person.merit!=0L)continue
-            people=people+(identity.id to if(identity.power==3)person.copy(rank=CONVERTED_RANK,militaryRank=0) else {
+            people=people+(identity.id to if(identity.country==Power.ALLIANCE.country)person.copy(rank=CONVERTED_RANK,militaryRank=0) else {
                 val abilities=(person.abilities ?: identity.abilities).toMutableList()
                 val index=java.util.Random(month*1_000_003L+identity.id).nextInt(abilities.size)
                 abilities[index]=maxOf(0,abilities[index]-1)
@@ -50,7 +53,7 @@ object PoliticianLadder {
     fun election(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>):PlanetStocks {
         if(!chairmanVacant(galaxy,stocks))return stocks
         val people=stocks.strategic.people;val support=stocks.social.funds.support
-        val candidates=identities.filter {it.power==3 && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L}
+        val candidates=identities.filter {it.country==Power.ALLIANCE.country && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L}
         val winner=candidates.sortedWith(compareByDescending<StrategicIdentity> {support[it.id] ?: 0L}
             .thenByDescending {people[it.id]?.merit ?: 0L}.thenBy {it.id}).firstOrNull() ?: return stocks
         val capital=galaxy.bases.single {Capital.of(it)==Capital.ALLIANCE}

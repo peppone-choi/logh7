@@ -11,6 +11,18 @@ class PoliticianLadderTest {
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
     private val stocks=PlanetStocks(1,30,mapOf(1049 to PlanetStock(1049,2,0,100,200,300),1177 to PlanetStock(1177,3,0,100,200,300)))
     private fun id(id:Int,power:Int,rank:Int=1)=StrategicIdentity(id,power,rank,0,List(8){50})
+    @Test fun foreignAndUnattachedPoliticiansNeitherInheritNorChangeRankOrAbilities() {
+        val foreign=listOf(CountryId(1),CountryId(4),CountryId(42),null).mapIndexed {index,country->
+            StrategicIdentity(100+index,country,1,0,List(8){99})
+        }
+        val people=foreign.associate {it.id to StrategicPerson()}
+        val before=stocks.copy(strategic=StrategicState(people=people))
+        val after=PoliticianLadder.monthly(galaxy,before,foreign,1)
+        assertEquals(people,after.strategic.people)
+        assertTrue(OrganizationalOfficePolicy(galaxy).holders(after,1).isEmpty())
+        assertTrue(OrganizationalOfficePolicy(galaxy).holders(after,132).isEmpty())
+        assertEquals(listOf(2),SuccessionActions.order(before,foreign+id(2,2)))
+    }
     @Test fun zeroMeritPoliticiansAreConvertedOrWeakenedByFaction() {
         val people=mapOf(3 to StrategicPerson(merit=5),4 to StrategicPerson(merit=7))
         val s=stocks.copy(strategic=StrategicState(people=people))

@@ -23,6 +23,25 @@ class PersonnelActionsTest {
     private fun request(command:Int,target:Int=10001,card:Int=19)=StrategyActionRequest("actor","c",10000,Power.EMPIRE,
         1,command,card,2,target=target,identities=identities)
     private fun act(r:StrategyActionRequest,s:PlanetStocks=stocks())=StrategyActions.evaluate(galaxy,r,session,p,s)
+    @Test fun foreignAndUnattachedCharactersCannotReceiveDomesticPromotionsOrDistortTheLadder() {
+        for(country in listOf(CountryId(1),CountryId(4),CountryId(42),null)) {
+            val ids=identities.map {if(it.id==10001)it.copy(country=country) else it}
+            val s=stocks()
+            val denied=act(request(0).copy(identities=ids),s)
+            assertEquals(StrategyActionRejection.IDENTITY,denied.rejection)
+            assertEquals(s,denied.stocks);assertEquals(p,denied.player)
+            assertNull(act(request(0,10002).copy(identities=ids),s).rejection,"foreign merit must not top our ladder")
+        }
+    }
+    @Test fun promotionPreservesAnImperialCharactersAllianceShipStyle() {
+        val target=Navigator(1,10001,CountryId(2),2487,1000,1000,1000,
+            hull=FlagshipHull(93,0),shipStyle=ShipStyleId("alliance"))
+        val result=act(request(0).copy(navigators=mapOf("target" to target)))
+        assertNull(result.rejection)
+        val promoted=assertNotNull(result.navigators["target"])
+        assertEquals(CountryId(2),promoted.country);assertEquals(ShipStyleId("alliance"),promoted.shipStyle)
+        assertEquals(Flagships.forType(3,2).kind,promoted.hull?.kind)
+    }
     @Test fun promotionRequiresTheCurrentTopAndClearsOfficesWithMeritReset() {
         val s=stocks();val promoted=act(request(0),s)
         assertNull(promoted.rejection);assertEquals(840,promoted.player?.mcp)

@@ -11,6 +11,25 @@ import kotlin.test.*
 class CharacterCarryOverTest {
     private fun character(id:Long,age:Int,generated:Boolean=true)=CharacterMessages.Generate(4,id,2,0,0,"N$id","Pilot",age,1,1,1000001,
         List(8){50},0,0,0,9,3,0,"Ship$id",1,generated=generated)
+    @Test fun carryOverUsesTheEndedWorldCountryAndStyleAndRestoresThemInTheNextGeneration() {
+        val dir=Files.createTempDirectory("carry-country")
+        val file=dir.resolve("characters.properties")
+        val stores=CharacterStores(file)
+        assertTrue(stores.get(1).carry("veteran",character(10000,30)))
+        val end=SessionEnd(EndReason.TIME_LIMIT,emptySet(),100)
+        val result=SessionResults.assess(end,SessionStatistics(population=10),mapOf(
+            Power.EMPIRE to SessionStatistics(population=6),Power.ALLIANCE to SessionStatistics(population=4)),VictoryConditions(true,true))
+        val session=SessionSimulation(SessionRules.load()).snapshot().copy(ended=end)
+        val nav=Navigator(1,10000,CountryId(42),2487,1000,1000,1000,shipStyle=ShipStyleId("alliance"))
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(
+            10000 to StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION))))
+        val world=WorldSnapshot(0,0,session,navigators=mapOf("veteran" to nav),planetStocks=stocks,result=result)
+        assertEquals(listOf("veteran"),stores.carryOver(world))
+        val restored=CharacterStores(file).get(2).profiles().getValue("veteran")
+        assertEquals(CountryId(42),restored.country);assertEquals(ShipStyleId("alliance"),restored.shipStyle)
+        assertEquals(CountryId(2),CharacterStores(file).get(1).profiles().getValue("veteran").country)
+        assertTrue(stores.carryOver(world).isEmpty())
+    }
     @Test fun qualifyingGeneratedCharactersMoveToTheNextGenerationWithAgeAbilitiesAndRank() {
         val dir=Files.createTempDirectory("carry")
         val file=dir.resolve("characters.properties")

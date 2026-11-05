@@ -86,7 +86,7 @@ class OrganizationOfficesTest {
             val deniedDismissal=OfficeDismissal.evaluate(galaxy,OfficeDismissalRequest("actor","c",10000,power(role.power),1,
                 10001,role.card,0,role.power),session(role.power),player(role.power),outsider)
             assertEquals(DismissalRejection.AUTHORITY,deniedDismissal.rejection,role.manual.post)
-            val foreign=GarrisonAppointment.evaluate(galaxy,q.copy(targetPower=if(role.power==2)3 else 2),
+            val foreign=GarrisonAppointment.evaluate(galaxy,q.copy(targetCountry=CountryId(if(role.power==2)3 else 2)),
                 session(role.power),player(role.power),initial)
             assertEquals(AppointmentRejection.TARGET,foreign.rejection,role.manual.post)
         }

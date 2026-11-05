@@ -34,7 +34,7 @@ class FleetCommanderAppointmentTest {
         assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(actorRank=3)).rejection)
         for(rank in listOf(-1,0,1,2,6,20)) assertEquals(AppointmentRejection.RANK,act(request.copy(targetRank=rank)).rejection)
         for(rank in 3..5) assertNull(act(request.copy(targetRank=rank)).rejection)
-        assertEquals(AppointmentRejection.TARGET,act(request.copy(targetPower=3)).rejection)
+        assertEquals(AppointmentRejection.TARGET,act(request.copy(targetCountry=CountryId(3))).rejection)
         assertEquals(AppointmentRejection.TARGET,act(request.copy(target=10000)).rejection)
         assertEquals(AppointmentRejection.BASE,act(request.copy(outfit=999)).rejection)
         assertEquals(AppointmentRejection.BASE,act(request.copy(base=1177)).rejection)

@@ -3,8 +3,13 @@ package org.logh7.engine
 import org.logh7.engine.strategy.*
 
 data class OfficeDismissalRequest(val account:String,val connection:String,val characterId:Int,val power:Power,
-    val generation:Long,val target:Int,val card:Int,val actorRank:Int,val targetPower:Int,
-    val politics:Int=50,val administration:Int=50)
+    val generation:Long,val target:Int,val card:Int,val actorRank:Int,val targetCountry:CountryId?,
+    val politics:Int=50,val administration:Int=50) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,target:Int,card:Int,
+        actorRank:Int,targetPower:Int,politics:Int=50,administration:Int=50):
+        this(account,connection,characterId,power,generation,target,card,actorRank,
+            when(targetPower) {2,3->CountryId(targetPower);else->null},politics,administration)
+}
 enum class DismissalRejection { SESSION,IDENTITY,TARGET,CARD,AUTHORITY,AMBIGUOUS,BUSY,CP,STORAGE }
 data class OfficeDismissalResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:DismissalRejection?=null,
     val changed:Boolean=false,val recovery:NavigationResult?=null,val targetPlayer:Navigator?=null)
@@ -40,9 +45,9 @@ internal object OfficeDismissal {
         if(session.ended!=null || session.generation!=r.generation || stocks.generation!=r.generation ||
             !participant.online || participant.connection!=r.connection) return reject(DismissalRejection.SESSION)
         if(player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
-            player.power!=r.power || participant.power!=r.power) return reject(DismissalRejection.IDENTITY)
+            player.country!=r.power.country || participant.country!=r.power.country) return reject(DismissalRejection.IDENTITY)
         val power=if(r.power==Power.EMPIRE)2 else 3
-        if(r.target<=0 || r.target==r.characterId || r.targetPower!=power) return reject(DismissalRejection.TARGET)
+        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country) return reject(DismissalRejection.TARGET)
         if(OrganizationOffices.of(r.card)?.authority==null)
             return reject(DismissalRejection.CARD)
         val policy=OfficeDismissalPolicy(galaxy)

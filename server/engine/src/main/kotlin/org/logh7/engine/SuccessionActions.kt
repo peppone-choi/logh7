@@ -54,7 +54,7 @@ object SuccessionActions {
     /** Line of succession (see the class comment). */
     fun order(s:PlanetStocks,identities:List<StrategicIdentity>):List<Int> {
         val people=s.strategic.people;val heir=s.social.succession.heir
-        return identities.filter {it.power==2 && alive(s,it.id) && !CoupActions.rebel(s,it.id)}
+        return identities.filter {it.country==Power.EMPIRE.country && alive(s,it.id) && !CoupActions.rebel(s,it.id)}
             .sortedWith(compareBy<StrategicIdentity> {if(it.id==heir)0 else 1}
                 .thenBy {people[it.id]?.peerage?.ordinal ?: Peerage.entries.size}
                 .thenByDescending {people[it.id]?.influence ?: 0}
@@ -99,7 +99,7 @@ object SuccessionActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.power.country || member.country!=i.power.country)
             return reject(SocialRejection.IDENTITY)
         if(p.power!=Power.EMPIRE)return reject(SocialRejection.CARD)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
@@ -108,7 +108,7 @@ object SuccessionActions {
             DESIGNATE -> {
                 if(i.card!=EMPEROR || policy.holders(s,EMPEROR).none {it.character==i.characterId})return reject(SocialRejection.CARD)
                 val target=i.identities.singleOrNull {it.id==i.target}
-                if(target==null || target.power!=2 || target.id==i.characterId || !alive(s,target.id) || CoupActions.rebel(s,target.id))
+                if(target==null || target.country!=Power.EMPIRE.country || target.id==i.characterId || !alive(s,target.id) || CoupActions.rebel(s,target.id))
                     return reject(SocialRejection.TARGET)
             }
             CONTEST -> {

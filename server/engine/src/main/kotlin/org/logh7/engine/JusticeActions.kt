@@ -107,7 +107,7 @@ object JusticeActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.power.country || member.country!=i.power.country)
             return reject(SocialRejection.IDENTITY)
         if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
         val j=s.social.justice
@@ -119,7 +119,9 @@ object JusticeActions {
         if(i.card!=0 && !holds)return reject(SocialRejection.CARD)
         if(i.target<=0 || i.target==i.characterId)return reject(SocialRejection.TARGET)
         val targetNav=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
-        val targetPower=targetNav?.let(::powerOf) ?: ids.singleOrNull {it.id==i.target}?.power ?: return reject(SocialRejection.TARGET)
+        val targetIdentity=ids.singleOrNull {it.id==i.target}
+        if(targetNav==null && targetIdentity==null)return reject(SocialRejection.TARGET)
+        val targetCountry=if(targetNav!=null)targetNav.country else targetIdentity?.country
         val targetRank=rank(s,ids,i.target)
         fun pay(next:PlanetStocks,player:Navigator=p,players:Map<String,Navigator> = emptyMap()):SocialResult {
             val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),cost,CpPool.MCP)
@@ -128,14 +130,14 @@ object JusticeActions {
         }
         when(i.command) {
             Justice.PERMIT -> {
-                if(!holds || !Justice.arrests(i.card,targetRank) || targetPower!=power)return reject(SocialRejection.TARGET)
+                if(!holds || !Justice.arrests(i.card,targetRank) || targetCountry!=p.country)return reject(SocialRejection.TARGET)
                 if(i.value !in 1..7 || j.detained(i.target))return reject(SocialRejection.COMMAND)
                 return pay(s.copy(social=s.social.copy(justice=j.copy(permits=j.permits+(i.target to
                     ArrestPermit(i.target,i.characterId,power,i.value,now+Justice.PERMIT_DAYS*Justice.DAY))))))
             }
             Justice.EXECUTION -> {
                 val listed=j.permits[i.base]?.takeIf {it.power==power && it.until>now} ?: return reject(SocialRejection.STALE)
-                if(!holds || !Justice.arrests(i.card,rank(s,ids,listed.target)) || targetPower!=power || i.target==listed.target)
+                if(!holds || !Justice.arrests(i.card,rank(s,ids,listed.target)) || targetCountry!=p.country || i.target==listed.target)
                     return reject(SocialRejection.TARGET)
                 val rights=if(i.value==1)j.rights.filterValues {!(it.holder==i.target && it.target==listed.target)}
                     else if(i.value==0)j.rights+(i.target to ArrestRight(i.target,listed.target,i.characterId,now+Justice.RIGHT_DAYS*Justice.DAY))
@@ -173,7 +175,7 @@ object JusticeActions {
             Justice.RAID -> {
                 if(!holds || i.card !in Justice.raidCards)return reject(SocialRejection.CARD)
                 val t=targetNav ?: return reject(SocialRejection.LOCATION)
-                if(targetPower==power)return reject(SocialRejection.TARGET)
+                if(targetCountry==p.country)return reject(SocialRejection.TARGET)
                 val sameSpot=p.spotId!=0 && t.baseId==p.baseId && t.spotId==p.spotId && t.spotOwner==p.spotOwner && !t.cpPaused
                 if(!sameSpot)return reject(SocialRejection.LOCATION)
                 val threshold=Justice.arrestThreshold(intelligence(s,ids,i.characterId),intelligence(s,ids,i.target))

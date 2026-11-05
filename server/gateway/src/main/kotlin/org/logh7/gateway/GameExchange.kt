@@ -803,7 +803,8 @@ class GameExchange(
                             identity.account,connection,character.id.toInt(),
                             if (character.power==2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             checkNotNull(generation),query.base,query.target,query.card,character.rank,target?.rank ?: -1,
-                            target?.power ?: 0,character.abilities[1],character.abilities[2],query.outfit)).thenApply { result ->
+                            WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).singleOrNull {it.id==query.target}?.country,
+                            character.abilities[1],character.abilities[2],query.outfit)).thenApply { result ->
                             val player=checkNotNull(result.player) { "Appointment lost its authenticated actor" }
                             publication=Publication(character,player,false)
                             if (result.rejection==null && target!=null) result.targetPlayer?.let { targetPlayer ->
@@ -827,7 +828,8 @@ class GameExchange(
                         pendingWorld=administration.dismissOffice(org.logh7.engine.OfficeDismissalRequest(
                             identity.account,connection,query.character,
                             if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
-                            checkNotNull(generation),query.target,query.card,character.rank,target?.power ?: 0,
+                            checkNotNull(generation),query.target,query.card,character.rank,
+                            WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).singleOrNull {it.id==query.target}?.country,
                             character.abilities[1],character.abilities[2])).thenApply { result ->
                             val player=checkNotNull(result.player) { "Dismissal lost its authenticated actor" }
                             publication=Publication(character,player,false)
@@ -1500,7 +1502,7 @@ class GameExchange(
                                         }
                                         if(query.command==org.logh7.engine.SuccessionActions.DESIGNATE) {
                                             // 後継指名: living empire characters other than the emperor, in the current line of succession.
-                                            val ids=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),id.power,id.rank,id.origin,id.abilities.toList())}
+                                            val ids=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
                                             val line=org.logh7.engine.SuccessionActions.order(inventory,ids).filter {it!=character.id.toInt() && it>query.target}
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,line.take(200).mapNotNull {id->
                                                 currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname.take(12))}})
@@ -1705,8 +1707,7 @@ class GameExchange(
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
-                                        base=query.base,amount=query.amount.toLong(),identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),
-                                            id.power,id.rank,id.origin,id.abilities.toList())}))
+                                        base=query.base,amount=query.amount.toLong(),identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())))
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player)
                                         if(result.defected!=0) {
@@ -1777,8 +1778,7 @@ class GameExchange(
                                     query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                     checkNotNull(generation),query.command,query.card,character.rank,query.outfit,
                                     character.abilities[1],character.abilities[2],query.target,query.base,query.value,
-                                    identities=characters.registeredCharacters().map {id->org.logh7.engine.StrategicIdentity(id.id.toInt(),id.power,
-                                    id.rank,id.origin,id.abilities.toList())},amount=query.amount.toLong(),argument=query.argument,
+                                    identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()),amount=query.amount.toLong(),argument=query.argument,
                                     requestToken=java.nio.ByteBuffer.wrap(query.raw).getShort(27).toInt() and 65535)).thenApply {result ->
                                     val player=checkNotNull(result.player)
                                     val updated=checkNotNull(currentCharacter(identity.account))

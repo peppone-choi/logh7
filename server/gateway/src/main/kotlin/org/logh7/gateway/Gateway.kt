@@ -153,8 +153,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             stock.snapshot(generation).get(10,java.util.concurrent.TimeUnit.SECONDS)
             navigation?.snapshot()?.takeIf {it.result!=null}?.let(::settleResult)
         }
-        identitySubscription=stock?.provideIdentities {currentCharacters().registeredCharacters().map {c->
-            org.logh7.engine.StrategicIdentity(c.id.toInt(),c.power,c.rank,c.origin,c.abilities.toList(),c.age)}}
+        identitySubscription=stock?.provideIdentities {WorldCharacters.identities(currentCharacters().profiles(),navigation?.snapshot())}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
             {generation,id->communicationIdentity(characterStores.get(generation),id)},
             {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},

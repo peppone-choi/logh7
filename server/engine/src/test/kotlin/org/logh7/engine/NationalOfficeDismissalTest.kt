@@ -98,7 +98,7 @@ class NationalOfficeDismissalTest {
             for((r,reason) in listOf(
                 q.copy(card=if(role.power==2)2 else 132) to DismissalRejection.CARD,
                 q.copy(target=10000) to DismissalRejection.TARGET,
-                q.copy(targetPower=if(role.power==2)3 else 2) to DismissalRejection.TARGET,
+                q.copy(targetCountry=CountryId(if(role.power==2)3 else 2)) to DismissalRejection.TARGET,
                 q.copy(target=10003) to DismissalRejection.AUTHORITY)) {
                 val denied=act(r,s,p)
                 assertEquals(reason,denied.rejection);assertEquals(s,denied.stocks);assertEquals(p,denied.player)

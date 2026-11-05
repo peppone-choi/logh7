@@ -30,7 +30,7 @@ class FleetAideAppointmentTest {
         assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(targetCard=179)).rejection)
         for(rank in listOf(0,1,5,13,20)) assertEquals(AppointmentRejection.RANK,act(request.copy(targetRank=rank)).rejection)
         for(rank in 6..12) assertNull(act(request.copy(targetRank=rank)).rejection)
-        assertEquals(AppointmentRejection.TARGET,act(request.copy(targetPower=3)).rejection)
+        assertEquals(AppointmentRejection.TARGET,act(request.copy(targetCountry=CountryId(3))).rejection)
         assertEquals(AppointmentRejection.BASE,act(request.copy(base=1)).rejection)
         assertEquals(AppointmentRejection.BUSY,act(p=player.copy(cpPaused=true)).rejection)
         val occupied=stocks.copy(outfits=mapOf(200 to stocks.outfits.getValue(200).copy(aideId=10002)))
@@ -58,7 +58,7 @@ class FleetAideAppointmentTest {
             outfits=mapOf(200 to stocks.outfits.getValue(200).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))),
             warehouses=mapOf(300 to stocks.warehouses.getValue(300).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))))
         val state=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.ALLIANCE,false,"c")}.exportState()
-        val r=request.copy(power=Power.ALLIANCE,targetCard=179,actorRank=6,targetPower=3)
+        val r=request.copy(power=Power.ALLIANCE,targetCard=179,actorRank=6,targetCountry=CountryId(3))
         val result=GarrisonAppointment.evaluate(galaxy,r,state,player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),allied)
         assertNull(result.rejection);assertEquals(10001,result.stocks!!.outfits.getValue(200).aideId)
         assertEquals(listOf(200),FleetAideAppointmentPolicy().available(allied,10000,3,6).map {it.id})

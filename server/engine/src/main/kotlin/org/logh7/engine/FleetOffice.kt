@@ -65,7 +65,7 @@ internal object FleetOfficeAppointment {
         if(outfit.country!=CountryId(power) || outfit.kind!=OutfitKind.FLEET) return reject(AppointmentRejection.TARGET)
         if(!role.authorized(galaxy,stocks,outfit,r.characterId,r.actorRank)) return reject(AppointmentRejection.AUTHORITY)
         if(r.base!=0 && r.base!=outfit.baseId || !role.friendly(stocks,outfit)) return reject(AppointmentRejection.BASE)
-        if(r.target<=0 || r.target==r.characterId || r.targetPower!=power) return reject(AppointmentRejection.TARGET)
+        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country) return reject(AppointmentRejection.TARGET)
         if(!role.eligible(r.actorRank,r.targetRank)) return reject(AppointmentRejection.RANK)
         if(player.cpPaused || player.navigationPending) return reject(AppointmentRejection.BUSY)
         if(r.target in role.holders(outfit)) return GarrisonAppointmentResult(player,stocks)

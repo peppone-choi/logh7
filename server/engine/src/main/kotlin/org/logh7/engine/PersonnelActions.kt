@@ -13,7 +13,7 @@ internal object PersonnelActions {
         val power=if(r.power==Power.EMPIRE)2 else 3
         if(r.identities.size>4096 || r.identities.distinctBy {it.id}.size!=r.identities.size)return reject(StrategyActionRejection.IDENTITY)
         val identity=r.identities.singleOrNull {it.id==r.target} ?: return reject(StrategyActionRejection.IDENTITY)
-        if(identity.power!=power || identity.id==r.characterId)return reject(StrategyActionRejection.IDENTITY)
+        if(identity.country!=p.country || identity.id==r.characterId)return reject(StrategyActionRejection.IDENTITY)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val policy=OrganizationalOfficePolicy(galaxy)
         val person=stocks.strategic.people[r.target] ?: StrategicPerson()
@@ -40,7 +40,7 @@ internal object PersonnelActions {
                     else -> if(power==2)19 else 160
                 }
                 if(!holds(authority))return reject(StrategyActionRejection.AUTHORITY)
-                val entries=r.identities.filter {it.power==power && (stocks.strategic.people[it.id] ?: StrategicPerson()).ladderRank(it.rank)==rank}.map {id->
+                val entries=r.identities.filter {it.country==p.country && (stocks.strategic.people[it.id] ?: StrategicPerson()).ladderRank(it.rank)==rank}.map {id->
                     val progress=stocks.strategic.people[id.id] ?: StrategicPerson()
                     LadderEntry(id.id.toString(),progress.merit,if(power==2)progress.peerage else null,
                         progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
@@ -51,7 +51,7 @@ internal object PersonnelActions {
                 val limited=when(changedRank){2->LimitedRank.MARSHAL;3->LimitedRank.SENIOR_ADMIRAL;4->LimitedRank.ADMIRAL;
                     5->LimitedRank.VICE_ADMIRAL;6->LimitedRank.REAR_ADMIRAL;7->LimitedRank.COMMODORE;else->null}
                 if(limited!=null) {
-                    val count=r.identities.count {it.power==power && (stocks.strategic.people[it.id] ?: StrategicPerson()).ladderRank(it.rank)==changedRank}
+                    val count=r.identities.count {it.country==p.country && (stocks.strategic.people[it.id] ?: StrategicPerson()).ladderRank(it.rank)==changedRank}
                     val capacity=RankRules.capacity(r.power,limited) ?: return reject(StrategyActionRejection.RANK)
                     if(count>=capacity)return reject(StrategyActionRejection.MAXIMUM)
                 }
@@ -60,10 +60,13 @@ internal object PersonnelActions {
                         else person.copy(rank=changedRank)).copy(merit=if(r.command==2)100 else 0))))}
                 // U-24: a promoted character outside battle receives the new rank's default flagship.
                 if(r.command!=2)r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}?.let {(key,other)->
-                    val hull=other.hull;val now=s.gameMillis/1000;val upgrade=Flagships.rankDefault(power,changedRank)
-                    if(hull!=null && !other.cpPaused && hull.woundedUntil<=now && Flagships.tier(upgrade.kind)>Flagships.tier(hull.kind))
-                        promoted=mapOf(key to other.copy(hull=FlagshipHull(upgrade.kind,now,clockScale=hull.clockScale),energy=null,
-                            motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null))
+                    val hull=other.hull;val now=s.gameMillis/1000
+                    if(other.country==p.country && hull!=null && !other.cpPaused && hull.woundedUntil<=now) {
+                        val upgrade=Flagships.rankDefault(other.shipStyle.nativePower,changedRank)
+                        if(Flagships.tier(upgrade.kind)>Flagships.tier(hull.kind))
+                            promoted=mapOf(key to other.copy(hull=FlagshipHull(upgrade.kind,now,clockScale=hull.clockScale),energy=null,
+                                motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null))
+                    }
                 }
             }
             3 -> {

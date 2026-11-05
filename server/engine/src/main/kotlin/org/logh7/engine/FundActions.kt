@@ -35,7 +35,7 @@ object FundActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.power.country || member.country!=i.power.country)
             return reject(SocialRejection.IDENTITY)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(i.card!=0)return reject(SocialRejection.CARD)
@@ -44,7 +44,7 @@ object FundActions {
         when(i.value) {
             LOCAL -> if(i.target !in governed(s,i.characterId,own))return reject(SocialRejection.TARGET)
             CONFIDENCE -> if(i.target !in 1..2)return reject(SocialRejection.TARGET)
-            SUPPORT -> if(i.target==i.characterId || i.identities.singleOrNull {it.id==i.target}?.power!=own)
+            SUPPORT -> if(i.target==i.characterId || i.identities.singleOrNull {it.id==i.target}?.country!=p.country)
                 return reject(SocialRejection.TARGET)
         }
         val person=s.strategic.people[i.characterId] ?: StrategicPerson()

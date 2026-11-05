@@ -5,6 +5,20 @@ import org.logh7.protocol.CharacterMessages
 
 /** One current personnel view for login, observers and tactical reconnect. Author: Peppone Choi. */
 internal object WorldCharacters {
+    /** A world checkpoint is authoritative after admission/defection. Match account, character and
+     * generation so an old navigator can never supply a newly registered character's membership. */
+    fun profiles(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):Map<String,CharacterProfile> = stored.mapValues {(account,profile)->
+        val player=snapshot?.navigators?.get(account)?.takeIf {
+            it.characterId==profile.character.id.toInt() && it.generation==snapshot.session?.generation
+        }
+        if(player==null)profile else profile.copy(country=player.country,shipStyle=player.shipStyle)
+    }
+    fun identities(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):List<StrategicIdentity> =
+        profiles(stored,snapshot).values.sortedBy {it.character.id}.map {profile->
+            val c=profile.character
+            StrategicIdentity(c.id.toInt(),profile.country,c.rank,c.origin,c.abilities.toList(),c.age)
+        }
+
     fun view(character:CharacterMessages.Generate,snapshot:WorldSnapshot?):CharacterMessages.Generate {
         if(snapshot==null)return character
         val id=character.id.toInt()
