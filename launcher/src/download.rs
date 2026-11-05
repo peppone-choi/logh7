@@ -149,17 +149,45 @@ pub fn download(
     if text.lines().next().map(str::trim) != Some("LOGH7-PATCH-1") || files.is_empty() {
         return Err("지원하지 않는 패치 목록입니다".into());
     }
+    // 이어받기(파일 단위): 이전 시도의 `.partial`에서 목록 해시와 같은 내용만 빈 새 디렉터리로 옮겨 쓴다.
+    // - 새 디렉터리에는 목록 철자 그대로 쓰므로 대소문자가 다른 옛 이름이나 옛 파일/디렉터리 충돌이 남지 않는다.
+    // - 옛 디렉터리는 표준 `remove_dir_all`로 지운다. 이 함수는 심볼릭 링크·정션을 따라가지 않는다
+    //   (Rust 1.58.1, CVE-2022-21658). 링크를 통해 읽힌 내용도 목록 해시와 같을 때만 쓰므로 섞이지 않는다.
     let staging = out.with_extension("partial");
-    let _ = fs::remove_dir_all(&staging);
+    let fresh = out.with_extension("partial-next");
+    let _ = fs::remove_dir_all(&fresh);
+    fs::create_dir_all(&fresh).map_err(|e| e.to_string())?;
+    let write = |root: &Path, relative: &str, data: &[u8]| -> Result<(), String> {
+        let target = root.join(relative);
+        fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
+        fs::write(&target, data).map_err(|_| format!("받은 파일을 쓰지 못했습니다: {relative}"))
+    };
+    let mut pending = Vec::new();
+    let mut reused = 0usize;
     for (relative, hash) in &files {
+        match fs::read(staging.join(relative)) {
+            Ok(data) if data.len() <= LIMIT && sha256(&data) == *hash => {
+                write(&fresh, relative, &data)?;
+                reused += 1;
+            }
+            _ => pending.push((relative, hash)),
+        }
+    }
+    if fs::symlink_metadata(&staging).is_ok() {
+        fs::remove_dir_all(&staging)
+            .or_else(|_| fs::remove_file(&staging))
+            .map_err(|_| "이전 내려받기 디렉터리를 지우지 못했습니다")?;
+    }
+    fs::rename(&fresh, &staging).map_err(|_| "내려받기 디렉터리를 준비하지 못했습니다")?;
+    if reused > 0 {
+        eprintln!("이어받기: 이미 받은 파일 {reused}개를 다시 쓰고 나머지만 받습니다");
+    }
+    for (relative, hash) in pending {
         let data = get(base, relative)?;
         if sha256(&data) != *hash {
-            let _ = fs::remove_dir_all(&staging);
             return Err(format!("받은 파일 해시가 목록과 다릅니다: {relative}"));
         }
-        let target = staging.join(relative);
-        fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
-        fs::write(&target, data).map_err(|_| format!("받은 파일을 쓰지 못했습니다: {relative}"))?;
+        write(&staging, relative, &data)?;
     }
     fs::write(staging.join("patch.manifest"), manifest).map_err(|e| e.to_string())?;
     if let Some(signature) = signature {
@@ -297,7 +325,128 @@ file	exe/dinput8.dll	11
         let out = std::env::temp_dir().join(format!("logh7-download-bad-{}", std::process::id()));
         let _ = fs::remove_dir_all(&out);
         assert!(download(&base, &out, None, None).is_err());
-        assert!(!out.exists() && !out.with_extension("partial").exists());
+        // The tampered file is not kept for a later resume, and nothing reaches the final directory.
+        assert!(
+            !out.exists()
+                && !out
+                    .with_extension("partial")
+                    .join("exe/dinput8.dll")
+                    .exists()
+        );
+        let _ = fs::remove_dir_all(out.with_extension("partial"));
         assert!(download("https://example.invalid/", &out, None, None).is_err());
+    }
+
+    #[test]
+    fn an_interrupted_download_resumes_from_verified_files_and_drops_leftovers() {
+        let listed = format!(
+            "LOGH7-PATCH-1\nclient\t{}\nfile\texe/a.dll\t{}\nfile\tdata/b.tga\t{}\n",
+            sha256(b"client"),
+            sha256(b"aaa"),
+            sha256(b"bbb")
+        )
+        .into_bytes();
+        let out =
+            std::env::temp_dir().join(format!("logh7-download-resume-{}", std::process::id()));
+        let staging = out.with_extension("partial");
+        let _ = fs::remove_dir_all(&out);
+        let _ = fs::remove_dir_all(&staging);
+        // First attempt: the second file is missing on the server (connection lost / 404).
+        let first = serve(vec![
+            ("/patch/patch.manifest", listed.clone()),
+            ("/patch/exe/a.dll", b"aaa".to_vec()),
+        ]);
+        assert!(download(&first, &out, None, None).is_err());
+        assert!(!out.exists());
+        assert_eq!(
+            b"aaa",
+            &fs::read(staging.join("exe/a.dll")).unwrap()[..],
+            "verified file kept"
+        );
+        // A leftover from some earlier patch, and a corrupted copy, must not survive.
+        fs::create_dir_all(staging.join("old")).unwrap();
+        fs::write(staging.join("old/stale.bin"), b"stale").unwrap();
+        fs::write(
+            staging
+                .join("data/b.tga")
+                .parent()
+                .map(|p| {
+                    fs::create_dir_all(p).unwrap();
+                    p.join("b.tga")
+                })
+                .unwrap(),
+            b"corrupt",
+        )
+        .unwrap();
+        // Second attempt: a.dll is no longer served, so it can only come from the resume.
+        let second = serve(vec![
+            ("/patch/patch.manifest", listed),
+            ("/patch/data/b.tga", b"bbb".to_vec()),
+        ]);
+        assert_eq!(2, download(&second, &out, None, None).unwrap());
+        assert_eq!(b"aaa", &fs::read(out.join("exe/a.dll")).unwrap()[..]);
+        assert_eq!(b"bbb", &fs::read(out.join("data/b.tga")).unwrap()[..]);
+        assert!(!out.join("old").exists(), "unlisted leftovers are removed");
+        assert!(!staging.exists());
+        fs::remove_dir_all(&out).unwrap();
+    }
+
+    fn two_files(first: &str, second: &str) -> Vec<u8> {
+        format!(
+            "LOGH7-PATCH-1\nclient\t{}\nfile\t{first}\t{}\nfile\t{second}\t{}\n",
+            sha256(b"client"),
+            sha256(b"aaa"),
+            sha256(b"bbb")
+        )
+        .into_bytes()
+    }
+
+    #[test]
+    fn a_resumed_file_is_written_with_the_listed_spelling() {
+        let out = std::env::temp_dir().join(format!("logh7-download-case-{}", std::process::id()));
+        let staging = out.with_extension("partial");
+        let _ = fs::remove_dir_all(&out);
+        let _ = fs::remove_dir_all(&staging);
+        // A previous attempt left `exe/A.dll`; the list now spells it `exe/a.dll`.
+        fs::create_dir_all(staging.join("exe")).unwrap();
+        fs::write(staging.join("exe/A.dll"), b"aaa").unwrap();
+        let mut routes = vec![
+            (
+                "/patch/patch.manifest",
+                two_files("exe/a.dll", "data/b.tga"),
+            ),
+            ("/patch/data/b.tga", b"bbb".to_vec()),
+        ];
+        if !cfg!(windows) {
+            // A case-sensitive file system does not see the old name, so the file is fetched again.
+            routes.push(("/patch/exe/a.dll", b"aaa".to_vec()));
+        }
+        assert_eq!(2, download(&serve(routes), &out, None, None).unwrap());
+        let names: Vec<_> = fs::read_dir(out.join("exe"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(vec!["a.dll".to_string()], names);
+        fs::remove_dir_all(&out).unwrap();
+    }
+
+    #[test]
+    fn an_old_directory_does_not_block_a_listed_file_of_the_same_name() {
+        let out =
+            std::env::temp_dir().join(format!("logh7-download-conflict-{}", std::process::id()));
+        let staging = out.with_extension("partial");
+        let _ = fs::remove_dir_all(&out);
+        let _ = fs::remove_dir_all(&staging);
+        // An earlier patch had `exe/item/` as a directory; this list has `exe/item` as a file.
+        fs::create_dir_all(staging.join("exe/item")).unwrap();
+        fs::write(staging.join("exe/item/old.bin"), b"old").unwrap();
+        let base = serve(vec![
+            ("/patch/patch.manifest", two_files("exe/item", "data/b.tga")),
+            ("/patch/exe/item", b"aaa".to_vec()),
+            ("/patch/data/b.tga", b"bbb".to_vec()),
+        ]);
+        assert_eq!(2, download(&base, &out, None, None).unwrap());
+        assert_eq!(b"aaa", &fs::read(out.join("exe/item")).unwrap()[..]);
+        fs::remove_dir_all(&out).unwrap();
     }
 }
