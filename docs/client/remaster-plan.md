@@ -1,0 +1,101 @@
+# 리마스터 검토 — 모든 해상도·HUD/UX·HD 자산
+
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi)) · 2026-11-05 · 상태: 검토·시안 단계(구현 없음)
+
+사용자 요청: 현재 클라이언트를 업그레이드·리마스터할 방법을 찾는다. 모든 해상도 지원, HUD·UX/UI 개선, 기존 HUD 파일 참고, 시안 제작, 모델·이미지·텍스처 업스케일. 진행 중인 Claude·Codex 세션과 논의하고 마피아 MCP 판단 카드를 참고했다.
+
+이 문서는 구현 순서와 위험을 정한다. 실제 플레이 체크리스트([IMPLEMENTATION-CHECKLIST](../IMPLEMENTATION-CHECKLIST.md))보다 우선하지 않는다. 원작에 없던 기능(콘셉트 이미지의 자원 바 등)은 `content` + `backlog`로만 둔다.
+
+## 1. 현재 사실
+
+- `G7MTClient.exe`는 MFC + Direct3D8이다. dxwrapper가 D3D8을 D3D9Ex로 바꾸고, 창 모드 1024×768에서만 렌더를 확인했다([background-client](../ops/background-client.md)). `evidence:client`
+- 2D UI는 D3D8 `DrawPrimitiveUP`(TRIANGLEFAN, stride 28, XYZRHW+색+UV)로 그린다. 화면 픽셀 좌표라서 투영 행렬을 바꿔도 움직이지 않는다. 네이티브 스프라이트 함수 `0x4ddc00`은 텍셀 픽셀 rect를 받는다(`tools/client/capture-frame.js`, `client-compat/tactical_radar.h`). `evidence:client`
+- 위젯 클릭 영역은 1024×768 절대 좌표로 저장된다. 입력은 창 메시지·`GetCursorPos`·DirectInput 세 경로다(`tools/client/input-login.js`). `evidence:client`
+- 글자는 `004b0960` 단일 글자 캐시 안에서 `ExtTextOutW`로 그린다. 글꼴 생성·크기·줄바꿈은 바꾸지 않았다(`client-compat/README.md`). `evidence:client`
+- 원본 이미지 1,717장(241.8MP). UI TGA는 대부분 32비트 팔레트이고, 모델 텍스처는 `model/images/{Hi,Mid,Lo}` 세 등급이다. MDX는 일부 렌더 스트림만 해석했다([asset-formats](../re/asset-formats.md)).
+- UV 분모가 원본 크기인지 실제 텍스처 크기인지는 **미확인**이다. `traceQuads` 한 번으로 판정한다.
+
+## 2. 방식과 순서
+
+| 단계 | 내용 | 완료 조건 |
+|---|---|---|
+| 0. 관찰 | 실행 사본에서 백버퍼만 1280×720으로 바꾸고, 전략·전술에서 `traceQuads`·투영/뷰포트·백버퍼 캡처·HUD 버튼 1회 클릭을 기록 | 3D 종횡비, 2D 고정 좌표, Reset 안정성, 입력 불일치가 각각 기록됨 |
+| 1. 해상도 | 백버퍼 = 창/모니터 크기. 3D는 뷰포트·투영을 넓힌다(Hor+). 2D 정점은 화면 영역·호출자로 앵커(좌상·우상·좌하·중하·우하·중앙)를 정해 옮기고 UI 배율을 곱한다. 입력 세 경로와 위젯 hit-box에 같은 역변환을 적용 | 4:3(1024×768), 5:4(1280×1024), 16:9(1920×1080, 2560×1440, 3840×2160), 16:10(1920×1200), 21:9(3440×1440), 32:9(5120×1440)에서 전략·전술·로비 표시와 클릭 일치. 최소 창 크기·DPI 배율 포함 |
+| 2. HD 자산 | 텍스처 **생성 시점**에 교체한다. 키는 정규화 경로 + 원본 파일 SHA-256 + 하위 자원 식별자. 2×/4× 결과는 같은 픽셀 배치를 키운 것이라 정규화 UV가 유지된다. 팔레트는 A8R8G8B8로 펼치고 mip을 만든다 | 교체 전후 같은 화면 캡처에서 UV 어긋남·검은 이음매·투명 경계 깨짐 0 |
+| 3. HUD | 시안 A(원작 그림 + 앵커)부터. B·D는 A 이후 DLL이 직접 그리는 패널로 확장. C는 원작 인상과 멀어 보류 | A: 전략 하단 패널 연결 띠 그림, 전술 네 모서리 고정 |
+| 4. 글자 | DPI 배율 글꼴. 현재 단일 글자 캐시를 넘어 글꼴 객체 수명·메트릭·줄바꿈을 설계 | UI 배율 1.0~2.0에서 한국어 긴 문자열 잘림 0 |
+| 보류 | 메시 고폴리 교체 | MDX 재질·노드·애니메이션 해석 후 재검토 |
+
+Lock 이후 더 큰 텍스처로 바꾸는 방식, 정점만 옮기는 이동식 반투명 모달은 쓰지 않는다. 앞의 것은 크기·mip·pool이 이미 정해진 뒤라 객체 교체·Reset 복구가 필요하다. 뒤의 것은 네이티브 컨트롤 위치·입력·클리핑이 원래 자리에 남는다(Codex 상담).
+
+호환 위험: `client-compat/country_icon.h`는 `icon_country32`가 128×128 A8R8G8B8일 때만 국가색을 입힌다. HD로 바꾸면 색 입히기가 꺼진다(크래시는 없음). 크기 검사를 배율 허용으로 넓혀야 한다.
+
+## 3. 업스케일 실측 (2026-11-05)
+
+도구: Real-ESRGAN ncnn-vulkan 20220424(`E:\Tools\realesrgan-ncnn-vulkan`, 공식 릴리스 SHA-256 `abc02804…802d`), GTX 1660 Ti. 스크립트 [`tools/assets/upscale_assets.py`](../../tools/assets/upscale_assets.py)가 32비트 팔레트·RLE TGA를 직접 읽고, 투명 칸 색을 채운 뒤 색은 모델로, 알파는 Lanczos로 키운다. 출력은 `work/`로 제한한다.
+
+| 항목 | 결과 |
+|---|---|
+| 표본 18장(8.17MP) | 모델 47초, 전체 72초 |
+| 속도 | 평면 모델 `realesrgan-x4plus-anime` 3.3초/MP, 사진 모델 `realesrgan-x4plus` 9.5초/MP |
+| 전량 추정 | UI·아이콘 약 1.5분, Hi 텍스처 88.8MP 약 14분, 스폿 배경 84.5MP 약 13분. Mid·Lo는 Hi 결과를 축소. 합계 약 30분 + 입출력(추정, 미실행) |
+| 아이콘 | 선이 또렷함. 평면 모델 채택 후보 |
+| HUD 패널 | 선명하지만 막대 가장자리 베이지가 주황으로 진해짐. 색 검수 필요 |
+| 모델 텍스처 아틀라스 | UV 조각 경계에 검은 테. 조각 바깥을 늘려 채운 뒤 업스케일해야 함(미구현) |
+| 32px 명령 아이콘 | 평면 모델은 음영을 지우고 없던 윤곽선을 그려 뭉개짐. `realesrgan-x4plus` + `--detail 0.9`(Lanczos 고주파를 되살림)가 원본에 가장 충실. 130장 6.8초. 그래도 32px의 한계가 커서 작은 UI는 다시 그리기를 기본으로 함 |
+
+## 4. 시안
+
+`E:\logh7\work\remaster-20261105\mockup\index.html`(git 제외, 게임 저작물 포함). `.claude/launch.json`의 `remaster-mockup`으로 127.0.0.1에서 연다. 전략 지도(제국 발할라)·행성 정보(이제르론)·전술(행성 근접)·로비·캐릭터 생성을 10개 해상도와 UI 배율로 바꿔 보며, 시안은 현재(4:3 고정)·A 원작 충실 HD·B 와이드 도크·C 모던 미니멀·D 진영 테마다. 전략·전술 모두 B·C·D가 있고 로비·생성은 A까지다. HUD 조각은 원본 캡처를 AI 4배 업스케일해 잘랐고, 글자·수치는 캡처와 툴팁 원문에 보인 값만 쓴다. 3D 바깥 영역(별·행성·유닛 표식)은 캡처에서 잰 위치로 그린 시뮬레이션이다.
+
+Codex 이미지 생성 콘셉트 4장(`work/remaster-20261105/concepts/`)은 분위기 참고용이다. 자원 바·인구·인물 이름은 생성기가 지어낸 값이다.
+
+원본 캡처(공통 3, 전략 7, 전술 8)는 실행 담당 Codex에 요청했다(`work/coordination/remaster-capture-request-20261105.md`). 2026-11-05에 로비·생성·전략 2·전술 2장을 받아 시안에 반영했다(`work/remaster-20261105/captures/`, 대부분 이전 실행 기록). 환경 설정·교전·육전 패널·전술 메뉴·trace는 아직 받지 못했다.
+
+## 5. 전술 명령 아이콘
+
+원본 명령 패널(기함 탭)은 8×3, 칸 간격 35px다. 캡처 세 장의 24칸을 `data/image/icon_*` 파일과 픽셀로 대조해(깨끗한 캡처 오차 25~33) 위치를 확정했다. 순서는 툴팁 카탈로그 `l10n/constmsg.ko.json` `0/4`~`0/27`과 같다. `evidence:client`
+
+| 줄 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 이동 `idou` | 선회 `senkai` | 공격 `kougeki` | 사격 `shageki` | 백병전 `hakuheisen` | 레이더 `rader` | 고무 `kobu` | 건의 `gushin` |
+| 2 | 평행 이동 `heikou_idou` | 정지 `teishi` | 반전 `hanten` | 공전 `kuusen` | 대열 변경 `tairetsu` | 육전 `riku` | 육전 해제 `riku_tesshuu` | 요새포 `yousaihou` |
+| 3 | 태세 변경 `taisei` | 출격 `shutsugeki` | 소속 변경 `shozoku` | 철수 `tettai` | 임무 `ninmu` | 수리 `shuuri` | 보급 `hokyuu` | 긴급 보급 `kinkyuu_hokyuu` |
+
+- 검증: Codex 캡처의 커서 위치 툴팁 [레이더](1줄 6칸)·[육전](2줄 6칸), 기존 실기 기록의 정지·철수·수리·보급 위치가 모두 일치한다.
+- 상태 폴더: 함선 선택 전 `icon_nfocus`, 선택 후 `icon_normal`을 캡처로 확인했다. `icon_mover`·`icon_down`은 이름상 가리킴·누름이며 실기 확인은 하지 않았다.
+- 툴팁 시간은 "대기 48G초 / 소요 240G초"처럼 게임 내 초로 표시된다. 매뉴얼 표의 대기 5초와 표기 단위가 다르며 둘의 관계는 확인하지 않았다.
+- 명령 패널 탭 그림(旗艦·艦艇·司令官·要塞)은 아직 일본어다. 이미지 한국어화 누락이다.
+- 다시 그리기: 모양만 주면 생성기가 폭발 섬광을 톱니바퀴로 그렸다(공격·사격·철수). 칸마다 툴팁 뜻과 "들쭉날쭉한 모양은 폭발"을 함께 주자 바르게 나왔다. 재작화 지시에는 항상 뜻을 넣는다. 결과는 `work/remaster-20261105/icons/redraw2/`(B·D 시안), 툴팁 뜻으로 새로 그린 SVG 선 아이콘은 시안 페이지 안(C 시안, 일부 초안)이다.
+
+## 6. HUD 원본 출처 대조 (2026-11-05)
+
+[`tools/assets/hud_sprite_map.py`](../../tools/assets/hud_sprite_map.py)로 캡처 8장(전략 2, 행성 정보 1, 전술 3, 로비·생성 2)을 원본 `data/image` 14개 폴더 271개 파일의 조각 1,059개와 대조했다. 큰 아틀라스는 SIFT로 위치·배율을 찾은 뒤 32px 타일마다 완전 불투명 픽셀만 비교하고, 작은 조각은 불투명 마스크로 1:1 대조한다. 결과는 `work/remaster-20261105/hudmap/`(캡처별 JSON·출처 지도 PNG·영역 집계). 캡처당 약 85초. 작은 조각(수백 픽셀)은 비슷한 파란 영역에 우연히 맞을 수 있어, 큰 조각과 고유한 조각만 확정 근거로 쓴다.
+
+| 화면 부품 | 원본 파일 | 확인 방법 | 상태 |
+|---|---|---|---|
+| 전략 하단 인물 패널·미니맵 틀·위치 패널·궤도 행성 아이콘 | `senryaku_panel/senryaku_mainpanel.tga` (예: 미니맵 틀 (50,428)→화면 (360,595), 위치 패널 (372,238)→(653,605), 인물 패널 (16,28)→(16,595)) | SIFT 배율 1.0 + 타일 불투명 픽셀 | 확인 |
+| 전략·전술 채팅 창 | `window/window_parts.tga`, `window/resize_window_parts.tga`(모서리 8조각), `chat/chat_parts.tga` | 템플릿 | 확인 |
+| 시스템 아이콘 줄 | `icon/system_system.tga`(문서, 오차 7), 나머지는 `icon/system_icon_parts.tga` 아틀라스 | 템플릿·육안 | 그림 확인, 툴팁 대응은 편지→편지함(`0/181`)만 확실 |
+| 행성 정보 창(호환 모듈이 만든 재구성 창) | 이번 대조에서 잡힌 것은 `window/shinnin_shiji_shikin_window.tga` 조각 8개뿐. `client-compat/README.md`는 `wakusei_shousai_window.tga` 틀과 `wakusei_parts.tga` 부품을 쓴다고 기록 | 템플릿 | 부분 확인, 틀 파일은 기록 기준(대조 미일치) |
+| 전술 명령 패널 아이콘 24개 | `icon_nfocus/*.tga`(함선 미선택) 24개 전부 1:1 일치 | 템플릿 | 확인 |
+| 전술 명령 패널 틀 | `icon_normal/com_bar.tga` + `com_window.tga` | 육안·윤곽 | 모양 일치, 반투명 합성이라 픽셀 일치 아님 |
+| 조함 패널 | `soukan/soukan_bar.tga` + `soukan_window.tga` | 육안·윤곽(제목 막대 상관 0.53) | 모양 일치, 반투명 합성 |
+| 레이더 창 | `rader/bar.tga` + `rader/rader_parts.tga`(틀·격자·DATE/X/Y 숫자 글꼴) | 육안 | 모양 일치, 반투명 합성 |
+| 전술 탭 4개 | `icon_*/kojin`(旗艦→기함)·`shokumu`(艦艇→함정)·`senjutsu`(司令官→사령관)·`yousai`(要塞→요새), x=953·y=618~693 | 템플릿(오차 800 이상, 색 입힘) | 위치·파일 확인, 상태 파일 미확정 |
+| 로비·캐릭터 생성 | `gamemenu/menu_parts.tga` | 템플릿 | 확인 |
+
+- 시스템 아이콘 순서는 전략(울리는 전화·문서·전화·편지·모니터·문)과 전술(문서·문·모니터·전화·편지)이 다르다. `system_camera`·`kaiten`·`heikou_idou`·`zoom`·`window_shade`는 이번 캡처에 보이지 않는다.
+- `model/strategy/underpanel.tga`는 "ミュラー大佐" 등 일본어가 박힌 예전 HUD 그림이고 현재 배치와 다르다. 사용하지 않는 잔재로 보지만 로더 확인은 하지 않았다(`evidence:guess`).
+- `rader/parts.tga`에는 "最小化·クローズ·自機ポインタ·レーダー上の敵" 같은 개발용 주석 글자가 있다. 화면에 그려지는 문구로는 보이지 않는다(`evidence:guess`).
+- 반투명 창(조함·명령·레이더)은 알파 계조(최대 224)를 그대로 써서 합성된다. HD 교체 때 알파를 이진화하면 안 된다.
+- 문구: 시안의 HUD 라벨을 카탈로그와 대조했다. "직무 권한 카드·같은 스폿 인물·행성/요새 궤도·단독 항행·조함 패널·성계 내 우주·함내"는 원문이 있다. 시안에서 지어냈던 "성계도"는 툴팁 원문의 "전략 지도"(`0/172`·`0/173`)로, "명령 대기"는 매뉴얼 W p.47의 "남은 대기 시간"으로 바꿨다. 전략 HUD 버튼 툴팁 원문은 `0/164`~`0/182`이며, 버튼별 대응은 가리키기 캡처를 Codex에 요청했다.
+- 이미지 한국어화 후보 결함: `work/full-korean-localization-wt/work/korean-images-01/package/payload/icon_*/kojin.tga`·`yousai.tga` 등에 원래 漢字 획 일부가 남아 있다(8배 확대 확인). 리마스터 시안은 업스케일 원본 탭의 글자 없는 세로줄로 바탕을 다시 채우고 한국어를 새로 조판한 HD 탭(`work/remaster-20261105/tabs-hd/`)을 쓴다.
+
+## 7. 남은 일
+
+- 0단계 관찰 실험(전략·전술 각 1회)과 UV 분모 판정. Codex가 보낸 전략 trace는 셰이더 초기화 기록이고 2D 사각형은 비어 있어(`quads=[]`) 판정 근거가 아직 없다
+- 모델 텍스처 UV 조각 가장자리 확장, HUD 색 변화 검수 기준
+- 전략 하단 패널 연결 띠, 진영 테마 장식 틀 원화
+- 얼굴 TCF 추출 후 업스케일 경로
+- Linear 이슈 등록(이 세션에는 Linear 도구가 없어 미등록)
