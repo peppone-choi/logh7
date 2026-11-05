@@ -42,7 +42,8 @@ class PostgresCountryColorsTest {
                 assertTrue(store.list().all {it.revision==0L && it.colors==CountryColors()})
                 fun race(expected:Long):List<CountryColorOutcome> = Executors.newFixedThreadPool(2).use {pool ->
                     val gate=java.util.concurrent.CountDownLatch(1)
-                    val jobs=listOf(0x123456,0xabcdef).map {color->CompletableFuture.supplyAsync({gate.await();store.save(2,expected,CountryColors(color,0,0xffffff,color))},pool)}
+                    // Both proposals must change the preceding round's value; a no-op correctly keeps its revision.
+                    val jobs=listOf(0x123456+expected.toInt(),0xabcdef-expected.toInt()).map {color->CompletableFuture.supplyAsync({gate.await();store.save(2,expected,CountryColors(color,0,0xffffff,color))},pool)}
                     gate.countDown();jobs.map {it.get()}
                 }
                 for(expected in listOf(0L,1L)) {
