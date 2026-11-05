@@ -33,4 +33,29 @@ class AdminWorldEditingTest {
         assertEquals(AdminEditOutcome.UNCHANGED,unchanged.outcome)
         assertSame(stocks,unchanged.stocks)
     }
+    @Test fun `demographic edits share the base version and preserve ownership offices and unrelated bases`() {
+        val original=base.copy(economy=PlanetEconomy(1000,600,80,90))
+        val before=stocks.copy(bases=stocks.bases+(1001 to original))
+        val people=PlanetEconomy(12345,6789,73,81)
+        val request=edit.copy(expected=AdminWorldEditing.version(1,original),economy=people)
+        val result=AdminWorldEditing.evaluate(before,request)
+        assertEquals(AdminEditOutcome.CHANGED,result.outcome)
+        val after=assertNotNull(result.stocks)
+        assertEquals(original.copy(supplies=101,food=202,mineral=303,treasury=404,economy=people),after.bases[1001])
+        assertEquals(before.copy(bases=after.bases),after)
+        assertEquals(other,after.bases[1002]);assertEquals(original,before.bases[1001])
+        assertEquals(AdminEditOutcome.CONFLICT,AdminWorldEditing.evaluate(after,request).outcome)
+        val concurrent=before.copy(bases=before.bases+(1001 to original.copy(economy=people)))
+        assertEquals(AdminEditOutcome.CONFLICT,AdminWorldEditing.evaluate(concurrent,request).outcome)
+    }
+    @Test fun `legacy resource edits retain demographics and unchanged demographic edits preserve the original state`() {
+        val people=PlanetEconomy(1000,600,80,90)
+        val original=base.copy(economy=people)
+        val before=stocks.copy(bases=stocks.bases+(1001 to original))
+        val request=edit.copy(expected=AdminWorldEditing.version(1,original))
+        assertEquals(people,AdminWorldEditing.evaluate(before,request).stocks!!.bases.getValue(1001).economy)
+        val noop=request.copy(supplies=100,food=200,mineral=300,treasury=400,economy=people)
+        val result=AdminWorldEditing.evaluate(before,noop)
+        assertEquals(AdminEditOutcome.UNCHANGED,result.outcome);assertSame(before,result.stocks)
+    }
 }
