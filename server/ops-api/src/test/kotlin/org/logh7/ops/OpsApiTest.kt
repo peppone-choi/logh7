@@ -174,6 +174,24 @@ class OpsApiTest {
         assertEquals(listOf("ACCOUNT_SET:CHANGED", "ACCOUNT_SET:INVALID", "ACCOUNT_REMOVE:NOT_FOUND", "ACCOUNT_REMOVE:CHANGED"), outcomes)
     }
 
+    @Test fun alertInputsExposeBackupScheduleFailuresAndStateDiskSpace() {
+        val backups = object : StateBackups {
+            override suspend fun take() = "x"
+            override fun lastSuccess(): Long? = 1_793_000_000L
+            override fun intervalSeconds() = 3600L
+            override fun failures() = 2L
+        }
+        val text = opsMetrics(EngineHealth.RUNNING, snapshot, backups, file.parent)
+        val values = text.lines().filter { it.startsWith("logh7_") }.associate { it.substringBefore(' ') to it.substringAfter(' ') }
+        assertEquals("3600", values["logh7_backup_interval_seconds"]); assertEquals("2", values["logh7_backup_failures_total"])
+        val free = values.getValue("logh7_state_disk_free_bytes").toLong(); val total = values.getValue("logh7_state_disk_total_bytes").toLong()
+        assertTrue(free in 1..total, "free $free of $total")
+        // Defaults keep older implementations valid: manual backups (interval 0) never trip the staleness alert.
+        val manual = object : StateBackups { override suspend fun take() = "x"; override fun lastSuccess(): Long? = null }
+        assertTrue("logh7_backup_interval_seconds 0" in opsMetrics(EngineHealth.RUNNING, snapshot, manual))
+        assertFalse("state_disk" in opsMetrics(EngineHealth.RUNNING, snapshot, manual))
+    }
+
     @Test fun backupRoutesAreAuditedAndReportTheLastSuccess() {
         var taken = 0
         val backups = object : StateBackups {

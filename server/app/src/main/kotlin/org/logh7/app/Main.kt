@@ -195,6 +195,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             host = environment["LOGH7_OPS_BIND"] ?: "127.0.0.1",
             users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             countryColors=countryColors,
+            stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             checklist=environment["LOGH7_CHECKLIST_FILE"]?.let {Path.of(it)} ?: listOf(Path.of("docs/IMPLEMENTATION-CHECKLIST.md"),Path.of("../docs/IMPLEMENTATION-CHECKLIST.md")).firstOrNull(java.nio.file.Files::isRegularFile),
             galaxy=world?.galaxy,accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()

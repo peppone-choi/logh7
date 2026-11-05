@@ -18,22 +18,30 @@ class ScheduledBackups(private val engine: CommandSink, private val backup: Live
     private val exportTo: java.nio.file.Path? = null) : StateBackups {
     private val lock = Mutex()
     @Volatile private var last: Long? = null
+    @Volatile private var interval: Long = 0
+    private val failed = java.util.concurrent.atomic.AtomicLong()
 
     override suspend fun take(): String = lock.withLock {
-        val copied = CompletableDeferred<LiveStateBackup.Pending>()
-        val started = System.nanoTime()
-        engine.submit(WorldCommand.Quiesce({ backup.copy() }, copied))
-        val pending = copied.await()
-        val paused = (System.nanoTime() - started) / 1_000_000
-        val target = withContext(Dispatchers.IO) { backup.finish(pending).also { done -> exportTo?.let { backup.export(done, it) } } }
-        last = System.currentTimeMillis() / 1000
-        println("Backup ${target.fileName}: engine held ${paused} ms")
-        target.fileName.toString()
+        try {
+            val copied = CompletableDeferred<LiveStateBackup.Pending>()
+            val started = System.nanoTime()
+            engine.submit(WorldCommand.Quiesce({ backup.copy() }, copied))
+            val pending = copied.await()
+            val paused = (System.nanoTime() - started) / 1_000_000
+            val target = withContext(Dispatchers.IO) { backup.finish(pending).also { done -> exportTo?.let { backup.export(done, it) } } }
+            last = System.currentTimeMillis() / 1000
+            println("Backup ${target.fileName}: engine held ${paused} ms")
+            target.fileName.toString()
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: Exception) { failed.incrementAndGet(); throw failure }
     }
 
     override fun lastSuccess(): Long? = last
+    override fun intervalSeconds(): Long = interval
+    override fun failures(): Long = failed.get()
 
     fun schedule(scope: CoroutineScope, intervalMinutes: Long): Job? = if (intervalMinutes <= 0) null else scope.launch {
+        interval = intervalMinutes * 60
         while (isActive) {
             delay(intervalMinutes * 60_000)
             try { take() } catch (cancelled: CancellationException) { throw cancelled }

@@ -1,0 +1,74 @@
+# 작성: Peppone Choi | 체크리스트 14 장애 감지·알림 | evidence:guess (thresholds are operating policy)
+# Inputs: the game server ops /metrics (server/ops-api OpsApi.opsMetrics), scraped as job="game-server".
+groups:
+  - name: logh7-game
+    rules:
+      - alert: LOGH7GameServerUnreachable
+        expr: up{job="game-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'LOGH7 game server ops API unreachable'
+          description: 'Prometheus cannot scrape {{ $labels.instance }} /metrics for one minute: process down, port closed or token rejected.'
+      - alert: LOGH7EngineStorageFailed
+        expr: logh7_engine_state{state="storage_failed"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'LOGH7 world engine storage failed'
+          description: 'The world engine on {{ $labels.instance }} has reported a storage failure for one minute. It refuses new commands until restarted; check the state volume and the server log.'
+      # engine_up is 0 while starting, stopped or after a storage failure; the last has its own alert above.
+      # The 5m wait is the current alert condition, not a measured normal startup time.
+      - alert: LOGH7EngineUnavailable
+        expr: logh7_engine_up == 0 unless on(job, instance) logh7_engine_state{state="storage_failed"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 world engine not running'
+          description: 'The world engine on {{ $labels.instance }} has been starting or stopped (engine_up 0, not a storage failure) for five minutes.'
+      - alert: LOGH7BackupStale
+        expr: >-
+          logh7_backup_interval_seconds > 0
+          and on(instance)
+          (time() - ((logh7_backup_last_success_seconds > logh7_process_start_seconds) or logh7_process_start_seconds))
+            > on(instance) 2 * logh7_backup_interval_seconds
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 live backup older than twice its interval'
+          description: 'No successful live backup on {{ $labels.instance }} within 2x LOGH7_BACKUP_INTERVAL_MINUTES (RPO at risk).'
+      - alert: LOGH7BackupFailing
+        expr: increase(logh7_backup_failures_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 live backup failed'
+          description: 'At least one live backup failed in the last 15 minutes on {{ $labels.instance }}.'
+      - alert: LOGH7HeapNearLimit
+        expr: logh7_jvm_heap_used_bytes / logh7_jvm_heap_max_bytes > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 JVM heap above 90% of its limit'
+          description: 'Heap use on {{ $labels.instance }} stayed above 90% for ten minutes; raise -Xmx or investigate growth.'
+      - alert: LOGH7StateDiskLow
+        expr: logh7_state_disk_free_bytes / logh7_state_disk_total_bytes < 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 state volume under 10% free'
+          description: 'The state volume of {{ $labels.instance }} has under 10% free space; journals and backups will fail when it fills.'
+      - alert: LOGH7StateDiskCritical
+        expr: logh7_state_disk_free_bytes < 1073741824
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'LOGH7 state volume under 1 GiB free'
+          description: 'Under 1 GiB free on the state volume of {{ $labels.instance }}; a full volume stops the world engine.'
