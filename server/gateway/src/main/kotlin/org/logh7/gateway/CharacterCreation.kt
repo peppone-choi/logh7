@@ -101,7 +101,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         resolveLottery()
         if (account in registered || account in pending) return emptyList()
         // Local accounts have fame 0. Original numeric conditions are unknown.
-        return originals.filter { it.minimumFame <= fame(account) && registered.values.none { owned -> owned.id == it.character.id } }
+        val currentFame=fame(account)
+        return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.id == it.character.id } }
             .map {it.copy(character=KoreanDisplayNames.original(it.character))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0

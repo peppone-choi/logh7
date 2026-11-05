@@ -30,9 +30,15 @@ fun main() {
         failure?.let {throw it}
     }
     try {
+        val fame=if(directory==null)null else org.logh7.gateway.FameLedger.openShared(
+            Path.of(checkNotNull(sessions.first().environment["LOGH7_ACCOUNT_FAME_FILE"])),
+            forceDirectory=environment["LOGH7_SESSION_DIRECTORY_SYNC"]!="files-only",
+            requireExisting=sessions.any {java.nio.file.Files.exists(Path.of(checkNotNull(it.environment["LOGH7_SESSION_STORE_DIR"])).resolve("world.identity"),java.nio.file.LinkOption.NOFOLLOW_LINKS)})
+            .also {runtimes.addFirst(it)}
+        val worldIdentities=mutableSetOf<String>()
         sessions.forEach {
             it.stateDirectory?.let(java.nio.file.Files::createDirectories)
-            runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts))
+            runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts,fame,worldIdentities))
         }
         Runtime.getRuntime().addShutdownHook(Thread {closeAll()})
         CountDownLatch(1).await()
@@ -41,7 +47,8 @@ fun main() {
 
 internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gateway.GameSessionDirectory?=null,
     sessionId:Int=1,sessionName:String=org.logh7.protocol.LobbyMessages.LOCAL_SESSION_NAME,
-    sharedAccounts:org.logh7.gateway.FileAccounts?=null):AutoCloseable {
+    sharedAccounts:org.logh7.gateway.FileAccounts?=null,accountFame:org.logh7.gateway.FameLedger?=null,
+    worldIdentities:MutableSet<String> = mutableSetOf()):AutoCloseable {
     fun port(name:String,default:Int):Int {
         val value=environment[name]?.let {it.toIntOrNull() ?: error("$name must be an integer port")} ?: default
         require(value in 1..65535) {"$name must be in 1..65535"}
@@ -121,6 +128,12 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             throw failure
         }
         resources.addFirst(AutoCloseable { runBlocking { engine.drainAndClose() } })
+        val fame=accountFame?.let {shared->
+            val identity=org.logh7.persistence.FileWorldIdentity.loadOrCreate(checkNotNull(sessionDirectory),directorySync)
+            synchronized(worldIdentities) {check(worldIdentities.add(identity)) {"Two sessions have the same persistent world identity"}}
+            resources.addFirst(AutoCloseable {synchronized(worldIdentities){worldIdentities.remove(identity)}})
+            shared.forWorld(identity).also {it.importLegacy(characterFile?.resolveSibling("${characterFile.fileName}.fame"))}
+        }
         val captureDirectory = captureDirectoryFrom(environment["LOGH7_CAPTURE_DIR"])
         // A live view of the account file: the operator page edits it and new logins read the change.
         val accountFile = sharedAccounts ?: environment["LOGH7_ACCOUNTS_FILE"]?.let { org.logh7.gateway.FileAccounts(Path.of(it)).also { a -> a.names() } }
@@ -131,7 +144,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
             stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
             administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy),
-            sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName)
+            sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName,accountFame=fame)
         resources.addFirst(gateway)
         val audit = environment["LOGH7_OPS_AUDIT_FILE"]?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)

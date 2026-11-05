@@ -48,4 +48,12 @@ class SessionRuntimeConfigurationTest {
         val only=SessionRuntimeConfiguration.load(base).single()
         assertEquals(1,only.id);assertSame(base,only.environment)
     }
+    @Test fun `shared fame path is common to worlds and cannot overwrite world or input files`() {
+        val base=environment(entries())
+        val specs=SessionRuntimeConfiguration.load(base)
+        assertEquals(listOf(directory.resolve("account-fame.properties").toString()),
+            specs.map {it.environment["LOGH7_ACCOUNT_FAME_FILE"]}.distinct())
+        for(path in listOf(directory.resolve("alpha/characters.properties"),directory.resolve("galaxy.csv"),directory.resolve("sessions.properties")))
+            assertFailsWith<IllegalArgumentException> {SessionRuntimeConfiguration.load(base.overlay(mapOf("LOGH7_ACCOUNT_FAME_FILE" to path.toString())))}
+    }
 }

@@ -38,6 +38,8 @@ out/
 .env
 .env.*
 !.env.example
+account-fame.properties
+account-fame.properties.lock
 /launcher/target/
 /launcher/launcher.ini
 

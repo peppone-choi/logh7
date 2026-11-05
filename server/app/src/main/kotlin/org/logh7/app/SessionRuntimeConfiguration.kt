@@ -31,6 +31,9 @@ internal data class SessionRuntimeConfiguration(val id:Int,val name:String,val e
                 while(!Files.exists(ancestor))ancestor=checkNotNull(ancestor.parent)
                 return ancestor.toRealPath().resolve(ancestor.relativize(absolute)).normalize()
             }
+            val fameFile=canonical(base["LOGH7_ACCOUNT_FAME_FILE"]?.takeIf {it.isNotBlank()}?.let {Path.of(it)}
+                ?: file.parent.resolve("account-fame.properties"))
+            require(!Files.exists(fameFile) || Files.isRegularFile(fameFile)) {"Account fame must be a file"}
             val roots=mutableListOf<Path>();val ports=hashSetOf<Int>()
             val result=ids.map {id->
                 fun required(field:String)=values.getProperty("session.$id.$field")?.trim()?.takeIf {it.isNotEmpty()}
@@ -58,12 +61,14 @@ internal data class SessionRuntimeConfiguration(val id:Int,val name:String,val e
                     overrides["LOGH7_$variable"]=base["LOGH7_$variable"]?.let {root.resolve(relative).toString()}
                 require(overrides.filterKeys {it.endsWith("_DIR") || it.endsWith("_FILE")}.values.filterNotNull()
                     .filter {it!=world}.all {canonical(Path.of(it)).startsWith(root)}) {"Session state files must remain inside their own directory"}
-                SessionRuntimeConfiguration(id,name,base.overlay(overrides),root)
+                SessionRuntimeConfiguration(id,name,base.overlay(overrides+mapOf("LOGH7_ACCOUNT_FAME_FILE" to fameFile.toString())),root)
             }
             val inputs=listOfNotNull(file,base["LOGH7_ACCOUNTS_FILE"]?.let {Path.of(it)},base["LOGH7_OPS_USERS_FILE"]?.let {Path.of(it)},
                 base["LOGH7_OPS_TOKEN_FILE"]?.let {Path.of(it)},base["LOGH7_SESSION_RULES"]?.let {Path.of(it)})+
                 result.map {Path.of(checkNotNull(it.environment["LOGH7_WORLD_FILE"]))}
             require(inputs.map(::canonical).none {input->roots.any {input.startsWith(it)}}) {"Shared input files must be outside session state directories"}
+            require(roots.none {fameFile.startsWith(it)} && inputs.map(::canonical).none {it==fameFile}) {
+                "Shared account fame must be outside world state folders and separate from input files"}
             return result
         }
     }
