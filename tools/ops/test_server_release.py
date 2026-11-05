@@ -85,5 +85,32 @@ class ServerReleaseTest(unittest.TestCase):
         self.tool("rollback", "--releases", str(self.releases), "--characters", str(characters))
         self.assertEqual("old", (self.releases / "CURRENT").read_text().strip())
 
+    def test_store_header_must_be_an_exact_constant_of_the_target_reader(self):
+        import zipfile
+
+        def constant(text):
+            data = text.encode()
+            return b"\x01" + len(data).to_bytes(2, "big") + data
+
+        reader = "org/logh7/persistence/FilePlanetStockStore.class"
+        with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe" + constant("LOGH7-STOCK-4") + constant("LOGH7-STOCK-41"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old")
+        with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe" + constant("LOGH7-STOCK-41") + constant("LOGH7-STOCK-42"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new")
+        world = Path(self.temp.name) / "world"
+        (world / "slot-0").mkdir(parents=True)
+        stocks = world / "slot-0" / "stocks.tsv"
+        stocks.write_text("LOGH7-STOCK-41\t1\t2\n", encoding="latin-1")
+        self.tool("activate", "old", "--releases", str(self.releases), "--world", str(world))
+        stocks.write_text("LOGH7-STOCK-42\t1\t2\n", encoding="latin-1")
+        self.tool("activate", "new", "--releases", str(self.releases), "--world", str(world))
+        # "LOGH7-STOCK-4" is a prefix of the new header, but only an exact constant counts.
+        with self.assertRaises(SystemExit) as refused:
+            self.tool("rollback", "--releases", str(self.releases), "--world", str(world))
+        self.assertIn("LOGH7-STOCK-42", str(refused.exception))
+        self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+
 if __name__ == "__main__":
     unittest.main()

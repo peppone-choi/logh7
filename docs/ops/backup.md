@@ -47,7 +47,7 @@
 
 `tools/ops/server_release.py`는 Gradle `installDist` 결과(`server/app/build/install/app`)를 `RELEASES/<이름>`에 해시 매니페스트와 함께 복사하고, `CURRENT`/`PREVIOUS` 파일로 활성 릴리스를 바꾼다. 실행 중(`/health` 응답)이면 전환을 거부하고, 매니페스트와 다른 파일이 있는 릴리스는 활성화하지 않는다. 시작 스크립트는 `classpath` 출력(`<릴리스>/lib/*`)을 `java -cp`에 넘긴다.
 
-업데이트 절차: 서버 정지 → `state_backup.py backup` → `server_release.py install`·`activate` → 시작·확인. 실패하면 정지 → `state_backup.py restore --force` → `rollback --characters <캐릭터 파일>` → 시작(아래 저장 형식 복귀 참고).
+업데이트 절차: 서버 정지 → `state_backup.py backup` → `server_release.py install`·`activate` → 시작·확인. 실패하면 정지 → `state_backup.py restore --force` → `rollback --characters <캐릭터 파일> --world <월드 상태 폴더>` → 시작(아래 저장 형식 복귀 참고).
 
 로컬 리허설(`work/release-20261103`, 단위 검사 2개 통과): 정상 릴리스 `good`로 시작·정지하고 상태를 백업한 뒤, 앱 jar를 잘라 만든 `broken` 릴리스를 활성화하자 서버가 `ClassNotFoundException`으로 시작하지 못했다. `rollback`(good 복귀)과 상태 복원 뒤 재시작해 `/health` 응답과 백업 시점 게임 시각을 확인했다. 무중단 전환·자동 상태 확인·원격 배포는 미구현이다. `evidence:guess`
 
@@ -59,7 +59,9 @@ PR #290부터 캐릭터 기록은 다음 저장 때 `v2:` 형식으로 바뀐다
 - 캐릭터 5명을 새 릴리스 자체의 인코더로 `v2:`로 바꿔(다음 저장과 같은 값) 두자, 새 릴리스는 정상 적재했다. **이전 릴리스도 오류 없이 시작해 `/health`·월드 적재까지 정상으로 보였다.** 이전 코드는 캐릭터 저장소를 첫 로그인 때 열고, 그때 `v2:` 값을 16진수로 해석하다 실패한다(코드 확인, 로그인 재현은 미검증). 그래서 상태 확인만으로는 형식 불일치를 알 수 없다.
 - 업그레이드 전 백업을 `restore-to`로 복원하면 이전 릴리스가 정상 적재했다. 기준 스냅샷과 차이는 리비전·게임 시각 한 틱뿐이었다.
 
-그래서 `server_release.py activate`·`rollback`에 `--characters <LOGH7_CHARACTERS_FILE>`를 더했다. 캐릭터 기록에 대상 릴리스가 읽지 못하는 형식이 있으면 전환을 거부하고 업그레이드 전 백업 복원을 안내한다. 기본 파일과 이후 세션 세대 파일(`<파일>.session-<n>`)을 모두 본다. 판정은 대상 릴리스 jar에 그 형식의 해석 클래스(`org/logh7/gateway/CharacterProfile.class`)가 있는지로 한다. 실제 두 릴리스에서 `v2:` 상태의 이전 릴리스 복귀는 거부, 업그레이드 전 캐릭터로는 허용, 새 릴리스 전환은 허용됨을 확인했다(검사 3개 통과). 업데이트 절차의 복귀는 따라서 **정지 → `state_backup.py restore --force`(업그레이드 전 백업) → `rollback --characters …` → 시작** 순서다. 다른 저장 파일의 형식 차이는 아직 이 검사에 없다.
+그래서 `server_release.py activate`·`rollback`에 `--characters <LOGH7_CHARACTERS_FILE>`를 더했다. 캐릭터 기록에 대상 릴리스가 읽지 못하는 형식이 있으면 전환을 거부하고 업그레이드 전 백업 복원을 안내한다. 기본 파일과 이후 세션 세대 파일(`<파일>.session-<n>`)을 모두 본다. 판정은 대상 릴리스 jar에 그 형식의 해석 클래스(`org/logh7/gateway/CharacterProfile.class`)가 있는지로 한다. 실제 두 릴리스에서 `v2:` 상태의 이전 릴리스 복귀는 거부, 업그레이드 전 캐릭터로는 허용, 새 릴리스 전환은 허용됨을 확인했다(검사 3개 통과). 업데이트 절차의 복귀는 따라서 **정지 → `state_backup.py restore --force`(업그레이드 전 백업) → `rollback --characters …` → 시작** 순서다. 캐릭터 외 저장 파일은 아래 `--world`가 본다.
+
+`--world <LOGH7_WORLD_STATE_DIR>`(같은 날, PR #294 형식42 반영): 창고·항행·월드 저장 파일의 머리말(`LOGH7-STOCK-N`, `LOGH7-NAV-N`, `LOGH7-WORLD-N`)은 그동안 여러 번 올라갔고(창고 42판까지), 이전 릴리스는 모르는 머리말이면 시작하지 못한다. 그래서 대상 릴리스의 해당 저장소 클래스(`FilePlanetStockStore`·`FileNavigationStore`·`FileWorldStateStore`)에 그 머리말이 **정확한 문자열 상수**로 있는지 본다(`LOGH7-STOCK-4`처럼 앞부분만 같은 상수는 인정하지 않는다). `--characters`를 주면 옛 단독 파일(`.navigation`·`.planet-stocks`)도 본다. 실제 세 릴리스(PR #290 이전·PR #291 이후·PR #294 main `931e2b81`)로 확인: 실제 시험 상태(STOCK-38·NAV-14)는 셋 다 허용, 창고 머리말을 `LOGH7-STOCK-42`로 둔 사본은 main만 허용하고 두 이전 릴리스는 거부했다. 거부가 맞는지 이전 릴리스를 그 상태로 띄우자 `Invalid planet stock header`로 시작에 실패했다(캐릭터 `v2:`와 달리 바로 드러난다). 검사 4개 통과. 세션 기록·계정·평판 파일의 형식 판정은 아직 없다.
 ## 운영 지표 `/metrics` (2026-11-03)
 
 운영 API(`127.0.0.1`, 기본 47901·시험 47951)에 Prometheus 텍스트 형식 `/metrics`를 더했다. 엔진 정상 여부(`logh7_engine_up`), 월드 리비전·명령 접수/거부 누계, 세션 세대·게임 시각·참가/접속 수·종료 여부, 전술 인스턴스 수, 진행 중 지상전 거점 수 11개다(검사 `metricsExposeHealthAndCountersInPrometheusText`). 실제 시험 서버에서 `engine_up 1`, 참가 6·접속 0, 지상전 1을 확인했다. 수집기 연결(2026-11-03 추가): 운영 API 바인드 주소를 `LOGH7_OPS_BIND`로 바꿀 수 있게 했고, 루프백이 아닌 주소는 토큰(`LOGH7_OPS_TOKEN` 또는 비밀 파일 `LOGH7_OPS_TOKEN_FILE`)이 없으면 서버 시작을 거부한다(실제 서버에서 `0.0.0.0` 무토큰 시작 거부 확인). 선택 덮어쓰기 `deploy/docker-compose.metrics.yml`이 게임 서버를 백엔드 망에 토큰과 함께 열고, Prometheus가 `prometheus-game.yml`의 Bearer 설정으로 `game-server:47901/metrics`를 긁는다. 기본 Compose와 CI 계약(게임 서비스 비밀 없음·루프백 수신)은 그대로다. `docker compose config`로 병합 결과를 확인했으나, Linux Docker에서 실제 수집은 실행하지 않았다. 지연·송신 큐·메모리 지표는 미구현이다. `evidence:guess`
