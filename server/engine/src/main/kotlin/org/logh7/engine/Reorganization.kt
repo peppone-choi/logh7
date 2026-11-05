@@ -58,7 +58,7 @@ internal object Reorganization {
         val outfit = stocks.outfits.getValue(outfitId)
         val projected=ReplacementBoats.reorganize(stocks,outfitId,transfer).outfits.getValue(outfitId)
         val crew = ReplacementBoats.crewRequired(projected)
-        val crewKinds=UnitSpecifications.crews.filter { it.power==outfit.power && it.type==3 }.map { it.kind }.toSet()
+        val crewKinds=UnitSpecifications.crews.filter { it.power==outfit.shipStyle.nativePower && it.type==3 }.map { it.kind }.toSet()
         val baselineCrew=outfit.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
         // 0052f700 adds max_crew to the editor's baseline crew. Sending
         // the absolute requirement doubles its crew limit.
