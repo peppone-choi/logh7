@@ -59,8 +59,8 @@ class NavigationForcesTest {
 
     @Test fun enemyDeploymentBlocksSoloShipEvenWhenPlanetIsFriendly() {
         val inventory=stocks(count=1)
-        val enemy=inventory.copy(outfits=inventory.outfits.mapValues { it.value.copy(power=3) },
-            warehouses=inventory.warehouses.mapValues { it.value.copy(power=3) })
+        val enemy=inventory.copy(outfits=inventory.outfits.mapValues { it.value.copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3)) },
+            warehouses=inventory.warehouses.mapValues { it.value.copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3)) })
         assertEquals(NavigationRejection.GRID,
             Navigation(galaxy,Store(),NavigationPolicy()).apply(request,session,enemy).rejection)
     }

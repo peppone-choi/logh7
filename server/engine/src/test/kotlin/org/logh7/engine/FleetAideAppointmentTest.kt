@@ -55,8 +55,8 @@ class FleetAideAppointmentTest {
     }
     @Test fun allianceUsesItsOwnCardAndStoredFleetAuthority() {
         val allied=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))),
-            outfits=mapOf(200 to stocks.outfits.getValue(200).copy(power=3)),
-            warehouses=mapOf(300 to stocks.warehouses.getValue(300).copy(power=3)))
+            outfits=mapOf(200 to stocks.outfits.getValue(200).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))),
+            warehouses=mapOf(300 to stocks.warehouses.getValue(300).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))))
         val state=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.ALLIANCE,false,"c")}.exportState()
         val r=request.copy(power=Power.ALLIANCE,targetCard=179,actorRank=6,targetPower=3)
         val result=GarrisonAppointment.evaluate(galaxy,r,state,player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),allied)

@@ -12,6 +12,7 @@ import org.logh7.engine.LogisticsOffice
 import org.logh7.engine.NationalOffice
 import org.logh7.engine.CountryId
 import org.logh7.engine.Allegiance
+import org.logh7.engine.ShipStyleId
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
@@ -39,7 +40,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
         val header = lines.firstOrNull()?.split('\t').orEmpty()
-        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10","LOGH7-STOCK-11","LOGH7-STOCK-12","LOGH7-STOCK-13","LOGH7-STOCK-14","LOGH7-STOCK-15","LOGH7-STOCK-16","LOGH7-STOCK-17","LOGH7-STOCK-18","LOGH7-STOCK-19","LOGH7-STOCK-20","LOGH7-STOCK-21","LOGH7-STOCK-22","LOGH7-STOCK-23","LOGH7-STOCK-24","LOGH7-STOCK-25","LOGH7-STOCK-26","LOGH7-STOCK-27","LOGH7-STOCK-28","LOGH7-STOCK-29","LOGH7-STOCK-30","LOGH7-STOCK-31","LOGH7-STOCK-32","LOGH7-STOCK-33","LOGH7-STOCK-34","LOGH7-STOCK-35","LOGH7-STOCK-36","LOGH7-STOCK-37","LOGH7-STOCK-38","LOGH7-STOCK-39","LOGH7-STOCK-40")) return loadCurrent(header, lines.drop(1))
+        if (header.firstOrNull() in setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10","LOGH7-STOCK-11","LOGH7-STOCK-12","LOGH7-STOCK-13","LOGH7-STOCK-14","LOGH7-STOCK-15","LOGH7-STOCK-16","LOGH7-STOCK-17","LOGH7-STOCK-18","LOGH7-STOCK-19","LOGH7-STOCK-20","LOGH7-STOCK-21","LOGH7-STOCK-22","LOGH7-STOCK-23","LOGH7-STOCK-24","LOGH7-STOCK-25","LOGH7-STOCK-26","LOGH7-STOCK-27","LOGH7-STOCK-28","LOGH7-STOCK-29","LOGH7-STOCK-30","LOGH7-STOCK-31","LOGH7-STOCK-32","LOGH7-STOCK-33","LOGH7-STOCK-34","LOGH7-STOCK-35","LOGH7-STOCK-36","LOGH7-STOCK-37","LOGH7-STOCK-38","LOGH7-STOCK-39","LOGH7-STOCK-40","LOGH7-STOCK-41")) return loadCurrent(header, lines.drop(1))
         require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
         val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
@@ -56,7 +57,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
     private fun loadCurrent(header: List<String>, lines: List<String>): PlanetStocks {
-        val countryOwners=header[0]=="LOGH7-STOCK-40"
+        val outfitCountries=header[0]=="LOGH7-STOCK-41"
+        val countryOwners=outfitCountries || header[0]=="LOGH7-STOCK-40"
         val countryAccounts=countryOwners || header[0]=="LOGH7-STOCK-39"
         val aired=countryAccounts || header[0]=="LOGH7-STOCK-38"
         val tidal=aired || header[0]=="LOGH7-STOCK-37"
@@ -188,11 +190,14 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     require(bases.put(base.baseId, base) == null) { "Duplicate stock base" }
                 }
                 "O" -> {
-                    // An 18th field exists only for guard units (U-13); older rows keep their canonical size.
-                    require(f.size == (if(strategic)17 else if(grounds)16 else if(positions)15 else if(staff)13 else if (aides) 12 else if (identities) 11 else if (current) 10 else 8)
+                    // Format 41 always has a guard slot and style; older guard rows alone add an 18th field.
+                    require(if(outfitCountries)f.size==19 else
+                        f.size == (if(strategic)17 else if(grounds)16 else if(positions)15 else if(staff)13 else if (aides) 12 else if (identities) 11 else if (current) 10 else 8)
                         || strategic && f.size==18)
                     val inventory = UnitInventoryCodec.decode(f[7])
-                    val outfit = OutfitStock(f[1].toInt(), f[2].toInt(), OutfitKind.valueOf(f[3]), f[4].toInt(),
+                    val country=if(outfitCountries)readOutfitCountry(f[2]) else CountryId(f[2].toInt())
+                    val style=if(outfitCountries)ShipStyleId(f[18]) else ShipStyleId.fromLegacy(f[2].toInt())
+                    val outfit = OutfitStock(f[1].toInt(), country, OutfitKind.valueOf(f[3]), f[4].toInt(),
                         f[5].toInt(), f[6].toInt(), inventory,
                         if (current) f[8].toInt() else 0, if (current) f[9].toInt() else 0,
                         if (identities) ActiveShipUnitCodec.decode(f[10],legacyFull=!replacements,tactics=tactics,cargo=cargo,support=support,commanded=commanded,attacks=attacks,shots=shots,reloads=reloads,postures=postures) else
@@ -204,15 +209,18 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                             require(v.size==3) {"Invalid NPC strategic order"}
                             org.logh7.engine.NpcStrategicState(v[0].toLong(),v[1].takeIf {it!="-"}?.toInt(),v[2].takeIf {it!="-"}?.toLong())
                         } else null,
-                        if(f.size==18)f[17].split(",").associate {e->e.split("=").let {(u,g)->u.toInt() to g.toInt()}} else null)
+                        if(f.size==18 || outfitCountries && f[17]!="-")f[17].split(",").associate {e->e.split("=").let {(u,g)->u.toInt() to g.toInt()}} else null,
+                        style)
                     require(!positions || (f[13]!="-" || f[14]=="-")) { "Incomplete outfit position" }
                     require(outfits.put(outfit.id, outfit) == null) { "Duplicate outfit" }
                 }
                 "W" -> {
-                    require(f.size == if(replacements)11 else 10)
-                    val warehouse = OutfitWarehouse(f[1].toInt(), f[2].toInt(), OutfitKind.valueOf(f[3]),
+                    require(f.size == if(outfitCountries)12 else if(replacements)11 else 10)
+                    val country=if(outfitCountries)readOutfitCountry(f[2]) else CountryId(f[2].toInt())
+                    val style=if(outfitCountries)ShipStyleId(f[11]) else ShipStyleId.fromLegacy(f[2].toInt())
+                    val warehouse = OutfitWarehouse(f[1].toInt(), country, OutfitKind.valueOf(f[3]),
                         f[4].toInt(), f[5].toInt(), UnitInventoryCodec.decode(f[9]), f[6].toInt(), f[7].toInt(), f[8].toInt(),
-                        if(replacements)SpareShipBoatCodec.decode(f[10]) else org.logh7.engine.SpareShipBoats())
+                        if(replacements)SpareShipBoatCodec.decode(f[10]) else org.logh7.engine.SpareShipBoats(),style)
                     require(warehouses.put(warehouse.id, warehouse) == null) { "Duplicate outfit warehouse" }
                 }
                 "A" -> {
@@ -255,7 +263,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             outfitSequence=outfitSequence ?: org.logh7.engine.OutfitSequence(),civic=civicState ?: org.logh7.engine.CivicState(),budget=budgetState ?: org.logh7.engine.BudgetState(),social=socialState ?: org.logh7.engine.SocialState(),discipline=disciplineState ?: emptyMap(),tidalHour=tidalHour ?: 0,airTraining=airTraining ?: emptyMap())
     }
     override fun save(stocks: PlanetStocks) {
-        val countryOwners=stocks.bases.values.any {it.country?.value?.let {id->id !in 2..3}==true}
+        val outfitCountries=stocks.outfits.values.any {it.country.value !in 2..3 || it.shipStyle!=ShipStyleId.fromLegacy(it.power)} ||
+            stocks.warehouses.values.any {it.country.value !in 2..3 || it.shipStyle!=ShipStyleId.fromLegacy(it.power)}
+        val countryOwners=outfitCountries || stocks.bases.values.any {it.country?.value?.let {id->id !in 2..3}==true}
         val countryAccounts=countryOwners || stocks.nationalTreasuries.keys.any {it.value !in 2..3}
         val aired=countryAccounts || stocks.airTraining.isNotEmpty()
         val tidal=aired || stocks.tidalHour!=0L
@@ -282,7 +292,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val tactics = cargo || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.tactical!=null}==true}
         val positions = tactics || stocks.outfits.values.any { it.position != null }
         val bytes = buildString {
-            append((listOf(if(countryOwners)"LOGH7-STOCK-40" else if(countryAccounts)"LOGH7-STOCK-39" else if(aired)"LOGH7-STOCK-38" else if(tidal)"LOGH7-STOCK-37" else if(disciplined)"LOGH7-STOCK-36" else if(social)"LOGH7-STOCK-35" else if(budget)"LOGH7-STOCK-34" else if(civic)"LOGH7-STOCK-33" else if(sequence)"LOGH7-STOCK-32" else if(market)"LOGH7-STOCK-31" else if(commands)"LOGH7-STOCK-30" else if(actions)"LOGH7-STOCK-29" else if(fiscal)"LOGH7-STOCK-28" else if(strategic)"LOGH7-STOCK-27" else if(combat)"LOGH7-STOCK-26" else if(deployments)"LOGH7-STOCK-25" else if(grounds)"LOGH7-STOCK-24" else if(postures)"LOGH7-STOCK-23" else if(reloads)"LOGH7-STOCK-22" else if(shots)"LOGH7-STOCK-21" else if(attacks)"LOGH7-STOCK-20" else if(commanded)"LOGH7-STOCK-19" else if(support)"LOGH7-STOCK-18" else if(cargo)"LOGH7-STOCK-17" else if(tactics)"LOGH7-STOCK-16" else if(positions)"LOGH7-STOCK-15" else "LOGH7-STOCK-14", stocks.generation, stocks.producedDays, stocks.bases.size,
+            append((listOf(if(outfitCountries)"LOGH7-STOCK-41" else if(countryOwners)"LOGH7-STOCK-40" else if(countryAccounts)"LOGH7-STOCK-39" else if(aired)"LOGH7-STOCK-38" else if(tidal)"LOGH7-STOCK-37" else if(disciplined)"LOGH7-STOCK-36" else if(social)"LOGH7-STOCK-35" else if(budget)"LOGH7-STOCK-34" else if(civic)"LOGH7-STOCK-33" else if(sequence)"LOGH7-STOCK-32" else if(market)"LOGH7-STOCK-31" else if(commands)"LOGH7-STOCK-30" else if(actions)"LOGH7-STOCK-29" else if(fiscal)"LOGH7-STOCK-28" else if(strategic)"LOGH7-STOCK-27" else if(combat)"LOGH7-STOCK-26" else if(deployments)"LOGH7-STOCK-25" else if(grounds)"LOGH7-STOCK-24" else if(postures)"LOGH7-STOCK-23" else if(reloads)"LOGH7-STOCK-22" else if(shots)"LOGH7-STOCK-21" else if(attacks)"LOGH7-STOCK-20" else if(commanded)"LOGH7-STOCK-19" else if(support)"LOGH7-STOCK-18" else if(cargo)"LOGH7-STOCK-17" else if(tactics)"LOGH7-STOCK-16" else if(positions)"LOGH7-STOCK-15" else "LOGH7-STOCK-14", stocks.generation, stocks.producedDays, stocks.bases.size,
                 stocks.outfits.size, stocks.warehouses.size, stocks.logisticsOfficers.size,
                 if (stocks.deploymentInitialized) 1 else 0, stocks.nextShipId,stocks.nationalOffices.size)+(if(combat)listOf(stocks.groundBattles.size) else emptyList())+(if(fiscal)listOf(stocks.nationalTreasuries.size) else emptyList())+(if(actions)listOf(1) else emptyList())+(if(commands)listOf(1) else emptyList())+(if(market)listOf(1) else emptyList())+(if(sequence)listOf(1) else emptyList())+(if(civic)listOf(1) else emptyList())+(if(budget)listOf(1) else emptyList())+(if(social)listOf(1) else emptyList())+(if(disciplined)listOf(1) else emptyList())+(if(tidal)listOf(1) else emptyList())+(if(aired)listOf(1) else emptyList())).joinToString("\t"))
             append('\n')
@@ -296,19 +306,20 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                 append('\n')
             }
             stocks.outfits.toSortedMap().values.forEach { outfit ->
-                append((listOf("O", outfit.id, outfit.power, outfit.kind.name, outfit.baseId, outfit.warehouseId,
+                append((listOf("O", outfit.id, if(outfitCountries)outfit.country.value else outfit.power, outfit.kind.name, outfit.baseId, outfit.warehouseId,
                     outfit.commanderId, UnitInventoryCodec.encode(outfit.units), outfit.number, outfit.supplies,
                     ActiveShipUnitCodec.encode(outfit.activeShips),outfit.aideId,FleetStaffCodec.encode(outfit.staff)) +
                     (if(positions) listOf(outfit.position?.grid ?: "-",outfit.position?.baseId ?: "-") else emptyList()) +
                     (if(grounds) listOf(ActiveGroundUnitCodec.encode(outfit.activeGround)) else emptyList()) +
                     (if(strategic)listOf(outfit.strategy?.let {"${it.nextDecisionAt},${it.destination ?: "-"},${it.arrivesAt ?: "-"}"} ?: "-") else emptyList()) +
-                    (if(strategic)outfit.guard?.let {g->listOf(g.toSortedMap().entries.joinToString(",") {"${it.key}=${it.value}"})}.orEmpty() else emptyList()))
+                    (if(outfitCountries)listOf(outfit.guard?.toSortedMap()?.entries?.joinToString(",") {"${it.key}=${it.value}"} ?: "-",outfit.shipStyle.value)
+                        else if(strategic)outfit.guard?.let {g->listOf(g.toSortedMap().entries.joinToString(",") {"${it.key}=${it.value}"})}.orEmpty() else emptyList()))
                     .joinToString("\t")); append('\n')
             }
             stocks.warehouses.toSortedMap().values.forEach { warehouse ->
-                append(listOf("W", warehouse.id, warehouse.power, warehouse.kind.name, warehouse.baseId, warehouse.outfitId, warehouse.supplies,
+                append((listOf("W", warehouse.id, if(outfitCountries)warehouse.country.value else warehouse.power, warehouse.kind.name, warehouse.baseId, warehouse.outfitId, warehouse.supplies,
                     warehouse.food, warehouse.mineral, UnitInventoryCodec.encode(warehouse.units),
-                    SpareShipBoatCodec.encode(warehouse.spareShips)).joinToString("\t")); append('\n')
+                    SpareShipBoatCodec.encode(warehouse.spareShips))+(if(outfitCountries)listOf(warehouse.shipStyle.value) else emptyList())).joinToString("\t")); append('\n')
             }
             stocks.logisticsOfficers.toSortedMap().forEach { (character, office) ->
                 append("A\t$character\t${office.name}\n")
@@ -340,6 +351,11 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
             Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } catch (failure: Exception) { throw IOException("Could not persist planet stocks", failure) }
         finally { Files.deleteIfExists(temporary) }
+    }
+    private fun readOutfitCountry(value:String):CountryId {
+        val country=CountryId(value.toInt())
+        require(value==country.value.toString()) {"Non-canonical outfit country"}
+        return country
     }
     private fun writeOwner(owner:Allegiance):String=when(owner) {
         Allegiance.Unspecified->"U"

@@ -13,5 +13,8 @@ value class ShipStyleId(val value:String) {
     val nativePower:Int get()=when(legacyPower()) {Power.EMPIRE->2;Power.ALLIANCE->3}
     companion object {
         fun fromLegacy(power:Power)=ShipStyleId(when(power) {Power.EMPIRE->"empire";Power.ALLIANCE->"alliance"})
+        fun fromLegacy(power:Int)=ShipStyleId(when(power) {
+            2->"empire";3->"alliance";else->throw IllegalArgumentException("Invalid legacy ship style")
+        })
     }
 }

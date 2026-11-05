@@ -213,7 +213,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val initialWorld = try {
         // Check before session recovery can write: new owners need the remaining authority migration.
-        val stocks=stockStore?.load()?.also {stocks->stocks.bases.values.forEach {it.owner.legacyPower()}}
+        val stocks=stockStore?.load()?.also {stocks->
+            stocks.bases.values.forEach {it.owner.legacyPower()}
+            stocks.outfits.values.forEach {check(it.country.legacyPower()==it.shipStyle.legacyPower()) {
+                "Outfit style requires the remaining model and authority migration"
+            }}
+            stocks.warehouses.values.forEach {check(it.country.legacyPower()==it.shipStyle.legacyPower()) {
+                "Warehouse style requires the remaining model and authority migration"
+            }}
+        }
         val players=if(galaxy==null)emptyMap() else navigationStore?.load().orEmpty()
         players.values.forEach {player->
             check(player.country.legacyPower()==player.shipStyle.legacyPower()) {
