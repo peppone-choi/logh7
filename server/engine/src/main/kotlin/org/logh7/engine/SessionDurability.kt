@@ -16,8 +16,11 @@ data class DurableWorldState(val session: SessionState, val elapsed: Long = 0, v
 sealed interface SessionAction {
     data object Probe : SessionAction
     data class Advance(val elapsed: Long) : SessionAction
-    data class Join(val account: String, val power: Power, val original: Boolean,
-        val connection: String?, val generation: Long?) : SessionAction
+    data class Join(val account: String, val country: CountryId?, val original: Boolean,
+        val connection: String?, val generation: Long?) : SessionAction {
+        constructor(account: String, power: Power, original: Boolean, connection: String?, generation: Long?) :
+            this(account, power.country, original, connection, generation)
+    }
     data class Disconnect(val account: String, val connection: String?) : SessionAction
     data class Exclude(val account: String) : SessionAction
     data class OpenBattle(val id: String) : SessionAction
@@ -26,7 +29,9 @@ sealed interface SessionAction {
     data object Restart : SessionAction
     data object RecoverConnections : SessionAction
     /** U-25 亡命: the participant's sanctioned faction change. */
-    data class Defect(val account: String, val power: Power) : SessionAction
+    data class Defect(val account: String, val country: CountryId?) : SessionAction {
+        constructor(account: String, power: Power) : this(account, power.country)
+    }
 }
 
 data class SessionTransition(val state: DurableWorldState, val admission: Admission? = null,
@@ -57,7 +62,7 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
         }
         is SessionAction.Join -> {
             admission = if (action.generation != null && action.generation != before.session.generation) Admission.STALE_SESSION
-                else simulation.join(action.account, action.power, action.original, action.connection)
+                else simulation.join(action.account, action.country, action.original, action.connection)
             emptyList()
         }
         is SessionAction.Disconnect -> { simulation.disconnect(action.account, action.connection); emptyList() }
@@ -69,7 +74,7 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
         }
         SessionAction.Restart -> restart()
         SessionAction.RecoverConnections -> { before.session.participants.keys.forEach { simulation.disconnect(it) }; emptyList() }
-        is SessionAction.Defect -> { simulation.defect(action.account, action.power); emptyList() }
+        is SessionAction.Defect -> { simulation.defect(action.account, action.country); emptyList() }
     } } catch (failure: RuntimeException) {
         if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException) throw failure
         return SessionTransition(before.copy(revision = Math.addExact(before.revision, 1),

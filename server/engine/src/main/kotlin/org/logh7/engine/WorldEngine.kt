@@ -216,6 +216,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private var durableState = durability?.let { store ->
         try {
             val restored = store.load()
+            // Fail before recovery writes: unmigrated ownership must never alias another country's appearance.
+            restored.session.participants.values.forEach { it.country.legacyPower() }
             if (restored.session.participants.values.any { it.online || it.connection != null }) {
                 val recovered = transitionSession(rules, restored, SessionAction.RecoverConnections)
                 store.commit(SessionAction.RecoverConnections, recovered)
@@ -867,7 +869,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                                     val next=transitionSession(rules,checkNotNull(durableState),action)
                                     check(!next.rejected) {"Defection was rejected by the session"}
                                     durability.commit(action,next);durableState=next.state
-                                } else simulation.defect(action.account,action.power)
+                                } else simulation.defect(action.account,action.country)
                             }
                         }
                     }

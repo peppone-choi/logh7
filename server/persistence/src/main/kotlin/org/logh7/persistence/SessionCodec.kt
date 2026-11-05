@@ -7,7 +7,7 @@ import java.security.MessageDigest
 /** Explicit versioned binary format, bounded framing, no Java object deserialization. */
 internal object SessionCodec {
     const val MAX_FRAME = 8 * 1024 * 1024
-    private const val SCHEMA = 1
+    private const val SCHEMA = 2
     fun digest(bytes: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(bytes)
     fun fingerprint(rules: SessionRules): String = digest(output {
         writeLong(rules.speed); writeInt(rules.capacity); writeLong(rules.cpIntervalSeconds); writeInt(rules.baseYear)
@@ -17,33 +17,36 @@ internal object SessionCodec {
         writeLong(rules.strategyTickRealMillis); writeLong(rules.tacticsTickRealMillis); writeLong(rules.restartDelayRealMillis)
     }).joinToString("") { "%02x".format(it) }
 
-    data class Checkpoint(val cutSeq: Long, val genesis: DurableWorldState, val state: DurableWorldState)
-    data class Entry(val seq: Long, val action: SessionAction, val transition: SessionTransition)
-    private fun DataOutputStream.header(fingerprint: String, seq: Long) {
-        writeInt(SCHEMA); writeUTF(fingerprint); writeLong(seq)
+    data class Checkpoint(val cutSeq: Long, val genesis: DurableWorldState, val state: DurableWorldState, val schema: Int = SCHEMA)
+    data class Entry(val seq: Long, val action: SessionAction, val transition: SessionTransition, val schema: Int = SCHEMA)
+    private fun DataOutputStream.header(fingerprint: String, seq: Long, schema: Int) {
+        require(schema in 1..SCHEMA)
+        writeInt(schema); writeUTF(fingerprint); writeLong(seq)
     }
-    private fun DataInputStream.header(fingerprint: String): Long {
-        require(readInt() == SCHEMA) { "Unsupported session schema" }
+    private fun DataInputStream.header(fingerprint: String): Pair<Int, Long> {
+        val schema = readInt()
+        require(schema in 1..SCHEMA) { "Unsupported session schema" }
         require(readUTF() == fingerprint) { "Session rules fingerprint mismatch" }
-        return readLong().also { require(it >= 0) }
+        return schema to readLong().also { require(it >= 0) }
     }
     fun checkpoint(fingerprint: String, value: Checkpoint) = output {
-        header(fingerprint, value.cutSeq); world(value.genesis); world(value.state)
+        header(fingerprint, value.cutSeq, value.schema); world(value.genesis, value.schema); world(value.state, value.schema)
     }
     fun readCheckpoint(fingerprint: String, bytes: ByteArray) = input(bytes) {
-        Checkpoint(header(fingerprint), world(), world())
+        val (schema, seq) = header(fingerprint)
+        Checkpoint(seq, world(schema), world(schema), schema)
     }
     fun entry(fingerprint: String, value: Entry) = output {
-        header(fingerprint, value.seq); action(value.action); world(value.transition.state)
+        header(fingerprint, value.seq, value.schema); action(value.action, value.schema); world(value.transition.state, value.schema)
         optional(value.transition.admission) { writeUTF(it.name) }; writeBoolean(value.transition.rejected)
         count(value.transition.events.size); value.transition.events.forEach { event(it) }
     }
     fun readEntry(fingerprint: String, bytes: ByteArray) = input(bytes) {
-        val seq = header(fingerprint); val action = action(); val state = world()
+        val (schema, seq) = header(fingerprint); val action = action(schema); val state = world(schema)
         val admission = optional { Admission.valueOf(readUTF()) }; val rejected = readBoolean()
-        Entry(seq, action, SessionTransition(state, admission, List(count()) { event() }, rejected))
+        Entry(seq, action, SessionTransition(state, admission, List(count()) { event() }, rejected), schema)
     }
-    fun worldBytes(value: DurableWorldState) = output { world(value) }
+    fun worldBytes(value: DurableWorldState) = output { world(value, SCHEMA) }
     private fun output(write: DataOutputStream.() -> Unit): ByteArray = ByteArrayOutputStream().also {
         DataOutputStream(it).use(write)
     }.toByteArray().also { require(it.size <= MAX_FRAME) }
@@ -66,38 +69,47 @@ internal object SessionCodec {
         writeUTF(value.reason.name); powers(value.affected); writeLong(value.gameSeconds)
     }
     private fun DataInputStream.end() = SessionEnd(EndReason.valueOf(readUTF()), powers(), readLong())
-    private fun DataOutputStream.world(value: DurableWorldState) {
+    private fun DataOutputStream.country(value: CountryId?, schema: Int) {
+        if (schema == 1) writeUTF(value.legacyPower().name)
+        else optional(value) { writeInt(it.value) }
+    }
+    private fun DataInputStream.country(schema: Int): CountryId? =
+        if (schema == 1) Power.valueOf(readUTF()).country else optional { CountryId(readInt()) }
+    private fun DataOutputStream.world(value: DurableWorldState, schema: Int) {
         writeLong(value.elapsed); optional(value.restartAt) { writeLong(it) }; writeLong(value.revision)
         writeLong(value.acceptedCommands); writeLong(value.rejectedCommands)
         val s = value.session
         writeLong(s.generation); writeLong(s.gameMillis); writeLong(s.strategyTicks); writeLong(s.recoveries)
         count(s.participants.size); s.participants.forEach { (id, p) ->
-            writeUTF(id); writeUTF(p.power.name); writeBoolean(p.original); writeBoolean(p.online); optional(p.connection) { writeUTF(it) }
+            writeUTF(id); country(p.country, schema); writeBoolean(p.original); writeBoolean(p.online); optional(p.connection) { writeUTF(it) }
         }
-        count(s.excluded.size); s.excluded.forEach { (id, power) -> writeUTF(id); writeUTF(power.name) }
+        count(s.excluded.size); s.excluded.forEach { (id, country) -> writeUTF(id); country(country, schema) }
         count(s.battles.size); s.battles.forEach { (id, battle) -> writeUTF(id); writeLong(battle.startMillis); writeLong(battle.ticks) }
         optional(s.ended) { end(it) }
     }
-    private fun DataInputStream.world(): DurableWorldState {
+    private fun DataInputStream.world(schema: Int): DurableWorldState {
         val elapsed = readLong(); val restart = optional { readLong() }; val revision = readLong()
         val accepted = readLong(); val rejected = readLong()
         val generation = readLong(); val millis = readLong(); val strategy = readLong(); val recoveries = readLong()
         val participants = linkedMapOf<String, Participant>()
         repeat(count()) {
-            val id = readUTF(); val p = Participant(Power.valueOf(readUTF()), readBoolean(), readBoolean(), optional { readUTF() })
+            val id = readUTF(); val p = Participant(country(schema), readBoolean(), readBoolean(), optional { readUTF() })
             require(participants.put(id, p) == null) { "Duplicate participant" }
         }
-        val excluded = linkedMapOf<String, Power>()
-        repeat(count()) { require(excluded.put(readUTF(), Power.valueOf(readUTF())) == null) { "Duplicate exclusion" } }
+        val excluded = linkedMapOf<String, CountryId?>()
+        repeat(count()) {
+            val id = readUTF(); require(id !in excluded) { "Duplicate exclusion" }
+            excluded[id] = country(schema)
+        }
         val battles = linkedMapOf<String, BattleState>()
         repeat(count()) { require(battles.put(readUTF(), BattleState(readLong(), readLong())) == null) { "Duplicate battle" } }
         return DurableWorldState(SessionState(generation, millis, strategy, recoveries, participants, excluded, battles,
             optional { end() }), elapsed, restart, revision, accepted, rejected)
     }
-    private fun DataOutputStream.action(value: SessionAction) { when (value) {
+    private fun DataOutputStream.action(value: SessionAction, schema: Int) { when (value) {
         SessionAction.Probe -> writeByte(0)
         is SessionAction.Advance -> { writeByte(1); writeLong(value.elapsed) }
-        is SessionAction.Join -> { writeByte(2); writeUTF(value.account); writeUTF(value.power.name); writeBoolean(value.original)
+        is SessionAction.Join -> { writeByte(2); writeUTF(value.account); country(value.country, schema); writeBoolean(value.original)
             optional(value.connection) { writeUTF(it) }; optional(value.generation) { writeLong(it) } }
         is SessionAction.Disconnect -> { writeByte(3); writeUTF(value.account); optional(value.connection) { writeUTF(it) } }
         is SessionAction.Exclude -> { writeByte(4); writeUTF(value.account) }
@@ -107,12 +119,12 @@ internal object SessionCodec {
             value.systems.entries.sortedBy { it.key.ordinal }.forEach { writeUTF(it.key.name); writeInt(it.value) }; powers(value.capitals) }
         SessionAction.Restart -> writeByte(8)
         SessionAction.RecoverConnections -> writeByte(9)
-        is SessionAction.Defect -> { writeByte(10); writeUTF(value.account); writeUTF(value.power.name) }
+        is SessionAction.Defect -> { writeByte(10); writeUTF(value.account); country(value.country, schema) }
     } }
-    private fun DataInputStream.action(): SessionAction = when (readUnsignedByte()) {
+    private fun DataInputStream.action(schema: Int): SessionAction = when (readUnsignedByte()) {
         0 -> SessionAction.Probe
         1 -> SessionAction.Advance(readLong())
-        2 -> SessionAction.Join(readUTF(), Power.valueOf(readUTF()), readBoolean(), optional { readUTF() }, optional { readLong() })
+        2 -> SessionAction.Join(readUTF(), country(schema), readBoolean(), optional { readUTF() }, optional { readLong() })
         3 -> SessionAction.Disconnect(readUTF(), optional { readUTF() })
         4 -> SessionAction.Exclude(readUTF())
         5 -> SessionAction.OpenBattle(readUTF())
@@ -124,7 +136,7 @@ internal object SessionCodec {
         }
         8 -> SessionAction.Restart
         9 -> SessionAction.RecoverConnections
-        10 -> SessionAction.Defect(readUTF(), Power.valueOf(readUTF()))
+        10 -> SessionAction.Defect(readUTF(), country(schema))
         else -> error("Unknown journal action")
     }
     private fun DataOutputStream.event(value: WorldEvent) { when (value) {
