@@ -1,6 +1,7 @@
-# 작성: Peppone Choi | evidence:guess | 선택 덮어쓰기: Prometheus가 게임 서버 /metrics를 토큰으로 수집
+# 작성: Peppone Choi | evidence:guess | 선택 덮어쓰기: Prometheus가 게임 서버 /metrics를 토큰으로 수집하고 경보를 운영자에게 보낸다
 # docker compose -f docker-compose.yml -f docker-compose.metrics.yml --profile game up -d
-# secrets/ops_token.txt(16자 이상 무작위 한 줄)가 필요하다. 운영 API는 토큰 없이 비루프백 바인딩을 거부한다.
+# secrets/ops_token.txt(16자 이상 무작위 한 줄)와 secrets/alert_webhook_url.txt(운영자 수신 웹훅 URL 한 줄)가 필요하다.
+# 운영 API는 토큰 없이 비루프백 바인딩을 거부한다. 경보 규칙: prometheus/game-alerts.yml, 경로: alertmanager/alertmanager.yml.
 services:
   game-server:
     environment:
@@ -10,7 +11,17 @@ services:
   prometheus:
     volumes:
       - ./prometheus/prometheus-game.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/game-alerts.yml:/etc/prometheus/game-alerts.yml:ro
     secrets: [ops_token]
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager", "--cluster.listen-address="]
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    secrets: [alert_webhook_url]
+    restart: unless-stopped
 secrets:
   ops_token:
     file: ./secrets/ops_token.txt
+  alert_webhook_url:
+    file: ./secrets/alert_webhook_url.txt

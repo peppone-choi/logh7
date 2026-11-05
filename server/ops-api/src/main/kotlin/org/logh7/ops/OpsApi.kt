@@ -33,11 +33,17 @@ interface StateBackups {
     suspend fun take(): String
     /** Epoch seconds of the last successful backup, or null before the first. */
     fun lastSuccess(): Long?
+    /** Scheduled period in seconds; 0 when backups are manual only (no staleness alert then). */
+    fun intervalSeconds(): Long = 0
+    /** Backups (scheduled or manual) that failed since start. */
+    fun failures(): Long = 0
 }
 
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
     audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null,
-    users: OpsUsers? = null, backups: StateBackups? = null, galaxy:Galaxy?=null,checklist:Path?=null,countryColors:CountryColorStore?=null): AutoCloseable {
+    users: OpsUsers? = null, backups: StateBackups? = null, galaxy:Galaxy?=null,checklist:Path?=null,countryColors:CountryColorStore?=null,
+    /** A path on the state volume (LOGH7_WORLD_STATE_DIR); its file store's free/total space is exported. */
+    stateDisk: Path? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -81,7 +87,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                 else call.respondText(opsTextResource(checkNotNull(asset)),io.ktor.http.ContentType.parse("text/javascript; charset=utf-8"))
             }
             get("/metrics") {
-                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups),
+                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
             }
             // Admin page buttons: same audit as the header routes, operator from the form, same-origin only.
@@ -229,7 +235,8 @@ internal suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction
 }
 
 /** Prometheus text exposition of engine health and counters (deploy/prometheus scrapes this). */
-internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: StateBackups? = null): String = buildString {
+internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: StateBackups? = null,
+    stateDisk: Path? = null): String = buildString {
     fun metric(name: String, type: String, help: String, value: Number) {
         append("# HELP logh7_").append(name).append(' ').append(help).append('\n')
         append("# TYPE logh7_").append(name).append(' ').append(type).append('\n')
@@ -252,8 +259,23 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: 
     metric("jvm_heap_used_bytes", "gauge", "JVM heap in use.", runtime.totalMemory() - runtime.freeMemory())
     metric("jvm_heap_max_bytes", "gauge", "JVM heap limit.", runtime.maxMemory())
     metric("jvm_threads", "gauge", "Live JVM threads.", Thread.activeCount())
+    // Staleness alerts measure from the later of this and the last backup, so a fresh start does not page.
+    metric("process_start_seconds", "gauge", "Epoch seconds when this server process started.",
+        java.lang.management.ManagementFactory.getRuntimeMXBean().startTime / 1000)
     // RPO watch: alert when time() minus this grows past the backup interval.
-    if (backups != null) metric("backup_last_success_seconds", "gauge", "Epoch seconds of the last live backup (0 before the first).", backups.lastSuccess() ?: 0)
+    if (backups != null) {
+        metric("backup_last_success_seconds", "gauge", "Epoch seconds of the last live backup (0 before the first).", backups.lastSuccess() ?: 0)
+        metric("backup_interval_seconds", "gauge", "Scheduled live backup period (0 = manual only).", backups.intervalSeconds())
+        metric("backup_failures_total", "counter", "Live backups that failed since start.", backups.failures())
+    }
+    // Capacity alerts (deploy/prometheus/game-alerts.yml); an unreadable store just omits the pair.
+    stateDisk?.let { path ->
+        try {
+            val store = java.nio.file.Files.getFileStore(path)
+            metric("state_disk_free_bytes", "gauge", "Usable bytes on the state volume.", store.usableSpace)
+            metric("state_disk_total_bytes", "gauge", "Total bytes on the state volume.", store.totalSpace)
+        } catch (_: java.io.IOException) {}
+    }
 }
 
 /** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */

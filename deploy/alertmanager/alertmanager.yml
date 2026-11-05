@@ -1,0 +1,23 @@
+# 작성: Peppone Choi | 체크리스트 14 장애 감지·알림 | evidence:guess (routing policy)
+# Operator receiver: a webhook URL kept out of Git in secrets/alert_webhook_url.txt (one line), e.g. a chat
+# incoming webhook or a paging service. Critical alerts repeat hourly, warnings every four hours.
+route:
+  receiver: operator
+  group_by: [alertname, instance]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: operator
+      repeat_interval: 1h
+receivers:
+  - name: operator
+    webhook_configs:
+      - url_file: /run/secrets/alert_webhook_url
+        send_resolved: true
+inhibit_rules:
+  # A server that cannot be scraped also reports nothing else; do not page twice for it.
+  - source_matchers: ['alertname="LOGH7GameServerUnreachable"']
+    target_matchers: ['severity=~"warning|critical"', 'alertname!="LOGH7GameServerUnreachable"']
+    equal: [instance]

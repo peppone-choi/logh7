@@ -1,0 +1,127 @@
+# 작성: Peppone Choi | promtool test rules: virtual samples for the unchanged game alert rules.
+rule_files: [game-alerts.yml]
+evaluation_interval: 15s
+
+tests:
+  - name: unreachable server and stopped engine page after one minute
+    interval: 15s
+    input_series:
+      - series: 'up{job="game-server",instance="game-server:47901"}'
+        values: '1x3 0x8'
+      - series: 'logh7_engine_up{job="game-server",instance="game-server:47901"}'
+        values: '1x3 0x8'
+    alert_rule_test:
+      - eval_time: 90s
+        alertname: LOGH7GameServerUnreachable
+        exp_alerts: []
+      - eval_time: 135s
+        alertname: LOGH7GameServerUnreachable
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: critical}
+            exp_annotations:
+              summary: 'LOGH7 game server ops API unreachable'
+              description: 'Prometheus cannot scrape game-server:47901 /metrics for one minute: process down, port closed or token rejected.'
+      - eval_time: 135s
+        alertname: LOGH7EngineStorageFailed
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: critical}
+            exp_annotations:
+              summary: 'LOGH7 world engine stopped committing'
+              description: 'logh7_engine_up has been 0 for one minute on game-server:47901 (storage failure or engine stop). New commands are refused; check the server log and the state volume.'
+
+  - name: a backup older than twice the interval warns, measured from the later of start and last success
+    interval: 1m
+    input_series:
+      # Interval 10 minutes. The process started at t=0 and never backed up: stale after 20m (+5m for).
+      - series: 'logh7_backup_interval_seconds{job="game-server",instance="stale:1"}'
+        values: '600x40'
+      - series: 'logh7_process_start_seconds{job="game-server",instance="stale:1"}'
+        values: '0x40'
+      - series: 'logh7_backup_last_success_seconds{job="game-server",instance="stale:1"}'
+        values: '0x40'
+      # Same, but a backup every 10 minutes keeps it quiet.
+      - series: 'logh7_backup_interval_seconds{job="game-server",instance="fresh:1"}'
+        values: '600x40'
+      - series: 'logh7_process_start_seconds{job="game-server",instance="fresh:1"}'
+        values: '0x40'
+      - series: 'logh7_backup_last_success_seconds{job="game-server",instance="fresh:1"}'
+        values: '0x9 600x9 1200x9 1800x9 2400x2'
+      # Manual-only backups (interval 0) never alert.
+      - series: 'logh7_backup_interval_seconds{job="game-server",instance="manual:1"}'
+        values: '0x40'
+      - series: 'logh7_process_start_seconds{job="game-server",instance="manual:1"}'
+        values: '0x40'
+      - series: 'logh7_backup_last_success_seconds{job="game-server",instance="manual:1"}'
+        values: '0x40'
+      # Restarted at t=30m: a fresh process is measured from its start, not from the 0 "never" value.
+      - series: 'logh7_backup_interval_seconds{job="game-server",instance="restarted:1"}'
+        values: '600x40'
+      - series: 'logh7_process_start_seconds{job="game-server",instance="restarted:1"}'
+        values: '1800x40'
+      - series: 'logh7_backup_last_success_seconds{job="game-server",instance="restarted:1"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 24m
+        alertname: LOGH7BackupStale
+        exp_alerts: []
+      - eval_time: 26m
+        alertname: LOGH7BackupStale
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'stale:1', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 live backup older than twice its interval'
+              description: 'No successful live backup on stale:1 within 2x LOGH7_BACKUP_INTERVAL_MINUTES (RPO at risk).'
+
+  - name: a failed backup warns at once
+    interval: 1m
+    input_series:
+      - series: 'logh7_backup_failures_total{job="game-server",instance="game-server:47901"}'
+        values: '0x4 1x6'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: LOGH7BackupFailing
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: LOGH7BackupFailing
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'game-server:47901', severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 live backup failed'
+              description: 'At least one live backup failed in the last 15 minutes on game-server:47901.'
+
+  - name: heap and disk limits
+    interval: 1m
+    input_series:
+      - series: 'logh7_jvm_heap_used_bytes{job="game-server",instance="game-server:47901"}'
+        values: '50x2 95x14'
+      - series: 'logh7_jvm_heap_max_bytes{job="game-server",instance="game-server:47901"}'
+        values: '100x16'
+      - series: 'logh7_state_disk_free_bytes{job="game-server",instance="game-server:47901"}'
+        values: '50000000000x2 5000000000x6 500000000x8'
+      - series: 'logh7_state_disk_total_bytes{job="game-server",instance="game-server:47901"}'
+        values: '100000000000x16'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: LOGH7HeapNearLimit
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: LOGH7HeapNearLimit
+        exp_alerts:
+          - exp_labels: {instance: 'game-server:47901', job: game-server, severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 JVM heap above 90% of its limit'
+              description: 'Heap use on game-server:47901 stayed above 90% for ten minutes; raise -Xmx or investigate growth.'
+      - eval_time: 11m
+        alertname: LOGH7StateDiskLow
+        exp_alerts:
+          - exp_labels: {instance: 'game-server:47901', job: game-server, severity: warning}
+            exp_annotations:
+              summary: 'LOGH7 state volume under 10% free'
+              description: 'The state volume of game-server:47901 has under 10% free space; journals and backups will fail when it fills.'
+      - eval_time: 11m
+        alertname: LOGH7StateDiskCritical
+        exp_alerts:
+          - exp_labels: {instance: 'game-server:47901', job: game-server, severity: critical}
+            exp_annotations:
+              summary: 'LOGH7 state volume under 1 GiB free'
+              description: 'Under 1 GiB free on the state volume of game-server:47901; a full volume stops the world engine.'

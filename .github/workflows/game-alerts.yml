@@ -1,0 +1,58 @@
+name: game-alerts
+on:
+  push:
+    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
+  pull_request:
+    paths: ['deploy/prometheus/game-alerts*', 'deploy/prometheus/prometheus-game.yml', 'deploy/alertmanager/**', 'deploy/test_game_alerts.py', 'server/ops-api/**', 'server/app/**', '.github/workflows/game-alerts.yml']
+permissions:
+  contents: read
+jobs:
+  game-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build the server distribution
+        run: bash ./gradlew :app:installDist --no-daemon
+        working-directory: server
+      - name: Fetch verified Linux tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$RUNNER_TEMP/logh7-alert-tools"
+          mkdir "$tools"
+          cd "$tools"
+          curl --fail --silent --show-error --location --max-time 180 -o prometheus.tar.gz https://github.com/prometheus/prometheus/releases/download/v3.13.3/prometheus-3.13.3.linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --max-time 180 -o alertmanager.tar.gz https://github.com/prometheus/alertmanager/releases/download/v0.34.1/alertmanager-0.34.1.linux-amd64.tar.gz
+          cat > checksums.txt <<'CHECKSUMS'
+          b349c732d8a853e657d0e7ae1bbad4d11b586615fb65fdc59d896b9f869c001e  prometheus.tar.gz
+          265b9d1e55ef0d5306a436018af6d2b686c2ce051f03d968f7464ecb1372a7e8  alertmanager.tar.gz
+          CHECKSUMS
+          sha256sum --check checksums.txt
+          tar --extract --gzip --file prometheus.tar.gz --strip-components=1 prometheus-3.13.3.linux-amd64/prometheus prometheus-3.13.3.linux-amd64/promtool
+          tar --extract --gzip --file alertmanager.tar.gz --strip-components=1 alertmanager-0.34.1.linux-amd64/alertmanager alertmanager-0.34.1.linux-amd64/amtool
+          ./amtool check-config "$GITHUB_WORKSPACE/deploy/alertmanager/alertmanager.yml"
+      - name: Mount a small state volume for the disk-full injection
+        run: |
+          mkdir -p "$RUNNER_TEMP/logh7-state"
+          sudo mount -t tmpfs -o size=64m,mode=1777 tmpfs "$RUNNER_TEMP/logh7-state"
+      - name: Validate rules and deliver real failures to the operator receiver
+        run: |
+          python3 deploy/test_game_alerts.py \
+            --prometheus "$RUNNER_TEMP/logh7-alert-tools/prometheus" \
+            --promtool "$RUNNER_TEMP/logh7-alert-tools/promtool" \
+            --alertmanager "$RUNNER_TEMP/logh7-alert-tools/alertmanager" \
+            --server-dist server/app/build/install/app \
+            --volume "$RUNNER_TEMP/logh7-state" \
+            --report-dir "$RUNNER_TEMP/logh7-game-alert-report"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: game-alert-delivery
+          path: ${{ runner.temp }}/logh7-game-alert-report/
+          if-no-files-found: warn
