@@ -37,7 +37,7 @@ interface StateBackups {
 
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
     audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null,
-    users: OpsUsers? = null, backups: StateBackups? = null, galaxy:Galaxy?=null,checklist:Path?=null): AutoCloseable {
+    users: OpsUsers? = null, backups: StateBackups? = null, galaxy:Galaxy?=null,checklist:Path?=null,countryColors:CountryColorStore?=null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -58,6 +58,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
         }
         routing {
             worldEditorRoutes(commands,snapshots,port,audit,galaxy)
+            countryColorRoutes(countryColors,port,audit)
             progressRoutes(checklist,"/admin/progress","/admin/progress/data")
             get("/health") {
                 when (snapshots.health()) {
@@ -264,7 +265,7 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
     append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">")
     append("<title>LOGH7 운영</title><style>body{font-family:sans-serif;margin:16px}table{border-collapse:collapse;margin-bottom:16px}")
     append("td,th{border:1px solid #999;padding:2px 8px;text-align:left}</style></head><body><h1>LOGH7 운영 상태</h1>")
-    append("<nav><a href=\"/admin/progress\">작업 현황</a> · <a href=\"/admin/world\">세계 편집</a> · <a href=\"/admin/text/\">문구 편집</a></nav><table><tbody>")
+    append("<nav><a href=\"/admin/progress\">작업 현황</a> · <a href=\"/admin/world\">세계 편집</a> · <a href=\"/admin/countries\">국가 색상</a> · <a href=\"/admin/text/\">문구 편집</a></nav><table><tbody>")
     row("엔진", health.name)
     row("월드 리비전", snapshot.revision)
     row("명령 접수/거부", "${snapshot.acceptedCommands} / ${snapshot.rejectedCommands}")

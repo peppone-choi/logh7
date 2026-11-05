@@ -30,6 +30,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: psql -v ON_ERROR_STOP=1 -f server/persistence/src/main/resources/db/migration/V1__national_definitions.sql -f server/persistence/src/test/resources/sql/national_definitions_test.sql
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bash ./gradlew :persistence:test --tests '*PostgresCountryColorsTest' --no-daemon
+        working-directory: server
+        env:
+          LOGH7_TEST_DATABASE_URL: jdbc:postgresql://127.0.0.1:5432/logh7_test
   build:
     runs-on: ubuntu-latest
     defaults:

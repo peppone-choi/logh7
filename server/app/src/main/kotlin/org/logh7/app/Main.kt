@@ -123,9 +123,39 @@ fun main() {
                 environment["LOGH7_BACKUP_EXPORT_DIR"]?.let { Path.of(it) })
         }
         backups?.schedule(scope, environment["LOGH7_BACKUP_INTERVAL_MINUTES"]?.toLong() ?: 0)
+        val countryColors=environment["LOGH7_DEFINITIONS_JDBC_URL"]?.takeIf {it.isNotBlank()}?.let {url ->
+                require(url.startsWith("jdbc:postgresql:")) {"LOGH7_DEFINITIONS_JDBC_URL must select PostgreSQL"}
+                val properties=java.util.Properties().apply {
+                    environment["LOGH7_DEFINITIONS_DB_USER"]?.let {setProperty("user",it)}
+                    environment["LOGH7_DEFINITIONS_DB_PASSWORD"]?.let {setProperty("password",it)}
+                    setProperty("connectTimeout","2");setProperty("socketTimeout","5")
+                }
+                val delegate=org.logh7.persistence.PostgresCountryColors {java.sql.DriverManager.getConnection(url,properties)}
+                object:org.logh7.engine.CountryColorStore {
+                    override fun list()=delegate.list().also {world?.publishCountryAppearances(it)}
+                    override fun save(countryId:Int,expectedRevision:Long,colors:org.logh7.engine.CountryColors)=
+                        delegate.save(countryId,expectedRevision,colors).also {
+                            if(it==org.logh7.engine.CountryColorOutcome.CHANGED)try {list()} catch(_:java.sql.SQLException) {
+                                // The commit succeeded; a display refresh failure must not report a failed save.
+                                System.err.println("Country colors saved; display refresh deferred")
+                            }
+                        }
+                }
+            }
+        if(countryColors!=null)scope.launch(Dispatchers.IO) {
+            var failed=false
+            while(isActive) {
+                try {countryColors.list();failed=false} catch(_:java.sql.SQLException) {
+                    if(!failed)System.err.println("Country definitions DB unavailable; retaining the last display snapshot")
+                    failed=true
+                }
+                delay(5000)
+            }
+        }
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,
             host = environment["LOGH7_OPS_BIND"] ?: "127.0.0.1",
             users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
+            countryColors=countryColors,
             checklist=environment["LOGH7_CHECKLIST_FILE"]?.let {Path.of(it)} ?: listOf(Path.of("docs/IMPLEMENTATION-CHECKLIST.md"),Path.of("../docs/IMPLEMENTATION-CHECKLIST.md")).firstOrNull(java.nio.file.Files::isRegularFile),
             galaxy=world?.galaxy,accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()

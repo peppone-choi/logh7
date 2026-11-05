@@ -977,6 +977,7 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
+                        if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,character.power)),clearHeader=0)
                         pendingWorld = stocks().thenApply { stored ->
                             if(party?.mode==2)world.outfitGround(party,character.power,checkNotNull(stored))
                             else if(party?.mode==3)world.outfitBattle(party,character.power,checkNotNull(stored),
