@@ -3,12 +3,16 @@ package org.logh7.engine
 enum class Power { EMPIRE, ALLIANCE }
 enum class EndReason { CAPITAL_CAPTURED, SYSTEMS_REDUCED, TIME_LIMIT }
 data class SessionEnd(val reason: EndReason, val affected: Set<Power>, val gameSeconds: Long)
-data class Participant(val power: Power, val original: Boolean, val online: Boolean = true, val connection: String? = null)
+data class Participant(val country: CountryId?, val original: Boolean, val online: Boolean = true, val connection: String? = null) {
+    constructor(power: Power, original: Boolean, online: Boolean = true, connection: String? = null) :
+        this(power.country, original, online, connection)
+    val power: Power get() = country.legacyPower()
+}
 enum class Admission { ACCEPTED, FULL, ENDED, FACTION_CHANGED, ORIGINAL_RETURN_FORBIDDEN, IDENTITY_CHANGED, ALREADY_ONLINE, STALE_SESSION }
 data class BattleState(val startMillis: Long, val ticks: Long)
 /** Full domain state. Connection fields are cleared only during recovery, never during live cloning. */
 data class SessionState(val generation: Long, val gameMillis: Long, val strategyTicks: Long,
-    val recoveries: Long, val participants: Map<String, Participant>, val excluded: Map<String, Power>,
+    val recoveries: Long, val participants: Map<String, Participant>, val excluded: Map<String, CountryId?>,
     val battles: Map<String, BattleState>, val ended: SessionEnd?)
 data class SessionSnapshot(val generation: Long, val gameSeconds: Long, val strategyTicks: Long,
     val cpRecoveryEvents: Long, val tacticalTicks: Map<String, Long>, val participants: Int, val online: Int,
@@ -28,7 +32,7 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
     private var strategyTicks = 0L
     private var recoveries = 0L
     private val participants = mutableMapOf<String, Participant>()
-    private val excluded = mutableMapOf<String, Power>()
+    private val excluded = mutableMapOf<String, CountryId?>()
     private data class Battle(val startMillis: Long, var ticks: Long = 0)
     private val battles = mutableMapOf<String, Battle>()
     private var ended: SessionEnd? = null
@@ -45,7 +49,7 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
             require(state.excluded.keys.all { it.isNotBlank() })
             state.participants.forEach { (id, participant) ->
                 require(participant.online || participant.connection == null)
-                state.excluded[id]?.let { require(!participant.original && it == participant.power) }
+                if (id in state.excluded) require(!participant.original && state.excluded[id] == participant.country)
             }
             state.battles.forEach { (id, battle) ->
                 require(id.isNotBlank() && battle.startMillis in rules.startSeconds * 1000..state.gameMillis)
@@ -69,31 +73,37 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
     fun snapshot() = SessionSnapshot(generation, gameMillis / 1000, strategyTicks, recoveries,
         battles.mapValues { it.value.ticks }, participants.size, participants.values.count { it.online }, ended)
     fun join(account: String, power: Power, original: Boolean, connection: String? = null): Admission {
+        return join(account, power.country, original, connection)
+    }
+    fun join(account: String, country: CountryId?, original: Boolean, connection: String? = null): Admission {
         require(account.isNotBlank())
         if (ended != null) return Admission.ENDED
         participants[account]?.let {
-            if (it.power != power || it.original != original) return Admission.IDENTITY_CHANGED
+            if (it.country != country || it.original != original) return Admission.IDENTITY_CHANGED
             if (it.online && it.connection != null && it.connection != connection) return Admission.ALREADY_ONLINE
             participants[account] = it.copy(online = true, connection = connection)
             return Admission.ACCEPTED
         }
-        excluded[account]?.let {
+        if (account in excluded) {
             if (original) return Admission.ORIGINAL_RETURN_FORBIDDEN
-            if (it != power) return Admission.FACTION_CHANGED
+            if (excluded[account] != country) return Admission.FACTION_CHANGED
         }
         if (participants.size >= rules.capacity) return Admission.FULL
-        participants[account] = Participant(power, original, connection = connection)
+        participants[account] = Participant(country, original, connection = connection)
         return Admission.ACCEPTED
     }
     fun disconnect(account: String, connection: String? = null) {
         participants[account]?.let { if (connection == null || it.connection == connection) participants[account] = it.copy(online = false, connection = null) }
     }
-    fun exclude(account: String) { participants.remove(account)?.let { excluded[account] = it.power } }
+    fun exclude(account: String) { participants.remove(account)?.let { excluded[account] = it.country } }
     /** U-25 亡命 (user decision 2026-11-01): the only sanctioned faction change of a participant. */
     fun defect(account: String, power: Power) {
+        defect(account, power.country)
+    }
+    fun defect(account: String, country: CountryId?) {
         val current = checkNotNull(participants[account]) { "Unknown participant" }
-        require(current.power != power)
-        participants[account] = current.copy(power = power)
+        require(current.country != country)
+        participants[account] = current.copy(country = country)
     }
     fun openBattle(id: String) {
         require(id.isNotBlank() && ended == null)

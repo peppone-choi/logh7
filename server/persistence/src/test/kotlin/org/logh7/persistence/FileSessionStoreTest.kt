@@ -107,7 +107,7 @@ class FileSessionStoreTest {
         val checksumBad = pristine.clone(); checksumBad[12] = (checksumBad[12].toInt() xor 1).toByte()
         Files.write(journal, checksumBad); assertBlockedUnchanged()
         Files.write(journal, pristine)
-        val schemaBad = frames[0].clone(); schemaBad[3] = 2
+        val schemaBad = frames[0].clone(); schemaBad[3] = 3
         writeJournal(listOf(schemaBad) + frames.drop(1)); assertBlockedUnchanged()
         Files.write(journal, pristine)
         assertFails { localSessionStore(directory, rules.copy(speed = rules.speed + 1)).close() }
