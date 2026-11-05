@@ -29,6 +29,8 @@
 | `LOGH7SessionTicketRejections` | 10분 안에 세션 토큰 거부 10회 이상 | warning |
 | `LOGH7UpdateFailuresHigh` | 15분 안에 시작했지만 끝나지 않은 업데이트 교환 5회 이상 | warning |
 | `LOGH7ConnectionErrorsHigh` | 10분 안에 프로토콜·처리 오류로 끊긴 연결 50회 이상 | warning |
+| `LOGH7ActorQueueLag` | 명령 대기 p99 > 1초 5분 | warning |
+| `LOGH7TickLagHigh` | 틱 처리 지연 p99 > 2초 5분 | warning |
 
 이번에 추가한 지표는 다음 여섯 종이다.
 - `logh7_engine_state{state=...}`: starting·running·storage_failed·stopped 중 현재 상태만 1이다. `engine_up`은 시작 중·정지·저장 실패에서 모두 0이라, 저장 실패 경보는 이 상태로만 판정한다(Codex 검토).
@@ -51,6 +53,14 @@
 
 경보 문구에는 `increase()` 값을 넣지 않는다. 보간 때문에 소수가 나와 promtool 비교가 흔들리기 때문이다.
 
+### 월드 액터 지연 (2026-11-06 3차)
+
+엔진은 이미 명령 대기·틱 깨어남/처리 지연·송신 대기를 재고 있었다(`ActorTimings`). 그러나 앱이 수집기를 넘기지 않아 값이 버려졌다. `ActorTimingHistograms`가 이 값을 Prometheus 히스토그램으로 내보낸다.
+- 지표는 `logh7_actor_<timing>_seconds_bucket/_sum/_count`와 `logh7_actor_clock_regressions_total`이다. 구간은 1ms~30초다.
+- 엔진 코드는 바꾸지 않았다. 앱이 같은 객체를 엔진과 운영 API에 넘긴다.
+- 로컬 실서버 약 8초 동안 틱 31개가 기록됐다. 명령 대기 평균 0.18ms, 틱 처리 지연 평균 1.4ms였다.
+- 지연 경보는 promtool 가상 표본으로만 확인했다. 실제로 액터를 멈추게 하는 주입은 하지 않았다. CI 주입 시험은 히스토그램이 실제로 쌓이는지만 확인한다.
+
 ## 실제 주입 시험(CI `game-alerts`)
 
 `deploy/test_game_alerts.py`가 다음을 한 번에 실행한다.
@@ -71,7 +81,7 @@
 ## 남은 것
 
 체크리스트 항목 기준으로 남은 것은 다음과 같다.
-- 큐/지연 경보: 송신 큐·틱 지연 지표가 아직 없다.
+- 큐/지연: 월드 액터 지연은 3차에서 넣었다. 클라이언트별 송신 큐(게이트웨이 알림 대기열) 길이는 아직 지표가 없다.
 - 연속 접속/패치 실패: 서버 쪽 계수와 경보는 2차에서 넣었다. 런처(클라이언트) 쪽 패치 다운로드·적용 실패는 서버가 볼 수 없으므로 아직 남는다.
 - 로그·캡처·백업 보존 정책과 용량 경보 전체
 - 플레이어에게 보이는 오류 표시

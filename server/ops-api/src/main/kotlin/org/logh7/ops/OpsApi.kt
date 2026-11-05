@@ -45,7 +45,9 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     /** A path on the state volume (LOGH7_WORLD_STATE_DIR); its file store's free/total space is exported. */
     stateDisk: Path? = null,
     /** Gateway outcome counters (name without logh7_ -> value), e.g. login_rejected_total. */
-    gatewayCounters: (() -> Map<String, Long>)? = null): AutoCloseable {
+    gatewayCounters: (() -> Map<String, Long>)? = null,
+    /** World actor queue/tick timing histograms (the same object the engine records into). */
+    actorTimings: ActorTimingHistograms? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -90,7 +92,8 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                 else call.respondText(opsTextResource(checkNotNull(asset)),io.ktor.http.ContentType.parse("text/javascript; charset=utf-8"))
             }
             get("/metrics") {
-                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk, gatewayCounters?.invoke()),
+                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk, gatewayCounters?.invoke()) +
+                    (actorTimings?.exposition() ?: ""),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
             }
             // Admin page buttons: same audit as the header routes, operator from the form, same-origin only.
