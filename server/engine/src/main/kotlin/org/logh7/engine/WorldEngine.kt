@@ -250,6 +250,29 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         return if(result.rejection==NavigationRejection.BUSY || result.rejection==NavigationRejection.CRUISE)
             result.copy(player=result.previous) else result
     }
+    /** Due fuel/docking/warp work of an offline captain completes on the world clock (checklist §3, `evidence:guess`). */
+    private fun dueOfflineWork(session:SessionState,account:String,player:Navigator):Boolean {
+        val member=session.participants[account] ?: return false
+        if(member.online || player.cpPaused || player.generation!=session.generation)return false
+        val now=session.gameMillis/1000
+        return player.strategy?.jobs.orEmpty().any {it.completesAtGameMillis/1000<=now} ||
+            (player.strategy==null && player.fuelReadyAt?.let {it<=now}==true)
+    }
+    /**
+     * Runs the login settlement path for each offline captain whose job is due, so the fleet moves with the
+     * flagship and observers see the arrival without waiting for a reconnect. A deferred fleet (a member is busy)
+     * keeps its job and is retried on a later tick; only future deadlines schedule ticks, so it cannot spin.
+     */
+    private fun settleOfflineNavigation(session:SessionState) {
+        val navigation=navigation ?: return
+        if(session.ended!=null)return
+        for((account,player) in navigation.snapshot(session.generation).toSortedMap()) {
+            if(!dueOfflineWork(session,account,player))continue
+            val member=session.participants.getValue(account)
+            recoverNavigation(NavigationRequest(account,player.characterId,player.power,member.connection.orEmpty(),
+                session.generation,offlineSettle=true),session)
+        }
+    }
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
     private val profiles = java.util.concurrent.ConcurrentHashMap<String, StrategicPerson>()
@@ -322,7 +345,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if(TacticalOfflineAi.eligible(session,account,p,stocks))maxOf(session.gameMillis/1000+rules.speed,
                 stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0) else null}}.orEmpty()
         val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
+        val nowSeconds=session.gameMillis/1000
+        val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
+            session.participants[account]?.online==false}.values.flatMap {p->
+            p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null})
+        }.filter {it>nowSeconds}
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -1013,6 +1042,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
                         navigation?.settleRetreats(current, production?.snapshot(current.generation))
+                        settleOfflineNavigation(current)
                     }
                     val current=checkNotNull(durableState)
                     publish(current.snapshot(rules).copy(navigators = navigation?.snapshot(current.session.generation).orEmpty(),
@@ -1046,6 +1076,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
+                    if (!storageFailed) settleOfflineNavigation(simulation.exportState())
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }
