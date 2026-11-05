@@ -12,7 +12,7 @@ class TaxTransactionTest {
         val capitalGalaxy=Galaxy(listOf(GalaxySystem(3,2015,4,"Home",3)),
             listOf(GalaxyBase(1177,2015,61,0,"ハイネセン",0,28f,259200,0,0f,2f)),
             mapOf(Power.EMPIRE to 2015,Power.ALLIANCE to 2015))
-        val capitalPilot=pilot.copy(power=Power.ALLIANCE,grid=2015,baseId=1177)
+        val capitalPilot=pilot.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),grid=2015,baseId=1177)
         val capitalStocks=PlanetStocks(1,0,mapOf(1177 to PlanetStock(1177,3,0,100,200,300,
             capitalAdministratorId=10000)),deploymentInitialized=true)
         val root=directory.resolve("capital-world")

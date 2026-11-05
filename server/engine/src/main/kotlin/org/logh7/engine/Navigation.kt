@@ -12,7 +12,7 @@ data class NavigationPolicy(val initialCp: Int = 1000, val initialCruise: Int = 
         warpCost >= 0 && cruiseCost >= 0 && maximumCp > 0 && recoveryBase >= 0 &&
         maximumCruise >= initialCruise && fuelSupplyCost == 160) }
 }
-data class Navigator(val generation: Long, val characterId: Int, val power: Power, val grid: Int,
+data class Navigator(val generation: Long, val characterId: Int, val country: CountryId?, val grid: Int,
     val pcp: Int, val mcp: Int, val cruise: Int, val moves: Long = 0,
     val baseId: Int = 0, val mode: Int = 5, val spotId: Int = 0, val spotOwner: Int = 0,
     val cpRecoveryAt: Long? = null, val cpPaused: Boolean = false,
@@ -24,7 +24,19 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     /** Reserved warp destination; the fleet stays at [grid] until the strategy job completes. */
     val warpTarget: Int? = null,
     /** Strategic CP spent but not yet converted into ability experience (CpExperience). */
-    val pcpUsed: Int = 0, val mcpUsed: Int = 0) {
+    val pcpUsed: Int = 0, val mcpUsed: Int = 0,
+    val shipStyle:ShipStyleId=ShipStyleId.fromLegacy(country.legacyPower())) {
+    constructor(generation:Long,characterId:Int,power:Power,grid:Int,pcp:Int,mcp:Int,cruise:Int,moves:Long=0,
+        baseId:Int=0,mode:Int=5,spotId:Int=0,spotOwner:Int=0,cpRecoveryAt:Long?=null,cpPaused:Boolean=false,
+        fuelReadyAt:Long?=null,strategy:StrategyCheckpoint?=null,dockTarget:Int?=null,returnBase:Int=0,
+        energy:TacticalEnergy?=null,motion:TacticalMotion?=null,retreat:TacticalRetreat?=null,
+        charge:TacticalCharge?=null,fire:TacticalFire?=null,supplies:Int=10_000,hull:FlagshipHull?=null,
+        attack:TacticalAttackOrder?=null,commandRange:TacticalCommandRange?=null,posture:TacticalPosture?=null,
+        warpTarget:Int?=null,pcpUsed:Int=0,mcpUsed:Int=0):this(generation,characterId,power.country,grid,pcp,mcp,
+            cruise,moves,baseId,mode,spotId,spotOwner,cpRecoveryAt,cpPaused,fuelReadyAt,strategy,dockTarget,
+            returnBase,energy,motion,retreat,charge,fire,supplies,hull,attack,commandRange,posture,warpTarget,
+            pcpUsed,mcpUsed,ShipStyleId.fromLegacy(power))
+    val power:Power get()=country.legacyPower()
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
     val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
     val warpReadyAt: Long? get() = if (warpTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
@@ -32,7 +44,7 @@ data class Navigator(val generation: Long, val characterId: Int, val power: Powe
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && pcpUsed in 0..CpExperience.USED_LIMIT && mcpUsed in 0..CpExperience.USED_LIMIT && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && supplies in 0..10_000 &&
-        (hull == null || Flagships.find(hull.kind)?.power == if(power==Power.EMPIRE)2 else 3) &&
+        (hull == null || Flagships.find(hull.kind)?.power == shipStyle.nativePower) &&
         (charge == null || cpPaused && baseId == 0 && mode == 5) &&
         (commandRange == null || cpPaused && baseId == 0 && mode == 5) &&
         (attack == null || cpPaused && baseId == 0 && mode == 5 && hull != null) &&
@@ -135,9 +147,10 @@ data class NavigationResult(val player: Navigator?, val previous: Navigator? = n
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
-    private val policy: NavigationPolicy, private val cpIntervalSeconds: Long = 7200, private val clockScale: Long = 24) {
+    private val policy: NavigationPolicy, private val cpIntervalSeconds: Long = 7200, private val clockScale: Long = 24,
+    restored:Map<String,Navigator> = store?.load().orEmpty()) {
     init { require(cpIntervalSeconds in 1..86400 && clockScale in 1..1000) }
-    private var players = store?.load().orEmpty().toMap()
+    private var players = restored.toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
     fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
         persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true): NavigationResult {
@@ -153,12 +166,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (session.ended != null || session.generation != request.generation ||
             (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
             return reject(NavigationRejection.SESSION)
-        if (member.power != request.power) return reject(NavigationRejection.IDENTITY)
+        if (member.country != request.power.country) return reject(NavigationRejection.IDENTITY)
         if (persist) settleRetreats(session, stocks)
         // U-11: a dead character's navigator gives way to the account's next character.
         val existing = players[request.account]?.takeIf { it.generation == request.generation &&
             !(it.characterId != request.characterId && BattleDeath.deceased(stocks,it.characterId)) }
-        if (existing != null && (existing.characterId != request.characterId || existing.power != request.power))
+        if (existing != null && (existing.characterId != request.characterId || existing.country != request.power.country))
             return reject(NavigationRejection.IDENTITY)
         // Offline settlement only finishes existing work; it never creates a flagship for an absent captain.
         if (request.offlineSettle && existing == null) return reject(NavigationRejection.SESSION)

@@ -232,7 +232,7 @@ class NpcTacticsTest {
     }
     @Test fun friendlyUnitsAndCommandedOutfitsAreNotAutonomousAndTakingCommandStopsSavedPath() {
         val state=state();val player=state.players.getValue("pilot")
-        state.players=mapOf("pilot" to player.copy(power=Power.EMPIRE,hull=FlagshipHull(0,now)))
+        state.players=mapOf("pilot" to player.copy(country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE),hull=FlagshipHull(0,now)))
         var nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state);val moves=mutableListOf<TacticalMovement>()
         assertTrue(settle(now,nav,stock,state,moves).isEmpty());assertTrue(moves.isEmpty())
         state.players=mapOf("pilot" to player);nav=Navigation(galaxy,state.nav,NavigationPolicy())

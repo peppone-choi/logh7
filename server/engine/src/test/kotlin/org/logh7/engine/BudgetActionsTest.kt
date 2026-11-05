@@ -131,7 +131,7 @@ class BudgetActionsTest {
     @Test fun allianceFinanceRoleUsesItsOwnCapitalAndNationalAccount() {
         val s=stocks().copy(strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=1)),
             offices=listOf(OfficeHolding(136,1177,10000))))
-        val p=player.copy(power=Power.ALLIANCE,baseId=1177,grid=2015)
+        val p=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),baseId=1177,grid=2015)
         val aSession=SessionSimulation(rules).also {it.join("actor",Power.ALLIANCE,false,"c")}.exportState()
         val r=request(base=1177,rate=100).let {it.copy(identity=it.identity.copy(power=Power.ALLIANCE,card=136))}
         val quote=BudgetActions.evaluate(galaxy,r,aSession,p,s);assertNull(quote.rejection)

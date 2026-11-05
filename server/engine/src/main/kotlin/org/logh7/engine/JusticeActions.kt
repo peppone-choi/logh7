@@ -96,7 +96,8 @@ object JusticeActions {
         val next=cleared.copy(social=cleared.social.copy(justice=j.copy(permits=j.permits-id,
             rights=j.rights.filterValues {it.holder!=id && it.target!=id},watches=j.watches.filterValues {it.watcher!=id && it.target!=id},
             detentions=j.detentions+(id to Detention(id,destination,now,now+Justice.DETENTION_DAYS*Justice.DAY)))))
-        val moved=p.paidWith(paid.balance).copy(power=if(destination==2)Power.EMPIRE else Power.ALLIANCE,grid=capital.grid,
+        val moved=p.paidWith(paid.balance).copy(country=CountryId(destination),
+            shipStyle=ShipStyleId.fromLegacy(if(destination==2)Power.EMPIRE else Power.ALLIANCE),grid=capital.grid,
             baseId=capital.id,mode=4,spotId=cell,spotOwner=0,hull=null,strategy=null,dockTarget=null,fuelReadyAt=null,warpTarget=null,returnBase=0)
         return SocialResult(moved,next,changed=true,defected=destination)
     }

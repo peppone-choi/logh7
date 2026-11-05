@@ -19,7 +19,7 @@ class AppointmentTransactionTest {
             val store=FileWorldStateStore(root)
             val initial=PlanetStocks(1,0,mapOf(base to PlanetStock(base,rule.power,0,100,200,300)),
                 deploymentInitialized=true,nationalOffices=mapOf(rule.authority to 10000))
-            store.saveWorld(mapOf("pilot" to pilot.copy(power=power,grid=rule.capital.grid,baseId=base)),initial)
+            store.saveWorld(mapOf("pilot" to pilot.copy(country=power.country,shipStyle=ShipStyleId.fromLegacy(power),grid=rule.capital.grid,baseId=base)),initial)
             val engine=WorldEngine(this,rules,ticking=false,galaxy=g,navigationStore=store.navigationStore,
                 stockStore=store.stockStore,worldStateCommitter=store)
             try {

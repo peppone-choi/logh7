@@ -28,6 +28,8 @@ class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily
             it.nativePower in 0..4 && it.nativeCamp in 0..1 && key.matches(it.assets)})
     }
     fun calendar(countryId:Int):CountryCalendar?=countries[countryId]?.let {calendars.getValue(families.getValue(it.family).calendar)}
+    fun shipStyle(country:CountryId):ShipStyleId=ShipStyleId(families.getValue(
+        requireNotNull(countries[country.value]) {"Unknown country definition"}.family).shipStyle)
     fun year(countryId:Int,spaceYear:Int):Int?=calendar(countryId)?.let {(spaceYear+it.yearOffset).also {year->require(year>0)}}
     /** Display projection only; ownership and authority compare actual country IDs. */
     fun nativePower(owner:Allegiance):Int=when(owner) {

@@ -30,7 +30,7 @@ class CommandedOutfitWireTest {
             val stationed = Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4)
             assertEquals(1,administration.stationedOutfit(stationed))
             for (outside in listOf(stationed.copy(generation=2),stationed.copy(characterId=10001),
-                stationed.copy(power=Power.ALLIANCE),stationed.copy(baseId=1000),stationed.copy(mode=2),
+                stationed.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),stationed.copy(baseId=1000),stationed.copy(mode=2),
                 stationed.copy(baseId=0,mode=5))) assertEquals(0,administration.stationedOutfit(outside))
             client.send(SyntheticClient.opcode(0x0f00))
             var receivedCards = false

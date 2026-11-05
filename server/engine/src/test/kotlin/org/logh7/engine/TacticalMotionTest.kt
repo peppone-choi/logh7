@@ -107,7 +107,7 @@ class TacticalMotionTest {
         val pilot=Navigator(1,10000,Power.ALLIANCE,2487,600,600,1000,
             energy=TacticalEnergy(listOf(50)+List(10){0}))
         val store=object:NavigationStore {
-            var state=mapOf("pilot" to pilot,"enemy" to pilot.copy(characterId=10001,power=Power.EMPIRE))
+            var state=mapOf("pilot" to pilot,"enemy" to pilot.copy(characterId=10001,country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE)))
             override fun load()=state
             override fun save(players:Map<String,Navigator>){state=players.toMap()}
         }

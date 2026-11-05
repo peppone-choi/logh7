@@ -18,7 +18,7 @@ class CharacterInformationTest {
         val own = GamePresence.Member("viewer",character,
             Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,spotId=10490003),{})
         val peer = own.copy(connection="peer",character=character.copy(id=10001,power=3),
-            player=own.player.copy(characterId=10001,power=Power.ALLIANCE))
+            player=own.player.copy(characterId=10001,country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)))
         hub.update(own); hub.update(peer)
         assertEquals(own,hub.detail("viewer",10000)); assertEquals(peer,hub.detail("viewer",10001))
         assertNull(hub.detail("forged",10001)); assertNull(hub.detail("viewer",99999))
@@ -27,7 +27,7 @@ class CharacterInformationTest {
             peer.player.copy(spotId=0))) {
             hub.update(peer.copy(player=player)); assertNull(hub.detail("viewer",10001))
         }
-        val friendly = peer.copy(character=peer.character.copy(power=2),player=peer.player.copy(power=Power.EMPIRE,spotId=0))
+        val friendly = peer.copy(character=peer.character.copy(power=2),player=peer.player.copy(country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE),spotId=0))
         hub.update(friendly); assertEquals(friendly,hub.detail("viewer",10001))
         hub.remove("peer"); assertNull(hub.detail("viewer",10001))
         hub.remove("viewer"); assertNull(hub.detail("viewer",10000))
