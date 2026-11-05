@@ -95,12 +95,18 @@ class ServerReleaseTest(unittest.TestCase):
         reader = "org/logh7/persistence/FilePlanetStockStore.class"
         with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
             jar.writestr(reader, b"\xca\xfe" + constant("LOGH7-STOCK-4") + constant("LOGH7-STOCK-41"))
+            jar.writestr("org/logh7/persistence/FileWorldStateStore.class", b"\xca\xfe" + constant("LOGH7-WORLD-1"))
         self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old")
         with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
             jar.writestr(reader, b"\xca\xfe" + constant("LOGH7-STOCK-41") + constant("LOGH7-STOCK-42"))
+            jar.writestr("org/logh7/persistence/FileWorldStateStore.class", b"\xca\xfe" + constant("LOGH7-WORLD-1"))
         self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new")
         world = Path(self.temp.name) / "world"
         (world / "slot-0").mkdir(parents=True)
+        (world / "slot-1").mkdir()
+        (world / "CURRENT").write_text("LOGH7-WORLD-1\t0\t1\n", encoding="latin-1")
+        # A newer file in the inactive slot (a failed update before CURRENT moved) does not block.
+        (world / "slot-1" / "stocks.tsv").write_text("LOGH7-STOCK-99\t1\t2\n", encoding="latin-1")
         stocks = world / "slot-0" / "stocks.tsv"
         stocks.write_text("LOGH7-STOCK-41\t1\t2\n", encoding="latin-1")
         self.tool("activate", "old", "--releases", str(self.releases), "--world", str(world))

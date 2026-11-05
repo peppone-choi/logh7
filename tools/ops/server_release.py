@@ -65,8 +65,14 @@ def has_constant(code: bytes, text: str) -> bool:
 
 def unreadable_headers(classes: dict[str, bytes], world: Path | None, characters: Path | None) -> list[str]:
     files: list[Path] = []
-    if world is not None and world.is_dir():
-        files += [p for p in world.rglob("*") if p.is_file() and p.suffix in (".tsv", "") and p.name != "writer.lock"]
+    if world is not None and (world / "CURRENT").is_file():
+        # FileWorldStateStore loads only the slot named by CURRENT; an inactive slot left by a failed
+        # update is overwritten by the next save and must not block the rollback.
+        files.append(world / "CURRENT")
+        fields = (world / "CURRENT").read_text(encoding="latin-1").strip().split("\t")
+        if len(fields) == 3 and fields[1] in ("0", "1"):
+            slot = world / f"slot-{fields[1]}"
+            files += [p for p in slot.glob("*.tsv") if p.is_file()]
     if characters is not None:
         files += [characters.with_name(characters.name + suffix) for suffix in (".navigation", ".planet-stocks")]
     missing = []
