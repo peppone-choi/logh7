@@ -135,3 +135,11 @@ groups:
         annotations:
           summary: 'LOGH7 operator audit log over 1 GiB'
           description: 'The operator audit log on {{ $labels.instance }} is over 1 GiB; archive it off the server and start a new file.'
+      # A client fell so far behind that its pending world notifications overflowed and it was disconnected.
+      - alert: LOGH7NotificationOverflow
+        expr: increase(logh7_notification_overflow_total[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'LOGH7 client disconnected by a full notification queue'
+          description: 'At least one client on {{ $labels.instance }} was disconnected in ten minutes because its pending world notifications passed 128 batches or 512 KiB (slow link or a stalled request).'
