@@ -160,6 +160,57 @@ def restore_detail(up, source_rgb, strength):
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), 'RGB')
 
 
+FALLBACKS = ('realesrgan-x4plus-anime', 'lanczos')
+
+
+def block_error(source_rgb, up_rgb, block=16):
+    """업스케일 결과를 원본 크기로 되돌려 16px 블록마다 평균 절대 오차를 구하고 그 최댓값을 낸다.
+
+    평균 오차로는 안 보이는 국소 깨짐(줄무늬 띠 등)을 잡기 위한 값이다. 정상 결과는 실측 40 미만이었다.
+    """
+    a = np.asarray(source_rgb, dtype=np.float32)
+    b = np.asarray(up_rgb.resize(source_rgb.size, Image.Resampling.LANCZOS), dtype=np.float32)
+    err = np.abs(a - b).mean(-1)
+    h, w = err.shape
+    if h < block or w < block:
+        return float(err.mean())
+    hh, ww = h // block * block, w // block * block
+    return float(err[:hh, :ww].reshape(hh // block, block, ww // block, block).mean((1, 3)).max())
+
+
+def seam_ratio(rgb, axis):
+    """반대쪽 가장자리끼리의 차이를 이웃 픽셀끼리의 평균 차이로 나눈 값. 1 근처면 이어지는 텍스처다."""
+    a = np.asarray(rgb, dtype=np.float32)
+    if axis == 'x':
+        edge, inner = np.abs(a[:, 0] - a[:, -1]).mean(), np.abs(a[:, 1:] - a[:, :-1]).mean()
+    else:
+        edge, inner = np.abs(a[0] - a[-1]).mean(), np.abs(a[1:] - a[:-1]).mean()
+    return float(edge / max(inner, 1e-3))
+
+
+def tiling(rgb, limit=2.0):
+    """(좌우로 이어짐, 위아래로 이어짐). 원본 가장자리 차이가 내부 이웃 차이의 limit배 이하이면 이어진다고 본다."""
+    if rgb.width < 8 or rgb.height < 8:
+        return (False, False)
+    return (seam_ratio(rgb, 'x') <= limit, seam_ratio(rgb, 'y') <= limit)
+
+
+def pad_wrap(rgb, pad, wrap_x, wrap_y):
+    """이어지는 방향으로 반대편 내용을 pad만큼 붙인다(업스케일 모델이 가장자리를 끊지 않게)."""
+    if not pad or not (wrap_x or wrap_y):
+        return rgb
+    a = np.asarray(rgb)
+    a = np.pad(a, ((pad if wrap_y else 0,) * 2, (pad if wrap_x else 0,) * 2, (0, 0)), mode='wrap')
+    return Image.fromarray(a, 'RGB')
+
+
+def crop_pad(up, pad, wrap_x, wrap_y):
+    if not pad or not (wrap_x or wrap_y):
+        return up
+    px, py = (pad if wrap_x else 0), (pad if wrap_y else 0)
+    return up.crop((px, py, up.width - px, up.height - py))
+
+
 def staging_dir(out):
     """출력 폴더를 먼저 만들고 그 안에 임시 작업 폴더를 둔다(새 케이스 폴더에서도 첫 실행이 되도록)."""
     out.mkdir(parents=True, exist_ok=True)
@@ -181,6 +232,10 @@ def main(argv=None):
     ap.add_argument('--list', help='src 기준 상대 경로 목록 파일(줄마다 `상대경로[\\t모델]`)')
     ap.add_argument('--model', default='realesrgan-x4plus-anime')
     ap.add_argument('--tile', default='0')
+    ap.add_argument('--max-block', type=float, default=50.0,
+                    help='16px 블록 평균 오차 상한. 넘으면 깨진 출력으로 보고 대체 모델→Lanczos로 다시 만든다')
+    ap.add_argument('--wrap', choices=('none', 'auto'), default='none',
+                    help='auto: 가장자리가 이어지는 불투명 텍스처(행성·타일 노이즈)를 감싸 붙여 업스케일해 이음매를 보존')
     ap.add_argument('--detail', type=float, default=0.0,
                     help='원본 질감 복원 강도(0=끔). 작은 아이콘은 realesrgan-x4plus와 0.9 권장')
     args = ap.parse_args(argv)
@@ -197,33 +252,70 @@ def main(argv=None):
     manifest, groups = [], {}
     stage = staging_dir(out)
     try:
+        skipped = []
         for i, (rel, model) in enumerate(items):
             data = (src / rel).read_bytes()
-            image = load_rgba(src / rel)
+            try:
+                image = load_rgba(src / rel)
+            except Exception as exc:  # 해석 못 한 파일은 건너뛰고 기록한다(전체 실행을 멈추지 않음)
+                skipped.append(dict(rel=rel, error=str(exc)[:200]))
+                continue
             key = f'{i:05d}.png'
             (stage / model / 'in').mkdir(parents=True, exist_ok=True)
-            bleed(image).save(stage / model / 'in' / key)
             alpha = image.getchannel('A')
             lo, hi = alpha.getextrema()
+            rgb = bleed(image)
+            wrap = tiling(rgb) if args.wrap == 'auto' and lo == 255 else (False, False)
+            pad = min(16, rgb.width // 4, rgb.height // 4) if any(wrap) else 0
+            pad_wrap(rgb, pad, *wrap).save(stage / model / 'in' / key)
             binary = bool(np.isin(np.asarray(alpha), (0, 255)).all())
-            groups.setdefault(model, []).append((key, rel, image.size, alpha if lo < 255 else None, binary))
-            manifest.append(dict(rel=rel, model=model, sha256=hashlib.sha256(data).hexdigest(),
-                                 size=list(image.size), alpha=[lo, hi], binary_alpha=binary))
+            meta = dict(rel=rel, model=model, sha256=hashlib.sha256(data).hexdigest(),
+                        size=list(image.size), alpha=[lo, hi], binary_alpha=binary, wrap=list(wrap))
+            manifest.append(meta)
+            groups.setdefault(model, []).append((key, rel, image.size, alpha if lo < 255 else None, binary, pad, wrap, meta))
         timing = {}
         for model, entries in groups.items():
             (stage / model / 'out').mkdir(exist_ok=True)
             start = time.perf_counter()
-            subprocess.run([str(TOOL), '-i', str(stage / model / 'in'), '-o', str(stage / model / 'out'),
-                            '-n', model, '-s', '4', '-t', args.tile, '-f', 'png'],
-                           check=True, cwd=TOOL.parent, capture_output=True)
+            if model != 'lanczos':  # lanczos: 노이즈·이펙트처럼 모델이 형태를 바꾸면 안 되는 이미지
+                subprocess.run([str(TOOL), '-i', str(stage / model / 'in'), '-o', str(stage / model / 'out'),
+                                '-n', model, '-s', '4', '-t', args.tile, '-f', 'png'],
+                               check=True, cwd=TOOL.parent, capture_output=True)
             timing[model] = round(time.perf_counter() - start, 2)
-            for key, rel, size, alpha, binary in entries:
-                up = Image.open(stage / model / 'out' / key).convert('RGB')
-                big = (size[0] * 4, size[1] * 4)
-                if up.size != big:
-                    up = up.resize(big, Image.Resampling.LANCZOS)
+            for key, rel, size, alpha, binary, pad, wrap, meta in entries:
+                staged = Image.open(stage / model / 'in' / key).convert('RGB')
+                padded = (staged.width * 4, staged.height * 4)
+                if model == 'lanczos':
+                    up = staged.resize(padded, Image.Resampling.LANCZOS)
+                else:
+                    up = Image.open(stage / model / 'out' / key).convert('RGB')
+                    if up.size != padded:
+                        up = up.resize(padded, Image.Resampling.LANCZOS)
+                    # 큰 모델이 일부 GPU(GTX 16xx 확인)에서 국소적으로 깨진 출력을 낸다. 감지하면 대체 경로로 다시 만든다.
+                    worst = block_error(staged, up)
+                    meta['block_error'] = round(worst, 1)
+                    for alt in (FALLBACKS if worst > args.max_block else ()):
+                        if alt == model:
+                            continue
+                        retry = stage / 'retry' / f'{alt}-{key}'
+                        retry.parent.mkdir(parents=True, exist_ok=True)
+                        if alt == 'lanczos':
+                            cand = staged.resize(padded, Image.Resampling.LANCZOS)
+                        else:
+                            subprocess.run([str(TOOL), '-i', str(stage / model / 'in' / key), '-o', str(retry),
+                                            '-n', alt, '-s', '4', '-t', args.tile, '-f', 'png'],
+                                           check=True, cwd=TOOL.parent, capture_output=True)
+                            cand = Image.open(retry).convert('RGB').resize(padded, Image.Resampling.LANCZOS)
+                        err = block_error(staged, cand)
+                        meta.setdefault('fallback', []).append(dict(model=alt, block_error=round(err, 1)))
+                        if err <= args.max_block:
+                            up = cand
+                            meta['used'] = alt
+                            break
                 if args.detail:
-                    up = restore_detail(up, Image.open(stage / model / 'in' / key).convert('RGB'), args.detail)
+                    up = restore_detail(up, staged, args.detail)
+                up = crop_pad(up, pad * 4, *wrap)
+                big = (size[0] * 4, size[1] * 4)
                 if alpha is not None:
                     a = alpha.resize(big, Image.Resampling.LANCZOS)
                     if binary:
@@ -237,9 +329,9 @@ def main(argv=None):
                     image.save(target, optimize=False)
         pixels = sum(m['size'][0] * m['size'][1] for m in manifest)
         (out / 'manifest.json').write_text(json.dumps(dict(
-            tool=str(TOOL), items=manifest, model_seconds=timing, source_pixels=pixels),
+            tool=str(TOOL), items=manifest, skipped=skipped, model_seconds=timing, source_pixels=pixels),
             ensure_ascii=False, indent=1), encoding='utf-8')
-        print(json.dumps(dict(files=len(manifest), source_megapixels=round(pixels / 1e6, 2),
+        print(json.dumps(dict(files=len(manifest), skipped=len(skipped), source_megapixels=round(pixels / 1e6, 2),
                               model_seconds=timing), ensure_ascii=False))
     finally:
         shutil.rmtree(stage, ignore_errors=True)

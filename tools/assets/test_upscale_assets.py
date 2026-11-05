@@ -8,7 +8,7 @@ from PIL import Image
 import tempfile
 from pathlib import Path
 
-from upscale_assets import bleed, decode_tga, downscale, restore_detail, staging_dir
+from upscale_assets import bleed, block_error, crop_pad, decode_tga, downscale, pad_wrap, restore_detail, staging_dir, tiling
 
 
 def tga(kind, pixels, palette=None, bits=32, depth=8, top=True, width=2, height=2):
@@ -93,6 +93,34 @@ class OutputTest(unittest.TestCase):
         im.putalpha(Image.linear_gradient('L').resize((16, 16)))
         small = downscale(im, (8, 8), binary=False)
         self.assertGreater(len(np.unique(np.asarray(small.getchannel('A')))), 2)
+
+
+class WrapTest(unittest.TestCase):
+    def test_horizontal_tile_detected_and_padding_round_trips(self):
+        x = np.linspace(0, 2 * np.pi, 64, endpoint=False)
+        row = (127 + 120 * np.sin(x)).astype(np.uint8)
+        rgb = Image.fromarray(np.dstack([np.tile(row, (32, 1))] * 3), 'RGB')
+        self.assertEqual(tiling(rgb)[0], True)
+        padded = pad_wrap(rgb, 8, True, False)
+        self.assertEqual(padded.size, (80, 32))
+        self.assertTrue((np.asarray(padded)[:, :8] == np.asarray(rgb)[:, -8:]).all())
+        self.assertTrue((np.asarray(crop_pad(padded, 8, True, False)) == np.asarray(rgb)).all())
+
+    def test_non_tiling_edge_not_wrapped(self):
+        a = np.zeros((32, 64, 3), np.uint8)
+        a[:, 32:] = 255                      # 왼쪽 끝 0, 오른쪽 끝 255: 이어지지 않음
+        a[:, ::2] ^= 1
+        self.assertEqual(tiling(Image.fromarray(a, 'RGB'))[0], False)
+
+
+class BlockErrorTest(unittest.TestCase):
+    def test_local_corruption_is_detected(self):
+        src = Image.new('RGB', (64, 64), (120, 200, 180))
+        good = src.resize((256, 256), Image.Resampling.LANCZOS)
+        bad = good.copy()
+        bad.paste((0, 0, 0), (96, 0, 160, 256))            # 줄무늬 띠처럼 국소적으로 깨진 결과
+        self.assertLess(block_error(src, good), 1.0)
+        self.assertGreater(block_error(src, bad), 50.0)
 
 
 if __name__ == '__main__':
