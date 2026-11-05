@@ -163,6 +163,14 @@ class ServerReleaseTest(unittest.TestCase):
         with self.assertRaises(SystemExit) as refused:
             self.tool("rollback", "--releases", str(self.releases), "--world-definition", str(world))
         self.assertIn("world schema 2", str(refused.exception))
+        # Properties semantics: a colon separator and a later duplicate both yield schema 2.
+        for text in ("schema:2\n", "schema=1\nschema=2\n", "# schema=1\nsche\\\n  ma = 2\n"):
+            world.write_text(text, encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                self.tool("activate", "old", "--releases", str(self.releases), "--world-definition", str(world))
+        world.write_text("systems=1\n", encoding="utf-8")
+        with self.assertRaises(SystemExit):
+            self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
         world.write_text("schema=3\n", encoding="utf-8")
         with self.assertRaises(SystemExit) as unknown:
             self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))

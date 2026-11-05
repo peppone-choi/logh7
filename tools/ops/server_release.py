@@ -56,15 +56,68 @@ WORLD_SCHEMAS = {"2": ("org/logh7/engine/Galaxy$Companion.class", "Country start
 SCHEMA_READERS_CLASSES = {reader for reader, _ in WORLD_SCHEMAS.values()}
 
 
+def java_properties(text: str) -> dict[str, str]:
+    """java.util.Properties.load semantics (Galaxy.load): ``=``, ``:`` or whitespace separators,
+    ``#``/``!`` comments, backslash line continuation and escapes, and the last duplicate wins."""
+    logical, pending = [], ""
+    for raw in text.splitlines():
+        line = (pending + raw.lstrip()) if pending else raw.lstrip()
+        if not pending and (not line or line[0] in "#!"):
+            continue
+        trailing = len(line) - len(line.rstrip("\\"))
+        if trailing % 2 == 1:
+            pending = line[:-1]
+            continue
+        pending = ""
+        logical.append(line)
+    if pending:
+        logical.append(pending)
+
+    def unescape(value: str) -> str:
+        out, i = [], 0
+        while i < len(value):
+            ch = value[i]
+            if ch == "\\" and i + 1 < len(value):
+                nxt = value[i + 1]
+                if nxt == "u" and i + 5 < len(value):
+                    out.append(chr(int(value[i + 2:i + 6], 16)))
+                    i += 6
+                    continue
+                out.append({"t": "\t", "n": "\n", "r": "\r", "f": "\f"}.get(nxt, nxt))
+                i += 2
+                continue
+            out.append(ch)
+            i += 1
+        return "".join(out)
+
+    result: dict[str, str] = {}
+    for line in logical:
+        i, end = 0, len(line)
+        while i < end:
+            if line[i] == "\\":
+                i += 2
+                continue
+            if line[i] in "=: \t\f":
+                break
+            i += 1
+        key = line[:min(i, end)]
+        j = i
+        while j < end and line[j] in " \t\f":
+            j += 1
+        if j < end and line[j] in "=:":
+            j += 1
+            while j < end and line[j] in " \t\f":
+                j += 1
+        result[unescape(key)] = unescape(line[j:])
+    return result
+
+
 def unreadable_world_definition(classes: dict[str, bytes], definition: Path | None) -> list[str]:
     if definition is None:
         return []
-    schema = "1"
-    for line in definition.read_text(encoding="utf-8", errors="replace").splitlines():
-        key, _, value = line.partition("=")
-        if key.strip() == "schema":
-            schema = value.strip()
-            break
+    schema = java_properties(definition.read_text(encoding="utf-8", errors="replace")).get("schema")
+    if schema is None:
+        return [f"no world schema in {definition.name}"]
     if schema == "1":
         return []
     reader = WORLD_SCHEMAS.get(schema)
