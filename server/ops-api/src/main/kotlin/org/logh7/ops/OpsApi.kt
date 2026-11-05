@@ -13,6 +13,7 @@ import io.ktor.server.plugins.origin
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 import io.ktor.server.request.receiveParameters
+import io.ktor.server.request.receiveText
 import java.security.MessageDigest
 import java.util.Base64
 import java.nio.file.Path
@@ -39,6 +40,21 @@ interface StateBackups {
     fun failures(): Long = 0
 }
 
+/** Maintenance flow (checklist §14): refuse new logins and tell online players, without restarting. */
+interface MaintenanceControl {
+    /** True while new logins are refused. */
+    fun closed(): Boolean
+    /** Opens or closes new logins; returns false when it was already in that state. */
+    fun setClosed(closed: Boolean): Boolean
+    /** Sends an operator notice line to every online player; returns how many received it. */
+    fun notice(text: String): Int
+    /** Logins refused because of maintenance since start. */
+    fun refusedLogins(): Long = 0
+}
+
+/** One line in the original client's spot chat: printable, at most 60 characters after the [운영] prefix. */
+internal fun validNotice(text: String) = text.isNotBlank() && text.length <= 60 && text.none { it.isISOControl() || it.isSurrogate() }
+
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
     audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null,
     users: OpsUsers? = null, backups: StateBackups? = null, galaxy:Galaxy?=null,checklist:Path?=null,countryColors:CountryColorStore?=null,
@@ -49,7 +65,9 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     /** World actor queue/tick timing histograms (the same object the engine records into). */
     actorTimings: ActorTimingHistograms? = null,
     /** Retention/capacity values (name without logh7_ -> value): *_total are counters, the rest gauges. */
-    storage: (() -> Map<String, Long>)? = null): AutoCloseable {
+    storage: (() -> Map<String, Long>)? = null,
+    /** Maintenance switch and operator notices; absent routes answer 503. */
+    maintenance: MaintenanceControl? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -82,7 +100,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             }
             get("/snapshot") { call.respondText(snapshots.snapshot().toString()) }
             get("/admin") {
-                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names(), backups), io.ktor.http.ContentType.Text.Html)
+                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names(), backups, maintenance), io.ktor.http.ContentType.Text.Html)
             }
             get("/admin/text") { call.respondRedirect("/admin/text/") }
             get("/admin/text/") {
@@ -94,7 +112,9 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                 else call.respondText(opsTextResource(checkNotNull(asset)),io.ktor.http.ContentType.parse("text/javascript; charset=utf-8"))
             }
             get("/metrics") {
-                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk, gatewayCounters?.invoke(), storage?.invoke()) +
+                call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk, gatewayCounters?.invoke(),
+                    storage?.invoke().orEmpty() + (maintenance?.let { m -> mapOf("maintenance_closed" to (if (m.closed()) 1L else 0L),
+                        "maintenance_refused_logins_total" to m.refusedLogins()) }.orEmpty())) +
                     (actorTimings?.exposition() ?: ""),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
             }
@@ -115,6 +135,32 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                     }
                 }
             }
+            suspend fun io.ktor.server.application.ApplicationCall.setMaintenance(operator: String?, mode: String?) {
+                val control = maintenance ?: return respondText("maintenance control unavailable", status = HttpStatusCode.ServiceUnavailable)
+                val recorded = mode?.takeIf { Regex("[a-z]{1,8}").matches(it) } ?: "invalid"
+                if (mode != "on" && mode != "off") return audited(audit, OpsAction.MAINTENANCE, operator, details = recorded) { OpsOutcome.INVALID }
+                audited(audit, OpsAction.MAINTENANCE, operator, details = recorded) {
+                    if (control.setClosed(mode == "on")) OpsOutcome.CHANGED else OpsOutcome.UNCHANGED
+                }
+            }
+            suspend fun io.ktor.server.application.ApplicationCall.sendNotice(operator: String?, text: String?) {
+                val control = maintenance ?: return respondText("maintenance control unavailable", status = HttpStatusCode.ServiceUnavailable)
+                val line = text?.trim().orEmpty()
+                // The audit log is ASCII-only: record the notice by length and digest, not its (Korean) text.
+                val digest = MessageDigest.getInstance("SHA-256").digest(line.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }.take(16)
+                audited(audit, OpsAction.NOTICE, operator, details = "chars:${line.length}+sha256:$digest",
+                    messages = mapOf(OpsOutcome.INVALID to "notice: 1-60 printable characters")) {
+                    if (!validNotice(line)) OpsOutcome.INVALID else { control.notice(line); OpsOutcome.CHANGED }
+                }
+            }
+            post("/admin/maintenance") {
+                call.adminForm(port)?.let { form -> call.setMaintenance(form["operator"], form["mode"]) }
+            }
+            post("/admin/notice") {
+                call.adminForm(port)?.let { form -> call.sendNotice(form["operator"], form["text"]) }
+            }
+            post("/commands/maintenance/{mode}") { call.setMaintenance(call.request.headers["X-LOGH7-Operator"], call.parameters["mode"]) }
+            post("/commands/notice") { call.sendNotice(call.request.headers["X-LOGH7-Operator"], call.receiveText()) }
             post("/admin/backup") {
                 call.adminForm(port)?.get("operator")?.let { operator ->
                     call.audited(audit, OpsAction.BACKUP, operator) { backups?.take() ?: return@audited OpsOutcome.FAILED; OpsOutcome.CHANGED }
@@ -303,7 +349,7 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: 
 
 /** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */
 internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, accounts: List<String>? = null,
-    backups: StateBackups? = null): String = buildString {
+    backups: StateBackups? = null, maintenance: MaintenanceControl? = null): String = buildString {
     fun esc(value: Any?) = value.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     fun row(vararg cells: Any?) { append("<tr>"); cells.forEach { append("<td>").append(esc(it)).append("</td>") }; append("</tr>") }
     val session = snapshot.session
@@ -330,6 +376,15 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
     for ((path, label) in actions)
         append("<form method=\"post\" action=\"").append(path).append("\">운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required> ")
             .append("<button>").append(label).append("</button></form>")
+    if (maintenance != null) {
+        val operator = "운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required> "
+        append("<h2>유지보수</h2><p>새 로그인: <b>").append(if (maintenance.closed()) "차단 중" else "허용").append("</b>")
+            .append(" · 차단된 로그인 ").append(maintenance.refusedLogins()).append("회. 접속 중인 플레이어는 끊지 않는다.</p>")
+        append("<form method=\"post\" action=\"/admin/maintenance\">").append(operator)
+            .append("<select name=\"mode\"><option value=\"on\">새 로그인 차단</option><option value=\"off\">새 로그인 허용</option></select> <button>적용</button></form>")
+        append("<form method=\"post\" action=\"/admin/notice\">").append(operator)
+            .append("공지 <input name=\"text\" maxlength=\"60\" required size=\"60\"> <button>접속 중인 전원에게 보내기</button></form>")
+    }
     if (accounts != null) {
         append("<h2>계정</h2><p>로그인 계정 ").append(accounts.size).append("개(비밀번호는 표시하지 않음): ")
             .append(esc(accounts.joinToString(", "))).append("</p>")

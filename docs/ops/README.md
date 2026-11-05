@@ -11,5 +11,6 @@
 | deploy.md | Docker Compose 배포 | 예정(LOGH-42) |
 | backup.md | 스냅샷·백업·복구 | 예정(LOGH-43) |
 | [alerts.md](alerts.md) | 게임 서버 장애 경보 규칙·운영자 수신 경로·실제 주입 시험 | 저장 실패·디스크·수집 불가 CI 주입·수신 확인 |
+| [maintenance.md](maintenance.md) | 유지보수 공지·신규 입장 차단·저장·재시작·재개 절차 | 서버 경로·감사·지표 확인, 원본 표시 미확인 |
 
 운영 결정은 [ADR-0005](../adr/0005-operations.md), 공개 노출 선택지는 [research/public-exposure-options.md](../research/public-exposure-options.md).

@@ -63,6 +63,8 @@ class GameExchange(
     private val bindHost:String?=null,
     /** Login/ticket outcome counts for the ops metrics; null in tests that do not look at them. */
     private val counters:GatewayCounters?=null,
+    /** While closed, new logins are refused (maintenance); existing sessions are untouched. */
+    private val maintenance:MaintenanceGate?=null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -2085,8 +2087,10 @@ class GameExchange(
             Role.LOGIN -> {
                 val request = LoginMessages.request(body)
                 val expected = accounts[request.account]
-                val accepted = expected != null && AccountPassword.matches(expected, request.credential)
-                (if (accepted) counters?.loginAccepted else counters?.loginRejected)?.incrementAndGet()
+                // A maintenance refusal is counted by the gate only, so a planned closure does not trip the login-failure alert.
+                val closed = maintenance?.refuses() == true
+                val accepted = !closed && expected != null && AccountPassword.matches(expected, request.credential)
+                if (!closed) (if (accepted) counters?.loginAccepted else counters?.loginRejected)?.incrementAndGet()
                 val reply =if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account,sessionId=sessionId)) else LoginMessages.failure()
                 state = if (accepted) State.AUTHENTICATED else State.REJECTED
                 handshake.stageAll(listOf(reply))

@@ -59,6 +59,16 @@ class GamePresence {
         val packet=ChatMessages.spot(ChatMessages.Spot(event.character,line),event.seconds.coerceIn(0,0xffffffffL))
         members.values.filter {it.player.generation==event.generation}.forEach {send(it,listOf(packet))}
     }
+    /**
+     * Operator notice (maintenance flow, checklist §14): a "[운영]" spot chat line to every online member, sent as
+     * the recipient's own line like the other server notices (the client has no system-message opcode in use).
+     */
+    @Synchronized fun operatorNotice(text:String,seconds:Long):Int {
+        val line=("[운영] "+text.trim()).take(65)
+        val recipients=members.values.toList()
+        for(member in recipients) send(member,listOf(ChatMessages.spot(ChatMessages.Spot(member.character.id.toInt(),line),seconds.coerceIn(0,0xffffffffL))))
+        return recipients.size
+    }
     /** Black-hole tidal loss (design-blackhole-tactical-terrain.md §2.4): a spot chat line to each online member of the outfit. */
     @Synchronized fun tides(event:org.logh7.engine.TidalLoss) {
         for(character in event.characters) {
