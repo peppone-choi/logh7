@@ -266,12 +266,34 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private fun settleOfflineNavigation(session:SessionState) {
         val navigation=navigation ?: return
         if(session.ended!=null)return
+        val movements=mutableListOf<NpcStrategicMovement>()
         for((account,player) in navigation.snapshot(session.generation).toSortedMap()) {
             if(!dueOfflineWork(session,account,player))continue
             val member=session.participants.getValue(account)
-            recoverNavigation(NavigationRequest(account,player.characterId,player.power,member.connection.orEmpty(),
-                session.generation,offlineSettle=true),session)
+            // CP recovery needs the captain's abilities (last join profile). Without them a warp waits for login:
+            // arriving in contact resets the recovery clock, which would forfeit the CP earned before arrival.
+            val abilities=profiles[account]?.abilities?.takeIf {it.size>2}
+            if(abilities==null && player.warpTarget!=null)continue
+            val result=recoverNavigation(NavigationRequest(account,player.characterId,player.power,member.connection.orEmpty(),
+                session.generation,politics=abilities?.get(1) ?: 50,administration=abilities?.get(2) ?: 50,
+                offlineSettle=true,offlineAbilities=abilities!=null),session) ?: continue
+            val arrived=navigation.snapshot(session.generation)[account] ?: continue
+            if(result.completedWarp && arrived.grid!=player.grid)movements+=offlineArrival(session,player,arrived)
         }
+        // Same delivery as an NPC fleet arrival: grid force reports, and destination tactical viewers rebuild.
+        for(event in movements)for(observer in strategicMovementObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Offline arrival delivery failed: ${failure.javaClass.simpleName}")}
+    }
+    private fun offlineArrival(session:SessionState,before:Navigator,after:Navigator):NpcStrategicMovement {
+        val stocks=production?.snapshot(session.generation)
+        val outfit=galaxy?.let {g->stocks?.outfits?.values?.singleOrNull {it.commanderId==after.characterId &&
+            it.kind!=OutfitKind.GROUND && it.positionIn(g).grid==after.grid}}
+        val units=outfit?.activeShips?.values.orEmpty().filter {it.boats>0}.map {it.id}.take(300)
+        val audience=session.participants.mapNotNull {(account,member)->
+            navigation?.snapshot(session.generation)?.get(account)?.takeIf {member.online && member.connection!=null}
+                ?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
+        return NpcStrategicMovement(session.generation,if(units.isEmpty())0 else outfit!!.id,before.grid,after.grid,
+            session.gameMillis/1000,units,audience)
     }
     /** A commit or post-commit processing failure has blocked further durable mutations. */
     @Volatile private var storageFailed = false
@@ -348,7 +370,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
         val nowSeconds=session.gameMillis/1000
         val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
-            session.participants[account]?.online==false}.values.flatMap {p->
+            session.participants[account]?.online==false &&
+            (p.warpTarget==null || (profiles[account]?.abilities?.size ?: 0)>2)}.values.flatMap {p->
             p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null})
         }.filter {it>nowSeconds}
         val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()

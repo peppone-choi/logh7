@@ -48,6 +48,19 @@ class OfflineNavigationSettlementTest {
         assertEquals(1000, login.player!!.mcp)
     }
 
+    @Test fun knownAbilitiesSettleRecoveryBeforeTheOfflineJobAsAtLogin() {
+        val store = Store(mapOf("pilot" to Navigator(1, 10000, Power.EMPIRE, 2487, 100, 1000, 900, cpRecoveryAt = start)))
+        val nav = Navigation(galaxy, store, NavigationPolicy())
+        val started = nav.apply(request.copy(supplyFuel = true), session(start, online = true)).player!!
+        val readyAt = assertNotNull(started.fuelReadyAt)
+        val done = nav.apply(settle.copy(politics = 100, offlineAbilities = true), session(readyAt, online = false))
+        assertTrue(done.completedFuel)
+        // Same arithmetic as the login path (NavigationRecoveryTest): +100 PCP per 2h at politics 100, capped.
+        assertEquals(1000, done.player!!.pcp)
+        assertTrue(done.player!!.cpRecoveryAt!! > started.cpRecoveryAt!!)
+        assertFailsWith<IllegalArgumentException> { request.copy(offlineAbilities = true) }
+    }
+
     @Test fun offlineSettlementNeverCreatesAFlagshipAndCarriesNoAction() {
         val store = Store(emptyMap())
         val nav = Navigation(galaxy, store, NavigationPolicy())
@@ -87,20 +100,26 @@ class OfflineNavigationSettlementTest {
             Navigator(1, 10000, Power.ALLIANCE, 2487, 1000, 1000, 1000, baseId = 1000, mode = 4, spotId = quay.id))
     }
 
-    @Test fun aReservedFleetWarpArrivesWhileTheCommanderIsOffline() = runBlocking {
-        val world = world()
+    private fun reservedWarp(world: World): Navigator {
         val navigation = Navigation(fleetGalaxy, world.nav, NavigationPolicy())
         val production = PlanetProduction(fleetGalaxy, world.inventory, rules.startSeconds, PlanetProductionPolicy())
         for (r in listOf(fleetRequest.copy(place = PlaceMove.SwitchMode(5)), fleetRequest.copy(destination = 2489)))
             assertNull(FleetNavigation.apply(r, fleetSession, fleetGalaxy, navigation, production,
                 production.settle(1, fleetSession.gameMillis / 1000), world.commit) { false }.rejection)
-        val reserved = world.players.getValue("pilot")
-        assertEquals(2489, reserved.warpTarget); assertEquals(2487, reserved.grid)
+        return world.players.getValue("pilot").also { assertEquals(2489, it.warpTarget); assertEquals(2487, it.grid) }
+    }
+    private val profile = StrategicPerson(abilities = List(8) { 50 })
+
+    @Test fun aReservedFleetWarpArrivesWhileTheCommanderIsOfflineAndNotifiesViewers() = runBlocking {
+        val world = world()
+        val reserved = reservedWarp(world)
         val engine = WorldEngine(this, ticking = false, galaxy = fleetGalaxy, navigationStore = world.nav,
             stockStore = world.inventory, worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false))
+        val arrivals = java.util.concurrent.CopyOnWriteArrayList<NpcStrategicMovement>()
+        engine.observeStrategicMovements { arrivals += it }
         try {
             val joined = CompletableDeferred<Admission>()
-            engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1)); assertEquals(Admission.ACCEPTED, joined.await())
+            engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1, profile)); assertEquals(Admission.ACCEPTED, joined.await())
             engine.submit(WorldCommand.Disconnect("pilot", "c"))
             engine.submit(WorldCommand.AdvanceTo(150_000))
             engine.submit(WorldCommand.AdvanceTo(160_000))
@@ -110,8 +129,27 @@ class OfflineNavigationSettlementTest {
             assertEquals(reserved.moves + 1, arrived.moves, "the warp executes exactly once across ticks")
             assertEquals(OutfitPosition(arrived.grid, arrived.baseId), world.stocks.outfits.getValue(1).position,
                 "the fleet moves with its offline commander")
-            assertEquals(reserved.mcp, arrived.mcp, "no CP is charged or recovered by the offline settlement")
-            assertEquals(arrived.grid, engine.snapshot().navigators.getValue("pilot").grid, "observers see the arrival")
+            assertTrue(arrived.mcp >= reserved.mcp && arrived.pcp >= reserved.pcp, "recovery is settled before arrival, never lost")
+            assertEquals(arrived.grid, engine.snapshot().navigators.getValue("pilot").grid, "the snapshot shows the arrival")
+            // Viewers get the NPC-arrival delivery (force report / tactical rebuild), exactly once.
+            val arrival = arrivals.single()
+            assertEquals(1, arrival.outfit); assertEquals(2487, arrival.source); assertEquals(arrived.grid, arrival.destination)
+            assertTrue(arrival.units.isNotEmpty()); assertTrue(arrival.recipients.isEmpty(), "the offline captain gets no packets")
+        } finally { engine.drainAndClose() }
+    }
+
+    @Test fun withoutKnownAbilitiesAnOfflineWarpWaitsForLoginSoRecoveryIsNotForfeited() = runBlocking {
+        val world = world()
+        val reserved = reservedWarp(world)
+        val engine = WorldEngine(this, ticking = false, galaxy = fleetGalaxy, navigationStore = world.nav,
+            stockStore = world.inventory, worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false))
+        try {
+            val joined = CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1)); assertEquals(Admission.ACCEPTED, joined.await())
+            engine.submit(WorldCommand.Disconnect("pilot", "c"))
+            engine.submit(WorldCommand.AdvanceTo(150_000))
+            engine.drainAndClose()
+            assertEquals(reserved, world.players.getValue("pilot"), "the reservation is left for the login settlement")
         } finally { engine.drainAndClose() }
     }
 }
