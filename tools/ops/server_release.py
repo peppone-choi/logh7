@@ -38,12 +38,19 @@ RECORD_FORMATS = (("character profile v2", "v2:", "org/logh7/gateway/CharacterPr
 
 def unreadable(root: Path, characters: Path | None) -> list[str]:
     """Record formats present in ``characters`` that the release at ``root`` has no reader for."""
-    if characters is None or not characters.is_file():
+    if characters is None:
         return []
+    # Generation 1 uses the file itself; later session generations use `<file>.session-<n>`
+    # (CharacterStores.path). Every generation on disk may be loaded, so check them all.
+    stores = [characters] + [p for p in characters.parent.glob(f"{characters.name}.session-*")
+                             if p.name.rsplit("-", 1)[1].isdigit()]
     values = []
-    for line in characters.read_text(encoding="latin-1").splitlines():
-        if line and not line.startswith(("#", "!")) and "=" in line:
-            values.append(line.split("=", 1)[1].replace("\\", ""))
+    for store in stores:
+        if not store.is_file():
+            continue
+        for line in store.read_text(encoding="latin-1").splitlines():
+            if line and not line.startswith(("#", "!")) and "=" in line:
+                values.append(line.split("=", 1)[1].replace("\\", ""))
     classes = set()
     for jar in (root / "lib").glob("*.jar"):
         try:

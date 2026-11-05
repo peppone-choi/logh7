@@ -73,8 +73,15 @@ class ServerReleaseTest(unittest.TestCase):
             self.tool("rollback", "--releases", str(self.releases), "--characters", str(characters))
         self.assertIn("character profile v2", str(refused.exception))
         self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
-        # After restoring the pre-upgrade characters the same rollback goes through.
+        # A later session generation is stored beside the base file and is checked too.
         characters.write_text("#x\nmulti0=1008040000\n", encoding="latin-1")
+        later = characters.with_name(characters.name + ".session-2")
+        later.write_text("#x\nmulti0=v2\\:generated\\:3\\:alliance\\:1008\n", encoding="latin-1")
+        characters.with_name(characters.name + ".session-generation").write_text("2\n", encoding="latin-1")
+        with self.assertRaises(SystemExit):
+            self.tool("rollback", "--releases", str(self.releases), "--characters", str(characters))
+        # After restoring the pre-upgrade characters the same rollback goes through.
+        later.write_text("#x\nmulti0=1008040000\n", encoding="latin-1")
         self.tool("rollback", "--releases", str(self.releases), "--characters", str(characters))
         self.assertEqual("old", (self.releases / "CURRENT").read_text().strip())
 
