@@ -23,7 +23,7 @@ class TacticalRetreatTest {
         override fun save(players:Map<String,Navigator>){if(fail)throw java.io.IOException("disk");this.players=players.toMap()}
     }
     private fun store(player:Navigator=pilot)=Store(mapOf("pilot" to player,
-        "enemy" to pilot.copy(characterId=10001,power=Power.EMPIRE)))
+        "enemy" to pilot.copy(characterId=10001,country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE))))
     @Test fun validatesAuthorityWarpMaximumAndRadiusBeforePersistingAndDoesNotExtendExistingDeadline() {
         val store=store();val nav=Navigation(galaxy,store,NavigationPolicy())
         assertEquals(NavigationRejection.UNIT,nav.apply(request.copy(tacticalRetreat=listOf(1010001)),session,stocks).rejection)

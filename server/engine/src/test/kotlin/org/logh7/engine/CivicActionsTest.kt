@@ -167,7 +167,7 @@ class CivicActionsTest {
         val s=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,3,0,2000,200,300,PlanetEconomy(1000,600,70,80))),
             mapOf(200 to OutfitStock(200,3,OutfitKind.FLEET,1049,300,10000,UnitInventory(ships.quantities(),ground.quantities()),
                 activeShips=ships,activeGround=ground)),mapOf(300 to OutfitWarehouse(300,3,OutfitKind.FLEET,1049,200)),nextShipId=3)
-        val p=player.copy(power=Power.ALLIANCE);val q=request().copy(power=Power.ALLIANCE,card=195,rank=6)
+        val p=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE));val q=request().copy(power=Power.ALLIANCE,card=195,rank=6)
         val accepted=StrategyActions.evaluate(galaxy,q,aSession,p,s);assertNull(accepted.rejection)
         assertEquals(840,accepted.player?.mcp)
         assertEquals(85,CivicActions.settle(galaxy,assertNotNull(accepted.stocks),now+86400,listOf(p)).bases.getValue(1049).economy?.peace)

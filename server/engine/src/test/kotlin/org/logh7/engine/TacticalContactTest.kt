@@ -19,7 +19,7 @@ class TacticalContactTest {
     }
     @Test fun energyRequiresOwnFlagshipActiveBattleAndOutputBudgetAndPersistsWithoutCpCharge() {
         val store=object:NavigationStore {
-            var state=mapOf("pilot" to pilot,"enemy" to pilot.copy(characterId=10001,power=Power.EMPIRE))
+            var state=mapOf("pilot" to pilot,"enemy" to pilot.copy(characterId=10001,country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE)))
             override fun load()=state
             override fun save(players:Map<String,Navigator>){state=players.toMap()}
         }
@@ -45,7 +45,7 @@ class TacticalContactTest {
     private val stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0),1001 to PlanetStock(1001,2,0,0,0,0)))
     private val pilot=Navigator(1,10000,Power.ALLIANCE,2487,600,600,1000,cpRecoveryAt=0)
     @Test fun onlyHostilePresenceInTheSameGridStartsContactAndFacilitiesDoNotParticipate() {
-        val enemy=pilot.copy(characterId=10001,power=Power.EMPIRE)
+        val enemy=pilot.copy(characterId=10001,country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE))
         assertFalse(TacticalContact.active(galaxy,pilot,listOf(pilot),stocks))
         assertTrue(TacticalContact.active(galaxy,pilot,listOf(pilot,enemy),stocks))
         assertFalse(TacticalContact.active(galaxy,pilot,listOf(pilot,enemy.copy(grid=2488)),stocks))
@@ -56,7 +56,7 @@ class TacticalContactTest {
     }
     @Test fun contactStopsRecoveryAndStrategicWarpAndSurvivesReloadThenEndsWithoutBackdatedCp() {
         val store=object:NavigationStore {
-            var state=mapOf("pilot" to pilot,"enemy" to pilot.copy(characterId=10001,power=Power.EMPIRE))
+            var state=mapOf("pilot" to pilot,"enemy" to pilot.copy(characterId=10001,country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE)))
             override fun load()=state
             override fun save(players:Map<String,Navigator>) {state=players.toMap()}
         }

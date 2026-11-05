@@ -25,7 +25,7 @@ class GarrisonAppointmentTest {
     @Test fun authorityRankFactionIdentityAndSessionAreServerConditions() {
         assertEquals(AppointmentRejection.AUTHORITY,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(governorId=0)))).rejection)
         assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(targetCard=59)).rejection)
-        assertEquals(AppointmentRejection.IDENTITY,act(request.copy(power=Power.ALLIANCE),player.copy(power=Power.ALLIANCE)).rejection)
+        assertEquals(AppointmentRejection.IDENTITY,act(request.copy(power=Power.ALLIANCE),player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE))).rejection)
         for(rank in listOf(-1,0,1,7,11,20)) assertEquals(AppointmentRejection.RANK,act(request.copy(targetRank=rank)).rejection)
         assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(actorRank=10)).rejection)
         assertNull(act(request.copy(actorRank=1)).rejection)

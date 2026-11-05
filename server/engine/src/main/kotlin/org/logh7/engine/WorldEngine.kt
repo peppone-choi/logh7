@@ -211,9 +211,16 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             catch(failure:Exception){System.err.println("Tactical end delivery failed: ${failure.javaClass.simpleName}")}
         }
     }
-    private val initialStocks = try {
+    private val initialWorld = try {
         // Check before session recovery can write: new owners need the remaining authority migration.
-        stockStore?.load()?.also {stocks->stocks.bases.values.forEach {it.owner.legacyPower()}}
+        val stocks=stockStore?.load()?.also {stocks->stocks.bases.values.forEach {it.owner.legacyPower()}}
+        val players=if(galaxy==null)emptyMap() else navigationStore?.load().orEmpty()
+        players.values.forEach {player->
+            check(player.country.legacyPower()==player.shipStyle.legacyPower()) {
+                "Navigation style requires the remaining model and authority migration"
+            }
+        }
+        stocks to players
     } catch(failure:Exception) {
         listOfNotNull(durability,navigationStore,stockStore).forEach {store->
             try {store.close()} catch(closing:Exception) {failure.addSuppressed(closing)}
@@ -221,7 +228,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         throw failure
     }
     private val simulation = SessionSimulation(rules, generationStore.current())
-    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed) }
+    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed,initialWorld.second) }
     private var durableState = durability?.let { store ->
         try {
             val restored = store.load()
@@ -236,7 +243,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
-        durableState?.session?.generation ?: simulation.snapshot().generation,initialStocks,
+        durableState?.session?.generation ?: simulation.snapshot().generation,initialWorld.first,
         {generation->navigation?.snapshot(generation)?.values})
         .also {if(awaitIdentities)it.identities=null} }
     private val territory=galaxy?.let(::WorldTerritory)

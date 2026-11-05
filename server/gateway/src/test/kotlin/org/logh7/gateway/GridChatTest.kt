@@ -23,7 +23,7 @@ class GridChatTest {
             received.getValue(0)::add, outfit = 11)
         val members = (0..5).map { index -> own.copy(connection = "$index", character = character.copy(id = 10000L + index),
             player = own.player.copy(characterId = 10000 + index), send = received.getValue(index)::add) }.toMutableList()
-        members[2] = members[2].copy(character = members[2].character.copy(power = 3), player = members[2].player.copy(power = Power.ALLIANCE))
+        members[2] = members[2].copy(character = members[2].character.copy(power = 3), player = members[2].player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)))
         members[3] = members[3].copy(player = members[3].player.copy(grid = 2488))
         members[4] = members[4].copy(player = members[4].player.copy(generation = 2))
         members[5] = members[5].copy(outfit = 12, player = members[5].player.copy(baseId = 1049, mode = 4, spotId = 10490003))

@@ -27,7 +27,7 @@ class SpotChatTest {
         val own = GamePresence.Member("self", character,
             Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000, baseId = 1049, mode = 4, spotId = 10490003), self::add)
         val other = own.copy(connection = "peer", character = character.copy(id = 10001, power = 3),
-            player = own.player.copy(characterId = 10001, power = Power.ALLIANCE), send = peer::add)
+            player = own.player.copy(characterId = 10001, country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)), send = peer::add)
         hub.update(own); hub.update(other); self.clear(); peer.clear()
         val message = ChatMessages.Spot(10000, "같은 방")
         val echo = hub.spotChat("self", message, 123)

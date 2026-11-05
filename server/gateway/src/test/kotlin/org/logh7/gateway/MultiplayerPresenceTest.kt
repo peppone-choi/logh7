@@ -136,7 +136,7 @@ class MultiplayerPresenceTest {
         val own = GamePresence.Member("first", character,
             Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000, baseId = 1049, mode = 4, spotId = 10490404), received::add)
         val other = GamePresence.Member("other", character.copy(id = 10001, power = 3, face = 1000008),
-            own.player.copy(characterId = 10001, power = Power.ALLIANCE, spotId = 10490605), {})
+            own.player.copy(characterId = 10001, country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE), spotId = 10490605), {})
         hub.update(own)
         assertTrue(hub.update(other).peers.isEmpty())
         assertTrue(received.isEmpty())
@@ -230,7 +230,7 @@ class MultiplayerPresenceTest {
             List(8) { 50 }, 0, 0, 0, 20, 0, 0, "Ship", 1)
         val own = GamePresence.Member("first", generated, Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000), messages::add)
         hub.update(own)
-        for (player in listOf(own.player.copy(characterId = 10001, power = Power.ALLIANCE),
+        for (player in listOf(own.player.copy(characterId = 10001, country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),
             own.player.copy(characterId = 10002, generation = 2), own.player.copy(characterId = 10003, grid = 2488))) {
             assertTrue(hub.update(GamePresence.Member("other-${player.characterId}", generated.copy(id = player.characterId.toLong()), player, {})).peers.isEmpty())
         }

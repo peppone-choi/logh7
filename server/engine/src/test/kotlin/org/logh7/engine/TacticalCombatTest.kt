@@ -87,7 +87,7 @@ class TacticalCombatTest {
             assertEquals(reason,TacticalCombat.attack(invalid,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24).rejection)
         }
         TacticalCombat.attack(command,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24)
-        state.players=nav.snapshot(1).mapValues {(_,p)->p.copy(power=Power.EMPIRE,hull=FlagshipHull(0,now))}
+        state.players=nav.snapshot(1).mapValues {(_,p)->p.copy(country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE),hull=FlagshipHull(0,now))}
         val friendly=Navigation(galaxy,state.nav,NavigationPolicy())
         assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,friendly,stock,state.commit).isEmpty())
         assertNull(friendly.snapshot(1).getValue("pilot").fire)
@@ -215,7 +215,7 @@ class TacticalCombatTest {
     }
     @Test fun acceptedFireContinuesOfflineAndAudienceIncludesBothPowersOnlyAtAuthenticatedCurrentConnections() {
         val state=state();val pilot=state.players.getValue("pilot")
-        state.players+=mapOf("enemy" to pilot.copy(characterId=10001,power=Power.EMPIRE,motion=null,charge=null),
+        state.players+=mapOf("enemy" to pilot.copy(characterId=10001,country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE),motion=null,charge=null),
             "friend" to pilot.copy(characterId=10002,motion=null,charge=null),
             "stale" to pilot.copy(characterId=10003,motion=null,charge=null),
             "outside" to pilot.copy(characterId=10004,grid=2487,motion=null,charge=null),
@@ -275,7 +275,7 @@ class TacticalCombatTest {
     @Test fun personalShieldDamagePersistsAndFatalOverflowReturnsInDestroyerWithoutGhostFire() {
         val state=state()
         val victimPoint=TacticalPoint(180f,-95f)
-        val victim=state.players.getValue("pilot").copy(characterId=10001,power=Power.EMPIRE,returnBase=1000,
+        val victim=state.players.getValue("pilot").copy(characterId=10001,country=Power.EMPIRE.country,shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE),returnBase=1000,
             energy=TacticalEnergy.ZERO,charge=null,hull=FlagshipHull(0,now),
             motion=TacticalMotion(2488,now,TacticalPose(victimPoint,Math.PI.toFloat()),0f,Math.PI.toFloat(),listOf(victimPoint)))
         state.players+= "victim" to victim

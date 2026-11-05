@@ -24,7 +24,7 @@ class GridForceReportTest {
     @Test fun storedFlagshipsFollowMovementAndGenerationWithoutLeakingEnemies() {
         val offline = viewer.copy(characterId=10001, grid=2488)
         val state = WorldSnapshot(0,0,session, navigators=mapOf("self" to viewer, "offline" to offline,
-            "enemy" to viewer.copy(characterId=10002, power=Power.ALLIANCE),
+            "enemy" to viewer.copy(characterId=10002, country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),
             "old" to viewer.copy(characterId=10003, generation=2),
             "far" to viewer.copy(characterId=10004, grid=2495)))
         assertEquals(mapOf(2487 to 1,2488 to 1), counts(state))

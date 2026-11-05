@@ -65,7 +65,7 @@ class FlagshipMarketActionsTest {
         assertEquals(StrategyActionRejection.AUTHORITY,act(accept,assertNotNull(accepted.stocks),receiver).rejection)
     }
     @Test fun staleMovedForeignAndExpiredOffersNeverMoveOrDuplicateHullsAndEitherOwnerCanCancel() {
-        val foreign=players+("receiver" to receiver.copy(power=Power.ALLIANCE,hull=FlagshipHull(89,now)))
+        val foreign=players+("receiver" to receiver.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),hull=FlagshipHull(89,now)))
         assertEquals(StrategyActionRejection.LOCATION,act(request(1).copy(navigators=foreign)).rejection)
         val offered=assertNotNull(act(request(1)).stocks)
         val accept=request(2).copy(account="receiver",connection="r",characterId=10001,target=10000)
@@ -88,7 +88,7 @@ class FlagshipMarketActionsTest {
             mapOf(Power.EMPIRE to 2015,Power.ALLIANCE to 2015))
         val sessionA=SessionSimulation(SessionRules.load()).also {it.join("actor",Power.ALLIANCE,false,"c")}.exportState()
         val spot=galaxyA.facilities.getValue(1177).single {it.kind==23}.spots.single {it.kind==21}.id
-        val playerA=player.copy(power=Power.ALLIANCE,grid=2015,baseId=1177,spotId=spot,hull=FlagshipHull(89,now))
+        val playerA=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),grid=2015,baseId=1177,spotId=spot,hull=FlagshipHull(89,now))
         val stocksA=PlanetStocks(1,0,mapOf(1177 to PlanetStock(1177,3,0,100,200,300)),
             strategic=StrategicState(people=mapOf(10000 to StrategicPerson(evaluation=1000))))
         val result=StrategyActions.evaluate(galaxyA,request().copy(power=Power.ALLIANCE),sessionA,playerA,stocksA)

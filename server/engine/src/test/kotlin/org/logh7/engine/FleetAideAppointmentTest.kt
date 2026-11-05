@@ -59,10 +59,10 @@ class FleetAideAppointmentTest {
             warehouses=mapOf(300 to stocks.warehouses.getValue(300).copy(power=3)))
         val state=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.ALLIANCE,false,"c")}.exportState()
         val r=request.copy(power=Power.ALLIANCE,targetCard=179,actorRank=6,targetPower=3)
-        val result=GarrisonAppointment.evaluate(galaxy,r,state,player.copy(power=Power.ALLIANCE),allied)
+        val result=GarrisonAppointment.evaluate(galaxy,r,state,player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),allied)
         assertNull(result.rejection);assertEquals(10001,result.stocks!!.outfits.getValue(200).aideId)
         assertEquals(listOf(200),FleetAideAppointmentPolicy().available(allied,10000,3,6).map {it.id})
         assertEquals(AppointmentRejection.AUTHORITY,GarrisonAppointment.evaluate(galaxy,r.copy(targetCard=43),state,
-            player.copy(power=Power.ALLIANCE),allied).rejection)
+            player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),allied).rejection)
     }
 }

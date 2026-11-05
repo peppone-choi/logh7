@@ -12,7 +12,7 @@ class TacticalBaseDeliveryTest {
     private val person=CharacterMessages.Generate(0,10000,2,0,0,"Alpha","Pilot",30,1,1,0,List(8){50},0,0,0,10,0,0,"Ship",0)
     private val enemy=person.copy(id=10001,power=3,shipKind=89)
     private val player=Navigator(1,10000,Power.EMPIRE,2487,100,100,1000,cpPaused=true)
-    private val opposing=player.copy(characterId=10001,power=Power.ALLIANCE)
+    private val opposing=player.copy(characterId=10001,country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE))
     private fun character(id:Int)=if(id==10000)person else enemy.takeIf {id==10001}
     private fun opcode(packet:ByteArray)=ByteBuffer.wrap(packet).getShort(4).toInt() and 65535
     private fun snapshot(state:TacticalCommandState,available:Int=321,supplies:Int=0,damaged:Int=0):WorldSnapshot {

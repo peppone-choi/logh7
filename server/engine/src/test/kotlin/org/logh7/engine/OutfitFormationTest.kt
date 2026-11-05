@@ -131,7 +131,7 @@ class OutfitFormationTest {
             mapOf(Power.EMPIRE to 2015,Power.ALLIANCE to 2015))
         val s=PlanetStocks(1,0,mapOf(1177 to PlanetStock(1177,3,0,100,200,300)),
             strategic=StrategicState(offices=listOf(OfficeHolding(164,1177,10000))))
-        val p=player.copy(power=Power.ALLIANCE,grid=2015,baseId=1177)
+        val p=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),grid=2015,baseId=1177)
         val q=request(card=164).let {it.copy(identity=it.identity.copy(power=Power.ALLIANCE),base=1177)}
         for(kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT,OutfitKind.PATROL))
             assertNull(OutfitFormationPolicy.authority(a,q.copy(kind=kind),p,s))
