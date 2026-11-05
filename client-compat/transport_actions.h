@@ -8,6 +8,7 @@ static void strategyNextPerson(int direction);
 static struct TransportWindow {
     unsigned kind,count;
     bool refresh;
+    wchar_t receipt[160];
 } transportWindow={};
 static bool transportCommand(unsigned command) {return command==28 || command==29 || command==65;}
 static bool transportCard(unsigned command,unsigned card) {
@@ -43,7 +44,7 @@ static bool readTransportAction(void* record) {
     state.pending=false;unsigned reply=at<unsigned short>(record,10);unsigned command=state.strategyCommand;
     state.message=reply==4 ? L"이 명령을 실행할 직무 카드가 아닙니다." :
         reply==5 ? L"본인이 지휘하는 수송함대가 아니거나 다른 부대가 실은 패키지입니다." :
-        reply==6 ? (command==65 ? L"수송함대가 패키지의 수송원(반출) 또는 수송처(반입)에 정박해 있어야 합니다." : L"수송원 거점이 아군 거점이 아닙니다.") :
+        reply==6 ? (command==65 ? L"기함과 수송함대를 함께 정박시키세요. 반입은 수송처 또는 목적지 상실 시 다른 아군 거점." : L"수송원 거점이 아군 거점이 아닙니다.") :
         reply==7 ? (command==29 ? L"이미 수송함대에 실은 패키지는 중지할 수 없습니다." : L"진행 중인 작업이 끝난 뒤 실행하십시오.") :
         reply==8 ? L"수송함대의 물자 탑재량 또는 유닛 칸이 부족합니다." :
         reply==9 ? L"이 거점의 열린 패키지가 20개에 도달했습니다." :
@@ -53,6 +54,9 @@ static bool readTransportAction(void* record) {
         reply ? L"명령 거부 · 직무·장소·대상·CP를 확인하세요." :
         command==28 ? L"수송 패키지를 만들어 수송원 수송 창고에 두었습니다." :
         command==29 ? L"수송을 중지하고 패키지를 수송원 창고로 되돌렸습니다." : L"반출입을 마쳤습니다.";
+    if(reply)transportWindow.receipt[0]=0;
+    else if(command==28)wcscpy_s(transportWindow.receipt,state.message);
+    else swprintf_s(transportWindow.receipt,L"패키지 %u · %ls",state.strategyTarget,state.message);
     if(!reply && command!=28)transportWindow.refresh=true;
     memset(static_cast<BYTE*>(record)+4,0,32);return true;
 }
@@ -76,7 +80,7 @@ static void drawTransportAction() {
     } else {
         auto pack=transportPackage();
         taxText(1,command==29 ? L"아직 싣지 않은 본 진영 패키지를 수송원 창고로 되돌립니다." :
-            L"정박한 거점의 패키지를 싣거나(반출), 실은 패키지를 수송처에 내립니다(반입).");
+            L"수송원에서 반출 · 수송처에서 반입. 목적지를 잃으면 다른 아군 거점에도 반입합니다.");
         if(command==65)swprintf_s(label,L"수송함대 ID %u",state.strategyOutfit);else swprintf_s(label,L"패키지 %u개",strategyDirectory.count);
         taxText(2,label);
         if(pack) {
@@ -84,12 +88,12 @@ static void drawTransportAction() {
             pickerName(destination,name);
             swprintf_s(label,L"패키지 %u → %ls (%u)",pack->id,name[0] ? name : L"-",destination);taxText(3,label);
             bool units=wcschr(pack->name,L'+')!=nullptr,aboard=wcschr(pack->name,L'*')!=nullptr;
-            swprintf_s(label,L"군수물자 %u%ls · %ls",supplies,units ? L" + 유닛" : L"",aboard ? L"적재 중(반입 대상)" : L"수송 창고(반출 대상)");
+            swprintf_s(label,L"%ls %u%ls · %ls",aboard ? L"출항 물자" : L"군수물자",supplies,units ? L" + 유닛" : L"",aboard ? L"적재 중(반입 대상)" : L"수송 창고(반출 대상)");
             taxText(4,label);
         } else {taxText(3,L"선택할 패키지가 없습니다.");taxText(4,L"");}
-        taxText(5,command==65 ? L"MCP 160 · 격침으로 잃은 함정 비율만큼 화물도 잃습니다." : L"MCP 80");
+        taxText(5,command==65 ? L"MCP 160 · 격침 비율만큼 반입량이 줄며, 유닛 수는 소수점을 버립니다." : L"MCP 80");
     }
-    taxText(6,state.message);
+    taxText(6,transport.receipt[0] && !state.pending ? transport.receipt : state.message);
     taxText(10,L"선택 항목");taxText(11,L"이전 / −");taxText(12,L"다음 / +");taxText(13,L"목록 갱신");taxText(14,L"실행");taxText(15,L"닫기");
     bool plan=command==28;
     taxEnabled(10,!state.pending && plan);taxEnabled(11,!state.pending && (plan || strategyDirectory.count>1));
@@ -127,6 +131,7 @@ static bool updateTransportAction() {
         state.acceptAfter=GetTickCount64()+250;
         if(id==15)closeTaxWindow();
         else if(!state.pending) {
+            transport.receipt[0]=0;
             if(id==10 && command==28)state.strategyField=(state.strategyField+1)%5;
             else if(id==13 && command!=28)sendTransportAction(true);
             else if(id==11 || id==12) {
@@ -138,7 +143,7 @@ static bool updateTransportAction() {
     return true;
 }
 static void openTransportAction(void* own) {
-    auto& state=taxWindow;transportWindow={0xffff,0,false};
+    auto& state=taxWindow;transportWindow={0xffff,0,false,{}};
     if(state.strategyCommand==28) {
         unsigned base=at<unsigned>(own,0x358);
         if(base && base<=65535)state.strategyBase=base;else strategyNextBase(1);
