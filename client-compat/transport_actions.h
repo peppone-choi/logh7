@@ -64,13 +64,30 @@ static const StrategyDirectory::Person* transportPackage() {
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==taxWindow.strategyTarget)return &strategyDirectory.people[i];
     return nullptr;
 }
+static void transportSystemLabel(unsigned destination,wchar_t (&label)[96]) {
+    wcscpy_s(label,L"미수신");
+    if(!destination){wcscpy_s(label,L"선택 없음");return;}
+    auto base=pickerBase(destination);
+    if(!base)return;
+    unsigned grid=logh::infoShort(base,0x10);
+    if(grid>=5000)return;
+    auto cell=reinterpret_cast<const BYTE*(__stdcall*)(int,int)>(0x4c8b70)(grid%100,grid/100);
+    if(!cell || cell[0]<3 || cell[0]>88)return;
+    auto catalog=reinterpret_cast<const char*(__stdcall*)(unsigned)>(0x4c8c90)(cell[0]);
+    std::wstring system;
+    if(catalog && !logh::japaneseFragment(catalog,system)) {
+        wchar_t raw[64]={};MultiByteToWideChar(932,0,catalog,-1,raw,_countof(raw));system=raw;
+    }
+    swprintf_s(label,L"%ls (%u,%u)",system.empty() ? L"이름 미수신" : system.c_str(),grid%100+1,grid/100+1);
+}
 static void drawTransportAction() {
     auto& state=taxWindow;auto& transport=transportWindow;unsigned command=state.strategyCommand;
     wchar_t label[200],name[32];
     taxText(0,command==28 ? L"수송 계획" : command==29 ? L"수송 중지" : L"반출입");
     if(command==28) {
         static const wchar_t* fields[]={L"수송원 거점",L"수송처 거점",L"군수물자",L"유닛 종류",L"유닛 수"};
-        swprintf_s(label,L"현재 선택: %ls",fields[state.strategyField%5]);taxText(1,label);
+        wchar_t system[96];transportSystemLabel(state.strategyTarget,system);
+        swprintf_s(label,L"현재 선택: %ls · 수송처 성계: %ls",fields[state.strategyField%5],system);taxText(1,label);
         pickerName(state.strategyBase,name);swprintf_s(label,L"수송원: %ls (%u)",name[0] ? name : L"-",state.strategyBase);taxText(2,label);
         pickerName(state.strategyTarget,name);swprintf_s(label,L"수송처: %ls (%u)",name[0] ? name : L"-",state.strategyTarget);taxText(3,label);
         if(transport.kind==0xffff)swprintf_s(label,L"군수물자 %u · 유닛 없음",state.strategyAmount);
@@ -84,10 +101,13 @@ static void drawTransportAction() {
         auto pack=transportPackage();
         taxText(1,command==29 ? L"아직 싣지 않은 본 진영 패키지를 수송원 창고로 되돌립니다." :
             L"수송원에서 반출 · 수송처에서 반입. 목적지를 잃으면 다른 아군 거점에도 반입합니다.");
-        if(command==65)swprintf_s(label,L"수송함대 ID %u",state.strategyOutfit);else swprintf_s(label,L"패키지 %u개",strategyDirectory.count);
+        unsigned destination=0,supplies=0;
+        if(pack)swscanf_s(pack->name,L"%u/%u",&destination,&supplies);
+        wchar_t system[96];transportSystemLabel(destination,system);
+        if(command==65)swprintf_s(label,L"수송함대 ID %u · 수송처 성계: %ls",state.strategyOutfit,system);
+        else swprintf_s(label,L"패키지 %u개 · 수송처 성계: %ls",strategyDirectory.count,system);
         taxText(2,label);
         if(pack) {
-            unsigned destination=0,supplies=0;swscanf_s(pack->name,L"%u/%u",&destination,&supplies);
             pickerName(destination,name);
             swprintf_s(label,L"패키지 %u → %ls (%u)",pack->id,name[0] ? name : L"-",destination);taxText(3,label);
             bool units=wcschr(pack->name,L'+')!=nullptr,aboard=wcschr(pack->name,L'*')!=nullptr;
