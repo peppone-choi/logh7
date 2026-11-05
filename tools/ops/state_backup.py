@@ -26,6 +26,7 @@ import json
 import shutil
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -42,13 +43,20 @@ def sha256(path: Path) -> str:
 
 
 def server_running(url: str | None) -> bool:
+    """Require a refused connection before allowing offline mutation; HTTP errors still mean a live listener."""
     if not url:
         return False
     try:
-        with urllib.request.urlopen(url, timeout=2) as response:
-            return response.status == 200
-    except OSError:
-        return False
+        # Windows loopback refusal can arrive just after two seconds.
+        with urllib.request.urlopen(url, timeout=5):
+            return True
+    except urllib.error.HTTPError as response:
+        response.close()
+        return True
+    except urllib.error.URLError as failure:
+        return not isinstance(failure.reason, ConnectionRefusedError)
+    except OSError as failure:
+        return not isinstance(failure, ConnectionRefusedError)
 
 
 def state_files(characters: Path, world: Path, session: Path, accounts: Path | None = None) -> dict[str, list[tuple[Path, str]]]:
@@ -94,7 +102,7 @@ def check_owner(characters: Path, world: Path) -> None:
 
 def backup(args: argparse.Namespace) -> None:
     if server_running(args.health):
-        raise SystemExit(f"server is running ({args.health}); stop it before a backup")
+        raise SystemExit(f"server may be running ({args.health}); confirm it is stopped before a backup")
     characters, world, session = Path(args.characters).resolve(), Path(args.world).resolve(), Path(args.session).resolve()
     check_owner(characters, world)
     accounts = Path(args.accounts).resolve() if args.accounts else None
@@ -171,7 +179,7 @@ def verify(args: argparse.Namespace) -> None:
 
 def restore(args: argparse.Namespace) -> None:
     if server_running(args.health):
-        raise SystemExit(f"server is running ({args.health}); stop it before a restore")
+        raise SystemExit(f"server may be running ({args.health}); confirm it is stopped before a restore")
     archive = Path(args.archive)
     manifest = load(archive)
     roots = {k: Path(v) for k, v in manifest["roots"].items()}

@@ -29,7 +29,9 @@ class WorldEditorTest {
             npcPolicy=NpcTacticalPolicy(enabled=false))
         val port=ServerSocket(0).use {it.localPort};val token="fixture-world-token"
         val file=directory.resolve("audit.jsonl")
-        try {OpsAudit.open(file).use {audit->startOpsApi(engine,engine,port,audit,token,galaxy=galaxy).use {HttpClient.newHttpClient().use {client->
+        try {
+            engine.synchronizeTime();commits=0
+            OpsAudit.open(file).use {audit->startOpsApi(engine,engine,port,audit,token,galaxy=galaxy).use {HttpClient.newHttpClient().use {client->
             fun request(path:String,body:String?=null,authorized:Boolean=true,origin:String="http://127.0.0.1:$port"):HttpResponse<String> {
                 val builder=HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path"))
                 if(authorized)builder.header("Authorization","Bearer $token")

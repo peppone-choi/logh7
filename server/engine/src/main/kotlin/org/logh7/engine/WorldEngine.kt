@@ -40,7 +40,7 @@ sealed interface WorldCommand {
     data class Quiesce<T>(val action: () -> T, val result: CompletableDeferred<T>) : WorldCommand
 }
 interface CommandSink { suspend fun submit(command: WorldCommand) }
-enum class EngineHealth { RUNNING, STORAGE_FAILED, STOPPED }
+enum class EngineHealth { STARTING, RUNNING, STORAGE_FAILED, STOPPED }
 interface SnapshotSource {
     fun snapshot(): WorldSnapshot
     fun health(): EngineHealth = EngineHealth.RUNNING
@@ -1215,6 +1215,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     override fun health(): EngineHealth = when {
         worker.isCompleted || ticker?.isCompleted == true -> EngineHealth.STOPPED
         storageFailed -> EngineHealth.STORAGE_FAILED
+        galaxy!=null && published.get().planetStocks==null -> EngineHealth.STARTING
         else -> EngineHealth.RUNNING
     }
     suspend fun drainAndClose() { ticker?.cancelAndJoin(); queue.close(); worker.join() }
