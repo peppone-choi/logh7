@@ -1,4 +1,4 @@
-// Offline translation editing; source bindings and metadata stay intact. Author: 최병호.
+// Offline translation editing; source bindings and metadata stay intact. Author: Peppone Choi (peppone-choi).
 const LoghTranslationEditor = (() => {
     const printf = /%(?:[-+ #0]*)(?:\d+|\*)?(?:\.(?:\d+|\*))?(?:hh|ll|[hlLwIz])?[diuoxXfFeEgGaAcCsSpn%]/g;
     function validate(before, after) {

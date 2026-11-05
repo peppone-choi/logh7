@@ -1,4 +1,4 @@
--- 국가 정의·체계·자산·번역의 저장 경계. 작성: 최병호.
+-- 국가 정의·체계·자산·번역의 저장 경계. 작성: Peppone Choi (peppone-choi).
 -- 실제 월드 소속/소유권 전환은 월드 액터와 함께 이행한 뒤 활성화한다.
 CREATE TABLE nation_calendar (
     calendar_key TEXT PRIMARY KEY,

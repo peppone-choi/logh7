@@ -1,4 +1,4 @@
-// Native 360-day calendar and CP labels. Author: 최병호.
+// Native 360-day calendar and CP labels. Author: Peppone Choi (peppone-choi).
 #pragma once
 #include <cwchar>
 #include "country_catalog_data.h"

@@ -5,7 +5,7 @@ import java.nio.charset.CodingErrorAction
 import java.util.Collections
 import org.logh7.engine.strategy.StrategyCatalogLoader
 
-/** Definitions are separate from runtime membership and native display codes. Author: 최병호. */
+/** Definitions are separate from runtime membership and native display codes. Author: Peppone Choi (peppone-choi). */
 data class CountryCalendar(val key:String,val name:String,val yearOffset:Int)
 data class CountryFamily(val key:String,val name:String,val calendar:String,val commands:String,
     val ranks:String,val offices:String,val peerage:String,val shipStyle:String)

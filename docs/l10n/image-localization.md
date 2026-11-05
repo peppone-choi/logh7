@@ -135,7 +135,7 @@ $python = 'C:/Users/user/AppData/Local/Programs/Python/Python311/python.exe'
 
 ## 전술 탭 이미지의 런처 적용과 복구 (2026-11-05)
 
-작성: 최병호
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi))
 
 정상 플레이용 `work/playable-main-refresh-20261104/client-empire`와
 `client-alliance`의 전술 탭 이미지는 일본어 원본 해시였다. 기존 한국어 후보는

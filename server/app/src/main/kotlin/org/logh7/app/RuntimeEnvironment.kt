@@ -4,7 +4,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Collections
 
-/** Process > local secrets > shared settings. Files are data, never shell code. Author: 최병호. */
+/** Process > local secrets > shared settings. Files are data, never shell code. Author: Peppone Choi (peppone-choi). */
 class RuntimeEnvironment private constructor(private val values:Map<String,String>) {
     operator fun get(name:String):String?=values[name]
 

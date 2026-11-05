@@ -1,4 +1,4 @@
-// Browser file access is initiated only by the editor's buttons. Author: 최병호.
+// Browser file access is initiated only by the editor's buttons. Author: Peppone Choi (peppone-choi).
 (() => {
     const $ = id => document.getElementById(id);
     const core = LoghTranslationEditor;

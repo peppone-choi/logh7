@@ -1,4 +1,4 @@
-"""국가 데이터와 생성 헤더의 일치·확장·오류 경계 검사. 작성: 최병호."""
+"""국가 데이터와 생성 헤더의 일치·확장·오류 경계 검사. 작성: Peppone Choi (peppone-choi)."""
 from pathlib import Path
 import tempfile
 import unittest

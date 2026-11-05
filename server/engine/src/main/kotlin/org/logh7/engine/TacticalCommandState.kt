@@ -86,7 +86,7 @@ object TacticalAuthority {
 }
 
 /** Existing outfit command takes precedence; unassigned local ground defenders follow their garrison office.
- * No appointment or delegation is made by choosing a commander in the ground window. Author: 최병호. */
+ * No appointment or delegation is made by choosing a commander in the ground window. Author: Peppone Choi (peppone-choi). */
 object GroundCommandAuthority {
     fun commander(outfit:OutfitStock,unit:ActiveGroundUnit,stocks:PlanetStocks,galaxy:Galaxy):Int {
         if(outfit.commanderId>0)return outfit.commanderId

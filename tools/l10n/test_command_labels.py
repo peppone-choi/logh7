@@ -1,4 +1,4 @@
-"""플레이어용 시간 단위와 비용 자리표시자의 회귀 검사. 작성: 최병호."""
+"""플레이어용 시간 단위와 비용 자리표시자의 회귀 검사. 작성: Peppone Choi (peppone-choi)."""
 import json
 from pathlib import Path
 import re

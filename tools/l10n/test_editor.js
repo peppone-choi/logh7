@@ -1,4 +1,4 @@
-// Check editing against the real catalogues without touching game data. Author: 최병호.
+// Check editing against the real catalogues without touching game data. Author: Peppone Choi (peppone-choi).
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

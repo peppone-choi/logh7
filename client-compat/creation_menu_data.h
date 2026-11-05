@@ -1,4 +1,4 @@
-// The CD lobby disables both creation entry points. Author: 최병호.
+// The CD lobby disables both creation entry points. Author: Peppone Choi (peppone-choi).
 #pragma once
 #include <cstddef>
 #include <cstring>
