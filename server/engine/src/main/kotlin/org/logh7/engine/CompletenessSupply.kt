@@ -25,15 +25,15 @@ internal object CompletenessSupply {
         if (session.ended != null || session.generation != r.generation || stocks.generation != r.generation ||
             member == null || !member.online || member.connection != r.connection) return reject(LogisticsRejection.SESSION)
         if (player == null || player.generation != r.generation || player.characterId != r.characterId ||
-            player.power != r.power || member.power != r.power) return reject(LogisticsRejection.IDENTITY)
+            player.country != r.power.country || member.country != r.power.country) return reject(LogisticsRejection.IDENTITY)
         val from = stocks.outfits[r.from] ?: return reject(LogisticsRejection.OUTFIT)
         val to = stocks.outfits[r.to] ?: return reject(LogisticsRejection.OUTFIT)
         if (from.id == to.id) return reject(LogisticsRejection.OUTFIT)
-        val power = if (r.power == Power.EMPIRE) 2 else 3
-        if (from.power != power || to.power != power || from.kind != OutfitKind.TRANSPORT || from.commanderId != r.characterId)
+        val country = r.power.country
+        if (from.country != country || to.country != country || from.kind != OutfitKind.TRANSPORT || from.commanderId != r.characterId)
             return reject(LogisticsRejection.ACCESS)
         val base = stocks.bases.getValue(from.baseId)
-        if (base.power != power || base.camp != 0 || from.baseId != to.baseId || player.baseId != from.baseId ||
+        if (base.country != country || base.camp != 0 || from.baseId != to.baseId || player.baseId != from.baseId ||
             (from.position?.baseId ?: from.baseId) != from.baseId || (to.position?.baseId ?: to.baseId) != to.baseId)
             return reject(LogisticsRejection.LOCATION)
         if (player.cpPaused || player.navigationPending)

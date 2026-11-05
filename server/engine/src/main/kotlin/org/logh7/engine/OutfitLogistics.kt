@@ -44,8 +44,8 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
         val member = session.participants[request.account]
         if (session.ended != null || request.generation != session.generation || member == null || !member.online ||
             member.connection != request.connection) return reject(LogisticsRejection.SESSION)
-        if (member.power != request.power || player == null || player.generation != session.generation ||
-            player.characterId != request.characterId || player.power != request.power) return reject(LogisticsRejection.IDENTITY)
+        if (member.country != request.power.country || player == null || player.generation != session.generation ||
+            player.characterId != request.characterId || player.country != request.power.country) return reject(LogisticsRejection.IDENTITY)
         val existing = reservations.singleOrNull { it.request.account == request.account && it.request.connection == request.connection }
         if (request.phase == LogisticsPhase.CANCEL) {
             if (existing == null || existing.id != request.reservation || existing.request.outfitId != request.outfitId || existing.request.mode != request.mode)
@@ -56,12 +56,12 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
         val stocks = production.settle(session.generation, session.gameMillis / 1000)
         val outfit = stocks.outfits[request.outfitId] ?: return reject(LogisticsRejection.OUTFIT)
         val base = stocks.bases.getValue(outfit.baseId)
-        val power = if (request.power == Power.EMPIRE) 2 else 3
-        if (outfit.power != power || base.power != power || base.camp != 0) return reject(LogisticsRejection.ACCESS)
+        val country = request.power.country
+        if (outfit.country != country || base.country != country || base.camp != 0) return reject(LogisticsRejection.ACCESS)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         if (request.mode == LogisticsMode.ALLOCATION) {
             val office = stocks.logisticsOfficers[request.characterId]
-            val allowed = office?.permits(power, outfit.kind) == true
+            val allowed = office?.permits(country.value, outfit.kind) == true
             if (!allowed) return reject(LogisticsRejection.ACCESS)
         } else {
             if (outfit.commanderId != request.characterId) return reject(LogisticsRejection.ACCESS)
@@ -83,8 +83,8 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
         if (existing == null || existing.id != request.reservation || existing.request.mode != request.mode || existing.request.outfitId != request.outfitId ||
             existing.warehouse != outfit.warehouseId || existing.base != outfit.baseId) return reject(LogisticsRejection.PREPARATION)
         val next = try {
-            if (request.transfer.ships.keys.any { key -> ProductionUnits.definitions.none { it.ship && it.kind == key.kind && it.power == power } } ||
-                request.transfer.troops.keys.any { key -> ProductionUnits.definitions.none { !it.ship && it.kind == key.kind && it.power == power } })
+            if (request.transfer.ships.keys.any { key -> ProductionUnits.definitions.none { it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower } } ||
+                request.transfer.troops.keys.any { key -> ProductionUnits.definitions.none { !it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower } })
                 return reject(LogisticsRejection.STOCK)
             if (request.mode == LogisticsMode.ALLOCATION) {
                 val moved = ReplacementBoats.moveStored(base.units,base.spareShips,warehouse.units,warehouse.spareShips,request.transfer)
@@ -98,7 +98,7 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
                 val reorganized=ReplacementBoats.reorganize(stocks,outfit.id,request.transfer)
                 val destination=reorganized.outfits.getValue(outfit.id)
                 val required=ReplacementBoats.crewRequired(destination)
-                val crewKinds = UnitSpecifications.crews.filter { it.power == power && it.type == 3 }.map { it.kind }.toSet()
+                val crewKinds = UnitSpecifications.crews.filter { it.power == outfit.shipStyle.nativePower && it.type == 3 }.map { it.kind }.toSet()
                 val crew = destination.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
                 if (required != crew) return reject(LogisticsRejection.CREW)
                 if (outfit.supplies > OutfitSupplies.capacity(destination)) return reject(LogisticsRejection.STOCK)

@@ -26,13 +26,13 @@ internal object GroundTransfer {
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection)return reject(LogisticsRejection.SESSION)
-        if(p==null || p.characterId!=r.characterId || p.generation!=r.generation || p.power!=r.power || member.power!=r.power)
+        if(p==null || p.characterId!=r.characterId || p.generation!=r.generation || p.country!=r.power.country || member.country!=r.power.country)
             return reject(LogisticsRejection.IDENTITY)
         val o=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
-        val power=if(r.power==Power.EMPIRE)2 else 3
+        val country=r.power.country
         val base=o.position?.baseId ?: o.baseId
         val owner=stocks.bases[base] ?: return reject(LogisticsRejection.LOCATION)
-        if(o.commanderId!=r.characterId || o.power!=power || owner.power!=power || owner.camp!=0)
+        if(o.commanderId!=r.characterId || o.country!=country || owner.country!=country || owner.camp!=0)
             return reject(LogisticsRejection.ACCESS)
         if(p.baseId!=base || p.cpPaused || p.navigationPending)return reject(LogisticsRejection.LOCATION)
         val roster=o.activeGround ?: return reject(LogisticsRejection.STOCK)

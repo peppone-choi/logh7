@@ -25,15 +25,14 @@ internal object Supplement {
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection) return reject(LogisticsRejection.SESSION)
-        if(p==null || p.characterId!=r.characterId || p.generation!=s.generation || p.power!=r.power || member.power!=r.power)
+        if(p==null || p.characterId!=r.characterId || p.generation!=s.generation || p.country!=r.power.country || member.country!=r.power.country)
             return reject(LogisticsRejection.IDENTITY)
         if(r.mode !in 0..1)return reject(LogisticsRejection.MODE)
         val outfit=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
         // update03: guard ships are never replenished; disband and buy again instead.
         if(outfit.guard!=null)return reject(LogisticsRejection.ACCESS)
-        val power=if(r.power==Power.EMPIRE)2 else 3
         val owner=stocks.bases.getValue(outfit.baseId)
-        if(outfit.power!=power || owner.power!=power || owner.camp!=0 || outfit.commanderId!=r.characterId)
+        if(outfit.country!=r.power.country || owner.country!=r.power.country || owner.camp!=0 || outfit.commanderId!=r.characterId)
             return reject(LogisticsRejection.ACCESS)
         if(r.base!=outfit.baseId || (outfit.position?.baseId ?: outfit.baseId)!=outfit.baseId ||
             r.kind!=outfit.kind.wire || p.baseId!=outfit.baseId || p.cpPaused ||
@@ -59,7 +58,7 @@ internal object Supplement {
             // Full-unit crew count scaled to surviving boats, rounded up per unit.
             (unit.boats.toLong()*spec.number("必要乗組員ユニット数:必要乗組員ユニット数")+spec.number-1)/spec.number
         })
-        val crewKinds=UnitSpecifications.crews.filter {it.power==power && it.type==3}.map {it.kind}.toSet()
+        val crewKinds=UnitSpecifications.crews.filter {it.power==outfit.shipStyle.nativePower && it.type==3}.map {it.kind}.toSet()
         val current=outfit.units.troops.filterKeys {it.kind in crewKinds}.values.sumOf {it.toLong()}
         var needed=maxOf(0L,required-current)
         val moved=linkedMapOf<UnitStack,Int>()
