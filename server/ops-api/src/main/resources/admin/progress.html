@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LOGH7 작업 현황</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1420;color:#e6eef7;font:16px/1.6 system-ui,"Malgun Gothic",sans-serif}main{max-width:1000px;margin:auto;padding:32px 24px 48px;text-align:center}header p{font-size:12px;letter-spacing:.15em;color:#8da9c4;margin:0}h1{font-size:clamp(22px,4vw,32px);font-weight:500;margin:10px 0 12px}.scope{font:inherit;padding:8px 14px;border:1px solid #35516e;border-radius:6px;color:#cbdced;background:#111f30;max-width:100%}.donut{width:min(74vw,550px);aspect-ratio:1;margin:28px auto 20px;position:relative}.donut svg{width:100%;height:100%;display:block}.track{stroke:#243547}.arc{stroke:#78c8ff;transition:stroke-dashoffset .65s ease}.value{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}.number{font-size:clamp(65px,14vw,126px);line-height:1.2;font-weight:300;letter-spacing:-.065em;font-variant-numeric:tabular-nums}.unit{font-size:.32em;margin-left:5px;letter-spacing:0;color:#b2cee5}.counts{margin-top:20px;color:#a4bdd2;font-size:17px;font-variant-numeric:tabular-nums}.note{margin:6px auto;color:#a4b7ca;font-size:13px;max-width:720px}.updated{margin-top:18px;color:#718ba2;font-size:12px}.error{color:#ffc6ad;min-height:24px;font-size:13px}a{color:#9acaf2}details{max-width:760px;margin:30px auto 0;text-align:left;border-top:1px solid #263a4e;padding-top:16px}summary{cursor:pointer;color:#bcd0e3}table{width:100%;border-collapse:collapse;font-size:13px;margin-top:14px}td,th{padding:9px 5px;border-bottom:1px solid #1e3042;text-align:left}td:last-child,th:last-child{text-align:right;white-space:nowrap}footer{margin-top:24px;font-size:12px;color:#6e8aa3}@media(prefers-reduced-motion:reduce){.arc{transition:none}}@media(max-width:520px){main{padding:24px 16px}.donut{width:86vw;margin-top:30px}.counts{font-size:14px}h1{font-size:23px}}
+</style>
+<main>
+<header><p>LOGH7 · PROJECT STATUS</p><h1>체크 항목 이행률</h1></header>
+<label><span hidden>집계 범위</span><select id="scope" class="scope"><option value="all">전체 체크리스트</option></select></label>
+<div class="donut">
+<svg viewBox="0 0 440 440" role="img" aria-labelledby="chart-title"><title id="chart-title">체크리스트 집계 중</title>
+<circle class="track" cx="220" cy="220" r="210" fill="none" stroke-width="5" vector-effect="non-scaling-stroke"/>
+<circle id="arc" class="arc" cx="220" cy="220" r="210" fill="none" stroke-width="5" vector-effect="non-scaling-stroke" stroke-linecap="round" transform="rotate(-90 220 220)" opacity="0"/>
+</svg>
+<div class="value"><div class="number"><span id="percent">—</span><span class="unit">%</span></div><div id="counts" class="counts">최신 체크리스트를 읽고 있습니다</div></div>
+</div>
+<p class="note">완료 체크 수 ÷ 전체 체크 수 · 부분 구현과 미확인은 미완료에 포함합니다.</p>
+<p class="note">게임 완성도·온라인 공개 준비는 실제 플레이와 운영 경로의 별도 확인이 필요합니다.</p>
+<div id="updated" class="updated"></div><div id="error" class="error" role="status"></div>
+<details><summary>범위별 현황과 집계 기준</summary><p class="note">현재 작업 폴더의 체크리스트를 5초마다 다시 집계합니다. 항목이 추가되면 분모가 바뀝니다. 코드 블록의 예시는 집계하지 않습니다.</p><table><thead><tr><th>범위</th><th>확인 완료 / 전체</th></tr></thead><tbody id="sections"></tbody></table><p class="note">마피아 MCP 점검을 반영한 신규 유저·온라인 운영 완료 경로는 체크리스트 §14에서 관리합니다.</p></details>
+<footer>Peppone Choi · <a href="https://github.com/peppone-choi">peppone-choi</a></footer>
+</main>
+<script>
+const api='__PROGRESS_API__',scope=document.getElementById('scope');let snapshot;
+const circumference=2*Math.PI*210;
+function render(){if(!snapshot)return;const selected=scope.value==='all'?snapshot:snapshot.sections[Number(scope.value)];if(!selected)return;const percent=selected.completed*100/selected.total;document.getElementById('percent').textContent=percent.toFixed(1);document.getElementById('counts').textContent='확인 완료 '+selected.completed+' / '+selected.total+' · 남음 '+(selected.total-selected.completed);const arc=document.getElementById('arc');arc.style.strokeDasharray=circumference+' '+circumference;arc.style.strokeDashoffset=String(circumference*(1-percent/100));arc.style.opacity=percent===0?'0':'1';document.getElementById('chart-title').textContent=(selected.title||'전체 체크리스트')+': '+selected.completed+'/'+selected.total+', '+percent.toFixed(1)+'%';}
+async function refresh(){try{const response=await fetch(api,{cache:'no-store'});if(!response.ok)throw Error('체크리스트를 집계할 수 없습니다. 마지막 확인 값을 유지합니다.');const next=await response.json();if(!next.total||next.completed<0||next.completed>next.total)throw Error('집계 데이터가 올바르지 않습니다.');snapshot=next;const previous=scope.value;scope.replaceChildren(new Option('전체 체크리스트','all'),...snapshot.sections.map((section,index)=>new Option(section.title,String(index))));scope.value=Array.from(scope.options).some(option=>option.value===previous)?previous:'all';document.getElementById('sections').replaceChildren(...snapshot.sections.map(section=>{const row=document.createElement('tr'),name=document.createElement('td'),counts=document.createElement('td');name.textContent=section.title;counts.textContent=section.completed+' / '+section.total;row.append(name,counts);return row;}));document.getElementById('updated').textContent='집계 '+new Date(snapshot.generatedAt).toLocaleString('ko-KR')+' · '+snapshot.source;document.getElementById('error').textContent='';render();}catch(error){document.getElementById('error').textContent=error.message;}}
+scope.onchange=render;refresh();setInterval(refresh,5000);
+</script>
+</html>

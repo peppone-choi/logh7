@@ -15,6 +15,7 @@ import java.io.IOException
 import io.ktor.server.request.receiveParameters
 import java.security.MessageDigest
 import java.util.Base64
+import java.nio.file.Path
 
 /** Operator names are self-reported. Loopback binding is the default access control; with [token] every route but
  * /health also needs `Authorization: Bearer <token>` or HTTP Basic with the token as password (browsers prompt). */
@@ -36,7 +37,7 @@ interface StateBackups {
 
 fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47901,
     audit: OpsAudit? = null, token: String? = null, host: String = "127.0.0.1", accounts: AccountAdmin? = null,
-    users: OpsUsers? = null, backups: StateBackups? = null): AutoCloseable {
+    users: OpsUsers? = null, backups: StateBackups? = null, galaxy:Galaxy?=null,checklist:Path?=null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -56,6 +57,8 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             }
         }
         routing {
+            worldEditorRoutes(commands,snapshots,port,audit,galaxy)
+            progressRoutes(checklist,"/admin/progress","/admin/progress/data")
             get("/health") {
                 when (snapshots.health()) {
                     EngineHealth.RUNNING -> call.respondText("ok")
@@ -166,7 +169,7 @@ internal fun opsAuthorized(header: String?, token: String): Boolean {
 }
 
 /** Reads an admin form; refuses a cross-origin post (a page elsewhere cannot drive the buttons). */
-private suspend fun ApplicationCall.adminForm(port: Int): io.ktor.http.Parameters? {
+internal suspend fun ApplicationCall.adminForm(port: Int): io.ktor.http.Parameters? {
     val origin = request.headers["Origin"]
     if (origin != null && origin != "http://127.0.0.1:$port" && origin != "http://localhost:$port") {
         respondText("cross-origin admin request", status = HttpStatusCode.Forbidden)
@@ -175,8 +178,9 @@ private suspend fun ApplicationCall.adminForm(port: Int): io.ktor.http.Parameter
     return receiveParameters()
 }
 
-private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
-    reported: String? = request.headers["X-LOGH7-Operator"], operation: suspend () -> OpsOutcome) {
+internal suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
+    reported: String? = request.headers["X-LOGH7-Operator"],details:String?=null,messages:Map<OpsOutcome,String> = emptyMap(),
+    operation: suspend () -> OpsOutcome) {
     val operator = attributes.getOrNull(opsOperatorKey) ?: reported
     if (audit == null) {
         respondText("ops audit log is not configured", status = HttpStatusCode.ServiceUnavailable)
@@ -186,7 +190,7 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
         respondText("invalid X-LOGH7-Operator", status = HttpStatusCode.BadRequest)
         return
     }
-    val requestId = try { audit.requested(action, operator, request.origin.remoteAddress) }
+    val requestId = try { audit.requested(action, operator, request.origin.remoteAddress,details) }
     catch (_: IOException) {
         respondText("ops audit request not recorded", status = HttpStatusCode.ServiceUnavailable)
         return
@@ -204,6 +208,8 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
             OpsOutcome.CHANGED -> "operation changed"
             OpsOutcome.NOT_FOUND -> "operation found nothing"
             OpsOutcome.INVALID -> "operation refused as invalid"
+            OpsOutcome.UNCHANGED -> "operation unchanged"
+            OpsOutcome.UNAVAILABLE -> "operation unavailable"
         }
         respondText("$state; audit result not recorded", status = HttpStatusCode.InternalServerError)
         return
@@ -211,11 +217,13 @@ private suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction,
     when (outcome) {
         OpsOutcome.QUEUED -> respondText("queued")
         OpsOutcome.RESTARTED -> respondText("restarted")
-        OpsOutcome.CONFLICT -> respondText("session is running or restart failed", status = HttpStatusCode.Conflict)
+        OpsOutcome.CONFLICT -> respondText(messages[outcome] ?: "session is running or restart failed", status = HttpStatusCode.Conflict)
         OpsOutcome.FAILED -> respondText("operation failed; outcome unknown", status = HttpStatusCode.InternalServerError)
         OpsOutcome.CHANGED -> respondText("changed")
-        OpsOutcome.NOT_FOUND -> respondText("no such account", status = HttpStatusCode.NotFound)
-        OpsOutcome.INVALID -> respondText("account 1-30 of [A-Za-z0-9._-], password 1-10 printable ASCII", status = HttpStatusCode.BadRequest)
+        OpsOutcome.NOT_FOUND -> respondText(messages[outcome] ?: "no such account", status = HttpStatusCode.NotFound)
+        OpsOutcome.INVALID -> respondText(messages[outcome] ?: "account 1-30 of [A-Za-z0-9._-], password 1-10 printable ASCII", status = HttpStatusCode.BadRequest)
+        OpsOutcome.UNCHANGED -> respondText("unchanged")
+        OpsOutcome.UNAVAILABLE -> respondText("world editing unavailable",status=HttpStatusCode.ServiceUnavailable)
     }
 }
 
@@ -256,7 +264,7 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
     append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">")
     append("<title>LOGH7 운영</title><style>body{font-family:sans-serif;margin:16px}table{border-collapse:collapse;margin-bottom:16px}")
     append("td,th{border:1px solid #999;padding:2px 8px;text-align:left}</style></head><body><h1>LOGH7 운영 상태</h1>")
-    append("<nav><a href=\"/admin/text/\">문구 편집</a></nav><table><tbody>")
+    append("<nav><a href=\"/admin/progress\">작업 현황</a> · <a href=\"/admin/world\">세계 편집</a> · <a href=\"/admin/text/\">문구 편집</a></nav><table><tbody>")
     row("엔진", health.name)
     row("월드 리비전", snapshot.revision)
     row("명령 접수/거부", "${snapshot.acceptedCommands} / ${snapshot.rejectedCommands}")

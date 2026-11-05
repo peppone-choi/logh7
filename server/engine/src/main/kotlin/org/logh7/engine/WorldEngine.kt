@@ -19,6 +19,7 @@ sealed interface WorldCommand {
     data class Territory(val systems: Map<Power, Int>, val capturedCapitals: Set<Power>) : WorldCommand
     data object Restart : WorldCommand
     data class RequestRestart(val result: CompletableDeferred<Boolean>) : WorldCommand
+    data class AdminEditBase(val request:AdminBaseEdit,val result:CompletableDeferred<AdminBaseEditResult>) : WorldCommand
     data class Navigate(val request: NavigationRequest, val result: CompletableDeferred<NavigationResult>) : WorldCommand
     data class Stock(val generation: Long, val result: CompletableDeferred<PlanetStocks>) : WorldCommand
     data class Logistics(val request: LogisticsRequest, val result: CompletableDeferred<LogisticsResult>) : WorldCommand
@@ -369,6 +370,28 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if(command is WorldCommand.Quiesce<*>) {
                 @Suppress("UNCHECKED_CAST") val quiesce=command as WorldCommand.Quiesce<Any?>
                 try {quiesce.result.complete(quiesce.action())} catch(failure:Exception) {quiesce.result.completeExceptionally(failure)}
+                continue
+            }
+            if(command is WorldCommand.AdminEditBase) {
+                try {
+                    if(storageFailed || production==null || navigation==null || worldStateCommitter==null) {
+                        command.result.complete(AdminBaseEditResult(AdminEditOutcome.UNAVAILABLE));continue
+                    }
+                    val session=durableState?.session ?: simulation.exportState()
+                    val inventory=production.settle(session.generation,session.gameMillis/1000)
+                    var result=AdminWorldEditing.evaluate(inventory,command.request)
+                    if(result.outcome==AdminEditOutcome.CHANGED) {
+                        val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
+                        worldStateCommitter.saveWorld(navigation.snapshot(session.generation),prepared)
+                        production.publishCommitted(inventory,prepared)
+                        result=result.copy(stocks=prepared)
+                    }
+                    state=published.get().copy(planetStocks=production.snapshot(session.generation))
+                    publish(state);command.result.complete(result)
+                } catch(failure:Exception) {
+                    if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
+                    command.result.completeExceptionally(failure)
+                }
                 continue
             }
             if(command is WorldCommand.FormOutfit) {
@@ -1049,6 +1072,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.StrategyAction -> error("Strategy action is handled before session commands")
                 is WorldCommand.FormOutfit -> error("Outfit formation is handled before session commands")
                 is WorldCommand.Quiesce<*> -> error("Quiesce is handled before session commands")
+                is WorldCommand.AdminEditBase -> error("Operator edits are handled before session commands")
             } } catch (failure: Exception) {
                 if (failure !is IllegalArgumentException && failure !is IllegalStateException && failure !is ArithmeticException && failure !is java.io.IOException) throw failure
                 if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }

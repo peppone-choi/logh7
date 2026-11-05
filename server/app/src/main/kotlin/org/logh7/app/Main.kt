@@ -126,7 +126,8 @@ fun main() {
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,
             host = environment["LOGH7_OPS_BIND"] ?: "127.0.0.1",
             users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
-            accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
+            checklist=environment["LOGH7_CHECKLIST_FILE"]?.let {Path.of(it)} ?: listOf(Path.of("docs/IMPLEMENTATION-CHECKLIST.md"),Path.of("../docs/IMPLEMENTATION-CHECKLIST.md")).firstOrNull(java.nio.file.Files::isRegularFile),
+            galaxy=world?.galaxy,accounts = accountFile?.let { file -> object : org.logh7.ops.AccountAdmin {
                 override fun names() = file.names()
                 override fun set(account: String, password: String) =
                     org.logh7.gateway.FileAccounts.validName(account) && org.logh7.gateway.FileAccounts.validPassword(password) && run { file.set(account, password); true }
