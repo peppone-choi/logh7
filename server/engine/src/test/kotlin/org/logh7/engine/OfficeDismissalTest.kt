@@ -12,6 +12,17 @@ class OfficeDismissalTest {
     private fun session(power:Power)=SessionSimulation(SessionRules.load()).also {it.join("actor",power,false,"c")}.exportState()
     private fun stock()=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1177)3 else 2,0,100,200,300)})
     private fun player(power:Power)=Navigator(1,10000,power,if(power==Power.EMPIRE)2487 else 2015,1000,1000,1000)
+    @Test fun foreignAndUnattachedTargetsCannotLoseTheirOfficesThroughADomesticCard() {
+        val s=stock();val p=player(Power.EMPIRE)
+        val q=OfficeDismissalRequest("actor","c",10000,Power.EMPIRE,1,10001,55,1,2)
+        for(country in listOf(CountryId(1),CountryId(4),CountryId(42),null)) {
+            val result=OfficeDismissal.evaluate(galaxy,q.copy(targetCountry=country),session(Power.EMPIRE),p,s)
+            assertEquals(DismissalRejection.TARGET,result.rejection)
+            assertEquals(p,result.player);assertEquals(s,result.stocks)
+        }
+        assertEquals(DismissalRejection.IDENTITY,
+            OfficeDismissal.evaluate(galaxy,q,session(Power.EMPIRE),p.copy(country=CountryId(42)),s).rejection)
+    }
     @Test fun allTenFleetRolesCheckStoredAppointerAndRemoveOnlyTheTarget() {
         for(role in FleetOffice.entries) {
             val power=if(role.power==2)Power.EMPIRE else Power.ALLIANCE
@@ -64,7 +75,7 @@ class OfficeDismissalTest {
         fun act(r:OfficeDismissalRequest=q,nav:Navigator=p,s:PlanetStocks=stocks)=OfficeDismissal.evaluate(galaxy,r,session(Power.EMPIRE),nav,s)
         for((r,reason) in listOf(q.copy(connection="old") to DismissalRejection.SESSION,q.copy(generation=2) to DismissalRejection.SESSION,
             q.copy(characterId=10002) to DismissalRejection.IDENTITY,q.copy(target=10000) to DismissalRejection.TARGET,
-            q.copy(targetPower=3) to DismissalRejection.TARGET,q.copy(card=0) to DismissalRejection.CARD)) {
+            q.copy(targetCountry=CountryId(3)) to DismissalRejection.TARGET,q.copy(card=0) to DismissalRejection.CARD)) {
             val result=act(r);assertEquals(reason,result.rejection);assertEquals(p,result.player);assertEquals(stocks,result.stocks)
         }
         assertEquals(DismissalRejection.BUSY,act(nav=p.copy(cpPaused=true)).rejection)

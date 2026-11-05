@@ -53,10 +53,12 @@ data class StrategyActionRequest(val account:String,val connection:String,val ch
     val politics:Int=50,val administration:Int=50,val target:Int=0,val base:Int=0,val value:Int=0,
     val amount:Long=0,val identities:List<StrategicIdentity> = emptyList(),val argument:Int=0,
     val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0)
-data class StrategicIdentity(val id:Int,val power:Int,val rank:Int,val origin:Int,val abilities:List<Int>,
+data class StrategicIdentity(val id:Int,val country:CountryId?,val rank:Int,val origin:Int,val abilities:List<Int>,
     /** Age at registration; AbilityAging adds elapsed game years. 0 = unknown (never aged). */
     val age:Int=0) {
-    init {require(id>0 && power in 2..3 && rank in 0..20 && abilities.size==8 && abilities.all {it in 0..255})}
+    constructor(id:Int,power:Int,rank:Int,origin:Int,abilities:List<Int>,age:Int=0):
+        this(id,when(power) {2,3->CountryId(power);else->throw IllegalArgumentException("Invalid legacy character country")},rank,origin,abilities,age)
+    init {require(id>0 && rank in 0..20 && abilities.size==8 && abilities.all {it in 0..255})}
 }
 enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET,CREW }
 data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:StrategyActionRejection?=null,
@@ -71,7 +73,7 @@ internal object StrategyActions {
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection)return reject(StrategyActionRejection.SESSION)
-        if(p==null || p.generation!=r.generation || p.characterId!=r.characterId || p.power!=r.power || member.power!=r.power)
+        if(p==null || p.generation!=r.generation || p.characterId!=r.characterId || p.country!=r.power.country || member.country!=r.power.country)
             return reject(StrategyActionRejection.IDENTITY)
         if(BattleDeath.deceased(stocks,r.characterId))return reject(StrategyActionRejection.IDENTITY)
         // U-25: a detainee cannot run strategy commands until released.

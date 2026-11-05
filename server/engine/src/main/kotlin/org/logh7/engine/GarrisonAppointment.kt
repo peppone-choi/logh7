@@ -4,7 +4,12 @@ import org.logh7.engine.strategy.*
 
 data class GarrisonAppointmentRequest(val account: String,val connection: String,val characterId: Int,val power: Power,
     val generation: Long,val base: Int,val target: Int,val targetCard: Int,val actorRank: Int,val targetRank: Int,
-    val targetPower: Int,val politics: Int=50,val administration: Int=50,val outfit: Int=0)
+    val targetCountry: CountryId?,val politics: Int=50,val administration: Int=50,val outfit: Int=0) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,base:Int,target:Int,
+        targetCard:Int,actorRank:Int,targetRank:Int,targetPower:Int,politics:Int=50,administration:Int=50,outfit:Int=0):
+        this(account,connection,characterId,power,generation,base,target,targetCard,actorRank,targetRank,
+            when(targetPower) {2,3->CountryId(targetPower);else->null},politics,administration,outfit)
+}
 enum class AppointmentRejection { SESSION,IDENTITY,AUTHORITY,TARGET,BASE,RANK,OCCUPIED,CAPACITY,BUSY,CP,STORAGE }
 data class GarrisonAppointmentResult(val player: Navigator?,val stocks: PlanetStocks?,val rejection: AppointmentRejection?=null,
     val changed: Boolean=false,val recovery: NavigationResult?=null,val targetPlayer: Navigator?=null)
@@ -18,7 +23,7 @@ internal object GarrisonAppointment {
         if (session.ended!=null || session.generation!=r.generation || stocks.generation!=r.generation ||
             !participant.online || participant.connection!=r.connection) return reject(AppointmentRejection.SESSION)
         if (player==null || player.generation!=r.generation || player.characterId!=r.characterId ||
-            player.power!=r.power || participant.power!=r.power) return reject(AppointmentRejection.IDENTITY)
+            player.country!=r.power.country || participant.country!=r.power.country) return reject(AppointmentRejection.IDENTITY)
         val role=OrganizationOffices.of(r.targetCard) ?: return reject(AppointmentRejection.AUTHORITY)
         val power=if(r.power==Power.EMPIRE)2 else 3
         if(role.power!=power) return reject(AppointmentRejection.AUTHORITY)
@@ -33,7 +38,7 @@ internal object GarrisonAppointment {
         val policy=OrganizationalOfficePolicy(galaxy)
         if(!policy.active(stocks,role,seat))return reject(AppointmentRejection.BASE)
         if(!policy.authorized(stocks,role,seat,r.characterId,r.actorRank))return reject(AppointmentRejection.AUTHORITY)
-        if(r.target<=0 || r.target==r.characterId || r.targetPower!=power)return reject(AppointmentRejection.TARGET)
+        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country)return reject(AppointmentRejection.TARGET)
         if(!role.eligible(r.actorRank,r.targetRank))return reject(AppointmentRejection.RANK)
         if(player.cpPaused || player.navigationPending)return reject(AppointmentRejection.BUSY)
         val current=policy.holders(stocks,r.targetCard).filter {it.seat==seat}

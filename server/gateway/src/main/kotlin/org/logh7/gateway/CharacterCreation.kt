@@ -21,7 +21,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val starters = starterKinds.mapValues { (_, kinds) -> kinds.toList() }
     private var nextId = 10_000L
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
-    private val registered = mutableMapOf<String, CharacterMessages.Generate>()
+    private val registered = mutableMapOf<String, CharacterProfile>()
     private val applications = mutableMapOf<String, List<Long>>()
     private var deadline = 0L
     init {
@@ -39,20 +39,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 if (account.startsWith("@application/")) {
                     applications[account.removePrefix("@application/")] = value.split(',').map(String::toLong); continue
                 }
-                var data = CharacterMessages.generate(java.util.HexFormat.of().parseHex(value.removePrefix("original:")))
-                    .copy(generated = !value.startsWith("original:"))
-                require(data.category == 4 && data.id > 0)
-                // The old local generator sent kind 0 even when its result said destroyer.
-                // Keep the recorded class without eagerly rewriting an archived generation.
-                if (data.generated && data.power in 2..3 && data.shipKind == 0 && data.shipType in setOf(0, 2, 3)) {
-                    val kind = Flagships.forType(data.power, data.shipType).kind
-                    if (kind != data.shipKind) data = data.copy(shipKind = kind)
-                }
-                // A defector (U-25) flies the new side's flagship of the same type.
-                if (data.power in 2..3 && data.shipKind > 0 && Flagships.find(data.shipKind)?.let { it.power != data.power } == true)
-                    data = data.copy(shipKind = Flagships.forType(data.power, data.shipType).kind)
-                registered[account] = data
-                nextId = maxOf(nextId, data.id + 1)
+                val profile=CharacterProfile.decoded(value)
+                registered[account] = profile
+                nextId = maxOf(nextId, profile.character.id + 1)
             }
             require(applications.size <= 4096 && (applications.isEmpty() || deadline > 0))
             require(applications.all { (account, ids) -> account !in registered && ids.size in 1..5 &&
@@ -60,41 +49,47 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         }
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
-    @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.let(::displayed) }
+    @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.character?.let(::displayed) }
+    @Synchronized fun profiles():Map<String,CharacterProfile> { resolveLottery();return registered.toMap() }
     /** U-11: a character that died in battle leaves the account, which may then create a new one. */
     @Synchronized fun retire(account: String, id: Long): Boolean {
-        if (registered[account]?.id != id) return false
+        if (registered[account]?.character?.id != id) return false
         val next = registered - account
         save(next); registered.remove(account); pending.remove(account); return true
     }
     /** U-25 defection (user decision 2026-11-01): the one sanctioned change of a registered character's side. */
     @Synchronized fun defect(account: String, id: Long, power: Int): Boolean {
-        val current = registered[account]?.takeIf { it.id == id && it.power != power } ?: return false
         require(power in 2..3)
-        val next = registered + (account to current.copy(power = power,
-            shipKind = Flagships.forType(power, current.shipType).kind))
+        val current = registered[account]?.takeIf { it.character.id == id && it.country != org.logh7.engine.CountryId(power) } ?: return false
+        val data=current.character
+        val next = registered + (account to CharacterProfile.legacy(data.copy(power = power,
+            shipKind = Flagships.forType(power, data.shipType).kind)))
         save(next); registered[account] = next.getValue(account); return true
     }
     /** U-27 carry-over source: generated characters as stored (originals never carry over, W p.11). */
     @Synchronized fun generatedCharacters():Map<String,CharacterMessages.Generate> {
-        resolveLottery();return registered.filterValues {it.generated}.toSortedMap()
+        resolveLottery();return registered.filterValues {it.character.generated}.mapValues {it.value.character}.toSortedMap()
     }
     /** U-27 carry-over into this (next) generation; an account that already has a character keeps it. */
     @Synchronized fun carry(account:String,data:CharacterMessages.Generate):Boolean {
+        return carry(account,CharacterProfile.legacy(data))
+    }
+    @Synchronized fun carry(account:String,profile:CharacterProfile):Boolean {
+        val data=profile.character
         require(data.generated && data.category==4 && data.id>0)
-        if (account in registered || registered.values.any {it.id==data.id}) return false
-        val next=registered+(account to data)
-        save(next);registered[account]=data;nextId=maxOf(nextId,data.id+1);return true
+        if (account in registered || registered.values.any {it.character.id==data.id}) return false
+        val next=registered+(account to profile)
+        save(next);registered[account]=profile;nextId=maxOf(nextId,data.id+1);return true
     }
     @Synchronized fun registeredCharacters():List<CharacterMessages.Generate> {
-        resolveLottery();return registered.values.sortedBy { it.id }.map(::displayed)
+        resolveLottery();return registered.values.map {it.character}.sortedBy { it.id }.map(::displayed)
     }
     @Synchronized fun accountByCharacter(id:Int):String? {
-        resolveLottery();return registered.entries.singleOrNull {it.value.id==id.toLong()}?.key
+        resolveLottery();return registered.entries.singleOrNull {it.value.character.id==id.toLong()}?.key
     }
     @Synchronized fun characterById(id: Int): CharacterMessages.Generate? {
         resolveLottery()
-        return registered.values.singleOrNull { it.id == id.toLong() }?.let(::displayed)
+        return registered.values.singleOrNull { it.character.id == id.toLong() }?.character?.let(::displayed)
     }
     @Synchronized fun entries(account: String): List<Long> { resolveLottery(); return applications[account].orEmpty().toList() }
     @Synchronized fun candidates(account: String): List<OriginalCharacterMessages.Candidate> {
@@ -102,7 +97,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         if (account in registered || account in pending) return emptyList()
         // Local accounts have fame 0. Original numeric conditions are unknown.
         val currentFame=fame(account)
-        return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.id == it.character.id } }
+        return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.character.id == it.character.id } }
             .map {it.copy(character=KoreanDisplayNames.original(it.character))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0
@@ -129,24 +124,21 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
         for (account in accounts) {
             if (account in winners) continue
-            val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.id == candidate } } ?: continue
+            val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.character.id == candidate } } ?: continue
             val candidate = originals.single { it.character.id == id }
-            winners[account] = candidate.character.copy(generated = false)
+            winners[account] = CharacterProfile.legacy(candidate.character.copy(generated = false))
         }
         save(winners, emptyMap(), 0)
         registered.clear(); registered.putAll(winners); applications.clear(); deadline = 0
         println("original lottery resolved assigned=${accounts.count { it in winners }}")
     }
     private fun normalized(value: String) = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
-    private fun save(values: Map<String, CharacterMessages.Generate>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline) {
+    private fun save(values: Map<String, CharacterProfile>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline) {
         if (file == null) return
         val target = file.toAbsolutePath()
         Files.createDirectories(target.parent)
         val properties = Properties()
-        values.forEach { (account, data) ->
-            val encoded = CharacterMessages.generateReply(data)
-            properties.setProperty(account, (if (data.generated) "" else "original:") + java.util.HexFormat.of().formatHex(encoded.copyOfRange(4, encoded.size)))
-        }
+        values.forEach { (account, profile) -> properties.setProperty(account, profile.encoded()) }
         if (entries.isNotEmpty()) {
             properties.setProperty("@deadline", closesAt.toString())
             entries.forEach { (account, ids) -> properties.setProperty("@application/$account", ids.joinToString(",")) }
@@ -164,13 +156,13 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         require(message.origin in if (message.power == 2) setOf(0, 1, 2, 4) else setOf(3, 4))
         require(message.surname.isNotBlank() && message.givenName.isNotBlank())
         require(message.category in 0..4)
-        if (message.category == 4 && registered[account] == message) return CharacterMessages.generateReply(message)
+        if (message.category == 4 && registered[account]?.character == message) return CharacterMessages.generateReply(message)
         require(account !in registered) { "Account already owns a character in this session" }
         val previous = pending[account]
         val response = if (message.category == 0) {
             require(originals.none { normalized(it.character.surname) == normalized(message.surname) ||
                 normalized(KoreanDisplayNames.original(it.character).surname) == normalized(message.surname) }) { "Surname already reserved" }
-            require((pending + registered).none { (owner, data) -> owner != account && normalized(data.surname) == normalized(message.surname) }) { "Surname already reserved" }
+            require((pending + registered.mapValues {it.value.character}).none { (owner, data) -> owner != account && normalized(data.surname) == normalized(message.surname) }) { "Surname already reserved" }
             check(pending.size < 4096 || previous != null)
             message.copy(id = previous?.id ?: nextId++, check = 1)
         } else {
@@ -197,13 +189,14 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 }
                 3 -> {
                     require(previous.category == 2 && message.shipName.isNotBlank())
-                    require((pending + registered).none { (owner, data) -> owner != account && data.shipName.isNotEmpty() && normalized(data.shipName) == normalized(message.shipName) }) { "Flagship name already reserved" }
+                    require((pending + registered.mapValues {it.value.character}).none { (owner, data) -> owner != account && data.shipName.isNotEmpty() && normalized(data.shipName) == normalized(message.shipName) }) { "Flagship name already reserved" }
                     previous.copy(category = 3, shipName = message.shipName)
                 }
                 4 -> {
                     require(previous.category == 3 && message == previous.copy(category = 4)) { "Registration data changed" }
-                    save(registered + (account to message))
-                    registered[account] = message
+                    val profile=CharacterProfile.legacy(message)
+                    save(registered + (account to profile))
+                    registered[account] = profile
                     println("character registered id=${message.id} power=${message.power}")
                     message
                 }

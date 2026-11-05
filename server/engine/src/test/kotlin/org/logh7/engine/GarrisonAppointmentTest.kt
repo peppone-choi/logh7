@@ -12,6 +12,14 @@ class GarrisonAppointmentTest {
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300,governorId=10000)))
     private val request=GarrisonAppointmentRequest("pilot","c",10000,Power.EMPIRE,1,1049,10001,55,7,10,2)
     private fun act(r:GarrisonAppointmentRequest=request,p:Navigator=player,s:PlanetStocks=stocks)=GarrisonAppointment.evaluate(galaxy,r,session,p,s)
+    @Test fun actualForeignAndUnattachedMembershipCannotBeUsedForAppointment() {
+        for(country in listOf(CountryId(1),CountryId(4),CountryId(42),null)) {
+            val denied=act(request.copy(targetCountry=country))
+            assertEquals(AppointmentRejection.TARGET,denied.rejection)
+            assertEquals(stocks,denied.stocks);assertEquals(player,denied.player)
+        }
+        assertEquals(AppointmentRejection.IDENTITY,act(p=player.copy(country=CountryId(42))).rejection)
+    }
     @Test fun storedGovernorAppointsWithMcpOrWholePcpSubstitutionAndRetryDoesNotPayAgain() {
         val result=act();assertNull(result.rejection);assertTrue(result.changed)
         assertEquals(840,result.player!!.mcp);assertEquals(1000,result.player.pcp)
@@ -30,7 +38,7 @@ class GarrisonAppointmentTest {
         assertEquals(AppointmentRejection.AUTHORITY,act(request.copy(actorRank=10)).rejection)
         assertNull(act(request.copy(actorRank=1)).rejection)
         assertEquals(AppointmentRejection.TARGET,act(request.copy(target=10000)).rejection)
-        assertEquals(AppointmentRejection.TARGET,act(request.copy(targetPower=3)).rejection)
+        assertEquals(AppointmentRejection.TARGET,act(request.copy(targetCountry=CountryId(3))).rejection)
         assertEquals(AppointmentRejection.SESSION,act(request.copy(connection="stale")).rejection)
         assertEquals(AppointmentRejection.SESSION,act(request.copy(generation=2)).rejection)
         assertEquals(AppointmentRejection.IDENTITY,act(request.copy(characterId=999)).rejection)

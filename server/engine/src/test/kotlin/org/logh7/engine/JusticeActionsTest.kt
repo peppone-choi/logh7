@@ -28,6 +28,20 @@ class JusticeActionsTest {
         SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(account,account,who.characterId,Power.EMPIRE,1,command,card,9,
             target=target,value=value,base=base,identities=ids)),session,who,s,accounts.values,accounts)
 
+    @Test fun offlineAndOnlineForeignTargetsAreNotDomesticArrestPermitTargets() {
+        val s=stocks()
+        val request=StrategyActionRequest("a","a",10000,Power.EMPIRE,1,Justice.PERMIT,7,1,target=10002,value=3,identities=ids)
+        for(country in listOf(CountryId(1),CountryId(4),CountryId(42),null)) {
+            val foreignIds=ids.map {if(it.id==10002)it.copy(country=country) else it}
+            for(online in listOf(false,true)) {
+                val people=if(online)accounts+("c" to c.copy(country=country)) else accounts-"c"
+                val result=SocialActions.evaluate(galaxy,SocialRequest(request.copy(identities=foreignIds)),session,a,s,people.values,people)
+                assertEquals(SocialRejection.TARGET,result.rejection)
+                assertEquals(a,result.player);assertEquals(s,result.stocks)
+            }
+        }
+    }
+
     @Test fun detentionCancelsEveryPersonalNavigationJobWithoutRefundOrLaterEscape() {
         for(kind in 0..2) {
             var players=accounts+("c" to c.copy(baseId=0,mode=5,spotId=0,cruise=500))

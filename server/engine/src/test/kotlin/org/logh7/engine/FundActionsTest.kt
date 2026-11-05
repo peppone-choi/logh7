@@ -14,6 +14,17 @@ class FundActionsTest {
         "a","a",10000,Power.EMPIRE,1,FundActions.FUNDS,0,1,target=target,value=value,amount=amount,
         identities=listOf(StrategicIdentity(10001,2,5,0,listOf(50,50,50,50,50,50,50,50))))),session,a,s)
 
+    @Test fun supportMoneyCannotBeTransferredToForeignOrUnattachedCharacters() {
+        for(country in listOf(CountryId(1),CountryId(4),CountryId(42),null)) {
+            val request=StrategyActionRequest("a","a",10000,Power.EMPIRE,1,FundActions.FUNDS,0,1,
+                target=10001,value=FundActions.SUPPORT,amount=1000,
+                identities=listOf(StrategicIdentity(10001,country,5,0,List(8){50})))
+            val result=FundActions.evaluate(SocialRequest(request),session,a,stocks)
+            assertEquals(SocialRejection.TARGET,result.rejection)
+            assertEquals(a,result.player);assertEquals(stocks,result.stocks)
+        }
+    }
+
     @Test fun moneyGoesToAGovernedTreasuryOrTheBoxes() {
         assertEquals(SocialRejection.TARGET,act(0,1050,1000).rejection,"not governed")
         assertEquals(SocialRejection.MAXIMUM,act(0,1049,8000).rejection)
