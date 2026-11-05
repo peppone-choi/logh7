@@ -227,9 +227,11 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         if (waiting) {
                                             val size = event.messages.sumOf { it.size }
                                             if (notifications.size >= 128 || notificationBytes + size > 512 * 1024) {
+                                                counters.notificationOverflow.incrementAndGet()
                                                 exchange.close(); ctx.close(); return
                                             }
                                             notifications.addLast(event.messages); notificationBytes += size
+                                            counters.notificationsQueued.incrementAndGet()
                                         } else sendNotification(ctx, event.messages)
                                     }
                                     private fun sendNotification(ctx: ChannelHandlerContext, messages: List<ByteArray>) {
@@ -282,7 +284,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         pending.whenComplete { finish, failure ->
                                             ctx.executor().execute {
                                                 if(ctx.channel().isActive && failure!=null && exchange.sessionEndingAvailable()) {
-                                                    waiting=false;refreshRequested=false;notifications.clear();notificationBytes=0
+                                                    waiting=false;refreshRequested=false
+                                                    counters.notificationsQueued.addAndGet(-notifications.size.toLong());notifications.clear();notificationBytes=0
                                                     exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
                                                     while(waitingFrames.isNotEmpty() && ctx.channel().isActive)process(ctx,waitingFrames.removeFirst())
                                                 }
@@ -297,6 +300,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                     waiting = false
                                                     while (notifications.isNotEmpty() && ctx.channel().isActive) {
                                                         val messages = notifications.removeFirst(); notificationBytes -= messages.sumOf { it.size }
+                                                        counters.notificationsQueued.decrementAndGet()
                                                         sendNotification(ctx, messages)
                                                     }
                                                     while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
@@ -319,7 +323,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         // A bare TCP probe never sends a frame; only a started, unfinished update is a failure.
                                         if (port == updatePort && updateExchange.state == UpdateExchange.State.AWAITING_VERSION)
                                             counters.updateFailed.incrementAndGet()
-                                        lifecycleCheck?.cancel(false); waitingFrames.clear(); notifications.clear(); notificationBytes = 0
+                                        lifecycleCheck?.cancel(false); waitingFrames.clear()
+                                        counters.notificationsQueued.addAndGet(-notifications.size.toLong()); notifications.clear(); notificationBytes = 0
                                         exchange.close(); ctx.fireChannelInactive()
                                     }
                                 })
