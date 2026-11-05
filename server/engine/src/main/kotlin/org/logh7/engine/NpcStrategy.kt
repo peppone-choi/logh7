@@ -27,15 +27,14 @@ internal object NpcStrategy {
     private fun eligible(outfit:OutfitStock)=outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) &&
         outfit.members().isEmpty() && outfit.activeGround?.values.orEmpty().none {it.order!=null} && outfit.activeShips?.values?.any {it.boats>0}==true &&
         outfit.activeShips.values.none {it.support!=null || it.attack!=null || it.shot!=null || it.posture?.order!=null || it.tactical?.retreat!=null}
-    private fun power(outfit:OutfitStock)=if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE
     private fun allowed(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,target:Int):Boolean {
         val count=GridForces.mobileUnits(outfit)
         if(count !in 1..300)return false
-        return GridEntryRules.evaluate(GridForces.state(galaxy,target,forces),GridEntry(Camp(power(outfit),false),count.toInt(),false))==GridEntryVerdict.ALLOWED
+        return GridEntryRules.evaluate(GridForces.state(galaxy,target,forces),GridEntry(Camp(outfit.country,false),count.toInt(),false))==GridEntryVerdict.ALLOWED
     }
     private fun step(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,origin:Int,goal:Int,preferred:Int?=null):Int? {
         val x=origin%100;val y=origin/100
-        val camp=Camp(power(outfit),false);val strength=GridForces.mobileUnits(outfit)
+        val camp=Camp(outfit.country,false);val strength=GridForces.mobileUnits(outfit)
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
             if(dx==0 && dy==0 || x+dx !in 0..99 || y+dy !in 0..49)null else (y+dy)*100+x+dx
         }}.filter {distance(it,goal)<distance(origin,goal) && hostile(forces,it,camp)<=strength*2 && allowed(galaxy,forces,outfit,it)}
@@ -46,7 +45,7 @@ internal object NpcStrategy {
         forces[grid].orEmpty().filter {it.camp!=camp}.sumOf {it.units}
     private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):GalaxyBase? {
         val origin=outfit.positionIn(galaxy).grid
-        return galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.power==outfit.power && it.camp==0}==true &&
+        return galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
             !TacticalContact.contested(forces[b.grid].orEmpty())}
             .minWithOrNull(compareBy<GalaxyBase> {distance(origin,it.grid)}.thenBy {it.grid}.thenBy {it.id})
     }
@@ -62,7 +61,7 @@ internal object NpcStrategy {
     private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,preferred:Int?=null):OutfitPosition? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
-        val camp=Camp(power(outfit),false)
+        val camp=Camp(outfit.country,false)
         val own=GridForces.mobileUnits(outfit)
         fun beatable(grid:Int)=hostile(forces,grid,camp)<=own*2
         val enemies=forces.entries.filter {(_,rows)->rows.any {it.camp!=camp && (it.units>0 || it.base)}}.map {it.key}
@@ -92,7 +91,7 @@ internal object NpcStrategy {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit).toMutableMap()
         val baseId=outfit.positionIn(galaxy).baseId
-        val depot=stocks.bases[baseId]?.takeIf {it.power==outfit.power && it.camp==0}
+        val depot=stocks.bases[baseId]?.takeIf {it.country==outfit.country && it.camp==0}
         var available=depot?.supplies ?: 0
         val missing=live.sumOf {max(0,(if(departing)it.boats else 0)-balances.getValue(it.id)).toLong()}
         if(missing>available)return null
@@ -122,7 +121,7 @@ internal object NpcStrategy {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
             val owner=stocks.bases[position.baseId]
-            val permitted=eligible(outfit) && (position.baseId==0 || owner?.let {it.power==outfit.power && it.camp==0}==true)
+            val permitted=eligible(outfit) && (position.baseId==0 || owner?.let {it.country==outfit.country && it.camp==0}==true)
             if(!permitted) {
                 if(outfit.strategy!=null)stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=null)))
                 continue

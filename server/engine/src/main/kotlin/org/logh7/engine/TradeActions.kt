@@ -66,7 +66,7 @@ object TradeActions {
     const val RAID_CELLS=1
     const val FEZZAN_NAME="フェザーン"
     /** Neutral Fezzan's base, or null once it was occupied (U-07). */
-    fun fezzan(g:Galaxy,s:PlanetStocks)=g.bases.firstOrNull {it.name==FEZZAN_NAME && s.bases[it.id]?.power==1}?.id
+    fun fezzan(g:Galaxy,s:PlanetStocks)=g.bases.firstOrNull {it.name==FEZZAN_NAME && s.bases[it.id]?.owner==Allegiance.Neutral}?.id
     /** Daily profit of a route: the smaller side's adults / 1000. */
     fun routeProfit(s:PlanetStocks,r:TradeRoute,galaxy:Galaxy?=null):Long {
         val base=minOf(s.bases[r.from]?.economy?.adults ?: 0,s.bases[r.to]?.economy?.adults ?: 0)/1000L

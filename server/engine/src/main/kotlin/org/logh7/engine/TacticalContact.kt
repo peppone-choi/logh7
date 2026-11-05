@@ -13,7 +13,7 @@ internal object TacticalContact {
         val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
         for((account,p) in players.toMap()) if(p.cpPaused &&
             (p.baseId!=0 || p.mode!=5 || forces[p.grid].orEmpty().none {
-                it.camp!=Camp(p.power,CoupActions.rebel(stocks,p.characterId)) && (it.units>0 || it.base)
+                it.camp!=Camp.of(p,CoupActions.rebel(stocks,p.characterId)) && (it.units>0 || it.base)
             })) {
             players[account]=p.copy(cpPaused=false,cpRecoveryAt=now,motion=null,retreat=null,
                 charge=null,commandRange=null,attack=null,fire=p.fire?.copy(pending=null))
@@ -23,7 +23,7 @@ internal object TacticalContact {
         if (player.baseId != 0 || player.mode != 5) return false
         val forces = GridForces.collect(galaxy,player.generation,
             players.filter { it.characterId != player.characterId } + player,stocks)[player.grid].orEmpty()
-        val own = Camp(player.power,stocks?.let { CoupActions.rebel(it,player.characterId) } == true)
+        val own = Camp.of(player,stocks?.let { CoupActions.rebel(it,player.characterId) } == true)
         return forces.any { it.camp != own && (it.units > 0 || it.base) }
     }
 }
