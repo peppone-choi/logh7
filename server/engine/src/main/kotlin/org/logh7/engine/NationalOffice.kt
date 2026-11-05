@@ -24,7 +24,7 @@ enum class NationalOffice(val card:Int,val power:Int,val capital:Capital,val fac
     }
     fun active(galaxy:Galaxy,stocks:PlanetStocks):Boolean=galaxy.bases.singleOrNull { Capital.of(it)==capital }?.let {
         val base=stocks.bases[it.id]
-        base?.power==power && base.camp==0 && seat(galaxy)!=null
+        base?.belongsTo(CountryId(power))==true && base.camp==0 && seat(galaxy)!=null
     }==true
     companion object { fun of(card:Int)=entries.singleOrNull { it.card==card } }
 }

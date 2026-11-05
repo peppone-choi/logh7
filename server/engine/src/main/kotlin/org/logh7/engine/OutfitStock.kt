@@ -21,7 +21,7 @@ class LogisticsOfficePolicy(private val galaxy: Galaxy) {
     fun seat(office: LogisticsOffice, stocks: PlanetStocks): Int? {
         val base=galaxy.bases.singleOrNull { Capital.of(it)==office.capital } ?: return null
         val owner=stocks.bases[base.id] ?: return null
-        if (owner.power!=office.power || owner.camp!=0) return null
+        if (!owner.belongsTo(CountryId(office.power)) || owner.camp!=0) return null
         return galaxy.facilities[base.id]?.singleOrNull { it.kind==office.facility }?.id
     }
     fun cards(stocks: PlanetStocks, character: Int, power: Int): List<Pair<Int,Int>> {

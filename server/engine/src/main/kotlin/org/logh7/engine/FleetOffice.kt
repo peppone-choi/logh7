@@ -38,14 +38,15 @@ enum class FleetOffice(val card:Int,val authority:Int,val lowest:Int,val seats:I
         outfit.copy(staff=FleetStaff(outfit.staff.deputy,outfit.staff.chief,outfit.staff.officers-character))
         else assign(outfit,0)
     fun authorized(galaxy:Galaxy,stocks:PlanetStocks,outfit:OutfitStock,actor:Int,rank:Int):Boolean {
-        if(outfit.kind!=OutfitKind.FLEET || outfit.power!=power) return false
+        if(outfit.kind!=OutfitKind.FLEET || outfit.country!=CountryId(power)) return false
         if(authority in setOf(39,175)) return outfit.commanderId==actor &&
             FleetAideAppointmentPolicy().commanderRank(power,rank)
         val office=checkNotNull(NationalOffice.of(authority))
         return stocks.nationalOffices[office]==actor && rank in office.ranks && office.active(galaxy,stocks)
     }
     fun eligible(actorRank:Int,targetRank:Int)=targetRank in 2..lowest && actorRank<targetRank && (power!=3 || targetRank!=3)
-    fun friendly(stocks:PlanetStocks,outfit:OutfitStock)=stocks.bases[outfit.baseId]?.let {it.power==power && it.camp==0}==true
+    fun friendly(stocks:PlanetStocks,outfit:OutfitStock)=outfit.country==CountryId(power) &&
+        stocks.bases[outfit.baseId]?.let {it.belongsTo(outfit.country) && it.camp==0}==true
     fun available(galaxy:Galaxy,stocks:PlanetStocks,actor:Int,rank:Int)=stocks.outfits.values.filter {
         authorized(galaxy,stocks,it,actor,rank) && friendly(stocks,it) && holders(it).size<seats
     }.sortedBy {it.id}
@@ -61,7 +62,7 @@ internal object FleetOfficeAppointment {
         val power=if(r.power==Power.EMPIRE)2 else 3
         if(power!=role.power) return reject(AppointmentRejection.AUTHORITY)
         val outfit=stocks.outfits[r.outfit] ?: return reject(AppointmentRejection.TARGET)
-        if(outfit.power!=power || outfit.kind!=OutfitKind.FLEET) return reject(AppointmentRejection.TARGET)
+        if(outfit.country!=CountryId(power) || outfit.kind!=OutfitKind.FLEET) return reject(AppointmentRejection.TARGET)
         if(!role.authorized(galaxy,stocks,outfit,r.characterId,r.actorRank)) return reject(AppointmentRejection.AUTHORITY)
         if(r.base!=0 && r.base!=outfit.baseId || !role.friendly(stocks,outfit)) return reject(AppointmentRejection.BASE)
         if(r.target<=0 || r.target==r.characterId || r.targetPower!=power) return reject(AppointmentRejection.TARGET)

@@ -16,7 +16,7 @@ class BaseOfficePolicy(galaxy: Galaxy) {
     fun ordinaryPlanet(id: Int): Boolean = bases[id]?.let { it.kind==0 && Capital.of(it)==null } == true
     fun validate(stock: PlanetStock) {
         val seed=checkNotNull(bases[stock.baseId]) { "Appointed base is missing from catalogue" }
-        if(Capital.of(seed)?.power?.let { it!=stock.power }==true)
+        if(Capital.of(seed)?.power?.let { !stock.belongsTo(CountryId(it)) }==true)
             require(stock.capitalAdministratorId==0 && stock.capitalDefenseCommanderId==0 && stock.guardInspectorId==0)
         when(Capital.of(seed)) {
             Capital.EMPIRE -> require(stock.capitalAdministratorId==0)
@@ -28,11 +28,11 @@ class BaseOfficePolicy(galaxy: Galaxy) {
     }
     fun holders(stock: PlanetStock): Map<Int,Int> {
         validate(stock)
-        if(stock.camp!=0 || stock.power !in 2..3) return emptyMap()
+        if(stock.camp!=0) return emptyMap()
+        val offset=when(stock.country) {Power.EMPIRE.country->0;Power.ALLIANCE.country->136;else->return emptyMap()}
         val seed=bases.getValue(stock.baseId)
         val capital=Capital.of(seed)
-        if(capital!=null && capital.power!=stock.power) return emptyMap()
-        val offset=if(stock.power==3)136 else 0
+        if(capital!=null && !stock.belongsTo(CountryId(capital.power))) return emptyMap()
         return when(capital) {
             Capital.EMPIRE -> mapOf(56 to stock.capitalDefenseCommanderId,57 to stock.guardInspectorId)
             Capital.ALLIANCE -> mapOf(192 to stock.capitalAdministratorId,193 to stock.capitalDefenseCommanderId)

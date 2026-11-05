@@ -74,9 +74,10 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy) {
         val baseId=if(role.scope==OfficeScope.OUTFIT)stocks.outfits[seat]?.baseId ?: return false else seat
         val base=stocks.bases[baseId] ?: return false
         val seed=galaxy.bases.singleOrNull {it.id==baseId} ?: return false
-        if(base.power!=role.power || base.camp!=role.camp)return false
+        val country=CountryId(role.power) // The legacy catalogue defines offices of countries 2/3 only.
+        if(!base.belongsTo(country) || base.camp!=role.camp)return false
         return when(role.scope) {
-            OfficeScope.OUTFIT -> stocks.outfits[seat]?.let {it.power==role.power && it.kind==when(role.institution) {
+            OfficeScope.OUTFIT -> stocks.outfits[seat]?.let {it.country==country && it.kind==when(role.institution) {
                 11->OutfitKind.FLEET;12->OutfitKind.TRANSPORT;13->OutfitKind.PATROL;else->OutfitKind.GROUND}}==true
             OfficeScope.FORTRESS -> seed.kind==1
             OfficeScope.PLANET -> seed.kind==0 && Capital.of(seed)==null
@@ -85,6 +86,7 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy) {
     }
     fun holders(stocks:PlanetStocks,card:Int):List<OfficeHolding> {
         val role=OrganizationOffices.of(card) ?: return emptyList()
+        val country=CountryId(role.power)
         val old=if(role.camp!=0)emptyList() else buildList {
             NationalOffice.of(card)?.let {office ->stocks.nationalOffices[office]?.let {character ->
                 galaxy.bases.singleOrNull {Capital.of(it)==office.capital}?.let {add(OfficeHolding(card,it.id,character))}}}
@@ -93,10 +95,10 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy) {
                 if(base!=null)stocks.logisticsOfficers.filterValues {it==office}.keys.forEach {add(OfficeHolding(card,base.id,it))}
             }
             val fleet=FleetOffice.of(card)
-            if(fleet!=null)stocks.outfits.values.filter {it.power==role.power && it.kind==OutfitKind.FLEET}.forEach {o->
+            if(fleet!=null)stocks.outfits.values.filter {it.country==country && it.kind==OutfitKind.FLEET}.forEach {o->
                 fleet.holders(o).forEach {add(OfficeHolding(card,o.id,it))}}
             val commanding=when(card){44,180->OutfitKind.TRANSPORT;47,183->OutfitKind.PATROL;50,186->OutfitKind.GROUND;else->null}
-            if(commanding!=null)stocks.outfits.values.filter {it.power==role.power && it.kind==commanding && it.commanderId>0}
+            if(commanding!=null)stocks.outfits.values.filter {it.country==country && it.kind==commanding && it.commanderId>0}
                 .forEach {add(OfficeHolding(card,it.id,it.commanderId))}
             if(role.scope in setOf(OfficeScope.FORTRESS,OfficeScope.PLANET,OfficeScope.CAPITAL))
                 stocks.bases.values.forEach {b->BaseOfficePolicy(galaxy).holders(b)[card]?.let {add(OfficeHolding(card,b.baseId,it))}}
