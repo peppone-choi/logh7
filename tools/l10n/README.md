@@ -2,7 +2,7 @@
 
 ## 문구를 쉽게 수정하기 (2026-11-05)
 
-작성: 최병호. 운영 서버의 `/admin` → **문구 편집**(`/admin/text/`)에서 **문구 열기 → 검색 → 수정 → 저장**을 사용한다. [독립 화면](editor.html)도 같은 소스다. 메시지·상수·EXE·Windows UI의 `*.ko.json`을 지원한다. 직접 저장을 지원하지 않는 브라우저에서는 복사본을 내려받아 대상 JSON을 교체한다. 변수/printf 서식의 이름·개수·순서를 검사하며 원본 해시·메타데이터는 편집하지 않는다. 다른 곳에서 바뀐 파일은 덮어쓰기를 거부한다. 파일 열기/쓰기는 브라우저의 [File System Access API](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)를 이용한다.
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi)). 운영 서버의 `/admin` → **문구 편집**(`/admin/text/`)에서 **문구 열기 → 검색 → 수정 → 저장**을 사용한다. [독립 화면](editor.html)도 같은 소스다. 메시지·상수·EXE·Windows UI의 `*.ko.json`을 지원한다. 직접 저장을 지원하지 않는 브라우저에서는 복사본을 내려받아 대상 JSON을 교체한다. 변수/printf 서식의 이름·개수·순서를 검사하며 원본 해시·메타데이터는 편집하지 않는다. 다른 곳에서 바뀐 파일은 덮어쓰기를 거부한다. 파일 열기/쓰기는 브라우저의 [File System Access API](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)를 이용한다.
 
 저장 후 아래 기존 카탈로그 재생성·DLL 빌드·패치 배포 절차가 필요하다. 미리보기는 텍스트 줄바꿈용이며 게임 창의 폭·색상·폰트 검증을 대신하지 않는다. TSV·NPC 이름·하드코딩된 C++ UI와 DB 게시 기능은 후속 통합 범위다. 자체 운영 도구의 세계 실시간 편집과 함께 연결한다.
 

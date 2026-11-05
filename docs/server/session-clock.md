@@ -118,7 +118,7 @@ force 후 공개 전 I/O 오류를 주입하고 재개방하여, 새 입장을 �
 
 ### 게임 참가 거절 안내와 제국 시험 데이터 (2026-11-04)
 
-작성자: 최병호
+작성자: Peppone Choi ([peppone-choi](https://github.com/peppone-choi))
 
 `work/empire-loading-native-20261104/`의 사본에서 Delta(`multi4`)의 캐릭터와
 이동 기록은 제국인데 세션 참가자는 동맹인 것을 확인했다. 엔진의
@@ -144,7 +144,7 @@ force 후 공개 전 I/O 오류를 주입하고 재개방하여, 새 입장을 �
 
 ## 주기 틱과 요청 시각 동기화의 경쟁 (2026-11-05)
 
-작성: 최병호
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi))
 
 자동 전환된 2세대의 원본 재접속 시험에서 내부 거부 카운터 증가를 관찰했다.
 `work/next-generation-native-20261105/run-03`의 JFR은 클라이언트 정리 전

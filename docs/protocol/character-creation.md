@@ -20,7 +20,7 @@
 
 ## 제품 DLL의 생성 진입과 동맹 확인 (2026-11-04)
 
-작성: 최병호. `work/playable-main-refresh-20261104/run-04`·`run-05`는
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi)). `work/playable-main-refresh-20261104/run-04`·`run-05`는
 `--enable-creation-menu` 없이 제품 `dinput8.dll`만으로 새 캐릭터 메뉴를 열었다.
 동맹 선택점과 동맹 얼굴 목록을 화면으로 확인했고, `run-05`의 영문 이름
 시험에서 실제 `1008` category 0~3의 진영=3·출신=3(시민), category 1~3의
@@ -39,7 +39,7 @@ category 0 전송이 없었다. `run-05`의 한글 기함명은 category 3에서
 생성 이름의 여섯 변환 호출을 연결한 것만으로 완료 처리하지 않는다.
 [입력 문제와 후속 확인](../l10n/native-input.md#생성-실행에서-남은-문제-2026-11-04).
 
-후속 수정(2026-11-04, 작성: 최병호): 생성 입력에서 표시용 사설 CP932 왕복을
+후속 수정(2026-11-04, 작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi))): 생성 입력에서 표시용 사설 CP932 왕복을
 제거했다. `run-09`에서 한글 성·이름·기함명이 실제 category 0~4와 등록 파일에
 동일하게 남고, 동맹 얼굴·시민 출신·통솔 60·보너스 0·표준 기함 kind 89로
 바라트 2015에 진입했다. 서버 재시작 뒤 `run-10`에서 같은 한글 캐릭터와 기존
@@ -122,7 +122,7 @@ category 0 전송이 없었다. `run-05`의 한글 기함명은 category 3에서
 
 ## 원작 후보의 얼굴·기함 진영 보정 (2026-11-04)
 
-작성자: 최병호
+작성자: Peppone Choi ([peppone-choi](https://github.com/peppone-choi))
 
 두 기본 후보가 제국 생성용 공통 얼굴 `1000001`과 기함 종류 `0`을 쓰던 임시값을 수정했다.
 검토된 `l10n/npc-face-matches.json`에 따라 키르히아이스는 `26`, 양 웬리는 `100074`를 쓴다.

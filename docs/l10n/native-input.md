@@ -38,7 +38,7 @@
 
 아래는 원인 확인 전 실행 기록이다. 이어지는 [후속 수정](#한글-생성-등록과-재시작-확인-2026-11-04)에서 생성·등록·재시작 복원을 확인했다.
 
-작성: 최병호. `work/playable-main-refresh-20261104/run-04`에서 소유 UI 스레드의
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi)). `work/playable-main-refresh-20261104/run-04`에서 소유 UI 스레드의
 IME 확정 결과로 한글 성·이름이 표시됐지만 다음 단계의 `1008` category 0은
 전송되지 않았다. `run-05`의 영문 성·이름은 category 0~2를 통과했고 동맹
 진영=3·시민 출신=3·얼굴=1100001이었다. 한글 기함명 입력 뒤 category 3은
@@ -53,7 +53,7 @@ IME 확정 결과로 한글 성·이름이 표시됐지만 다음 단계의 `100
 
 ## 한글 생성 등록과 재시작 확인 (2026-11-04)
 
-작성: 최병호. 앞 절의 무송신·문자 변형을 `run-07`에서 추적했다. 생성 입력의
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi)). 앞 절의 무송신·문자 변형을 `run-07`에서 추적했다. 생성 입력의
 UTF-16 풀에는 `새봄`·`동맹`이 올바르게 들어 있었으나, `004eae50`의 MFC 대입이
 표시용 `koreanRuntimeText`를 거쳐 사설 CP932 바이트로 바꿨다. 이어진 ACP 해석은
 성을 다른 문자로, 이름을 빈 문자열로 만들었다. 화면 표시용 인코딩과 입력용

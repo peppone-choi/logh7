@@ -1,4 +1,4 @@
-// Decoded 033f percentages and the CD flagship's live fields. 작성: 최병호.
+// Decoded 033f percentages and the CD flagship's live fields. 작성: Peppone Choi (peppone-choi).
 #pragma once
 #include <cstdint>
 #include <cstring>

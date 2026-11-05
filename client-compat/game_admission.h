@@ -1,4 +1,4 @@
-// Show SSLoginNG during entry instead of waiting forever for bootstrap. Author: 최병호.
+// Show SSLoginNG during entry instead of waiting forever for bootstrap. Author: Peppone Choi (peppone-choi).
 #pragma once
 #include "game_admission_data.h"
 static LONG gameAdmissionPending=0;

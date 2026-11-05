@@ -1,6 +1,6 @@
 # 현재 호스트의 로컬 플레이 실행
 
-작성: 최병호 · 2026-11-05
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi)) · 2026-11-05
 
 현재 로컬 시작 경로는 `E:\logh7\work\playable-20261025\start.ps1`이다.
 이 파일은 `E:\logh7\work\playable-main-refresh-20261104\start.ps1`을 호출한다.

@@ -1,4 +1,4 @@
--- 실제 PostgreSQL에서 공유 정의와 참조/무소속/국가별 재정의를 검사한다. 작성: 최병호.
+-- 실제 PostgreSQL에서 공유 정의와 참조/무소속/국가별 재정의를 검사한다. 작성: Peppone Choi (peppone-choi).
 BEGIN;
 \copy nation_calendar FROM 'config/countries/calendars.csv' WITH (FORMAT csv, HEADER true)
 INSERT INTO nation_currency VALUES ('fixture_credit','시험 통화','T',0);
