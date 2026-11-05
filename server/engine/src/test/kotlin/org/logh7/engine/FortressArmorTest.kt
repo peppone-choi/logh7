@@ -41,4 +41,26 @@ class FortressArmorTest {
         assertEquals(listOf(10001),sunk.map {it.characterId});assertNotEquals(1002,players.getValue("a").baseId)
         assertEquals(enemy,players.getValue("e"))
     }
+    @Test fun duringARevoltOnlyTheHoldingCampIsSunk() {
+        // PR #214 review: a rebel fortress breach must spare loyal units of the same power stationed there.
+        val session=SessionSimulation(SessionRules.load()).exportState()
+        val home=GalaxyBase(1004,2490,60,0,"Home",0,28f,86400,0,0f,2f)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",3),GalaxySystem(4,2490,4,"Home",3)),listOf(fixed,home),Power.entries.associateWith {2487})
+        fun ships(id:Int)=ActiveShipUnits(listOf(ActiveShipUnit(id,UnitStack(64),posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1002))))
+        val coup=CoupState(mapOf(10001 to Plot(10001,3,0,revolt=5)),loyalty=mapOf(2 to 60))
+        val start=PlanetStocks(1,0,mapOf(1002 to PlanetStock(1002,3,1,0,0,0),1004 to PlanetStock(1004,3,0,0,0,0)),
+            mapOf(2 to OutfitStock(2,3,OutfitKind.FLEET,1002,102,10001,units=UnitInventory(ships(2).quantities()),activeShips=ships(2)),
+                3 to OutfitStock(3,3,OutfitKind.FLEET,1002,103,10003,units=UnitInventory(ships(3).quantities()),activeShips=ships(3))),
+            mapOf(102 to OutfitWarehouse(102,3,OutfitKind.FLEET,1002,2),103 to OutfitWarehouse(103,3,OutfitKind.FLEET,1002,3)),nextShipId=10)
+            .let {it.copy(social=it.social.copy(coup=coup))}
+        val rebel=Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,900,baseId=1002,mode=4)
+        val loyal=Navigator(1,10003,Power.ALLIANCE,2487,1000,1000,900,baseId=1002,mode=4)
+        val players=mutableMapOf("r" to rebel,"l" to loyal);val sunk=mutableListOf<Navigator>()
+        val after=FortressArmor.advance(session,galaxy,players,FortressArmor.strike(fixed,start,20),sunk)
+        assertEquals(0,after.outfits.getValue(2).activeShips!!.values.single().boats,"rebel outfit inside")
+        assertEquals(300,after.outfits.getValue(3).activeShips!!.values.single().boats,"loyal outfit of the same power")
+        assertEquals(listOf(10001),sunk.map {it.characterId});assertEquals(loyal,players.getValue("l"))
+        val loyalOnly=FortressArmor.strike(fixed,start,20).let {it.copy(outfits=it.outfits-2,warehouses=it.warehouses-102)}
+        assertFalse(FortressArmor.pending(loyalOnly,galaxy,listOf(loyal)),"nothing of the holder's camp is inside")
+    }
 }

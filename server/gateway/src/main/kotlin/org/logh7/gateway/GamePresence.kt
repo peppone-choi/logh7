@@ -578,6 +578,20 @@ class GamePresence {
             oldPeers.map { it.character.id } != newPeers.map { it.character.id }))
             refresh(oldPeers, newPeers) else emptyList())
     }
+    /**
+     * A flagship sunk inside a breached fortress (FortressArmor): the docked owner gets no combat impact, so move the
+     * client to its replacement like a combat departure. Leave a tactical view first; a stale (already newer) state is ignored.
+     */
+    @Synchronized fun fortressSunk(departed:org.logh7.engine.Navigator,character:CharacterMessages.Generate,
+        offices:List<BootstrapMessages.OfficeCard>,seconds:Long) {
+        val previous=members.values.singleOrNull {it.character.id.toInt()==departed.characterId &&
+            it.player.generation==departed.generation} ?: return
+        val member=previous.copy(character=character,player=departed,offices=offices)
+        val updated=update(member,seconds)
+        val exit=if(previous.player.cpPaused)listOf(org.logh7.protocol.TacticsMessages.notify(previous.player.grid,false)) else emptyList()
+        send(member,exit+listOf(BootstrapMessages.changedCharacter(character,departed.pcp,departed.mcp,departed.spotId,
+            departed.spotOwner,departed.returnBase,offices),unit(member))+updated.refresh)
+    }
     @Synchronized fun refreshCharacter(character:CharacterMessages.Generate,player:Navigator,
         offices:List<BootstrapMessages.OfficeCard>,seconds:Long,outfit:Int=0) {
         val previous=members.values.singleOrNull {it.character.id==character.id && it.player.generation==player.generation} ?: return

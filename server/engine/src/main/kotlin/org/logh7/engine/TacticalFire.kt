@@ -221,7 +221,9 @@ internal object TacticalCombat {
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
         committer: WorldStateCommitter?, npcPolicy:NpcTacticalPolicy = NpcTacticalPolicy(enabled=false),
-        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {},onGround:(TacticalGroundResult)->Unit = {},onGroundBattle:(GroundBattleResult)->Unit = {},onOccupation:(BaseOccupation)->Unit = {},onStrategicMovement:(NpcStrategicMovement)->Unit = {},onCommand:(TacticalCommandResult)->Unit = {}): List<TacticalImpact> {
+        scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {},onGround:(TacticalGroundResult)->Unit = {},onGroundBattle:(GroundBattleResult)->Unit = {},onOccupation:(BaseOccupation)->Unit = {},onStrategicMovement:(NpcStrategicMovement)->Unit = {},onCommand:(TacticalCommandResult)->Unit = {},
+        /** Flagships sunk inside a breached fortress (docked players get no combat impact). */
+        onFortressSunk:(Navigator)->Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
@@ -329,6 +331,7 @@ internal object TacticalCombat {
         groundBattles.forEach(onGroundBattle)
         occupations.forEach(onOccupation)
         commands.forEach(onCommand)
+        fortressSunk.forEach(onFortressSunk)
         return impacts
     }
 }
