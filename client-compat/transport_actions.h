@@ -74,8 +74,11 @@ static void drawTransportAction() {
         pickerName(state.strategyBase,name);swprintf_s(label,L"수송원: %ls (%u)",name[0] ? name : L"-",state.strategyBase);taxText(2,label);
         pickerName(state.strategyTarget,name);swprintf_s(label,L"수송처: %ls (%u)",name[0] ? name : L"-",state.strategyTarget);taxText(3,label);
         if(transport.kind==0xffff)swprintf_s(label,L"군수물자 %u · 유닛 없음",state.strategyAmount);
-        else swprintf_s(label,L"군수물자 %u · %ls 종류 %u × %u유닛",state.strategyAmount,transport.kind>=1000 ? L"승조원·육전대" : L"함정",
-            transport.kind>=1000 ? transport.kind-1000 : transport.kind,transport.count);
+        else {
+            wchar_t item[64];
+            outfitItemName(transport.kind<1000,transport.kind>=1000 ? transport.kind-1000 : transport.kind,item);
+            swprintf_s(label,L"물자 %u · %ls × %u",state.strategyAmount,item,transport.count);
+        }
         taxText(4,label);taxText(5,L"MCP 80 · 수송원 창고에서 빼서 수송 창고에 둡니다.");
     } else {
         auto pack=transportPackage();
