@@ -125,7 +125,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             return SessionEndingReport.information(snapshot,registered,sessionId,sessionName,admission?.generation ?: 1L)
         }
         sessionRegistration=sessionDirectory?.register(GameSessionDirectory.Entry(sessionId,sessionName,sessionAddress,sessionPort,hosts.toSet(),
-            generation={admission?.generation ?: 1L},available={started && !closed.get() && admission?.running!=false},
+            generation={admission?.generation ?: 1L},available={started && !closed.get() && admission?.running!=false && !maintenance.closed()},
             information={information(navigation?.snapshot(),currentCharacters().registeredCharacters())},
             character={account->
                 val snapshot=navigation?.snapshot();val characters=currentCharacters()

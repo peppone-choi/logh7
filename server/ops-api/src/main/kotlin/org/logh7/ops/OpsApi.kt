@@ -159,14 +159,14 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             post("/admin/notice") {
                 call.adminForm(port)?.let { form -> call.sendNotice(form["operator"], form["text"]) }
             }
-            post("/commands/maintenance/{mode}") { call.setMaintenance(call.request.headers["X-LOGH7-Operator"], call.parameters["mode"]) }
-            post("/commands/notice") { call.sendNotice(call.request.headers["X-LOGH7-Operator"], call.receiveText()) }
+            post("/commands/maintenance/{mode}") { if (call.crossOrigin(port)) return@post; call.setMaintenance(call.request.headers["X-LOGH7-Operator"], call.parameters["mode"]) }
+            post("/commands/notice") { if (call.crossOrigin(port)) return@post; call.sendNotice(call.request.headers["X-LOGH7-Operator"], call.receiveText()) }
             post("/admin/backup") {
                 call.adminForm(port)?.get("operator")?.let { operator ->
                     call.audited(audit, OpsAction.BACKUP, operator) { backups?.take() ?: return@audited OpsOutcome.FAILED; OpsOutcome.CHANGED }
                 }
             }
-            post("/commands/backup") {
+            post("/commands/backup") { if (call.crossOrigin(port)) return@post
                 call.audited(audit, OpsAction.BACKUP) { backups?.take() ?: return@audited OpsOutcome.FAILED; OpsOutcome.CHANGED }
             }
             post("/admin/probe") {
@@ -183,13 +183,13 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                     }
                 }
             }
-            post("/commands/probe") {
+            post("/commands/probe") { if (call.crossOrigin(port)) return@post
                 call.audited(audit, OpsAction.PROBE) {
                     commands.submit(WorldCommand.Probe)
                     OpsOutcome.QUEUED
                 }
             }
-            post("/session/restart") {
+            post("/session/restart") { if (call.crossOrigin(port)) return@post
                 call.audited(audit, OpsAction.SESSION_RESTART) {
                     val result = CompletableDeferred<Boolean>()
                     commands.submit(WorldCommand.RequestRestart(result))
@@ -230,6 +230,17 @@ internal fun opsAuthorized(header: String?, token: String): Boolean {
 }
 
 /** Reads an admin form; refuses a cross-origin post (a page elsewhere cannot drive the buttons). */
+/**
+ * Script routes (the /commands/... ones and /session/restart) take no form, but a browser holding cached operator Basic
+ * credentials could still be driven by another page to POST them (PR #283 review). Scripts send no Origin;
+ * a browser always does on a cross-origin POST, so any foreign Origin is refused like the /admin forms.
+ */
+internal suspend fun ApplicationCall.crossOrigin(port: Int): Boolean {
+    val origin = request.headers["Origin"] ?: return false
+    if (origin == "http://127.0.0.1:$port" || origin == "http://localhost:$port") return false
+    respondText("cross-origin admin request", status = HttpStatusCode.Forbidden)
+    return true
+}
 internal suspend fun ApplicationCall.adminForm(port: Int): io.ktor.http.Parameters? {
     val origin = request.headers["Origin"]
     if (origin != null && origin != "http://127.0.0.1:$port" && origin != "http://localhost:$port") {
