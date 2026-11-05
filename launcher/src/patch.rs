@@ -185,8 +185,12 @@ fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Resu
         entry.hash,
         u8::from(original)
     ));
+    // 임시 파일에 쓴 뒤 바꿔 넣어, 쓰는 도중 중단돼도 직전 상태 기록이 남는다.
     let record = |text: &str| {
-        fs::write(root.join(STATE), text).map_err(|_| "패치 상태를 기록하지 못했습니다".to_string())
+        let next = root.join(format!("{STATE}.next"));
+        fs::write(&next, text)
+            .and_then(|_| fs::rename(&next, root.join(STATE)))
+            .map_err(|_| "패치 상태를 기록하지 못했습니다".to_string())
     };
     record(&format!("{state}{PENDING}\n"))?;
     fs::copy(patch.join(&entry.path), &destination)
@@ -213,14 +217,28 @@ pub fn revert(root: &Path) -> Result<usize, String> {
         };
         let destination = target(root, path)?;
         let interrupted = pending && index + 1 == lines.len();
-        if !interrupted && hash_file(&destination)? != *hash {
+        let current = destination
+            .exists()
+            .then(|| hash_file(&destination))
+            .transpose()?;
+        let backup = root.join(BACKUP).join(path);
+        // 실패한 자동 되돌리기를 다시 시도할 수 있도록 이미 원래대로 돌아간 파일도 받아들인다.
+        let restored = if *original == "1" {
+            backup.exists() && current == Some(hash_file(&backup)?)
+        } else {
+            current.is_none()
+        };
+        if !interrupted && !restored && current.as_deref() != Some(*hash) {
             return Err(format!(
                 "패치 뒤 바뀐 파일이 있어 되돌리지 않았습니다: {path}"
             ));
         }
-        entries.push((path.to_string(), destination, *original == "1"));
+        entries.push((path.to_string(), destination, *original == "1", restored));
     }
-    for (path, destination, original) in &entries {
+    for (path, destination, original, restored) in &entries {
+        if *restored {
+            continue;
+        }
         if *original {
             fs::copy(root.join(BACKUP).join(path), destination)
                 .map_err(|_| format!("원래 파일을 복원하지 못했습니다: {path}"))?;
@@ -372,5 +390,39 @@ mod tests {
         apply(&root, &patch).unwrap();
         fs::write(root.join("exe/dinput8.dll"), b"d").unwrap();
         assert!(revert(&root).is_err());
+    }
+
+    #[test]
+    fn a_failed_automatic_rollback_can_be_retried() {
+        let (root, patch) = setup("retry");
+        // The second target exists and is readable but cannot be overwritten.
+        fs::write(root.join("exe/dinput8.dll"), b"old dll").unwrap();
+        let locked = root.join("exe/dinput8.dll");
+        let mut permissions = fs::metadata(&locked).unwrap().permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&locked, permissions.clone()).unwrap();
+        let failure = apply(&root, &patch).unwrap_err();
+        // The untouched pending file is recognised as already original, so the rollback completes.
+        assert!(failure.contains("되돌렸습니다"), "{failure}");
+        assert_eq!(
+            b"original",
+            &fs::read(root.join("exe/String.txt")).unwrap()[..]
+        );
+        assert_eq!(b"old dll", &fs::read(&locked).unwrap()[..]);
+        assert!(!root.join(STATE).exists());
+        // Whether or not the automatic rollback finished, --revert-patch (or a new apply) works
+        // once the obstruction is removed.
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+        fs::set_permissions(&locked, permissions).unwrap();
+        if root.join(STATE).exists() {
+            revert(&root).unwrap();
+        }
+        assert_eq!(
+            b"original",
+            &fs::read(root.join("exe/String.txt")).unwrap()[..]
+        );
+        assert!(!root.join(STATE).exists());
+        assert_eq!(2, apply(&root, &patch).unwrap());
     }
 }
