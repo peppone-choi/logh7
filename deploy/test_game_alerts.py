@@ -23,6 +23,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -193,6 +194,12 @@ scrape_configs:
         result["server_up_seconds"] = wait("engine_up 1", lambda: metric(ops, "logh7_engine_up") == 1, 90)
         result["volume_free_bytes"] = metric(ops, "logh7_state_disk_free_bytes")
 
+        # increase() needs a sample from before the failures: wait until Prometheus has scraped the zero value.
+        def scraped(query):
+            url = f"http://127.0.0.1:{ports['prometheus']}/api/v1/query?" + urllib.parse.urlencode({"query": query})
+            return bool(json.loads(http(url))["data"]["result"])
+        result["first_scrape_seconds"] = wait("Prometheus to scrape logh7_update_failed_total == 0",
+                                              lambda: scraped("logh7_update_failed_total == 0"), 60)
         # Update exchanges: one completes; six start and drop (a bare TCP connect is not counted).
         update_exchange(ports["update"], complete=True)
         socket.create_connection(("127.0.0.1", ports["update"]), timeout=5).close()
