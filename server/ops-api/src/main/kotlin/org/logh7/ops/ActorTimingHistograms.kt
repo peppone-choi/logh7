@@ -12,8 +12,9 @@ import java.util.concurrent.atomic.AtomicLongArray
  */
 class ActorTimingHistograms : ActorTimings {
     private class Histogram {
-        val buckets = AtomicLongArray(BOUNDS.size)  // non-cumulative per bucket; summed on export
-        val count = AtomicLong()
+        /** Non-cumulative per bucket, the last slot being above every bound. Count and +Inf are derived from
+         * one read of these slots, so an export never shows a finite bucket above +Inf (PR #278 review). */
+        val buckets = AtomicLongArray(BOUNDS.size + 1)
         val sumNanos = AtomicLong()
     }
     private val histograms = ActorTiming.entries.associateWith { Histogram() }
@@ -21,9 +22,8 @@ class ActorTimingHistograms : ActorTimings {
 
     override fun record(metric: ActorTiming, nanoseconds: Long) {
         val histogram = histograms.getValue(metric)
-        val index = BOUNDS.indexOfFirst { nanoseconds <= it }
-        if (index >= 0) histogram.buckets.incrementAndGet(index)
-        histogram.count.incrementAndGet()
+        val index = BOUNDS.indexOfFirst { nanoseconds <= it }.let { if (it < 0) BOUNDS.size else it }
+        histogram.buckets.incrementAndGet(index)
         histogram.sumNanos.addAndGet(nanoseconds)
     }
 
@@ -35,12 +35,13 @@ class ActorTimingHistograms : ActorTimings {
             val name = "logh7_actor_" + metric.name.lowercase() + "_seconds"
             append("# HELP ").append(name).append(" World actor ").append(metric.name.lowercase().replace('_', ' ')).append(".\n")
             append("# TYPE ").append(name).append(" histogram\n")
+            val slots = LongArray(BOUNDS.size + 1) { histogram.buckets.get(it) }  // one read per slot
             var cumulative = 0L
-            for ((i, bound) in BOUNDS.withIndex()) {
-                cumulative += histogram.buckets.get(i)
+            for (i in BOUNDS.indices) {
+                cumulative += slots[i]
                 append(name).append("_bucket{le=\"").append(LABELS[i]).append("\"} ").append(cumulative).append('\n')
             }
-            val count = histogram.count.get()
+            val count = cumulative + slots[BOUNDS.size]
             append(name).append("_bucket{le=\"+Inf\"} ").append(count).append('\n')
             append(name).append("_sum ").append(histogram.sumNanos.get() / 1e9).append('\n')
             append(name).append("_count ").append(count).append('\n')
