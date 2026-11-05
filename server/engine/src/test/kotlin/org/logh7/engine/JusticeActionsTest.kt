@@ -140,5 +140,13 @@ class JusticeActionsTest {
         assertTrue(OrganizationalOfficePolicy(twoCapitals).held(s,10002).isEmpty())
         val sim=SessionSimulation(rules).also {it.join("c",Power.EMPIRE,false,"c")}
         sim.defect("c",Power.ALLIANCE);assertEquals(Power.ALLIANCE,sim.exportState().participants.getValue("c").power)
+        val original=CountryCatalogLoader.load()
+        val swapped=CountryCatalog(original.calendars.values.toList(),original.families.values.map {
+            it.copy(shipStyle=if(it.shipStyle=="empire")"alliance" else "empire")},original.countries.values.toList())
+        val configured=JusticeActions.evaluate(twoCapitals,r,session,c,stocks(),accounts,catalog=swapped)
+        assertNull(configured.rejection)
+        assertEquals(CountryId(3),configured.player?.country)
+        assertEquals(ShipStyleId("empire"),configured.player?.shipStyle,"destination country model family")
+        assertNull(configured.player?.hull)
     }
 }

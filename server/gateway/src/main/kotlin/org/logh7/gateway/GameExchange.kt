@@ -14,6 +14,7 @@ import java.util.Properties
 import java.util.concurrent.CompletableFuture
 import org.logh7.engine.Admission
 import org.logh7.engine.members
+import org.logh7.engine.country
 
 /** evidence:guess — local test accounts and short-lived, single-use session tickets. */
 class SessionTickets(private val clock: Clock = Clock.systemUTC()) {
@@ -159,6 +160,11 @@ class GameExchange(
     private fun currentCharacter(account:String):CharacterMessages.Generate? = characters.character(account)?.let {
         WorldCharacters.view(it,navigation?.snapshot())
     }
+    private fun navigate(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
+        val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(request.account)
+        check(profile.character.id.toInt()==request.characterId && profile.country==request.power.country) {"Navigation character country mismatch"}
+        return checkNotNull(navigation).apply(request.copy(shipStyle=profile.shipStyle))
+    }
     private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         BootstrapMessages.unit(flagshipCharacter(character,player), player.grid, player.cruise, player.baseId, player.mode,
             administration?.stationedOutfit(player) ?: 0,player.supplies,if(player.hull?.hp?.let {it<100}==true)1 else 0)
@@ -215,7 +221,7 @@ class GameExchange(
         return recover(character, identity.account)
     }
     private fun recover(character: CharacterMessages.Generate, account: String, clockRequest: ByteArray? = null): CompletableFuture<List<ByteArray>> =
-        checkNotNull(navigation).apply(org.logh7.engine.NavigationRequest(account,
+        navigate(org.logh7.engine.NavigationRequest(account,
             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
             connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
             val player = checkNotNull(result.player ?: result.previous?.takeIf { it.navigationPending &&
@@ -241,7 +247,7 @@ class GameExchange(
                 (if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid)
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
-                (world?.let { map -> navigation.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
+                (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
                     ?.let(::listOf).orEmpty())
         }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
@@ -382,7 +388,7 @@ class GameExchange(
                         require(command.character==character.id.toInt())
                         if(command.units.any {it !in 1..999999} || command.target !in 0..999999 || command.target in command.units)
                             return handshake.stageAll(listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),false)),clearHeader=0)
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
                             tacticalGround=org.logh7.engine.TacticalGroundCommand(
@@ -400,7 +406,7 @@ class GameExchange(
                         require(command.character==character.id.toInt())
                         if(command.units.any {it !in 1..999999})return handshake.stageAll(listOf(
                             org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),0,false)),clearHeader=0)
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
                             tacticalGround=org.logh7.engine.TacticalGroundCommand(
@@ -421,7 +427,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val command=org.logh7.protocol.TacticalGroundMessages.command(body)
                         require(command.character==character.id.toInt())
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
                             tacticalPosture=org.logh7.engine.TacticalPostureChange(command.units,org.logh7.engine.TacticalShipMode.ANCHORED,0,sortie=true))).thenApply {result->
@@ -439,7 +445,7 @@ class GameExchange(
                         val mode=org.logh7.engine.TacticalShipMode.entries.singleOrNull {it.wire==command.kind}
                         if(mode==null || (command.base>0)!=mode.requiresBase || command.base>65535)
                             return handshake.stageAll(listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),0,false)),clearHeader=0)
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
                             tacticalPosture=org.logh7.engine.TacticalPostureChange(command.units,mode,command.base))).thenApply {result->
@@ -457,7 +463,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val support=org.logh7.protocol.TacticalSupportMessages.command(body)
                         require(support.character==character.id.toInt())
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
                             tacticalSupport=org.logh7.engine.TacticalSupport(
@@ -478,7 +484,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val attack=org.logh7.protocol.TacticalAttackMessages.attack(body)
                         require(attack.character==character.id.toInt())
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalAttack=org.logh7.engine.TacticalAttack(
@@ -498,7 +504,7 @@ class GameExchange(
                         val shoot = org.logh7.protocol.TacticalAttackMessages.shoot(body)
                         require(shoot.character == character.id.toInt())
                         val antiAir=shoot.antiAir
-                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld = navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,rank=character.rank,commandAbility=character.abilities[4],
@@ -525,7 +531,7 @@ class GameExchange(
                             if(it.opcode==0x041f)org.logh7.protocol.TacticalCommandMessages.withFortressVelocity(it,
                                 org.logh7.engine.TacticalFortressMotion.VELOCITY) else it}
                         require(command.character==character.id.toInt() && command.points.all {it.z==0f})
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,character.id.toInt(),
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,character.id.toInt(),
                             if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,rank=character.rank,commandAbility=character.abilities[4],
@@ -553,7 +559,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val turn=org.logh7.protocol.TacticalTurnMessages.command(body)
                         require(turn.character==character.id.toInt())
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalMove=org.logh7.engine.TacticalMove(
@@ -573,7 +579,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val move=org.logh7.protocol.TacticalMoveMessages.move(body)
                         require(move.character==character.id.toInt() && move.waypoints.all {it.z==0f})
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalMove=org.logh7.engine.TacticalMove(move.units.map {it.id},
@@ -602,7 +608,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val retreat=org.logh7.protocol.TacticalRetreatMessages.retreat(body)
                         require(retreat.character==character.id.toInt())
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalRetreat=retreat.units)).thenApply {result->
@@ -619,7 +625,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val stop=org.logh7.protocol.TacticalStopMessages.stop(body)
                         require(stop.character==character.id.toInt())
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalStop=org.logh7.engine.TacticalStop(stop.units,stop.bases))).thenApply {result->
@@ -640,7 +646,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val control=org.logh7.protocol.TacticsMessages.control(body)
                         require(control.character==character.id.toInt() && control.unit==character.id.toInt()+1_000_000)
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),unitId=control.unit,
                             captainCard=if(character.power==2)59 else 195,shipKind=character.shipKind,commandAbility=character.abilities[4],
@@ -670,7 +676,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val settings=org.logh7.protocol.OfflineDirectionMessages.settings(body)
                         require(settings.character==character.id.toInt())
-                        pendingWorld=navigation.apply(org.logh7.engine.NavigationRequest(identity.account,settings.character,
+                        pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,settings.character,
                             if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),offlineDirection=settings.mask)).thenApply {result ->
                             val player=checkNotNull(result.player ?: result.previous)
@@ -687,7 +693,7 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val selection = org.logh7.protocol.ReturnBaseMessages.selection(body)
                         require(selection.character == character.id.toInt())
-                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld = navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), politics = character.abilities[1], administration = character.abilities[2],
                             returnBase = selection.base)).thenApply { result ->
@@ -707,7 +713,7 @@ class GameExchange(
                         require(command.characterId == id && command.units.all { it == id + 1_000_000 } &&
                             command.characters.all { it == id } && command.units.distinct().size == command.units.size &&
                             command.characters.distinct().size == command.characters.size)
-                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account, id,
+                        pendingWorld = navigate(org.logh7.engine.NavigationRequest(identity.account, id,
                             if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), unitId = id + 1_000_000, captainCard = command.card,
                             place = org.logh7.engine.PlaceMove.SwitchMode(command.mode), rank = character.rank,
@@ -738,7 +744,7 @@ class GameExchange(
                         require((dock?.characterId ?: move!!.characterId) == character.id.toInt())
                         val place = dock?.let { org.logh7.engine.PlaceMove.Dock(it.base, it.mode) }
                             ?: org.logh7.engine.PlaceMove.Spot(move!!.spot, move.owner)
-                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld = navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), unitId = character.id.toInt() + 1_000_000,
                             captainCard = dock?.card, place = place, rank = character.rank,
@@ -1178,7 +1184,7 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val command = org.logh7.protocol.FuelMessages.supply(body)
                         require(command.characterId == character.id.toInt())
-                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld = navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), unitId = character.id.toInt() + 1_000_000,
                             captainCard = command.card, politics = character.abilities[1], administration = character.abilities[2],
@@ -1198,7 +1204,7 @@ class GameExchange(
                         require(command.base == 0 || world?.galaxy?.bases?.any {
                             it.id == command.base && it.grid == command.grid
                         } == true) { "Warp base is outside the destination system" }
-                        pendingWorld = navigation.apply(org.logh7.engine.NavigationRequest(identity.account,
+                        pendingWorld = navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), command.grid, character.id.toInt() + 1_000_000,
                             command.card, politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
@@ -1643,8 +1649,9 @@ class GameExchange(
                                         }
                                         require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {it.card==query.card}) {"Strategy directory requires a held office"}
                                         if(query.command==96) {
+                                            val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                             if(query.argument==0)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
-                                                org.logh7.engine.FlagshipMarketCatalog.options(character.power).map {option->
+                                                org.logh7.engine.FlagshipMarketCatalog.options(me.shipStyle).map {option->
                                                     org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,
                                                         "${checkNotNull(org.logh7.engine.Flagships.find(option.kind)).name} ${option.price}",option.maximumRank)})
                                             // U-13 guard ships: row id = catalogue index + 1, shown as "code price".
@@ -1983,7 +1990,8 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         if (admission != null) {
                             joining = true; joinRequested = true
-                            pendingJoin = admission.join(identity.account, character, connection, checkNotNull(generation))
+                            val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
+                            pendingJoin = admission.join(identity.account, profile.copy(character=character), connection, checkNotNull(generation))
                             return null
                         }
                         gameStarted = true
@@ -2000,7 +2008,7 @@ class GameExchange(
                             val request = org.logh7.engine.NavigationRequest(identity.account, character.id.toInt(),
                                 if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                                 connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])
-                            pendingWorld = stocks().thenCompose { stored -> navigation.apply(request).thenApply { result ->
+                            pendingWorld = stocks().thenCompose { stored -> navigate(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 val captured=navigation.snapshot()
                                 publication = Publication(character, player, true,opcode,captured?.revision)

@@ -23,6 +23,27 @@ class FlagshipMarketActionsTest {
     private fun request(mode:Int=0)=StrategyActionRequest("actor","c",10000,Power.EMPIRE,1,96,0,5,value=0,
         target=if(mode==1)10001 else 0,argument=mode,identities=identities,navigators=players)
     private fun act(r:StrategyActionRequest=request(),s:PlanetStocks=stocks(),p:Navigator=player)=StrategyActions.evaluate(galaxy,r,session,p,s)
+    @Test fun anImperialCharacterBuysAllianceModelsFromTheImperialYard() {
+        val p=player.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(89,now))
+        val result=act(p=p)
+        assertNull(result.rejection);assertEquals(CountryId(2),result.player?.country)
+        assertEquals(ShipStyleId("alliance"),result.player?.shipStyle);assertEquals(93,result.player?.hull?.kind)
+        assertEquals(920,result.player?.pcp);assertEquals(950L,result.stocks?.strategic?.people?.get(10000)?.evaluation)
+    }
+    @Test fun consentingOwnersOfDifferentStylesExchangeTheWholeShipAndItsStyleTogether() {
+        val mixed=receiver.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(90,now,hp=89))
+        val people=players+("receiver" to mixed)
+        val offered=act(request(1).copy(navigators=people))
+        assertNull(offered.rejection)
+        val accept=request(2).copy(account="receiver",connection="r",characterId=10001,target=10000,navigators=people)
+        val accepted=act(accept,assertNotNull(offered.stocks),mixed)
+        assertNull(accepted.rejection)
+        assertEquals(CountryId(2),accepted.player?.country);assertEquals(ShipStyleId("empire"),accepted.player?.shipStyle)
+        assertEquals(player.hull,accepted.player?.hull)
+        val donor=accepted.navigators.getValue("actor")
+        assertEquals(CountryId(2),donor.country);assertEquals(ShipStyleId("alliance"),donor.shipStyle)
+        assertEquals(mixed.hull,donor.hull);assertEquals(35,donor.supplies);assertEquals(27,accepted.player?.supplies)
+    }
     @Test fun purchaseChargesEvaluationAndPcpTogetherAndKeepsCargoWithoutChangingAnotherPersonsShip() {
         val original=stocks();val result=act(s=original)
         assertNull(result.rejection);assertEquals(920,result.player?.pcp);assertEquals(1000,result.player?.mcp)

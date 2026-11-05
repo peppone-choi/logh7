@@ -79,7 +79,7 @@ internal object TacticalCombat {
         if (request.captainCard != if(player.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
         if(player.hull!=null && player.hull.kind!=request.shipKind) return reject(NavigationRejection.UNIT)
         val ship = Flagships.find(player.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
-        if (ship.power != if(player.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+        if (ship.power != player.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
         val weapon = TacticalWeapon.entries.singleOrNull { it.wire == shoot.arms }
             ?: return reject(NavigationRejection.WEAPON)
         val mount = TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind == ship.kind}, weapon)

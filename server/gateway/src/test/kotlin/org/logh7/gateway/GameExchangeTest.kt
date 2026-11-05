@@ -461,7 +461,7 @@ class GameExchangeTest {
         val operation = assertNotNull(game.takePendingWorld())
         assertFalse(operation.isDone)
         assertEquals(org.logh7.engine.NavigationRequest("user", 1001, org.logh7.engine.Power.EMPIRE,
-            "owned", 1, 2488, 1001001, 59), requests.single())
+            "owned", 1, 2488, 1001001, 59,shipStyle=org.logh7.engine.ShipStyleId("empire")), requests.single())
         val player = org.logh7.engine.Navigator(1, 1001, org.logh7.engine.Power.EMPIRE, 2488, 1000, 960, 900, 1)
         pending.complete(org.logh7.engine.NavigationResult(player))
         val messages = operation.join()

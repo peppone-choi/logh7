@@ -172,7 +172,7 @@ internal object StrategyActions {
                         militaryRank=if(r.command==84 && power==2)rank else 0,
                         retiredUntil=if(r.command==84)now+30*86400 else person.retiredUntil))))}
                 if(r.command==85) {
-                    val ship=Flagships.forType(power,0)
+                    val ship=Flagships.forType(p.shipStyle.nativePower,0)
                     after=p.copy(hull=FlagshipHull(ship.kind,now),supplies=10_000)
                 }
             }

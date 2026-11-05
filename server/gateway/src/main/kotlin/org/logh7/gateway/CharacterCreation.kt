@@ -3,6 +3,9 @@ package org.logh7.gateway
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.engine.Flagships
+import org.logh7.engine.CountryCatalogLoader
+import org.logh7.engine.CountryId
+import org.logh7.engine.ShipStyleId
 import java.text.Normalizer
 import java.nio.file.Files
 import java.nio.file.Path
@@ -16,9 +19,13 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val lotteryWindowMillis: Long = 60_000, private val random: java.util.Random = SecureRandom(),
     private val originals: List<OriginalCharacterMessages.Candidate> = OriginalCharacterMessages.localCandidates,
     private val accountFame: Map<String, Int> = emptyMap(),
-    starterKinds: Map<Int, List<Int>> = mapOf(2 to listOf(0), 3 to listOf(89))) {
+    starterKinds: Map<Int, List<Int>>? = null,
+    shipStyles:Map<Int,ShipStyleId> = CountryCatalogLoader.load().let {catalog->
+        setOf(2,3).associateWith {catalog.shipStyle(CountryId(it))}}) {
+    private val styles=shipStyles.toMap()
     // Current user policy: standard battleship. A later grant policy may supply multiple kinds.
-    private val starters = starterKinds.mapValues { (_, kinds) -> kinds.toList() }
+    private val starters = (starterKinds ?: styles.mapValues {(_,style)->listOf(Flagships.forType(style.nativePower,0).kind)})
+        .mapValues { (_, kinds) -> kinds.toList() }
     private var nextId = 10_000L
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
     private val registered = mutableMapOf<String, CharacterProfile>()
@@ -28,8 +35,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         require(lotteryWindowMillis in 1..3_600_000)
         require(originals.map { it.character.id }.distinct().size == originals.size && originals.all { it.minimumFame >= 0 && it.character.id in 1..9999 })
         require(accountFame.values.all { it >= 0 })
+        require(styles.keys==setOf(2,3))
         require(starters.keys == setOf(2, 3) && starters.all { (power, kinds) ->
-            kinds.isNotEmpty() && kinds.distinct().size == kinds.size && kinds.all { Flagships.find(it)?.power == power }
+            kinds.isNotEmpty() && kinds.distinct().size == kinds.size && kinds.all { Flagships.find(it)?.power == styles.getValue(power).nativePower }
         })
         if (file != null && Files.exists(file)) {
             val properties = Properties().also { Files.newBufferedReader(file).use(it::load) }
@@ -49,6 +57,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         }
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
+    private fun profile(data:CharacterMessages.Generate)=CharacterProfile(data,CountryId(data.power),styles.getValue(data.power))
     @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.character?.let(::displayed) }
     @Synchronized fun profiles():Map<String,CharacterProfile> { resolveLottery();return registered.toMap() }
     /** U-11: a character that died in battle leaves the account, which may then create a new one. */
@@ -60,10 +69,10 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     /** U-25 defection (user decision 2026-11-01): the one sanctioned change of a registered character's side. */
     @Synchronized fun defect(account: String, id: Long, power: Int): Boolean {
         require(power in 2..3)
-        val current = registered[account]?.takeIf { it.character.id == id && it.country != org.logh7.engine.CountryId(power) } ?: return false
+        val current = registered[account]?.takeIf { it.character.id == id && it.country != CountryId(power) } ?: return false
         val data=current.character
-        val next = registered + (account to CharacterProfile.legacy(data.copy(power = power,
-            shipKind = Flagships.forType(power, data.shipType).kind)))
+        val next = registered + (account to profile(data.copy(power = power,
+            shipKind = Flagships.forType(styles.getValue(power).nativePower, data.shipType).kind)))
         save(next); registered[account] = next.getValue(account); return true
     }
     /** U-27 carry-over source: generated characters as stored (originals never carry over, W p.11). */
@@ -126,7 +135,10 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             if (account in winners) continue
             val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.character.id == candidate } } ?: continue
             val candidate = originals.single { it.character.id == id }
-            winners[account] = CharacterProfile.legacy(candidate.character.copy(generated = false))
+            val character=candidate.character
+            val style=styles.getValue(character.power)
+            val kind=if(style==ShipStyleId.fromLegacy(character.power))character.shipKind else Flagships.forType(style.nativePower,character.shipType).kind
+            winners[account] = profile(character.copy(generated = false,shipKind=kind))
         }
         save(winners, emptyMap(), 0)
         registered.clear(); registered.putAll(winners); applications.clear(); deadline = 0
@@ -194,7 +206,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 }
                 4 -> {
                     require(previous.category == 3 && message == previous.copy(category = 4)) { "Registration data changed" }
-                    val profile=CharacterProfile.legacy(message)
+                    val profile=profile(message)
                     save(registered + (account to profile))
                     registered[account] = profile
                     println("character registered id=${message.id} power=${message.power}")

@@ -28,7 +28,8 @@ internal object FlagshipRecovery {
         val owned=galaxy.bases.filter { base ->
             val stock=stocks.bases[base.id]
             val initial=galaxy.conditions.getValue(base.id)
-            initial.habitability==1 && (stock?.power ?: initial.power)==power && (stock?.camp ?: initial.camp)==0
+            initial.habitability==1 && (stock?.let {it.belongsTo(player.power.country) && it.camp==0}
+                ?: (initial.power==power && initial.camp==0))
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
         val busy=GridForces.collect(galaxy,stocks.generation,
@@ -41,7 +42,7 @@ internal object FlagshipRecovery {
             ?: bases.filter {it.grid==galaxy.starts.getValue(player.power)}.minByOrNull {it.id}
             ?: bases.minByOrNull {it.id}
         val until=minOf(0xffffffffL,seconds+86400)
-        val kind=if(player.power==Power.EMPIRE)3 else 93
+        val kind=Flagships.forType(player.shipStyle.nativePower,3).kind
         return player.copy(grid=home?.grid ?: galaxy.starts.getValue(player.power),baseId=home?.id ?: 0,
             mode=if(home==null)5 else 4,spotId=0,spotOwner=0,cpPaused=false,cpRecoveryAt=seconds,
             motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,energy=TacticalEnergy.ZERO,

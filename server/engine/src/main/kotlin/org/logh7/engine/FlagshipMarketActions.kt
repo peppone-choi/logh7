@@ -8,7 +8,7 @@ import org.logh7.engine.strategy.*
 data class FlagshipExchangeOffer(val giver:Int,val receiver:Int,val giverKind:Int,val receiverKind:Int,
     val base:Int,val spot:Int,val expiresAt:Long) {
     init {require(giver>0 && receiver>0 && giver!=receiver && Flagships.find(giverKind)!=null &&
-        Flagships.find(receiverKind)?.power==Flagships.find(giverKind)?.power && base in 1..65535 && spot>0 && expiresAt in 0..0xffffffffL)}
+        Flagships.find(receiverKind)!=null && base in 1..65535 && spot>0 && expiresAt in 0..0xffffffffL)}
 }
 data class FlagshipMarketState(val offers:List<FlagshipExchangeOffer> = emptyList()) {
     init {require(offers.size<=128 && offers.flatMap {listOf(it.giver,it.receiver)}.distinct().size==offers.size*2)}
@@ -21,15 +21,16 @@ data class FlagshipPurchaseOption(val index:Int,val kind:Int,val price:Long,val 
  * PCP80 are evidence:guess. Special flagship definitions are not fabricated.
  * Author: Peppone Choi. */
 object FlagshipMarketCatalog {
+    fun options(style:ShipStyleId)=options(style.nativePower)
     fun options(power:Int):List<FlagshipPurchaseOption> {
         require(power in 2..3)
         return listOf(Triple(3,50L,20),Triple(2,200L,10),Triple(0,500L,7),Triple(4,150L,10)).mapIndexed {i,(type,price,rank)->
             FlagshipPurchaseOption(i,Flagships.forType(power,type).kind,price,rank)}
     }
     fun atYard(galaxy:Galaxy,stocks:PlanetStocks,p:Navigator):Boolean {
-        val power=if(p.power==Power.EMPIRE)2 else 3
+        val power=p.country?.value?.takeIf {it in 2..3} ?: return false
         val base=galaxy.bases.singleOrNull {it.id==p.baseId && Capital.of(it)?.power==power} ?: return false
-        if(stocks.bases[base.id]?.let {it.power==power && it.camp==0}!=true || p.mode !in 1..4 || p.spotOwner!=0)return false
+        if(stocks.bases[base.id]?.let {it.belongsTo(CountryId(power)) && it.camp==0}!=true || p.mode !in 1..4 || p.spotOwner!=0)return false
         // Native constmsg73/74: flagship yard23, reception21. The CD already has the
         // place even though its later purchase-command factory is absent.
         return galaxy.facilitiesAt(base.id,stocks).any {f->f.kind==23 && f.spots.any {it.kind==21 && it.id==p.spotId}}
@@ -46,7 +47,6 @@ internal object FlagshipMarketActions {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         if(r.card!=0 || r.outfit!=0)return reject(StrategyActionRejection.CARD)
         val now=s.gameMillis/1000
-        val power=if(p.power==Power.EMPIRE)2 else 3
         val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
         val live=stocks.flagshipMarket.offers.filter {it.expiresAt>now}
         var next=stocks
@@ -68,7 +68,7 @@ internal object FlagshipMarketActions {
         if(r.argument==0) {
             if(r.target!=0)return reject(StrategyActionRejection.COMMAND)
             if(live.any {it.giver==r.characterId || it.receiver==r.characterId})return reject(StrategyActionRejection.BUSY)
-            val choice=FlagshipMarketCatalog.options(power).singleOrNull {it.index==r.value} ?: return reject(StrategyActionRejection.COMMAND)
+            val choice=FlagshipMarketCatalog.options(p.shipStyle).singleOrNull {it.index==r.value} ?: return reject(StrategyActionRejection.COMMAND)
             if(rank>choice.maximumRank)return reject(StrategyActionRejection.RANK)
             if(choice.kind==hull.kind)return reject(StrategyActionRejection.MAXIMUM)
             val person=stocks.strategic.people[r.characterId] ?: StrategicPerson()
@@ -83,7 +83,7 @@ internal object FlagshipMarketActions {
             val target=r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}
                 ?: return reject(StrategyActionRejection.TARGET)
             val other=target.value
-            if(other.power!=p.power || !FlagshipMarketCatalog.atYard(galaxy,stocks,other) ||
+            if(other.country!=p.country || !FlagshipMarketCatalog.atYard(galaxy,stocks,other) ||
                 other.baseId!=p.baseId || other.spotId!=p.spotId || other.spotOwner!=p.spotOwner)
                 return reject(StrategyActionRejection.LOCATION)
             if(busy(other,now))return reject(StrategyActionRejection.BUSY)
@@ -103,11 +103,11 @@ internal object FlagshipMarketActions {
                     ?: return reject(StrategyActionRejection.AUTHORITY)
                 if(offer.base!=p.baseId || offer.spot!=p.spotId || offer.giverKind!=otherHull.kind || offer.receiverKind!=hull.kind)
                     return reject(StrategyActionRejection.TARGET)
-                fun permitted(characterRank:Int,kind:Int)=FlagshipMarketCatalog.options(power).singleOrNull {it.kind==kind}
+                fun permitted(characterRank:Int,kind:Int)=FlagshipMarketCatalog.options(checkNotNull(Flagships.find(kind)).power).singleOrNull {it.kind==kind}
                     ?.let {characterRank<=it.maximumRank}==true
                 if(!permitted(rank,otherHull.kind) || !permitted(otherRank,hull.kind))return reject(StrategyActionRejection.RANK)
-                after=p.copy(hull=otherHull.copy(at=now),energy=null)
-                updates=mapOf(target.key to other.copy(hull=hull.copy(at=now),energy=null))
+                after=p.copy(hull=otherHull.copy(at=now),shipStyle=other.shipStyle,energy=null)
+                updates=mapOf(target.key to other.copy(hull=hull.copy(at=now),shipStyle=p.shipStyle,energy=null))
                 next=stocks.copy(flagshipMarket=FlagshipMarketState(live-offer))
                 cost=80
             }
