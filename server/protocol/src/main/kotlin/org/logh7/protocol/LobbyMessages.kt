@@ -29,7 +29,8 @@ object LobbyMessages {
     fun characters(character: CharacterMessages.Generate?,
         information:SessionEndingMessages.Session?=null,evaluation:SessionEndingMessages.Evaluation?=null): ByteArray {
         require(evaluation==null || information?.ending!=null)
-        if (character == null) return noCharacters()
+        if (character == null && information == null) return noCharacters()
+        require(character!=null || evaluation==null)
         val out = ByteBuffer.allocate(1024)
         fun u8(value: Int) { out.put(value.toByte()) }
         fun string(value: String) {
@@ -40,7 +41,8 @@ object LobbyMessages {
         u8(1)
         val session = sessions(information=information)
         out.put(session, 8, session.size - 8) // shared InformationSession record, excluding result/count
-        u8(0); u8(2); u8(1) // no next session, existing-character entry state, one charged character
+        u8(0); u8(if(character==null)0 else 2); u8(if(character==null)0 else 1)
+        if(character==null)return LoginMessages.sessionMessage(0x2004,out.array().copyOf(out.position()))
         out.putInt(character.id.toInt()); u8(character.power); u8(0); u8(if (character.generated) 1 else 0)
         u8(character.gender); u8(character.birthMonth); u8(character.birthDay)
         out.putInt(Math.multiplyExact(character.age, CharacterMessages.AGE_SECONDS_PER_YEAR)); u8(0)

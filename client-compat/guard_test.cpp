@@ -7,6 +7,7 @@
 #include "country_colors_data.h"
 #include "country_icon_data.h"
 #include "creation_menu_data.h"
+#include "lobby_empty_data.h"
 #include "planet_info_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
@@ -1276,6 +1277,17 @@ static int runGuard(int argc, wchar_t** argv) {
     if(logh::creationMenuState(creation,sizeof(creation))!=logh::CreationMenuState::Unsupported ||
         logh::creationMenuState(nullptr,sizeof(creation))!=logh::CreationMenuState::Unsupported ||
         logh::creationMenuState(creation,sizeof(creation)-1)!=logh::CreationMenuState::Unsupported)return 82;
+    BYTE emptySessions[0x6d8]={};
+    if(logh::emptyPlayableLobby(nullptr,sizeof(emptySessions)) || logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
+    emptySessions[0]=1;emptySessions[4]=1;emptySessions[6]=1;
+    if(!logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)) || logh::emptyPlayableLobby(emptySessions,0x36b))return 94;
+    emptySessions[0]=3;if(logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
+    emptySessions[0]=1;emptySessions[6]=3;if(logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
+    emptySessions[6]=1;emptySessions[0x2a1]=1;if(logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
+    emptySessions[0x2a1]=0;emptySessions[0x2a0]=2;if(logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
+    emptySessions[0x2a0]=0;emptySessions[0]=2;emptySessions[0x36c+4]=2;emptySessions[0x36c+6]=2;
+    if(!logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
+    emptySessions[0x36c+0x2a1]=1;if(logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));

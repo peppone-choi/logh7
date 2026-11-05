@@ -2034,20 +2034,31 @@ class GameExchange(
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
                 0x2003 -> {
                     check(lobbyLoggedIn && body.size==2)
-                    if(sessionDirectory!=null)return handshake.stageAll(listOf(LobbyMessages.characters(sessionDirectory.characters(identity.account))),clearHeader=0)
+                    if(sessionDirectory!=null) {
+                        val entries=sessionDirectory.characters(identity.account)
+                        // With no charged character, retain the default world's information for the native empty state.
+                        val response=if(entries.isNotEmpty())LobbyMessages.characters(entries)
+                            else LobbyMessages.characters(null,sessionDirectory.sessions().firstOrNull())
+                        return handshake.stageAll(listOf(response),clearHeader=0)
+                    }
                     val snapshot=navigation?.snapshot()
+                    val current=characterProvider()
                     // U-11: a character killed in battle is removed here; the lobby then offers creation.
-                    characters.character(identity.account)?.takeIf {snapshot?.session?.generation==admission?.generation &&
+                    characters.character(identity.account)?.takeIf {characters===current && snapshot?.session?.generation==admission?.generation &&
                         org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}?.let {characters.retire(identity.account,it.id)}
                     val character=characters.character(identity.account)
                     // Lobby accounts may inspect their own ended character without joining,
                     // changing CP/navigation, or obtaining a playable ended-session ticket.
-                    if(characters!==characterProvider())LobbyMessages.noCharacters()
+                    if(characters!==current)LobbyMessages.characters(null,
+                        SessionEndingReport.information(snapshot,current.registeredCharacters(),sessionId,sessionName,
+                            admission?.generation ?: 1L))
                     else if(character!=null && snapshot?.result!=null && snapshot.session?.generation==admission?.generation)
                         LobbyMessages.characters(character,SessionEndingReport.session(snapshot,characters.registeredCharacters()),
                             if(fame==null)org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0)
                             else fame.evaluation(snapshot,characters,identity.account))
-                    else LobbyMessages.characters(if(admission?.running==false)null else character)
+                    else LobbyMessages.characters(if(admission?.running==false)null else character,
+                        SessionEndingReport.information(snapshot,characters.registeredCharacters(),sessionId,sessionName,
+                            admission?.generation ?: 1L))
                 }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2)
                     sessionDirectory?.let {LobbyMessages.sessions(it.sessions())} ?: LobbyMessages.sessions(admission?.running != false) }

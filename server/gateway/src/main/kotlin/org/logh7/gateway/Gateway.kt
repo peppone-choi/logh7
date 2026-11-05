@@ -114,12 +114,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         val characterStores = CharacterStores(characterFile,accountFame)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         fun information(snapshot:org.logh7.engine.WorldSnapshot?,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
-            if(snapshot?.result!=null && snapshot.session?.generation==(admission?.generation ?: 1L))
-                return SessionEndingReport.session(snapshot,registered).copy(id=sessionId,name=sessionName)
-            val powers=listOf(2,3).map {power->SessionEndingMessages.PowerResult(power,0,
-                registered.count {it.power==power}.toLong(),
-                snapshot?.planetStocks?.bases?.values?.count {it.power==power && it.camp==0}?.toLong() ?: 0,null)}
-            return SessionEndingMessages.Session(sessionId,1,sessionName,"",snapshot?.session?.gameSeconds ?: 0,powers,null)
+            return SessionEndingReport.information(snapshot,registered,sessionId,sessionName,admission?.generation ?: 1L)
         }
         sessionRegistration=sessionDirectory?.register(GameSessionDirectory.Entry(sessionId,sessionName,sessionAddress,sessionPort,hosts.toSet(),
             generation={admission?.generation ?: 1L},available={started && !closed.get() && admission?.running!=false},

@@ -224,6 +224,12 @@ def project(source):
     rows.extend(static_resources.collect_wide(source.parents[2]/'exe/G7MTClient.exe',read_json(ROOT/'l10n/exe-wide-ui.ko.json'),validate))
     for index,text in enumerate(('명령 패널','레이더')):
         rows.append(dict(table=65534,group=0,index=index,source=b'NO TABLE',text=text))
+    for key,text in read_json(ROOT/'l10n/compat-ui.ko.json')['entries'].items():
+        match=re.fullmatch(r'([1-9][0-9]*)/([0-9]+)',key)
+        if not match or any(int(value)>65535 for value in match.groups()) or not isinstance(text,str) or not 1<=len(text)<=255 or '\0' in text:
+            raise ValueError('invalid compatibility UI entry')
+        validate('',text)
+        rows.append(dict(table=65534,group=int(match[1]),index=int(match[2]),source=b'NO TABLE',text=text))
     return ref,rows,missing,tables,message_coverage
 
 

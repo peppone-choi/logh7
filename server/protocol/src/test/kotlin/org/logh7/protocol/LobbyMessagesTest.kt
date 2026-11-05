@@ -71,7 +71,9 @@ class LobbyMessagesTest {
         val information=SessionEndingMessages.information(session)
         assertContentEquals(information,bytes.copyOfRange(7,7+information.size))
         assertContentEquals(byteArrayOf(0,2,1),bytes.copyOfRange(7+information.size,10+information.size))
-        assertContentEquals(LobbyMessages.noCharacters(),LobbyMessages.characters(null,session))
+        assertContentEquals(byteArrayOf(1)+information+byteArrayOf(0,0,0),
+            LobbyMessages.characters(null,session).let {it.copyOfRange(6,it.size)})
+        assertFailsWith<IllegalArgumentException>{LobbyMessages.characters(null,session,evaluation)}
         assertFailsWith<IllegalArgumentException>{LobbyMessages.characters(character,evaluation=evaluation)}
     }
 }

@@ -49,12 +49,12 @@ class DisplayHookTests(unittest.TestCase):
         header=(catalog.ROOT/'client-compat/display_hooks.h').read_text('utf-8')
         block=re.search(r'displayShipSpecCalls\[\]=\{(.*?)\n\};',header,re.S).group(1)
         rows=re.findall(r'\{(0x[0-9a-f]+),\{([^}]+)\}\}',block)
-        self.assertEqual(1,len(rows))
-        address,encoded=rows[0];address=int(address,16)
-        expected=bytes(int(value.strip(),16) for value in encoded.split(','))
-        self.assertEqual(0x4c7b5e,address)
-        self.assertEqual(expected,self.raw(address,5))
-        self.assertEqual(0x64c286,address+5+struct.unpack_from('<i',expected,1)[0])
+        self.assertEqual({0x4c7b5e,0x54d891},{int(address,16) for address,_ in rows})
+        for address,encoded in rows:
+            address=int(address,16)
+            expected=bytes(int(value.strip(),16) for value in encoded.split(','))
+            self.assertEqual(expected,self.raw(address,5))
+            self.assertEqual(0x64c286,address+5+struct.unpack_from('<i',expected,1)[0])
         # kind:u16 at +8bc, kind*680 (17*5*8), UTF-16 name +c.
         self.assertEqual(bytes.fromhex('668b8ebc0800008bc1c1e00403c18b0dfccf7c008d04808d84c1781a2c0083c00c50'),
                          self.raw(0x4c7b38,34))

@@ -16,6 +16,17 @@ def fixture(strings):
 
 
 class CatalogueTest(unittest.TestCase):
+    def test_compatibility_notice_text_round_trips_without_native_placeholders(self):
+        entries=catalog.read_json(catalog.ROOT/'l10n/compat-ui.ko.json')['entries']
+        self.assertIn('1/0',entries)
+        glyphs,encode=catalog.glyph_encoding(entries.values())
+        for text in entries.values():
+            catalog.validate('',text)
+            self.assertTrue(0<len(text)<256)
+            encoded=encode(text).decode('cp932')
+            decoded=''.join(glyphs[ord(c)-0xe000] if 0xe000<=ord(c)<0xe000+len(glyphs) else c for c in encoded)
+            self.assertEqual(text,decoded)
+
     def test_lossless_private_glyphs(self):
         # Private transport is confined to resources. All modern Hangul must
         # either round-trip or fail capacity checks; never silently become '?'.
