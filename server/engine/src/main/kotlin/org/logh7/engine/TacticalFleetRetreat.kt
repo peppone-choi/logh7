@@ -90,17 +90,19 @@ internal object TacticalFleetRetreat {
                 if(remaining.values.isEmpty() && ashore.isEmpty())stocks=stocks.copy(outfits=stocks.outfits+(outfitId to current.copy(
                     position=OutfitPosition(target),activeShips=moving,activeGround=if(current.activeGround==null)null else movedGround)))
                 else {
-                    val newId=(stocks.outfits.keys.maxOrNull() ?: 0)+1
+                    val sequence=try {OutfitFormationPolicy.sequence(stocks)} catch(_:IllegalArgumentException) {continue}
+                    val newId=sequence.nextOutfit
                     val shared=current.kind==OutfitKind.PATROL
-                    val warehouseId=if(shared)current.warehouseId else (stocks.warehouses.keys.maxOrNull() ?: 0)+1
-                    if(stocks.outfits.size>=1000 || stocks.warehouses.size>=1000 || newId<=0 || warehouseId<=0)continue
-                    val detachment=OutfitStock(newId,current.power,current.kind,current.baseId,warehouseId,
+                    val warehouseId=if(shared)current.warehouseId else sequence.nextWarehouse
+                    if(stocks.outfits.size>=1000 || !shared && stocks.warehouses.size>=1000 || newId==Int.MAX_VALUE || warehouseId==Int.MAX_VALUE)continue
+                    val detachment=OutfitStock(newId,current.country,current.kind,current.baseId,warehouseId,
                         units=UnitInventory(moving.quantities(),movedGround.quantities()+movedCrew),supplies=movedSupplies,activeShips=moving,
-                        position=OutfitPosition(target),activeGround=if(current.activeGround==null)null else movedGround)
+                        position=OutfitPosition(target),activeGround=if(current.activeGround==null)null else movedGround,shipStyle=current.shipStyle)
                     val left=current.copy(activeShips=remaining,activeGround=if(current.activeGround==null)null else leftGround,
                         units=UnitInventory(remaining.quantities(),leftGround.quantities()+leftCrew),supplies=current.supplies-movedSupplies)
                     stocks=stocks.copy(outfits=stocks.outfits+(outfitId to left)+(newId to detachment),warehouses=if(shared)stocks.warehouses else stocks.warehouses+
-                        (warehouseId to OutfitWarehouse(warehouseId,current.power,current.kind,current.baseId,newId)),
+                        (warehouseId to OutfitWarehouse(warehouseId,current.country,current.kind,current.baseId,newId,shipStyle=current.shipStyle)),
+                        outfitSequence=OutfitSequence(newId+1,if(shared)sequence.nextWarehouse else warehouseId+1),
                         tacticalCommands=stocks.tacticalCommands.copy(authority=stocks.tacticalCommands.authority+
                             group.associate {it.id to TacticalAuthority.commander(current,it,stocks)}))
                 }

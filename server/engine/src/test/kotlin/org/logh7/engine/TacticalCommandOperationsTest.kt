@@ -363,6 +363,32 @@ class TacticalCommandOperationsTest {
         assertEquals(10000,TacticalAuthority.commander(moved,moved.activeShips!!.values.single(),s.stocks))
         assertEquals(100,s.stocks.outfits.values.sumOf {it.supplies})
     }
+    @Test fun partialRetreatKeepsTheIndependentFleetAndWarehouseModelsAndStableIdentities() {
+        val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
+        val outfit=s.stocks.outfits.getValue(1)
+        val ships=ActiveShipUnits(outfit.activeShips!!.values.map {it.copy(stack=UnitStack(if(it.id==1)147 else 151),
+            tactical=NpcTacticalState(motion(260f,it.id*.4f),now,now))})
+        val ground=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(5),base=1000,origin=1)))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(shipStyle=ShipStyleId("alliance"),activeShips=ships,
+            activeGround=ground,units=UnitInventory(ships.quantities(),ground.quantities()))),
+            warehouses=s.stocks.warehouses+(10 to s.stocks.warehouses.getValue(10).copy(shipStyle=ShipStyleId("alliance"))),
+            outfitSequence=OutfitSequence(50,60))
+        val r=run(s);val req=request(TacticalCommand(0x40d,listOf(1))).copy(tacticalCommand=null,tacticalRetreat=listOf(1))
+        assertNotNull(TacticalFleetRetreat.accept(req,session,galaxy,r.navigation,r.production,r.production.snapshot(1)!!,s.commit,1).player)
+        settle(r,now+5);settle(r,now+155)
+        val moved=s.stocks.outfits.getValue(50)
+        assertNotEquals(2488,moved.positionIn(galaxy).grid)
+        assertEquals(CountryId(2),moved.country);assertEquals(ShipStyleId("alliance"),moved.shipStyle)
+        assertEquals(ShipStyleId("alliance"),s.stocks.outfits.getValue(1).shipStyle)
+        assertEquals(listOf(1),moved.activeShips!!.values.map {it.id})
+        assertEquals(147,moved.activeShips.values.single().stack.kind)
+        assertEquals(60,moved.warehouseId)
+        assertEquals(CountryId(2),s.stocks.warehouses.getValue(60).country)
+        assertEquals(ShipStyleId("alliance"),s.stocks.warehouses.getValue(60).shipStyle)
+        assertEquals(OutfitSequence(51,61),s.stocks.outfitSequence)
+        assertEquals(ground,s.stocks.outfits.getValue(1).activeGround)
+        assertEquals(10000,TacticalAuthority.commander(moved,moved.activeShips.values.single(),s.stocks))
+    }
     @Test fun fortressCannonHitsFriendlyAndEnemyShipsAlongTheRay() {
         val s=state();val outfit=s.stocks.outfits.getValue(1)
         val ships=ActiveShipUnits(outfit.activeShips!!.values.map {if(it.id==2)it.copy(stack=UnitStack(32)) else it})

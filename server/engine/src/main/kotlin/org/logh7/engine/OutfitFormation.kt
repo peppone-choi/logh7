@@ -19,6 +19,7 @@ data class OutfitFormationResult(val player:Navigator?,val stocks:PlanetStocks?,
  * returning inventory and damaged-unit restrictions are evidence:guess. W70/71 fixes
  * MCP320/160, unit formation and stationed dissolution. Author: Peppone Choi. */
 object OutfitFormationPolicy {
+    private val countries by lazy {CountryCatalogLoader.load()}
     fun kinds(card:Int):Set<OutfitKind> = when(card) {
         24->setOf(OutfitKind.FLEET)
         25->setOf(OutfitKind.TRANSPORT,OutfitKind.PATROL,OutfitKind.GROUND)
@@ -32,7 +33,9 @@ object OutfitFormationPolicy {
         require(raw in 0..199 || raw in 1000..1015)
         return (raw>=1000) to UnitStack(if(raw>=1000)raw-1000 else raw,level)
     }
-    fun available(stocks:PlanetStocks,base:Int,power:Int,kind:OutfitKind):Map<Int,Int> {
+    fun available(stocks:PlanetStocks,base:Int,power:Int,kind:OutfitKind)=available(stocks,base,ShipStyleId.fromLegacy(power),kind)
+    fun available(stocks:PlanetStocks,base:Int,style:ShipStyleId,kind:OutfitKind):Map<Int,Int> {
+        val power=style.nativePower
         val b=stocks.bases.getValue(base)
         return buildMap {
             for(stack in b.units.ships.keys+b.spareShips.values.keys) {
@@ -47,49 +50,52 @@ object OutfitFormationPolicy {
     }
     fun authority(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks):StrategyActionRejection? {
         val role=OrganizationOffices.of(r.identity.card) ?: return StrategyActionRejection.CARD
-        val power=if(p.power==Power.EMPIRE)2 else 3
+        val country=p.country ?: return StrategyActionRejection.IDENTITY
+        val power=country.value
         if(role.power!=power || role.camp!=0 || r.kind !in kinds(role.card))return StrategyActionRejection.CARD
         val rank=stocks.strategic.people[p.characterId]?.rank ?: r.identity.rank
         if(rank !in role.ranks || OrganizationalOfficePolicy(galaxy).holders(stocks,role.card).none {it.character==p.characterId})
             return StrategyActionRejection.AUTHORITY
         val base=stocks.bases[r.base] ?: return StrategyActionRejection.LOCATION
-        if(base.power!=power || base.camp!=0 || p.baseId!=r.base || p.mode !in 1..4 ||
+        if(!base.belongsTo(country) || base.camp!=0 || p.baseId!=r.base || p.mode !in 1..4 ||
             galaxy.bases.singleOrNull {it.id==r.base}?.grid!=p.grid)return StrategyActionRejection.LOCATION
         if(p.cpPaused || p.navigationPending)return StrategyActionRejection.BUSY
         return null
     }
-    private fun sequence(stocks:PlanetStocks):OutfitSequence {
+    internal fun sequence(stocks:PlanetStocks):OutfitSequence {
         val nextOutfit=maxOf(stocks.outfitSequence.nextOutfit.toLong(),(stocks.outfits.keys.maxOrNull() ?: 0).toLong()+1)
         val nextWarehouse=maxOf(stocks.outfitSequence.nextWarehouse.toLong(),(stocks.warehouses.keys.maxOrNull() ?: 0).toLong()+1)
         require(nextOutfit<=Int.MAX_VALUE && nextWarehouse<=Int.MAX_VALUE)
         return OutfitSequence(nextOutfit.toInt(),nextWarehouse.toInt())
     }
-    internal fun create(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks,selected:Map<Int,Int>,supplies:Int):OutfitFormationResult {
+    internal fun create(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks,selected:Map<Int,Int>,supplies:Int,
+        style:ShipStyleId=countries.shipStyle(checkNotNull(p.country))):OutfitFormationResult {
         fun reject(reason:StrategyActionRejection)=OutfitFormationResult(p,stocks,reason,base=r.base)
         if(selected.isEmpty())return reject(StrategyActionRejection.TROOPS)
-        val power=if(p.power==Power.EMPIRE)2 else 3
+        val country=checkNotNull(p.country)
+        val power=style.nativePower
         val source=stocks.bases.getValue(r.base)
         if(supplies !in 0..source.supplies)return reject(StrategyActionRejection.RESOURCE)
         val available=available(stocks,r.base,power,r.kind)
         if(selected.any {(code,n)->n<=0 || n>(available[code] ?: 0)})return reject(StrategyActionRejection.RESOURCE)
         if(stocks.outfits.size>=1000)return reject(StrategyActionRejection.MAXIMUM)
         if(stocks.outfits.values.count {it.positionIn(galaxy).grid==p.grid}>=300)return reject(StrategyActionRejection.MAXIMUM)
-        val number=(1..255).firstOrNull {n->stocks.outfits.values.none {it.power==power && it.kind==r.kind && it.number==n}}
+        val number=(1..255).firstOrNull {n->stocks.outfits.values.none {it.country==country && it.kind==r.kind && it.number==n}}
             ?: return reject(StrategyActionRejection.MAXIMUM)
         val ids=sequence(stocks);val id=ids.nextOutfit
         if(id==Int.MAX_VALUE)return reject(StrategyActionRejection.MAXIMUM)
         val shared=r.kind.warehouseKind==OutfitKind.PATROL
-        val sharedWarehouse=if(shared)stocks.warehouses.values.singleOrNull {it.baseId==r.base && it.power==power &&
+        val sharedWarehouse=if(shared)stocks.warehouses.values.singleOrNull {it.baseId==r.base && it.country==country && it.shipStyle==style &&
             it.kind.warehouseKind==OutfitKind.PATROL && it.outfitId==0} else null
         if(sharedWarehouse==null && stocks.warehouses.size>=1000)return reject(StrategyActionRejection.MAXIMUM)
         val warehouse=sharedWarehouse?.id ?: ids.nextWarehouse
         if(sharedWarehouse==null && warehouse==Int.MAX_VALUE)return reject(StrategyActionRejection.MAXIMUM)
-        val empty=OutfitStock(id,power,r.kind,r.base,warehouse,number=number,position=OutfitPosition(p.grid,r.base))
+        val empty=OutfitStock(id,country,r.kind,r.base,warehouse,number=number,position=OutfitPosition(p.grid,r.base),shipStyle=style)
         val shipKinds=ProductionUnits.definitions.filter {it.ship && it.power==power}.map {it.kind}.toSet()
         val troopKinds=UnitSpecifications.crews.filter {it.power==power}.map {it.kind}.toSet()
-        val temporary=OutfitWarehouse(warehouse,power,r.kind.warehouseKind,r.base,if(shared)0 else id,
+        val temporary=OutfitWarehouse(warehouse,country,r.kind.warehouseKind,r.base,if(shared)0 else id,
             UnitInventory(source.units.ships.filterKeys {it.kind in shipKinds},source.units.troops.filterKeys {it.kind in troopKinds}),
-            spareShips=SpareShipBoats(source.spareShips.values.filterKeys {it.kind in shipKinds}))
+            spareShips=SpareShipBoats(source.spareShips.values.filterKeys {it.kind in shipKinds}),shipStyle=style)
         var prepared=stocks.copy(outfits=stocks.outfits+(id to empty),warehouses=stocks.warehouses+(warehouse to temporary))
         val ships=linkedMapOf<UnitStack,Int>();val troops=linkedMapOf<UnitStack,Int>()
         for((code,n) in selected) {val (troop,stack)=stack(code);if(troop)troops[stack]=n else ships[stack]=n}
@@ -130,8 +136,7 @@ object OutfitFormationPolicy {
     internal fun dissolve(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks):OutfitFormationResult {
         fun reject(reason:StrategyActionRejection)=OutfitFormationResult(p,stocks,reason,base=r.base)
         val outfit=stocks.outfits[r.target] ?: return reject(StrategyActionRejection.TARGET)
-        val power=if(p.power==Power.EMPIRE)2 else 3
-        if(outfit.power!=power || outfit.kind!=r.kind)return reject(StrategyActionRejection.AUTHORITY)
+        if(outfit.country!=p.country || outfit.kind!=r.kind)return reject(StrategyActionRejection.AUTHORITY)
         if(outfit.positionIn(galaxy)!=OutfitPosition(p.grid,r.base))return reject(StrategyActionRejection.LOCATION)
         val ships=outfit.activeShips ?: return reject(StrategyActionRejection.TROOPS)
         val ground=outfit.activeGround?.values.orEmpty()
@@ -150,7 +155,7 @@ object OutfitFormationPolicy {
         val warehouse=stocks.warehouses.getValue(outfit.warehouseId)
         val private=warehouse.outfitId>0
         val home=stocks.bases.getValue(outfit.baseId)
-        if(private && (home.power!=power || home.camp!=0))return reject(StrategyActionRejection.LOCATION)
+        if(private && (home.country!=p.country || home.camp!=0))return reject(StrategyActionRejection.LOCATION)
         val bases=stocks.bases.toMutableMap()
         fun add(baseId:Int,units:UnitInventory,spare:SpareShipBoats,supply:Int,food:Int=0,mineral:Int=0) {
             val b=bases.getValue(baseId)

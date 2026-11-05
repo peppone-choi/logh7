@@ -29,6 +29,7 @@ data class ProductionState(
 }
 
 object ProductionActions {
+    private val countries by lazy {CountryCatalogLoader.load()}
     const val BUILD=31
     const val PAUSE=32
     const val RESUME=33
@@ -59,15 +60,16 @@ object ProductionActions {
     }
     /** Ship kinds (35) or troop kinds (36) the base's side may order. */
     fun kinds(power:Int,ship:Boolean)=ProductionUnits.definitions.filter {it.power==power && it.ship==ship}.distinctBy {it.kind}.sortedBy {it.kind}
+    fun kinds(country:CountryId,ship:Boolean,catalog:CountryCatalog=countries)=kinds(catalog.shipStyle(country).nativePower,ship)
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
-        policy:UnitProductionPolicy=UnitProductionPolicy()):SocialResult {
+        policy:UnitProductionPolicy=UnitProductionPolicy(),catalog:CountryCatalog=countries):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.power.country || member.country!=i.power.country)
             return reject(SocialRejection.IDENTITY)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         val own=if(p.power==Power.EMPIRE)2 else 3
@@ -77,7 +79,7 @@ object ProductionActions {
         val base=p.baseId
         if(base==0 || base !in FundActions.governed(s,i.characterId,own))return reject(SocialRejection.LOCATION)
         val stock=s.bases.getValue(base);val prod=s.social.production
-        val unit=if(i.command==SHIP || i.command==RECRUIT)kinds(own,i.command==SHIP).singleOrNull {it.kind==i.value} else null
+        val unit=if(i.command==SHIP || i.command==RECRUIT)kinds(i.power.country,i.command==SHIP,catalog).singleOrNull {it.kind==i.value} else null
         when(i.command) {
             BUILD -> {
                 if(hasShipyard(g,s,base))return reject(SocialRejection.TARGET)

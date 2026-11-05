@@ -125,22 +125,26 @@ internal object FlagshipMarketActions {
  * commanded by the buyer (the CD has no guard outfit kind). The PCP 80 cost mirrors the flagship
  * purchase (evidence:guess). Author: Peppone Choi. */
 internal object GuardUnitActions {
+    private val countries by lazy {CountryCatalogLoader.load()}
     const val COST=80L
     val GUARD_NUMBERS=201..255
     fun guardOf(stocks:PlanetStocks,character:Int)=stocks.outfits.values.singleOrNull {it.guard!=null && it.commanderId==character}
-    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
+        catalog:CountryCatalog=countries):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val now=s.gameMillis/1000
-        val power=if(p.power==Power.EMPIRE)2 else 3
+        val country=p.country ?: return reject(StrategyActionRejection.IDENTITY)
         if(p.cpPaused || p.navigationPending || (p.hull?.woundedUntil ?: 0)>now)return reject(StrategyActionRejection.BUSY)
         val own=guardOf(stocks,r.characterId)
+        if(own!=null && own.country!=country)return reject(StrategyActionRejection.AUTHORITY)
         val next:PlanetStocks
         if(r.argument==5) {
             if(r.value!=0 || r.target!=0)return reject(StrategyActionRejection.COMMAND)
             val outfit=own ?: return reject(StrategyActionRejection.TROOPS)
             next=stocks.copy(outfits=stocks.outfits-outfit.id)
         } else {
-            val choice=GuardShips.option(r.value)?.takeIf {it.power==power && r.target==0} ?: return reject(StrategyActionRejection.COMMAND)
+            val style=GuardShips.styleFor(stocks,r.characterId,country,catalog)
+            val choice=GuardShips.option(r.value)?.takeIf {it.power==style.nativePower && r.target==0} ?: return reject(StrategyActionRejection.COMMAND)
             val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
             if(rank !in 2..choice.maximumRank && rank!=0)return reject(StrategyActionRejection.RANK)
             if(!FlagshipMarketCatalog.atYard(galaxy,stocks,p))return reject(StrategyActionRejection.LOCATION)
@@ -149,22 +153,27 @@ internal object GuardUnitActions {
             if((own?.guard?.size ?: 0)>=GuardShips.MAXIMUM_UNITS)return reject(StrategyActionRejection.MAXIMUM)
             val person=stocks.strategic.people[r.characterId] ?: StrategicPerson()
             if(person.evaluation<choice.price)return reject(StrategyActionRejection.POINTS)
-            val warehouse=stocks.warehouses.values.singleOrNull {it.power==power && it.baseId==p.baseId &&
-                it.kind.warehouseKind==OutfitKind.PATROL && it.outfitId==0} ?: return reject(StrategyActionRejection.LOCATION)
+            val ids=try {OutfitFormationPolicy.sequence(stocks)} catch(_:IllegalArgumentException) {return reject(StrategyActionRejection.MAXIMUM)}
+            val existing=own?.let {stocks.warehouses.getValue(it.warehouseId)} ?: stocks.warehouses.values.singleOrNull {it.country==country && it.shipStyle==style && it.baseId==p.baseId &&
+                it.kind.warehouseKind==OutfitKind.PATROL && it.outfitId==0}
+            if(stocks.nextShipId>=1_000_000 || own==null && (stocks.outfits.size>=1000 || ids.nextOutfit==Int.MAX_VALUE) ||
+                existing==null && (stocks.warehouses.size>=1000 || ids.nextWarehouse==Int.MAX_VALUE))return reject(StrategyActionRejection.MAXIMUM)
+            val warehouse=existing ?: OutfitWarehouse(ids.nextWarehouse,country,OutfitKind.PATROL,p.baseId,shipStyle=style)
             val stack=UnitStack(choice.baseKind)
             val unit=ActiveShipUnit(stocks.nextShipId,stack,GuardShips.BOATS)
             val base=galaxy.bases.single {it.id==p.baseId}
             val outfit=if(own!=null) own.copy(units=UnitInventory(own.units.ships+(stack to (own.units.ships[stack] ?: 0)+1),own.units.troops),
                 activeShips=ActiveShipUnits(own.activeShips!!.values+unit),guard=own.guard!!+(unit.id to choice.index))
             else {
-                val id=(stocks.outfits.keys.maxOrNull() ?: 0)+1
+                val id=ids.nextOutfit
                 // Guard units take patrol numbers 201..255 so the client can tell them from regular patrols.
-                val used=stocks.outfits.values.filter {it.power==power && it.guard!=null}.map {it.number}.toSet()
+                val used=stocks.outfits.values.filter {it.country==country && it.guard!=null}.map {it.number}.toSet()
                 val number=(GUARD_NUMBERS).firstOrNull {it !in used} ?: return reject(StrategyActionRejection.MAXIMUM)
-                OutfitStock(id,power,OutfitKind.PATROL,base.id,warehouse.id,r.characterId,UnitInventory(mapOf(stack to 1)),number,
-                    activeShips=ActiveShipUnits(listOf(unit)),position=OutfitPosition(base.grid,base.id),guard=mapOf(unit.id to choice.index))
+                OutfitStock(id,country,OutfitKind.PATROL,base.id,warehouse.id,r.characterId,UnitInventory(mapOf(stack to 1)),number,
+                    activeShips=ActiveShipUnits(listOf(unit)),position=OutfitPosition(base.grid,base.id),guard=mapOf(unit.id to choice.index),shipStyle=style)
             }
-            next=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit),nextShipId=stocks.nextShipId+1,
+            next=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit),warehouses=stocks.warehouses+(warehouse.id to warehouse),nextShipId=stocks.nextShipId+1,
+                outfitSequence=OutfitSequence(if(own==null)outfit.id+1 else ids.nextOutfit,if(existing==null)warehouse.id+1 else ids.nextWarehouse),
                 strategic=stocks.strategic.copy(people=stocks.strategic.people+(r.characterId to person.copy(evaluation=person.evaluation-choice.price))))
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),COST,CpPool.PCP)

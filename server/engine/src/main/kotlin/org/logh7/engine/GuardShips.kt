@@ -23,6 +23,7 @@ data class GuardShipOption(val index:Int,val power:Int,val name:String,val baseK
  * Every modifier is evidence:guess derived from the official description: unmanned ships
  * default to 90% attack ("能力値は元になっているユニットより劣る"). Author: Peppone Choi. */
 object GuardShips {
+    private val countries by lazy {CountryCatalogLoader.load()}
     const val MAXIMUM_UNITS=3
     const val BOATS=300
     private const val COMMODORE=7;private const val CAPTAIN=8;private const val COMMANDER=9
@@ -58,6 +59,10 @@ object GuardShips {
         GuardShipOption(24,3,"보조 경비함(강화 상선)",139,1000,PRIVATE,GuardModifier(),"강화상선"),
         GuardShipOption(25,3,"보조 경비함(상선 개장)",139,500,PRIVATE,GuardModifier(attack=80,speed=70),"보조함"))
     fun forPower(power:Int)=options.filter {it.power==power}
+    fun forStyle(style:ShipStyleId)=forPower(style.nativePower)
+    fun styleFor(stocks:PlanetStocks,character:Int,country:CountryId,catalog:CountryCatalog=countries):ShipStyleId =
+        stocks.outfits.values.singleOrNull {it.guard!=null && it.commanderId==character && it.country==country}?.shipStyle
+            ?: catalog.shipStyle(country)
     fun option(index:Int)=options.getOrNull(index)
 }
 

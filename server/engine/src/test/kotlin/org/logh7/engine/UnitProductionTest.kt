@@ -94,11 +94,12 @@ class UnitProductionTest {
     }
     @Test fun capturedRecipesUseSameNamedCaptorKindsAndDoNotInventExclusiveTechnology() {
         val producer=producer()
-        val converted=producer.forOwner(1049,3).associate { it.unit.key to it.batch }
+        val converted=producer.forCountry(1049,CountryId(3)).associate { it.unit.key to it.batch }
         assertEquals(mapOf("S119" to 1,"S127" to 1,"S139" to 2,"S140" to 1,"T7" to 5,"T4" to 2),converted)
-        assertEquals(producer.lines.getValue(1049),producer.forOwner(1049,2))
-        assertTrue(producer.forOwner(1049,0).isEmpty())
-        assertTrue(producer.forOwner(9999,3).isEmpty())
+        assertEquals(producer.lines.getValue(1049),producer.forCountry(1049,CountryId(2)))
+        assertTrue(producer.forCountry(1049,null).isEmpty())
+        assertTrue(producer.forCountry(1049,CountryId(42)).isEmpty())
+        assertTrue(producer.forCountry(9999,CountryId(3)).isEmpty())
         var captured=initial().copy(owner=Allegiance.fromLegacy(3),units=UnitInventory(work=mapOf("S32" to 89,"T3" to 119)))
         captured=producer.advance(captured,captured)
         assertEquals(24,captured.units.work["S119"])

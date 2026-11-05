@@ -14,7 +14,8 @@ data class InitialOutfitPolicy(val battleships: Int = 10, val cruisers: Int = 10
     }
 }
 
-class InitialOutfitDeployment(private val galaxy: Galaxy, private val policy: InitialOutfitPolicy = InitialOutfitPolicy()) {
+class InitialOutfitDeployment(private val galaxy: Galaxy, private val policy: InitialOutfitPolicy = InitialOutfitPolicy(),
+    private val countries:CountryCatalog=CountryCatalogLoader.load()) {
     data class Placement(val power: Int, val kind: OutfitKind, val number: Int, val base: Int,
         val source: ManualSource?, val designedLocation: Boolean = false)
     private val systems = mapOf("シュバーラ" to "シュパーラ", "ニブルヘイム" to "ニヴルヘイム", "バルドレ" to "バルドル",
@@ -74,11 +75,12 @@ class InitialOutfitDeployment(private val galaxy: Galaxy, private val policy: In
             }
             val shared = kind.warehouseKind == OutfitKind.PATROL
             val warehouse = if (shared) 100_000 + p*65536 + placement.base else 1000 + id
-            val inventory = inventory(p,kind)
+            val country=CountryId(p);val style=countries.shipStyle(country)
+            val inventory = inventory(style.nativePower,kind)
             val supplies = when (kind) { OutfitKind.FLEET -> policy.fleetSupplies; OutfitKind.PATROL -> policy.patrolSupplies; else -> policy.groundSupplies }
-            require(outfits.put(id,OutfitStock(id,p,kind,placement.base,warehouse,units=inventory,
-                number=placement.number,supplies=supplies)) == null) { "Duplicate initial outfit identity" }
-            warehouses.putIfAbsent(warehouse,OutfitWarehouse(warehouse,p,kind.warehouseKind,placement.base,if (shared) 0 else id))
+            require(outfits.put(id,OutfitStock(id,country,kind,placement.base,warehouse,units=inventory,
+                number=placement.number,supplies=supplies,shipStyle=style)) == null) { "Duplicate initial outfit identity" }
+            warehouses.putIfAbsent(warehouse,OutfitWarehouse(warehouse,country,kind.warehouseKind,placement.base,if (shared) 0 else id,shipStyle=style))
         }
         return stocks.copy(outfits=outfits,warehouses=warehouses,deploymentInitialized=true)
     }

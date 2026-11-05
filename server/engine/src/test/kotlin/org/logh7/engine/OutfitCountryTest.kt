@@ -11,6 +11,23 @@ class OutfitCountryTest {
     private fun state(outfit:OutfitStock=fleet,depot:OutfitWarehouse=warehouse)=
         PlanetStocks(1,0,mapOf(1000 to base),mapOf(outfit.id to outfit),mapOf(depot.id to depot))
 
+    @Test fun aKnownCountryMayRestoreAFleetAndDepotWithTheOtherModelFamily()=runBlocking {
+        val stack=UnitStack(119)
+        val mixed=fleet.copy(shipStyle=ShipStyleId("alliance"),units=UnitInventory(ships=mapOf(stack to 1)),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(101,stack))))
+        val stocks=PlanetStocks(1,0,mapOf(1000 to base),mapOf(1 to mixed),
+            mapOf(1 to warehouse.copy(shipStyle=ShipStyleId("alliance"))),nextShipId=102,deploymentInitialized=true)
+        val store=object:PlanetStockStore {override fun load()=stocks;override fun save(stocks:PlanetStocks) {}}
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val engine=WorldEngine(this,ticking=false,galaxy=galaxy,stockStore=store)
+        try {
+            engine.synchronizeTime()
+            assertEquals(mixed,engine.snapshot().planetStocks?.outfits?.get(1))
+            assertEquals(stocks.warehouses,engine.snapshot().planetStocks?.warehouses)
+        } finally {engine.drainAndClose()}
+    }
+
     @Test fun identicalStylesNeverLetAnotherCountryUseTheFleetsWarehouse() {
         for(id in listOf(1,4,42)) {
             val foreign=fleet.copy(country=CountryId(id))

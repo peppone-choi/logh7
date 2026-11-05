@@ -16,6 +16,25 @@ class ProductionActionsTest {
     private fun act(command:Int,s:PlanetStocks,value:Int=0)=SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(
         "a","a",10000,Power.EMPIRE,1,command,66,1,value=value)),session,a,s,listOf(a),mapOf("a" to a))
 
+    @Test fun theCountryChoosesNewModelsWhileAnAlreadyPaidOrderKeepsItsOldKind() {
+        val catalog=countriesWithSwappedShipStyles()
+        val kinds=ProductionActions.kinds(CountryId(2),true,catalog)
+        assertTrue(kinds.all {it.power==3})
+        fun order(s:PlanetStocks,kind:Int)=ProductionActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(
+            "a","a",10000,Power.EMPIRE,1,ProductionActions.SHIP,66,1,value=kind)),session,a,s,catalog=catalog)
+        val pending=stocks.copy(social=stocks.social.copy(production=ProductionState(orders=mapOf(1049 to ShipOrder(32,now)))))
+        assertEquals(SocialRejection.BUSY,order(pending,119).rejection)
+        val finished=ProductionActions.settle(pending,now)
+        assertEquals(1,finished.bases.getValue(1049).units.ships[UnitStack(32)])
+        val denied=order(finished,32)
+        assertEquals(SocialRejection.TARGET,denied.rejection);assertEquals(a,denied.player);assertEquals(finished,denied.stocks)
+        val accepted=order(finished,119)
+        assertNull(accepted.rejection);assertEquals(920,accepted.player?.mcp)
+        assertEquals(119,accepted.stocks?.social?.production?.orders?.get(1049)?.kind)
+        assertEquals(1,accepted.stocks?.bases?.get(1049)?.units?.ships?.get(UnitStack(32)))
+        assertEquals(2,accepted.player?.country?.value)
+    }
+
     @Test fun aLordBuildsPausesAndDestroysAShipyard() {
         // Every seeded base starts with a shipyard: destroy it first, then build a new one.
         assertTrue(ProductionActions.hasShipyard(galaxy,stocks,1049))

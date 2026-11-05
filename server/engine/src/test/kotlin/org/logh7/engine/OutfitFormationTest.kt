@@ -30,6 +30,49 @@ class OutfitFormationTest {
             OrganizationOffices.of(card)?.ranks?.first() ?: 5,navigators=mapOf("actor" to player)),phase,1049,kind)
     private fun create(s:PlanetStocks=stocks(),p:Navigator=player,selected:Map<Int,Int> = mapOf(code to 3),
         supplies:Int=0,r:OutfitFormationRequest=request())=OutfitFormationPolicy.create(galaxy,r,p,s,selected,supplies)
+
+    @Test fun theFormationLeaseUsesCountryModelsWhileKeepingTheCaptainsOwnStyleAndOldStock() {
+        val before=stocks();val base=before.bases.getValue(1049)
+        val model=UnitStack(139);val sailors=UnitStack(7)
+        val mixed=before.copy(bases=before.bases+(1049 to base.copy(units=UnitInventory(base.units.ships+(model to 2),
+            base.units.troops+(sailors to 1000),base.units.work),productionCountry=CountryId(2))))
+        val service=OutfitFormationService(countriesWithSwappedShipStyles()) {0L}
+        val begun=service.evaluate(galaxy,request(),session,player,mixed)
+        assertNull(begun.rejection)
+        val modelCode=OutfitFormationPolicy.code(model,false)
+        assertTrue(begun.items.any {it.code==modelCode});assertFalse(begun.items.any {it.code==code})
+        val denied=service.evaluate(galaxy,request(FormationPhase.SET_UNIT).copy(target=begun.lease,unit=code,amount=1),session,player,mixed)
+        assertEquals(StrategyActionRejection.RESOURCE,denied.rejection);assertEquals(player,denied.player);assertEquals(mixed,denied.stocks)
+        assertNull(service.evaluate(galaxy,request(FormationPhase.SET_UNIT).copy(target=begun.lease,unit=modelCode,amount=1),session,player,mixed).rejection)
+        val result=service.evaluate(galaxy,request(FormationPhase.COMMIT).copy(target=begun.lease),session,player,mixed)
+        assertNull(result.rejection)
+        val after=assertNotNull(result.stocks);val outfit=after.outfits.getValue(result.outfit)
+        assertEquals(CountryId(2),outfit.country);assertEquals(ShipStyleId("alliance"),outfit.shipStyle)
+        assertEquals(ShipStyleId("empire"),result.player?.shipStyle);assertEquals(680,result.player?.mcp)
+        assertEquals(1,outfit.units.ships[model]);assertTrue(outfit.units.troops.keys.all {it.kind==7})
+        assertEquals(base.units.ships[ship],after.bases.getValue(1049).units.ships[ship])
+        assertEquals(base.units.troops[crew],after.bases.getValue(1049).units.troops[crew])
+        assertEquals(CountryId(2),after.bases.getValue(1049).productionCountry)
+        assertEquals(base.units.work,after.bases.getValue(1049).units.work)
+        assertEquals(ShipStyleId("alliance"),after.warehouses.getValue(outfit.warehouseId).shipStyle)
+    }
+
+    @Test fun aNewStyleGetsItsOwnWarehouseAndKeepsNationalFormationNumbersUnique() {
+        val before=stocks(25);val base=before.bases.getValue(1049);val model=UnitStack(139)
+        val old=OutfitStock(50,2,OutfitKind.PATROL,1049,50,number=1)
+        val depot=OutfitWarehouse(50,2,OutfitKind.PATROL,1049)
+        val foreign=OutfitWarehouse(51,CountryId(42),OutfitKind.PATROL,1049,shipStyle=ShipStyleId("alliance"))
+        val mixed=before.copy(bases=before.bases+(1049 to base.copy(units=UnitInventory(base.units.ships+(model to 1),
+            base.units.troops+(UnitStack(7) to 1000),base.units.work))),outfits=mapOf(50 to old),warehouses=mapOf(50 to depot,51 to foreign))
+        val result=OutfitFormationPolicy.create(galaxy,request(card=25,kind=OutfitKind.PATROL),player,mixed,
+            mapOf(OutfitFormationPolicy.code(model,false) to 1),0,ShipStyleId("alliance"))
+        assertNull(result.rejection)
+        val after=assertNotNull(result.stocks);val created=after.outfits.getValue(result.outfit)
+        assertEquals(2,created.number);assertEquals(52,created.warehouseId)
+        assertEquals(depot,after.warehouses[50]);assertEquals(foreign,after.warehouses[51])
+        assertEquals(CountryId(2),after.warehouses.getValue(52).country)
+        assertEquals(ShipStyleId("alliance"),after.warehouses.getValue(52).shipStyle)
+    }
     @Test fun formationPreservesPartialBoatsGradesWorkAndCrewAndNeverSelfAppoints() {
         val before=stocks();val selected=mapOf(code to 3,OutfitFormationPolicy.code(troop,true) to 2)
         val result=create(before,selected=selected,supplies=100)
