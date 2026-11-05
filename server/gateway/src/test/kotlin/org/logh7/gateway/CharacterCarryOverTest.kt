@@ -27,6 +27,7 @@ class CharacterCarryOverTest {
         assertEquals(listOf("veteran"),stores.carryOver(world))
         val restored=CharacterStores(file).get(2).profiles().getValue("veteran")
         assertEquals(CountryId(42),restored.country);assertEquals(ShipStyleId("alliance"),restored.shipStyle)
+        assertEquals(93,restored.character.shipKind,"the carried class uses its actual style, independent of display faction")
         assertEquals(CountryId(2),CharacterStores(file).get(1).profiles().getValue("veteran").country)
         assertTrue(stores.carryOver(world).isEmpty())
     }

@@ -4,6 +4,17 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalCombatTest {
+    @Test fun anAllianceCaptainCanFireAnImperialStyleFlagshipAtTheImperialEnemy() {
+        val state=state()
+        state.players=state.players.mapValues {(_,p)->p.copy(shipStyle=ShipStyleId("empire"),hull=FlagshipHull(0,now))}
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy())
+        val p=production(state)
+        val shot=request.copy(shipKind=0)
+        val accepted=TacticalCombat.accept(shot,session,galaxy,nav,p.snapshot(1)!!,state.commit,24)
+        assertNull(accepted.rejection)
+        assertEquals(CountryId(3),accepted.player?.country);assertEquals(ShipStyleId("empire"),accepted.player?.shipStyle)
+        assertNotNull(accepted.player?.fire)
+    }
     @Test fun lastEnemyDefeatedOrDepartedClearsAutomaticOrderDurablyEvenWithoutAnotherShot() {
         val command=request.copy(tacticalShoot=null,tacticalAttack=TacticalAttack(listOf(1010000),2))
         val hostileBase=Galaxy(galaxy.systems,galaxy.bases.map {it.copy(grid=2488)},galaxy.starts)

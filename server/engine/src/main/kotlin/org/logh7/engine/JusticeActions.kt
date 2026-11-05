@@ -9,6 +9,7 @@ import org.logh7.engine.strategy.*
  * Author: Peppone Choi.
  */
 object JusticeActions {
+    private val countries by lazy {CountryCatalogLoader.load()}
     enum class Outcome { NONE, ARRESTED, EVADED, FAILED }
     /** Deterministic arrest roll, like BattleDeath's per-event roll. */
     fun roll(actor:Int,target:Int,seconds:Long)=java.util.Random(seconds*1_000_003L+actor*131L+target*97L+29).nextInt(100)
@@ -76,7 +77,7 @@ object JusticeActions {
     }
     /** 亡命 (design §3.5): PCP 320, to the other side's capital holding room; offices, outfits and the flagship stay
      * behind; the destination's judges decide (Detention.power = destination). */
-    private fun defect(g:Galaxy,i:StrategyActionRequest,session:SessionState,p:Navigator,s:PlanetStocks,power:Int,now:Long):SocialResult {
+    private fun defect(g:Galaxy,i:StrategyActionRequest,session:SessionState,p:Navigator,s:PlanetStocks,power:Int,now:Long,catalog:CountryCatalog):SocialResult {
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         if(i.card!=0 || i.target!=0 || i.base!=0)return reject(SocialRejection.COMMAND)
         // 0 = the other side (the compatibility window does not know its own side).
@@ -97,11 +98,12 @@ object JusticeActions {
             rights=j.rights.filterValues {it.holder!=id && it.target!=id},watches=j.watches.filterValues {it.watcher!=id && it.target!=id},
             detentions=j.detentions+(id to Detention(id,destination,now,now+Justice.DETENTION_DAYS*Justice.DAY)))))
         val moved=p.paidWith(paid.balance).copy(country=CountryId(destination),
-            shipStyle=ShipStyleId.fromLegacy(if(destination==2)Power.EMPIRE else Power.ALLIANCE),grid=capital.grid,
+            shipStyle=catalog.shipStyle(CountryId(destination)),grid=capital.grid,
             baseId=capital.id,mode=4,spotId=cell,spotOwner=0,hull=null,strategy=null,dockTarget=null,fuelReadyAt=null,warpTarget=null,returnBase=0)
         return SocialResult(moved,next,changed=true,defected=destination)
     }
-    fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
+    fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>,
+        catalog:CountryCatalog=countries):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         val member=session.participants[i.account]
@@ -113,7 +115,7 @@ object JusticeActions {
         val j=s.social.justice
         if(j.detained(i.characterId))return reject(SocialRejection.BUSY)
         val power=powerOf(p);val ids=i.identities
-        if(i.command==Justice.DEFECT)return defect(g,i,session,p,s,power,now)
+        if(i.command==Justice.DEFECT)return defect(g,i,session,p,s,power,now,catalog)
         val cost=Justice.costs[i.command] ?: return reject(SocialRejection.COMMAND)
         val holds=i.card!=0 && OrganizationalOfficePolicy(g).held(s,i.characterId).any {it.card==i.card} && Justice.power(i.card)==power
         if(i.card!=0 && !holds)return reject(SocialRejection.CARD)

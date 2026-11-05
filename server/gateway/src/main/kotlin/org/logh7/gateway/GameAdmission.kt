@@ -10,6 +10,12 @@ interface GameAdmission {
     val generation: Long
     val running: Boolean
     fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long): CompletableFuture<Admission>
+    fun join(account:String,profile:CharacterProfile,connection:String,generation:Long):CompletableFuture<Admission> {
+        // shortcut: native authority/commands still accept countries 2/3; extend with country command systems.
+        if(profile.country?.value !in setOf(2,3) || profile.country?.value!=profile.character.power)
+            return CompletableFuture.completedFuture(Admission.FACTION_CHANGED)
+        return join(account,profile.character,connection,generation)
+    }
     fun disconnect(account: String, connection: String)
 }
 

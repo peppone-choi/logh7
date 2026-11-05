@@ -9,6 +9,29 @@ class NavigationCountryTest {
         listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
     private val pilot=Navigator(1,10000,Power.EMPIRE,2487,800,700,1000,baseId=1049,mode=4)
     private val stock=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)),deploymentInitialized=true)
+    @Test fun firstNavigationUsesTheTrustedStyleAndTheCountryStartAndRejectsLaterStyleSubstitution() {
+        val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,false,"c")}.exportState()
+        val navigation=Navigation(galaxy,null,NavigationPolicy())
+        val request=NavigationRequest("pilot",10000,Power.EMPIRE,"c",1,shipKind=89,shipStyle=ShipStyleId("alliance"))
+        val result=navigation.apply(request,session,stock)
+        assertNull(result.rejection)
+        val player=assertNotNull(result.player)
+        assertEquals(CountryId(2),player.country);assertEquals(2487,player.grid)
+        assertEquals(ShipStyleId("alliance"),player.shipStyle);assertEquals(89,player.hull?.kind)
+        val denied=navigation.apply(request.copy(shipStyle=ShipStyleId("empire")),session,stock)
+        assertEquals(NavigationRejection.IDENTITY,denied.rejection)
+        assertEquals(player,navigation.snapshot(1).getValue("pilot"))
+    }
+    @Test fun aSupportedForeignModelFamilyRestoresWithoutChangingCountryOrHull()=runBlocking {
+        val mixed=pilot.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(89,0))
+        val navigation=object:NavigationStore {override fun load()=mapOf("pilot" to mixed);override fun save(players:Map<String,Navigator>) {}}
+        val inventory=object:PlanetStockStore {override fun load()=stock;override fun save(stocks:PlanetStocks) {}}
+        val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=navigation,stockStore=inventory)
+        try {
+            engine.synchronizeTime()
+            assertEquals(mixed,engine.snapshot().navigators.getValue("pilot"))
+        } finally {engine.drainAndClose()}
+    }
 
     @Test fun countryAndAbsenceOfMembershipDoNotChangeTheShipsActualStyle() {
         val hull=FlagshipHull(Flagships.forPower(2).first().kind,0)
@@ -44,7 +67,7 @@ class NavigationCountryTest {
 
     @Test fun unsupportedMembershipOrStyleStopsBeforeSessionRecoveryAndClosesAllStores()=runBlocking {
         for(player in listOf(pilot.copy(country=CountryId(42)),pilot.copy(country=null),
-            pilot.copy(shipStyle=ShipStyleId("alliance")),pilot.copy(shipStyle=ShipStyleId("custom_style")))) {
+            pilot.copy(shipStyle=ShipStyleId("custom_style")))) {
             var loads=0;var commits=0;var closed=0
             val session=object:SessionDurability {
                 override fun load():DurableWorldState {loads++;error("No recovery may begin")}

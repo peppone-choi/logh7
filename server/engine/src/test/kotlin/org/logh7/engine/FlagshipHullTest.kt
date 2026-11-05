@@ -4,6 +4,19 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class FlagshipHullTest {
+    @Test fun aDefeatedImperialCaptainReturnsToImperialSpaceInAnAllianceStyleDestroyer() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(
+            GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),
+            GalaxyBase(1050,2487,80,0,"Foreign",0,30f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300),
+            1050 to PlanetStock(1050,Allegiance.Country(CountryId(42)),0,100,200,300)))
+        val player=Navigator(1,10000,CountryId(2),2488,1000,960,900,cpPaused=true,
+            hull=FlagshipHull(89,0),shipStyle=ShipStyleId("alliance"))
+        val returned=FlagshipRecovery.defeated(player,10,galaxy,stocks)
+        assertEquals(CountryId(2),returned.country);assertEquals(1049,returned.baseId)
+        assertEquals(ShipStyleId("alliance"),returned.shipStyle);assertEquals(93,returned.hull?.kind)
+        assertEquals(86410,returned.hull?.woundedUntil)
+    }
     @Test fun destructionClearsAReservedWarpBeforeReturningTheFlagshipHome() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})

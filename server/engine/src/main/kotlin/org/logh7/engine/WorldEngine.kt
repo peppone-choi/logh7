@@ -224,9 +224,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         }
         val players=if(galaxy==null)emptyMap() else navigationStore?.load().orEmpty()
         players.values.forEach {player->
-            check(player.country.legacyPower()==player.shipStyle.legacyPower()) {
-                "Navigation style requires the remaining model and authority migration"
-            }
+            player.country.legacyPower()
+            player.shipStyle.legacyPower()
         }
         stocks to players
     } catch(failure:Exception) {

@@ -97,7 +97,9 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
      * The offline request carries the captain's last joined abilities, so CP recovery is settled first as at login.
      * Without them recovery waits for login; the caller must not settle a warp then (tactical contact resets the clock).
      */
-    val offlineAbilities:Boolean=false) {
+    val offlineAbilities:Boolean=false,
+    /** Server-resolved model family; never taken from a native client field. */
+    val shipStyle:ShipStyleId?=null) {
     init {require(!offlineAbilities || offlineSettle)}
     init {require(!offlineSettle || (offlineDirection==null && destination==null && place==null && !supplyFuel && returnBase==null &&
         tactical==null && energy==null && shipKind==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
@@ -173,14 +175,17 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             !(it.characterId != request.characterId && BattleDeath.deceased(stocks,it.characterId)) }
         if (existing != null && (existing.characterId != request.characterId || existing.country != request.power.country))
             return reject(NavigationRejection.IDENTITY)
+        if(existing!=null && request.shipStyle!=null && existing.shipStyle!=request.shipStyle)
+            return reject(NavigationRejection.IDENTITY)
         // Offline settlement only finishes existing work; it never creates a flagship for an absent captain.
         if (request.offlineSettle && existing == null) return reject(NavigationRejection.SESSION)
-        var initial = existing ?: Navigator(request.generation, request.characterId, request.power,
-            galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise)
+        var initial = existing ?: Navigator(request.generation, request.characterId, request.power.country,
+            galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise,
+            shipStyle=request.shipStyle ?: ShipStyleId.fromLegacy(request.power))
         val now = session.gameMillis / 1000
         if (initial.hull == null && request.shipKind != null) {
             val ship=Flagships.find(request.shipKind) ?: return reject(NavigationRejection.UNIT)
-            if(ship.power != if(initial.power==Power.EMPIRE)2 else 3) return reject(NavigationRejection.UNIT)
+            if(ship.power != initial.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             initial=initial.copy(hull=FlagshipHull(ship.kind,now,clockScale=clockScale))
         }
         val wounded=initial.hull?.woundedUntil?.let {now<it} == true
@@ -265,7 +270,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (units != listOf(before.unitId)) return reject(NavigationRejection.UNIT)
             if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
-            if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+            if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (before.retreat != null) return reject(NavigationRejection.BUSY)
             if (before.energy?.values?.get(1) != TacticalEnergy.WARP_MAX) return reject(NavigationRejection.ENERGY)
             val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
@@ -284,7 +289,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (stop.units != listOf(before.unitId) || stop.bases.isNotEmpty()) return reject(NavigationRejection.UNIT)
             if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
-            if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+            if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
             val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy)
@@ -301,7 +306,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (move.units != listOf(before.unitId)) return reject(NavigationRejection.UNIT)
             if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
-            if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+            if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             val maximum = (before.energy ?: TacticalEnergy.ZERO).values[0] / 100f
             // The CD sends its full speed (1.0) whatever the ENGINE slider says (run-32, ENGINE 10): cap it to the
             // allocation, as an energy change caps a running motion, and refuse only a move without any ENGINE.
@@ -323,7 +328,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
             if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
-            if (ship.power != if (before.power == Power.EMPIRE) 2 else 3) return reject(NavigationRejection.UNIT)
+            if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (energy.allocated > ship.number("出力:出力") || energy.values.zip(TacticalEnergy.MAXIMUM).any {it.first>it.second})
                 return reject(NavigationRejection.ENERGY)
             val motion = before.motion?.let { motion ->

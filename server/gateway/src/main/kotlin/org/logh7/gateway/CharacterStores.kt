@@ -23,6 +23,10 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null) {
         val carried = CharacterCarryOver.select(snapshot, profiles.filterValues {it.character.generated}.mapValues {it.value.character})
         if (carried.isEmpty()) return emptyList()
         val next = cached?.takeIf { it.first == generation + 1 }?.second ?: CharacterCreation(path(generation + 1), accountFame = fame.accounts)
-        return carried.filter { (account, data) -> next.carry(account, profiles.getValue(account).copy(character=data)) }.keys.toList()
+        return carried.filter { (account, data) ->
+            val profile=profiles.getValue(account)
+            val kind=org.logh7.engine.Flagships.forType(profile.shipStyle.nativePower,data.shipType).kind
+            next.carry(account,profile.copy(character=data.copy(shipKind=kind)))
+        }.keys.toList()
     }
 }

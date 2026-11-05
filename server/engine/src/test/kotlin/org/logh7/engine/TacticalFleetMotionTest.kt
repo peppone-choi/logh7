@@ -4,6 +4,16 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalFleetMotionTest {
+    @Test fun aCommandersDifferentStyleFlagshipMovesWithItsOwnCountrysFleet() {
+        val s=state()
+        s.players=s.players.mapValues {(_,p)->p.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(89,now,hp=40))}
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        val r=request(listOf(1,2,1010000)).copy(shipKind=89)
+        val accepted=move(s,nav,p,r)
+        assertNull(accepted.rejection)
+        assertEquals(CountryId(2),accepted.player?.country);assertEquals(ShipStyleId("alliance"),accepted.player?.shipStyle)
+        assertEquals(setOf(1,2,1010000),accepted.tacticalMotions.keys)
+    }
     @Test fun rotationsKeepFirstSelectedAnchorWaitAtomicallyAndResumeWithoutDuplicateCompletion() {
         for(kind in TacticalManeuver.entries) {
             val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)

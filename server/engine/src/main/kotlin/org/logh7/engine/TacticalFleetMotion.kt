@@ -16,7 +16,7 @@ internal object TacticalFleetMotion {
         if(request.captainCard!=if(player.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
         val command=checkNotNull(request.tacticalMove)
         if(player.unitId in command.units && (player.hull==null ||
-            Flagships.find(player.hull.kind)?.power!=if(player.power==Power.EMPIRE)2 else 3))return reject(NavigationRejection.UNIT)
+            Flagships.find(player.hull.kind)?.power!=player.shipStyle.nativePower))return reject(NavigationRejection.UNIT)
         if(command.units.distinct().size!=command.units.size)return reject(NavigationRejection.UNIT)
         val now=session.gameMillis/1000
         if(now>0xffffffffL-TacticalMotion.WAIT_SECONDS)return reject(NavigationRejection.CLOCK)
