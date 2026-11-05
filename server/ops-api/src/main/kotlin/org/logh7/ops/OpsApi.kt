@@ -62,6 +62,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             progressRoutes(checklist,"/admin/progress","/admin/progress/data")
             get("/health") {
                 when (snapshots.health()) {
+                    EngineHealth.STARTING -> call.respondText("engine starting", status = HttpStatusCode.ServiceUnavailable)
                     EngineHealth.RUNNING -> call.respondText("ok")
                     EngineHealth.STORAGE_FAILED -> call.respondText("engine storage failed", status = HttpStatusCode.ServiceUnavailable)
                     EngineHealth.STOPPED -> call.respondText("engine stopped", status = HttpStatusCode.ServiceUnavailable)

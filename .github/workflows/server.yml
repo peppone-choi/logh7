@@ -1,9 +1,9 @@
 name: server
 on:
   push:
-    paths: ['server/**', 'config/countries/**', 'tools/l10n/editor*', '.github/workflows/server.yml']
+    paths: ['server/**', 'config/countries/**', 'tools/l10n/editor*', 'tools/ops/**', '.github/workflows/server.yml']
   pull_request:
-    paths: ['server/**', 'config/countries/**', 'tools/l10n/editor*', '.github/workflows/server.yml']
+    paths: ['server/**', 'config/countries/**', 'tools/l10n/editor*', 'tools/ops/**', '.github/workflows/server.yml']
 permissions:
   contents: read
 jobs:
@@ -46,6 +46,8 @@ jobs:
         working-directory: server
     steps:
       - uses: actions/checkout@v4
+      - run: python3 -B -m unittest discover -s tools/ops -p 'test_*.py'
+        working-directory: .
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
