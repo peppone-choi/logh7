@@ -157,7 +157,8 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 requireNotNull(characterFile) { "Live backups need LOGH7_CHARACTERS_FILE" },
                 Path.of(requireNotNull(environment["LOGH7_WORLD_STATE_DIR"]) { "Live backups need LOGH7_WORLD_STATE_DIR" }),
                 requireNotNull(sessionDirectory) { "Live backups need LOGH7_SESSION_STORE_DIR" }, Path.of(dir),
-                keep = environment["LOGH7_BACKUP_KEEP"]?.toInt() ?: 48),
+                keep = environment["LOGH7_BACKUP_KEEP"]?.toInt() ?: 48,
+                accounts = environment["LOGH7_ACCOUNTS_FILE"]?.let { Path.of(it) }),
                 environment["LOGH7_BACKUP_EXPORT_DIR"]?.let { Path.of(it) })
         }
         backups?.schedule(scope, environment["LOGH7_BACKUP_INTERVAL_MINUTES"]?.toLong() ?: 0)
