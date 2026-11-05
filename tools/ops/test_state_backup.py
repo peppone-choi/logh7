@@ -78,6 +78,53 @@ class StateBackupTest(unittest.TestCase):
         self.run_tool("prune", str(root), "--keep", "2")
         self.assertEqual(["b", "c", "unrelated"], sorted(p.name for p in root.iterdir()))
 
+    def test_restore_to_a_clean_instance_rebinds_the_owner_and_leaves_the_original_alone(self):
+        self.take()
+        before = {p: p.read_bytes() for p in self.state.rglob("*") if p.is_file()}
+        clean = self.archive.parent / "clean"
+        self.run_tool("restore-to", str(self.archive), "--to", str(clean))
+        self.assertEqual(before, {p: p.read_bytes() for p in self.state.rglob("*") if p.is_file()})
+        self.assertEqual("stocks\n", (clean / "world" / "slot-1" / "stocks.tsv").read_text())
+        self.assertEqual(b"\x00journal", (clean / "session" / "session.journal").read_bytes())
+        self.assertFalse((clean / "world" / "slot-1" / "stocks.tsv.lock").exists())
+        marker = clean / "characters" / "characters.properties.navigation.world-owner"
+        # Exact bytes: the server trims only a trailing LF, so a CRLF would corrupt the path.
+        self.assertEqual(f"LOGH7-WORLD-OWNER-1\t{(clean / 'world').resolve()}\n".encode("utf-8"), marker.read_bytes())
+        # A non-empty target is refused (only a clean instance), and so is a damaged archive.
+        with self.assertRaises(SystemExit):
+            self.run_tool("restore-to", str(self.archive), "--to", str(clean))
+        (self.archive / "session" / "session.journal").write_bytes(b"\x01journal")
+        with self.assertRaises(SystemExit):
+            self.run_tool("restore-to", str(self.archive), "--to", str(self.archive.parent / "clean2"))
+        self.assertFalse((self.archive.parent / "clean2").exists())
+
+    def test_accounts_file_is_backed_up_restored_in_place_and_into_a_clean_instance(self):
+        accounts = self.state.parent / "accounts.properties"
+        accounts.write_text("qa1=pbkdf2-sha256:1:aa:bb\n")
+        self.run_tool("backup", "--characters", str(self.characters), "--world", str(self.world),
+                      "--session", str(self.session), "--accounts", str(accounts), "--out", str(self.archive))
+        self.assertTrue((self.archive / "accounts" / "accounts.properties").is_file())
+        accounts.write_text("qa1=changed\n")
+        self.run_tool("restore", str(self.archive), "--force")
+        self.assertEqual("qa1=pbkdf2-sha256:1:aa:bb\n", accounts.read_text())
+        clean = self.archive.parent / "clean-accounts"
+        self.run_tool("restore-to", str(self.archive), "--to", str(clean))
+        self.assertEqual("qa1=pbkdf2-sha256:1:aa:bb\n", (clean / "accounts" / "accounts.properties").read_text())
+
+    def test_a_lost_state_volume_is_restored_even_when_only_the_account_file_survives(self):
+        accounts = self.state.parent / "accounts.properties"
+        accounts.write_text("qa1=kept\n")
+        self.run_tool("backup", "--characters", str(self.characters), "--world", str(self.world),
+                      "--session", str(self.session), "--accounts", str(accounts), "--out", str(self.archive))
+        import shutil
+        shutil.rmtree(self.state)  # the game-state volume is gone; the account file elsewhere survives
+        accounts.write_text("qa1=newer\n")
+        self.run_tool("restore", str(self.archive), "--force")
+        self.assertEqual("stocks\n", (self.world / "slot-1" / "stocks.tsv").read_text())
+        self.assertEqual("qa1=kept\n", accounts.read_text())
+        replaced = next(self.archive.parent.glob("backup.replaced-*"))
+        self.assertEqual("qa1=newer\n", (replaced / "accounts" / "accounts.properties").read_text())
+
     def test_running_server_is_refused(self):
         original = state_backup.server_running
         state_backup.server_running = lambda url: True

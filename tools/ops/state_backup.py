@@ -8,9 +8,10 @@ markers bind those siblings to the absolute world directory, so a backup is rest
 same paths only. The server must be stopped: a running server is refused through its ops
 ``/health`` endpoint, because the stores are only consistent with each other between runs.
 
-    state_backup.py backup  --characters F --world D --session D --out ARCHIVE_DIR
+    state_backup.py backup  --characters F --world D --session D [--accounts F] --out ARCHIVE_DIR
     state_backup.py verify  ARCHIVE_DIR
     state_backup.py restore ARCHIVE_DIR [--force]
+    state_backup.py restore-to ARCHIVE_DIR --to EMPTY_INSTANCE_ROOT
     state_backup.py export  ARCHIVE_DIR --dest OTHER_DISK_OR_SHARE
     state_backup.py prune   BACKUP_ROOT --keep N
 
@@ -50,7 +51,7 @@ def server_running(url: str | None) -> bool:
         return False
 
 
-def state_files(characters: Path, world: Path, session: Path) -> dict[str, list[tuple[Path, str]]]:
+def state_files(characters: Path, world: Path, session: Path, accounts: Path | None = None) -> dict[str, list[tuple[Path, str]]]:
     """Group -> [(absolute file, relative name)] for every non-lock state file."""
     def tree(root: Path) -> list[tuple[Path, str]]:
         if not root.is_dir():
@@ -61,7 +62,27 @@ def state_files(characters: Path, world: Path, session: Path) -> dict[str, list[
         raise SystemExit(f"characters file not found: {characters}")
     siblings = [characters] + sorted(p for p in characters.parent.glob(characters.name + ".*")
                                      if p.is_file() and not p.name.endswith(".lock"))
-    return {"characters": [(p, p.name) for p in siblings], "world": tree(world), "session": tree(session)}
+    groups = {"characters": [(p, p.name) for p in siblings], "world": tree(world), "session": tree(session)}
+    if accounts is not None:  # Operator account edits (LOGH7_ACCOUNTS_FILE) are state too.
+        if not accounts.is_file():
+            raise SystemExit(f"accounts file not found: {accounts}")
+        groups["accounts"] = [(accounts, accounts.name)]
+    return groups
+
+
+def surviving_files(characters: Path, world: Path, session: Path, accounts: Path | None) -> dict[str, list[tuple[Path, str]]]:
+    """Like state_files, but only what still exists: a lost state volume must not block its own restore."""
+    def tree(root: Path) -> list[tuple[Path, str]]:
+        return sorted((p, p.relative_to(root).as_posix()) for p in root.rglob("*")
+                      if p.is_file() and not p.name.endswith(".lock")) if root.is_dir() else []
+    siblings = sorted(p for p in characters.parent.glob(characters.name + "*")
+                      if p.is_file() and not p.name.endswith(".lock")
+                      and (p.name == characters.name or p.name.startswith(characters.name + "."))) \
+        if characters.parent.is_dir() else []
+    groups = {"characters": [(p, p.name) for p in siblings], "world": tree(world), "session": tree(session)}
+    if accounts is not None and accounts.is_file():
+        groups["accounts"] = [(accounts, accounts.name)]
+    return groups
 
 
 def check_owner(characters: Path, world: Path) -> None:
@@ -76,12 +97,15 @@ def backup(args: argparse.Namespace) -> None:
         raise SystemExit(f"server is running ({args.health}); stop it before a backup")
     characters, world, session = Path(args.characters).resolve(), Path(args.world).resolve(), Path(args.session).resolve()
     check_owner(characters, world)
+    accounts = Path(args.accounts).resolve() if args.accounts else None
     out = Path(args.out)
     if out.exists():
         raise SystemExit(f"backup target already exists: {out}")
     roots = {"characters": characters.parent, "world": world, "session": session}
+    if accounts is not None:
+        roots["accounts"] = accounts.parent
     files = []
-    for group, entries in state_files(characters, world, session).items():
+    for group, entries in state_files(characters, world, session, accounts).items():
         for source, name in entries:
             target = out / group / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -89,6 +113,8 @@ def backup(args: argparse.Namespace) -> None:
             files.append({"group": group, "name": name, "size": target.stat().st_size, "sha256": sha256(target)})
     manifest = {"format": FORMAT, "created": time.strftime("%Y-%m-%dT%H:%M:%S") + f".{time.time_ns() % 1_000_000_000:09d}",
                 "roots": {k: str(v) for k, v in roots.items()}, "characters": characters.name, "files": files}
+    if accounts is not None:
+        manifest["accounts"] = accounts.name
     (out / MANIFEST).write_text(json.dumps(manifest, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     print(f"backup {out}: {len(files)} files")
 
@@ -150,12 +176,14 @@ def restore(args: argparse.Namespace) -> None:
     manifest = load(archive)
     roots = {k: Path(v) for k, v in manifest["roots"].items()}
     characters = roots["characters"] / manifest["characters"]
-    present = characters.exists() or any(roots[g].is_dir() and any(roots[g].iterdir()) for g in ("world", "session"))
+    accounts = roots["accounts"] / manifest["accounts"] if "accounts" in manifest else None
+    present = characters.exists() or (accounts is not None and accounts.exists()) or \
+        any(roots[g].is_dir() and any(roots[g].iterdir()) for g in ("world", "session"))
     if present:
         if not args.force:
             raise SystemExit("state already exists at the backup paths; rerun with --force to replace it")
         saved = Path(f"{archive}.replaced-{time.strftime('%Y%m%d-%H%M%S')}")
-        for group, entries in state_files(characters, roots["world"], roots["session"]).items():
+        for group, entries in surviving_files(characters, roots["world"], roots["session"], accounts).items():
             for source, name in entries:
                 target = saved / group / name
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -170,6 +198,55 @@ def restore(args: argparse.Namespace) -> None:
     print(f"restored {len(manifest['files'])} files from {archive}")
 
 
+OWNER = "LOGH7-WORLD-OWNER-1"
+
+
+def restore_to(args: argparse.Namespace) -> None:
+    """Restore into a clean, separate instance root without touching the backup's original paths.
+
+    Layout: ROOT/characters/<file and siblings>, ROOT/world, ROOT/session. Each ``*.world-owner`` marker that
+    was bound to the backup's world directory is rebound to ROOT/world (the same format the server writes), so
+    the restored instance opens its own copy and never the original store. ROOT must not already hold files.
+    """
+    archive = Path(args.archive)
+    manifest = load(archive)
+    root = Path(args.to).resolve()
+    if root.exists() and any(root.iterdir()):
+        raise SystemExit(f"restore target is not empty: {root}")
+    source_world = Path(manifest["roots"]["world"]).resolve()
+    roots = {"characters": root / "characters", "world": root / "world", "session": root / "session"}
+    if "accounts" in manifest:
+        roots["accounts"] = root / "accounts"
+    for path in roots.values():
+        path.mkdir(parents=True, exist_ok=True)
+    world = roots["world"].resolve()
+    if any(c in str(world) for c in "\t\r\n"):
+        raise SystemExit(f"unsupported restore path: {world}")
+    rebound = 0
+    for entry in manifest["files"]:
+        source = archive / entry["group"] / entry["name"]
+        target = roots[entry["group"]] / entry["name"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if entry["group"] == "characters" and entry["name"].endswith(".world-owner"):
+            fields = source.read_text(encoding="utf-8").strip().split("\t")
+            if len(fields) != 2 or fields[0] != OWNER or Path(fields[1]).resolve() != source_world:
+                raise SystemExit(f"{entry['name']} is not bound to the backup's world directory")
+            # Bytes, not text mode: Windows text mode writes CRLF and the server trims only "\n".
+            target.write_bytes(f"{OWNER}\t{world}\n".encode("utf-8"))
+            rebound += 1
+            continue
+        shutil.copy2(source, target)
+        if sha256(target) != entry["sha256"]:
+            raise SystemExit(f"restore copy mismatch: {target}")
+    characters = roots["characters"] / manifest["characters"]
+    print(f"restored {len(manifest['files'])} files from {archive} into {root} ({rebound} world-owner markers rebound)")
+    print(f"LOGH7_CHARACTERS_FILE={characters}")
+    print(f"LOGH7_WORLD_STATE_DIR={world}")
+    print(f"LOGH7_SESSION_STORE_DIR={roots['session'].resolve()}")
+    if "accounts" in manifest:
+        print(f"LOGH7_ACCOUNTS_FILE={(roots['accounts'] / manifest['accounts']).resolve()}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Offline backup/restore of the game server file state.")
     parser.add_argument("--health", default="http://127.0.0.1:47951/health",
@@ -180,6 +257,7 @@ def main(argv: list[str] | None = None) -> None:
     take.add_argument("--world", required=True)
     take.add_argument("--session", required=True)
     take.add_argument("--out", required=True)
+    take.add_argument("--accounts", help="LOGH7_ACCOUNTS_FILE (operator account edits); optional")
     take.set_defaults(run=backup)
     check = commands.add_parser("verify")
     check.add_argument("archive")
@@ -196,6 +274,10 @@ def main(argv: list[str] | None = None) -> None:
     put.add_argument("archive")
     put.add_argument("--force", action="store_true")
     put.set_defaults(run=restore)
+    clean = commands.add_parser("restore-to", help="restore into a clean separate instance root")
+    clean.add_argument("archive")
+    clean.add_argument("--to", required=True)
+    clean.set_defaults(run=restore_to)
     args = parser.parse_args(argv)
     args.run(args)
 

@@ -41,4 +41,22 @@ class LiveStateBackupTest {
         assertEquals("journal", Files.readString(exported.resolve("session/g1/journal")))
         assertFailsWith<IllegalArgumentException> { backup.export(root.resolve("state-20261104-130000"), other) }
     }
+
+    @Test fun theAccountFileIsAnOptionalGroupWithItsOwnRoot() {
+        val state = Files.createDirectories(directory.resolve("state"))
+        val characters = Files.writeString(state.resolve("characters.properties"), "a=1\n")
+        val world = Files.createDirectories(state.resolve("world"))
+        val session = Files.createDirectories(state.resolve("session"))
+        val accounts = Files.writeString(Files.createDirectories(directory.resolve("config")).resolve("accounts.properties"), "qa1=x\n")
+        val backup = LiveStateBackup(characters, world, session, directory.resolve("backups"), keep = 1, accounts = accounts)
+        val done = backup.finish(backup.copy(LocalDateTime.of(2026, 11, 6, 9, 0, 0)))
+        assertEquals("qa1=x\n", Files.readString(done.resolve("accounts/accounts.properties")))
+        val manifest = Files.readString(done.resolve("manifest.json"))
+        assertTrue("\"group\": \"accounts\", \"name\": \"accounts.properties\"" in manifest)
+        assertTrue("\"accounts\": " + "\"" + accounts.parent.toAbsolutePath().normalize().toString().replace("\\", "\\\\") + "\"" in manifest)
+        assertTrue(" \"accounts\": \"accounts.properties\"," in manifest)
+        // Without an account file the manifest is unchanged (older tools and backups keep working).
+        val plain = LiveStateBackup(characters, world, session, directory.resolve("plain"), keep = 1)
+        assertFalse("accounts" in Files.readString(plain.finish(plain.copy()).resolve("manifest.json")))
+    }
 }

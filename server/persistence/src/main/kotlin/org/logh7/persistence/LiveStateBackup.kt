@@ -16,10 +16,13 @@ import kotlin.io.path.name
  * point between commits. Hashing and the manifest happen after the actor resumes; the archive gets its
  * final name only when complete. Author: Peppone Choi.
  */
-class LiveStateBackup(characters: Path, world: Path, session: Path, private val root: Path, private val keep: Int) {
+class LiveStateBackup(characters: Path, world: Path, session: Path, private val root: Path, private val keep: Int,
+    /** LOGH7_ACCOUNTS_FILE: operator edits (added accounts, password changes) are state too; atomically replaced. */
+    accounts: Path? = null) {
     private val characters = characters.toAbsolutePath().normalize()
     private val world = world.toAbsolutePath().normalize()
     private val session = session.toAbsolutePath().normalize()
+    private val accounts = accounts?.toAbsolutePath()?.normalize()
     init { require(keep >= 1) { "backup keep must be at least 1" } }
 
     class Pending internal constructor(val partial: Path, val target: Path, val created: String)
@@ -33,7 +36,9 @@ class LiveStateBackup(characters: Path, world: Path, session: Path, private val 
             paths.filter { Files.isRegularFile(it) && it.name.startsWith("${characters.name}.") && !it.name.endsWith(".lock") }.toList()
         }.sortedBy { it.name }
         return linkedMapOf("characters" to (listOf(characters) + siblings).map { it to it.name },
-            "world" to tree(world), "session" to tree(session))
+            "world" to tree(world), "session" to tree(session)).also { groups ->
+            accounts?.let { groups["accounts"] = listOf(it to it.name) }
+        }
     }
 
     /** Copies the stores into a `.partial` directory; call only while the world actor is quiesced. */
@@ -63,7 +68,7 @@ class LiveStateBackup(characters: Path, world: Path, session: Path, private val 
     fun finish(pending: Pending): Path {
         fun json(text: String) = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
         val rows = mutableListOf<String>()
-        for (group in listOf("characters", "world", "session")) {
+        for (group in listOf("characters", "world", "session", "accounts")) {
             val base = pending.partial.resolve(group)
             if (!Files.isDirectory(base)) continue
             Files.walk(base).use { paths -> paths.filter { Files.isRegularFile(it) }.toList() }
@@ -75,8 +80,12 @@ class LiveStateBackup(characters: Path, world: Path, session: Path, private val 
         val manifest = buildString {
             append("{\n \"format\": \"LOGH7-STATE-BACKUP-1\",\n \"created\": ").append(json(pending.created)).append(",\n")
             append(" \"roots\": {\"characters\": ").append(json(characters.parent.toString())).append(", \"world\": ")
-                .append(json(world.toString())).append(", \"session\": ").append(json(session.toString())).append("},\n")
-            append(" \"characters\": ").append(json(characters.name)).append(",\n \"live\": true,\n \"files\": [\n")
+                .append(json(world.toString())).append(", \"session\": ").append(json(session.toString()))
+            accounts?.let { append(", \"accounts\": ").append(json(it.parent.toString())) }
+            append("},\n")
+            append(" \"characters\": ").append(json(characters.name)).append(",\n")
+            accounts?.let { append(" \"accounts\": ").append(json(it.name)).append(",\n") }
+            append(" \"live\": true,\n \"files\": [\n")
             append(rows.joinToString(",\n")).append("\n ]\n}\n")
         }
         Files.writeString(pending.partial.resolve("manifest.json"), manifest)
