@@ -63,7 +63,9 @@ class OpsHealthTest {
             val values = response.body().lines().filter { it.startsWith("logh7_") }.associate { it.substringBefore(' ') to it.substringAfter(' ') }
             assertEquals("0", values["logh7_engine_up"]);assertEquals("7", values["logh7_world_revision"])
             assertEquals("3", values["logh7_commands_accepted_total"]);assertEquals("0", values["logh7_session_online"])
-            assertEquals(14, values.size);assertTrue(values.getValue("logh7_jvm_heap_used_bytes").toLong()>0)
+            // 14 engine/JVM values plus the process start time used by the backup staleness alert.
+            assertEquals(15, values.size);assertTrue(values.getValue("logh7_jvm_heap_used_bytes").toLong()>0)
+            assertTrue(values.getValue("logh7_process_start_seconds").toLong()>1_700_000_000L)
         }
     }
     @Test fun adminPageIsReadOnlyHtmlAndEscapesValues() {
