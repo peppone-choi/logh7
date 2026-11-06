@@ -76,6 +76,20 @@ PR #290부터 캐릭터 기록은 다음 저장 때 `v2:` 형식으로 바뀐다
 ### 월드 정의 schema와 릴리스 전환 (2026-11-06)
 
 국가별 시작 위치(`start.country.<id>`, Codex `live-country-identity`)가 들어간 월드 정의 파일(`LOGH7_WORLD_FILE`)은 `schema=2`다. 지금까지의 릴리스는 `schema=1`만 받아 시작을 거부한다. `server_release.py activate`·`rollback --world-definition <LOGH7_WORLD_FILE>`은 `schema`가 1이 아니면 대상 릴리스의 `org/logh7/engine/Galaxy$Companion.class`에 `Country starts require world schema 2`가 정확한 상수로 있어야 전환한다. 표에 없는 schema는 거부한다. 확인: 검사 6개 통과. 실제 릴리스(main `1c94aecf` 이전 빌드 `27eb56ec`)는 schema 1 정의는 허용, schema 2로 바꾼 사본은 거부했다. PR #302(main `bad26c84`) 머지 뒤 실제 릴리스로 다시 확인: `start.country.2`를 넣은 schema 2 사본은 `bad26c84` 릴리스에서 허용되고 같은 상태로 시작해 월드를 적재했다. 리더가 없는 `27eb56ec` 릴리스는 판정에서 거부됐고, 실제로 띄우자 `IllegalArgumentException: Failed requirement`로 시작에 실패했다(판정이 맞음).
+### 업데이트 전체 흐름 리허설 (2026-11-06)
+
+위 도구를 한 흐름으로 이어 실제 두 릴리스로 돌렸다(`work/update-rehearsal-20261106/full/rehearse_update.py`, 워크트리 work 폴더, Git 제외, QA 상태 사본, 원본 클라이언트 실행 없음). 이전 릴리스는 main `f4dbe4ef`(유지보수 기능 포함, 창고 STOCK-42 리더 없음), 새 릴리스는 main `bad26c84`(PR #302)다.
+
+| 단계 | 결과 |
+|---|---|
+| `activate`(형식 검사 `--characters --world --world-definition`) → 이전 릴리스 시작 | 허용, 2.1초에 월드 적재 |
+| `POST /commands/maintenance/on` → `POST /commands/notice` | 둘 다 `changed`, `logh7_maintenance_closed 1` |
+| `POST /commands/backup` → 정지 → `state_backup.py verify` | 실행 중 백업 11개 파일 확인 |
+| 새 릴리스 `activate`(형식 검사) → 시작 | 허용, 1.8초에 적재. 차단은 메모리 상태라 재시작 뒤 `0`([유지보수](maintenance.md) 6단계와 같음) |
+| 15초 실행 뒤 정지 → 형식 검사 `rollback` | 허용. 새 릴리스가 그동안 이전 릴리스가 못 읽는 형식을 쓰지 않았기 때문이다 |
+| 이전 릴리스 다시 시작 | 1.8초에 적재 |
+
+새 릴리스가 새 형식을 쓴 경우의 거부 → 업그레이드 전 백업 복원 → 복귀 경로는 위 저장 형식 절(캐릭터 `v2:`, 창고 STOCK-42)에서 따로 확인했다. 실제 플레이어 접속 중 전환, 세션 기록 안의 전술 명령 상태 버전(바이너리 기록 내부 1~4판)의 판정은 이 리허설에 없다.
 ## 운영 지표 `/metrics` (2026-11-03)
 
 운영 API(`127.0.0.1`, 기본 47901·시험 47951)에 Prometheus 텍스트 형식 `/metrics`를 더했다. 엔진 정상 여부(`logh7_engine_up`), 월드 리비전·명령 접수/거부 누계, 세션 세대·게임 시각·참가/접속 수·종료 여부, 전술 인스턴스 수, 진행 중 지상전 거점 수 11개다(검사 `metricsExposeHealthAndCountersInPrometheusText`). 실제 시험 서버에서 `engine_up 1`, 참가 6·접속 0, 지상전 1을 확인했다. 수집기 연결(2026-11-03 추가): 운영 API 바인드 주소를 `LOGH7_OPS_BIND`로 바꿀 수 있게 했고, 루프백이 아닌 주소는 토큰(`LOGH7_OPS_TOKEN` 또는 비밀 파일 `LOGH7_OPS_TOKEN_FILE`)이 없으면 서버 시작을 거부한다(실제 서버에서 `0.0.0.0` 무토큰 시작 거부 확인). 선택 덮어쓰기 `deploy/docker-compose.metrics.yml`이 게임 서버를 백엔드 망에 토큰과 함께 열고, Prometheus가 `prometheus-game.yml`의 Bearer 설정으로 `game-server:47901/metrics`를 긁는다. 기본 Compose와 CI 계약(게임 서비스 비밀 없음·루프백 수신)은 그대로다. `docker compose config`로 병합 결과를 확인했으나, Linux Docker에서 실제 수집은 실행하지 않았다. 지연·송신 큐·메모리 지표는 미구현이다. `evidence:guess`
