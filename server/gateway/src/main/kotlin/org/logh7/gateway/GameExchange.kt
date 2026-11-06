@@ -1670,7 +1670,9 @@ class GameExchange(
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,pairs.mapNotNull {(id,_,_)->
                                                 currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname,it.rank)}})
                                         }
-                                        require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {it.card==query.card}) {"Strategy directory requires a held office"}
+                                        val country=currentProfile(identity.account,query.character).country
+                                        require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {
+                                            it.card==query.card && it.country==country}) {"Strategy directory requires a held office"}
                                         if(query.command==96) {
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                             if(query.argument==0)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
@@ -1692,11 +1694,10 @@ class GameExchange(
                                         }
                                         if(query.command in setOf(29,65)) {
                                             // U-15 package rows: name "destination/supplies", "+" with units, "*" aboard.
-                                            val power=character.power
                                             val outfit=if(query.command==65)inventory.outfits[query.outfit]?.takeIf {
-                                                it.power==power && it.commanderId==character.id.toInt()} else null
+                                                country!=null && it.country==country && it.commanderId==character.id.toInt()} else null
                                             val here=outfit?.positionIn(world.galaxy)?.baseId ?: 0
-                                            val rows=inventory.strategic.transports.filter {it.power==power && it.id>query.target &&
+                                            val rows=inventory.strategic.transports.filter {it.country==country && it.id>query.target &&
                                                 (if(query.command==29)it.carrier==0 else outfit!=null &&
                                                     (it.carrier==outfit.id || it.carrier==0 && it.source==here && here!=0))}
                                                 .sortedBy {it.id}.take(200).map {p ->
@@ -1845,8 +1846,8 @@ class GameExchange(
                                             presence?.outfitListRefresh(connection).orEmpty()}.orEmpty() else emptyList())+
                                         // U-15: refresh the warehouse a transport command changed.
                                         (if(query.command in org.logh7.engine.TransportActions.supported && result.changed)result.stocks?.let {inventory ->
-                                            listOf(if(query.command==28)query.base else player.baseId).filter {
-                                                inventory.bases[it]?.let {b->b.power==character.power && b.camp==0}==true}.map {world.warehouse(it,inventory)}}.orEmpty()
+                                            listOf(result.warehouseBase).filter {
+                                                inventory.bases[it]?.let {b->player.country?.let(b::belongsTo)==true && b.camp==0}==true}.map {world.warehouse(it,inventory)}}.orEmpty()
                                         else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }

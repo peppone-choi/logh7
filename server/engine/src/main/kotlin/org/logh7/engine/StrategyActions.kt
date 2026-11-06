@@ -72,7 +72,9 @@ data class StrategicIdentity(val id:Int,val country:CountryId?,val rank:Int,val 
 enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET,CREW }
 data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:StrategyActionRejection?=null,
     val changed:Boolean=false,val recovery:NavigationResult?=null,val readyAt:Long=0,
-    val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null)
+    val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null,
+    /** Warehouse whose cargo changed; it can differ from the officer's current base. */
+    val warehouseBase:Int=0)
 
 internal object StrategyActions {
     val supported=setOf(46,47,48,49,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
@@ -94,7 +96,7 @@ internal object StrategyActions {
         if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks)
         if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks)
-        if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks,countries)
         val country=r.country
         val definition=countries.countries[country.value] ?: return reject(StrategyActionRejection.IDENTITY)
         if(r.card!=if(r.command==84)0 else when(definition.nativePower) {2->59;3->195;else->return reject(StrategyActionRejection.CARD)})

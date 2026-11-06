@@ -23,7 +23,7 @@ internal object StrategicStateCodec {
             p.defended.sorted().joinToString(",").ifEmpty {"-"},p.outcome?.ordinal ?: "-",p.issuer).joinToString(":")}.ifEmpty {"-"}
     ).plus(if(state.transports.isEmpty() && !countryOffices)emptyList() else listOf(state.transports.joinToString(";") {t->
         fun stacks(m:Map<UnitStack,Int>)=m.entries.joinToString(",") {"${it.key.kind}.${it.key.level}.${it.value}"}.ifEmpty {"-"}
-        listOf(t.id,t.power,t.source,t.destination,t.supplies,stacks(t.units.ships),stacks(t.units.troops),t.carrier,t.carrierBoats).joinToString(":")}.ifEmpty {"-"}))
+        listOf(t.id,t.country.value,t.source,t.destination,t.supplies,stacks(t.units.ships),stacks(t.units.troops),t.carrier,t.carrierBoats).joinToString(":")}.ifEmpty {"-"}))
     .plus(if(countryOffices)listOf(state.capitals.entries.sortedBy {it.key.value}.joinToString(";") {"${it.key.value}:${it.value}"}.ifEmpty {"-"}) else emptyList())
     .joinToString("|").also {require(it.length<=2_000_000) {"Strategic state is too large"}}
     }
@@ -64,7 +64,7 @@ internal object StrategicStateCodec {
             val f=s.split('.');require(f.size==3);UnitStack(f[0].toInt(),f[1].toInt()) to f[2].toInt()}
         val transports=if(sections.size==5 || sections[5]=="-")emptyList() else sections[5].split(';').map {row->
             val f=row.split(':');require(f.size==9)
-            TransportPackage(f[0].toInt(),f[1].toInt(),f[2].toInt(),f[3].toInt(),f[4].toInt(),UnitInventory(stacks(f[5]),stacks(f[6])),
+            TransportPackage(f[0].toInt(),CountryId(f[1].toInt()),f[2].toInt(),f[3].toInt(),f[4].toInt(),UnitInventory(stacks(f[5]),stacks(f[6])),
                 f[7].toInt(),f[8].toInt())
         }
         val capitals=linkedMapOf<CountryId,Int>()
