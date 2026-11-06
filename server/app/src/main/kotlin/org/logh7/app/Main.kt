@@ -110,7 +110,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             ?: characterFile?.resolveSibling("${characterFile.fileName}.session-generation")
         val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
         val sessionDirectory = environment["LOGH7_SESSION_STORE_DIR"]?.let { Path.of(it) }
-        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it))) }
+        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it)),facilityDefinitions=facilities::current) }
         val directorySync = when (environment["LOGH7_SESSION_DIRECTORY_SYNC"]) {
             null, "required" -> org.logh7.persistence.DirectorySync.REQUIRED
             "files-only" -> org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY
@@ -248,6 +248,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             countryColors=countryColors,
             countryDefinitions=countryDefinitions,
             facilityDefinitions=facilityStore,publishedFacilities=facilities,
+            facilityCommands=world?.facilityCommands ?: org.logh7.engine.FacilityCommandCatalog.UNCONNECTED,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
             actorTimings=actorTimings,

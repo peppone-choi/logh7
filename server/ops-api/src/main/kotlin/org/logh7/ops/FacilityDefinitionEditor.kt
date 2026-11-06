@@ -90,7 +90,7 @@ internal fun facilityDefinitionPage(snapshot:FacilityDefinitionSnapshot,editable
     val kind=snapshot.kinds.getValue(selected)
     fun hidden(name:String,value:String)=append("<input type=\"hidden\" name=\"$name\" value=\"${escape(value)}\">")
     append("<h2 id=\"kind\">종류 정의 수정</h2><form method=\"get\"><label>시설 종류<select name=\"kind\">")
-    for(k in snapshot.kinds.keys.sorted())append("<option value=\"$k\"${if(k==selected)" selected" else ""}>$k · ${escape(FacilityDefinitionDefaults.name(k))}</option>")
+    for(k in snapshot.kinds.keys.sorted())append("<option value=\"$k\"${if(k==selected)" selected" else ""}>$k · ${escape(snapshot.kinds.getValue(k).name ?: FacilityDefinitionDefaults.name(k))}</option>")
     append("</select></label><button>열기</button></form><form class=\"edit\" action=\"/admin/facilities\" method=\"post\">")
     hidden("entity","kind");hidden("revision",snapshot.revision.toString());hidden("kind",selected.toString())
     append("<label>운영자<input name=\"operator\" maxlength=\"64\" required></label>")
@@ -104,7 +104,7 @@ internal fun facilityDefinitionPage(snapshot:FacilityDefinitionSnapshot,editable
         append("<label>거점<select id=\"base\">")
         for(b in galaxy.bases.sortedBy {it.id})append("<option value=\"${b.id}\">${b.id} · ${escape(b.name)}</option>")
         append("</select></label><label>시설 종류<select id=\"facility-kind\">")
-        for(k in snapshot.kinds.keys.sorted())append("<option value=\"$k\">$k · ${escape(FacilityDefinitionDefaults.name(k))}</option>")
+        for(k in snapshot.kinds.keys.sorted())append("<option value=\"$k\">$k · ${escape(snapshot.kinds.getValue(k).name ?: FacilityDefinitionDefaults.name(k))}</option>")
         append("</select></label>")
     }
     append("<label>시설 ID<input name=\"facility_id\" type=\"number\" min=\"101\" required></label>")

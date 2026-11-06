@@ -20,7 +20,7 @@ static bool outfitInformationPending();
 static struct PlanetInformation {
     void* world;
     void* popup;
-    unsigned character, originGrid, grid, ids[4], count, index, page, unitsRevision, unitReturnPage, unitReplyWait;
+    unsigned character, originGrid, grid, ids[4], count, index, page, unitsRevision, unitReturnPage, unitReplyWait, facilitySeen;
     logh::PlanetSystemIndex systems;
     logh::PlanetDirectory directory;
     logh::PlanetPlaces places;
@@ -76,6 +76,7 @@ static bool selectPlanetSystem(unsigned grid) {
 }
 
 static void closePlanetInformation() {
+    resetFacilityGuide();
     stopPlanetUnits();
     if (planetInformation.detailOpen) closeStationedOutfit(planetWindowManager);
     planetInformation.detailOpen=false;
@@ -86,6 +87,7 @@ static void closePlanetInformation() {
 }
 
 static void requestPlanetInformation() {
+    resetFacilityGuide();
     stopPlanetUnits();
     auto& info = planetInformation;
     info.conditionsReady = info.warehouseReady = info.placesReady = info.displayed = false;
@@ -318,7 +320,35 @@ static int __cdecl planetInfoMenu(void* gui) {
                 unsigned revision=planetUnitsRevision();
                 if (revision!=info.unitsRevision) {info.unitsRevision=revision;info.displayed=false;}
             }
+            if(planetWindowTab==3) {
+                unsigned target=facilityGuideSelected;
+                if(!target && info.placesReady)for(unsigned row=0;row<8 && info.page*8+row<info.places.count;++row) {
+                    unsigned id=info.places.rows[info.page*8+row].institution;
+                    if(facilityGuideNeedsRefresh(id)){target=id;break;}
+                }
+                pollFacilityGuide(info.world,target);
+                logh::FacilityGuide guide;bool loading=false,failed=false;unsigned sequence=0;
+                facilityGuideView(facilityGuideSelected,guide,loading,failed,sequence);
+                if(sequence!=info.facilitySeen){info.facilitySeen=sequence;info.displayed=false;}
+            }
             BYTE event[52] = {};
+            if(planetWindowTab==3 && GetTickCount64()>=info.acceptAfter) {
+                if(facilityGuideSelected) {
+                    for(unsigned button=85;button<=88;++button) {
+                        if(!reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
+                            (info.popup,2,planetWidget(button),event,0))continue;
+                        if(button==88)facilityGuideSelected=0;else facilityGuideTab=button-85;
+                        info.displayed=false;info.acceptAfter=GetTickCount64()+200;break;
+                    }
+                } else for(unsigned button=72;button<80;++button) {
+                    unsigned row=info.page*8+button-72;
+                    if(!info.placesReady || row>=info.places.count)break;
+                    if(!reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
+                        (info.popup,2,planetWidget(button),event,0))continue;
+                    facilityGuideSelected=info.places.rows[row].institution;facilityGuideTab=0;
+                    info.displayed=false;info.acceptAfter=GetTickCount64()+200;break;
+                }
+            }
             if (planetWindowTab==4 && GetTickCount64()>=info.acceptAfter) {
                 for (unsigned button=72;button<80;++button) {
                     if (!reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
@@ -353,8 +383,8 @@ static int __cdecl planetInfoMenu(void* gui) {
                 } else if ((index >= 20 && index <= 22) || index == 31 || index == 32) {
                     stopPlanetUnits();
                     planetWindowTab = index >= 31 ? index-28 : index - 20; info.page = 0; info.displayed = false;
-                } else if (index == 23 && info.page) { --info.page; info.displayed = false; }
-                else if (index == 24 && info.page + 1 < planetStockPages()) { ++info.page; info.displayed = false; }
+                } else if (index == 23 && info.page) { facilityGuideSelected=0; --info.page; info.displayed = false; }
+                else if (index == 24 && info.page + 1 < planetStockPages()) { facilityGuideSelected=0; ++info.page; info.displayed = false; }
                 else if (index == 25 && info.count) requestPlanetInformation();
                 else if (index >= 27 && index <= 29) {
                     unsigned target = index == 29 ? info.originGrid : info.systems.adjacent(info.grid, index == 28);
