@@ -368,8 +368,34 @@ static void refreshCountryNamePanels(void* world) {
         stationedOutfitVisible(outfitInformation.manager))renderOutfitInformation();
 }
 
+// 004d5610 lays the strategy bottom bar out for 1024 wide: left panel (atlas 0,0 743x200) at
+// x 0, right panel (0,200 743x201) at w-743, centre (0,400 339x199) at (w-339)*0.5-22-10.
+// Wider than 1761 (right) / 1889 (left) the tube between them opens. Close each gap by
+// stretching one column from the straight tube end of the neighbouring side panel
+// (atlas runs: left x 685..741, right x 0..15).
+static HudSprite hudStripSprites[2] = {};
+static void drawHudStrip(const HudFrame& frame, int slot, int atlasX, int atlasY, int height, float x, float y, float width) {
+    auto panel = *reinterpret_cast<HudSprite**>(0x9d2ed0);
+    if (width < 1 || !panel || !panel->texture || panel->textureWidth != 1024 || panel->textureHeight != 1024) return;
+    auto& sprite = hudStripSprites[slot];
+    sprite = *panel;
+    sprite.x = atlasX; sprite.y = atlasY; sprite.width = 1; sprite.height = height;
+    reinterpret_cast<void(__thiscall*)(void*)>(0x4d2030)(&sprite);
+    reinterpret_cast<int(__thiscall*)(void*, const float*, float, float, float, float, void*, int, unsigned, int, int)>(0x4cb2b0)
+        (reinterpret_cast<void*>(0x9d29a0), frame.scale, x, y, width, static_cast<float>(height), &sprite, 0, 0xffffffff, 0, 0);
+}
+static void drawHudStrips() {
+    HudFrame frame;
+    if (!hudFrame(frame)) return;
+    const int width = static_cast<int>(frame.width), centre = static_cast<int>((width - 339) * 0.5f - 22 - 10);
+    drawHudStrip(frame, 0, 720, 0, 200, 743, frame.height - 200, static_cast<float>(centre - 743));
+    drawHudStrip(frame, 1, 8, 200, 201, static_cast<float>(centre + 339), frame.height - 201,
+        static_cast<float>(width - 743 - (centre + 339)));
+}
+
 static void __fastcall drawHud(void* map, void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x4d5610)(map);
+    drawHudStrips();
     drawDockingStatus();
     drawSystemAffiliationIcons(map);
     void* world = *reinterpret_cast<void**>(0x7ccffc);
