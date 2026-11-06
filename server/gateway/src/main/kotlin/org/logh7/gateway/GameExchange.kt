@@ -1549,22 +1549,26 @@ class GameExchange(
                                         if(query.command in org.logh7.engine.GoalActions.commands) {
                                             // 国家目標: enemy-held bases; 統治目標: the planets this character governs.
                                             val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
+                                            val country=currentProfile(identity.account,query.character).country
                                             val ids=if(query.command==org.logh7.engine.GoalActions.NATIONAL)
-                                                stocks.bases.values.filter {it.power in 2..3 && it.power!=character.power}.map {it.baseId}
-                                                else org.logh7.engine.FundActions.governed(stocks,character.id.toInt(),character.power)
+                                                stocks.bases.values.filter {it.country!=null && it.country!=country}.map {it.baseId}
+                                                else org.logh7.engine.FundActions.governed(world.galaxy,stocks,character.id.toInt(),country)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it>query.target}.sorted().take(200)
                                                 .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")})
                                         }
                                         if(query.command==org.logh7.engine.FundActions.FUNDS) {
                                             // 資金投入 targets: governed planets, the two confidence choices, or same-side candidates.
                                             val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
+                                            val country=currentProfile(identity.account,query.character).country
+                                            val peers=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
+                                                .filter {country!=null && it.country==country}.map {it.id}.toSet()
                                             val rows=when(query.value) {
-                                                0 -> org.logh7.engine.FundActions.governed(stocks,character.id.toInt(),character.power).filter {it>query.target}
+                                                0 -> org.logh7.engine.FundActions.governed(world.galaxy,stocks,character.id.toInt(),country).filter {it>query.target}
                                                     .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")}
                                                 1 -> listOf(1 to "지지",2 to "불지지").filter {it.first>query.target}
                                                     .map {org.logh7.protocol.StrategyActionMessages.Selection(it.first,it.second)}
                                                 else -> characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
-                                                    .filter {it.power==character.power && it.id!=character.id && it.id>query.target}.sortedBy {it.id}
+                                                    .filter {it.id!=character.id && it.id>query.target && it.id.toInt() in peers}.sortedBy {it.id}
                                                     .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
                                             }.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)

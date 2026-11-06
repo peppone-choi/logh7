@@ -9,11 +9,11 @@ import org.logh7.engine.strategy.*
  * that are not restored yet. Which planets count as governed and the tally form are evidence:guess. Author: Peppone Choi.
  */
 data class FundState(
-    /** power -> (for, against) totals of the 信任ボックス. */
+    /** Actual country ID -> (for, against) totals of the confidence box. */
     val confidence:Map<Int,Pair<Long,Long>> = emptyMap(),
     /** candidate -> total of the 支持ボックス. */
     val support:Map<Int,Long> = emptyMap()) {
-    init {require(confidence.size<=2 && confidence.all {(k,v)->k in 2..3 && v.first>=0 && v.second>=0} &&
+    init {require(confidence.size<=350 && confidence.all {(k,v)->k>0 && v.first>=0 && v.second>=0} &&
         support.size<=4096 && support.all {(k,v)->k>0 && v>0})}
     fun detached()=copy(confidence=java.util.Collections.unmodifiableMap(LinkedHashMap(confidence)),
         support=java.util.Collections.unmodifiableMap(LinkedHashMap(support)))
@@ -26,10 +26,16 @@ object FundActions {
     const val CONFIDENCE=1
     const val SUPPORT=2
     /** Planets whose treasury the character may aid: governed (知事/司政官) or held as a fief. */
-    fun governed(s:PlanetStocks,character:Int,power:Int)=s.bases.values.filter {b->b.power==power && b.camp==0 &&
-        (b.governorId==character || b.capitalAdministratorId==character || s.strategic.fiefs[b.baseId]==character)}.map {it.baseId}.sorted()
+    fun governed(g:Galaxy,s:PlanetStocks,character:Int,country:CountryId?,countries:CountryCatalog=CountryCatalogLoader.current()):List<Int> {
+        if(country==null)return emptyList()
+        val office=OrganizationalOfficePolicy(g,countries)
+        val seats=listOf(54,190,192).flatMap {office.holders(s,it,country)}.filter {it.character==character}.map {it.seat}.toSet()
+        return s.bases.values.filter {it.belongsTo(country) && it.camp==0 &&
+            (it.baseId in seats || s.strategic.fiefs[it.baseId]==character)}.map {it.baseId}.sorted()
+    }
 
-    fun evaluate(r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks):SocialResult {
+    fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
         val i=r.identity
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         val member=session.participants[i.account]
@@ -37,14 +43,13 @@ object FundActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
+        if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(i.card!=0)return reject(SocialRejection.CARD)
         if(i.value !in LOCAL..SUPPORT || i.amount<=0)return reject(SocialRejection.COMMAND)
-        val own=if(p.power==Power.EMPIRE)2 else 3
+        val own=i.country.value
         when(i.value) {
-            LOCAL -> if(i.target !in governed(s,i.characterId,own))return reject(SocialRejection.TARGET)
+            LOCAL -> if(i.target !in governed(g,s,i.characterId,i.country,countries))return reject(SocialRejection.TARGET)
             CONFIDENCE -> if(i.target !in 1..2)return reject(SocialRejection.TARGET)
             SUPPORT -> if(i.target==i.characterId || i.identities.singleOrNull {it.id==i.target}?.country!=p.country)
                 return reject(SocialRejection.TARGET)

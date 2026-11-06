@@ -128,9 +128,14 @@ class SocialStoreTest {
         assertEquals(listOf(10002,10001),SocialStateCodec.decode(encoded).coup.plots.getValue(10000).members,"joining order")
     }
     @Test fun fundBoxesRoundTripAsAnOptionalEleventhField() {
-        val state=SocialState(funds=FundState(mapOf(2 to (100L to 5L)),mapOf(10001 to 300L)))
+        val state=SocialState(funds=FundState(mapOf(2 to (100L to 5L),42 to (100L to 50L),43 to (7L to 8L)),mapOf(10001 to 300L)))
         val encoded=SocialStateCodec.encode(state)
         assertEquals(11,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
+        val value=stocks.copy(social=state)
+        val path=directory.resolve("country-funds")
+        FilePlanetStockStore(path).use {it.save(value)}
+        FilePlanetStockStore(path).use {assertEquals(value,it.load())}
+        assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(encoded.replace("42:100:50","0:100:50"))}
     }
     @Test fun goalsRoundTripAsAnOptionalTwelfthField() {
         val state=SocialState(goals=GoalState(mapOf(2 to NationalGoal(1050,10000,7)),mapOf(1049 to 2)))

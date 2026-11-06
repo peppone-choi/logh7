@@ -5,12 +5,14 @@ import kotlin.test.*
 
 /** 資金投入: 통치 행성 금고, 신임·지지 박스 집계, 사적 자금 부족 거부. 작성: Peppone Choi. */
 class FundActionsTest {
+    private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2)),(1049..1050).map {
+        GalaxyBase(it,2487,80,0,"Base $it",0,20f,86400,0,0f,2f)},Power.entries.associateWith {2487})
     private val rules=SessionRules.load()
     private val session=SessionSimulation(rules).also {it.join("a",Power.EMPIRE,false,"a")}.exportState()
     private val a=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,spotId=10490001)
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300,treasury=10),1050 to PlanetStock(1050,2,0,1,1,1)),
         strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=1,money=7000)),fiefs=mapOf(1049 to 10000)))
-    private fun act(value:Int,target:Int,amount:Long,s:PlanetStocks=stocks)=FundActions.evaluate(SocialRequest(StrategyActionRequest(
+    private fun act(value:Int,target:Int,amount:Long,s:PlanetStocks=stocks)=FundActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(
         "a","a",10000,Power.EMPIRE,1,FundActions.FUNDS,0,1,target=target,value=value,amount=amount,
         identities=listOf(StrategicIdentity(10001,2,5,0,listOf(50,50,50,50,50,50,50,50))))),session,a,s)
 
@@ -19,7 +21,7 @@ class FundActionsTest {
             val request=StrategyActionRequest("a","a",10000,Power.EMPIRE,1,FundActions.FUNDS,0,1,
                 target=10001,value=FundActions.SUPPORT,amount=1000,
                 identities=listOf(StrategicIdentity(10001,country,5,0,List(8){50})))
-            val result=FundActions.evaluate(SocialRequest(request),session,a,stocks)
+            val result=FundActions.evaluate(galaxy,SocialRequest(request),session,a,stocks)
             assertEquals(SocialRejection.TARGET,result.rejection)
             assertEquals(a,result.player);assertEquals(stocks,result.stocks)
         }

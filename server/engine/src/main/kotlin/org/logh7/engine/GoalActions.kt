@@ -53,7 +53,7 @@ object GoalActions {
             return reject(SocialRejection.CARD)
         if(i.command==NATIONAL) {
             if(s.bases[i.target]?.let {it.power in 2..3 && it.power!=own}!=true || i.value!=0)return reject(SocialRejection.TARGET)
-        } else if(i.target !in FundActions.governed(s,i.characterId,own) || i.value !in PRODUCTION..PEACE)return reject(SocialRejection.TARGET)
+        } else if(i.target !in FundActions.governed(g,s,i.characterId,i.country) || i.value !in PRODUCTION..PEACE)return reject(SocialRejection.TARGET)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==NATIONAL)320L else 80L,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         val goals=s.social.goals;val now=session.gameMillis/1000

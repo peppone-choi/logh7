@@ -70,7 +70,7 @@ object SocialActions {
         if(r.identity.command in Justice.commands)return JusticeActions.evaluate(g,r,session,p,s,accounts)
         if(r.identity.command in EspionageActions.commands)return EspionageActions.evaluate(g,r,session,p,s,accounts)
         if(r.identity.command in CoupActions.commands)return CoupActions.evaluate(g,r,session,p,s,accounts)
-        if(r.identity.command==FundActions.FUNDS)return FundActions.evaluate(r,session,p,s)
+        if(r.identity.command==FundActions.FUNDS)return FundActions.evaluate(g,r,session,p,s)
         if(r.identity.command in GoalActions.commands)return GoalActions.evaluate(g,r,session,p,s)
         if(r.identity.command in TradeActions.commands)return TradeActions.evaluate(g,r,session,p,s)
         if(r.identity.command in ProductionActions.commands)return ProductionActions.evaluate(g,r,session,p,s)

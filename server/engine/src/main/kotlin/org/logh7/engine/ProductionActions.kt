@@ -74,12 +74,11 @@ object ProductionActions {
         // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
         if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
-        val own=if(p.power==Power.EMPIRE)2 else 3
         val held=OrganizationalOfficePolicy(g).held(s,i.characterId).map {it.card}.toSet()
         if(i.card !in GoalActions.governanceCards || i.card !in held && !(i.card==66 && s.strategic.fiefs.containsValue(i.characterId)))
             return reject(SocialRejection.CARD)
         val base=p.baseId
-        if(base==0 || base !in FundActions.governed(s,i.characterId,own))return reject(SocialRejection.LOCATION)
+        if(base==0 || base !in FundActions.governed(g,s,i.characterId,i.country,catalog))return reject(SocialRejection.LOCATION)
         val stock=s.bases.getValue(base);val prod=s.social.production
         val unit=if(i.command==SHIP || i.command==RECRUIT)kinds(i.country,i.command==SHIP,catalog).singleOrNull {it.kind==i.value} else null
         when(i.command) {
