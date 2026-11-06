@@ -8,16 +8,23 @@ data class GroundBattleResult(val generation:Long,val grid:Int,val base:Int,val 
 /** Public read of who actually fights on a base (manual p.51: 30 units per side; the rest wait in reserve). */
 object GroundBattleView {
     fun fighting(stocks:PlanetStocks,base:GalaxyBase):Set<Int> =
-        (2..3).flatMap {GroundBattleOperations.participants(stocks,base,it)}.map {it.id}.toSet()
+        GroundBattleOperations.countries(stocks).flatMap {GroundBattleOperations.participants(stocks,base,it)}.map {it.id}.toSet()
 }
 internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
-    fun participants(stocks:PlanetStocks,base:GalaxyBase,power:Int):List<ActiveGroundUnit> =
-        stocks.outfits.values.filter {it.power==power}.flatMap {it.activeGround?.values.orEmpty()}
+    fun countries(stocks:PlanetStocks)=stocks.outfits.values.map {it.country}.distinct().sortedBy {it.value}
+
+    // shortcut: occupation still calls with legacy 2/3; remove this overload with occupation authority migration.
+    fun participants(stocks:PlanetStocks,base:GalaxyBase,power:Int)=participants(stocks,base,CountryId(power))
+    fun participants(stocks:PlanetStocks,base:GalaxyBase,country:CountryId):List<ActiveGroundUnit> =
+        stocks.outfits.values.filter {it.country==country}.flatMap {it.activeGround?.values.orEmpty()}
             .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
 
-    fun contested(stocks:PlanetStocks,base:GalaxyBase)=participants(stocks,base,2).isNotEmpty() && participants(stocks,base,3).isNotEmpty()
+    private fun sides(stocks:PlanetStocks,base:GalaxyBase)=countries(stocks).mapNotNull {country ->
+        participants(stocks,base,country).takeIf {it.isNotEmpty()}?.let {country to it}
+    }
+    fun contested(stocks:PlanetStocks,base:GalaxyBase)=sides(stocks,base).size>1
 
     fun advance(session:SessionState,galaxy:Galaxy,players:Map<String,Navigator>,stocks:PlanetStocks,
         scale:Long,events:MutableList<GroundBattleResult>):PlanetStocks {
@@ -33,7 +40,7 @@ internal object GroundBattleOperations {
             // Bound each actor pass; the durable clock retains unprocessed exchanges.
             var rounds=0
             while(at<=now-step && rounds++<256 && contested(next,base)) {
-                val empire=participants(next,base,2);val alliance=participants(next,base,3)
+                val sides=sides(next,base)
                 val losses=mutableMapOf<Int,Int>()
                 fun attack(from:List<ActiveGroundUnit>,targets:List<ActiveGroundUnit>) {
                     from.forEachIndexed {i,attacker->
@@ -50,7 +57,7 @@ internal object GroundBattleOperations {
                     }
                 }
                 // Both sides attack the same pre-exchange roster, including simultaneous losses.
-                attack(empire,alliance);attack(alliance,empire)
+                for((country,units) in sides)attack(units,sides.filter {it.first!=country}.flatMap {it.second})
                 val morale=next.tacticalCommands.morale.toMutableMap()
                 val outfits=next.outfits.mapValues {(_,outfit)->
                     val old=outfit.activeGround
