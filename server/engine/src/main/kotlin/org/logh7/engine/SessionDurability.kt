@@ -88,7 +88,7 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
 fun WorldCommand.sessionAction(): SessionAction = when (this) {
     WorldCommand.Probe -> SessionAction.Probe
     is WorldCommand.AdvanceTo -> SessionAction.Advance(elapsedRealMillis)
-    is WorldCommand.Join -> SessionAction.Join(account, power, original, connection, generation)
+    is WorldCommand.Join -> SessionAction.Join(account, country, original, connection, generation)
     is WorldCommand.Disconnect -> SessionAction.Disconnect(account, connection)
     is WorldCommand.Exclude -> SessionAction.Exclude(account)
     is WorldCommand.OpenBattle -> SessionAction.OpenBattle(id)

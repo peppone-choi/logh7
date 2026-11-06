@@ -6,13 +6,15 @@ import org.logh7.protocol.CharacterMessages
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
+/** Native selection/bootstrap still need their country expansion; the actor itself uses actual IDs. */
+internal fun CharacterProfile.canEnterNativeCountry()=country?.value in setOf(2,3) && country?.value==character.power
+
 interface GameAdmission {
     val generation: Long
     val running: Boolean
     fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long): CompletableFuture<Admission>
     fun join(account:String,profile:CharacterProfile,connection:String,generation:Long):CompletableFuture<Admission> {
-        // shortcut: native authority/commands still accept countries 2/3; extend with country command systems.
-        if(profile.country?.value !in setOf(2,3) || profile.country?.value!=profile.character.power)
+        if(!profile.canEnterNativeCountry())
             return CompletableFuture.completedFuture(Admission.FACTION_CHANGED)
         return join(account,profile.character,connection,generation)
     }
@@ -27,12 +29,19 @@ class EngineGameAdmission(private val engine: WorldEngine, private val scope: Co
     override val generation get() = checkNotNull(engine.snapshot().session).generation
     override val running get() = checkNotNull(engine.snapshot().session).ended == null
     override fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long): CompletableFuture<Admission> {
+        require(character.power in 2..3)
+        return join(account,character,CountryId(character.power),connection,generation)
+    }
+    override fun join(account:String,profile:CharacterProfile,connection:String,generation:Long):CompletableFuture<Admission> {
+        return join(account,profile.character,profile.country,connection,generation)
+    }
+    private fun join(account:String,character:CharacterMessages.Generate,country:CountryId?,connection:String,generation:Long):CompletableFuture<Admission> {
         val future = CompletableFuture<Admission>()
         check(requests.putIfAbsent(connection, future) == null)
         scope.launch {
             try {
                 val result = CompletableDeferred<Admission>()
-                engine.submit(WorldCommand.Join(account, if (character.power == 2) Power.EMPIRE else Power.ALLIANCE,
+                engine.submit(WorldCommand.Join(account, country,
                     !character.generated, result, connection, generation, StrategicPerson(rank = character.rank,
                         peerage = Peerage.entries.getOrNull(character.title - 1), merit = character.merit, influence = character.influence,
                         evaluation = character.evaluation, money = character.money, abilities = character.abilities,

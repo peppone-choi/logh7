@@ -602,6 +602,36 @@ class GameExchangeTest {
         assertTrue(characters.entries("other").isEmpty())
         assertFails { game.accept(0x30, encrypted(hex("0205"), 5)) }
     }
+    @Test fun unsupportedNativeMembershipStopsBeforeAnyActorJoinEvenWithoutAnAdmissionAdapter() {
+        for(country in listOf(CountryId(42),null,CountryId(3)))for(withAdapter in listOf(true,false)) {
+            val c=OriginalCharacterMessages.localCandidates.first {it.character.power==2}.character.copy(id=10000,category=4,generated=true)
+            val characters=CharacterCreation().also {assertTrue(it.carry("user",CharacterProfile(c,country,ShipStyleId("alliance"))))}
+            var joins=0
+            val access=object:GameAdmission {
+                override val generation=1L
+                override val running=true
+                override fun join(account:String,character:CharacterMessages.Generate,connection:String,generation:Long):CompletableFuture<Admission> {
+                    joins++;return CompletableFuture.completedFuture(Admission.ACCEPTED)
+                }
+                override fun join(account:String,profile:CharacterProfile,connection:String,generation:Long):CompletableFuture<Admission> {
+                    joins++;return CompletableFuture.completedFuture(Admission.ACCEPTED)
+                }
+                override fun disconnect(account:String,connection:String) {}
+            }
+            val tickets=SessionTickets()
+            val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,Handshake(b,2),
+                characters=characters,admission=if(withAdapter)access else null).also {it.accept(0x34,initial);it.accept(0x36,confirm)}
+            val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+            game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+            game.accept(0x30,encrypted(hex("0200"),2))
+            val response=assertNotNull(game.accept(0x30,encrypted(hex("0205"),3)))
+            val body=Envelope.decode(LegacyBlowfish(b).decrypt(response.copyOfRange(8,response.size)),2).second
+            assertContentEquals(LoginMessages.sessionRejection(),body)
+            assertNull(game.takePendingJoin());assertEquals(0,joins)
+            assertEquals(country,characters.profiles().getValue("user").country)
+            game.close()
+        }
+    }
     @Test fun gameLoginWaitsForActorAdmissionAndRejectsBeforeWorldInitialization() {
         for (decision in listOf(Admission.ACCEPTED, Admission.FULL)) {
             var now = java.time.Instant.EPOCH

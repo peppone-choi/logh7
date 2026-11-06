@@ -111,7 +111,7 @@ class NavigationTest {
                     1000,1000,1000,baseId=1000,mode=4,cpRecoveryAt=0))}
                 val navigation = Navigation(galaxy,store,NavigationPolicy())
                 val before = store.saved.getValue("pilot")
-                val result = navigation.apply(request.copy(power=power,unitId=1010000,
+                val result = navigation.apply(request.copy(country=power.country,unitId=1010000,
                     place=PlaceMove.Spot(port.spots.single {it.kind == kind}.id,0)),session,stocks)
                 if(friendly) assertNotNull(result.player) else {
                     assertEquals(NavigationRejection.ACCESS,result.rejection)

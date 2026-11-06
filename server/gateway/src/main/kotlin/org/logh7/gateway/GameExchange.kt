@@ -162,8 +162,8 @@ class GameExchange(
     }
     private fun navigate(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
         val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(request.account)
-        check(profile.character.id.toInt()==request.characterId && profile.country==request.power.country) {"Navigation character country mismatch"}
-        return checkNotNull(navigation).apply(request.copy(shipStyle=profile.shipStyle))
+        check(profile.character.id.toInt()==request.characterId) {"Navigation character identity mismatch"}
+        return checkNotNull(navigation).apply(request.copy(country=profile.country,shipStyle=profile.shipStyle))
     }
     private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         BootstrapMessages.unit(flagshipCharacter(character,player), player.grid, player.cruise, player.baseId, player.mode,
@@ -1190,6 +1190,7 @@ class GameExchange(
                             connection, checkNotNull(generation), unitId = character.id.toInt() + 1_000_000,
                             captainCard = command.card, politics = character.abilities[1], administration = character.abilities[2],
                             supplyFuel = true)).thenApply { result ->
+                            if(traceOpcodes && result.player==null)System.err.println("trace ${identity.account} fuel card ${command.card} rejected: ${result.rejection}")
                             val player = checkNotNull(result.player ?: result.previous) { "Supply lost its authenticated session" }
                             publication = Publication(character, player, false)
                             listOf(org.logh7.protocol.FuelMessages.reply(command, gameSeconds(), player.pcp, player.mcp, result.player != null),
@@ -1211,6 +1212,7 @@ class GameExchange(
                             command.card, politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
                             val player = result.player ?: run {
                                 val origin = checkNotNull(result.previous) { "Warp lost its authenticated session" }
+                                if(traceOpcodes)System.err.println("trace ${identity.account} warp ${command.grid} card ${command.card} rejected: ${result.rejection}")
                                 publication = Publication(character, origin, false)
                                 return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(
                                     command.copy(grid = origin.grid, base = origin.baseId, mode = origin.mode),
@@ -1990,9 +1992,13 @@ class GameExchange(
                     0x0205 -> {
                         check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
                         val character = checkNotNull(currentCharacter(identity.account))
+                        val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
+                        if(!profile.canEnterNativeCountry()) {
+                            state=State.REJECTED
+                            return handshake.stageAll(listOf(LoginMessages.sessionRejection()),clearHeader=0)
+                        }
                         if (admission != null) {
                             joining = true; joinRequested = true
-                            val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
                             pendingJoin = admission.join(identity.account, profile.copy(character=character), connection, checkNotNull(generation))
                             return null
                         }

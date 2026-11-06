@@ -80,7 +80,7 @@ interface NavigationStore : AutoCloseable {
     fun save(players: Map<String, Navigator>)
     override fun close() {}
 }
-data class NavigationRequest(val account: String, val characterId: Int, val power: Power,
+data class NavigationRequest(val account: String, val characterId: Int, val country: CountryId?,
     val connection: String, val generation: Long, val destination: Int? = null, val unitId: Int? = null,
     val captainCard: Int? = null, val place: PlaceMove? = null, val rank: Int = 20,
     val politics: Int = 50, val administration: Int = 50, val tactical: Boolean? = null,
@@ -100,6 +100,34 @@ data class NavigationRequest(val account: String, val characterId: Int, val powe
     val offlineAbilities:Boolean=false,
     /** Server-resolved model family; never taken from a native client field. */
     val shipStyle:ShipStyleId?=null) {
+    /** Compatibility for old internal callers; membership checks use [country]. */
+    constructor(account: String, characterId: Int, power: Power,
+    connection: String, generation: Long, destination: Int? = null, unitId: Int? = null,
+    captainCard: Int? = null, place: PlaceMove? = null, rank: Int = 20,
+    politics: Int = 50, administration: Int = 50, tactical: Boolean? = null,
+    supplyFuel: Boolean = false, returnBase: Int? = null,
+    energy: TacticalEnergy? = null, shipKind: Int? = null, tacticalMove: TacticalMove? = null,
+    tacticalStop: TacticalStop? = null, tacticalRetreat: List<Int>? = null,
+    tacticalShoot: TacticalShoot? = null, tacticalAttack: TacticalAttack? = null,
+    tacticalSupport: TacticalSupport? = null, commandAbility:Int?=null,
+    tacticalPosture:TacticalPostureChange?=null,tacticalGround:TacticalGroundCommand?=null,
+    tacticalCommand:TacticalCommand?=null,tacticalRanks:Map<Int,Int> = emptyMap(),offlineDirection:Int?=null,
+    /** World-clock settlement of an offline captain's due navigation job; it carries no action of its own. */
+    offlineSettle:Boolean=false,
+    /**
+     * The offline request carries the captain's last joined abilities, so CP recovery is settled first as at login.
+     * Without them recovery waits for login; the caller must not settle a warp then (tactical contact resets the clock).
+     */
+    offlineAbilities:Boolean=false,
+    /** Server-resolved model family; never taken from a native client field. */
+    shipStyle:ShipStyleId?=null) : this(account,characterId,power.country,connection,generation,destination,
+        unitId,captainCard,place,rank,politics,administration,
+        tactical,supplyFuel,returnBase,energy,shipKind,tacticalMove,
+        tacticalStop,tacticalRetreat,tacticalShoot,tacticalAttack,tacticalSupport,commandAbility,
+        tacticalPosture,tacticalGround,tacticalCommand,tacticalRanks,offlineDirection,offlineSettle,
+        offlineAbilities,shipStyle)
+    val power:Power get()=country.legacyPower()
+
     init {require(!offlineAbilities || offlineSettle)}
     init {require(!offlineSettle || (offlineDirection==null && destination==null && place==null && !supplyFuel && returnBase==null &&
         tactical==null && energy==null && shipKind==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
@@ -150,7 +178,8 @@ data class NavigationResult(val player: Navigator?, val previous: Navigator? = n
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
     private val policy: NavigationPolicy, private val cpIntervalSeconds: Long = 7200, private val clockScale: Long = 24,
-    restored:Map<String,Navigator> = store?.load().orEmpty()) {
+    restored:Map<String,Navigator> = store?.load().orEmpty(),
+    private val configuredCountries:CountryCatalog?=null) {
     init { require(cpIntervalSeconds in 1..86400 && clockScale in 1..1000) }
     private var players = restored.toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
@@ -168,20 +197,27 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (session.ended != null || session.generation != request.generation ||
             (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
             return reject(NavigationRejection.SESSION)
-        if (member.country != request.power.country) return reject(NavigationRejection.IDENTITY)
+        if (member.country != request.country) return reject(NavigationRejection.IDENTITY)
         if (persist) settleRetreats(session, stocks)
         // U-11: a dead character's navigator gives way to the account's next character.
         val existing = players[request.account]?.takeIf { it.generation == request.generation &&
             !(it.characterId != request.characterId && BattleDeath.deceased(stocks,it.characterId)) }
-        if (existing != null && (existing.characterId != request.characterId || existing.country != request.power.country))
+        if (existing != null && (existing.characterId != request.characterId || existing.country != request.country))
             return reject(NavigationRejection.IDENTITY)
         if(existing!=null && request.shipStyle!=null && existing.shipStyle!=request.shipStyle)
             return reject(NavigationRejection.IDENTITY)
         // Offline settlement only finishes existing work; it never creates a flagship for an absent captain.
         if (request.offlineSettle && existing == null) return reject(NavigationRejection.SESSION)
-        var initial = existing ?: Navigator(request.generation, request.characterId, request.power.country,
-            galaxy.starts.getValue(request.power), policy.initialCp, policy.initialCp, policy.initialCruise,
-            shipStyle=request.shipStyle ?: ShipStyleId.fromLegacy(request.power))
+        val countries=configuredCountries ?: CountryCatalogLoader.current()
+        if(request.country!=null && request.country.value !in countries.countries)return reject(NavigationRejection.IDENTITY)
+        val start=if(existing==null)galaxy.countryStarts[request.country] ?: return reject(NavigationRejection.BASE) else existing.grid
+        val style=existing?.shipStyle ?: request.shipStyle ?: request.country?.let {
+            if(it.value !in countries.countries)return reject(NavigationRejection.IDENTITY)
+            countries.shipStyle(it)
+        } ?: return reject(NavigationRejection.IDENTITY)
+        if(style.value !in setOf("empire","alliance"))return reject(NavigationRejection.UNIT)
+        var initial = existing ?: Navigator(request.generation, request.characterId, request.country,
+            start, policy.initialCp, policy.initialCp, policy.initialCruise,shipStyle=style)
         val now = session.gameMillis / 1000
         if (initial.hull == null && request.shipKind != null) {
             val ship=Flagships.find(request.shipKind) ?: return reject(NavigationRejection.UNIT)
@@ -215,8 +251,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         // Docking reservations cannot be cancelled or refunded (design 2026-10-30, evidence:guess). A destination
         // that stopped being a regular own base before execution keeps the flagship at its origin.
         val dueDock = ranged.dockTarget?.takeIf { fueled.dockTarget == null }
-        val ownWire = if (ranged.power == Power.EMPIRE) 2 else 3
-        val docked = if (dueDock != null && stocks?.bases?.get(dueDock)?.let { it.power != ownWire || it.camp != 0 } == true)
+        val dockOwner=dueDock?.let {id->
+            val base=galaxy.conditions[id]
+            val stock=stocks?.bases?.get(id)
+            base!=null && ownBase(ranged.country,stock?.owner ?: Allegiance.fromLegacy(base.power),stock?.camp ?: base.camp)
+        }
+        val docked = if (dueDock != null && dockOwner!=true)
             fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
         // Without known abilities CP recovery waits for the next login (its clock is not advanced).
         val recovered = if (request.offlineSettle && !request.offlineAbilities) docked else recover(docked, request, now)
@@ -268,12 +308,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         request.tacticalRetreat?.let { units ->
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             if (units != listOf(before.unitId)) return reject(NavigationRejection.UNIT)
-            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (before.retreat != null) return reject(NavigationRejection.BUSY)
             if (before.energy?.values?.get(1) != TacticalEnergy.WARP_MAX) return reject(NavigationRejection.ENERGY)
-            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
+            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, nativeSide(before,countries), before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy)
             if (!RetreatRules.outside(pose)) return reject(NavigationRejection.INSIDE_RADAR)
             val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose)
@@ -287,11 +327,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             // Fleet/base authority is not yet implemented. Never silently stop another commander's units.
             if (stop.units != listOf(before.unitId) || stop.bases.isNotEmpty()) return reject(NavigationRejection.UNIT)
-            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
-            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.power, before.grid,
+            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, nativeSide(before,countries), before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy)
             // Retain an authoritative stationary pose; null would restore the initial deployment on reconnect.
             val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)),
@@ -304,7 +344,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if(move.maneuver!=null)return reject(NavigationRejection.DISABLED)
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             if (move.units != listOf(before.unitId)) return reject(NavigationRejection.UNIT)
-            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             val maximum = (before.energy ?: TacticalEnergy.ZERO).values[0] / 100f
@@ -314,7 +354,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val velocity = minOf(move.velocity, maximum)
             if (now > 0xffffffffL - 5*clockScale) return reject(NavigationRejection.CLOCK)
             val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now,before.posture,galaxy) ?:
-                TacticalDeployment.initial(before.unitId, before.power, before.grid,
+                TacticalDeployment.initial(before.unitId, nativeSide(before,countries), before.grid,
                     snapshot(session.generation).values + before, stocks, galaxy)
             if (TacticalTerrain.pathBlocked(galaxy, before.grid, origin.position, move.waypoints)) return reject(NavigationRejection.RANGE)
             val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
@@ -326,7 +366,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         request.energy?.let { energy ->
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
-            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (energy.allocated > ship.number("出力:出力") || energy.values.zip(TacticalEnergy.MAXIMUM).any {it.first>it.second})
@@ -351,9 +391,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 if (condition.habitability == 0) return reject(NavigationRejection.BASE)
                 val stock = stocks?.bases?.get(target)
                 if (stocks != null && stock == null) return reject(NavigationRejection.BASE)
-                val power = stock?.power ?: condition.power
+                val owner = stock?.owner ?: Allegiance.fromLegacy(condition.power)
                 val camp = stock?.camp ?: condition.camp
-                if (power != (if (before.power == Power.EMPIRE) 2 else 3) || camp != 0)
+                if (!ownBase(before.country,owner,camp))
                     return reject(NavigationRejection.ACCESS)
             }
             val after = before.copy(returnBase = target)
@@ -369,7 +409,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (before.dockTarget != null || before.warpTarget != null) return reject(NavigationRejection.TRAVELLING)
         if (request.supplyFuel) {
             if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
-            if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+            if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
             if (before.baseId != 0 || before.spotId != 0 || before.mode != 5) return reject(NavigationRejection.EMBARKED)
             if (before.cruise >= policy.maximumCruise) return reject(NavigationRejection.FUEL_FULL)
             // W68: 48..960 hours. The missing-fuel interpolation is a local policy.
@@ -386,14 +426,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         }
         if (request.place != null) {
             if (destination != null) return reject(NavigationRejection.BASE)
-            val moved = movePlace(request, before, now, stocks)
+            val moved = movePlace(request, before, now, stocks,countries)
             val result = moved.copy(player=moved.player?.let(::contact))
             if (persist) result.player?.let { commit(request.account, it, session.generation) }
             return result.copy(completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
         }
         if (before.baseId != 0 || before.spotId != 0) return reject(NavigationRejection.EMBARKED)
         if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
-        if (request.captainCard != if (before.power == Power.EMPIRE) 59 else 195) return reject(NavigationRejection.CARD)
+        if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
         if (destination == null || destination !in 0..4999) return reject(NavigationRejection.GRID)
         if (destination == before.grid) return reject(NavigationRejection.SAME_GRID)
         val dx = abs(destination % 100 - before.grid % 100)
@@ -431,6 +471,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             completedWarp = completedWarp, warpRejected = warpRejected)
     }
     /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
+    private fun ownBase(country:CountryId?,owner:Allegiance,camp:Int)=country!=null && owner==Allegiance.Country(country) && camp==0
+    private fun nativeSide(player:Navigator,countries:CountryCatalog):Power=when(countries.countries[player.country?.value]?.nativePower) {
+        2->Power.EMPIRE;3->Power.ALLIANCE;else->error("No native military display for country")
+    }
+    private fun captainCard(request:NavigationRequest,player:Navigator,countries:CountryCatalog):Boolean {
+        val card=when(countries.countries[player.country?.value]?.nativePower) {2->59;3->195;else->return false}
+        return request.captainCard==card
+    }
     private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =
         stocks?.strategic?.operations.orEmpty().any { operation -> operation.live &&
             operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
@@ -500,24 +548,24 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         return player.copy(pcp = balance(player.pcp, request.politics), mcp = balance(player.mcp, request.administration),
             cpRecoveryAt = last + periods * cpIntervalSeconds)
     }
-    private fun movePlace(request: NavigationRequest, before: Navigator, now: Long, stocks: PlanetStocks?): NavigationResult {
+    private fun movePlace(request: NavigationRequest, before: Navigator, now: Long, stocks: PlanetStocks?,countries:CountryCatalog): NavigationResult {
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = before, rejection = reason)
-        val ownPower = if (before.power == Power.EMPIRE) 2 else 3
         val after: Navigator
         val cost: Long
         val pool: CpPool
         when (val move = checkNotNull(request.place)) {
             is PlaceMove.SwitchMode -> {
                 if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
-                if (request.captainCard != if (ownPower == 2) 59 else 195) return reject(NavigationRejection.CARD)
+                if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
                 if (move.mode != 5 || before.baseId == 0 || before.mode != 4) return reject(NavigationRejection.BASE)
                 val base = galaxy.conditions[before.baseId] ?: return reject(NavigationRejection.BASE)
-                if (base.grid != before.grid || (stocks?.bases?.get(base.baseId)?.power ?: base.power) != ownPower ||
-                    (stocks?.bases?.get(base.baseId)?.camp ?: base.camp) != 0) return reject(NavigationRejection.ACCESS)
+                val stock=stocks?.bases?.get(base.baseId)
+                if (base.grid != before.grid || !ownBase(before.country,stock?.owner ?: Allegiance.fromLegacy(base.power),
+                    stock?.camp ?: base.camp)) return reject(NavigationRejection.ACCESS)
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
                 if (before.spotId != 0 && (before.spotOwner != 0 ||
-                    galaxy.facilitiesAt(before.baseId, stocks).none { facility -> facility.kind == 4 &&
+                    galaxy.facilitiesAt(before.baseId, stocks,countries).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
                 after = before.copy(baseId = 0, mode = 5, spotId = 0, spotOwner = 0)
@@ -525,15 +573,16 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             }
             is PlaceMove.Dock -> {
                 if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
-                if (request.captainCard != if (ownPower == 2) 59 else 195) return reject(NavigationRejection.CARD)
+                if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
                 if (before.spotId != 0) return reject(NavigationRejection.EMBARKED)
                 if (move.baseId == 0) {
                     if (move.mode != 5 || before.baseId == 0) return reject(NavigationRejection.BASE)
                 } else {
                     val base = galaxy.conditions[move.baseId] ?: return reject(NavigationRejection.BASE)
                     if (base.grid != before.grid || move.mode != 4) return reject(NavigationRejection.BASE)
-                    if ((stocks?.bases?.get(base.baseId)?.power ?: base.power) != ownPower ||
-                    (stocks?.bases?.get(base.baseId)?.camp ?: base.camp) != 0) return reject(NavigationRejection.ACCESS)
+                    val stock=stocks?.bases?.get(base.baseId)
+                    if (!ownBase(before.country,stock?.owner ?: Allegiance.fromLegacy(base.power),stock?.camp ?: base.camp))
+                        return reject(NavigationRejection.ACCESS)
                     if (before.baseId == move.baseId && before.mode == move.mode) return reject(NavigationRejection.BASE)
                     val pipeline = NavigationWork.pipeline(before, policy)
                     val submitted = pipeline.submit(NavigationWork.DOCK, listOf(NavigationWork.CAPTAIN), now * 1000, before.cpPaused)
@@ -551,9 +600,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 if (before.baseId == 0) return reject(NavigationRejection.BASE)
                 val condition = galaxy.conditions.getValue(before.baseId)
                 val stored = stocks?.bases?.get(before.baseId)
-                val friendly = (stored?.power ?: condition.power) == ownPower &&
-                    (stored?.camp ?: condition.camp) == 0
-                val facilities = galaxy.facilitiesAt(before.baseId, stocks)
+                val friendly = ownBase(before.country,stored?.owner ?: Allegiance.fromLegacy(condition.power),
+                    stored?.camp ?: condition.camp)
+                val facilities = galaxy.facilitiesAt(before.baseId, stocks,countries)
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
                 if (move.id == 0) {
                     if (move.owner != before.characterId || before.spotId == 0) return reject(NavigationRejection.SPOT)
@@ -573,7 +622,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                             13 -> move.owner == before.characterId
                             // Own mansion rooms (U-18): the ballroom in a capital, the forest on one's own fief.
                             // The CD knows these rooms only with owner 0; entry itself checks the right (U-18).
-                            14 -> move.owner == 0 && Capital.of(galaxy.bases.single { it.id == before.baseId })?.power == ownPower
+                            14 -> move.owner == 0 && before.country!=null && Capital.of(galaxy.bases.single { it.id == before.baseId })?.power?.let(::CountryId)==before.country
                             15 -> move.owner == 0 && stocks?.strategic?.fiefs?.get(before.baseId) == before.characterId
                             else -> false
                         }

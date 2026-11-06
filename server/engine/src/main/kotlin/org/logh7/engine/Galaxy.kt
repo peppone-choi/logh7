@@ -11,8 +11,13 @@ data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int,
     val mobile: Boolean = false)
 
 /** Confirmed manual placements plus explicitly labelled local defaults, loaded outside the repository. */
-class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val starts: Map<Power, Int>,
-    val defaultCell: Int = 1, terrain: List<String>? = null) {
+class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, starts: Map<Power, Int>,
+    val defaultCell: Int = 1, terrain: List<String>? = null,
+    countryStarts:Map<CountryId,Int> = emptyMap()) {
+    /** Keep existing two-country consumers consistent when their own starts are explicitly edited. */
+    val starts:Map<Power,Int> = starts.mapValues {(power,grid)->countryStarts[power.country] ?: grid}
+    /** Per-world spawn locations; an additional country never inherits another country's start. */
+    val countryStarts:Map<CountryId,Int> = this.starts.mapKeys {it.key.country}+countryStarts
     val width = 100
     val height = 50
     val cells: List<Int>
@@ -34,6 +39,7 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
             it.radius.isFinite() && it.radius >= 0 && it.cycle > 0 && it.direction in 0..1 &&
             it.angle.isFinite() && it.diameter.isFinite() && it.diameter > 0 && (!it.mobile || it.kind == 1) })
         require(starts.keys == Power.entries.toSet() && starts.values.all { it in locations })
+        require(this.countryStarts.size<=350 && this.countryStarts.values.all {it in locations})
         val map = terrain?.let(::terrainCells)
         if (map != null) require(systems.all { map[it.grid] == SPACE_CELL }) { "A star system lies outside the navigable terrain" }
         cells = MutableList(5000) { map?.get(it) ?: defaultCell }.also { values -> systems.forEach { values[it.grid] = it.kind } }.toList()
@@ -43,9 +49,9 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
     fun terrain(grid: Int): GridTerrain = if (grid in cells.indices && cells[grid] == PLASMA_STORM_CELL) GridTerrain.PLASMA_STORM
         else GridTerrain.NONE
     /** Room identities and backgrounds follow the saved owner after conquest. */
-    fun facilitiesAt(baseId: Int, stocks: PlanetStocks? = null): List<PlanetFacility> {
+    fun facilitiesAt(baseId: Int, stocks: PlanetStocks? = null,countries:CountryCatalog=CountryCatalogLoader.current()): List<PlanetFacility> {
         val original = facilities.getValue(baseId)
-        val power = stocks?.let { checkNotNull(it.bases[baseId]).power } ?: return original
+        val power = stocks?.let {countries.nativePower(checkNotNull(it.bases[baseId]).owner)} ?: return original
         return Places.forBase(bases.single { it.id == baseId }, power, baseId in stocks.strategic.fiefs)
     }
     fun kind(grid: Int): GridKind = when {
@@ -81,7 +87,8 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
         fun load(path: Path): Galaxy {
             require(Files.size(path) <= 1_000_000) { "World seed too large" }
             val p = Properties().also { Files.newBufferedReader(path).use(it::load) }
-            require(p.getProperty("schema") == "1" && p.getProperty("unmapped.cells") == "local-space-default")
+            val schema=p.getProperty("schema")
+            require(schema in setOf("1","2") && p.getProperty("unmapped.cells") == "local-space-default")
             fun int(key: String) = requireNotNull(p.getProperty(key)) { "Missing world key $key" }.toInt()
             val systems = List(int("systems").also { require(it in 1..86) }) { i ->
                 val prefix = "system.$i."
@@ -98,8 +105,14 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, val s
             }
             // "terrain=none" keeps the previous all-space map for isolated experiments.
             val terrain = if (p.getProperty("terrain", "manual-p101") == "none") null else manualTerrain()
+            val countryStarts=p.stringPropertyNames().filter {it.startsWith("start.country.")}.associate {key->
+                val value=key.removePrefix("start.country.")
+                val id=CountryId(value.toInt().also {require(it.toString()==value) {"Invalid country start ID"}})
+                id to int(key)
+            }
+            require(countryStarts.isEmpty() || schema=="2") {"Country starts require world schema 2"}
             return Galaxy(systems, bases, mapOf(Power.EMPIRE to int("start.empire"), Power.ALLIANCE to int("start.alliance")),
-                terrain = terrain)
+                terrain = terrain,countryStarts=countryStarts)
         }
     }
 }
