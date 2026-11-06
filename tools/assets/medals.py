@@ -1,13 +1,16 @@
-"""제국 훈장 초안 그림을 엠블럼 한 장에서 절차적으로 만든다.
+"""원본에 없는 훈장 그림을 절차적으로 만든다(제국 전부, 양 진영 특별전공메달 1~10·동맹 참모기장).
 
 작성자: Peppone Choi (peppone-choi).
 
 원본 클라이언트에는 동맹 훈장 그림(data/image/Medal/m_f001~015, 80×80)만 있고 제국 훈장 그림은 없다.
 훈장 이름은 constmsg.dat 8번 묶음에 제국 26개(0~25)·동맹 26개(26~51)가 있다(`evidence:client`).
-이 도구는 흰 엠블럼(검은 바탕) 그림을 높이맵으로 바꾸고 금속 조명을 입혀, 동맹 훈장처럼 배경 없는
-돋을새김 훈장을 만든다. 모양·금속·리본 색은 설계 추정이다(`evidence:guess`).
+동맹 15개 그림은 이름 순서와 같다고 보고 원본 파일을 그대로 쓴다(`evidence:guess`).
+제국 그림은 흰 엠블럼(검은 바탕) 그림을 높이맵으로 바꾸고 금속 조명을 입혀, 동맹 훈장처럼 배경 없는
+돋을새김 훈장으로 만든다. 동맹 쪽 새 그림은 원본 동맹 훈장의 육각별·삼각형·오각 보석·오각별 모양을 쓴다.
+특별전공메달 등급은 글자 대신 로마 숫자 I~X를 획으로 그린다. 모양·금속·리본 색은 설계 추정이다(`evidence:guess`).
 
-출력(E:/logh7/work 아래만): <out>/x1/eNN.png(80), <out>/x2/eNN.png(160), <out>/sheet.png, <out>/medals.json.
+출력(E:/logh7/work 아래만): <out>/x1/<file>(80), <out>/x2/<file>(160), <out>/sheet.png, <out>/medals.json.
+medals.json 은 constmsg 52개 각각의 그림 파일(원본 m_fNNN 또는 새 그림)을 적는다.
 엠블럼 그림과 출력은 저장소에 넣지 않는다.
 """
 import argparse
@@ -38,6 +41,8 @@ RIBBONS = {
     'empire': [(.18, (20, 20, 24)), (.14, (230, 228, 220)), (.36, (150, 22, 30)), (.14, (230, 228, 220)), (.18, (20, 20, 24))],
     'empire-gold': [(.2, (150, 22, 30)), (.12, (212, 170, 70)), (.36, (20, 20, 24)), (.12, (212, 170, 70)), (.2, (150, 22, 30))],
     'empire-black': [(.15, (230, 228, 220)), (.7, (20, 20, 24)), (.15, (230, 228, 220))],
+    # 동맹: 원본 m_f009~011 리본(녹·청·적에 흰 줄)과 같은 결로 남색·흰색·금색을 쓴다.
+    'alliance': [(.2, (226, 228, 232)), (.18, (28, 52, 120)), (.24, (204, 168, 70)), (.18, (28, 52, 120)), (.2, (226, 228, 232))],
 }
 
 
@@ -160,6 +165,40 @@ def swords(length, cx=C, cy=C, spread=0.62):
         for part in (blade, guard, grip):
             flipped = [(x, -y) for x, y in part]
             m = np.maximum(m, polygon(rotate(flipped, side * spread, cx, cy)))
+    return m
+
+
+ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+
+
+def numeral(k, h, cx=C, cy=C, max_w=None):
+    """로마 숫자 k(1~10)를 획으로 그린 마스크. 글꼴에 기대지 않아 어느 환경에서나 같다."""
+    t = h * 0.17  # 획 굵기
+    glyphs = {'I': 0.34 * h, 'V': 0.78 * h, 'X': 0.78 * h}
+    text = ROMAN[k - 1]
+    gap = 0.1 * h
+    width = sum(glyphs[c] for c in text) + gap * (len(text) - 1)
+    f = min(1.0, max_w / width) if max_w else 1.0
+    h, t, gap, width = h * f, t * f, gap * f, width * f
+    m = np.zeros((S, S), np.float32)
+    x, top, bot = cx - width / 2, cy - h / 2, cy + h / 2
+    for c in text:
+        w = glyphs[c] * f
+        mid = x + w / 2
+        if c == 'I':
+            m = np.maximum(m, polygon([(mid - t / 2, top), (mid + t / 2, top), (mid + t / 2, bot), (mid - t / 2, bot)]))
+        elif c == 'V':
+            m = np.maximum(m, polygon([(x, top), (x + t * 1.1, top), (mid + t * 0.3, bot), (mid - t * 0.6, bot)]))
+            m = np.maximum(m, polygon([(x + w - t * 0.8, top), (x + w, top), (mid + t * 0.6, bot), (mid - t * 0.1, bot)]))
+        else:  # X
+            m = np.maximum(m, polygon([(x, top), (x + t * 1.1, top), (x + w, bot), (x + w - t * 1.1, bot)]))
+            m = np.maximum(m, polygon([(x + w - t * 0.8, top), (x + w, top), (x + t * 0.8, bot), (x, bot)]))
+        x += w + gap
+    # 위아래 가로 획(세리프 막대)으로 글자를 묶는다.
+    bar = t * 0.55
+    for y in (top - bar * 0.4, bot - bar * 0.6):
+        m = np.maximum(m, polygon([(cx - width / 2 - t * 0.4, y), (cx + width / 2 + t * 0.4, y),
+                                   (cx + width / 2 + t * 0.4, y + bar), (cx - width / 2 - t * 0.4, y + bar)]))
     return m
 
 
@@ -406,10 +445,6 @@ def design(no, src):
         out = over(out, shade(ellipse(196, 232), 'iron', bevel=16, depth=12, dome=0.3))
         out = over(out, shade(swords(420, C, C + 40, spread=0.8), 'silver', bevel=4, depth=10))
         out = over(out, shade(emblem(src, 290, C, C - 20), 'silver', bevel=4, depth=10))
-    elif no == 16:  # 特別戦功メダル(1~10 공용): 은 육각별 + 금 원판
-        out = over(out, shade(star(6, 300, 170), 'silver', bevel=30, depth=18, dome=0.4))
-        out = over(out, shade(disc(160), 'gold', bevel=14, depth=12, dome=0.3))
-        out = over(out, shade(emblem(src, 250), 'gold', bevel=4, depth=10))
     elif no == 17:  # 参謀記章: 금 테 방패 + 흑 칠보 + 은 엠블럼
         shield = polygon([(C - 220, 90), (C + 220, 90), (C + 220, 330), (C, 560), (C - 220, 330)])
         out = over(out, shade(shield, 'gold', bevel=12, depth=14))
@@ -433,10 +468,63 @@ def design(no, src):
         out = over(out, shade(wreath(150, 9, 0.9, C, C, span=172), metal, bevel=5, depth=10), shadow=False)
         out = over(out, shade(disc(112), 'enamel:black', bevel=6, depth=6))
         out = over(out, shade(emblem(src, 190), metal, bevel=3, depth=9))
+    return _image(out)
+
+
+def _image(out):
     return Image.fromarray(np.clip(out, 0, 255).round().astype(np.uint8), 'RGBA')
 
 
-# constmsg.dat 8번 묶음 제국 쪽 번호(0~25) → 초안 번호
+def tier(k):
+    """특별전공메달 등급 → 금속. 번호가 클수록 서훈에 공적이 더 든다(PersonnelActions, evidence:guess)."""
+    return 'bronze' if k <= 3 else 'silver' if k <= 6 else 'gold'
+
+
+def pentagon(r, cx=C, cy=C, phase=-math.pi / 2):
+    return polygon([(cx + r * math.cos(phase + k * 2 * math.pi / 5), cy + r * math.sin(phase + k * 2 * math.pi / 5))
+                    for k in range(5)])
+
+
+def special(faction, k, src=None):
+    """特別戦功メダル k(1~10). 같은 바탕에 금속 단계와 로마 숫자로 등급을 가른다."""
+    metal = tier(k)
+    out = np.zeros((S, S, 4), np.float32)
+    if faction == 'empire':  # 은 육각별 + 등급 금속 원판 + 흑(10은 적) 칠보 + 숫자, 위 팔에 작은 엠블럼
+        p6 = -math.pi / 2
+        if k == 10:
+            out = over(out, faceted(star(6, 300, 160, phase=p6), 'gold', 6, p6, 300))
+        else:
+            out = over(out, shade(star(6, 300, 170, phase=p6), 'silver', bevel=30, depth=18, dome=0.4))
+        out = over(out, shade(disc(176, C, C + 20), metal, bevel=14, depth=12, dome=0.3))
+        out = over(out, shade(disc(146, C, C + 20), 'enamel:red' if k == 10 else 'enamel:black', bevel=6, depth=5),
+                   shadow=False)
+        out = over(out, shade(numeral(k, 150, C, C + 20, max_w=230), metal, bevel=4, depth=10))
+        out = over(out, shade(emblem(src, 150, C, C - 222), 'gold', bevel=3, depth=8))
+    else:  # 동맹: 리본 + 고리 + 오각 판 + 오각별 + 청 칠보 원판 + 숫자(원본 오각 보석·별 모양)
+        cy = C + 80
+        out = over(out, ribbon('alliance', 0, 200, 110), shadow=False)
+        out = over(out, shade(ring(30, 16, C, 186), metal, bevel=6, depth=10))
+        out = over(out, shade(pentagon(214, C, cy), metal, bevel=16, depth=12, dome=0.2))
+        out = over(out, shade(star(5, 206, 112, C, cy), metal, bevel=40, depth=18, dome=0.5), shadow=False)
+        out = over(out, shade(disc(110, C, cy + 6), metal, bevel=6, depth=10))
+        out = over(out, shade(disc(98, C, cy + 6), 'enamel:blue', bevel=5, depth=5), shadow=False)
+        out = over(out, shade(numeral(k, 110, C, cy + 6, max_w=168), 'silver' if metal == 'bronze' else metal,
+                              bevel=3, depth=9))
+    return _image(out)
+
+
+def alliance_staff():
+    """동맹 参謀記章: 금 월계수 고리 + 은 육각별(원본 m_f006~008의 두 삼각형) + 청 칠보 + 금 오각별."""
+    out = np.zeros((S, S, 4), np.float32)
+    out = over(out, shade(wreath(236, 12, 1.1, C, C, span=160), 'gold', bevel=8, depth=10))
+    out = over(out, shade(star(6, 214, 214 / math.sqrt(3)), 'silver', bevel=26, depth=16, dome=0.3))
+    out = over(out, shade(disc(112), 'gold', bevel=8, depth=10))
+    out = over(out, shade(disc(98), 'enamel:blue', bevel=5, depth=5), shadow=False)
+    out = over(out, shade(star(5, 84, 34), 'gold', bevel=20, depth=14, dome=0.4))
+    return _image(out)
+
+
+# constmsg.dat 8번 묶음 제국 쪽 번호(0~25) → 초안 번호. 16(특별전공메달)은 등급별 그림 SPECIAL 로 나눈다.
 EMPIRE = [
     (1, [0], '大双頭鷲勲章', '대쌍두독수리훈장'),
     (2, [1], '双頭鷲武勲章', '쌍두독수리무공훈장'),
@@ -453,17 +541,37 @@ EMPIRE = [
     (13, [12], '遠征部隊従軍記章', '원정부대종군기장'),
     (14, [13], '戦闘功績記章', '전투공적기장'),
     (15, [14], '戦傷章', '전상장'),
-    (16, list(range(15, 25)), '特別戦功メダル１~１０', '특별전공메달 1~10'),
     (17, [25], '参謀記章', '참모기장'),
 ]
+# 동맹 쪽(26~40)은 원본 그림 m_f001~015 를 이름 순서대로 쓴다(evidence:guess).
+ALLIANCE = [
+    (26, 'アーレ・ハイネセン特別勲功大章', '알레 하이네센 특별훈공대장'),
+    (27, 'グエン・キム・ホア特別勲功大章', '응웬 킴 호아 특별훈공대장'),
+    (28, '自由惑星同盟最高評議会名誉勲章', '자유행성동맹 최고평의회 명예훈장'),
+    (29, '共和国戦争勲章', '공화국 전쟁훈장'),
+    (30, '共和国栄誉勲章', '공화국 영예훈장'),
+    (31, '自由戦士一等勲章', '자유전사 1등훈장'),
+    (32, '自由戦士二等勲章', '자유전사 2등훈장'),
+    (33, '自由戦士三等勲章', '자유전사 3등훈장'),
+    (34, '一等栄誉勲章', '1등 영예훈장'),
+    (35, '二等栄誉勲章', '2등 영예훈장'),
+    (36, '三等栄誉勲章', '3등 영예훈장'),
+    (37, 'リン・パオ記章', '린 파오 기장'),
+    (38, 'ユースフ・トパロウル記章', '유수프 토파롤 기장'),
+    (39, '軍務功労記章', '군무공로기장'),
+    (40, '名誉負傷勲章', '명예부상훈장'),
+]
+SPECIAL_BASE = {'empire': 15, 'alliance': 41}  # 特別戦功メダル１ 의 constmsg 번호
+STAFF = {'empire': 25, 'alliance': 51}  # 参謀記章
+SPECIAL_SCALE = {'empire': .70, 'alliance': .86}
 # 초안 번호 → 그림 안 크기 비율. constmsg 순서를 서열로 보고 아래로 갈수록 작게 한다(evidence:guess).
 EMBLEM3 = 'silver'  # 대십자장 엠블럼(금 십자 위에서 은이 잘 읽힌다)
 SCALE = {1: 1.0, 2: .96, 3: .93, 4: .88, 5: .85, 6: .82, 7: .80, 8: .78, 9: .76, 10: .73, 11: .71, 12: .69,
-         13: .66, 14: .66, 15: .63, 16: .70, 17: .60, 18: .80, 19: .78}
+         13: .66, 14: .66, 15: .63, 17: .60, 18: .80, 19: .78}
 
 
-def fit_rank(im, no):
-    f = SCALE.get(no, 1.0)
+def fit_rank(im, no=None, f=None):
+    f = SCALE.get(no, 1.0) if f is None else f
     if f >= 1:
         return im
     small = im.resize((round(S * f), round(S * f)), Image.LANCZOS)
@@ -477,11 +585,31 @@ PORTRAITS = [(20, '초상 안 금장'), (21, '초상 안 은장')]
 PORTRAIT = (None, None)
 
 
+def catalogue(portrait=False):
+    """constmsg 52개와 예비 그림 → (file, faction, constmsg 번호 목록, ja, ko, 만들기 함수 또는 None=원본).
+
+    만들기 함수는 엠블럼 경로를 받아 S×S 그림을 돌려준다(크기 비율까지 적용)."""
+    rows = []
+    for no, idx, ja, ko in EMPIRE:
+        rows.append((f'e{no:02d}.png', 'empire', idx, ja, ko, lambda src, n=no: fit_rank(design(n, src), n)))
+    for i, (idx, ja, ko) in enumerate(ALLIANCE, 1):
+        rows.append((f'm_f{i:03d}.png', 'alliance', [idx], ja, ko, None))
+    for fac, prefix in (('empire', 'e16'), ('alliance', 'a16')):
+        for k in range(1, 11):
+            rows.append((f'{prefix}-{k:02d}.png', fac, [SPECIAL_BASE[fac] + k - 1], f'特別戦功メダル{k}', f'특별전공메달 {k}',
+                         lambda src, f=fac, n=k: fit_rank(special(f, n, src), f=SPECIAL_SCALE[f])))
+    rows.append(('a17.png', 'alliance', [STAFF['alliance']], '参謀記章', '참모기장',
+                 lambda src: fit_rank(alliance_staff(), f=.74)))
+    for no, note in EXTRA + (PORTRAITS if portrait else []):
+        rows.append((f'e{no:02d}.png', 'empire', [], None, note, lambda src, n=no: fit_rank(design(n, src), n)))
+    return rows
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument('--emblem', required=True, help='흰 엠블럼·검은 바탕 그림')
+    ap.add_argument('--emblem', required=True, help='흰 엠블럼·검은 바탕 그림(제국)')
     ap.add_argument('--out', required=True)
-    ap.add_argument('--only', type=int, nargs='*')
+    ap.add_argument('--only', nargs='*', help='만들 파일 이름 앞부분(예: e01 a16)')
     ap.add_argument('--portrait', help='초상 안(e20·e21)에 쓸 인물 그림')
     ap.add_argument('--crop', type=int, nargs=4, metavar=('X0', 'Y0', 'X1', 'Y1'), help='초상 그림에서 얼굴·흉상 영역')
     args = ap.parse_args(argv)
@@ -490,23 +618,24 @@ def main(argv=None):
     out = writable(args.out)
     for d in ('x1', 'x2'):
         (out / d).mkdir(parents=True, exist_ok=True)
-    numbers = [n for n, *_ in EMPIRE] + [n for n, _ in EXTRA] + ([n for n, _ in PORTRAITS] if args.portrait else [])
-    if args.only:
-        numbers = [n for n in numbers if n in args.only]
+    rows = catalogue(bool(args.portrait))
     tiles = []
-    for n in numbers:
-        im = fit_rank(design(n, args.emblem), n)
-        im.resize((160, 160), Image.LANCZOS).save(out / 'x2' / f'e{n:02d}.png')
-        im.resize((80, 80), Image.LANCZOS).save(out / 'x1' / f'e{n:02d}.png')
+    for file, fac, idx, ja, ko, build in rows:
+        if build is None or (args.only and not any(file.startswith(p) for p in args.only)):
+            continue
+        im = build(args.emblem)
+        im.resize((160, 160), Image.LANCZOS).save(out / 'x2' / file)
+        im.resize((80, 80), Image.LANCZOS).save(out / 'x1' / file)
         tiles.append(im.resize((240, 240), Image.LANCZOS))
-        print('e%02d' % n, flush=True)
-    sheet = Image.new('RGBA', (240 * 5, 240 * ((len(tiles) + 4) // 5)), (34, 34, 42, 255))
+        print(file, flush=True)
+    sheet = Image.new('RGBA', (240 * 5, 240 * max(1, (len(tiles) + 4) // 5)), (34, 34, 42, 255))
     for i, t in enumerate(tiles):
         sheet.alpha_composite(t, ((i % 5) * 240, (i // 5) * 240))
     sheet.save(out / 'sheet.png')
-    meta = dict(source='constmsg.dat group 8 (empire 0..25)',
-                medals=[dict(file=f'e{n:02d}.png', constmsg=idx, ja=ja, ko=ko) for n, idx, ja, ko in EMPIRE]
-                + [dict(file=f'e{n:02d}.png', note=note) for n, note in EXTRA + (PORTRAITS if args.portrait else [])])
+    meta = dict(source='constmsg.dat group 8 (empire 0..25, alliance 26..51)',
+                original='m_fNNN.png = data/image/Medal (원본, 저장소·출력에 복사하지 않음)',
+                medals=[dict(file=file, faction=fac, constmsg=idx, ja=ja, ko=ko, original=build is None)
+                        for file, fac, idx, ja, ko, build in rows])
     (out / 'medals.json').write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')
 
 
