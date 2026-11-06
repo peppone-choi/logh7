@@ -141,5 +141,41 @@ class ServerReleaseTest(unittest.TestCase):
             else:
                 os.environ["LOGH7_DEFINITIONS_JDBC_URL"] = saved
 
+    def test_world_definition_schema_needs_a_matching_reader(self):
+        import zipfile
+
+        def constant(text):
+            data = text.encode()
+            return b"\x01" + len(data).to_bytes(2, "big") + data
+
+        reader = "org/logh7/engine/Galaxy$Companion.class"
+        with zipfile.ZipFile(self.build / "lib" / "engine.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe" + constant("Country starts require world schema 1"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old")
+        with zipfile.ZipFile(self.build / "lib" / "engine.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe" + constant("Country starts require world schema 2"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new")
+        world = Path(self.temp.name) / "world.properties"
+        world.write_text("schema=1\nsystems=1\n", encoding="utf-8")
+        self.tool("activate", "old", "--releases", str(self.releases), "--world-definition", str(world))
+        world.write_text("schema=2\nstart.country.42=100\n", encoding="utf-8")
+        self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
+        with self.assertRaises(SystemExit) as refused:
+            self.tool("rollback", "--releases", str(self.releases), "--world-definition", str(world))
+        self.assertIn("world schema 2", str(refused.exception))
+        # Properties semantics: a colon separator and a later duplicate both yield schema 2.
+        for text in ("schema:2\n", "schema=1\nschema=2\n", "# schema=1\nsche\\\n  ma = 2\n"):
+            world.write_text(text, encoding="utf-8")
+            with self.assertRaises(SystemExit):
+                self.tool("activate", "old", "--releases", str(self.releases), "--world-definition", str(world))
+        world.write_text("systems=1\n", encoding="utf-8")
+        with self.assertRaises(SystemExit):
+            self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
+        world.write_text("schema=3\n", encoding="utf-8")
+        with self.assertRaises(SystemExit) as unknown:
+            self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
+        self.assertIn("unknown world schema 3", str(unknown.exception))
+        self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+
 if __name__ == "__main__":
     unittest.main()
