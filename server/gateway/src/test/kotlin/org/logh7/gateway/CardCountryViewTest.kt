@@ -63,6 +63,20 @@ class CardCountryViewTest {
         assertContentEquals(original.cardCharacters(54,legacy,characterById={id->person.copy(id=id.toLong(),power=2)}),response)
     }
 
+    @Test fun publicCapitalOfficeHoldersKeepTheMovedSeatForBothOriginalCountries() {
+        for((country,card) in listOf(2 to 56,2 to 57,3 to 192,3 to 193)) {
+            val owner=CountryId(country)
+            val before=stocks.copy(outfits=emptyMap(),strategic=StrategicState(capitals=mapOf(owner to 1050)),
+                bases=stocks.bases.mapValues {(_,b)->b.copy(owner=Allegiance.Country(owner),governorId=0)})
+            val policy=OrganizationalOfficePolicy(galaxy,catalog)
+            val saved=policy.set(before,OfficeHolding(card,1050,10000,owner))
+            val record=person.copy(power=country)
+            val response=world.cardCharacters(card,saved,{owner},{record})
+            assertContentEquals(CardCharacterMessages.response(card,listOf(BootstrapMessages.character(record,0,0,
+                offices=listOf(BootstrapMessages.OfficeCard(card,1050))))),response)
+        }
+    }
+
     @Test fun displayQueriesEchoTheActualCountrysDisplayCodeAndRefuseUnknownCountries() {
         val colors=OutfitPartyMessages.Query(42,1,4);val metadata=OutfitPartyMessages.Query(42,1,5)
         for((country,code) in listOf(42 to 3,43 to 2,2 to 2,3 to 3)) {

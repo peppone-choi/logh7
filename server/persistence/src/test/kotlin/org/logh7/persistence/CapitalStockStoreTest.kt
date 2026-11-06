@@ -35,6 +35,26 @@ class CapitalStockStoreTest {
         } }
         FileWorldStateStore(root).use { assertEquals(stocks,it.loadStocks()) }
     }
+    @Test fun movedCapitalOfficesSurvivePairedWorldReopeningWithoutLegacyCapitalFields() {
+        val seed=GalaxyBase(1500,2488,80,0,"New Capital",0,20f,86400,0,0f,2f)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"New",2)),listOf(seed),Power.entries.associateWith {2488})
+        for((country,cards) in listOf(2 to listOf(56,57),3 to listOf(192,193))) {
+            val owner=CountryId(country);val policy=OrganizationalOfficePolicy(galaxy)
+            var current=PlanetStocks(1,0,mapOf(seed.id to PlanetStock(seed.id,country,0,100,200,300)),
+                strategic=StrategicState(capitals=mapOf(owner to seed.id)))
+            for(card in cards)current=policy.set(current,OfficeHolding(card,seed.id,10000+card,owner))
+            val root=directory.resolve("moved-$country")
+            FileWorldStateStore(root).use {it.saveWorld(emptyMap(),current)}
+            FileWorldStateStore(root).use {store->
+                val loaded=checkNotNull(store.loadStocks());assertEquals(current,loaded)
+                for(card in cards)assertEquals(listOf(OfficeHolding(card,seed.id,10000+card,owner)),policy.holders(loaded,card,owner))
+                assertEquals(0,loaded.bases.getValue(seed.id).capitalDefenseCommanderId)
+                store.saveWorld(emptyMap(),loaded)
+            }
+            FileWorldStateStore(root).use {assertEquals(current,it.loadStocks())}
+        }
+    }
+
     @Test fun eachNewColumnMustBePresentNonnegativeAndStructurallyValid() {
         val path=directory.resolve("stocks")
         FilePlanetStockStore(path).use { it.save(stocks) }

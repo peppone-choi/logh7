@@ -173,7 +173,11 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
                 val o=stocks.outfits.getValue(holding.seat)
                 return stocks.copy(outfits=stocks.outfits+(o.id to o.copy(commanderId=if(remove)0 else holding.character)))
             }
-            if(holding.country==CountryId(role.power) && card in setOf(52,54,55,56,57,188,190,191,192,193)) {
+            // Capital-only fields (56/57/192/193) exist on the original capital alone (BaseOfficePolicy);
+            // a moved capital keeps them in the general seat list, which holders() already reads.
+            val legacyCapitalSeat=card !in setOf(56,57,192,193) ||
+                galaxy.bases.singleOrNull {it.id==holding.seat}?.let(Capital::of)?.power==role.power
+            if(holding.country==CountryId(role.power) && legacyCapitalSeat && card in setOf(52,54,55,56,57,188,190,191,192,193)) {
                 val b=stocks.bases.getValue(holding.seat);val id=if(remove)0 else holding.character
                 val next=when(card){54,190->b.copy(governorId=id);52,55,188,191->b.copy(garrisonCommanderId=id)
                     56,193->b.copy(capitalDefenseCommanderId=id);57->b.copy(guardInspectorId=id);else->b.copy(capitalAdministratorId=id)}
