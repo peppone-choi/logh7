@@ -79,12 +79,12 @@ internal object SessionCodec {
     private fun DataInputStream.defeat() = CountryDefeat(EndReason.valueOf(readUTF()), readLong(), optional { CountryId(readInt()) })
     private fun DataOutputStream.end(value: SessionEnd, schema: Int) {
         writeUTF(value.reason.name); powers(value.affected); writeLong(value.gameSeconds)
-        if (schema >= 3) { countries(value.affectedCountries); countries(value.remainingCountries) }
-        else require(value.affectedCountries == value.affected.map { it.country }.toSet() && value.remainingCountries.isEmpty())
+        if (schema >= 3) { countries(value.affectedCountries); optional(value.remainingCountries) { countries(it) } }
+        else require(value.affectedCountries == value.affected.map { it.country }.toSet() && value.remainingCountries == null)
     }
     private fun DataInputStream.end(schema: Int): SessionEnd {
         val reason = EndReason.valueOf(readUTF()); val affected = powers(); val seconds = readLong()
-        return if (schema >= 3) SessionEnd(reason, affected, seconds, countries(), countries()) else SessionEnd(reason, affected, seconds)
+        return if (schema >= 3) SessionEnd(reason, affected, seconds, countries(), optional { countries() }) else SessionEnd(reason, affected, seconds)
     }
     private fun DataOutputStream.country(value: CountryId?, schema: Int) {
         if (schema == 1) writeUTF(value.legacyPower().name)

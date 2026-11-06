@@ -62,7 +62,7 @@ class CountryEliminationTest {
             mapOf(empire to alliance, alliance to third, third to fourth, fourth to empire))
         assertEquals(4, events.filterIsInstance<WorldEvent.CountryEliminated>().size)
         val end = events.filterIsInstance<WorldEvent.Ended>().single().end
-        assertEquals(systems.keys, end.affectedCountries); assertTrue(end.remainingCountries.isEmpty())
+        assertEquals(systems.keys, end.affectedCountries); assertTrue(assertNotNull(end.remainingCountries).isEmpty())
         assertTrue(session.advance(1000).isEmpty())
         assertTrue(session.updateCountryTerritory(systems, emptyMap()).isEmpty())
     }
@@ -141,5 +141,18 @@ class CountryEliminationTest {
         }
         assertFailsWith<IllegalStateException> { WorldEngine(this, rules, ticking = false, durability = store, galaxy = galaxy) }
         assertEquals(0, writes); assertTrue(closed)
+    }
+
+    @Test fun simultaneousReductionDoesNotAwardAPopulationVictoryToAnEliminatedCountry() {
+        val session = SessionSimulation(rules)
+        session.updateCountryTerritory(mapOf(empire to 3, alliance to 3), emptyMap(), setOf(empire, alliance))
+        val end = assertNotNull(session.snapshot().ended)
+        assertEquals(emptySet(), end.remainingCountries)
+        val result = SessionResults.assess(end, SessionStatistics(population = 100), mapOf(
+            Power.EMPIRE to SessionStatistics(population = 1), Power.ALLIANCE to SessionStatistics(population = 99)))
+        assertTrue(result.powers.values.all {it.grade == SessionGrade.UNRESOLVED})
+        val legacy = SessionEnd(end.reason, end.affected, end.gameSeconds)
+        assertEquals(SessionGrade.LOCAL, SessionResults.assess(legacy, result.total,
+            result.powers.mapValues {it.value.statistics}).powers.getValue(Power.ALLIANCE).grade)
     }
 }

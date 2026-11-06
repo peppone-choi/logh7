@@ -4,10 +4,11 @@ enum class Power { EMPIRE, ALLIANCE }
 enum class EndReason { CAPITAL_CAPTURED, SYSTEMS_REDUCED, TIME_LIMIT }
 data class SessionEnd(val reason: EndReason, val affected: Set<Power>, val gameSeconds: Long,
     val affectedCountries: Set<CountryId> = affected.map { it.country }.toSet(),
-    val remainingCountries: Set<CountryId> = emptySet()) {
+    /** null is a legacy result without a recorded roster; empty means every country was eliminated. */
+    val remainingCountries: Set<CountryId>? = null) {
     init {
         require(affected == Power.entries.filter { it.country in affectedCountries }.toSet())
-        require(affectedCountries.intersect(remainingCountries).isEmpty())
+        require(affectedCountries.intersect(remainingCountries.orEmpty()).isEmpty())
     }
 }
 data class CountryDefeat(val reason: EndReason, val gameSeconds: Long, val captor: CountryId? = null) {
@@ -84,7 +85,7 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
                 if (state.countries.isNotEmpty()) {
                     require(it.remainingCountries == state.countries - state.eliminated.keys)
                     if (it.reason != EndReason.TIME_LIMIT) {
-                        require(it.affectedCountries == state.eliminated.keys && it.remainingCountries.size <= 1)
+                        require(it.affectedCountries == state.eliminated.keys && checkNotNull(it.remainingCountries).size <= 1)
                     }
                 }
             }
@@ -205,7 +206,8 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
     private fun finish(reason: EndReason, affected: Set<Power>): WorldEvent.Ended {
         val affectedCountries = if (reason == EndReason.TIME_LIMIT) emptySet() else
             if (countries.isEmpty()) affected.map { it.country }.toSet() else eliminated.keys.toSet()
-        val end = SessionEnd(reason, affected, gameMillis / 1000, affectedCountries, countries - eliminated.keys)
+        val end = SessionEnd(reason, affected, gameMillis / 1000, affectedCountries,
+            if(countries.isEmpty()) null else countries - eliminated.keys)
         ended = end
         return WorldEvent.Ended(end.detached())
     }
@@ -219,4 +221,4 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
 }
 
 private fun SessionEnd.detached() = copy(affected = affected.toSet(), affectedCountries = affectedCountries.toSet(),
-    remainingCountries = remainingCountries.toSet())
+    remainingCountries = remainingCountries?.toSet())

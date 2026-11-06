@@ -21,13 +21,14 @@ object SessionResults {
         conditions:VictoryConditions=VictoryConditions()):SessionResult {
         require(powers.keys==Power.entries.toSet())
         // shortcut: native result rows still have two countries; migrate that boundary before enabling new owners.
-        require((end.affectedCountries+end.remainingCountries).all {it in powers.keys.map(Power::country)})
+        require((end.affectedCountries+end.remainingCountries.orEmpty()).all {it in powers.keys.map(Power::country)})
         require(powers.values.sumOf {it.population.toBigInteger()}<=total.population.toBigInteger())
-        val survivor=end.remainingCountries.singleOrNull()?.legacyPower()
-        val capitalWinner=if(end.reason==EndReason.CAPITAL_CAPTURED && end.affected.size==1)
-            survivor ?: Power.entries.single {it !in end.affected} else null
+        val survivor=end.remainingCountries?.singleOrNull()?.legacyPower()
+        val capitalWinner=if(end.reason!=EndReason.CAPITAL_CAPTURED)null else
+            if(end.remainingCountries!=null)survivor else
+                if(end.affected.size==1)Power.entries.single {it !in end.affected} else null
         val localWinner=if(end.reason==EndReason.CAPITAL_CAPTURED)null else
-            if(end.reason!=EndReason.TIME_LIMIT && survivor!=null)survivor else
+            if(end.reason!=EndReason.TIME_LIMIT && end.remainingCountries!=null)survivor else
                 if(powers.getValue(Power.EMPIRE).population>powers.getValue(Power.ALLIANCE).population)Power.EMPIRE else Power.ALLIANCE
         val results=Power.entries.associateWith {side->
             val own=powers.getValue(side);val enemy=powers.getValue(Power.entries.single {it!=side})
@@ -37,6 +38,7 @@ object SessionResults {
             val requirements=listOf(population,fleet,conditions.noCoup(side))+
                 if(side==Power.EMPIRE)listOf(conditions.imperialLeaderAtEnemyCapital) else emptyList()
             val grade=when {
+                end.reason!=EndReason.TIME_LIMIT && end.remainingCountries==emptySet<CountryId>()->SessionGrade.UNRESOLVED
                 end.reason==EndReason.CAPITAL_CAPTURED && capitalWinner==null->SessionGrade.UNRESOLVED
                 side==capitalWinner->when {
                     requirements.any {it==false}->SessionGrade.LIMITED
