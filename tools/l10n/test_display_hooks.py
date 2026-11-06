@@ -45,6 +45,23 @@ class DisplayHookTests(unittest.TestCase):
         self.assertNotIn(0x58f3e1,addresses)
         self.assertEqual(self.data,self.original.read_bytes())
 
+    def test_facility_labels_only_wrap_the_two_original_kind_name_calls(self):
+        header=(catalog.ROOT/'client-compat/facility_labels.h').read_text('utf-8')
+        values=re.search(r'const unsigned calls\[\]=\{([^}]+)\}',header)[1]
+        calls=[int(value,16) for value in values.split(',')]
+        block=re.search(r'const BYTE expected\[\]\[5\]=\{(.*?)\};',header,re.S)[1]
+        rows=re.findall(r'\{([^}]+)\}',block)
+        self.assertEqual([0x591590,0x58f21d],calls)
+        for address,row in zip(calls,rows):
+            expected=bytes(int(value,16) for value in row.split(','))
+            self.assertEqual(expected,self.raw(address,5))
+            self.assertEqual(0x4c8d10,address+5+struct.unpack_from('<i',expected,1)[0])
+        self.assertEqual(2,len(rows))
+        # Menu EDI and HUD EAX point to the decoded institution: kind +0, stable ID +4.
+        self.assertEqual(bytes.fromhex('8b4f0433d2668b17'),self.raw(0x591581,8))
+        self.assertEqual(bytes.fromhex('8b4424343bc7742533c9668b08'),self.raw(0x58f20a,13))
+        self.assertEqual(self.data,self.original.read_bytes())
+
     def test_dynamic_ship_spec_assignment_has_a_bounded_display_only_bridge(self):
         header=(catalog.ROOT/'client-compat/display_hooks.h').read_text('utf-8')
         block=re.search(r'displayShipSpecCalls\[\]=\{(.*?)\n\};',header,re.S).group(1)

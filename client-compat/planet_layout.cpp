@@ -177,6 +177,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "tactical_labels.h"
 #include "hud_recovery.h"
 #include "hud_text.h"
+#include "facility_labels.h"
 #include "tactical_command_range.h"
 #include "tactical_support.h"
 #include "tactical_motion.h"
@@ -369,6 +370,7 @@ static void __fastcall drawHud(void* map, void*) {
     drawSystemAffiliationIcons(map);
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     pollCountryPaint(world);
+    pollNativeFacilityNames(world);
     refreshCountryNamePanels(world);
     if (!world || !at<BYTE>(world, 0x2b6a6c)) return;
     int grid = at<int>(world, 0x2b6a70);
@@ -630,6 +632,7 @@ static void install() {
     if (!installTacticalLabels()) { status = -3; return; }
     if (!installHudRecovery()) { status = -3; return; }
     if (!installHudText()) { status = -3; return; }
+    if (!installFacilityLabels()) { status = -3; return; }
     if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);

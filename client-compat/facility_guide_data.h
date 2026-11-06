@@ -8,6 +8,23 @@ struct FacilityGuide {
     unsigned id=0;unsigned long long revision=0;
     wchar_t name[25]={},purpose[201]={},usage[201]={},commands[193]={};
 };
+struct FacilityNameCache {
+    struct Entry {unsigned id;unsigned long long revision,loadedAt;wchar_t text[25];} entries[350]={};
+    unsigned count=0;
+    const Entry* find(unsigned id) const {
+        for(unsigned i=0;i<count;++i)if(entries[i].id==id)return entries+i;
+        return nullptr;
+    }
+    bool publish(const FacilityGuide& value,unsigned long long now) {
+        unsigned i=0;for(;i<count && entries[i].id!=value.id;++i){}
+        if(i<count && value.revision<entries[i].revision)return false;
+        if(i==350) {
+            i=0;for(unsigned j=1;j<count;++j)if(entries[j].loadedAt<entries[i].loadedAt)i=j;
+        } else if(i==count)++count;
+        entries[i].id=value.id;entries[i].revision=value.revision;entries[i].loadedAt=now;
+        std::memcpy(entries[i].text,value.name,sizeof(value.name));return true;
+    }
+};
 struct FacilityGuideDraft {
     FacilityGuide value={};unsigned nonce=0,next=0;
     void begin(unsigned id,unsigned token) {value={};value.id=id;nonce=token;next=0;}

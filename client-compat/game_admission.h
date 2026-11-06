@@ -23,6 +23,7 @@ static void CALLBACK pollGameAdmission(HWND window,UINT,UINT_PTR timer,DWORD) {
 }
 static unsigned __stdcall decodedGameAdmission(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x44eae0)(record,reader);
+    resetFacilityGuideConnection();
     auto own=admissionOwnCharacter();
     if(!result && record && logh::gameAdmissionRejected(0x0202,!own || !own[0]))
         InterlockedExchange(&gameAdmissionPending,1);
