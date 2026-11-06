@@ -1951,12 +1951,17 @@ class GameExchange(
                             require(query.character==character.id.toInt())
                             pendingWorld=stocks().thenApply { stored ->
                                 val inventory=checkNotNull(stored)
-                                val policy=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
-                                val available=policy.available(inventory,character.id.toInt(),character.power,character.rank)
-                                val role=org.logh7.engine.OrganizationOffices.of(query.role)
+                                // The actual profile country and its rank system, not the native display code.
+                                val scope=AppointmentDirectoryScope(world.galaxy,currentProfile(identity.account,character.id.toInt()).country)
+                                val policy=scope.policy
+                                val actorRank=scope.rank(inventory,character.id.toInt(),character.rank)
+                                val available=scope.available(inventory,character.id.toInt(),character.rank)
+                                val role=scope.role(query.role)
                                 val selected=available[query.role].orEmpty()
-                                val dismissals=org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
-                                    .available(inventory,character.id.toInt(),character.power,character.rank)
+                                val dismissals=scope.dismissals(inventory,character.id.toInt(),character.rank)
+                                val countryOf by lazy {
+                                    WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).associate {it.id to it.country}
+                                }
                                 when(query.search) {
                                     // The new-mail office tab: the CD's office mailbox shows only 命令/提案 mail (0f13/0f14), so
                                     // ordinary mail to an office address could never be read there. Answer an empty directory
@@ -1990,10 +1995,7 @@ class GameExchange(
                                         }.filter {it.targets.isNotEmpty()})
                                     }
                                     18 -> {
-                                        val vacancies=available.mapValues { (card,seats)->
-                                            val definition=checkNotNull(org.logh7.engine.OrganizationOffices.of(card))
-                                            seats.sumOf {seat->definition.seats-policy.holders(inventory,card).count {it.seat==seat}}.coerceAtMost(255)
-                                        }
+                                        val vacancies=scope.vacancies(inventory,available)
                                         val held=dismissals.groupingBy {it.card}.eachCount()
                                         org.logh7.protocol.AppointmentDirectoryMessages.cards(query,
                                             (vacancies.keys+held.keys).associateWith {maxOf(vacancies[it] ?: 0,held[it] ?: 0).coerceAtMost(255)})
@@ -2011,22 +2013,25 @@ class GameExchange(
                                         require(role!=null && selected.isNotEmpty() && (query.base==0 || selected.any {
                                             (if(role.scope==org.logh7.engine.OfficeScope.OUTFIT)inventory.outfits[it]?.baseId else it)==query.base
                                         })) {"No appointment authority at selected seat"}
+                                        val country=checkNotNull(scope.country)
                                         val eligible=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}.filter {target ->
-                                            target.id!=character.id && target.power==character.power && role.eligible(character.rank,target.rank) &&
+                                            target.id!=character.id && countryOf[target.id.toInt()]==country &&
+                                                role.eligible(actorRank,scope.rank(inventory,target.id.toInt(),target.rank)) &&
                                                 policy.cardCount(inventory,target.id.toInt())<14
                                         }
                                         org.logh7.protocol.AppointmentDirectoryMessages.people(query,eligible.map {target ->
-                                            org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,if(target.power==2)59 else 195)+
-                                                administration!!.offices(target.id.toInt(),target.power,checkNotNull(generation)).map {it.kind})
+                                            org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,scope.captainCard())+
+                                                administration!!.offices(target.id.toInt(),country.value,checkNotNull(generation)).map {it.kind})
                                         })
                                     }
                                     5 -> {
                                         val ids=dismissals.filter {it.card==query.role}.map {it.target}.toSet()
+                                        val country=scope.country
                                         org.logh7.protocol.AppointmentDirectoryMessages.people(query,
                                             characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
-                                                .filter {it.id.toInt() in ids && it.power==character.power}.map {target ->
-                                                org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,if(target.power==2)59 else 195)+
-                                                    administration!!.offices(target.id.toInt(),target.power,checkNotNull(generation)).map {it.kind})
+                                                .filter {it.id.toInt() in ids && country!=null && countryOf[it.id.toInt()]==country}.map {target ->
+                                                org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,scope.captainCard())+
+                                                    administration!!.offices(target.id.toInt(),checkNotNull(country).value,checkNotNull(generation)).map {it.kind})
                                             })
                                     }
                                     else -> error("Unsupported appointment directory")

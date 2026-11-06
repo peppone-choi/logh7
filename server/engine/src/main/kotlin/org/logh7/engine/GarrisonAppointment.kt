@@ -40,9 +40,13 @@ internal object GarrisonAppointment {
         if(role.scope==OfficeScope.OUTFIT && r.base!=0 && stocks.outfits[r.outfit]?.baseId!=r.base)
             return reject(AppointmentRejection.BASE)
         if(!policy.active(stocks,role,seat))return reject(AppointmentRejection.BASE)
-        if(!policy.authorized(stocks,role,seat,r.characterId,r.actorRank))return reject(AppointmentRejection.AUTHORITY)
+        // The country's rank system (server ladder), as the appointment directory uses; the
+        // profile ranks are only the fallback when no stored rank exists.
+        val actorRank=ProposalActions.rank(stocks,r.characterId,country,r.actorRank,countries)
+        if(!policy.authorized(stocks,role,seat,r.characterId,actorRank))return reject(AppointmentRejection.AUTHORITY)
         if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country)return reject(AppointmentRejection.TARGET)
-        if(!role.eligible(r.actorRank,r.targetRank))return reject(AppointmentRejection.RANK)
+        if(!role.eligible(actorRank,ProposalActions.rank(stocks,r.target,country,r.targetRank,countries)))
+            return reject(AppointmentRejection.RANK)
         if(player.cpPaused || player.navigationPending)return reject(AppointmentRejection.BUSY)
         val current=policy.holders(stocks,r.targetCard,country).filter {it.seat==seat}
         if(current.any {it.character==r.target})return GarrisonAppointmentResult(player,stocks)
