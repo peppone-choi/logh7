@@ -331,15 +331,16 @@ def design(no, src):
         out = over(out, shade(body, 'gold', bevel=8, depth=14))
         out = over(out, shade(erode(body, 14).astype(np.float32), 'enamel:blue', bevel=6, depth=5), shadow=False)
         out = bold_emblem(out, src, 460, 'gold')
-    elif no == 3:  # 銀河帝国大十字章: 금 몰타 십자 + 적 칠보 + 흑 원판
-        body = cross(290, 44, 140, notch=0.22)
-        out = over(out, shade(star(8, 312, 200, phase=-math.pi / 2 + math.pi / 8), 'gold', bevel=30, depth=18, dome=0.4))
-        out = over(out, shade(sunburst(32, 300, 262, 9), 'gold', bevel=4, depth=10), shadow=False)
-        out = over(out, shade(body, 'gold', bevel=10, depth=14))
-        out = over(out, shade(erode(body, 20).astype(np.float32), 'enamel:white', bevel=6, depth=5), shadow=False)
-        out = over(out, shade(disc(124), 'gold', bevel=10, depth=12))
-        out = over(out, shade(disc(104), 'enamel:black', bevel=5, depth=4), shadow=False)
-        out = over(out, shade(emblem(src, 184), 'gold', bevel=4, depth=10))
+    elif no == 3:  # 銀河帝国大十字章: 대각 은 빛살 + 큰 금 몰타 십자(안쪽 한 단 돋움) 위에 굵은 엠블럼
+        rays = np.zeros((S, S), np.float32)
+        for k in range(4):
+            rays = np.maximum(rays, sunburst(36, 300, 240, 7) * polygon(rotate(
+                [(0, 0), (-150, -330), (150, -330)], math.pi / 4 + k * math.pi / 2)))
+        out = over(out, shade(rays, 'silver', bevel=3, depth=8))
+        body = cross(304, 46, 156, notch=0.22)
+        out = over(out, shade(body, 'gold', bevel=10, depth=16))
+        out = over(out, shade(erode(body, 22).astype(np.float32), 'gold', bevel=14, depth=12, dome=0.3), shadow=False)
+        out = bold_emblem(out, src, 440, EMBLEM3)
     elif no in (4, 5):  # 功一級/二級騎士十字章: 철 십자 + 금/은 테두리
         rim = 'silver'
         out = over(out, ribbon('empire', 0, 150, 92), shadow=False)
@@ -435,6 +436,7 @@ EMPIRE = [
     (17, [25], '参謀記章', '참모기장'),
 ]
 # 초안 번호 → 그림 안 크기 비율. constmsg 순서를 서열로 보고 아래로 갈수록 작게 한다(evidence:guess).
+EMBLEM3 = 'silver'  # 대십자장 엠블럼(금 십자 위에서 은이 잘 읽힌다)
 SCALE = {1: 1.0, 2: .96, 3: .93, 4: .88, 5: .85, 6: .82, 7: .80, 8: .78, 9: .76, 10: .73, 11: .71, 12: .69,
          13: .66, 14: .66, 15: .63, 16: .70, 17: .60, 18: .80, 19: .78}
 
