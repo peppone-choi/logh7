@@ -158,29 +158,41 @@ static LRESULT CALLBACK lobbyFrameProc(HWND window, UINT message, WPARAM wParam,
 // follows the view; the boxed lobby keeps its native 1024x768 render with the ratio.
 #include "ui_scale.h" // whole-screen UI scale on the game screen
 static bool renderFollowsView = false;
+static bool viewResetting = false; // our own Reset/refill resizes the view; do not follow it
 static constexpr UINT viewRenderMessage = WM_APP + 0x4c7;
 static LRESULT CALLBACK viewSizeProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) {
     auto app = *reinterpret_cast<BYTE**>(0x7c1b4c);
     if (message == viewRenderMessage) {
-        RECT client{};
-        GetClientRect(window, &client);
-        if (renderFollowsView && app && at<HWND>(app, 0x1c) == window && client.right >= 640 && client.bottom >= 480 &&
-            client.right <= 7680 && client.bottom <= 4320) {
-            int width = client.right, height = client.bottom;
-            const bool scaled = uiScaleRender(client.right, client.bottom, width, height);
-            // Same pair 00401760 uses: render size + device Reset, then client rect and ratio.
-            if (at<int>(app, 0x2a3d8) != width || at<int>(app, 0x2a3dc) != height)
-                reinterpret_cast<void(__thiscall*)(void*, int, int)>(0x401830)(app, width, height);
-            reinterpret_cast<void(__cdecl*)(void*)>(0x4ea460)(app);
-            uiScaleApply(app, client.right, client.bottom, scaled);
-            lobbyBoxTrace("view-render");
+        // A device Reset makes the windowed D3D layer resize the view to the backbuffer size
+        // (+20 high), centred in the frame (native 18: 1280x720 -> view 1280x740, then 1038x620 ...).
+        // Following that view shrinks the render on every step, so the target comes from the
+        // frame client instead and the view is refilled after our own Reset.
+        HWND frame = lobbyFrameWindow();
+        RECT frameClient{}, viewWindow{}, viewClient{};
+        if (renderFollowsView && app && frame && at<HWND>(app, 0x1c) == window && GetClientRect(frame, &frameClient) &&
+            GetWindowRect(window, &viewWindow) && GetClientRect(window, &viewClient)) {
+            const int viewWidth = frameClient.right - ((viewWindow.right - viewWindow.left) - viewClient.right);
+            const int viewHeight = frameClient.bottom - ((viewWindow.bottom - viewWindow.top) - viewClient.bottom);
+            if (viewWidth >= 640 && viewHeight >= 480 && viewWidth <= 7680 && viewHeight <= 4320) {
+                int width = viewWidth, height = viewHeight;
+                const bool scaled = uiScaleRender(viewWidth, viewHeight, width, height);
+                viewResetting = true;
+                // Same pair 00401760 uses: render size + device Reset, then client rect and ratio.
+                if (at<int>(app, 0x2a3d8) != width || at<int>(app, 0x2a3dc) != height)
+                    reinterpret_cast<void(__thiscall*)(void*, int, int)>(0x401830)(app, width, height);
+                SetWindowPos(window, nullptr, 0, 0, frameClient.right, frameClient.bottom, SWP_NOZORDER | SWP_NOACTIVATE);
+                viewResetting = false;
+                reinterpret_cast<void(__cdecl*)(void*)>(0x4ea460)(app);
+                uiScaleApply(app, viewWidth, viewHeight, scaled);
+                lobbyBoxTrace("view-render");
+            }
         }
         return 0;
     }
     LRESULT result = DefSubclassProc(window, message, wParam, uiScaleMouse(message, lParam));
     if (message == WM_SIZE && wParam != SIZE_MINIMIZED && LOWORD(lParam) && HIWORD(lParam) &&
         app && at<HWND>(app, 0x1c) == window) {
-        if (renderFollowsView) PostMessageA(window, viewRenderMessage, 0, 0); // Reset outside the resize
+        if (renderFollowsView && !viewResetting) PostMessageA(window, viewRenderMessage, 0, 0); // Reset outside the resize
         else if (lobbyBox.active) reinterpret_cast<void(__cdecl*)(void*)>(0x4ea460)(app);
         lobbyBoxTrace("view-size");
     }
