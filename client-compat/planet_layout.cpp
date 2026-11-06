@@ -147,6 +147,7 @@ static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
 static bool updateSessionEnding(void* manager);
 static void receivedSessionEnding(void* world,const BYTE* record);
+#include "hud_frame.h"
 #include "country_colors.h"
 #include "country_icon.h"
 #include "lobby_country_transport.h"
@@ -339,16 +340,15 @@ static void __fastcall suppliedFuel(void* world, void*, void* message) {
     reinterpret_cast<void(__thiscall*)(void*, void*)>(0x4c0860)(world, message);
 }
 
-static void drawHudIcon(int slot, int atlasX, int atlasY, float x, float y, unsigned color) {
+static void drawHudIcon(const HudFrame& frame, int slot, int atlasX, int atlasY, float x, float y, unsigned color) {
     auto panel = *reinterpret_cast<HudSprite**>(0x9d2ed0);
     if (!panel || !panel->texture || panel->textureWidth != 1024 || panel->textureHeight != 1024) return;
     auto& sprite = hudSprites[slot];
     sprite = *panel;
     sprite.x = atlasX; sprite.y = atlasY; sprite.width = sprite.height = 33;
     reinterpret_cast<void(__thiscall*)(void*)>(0x4d2030)(&sprite);
-    float scale[] = {1, 1, 1};
     reinterpret_cast<int(__thiscall*)(void*, const float*, float, float, float, float, void*, int, unsigned, int, int)>(0x4cb2b0)
-        (reinterpret_cast<void*>(0x9d29a0), scale, x, y, 33, 33, &sprite, 0, color, 0, 0);
+        (reinterpret_cast<void*>(0x9d29a0), frame.scale, x, y, 33, 33, &sprite, 0, color, 0, 0);
 }
 
 static void refreshCountryNamePanels(void* world) {
@@ -395,20 +395,18 @@ static void __fastcall drawHud(void* map, void*) {
         }
         bases[j] = base;
     }
-    void* display = *reinterpret_cast<void**>(0x7c1b4c);
-    if (!display) return;
-    int width = at<int>(display, 0x2a604), height = at<int>(display, 0x2a608);
-    if (width < 743 || width > 4096 || height < 600 || height > 4096) return;
-    float left = static_cast<float>(width - 743), top = static_cast<float>(height - 201);
+    HudFrame frame;
+    if (!hudFrame(frame)) return;
+    float left = frame.width - 743, top = frame.height - 201;
     const unsigned stars[] = {0xff809fff,0xffb0c8ff,0xffeeeeff,0xfffff4d0,0xffffdf70,0xffffa050,0xffff6060};
-    drawHudIcon(0, 758, 99, left + 381, top + 47, stars[type[2]]);
+    drawHudIcon(frame, 0, 758, 99, left + 381, top + 47, stars[type[2]]);
     // Measured at atlas y=263: place the body's centre on each orbit stroke,
     // rather than in the gaps. The 33-pixel icon cells have centre (16,16).
     for (int i = 0; i < count; ++i) {
         int x = 758, y = 0; // Neutral silhouette for an unmapped model, never another body's image.
         unsigned color = 0xff909090;
         if (logh::hudIconRect(at<unsigned short>(bases[i], 0x12), x, y)) color = 0xffffffff;
-        drawHudIcon(i + 1, x, y, left + logh::orbitStrokeX[i] - 16, top + 47, color);
+        drawHudIcon(frame, i + 1, x, y, left + logh::orbitStrokeX[i] - 16, top + 47, color);
     }
 }
 
