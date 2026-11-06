@@ -10,7 +10,9 @@ class GameSessionDirectory {
     data class Entry(val id:Int,val name:String,val address:String,val port:Int,val bindHosts:Set<String>,
         val generation:()->Long,val available:()->Boolean,
         val information:()->SessionEndingMessages.Session,
-        val character:(String)->LobbyMessages.ChargedSession?) {
+        val character:(String)->LobbyMessages.ChargedSession?,
+        /** Lobby country catalogue (mode 7) of this world; display-only, no positions or personal data. */
+        val countries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>?)?=null) {
         init {
             require(id in 1..65535 && port in 1..65535 && name.length in 1..12 &&
                 name.none {it.isISOControl() || it.isSurrogate()} && bindHosts.isNotEmpty())
@@ -38,6 +40,12 @@ class GameSessionDirectory {
     }
     fun characters(account:String):List<LobbyMessages.ChargedSession> = snapshot().mapNotNull {entry ->
         entry.character(account)?.also {val info=checkNotNull(it.information);require(info.id==entry.id && info.name==entry.name)}
+    }
+    /** The selected world's catalogue frames, or null when that world is unknown or not offered now. */
+    fun countries(request:org.logh7.protocol.LobbyCountryMessages.Request):List<ByteArray>? {
+        val entry=snapshot().firstOrNull {it.id==request.sessionId} ?: return null
+        if(!entry.available())return null
+        return entry.countries?.invoke(request)
     }
     fun target(id:Int,bindHost:String?):Target? {
         val entry=snapshot().firstOrNull {it.id==id} ?: return null

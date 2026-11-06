@@ -23,6 +23,12 @@ class WorldBootstrap(val galaxy: Galaxy,
         // A polling read started before a web save may finish after its newer snapshot.
         countryAppearances=values.map {value->previous[value.countryId]?.takeIf {it.revision>value.revision} ?: value}
     }
+    /** Lobby catalogue inputs (mode 7), each read once per request: definitions with their revision, and colors. */
+    internal fun lobbyCountryDefinitions():Pair<org.logh7.engine.CountryCatalog,Long> {
+        val snapshot=org.logh7.engine.CountryCatalogLoader.snapshot()
+        return (configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog) to (if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0)
+    }
+    internal fun publishedCountryAppearances():List<org.logh7.engine.CountryAppearance> = countryAppearances
     fun countryColors(query:OutfitPartyMessages.Query,viewerPower:Int):ByteArray {
         val appearance=countryAppearances.firstOrNull {it.countryId==query.outfit}
         val colors=appearance?.colors ?: org.logh7.engine.CountryColors()
