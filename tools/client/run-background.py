@@ -21,6 +21,7 @@ import uuid
 from silent_audio import (SilentAudio, TARGET_SHA256, runtime_manifest,
                           stop_owned_handle, strict_owned_job, verify_runtime_manifest)
 from ui_text import cp949_ui_bytes
+from qa_login_relay import pump_login_relay
 
 from PIL import Image, ImageStat
 import win32api
@@ -460,38 +461,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                         else:
                             raise ValueError("Unsupported UI command")
                         report["ui_command_count"] = report.get("ui_command_count", 0) + 1
-                if connection is None:
-                    try:
-                        connection, peer = listener.accept()
-                        connection.setblocking(False)
-                        report["peer"] = peer
-                    except BlockingIOError:
-                        pass
-                if connection is not None:
-                    try:
-                        chunk = connection.recv(4096)
-                        received.extend(chunk)
-                        if chunk and upstream is not None:
-                            upstream.sendall(chunk)
-                    except BlockingIOError:
-                        pass
-                    if upstream is not None:
-                        try:
-                            try:
-                                reply = upstream.recv(4096)
-                            except ConnectionResetError:
-                                reply = b""
-                                report["upstream_reset"] = True
-                            if reply:
-                                connection.sendall(reply)
-                                report["server_bytes"] = report.get("server_bytes", 0) + len(reply)
-                            else:
-                                connection.shutdown(socket.SHUT_WR)
-                                upstream.close()
-                                upstream = None
-                                report["upstream_eof"] = True
-                        except socket.timeout:
-                            pass
+                connection, upstream = pump_login_relay(
+                    listener, connection, upstream, upstream_port, received, report)
                 if win32event.WaitForSingleObject(process, 0) != win32con.WAIT_TIMEOUT:
                     break
                 time.sleep(0.05)
