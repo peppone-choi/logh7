@@ -83,14 +83,14 @@ class GamePresence {
             val visible=event.bases.filter {base->world.galaxy.bases.single {it.id==base}.grid==viewer.player.grid}
             if(visible.isEmpty())continue
             val packets=visible.chunked(4).map {world.conditions(it,event.stocks)}.toMutableList()
-            for(base in visible.filter {it==viewer.player.baseId && event.stocks.bases.getValue(it).let {b->b.power==viewer.character.power && b.camp==0}})
+            for(base in visible.filter {it==viewer.player.baseId && event.stocks.bases.getValue(it).let {b->viewer.player.country?.let(b::belongsTo)==true && b.camp==0}})
                 packets+=world.warehouse(base,event.stocks)
             for(outfit in event.stocks.outfits.values.filter {it.baseId in visible && viewer.character.id.toInt() in it.members() &&
-                it.power==viewer.character.power}) {
+                it.country==viewer.player.country}) {
                 val characters=members.values.associateBy {it.character.id.toInt()}
                 // Offline member names require the ordinary query path; don't synthesize them.
                 if(outfit.members().all {it in characters})packets+=world.outfitParty(
-                    org.logh7.protocol.OutfitPartyMessages.Query(outfit.id,0,0),viewer.character.power,event.stocks,
+                    org.logh7.protocol.OutfitPartyMessages.Query(outfit.id,0,0),checkNotNull(viewer.player.country).value,event.stocks,
                     characterById={characters[it]?.character})
             }
             send(viewer,packets)

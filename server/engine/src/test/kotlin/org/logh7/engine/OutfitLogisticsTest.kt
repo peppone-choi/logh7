@@ -110,8 +110,8 @@ class OutfitLogisticsTest {
     private inner class Fixture {
         val rules = SessionRules.load()
         val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Empire",2), GalaxySystem(4,2015,4,"Alliance",3)),
-            listOf(GalaxyBase(1000,2487,60,0,"Home",0,20f,86400,0,0f,2f),
-                GalaxyBase(1001,2015,60,0,"Other",0,20f,86400,0,0f,2f)),
+            listOf(GalaxyBase(1000,2487,60,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),
+                GalaxyBase(1001,2015,60,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f)),
             mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015))
         val people = galaxy.conditions.mapValues { (_, c) -> PlanetEconomy(c.population,c.adultPopulation,c.approval,c.peace) }
         val store = Store(PlanetStocks(1,0,
@@ -128,7 +128,7 @@ class OutfitLogisticsTest {
         val powers = (10..18).associateWith { if (it in setOf(14,17)) Power.ALLIANCE else Power.EMPIRE }
         var session = SessionSimulation(rules).also { sim -> powers.forEach { (id,power) -> sim.join("p$id",power,false,"c$id") } }.exportState()
         var now = 0L
-        var logistics = OutfitLogistics({ now })
+        var logistics = OutfitLogistics({ now },galaxy)
         var production = PlanetProduction(galaxy,store,rules.startSeconds,PlanetProductionPolicy())
         fun request(id: Int = 11, outfit: Int = 1, mode: LogisticsMode = LogisticsMode.REORGANIZATION) =
             LogisticsRequest("p$id","c$id",id,powers.getValue(id),1,outfit,mode,LogisticsPhase.PREPARE)
@@ -159,7 +159,7 @@ class OutfitLogisticsTest {
         assertEquals(10,result.stocks.warehouses.getValue(101).units.ships[ship])
         assertEquals(result.stocks,f.store.saved)
         f.production = PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
-        f.logistics = OutfitLogistics({ f.now })
+        f.logistics = OutfitLogistics({ f.now },f.galaxy)
         assertEquals(result.stocks,f.production.snapshot(1))
         assertEquals(LogisticsRejection.PREPARATION,f.act(reorganization).rejection)
         assertEquals(LogisticsRejection.PREPARATION,f.act(allocation).rejection)

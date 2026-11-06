@@ -58,9 +58,10 @@ object Places {
         else -> SpotAccess.PUBLIC
     }
     /** [estate]: the base is someone's fief, so it holds a mansion (18) for 狩猟 (U-18, design-social-gatherings.md). */
-    fun forBase(base: GalaxyBase, power: Int = 0, estate: Boolean = false): List<PlanetFacility> {
-        val capitalEmpire = base.grid == 2487 && base.name == "オーディン"
-        val capitalAlliance = base.grid == 2015 && base.name == "ハイネセン"
+    fun forBase(base:GalaxyBase,power:Int=0,estate:Boolean=false,capitalSystem:Int?=null):List<PlanetFacility> {
+        require(capitalSystem==null || capitalSystem in setOf(0,2,3))
+        val capitalEmpire=capitalSystem?.let {it==2} ?: (base.grid==2487 && base.name=="オーディン")
+        val capitalAlliance=capitalSystem?.let {it==3} ?: (base.grid==2015 && base.name=="ハイネセン")
         val kinds = when {
             // The manual's automatic-production table includes ships at fortresses too.
             base.kind == 1 -> listOf(1, 2, 4, 9, 10, 11, 13, 17, 21)

@@ -17,17 +17,30 @@ enum class LogisticsOffice(val card: Int, val power: Int, val capital: Capital, 
 }
 
 /** Original group-3 cards and group-73 HQ types; holders come only from stored appointments. */
-class LogisticsOfficePolicy(private val galaxy: Galaxy) {
+class LogisticsOfficePolicy(private val galaxy: Galaxy,private val countries:CountryCatalog?=null) {
+    private val offices=OrganizationalOfficePolicy(galaxy,countries)
     fun seat(office: LogisticsOffice, stocks: PlanetStocks): Int? {
-        val base=galaxy.bases.singleOrNull { Capital.of(it)==office.capital } ?: return null
-        val owner=stocks.bases[base.id] ?: return null
-        if (!owner.belongsTo(CountryId(office.power)) || owner.camp!=0) return null
-        return galaxy.facilities[base.id]?.singleOrNull { it.kind==office.facility }?.id
+        return seat(office,CountryId(office.power),stocks)
+    }
+    private fun seat(office:LogisticsOffice,country:CountryId,stocks:PlanetStocks):Int? {
+        val role=offices.role(office.card,country) ?: return null
+        val base=offices.capital(stocks,country) ?: return null
+        if(!offices.active(stocks,role,base))return null
+        return galaxy.facilitiesAt(base,stocks,countries ?: CountryCatalogLoader.current()).singleOrNull {it.kind==role.facility}?.id
     }
     fun cards(stocks: PlanetStocks, character: Int, power: Int): List<Pair<Int,Int>> {
-        val office=stocks.logisticsOfficers[character]?.takeIf { it.power==power } ?: return emptyList()
-        return seat(office,stocks)?.let { listOf(office.card to it) }.orEmpty()
+        if(power<=0)return emptyList()
+        val country=CountryId(power)
+        return LogisticsOffice.entries.mapNotNull {office ->
+            val seat=seat(office,country,stocks) ?: return@mapNotNull null
+            if(offices.holders(stocks,office.card,country).none {it.character==character})null else office.card to seat
+        }
     }
+    fun permits(stocks:PlanetStocks,character:Int,country:CountryId,kind:OutfitKind,card:Int?=null):Boolean =
+        cards(stocks,character,country.value).any {(id,_) ->
+            val rule=checkNotNull(LogisticsOffice.of(id))
+            (card==null || id==card) && rule.permits(rule.power,kind)
+        }
 }
 
 /** Current deployment is independent of the permanent supply depot. Author: Peppone Choi. */
