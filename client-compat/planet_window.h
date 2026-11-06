@@ -23,7 +23,7 @@ static void planetButtonArt(void* widget, int width, int height,void* root=plane
     // 00502fe0 binds a native sliced background to the control itself.
     // It follows native hover/press/disabled state, unlike detached sprites.
     const int sourceX[] = {459, 467, 659};
-    const int sizesX[] = {8, width - 16, 8}, sizesY[] = {height / 2, height - height / 2};
+    const int sizesX[] = {8, width-16>192 ? 192 : width-16, 8}, sizesY[] = {height / 2, height - height / 2};
     for (int state = 0; state < 4; ++state) {
         unsigned sprites[30] = {};
         // 00506960: state 0 idle, 1 pressed, 2 disabled, 3 pointer-over.

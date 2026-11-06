@@ -58,12 +58,13 @@ struct LobbyCountryDraft {
             LobbyCountryPage candidate;candidate.session=page.session;
             std::uint64_t total=0,offset=0,count=0,seconds=0,bases=0;
             if(!lobbyCountryNumber(fields[1],lobbyCountryMaximum,total) || !lobbyCountryNumber(fields[2],lobbyCountryMaximum,offset) ||
-                !lobbyCountryNumber(fields[3],lobbyCountryRows,count) || offset!=page.offset || offset>total || count>total-offset ||
-                count!=(total-offset<lobbyCountryRows ? total-offset : lobbyCountryRows) ||
+                !lobbyCountryNumber(fields[3],lobbyCountryRows,count) || offset!=page.offset ||
+                count!=(offset>=total ? 0 : total-offset<lobbyCountryRows ? total-offset : lobbyCountryRows) ||
                 !lobbyCountryRevision(fields[4],fields[5],candidate.revision) ||
                 !lobbyCountryNumber(fields[6],0xffffffffULL,seconds) ||
-                !lobbyCountryRevision(fields[7],fields[8],candidate.generation) || !candidate.generation ||
+                !lobbyCountryRevision(fields[7],fields[8],candidate.generation) ||
                 !lobbyCountryNumber(fields[9],65535,bases))return 0;
+            if(!candidate.generation && (total || count || candidate.revision || seconds || bases))return 0;
             candidate.total=static_cast<unsigned>(total);candidate.offset=static_cast<unsigned>(offset);
             candidate.count=static_cast<unsigned>(count);candidate.seconds=static_cast<unsigned>(seconds);
             candidate.totalBases=static_cast<unsigned>(bases);page=candidate;header=true;

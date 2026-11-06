@@ -6,7 +6,7 @@ static struct LobbyCountryWindow {
     unsigned widths[114]={},heights[114]={};bool buttons[114]={};
     bool active=false,lotteryChosen=false;ULONGLONG acceptAfter=0,pollAt=0;
     logh::LobbyCountryPage page={};logh::LobbySessionList sessions={};
-    void* icons[6]={};void* bars[6]={};
+    void* icons[6]={};void* bars[6]={};void* backdrop=nullptr;void* lotteryButton=nullptr;
 } lobbyCountryWindow;
 static void lobbyCountryText(unsigned id,int x,int y,int width,int height,const wchar_t* text,bool button=false) {
     auto& view=lobbyCountryWindow;auto widget=planetWidget(id);if(!widget || id>=114)return;
@@ -24,6 +24,7 @@ static void hideLobbyCountryWindow() {
     if(view.root && view.gui && at<void*>(view.gui,4+planetWindowId*4)==view.root) {
         for(unsigned i=0;i<6;++i)for(void* widget:{view.icons[i],view.bars[i]})if(widget)
             reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,widget,0);
+        if(view.backdrop)reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,view.backdrop,0);
         reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(view.root,0);
     }
     view.active=false;resetLobbyCountries();
@@ -51,6 +52,7 @@ static void renderLobbyCountries() {
     auto& view=lobbyCountryWindow;wchar_t text[160]={};
     const bool listing=view.mode==1;
     lobbyCountryText(0,184,91,640,26,listing ? L"세션 선택 · 국가 현황" : view.mode==2 ? L"캐릭터 생성 · 국가 선택" : L"캐릭터 추첨 · 국가 선택");
+    lobbyCountryText(81,184,383,640,22,L"막대: 전체 정규 거점 중 비율 · 등록: 이 세션의 캐릭터 수");
     for(unsigned i=0;i<3;++i) {
         const unsigned index=view.sessionOffset+i;const bool present=listing && index<view.sessions.count;
         if(present) {
@@ -61,14 +63,18 @@ static void renderLobbyCountries() {
     if(listing) {
         lobbyCountryText(29,184,302,92,32,L"이전 세션",true);planetEnabled(29,view.sessionOffset>0);
         lobbyCountryText(30,282,302,92,32,L"다음 세션",true);planetEnabled(30,view.sessionOffset+3<view.sessions.count);
-        swprintf_s(text,L"국가 %u개 · 경과 %u일",view.page.total,view.page.seconds/86400);
-        lobbyCountryText(100,184,348,196,26,text);
-        swprintf_s(text,L"정규 거점 %u개",view.page.totalBases);lobbyCountryText(101,184,375,196,26,text);
+        if(view.page.session && view.page.generation)swprintf_s(text,L"국가 %u개 · 경과 %u일",view.page.total,view.page.seconds/86400);
+        else wcscpy_s(text,L"현재 세션 집계 조회 중");
+        lobbyCountryText(100,184,340,196,22,text);
+        if(view.page.session && view.page.generation)swprintf_s(text,L"정규 거점 %u개",view.page.totalBases);
+        else text[0]=0;
+        lobbyCountryText(101,184,363,196,18,text);
     }
     for(unsigned i=0;i<6;++i) {
         const bool present=view.page.session==view.session && i<view.page.count;
         const unsigned button=72+i;const int y=130+static_cast<int>(i)*45;
         for(unsigned id:{button,40+i*2,41+i*2})reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,planetWidget(id),present ? 1 : 0);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,planetWidget(60+i),0);
         for(void* widget:{view.icons[i],view.bars[i]})reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,widget,present ? 1 : 0);
         if(!present)continue;
         const auto& row=view.page.rows[i];const int x=listing ? 390 : 184,width=listing ? 260 : 466;
@@ -81,6 +87,11 @@ static void renderLobbyCountries() {
         unsigned art[]={reinterpret_cast<unsigned>("/../data/image/Field/icon_country32.tga"),row.nativePower==3 ? 32u : 0u,0,32,32};
         for(unsigned state=0;state<4;++state)reinterpret_cast<void(__thiscall*)(void*,void*,const void*,int)>(0x503920)(view.root,view.icons[i],art,state);
         reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,view.icons[i],red,green,blue,1.f);
+        if(row.nativePower!=2 && row.nativePower!=3) {
+            reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,view.icons[i],0);
+            lobbyCountryText(60+i,x,y,30,30,L"◇");
+            reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,planetWidget(60+i),red,green,blue,1.f);
+        }
         const int barWidth=view.page.totalBases ? static_cast<int>(static_cast<unsigned long long>(width)*row.bases/view.page.totalBases) : 0;
         int barRect[]={x+38,y+34,0,barWidth,3};
         reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(view.root,view.bars[i],barRect);
@@ -90,13 +101,14 @@ static void renderLobbyCountries() {
     const auto selected=selectedLobbyCountry();
     if(selected)swprintf_s(text,L"%s  ·  국가 ID %u%s",selected->name,selected->id,
         view.mode!=1 && !lobbyCountryEligible(selected) ? L"  ·  현재 참가 준비 중" : L"");
-    else wcscpy_s(text,view.page.session ? L"국가를 선택하면 이름 전체와 참가 가능 여부를 확인할 수 있습니다." : L"선택한 세션의 국가 정보를 불러오는 중입니다.");
+    else wcscpy_s(text,!view.page.session ? L"선택한 세션의 국가 정보를 불러오는 중입니다." :
+        !view.page.generation ? L"이 세션은 더 이상 참가할 수 없습니다. 다른 세션을 선택하세요." : L"국가를 선택하면 이름 전체와 참가 가능 여부를 확인할 수 있습니다.");
     lobbyCountryText(80,184,408,640,26,text);
     lobbyCountryText(23,390,440,100,30,L"이전 국가",true);planetEnabled(23,view.offset>0);
     lobbyCountryText(24,500,440,100,30,L"다음 국가",true);planetEnabled(24,view.page.session && view.offset+view.page.count<view.page.total);
     lobbyCountryText(25,610,440,100,30,L"새로고침",true);
     lobbyCountryText(26,720,477,100,42,listing ? L"세션 선택" : L"국가 선택",true);
-    planetEnabled(26,listing ? view.page.session==view.session : lobbyCountryEligible(selected));
+    planetEnabled(26,listing ? view.page.session==view.session && view.page.generation>0 : lobbyCountryEligible(selected));
     lobbyCountryText(27,184,477,192,42,L"돌아가기",true);
 }
 static bool openLobbyCountries(void* controller,unsigned mode) {
@@ -113,14 +125,20 @@ static bool openLobbyCountries(void* controller,unsigned mode) {
     }
     for(int id=0;id<planetDecorationCount;++id) {
         auto widget=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(view.root,2,id);
-        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,widget,id==planetDecorationCount-1 ? 1 : 0);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,widget,0);
     }
     if(planetDirectoryList)reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,planetDirectoryList,0);
     for(unsigned i=0;i<6;++i) {
+        // Native lookup returns a shared placeholder until the slot has been initialized.
         view.icons[i]=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(view.root,2,120+i);
-        if(!view.icons[i])view.icons[i]=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(view.root,2,120+i,nullptr);
+        if(!view.icons[i] || !at<BYTE>(view.icons[i],8)) {
+            unsigned art[20]={};for(unsigned state=0;state<4;++state) {
+                art[state*5]=reinterpret_cast<unsigned>("/../data/image/Field/icon_country32.tga");art[state*5+3]=art[state*5+4]=32;
+            }
+            view.icons[i]=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(view.root,2,120+i,art);
+        }
         view.bars[i]=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(view.root,2,130+i);
-        if(!view.bars[i]) {
+        if(!view.bars[i] || !at<BYTE>(view.bars[i],8)) {
             view.bars[i]=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(view.root,2,130+i,nullptr);
             unsigned fill[45]={};for(unsigned tile=0;tile<9;++tile) {
                 fill[tile*5]=reinterpret_cast<unsigned>(planetPartsPath);fill[tile*5+1]=470;fill[tile*5+2]=286;fill[tile*5+3]=fill[tile*5+4]=1;
@@ -128,6 +146,19 @@ static bool openLobbyCountries(void* controller,unsigned mode) {
             for(unsigned state=0;state<4;++state)reinterpret_cast<void(__thiscall*)(void*,void*,const void*,int,int,int)>(0x502fe0)(view.root,view.bars[i],fill,3,3,state);
         }
     }
+    // Decorations paint from high to low; the original backing surface would cover the added icons.
+    view.backdrop=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(view.root,2,149);
+    if(!view.backdrop || !at<BYTE>(view.backdrop,8)) {
+        view.backdrop=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(view.root,2,149,nullptr);
+        unsigned fill[45]={};for(unsigned tile=0;tile<9;++tile) {
+            fill[tile*5]=reinterpret_cast<unsigned>(planetPartsPath);fill[tile*5+1]=470;fill[tile*5+2]=286;fill[tile*5+3]=fill[tile*5+4]=1;
+        }
+        for(unsigned state=0;state<4;++state)reinterpret_cast<void(__thiscall*)(void*,void*,const void*,int,int,int)>(0x502fe0)(view.root,view.backdrop,fill,3,3,state);
+    }
+    int backingRect[]={178,106,0,650,421};
+    reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(view.root,view.backdrop,backingRect);
+    reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,view.backdrop,.015f,.035f,.065f,.97f);
+    reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,view.backdrop,1);
     if(auto root=at<void*>(gui,4+(mode==1 ? 0x36 : mode==2 ? 0x39 : 0x38)*4))
         reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(root,0);
     resetLobbyCountries();renderLobbyCountries();
@@ -145,15 +176,23 @@ static bool lotteryCountryButton(void* controller) {
     auto other=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(root,1,3);
     if(!old || !other)return false;
     auto widget=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(root,1,20);
-    if(!widget) {
+    if(!widget || !at<BYTE>(widget,8)) {
         widget=reinterpret_cast<void*(__thiscall*)(void*,int,int,const void*)>(0x503a10)(root,1,20,nullptr);
         if(!widget)return false;
+    }
+    // Slot 20 is an existing native caption; it still needs the button layout.
+    if(view.lotteryButton!=widget) {
         int rect[5];memcpy(rect,static_cast<BYTE*>(old)+0x20,sizeof(rect));
         rect[3]=at<int>(other,0x20)+at<int>(other,0x2c)-rect[0];
         if(rect[3]<32 || rect[3]>300 || rect[4]<12 || rect[4]>60)return false;
+        rect[1]-=4;rect[4]=28;
         reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(root,widget,rect);
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5029e0)(root,widget,2);
         planetButtonArt(widget,rect[3],rect[4],root);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502b00)(root,widget,1);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502b30)(root,widget,1);
+        reinterpret_cast<void(__thiscall*)(void*)>(0x503910)(root);
+        view.lotteryButton=widget;
     }
     for(void* native:{old,other}) {
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(root,native,0);
@@ -173,6 +212,13 @@ static bool lotteryCountryButton(void* controller) {
     BYTE event[52]={};
     if(reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(root,2,widget,event,0))
         return openLobbyCountries(controller,3);
+    // The original controller polls its two hidden country buttons directly. Consume those hits here too.
+    for(void* native:{old,other}) {
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(root,native,1);
+        bool clicked=reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(root,2,native,event,1)!=0;
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(root,native,0);
+        if(clicked)return openLobbyCountries(controller,3);
+    }
     return false;
 }
 static bool updateLobbyCountryWindow(void* controller) {
@@ -187,12 +233,18 @@ static bool updateLobbyCountryWindow(void* controller) {
         if(enter && !openLobbyCountries(controller,stage==0x2f ? 1 : stage==0x55 ? 2 : 3))return false;
         if(!view.active) {view.stage=stage;return false;}
     }
-    neutralizeCountryIcons();
+    for(auto icon:view.icons)if(icon && at<BYTE>(icon,8)) {
+        auto holder=at<BYTE*>(icon,0xcf4);
+        if(holder)neutralizeCountryResource(at<BYTE*>(holder,8));
+    }
     unsigned sequence=0;bool pending=false;ULONGLONG sentAt=0;
     AcquireSRWLockShared(&lobbyCountryLock);
     sequence=lobbyCountryInbox.sequence;pending=lobbyCountryInbox.pending;sentAt=lobbyCountryInbox.sentAt;
     if(lobbyCountryInbox.published.session==view.session && lobbyCountryInbox.published.offset==view.offset)view.page=lobbyCountryInbox.published;
     ReleaseSRWLockShared(&lobbyCountryLock);
+    if(view.page.session && view.page.generation && view.page.total && view.offset>=view.page.total) {
+        view.offset=0;view.page={};view.pollAt=0;view.rendered=~0u;resetLobbyCountries();pending=false;
+    }
     if(view.rendered!=sequence) {view.rendered=sequence;renderLobbyCountries();}
     if(now>=view.pollAt && !pending) {if(requestLobbyCountries(view.world,view.session,view.offset))view.pollAt=now+5000;}
     if(pending && now-sentAt>=5000) {
@@ -215,12 +267,18 @@ static bool updateLobbyCountryWindow(void* controller) {
         else if(mode==2) {
             at<unsigned>(controller,4)=0x69;*reinterpret_cast<unsigned*>(0x2228698)=0;
             *reinterpret_cast<unsigned*>(0x222869c)=0x2b;*reinterpret_cast<unsigned*>(0x22286a0)=0x15;*reinterpret_cast<unsigned*>(0x22286a4)=0x39;
-        } else {view.lotteryChosen=true;if(auto root=at<void*>(gui,4+0x38*4))reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);}
+        } else {
+            view.lotteryChosen=true;
+            if(auto root=at<void*>(gui,4+0x38*4)) {
+                reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);
+                reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);
+            }
+        }
         return true;
     }
     if(lobbyCountryClick(26)) {
         const unsigned mode=view.mode;const auto selected=selectedLobbyCountry();
-        if(mode==1 && view.page.session==view.session) {
+        if(mode==1 && view.page.session==view.session && view.page.generation) {
             *reinterpret_cast<unsigned*>(0x2216c3c)=view.session;at<unsigned>(controller,4)=*reinterpret_cast<unsigned*>(0x221670c);
             hideLobbyCountryWindow();return true;
         }
@@ -231,7 +289,10 @@ static bool updateLobbyCountryWindow(void* controller) {
                 reinterpret_cast<void(__cdecl*)(int)>(0x595ec0)(0x16);reinterpret_cast<void(__cdecl*)()>(0x5960b0)();
             } else {
                 *reinterpret_cast<unsigned*>(0x22283c0)=country;view.lotteryChosen=true;
-                if(auto root=at<void*>(gui,4+0x38*4))reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);
+                if(auto root=at<void*>(gui,4+0x38*4)) {
+                    reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);
+                    reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);
+                }
                 reinterpret_cast<unsigned(__cdecl*)(int)>(0x597ff0)(1);
             }
             return true;

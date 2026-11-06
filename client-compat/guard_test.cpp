@@ -766,6 +766,9 @@ static int lobbyCountryDataTest() {
     draft.begin(12,7,350);header[2]=L"350";header[3]=L"0";packet(0,0,header);
     *reinterpret_cast<unsigned*>(record+4)=7*512+350;
     if(draft.accept(record,sizeof(record))!=2 || draft.page.count)return 1009;
+    draft.begin(12,7,350);header[1]=L"0";header[4]=L"0";header[5]=L"";header[6]=L"0";header[7]=L"0";header[9]=L"0";
+    packet(0,0,header);*reinterpret_cast<unsigned*>(record+4)=7*512+350;
+    if(draft.accept(record,sizeof(record))!=2 || draft.page.generation || draft.page.total)return 1014;
     BYTE sessions[4+64*0x14c]={};sessions[1]=64;
     for(unsigned i=0;i<64;++i) {
         auto q=sessions+4+i*0x14c;q[0]=static_cast<BYTE>(i+1);q[2]=1;q[3]=2;q[4]='S';

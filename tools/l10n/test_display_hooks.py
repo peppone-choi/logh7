@@ -190,6 +190,19 @@ class DisplayHookTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'hash'):
             static_resources.collect_wide(self.original,dict(document,source_sha256='0'*64),catalog.validate)
 
+    def test_lobby_country_bridge_matches_native_decoder_widgets_and_cdecl_calls(self):
+        # 2006 decoder table entry and the five-int widget rectangle/initialized flag.
+        self.assertEqual(struct.pack('<I',0x444900),self.raw(0x66cd78,4))
+        self.assertEqual(bytes.fromhex('8b4424048a480884c97415568b74240c578d7820b905000000f3a5'),
+                         self.raw(0x502940,27))
+        # Type-2 lookup has 150 slots, a -1 placeholder, and root map +0xec8.
+        self.assertEqual(bytes.fromhex('8b4424043d960000008b5130'),self.raw(0x507ba0,12))
+        self.assertEqual(bytes.fromhex('8b8481c80e000085c07d098d8264b32800'),self.raw(0x507bc2,17))
+        self.assertEqual(bytes.fromhex('8b4424048b0d2c5e210283c040894104c3'),self.raw(0x595ec0,17))
+        # Lottery refresh takes a caller-cleaned argument, not a thiscall/stack-pop bridge.
+        self.assertEqual(bytes.fromhex('6a01e89ef9ffff83c404'),self.raw(0x59864b,10))
+        self.assertEqual(self.data,self.original.read_bytes())
+
     def test_lobby_wide_suffix_pushes_stay_within_original_fixed_arrays(self):
         header=(catalog.ROOT/'client-compat/literal_text.h').read_text('utf-8')
         block=re.search(r'koreanWideLiteralPushes\[\]=\{(.*?)\};',header,re.S).group(1)
