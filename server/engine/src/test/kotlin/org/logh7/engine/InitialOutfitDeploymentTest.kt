@@ -79,6 +79,18 @@ class InitialOutfitDeploymentTest {
         val removed = empty.copy(outfits=emptyMap(),warehouses=emptyMap())
         assertSame(removed,deployment.initialize(removed))
     }
+    @Test fun customOrOccupiedBasesDoNotReceiveTheOriginalCountriesManualArmies() {
+        val g=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,
+            initialOwners=mapOf(1049 to Allegiance.Country(CountryId(42))))
+        val source=stocks().copy(bases=stocks().bases+(1049 to stocks().bases.getValue(1049).copy(owner=Allegiance.Country(CountryId(42)))))
+        val result=InitialOutfitDeployment(g).initialize(source)
+        assertTrue(result.deploymentInitialized)
+        assertTrue(result.outfits.isNotEmpty());assertTrue(result.outfits.values.all {it.country==CountryId(3) && it.baseId==2000})
+        assertTrue(result.warehouses.values.all {it.country==CountryId(3)})
+        assertEquals(source.bases,result.bases)
+        val recaptured=source.copy(bases=source.bases+(1049 to source.bases.getValue(1049).copy(owner=Allegiance.Country(CountryId(2)))))
+        assertEquals(result.outfits,InitialOutfitDeployment(g).initialize(recaptured).outfits)
+    }
     @Test fun freshGenerationResetsDeploymentButSameGenerationRetainsLosses() {
         val deployment = InitialOutfitDeployment(galaxy)
         var saved = deployment.initialize(stocks().copy(producedDays=0))

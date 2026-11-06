@@ -35,7 +35,7 @@ object GridForces {
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)
             val initial = galaxy.conditions.getValue(base.id)
-            (stock?.owner ?: Allegiance.fromLegacy(initial.power)).country?.let {
+            (stock?.owner ?: galaxy.initialOwners.getValue(base.id)).country?.let {
                 add(base.grid, Force(Camp(it,(stock?.camp ?: initial.camp)==1), base = true))
             }
             // U-07 (CD p.39, evidence:guess): after a violation, neutral Fezzan is a planet troops may land on and occupy.

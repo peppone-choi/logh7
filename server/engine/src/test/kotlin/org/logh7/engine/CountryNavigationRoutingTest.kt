@@ -22,6 +22,22 @@ class CountryNavigationRoutingTest {
     }
     private fun navigation(store:NavigationStore?=null)=Navigation(galaxy,store,NavigationPolicy(),configuredCountries=catalog)
 
+    @Test fun seedCountryControlsReturnAndDockingWithoutAStockSnapshot() {
+        val g=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,countryStarts=galaxy.countryStarts,
+            initialOwners=mapOf(1049 to Allegiance.Country(CountryId(42))))
+        val nav=Navigation(g,Store(mapOf("pilot" to pilot)),NavigationPolicy(),configuredCountries=catalog)
+        val marked=nav.apply(request().copy(returnBase=1049),session())
+        assertNull(marked.rejection);assertEquals(1049,marked.player?.returnBase)
+        val accepted=nav.apply(request().copy(place=PlaceMove.Dock(1049,4),unitId=pilot.unitId,captainCard=59),session())
+        assertNull(accepted.rejection);assertEquals(1049,accepted.player?.dockTarget)
+        val at=assertNotNull(accepted.player?.strategy).jobs.single().completesAtGameMillis
+        val docked=nav.apply(request(),session().copy(gameMillis=at))
+        assertNull(docked.rejection);assertEquals(1049,docked.player?.baseId)
+        assertEquals(CountryId(42),docked.player?.country);assertEquals(ShipStyleId("alliance"),docked.player?.shipStyle)
+        val foreign=Navigation(g,Store(mapOf("pilot" to pilot.copy(country=CountryId(43)))),NavigationPolicy(),configuredCountries=catalog)
+        assertEquals(NavigationRejection.ACCESS,foreign.apply(request(CountryId(43)).copy(returnBase=1049),session(CountryId(43))).rejection)
+    }
+
     @Test fun theCountryStartAndStoredStyleAreIndependentOfTheNativeDisplayFaction() {
         val nav=navigation()
         val initialized=assertNotNull(nav.apply(request(),session(),stocks).player)

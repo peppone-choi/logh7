@@ -15,6 +15,19 @@ class CivicActionsTest {
     private val session=SessionSimulation(SessionRules.load()).also {
         it.join("actor",Power.EMPIRE,false,"c");it.join("other",Power.EMPIRE,false,"d")}.exportState()
     private val now=session.gameMillis/1000
+
+    @Test fun productionDoesNotCompleteTheJobOfAnEliminatedCountryThatStillOwnsItsBase() {
+        val result=act();assertNull(result.rejection)
+        val pending=assertNotNull(result.stocks)
+        val due=assertNotNull(result.readyAt)
+        val state=session.copy(gameMillis=due*1000)
+        fun settle(state:SessionState)=PlanetProduction(galaxy,null,now,PlanetProductionPolicy(),restored=pending,
+            civicPlayers={listOf(player)}).settle(state)
+        assertEquals(CivicPhase.COMPLETED,settle(state).civic.orders.getValue(player.characterId).phase)
+        val lost=settle(state.copy(eliminated=mapOf(CountryId(2) to CountryDefeat(EndReason.CAPITAL_CAPTURED,now,CountryId(3)))))
+        assertEquals(CivicPhase.INVALIDATED,lost.civic.orders.getValue(player.characterId).phase)
+        assertEquals(0,lost.civic.orders.getValue(player.characterId).effect)
+    }
     private val ship=UnitStack(ProductionUnits.definitions.first {it.ship && it.power==2 &&
         UnitSpecifications.ships.single {s->s.kind==it.kind}.category==3}.kind,1)
     private val troop=UnitStack(UnitSpecifications.crews.first {it.power==2 && it.type!=3}.kind)

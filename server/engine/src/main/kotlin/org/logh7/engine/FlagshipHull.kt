@@ -30,7 +30,7 @@ internal object FlagshipRecovery {
             val stock=stocks.bases[base.id]
             val initial=galaxy.conditions.getValue(base.id)
             country!=null && initial.habitability==1 && (stock?.let {it.belongsTo(country) && it.camp==0}
-                ?: (initial.power==country.value && initial.camp==0))
+                ?: (galaxy.initialOwners.getValue(base.id).country==country && initial.camp==0))
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
         val busy=GridForces.collect(galaxy,stocks.generation,

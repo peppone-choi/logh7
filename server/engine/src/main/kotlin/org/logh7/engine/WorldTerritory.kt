@@ -6,7 +6,7 @@ package org.logh7.engine
 internal class WorldTerritory(private val galaxy:Galaxy) {
     private val systems=galaxy.bases.groupBy {it.grid}
     private val initial=Power.entries.associateWith {side->systems.values.count {bases->
-        bases.all {base->galaxy.conditions.getValue(base.id).let {it.power==side.country.value && it.camp==0}}
+        bases.all {base->galaxy.initialOwners.getValue(base.id).country==side.country && galaxy.conditions.getValue(base.id).camp==0}
     }}
     fun controlled(stocks:PlanetStocks, countries:Set<CountryId> = galaxy.countryStarts.keys+
         stocks.strategic.capitals.keys+stocks.bases.values.mapNotNull {it.country}):Map<CountryId,Int> = countries.associateWith {country->
@@ -14,7 +14,8 @@ internal class WorldTerritory(private val galaxy:Galaxy) {
     }
     fun ending(stocks:PlanetStocks, registered:Set<CountryId> = emptySet(),
         eliminated:Set<CountryId> = emptySet()):SessionAction.CountryTerritory? {
-        val defaults=galaxy.bases.mapNotNull {base->Capital.of(base)?.let {CountryId(it.power) to base.id}}.toMap()
+        val defaults=galaxy.bases.mapNotNull {base->Capital.of(base)?.takeIf {
+            galaxy.initialOwners.getValue(base.id).country==CountryId(it.power)}?.let {CountryId(it.power) to base.id}}.toMap()
         val capitals=defaults+stocks.strategic.capitals
         val countries=registered+galaxy.countryStarts.keys+capitals.keys+
             stocks.bases.values.filter {it.camp==0}.mapNotNull {it.country}

@@ -43,8 +43,9 @@ object CivicActions {
             OrganizationalOfficePolicy(g,countries).holders(stocks,card,country).any {it.character==p.characterId && it.seat==outfit}
     }
     /** Seed nationality is historical ownership, not the current owner's display code. */
-    private fun captured(g:Galaxy,base:Int,country:CountryId)=g.conditions[base]?.power?.let {it in 2..3 && CountryId(it)!=country}==true
-    private fun eligible(g:Galaxy,s:PlanetStocks,o:CivicOrder,p:Navigator?,countries:CountryCatalog):Boolean {
+    private fun captured(g:Galaxy,base:Int,country:CountryId)=g.initialOwners[base]?.country?.let {it!=country}==true
+    private fun eligible(g:Galaxy,s:PlanetStocks,o:CivicOrder,p:Navigator?,countries:CountryCatalog,eliminated:Set<CountryId>):Boolean {
+        if(o.country.value !in countries.countries || o.country in eliminated)return false
         val b=s.bases[o.base] ?: return false
         if(!b.belongsTo(o.country) || b.camp!=0 || p==null || p.generation!=s.generation || p.country!=o.country ||
             !location(g,p,o.base))return false
@@ -126,11 +127,11 @@ object CivicActions {
     }
     /** Offline saved characters retain jobs. Missing player context defers settlement, never fabricates eligibility. */
     fun settle(g:Galaxy,stocks:PlanetStocks,seconds:Long,players:Collection<Navigator>?,
-        countries:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
+        countries:CountryCatalog=CountryCatalogLoader.current(),eliminated:Set<CountryId> = emptySet()):PlanetStocks {
         if(stocks.civic.active.isEmpty() || players==null)return stocks
         val people=players.associateBy {it.characterId};var next=stocks
         for(o in stocks.civic.active.sortedBy {it.character}) {
-            val valid=eligible(g,next,o,people[o.character],countries)
+            val valid=eligible(g,next,o,people[o.character],countries,eliminated)
             val phase=when { !valid->CivicPhase.INVALIDATED;seconds>=o.readyAt->CivicPhase.COMPLETED;else->o.phase }
             if(phase==o.phase)continue
             var effect=0;var final=phase

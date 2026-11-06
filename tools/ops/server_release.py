@@ -52,7 +52,10 @@ HEADER_READERS = (("LOGH7-STOCK-", "org/logh7/persistence/FilePlanetStockStore.c
 
 # World definition (LOGH7_WORLD_FILE) ``schema=N``: schema 1 is read by every release; a later schema
 # needs a release whose reader holds the listed exact string constant (codex/live-country-identity).
-WORLD_SCHEMAS = {"2": ("org/logh7/engine/Galaxy$Companion.class", "Country starts require world schema 2")}
+WORLD_SCHEMAS = {
+    "2": ("org/logh7/engine/Galaxy$Companion.class", "Country starts require world schema 2"),
+    "3": ("org/logh7/engine/Galaxy$Companion.class", "Initial owners require world schema 3"),
+}
 SCHEMA_READERS_CLASSES = {reader for reader, _ in WORLD_SCHEMAS.values()}
 
 

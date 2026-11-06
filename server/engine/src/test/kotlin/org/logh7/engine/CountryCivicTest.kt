@@ -28,10 +28,10 @@ class CountryCivicTest {
     }
     private fun request(command:Int,card:Int=59)=StrategyActionRequest("a","c",10000,country,1,command,card,5,
         outfit=if(command==55)0 else 200,requestToken=37)
-    private fun act(command:Int,s:PlanetStocks=stock(),p:Navigator=player,card:Int=59,definitions:CountryCatalog=catalog())=
-        StrategyActions.evaluate(galaxy,request(command,card),session,p,s,definitions)
-    private fun settle(s:PlanetStocks,p:Navigator=player,definitions:CountryCatalog=catalog())=
-        CivicActions.settle(galaxy,s,now+CivicActions.DAY,listOf(p),definitions)
+    private fun act(command:Int,s:PlanetStocks=stock(),p:Navigator=player,card:Int=59,definitions:CountryCatalog=catalog(),g:Galaxy=galaxy)=
+        StrategyActions.evaluate(g,request(command,card),session,p,s,definitions)
+    private fun settle(s:PlanetStocks,p:Navigator=player,definitions:CountryCatalog=catalog(),g:Galaxy=galaxy,eliminated:Set<CountryId> = emptySet())=
+        CivicActions.settle(g,s,now+CivicActions.DAY,listOf(p),definitions,eliminated)
 
     @Test fun bothOfficeSystemsCommandOnlyTheirOwnCountrysGroundUnitsRegardlessOfModelStyle() {
         for(family in listOf("empire","alliance"))for(command in listOf(52,54)) {
@@ -89,5 +89,25 @@ class CountryCivicTest {
         assertEquals(1100,complete.bases.getValue(1001).supplies)
         assertEquals(1000,complete.outfits.getValue(200).supplies)
         assertEquals(country,complete.outfits.getValue(200).country)
+    }
+
+    @Test fun customSeedOwnersAllowForeignPillageButNeverDomesticOrNonstatePillage() {
+        for(owner in listOf(Allegiance.Country(other),Allegiance.Country(country),Allegiance.Neutral,Allegiance.Unspecified,Allegiance.Pirates)) {
+            val g=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,initialOwners=mapOf(1001 to owner))
+            val source=stock();val result=act(56,g=g)
+            if(owner.country!=other) {
+                assertEquals(StrategyActionRejection.LOCATION,result.rejection);assertEquals(source,result.stocks)
+                assertEquals(player,result.player);continue
+            }
+            assertNull(result.rejection);assertEquals(840,result.player?.mcp)
+            val pending=assertNotNull(result.stocks);val done=settle(pending,g=g)
+            assertEquals(900,done.civic.orders.getValue(10000).effect)
+            assertEquals(CountryId(43),g.initialOwners.getValue(1001).country)
+            assertEquals(country,done.bases.getValue(1001).country)
+            assertEquals(done,settle(done,g=g))
+            val defeated=settle(pending,g=g,eliminated=setOf(country))
+            assertEquals(CivicPhase.INVALIDATED,defeated.civic.orders.getValue(10000).phase)
+            assertEquals(pending.bases,defeated.bases);assertEquals(pending.outfits,defeated.outfits)
+        }
     }
 }

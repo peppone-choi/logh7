@@ -45,6 +45,6 @@ $extra
             assertFailsWith<IllegalArgumentException> {world("2","start.country.$key=2490")}
         assertFailsWith<IllegalArgumentException> {world("2","start.country.42=2488")}
         assertFailsWith<IllegalArgumentException> {world("2",(10..359).joinToString("\n") {"start.country.$it=2490"})}
-        assertFailsWith<IllegalArgumentException> {world("3","")}
+        assertFailsWith<IllegalArgumentException> {world("4","")}
     }
 }

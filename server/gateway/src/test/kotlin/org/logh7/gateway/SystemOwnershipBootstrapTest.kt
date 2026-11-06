@@ -6,6 +6,20 @@ import org.logh7.engine.*
 import kotlin.test.*
 
 class SystemOwnershipBootstrapTest {
+    @Test fun initialOwnerProjectionAndFacilitiesUseTheInjectedCatalogBeforeStocksExist() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487},
+            initialOwners=mapOf(1000 to Allegiance.Country(CountryId(42))))
+        val original=CountryCatalogLoader.load()
+        val catalog=CountryCatalog(original.calendars.values.toList(),original.families.values.toList(),
+            original.countries.values.toList()+original.countries.getValue(3).copy(id=42,key="custom",nativePower=3))
+        val world=WorldBootstrap(galaxy,catalog)
+        assertEquals(3,world.conditions(listOf(1000))[11].toInt())
+        assertEquals(galaxy.facilitiesAt(1000,PlanetStocks(1,0,mapOf(1000 to
+            PlanetStock(1000,Allegiance.Country(CountryId(42)),0,1,2,3))),catalog),galaxy.facilitiesAt(1000,countries=catalog))
+        val occupied=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,1,2,3)))
+        assertEquals(2,world.conditions(listOf(1000),occupied)[11].toInt())
+    }
     @Test fun countryOwnerUsesCatalogAppearanceWithoutTurningNeutralOrPiratesIntoCountries() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
