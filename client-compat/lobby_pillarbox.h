@@ -150,15 +150,35 @@ static LRESULT CALLBACK lobbyFrameProc(HWND window, UINT message, WPARAM wParam,
 // After 00401760 the frame drops its caption and the popup frame is fitted to the monitor,
 // resizing the view without 004ea460. The stored client rect and render/client ratio then
 // describe the old view (native A/B check, game at 1280x720: view 1920x1080, stored 1280x740,
-// HUD clicks missed with and without the lobby box). Recompute them whenever the view resizes.
+// HUD clicks missed with and without the lobby box).
+// Only recomputing the ratio is not enough: the native game HUD scales its sprites by the ratio
+// but draws text, portraits and native panels at fixed render positions, so they separated
+// (native check 05, render 1280x720 in a 1920x1080 view). The game screen is consistent only
+// when render size == view client size (1920 run). So in the game screen the render size
+// follows the view; the boxed lobby keeps its native 1024x768 render with the ratio.
+static bool renderFollowsView = false;
+static constexpr UINT viewRenderMessage = WM_APP + 0x4c7;
 static LRESULT CALLBACK viewSizeProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) {
-    LRESULT result = DefSubclassProc(window, message, wParam, lParam);
-    if (message == WM_SIZE && wParam != SIZE_MINIMIZED && LOWORD(lParam) && HIWORD(lParam)) {
-        auto app = *reinterpret_cast<BYTE**>(0x7c1b4c);
-        if (app && at<HWND>(app, 0x1c) == window) {
+    auto app = *reinterpret_cast<BYTE**>(0x7c1b4c);
+    if (message == viewRenderMessage) {
+        RECT client{};
+        GetClientRect(window, &client);
+        if (renderFollowsView && app && at<HWND>(app, 0x1c) == window && client.right >= 640 && client.bottom >= 480 &&
+            client.right <= 7680 && client.bottom <= 4320 &&
+            (at<int>(app, 0x2a3d8) != client.right || at<int>(app, 0x2a3dc) != client.bottom)) {
+            // Same pair 00401760 uses: render size + device Reset, then client rect and ratio.
+            reinterpret_cast<void(__thiscall*)(void*, int, int)>(0x401830)(app, client.right, client.bottom);
             reinterpret_cast<void(__cdecl*)(void*)>(0x4ea460)(app);
-            lobbyBoxTrace("view-size");
+            lobbyBoxTrace("view-render");
         }
+        return 0;
+    }
+    LRESULT result = DefSubclassProc(window, message, wParam, lParam);
+    if (message == WM_SIZE && wParam != SIZE_MINIMIZED && LOWORD(lParam) && HIWORD(lParam) &&
+        app && at<HWND>(app, 0x1c) == window) {
+        if (renderFollowsView) PostMessageA(window, viewRenderMessage, 0, 0); // Reset outside the resize
+        else if (lobbyBox.active) reinterpret_cast<void(__cdecl*)(void*)>(0x4ea460)(app);
+        lobbyBoxTrace("view-size");
     }
     return result;
 }
@@ -172,6 +192,7 @@ static void __fastcall lobbyScreenSize(void* app, void*, int width, int height) 
     HWND frame = lobbyFrameWindow(), view = lobbyViewWindow();
     lobbyBoxTrace("lobby-enter");
     watchViewSize();
+    renderFollowsView = false;
     leaveLobbyBox();
     // Native A/B checks: LOGH7_LOBBY_BOX=0 keeps the original lobby; the trace still records it.
     char boxSwitch[4] = {};
@@ -196,7 +217,10 @@ static void __fastcall gameScreenSize(void* app, void*, int width, int height) {
     lobbyBoxTrace("game-enter");
     watchViewSize();
     leaveLobbyBox();
+    // The login screen is a fixed 640x480 window; only the game screen follows the view.
+    renderFollowsView = !(width == 640 && height == 480);
     nativeScreenSize(app, width, height);
+    if (renderFollowsView) if (HWND view = lobbyViewWindow()) PostMessageA(view, viewRenderMessage, 0, 0);
     lobbyBoxTrace("game-native");
 }
 // Replaces the two lobby calls 004e7570(1, frame, 1024, 768), which read the render size for
