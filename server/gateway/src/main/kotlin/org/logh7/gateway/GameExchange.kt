@@ -2086,7 +2086,10 @@ class GameExchange(
                             admission?.generation ?: 1L))
                 }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2)
-                    sessionDirectory?.let {LobbyMessages.sessions(it.sessions())} ?: LobbyMessages.sessions(admission?.running != false) }
+                    sessionDirectory?.let {LobbyMessages.sessions(it.sessions())} ?: LobbyMessages.sessions(
+                        admission?.running != false,
+                        SessionEndingReport.information(navigation?.snapshot(),characterProvider().registeredCharacters(),
+                            sessionId,sessionName,admission?.generation ?: 1L)) }
                 0x2009 -> {
                     check(lobbyLoggedIn)
                     val selected=LobbyMessages.select(body)

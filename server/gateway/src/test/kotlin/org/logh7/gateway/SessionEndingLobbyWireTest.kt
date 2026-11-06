@@ -25,6 +25,29 @@ class SessionEndingLobbyWireTest {
             it.send(SyntheticClient.token(token),SyntheticClient.opcode(0x2000));it.expect(0x2001)
         }
     }
+    @Test fun singleSessionSelectionReportsCurrentTerritoryCharactersAndElapsedTime()=runBlocking {
+        LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,powerByIndex={if(it==1)3 else 2}).use {f->
+            for(index in 0..1)f.join(f.account(index),true,false).client.close()
+            f.engine.submit(WorldCommand.AdvanceTo(3_600_000))
+            f.await("one game day") {f.engine.snapshot().session!!.gameSeconds==86_400L}
+            lobby(f,3).use {client->
+                fun expectSummary(empireCharacters:Long,seconds:Long) {
+                    val information=org.logh7.protocol.SessionEndingMessages.Session(1,1,"LOGH7 Local","",seconds,
+                        listOf(org.logh7.protocol.SessionEndingMessages.PowerResult(2,0,empireCharacters,1,null),
+                            org.logh7.protocol.SessionEndingMessages.PowerResult(3,0,1,1,null)),null)
+                    for(filter in 0..2) {
+                        client.send(SyntheticClient.opcode(0x2005)+byteArrayOf(filter.toByte()))
+                        assertContentEquals(org.logh7.protocol.LobbyMessages.sessions(listOf(information)),client.expect(0x2006))
+                    }
+                }
+                expectSummary(1,86_400)
+                f.join(f.account(2),true,false).client.close()
+                f.engine.submit(WorldCommand.AdvanceTo(7_200_000))
+                f.await("second game day") {f.engine.snapshot().session!!.gameSeconds==172_800L}
+                expectSummary(2,172_800)
+            }
+        }
+    }
     private fun charged(packet:ByteArray):Pair<Int,Int> {
         val b=ByteBuffer.wrap(packet).position(6)
         fun string(){val n=b.get().toInt() and 255;b.position(b.position()+n*2)}
