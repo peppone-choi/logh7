@@ -1,6 +1,7 @@
 // HD texture pack loader. Author: Peppone Choi (peppone-choi)
 // When <install>\hd\ exists, the two main texture loads in 0x5e2887 read hd\<data-relative path>.<fnv1a32 of the
 // original file>.png instead (logh_hd::hdFileName), so each original version gets only its own HD texture.
+// The in-memory load of the same loader (face TGAs from .tcf) reads hd\mem	cf.<fnv1a32 of the bytes>.png.
 // HD textures report their original size from GetLevelDesc so every UV that the client derives from it
 // (sprites: 0x4d2030) stays in original pixel space. Nothing changes when the folder is absent.
 #pragma once
@@ -10,7 +11,11 @@ struct HdSurfaceDesc8 {unsigned format,type,usage,pool,size,multisample,width,he
 using HdLoadFile=HRESULT(__cdecl*)(void*,const char*,void**,unsigned,unsigned,void*);
 using HdGetLevelDesc=HRESULT(WINAPI*)(void*,unsigned,HdSurfaceDesc8*);
 using HdRelease=ULONG(WINAPI*)(void*);
+using HdLoadMemory=HRESULT(__cdecl*)(void*,const void*,unsigned,void**,unsigned,unsigned,void*);
 static const HdLoadFile hdOriginalLoad=reinterpret_cast<HdLoadFile>(0x5e2d20); // D3DXCreateTextureFromFileExA wrapper
+// D3DXCreateTextureFromFileInMemoryEx wrapper. The loader takes it when resource+0x20c holds bytes: face TGAs that
+// 0x5924c0 reads from the .tcf files at the tcf.hed offsets (0x5e3650 makes the resource).
+static const HdLoadMemory hdOriginalLoadMemory=reinterpret_cast<HdLoadMemory>(0x5e2d60);
 static BYTE* volatile hdResource=nullptr; // EBX at the patched call sites: the texture resource being loaded
 static bool hdEnabled=false;
 static char hdRoot[MAX_PATH];
@@ -104,7 +109,7 @@ static bool hdFileSize(const char* path,unsigned* width,unsigned* height,unsigne
     CloseHandle(file);
     return ok;
 }
-static void hdLog(const char* relative,unsigned scale) {
+static void hdLog(const char* relative,unsigned scale) { // scale 0: memory texture without an HD file
     if(InterlockedIncrement(&hdLogged)>4000)return;
     char path[MAX_PATH];
     if(strcpy_s(path,hdRoot) || strcat_s(path,"hd-textures.log"))return;
@@ -117,38 +122,66 @@ static void hdLog(const char* relative,unsigned scale) {
     CloseHandle(file);
 }
 
+// Creates the HD texture from hdPath when it is exactly N times the original; false leaves *texture untouched.
+static bool hdCreate(void* device,const char* hdPath,const char* relative,unsigned ow,unsigned oh,void** texture,unsigned mips,void* palette) {
+    unsigned hw=0,hh=0;
+    if(!hdFileSize(hdPath,&hw,&hh))return false;
+    const unsigned scale=logh_hd::scaleFor(ow,oh,hw,hh);
+    if(!scale)return false;
+    void* created=nullptr;
+    const HRESULT result=hdOriginalLoad(device,hdPath,&created,0x15,mips,palette); // A8R8G8B8
+    if(FAILED(result) || !created)return false;
+    if(hdHookVtable(created) && hdRemember(created,scale)) {
+        *texture=created;InterlockedIncrement(&hdLoaded);hdLog(relative,scale);
+        return true;
+    }
+    (*reinterpret_cast<HdRelease*>(*reinterpret_cast<void***>(created)+2))(created);
+    return false;
+}
+
 static HRESULT __cdecl hdLoad(void* device,const char* path,void** texture,unsigned format,unsigned mips,void* palette) {
     BYTE* resource=hdResource;hdResource=nullptr;
     // P8 (0x29) keeps a palette; a resource with an alpha companion (+0x108) is merged by locking.
     if(hdEnabled && resource && texture && path && format!=0x29 && !resource[0x108]) {
         const char* source=reinterpret_cast<const char*>(resource+8);
         char relative[MAX_PATH],name[MAX_PATH],hdPath[MAX_PATH];
-        unsigned ow=0,oh=0,hw=0,hh=0,hash=0;
+        unsigned ow=0,oh=0,hash=0;
         // The HD name holds the original's hash, so a changed original (e.g. the update) keeps its own texture.
         if(strnlen_s(source,0x100)<0x100 && logh_hd::relativeDataPath(source,relative,sizeof(relative)) &&
             !logh_hd::skipped(relative) && hdFileSize(path,&ow,&oh,&hash) &&
             logh_hd::hdFileName(relative,hash,name,sizeof(name)) && !strcpy_s(hdPath,hdRoot) && !strcat_s(hdPath,name) &&
-            hdFileSize(hdPath,&hw,&hh)) {
-            if(const unsigned scale=logh_hd::scaleFor(ow,oh,hw,hh)) {
-                void* created=nullptr;
-                const HRESULT result=hdOriginalLoad(device,hdPath,&created,0x15,mips,palette); // A8R8G8B8
-                if(SUCCEEDED(result) && created) {
-                    if(hdHookVtable(created) && hdRemember(created,scale)) {
-                        *texture=created;InterlockedIncrement(&hdLoaded);hdLog(relative,scale);
-                        return result;
-                    }
-                    (*reinterpret_cast<HdRelease*>(*reinterpret_cast<void***>(created)+2))(created);
-                }
-            }
-        }
+            hdCreate(device,hdPath,relative,ow,oh,texture,mips,palette))return S_OK;
     }
     return hdOriginalLoad(device,path,texture,format,mips,palette);
+}
+
+// Memory textures (face TGAs) have no data path; the HD file is hd\mem\tcf.<fnv1a32 of the bytes>.png.
+static HRESULT __cdecl hdLoadMemory(void* device,const void* data,unsigned size,void** texture,unsigned format,unsigned mips,void* palette) {
+    BYTE* resource=hdResource;hdResource=nullptr;
+    if(hdEnabled && resource && texture && data && size && size<=64*1024*1024 && format!=0x29 && !resource[0x108]) {
+        const auto bytes=static_cast<const unsigned char*>(data);
+        unsigned ow=0,oh=0;
+        char name[MAX_PATH],hdPath[MAX_PATH];
+        if(logh_hd::imageSize(bytes,size,"tcf.tga",&ow,&oh) &&
+            logh_hd::hdFileName("mem\\tcf",logh_hd::fnv1a32(bytes,size),name,sizeof(name)) &&
+            !strcpy_s(hdPath,hdRoot) && !strcat_s(hdPath,name)) {
+            if(hdCreate(device,hdPath,name,ow,oh,texture,mips,palette))return S_OK;
+            hdLog(name,0);
+        }
+    }
+    return hdOriginalLoadMemory(device,data,size,texture,format,mips,palette);
 }
 
 static __declspec(naked) void hdLoadStub() {
     __asm {
         mov dword ptr [hdResource], ebx
         jmp hdLoad
+    }
+}
+static __declspec(naked) void hdLoadMemoryStub() {
+    __asm {
+        mov dword ptr [hdResource], ebx
+        jmp hdLoadMemory
     }
 }
 
@@ -162,17 +195,20 @@ static bool installHdTextures() {
     if(strcat_s(module,"..\\hd\\") || !GetFullPathNameA(module,MAX_PATH,hdRoot,nullptr))return true;
     const DWORD attributes=GetFileAttributesA(hdRoot);
     if(attributes==INVALID_FILE_ATTRIBUTES || !(attributes&FILE_ATTRIBUTE_DIRECTORY))return true; // no pack installed
-    const unsigned sites[]={0x5e29eb,0x5e2a1f}; // main loads; 0x5e2c40/0x5e2c74 load alpha companions
-    for(unsigned site:sites) {
+    // Main loads from a file and the in-memory load; 0x5e2c40/0x5e2c74 load alpha companions and stay original.
+    struct Site {unsigned at,original;void* hook;};
+    const Site sites[]={{0x5e29eb,0x5e2d20,reinterpret_cast<void*>(&hdLoadStub)},{0x5e2a1f,0x5e2d20,reinterpret_cast<void*>(&hdLoadStub)},
+        {0x5e296a,0x5e2d60,reinterpret_cast<void*>(&hdLoadMemoryStub)}};
+    for(const Site& site:sites) {
         BYTE expected[5]={0xe8};
-        *reinterpret_cast<LONG*>(expected+1)=static_cast<LONG>(0x5e2d20-(site+5));
-        if(memcmp(reinterpret_cast<void*>(site),expected,5))return false;
+        *reinterpret_cast<LONG*>(expected+1)=static_cast<LONG>(site.original-(site.at+5));
+        if(memcmp(reinterpret_cast<void*>(site.at),expected,5))return false;
     }
-    for(unsigned site:sites) {
+    for(const Site& site:sites) {
         BYTE expected[5]={0xe8},replacement[5]={0xe8};
-        *reinterpret_cast<LONG*>(expected+1)=static_cast<LONG>(0x5e2d20-(site+5));
-        *reinterpret_cast<LONG*>(replacement+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&hdLoadStub)-reinterpret_cast<BYTE*>(site+5));
-        if(!patchBytes(reinterpret_cast<void*>(site),expected,replacement,5))return false;
+        *reinterpret_cast<LONG*>(expected+1)=static_cast<LONG>(site.original-(site.at+5));
+        *reinterpret_cast<LONG*>(replacement+1)=static_cast<LONG>(static_cast<BYTE*>(site.hook)-reinterpret_cast<BYTE*>(site.at+5));
+        if(!patchBytes(reinterpret_cast<void*>(site.at),expected,replacement,5))return false;
     }
     hdEnabled=true;
     return true;

@@ -9,6 +9,7 @@
 - 파일 이름은 hd\\<rel>.<원본 FNV-1a 32>.png. 같은 경로라도 원본이 다르면(업데이트판) 다른 파일이다.
 - 층(--layer 원본 업스케일)을 여러 개 줄 수 있다: 기본 설치판 → 2004-05-14 업데이트판.
 - UI·스폿·모델 Hi·기타(extra): upscale_assets.py 의 <set>/x<배율>/<rel>.png 를 그대로 복사한다.
+- 얼굴(--faces): .tcf 에서 나눈 TGA 의 바이트 해시로 hd\mem\tcf.<FNV-1a 32>.png 에 넣는다.
 - 모델 Mid·Lo: Hi 를 2배·4배 줄인 판이라, 같은 이름의 Hi 4배 결과를 (원본 Mid·Lo 크기 × 배율)로 Lanczos 축소한다.
   Hi 에 없는 이름만 별도 업스케일 결과(midlo)를 쓴다.
 
@@ -74,10 +75,12 @@ def target(out, rel, digest):
     return p.with_name(f'{p.name}.{digest:08x}.png')
 
 
-def build(layers, out, scale, rules):
+def build(layers, out, scale, rules, memory=()):
     """layers: [(data 루트, 업스케일 루트)]. 앞 층부터 처리하고, 같은 원본(해시)이 이미 있으면 건너뛴다.
 
     파일 이름에 원본 해시가 들어가므로 기본 설치판과 2004-05-14 업데이트판이 한 묶음에 함께 들어간다.
+    memory: [(얼굴 TGA 루트, 그 업스케일 루트)]. 게임이 메모리에서 만드는 텍스처(.tcf 얼굴)는 경로가 없어
+    hd/mem/tcf.<TGA 바이트 FNV-1a>.png 로 넣는다(DLL 의 hdLoadMemory).
     """
     out = Path(out)
     entries, rejected, seen = [], [], set()
@@ -148,6 +151,31 @@ def build(layers, out, scale, rules):
                     add(src, rel, d.lower(), image_path=own)
                 else:
                     rejected.append(dict(rel=rel, src=str(src), reason='missing upscale'))
+    for src, upscaled in memory:
+        src, upscaled = Path(src), Path(upscaled)
+        for item in json.loads((upscaled / 'manifest.json').read_text(encoding='utf-8'))['items']:
+            rel = item['rel']
+            data = (src / rel).read_bytes()
+            digest = file_digest(src / rel)
+            dst = out / 'hd' / 'mem' / f'tcf.{digest:08x}.png'
+            if dst in seen:
+                continue
+            path = upscaled / f'x{scale}' / (rel + '.png')
+            orig = load_rgba(src / rel).size
+            if not path.exists():
+                rejected.append(dict(rel=rel, src=str(src), reason='missing upscale'))
+                continue
+            with Image.open(path) as im:
+                size = im.size
+            if size != (orig[0] * scale, orig[1] * scale):
+                rejected.append(dict(rel=rel, src=str(src), reason=f'size {size} != {orig}x{scale}'))
+                continue
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, dst)
+            seen.add(dst)
+            entries.append(dict(rel=rel, kind='face', scale=scale, size=list(size), source_size=list(orig), source=str(src),
+                                fnv1a32=f'{digest:08x}', source_sha256=hashlib.sha256(data).hexdigest(),
+                                file=dst.relative_to(out / 'hd').as_posix(), bytes=dst.stat().st_size))
     return entries, rejected
 
 
@@ -155,13 +183,15 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument('--layer', nargs=2, action='append', required=True, metavar=('SRC', 'UPSCALED'),
                     help='원본 data 루트(읽기 전용)와 그 업스케일 결과 루트(ui, spot, hi, extra, midlo). 여러 번 줄 수 있다')
+    ap.add_argument('--faces', nargs=2, action='append', default=[], metavar=('TGA_ROOT', 'UPSCALED'),
+                    help='tcf_faces.py 로 나눈 얼굴 TGA 루트와 그 업스케일 결과(manifest.json, x2/x4)')
     ap.add_argument('--out', required=True)
     ap.add_argument('--scale', type=int, default=2, choices=(2, 4))
     args = ap.parse_args(argv)
     out = writable(args.out)
     if (out / 'hd').exists():
         shutil.rmtree(out / 'hd')
-    entries, rejected = build(args.layer, out, args.scale, read_rules())
+    entries, rejected = build(args.layer, out, args.scale, read_rules(), memory=args.faces)
     kinds = {}
     for e in entries:
         k = kinds.setdefault(e['kind'], dict(files=0, bytes=0, megapixels=0.0))

@@ -83,6 +83,21 @@ class BuildTest(unittest.TestCase):
             self.assertEqual(reasons['image/b_col_p.tga'], 'skip rule')
             self.assertTrue(reasons['image/wrong.tga'].startswith('size'))
 
+    def test_faces_go_to_memory_names(self):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            src, faces, up, out = d / 'data', d / 'faces', d / 'up', d / 'out'
+            src.mkdir()
+            tga(faces / 'gem/gem_000.tga', 4, 5)
+            (up).mkdir()
+            (up / 'manifest.json').write_text(json.dumps({'items': [{'rel': 'gem/gem_000.tga'}]}), encoding='utf-8')
+            png(up / 'x2/gem/gem_000.tga.png', 8, 10)
+            entries, rejected = build([], out, 2, read_rules(), memory=[(faces, up)])
+            name = f"mem/tcf.{fnv1a32((faces / 'gem/gem_000.tga').read_bytes()):08x}.png"
+            self.assertEqual([(e['file'], e['kind']) for e in entries], [(name, 'face')])
+            self.assertTrue((out / 'hd' / name).exists())
+            self.assertEqual(rejected, [])
+
 
 if __name__ == '__main__':
     unittest.main()
