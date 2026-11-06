@@ -186,3 +186,7 @@ Python 30개는 통과했으며 `test_display_hooks.py`가 원본 CALL 목적지
 `literal_text.h`는 원래 화면 경고를 그리는 세 `push 0077194c`만 5바이트 대조 뒤 번역 포인터로 바꾼다. 공유 함수의 ABI나 입력/네트워크 버퍼를 바꾸지 않는다. `planet_layout.cpp`에는 헤더 두 개와 설치 호출 한 줄만 추가했다. Python 33개가 통과했으며 새 x86 빌드/guard·실제 오류창과 경고는 미확인이다. 고정 UI는 138개, 카탈로그는 4,844개다. [분류·범위·필수 실기](../docs/l10n/text-format.md#10-고정-문구-분류와-windows-오류창-연결-2026-10-29)를 따른다.
 
 2026-10-29 통합 확인(작성: Peppone Choi): 메인 통합본에서 Python 33개와 새 x86 DLL `/W4 /WX`·guard 실행을 통과했다(`combined280-compat.log`). 이탈 통지의 누락 객체 보호와 기존 한국어 이름/부대 UI도 함께 빌드했다. 실제 새 오류창·경고·제목판 이미지 사용은 미확인이므로 전체 한글화 완료 체크는 유지하지 않는다.
+
+## HD 텍스처 묶음 (2026-11-06)
+
+설치 폴더에 `hd\`(exe 폴더의 형제, `data\` 옆)가 있으면 본 텍스처 로드(`0x5e29eb`·`0x5e2a1f`)가 `hd\<data 기준 상대 경로>.png`를 대신 읽는다. 원본의 정확히 N배(2~8)인 파일만 쓰고, HD 텍스처는 `GetLevelDesc`가 원래 크기를 보고해 2D UV가 원래 픽셀 공간에 남는다. 폴더가 없으면 아무것도 바꾸지 않는다. 묶음은 `tools/assets/build_hd_pack.py`로 만들고, 처음 4000건은 `hd\hd-textures.log`에 남는다. 근거와 제외 규칙은 [리마스터 계획 2.1절](../docs/client/remaster-plan.md)에 있다. 실기 확인 전이다.

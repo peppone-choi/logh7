@@ -203,6 +203,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "tactical_fortress_menu.h"
 #include "tactical_departure.h"
 #include "environment_shader.h"
+#include "hd_textures.h"
 
 // The surviving message catalogue ends before tactical HUD group 119.
 // Supply the two known titles only when the native lookup reports NO TABLE;
@@ -698,6 +699,8 @@ static void install() {
     for (unsigned address : hudGroups) patchBytes(reinterpret_cast<void*>(address), &oldGroup, &newGroup, 1);
     // Both HUD paths pass cruising as a double, but the CD format consumes an int.
     patchBytes(reinterpret_cast<void*>(0x78d574), "%-4d\n", "%-4.f", 6);
+    // Optional HD texture pack (hd\ next to data\); a failure keeps the original textures.
+    installHdTextures();
     status = 2;
 }
 
