@@ -27,7 +27,7 @@ class BudgetStoreTest {
     private val quote=BudgetQuote(7,10000,18,8,CountryId(2),1049,33,50,Long.MAX_VALUE,200,
         BudgetActions.percentage(Long.MAX_VALUE,33),now,now+86400)
     private val budget=BudgetState(mapOf(1049 to 75),8,mapOf(10000 to quote))
-    private val civic=CivicState(mapOf(10001 to CivicOrder(10001,55,59,2,5,1049,0,10490001,now,now+86400,CivicPhase.GUARDING)))
+    private val civic=CivicState(mapOf(10001 to CivicOrder(10001,55,59,CountryId(2),5,1049,0,10490001,now,now+86400,CivicPhase.GUARDING)))
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,2000,200,300,treasury=200)),
         nationalTreasuries=mapOf(CountryId(2) to Long.MAX_VALUE),civic=civic,budget=budget)
     @Test fun format34PreservesRatesLongTreasuriesQuoteReceiptAndTheExistingVGrammarAndStillReads33() {

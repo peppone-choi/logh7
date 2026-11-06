@@ -1825,12 +1825,14 @@ class GameExchange(
                                         org.logh7.protocol.StrategyActionMessages.CivicStatus(result.civic?.phase?.ordinal ?: -1,
                                             result.civic?.outfit ?: 0,result.civic?.base ?: player.baseId,
                                             result.civic?.readyAt ?: 0,result.civic?.effect ?: 0) else null
+                                    val civicMembers=if(civic==null)emptyMap() else
+                                        WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).associateBy {it.id}
                                     val civicOutfit=result.civic?.outfit?.let {result.stocks?.outfits?.get(it)}?.takeIf {outfit ->
-                                        outfit.power==character.power && outfit.members().all {currentCharacterById(it)?.power==character.power}}
+                                        player.country!=null && outfit.country==player.country && outfit.members().all {civicMembers[it]?.country==player.country}}
                                     org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,civic)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
                                         (if(civic!=null && civic.base>0)listOf(world.conditions(listOf(civic.base),result.stocks))+
-                                            (if(result.stocks?.bases?.get(civic.base)?.let {it.power==character.power && it.camp==0}==true)
+                                            (if(result.stocks?.bases?.get(civic.base)?.let {b->player.country?.let(b::belongsTo)==true && b.camp==0}==true)
                                                 listOf(world.warehouse(civic.base,result.stocks)) else emptyList())+
                                             (if(civicOutfit!=null)
                                                 listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(civicOutfit.id,0,0),

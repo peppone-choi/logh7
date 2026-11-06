@@ -3,10 +3,10 @@ package org.logh7.engine
 import org.logh7.engine.strategy.*
 
 enum class CivicPhase { WAITING, GUARDING, COMPLETED, CANCELLED, INVALIDATED, EMPTY }
-data class CivicOrder(val character:Int,val command:Int,val card:Int,val power:Int,val rank:Int,
+data class CivicOrder(val character:Int,val command:Int,val card:Int,val country:CountryId,val rank:Int,
     val base:Int,val outfit:Int,val spot:Int,val acceptedAt:Long,val readyAt:Long,
     val phase:CivicPhase,val units:Set<Int> = emptySet(),val effect:Int=0,val token:Int=0,val connection:String="") {
-    init {require(character>0 && command in CivicActions.supported && card in 0..260 && power in 2..3 && rank in 2..20 &&
+    init {require(character>0 && command in CivicActions.supported && card in 0..260 && rank in 2..20 &&
         base in 1..65535 && outfit>=0 && spot>=0 && acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL &&
         units.size<=300 && units.all {it in 1..999999} && effect in 0..65535 && token in 0..65535 &&
         connection.length<=128 && connection.none {it=='\u0000'} &&
@@ -34,29 +34,30 @@ object CivicActions {
     fun army(command:Int)=command in setOf(52,54,56)
     /** 特別警備 guards the faction lobby only; academy rooms are also GUARDED (own-faction entry) but not guard posts. */
     private fun lobby(spot:PlanetSpot)=spot.kind==0 && spot.access==SpotAccess.GUARDED
-    private fun power(p:Navigator)=p.country?.value ?: 0
     private fun location(g:Galaxy,p:Navigator,base:Int)=p.baseId==base && p.mode in 1..4 &&
         g.bases.singleOrNull {it.id==base}?.grid==p.grid && !p.cpPaused && !p.navigationPending
-    private fun card(g:Galaxy,stocks:PlanetStocks,character:Int,power:Int,rank:Int,card:Int,outfit:Int):Boolean {
-        if(card==if(power==2)59 else 195)return rank in 2..20
-        val role=OrganizationOffices.of(card) ?: return false
-        return card in commandingCards && role.power==power && rank in role.ranks &&
-            OrganizationalOfficePolicy(g).holders(stocks,card).any {it.character==character && it.seat==outfit}
+    private fun card(g:Galaxy,stocks:PlanetStocks,p:Navigator,country:CountryId,rank:Int,card:Int,outfit:Int,countries:CountryCatalog):Boolean {
+        if(card==TacticalAuthority.captainCard(p,countries))return rank in 2..20
+        val role=OrganizationOffices.of(card,country,countries) ?: return false
+        return card in commandingCards && rank in role.ranks &&
+            OrganizationalOfficePolicy(g,countries).holders(stocks,card,country).any {it.character==p.characterId && it.seat==outfit}
     }
-    private fun eligible(g:Galaxy,s:PlanetStocks,o:CivicOrder,p:Navigator?):Boolean {
+    /** Seed nationality is historical ownership, not the current owner's display code. */
+    private fun captured(g:Galaxy,base:Int,country:CountryId)=g.conditions[base]?.power?.let {it in 2..3 && CountryId(it)!=country}==true
+    private fun eligible(g:Galaxy,s:PlanetStocks,o:CivicOrder,p:Navigator?,countries:CountryCatalog):Boolean {
         val b=s.bases[o.base] ?: return false
-        if(b.power!=o.power || b.camp!=0 || p==null || p.generation!=s.generation || power(p)!=o.power ||
+        if(!b.belongsTo(o.country) || b.camp!=0 || p==null || p.generation!=s.generation || p.country!=o.country ||
             !location(g,p,o.base))return false
         val rank=s.strategic.people[o.character]?.rank ?: o.rank
-        if(!card(g,s,o.character,o.power,rank,o.card,o.outfit))return false
+        if(!card(g,s,p,o.country,rank,o.card,o.outfit,countries))return false
         if(o.command==55)return p.spotId==o.spot && p.spotOwner==0 &&
-            g.facilitiesAt(o.base,s).any {f->f.spots.any {it.id==o.spot && lobby(it)}}
+            g.facilitiesAt(o.base,s,countries).any {f->f.spots.any {it.id==o.spot && lobby(it)}}
         val outfit=s.outfits[o.outfit] ?: return false
-        if(outfit.power!=o.power || outfit.commanderId!=o.character || outfit.positionIn(g)!=OutfitPosition(p.grid,o.base))return false
+        if(outfit.country!=o.country || outfit.commanderId!=o.character || outfit.positionIn(g)!=OutfitPosition(p.grid,o.base))return false
         val ground=outfit.activeGround?.values.orEmpty().associateBy {it.id}
         if(o.units.any {id->ground[id]?.let {it.base==o.base && it.carrier==0 && it.order==null && it.strength>0}!=true})return false
         if(o.command==54 && g.bases.single {it.id==o.base}.kind!=0)return false
-        if(o.command==56 && g.conditions.getValue(o.base).power !in (2..3).filter {it!=o.power})return false
+        if(o.command==56 && !captured(g,o.base,o.country))return false
         return true
     }
     private fun remember(s:CivicState,o:CivicOrder):CivicState {
@@ -64,7 +65,8 @@ object CivicActions {
         while(entries.size>256)entries.remove(entries.values.filter {!it.active}.minWith(compareBy({it.readyAt},{it.character})).character)
         return CivicState(entries)
     }
-    fun evaluate(g:Galaxy,r:StrategyActionRequest,session:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
+    fun evaluate(g:Galaxy,r:StrategyActionRequest,session:SessionState,p:Navigator,stocks:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         if(r.command !in supported || r.value !in 0..2 || r.base!=0 || r.argument!=0 || r.amount!=0L ||
             r.requestToken !in 0..65535 || r.connection.length>128 || '\u0000' in r.connection)
@@ -78,23 +80,22 @@ object CivicActions {
         }
         if(old!=null && r.requestToken>0 && old.token==r.requestToken && old.connection==r.connection)
             return StrategyActionResult(p,stocks,civic=old)
-        val power=power(p);val rank=stocks.strategic.people[p.characterId]?.rank ?: r.rank
-        // shortcut: civic checkpoints use country 2/3 until their saved country IDs are migrated.
-        if(power !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
+        val country=p.country?.takeIf {it.value in countries.countries} ?: return reject(StrategyActionRejection.AUTHORITY)
+        val rank=stocks.strategic.people[p.characterId]?.rank ?: r.rank
         if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
-        if(r.command==55 && (r.outfit!=0 || r.card!=if(power==2)59 else 195) ||
-            !card(g,stocks,r.characterId,power,rank,r.card,r.outfit))return reject(StrategyActionRejection.CARD)
+        if(r.command==55 && (r.outfit!=0 || r.card!=TacticalAuthority.captainCard(p,countries)) ||
+            !card(g,stocks,p,country,rank,r.card,r.outfit,countries))return reject(StrategyActionRejection.CARD)
         if(stocks.civic.active.any {it.character==r.characterId || r.outfit>0 && it.outfit==r.outfit} ||
             stocks.strategic.suppressions.any {it.character==r.characterId || r.outfit>0 && it.outfit==r.outfit})return reject(StrategyActionRejection.BUSY)
         if(stocks.civic.active.size>=128)return reject(StrategyActionRejection.MAXIMUM)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val base=stocks.bases[p.baseId] ?: return reject(StrategyActionRejection.LOCATION)
-        if(base.power!=power || base.camp!=0 || !location(g,p,base.baseId))return reject(StrategyActionRejection.LOCATION)
+        if(!base.belongsTo(country) || base.camp!=0 || !location(g,p,base.baseId))return reject(StrategyActionRejection.LOCATION)
         val now=session.gameMillis/1000
         if(now>0xffffffffL-DAY)return reject(StrategyActionRejection.MAXIMUM)
         val units=if(army(r.command)) {
             val outfit=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
-            if(outfit.power!=power || outfit.commanderId!=r.characterId)return reject(StrategyActionRejection.AUTHORITY)
+            if(outfit.country!=country || outfit.commanderId!=r.characterId)return reject(StrategyActionRejection.AUTHORITY)
             if(outfit.positionIn(g)!=OutfitPosition(p.grid,p.baseId))return reject(StrategyActionRejection.LOCATION)
             if(outfit.strategy?.destination!=null)return reject(StrategyActionRejection.BUSY)
             val local=outfit.activeGround?.values.orEmpty().filter {it.base==p.baseId && it.carrier==0}
@@ -105,17 +106,17 @@ object CivicActions {
                 r.command==54 && (base.economy==null || base.economy.approval==100))return reject(StrategyActionRejection.MAXIMUM)
             if(r.command==54 && g.bases.single {it.id==base.baseId}.kind!=0)return reject(StrategyActionRejection.LOCATION)
             if(r.command==56) {
-                if(g.conditions.getValue(base.baseId).power !in (2..3).filter {it!=power})return reject(StrategyActionRejection.LOCATION)
+                if(!captured(g,base.baseId,country))return reject(StrategyActionRejection.LOCATION)
                 if(base.supplies==0 || outfit.supplies>=OutfitSupplies.capacity(outfit))return reject(StrategyActionRejection.RESOURCE)
             }
             local.map {it.id}.toSet()
         } else {
-            if(p.spotOwner!=0 || g.facilitiesAt(base.baseId,stocks).none {f->f.spots.any {
+            if(p.spotOwner!=0 || g.facilitiesAt(base.baseId,stocks,countries).none {f->f.spots.any {
                 it.id==p.spotId && lobby(it)}})return reject(StrategyActionRejection.LOCATION)
             if(stocks.civic.active.any {it.spot==p.spotId})return reject(StrategyActionRejection.BUSY)
             emptySet()
         }
-        val order=CivicOrder(r.characterId,r.command,r.card,power,rank,p.baseId,if(army(r.command))r.outfit else 0,
+        val order=CivicOrder(r.characterId,r.command,r.card,country,rank,p.baseId,if(army(r.command))r.outfit else 0,
             if(r.command==55)p.spotId else 0,now,now+DAY,if(r.command==55)CivicPhase.GUARDING else CivicPhase.WAITING,
             units,token=r.requestToken,connection=r.connection)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160,CpPool.MCP)
@@ -124,11 +125,12 @@ object CivicActions {
             stocks.copy(civic=remember(stocks.civic,order)),changed=true,readyAt=order.readyAt,civic=order)
     }
     /** Offline saved characters retain jobs. Missing player context defers settlement, never fabricates eligibility. */
-    fun settle(g:Galaxy,stocks:PlanetStocks,seconds:Long,players:Collection<Navigator>?):PlanetStocks {
+    fun settle(g:Galaxy,stocks:PlanetStocks,seconds:Long,players:Collection<Navigator>?,
+        countries:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
         if(stocks.civic.active.isEmpty() || players==null)return stocks
         val people=players.associateBy {it.characterId};var next=stocks
         for(o in stocks.civic.active.sortedBy {it.character}) {
-            val valid=eligible(g,next,o,people[o.character])
+            val valid=eligible(g,next,o,people[o.character],countries)
             val phase=when { !valid->CivicPhase.INVALIDATED;seconds>=o.readyAt->CivicPhase.COMPLETED;else->o.phase }
             if(phase==o.phase)continue
             var effect=0;var final=phase
