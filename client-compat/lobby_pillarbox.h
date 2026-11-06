@@ -121,6 +121,27 @@ static LRESULT CALLBACK lobbyFrameProc(HWND window, UINT message, WPARAM wParam,
         FillRect(dc, &client, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
         return 1;
     }
+    // In popup (full screen) mode the frame is fitted to the monitor plus the border measured
+    // against the view client. With the view boxed that border grows on every fit (1280 check:
+    // 2222 -> 2664 -> 3144 wide), so keep the frame at the unboxed result: the monitor with the
+    // view's client edge just outside it.
+    if (message == WM_WINDOWPOSCHANGING && lobbyBox.active && (GetWindowLongA(window, GWL_STYLE) & WS_POPUP)) {
+        auto position = reinterpret_cast<WINDOWPOS*>(lParam);
+        HWND view = lobbyViewWindow();
+        MONITORINFO monitor{sizeof(monitor)};
+        if (!(position->flags & SWP_NOSIZE) && view &&
+            GetMonitorInfoA(MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST), &monitor)) {
+            RECT viewWindow{}, viewClient{};
+            GetWindowRect(view, &viewWindow); GetClientRect(view, &viewClient);
+            const int edgeWidth = (viewWindow.right - viewWindow.left) - viewClient.right;
+            const int edgeHeight = (viewWindow.bottom - viewWindow.top) - viewClient.bottom;
+            position->x = monitor.rcMonitor.left - edgeWidth / 2;
+            position->y = monitor.rcMonitor.top - edgeHeight / 2;
+            position->cx = monitor.rcMonitor.right - monitor.rcMonitor.left + edgeWidth;
+            position->cy = monitor.rcMonitor.bottom - monitor.rcMonitor.top + edgeHeight;
+            position->flags &= ~SWP_NOMOVE;
+        }
+    }
     LRESULT result = DefSubclassProc(window, message, wParam, lParam);
     // The MFC frame refills its view on WM_SIZE (restore, display change); centre it again.
     if ((message == WM_SIZE && wParam != SIZE_MINIMIZED) || message == WM_DISPLAYCHANGE) { layoutLobbyBox(); lobbyBoxTrace(message == WM_SIZE ? "frame-size" : "frame-display"); }
