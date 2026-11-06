@@ -162,9 +162,10 @@
       if (preferred === item) select(item, button);
     }
   }
-  function reviewPanel(c) {
+  function reviewPanel(c, keepDraft = false) {
     const r = c.review; $('review').hidden = !r; $('review-candidates').replaceChildren(); $('review-ranks').replaceChildren();
-    $('review-memo').value = r?.memo ?? '';
+    // Refreshing the candidate highlight must not replace a memo the user has not applied yet.
+    if (!keepDraft) $('review-memo').value = r?.memo ?? '';
     if (!r) return;
     $('review-status').textContent = reviewStates[r.status];
     const lines = (r.reasons ?? []).map(x => '판정 이유: ' + x), shown = new Set();
@@ -183,7 +184,7 @@
         if (owner) { message(`이미 ${owner.name}에게 배정된 얼굴입니다. 그 인물의 얼굴을 먼저 해제하세요.`); return; }
         currentFace = p.face_id; $('face-status').value = 'guess';
         $('face-source').value = `${label} 대조 후보 채택 (확신 ${confidences[p.confidence] ?? '-'}): ${p.reference ?? ''}`.slice(0, 2000);
-        formDirty = true; message(); preview(); gallery(); reviewPanel(person()); status();
+        formDirty = true; message(); preview(); gallery(); reviewPanel(person(), true); status();
       };
       $('review-candidates').append(button);
     }
