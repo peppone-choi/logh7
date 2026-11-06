@@ -220,7 +220,7 @@ object CoupActions {
     }
     private fun succeed(g:Galaxy,s:PlanetStocks,plot:Plot,capital:Int):PlanetStocks {
         val policy=OrganizationalOfficePolicy(g);val rebels=plot.rebels.toSet()
-        val aliases=s.strategic.offices.filter {it.character in rebels && OrganizationOffices.of(it.card)?.camp==1}
+        val aliases=s.strategic.offices.filter {it.country.value==plot.power && it.character in rebels && OrganizationOffices.of(it.card)?.camp==1}
         var next=s.copy(strategic=s.strategic.copy(offices=s.strategic.offices-aliases.toSet()))
         for(b in plot.bases+capital)next.bases[b]?.takeIf {it.camp==1 && it.power==plot.power}?.let {
             next=next.copy(bases=next.bases+(b to it.copy(camp=0)))}
@@ -244,7 +244,7 @@ object CoupActions {
         for(plot in ended) {
             val rebels=plot.rebels.toSet()
             next=next.copy(strategic=next.strategic.copy(offices=next.strategic.offices.filterNot {
-                it.character in rebels && OrganizationOffices.of(it.card)?.camp==1}))
+                it.country.value==plot.power && it.character in rebels && OrganizationOffices.of(it.card)?.camp==1}))
             for(b in plot.bases)next.bases[b]?.takeIf {it.camp==1 && it.power==plot.power}?.let {
                 next=next.copy(bases=next.bases+(b to it.copy(camp=0)))}
         }

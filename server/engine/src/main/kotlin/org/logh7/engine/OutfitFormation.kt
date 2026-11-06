@@ -48,13 +48,14 @@ object OutfitFormationPolicy {
                 put(code(stack,true),count)
         }
     }
-    fun authority(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks):StrategyActionRejection? {
-        val role=OrganizationOffices.of(r.identity.card) ?: return StrategyActionRejection.CARD
+    fun authority(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionRejection? {
         val country=p.country ?: return StrategyActionRejection.IDENTITY
-        val power=country.value
-        if(role.power!=power || role.camp!=0 || r.kind !in kinds(role.card))return StrategyActionRejection.CARD
+        val policy=OrganizationalOfficePolicy(galaxy,countries)
+        val role=policy.role(r.identity.card,country) ?: return StrategyActionRejection.CARD
+        if(role.camp!=0 || r.kind !in kinds(role.card))return StrategyActionRejection.CARD
         val rank=stocks.strategic.people[p.characterId]?.rank ?: r.identity.rank
-        if(rank !in role.ranks || OrganizationalOfficePolicy(galaxy).holders(stocks,role.card).none {it.character==p.characterId})
+        if(rank !in role.ranks || policy.holders(stocks,role.card,country).none {it.character==p.characterId})
             return StrategyActionRejection.AUTHORITY
         val base=stocks.bases[r.base] ?: return StrategyActionRejection.LOCATION
         if(!base.belongsTo(country) || base.camp!=0 || p.baseId!=r.base || p.mode !in 1..4 ||
@@ -149,7 +150,7 @@ object OutfitFormationPolicy {
             stocks.tacticalCommands.orders.any {it.command.units.any {id->id in removed} || it.command.target in removed} ||
             stocks.tacticalCommands.air.values.any {it.source in removed || it.target in removed})return reject(StrategyActionRejection.BUSY)
         val members=outfit.members().toSet()+stocks.strategic.offices.filter {
-            OrganizationOffices.of(it.card)?.scope==OfficeScope.OUTFIT && it.seat==outfit.id}.map {it.character}
+            it.country==outfit.country && OrganizationOffices.of(it.card)?.scope==OfficeScope.OUTFIT && it.seat==outfit.id}.map {it.character}
         if(r.identity.navigators.values.any {it.characterId in members && (it.cpPaused || it.navigationPending)})
             return reject(StrategyActionRejection.BUSY)
         val warehouse=stocks.warehouses.getValue(outfit.warehouseId)

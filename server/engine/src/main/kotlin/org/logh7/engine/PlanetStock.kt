@@ -51,6 +51,7 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(groundBattles.size<=350 && groundBattles.all {(base,at)->base in bases && at in 0..0xffffffffL})
         require(nationalOffices.values.all { it>0 }) { "Invalid national office holder" }
         require(nationalTreasuries.size<=1000 && nationalTreasuries.values.all {it>=0}) { "Invalid national treasury" }
+        require(strategic.capitals.values.all {it in bases}) {"Unknown country capital"}
         require(flagshipMarket.offers.all {it.base in bases}) {"Unknown flagship exchange base"}
         require(civic.orders.values.all {it.base in bases}) {"Unknown civic order base"}
         require(budget.remittanceRates.keys.all {it in bases} && budget.quotes.values.all {it.base in bases}) {"Unknown budget base"}

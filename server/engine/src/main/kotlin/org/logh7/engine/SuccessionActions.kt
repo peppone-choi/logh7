@@ -36,7 +36,7 @@ object SuccessionActions {
         if(now.emperor>0 && now.at!=was.at)add(now.emperor,SuccessionNotice.Kind.ACCESSION)
         if(was.rival>0 && now.rival==0 && CoupActions.rebel(new,was.rival) && !CoupActions.rebel(old,was.rival))
             add(was.rival,SuccessionNotice.Kind.CONTEST)
-        fun chairmen(s:PlanetStocks)=s.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.map {it.character}.toSet()
+        fun chairmen(s:PlanetStocks)=s.strategic.offices.filter {it.country==CountryId(3) && it.card==PoliticianLadder.CHAIRMAN_CARD}.map {it.character}.toSet()
         val (yes,no)=old.social.funds.confidence[3] ?: (0L to 0L)
         if(no>yes && new.social.funds.confidence.isEmpty())(chairmen(old)-chairmen(new)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_DISMISSED)}
         (chairmen(new)-chairmen(old)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_ELECTED)}
@@ -90,7 +90,7 @@ object SuccessionActions {
         return if(people==s.strategic.people)s else s.copy(strategic=s.strategic.copy(people=people))
     }
     /** StrategyActions.clearOffices marks a vacated throne here. */
-    fun vacated(s:PlanetStocks,character:Int)=if(s.strategic.offices.any {it.card==EMPEROR && it.character==character})
+    fun vacated(s:PlanetStocks,character:Int)=if(s.strategic.offices.any {it.country==CountryId(2) && it.card==EMPEROR && it.character==character})
         s.copy(social=s.social.copy(succession=s.social.succession.copy(vacant=true,emperor=character))) else s
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks):SocialResult {

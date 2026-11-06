@@ -59,7 +59,7 @@ internal object FleetOfficeAppointment {
     fun evaluate(galaxy:Galaxy,r:GarrisonAppointmentRequest,player:Navigator,stocks:PlanetStocks):GarrisonAppointmentResult {
         fun reject(reason:AppointmentRejection)=GarrisonAppointmentResult(player,stocks,reason)
         val role=FleetOffice.of(r.targetCard) ?: return reject(AppointmentRejection.TARGET)
-        val power=if(r.power==Power.EMPIRE)2 else 3
+        val power=r.country?.value ?: return reject(AppointmentRejection.IDENTITY)
         if(power!=role.power) return reject(AppointmentRejection.AUTHORITY)
         val outfit=stocks.outfits[r.outfit] ?: return reject(AppointmentRejection.TARGET)
         if(outfit.country!=CountryId(power) || outfit.kind!=OutfitKind.FLEET) return reject(AppointmentRejection.TARGET)

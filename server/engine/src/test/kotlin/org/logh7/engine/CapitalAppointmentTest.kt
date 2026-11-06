@@ -19,8 +19,8 @@ class CapitalAppointmentTest {
             1,if(rule.power==2)1049 else 1177,10001,rule.card,actor,rule.lowest,rule.power)
     }
     private fun act(rule:CapitalAppointmentPolicy.Rule,q:GarrisonAppointmentRequest=request(rule),s:PlanetStocks=stock(rule),
-        p:Navigator=Navigator(1,10000,q.power,if(q.power==Power.EMPIRE)2487 else 2015,1000,1000,1000)):GarrisonAppointmentResult {
-        val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",q.power,false,"c")}.exportState()
+        p:Navigator=Navigator(1,10000,q.country,if(q.country==CountryId(2))2487 else 2015,1000,1000,1000)):GarrisonAppointmentResult {
+        val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",q.country,false,"c")}.exportState()
         return GarrisonAppointment.evaluate(galaxy,q,session,p,s)
     }
     @Test fun allFourCapitalOfficesRequireTheirStoredAuthorityAndPayOnce() {

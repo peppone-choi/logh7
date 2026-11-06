@@ -26,7 +26,7 @@ class OfficeResignationTest {
         val next=when(card) {54,190->b.copy(governorId=holder);52,55,188,191->b.copy(garrisonCommanderId=holder);else->CapitalAppointmentPolicy.rule(card)!!.assign(b,holder)}
         return s.copy(bases=s.bases+(base to next))
     }
-    private fun act(q:OfficeResignationRequest,s:PlanetStocks=stock(q.card),p:Navigator=Navigator(1,10000,q.power,if(q.power==Power.EMPIRE)2487 else 2015,1000,1000,1000)):OfficeResignationResult {
+    private fun act(q:OfficeResignationRequest,s:PlanetStocks=stock(q.card),p:Navigator=Navigator(1,10000,q.country,if(q.country==CountryId(2))2487 else 2015,1000,1000,1000)):OfficeResignationResult {
         val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",p.power,false,"c")}.exportState()
         return OfficeResignation.evaluate(galaxy,q,session,p,s)
     }

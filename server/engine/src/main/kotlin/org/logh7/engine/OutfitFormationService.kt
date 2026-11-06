@@ -31,7 +31,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
             if(old==null || old.id!=r.target)return reject(StrategyActionRejection.TARGET)
             drafts.remove(i.account);return OutfitFormationResult(p,stocks,base=old.request.base)
         }
-        OutfitFormationPolicy.authority(galaxy,r,p,stocks)?.let {return reject(it)}
+        OutfitFormationPolicy.authority(galaxy,r,p,stocks,countries)?.let {return reject(it)}
         if(i.command==26) {
             if(r.phase !in setOf(FormationPhase.BEGIN,FormationPhase.DELETE))return reject(StrategyActionRejection.COMMAND)
             if(r.phase==FormationPhase.BEGIN) {
