@@ -8,7 +8,8 @@ from PIL import Image
 import tempfile
 from pathlib import Path
 
-from upscale_assets import bleed, block_error, crop_pad, decode_tga, downscale, pad_wrap, restore_detail, staging_dir, tiling
+from upscale_assets import (bleed, block_error, crop_pad, decode_tga, downscale, fit_source, pad_wrap, restore_detail,
+                            staging_dir, tiling)
 
 
 def tga(kind, pixels, palette=None, bits=32, depth=8, top=True, width=2, height=2):
@@ -121,6 +122,31 @@ class BlockErrorTest(unittest.TestCase):
         bad.paste((0, 0, 0), (96, 0, 160, 256))            # 줄무늬 띠처럼 국소적으로 깨진 결과
         self.assertLess(block_error(src, good), 1.0)
         self.assertGreater(block_error(src, bad), 50.0)
+
+
+class FitSourceTest(unittest.TestCase):
+    def atlas(self):
+        """반투명 부품 두 개 사이에 1px 투명 줄이 있는 9분할 아틀라스 축소판."""
+        a = np.zeros((6, 9, 4), np.uint8)
+        a[:, :4] = (20, 60, 160, 128)
+        a[:, 5:] = (230, 230, 240, 255)
+        return Image.fromarray(a, 'RGBA')
+
+    def test_alpha_is_source_replicated_and_block_means_match(self):
+        src = self.atlas()
+        blurred = src.convert('RGB').resize((36, 24), Image.Resampling.LANCZOS)  # 업스케일이 경계를 번지게 한 상태
+        fitted = np.asarray(fit_source(blurred, src, 4), dtype=float)
+        s = np.asarray(src, dtype=float)
+        self.assertTrue((fitted[:, :, 3] == np.repeat(np.repeat(s[:, :, 3], 4, 0), 4, 1)).all())
+        means = fitted.reshape(6, 4, 9, 4, 4).mean((1, 3))
+        self.assertLess(np.abs(means[:, :, :3] - s[:, :, :3])[s[:, :, 3] > 0].max(), 1.0)
+        self.assertTrue((fitted[:, 16:20, 3] == 0).all())  # 투명 줄이 그대로 남는다
+
+    def test_box_downscale_keeps_source_correspondence(self):
+        src = self.atlas()
+        fitted = fit_source(src.convert('RGB').resize((36, 24), Image.Resampling.LANCZOS), src, 4)
+        small = np.asarray(downscale(fitted, (18, 12), binary=False, box=True), dtype=float)
+        self.assertTrue((small[:, :, 3] == np.repeat(np.repeat(np.asarray(src)[:, :, 3], 2, 0), 2, 1)).all())
 
 
 if __name__ == '__main__':
