@@ -159,8 +159,11 @@ static bool openLobbyCountries(void* controller,unsigned mode) {
     reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(view.root,view.backdrop,backingRect);
     reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,view.backdrop,.015f,.035f,.065f,.97f);
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,view.backdrop,1);
-    if(auto root=at<void*>(gui,4+(mode==1 ? 0x36 : mode==2 ? 0x39 : 0x38)*4))
-        reinterpret_cast<void(__thiscall*)(void*)>(0x506920)(root);
+    if(auto root=at<void*>(gui,4+(mode==1 ? 0x36 : mode==2 ? 0x39 : 0x38)*4)) {
+        // Hide and disable input without closing the native window and losing its parent placement.
+        reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(root,0);
+        reinterpret_cast<void(__thiscall*)(void*,int)>(0x5024b0)(root,0);
+    }
     resetLobbyCountries();renderLobbyCountries();
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(view.root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,view.root);return true;
