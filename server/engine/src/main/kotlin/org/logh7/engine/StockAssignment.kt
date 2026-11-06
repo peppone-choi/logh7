@@ -1,10 +1,13 @@
 package org.logh7.engine
 
 /** Native 0c0b moves between base stock and reserved outfit stock. Author: Peppone Choi. */
-class StockAssignmentRequest(val account: String, val connection: String, val characterId: Int, val power: Power,
+class StockAssignmentRequest(val account: String, val connection: String, val characterId: Int, val country: CountryId?,
     val generation: Long, val base: Int, val outfit: Int, val kind: Int,
     ships: List<ReorganizationShip>, troops: List<ReorganizationTroop>, val supplies: Int,
     val politics: Int = 50, val administration: Int = 50) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,base:Int,outfit:Int,kind:Int,
+        ships:List<ReorganizationShip>,troops:List<ReorganizationTroop>,supplies:Int,politics:Int=50,administration:Int=50):
+        this(account,connection,characterId,power.country,generation,base,outfit,kind,ships,troops,supplies,politics,administration)
     val ships: List<ReorganizationShip> = java.util.Collections.unmodifiableList(ArrayList(ships))
     val troops: List<ReorganizationTroop> = java.util.Collections.unmodifiableList(ArrayList(troops))
     init {

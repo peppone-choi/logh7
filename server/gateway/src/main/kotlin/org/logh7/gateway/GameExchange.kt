@@ -160,9 +160,12 @@ class GameExchange(
     private fun currentCharacter(account:String):CharacterMessages.Generate? = characters.character(account)?.let {
         WorldCharacters.view(it,navigation?.snapshot())
     }
+    private fun currentProfile(account:String,characterId:Int):CharacterProfile =
+        WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(account).also {
+            check(it.character.id.toInt()==characterId) {"Command character identity mismatch"}
+        }
     private fun navigate(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
-        val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(request.account)
-        check(profile.character.id.toInt()==request.characterId) {"Navigation character identity mismatch"}
+        val profile=currentProfile(request.account,request.characterId)
         return checkNotNull(navigation).apply(request.copy(country=profile.country,shipStyle=profile.shipStyle))
     }
     private fun unitMessage(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
@@ -874,7 +877,7 @@ class GameExchange(
                         require(query.header.characterId == character.id.toInt())
                         pendingWorld = administration.assignStock(org.logh7.engine.StockAssignmentRequest(
                             identity.account,connection,character.id.toInt(),
-                            if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            currentProfile(identity.account,character.id.toInt()).country,
                             checkNotNull(generation),query.base,query.outfit,query.kind,
                             query.moves.ships.map { org.logh7.engine.ReorganizationShip(it.kind,it.units,it.boats) },
                             query.moves.troops.map { org.logh7.engine.ReorganizationTroop(it.kind,it.grade,it.units) },
@@ -903,7 +906,7 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         require(query.character == character.id.toInt()) { "Supply character mismatch" }
                         pendingWorld = administration.supplyOutfit(org.logh7.engine.CompletenessSupplyRequest(identity.account,
-                            connection, character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            connection, character.id.toInt(), currentProfile(identity.account,character.id.toInt()).country,
                             checkNotNull(generation), query.from, query.to, character.abilities[1], character.abilities[2])).thenApply { result ->
                             val player = checkNotNull(result.player) { "Supply lost its authenticated character" }
                             publication = Publication(character, player, false)
@@ -930,7 +933,7 @@ class GameExchange(
                         require(query.header.characterId==character.id.toInt())
                         require(query.units.map {it.kind}.distinct().size==query.units.size) { "Duplicate supplement kind" }
                         pendingWorld=administration.supplementOutfit(org.logh7.engine.SupplementRequest(identity.account,connection,
-                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            character.id.toInt(),currentProfile(identity.account,character.id.toInt()).country,
                             checkNotNull(generation),query.base,query.outfit,query.kind,query.mode,
                             query.units.associate {it.kind to it.ids},query.supplies,character.abilities[1],character.abilities[2])).thenApply {result ->
                             val player=checkNotNull(result.player);val accepted=result.rejection==null
@@ -966,7 +969,7 @@ class GameExchange(
                         require(query.mode in 0..1) { "Unsupported strategic reorganization mode" }
                         pendingWorld = administration.reorganize(org.logh7.engine.ReorganizationRequest(
                             identity.account, connection, character.id.toInt(),
-                            if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            currentProfile(identity.account,character.id.toInt()).country,
                             checkNotNull(generation), query.base, query.outfit, query.kind, query.mode,
                             query.moves.ships.map { org.logh7.engine.ReorganizationShip(it.kind, it.units, it.boats) },
                             query.moves.troops.map { org.logh7.engine.ReorganizationTroop(it.kind, it.grade, it.units) },
@@ -1161,7 +1164,7 @@ class GameExchange(
                                 org.logh7.engine.LogisticsRejection.MODE.ordinal+1)),clearHeader=0)
                         }
                         pendingWorld=administration.transferGround(org.logh7.engine.GroundTransferRequest(identity.account,connection,
-                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            character.id.toInt(),currentProfile(identity.account,character.id.toInt()).country,
                             checkNotNull(generation),command.outfit,
                             if(opcode==0x0b05)org.logh7.engine.GroundTransferAction.LOAD else org.logh7.engine.GroundTransferAction.UNLOAD,
                             character.abilities[1],character.abilities[2])).thenApply {result->

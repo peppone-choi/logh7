@@ -4,9 +4,12 @@ enum class LogisticsMode { ALLOCATION, REORGANIZATION }
 enum class LogisticsPhase { PREPARE, COMMIT, CANCEL }
 enum class LogisticsRejection { SESSION, IDENTITY, OUTFIT, ACCESS, LOCATION, BUSY, PREPARATION, STOCK, CREW, CP, MODE, STORAGE }
 data class LogisticsRequest(val account: String, val connection: String, val characterId: Int,
-    val power: Power, val generation: Long, val outfitId: Int, val mode: LogisticsMode,
+    val country: CountryId?, val generation: Long, val outfitId: Int, val mode: LogisticsMode,
     val phase: LogisticsPhase, val transfer: UnitTransfer = UnitTransfer(), val supplies: Int = 0,
     val reservation: Long? = null) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,outfitId:Int,
+        mode:LogisticsMode,phase:LogisticsPhase,transfer:UnitTransfer=UnitTransfer(),supplies:Int=0,reservation:Long?=null):
+        this(account,connection,characterId,power.country,generation,outfitId,mode,phase,transfer,supplies,reservation)
     init { require(characterId > 0 && outfitId > 0 && generation > 0 && supplies != Int.MIN_VALUE &&
         (if (phase == LogisticsPhase.PREPARE) reservation == null else reservation != null && reservation > 0)) }
 }
@@ -23,14 +26,14 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
     fun blocksMovement(session: SessionState, outfit: Int): Boolean {
         val now = clock()
         reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
-            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection } != false }
+            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection || it.country != lock.request.country } != false }
         return reservations.any { it.request.mode == LogisticsMode.REORGANIZATION && it.request.outfitId == outfit }
     }
 
     fun blocksSupply(session: SessionState, stocks: PlanetStocks, outfits: Set<Int>): Boolean {
         val now = clock()
         reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
-            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection } != false }
+            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection || it.country != lock.request.country } != false }
         val warehouses = outfits.mapNotNull { stocks.outfits[it]?.warehouseId }.toSet()
         return reservations.any { it.request.mode == LogisticsMode.ALLOCATION || it.warehouse in warehouses }
     }
@@ -40,13 +43,15 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
         fun reject(reason: LogisticsRejection) = LogisticsResult(rejection = reason)
         val now = clock()
         reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
-            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection } != false }
+            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection || it.country != lock.request.country } != false }
         val member = session.participants[request.account]
         if (session.ended != null || request.generation != session.generation || member == null || !member.online ||
             member.connection != request.connection) return reject(LogisticsRejection.SESSION)
-        if (member.country != request.power.country || player == null || player.generation != session.generation ||
-            player.characterId != request.characterId || player.country != request.power.country) return reject(LogisticsRejection.IDENTITY)
+        if (member.country != request.country || player == null || player.generation != session.generation ||
+            player.characterId != request.characterId || player.country != request.country) return reject(LogisticsRejection.IDENTITY)
+        val country = request.country ?: return reject(LogisticsRejection.ACCESS)
         val existing = reservations.singleOrNull { it.request.account == request.account && it.request.connection == request.connection }
+        if(existing!=null && existing.request.characterId!=request.characterId)return reject(LogisticsRejection.PREPARATION)
         if (request.phase == LogisticsPhase.CANCEL) {
             if (existing == null || existing.id != request.reservation || existing.request.outfitId != request.outfitId || existing.request.mode != request.mode)
                 return reject(LogisticsRejection.PREPARATION)
@@ -56,7 +61,6 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
         val stocks = production.settle(session.generation, session.gameMillis / 1000)
         val outfit = stocks.outfits[request.outfitId] ?: return reject(LogisticsRejection.OUTFIT)
         val base = stocks.bases.getValue(outfit.baseId)
-        val country = request.power.country
         if (outfit.country != country || base.country != country || base.camp != 0) return reject(LogisticsRejection.ACCESS)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         if (request.mode == LogisticsMode.ALLOCATION) {

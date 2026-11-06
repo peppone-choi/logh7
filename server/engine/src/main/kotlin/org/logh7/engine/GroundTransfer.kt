@@ -1,8 +1,11 @@
 package org.logh7.engine
 
 enum class GroundTransferAction { LOAD, UNLOAD }
-data class GroundTransferRequest(val account:String,val connection:String,val characterId:Int,val power:Power,
+data class GroundTransferRequest(val account:String,val connection:String,val characterId:Int,val country:CountryId?,
     val generation:Long,val outfit:Int,val action:GroundTransferAction,val politics:Int=50,val administration:Int=50) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,outfit:Int,
+        action:GroundTransferAction,politics:Int=50,administration:Int=50):
+        this(account,connection,characterId,power.country,generation,outfit,action,politics,administration)
     init {require(characterId>0 && generation>0 && outfit>0 && politics in 0..65535 && administration in 0..65535)}
 }
 data class GroundTransferResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:LogisticsRejection?=null,
@@ -26,10 +29,10 @@ internal object GroundTransfer {
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection)return reject(LogisticsRejection.SESSION)
-        if(p==null || p.characterId!=r.characterId || p.generation!=r.generation || p.country!=r.power.country || member.country!=r.power.country)
+        if(p==null || p.characterId!=r.characterId || p.generation!=r.generation || p.country!=r.country || member.country!=r.country)
             return reject(LogisticsRejection.IDENTITY)
         val o=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
-        val country=r.power.country
+        val country=r.country ?: return reject(LogisticsRejection.ACCESS)
         val base=o.position?.baseId ?: o.baseId
         val owner=stocks.bases[base] ?: return reject(LogisticsRejection.LOCATION)
         if(o.commanderId!=r.characterId || o.country!=country || owner.country!=country || owner.camp!=0)
