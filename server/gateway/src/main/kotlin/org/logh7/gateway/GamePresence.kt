@@ -137,7 +137,8 @@ class GamePresence {
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,player.cpPaused)
             } else if(player.grid==event.grid && previous.player.cpPaused) {
                 val tactical=TacticalBootstrap(snapshot,world.galaxy,player,characterById)
-                packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,event.power,0)
+                val display=world.lobbyCountryDefinitions().first.nativePower(org.logh7.engine.Allegiance.Country(event.country))
+                packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,display,0)
                 // Imported definitions and states retain real zero-boat identities; no fake weapon hit.
                 packets+=event.expelled.values.mapNotNull {p->characterById(p.characterId)?.let {c->
                     BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,

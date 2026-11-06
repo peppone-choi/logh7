@@ -1,20 +1,18 @@
 package org.logh7.engine
 
 /** Manual W pp.51-52. Warehouse caps and sortie offsets are revival policy. Author: Peppone Choi. */
-data class BaseOccupation(val generation:Long,val grid:Int,val base:Int,val previousPower:Int,val power:Int,
+data class BaseOccupation(val generation:Long,val grid:Int,val base:Int,val previousOwner:Allegiance,val country:CountryId,
     val seconds:Long,val destroyedShips:Map<Int,Int>,val expelled:Map<String,Navigator>,
     val recipients:Map<Int,String>)
 
 internal object BaseOccupationOperations {
-    fun victor(stocks:PlanetStocks,base:GalaxyBase):Int? {
+    fun victor(stocks:PlanetStocks,base:GalaxyBase):CountryId? {
         val owner=stocks.bases.getValue(base.id)
         // U-07 (CD manual p.39): armed occupation of neutral Fezzan ends its neutrality; it becomes the occupier's planet.
-        if(owner.power==1 && owner.camp==0 && base.name==TradeActions.FEZZAN_NAME)
-            return listOf(2,3).filter {GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}.singleOrNull()
-        if(owner.power !in 2..3 || owner.camp!=0)return null
-        val enemy=5-owner.power
-        return enemy.takeIf {GroundBattleOperations.participants(stocks,base,it).isNotEmpty() &&
-            GroundBattleOperations.participants(stocks,base,owner.power).isEmpty()}
+        if(owner.camp!=0 || owner.country==null && !(owner.owner==Allegiance.Neutral && base.name==TradeActions.FEZZAN_NAME))return null
+        if(owner.country?.let {GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}==true)return null
+        return GroundBattleOperations.countries(stocks).filter {it!=owner.country &&
+            GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}.singleOrNull()
     }
     fun pending(stocks:PlanetStocks,galaxy:Galaxy)=galaxy.bases.any {victor(stocks,it)!=null}
 
@@ -29,13 +27,13 @@ internal object BaseOccupationOperations {
             // tactical participants in the grid share it equally, before the occupation rewrites the outfits.
             val groundIds=GroundBattleOperations.participants(stocks,base,winner).map {it.id}.toSet()
             val earners=stocks.outfits.values.filter {o->o.activeGround?.values.orEmpty().any {it.id in groundIds}}.map {it.commanderId}+
-                players.values.filter {(if(it.power==Power.EMPIRE)2 else 3)==winner && it.generation==session.generation &&
+                players.values.filter {it.country==winner && it.generation==session.generation &&
                     it.grid==base.grid && it.cpPaused}.map {it.characterId}
             val previous=stocks.bases.getValue(base.id)
-            val loser=previous.power
+            val loser=previous.country
             val destroyed=linkedMapOf<Int,Int>()
             val outfits=stocks.outfits.mapValues {(_,outfit)->
-                if(outfit.power!=loser)return@mapValues outfit
+                if(outfit.country!=loser)return@mapValues outfit
                 var changed=outfit
                 val ships=outfit.activeShips
                 if(ships!=null)for(unit in ships.values) {
@@ -62,15 +60,15 @@ internal object BaseOccupationOperations {
                 }
                 changed
             }
-            val localWarehouses=stocks.warehouses.values.filter {it.baseId==base.id && it.power==loser}
+            val localWarehouses=stocks.warehouses.values.filter {it.baseId==base.id && it.country==loser}
             // Same finite capacity as production. Accumulate in Long before applying the cap.
             val supplies=(previous.supplies.toLong()+localWarehouses.sumOf {it.supplies.toLong()})
                 .coerceAtMost(maxOf(previous.supplies,maximumStock).toLong()).toInt()
             val warehouses=stocks.warehouses.mapValues {(_,warehouse)->
-                if(warehouse.baseId!=base.id || warehouse.power!=loser)warehouse else warehouse.copy(
+                if(warehouse.baseId!=base.id || warehouse.country!=loser)warehouse else warehouse.copy(
                     supplies=0,units=UnitInventory(troops=warehouse.units.troops),spareShips=SpareShipBoats())
             }
-            val occupied=previous.copy(owner=Allegiance.Country(CountryId(winner)),camp=0,supplies=supplies,
+            val occupied=previous.copy(owner=Allegiance.Country(winner),camp=0,supplies=supplies,
                 governorId=0,garrisonCommanderId=0,capitalAdministratorId=0,capitalDefenseCommanderId=0,guardInspectorId=0,
                 // Captured works restart, including recruitment; never revive progress on recapture.
                 units=UnitInventory(troops=previous.units.troops),productionCountry=null,
@@ -92,7 +90,7 @@ internal object BaseOccupationOperations {
             val expelled=linkedMapOf<String,Navigator>()
             var offset=0
             for((account,p) in players.toMap()) {
-                if(p.generation!=session.generation || (if(p.power==Power.EMPIRE)2 else 3)!=loser)continue
+                if(p.generation!=session.generation || p.country==null || p.country!=loser)continue
                 var next=p
                 if(p.returnBase==base.id)next=next.copy(returnBase=0)
                 if(p.baseId==base.id && p.grid==base.grid) {
@@ -114,8 +112,8 @@ internal object BaseOccupationOperations {
             }?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
             for((character,points) in EvaluationPoints.shares(if(base.kind==1)EvaluationPoints.FORTRESS else EvaluationPoints.PLANET,earners))
                 stocks=EvaluationPoints.award(stocks,character,points)
-            stocks=GoalActions.achieved(stocks,base.id,winner,earners)
-            events+=BaseOccupation(session.generation,base.grid,base.id,loser,winner,now,destroyed,expelled,recipients)
+            stocks=GoalActions.achieved(stocks,base.id,winner.value,earners)
+            events+=BaseOccupation(session.generation,base.grid,base.id,previous.owner,winner,now,destroyed,expelled,recipients)
         }
         return stocks
     }

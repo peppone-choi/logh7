@@ -24,7 +24,7 @@ class OccupationPresenceTest {
         listOf(winner,loser,far).forEachIndexed {i,p->presence.update(GamePresence.Member("c$i",people[i],p,packets[i]::add,
             if(i==1)listOf(BootstrapMessages.OfficeCard(190,1049)) else emptyList()))}
         packets.forEach {it.clear()}
-        val event=BaseOccupation(1,2487,1049,3,2,250,emptyMap(),mapOf("loser" to expelled),
+        val event=BaseOccupation(1,2487,1049,Allegiance.Country(CountryId(3)),CountryId(2),250,emptyMap(),mapOf("loser" to expelled),
             (0..2).associate {10000+it to "c$it"})
         fun deliver(e:BaseOccupation=event,s:WorldSnapshot=snapshot)=presence.occupation(e,s,WorldBootstrap(galaxy),
             {id->people.singleOrNull {it.id==id.toLong()}},{_,_,_->emptyList()})

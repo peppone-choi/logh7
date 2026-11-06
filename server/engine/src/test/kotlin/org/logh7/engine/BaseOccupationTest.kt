@@ -28,6 +28,65 @@ class BaseOccupationTest {
         events:MutableList<BaseOccupation> = mutableListOf(),state:SessionState=session,world:Galaxy=galaxy,cap:Int=Int.MAX_VALUE)=
         BaseOccupationOperations.advance(state,world,players,s,cap,1,events)
 
+    private fun additionalCountries():PlanetStocks=stocks().let {s -> s.copy(
+        bases=s.bases.mapValues {(_,b)->b.copy(owner=Allegiance.Country(CountryId(43)))},
+        outfits=s.outfits.mapValues {(_,o)->o.copy(country=CountryId(if(o.country==CountryId(2))42 else 43))},
+        warehouses=s.warehouses.mapValues {(_,w)->w.copy(country=CountryId(if(w.country==CountryId(2))42 else 43))})}
+
+    @Test fun additionalCountryCapturesOnlyTheDefendersPropertyAndExpelsOnlyItsCharacters() {
+        val original=additionalCountries()
+        val loser=Navigator(1,10001,Power.ALLIANCE,2487,777,555,321,baseId=1000,mode=4,
+            spotId=10000001,returnBase=1000).copy(country=CountryId(43))
+        val ally=loser.copy(characterId=10002,country=CountryId(42))
+        val outsider=loser.copy(characterId=10003,country=CountryId(44),baseId=0,mode=5,spotId=0,returnBase=0)
+        val independent=outsider.copy(characterId=10004,country=null)
+        val players=mutableMapOf("loser" to loser,"ally" to ally,"outsider" to outsider,"independent" to independent)
+        val events=mutableListOf<BaseOccupation>()
+        val after=advance(original,players,events)
+        assertEquals(CountryId(42),after.bases.getValue(1000).country)
+        assertEquals(0,after.outfits.getValue(2).activeShips!!.values.single {it.id==2}.boats)
+        assertEquals(300,after.outfits.getValue(2).activeShips!!.values.single {it.id==3}.boats)
+        assertEquals(original.outfits.getValue(1),after.outfits.getValue(1))
+        assertEquals(0,after.warehouses.getValue(102).supplies)
+        assertEquals(original.warehouses.getValue(101),after.warehouses.getValue(101))
+        assertEquals(0,players.getValue("loser").baseId)
+        assertEquals(0,players.getValue("loser").returnBase)
+        assertEquals(listOf(777,555),listOf(players.getValue("loser").pcp,players.getValue("loser").mcp))
+        assertEquals(ally,players["ally"]);assertEquals(outsider,players["outsider"]);assertEquals(independent,players["independent"])
+        assertEquals(Allegiance.Country(CountryId(43)),events.single().previousOwner)
+        assertEquals(CountryId(42),events.single().country)
+        assertEquals(setOf("loser"),events.single().expelled.keys)
+        assertSame(after,advance(after,players))
+    }
+
+    @Test fun multipleAttackingCountriesMustResolveTheirBattleBeforeOccupation() {
+        val before=additionalCountries()
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(6,UnitStack(0),base=1000)))
+        val third=before.outfits.getValue(1).copy(id=3,country=CountryId(44),warehouseId=103,
+            units=UnitInventory(troops=troops.quantities()),activeGround=troops)
+        val contested=before.copy(outfits=before.outfits+(3 to third),nextShipId=7,
+            warehouses=before.warehouses+(103 to OutfitWarehouse(103,CountryId(44),OutfitKind.PATROL,1000,shipStyle=third.shipStyle)))
+        assertNull(BaseOccupationOperations.victor(contested,base))
+        assertSame(contested,advance(contested))
+    }
+
+    @Test fun neutralFezzanIsDistinctFromAnIndependentCharacterAndAnotherCountrysWarehouse() {
+        val world=Galaxy(galaxy.systems,listOf(base.copy(name=TradeActions.FEZZAN_NAME)),galaxy.starts)
+        val before=additionalCountries().let {s -> s.copy(bases=s.bases.mapValues {(_,b)->
+            b.copy(owner=Allegiance.Neutral,governorId=0,garrisonCommanderId=0)})}
+        val independent=Navigator(1,10001,Power.ALLIANCE,2487,777,555,321).copy(country=null)
+        val players=mutableMapOf("independent" to independent)
+        val events=mutableListOf<BaseOccupation>()
+        val after=advance(before,players,events,world=world)
+        assertEquals(CountryId(42),after.bases.getValue(1000).country)
+        assertEquals(100,after.bases.getValue(1000).supplies,"no country owned the neutral base's foreign warehouse")
+        assertEquals(before.warehouses,after.warehouses)
+        assertEquals(before.outfits,after.outfits)
+        assertEquals(independent,players["independent"])
+        assertEquals(Allegiance.Neutral,events.single().previousOwner)
+        assertEquals(CountryId(42),events.single().country)
+    }
+
     @Test fun unopposedLandingCapturesOnceDestroysStationedShipsAndClearsAppointments() {
         val original=stocks();val events=mutableListOf<BaseOccupation>();val captured=advance(original,events=events)
         val owner=captured.bases.getValue(1000)
