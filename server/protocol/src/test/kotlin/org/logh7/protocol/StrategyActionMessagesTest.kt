@@ -54,6 +54,24 @@ class StrategyActionMessagesTest {
     private fun transport(command:Int,card:Int,target:Int,value:Int,argument:Int,amount:Int,base:Int,preview:Boolean=false)=
         ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(command.toShort()).putShort(card.toShort()).putShort(value.toShort())
             .putInt(target).put(if(preview)1 else 0).putInt(argument).putShort(amount.toShort()).putInt(base).putShort(0).array()
+    @Test fun foreignTradeDirectoriesAndSelectedCountriesKeepTheOldEnvelopeAndRejectUnrelatedFields() {
+        val convoy=StrategyActionMessages.query(transport(40,44,43,0,0,1000,0))
+        assertEquals(43,convoy.target);assertEquals(1000,convoy.amount)
+        val intel=StrategyActionMessages.query(transport(20,5,Int.MAX_VALUE,2,0,0,0,true))
+        assertTrue(intel.preview);assertEquals(Int.MAX_VALUE,intel.target)
+        val directory=StrategyActionMessages.query(transport(40,44,0,0,0,0,0,true))
+        for(q in listOf(directory,intel)) {
+            val rows=StrategyActionMessages.selections(q,listOf(StrategyActionMessages.Selection(43,"국가43")))
+            assertEquals(43,ByteBuffer.wrap(rows[1]).getInt(7))
+        }
+        // Old clients still omit the country. The engine accepts this only when one candidate remains.
+        StrategyActionMessages.query(transport(40,44,0,0,0,1000,0))
+        StrategyActionMessages.query(transport(20,5,0,2,0,0,0))
+        for(body in listOf(transport(20,5,43,0,0,0,0),transport(20,5,0,1,0,0,0,true),
+            transport(40,44,0,0,0,1000,0,true),transport(40,44,43,0,0,0,0),transport(20,5,-1,2,0,0,0),
+            transport(20,5,43,2,1,0,0),transport(40,44,43,0,0,1000,1)))
+            assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(body)}
+    }
     @Test fun transportCommandsCarrySourceDestinationQuantitiesAndTheOutfitSeparately() {
         val plan=StrategyActionMessages.query(transport(28,25,1050,32,3,1000,1049))
         assertEquals(1050,plan.target);assertEquals(1049,plan.base);assertEquals(1000,plan.amount);assertEquals(32,plan.value)
