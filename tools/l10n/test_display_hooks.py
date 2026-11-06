@@ -199,6 +199,8 @@ class DisplayHookTests(unittest.TestCase):
         self.assertEqual(bytes.fromhex('8b4424043d960000008b5130'),self.raw(0x507ba0,12))
         self.assertEqual(bytes.fromhex('8b8481c80e000085c07d098d8264b32800'),self.raw(0x507bc2,17))
         self.assertEqual(bytes.fromhex('8b4424048b0d2c5e210283c040894104c3'),self.raw(0x595ec0,17))
+        # Native close hides the root AND disables input; visibility alone leaves an invisible input layer.
+        self.assertEqual(bytes.fromhex('568bf16a00c6461401e872c5ffff6a008bcee879bbffff'),self.raw(0x506920,23))
         # Lottery refresh takes a caller-cleaned argument, not a thiscall/stack-pop bridge.
         self.assertEqual(bytes.fromhex('6a01e89ef9ffff83c404'),self.raw(0x59864b,10))
         self.assertEqual(self.data,self.original.read_bytes())

@@ -25,7 +25,7 @@ static void hideLobbyCountryWindow() {
         for(unsigned i=0;i<6;++i)for(void* widget:{view.icons[i],view.bars[i]})if(widget)
             reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,widget,0);
         if(view.backdrop)reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,view.backdrop,0);
-        reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(view.root,0);
+        reinterpret_cast<void(__thiscall*)(void*)>(0x506920)(view.root);
     }
     view.active=false;resetLobbyCountries();
 }
@@ -160,7 +160,7 @@ static bool openLobbyCountries(void* controller,unsigned mode) {
     reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,view.backdrop,.015f,.035f,.065f,.97f);
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,view.backdrop,1);
     if(auto root=at<void*>(gui,4+(mode==1 ? 0x36 : mode==2 ? 0x39 : 0x38)*4))
-        reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(root,0);
+        reinterpret_cast<void(__thiscall*)(void*)>(0x506920)(root);
     resetLobbyCountries();renderLobbyCountries();
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(view.root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,view.root);return true;
@@ -264,10 +264,9 @@ static bool updateLobbyCountryWindow(void* controller) {
     if(lobbyCountryClick(27)) {
         const unsigned mode=view.mode;hideLobbyCountryWindow();
         if(mode==1)at<unsigned>(controller,4)=0x16;
-        else if(mode==2) {
-            at<unsigned>(controller,4)=0x69;*reinterpret_cast<unsigned*>(0x2228698)=0;
-            *reinterpret_cast<unsigned*>(0x222869c)=0x2b;*reinterpret_cast<unsigned*>(0x22286a0)=0x15;*reinterpret_cast<unsigned*>(0x22286a4)=0x39;
-        } else {
+        // No reservation has been submitted at this country-selection step. Use the native lobby-return path.
+        else if(mode==2)at<unsigned>(controller,4)=0x6b;
+        else {
             view.lotteryChosen=true;
             if(auto root=at<void*>(gui,4+0x38*4)) {
                 reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);
