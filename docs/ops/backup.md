@@ -76,6 +76,13 @@ PR #290부터 캐릭터 기록은 다음 저장 때 `v2:` 형식으로 바뀐다
 ### 월드 정의 schema와 릴리스 전환 (2026-11-06)
 
 국가별 시작 위치(`start.country.<id>`, Codex `live-country-identity`)가 들어간 월드 정의 파일(`LOGH7_WORLD_FILE`)은 `schema=2`다. 지금까지의 릴리스는 `schema=1`만 받아 시작을 거부한다. `server_release.py activate`·`rollback --world-definition <LOGH7_WORLD_FILE>`은 `schema`가 1이 아니면 대상 릴리스의 `org/logh7/engine/Galaxy$Companion.class`에 `Country starts require world schema 2`가 정확한 상수로 있어야 전환한다. 표에 없는 schema는 거부한다. 확인: 검사 6개 통과. 실제 릴리스(main `1c94aecf` 이전 빌드 `27eb56ec`)는 schema 1 정의는 허용, schema 2로 바꾼 사본은 거부했다. PR #302(main `bad26c84`) 머지 뒤 실제 릴리스로 다시 확인: `start.country.2`를 넣은 schema 2 사본은 `bad26c84` 릴리스에서 허용되고 같은 상태로 시작해 월드를 적재했다. 리더가 없는 `27eb56ec` 릴리스는 판정에서 거부됐고, 실제로 띄우자 `IllegalArgumentException: Failed requirement`로 시작에 실패했다(판정이 맞음).
+### 창고 STOCK-43 판정 실측 (2026-11-06)
+
+PR #307(main `b4625ee5`)이 국가별 직위·수도를 담는 창고 형식 `LOGH7-STOCK-43`을 더했다. 판정 도구는 머리말 일반 규칙이라 바꾸지 않았다. Codex QA 세계(`work/country-office-holdings-20261106`, 국가 2의 수도 1049·직위 보유)를 `state_backup.py backup`(원본 읽기 전용)→`restore-to`로 QA 사본에 옮겨 확인했다.
+
+- `--world` 판정: `b4625ee5` 허용, 그 직전 main `66d52986` 거부(`LOGH7-STOCK-43 in stocks.tsv`).
+- 실제 기동: `b4625ee5`는 적재하고 `capitals={CountryId(value=2)=1049}`를 보였다. `66d52986`은 `Invalid planet stock header`로 시작에 실패했다. 같은 `66d52986` 빌드는 STOCK-38 상태에서는 정상 적재해, 실패 원인이 형식임을 대조했다.
+- 처음 빌드한 `66d52986`은 소스를 일부만 풀어 `l10n` 리소스가 빠져 다른 오류로 실패했다. 이전 릴리스를 소스에서 다시 만들 때는 `server`와 함께 `config/countries`·`docs/manual/data`·`l10n`·`tools/l10n`·`docs/IMPLEMENTATION-CHECKLIST.md`가 필요하다. 운영에서는 `server_release.py install`로 보관한 릴리스를 쓰므로 해당하지 않는다.
 ### 업데이트 전체 흐름 리허설 (2026-11-06)
 
 위 도구를 한 흐름으로 이어 실제 두 릴리스로 돌렸다(`work/update-rehearsal-20261106/full/rehearse_update.py`, 워크트리 work 폴더, Git 제외, QA 상태 사본, 원본 클라이언트 실행 없음). 이전 릴리스는 main `f4dbe4ef`(유지보수 기능 포함, 창고 STOCK-42 리더 없음), 새 릴리스는 main `bad26c84`(PR #302)다.
