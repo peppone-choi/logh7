@@ -45,7 +45,7 @@ object AcademyActions {
     private const val ACADEMY=20
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
-        navigators:Collection<Navigator> = emptyList()):SocialResult {
+        navigators:Collection<Navigator> = emptyList(),countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
         val i=r.identity;val a=s.social.academy
         fun reject(reason:SocialRejection,view:AcademyView?=null)=SocialResult(p,s,reason,academy=view)
         val member=session.participants[i.account]
@@ -53,8 +53,7 @@ object AcademyActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
+        if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         val ability=i.argument
         if(i.command !in commands || r.phase !in 0..1 || (if(r.phase==0)r.ticket!=0 else r.ticket<=0) ||
             i.target!=0 || i.outfit!=0 || i.base!=0 || i.value!=0 || i.amount!=0L ||
@@ -62,14 +61,13 @@ object AcademyActions {
         val now=session.gameMillis/1000
         val person=s.strategic.people[i.characterId] ?: r.profile ?: StrategicPerson(rank=i.rank)
         val abilities=person.abilities ?: r.profile?.abilities ?: return reject(SocialRejection.IDENTITY)
-        val power=if(p.power==Power.EMPIRE)2 else 3
         val base=s.bases[p.baseId]
         val room=if(i.command==WARGAME)SIMULATOR else CLASSROOM
-        val inRoom=base!=null && base.power==power && base.camp==0 && p.mode in 1..4 && p.spotOwner==0 &&
+        val inRoom=base!=null && base.belongsTo(i.country) && base.camp==0 && p.mode in 1..4 && p.spotOwner==0 &&
             g.bases.single {it.id==p.baseId}.grid==p.grid &&
-            g.facilitiesAt(p.baseId,s).any {f->f.kind==ACADEMY && f.spots.any {it.id==p.spotId && it.kind==room}}
+            g.facilitiesAt(p.baseId,s,countries).any {f->f.kind==ACADEMY && f.spots.any {it.id==p.spotId && it.kind==room}}
         val lecture=if(!inRoom)null else a.lectures.values.filter {it.base==p.baseId && it.spot==p.spotId && it.until>now &&
-            it.lecturer!=i.characterId && present(it,session.generation,navigators)}.minByOrNull {it.at}
+            it.lecturer!=i.characterId && present(it,p,navigators)}.minByOrNull {it.at}
         val exp=a.experience[i.characterId] ?: List(8) {0}
         val day=now/SocialActions.DAY
         val used=a.wargames[i.characterId]?.takeIf {it.first==day}?.second ?: 0
@@ -86,7 +84,7 @@ object AcademyActions {
         if(r.phase==0)return SocialResult(p,s,academy=view)
         if(r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
         if(i.command==LECTURE && (i.card !in lecturerCards ||
-                s.strategic.offices.none {it.country==i.country && it.card==i.card && it.character==i.characterId}))return reject(SocialRejection.CARD,view)
+                OrganizationalOfficePolicy(g,countries).holders(s,i.card,i.country).none {it.character==i.characterId}))return reject(SocialRejection.CARD,view)
         if(i.command!=LECTURE && i.card!=0)return reject(SocialRejection.CARD,view)
         if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || p.warpTarget!=null)return reject(SocialRejection.BUSY,view)
         if(!inRoom)return reject(SocialRejection.LOCATION,view)
@@ -121,6 +119,7 @@ object AcademyActions {
         return SocialResult(p.paidWith(paid.balance),next,changed=true,academy=after)
     }
     /** The lecture ends when its lecturer is no longer in that classroom (offline lecturers keep their saved spot). */
-    private fun present(l:Lecture,generation:Long,navigators:Collection<Navigator>)=
-        navigators.any {it.generation==generation && it.characterId==l.lecturer && it.baseId==l.base && it.spotId==l.spot}
+    private fun present(l:Lecture,student:Navigator,navigators:Collection<Navigator>)=
+        navigators.any {it.generation==student.generation && it.country==student.country && it.characterId==l.lecturer &&
+            it.grid==student.grid && it.baseId==l.base && it.spotId==l.spot && it.mode in 1..4 && it.spotOwner==0}
 }

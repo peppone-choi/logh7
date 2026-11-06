@@ -2,9 +2,9 @@ package org.logh7.engine
 
 import org.logh7.engine.strategy.*
 
-data class SpeechReceipt(val id:Int,val character:Int,val power:Int,val base:Int,val spot:Int,val at:Long,
+data class SpeechReceipt(val id:Int,val character:Int,val country:CountryId,val base:Int,val spot:Int,val at:Long,
     val politics:Int,val beforeInfluence:Int,val influence:Int,val beforeApproval:Int,val approval:Int,val nextAt:Long) {
-    init {require(id in 1 until Int.MAX_VALUE && character>0 && power in 2..3 && base in 1..65535 && spot>0 &&
+    init {require(id in 1 until Int.MAX_VALUE && character>0 && base in 1..65535 && spot>0 &&
         at in 0..0xffffffffL && nextAt in at..0xffffffffL && politics in 0..100 &&
         beforeInfluence in 0..100 && influence in 0..100 && beforeApproval in 0..100 && approval in 0..100 &&
         influence==(beforeInfluence+if(politics>=50)1 else -1).coerceIn(0,100) &&
@@ -65,8 +65,9 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
 object SocialActions {
     const val DAY=86400L
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
-        navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap()):SocialResult {
-        if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(r,session,p,s,accounts)
+        navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap(),
+        countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
+        if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(g,r,session,p,s,accounts,countries)
         if(r.identity.command in Justice.commands)return JusticeActions.evaluate(g,r,session,p,s,accounts)
         if(r.identity.command in EspionageActions.commands)return EspionageActions.evaluate(g,r,session,p,s,accounts)
         if(r.identity.command in CoupActions.commands)return CoupActions.evaluate(g,r,session,p,s,accounts)
@@ -79,7 +80,7 @@ object SocialActions {
         // A detainee (U-25) cannot run social commands.
         if(p!=null && s.social.justice.detained(p.characterId))return SocialResult(p,s,SocialRejection.BUSY)
         if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts)
-        if(r.identity.command in AcademyActions.commands)return AcademyActions.evaluate(g,r,session,p,s,navigators)
+        if(r.identity.command in AcademyActions.commands)return AcademyActions.evaluate(g,r,session,p,s,navigators,countries)
         if(r.identity.command==MeetingActions.MEETING)return MeetingActions.evaluate(r,session,p,s,navigators)
         val i=r.identity
         fun reject(reason:SocialRejection,view:SocialView?=null)=SocialResult(p,s,reason,view=view)
@@ -88,8 +89,7 @@ object SocialActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
+        if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         if(i.command!=14 || r.phase !in 0..1 || (if(r.phase==0)r.ticket!=0 else r.ticket<=0) ||
             i.target!=0 || i.outfit!=0 || i.base!=0 || i.value!=0 || i.amount!=0L || i.argument!=0)return reject(SocialRejection.COMMAND)
         if(i.card!=0)return reject(SocialRejection.CARD)
@@ -104,9 +104,8 @@ object SocialActions {
         if(r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
         if(rank!=1)return reject(SocialRejection.RANK,view)
         if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY,view)
-        val power=if(p.power==Power.EMPIRE)2 else 3
-        if(base==null || base.power!=power || base.camp!=0 || p.mode !in 1..4 || p.spotOwner!=0 ||
-            g.bases.single {it.id==p.baseId}.grid!=p.grid || g.facilitiesAt(p.baseId,s).none {facility ->
+        if(base==null || !base.belongsTo(i.country) || base.camp!=0 || p.mode !in 1..4 || p.spotOwner!=0 ||
+            g.bases.single {it.id==p.baseId}.grid!=p.grid || g.facilitiesAt(p.baseId,s,countries).none {facility ->
                 facility.kind==2 && facility.spots.any {it.id==p.spotId && it.kind==3 && it.access==SpotAccess.PUBLIC}})
             return reject(SocialRejection.LOCATION,view)
         val economy=base.economy ?: return reject(SocialRejection.LOCATION,view)
@@ -120,14 +119,14 @@ object SocialActions {
         if(influence==person.influence && approval==economy.approval)return reject(SocialRejection.MAXIMUM,view)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),320,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP,view)
-        val receipt=SpeechReceipt(s.social.nextId,i.characterId,power,base.baseId,p.spotId,now,politics,
+        val receipt=SpeechReceipt(s.social.nextId,i.characterId,i.country,base.baseId,p.spotId,now,politics,
             person.influence,influence,economy.approval,approval,now+DAY)
         val speeches=s.social.speeches.toMutableMap();speeches[i.characterId]=receipt
         if(speeches.size>256)speeches.remove(speeches.values.minBy {it.id}.character)
         val next=s.copy(strategic=s.strategic.copy(people=s.strategic.people+(i.characterId to person.copy(influence=influence))),
             bases=s.bases+(base.baseId to base.copy(economy=economy.copy(approval=approval))),
-            social=SocialState(receipt.id+1,speeches,s.social.speakers+(i.characterId to receipt.nextAt),
-                s.social.squares+(base.baseId to receipt.nextAt),s.social.academy,s.social.meeting))
+            social=s.social.copy(nextId=receipt.id+1,speeches=speeches,speakers=s.social.speakers+(i.characterId to receipt.nextAt),
+                squares=s.social.squares+(base.baseId to receipt.nextAt)))
         return SocialResult(p.paidWith(paid.balance),next,changed=true,
             view=SocialView(next.social.nextId,base.baseId,influence,approval,DAY,receipt))
     }

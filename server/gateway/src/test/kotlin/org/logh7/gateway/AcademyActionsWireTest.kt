@@ -23,7 +23,7 @@ class AcademyActionsWireTest {
         var stocks=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1049)2 else 3,0,
             2000,200,300,PlanetEconomy(1000,600,70,80),treasury=200)},deploymentInitialized=true,
             strategic=StrategicState(people=(0..1).associate {i->10000+i to StrategicPerson(rank=8,
-                abilities=listOf(50,60,50,50,50,50,50,50))},offices=listOf(OfficeHolding(38,1,10001))))
+                abilities=listOf(50,60,50,50,50,50,50,50))},offices=listOf(OfficeHolding(38,1049,10001))))
         val navigation=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
         override fun saveWorld(navigation:Map<String,Navigator>,inventory:PlanetStocks?){players=navigation;stocks=checkNotNull(inventory)}

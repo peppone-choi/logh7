@@ -85,7 +85,8 @@ object GatheringActions {
             hostAfter-hostPerson.influence,guestAfter-guestPerson.influence,friendAfter-friendship))
     }
 
-    fun evaluate(r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,navigators:Map<String,Navigator>):SocialResult {
+    fun evaluate(galaxy:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,navigators:Map<String,Navigator>,
+        countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
         val i=r.identity;val g=s.social.gatherings;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection,view:GatheringView?=null)=SocialResult(p,s,reason,gathering=view)
         val member=session.participants[i.account]
@@ -93,8 +94,7 @@ object GatheringActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
+        if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         if(i.command !in commands || r.phase !in 0..1 || (if(r.phase==0)r.ticket!=0 else r.ticket<=0) || i.target<=0 ||
             i.target==i.characterId || i.value !in 0..2 || i.outfit!=0 || i.base!=0 || i.amount!=0L || i.argument!=0)
             return reject(SocialRejection.COMMAND)
@@ -115,19 +115,26 @@ object GatheringActions {
         val guest=navigators.values.singleOrNull {it.generation==i.generation && it.characterId==guestId}
         val host=hostEntry?.value
         // 会談/談話: own hotel room. 狩猟: own fief mansion forest. 夜会: own capital mansion ballroom,
-        // for empire nobles and for alliance politicians or commodores and above (evidence:guess).
+        // for nobles under imperial peerage rules, otherwise politicians or commodores and above (evidence:guess).
         fun hostInRoom(h:Navigator):Boolean {
-            if(h.mode !in 1..4)return false
-            val place=room(h.baseId,h.spotId)
+            val country=h.country ?: return false
+            val definition=countries.countries[country.value] ?: return false
+            val base=s.bases[h.baseId] ?: return false
+            if(!base.belongsTo(country) || base.camp!=0 || h.mode !in 1..4 || h.cpPaused || h.navigationPending ||
+                galaxy.bases.singleOrNull {it.id==h.baseId}?.grid!=h.grid)return false
+            val facility=if(i.command in setOf(PARTY,HUNT))MANSION else HOTEL
+            val spot=when(i.command) {PARTY->BALLROOM;HUNT->FOREST;else->HOTEL_ROOM}
+            if(galaxy.facilitiesAt(h.baseId,s,countries).none {it.kind==facility && it.spots.any {it.id==h.spotId && it.kind==spot}})return false
             // Mansion rooms are owner-0 spots in the CD; the hotel room keeps its saved owner.
-            if(i.command !in setOf(PARTY,HUNT) && h.spotOwner!=h.characterId)return false
+            if(h.spotOwner!=if(facility==MANSION)0 else h.characterId)return false
             val person=s.strategic.people[h.characterId]
             return when(i.command) {
-                PARTY -> place==(MANSION to BALLROOM) && Capital.entries.any {c->c.power==(if(h.power==Power.EMPIRE)2 else 3) &&
-                    s.bases[h.baseId]!=null && h.grid==c.grid} &&
-                    (if(h.power==Power.EMPIRE)person?.peerage!=null else (person?.rank ?: i.rank).let {it==1 || it in 2..7})
-                HUNT -> place==(MANSION to FOREST) && s.strategic.fiefs[h.baseId]==h.characterId
-                else -> place==(HOTEL to HOTEL_ROOM)
+                PARTY -> OrganizationalOfficePolicy(galaxy,countries).capital(s,country)==h.baseId &&
+                    (if(countries.families.getValue(definition.family).peerage=="empire")person?.peerage!=null else
+                        (person?.rank ?: if(h.characterId==i.characterId)i.rank else
+                            i.identities.singleOrNull {it.id==h.characterId && it.country==country}?.rank).let {it==1 || it in 2..7})
+                HUNT -> h.baseId in FundActions.governed(galaxy,s,h.characterId,country,countries,card=66)
+                else -> true
             }
         }
         when(i.value) {
@@ -162,7 +169,7 @@ object GatheringActions {
         }
         // Accept: the host must still be in the invited room and the guest at the same base.
         if(invite==null || host==null || hostEntry.key==i.account)return reject(SocialRejection.STALE,view)
-        if(!hostInRoom(host) || host.baseId!=invite.base || host.spotId!=invite.spot || p.grid!=host.grid || p.baseId!=invite.base)
+        if(host.country!=p.country || !hostInRoom(host) || host.baseId!=invite.base || host.spotId!=invite.spot || p.grid!=host.grid || p.baseId!=invite.base)
             return reject(SocialRejection.LOCATION,view)
         val outcome=outcome(i.command,hostId,guestId,host,s,live,friendship,now) ?: return reject(SocialRejection.CP,view)
         if(outcome.second==null)return reject(SocialRejection.MAXIMUM,view)

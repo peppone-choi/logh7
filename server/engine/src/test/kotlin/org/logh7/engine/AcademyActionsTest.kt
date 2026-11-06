@@ -21,7 +21,7 @@ class AcademyActionsTest {
     private fun person(vararg abilities:Int)=StrategicPerson(rank=8,abilities=abilities.toList().ifEmpty {List(8) {50}})
     private fun stocks()=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1177)3 else 2,0,
         2000,200,300,PlanetEconomy(1000,600,70,80),treasury=200)},deploymentInitialized=true,
-        strategic=StrategicState(people=mapOf(10000 to person(),10001 to person()),offices=listOf(OfficeHolding(38,1,10001))))
+        strategic=StrategicState(people=mapOf(10000 to person(),10001 to person()),offices=listOf(OfficeHolding(38,1049,10001))))
     private fun request(command:Int,argument:Int,phase:Int=1,ticket:Int=1,card:Int=0,account:String="actor",id:Int=10000)=
         SocialRequest(StrategyActionRequest(account,if(account=="actor")"c" else "d",id,Power.EMPIRE,1,command,card,8,argument=argument),phase,ticket)
     private fun act(r:SocialRequest,s:PlanetStocks=stocks(),p:Navigator=student,clock:SessionState=session,others:List<Navigator> = emptyList())=
