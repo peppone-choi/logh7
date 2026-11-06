@@ -56,10 +56,11 @@ class PoliticianLadderTest {
         val people=mapOf(11 to StrategicPerson(merit=90),12 to StrategicPerson(merit=10))
         val ids=listOf(id(11,3),id(12,3))
         val seated=OrganizationalOfficePolicy(galaxy).set(stocks.copy(strategic=StrategicState(people=people)),OfficeHolding(132,1177,11))
-        val distrust=seated.copy(social=seated.social.copy(funds=FundState(confidence=mapOf(3 to (100L to 500L)),support=mapOf(12 to 50L))))
+        val otherBoxes=mapOf(2 to (30L to 40L),42 to (50L to 60L))
+        val distrust=seated.copy(social=seated.social.copy(funds=FundState(confidence=otherBoxes+(3 to (100L to 500L)),support=mapOf(12 to 50L))))
         val after=PoliticianLadder.monthly(galaxy,distrust,ids,1)
         assertEquals(listOf(12),OrganizationalOfficePolicy(galaxy).holders(after,132).map {it.character})
-        assertTrue(after.social.funds.confidence.isEmpty())
+        assertEquals(otherBoxes,after.social.funds.confidence)
         val heard=SuccessionActions.notices(distrust,after,7).filter {it.kind!=SuccessionNotice.Kind.ACCESSION}
         assertEquals(listOf(SuccessionNotice(after.generation,11,SuccessionNotice.Kind.CHAIRMAN_DISMISSED,7),
             SuccessionNotice(after.generation,12,SuccessionNotice.Kind.CHAIRMAN_ELECTED,7)),heard)

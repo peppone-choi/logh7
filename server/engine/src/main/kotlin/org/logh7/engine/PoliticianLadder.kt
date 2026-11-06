@@ -38,7 +38,7 @@ object PoliticianLadder {
         val funds=next.social.funds
         val (yes,no)=funds.confidence[3] ?: (0L to 0L)
         if(no>yes)policy.holders(next,CHAIRMAN_CARD).forEach {next=policy.set(next,it,remove=true)}
-        if(funds.confidence.isNotEmpty())next=next.copy(social=next.social.copy(funds=funds.copy(confidence=emptyMap())))
+        if(3 in funds.confidence)next=next.copy(social=next.social.copy(funds=funds.copy(confidence=funds.confidence-3)))
         // Imperial succession (SuccessionActions, user decision 2026-11-02) replaces the politician-ladder heir.
         next=SuccessionActions.accede(galaxy,next,identities,month*PERIOD_DAYS*Justice.DAY)
         return election(galaxy,next,identities)

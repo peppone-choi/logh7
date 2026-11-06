@@ -38,7 +38,7 @@ object SuccessionActions {
             add(was.rival,SuccessionNotice.Kind.CONTEST)
         fun chairmen(s:PlanetStocks)=s.strategic.offices.filter {it.country==CountryId(3) && it.card==PoliticianLadder.CHAIRMAN_CARD}.map {it.character}.toSet()
         val (yes,no)=old.social.funds.confidence[3] ?: (0L to 0L)
-        if(no>yes && new.social.funds.confidence.isEmpty())(chairmen(old)-chairmen(new)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_DISMISSED)}
+        if(no>yes && 3 !in new.social.funds.confidence)(chairmen(old)-chairmen(new)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_DISMISSED)}
         (chairmen(new)-chairmen(old)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_ELECTED)}
         return out
     }
