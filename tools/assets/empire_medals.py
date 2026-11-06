@@ -285,6 +285,18 @@ def ribbon(kind, top, bottom, half_w):
     return rgba
 
 
+def faceted(mask, look, n, phase, r):
+    """빛살 끝마다 가운데가 솟은 능선(깎은 면)이 있는 별."""
+    yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+    theta = np.arctan2(yy - C, xx - C)
+    step = 2 * math.pi / n
+    off = np.abs(np.mod(theta - phase + step / 2, step) - step / 2) / (step / 2)  # 능선 0 → 골 1
+    rad = np.hypot(xx - C, yy - C) / r
+    h = np.clip((1 - off) * 0.7 + (1 - rad) * 0.5, 0, None) * (mask > 0.5)
+    h = ndimage.gaussian_filter(h.astype(np.float32), 1.2) + 0.03 * _GRAIN
+    return shade(mask, look, depth=60, relief=h)
+
+
 def over(dst, src, shadow=True):
     """src(RGBA float) 를 dst 위에 덮는다. shadow 면 오른쪽 아래로 그림자를 먼저 깐다."""
     a = src[..., 3:] / 255
@@ -319,12 +331,21 @@ def _medal_on_ribbon(src, metal, wreathed, rib='empire'):
 
 def design(no, src):
     out = np.zeros((S, S, 4), np.float32)
-    if no == 1:  # 大双頭鷲勲章: 은 8각 빛살 별(안쪽 흑 칠보) 위에 큰 금 엠블럼
-        out = over(out, shade(sunburst(48, 314, 270, 8), 'silver', bevel=4, depth=10))
-        body = star(8, 300, 168, phase=-math.pi / 2 + math.pi / 8)
-        out = over(out, shade(body, 'silver', bevel=40, depth=20, dome=0.6))
-        out = over(out, shade(erode(body, 30).astype(np.float32), 'enamel:black', bevel=6, depth=5), shadow=False)
-        out = bold_emblem(out, src, 500, 'gold')
+    if no == 1:  # 大双頭鷲勲章(흑수리 가슴 별형): 깎은 은 별 + 깎은 금 별 + 적 칠보 띠·보석 + 큰 금 엠블럼
+        out = over(out, shade(sunburst(64, 318, 286, 5), 'silver', bevel=3, depth=8))
+        p8 = -math.pi / 2
+        out = over(out, faceted(star(8, 312, 150, phase=p8), 'silver', 8, p8, 312))
+        out = over(out, faceted(star(8, 250, 126, phase=p8 + math.pi / 8), 'gold', 8, p8 + math.pi / 8, 250))
+        out = over(out, shade(disc(196), 'gold', bevel=8, depth=12))
+        out = over(out, shade(np.clip(disc(184) - disc(152), 0, 1), 'enamel:red', bevel=5, depth=5), shadow=False)
+        out = over(out, shade(disc(150), 'gold', bevel=6, depth=10), shadow=False)
+        out = over(out, shade(disc(140), 'enamel:black', bevel=5, depth=5), shadow=False)
+        for k in range(8):  # 띠 위 금 받침 + 보석 8개
+            a = p8 + math.pi / 8 + k * math.pi / 4
+            x, y = C + 168 * math.cos(a), C + 168 * math.sin(a)
+            out = over(out, shade(disc(15, x, y), 'gold', bevel=4, depth=8), shadow=False)
+            out = over(out, shade(disc(10, x, y), 'enamel:white' if k % 2 else 'enamel:red', bevel=8, depth=8, dome=1.0), shadow=False)
+        out = bold_emblem(out, src, 450, 'gold')
     elif no == 2:  # 双頭鷲武勲章: 교차검 + 청 칠보 몰타 십자 위에 큰 금 엠블럼(푸르 르 메리트형)
         out = over(out, shade(swords(640, spread=math.pi / 4), 'gold', bevel=5, depth=12))
         body = cross(300, 36, 156, notch=0.28)
