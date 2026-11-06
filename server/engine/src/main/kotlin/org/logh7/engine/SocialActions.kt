@@ -79,7 +79,7 @@ object SocialActions {
         if(r.identity.command in OrbitalStrikeActions.commands)return OrbitalStrikeActions.evaluate(g,r,session,p,s,navigators)
         // A detainee (U-25) cannot run social commands.
         if(p!=null && s.social.justice.detained(p.characterId))return SocialResult(p,s,SocialRejection.BUSY)
-        if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts)
+        if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts,countries)
         if(r.identity.command in AcademyActions.commands)return AcademyActions.evaluate(g,r,session,p,s,navigators,countries)
         if(r.identity.command==MeetingActions.MEETING)return MeetingActions.evaluate(r,session,p,s,navigators)
         val i=r.identity

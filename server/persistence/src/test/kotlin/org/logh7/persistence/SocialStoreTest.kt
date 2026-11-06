@@ -139,6 +139,27 @@ class SocialStoreTest {
         assertEquals(8,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
         assertEquals(4,SocialStateCodec.encode(SocialState()).split('|').size,"no proposals keep the old form")
     }
+    @Test fun proposalCountriesAndActualPaymentPoolsSurviveAWorldReopenWhileLegacyRowsKeepTheirGrammar() {
+        val original=listOf(
+            ProposalMail(1,10000,10001,17,19,ProposalActions.RESIGNATION,true,now,now+86400,pcp=80),
+            ProposalMail(2,10001,10000,19,17,ProposalActions.DISMISSAL,false,now,now+86400,mcp=80,target=10002,targetCard=19),
+            ProposalMail(3,10001,10000,19,17,ProposalActions.APPOINTMENT,false,now,now+86400,mcp=80,target=10001,targetCard=18,seat=1049))
+        val old=SocialState(nextId=4,proposals=ProposalState(original))
+        val oldText=SocialStateCodec.encode(old)
+        assertEquals(listOf(12,14,15),oldText.split('|')[7].substringBefore('/').split(',').map {it.split(':').size})
+        assertEquals(old,SocialStateCodec.decode(oldText));assertEquals(oldText,SocialStateCodec.encode(SocialStateCodec.decode(oldText)))
+        assertTrue(SocialStateCodec.decode(oldText).proposals.mails.all {it.originCountry==CountryId(2) && it.country==null})
+        val actual=old.copy(proposals=ProposalState(original.mapIndexed {i,m->m.copy(country=CountryId(if(i==2)43 else 42))}))
+        val encoded=SocialStateCodec.encode(actual)
+        assertTrue(encoded.split('|')[7].substringBefore('/').split(',').all {it.split(':').size==16})
+        assertEquals(actual,SocialStateCodec.decode(encoded))
+        assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(encoded.replace(":0:0:0:42,",":0:0:0:0,"))}
+        val saved=stocks.copy(social=actual)
+        val player=Navigator(1,10000,CountryId(42),2487,920,0,1000,shipStyle=ShipStyleId("alliance"),pcpUsed=80)
+        val path=directory.resolve("proposals-country")
+        FileWorldStateStore(path).use {it.saveWorld(mapOf("actor" to player),saved)}
+        FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks());assertEquals(player,it.loadNavigation()["actor"])}
+    }
     @Test fun coupPlotsAndLoyaltyRoundTripAsAnOptionalTenthField() {
         val coup=CoupState(mapOf(10000 to Plot(10000,2,100,setOf(10003),listOf(10002,10001),500,setOf(1049))),mapOf(7 to 20))
         val state=SocialState(coup=coup)

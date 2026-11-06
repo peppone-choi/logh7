@@ -4,7 +4,7 @@ package org.logh7.engine
  * 命令/提案 mail (CD manual p.28, design-proposals-orders.md, approved 2026-11-01).
  * [card] is the recipient's office card whose mailbox shows the row, [command] the native command opcode
  * paired with the 0x0f13 row. [reply] -1 waits; 0 拒否, 1 拒絶, 2 オウム返し (the CD's three buttons) and
- * 3 承諾 (the compatibility DLL's approval button). [pcp]/[mcp] are the sender's half of the command cost.
+ * 3 承諾 (the compatibility DLL's approval button). [pcp]/[mcp] record the sender's actual payment pools.
  * Author: Peppone Choi.
  */
 data class ProposalMail(val id:Int,val sender:Int,val recipient:Int,val senderCard:Int,val card:Int,val command:Int,
@@ -12,11 +12,14 @@ data class ProposalMail(val id:Int,val sender:Int,val recipient:Int,val senderCa
     /** A third person the command acts on (dismissal) and that person's card; 0 when the recipient itself is the subject. */
     val target:Int=0,val targetCard:Int=0,
     /** Appointment: the seat (base or outfit id) the target is appointed to; 0 otherwise. */
-    val seat:Int=0) {
+    val seat:Int=0,
+    /** Null only in old records whose original 2/3 country is identified by the office card. */
+    val country:CountryId?=null) {
     init {require(id>0 && sender>0 && recipient>0 && sender!=recipient && senderCard in 0..260 && card in 1..260 &&
         command in 0..0xffff && createdAt in 0..expiresAt && expiresAt<=0xffffffffL && reply in -1..3 && pcp>=0 && mcp>=0 &&
         target>=0 && targetCard in 0..260 && (target==0)==(targetCard==0) && seat>=0 && (seat==0 || target>0))}
     val pending get()=reply<0
+    val originCountry get()=country ?: OrganizationOffices.of(card)?.let {CountryId(it.power)}
 }
 /** [blocked] keys are (sender,recipient,command) refused with 拒絶, valued by the game second the refusal ends. */
 data class ProposalState(val mails:List<ProposalMail> = emptyList(),val blocked:Map<Triple<Int,Int,Int>,Long> = emptyMap()) {
@@ -34,12 +37,12 @@ object Proposals {
     const val REFUSE=1
     /** Creates a pending row; the caller has checked range, cards and paid the sender's half. */
     fun open(state:ProposalState,id:Int,sender:Int,recipient:Int,senderCard:Int,card:Int,command:Int,order:Boolean,
-        now:Long,pcp:Int,mcp:Int,target:Int=0,targetCard:Int=0,seat:Int=0):Pair<ProposalState,ProposalRejection?> {
+        now:Long,pcp:Int,mcp:Int,target:Int=0,targetCard:Int=0,seat:Int=0,country:CountryId?=null):Pair<ProposalState,ProposalRejection?> {
         if((state.blocked[Triple(sender,recipient,command)] ?: 0)>now)return state to ProposalRejection.BLOCKED
         val live=state.mails.filter {it.expiresAt>now || !it.pending}
         if(live.size>=4096 || now>0xffffffffL-LIFETIME)return state to ProposalRejection.MAXIMUM
         val mail=ProposalMail(id,sender,recipient,senderCard,card,command,order,now,now+LIFETIME,pcp=pcp,mcp=mcp,
-            target=target,targetCard=targetCard,seat=seat)
+            target=target,targetCard=targetCard,seat=seat,country=country)
         return state.copy(mails=live+mail,blocked=state.blocked.filterValues {it>now}) to null
     }
     /** The recipient answers a pending row once. 拒絶 also blocks the same command from the same sender for a day. */

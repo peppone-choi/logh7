@@ -23,30 +23,47 @@ object ProposalActions {
     val costs=mapOf(RESIGNATION to 80L,DISMISSAL to 160L,APPOINTMENT to 160L)
     /** (card, seat) vacancies [actor] may fill with [candidate]: the actor's appointment authority with a free seat,
      * the candidate's rank eligible, not already holding the card and under the 14-card limit. Old fleet fields excluded. */
-    fun vacancies(g:Galaxy,s:PlanetStocks,actor:Int,power:Int,rank:Int,candidate:Int,candidateRank:Int):List<Pair<Int,Int>> {
-        val policy=OrganizationalOfficePolicy(g)
-        if(candidate==actor || policy.cardCount(s,candidate)>=14)return emptyList()
-        val held=policy.held(s,candidate).map {it.card}.toSet()
+    fun vacancies(g:Galaxy,s:PlanetStocks,actor:Int,power:Int,rank:Int,candidate:Int,candidateRank:Int,
+        countries:CountryCatalog=CountryCatalogLoader.current()):List<Pair<Int,Int>> {
+        if(power !in countries.countries)return emptyList()
+        val country=CountryId(power);val policy=OrganizationalOfficePolicy(g,countries)
+        val holdings=policy.held(s,candidate).filter {it.country==country}
+        val count=holdings.size+(if(s.strategic.people[candidate]?.peerage!=null)1 else 0)+
+            FundActions.governed(g,s,candidate,country,countries,card=66).size
+        if(candidate==actor || count>=14)return emptyList()
+        val held=holdings.map {it.card}.toSet()
         return policy.available(s,actor,power,rank).flatMap {(card,seats)->
-            val role=checkNotNull(OrganizationOffices.of(card))
+            val role=checkNotNull(policy.role(card,country))
             if(FleetOffice.of(card)!=null || card in held || !role.eligible(rank,candidateRank))emptyList()
             else seats.filter {role.scope!=OfficeScope.OUTFIT || candidate !in s.outfits.getValue(it).members()}.map {card to it}
         }.sortedWith(compareBy({it.first},{it.second}))
     }
-    /** Runs an approved command for its recipient; false when it can no longer be done. */
-    private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,power:Int,rank:Int):PlanetStocks? {
-        val policy=OrganizationalOfficePolicy(g)
+    /** Rank comparison follows the configured rank system, independently of office and display templates. */
+    fun rank(s:PlanetStocks,character:Int,country:CountryId,fallback:Int,countries:CountryCatalog=CountryCatalogLoader.current()):Int {
+        val family=countries.countries[country.value]?.let {countries.families.getValue(it.family)} ?: return fallback
+        val person=s.strategic.people[character] ?: StrategicPerson()
+        return if(family.ranks=="empire")person.ladderRank(fallback) else person.rank ?: fallback
+    }
+    /** Runs an approved command only while its country, current people and post still permit it. */
+    private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,rank:Int,players:Map<String,Navigator>,
+        countries:CountryCatalog):PlanetStocks? {
+        val country=mail.originCountry?.takeIf {it.value in countries.countries} ?: return null
+        fun belongs(id:Int)=players.values.singleOrNull {it.generation==s.generation && it.characterId==id}?.country==country
+        if(!belongs(mail.sender) || !belongs(mail.recipient) || mail.target>0 && !belongs(mail.target))return null
+        val policy=OrganizationalOfficePolicy(g,countries)
+        if(policy.holders(s,mail.card,country).none {it.character==mail.recipient})return null
         return when(mail.command) {
-            RESIGNATION -> policy.holders(s,mail.card).filter {it.character==mail.recipient}.singleOrNull()?.let {policy.set(s,it,remove=true)}
+            RESIGNATION -> policy.holders(s,mail.card,country).filter {it.character==mail.recipient}.singleOrNull()?.let {policy.set(s,it,remove=true)}
             DISMISSAL -> {
-                val dismissal=OfficeDismissalPolicy(g)
-                dismissal.available(s,mail.recipient,power,rank).singleOrNull {it.target==mail.target && it.card==mail.targetCard}
+                val dismissal=OfficeDismissalPolicy(g,countries)
+                dismissal.available(s,mail.recipient,country.value,rank).singleOrNull {it.target==mail.target && it.card==mail.targetCard}
                     ?.let {dismissal.clear(s,it)}
             }
             APPOINTMENT -> {
-                val candidateRank=(s.strategic.people[mail.target] ?: StrategicPerson()).ladderRank(20)
-                if(vacancies(g,s,mail.recipient,power,rank,mail.target,candidateRank).contains(mail.targetCard to mail.seat))
-                    policy.set(s,OfficeHolding(mail.targetCard,mail.seat,mail.target)) else null
+                val candidateRank=this.rank(s,mail.target,country,20,countries)
+                if(mail.target==mail.sender && vacancies(g,s,mail.recipient,country.value,rank,mail.target,candidateRank,countries)
+                        .contains(mail.targetCard to mail.seat))
+                    policy.set(s,OfficeHolding(mail.targetCard,mail.seat,mail.target,country)) else null
             }
             else -> null
         }
@@ -57,22 +74,26 @@ object ProposalActions {
     const val ABSENT_ORDER_SECONDS=3600L
     /** Expired rows refund the sender's half and absent recipients' due orders are approved (the recipient pays the
      * other half and the command runs). Runs in the periodic world tick and before each proposal action. */
-    fun settle(g:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks):PlanetStocks {
+    fun settle(g:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
         val now=session.gameMillis/1000
         fun keyOf(id:Int)=players.entries.singleOrNull {it.value.generation==session.generation && it.value.characterId==id}?.key
         var settled=s
         for(mail in Proposals.expired(s.social.proposals,now)) {
             val key=keyOf(mail.sender) ?: continue
-            players[key]=players.getValue(key).let {it.copy(mcp=Math.addExact(it.mcp,mail.mcp))}
+            players[key]=players.getValue(key).let {it.copy(pcp=Math.addExact(it.pcp,mail.pcp),mcp=Math.addExact(it.mcp,mail.mcp))}
         }
         if(Proposals.expired(s.social.proposals,now).isNotEmpty())
             settled=settled.copy(social=settled.social.copy(proposals=Proposals.withoutExpired(settled.social.proposals,now)))
-        val policy=OrganizationalOfficePolicy(g)
+        val policy=OrganizationalOfficePolicy(g,countries)
         // Office mail belongs to the post (user decision 2026-11-01): a pending row whose recipient no longer holds the
         // card passes to the card's single current holder; a vacant or shared post keeps it until it expires.
         val moved=settled.social.proposals.mails.map {mail ->
-            if(!mail.pending || policy.held(settled,mail.recipient).any {it.card==mail.card})mail
-            else policy.holders(settled,mail.card).map {it.character}.distinct().singleOrNull()
+            val country=mail.originCountry
+            fun currentHolder(id:Int)=keyOf(id)?.let {players.getValue(it).country==country} ?: true
+            if(!mail.pending || country==null || currentHolder(mail.recipient) &&
+                policy.holders(settled,mail.card,country).any {it.character==mail.recipient})mail
+            else policy.holders(settled,mail.card,country).map {it.character}.filter(::currentHolder).distinct().singleOrNull()
                 ?.takeIf {it!=mail.sender}?.let {mail.copy(recipient=it)} ?: mail
         }
         if(moved!=settled.social.proposals.mails)
@@ -81,29 +102,32 @@ object ProposalActions {
             val key=keyOf(mail.recipient) ?: continue
             if(session.participants[key]?.online==true)continue
             val recipient=players.getValue(key)
-            val country=recipient.country?.value?.takeIf {it in 2..3} ?: continue
-            val paid=CpPayment.charge(CpBalance(recipient.pcp.toLong(),recipient.mcp.toLong()),costs.getValue(mail.command)-mail.mcp,CpPool.MCP)
+            val country=recipient.country?.takeIf {it==mail.originCountry && it.value in countries.countries} ?: continue
+            if(recipient.cpPaused || recipient.navigationPending)continue
+            val cost=costs[mail.command]?.div(2) ?: continue
+            val paid=CpPayment.charge(CpBalance(recipient.pcp.toLong(),recipient.mcp.toLong()),cost,CpPool.MCP)
             if(paid !is PaymentResult.Paid)continue
             val (answered,refused)=Proposals.reply(settled.social.proposals,mail.id,mail.recipient,Proposals.APPROVE,now)
             if(refused!=null)continue
-            val rank=(settled.strategic.people[mail.recipient] ?: StrategicPerson()).ladderRank(20)
-            settled=execute(g,mail,settled.copy(social=settled.social.copy(proposals=answered)),
-                country,rank) ?: continue
+            val rank=rank(settled,mail.recipient,country,20,countries)
+            settled=execute(g,mail,settled.copy(social=settled.social.copy(proposals=answered)),rank,players,countries) ?: continue
             players[key]=recipient.paidWith(paid.balance)
         }
         return settled
     }
-    fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
-        if(p==null)return act(g,r,session,p,s,accounts)
+    fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>,
+        countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
+        if(p==null)return act(g,r,session,p,s,accounts,countries)
         val players=LinkedHashMap(accounts).also {it[r.identity.account]=p}
-        val settled=settle(g,session,players,s)
+        val settled=settle(g,session,players,s,countries)
         val self=players.getValue(r.identity.account)
         val changed=players.filter {(k,v)->k!=r.identity.account && accounts[k]!=v}
-        if(settled==s && self==p)return act(g,r,session,p,s,accounts)
-        val result=act(g,r,session,self,settled,players)
+        if(settled==s && self==p)return act(g,r,session,p,s,accounts,countries)
+        val result=act(g,r,session,self,settled,players,countries)
         return if(result.rejection!=null)SocialResult(p,s,result.rejection) else result.copy(navigators=changed+result.navigators)
     }
-    private fun act(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>):SocialResult {
+    private fun act(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>,
+        countries:CountryCatalog):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         val member=session.participants[i.account]
@@ -111,41 +135,42 @@ object ProposalActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
+        if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
-        val policy=OrganizationalOfficePolicy(g)
+        val policy=OrganizationalOfficePolicy(g,countries)
         val proposals=s.social.proposals
         if(i.command==REPLY) {
             val mail=proposals.mails.singleOrNull {it.id==i.target} ?: return reject(SocialRejection.STALE)
+            if(mail.originCountry!=i.country)return reject(SocialRejection.IDENTITY)
+            if(policy.holders(s,mail.card,i.country).none {it.character==i.characterId})return reject(SocialRejection.CARD)
             val (answered,refused)=Proposals.reply(proposals,i.target,i.characterId,i.value,now)
             if(refused!=null)return reject(if(refused==ProposalRejection.NOT_RECIPIENT)SocialRejection.IDENTITY else SocialRejection.STALE)
             var next=s.copy(social=s.social.copy(proposals=answered))
             if(i.value!=Proposals.APPROVE)return SocialResult(p,next,changed=true)
-            val cost=costs.getValue(mail.command)-mail.mcp
+            val cost=costs[mail.command]?.div(2) ?: return reject(SocialRejection.COMMAND)
             val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
             if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
-            next=execute(g,mail,next,if(p.power==Power.EMPIRE)2 else 3,
-                (s.strategic.people[i.characterId] ?: StrategicPerson()).ladderRank(i.rank)) ?: return reject(SocialRejection.CARD)
+            next=execute(g,mail,next,rank(s,i.characterId,i.country,i.rank,countries),accounts,countries)
+                ?: return reject(SocialRejection.CARD)
             return SocialResult(p.paidWith(paid.balance),next,changed=true)
         }
         if(i.command!=OPEN)return reject(SocialRejection.COMMAND)
         val cost=costs[i.value] ?: return reject(SocialRejection.COMMAND)
         if(i.target<=0 || i.target==i.characterId)return reject(SocialRejection.COMMAND)
-        if(policy.held(s,i.characterId).none {it.card==i.card})return reject(SocialRejection.CARD)
+        if(policy.holders(s,i.card,i.country).none {it.character==i.characterId})return reject(SocialRejection.CARD)
         val recipient=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
             ?: return reject(SocialRejection.LOCATION)
         // CD p.28: not in tactics; the same spot inside a facility, otherwise the same grid.
         if(recipient.country!=p.country || recipient.cpPaused || recipient.grid!=p.grid ||
             p.spotId!=0 && (recipient.baseId!=p.baseId || recipient.spotId!=p.spotId || recipient.spotOwner!=p.spotOwner))
             return reject(SocialRejection.LOCATION)
-        if(policy.held(s,i.target).none {it.card==i.argument})return reject(SocialRejection.CARD)
+        if(policy.holders(s,i.argument,i.country).none {it.character==i.target})return reject(SocialRejection.CARD)
         val emperor=i.card==1
-        if(!emperor && OrganizationOffices.of(i.card)?.institution.let {it==null || it!=OrganizationOffices.of(i.argument)?.institution})
+        if(!emperor && policy.role(i.card,i.country)?.institution.let {it==null || it!=policy.role(i.argument,i.country)?.institution})
             return reject(SocialRejection.CARD)
         val people=s.strategic.people
         val sender=people[i.characterId] ?: StrategicPerson(rank=i.rank)
-        val senderRank=sender.ladderRank(i.rank);val recipientRank=(people[i.target] ?: StrategicPerson()).ladderRank(20)
+        val senderRank=rank(s,i.characterId,i.country,i.rank,countries);val recipientRank=rank(s,i.target,i.country,20,countries)
         // 命令 goes down the ranks, 提案 up (a smaller rank number is senior); the emperor orders everyone.
         val order=emperor || senderRank<=recipientRank
         if(sender.influence<1)return reject(SocialRejection.RANK)
@@ -154,17 +179,19 @@ object ProposalActions {
         val target=when(i.value) {DISMISSAL -> i.base;APPOINTMENT -> i.characterId;else -> 0}
         val targetCard=if(i.value==DISMISSAL || i.value==APPOINTMENT)i.amount.toInt() else 0
         val seat=if(i.value==APPOINTMENT)i.base else 0
-        val power=if(p.power==Power.EMPIRE)2 else 3
-        if(i.value==DISMISSAL && OfficeDismissalPolicy(g).available(s,i.target,power,recipientRank)
+        if(target>0 && accounts.values.singleOrNull {it.generation==i.generation && it.characterId==target}?.country!=i.country)
+            return reject(SocialRejection.TARGET)
+        val power=i.country.value
+        if(i.value==DISMISSAL && OfficeDismissalPolicy(g,countries).available(s,i.target,power,recipientRank)
                 .none {it.target==target && it.card==targetCard})return reject(SocialRejection.TARGET)
-        if(i.value==APPOINTMENT && (targetCard to seat) !in vacancies(g,s,i.target,power,recipientRank,i.characterId,senderRank))
+        if(i.value==APPOINTMENT && (targetCard to seat) !in vacancies(g,s,i.target,power,recipientRank,i.characterId,senderRank,countries))
             return reject(SocialRejection.TARGET)
         val half=cost/2
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),half,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         if(s.social.nextId==Int.MAX_VALUE)return reject(SocialRejection.MAXIMUM)
-        val (opened,refused)=Proposals.open(proposals,s.social.nextId,i.characterId,i.target,i.card,i.argument,i.value,order,now,0,half.toInt(),
-            target,targetCard,seat)
+        val (opened,refused)=Proposals.open(proposals,s.social.nextId,i.characterId,i.target,i.card,i.argument,i.value,order,now,
+            (p.pcp-paid.balance.pcp).toInt(),(p.mcp-paid.balance.mcp).toInt(),target,targetCard,seat,i.country)
         if(refused!=null)return reject(if(refused==ProposalRejection.BLOCKED)SocialRejection.COOLDOWN else SocialRejection.MAXIMUM)
         val next=s.copy(social=s.social.copy(nextId=s.social.nextId+1,proposals=opened),
             strategic=s.strategic.copy(people=people+(i.characterId to sender.copy(influence=sender.influence-1))))

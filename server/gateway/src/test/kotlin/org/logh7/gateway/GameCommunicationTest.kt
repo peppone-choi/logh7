@@ -24,6 +24,28 @@ class GameCommunicationTest {
             List(8){50},0,0,0,20,0,0,"Ship",1),
         Navigator(7,owner.character,if(owner.power==2)Power.EMPIRE else Power.ALLIANCE,2487,1000,1000,1000,
             baseId=1049,mode=4,spotId=10490001),received::add)
+    @Test fun proposalOfficeRowsUseCurrentActualMembershipAndKeepNominalCostWhenTheSenderPaidPcp() {
+        val hub=GamePresence();val messages=mutableListOf<List<ByteArray>>()
+        val owner=a;val sender=b.copy(power=2)
+        val post=19
+        hub.update(member(owner,"first",messages).let {it.copy(player=it.player.copy(country=CountryId(42)),
+            offices=listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(post,1049)))})
+        val identities=mapOf(owner.character to owner,sender.character to sender)
+        val mail=ProposalMail(1,sender.character,owner.character,17,post,ProposalActions.RESIGNATION,true,100,86500,pcp=80,country=CountryId(42))
+        val state=ProposalState(listOf(mail,mail.copy(id=2,country=CountryId(43)),mail.copy(id=3,country=null)))
+        var country:CountryId?=CountryId(42)
+        GameCommunication(hub,{7},{_,id->identities[id]},{false},{Store()},proposals={state},country={_,_->country}).use {service->
+            val query=Wire.Query(peer(owner).copy(extra=listOf(0,0,post)),true,true)
+            fun rows()=service.handle("first",owner,7,body(Wire.begin(query)),200)
+            val received=rows();assertEquals(1,received.count {opcode(it)==0x0f13})
+            val packet=received.single {opcode(it)==0x0f13};val row=ByteBuffer.wrap(packet)
+            assertEquals(1,row.getInt(6));assertEquals(80,row.getInt(packet.size-8));assertEquals(0,row.getInt(packet.size-4))
+            val paired=ByteBuffer.wrap(received.single {opcode(it)==0x0709})
+            assertEquals(40,paired.getInt(18),"the recipient still owes half of the 80 MCP command")
+            country=CountryId(43);val foreign=rows();assertEquals(2,ByteBuffer.wrap(foreign.single {opcode(it)==0x0f13}).getInt(6))
+            country=null;assertTrue(rows().none {opcode(it)==0x0f13})
+        }
+    }
     @Test fun consentThenKoreanMailOfflineDeliveryReadDeleteAndReconnectUseRealCodecs() {
         val hub=GamePresence();val messagesA=mutableListOf<List<ByteArray>>();val messagesB=mutableListOf<List<ByteArray>>()
         val first=member(a,"first",messagesA);val second=member(b,"second",messagesB)

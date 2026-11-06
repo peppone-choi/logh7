@@ -167,7 +167,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},
             {generation->communicationStore(characterFile,generation)},
             proposals={_->navigation?.snapshot()?.planetStocks?.social?.proposals},
-            rank={id->navigation?.snapshot()?.planetStocks?.strategic?.people?.get(id)?.rank})}
+            rank={id->navigation?.snapshot()?.planetStocks?.strategic?.people?.get(id)?.rank},
+            country={epoch,id->WorldCharacters.identities(characterStores.get(epoch).profiles(),navigation?.snapshot())
+                .singleOrNull {it.id==id}?.country})}
         strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
             navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
         }}
