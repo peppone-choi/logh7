@@ -25,7 +25,7 @@ class AppointmentTransactionTest {
             try {
                 val joined=CompletableDeferred<Admission>()
                 engine.submit(WorldCommand.Join("pilot",power,false,joined,"c",1));assertEquals(Admission.ACCEPTED,joined.await())
-                val request=query.copy(power=power,base=base,targetCard=rule.card,targetCountry=power.country,
+                val request=query.copy(country=power.country,base=base,targetCard=rule.card,targetCountry=power.country,
                     actorRank=when(rule.card){192->1;193->5;else->2},targetRank=rule.lowest)
                 val before=engine.snapshot()
                 if(fail) {

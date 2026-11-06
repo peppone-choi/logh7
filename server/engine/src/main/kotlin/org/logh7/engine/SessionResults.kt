@@ -52,7 +52,7 @@ object SessionResults {
      * when every holder is located elsewhere (or nobody holds either seat), null when a holder has no recorded
      * position (an NPC), so the grade stays UNRESOLVED rather than guessed. */
     fun imperialLeaderAtEnemyCapital(stocks:PlanetStocks,navigators:Collection<Navigator>):Boolean? {
-        val holders=stocks.strategic.offices.filter {it.card==1 || it.card==68}.map {it.character}.toSet()+
+        val holders=stocks.strategic.offices.filter {it.country==CountryId(2) && (it.card==1 || it.card==68)}.map {it.character}.toSet()+
             listOfNotNull(stocks.nationalOffices[NationalOffice.IMPERIAL_SUPREME_COMMANDER])
         if(holders.isEmpty())return false
         val located=navigators.filter {it.characterId in holders}

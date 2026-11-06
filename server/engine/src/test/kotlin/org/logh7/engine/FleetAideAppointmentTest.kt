@@ -58,7 +58,7 @@ class FleetAideAppointmentTest {
             outfits=mapOf(200 to stocks.outfits.getValue(200).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))),
             warehouses=mapOf(300 to stocks.warehouses.getValue(300).copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3))))
         val state=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.ALLIANCE,false,"c")}.exportState()
-        val r=request.copy(power=Power.ALLIANCE,targetCard=179,actorRank=6,targetCountry=CountryId(3))
+        val r=request.copy(country=CountryId(3),targetCard=179,actorRank=6,targetCountry=CountryId(3))
         val result=GarrisonAppointment.evaluate(galaxy,r,state,player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE)),allied)
         assertNull(result.rejection);assertEquals(10001,result.stocks!!.outfits.getValue(200).aideId)
         assertEquals(listOf(200),FleetAideAppointmentPolicy().available(allied,10000,3,6).map {it.id})

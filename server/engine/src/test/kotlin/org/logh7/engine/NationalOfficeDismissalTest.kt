@@ -27,7 +27,7 @@ class NationalOfficeDismissalTest {
             nationalOffices=mapOf(checkNotNull(role.appointer) to 10000,role to 10001))
     }
     private fun act(q:OfficeDismissalRequest,stocks:PlanetStocks,player:Navigator):OfficeDismissalResult {
-        val session=SessionSimulation(SessionRules.load()).also {it.join("actor",q.power,false,"c")}.exportState()
+        val session=SessionSimulation(SessionRules.load()).also {it.join("actor",q.country,false,"c")}.exportState()
         return OfficeDismissal.evaluate(galaxy,q,session,player,stocks)
     }
 

@@ -149,7 +149,7 @@ class GameExchange(
             presence?.refreshCharacter(c,other,offices(c,other),gameSeconds(),administration?.stationedOutfit(other) ?: 0)}}
     }
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
-        administration?.offices(character.id.toInt(), character.power, player.generation).orEmpty()
+        player.country?.let {administration?.offices(character.id.toInt(), it.value, player.generation)}.orEmpty()
     private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
         player.hull?.let { hull -> org.logh7.engine.Flagships.find(hull.kind)?.let {
             character.copy(shipKind=it.kind,shipType=it.type) } } ?: character
@@ -781,8 +781,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         require(query.character==character.id.toInt())
                         pendingWorld=administration.resignOffice(org.logh7.engine.OfficeResignationRequest(
-                            identity.account,connection,query.character,
-                            if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            identity.account,connection,query.character,currentProfile(identity.account,query.character).country,
                             checkNotNull(generation),query.card,character.abilities[1],character.abilities[2])).thenApply { result ->
                             val player=checkNotNull(result.player) { "Resignation lost its authenticated actor" }
                             publication=Publication(character,player,false)
@@ -809,8 +808,7 @@ class GameExchange(
                         require(query.character==character.id.toInt())
                         val target=currentCharacterById(query.target)
                         pendingWorld=administration.appointGarrison(org.logh7.engine.GarrisonAppointmentRequest(
-                            identity.account,connection,character.id.toInt(),
-                            if (character.power==2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            identity.account,connection,character.id.toInt(),currentProfile(identity.account,character.id.toInt()).country,
                             checkNotNull(generation),query.base,query.target,query.card,character.rank,target?.rank ?: -1,
                             WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).singleOrNull {it.id==query.target}?.country,
                             character.abilities[1],character.abilities[2],query.outfit)).thenApply { result ->
@@ -835,8 +833,7 @@ class GameExchange(
                         require(query.character==character.id.toInt())
                         val target=currentCharacterById(query.target)
                         pendingWorld=administration.dismissOffice(org.logh7.engine.OfficeDismissalRequest(
-                            identity.account,connection,query.character,
-                            if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            identity.account,connection,query.character,currentProfile(identity.account,query.character).country,
                             checkNotNull(generation),query.target,query.card,character.rank,
                             WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).singleOrNull {it.id==query.target}?.country,
                             character.abilities[1],character.abilities[2])).thenApply { result ->

@@ -26,13 +26,16 @@ data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val s
     val offices:List<OfficeHolding> = emptyList(),val fiefs:Map<Int,Int> = emptyMap(),
     val operations:List<StrategicOperation> = emptyList(),
     /** U-15 transport packages, in the source warehouse or aboard a transport outfit. */
-    val transports:List<TransportPackage> = emptyList()) {
+    val transports:List<TransportPackage> = emptyList(),
+    val capitals:Map<CountryId,Int> = emptyMap()) {
+    val countryOffices:Boolean get()=capitals.isNotEmpty() || offices.any {it.country.value!=OrganizationOffices.all.getValue(it.card).power}
     init {
         require(people.size<=4096 && people.keys.all {it>0} && suppressions.size<=128)
         require(suppressions.distinctBy {it.character}.size==suppressions.size)
         require(offices.size<=4096 && offices.distinct().size==offices.size)
         require(offices.all {OrganizationOffices.of(it.card)!=null})
-        require(offices.groupBy {it.card to it.seat}.all {(key,seats)->seats.size<=OrganizationOffices.all.getValue(key.first).seats})
+        require(offices.groupBy {Triple(it.country,it.card,it.seat)}.all {(key,seats)->seats.size<=OrganizationOffices.all.getValue(key.second).seats})
+        require(capitals.size<=350 && capitals.values.all {it in 1..65535} && capitals.values.distinct().size==capitals.size)
         require(fiefs.size<=350 && fiefs.all {(base,owner)->base in 1..65535 && owner>0})
         require(operations.size<=256 && operations.distinctBy {it.id}.size==operations.size && operations.count {it.live}<=128)
         require(transports.size<=4096 && transports.distinctBy {it.id}.size==transports.size)
@@ -45,7 +48,7 @@ data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val s
         return copy(people=map(people.mapValues {(_,p)->p.copy(abilities=p.abilities?.let {list(it)},decorations=set(p.decorations))}),
             suppressions=list(suppressions),offices=list(offices),fiefs=map(fiefs),
             operations=list(operations.map {it.copy(outfits=set(it.outfits),characters=set(it.characters),defended=set(it.defended))}),
-            transports=list(transports))
+            transports=list(transports),capitals=map(capitals))
     }
 }
 data class StrategyActionRequest(val account:String,val connection:String,val characterId:Int,val country:CountryId?,

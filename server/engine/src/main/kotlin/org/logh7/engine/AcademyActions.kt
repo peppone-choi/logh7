@@ -86,7 +86,7 @@ object AcademyActions {
         if(r.phase==0)return SocialResult(p,s,academy=view)
         if(r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
         if(i.command==LECTURE && (i.card !in lecturerCards ||
-                s.strategic.offices.none {it.card==i.card && it.character==i.characterId}))return reject(SocialRejection.CARD,view)
+                s.strategic.offices.none {it.country==i.country && it.card==i.card && it.character==i.characterId}))return reject(SocialRejection.CARD,view)
         if(i.command!=LECTURE && i.card!=0)return reject(SocialRejection.CARD,view)
         if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || p.warpTarget!=null)return reject(SocialRejection.BUSY,view)
         if(!inRoom)return reject(SocialRejection.LOCATION,view)

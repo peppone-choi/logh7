@@ -107,7 +107,7 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         if (stocks.generation != player.generation) return 0
         // One unambiguous fleet office at the actual deployment, including space.
         return stocks.outfits.values.singleOrNull { player.characterId in it.members() &&
-            it.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
+            it.country == player.country &&
                 it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId } }?.id ?: 0
     }
     override fun transferGround(request: GroundTransferRequest): CompletableFuture<GroundTransferResult> {
@@ -165,8 +165,8 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         val stocks = engine.snapshot().planetStocks ?: return emptyList()
         if (stocks.generation != generation) return emptyList()
         val policy=OrganizationalOfficePolicy(galaxy)
-        val cards=(policy.held(stocks,characterId).filter {OrganizationOffices.of(it.card)?.power==power}.map {holding ->
-            org.logh7.protocol.BootstrapMessages.OfficeCard(holding.card,policy.target(checkNotNull(OrganizationOffices.of(holding.card)),holding.seat))
+        val cards=(policy.held(stocks,characterId).filter {it.country.value==power}.map {holding ->
+            org.logh7.protocol.BootstrapMessages.OfficeCard(holding.card,policy.target(checkNotNull(policy.role(holding.card,holding.country)),holding.seat))
         }+stocks.strategic.people[characterId]?.peerage?.let {title->
             listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(60+title.ordinal,0))}.orEmpty()+
             stocks.strategic.fiefs.filterValues {it==characterId}.keys.map {org.logh7.protocol.BootstrapMessages.OfficeCard(66,it)})

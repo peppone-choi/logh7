@@ -65,9 +65,12 @@ class NavigationCountryTest {
         assertEquals(0,saves)
     }
 
-    @Test fun unsupportedMembershipOrStyleStopsBeforeSessionRecoveryAndClosesAllStores()=runBlocking {
-        for(player in listOf(pilot.copy(country=CountryId(42)),pilot.copy(country=null),
-            pilot.copy(shipStyle=ShipStyleId("custom_style")))) {
+    @Test fun unsupportedMembershipStyleOrOfficeCountryStopsBeforeSessionRecoveryAndClosesAllStores()=runBlocking {
+        val snapshots=listOf(pilot.copy(country=CountryId(42)) to stock,pilot.copy(country=null) to stock,
+            pilot.copy(shipStyle=ShipStyleId("custom_style")) to stock,
+            pilot to stock.copy(strategic=StrategicState(offices=listOf(OfficeHolding(24,1049,10001,CountryId(42))))),
+            pilot to stock.copy(strategic=StrategicState(capitals=mapOf(CountryId(3) to 1049))))
+        for((player,inventorySnapshot) in snapshots) {
             var loads=0;var commits=0;var closed=0
             val session=object:SessionDurability {
                 override fun load():DurableWorldState {loads++;error("No recovery may begin")}
@@ -75,7 +78,7 @@ class NavigationCountryTest {
                 override fun close() {closed++}
             }
             val inventory=object:PlanetStockStore {
-                override fun load()=stock
+                override fun load()=inventorySnapshot
                 override fun save(stocks:PlanetStocks) {commits++}
                 override fun close() {closed++}
             }
