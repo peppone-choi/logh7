@@ -711,7 +711,7 @@ static void install() {
     if (!installFortressCommandMenu()) { status = -3; return; }
     if (!installTacticalDeparture()) { status = -3; return; }
     if (!installDisplayNames()) { status = -3; return; }
-    if (!installLobbyPillarbox()) { status = -3; return; }
+    if (!installLobbyPillarbox() || !installUiScale()) { status = -3; return; }
     if (!installMailInput()) { status = -3; return; }
     if (!installMailLabels()) { status = -3; return; }
     if (!installKoreanDialogs() || !installKoreanLiteralText() || !installLobbyEmptyNotice() || !installKoreanLegacyHud() || !installNameCardLabels() ||

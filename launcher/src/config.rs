@@ -15,6 +15,20 @@ pub struct Config {
     pub login_ui: bool,
     /// 화면 크기(GraphicConfig.txt). 없으면 클라이언트 설정을 그대로 둔다.
     pub resolution: Option<(u32, u32)>,
+    /// 게임 화면 전체 배율. auto(기본)는 보기 창이 1080보다 높으면 높이÷1080, 1은 끄기.
+    pub ui_scale: String,
+}
+
+/// `auto` 또는 1~4 사이 수. DLL이 LOGH7_UI_SCALE로 받는다.
+pub fn parse_ui_scale(text: &str) -> Result<String, String> {
+    let text = text.trim();
+    if text.is_empty() || text.eq_ignore_ascii_case("auto") {
+        return Ok("auto".into());
+    }
+    match text.parse::<f32>() {
+        Ok(value) if (1.0..=4.0).contains(&value) => Ok(text.to_owned()),
+        _ => Err("ui_scale은 auto 또는 1~4 사이 수입니다".into()),
+    }
 }
 
 impl Config {
@@ -38,6 +52,7 @@ impl Config {
                 "credential",
                 "login_ui",
                 "resolution",
+                "ui_scale",
             ]
             .contains(&key)
             {
@@ -96,8 +111,10 @@ impl Config {
             .filter(|v| !v.is_empty())
             .map(|v| crate::graphic_config::parse_resolution(v))
             .transpose()?;
+        let ui_scale = parse_ui_scale(values.get("ui_scale").copied().unwrap_or("auto"))?;
         Ok(Self {
             resolution,
+            ui_scale,
             client_root: directory.join(required("client_root")?),
             host,
             port,
@@ -151,6 +168,21 @@ mod tests {
         let config =
             Config::parse(&format!("\u{feff}{BASE}\nlogin_ui=true\n"), Path::new(".")).unwrap();
         assert_eq!(config.arguments(), ["127.0.0.1", "47900", "ginei00"]);
+    }
+    #[test]
+    fn ui_scale_defaults_to_auto_and_accepts_one_to_four() {
+        assert_eq!(
+            Config::parse(BASE, Path::new(".")).unwrap().ui_scale,
+            "auto"
+        );
+        for (value, expected) in [("AUTO", "auto"), ("1", "1"), ("1.5", "1.5"), ("4", "4")] {
+            let config =
+                Config::parse(&format!("{BASE}\nui_scale={value}"), Path::new(".")).unwrap();
+            assert_eq!(config.ui_scale, expected);
+        }
+        for value in ["0.5", "5", "big"] {
+            assert!(Config::parse(&format!("{BASE}\nui_scale={value}"), Path::new(".")).is_err());
+        }
     }
     #[test]
     fn rejects_ambiguous_or_unrepresentable_configuration_without_echoing_secrets() {

@@ -127,6 +127,17 @@ Mid·Lo는 Hi의 2배·4배 축소판이다(302장씩 이름이 같고 Mid는 2�
 
 실기(Codex, `work/lobby-pillarbox-native-20261106/run-1920-07-a`): 코드 `024e1778`, DLL SHA256 `477e70628f173693cde357ca3126f848774ce2affa0de5a5493583301defab3e`로 1920×1080 로비 선택→전략에 진입했다. `game-render-1920-07-a.png`에서 좌측 x 743~758·우측 x 1097~1177의 위·아래 관 테두리가 이어졌고 초상·글자·패널의 새 겹침은 보이지 않았다. 중앙 패널의 원래 곡선 여백과 검은 내부는 남아 있으며 전체 HUD를 다시 그린 결과는 아니다. 실행 종료·Job 0·원본 해시 보존·활성 창/커서 불변과 DLL/설정 복원을 확인했다. QA 서버도 종료했다. 이 시험 환경의 1280 설정은 실제 1920으로 렌더되므로 같은 조건으로 중복 실행하지 않았다. 실제 1280 렌더·다른 해상도/DPI·IME는 이번에 확인하지 않았다. 이 결과로 전체 리마스터 체크는 완료 처리하지 않는다.
 
+### 2.4 게임 화면 전체 배율 (2026-11-07, 사용자 결정 B)
+
+고해상도에서 원본 픽셀 크기 HUD가 너무 작아지는 문제는 사용자가 시안 B(화면 전체 배율)를 골랐다(`work/ui-scale-20261107/` 시안). 원본 HUD는 렌더 = 기록 클라이언트(비율 1)일 때만 일관되므로(2.2 실기 05) HUD만 키우지 않고 프레임 전체를 낮은 해상도로 렌더해 늘린다. `client-compat/ui_scale.h`는 다음처럼 동작한다.
+
+- 게임 화면에서 렌더 = 보기 창 ÷ 배율로 Reset하고, `0x4ea460` 뒤 기록 클라이언트를 렌더 크기로, `0x772e2c`/`0x772e30`을 1로 되돌린다.
+- 보기 창 마우스 메시지와 EXE의 `ScreenToClient`/`ClientToScreen`(보기 창·`app+0x2a5ec`)을 배율로 바꾼다. `0x500b70`의 GUI 커서는 `ScreenToClient(app+0x2a5ec)`를 쓴다.
+- 보기 창의 네이티브 자식 창(`CreateWindowExA`/`MoveWindow`/`SetWindowPos`/`DeferWindowPos`)은 위치·크기를 배율만큼 키운다. 글꼴은 그대로다.
+- 배율은 `LOGH7_UI_SCALE`(런처 `ui_scale`)이다. `auto`는 보기 창 높이가 1080을 넘으면 높이÷1080이고, 1은 끈다. 로그인·4:3 로비는 대상이 아니다.
+
+실기 확인은 아직 하지 않았다: 4K·1440p 보기 창에서 HUD·클릭·IME 입력창 위치·채팅 입력, 배율 1의 회귀.
+
 ## 3. 업스케일 실측 (2026-11-05)
 
 도구: Real-ESRGAN ncnn-vulkan 20220424(`E:\Tools\realesrgan-ncnn-vulkan`, 공식 릴리스 SHA-256 `abc02804…802d`), GTX 1660 Ti. 스크립트 [`tools/assets/upscale_assets.py`](../../tools/assets/upscale_assets.py)가 32비트 팔레트·RLE TGA를 직접 읽고, 투명 칸 색을 채운 뒤 색은 모델로, 알파는 Lanczos로 키운다. 출력은 `work/`로 제한한다.
