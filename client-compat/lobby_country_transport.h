@@ -6,6 +6,9 @@ static struct LobbyCountryInbox {
     logh::LobbySessionList sessions={};logh::LobbyCountryDraft draft={};logh::LobbyCountryPage published={};
     unsigned sequence=0,nonce=0;bool pending=false;ULONGLONG sentAt=0;
 } lobbyCountryInbox;
+static struct LobbyCountrySelectionInbox {
+    logh::LobbyCountrySelection choice={};unsigned nonce=0;ULONGLONG sentAt=0;
+} lobbyCountrySelectionInbox;
 static bool updateLobbyCountryWindow(void* controller);
 static unsigned __stdcall decodedLobbyCountrySessions(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x444900)(record,reader);
@@ -18,6 +21,11 @@ static unsigned __stdcall decodedLobbyCountrySessions(void* record,void* reader)
     return result;
 }
 static bool receiveLobbyCountries(const BYTE* record) {
+    if(record[8]>=8 && record[8]<=10) {
+        AcquireSRWLockExclusive(&lobbyCountryLock);
+        lobbyCountrySelectionInbox.choice.accept(record,24+10*36);
+        ReleaseSRWLockExclusive(&lobbyCountryLock);return true;
+    }
     if(record[8]!=7)return false;
     AcquireSRWLockExclusive(&lobbyCountryLock);
     auto& inbox=lobbyCountryInbox;
@@ -25,6 +33,21 @@ static bool receiveLobbyCountries(const BYTE* record) {
         inbox.published=inbox.draft.page;inbox.pending=false;++inbox.sequence;
     }
     ReleaseSRWLockExclusive(&lobbyCountryLock);return true;
+}
+static void resetLobbyCountrySelection() {
+    AcquireSRWLockExclusive(&lobbyCountryLock);lobbyCountrySelectionInbox.choice={};
+    ReleaseSRWLockExclusive(&lobbyCountryLock);
+}
+static bool requestLobbyCountrySelection(void* world,unsigned session,unsigned country,unsigned mode) {
+    if(!world)return false;
+    unsigned query[3]={};
+    AcquireSRWLockExclusive(&lobbyCountryLock);
+    auto& inbox=lobbyCountrySelectionInbox;
+    inbox.nonce=inbox.nonce%32767+1;
+    if(!inbox.choice.begin(session,country,mode,inbox.nonce)) {ReleaseSRWLockExclusive(&lobbyCountryLock);return false;}
+    inbox.sentAt=GetTickCount64();query[0]=country;query[1]=inbox.choice.queryBase();query[2]=mode;
+    ReleaseSRWLockExclusive(&lobbyCountryLock);
+    return reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x10,query)!=0;
 }
 static void resetLobbyCountries(bool sessions=false) {
     AcquireSRWLockExclusive(&lobbyCountryLock);

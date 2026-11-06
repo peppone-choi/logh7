@@ -4,7 +4,8 @@ static struct LobbyCountryWindow {
     void* gui=nullptr;void* root=nullptr;void* world=nullptr;
     unsigned mode=0,stage=0,session=0,country=0,offset=0,sessionOffset=0,rendered=~0u;
     unsigned widths[114]={},heights[114]={};bool buttons[114]={};
-    bool active=false,lotteryChosen=false;ULONGLONG acceptAfter=0,pollAt=0;
+    bool active=false,lotteryChosen=false,selecting=false,selectionError=false,selectionBound=false;
+    unsigned lotteryCountry=0;ULONGLONG acceptAfter=0,pollAt=0;
     logh::LobbyCountryPage page={};logh::LobbySessionList sessions={};
     void* icons[6]={};void* bars[6]={};void* backdrop=nullptr;void* lotteryButton=nullptr;
 } lobbyCountryWindow;
@@ -45,8 +46,7 @@ static const logh::LobbyCountry* selectedLobbyCountry() {
 static bool lobbyCountryEligible(const logh::LobbyCountry* row) {
     auto& view=lobbyCountryWindow;if(!row)return false;
     if(view.mode==1)return true;
-    // shortcut: legacy authority still admits IDs 2/3; never alias another ID to a native display code.
-    return (row->id==2 || row->id==3) && (row->eligibility&(view.mode==2 ? 1u : 2u));
+    return (row->nativePower==2 || row->nativePower==3) && (row->eligibility&(view.mode==2 ? 1u : 2u));
 }
 static void renderLobbyCountries() {
     auto& view=lobbyCountryWindow;wchar_t text[160]={};
@@ -99,7 +99,9 @@ static void renderLobbyCountries() {
         reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,view.bars[i],red,green,blue,1.f);
     }
     const auto selected=selectedLobbyCountry();
-    if(selected)swprintf_s(text,L"%s  ·  국가 ID %u%s",selected->name,selected->id,
+    if(view.selecting)wcscpy_s(text,L"선택한 국가를 확인하고 있습니다.");
+    else if(view.selectionError)wcscpy_s(text,L"국가 선택을 확인하지 못했습니다. 다시 선택하세요.");
+    else if(selected)swprintf_s(text,L"%s  ·  국가 ID %u%s",selected->name,selected->id,
         view.mode!=1 && !lobbyCountryEligible(selected) ? L"  ·  현재 참가 준비 중" : L"");
     else wcscpy_s(text,!view.page.session ? L"선택한 세션의 국가 정보를 불러오는 중입니다." :
         !view.page.generation ? L"이 세션은 더 이상 참가할 수 없습니다. 다른 세션을 선택하세요." : L"국가를 선택하면 이름 전체와 참가 가능 여부를 확인할 수 있습니다.");
@@ -108,7 +110,7 @@ static void renderLobbyCountries() {
     lobbyCountryText(24,500,440,100,30,L"다음 국가",true);planetEnabled(24,view.page.session && view.offset+view.page.count<view.page.total);
     lobbyCountryText(25,610,440,100,30,L"새로고침",true);
     lobbyCountryText(26,720,477,100,42,listing ? L"세션 선택" : L"국가 선택",true);
-    planetEnabled(26,listing ? view.page.session==view.session && view.page.generation>0 : lobbyCountryEligible(selected));
+    planetEnabled(26,!view.selecting && (listing ? view.page.session==view.session && view.page.generation>0 : lobbyCountryEligible(selected)));
     lobbyCountryText(27,184,477,192,42,L"돌아가기",true);
 }
 static bool openLobbyCountries(void* controller,unsigned mode) {
@@ -116,10 +118,12 @@ static bool openLobbyCountries(void* controller,unsigned mode) {
     if(!gui || !world || !createPlanetWindow(gui,false))return false;
     view.gui=gui;view.world=world;view.root=planetWindowRoot;view.mode=mode;view.active=true;
     view.offset=0;view.page={};view.rendered=~0u;view.pollAt=0;view.acceptAfter=GetTickCount64()+350;
+    view.selecting=false;view.selectionError=false;
     memset(view.widths,0,sizeof(view.widths));memset(view.heights,0,sizeof(view.heights));
     AcquireSRWLockShared(&lobbyCountryLock);view.sessions=lobbyCountryInbox.sessions;ReleaseSRWLockShared(&lobbyCountryLock);
     if(mode==1) {view.session=view.sessions.count ? view.sessions.rows[0].id : 0;view.country=0;view.sessionOffset=0;}
-    else {view.session=*reinterpret_cast<unsigned*>(0x2216c3c)&65535;view.country=*reinterpret_cast<unsigned*>(mode==2 ? 0x2227f68 : 0x22283c0);}
+    else {view.session=*reinterpret_cast<unsigned*>(0x2216c3c)&65535;
+        view.country=mode==3 && view.lotteryCountry ? view.lotteryCountry : *reinterpret_cast<unsigned*>(mode==2 ? 0x2227f68 : 0x22283c0);}
     for(unsigned id=0;id<114;++id)if(auto widget=planetWidget(id)) {
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,widget,0);planetEnabled(id,false);
     }
@@ -207,7 +211,7 @@ static bool lotteryCountryButton(void* controller) {
     ReleaseSRWLockShared(&lobbyCountryLock);
     const auto now=GetTickCount64();
     if(now>=view.pollAt && !pending && requestLobbyCountries(view.world,view.session,0))view.pollAt=now+5000;
-    view.country=*reinterpret_cast<unsigned*>(0x22283c0);const auto selected=selectedLobbyCountry();
+    view.country=view.lotteryCountry ? view.lotteryCountry : *reinterpret_cast<unsigned*>(0x22283c0);const auto selected=selectedLobbyCountry();
     const auto name=selected ? logh::fitCountryLabel(selected->name,14) : std::wstring(L"국가 선택");
     reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560)(root,widget,name.c_str());
     reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(root,widget,1);
@@ -226,15 +230,59 @@ static bool lotteryCountryButton(void* controller) {
 }
 static bool updateLobbyCountryWindow(void* controller) {
     auto& view=lobbyCountryWindow;const unsigned stage=at<unsigned>(controller,4);auto gui=at<void*>(controller,12);
-    if(view.gui && view.gui!=gui) {view={};resetLobbyCountries(true);}
+    if(view.gui && view.gui!=gui) {view={};resetLobbyCountries(true);resetLobbyCountrySelection();}
     const auto now=GetTickCount64();
     if(view.active && ((view.mode==1 && stage!=0x2f) || (view.mode==2 && stage!=0x55) || (view.mode==3 && stage!=0x46)))hideLobbyCountryWindow();
     if(!view.active) {
-        if(stage==0x16 || stage==0x40 || stage==0x2f)view.lotteryChosen=false;
+        if(stage==0x16 || stage==0x40 || stage==0x2f) {
+            // The game connection has closed; sending cancel now would target the new lobby connection.
+            resetLobbyCountrySelection();
+            view.selectionBound=false;view.lotteryChosen=false;view.lotteryCountry=0;
+        }
         if(stage==0x46 && view.lotteryChosen && lotteryCountryButton(controller))return true;
         const bool enter=stage==0x2f || stage==0x55 || (stage==0x46 && !view.lotteryChosen);
         if(enter && !openLobbyCountries(controller,stage==0x2f ? 1 : stage==0x55 ? 2 : 3))return false;
         if(!view.active) {view.stage=stage;return false;}
+    }
+    if(view.selecting) {
+        logh::LobbyCountrySelection choice;ULONGLONG selectionSentAt=0;
+        AcquireSRWLockShared(&lobbyCountryLock);
+        choice=lobbyCountrySelectionInbox.choice;selectionSentAt=lobbyCountrySelectionInbox.sentAt;
+        ReleaseSRWLockShared(&lobbyCountryLock);
+        if(choice.complete && choice.session==view.session && choice.country==view.country && choice.mode==view.mode+6) {
+            view.selecting=false;
+            if(choice.accepted) {
+                const unsigned mode=view.mode;view.selectionBound=true;hideLobbyCountryWindow();resetLobbyCountrySelection();
+                // The native wizard owns only display power; the server keeps the actual country id.
+                if(mode==2) {
+                    *reinterpret_cast<unsigned*>(0x2227f68)=choice.power;
+                    reinterpret_cast<void(__cdecl*)(int)>(0x595ec0)(0x16);reinterpret_cast<void(__cdecl*)()>(0x5960b0)();
+                } else {
+                    view.lotteryCountry=choice.country;*reinterpret_cast<unsigned*>(0x22283c0)=choice.power;view.lotteryChosen=true;
+                    if(auto root=at<void*>(gui,4+0x38*4)) {
+                        reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);
+                        reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);
+                    }
+                    reinterpret_cast<unsigned(__cdecl*)(int)>(0x597ff0)(1);
+                }
+                return true;
+            }
+            view.selectionError=true;renderLobbyCountries();
+        } else if(now-selectionSentAt>=5000) {
+            view.selecting=false;view.selectionError=true;
+            requestLobbyCountrySelection(view.world,view.session,0,10);view.selectionBound=false;renderLobbyCountries();
+        }
+        if(view.selecting && !lobbyCountryClick(27))return true;
+        if(view.selecting) {
+            if(view.mode==3 && view.lotteryCountry) {
+                view.country=view.lotteryCountry;
+                view.selecting=requestLobbyCountrySelection(view.world,view.session,view.country,9);
+                view.selectionError=!view.selecting;renderLobbyCountries();return true;
+            }
+            requestLobbyCountrySelection(view.world,view.session,0,10);view.selecting=false;
+            // Leave the selector open after cancelling an in-flight request.
+            view.selectionBound=false;view.acceptAfter=now+200;renderLobbyCountries();return true;
+        }
     }
     for(auto icon:view.icons)if(icon && at<BYTE>(icon,8)) {
         auto holder=at<BYTE*>(icon,0xcf4);
@@ -265,9 +313,15 @@ static bool updateLobbyCountryWindow(void* controller) {
     if(lobbyCountryClick(24) && view.page.session && view.offset+view.page.count<view.page.total) {view.offset+=6;refresh();return true;}
     if(lobbyCountryClick(25)) {refresh();return true;}
     if(lobbyCountryClick(27)) {
+        if(view.mode==3 && view.lotteryCountry) {
+            view.country=view.lotteryCountry;view.selecting=requestLobbyCountrySelection(view.world,view.session,view.country,9);
+            view.selectionError=!view.selecting;renderLobbyCountries();return true;
+        }
+        if(view.mode!=1 && view.selectionBound)requestLobbyCountrySelection(view.world,view.session,0,10);
+        view.selectionBound=false;
         const unsigned mode=view.mode;hideLobbyCountryWindow();
         if(mode==1)at<unsigned>(controller,4)=0x16;
-        // No reservation has been submitted at this country-selection step. Use the native lobby-return path.
+        // Use the native lobby-return path after cancelling this connection's uncommitted choice.
         else if(mode==2)at<unsigned>(controller,4)=0x6b;
         else {
             view.lotteryChosen=true;
@@ -285,18 +339,8 @@ static bool updateLobbyCountryWindow(void* controller) {
             hideLobbyCountryWindow();return true;
         }
         if(mode!=1 && lobbyCountryEligible(selected)) {
-            const unsigned country=selected->id;hideLobbyCountryWindow();
-            if(mode==2) {
-                *reinterpret_cast<unsigned*>(0x2227f68)=country;
-                reinterpret_cast<void(__cdecl*)(int)>(0x595ec0)(0x16);reinterpret_cast<void(__cdecl*)()>(0x5960b0)();
-            } else {
-                *reinterpret_cast<unsigned*>(0x22283c0)=country;view.lotteryChosen=true;
-                if(auto root=at<void*>(gui,4+0x38*4)) {
-                    reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);
-                    reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);
-                }
-                reinterpret_cast<unsigned(__cdecl*)(int)>(0x597ff0)(1);
-            }
+            view.selecting=requestLobbyCountrySelection(view.world,view.session,selected->id,mode+6);
+            view.selectionError=!view.selecting;renderLobbyCountries();
             return true;
         }
     }

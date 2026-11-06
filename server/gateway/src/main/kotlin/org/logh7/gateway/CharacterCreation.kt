@@ -27,10 +27,26 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     // Current user policy: standard battleship. A later grant policy may supply multiple kinds.
     private val configuredStarters=starterKinds?.mapValues {(_,kinds)->kinds.toList()}
     private val starters get()=configuredStarters ?: styles.mapValues {(_,style)->listOf(Flagships.forType(style.nativePower,0).kind)}
+    /** Country chosen in the lobby for a creation or lottery application. [nativePower] is the display code (2/3)
+     * the client sends as `power`; [shipStyle] is independent of the office family. Null keeps the 2/3 path. */
+    data class CountrySelection(val country:CountryId,val nativePower:Int,val shipStyle:ShipStyleId) {
+        init { require(nativePower in 2..3) { "Invalid native power" }; shipStyle.nativePower }
+        internal fun encoded()="${country.value}:$nativePower:${shipStyle.value}"
+        internal companion object {
+            fun decoded(value:String)=value.split(':').let {
+                require(it.size==3 && it[0].toInt().toString()==it[0]) { "Invalid country selection" }
+                CountrySelection(CountryId(it[0].toInt()),it[1].toInt(),ShipStyleId(it[2]))
+            }
+        }
+    }
+    /** An unfinished creation is bound to the selection and the connection (owner) that started it. */
+    private data class Binding(val selection:CountrySelection?,val owner:String?)
     private var nextId = 10_000L
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
+    private val bindings = mutableMapOf<String, Binding>()
     private val registered = mutableMapOf<String, CharacterProfile>()
     private val applications = mutableMapOf<String, List<Long>>()
+    private val applicationSelections = mutableMapOf<String, CountrySelection>()
     private var deadline = 0L
     init {
         require(lotteryWindowMillis in 1..3_600_000)
@@ -48,13 +64,18 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 if (account.startsWith("@application/")) {
                     applications[account.removePrefix("@application/")] = value.split(',').map(String::toLong); continue
                 }
+                if (account.startsWith("@selection/")) {
+                    applicationSelections[account.removePrefix("@selection/")] = CountrySelection.decoded(value); continue
+                }
                 val profile=CharacterProfile.decoded(value)
                 registered[account] = profile
                 nextId = maxOf(nextId, profile.character.id + 1)
             }
             require(applications.size <= 4096 && (applications.isEmpty() || deadline > 0))
             require(applications.all { (account, ids) -> account !in registered && ids.size in 1..5 &&
-                ids.distinct().size == ids.size && ids.all { id -> originals.any { it.character.id == id } } })
+                ids.distinct().size == ids.size && ids.all { id -> originals.any { it.character.id == id &&
+                    applicationSelections[account]?.let {s->s.nativePower==it.character.power} != false } } })
+            require(applicationSelections.keys.all { it in applications }) { "Selection without application" }
         }
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
@@ -67,7 +88,13 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     @Synchronized fun retire(account: String, id: Long): Boolean {
         if (registered[account]?.character?.id != id) return false
         val next = registered - account
-        save(next); registered.remove(account); pending.remove(account); return true
+        save(next); registered.remove(account); pending.remove(account); bindings.remove(account); return true
+    }
+    /** Drops an unfinished creation; with an [owner], only the one that connection started. Registered characters
+     * and accepted lottery applications are kept. */
+    @Synchronized fun cancelCreation(account:String,owner:String?=null):Boolean {
+        if (account !in pending || (owner != null && bindings[account]?.owner != owner)) return false
+        pending.remove(account); bindings.remove(account); return true
     }
     /** U-25 defection (user decision 2026-11-01): the one sanctioned change of a registered character's side. */
     @Synchronized fun defect(account: String, id: Long, power: Int): Boolean {
@@ -111,29 +138,36 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         return registered.values.singleOrNull { it.character.id == id.toLong() }?.character?.let(::displayed)
     }
     @Synchronized fun entries(account: String): List<Long> { resolveLottery(); return applications[account].orEmpty().toList() }
-    @Synchronized fun candidates(account: String): List<OriginalCharacterMessages.Candidate> {
+    @Synchronized fun applicationSelection(account:String):CountrySelection? {resolveLottery();return applicationSelections[account]}
+    @Synchronized fun candidates(account: String, selection: CountrySelection? = null): List<OriginalCharacterMessages.Candidate> {
         resolveLottery()
         if (account in registered || account in pending) return emptyList()
         // Local accounts have fame 0. Original numeric conditions are unknown.
         val currentFame=fame(account)
-        return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.character.id == it.character.id } }
+        val selected=selection ?: applicationSelections[account]
+        return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.character.id == it.character.id } &&
+            (selected == null || it.character.power == selected.nativePower) }
             .map {it.copy(character=KoreanDisplayNames.original(it.character))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0
-    @Synchronized fun entryState(account: String, id: Long): ByteArray {
-        val eligible = candidates(account).any { it.character.id == id }
+    @Synchronized fun entryState(account: String, id: Long, selection: CountrySelection? = null): ByteArray {
+        val eligible = candidates(account, selection).any { it.character.id == id }
         val competingPreferences = applications.values.filter { id in it }.take(5).map { (it.indexOf(id) + 1).toLong() }
         return OriginalCharacterMessages.entryState(id, eligible, competingPreferences)
     }
-    @Synchronized fun apply(account: String, ids: List<Long>): ByteArray {
+    @Synchronized fun apply(account: String, ids: List<Long>, selection: CountrySelection? = null): ByteArray {
         require(ids.size in 1..5 && ids.distinct().size == ids.size)
-        val available = candidates(account).map { it.character.id }.toSet()
+        // An application keeps the country it was made for; changing it needs a new session flow, not a resubmit.
+        require(account !in applications || applicationSelections[account] == selection) { "Application country changed" }
+        val available = candidates(account, selection).map { it.character.id }.toSet()
         require(ids.all { it in available }) { "Ineligible original-character application" }
         check(applications.size < 4096 || account in applications)
         val next = applications + (account to ids.toList())
+        val nextSelections = if (selection == null) applicationSelections - account else applicationSelections + (account to selection)
         val nextDeadline = if (applications.isEmpty()) clock.millis() + lotteryWindowMillis else deadline
-        save(registered, next, nextDeadline)
+        save(registered, next, nextDeadline, nextSelections)
         applications[account] = ids.toList(); deadline = nextDeadline
+        if (selection != null) applicationSelections[account] = selection
         println("original application preferences=${ids.joinToString()} deadline=$deadline")
         return OriginalCharacterMessages.applicationReply(ids)
     }
@@ -146,16 +180,20 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.character.id == candidate } } ?: continue
             val candidate = originals.single { it.character.id == id }
             val character=candidate.character
-            val style=styles.getValue(character.power)
+            val selection=applicationSelections[account]
+            val style=selection?.shipStyle ?: styles.getValue(character.power)
+            // The hero keeps its own model unless the chosen style differs; then the same-type model of that style.
             val kind=if(style==ShipStyleId.fromLegacy(character.power))character.shipKind else Flagships.forType(style.nativePower,character.shipType).kind
-            winners[account] = profile(character.copy(generated = false,shipKind=kind))
+            val won=character.copy(generated = false,shipKind=kind)
+            winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle)
         }
-        save(winners, emptyMap(), 0)
-        registered.clear(); registered.putAll(winners); applications.clear(); deadline = 0
+        save(winners, emptyMap(), 0, emptyMap())
+        registered.clear(); registered.putAll(winners); applications.clear(); applicationSelections.clear(); deadline = 0
         println("original lottery resolved assigned=${accounts.count { it in winners }}")
     }
     private fun normalized(value: String) = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
-    private fun save(values: Map<String, CharacterProfile>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline) {
+    private fun save(values: Map<String, CharacterProfile>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline,
+        selections: Map<String, CountrySelection> = applicationSelections) {
         if (file == null) return
         val target = file.toAbsolutePath()
         Files.createDirectories(target.parent)
@@ -164,6 +202,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         if (entries.isNotEmpty()) {
             properties.setProperty("@deadline", closesAt.toString())
             entries.forEach { (account, ids) -> properties.setProperty("@application/$account", ids.joinToString(",")) }
+            selections.filterKeys { it in entries }.forEach { (account, s) -> properties.setProperty("@selection/$account", s.encoded()) }
         }
         val temporary = Files.createTempFile(target.parent, "characters-", ".tmp")
         try {
@@ -171,16 +210,23 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } finally { Files.deleteIfExists(temporary) }
     }
-    @Synchronized fun accept(account: String, message: CharacterMessages.Generate): ByteArray {
+    @Synchronized fun accept(account: String, message: CharacterMessages.Generate, selection: CountrySelection? = null,
+        owner: String? = null): ByteArray {
         resolveLottery()
         require(account !in applications) { "Original-character application pending" }
         require(message.power in 2..3 && message.gender in 0..1)
+        // The client's power byte must be the selected country's display code; never substituted with 2/3.
+        require(selection == null || message.power == selection.nativePower) { "Power differs from the selected country" }
         require(message.origin in if (message.power == 2) setOf(0, 1, 2, 4) else setOf(3, 4))
         require(message.surname.isNotBlank() && message.givenName.isNotBlank())
         require(message.category in 0..4)
-        if (message.category == 4 && registered[account]?.character == message) return CharacterMessages.generateReply(message)
+        if (message.category == 4 && registered[account]?.let { it.character == message &&
+                (selection == null || it.country == selection.country && it.shipStyle == selection.shipStyle) } == true)
+            return CharacterMessages.generateReply(message)
         require(account !in registered) { "Account already owns a character in this session" }
         val previous = pending[account]
+        // A started creation stays on its country and connection; another connection must cancel it first.
+        if (previous != null) require(bindings[account] == Binding(selection, owner)) { "Creation country or connection changed" }
         val response = if (message.category == 0) {
             require(originals.none { normalized(it.character.surname) == normalized(message.surname) ||
                 normalized(KoreanDisplayNames.original(it.character).surname) == normalized(message.surname) }) { "Surname already reserved" }
@@ -194,7 +240,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             when (message.category) {
                 1 -> {
                     require(previous.category in 0..1 && message.age in 18..59 && message.birthMonth in 1..12 && message.birthDay in 1..30 && message.face > 0)
-                    val ship = if (previous.category == 0) starters.getValue(previous.power).let { kinds ->
+                    val ship = if (previous.category == 0) starterKinds(previous.power, selection).let { kinds ->
                         checkNotNull(Flagships.find(kinds[if (kinds.size == 1) 0 else random.nextInt(kinds.size)]))
                     }
                         else checkNotNull(Flagships.find(previous.shipKind))
@@ -217,7 +263,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 }
                 4 -> {
                     require(previous.category == 3 && message == previous.copy(category = 4)) { "Registration data changed" }
-                    val profile=profile(message)
+                    val profile=if(selection==null)profile(message) else CharacterProfile(message,selection.country,selection.shipStyle)
                     save(registered + (account to profile))
                     registered[account] = profile
                     println("character registered id=${message.id} power=${message.power}")
@@ -226,7 +272,14 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 else -> error("Unexpected creation category")
             }
         }
-        if (response.category == 4) pending.remove(account) else pending[account] = response
+        if (response.category == 4) { pending.remove(account); bindings.remove(account) }
+        else { pending[account] = response; bindings[account] = Binding(selection, owner) }
         return CharacterMessages.generateReply(response)
+    }
+    /** Starter models follow the selected ship style, independent of the office family or display code. */
+    private fun starterKinds(power:Int,selection:CountrySelection?):List<Int> {
+        if (selection == null) return starters.getValue(power)
+        return starters.entries.firstOrNull { styles[it.key] == selection.shipStyle }?.value
+            ?: listOf(Flagships.forType(selection.shipStyle.nativePower, 0).kind)
     }
 }
