@@ -142,6 +142,19 @@ class SocialStoreTest {
         val encoded=SocialStateCodec.encode(state)
         assertEquals(12,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
     }
+    @Test fun actualCountriesKeepSeparateNationalGoalsAfterReopeningTheWorld() {
+        val goals=GoalState(mapOf(42 to NationalGoal(1050,10000,7),43 to NationalGoal(1049,10001,8)),mapOf(1049 to 2))
+        val value=PlanetStocks(1,0,mapOf(
+            1049 to stocks.bases.getValue(1049).copy(owner=Allegiance.Country(CountryId(42))),
+            1050 to stocks.bases.getValue(1049).copy(baseId=1050,owner=Allegiance.Country(CountryId(43)))),
+            social=SocialState(goals=goals))
+        val encoded=SocialStateCodec.encode(value.social)
+        assertEquals(value.social,SocialStateCodec.decode(encoded))
+        assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(encoded.replace("42:1050:","0:1050:"))}
+        val path=directory.resolve("country-goals.tsv")
+        FilePlanetStockStore(path).use {it.save(value)}
+        FilePlanetStockStore(path).use {assertEquals(value,it.load())}
+    }
     @Test fun tradeRoundTripsAsAnOptionalThirteenthField() {
         val state=SocialState(trade=TradeState(mapOf(10000 to TradeRoute(10000,1049,1050,900,100)),mapOf(3 to 20),mapOf(7 to 50L),mapOf(2 to 60L),mapOf(3 to 70L),mapOf(2 to 80L),mapOf(2 to 3)))
         val encoded=SocialStateCodec.encode(state)

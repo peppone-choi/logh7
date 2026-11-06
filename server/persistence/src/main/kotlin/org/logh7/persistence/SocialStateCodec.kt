@@ -139,7 +139,7 @@ internal object SocialStateCodec {
             e.split(':').also {require(it.size==3)}.let {(k,a,b)->k.toInt() to (a.toLong() to b.toLong())}},
             if(support=="-")emptyMap() else support.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toLong()}})
     }
-    /** Optional twelfth field (国家目標/統治目標, 2026-11-01): national "power:base:setter:since,.." then '/' and focus "base:focus,..". */
+    /** Optional twelfth field: national "country:base:setter:since,.." then '/' and focus "base:focus,.."; legacy 2/3 IDs are unchanged. */
     private fun goals(g:GoalState)=g.national.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value.base}:${it.value.setter}:${it.value.since}"}
         .ifEmpty {"-"}+"/"+g.focus.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
     private fun goals(text:String):GoalState {

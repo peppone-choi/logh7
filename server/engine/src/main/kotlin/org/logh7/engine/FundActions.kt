@@ -26,12 +26,14 @@ object FundActions {
     const val CONFIDENCE=1
     const val SUPPORT=2
     /** Planets whose treasury the character may aid: governed (知事/司政官) or held as a fief. */
-    fun governed(g:Galaxy,s:PlanetStocks,character:Int,country:CountryId?,countries:CountryCatalog=CountryCatalogLoader.current()):List<Int> {
+    fun governed(g:Galaxy,s:PlanetStocks,character:Int,country:CountryId?,countries:CountryCatalog=CountryCatalogLoader.current(),
+        card:Int?=null):List<Int> {
         if(country==null)return emptyList()
         val office=OrganizationalOfficePolicy(g,countries)
-        val seats=listOf(54,190,192).flatMap {office.holders(s,it,country)}.filter {it.character==character}.map {it.seat}.toSet()
+        val seats=listOf(54,190,192).filter {card==null || it==card}.flatMap {office.holders(s,it,country)}
+            .filter {it.character==character}.map {it.seat}.toSet()
         return s.bases.values.filter {it.belongsTo(country) && it.camp==0 &&
-            (it.baseId in seats || s.strategic.fiefs[it.baseId]==character)}.map {it.baseId}.sorted()
+            (it.baseId in seats || (card==null || card==66) && s.strategic.fiefs[it.baseId]==character)}.map {it.baseId}.sorted()
     }
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
