@@ -6,6 +6,8 @@ data class SessionStatistics(val planets:Int=0,val fortresses:Int=0,val populati
     val shipUnits:Long=0,val groundUnits:Long=0) {
     init {require(planets>=0 && fortresses>=0 && population>=0 && shipUnits>=0 && groundUnits>=0)}
 }
+
+data class SessionCountryStatistics(val total:SessionStatistics,val countries:Map<CountryId,SessionStatistics>)
 data class VictoryConditions(val noCoupAtEnd:Boolean?=null,val imperialLeaderAtEnemyCapital:Boolean?=null,
     /** Sides with a revolt under way at the end (U-10); used when [noCoupAtEnd] is not given. */
     val coupSides:Set<Power>?=null) {
@@ -79,14 +81,22 @@ object SessionResults {
             stocks.social.coup.revolting(if(it==Power.EMPIRE)2 else 3)}.toSet())
         val conditions=if(withCoup.imperialLeaderAtEnemyCapital!=null)withCoup else
             withCoup.copy(imperialLeaderAtEnemyCapital=imperialLeaderAtEnemyCapital(stocks,snapshot.navigators.values))
+        val statistics=statistics(galaxy,snapshot)
+        return assess(end,statistics.total,Power.entries.associateWith {
+            statistics.countries[it.country] ?: SessionStatistics()},conditions)
+    }
+
+    /** Actual country ownership is retained even when multiple countries use one native display/model. */
+    fun statistics(galaxy:Galaxy,snapshot:WorldSnapshot):SessionCountryStatistics {
+        val session=checkNotNull(snapshot.session)
+        val stocks=checkNotNull(snapshot.planetStocks)
         require(stocks.generation==session.generation && stocks.bases.keys==galaxy.bases.map {it.id}.toSet())
         data class Totals(var planets:Int=0,var fortresses:Int=0,var population:Long=0,var ships:Long=0,var ground:Long=0) {
             fun value()=SessionStatistics(planets,fortresses,population,ships,ground)
         }
-        val total=Totals();val sides=Power.entries.associateWith {Totals()}
-        fun side(wire:Int)=when(wire){2->Power.EMPIRE;3->Power.ALLIANCE;else->null}
-        fun add(side:Power?,planets:Int=0,fortresses:Int=0,people:Long=0,ships:Long=0,ground:Long=0) {
-            for(t in listOfNotNull(total,side?.let(sides::get))) {
+        val total=Totals();val countries=linkedMapOf<CountryId,Totals>()
+        fun add(country:CountryId?,planets:Int=0,fortresses:Int=0,people:Long=0,ships:Long=0,ground:Long=0) {
+            for(t in listOfNotNull(total,country?.let {countries.getOrPut(it) {Totals()}})) {
                 t.planets+=planets;t.fortresses+=fortresses;t.population+=people;t.ships+=ships;t.ground+=ground
             }
         }
@@ -94,20 +104,20 @@ object SessionResults {
         fun ships(units:UnitInventory,spare:SpareShipBoats)=units.ships.values.sumOf(Int::toLong)+spare.values.size
         for(base in galaxy.bases) {
             val stock=stocks.bases.getValue(base.id)
-            val owner=if(stock.camp==0)side(stock.power) else null
+            val owner=if(stock.camp==0)stock.country else null
             add(owner,if(base.kind==0)1 else 0,if(base.kind==1)1 else 0,
                 (stock.economy?.population ?: galaxy.conditions.getValue(base.id).population).toLong(),
                 ships(stock.units,stock.spareShips),troops(stock.units))
         }
-        for(stock in stocks.warehouses.values) add(side(stock.power),ships=ships(stock.units,stock.spareShips),
+        for(stock in stocks.warehouses.values) add(stock.country,ships=ships(stock.units,stock.spareShips),
             ground=troops(stock.units))
-        for(outfit in stocks.outfits.values) add(side(outfit.power),
+        for(outfit in stocks.outfits.values) add(outfit.country,
             ships=outfit.activeShips?.values?.count {it.boats>0}?.toLong() ?: outfit.units.ships.values.sumOf(Int::toLong),
             ground=outfit.activeGround?.values?.size?.toLong() ?: troops(outfit.units))
         // A navigator always owns its personal unit; a legacy null hull is the default hull,
         // and defeat replaces rather than deletes it. Offline units remain in the world.
         for(player in snapshot.navigators.values)if(player.generation==session.generation)
-            add(player.power,ships=1)
-        return assess(end,total.value(),sides.mapValues {it.value.value()},conditions)
+            add(player.country,ships=1)
+        return SessionCountryStatistics(total.value(),java.util.Collections.unmodifiableMap(countries.mapValues {it.value.value()}))
     }
 }
