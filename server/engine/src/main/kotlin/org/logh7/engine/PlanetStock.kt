@@ -151,10 +151,10 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     val lord=initialized.strategic.fiefs[id]
                     if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
                     else if(revenue.central>0) {
-                        val country=CountryId(next.power)
+                        val country=checkNotNull(next.country)
                         national[country]=Math.addExact(national[country] ?: 0,revenue.central)
                     }
-                    val capital=capitals[next.power]?.let(bases::getValue)
+                    val capital=capitals[next.country]?.let(bases::getValue)
                     if(!stopped)CapitalProvisioning.topUp(next,base,policy,capitals,capital?.food ?: 0)?.let {(fed,amount)->
                         next=fed
                         val source=checkNotNull(capital)

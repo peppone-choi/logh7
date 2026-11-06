@@ -85,7 +85,7 @@ class CapitalProvisioningTest {
     @Test fun transfersRespectCapacityOwnershipAndIntegerBounds() {
         val base=galaxy.conditions.getValue(1040)
         val row=stock(0).bases.getValue(1040).copy(economy=PlanetEconomy(Int.MAX_VALUE,0,70,80))
-        val capitals=mapOf(2 to 1049,3 to 1177)
+        val capitals=mapOf(CountryId(2) to 1049)
         val bounded=policy.copy(maximumStock=25,economy=policy.economy.copy(foodPeoplePerUnit=1))
         val (fed,amount)=checkNotNull(CapitalProvisioning.topUp(row,base,bounded,capitals,Int.MAX_VALUE))
         assertEquals(25,amount);assertEquals(25,fed.food)

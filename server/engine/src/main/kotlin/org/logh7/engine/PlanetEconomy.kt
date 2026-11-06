@@ -35,7 +35,7 @@ internal fun PlanetStock.nextDay(base: BaseCondition, policy: PlanetProductionPo
     }
     val availableMineral = produced(mineral, people.adults.toLong() / rules.mineralWorkersPerUnit)
     val capacity = maxOf(0L, policy.maximumStock.toLong() - supplies)
-    val suppliesProduced = if (fed && people.adults > 0 && power in 2..3 && camp == 0) minOf(policy.suppliesPerDay.toLong(), capacity,
+    val suppliesProduced = if (fed && people.adults > 0 && country != null && camp == 0) minOf(policy.suppliesPerDay.toLong(), capacity,
         availableMineral * rules.suppliesPerMineral) else 0
     // Charge whole mineral units, including the final partial batch.
     val mineralUsed = (suppliesProduced + rules.suppliesPerMineral - 1) / rules.suppliesPerMineral
