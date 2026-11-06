@@ -147,11 +147,31 @@ static LRESULT CALLBACK lobbyFrameProc(HWND window, UINT message, WPARAM wParam,
     if ((message == WM_SIZE && wParam != SIZE_MINIMIZED) || message == WM_DISPLAYCHANGE) { layoutLobbyBox(); lobbyBoxTrace(message == WM_SIZE ? "frame-size" : "frame-display"); }
     return result;
 }
-// Replaces the two fixed lobby calls 00401760(1024, 768).
+// After 00401760 the frame drops its caption and the popup frame is fitted to the monitor,
+// resizing the view without 004ea460. The stored client rect and render/client ratio then
+// describe the old view (native A/B check, game at 1280x720: view 1920x1080, stored 1280x740,
+// HUD clicks missed with and without the lobby box). Recompute them whenever the view resizes.
+static LRESULT CALLBACK viewSizeProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) {
+    LRESULT result = DefSubclassProc(window, message, wParam, lParam);
+    if (message == WM_SIZE && wParam != SIZE_MINIMIZED && LOWORD(lParam) && HIWORD(lParam)) {
+        auto app = *reinterpret_cast<BYTE**>(0x7c1b4c);
+        if (app && at<HWND>(app, 0x1c) == window) {
+            reinterpret_cast<void(__cdecl*)(void*)>(0x4ea460)(app);
+            lobbyBoxTrace("view-size");
+        }
+    }
+    return result;
+}
+static void watchViewSize() {
+    static HWND watched = nullptr;
+    HWND view = lobbyViewWindow();
+    if (view && view != watched && SetWindowSubclass(view, viewSizeProc, 0x4c4f4256, 0)) watched = view;
+}// Replaces the two fixed lobby calls 00401760(1024, 768).
 static void __fastcall lobbyScreenSize(void* app, void*, int width, int height) {
     int screenWidth = 0, screenHeight = 0;
     HWND frame = lobbyFrameWindow(), view = lobbyViewWindow();
     lobbyBoxTrace("lobby-enter");
+    watchViewSize();
     leaveLobbyBox();
     // Native A/B checks: LOGH7_LOBBY_BOX=0 keeps the original lobby; the trace still records it.
     char boxSwitch[4] = {};
@@ -174,6 +194,7 @@ static void __fastcall lobbyScreenSize(void* app, void*, int width, int height) 
 // Replaces the login and game calls of 00401760: the frame is refilled before the native resize.
 static void __fastcall gameScreenSize(void* app, void*, int width, int height) {
     lobbyBoxTrace("game-enter");
+    watchViewSize();
     leaveLobbyBox();
     nativeScreenSize(app, width, height);
     lobbyBoxTrace("game-native");
