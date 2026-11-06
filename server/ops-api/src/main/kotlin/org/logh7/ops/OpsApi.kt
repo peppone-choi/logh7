@@ -67,7 +67,10 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     /** Retention/capacity values (name without logh7_ -> value): *_total are counters, the rest gauges. */
     storage: (() -> Map<String, Long>)? = null,
     /** Maintenance switch and operator notices; absent routes answer 503. */
-    maintenance: MaintenanceControl? = null,countryDefinitions:CountryDefinitionStore?=null): AutoCloseable {
+    maintenance: MaintenanceControl? = null,countryDefinitions:CountryDefinitionStore?=null,
+    /** Facility names/purposes: the editable store (null without a definitions DB), what the game shows, and engine-read commands. */
+    facilityDefinitions:FacilityDefinitionStore?=null,publishedFacilities:PublishedFacilityDefinitions?=null,
+    facilityCommands:FacilityCommandCatalog=FacilityCommandCatalog.UNCONNECTED): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -90,6 +93,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             worldEditorRoutes(commands,snapshots,port,audit,galaxy)
             countryColorRoutes(countryColors,port,audit)
             countryDefinitionRoutes(countryDefinitions,port,audit)
+            facilityDefinitionRoutes(facilityDefinitions,publishedFacilities,galaxy,facilityCommands,port,audit)
             progressRoutes(checklist,"/admin/progress","/admin/progress/data")
             get("/health") {
                 when (snapshots.health()) {

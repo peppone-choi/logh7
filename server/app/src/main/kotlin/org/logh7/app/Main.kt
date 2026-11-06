@@ -97,6 +97,13 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         if(countryDefinitions!=null)try {countryDefinitions.load()} catch(_:Exception) {
             error("Country definitions DB must be available and valid before starting this runtime")
         }
+        // Facility names/purposes (V4). The game reads facilities.current(); without a DB, or when the DB lacks V4
+        // or is down, it keeps the built-in or last published definitions. Unlike countries this never blocks start.
+        val facilityStore=definitionsConnect?.let {org.logh7.persistence.PostgresFacilityDefinitions(it)}
+        val facilities=org.logh7.engine.PublishedFacilityDefinitions()
+        if(facilityStore!=null)try {facilities.publish(facilityStore.load())} catch(_:Exception) {
+            System.err.println("Facility definitions unavailable; using the built-in facility definitions")
+        }
         val rules = environment["LOGH7_SESSION_RULES"]?.let { path -> java.nio.file.Files.newInputStream(Path.of(path)).use { SessionRules.load(it) } } ?: SessionRules.load()
         val characterFile = environment["LOGH7_CHARACTERS_FILE"]?.let { Path.of(it) }
         val generationFile = environment["LOGH7_SESSION_GENERATION_FILE"]?.let { Path.of(it) }
@@ -203,6 +210,15 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 delay(5000)
             }
         }
+        if(facilityStore!=null)scope.launch(Dispatchers.IO) {
+            var failed=false
+            while(isActive) {
+                delay(5000)
+                try {facilities.publish(facilityStore.load());failed=false}
+                catch(_:java.sql.SQLException) {if(!failed)System.err.println("Facility definitions DB unavailable; retaining the last facility definitions");failed=true}
+                catch(_:IllegalArgumentException) {if(!failed)System.err.println("Facility definitions invalid; retaining the last facility definitions");failed=true}
+            }
+        }
         val countryColors=definitionsConnect?.let {connect->
                 val delegate=org.logh7.persistence.PostgresCountryColors(connect)
                 object:org.logh7.engine.CountryColorStore {
@@ -231,6 +247,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             countryColors=countryColors,
             countryDefinitions=countryDefinitions,
+            facilityDefinitions=facilityStore,publishedFacilities=facilities,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
             actorTimings=actorTimings,
