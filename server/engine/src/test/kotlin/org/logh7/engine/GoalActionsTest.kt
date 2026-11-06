@@ -23,9 +23,9 @@ class GoalActionsTest {
         val set=act(GoalActions.NATIONAL,5,1050)
         assertNull(set.rejection);assertEquals(680,set.player?.mcp)
         val s=assertNotNull(set.stocks);assertEquals(1050,s.social.goals.national.getValue(2).base)
-        val won=GoalActions.achieved(s,1050,2,listOf(10000,10000))
+        val won=GoalActions.achieved(s,1050,CountryId(2),listOf(10000,10000))
         assertEquals(GoalActions.GOAL_MERIT,won.strategic.people.getValue(10000).merit);assertTrue(won.social.goals.national.isEmpty())
-        assertSame(s,GoalActions.achieved(s,1049,2,listOf(10000)),"another base")
+        assertSame(s,GoalActions.achieved(s,1049,CountryId(2),listOf(10000)),"another base")
     }
     @Test fun aLordSetsTheFocusOfAGovernedPlanetAndTheDayLeansToIt() {
         assertEquals(SocialRejection.TARGET,act(GoalActions.GOVERNANCE,66,1050,2).rejection)

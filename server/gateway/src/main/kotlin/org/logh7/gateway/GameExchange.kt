@@ -1552,7 +1552,7 @@ class GameExchange(
                                             val country=currentProfile(identity.account,query.character).country
                                             val ids=if(query.command==org.logh7.engine.GoalActions.NATIONAL)
                                                 stocks.bases.values.filter {it.country!=null && it.country!=country}.map {it.baseId}
-                                                else org.logh7.engine.FundActions.governed(world.galaxy,stocks,character.id.toInt(),country)
+                                                else org.logh7.engine.FundActions.governed(world.galaxy,stocks,character.id.toInt(),country,card=query.card)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it>query.target}.sorted().take(200)
                                                 .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")})
                                         }
