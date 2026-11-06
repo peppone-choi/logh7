@@ -44,7 +44,7 @@ class CountrySessionStoreTest {
         }
         val mixed = FileSessionStore.readFrames(directory.resolve("session.journal"))
         assertEquals(listOf(1, 1, 1), mixed.take(3).map { ByteBuffer.wrap(it).int })
-        assertTrue(mixed.drop(3).all { ByteBuffer.wrap(it).int == 2 })
+        assertTrue(mixed.drop(3).all { ByteBuffer.wrap(it).int == 3 })
         frames.indices.forEach { assertContentEquals(frames[it], mixed[it]) }
         localSessionStore(directory, rules).use { store ->
             assertEquals(expected, store.load())

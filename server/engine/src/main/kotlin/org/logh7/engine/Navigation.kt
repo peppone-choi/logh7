@@ -194,7 +194,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = current, rejection = reason,
             completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
         val member = session.participants[request.account] ?: return reject(NavigationRejection.SESSION)
-        if (session.ended != null || session.generation != request.generation ||
+        if (session.ended != null || member.country in session.eliminated || session.generation != request.generation ||
             (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
             return reject(NavigationRejection.SESSION)
         if (member.country != request.country) return reject(NavigationRejection.IDENTITY)

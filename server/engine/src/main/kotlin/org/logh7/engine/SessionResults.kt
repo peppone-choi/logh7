@@ -20,11 +20,15 @@ object SessionResults {
     fun assess(end:SessionEnd,total:SessionStatistics,powers:Map<Power,SessionStatistics>,
         conditions:VictoryConditions=VictoryConditions()):SessionResult {
         require(powers.keys==Power.entries.toSet())
+        // shortcut: native result rows still have two countries; migrate that boundary before enabling new owners.
+        require((end.affectedCountries+end.remainingCountries).all {it in powers.keys.map(Power::country)})
         require(powers.values.sumOf {it.population.toBigInteger()}<=total.population.toBigInteger())
+        val survivor=end.remainingCountries.singleOrNull()?.legacyPower()
         val capitalWinner=if(end.reason==EndReason.CAPITAL_CAPTURED && end.affected.size==1)
-            Power.entries.single {it !in end.affected} else null
+            survivor ?: Power.entries.single {it !in end.affected} else null
         val localWinner=if(end.reason==EndReason.CAPITAL_CAPTURED)null else
-            if(powers.getValue(Power.EMPIRE).population>powers.getValue(Power.ALLIANCE).population)Power.EMPIRE else Power.ALLIANCE
+            if(end.reason!=EndReason.TIME_LIMIT && survivor!=null)survivor else
+                if(powers.getValue(Power.EMPIRE).population>powers.getValue(Power.ALLIANCE).population)Power.EMPIRE else Power.ALLIANCE
         val results=Power.entries.associateWith {side->
             val own=powers.getValue(side);val enemy=powers.getValue(Power.entries.single {it!=side})
             val population=total.population>0 && own.population.toBigInteger()*10.toBigInteger()>=total.population.toBigInteger()*9.toBigInteger()

@@ -242,7 +242,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         try {
             val restored = store.load()
             // Fail before recovery writes: unmigrated ownership must never alias another country's appearance.
-            if(galaxy!=null)restored.session.participants.values.forEach { it.country.legacyPower() }
+            if(galaxy!=null) {
+                restored.session.participants.values.forEach { it.country.legacyPower() }
+                restored.session.countries.forEach { it.legacyPower() }
+            }
             if (restored.session.participants.values.any { it.online || it.connection != null }) {
                 val recovered = transitionSession(rules, restored, SessionAction.RecoverConnections)
                 store.commit(SessionAction.RecoverConnections, recovered)
@@ -426,7 +429,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val session=durableState?.session ?: simulation.exportState()
             if(session.ended!=null)return
             val inventory=production?.snapshot(session.generation) ?: return
-            val action=territory?.ending(inventory) ?: return
+            val action=territory?.ending(inventory,session.countries,session.eliminated.keys) ?: return
             val events=if(durability!=null) {
                 val next=transitionSession(rules,checkNotNull(durableState),action)
                 check(!next.rejected) {"Derived territory result was rejected"}
@@ -438,8 +441,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 durableState=next.state
                 state=next.state.snapshot(rules)
                 next.events
-            } else simulation.updateTerritory(action.systems,action.capitals).also {events->
-                if(events.isNotEmpty())restartAt=Math.addExact(elapsed,rules.restartDelayRealMillis)
+            } else simulation.updateCountryTerritory(action.systems,action.capitals,action.reductionEligible).also {events->
+                if(events.any {it is WorldEvent.Ended})restartAt=Math.addExact(elapsed,rules.restartDelayRealMillis)
                 state=state.copy(revision=Math.addExact(state.revision,1),session=simulation.snapshot())
             }
             state=state.copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=inventory)

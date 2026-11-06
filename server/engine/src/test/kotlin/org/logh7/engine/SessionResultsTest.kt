@@ -21,10 +21,10 @@ class SessionResultsTest {
     @Test fun missingPoliticalFactsDoNotSilentlyGrantDecisiveOrInventAWinningGrade() {
         assertEquals(SessionGrade.UNRESOLVED,assess(conditions=VictoryConditions()).powers.getValue(Power.EMPIRE).grade)
         assertEquals(SessionGrade.LIMITED,assess(empireShips=99,conditions=VictoryConditions()).powers.getValue(Power.EMPIRE).grade)
-        assertEquals(SessionGrade.UNRESOLVED,assess(reason=captured.copy(affected=Power.entries.toSet())).powers.getValue(Power.EMPIRE).grade)
+        assertEquals(SessionGrade.UNRESOLVED,assess(reason=SessionEnd(captured.reason,Power.entries.toSet(),captured.gameSeconds)).powers.getValue(Power.EMPIRE).grade)
     }
     @Test fun allianceCapitalVictoryDoesNotRequireAnImperialLeader() {
-        val result=assess(captured.copy(affected=setOf(Power.EMPIRE)),10,90,10,100,conditions=VictoryConditions(true,null))
+        val result=assess(SessionEnd(captured.reason,setOf(Power.EMPIRE),captured.gameSeconds),10,90,10,100,conditions=VictoryConditions(true,null))
         assertEquals(SessionGrade.DECISIVE,result.powers.getValue(Power.ALLIANCE).grade)
     }
     @Test fun nonCapitalEndUsesPopulationAndTiesGoToAllianceRegardlessOfReducedSide() {
