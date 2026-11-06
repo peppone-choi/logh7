@@ -80,7 +80,7 @@ class TransportActionsTest {
         assertEquals(StrategyActionRejection.CARD,act(load(1).copy(card=39),big).rejection)
     }
     @Test fun deliveredScalesByTheSurvivingShare() {
-        val p=TransportPackage(1,2,1049,1050,1000,UnitInventory(mapOf(cargo to 3)),carrier=200,carrierBoats=100)
+        val p=TransportPackage(1,CountryId(2),1049,1050,1000,UnitInventory(mapOf(cargo to 3)),carrier=200,carrierBoats=100)
         assertEquals(1000 to p.units,TransportActions.delivered(p,100))
         assertEquals(0,TransportActions.delivered(p,0).first);assertTrue(TransportActions.delivered(p,0).second.ships.isEmpty())
         assertEquals(500,TransportActions.delivered(p,50).first);assertEquals(1,TransportActions.delivered(p,50).second.ships[cargo])

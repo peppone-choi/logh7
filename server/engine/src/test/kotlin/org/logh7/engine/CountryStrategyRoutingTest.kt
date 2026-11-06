@@ -79,14 +79,14 @@ class CountryStrategyRoutingTest {
 
     @Test fun originalNationOfficesCannotBeBorrowedByAnAdditionalCountry() {
         val before=stock();val pilot=player()
-        for(command in PersonnelActions.supported+StrategicOperations.supported+TransportActions.supported) {
+        for(command in PersonnelActions.supported+StrategicOperations.supported) {
             val result=StrategyActions.evaluate(galaxy,request(command,17),session(),pilot,before,catalog())
             assertEquals(StrategyActionRejection.AUTHORITY,result.rejection,"command $command")
             assertEquals(pilot,result.player);assertEquals(before,result.stocks)
         }
-        for(command in CivicActions.supported) {
+        for(command in CivicActions.supported+TransportActions.supported) {
             val result=StrategyActions.evaluate(galaxy,request(command,17),session(),pilot,before,catalog())
-            assertEquals(StrategyActionRejection.CARD,result.rejection,"command $command requires its country's own civic card")
+            assertEquals(StrategyActionRejection.CARD,result.rejection,"command $command requires its country's own card")
             assertEquals(pilot,result.player);assertEquals(before,result.stocks)
         }
         val budget=BudgetActions.evaluate(galaxy,BudgetRequest(request(16,8)),session(),pilot,before)

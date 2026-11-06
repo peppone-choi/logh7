@@ -84,12 +84,24 @@ class StrategicStateStoreTest {
     }
     @Test fun transportPackagesAreAnOptionalSixthSection() {
         assertEquals(5,StrategicStateCodec.encode(state).split('|').size)
-        val packed=state.copy(transports=listOf(TransportPackage(1,2,1049,1050,1000,UnitInventory(mapOf(UnitStack(32,1) to 2),mapOf(UnitStack(3) to 1))),
-            TransportPackage(2,2,1049,1050,5,carrier=200,carrierBoats=300)))
+        val packed=state.copy(transports=listOf(TransportPackage(1,CountryId(2),1049,1050,1000,UnitInventory(mapOf(UnitStack(32,1) to 2),mapOf(UnitStack(3) to 1))),
+            TransportPackage(2,CountryId(2),1049,1050,5,carrier=200,carrierBoats=300)))
         val encoded=StrategicStateCodec.encode(packed);assertEquals(packed,StrategicStateCodec.decode(encoded))
         assertEquals("1:2:1049:1050:1000:32.1.2:3.0.1:0:0;2:2:1049:1050:5:-:-:200:300",encoded.substringAfterLast('|'))
         assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode("$encoded|")}
         assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":200:300",":200:0"))}
+    }
+    @Test fun transportPackagesKeepActualCountryIdentityAndCargoAcrossReopening() {
+        val cargo=UnitInventory(mapOf(UnitStack(32,1) to 2),mapOf(UnitStack(3) to 1))
+        val packages=listOf(TransportPackage(1,CountryId(42),1049,1050,1000,cargo),
+            TransportPackage(2,CountryId(43),1049,1050,5,carrier=200,carrierBoats=300))
+        val value=stocks.copy(strategic=state.copy(transports=packages))
+        val encoded=StrategicStateCodec.encode(value.strategic)
+        assertEquals(value.strategic,StrategicStateCodec.decode(encoded))
+        assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace("1:42:1049:","1:0:1049:"))}
+        val path=directory.resolve("country-packages.tsv")
+        FilePlanetStockStore(path).use {it.save(value)}
+        FilePlanetStockStore(path).use {assertEquals(value,it.load())}
     }
     @Test fun anEmpirePoliticiansKeptMilitaryRankIsAnOptionalFourteenthField() {
         val politician=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(rank=1,militaryRank=6)))

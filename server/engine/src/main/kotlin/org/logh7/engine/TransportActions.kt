@@ -4,9 +4,9 @@ import org.logh7.engine.strategy.*
 
 /** One transport package. [carrier] 0 = in the source transport warehouse; otherwise the transport outfit
  * carrying it, which had [carrierBoats] live boats at loading. */
-data class TransportPackage(val id:Int,val power:Int,val source:Int,val destination:Int,val supplies:Int,
+data class TransportPackage(val id:Int,val country:CountryId,val source:Int,val destination:Int,val supplies:Int,
     val units:UnitInventory=UnitInventory(),val carrier:Int=0,val carrierBoats:Int=0) {
-    init {require(id>0 && power in 2..3 && source in 1..65535 && destination in 1..65535 && source!=destination &&
+    init {require(id>0 && source in 1..65535 && destination in 1..65535 && source!=destination &&
         supplies>=0 && (supplies>0 || units.ships.isNotEmpty() || units.troops.isNotEmpty()) && carrier>=0 &&
         (carrier==0) == (carrierBoats==0) && carrierBoats>=0)}
 }
@@ -40,22 +40,23 @@ object TransportActions {
     private fun plus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,1),add(a.troops,b.troops,1),a.work)
     private fun minus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,-1),add(a.troops,b.troops,-1),a.work)
 
-    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val country=r.country ?: return reject(StrategyActionRejection.IDENTITY)
-        val power=country.value
-        // shortcut: saved operation/office systems still belong to the original two countries.
-        if(power !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
+        if(country.value !in countries.countries)return reject(StrategyActionRejection.AUTHORITY)
+        if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val packages=stocks.strategic.transports
         var next:PlanetStocks
+        val warehouseBase:Int
         when(r.command) {
             PLAN -> {
-                val office=stocks.logisticsOfficers[r.characterId]
-                if(office==null || office.power!=power || office.card!=r.card)return reject(StrategyActionRejection.CARD)
+                if(LogisticsOfficePolicy(galaxy,countries).cards(stocks,r.characterId,country.value).none {it.first==r.card})
+                    return reject(StrategyActionRejection.CARD)
                 val source=stocks.bases[r.base] ?: return reject(StrategyActionRejection.TARGET)
                 val destination=stocks.bases[r.target] ?: return reject(StrategyActionRejection.TARGET)
-                if(source.baseId==destination.baseId || source.power!=power || destination.power!=power ||
+                if(source.baseId==destination.baseId || !source.belongsTo(country) || !destination.belongsTo(country) ||
                     source.camp!=0 || destination.camp!=0)return reject(StrategyActionRejection.TARGET)
                 if(r.amount !in 0..source.supplies.toLong() || r.argument<0 || r.value!=NO_UNIT && r.argument==0 ||
                     r.value==NO_UNIT && r.argument!=0)return reject(StrategyActionRejection.RESOURCE)
@@ -74,28 +75,31 @@ object TransportActions {
                 if(remaining!=0)return reject(StrategyActionRejection.RESOURCE)
                 val units=UnitInventory(ships,troops)
                 if(r.amount==0L && unitCount(units)==0)return reject(StrategyActionRejection.RESOURCE)
-                val made=TransportPackage((packages.maxOfOrNull {it.id} ?: 0)+1,power,source.baseId,destination.baseId,r.amount.toInt(),units)
+                val made=TransportPackage((packages.maxOfOrNull {it.id} ?: 0)+1,country,source.baseId,destination.baseId,r.amount.toInt(),units)
                 next=stocks.copy(bases=stocks.bases+(source.baseId to source.copy(supplies=source.supplies-made.supplies,
                     units=minus(source.units,units))),strategic=stocks.strategic.copy(transports=packages+made))
+                warehouseBase=source.baseId
             }
             CANCEL -> {
-                val office=stocks.logisticsOfficers[r.characterId]
-                if(office==null || office.power!=power || office.card!=r.card)return reject(StrategyActionRejection.CARD)
-                val pack=packages.singleOrNull {it.id==r.target && it.power==power} ?: return reject(StrategyActionRejection.TARGET)
+                if(LogisticsOfficePolicy(galaxy,countries).cards(stocks,r.characterId,country.value).none {it.first==r.card})
+                    return reject(StrategyActionRejection.CARD)
+                val pack=packages.singleOrNull {it.id==r.target && it.country==country} ?: return reject(StrategyActionRejection.TARGET)
                 if(pack.carrier!=0)return reject(StrategyActionRejection.BUSY)
-                val source=stocks.bases[pack.source]?.takeIf {it.power==power && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
+                val source=stocks.bases[pack.source]?.takeIf {it.belongsTo(country) && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
                 next=stocks.copy(bases=stocks.bases+(source.baseId to source.copy(supplies=Math.addExact(source.supplies,pack.supplies),
                     units=plus(source.units,pack.units))),strategic=stocks.strategic.copy(transports=packages-pack))
+                warehouseBase=source.baseId
             }
             else -> {
-                if(r.card !in commanders)return reject(StrategyActionRejection.CARD)
+                if(r.card !in commanders || OrganizationOffices.of(r.card,country,countries)==null)return reject(StrategyActionRejection.CARD)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
-                if(o.kind!=OutfitKind.TRANSPORT || o.commanderId!=r.characterId || o.power!=power)return reject(StrategyActionRejection.AUTHORITY)
+                if(o.kind!=OutfitKind.TRANSPORT || o.commanderId!=r.characterId || o.country!=country)return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.baseId==0 || position.grid!=p.grid || position.baseId!=p.baseId || p.mode !in 1..4)
                     return reject(StrategyActionRejection.LOCATION)
-                val base=stocks.bases[position.baseId]?.takeIf {it.power==power && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
-                val pack=packages.singleOrNull {it.id==r.target && it.power==power} ?: return reject(StrategyActionRejection.TARGET)
+                val base=stocks.bases[position.baseId]?.takeIf {it.belongsTo(country) && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
+                warehouseBase=base.baseId
+                val pack=packages.singleOrNull {it.id==r.target && it.country==country} ?: return reject(StrategyActionRejection.TARGET)
                 if(o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
                 next=if(pack.carrier==0) {
                     if(pack.source!=base.baseId)return reject(StrategyActionRejection.LOCATION)
@@ -109,7 +113,7 @@ object TransportActions {
                     if(pack.carrier!=o.id)return reject(StrategyActionRejection.AUTHORITY)
                     // A destination lost to capture or revolt while the cargo is aboard would strand it: the carrier
                     // may then unload at the own regular base it docks at (2026-11-04 rerouting, evidence:guess).
-                    val lost=stocks.bases[pack.destination]?.let {it.power!=power || it.camp!=0} ?: true
+                    val lost=stocks.bases[pack.destination]?.let {!it.belongsTo(country) || it.camp!=0} ?: true
                     if(pack.destination!=base.baseId && !lost)return reject(StrategyActionRejection.LOCATION)
                     // Boats lost since loading take the same share of the cargo (approved §2.3).
                     val (supplies,units)=delivered(pack,boats(o))
@@ -120,7 +124,7 @@ object TransportActions {
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(r.command==LOAD)160L else 80L,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
+        return StrategyActionResult(p.paidWith(paid.balance),next,changed=true,warehouseBase=warehouseBase)
     }
     /** The share of a carried package that survives with [boats] of its [TransportPackage.carrierBoats]. */
     fun delivered(pack:TransportPackage,boats:Int):Pair<Int,UnitInventory> {
