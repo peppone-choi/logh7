@@ -45,6 +45,29 @@ class CapitalAppointmentTest {
             assertEquals(AppointmentRejection.OCCUPIED,act(rule,s=original.copy(bases=original.bases+(q.base to taken))).rejection)
         }
     }
+    @Test fun baseZeroAppointsAtEachCountrysMovedCapitalWithoutCreatingInvalidLegacyFields() {
+        for(rule in CapitalAppointmentPolicy.rules) {
+            val country=CountryId(rule.power)
+            val moved=ordinary.copy(id=1500,grid=2488,name="New Capital")
+            val expanded=Galaxy(galaxy.systems+GalaxySystem(5,2488,4,"New",rule.power),galaxy.bases+moved,galaxy.starts)
+            val before=stock(rule).let {s->s.copy(bases=s.bases+(moved.id to PlanetStock(moved.id,rule.power,0,0,0,0)),
+                strategic=s.strategic.copy(capitals=mapOf(country to moved.id)))}
+            val query=request(rule).copy(base=0)
+            val player=Navigator(1,10000,country,2488,1000,1000,1000)
+            val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",country,false,"c")}.exportState()
+            val result=GarrisonAppointment.evaluate(expanded,query,session,player,before)
+            assertNull(result.rejection);assertTrue(result.changed);assertEquals(840,result.player!!.mcp)
+            val saved=checkNotNull(result.stocks);val policy=OrganizationalOfficePolicy(expanded)
+            assertEquals(listOf(OfficeHolding(rule.card,moved.id,10001,country)),policy.holders(saved,rule.card,country))
+            assertEquals(0,rule.holder(saved.bases.getValue(moved.id)))
+            assertTrue(saved.bases.values.all {BaseOfficePolicy(expanded).holders(it).isEmpty()})
+            val retry=GarrisonAppointment.evaluate(expanded,query,session,result.player,saved)
+            assertNull(retry.rejection);assertFalse(retry.changed);assertEquals(840,retry.player!!.mcp)
+            val denied=GarrisonAppointment.evaluate(expanded,query,session,player.copy(mcp=159,pcp=319),before)
+            assertEquals(AppointmentRejection.CP,denied.rejection);assertEquals(before,denied.stocks)
+        }
+    }
+
     @Test fun civilHierarchyExceptionCannotBeUsedForMilitaryPeers() {
         assertTrue(CapitalAppointmentPolicy.rule(192)!!.eligible(1,1))
         assertFalse(CapitalAppointmentPolicy.rule(193)!!.eligible(5,5))
