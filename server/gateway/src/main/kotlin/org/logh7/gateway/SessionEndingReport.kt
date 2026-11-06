@@ -13,7 +13,8 @@ internal object SessionEndingReport {
             return session(world,registered).copy(id=sessionId,name=sessionName)
         val powers=listOf(2,3).map {power->SessionEndingMessages.PowerResult(power,0,
             registered.count {it.power==power}.toLong(),
-            world?.planetStocks?.bases?.values?.count {it.power==power && it.camp==0}?.toLong() ?: 0,null)}
+            // Owner by country, so a base of another country never reaches PlanetStock.power (legacy authority).
+            world?.planetStocks?.bases?.values?.count {it.belongsTo(CountryId(power)) && it.camp==0}?.toLong() ?: 0,null)}
         return SessionEndingMessages.Session(sessionId,1,sessionName,"",world?.session?.gameSeconds ?: 0,powers,null)
     }
     private fun statistics(value:SessionStatistics)=SessionEndingMessages.Statistics(value.planets,value.fortresses,
@@ -22,10 +23,14 @@ internal object SessionEndingReport {
     fun message(world:WorldSnapshot,character:CharacterMessages.Generate,player:Navigator,
         registered:List<CharacterMessages.Generate>,offices:List<BootstrapMessages.OfficeCard>,
         evaluation:SessionEndingMessages.Evaluation=SessionEndingMessages.Evaluation(0,0,0,0,0),
-        sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,sessionName:String=LobbyMessages.LOCAL_SESSION_NAME):ByteArray {
+        sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,
+        countries:CountryCatalog=CountryCatalogLoader.current()):ByteArray {
         val session=checkNotNull(world.session)
         require(player.generation==session.generation && character.id==player.characterId.toLong())
-        require(character.power in 2..3 && player.power==if(character.power==2)Power.EMPIRE else Power.ALLIANCE)
+        // The record's native side must be the player's actual country's display code (same rule as the captain
+        // card); a removed or unknown country, or a mismatch, is refused rather than read as the empire or alliance.
+        require(character.power in 2..3 && TacticalAuthority.captainCard(player,countries)==if(character.power==2)59 else 195) {
+            "Session ending record differs from the player's country" }
         // The result observer grants fame; rendering only uses its persisted statement.
         return SessionEndingMessages.ended(character,evaluation,session(world,registered).copy(id=sessionId,name=sessionName),
             player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices)

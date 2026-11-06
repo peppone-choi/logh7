@@ -179,6 +179,9 @@ class GameExchange(
         else BootstrapMessages.character(character,player.pcp,player.mcp,player.spotId,player.spotOwner,player.returnBase,offices(character,player))
     /** Restore the accepted job, without submitting or charging it a second time. */
     private fun pendingNavigation(player: org.logh7.engine.Navigator): List<ByteArray> {
+        // The captain card the accepted request carried: the actual country's display code (engine contract,
+        // TacticalAuthority), never Navigator.power. A country missing from the catalogue has no card to restore.
+        val captainCard by lazy { org.logh7.engine.TacticalAuthority.captainCard(player) }
         player.retreat?.let { retreat ->
             return listOf(org.logh7.protocol.TacticalRetreatMessages.reply(
                 org.logh7.protocol.TacticalRetreatMessages.Retreat(player.characterId,listOf(player.unitId)),
@@ -188,13 +191,13 @@ class GameExchange(
             // Same restore order as docking: the HUD module records the reserved ACK.
             val seconds = gameSeconds()
             return listOf(org.logh7.protocol.NavigationMessages.reserved(org.logh7.protocol.NavigationMessages.Warp(
-                player.characterId, if (player.power == org.logh7.engine.Power.EMPIRE) 59 else 195, warp, 0, 5),
+                player.characterId, captainCard ?: return emptyList(), warp, 0, 5),
                 seconds, player.pcp, player.mcp, maxOf(0, checkNotNull(player.warpReadyAt) - seconds)))
         }
         val target = player.dockTarget ?: return emptyList()
         val seconds = gameSeconds()
         return listOf(org.logh7.protocol.PlaceMessages.docked(org.logh7.protocol.PlaceMessages.Dock(
-            player.characterId, if (player.power == org.logh7.engine.Power.EMPIRE) 59 else 195, target, 4),
+            player.characterId, captainCard ?: return emptyList(), target, 4),
             seconds, player.pcp, player.mcp, waitSeconds = maxOf(0, checkNotNull(player.dockReadyAt) - seconds)))
     }
     private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate,
@@ -1042,9 +1045,12 @@ class GameExchange(
                         val id = java.nio.ByteBuffer.wrap(body).getInt(2)
                         val actor = checkNotNull(currentCharacter(identity.account))
                         val target = checkNotNull(currentCharacterById(id))
-                        require(target.power == actor.power) { "Character detail requires friendly affiliation" }
+                        val profiles=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).values.associateBy {it.character.id.toInt()}
+                        val viewer=profiles[actor.id.toInt()];val subject=profiles[id]
+                        require(WorldCharacters.mayReadPrivateDetail(viewer,subject)) { "Character detail requires friendly affiliation" }
+                        val country=WorldCharacters.friendlyCountry(viewer,subject)
                         BootstrapMessages.character(target,0,0,
-                            offices=administration.offices(id,target.power,checkNotNull(generation)))
+                            offices=country?.let {administration.offices(id,it.value,checkNotNull(generation))}.orEmpty())
                     }
                     0x0354 -> {
                         check(gameStarted && worldInitialized && world != null && presence != null)
@@ -1055,7 +1061,8 @@ class GameExchange(
                             val target = presence.detail(connection, id)
                             val profile = target?.let { member ->
                                 val player = member.player
-                                val outfit = stored?.outfits?.get(member.outfit)?.takeIf { it.power == member.character.power }
+                                val outfit = stored?.outfits?.get(member.outfit)?.takeIf {
+                                    player.country!=null && it.country==player.country }
                                 val outfitBase = outfit?.let { unit -> world.galaxy.bases.singleOrNull { it.id == unit.baseId } }
                                 val charged = member.offices.mapNotNull { card ->
                                     world.galaxy.bases.singleOrNull { it.id == card.target }?.let {

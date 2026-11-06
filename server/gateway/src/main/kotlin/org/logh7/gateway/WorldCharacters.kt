@@ -5,6 +5,12 @@ import org.logh7.protocol.CharacterMessages
 
 /** One current personnel view for login, observers and tactical reconnect. Author: Peppone Choi. */
 internal object WorldCharacters {
+    /** Private strategic detail belongs to a registered actual country, regardless of the native display byte. */
+    fun friendlyCountry(actor:CharacterProfile?,target:CharacterProfile?,countries:CountryCatalog=CountryCatalogLoader.current()):CountryId? =
+        actor?.country?.takeIf {it==target?.country && it.value in countries.countries}
+    fun mayReadPrivateDetail(actor:CharacterProfile?,target:CharacterProfile?,countries:CountryCatalog=CountryCatalogLoader.current()):Boolean =
+        actor!=null && target!=null && (actor.character.id==target.character.id || friendlyCountry(actor,target,countries)!=null)
+
     /** A world checkpoint is authoritative after admission/defection. Match account, character and
      * generation so an old navigator can never supply a newly registered character's membership. */
     fun profiles(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):Map<String,CharacterProfile> = stored.mapValues {(account,profile)->
