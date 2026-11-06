@@ -153,7 +153,12 @@ static void __fastcall lobbyScreenSize(void* app, void*, int width, int height) 
     HWND frame = lobbyFrameWindow(), view = lobbyViewWindow();
     lobbyBoxTrace("lobby-enter");
     leaveLobbyBox();
-    if (!configuredScreen(screenWidth, screenHeight) || (screenWidth == width && screenHeight == height) ||
+    // Native A/B checks: LOGH7_LOBBY_BOX=0 keeps the original lobby; the trace still records it.
+    char boxSwitch[4] = {};
+    if (frame && !lobbyBox.subclassed && GetEnvironmentVariableA("LOGH7_LOBBY_BOX_LOG", nullptr, 0))
+        lobbyBox.subclassed = SetWindowSubclass(frame, lobbyFrameProc, 0x4c4f4248, 0) != FALSE;
+    if ((GetEnvironmentVariableA("LOGH7_LOBBY_BOX", boxSwitch, sizeof(boxSwitch)) && !strcmp(boxSwitch, "0")) ||
+        !configuredScreen(screenWidth, screenHeight) || (screenWidth == width && screenHeight == height) ||
         !frame || !view || at<HWND>(app, 0x2a40c) != view) { // the D3D device window must be the view
         nativeScreenSize(app, width, height);
         return;
