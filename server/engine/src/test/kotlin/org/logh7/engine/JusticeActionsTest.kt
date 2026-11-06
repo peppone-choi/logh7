@@ -53,7 +53,7 @@ class JusticeActionsTest {
             val request=when(kind) {0->order.copy(supplyFuel=true);1->order.copy(place=PlaceMove.Dock(1049,4));else->order.copy(destination=2489)}
             val pending=assertNotNull(Navigation(galaxy,store,NavigationPolicy()).apply(request,session,stocks()).player)
             val detainedPlayers=players.toMutableMap()
-            val detained=assertNotNull(JusticeActions.detain(galaxy,stocks(),detainedPlayers,10002,2,session.gameMillis/1000))
+            val detained=assertNotNull(JusticeActions.detain(galaxy,stocks(),detainedPlayers,10002,CountryId(2),session.gameMillis/1000))
             val prisoner=detainedPlayers.getValue("c")
             assertEquals(10490019,prisoner.spotId);assertEquals(pending.mcp,prisoner.mcp)
             assertNull(prisoner.strategy);assertNull(prisoner.fuelReadyAt);assertNull(prisoner.dockTarget);assertNull(prisoner.warpTarget)
@@ -91,7 +91,7 @@ class JusticeActionsTest {
     }
     @Test fun judgmentReleasesDemotesOrHoldsSixtyDays() {
         val players=accounts.toMutableMap()
-        val detained=assertNotNull(JusticeActions.detain(galaxy,stocks(),players,10002,2,0))
+        val detained=assertNotNull(JusticeActions.detain(galaxy,stocks(),players,10002,CountryId(2),0))
         val lenient=act(a,"a",Justice.JUDGMENT,7,10002,value=Justice.LENIENT,s=detained)
         assertNull(lenient.rejection);val s=assertNotNull(lenient.stocks)
         assertFalse(s.social.justice.detained(10002));assertEquals(9,s.strategic.people.getValue(10002).rank);assertEquals(50,s.strategic.people.getValue(10002).merit)
@@ -101,7 +101,7 @@ class JusticeActionsTest {
     }
     @Test fun fourteenDaysWithoutAVerdictMeanLenience() {
         val players=accounts.toMutableMap()
-        val detained=assertNotNull(JusticeActions.detain(galaxy,stocks(),players,10002,2,0))
+        val detained=assertNotNull(JusticeActions.detain(galaxy,stocks(),players,10002,CountryId(2),0))
         val later=session.copy(gameMillis=(14*86400L+1)*1000)
         val settled=JusticeActions.settle(galaxy,later,players,detained)
         assertFalse(settled.social.justice.detained(10002));assertEquals(9,settled.strategic.people.getValue(10002).rank)
@@ -132,18 +132,19 @@ class JusticeActionsTest {
             GalaxyBase(1177,2015,80,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f)),
             mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
         val r=SocialRequest(StrategyActionRequest("c","c",10002,Power.EMPIRE,1,Justice.DEFECT,0,8,value=0,identities=ids))
-        val result=SocialActions.evaluate(twoCapitals,r,session,c,stocks(),accounts.values,accounts)
-        assertNull(result.rejection);assertEquals(3,result.defected)
+        val owned=stocks().let {it.copy(bases=it.bases+(1177 to PlanetStock(1177,3,0,0,0,0)))}
+        val result=SocialActions.evaluate(twoCapitals,r,session,c,owned,accounts.values,accounts)
+        assertNull(result.rejection);assertEquals(CountryId(3),result.defected)
         val p=assertNotNull(result.player);assertEquals(Power.ALLIANCE,p.power);assertEquals(680,p.pcp,"PCP 320");assertNull(p.hull)
         assertEquals(11770019,p.spotId,"the alliance capital holding room")
-        val s=assertNotNull(result.stocks);assertEquals(3,s.social.justice.detentions.getValue(10002).power)
+        val s=assertNotNull(result.stocks);assertEquals(CountryId(3),s.social.justice.detentions.getValue(10002).country)
         assertTrue(OrganizationalOfficePolicy(twoCapitals).held(s,10002).isEmpty())
         val sim=SessionSimulation(rules).also {it.join("c",Power.EMPIRE,false,"c")}
         sim.defect("c",Power.ALLIANCE);assertEquals(Power.ALLIANCE,sim.exportState().participants.getValue("c").power)
         val original=CountryCatalogLoader.load()
         val swapped=CountryCatalog(original.calendars.values.toList(),original.families.values.map {
             it.copy(shipStyle=if(it.shipStyle=="empire")"alliance" else "empire")},original.countries.values.toList())
-        val configured=JusticeActions.evaluate(twoCapitals,r,session,c,stocks(),accounts,catalog=swapped)
+        val configured=JusticeActions.evaluate(twoCapitals,r,session,c,owned,accounts,catalog=swapped)
         assertNull(configured.rejection)
         assertEquals(CountryId(3),configured.player?.country)
         assertEquals(ShipStyleId("empire"),configured.player?.shipStyle,"destination country model family")

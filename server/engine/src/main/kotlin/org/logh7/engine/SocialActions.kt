@@ -54,8 +54,8 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     val outcome:Int=0,
     /** 一斉捜索 result: the found person's spot (1 when it stays outside a spot), 0 not found. */
     val found:Int=0,
-    /** 亡命: the destination power (2/3) whose session record, character and navigation now switch; 0 none. */
-    val defected:Int=0,
+    /** 亡命: the actual destination whose session record, character and navigation switch together. */
+    val defected:CountryId?=null,
     /** 情報工作 report: approval*256+peace of the infiltrated base. */
     val report:Int=0)
 
@@ -68,8 +68,8 @@ object SocialActions {
         navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap(),
         countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
         if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(g,r,session,p,s,accounts,countries)
-        if(r.identity.command in Justice.commands)return JusticeActions.evaluate(g,r,session,p,s,accounts)
-        if(r.identity.command in EspionageActions.commands)return EspionageActions.evaluate(g,r,session,p,s,accounts)
+        if(r.identity.command in Justice.commands)return JusticeActions.evaluate(g,r,session,p,s,accounts,countries)
+        if(r.identity.command in EspionageActions.commands)return EspionageActions.evaluate(g,r,session,p,s,accounts,countries)
         if(r.identity.command in CoupActions.commands)return CoupActions.evaluate(g,r,session,p,s,accounts,countries)
         if(r.identity.command==FundActions.FUNDS)return FundActions.evaluate(g,r,session,p,s)
         if(r.identity.command in GoalActions.commands)return GoalActions.evaluate(g,r,session,p,s)

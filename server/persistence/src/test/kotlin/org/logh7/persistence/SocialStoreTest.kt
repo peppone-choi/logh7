@@ -160,6 +160,33 @@ class SocialStoreTest {
         FileWorldStateStore(path).use {it.saveWorld(mapOf("actor" to player),saved)}
         FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks());assertEquals(player,it.loadNavigation()["actor"])}
     }
+    @Test fun justiceCountriesCustodyAndSpyOriginsRoundTripWithLegacyRowsUnchanged() {
+        val a=CountryId(42);val b=CountryId(43)
+        val state=SocialState(justice=JusticeState(
+            permits=mapOf(10001 to ArrestPermit(10001,10000,a,3,1000)),
+            rights=mapOf(10002 to ArrestRight(10002,10001,10000,1000,a)),
+            detentions=mapOf(10003 to Detention(10003,b,1,1000,base=1049)),
+            watches=mapOf(10004 to Watch(10004,10005,1,1000,a)),
+            infiltrations=mapOf(10006 to Infiltration(10006,1049,10490003,1000,a,b)),
+            disguises=mapOf(10007 to Disguise(10007,2,b,1,1000,a))))
+        val encoded=SocialStateCodec.encode(state)
+        assertEquals(state,SocialStateCodec.decode(encoded),"watch and infiltration coexist")
+        for(bad in listOf(encoded.replace("10001:10000:42:","10001:10000:0:"),
+            encoded.replace("10002:10001:10000:1000:42","10002:10001:10000:1000:0"),
+            encoded.replace("10003:43:1:1000:0:1049","10003:43:1:1000:0:0")))
+            assertFailsWith<IllegalArgumentException> {SocialStateCodec.decode(bad)}
+        val saved=stocks.copy(social=state)
+        val path=directory.resolve("justice-countries")
+        FileWorldStateStore(path).use {it.saveWorld(emptyMap(),saved)}
+        FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks())}
+        val legacy=SocialState(justice=JusticeState(
+            permits=mapOf(1 to ArrestPermit(1,2,CountryId(2),3,1000)),rights=mapOf(3 to ArrestRight(3,1,2,1000)),
+            detentions=mapOf(4 to Detention(4,CountryId(3),1,1000)),watches=mapOf(5 to Watch(5,6,1,1000)),
+            infiltrations=mapOf(7 to Infiltration(7,1049,10490003,1000)),
+            disguises=mapOf(8 to Disguise(8,2,CountryId(3),1,1000))))
+        val old=SocialStateCodec.encode(legacy)
+        assertEquals(legacy,SocialStateCodec.decode(old));assertEquals(old,SocialStateCodec.encode(SocialStateCodec.decode(old)))
+    }
     @Test fun coupPlotsAndLoyaltyRoundTripAsAnOptionalTenthField() {
         val coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),100,setOf(10003),listOf(10002,10001),500,setOf(1049))),mapOf(7 to 20))
         val state=SocialState(coup=coup)

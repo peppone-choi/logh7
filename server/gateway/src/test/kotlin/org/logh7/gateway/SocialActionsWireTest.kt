@@ -93,6 +93,34 @@ class SocialActionsWireTest {
             assertTrue(OfficeHolding(68,1049,10000) in state.stocks.strategic.offices)
         }
     }
+    @Test fun encryptedDefectionCommitsNavigationSessionAndCharacterMembershipAcrossRestart() {
+        val state=State();val path=directory.resolve("defection")
+        LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+            stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),true,false).client
+            actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            actor.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+                .putShort(Justice.DEFECT.toShort()).putShort(0).putShort(0).putInt(0)
+                .put(0).putInt(0).putShort(0).putInt(0).putShort(0).array())
+            assertEquals(0,ByteBuffer.wrap(next(actor,0x1200)).getShort(16).toInt())
+            val player=state.players.getValue("load-000")
+            assertEquals(CountryId(3),player.country);assertEquals(680,player.pcp)
+            assertEquals(11770019,player.spotId)
+            assertEquals(CountryId(3),state.stocks.social.justice.detentions.getValue(10000).country)
+            assertEquals(CountryId(3),CharacterCreation(path.resolve("characters.properties")).profiles().getValue("load-000").country)
+            actor.close()
+            val rejoined=server.join(server.account(0),false,false).client
+            rejoined.send(SyntheticClient.opcode(0x0f00));next(rejoined,0x0f01)
+            assertEquals(CountryId(3),server.engine.snapshot().navigators.getValue("load-000").country)
+        }
+        LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+            stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),false,false).client
+            actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            assertEquals(CountryId(3),server.engine.snapshot().navigators.getValue("load-000").country)
+            assertEquals(680,state.players.getValue("load-000").pcp)
+        }
+    }
     @Test fun originalEnvelopeCommitsARealSpeechPublishesEffectsAndRestoresItsReceiptWithoutAnotherCharge() {
         val state=State();var ticket=0
         LoadFixture(directory.resolve("first"),2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,

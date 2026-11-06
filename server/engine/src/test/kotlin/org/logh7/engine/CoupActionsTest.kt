@@ -47,7 +47,7 @@ class CoupActionsTest {
         assertEquals(CoupActions.alias(58),held.single {it!=68})
         assertEquals(setOf(69),policy.held(s,10001).map {it.card}.toSet(),"副盟主")
         assertTrue(s.social.coup.revolting(CountryId(2)))
-        val caught=s.copy(social=s.social.copy(justice=JusticeState(detentions=mapOf(10000 to Detention(10000,2,0,86400)))))
+        val caught=s.copy(social=s.social.copy(justice=JusticeState(detentions=mapOf(10000 to Detention(10000,CountryId(2),0,86400)))))
         val ended=CoupActions.settle(galaxy,caught,100)
         assertEquals(0,ended.bases.getValue(1049).camp);assertTrue(ended.social.coup.plots.isEmpty())
         assertTrue(policy.held(ended,10000).isEmpty())

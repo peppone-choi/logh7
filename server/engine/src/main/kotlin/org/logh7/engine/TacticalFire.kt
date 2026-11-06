@@ -316,7 +316,7 @@ internal object TacticalCombat {
         inventory=FortressArmor.advance(session,galaxy,players,inventory,fortressSunk)
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players.values)
-        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {EspionageActions.caughtBy={st,pl,id,side,at->JusticeActions.detain(galaxy,st,pl,id,side,at)};inventory=EspionageActions.settle(session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
+        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {inventory=EspionageActions.settle(galaxy,session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
         val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}
         inventory=BattleDeath.apply(inventory,departedIds,now)

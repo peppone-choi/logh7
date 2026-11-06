@@ -32,7 +32,7 @@ class EspionageActionsTest {
         assertEquals(SocialRejection.STALE,act(EspionageActions.ESCAPE).rejection)
         val armed=stocks().let {it.copy(social=it.social.copy(justice=it.social.justice.copy(bombs=mapOf(10000 to Bomb(10000,1049,10490001,100)))))}
         val players=accounts.toMutableMap()
-        val exploded=EspionageActions.settle(session.copy(gameMillis=200_000),players,armed)
+        val exploded=EspionageActions.settle(galaxy,session.copy(gameMillis=200_000),players,armed)
         assertTrue(exploded.social.justice.bombs.isEmpty())
         assertTrue(EspionageActions.disabled(exploded,1049,100+6*86400L));assertFalse(EspionageActions.disabled(exploded,1049,100+7*86400L))
     }
@@ -52,7 +52,7 @@ class EspionageActionsTest {
         val next=assertNotNull(result.stocks)
         if(result.outcome==1) {
             assertEquals(1050,result.player?.baseId)
-            val d=next.social.justice.disguises.getValue(10000);assertEquals(2,d.alias);assertEquals(3,d.power)
+            val d=next.social.justice.disguises.getValue(10000);assertEquals(2,d.alias);assertEquals(CountryId(3),d.country)
             val back=go(EspionageActions.RETURN,1049,p=checkNotNull(result.player),st=next)
             assertEquals(1,back.outcome);assertEquals(1049,back.player?.baseId)
             assertTrue(assertNotNull(back.stocks).social.justice.disguises.isEmpty())
