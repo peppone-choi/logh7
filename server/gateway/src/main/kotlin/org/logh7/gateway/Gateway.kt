@@ -153,7 +153,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                     }
                 }
             },countries={request->if(!started || closed.get())null else lobbyCountries(request)}),accounts)
-        successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById)}}
+        successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById,
+            {country->org.logh7.engine.CountryCatalogLoader.current().countries[country.value]?.name})}}
         tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
         fun settleResult(s:org.logh7.engine.WorldSnapshot) {s.session?.generation?.let {g->
             characterStores.fame.settle(s,characterStores.get(g))

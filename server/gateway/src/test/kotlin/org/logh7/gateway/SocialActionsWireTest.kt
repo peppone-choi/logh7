@@ -11,6 +11,35 @@ import kotlin.test.*
 
 /** 암호화 연설·공개 지지/인물 갱신·상대 재실행 제한·서버 재시작. 작성: Peppone Choi. */
 class SocialActionsWireTest {
+    @Test fun encryptedHeirDirectoryNominationAndFailedSecondPaymentRestoreAcrossRestart() {
+        val state=State();val path=directory.resolve("heir")
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(
+            10000 to StrategicPerson(rank=0),10001 to StrategicPerson(rank=1)),offices=listOf(OfficeHolding(1,1049,10000))))
+        fun query(preview:Boolean=false)=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+            .putShort(SuccessionActions.DESIGNATE.toShort()).putShort(1).putShort(0).putInt(if(preview)0 else 10001)
+            .put(if(preview)1 else 0).putInt(0).putShort(0).putInt(0).putShort(0).array()
+        LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),true,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            val heir=server.join(server.account(1),true,false).client;heir.send(SyntheticClient.opcode(0x0f00));next(heir,0x0f01)
+            actor.send(query(true));next(actor,0x1200)
+            val rows=ByteBuffer.wrap(next(actor,0x1202));assertEquals(1,rows.get(6).toInt());assertEquals(10001,rows.getInt(7));next(actor,0x1201)
+            actor.send(query());assertEquals(0,ByteBuffer.wrap(next(actor,0x1200)).getShort(16).toInt());next(actor,0x1201)
+            assertEquals(10001,state.stocks.social.succession.heir);assertEquals(840,state.players.getValue("load-000").mcp)
+        }
+        LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),false,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            assertEquals(10001,state.stocks.social.succession.heir);assertEquals(840,state.players.getValue("load-000").mcp)
+            state.failSave=true
+            assertFailsWith<java.io.IOException> {actor.send(query());next(actor,0x1200)}
+            assertEquals(EngineHealth.STORAGE_FAILED,server.engine.health());assertEquals(840,state.players.getValue("load-000").mcp)
+            assertEquals(10001,state.stocks.social.succession.heir)
+        }
+        state.failSave=false
+        LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),false,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            assertEquals(10001,state.stocks.social.succession.heir);assertEquals(840,state.players.getValue("load-000").mcp)
+        }
+    }
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2015,4,"Other",3)),listOf(
