@@ -169,7 +169,7 @@ class OutfitLogisticsTest {
         val r = f.request()
         assertEquals(LogisticsRejection.SESSION,f.act(r.copy(connection="forged")).rejection)
         assertEquals(LogisticsRejection.SESSION,f.act(r.copy(generation=2)).rejection)
-        assertEquals(LogisticsRejection.IDENTITY,f.act(r.copy(power=Power.ALLIANCE)).rejection)
+        assertEquals(LogisticsRejection.IDENTITY,f.act(r.copy(country=Power.ALLIANCE.country)).rejection)
         assertEquals(LogisticsRejection.IDENTITY,f.act(r,navigator=null).rejection)
         assertEquals(LogisticsRejection.IDENTITY,f.act(r,navigator=f.player(12)).rejection)
         assertEquals(LogisticsRejection.ACCESS,f.act(f.request(12)).rejection)

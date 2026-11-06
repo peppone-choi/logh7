@@ -3,8 +3,11 @@ package org.logh7.engine
 import org.logh7.engine.strategy.*
 
 data class CompletenessSupplyRequest(val account: String, val connection: String, val characterId: Int,
-    val power: Power, val generation: Long, val from: Int, val to: Int,
-    val politics: Int = 50, val administration: Int = 50)
+    val country: CountryId?, val generation: Long, val from: Int, val to: Int,
+    val politics: Int = 50, val administration: Int = 50) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,from:Int,to:Int,
+        politics:Int=50,administration:Int=50):this(account,connection,characterId,power.country,generation,from,to,politics,administration)
+}
 
 data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetStocks?,
     val rejection: LogisticsRejection? = null, val transferred: Int = 0,
@@ -25,11 +28,11 @@ internal object CompletenessSupply {
         if (session.ended != null || session.generation != r.generation || stocks.generation != r.generation ||
             member == null || !member.online || member.connection != r.connection) return reject(LogisticsRejection.SESSION)
         if (player == null || player.generation != r.generation || player.characterId != r.characterId ||
-            player.country != r.power.country || member.country != r.power.country) return reject(LogisticsRejection.IDENTITY)
+            player.country != r.country || member.country != r.country) return reject(LogisticsRejection.IDENTITY)
+        val country = r.country ?: return reject(LogisticsRejection.ACCESS)
         val from = stocks.outfits[r.from] ?: return reject(LogisticsRejection.OUTFIT)
         val to = stocks.outfits[r.to] ?: return reject(LogisticsRejection.OUTFIT)
         if (from.id == to.id) return reject(LogisticsRejection.OUTFIT)
-        val country = r.power.country
         if (from.country != country || to.country != country || from.kind != OutfitKind.TRANSPORT || from.commanderId != r.characterId)
             return reject(LogisticsRejection.ACCESS)
         val base = stocks.bases.getValue(from.baseId)

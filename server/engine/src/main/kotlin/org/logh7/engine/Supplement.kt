@@ -2,9 +2,12 @@ package org.logh7.engine
 
 import org.logh7.engine.strategy.*
 
-class SupplementRequest(val account: String,val connection: String,val characterId: Int,val power: Power,
+class SupplementRequest(val account: String,val connection: String,val characterId: Int,val country: CountryId?,
     val generation: Long,val base: Int,val outfit: Int,val kind: Int,val mode: Int,
     units: Map<Int,List<Int>>,val supplies: Int=0,val politics: Int=50,val administration: Int=50) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,base:Int,outfit:Int,kind:Int,mode:Int,
+        units:Map<Int,List<Int>>,supplies:Int=0,politics:Int=50,administration:Int=50):
+        this(account,connection,characterId,power.country,generation,base,outfit,kind,mode,units,supplies,politics,administration)
     val units: Map<Int,List<Int>> = java.util.Collections.unmodifiableMap(units.mapValues {
         java.util.Collections.unmodifiableList(ArrayList(it.value)) })
     init {require(characterId>0 && generation>0 && units.size<=99 && units.all {it.value.size<=99} &&
@@ -25,14 +28,15 @@ internal object Supplement {
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection) return reject(LogisticsRejection.SESSION)
-        if(p==null || p.characterId!=r.characterId || p.generation!=s.generation || p.country!=r.power.country || member.country!=r.power.country)
+        if(p==null || p.characterId!=r.characterId || p.generation!=s.generation || p.country!=r.country || member.country!=r.country)
             return reject(LogisticsRejection.IDENTITY)
+        val country=r.country ?: return reject(LogisticsRejection.ACCESS)
         if(r.mode !in 0..1)return reject(LogisticsRejection.MODE)
         val outfit=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
         // update03: guard ships are never replenished; disband and buy again instead.
         if(outfit.guard!=null)return reject(LogisticsRejection.ACCESS)
         val owner=stocks.bases.getValue(outfit.baseId)
-        if(outfit.country!=r.power.country || owner.country!=r.power.country || owner.camp!=0 || outfit.commanderId!=r.characterId)
+        if(outfit.country!=country || owner.country!=country || owner.camp!=0 || outfit.commanderId!=r.characterId)
             return reject(LogisticsRejection.ACCESS)
         if(r.base!=outfit.baseId || (outfit.position?.baseId ?: outfit.baseId)!=outfit.baseId ||
             r.kind!=outfit.kind.wire || p.baseId!=outfit.baseId || p.cpPaused ||

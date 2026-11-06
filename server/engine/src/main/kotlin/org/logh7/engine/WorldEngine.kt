@@ -562,7 +562,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     val before = recovered?.player
@@ -574,7 +574,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         val transfer = try { StockAssignment.transfer(request, inventory) }
                             catch (_: IllegalArgumentException) { return@assignment reject(LogisticsRejection.STOCK) }
                             catch (_: NoSuchElementException) { return@assignment reject(LogisticsRejection.OUTFIT) }
-                        val prepare = LogisticsRequest(request.account, request.connection, request.characterId, request.power,
+                        val prepare = LogisticsRequest(request.account, request.connection, request.characterId, request.country,
                             request.generation, request.outfit, LogisticsMode.ALLOCATION, LogisticsPhase.PREPARE)
                         val reservation = logistics.apply(prepare, session, before, production)
                         reservation.rejection?.let { return@assignment reject(it) }
@@ -618,7 +618,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     var result = GroundTransfer.evaluate(request, session, recovered?.player, inventory)
@@ -651,7 +651,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     var result = Supplement.evaluate(request, session, recovered?.player, inventory)
@@ -684,7 +684,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     var result = CompletenessSupply.evaluate(request, session, recovered?.player, inventory)
@@ -717,7 +717,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
                     val before = recovered?.player
@@ -730,7 +730,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         val transfer = try { Reorganization.transfer(request, inventory) }
                             catch (_: IllegalArgumentException) { return@native reject(LogisticsRejection.STOCK) }
                             catch (_: NoSuchElementException) { return@native reject(LogisticsRejection.OUTFIT) }
-                        val prepare = LogisticsRequest(request.account, request.connection, request.characterId, request.power,
+                        val prepare = LogisticsRequest(request.account, request.connection, request.characterId, request.country,
                             request.generation, request.outfit, LogisticsMode.REORGANIZATION, LogisticsPhase.PREPARE)
                         val reservation = logistics.apply(prepare, session, before, production)
                         reservation.rejection?.let { return@native reject(it) }

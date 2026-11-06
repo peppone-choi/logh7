@@ -50,7 +50,7 @@ class CompletenessSupplyTest {
         for ((q, reason) in listOf(request.copy(connection = "other") to LogisticsRejection.SESSION,
             request.copy(generation = 2) to LogisticsRejection.SESSION,
             request.copy(characterId = 10001) to LogisticsRejection.IDENTITY,
-            request.copy(power = Power.ALLIANCE) to LogisticsRejection.IDENTITY,
+            request.copy(country = Power.ALLIANCE.country) to LogisticsRejection.IDENTITY,
             request.copy(from = 2, to = 1) to LogisticsRejection.ACCESS,
             request.copy(to = 1) to LogisticsRejection.OUTFIT,
             request.copy(to = 999) to LogisticsRejection.OUTFIT)) {
