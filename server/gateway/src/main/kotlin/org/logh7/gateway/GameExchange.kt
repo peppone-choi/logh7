@@ -66,6 +66,8 @@ class GameExchange(
     private val counters:GatewayCounters?=null,
     /** While closed, new logins are refused (maintenance); existing sessions are untouched. */
     private val maintenance:MaintenanceGate?=null,
+    /** This world's lobby country catalogue (mode 7); null answers an empty catalogue. */
+    private val lobbyCountries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>)?=null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -992,6 +994,12 @@ class GameExchange(
                         return null
                     }
                     0x032e, 0x0330 -> {
+                        if(opcode==0x032e && body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.LobbyCountryMessages.MODE) {
+                            // Before creation/lottery a game connection may read only its own world's catalogue.
+                            val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
+                            val frames=if(request.sessionId==sessionId)lobbyCountries?.invoke(request) else null
+                            return handshake.stageAll(frames ?: LobbyCountryCatalogue.empty(request),clearHeader=0)
+                        }
                         check(gameStarted && world != null && stock != null)
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
@@ -2090,6 +2098,14 @@ class GameExchange(
                         admission?.running != false,
                         SessionEndingReport.information(navigation?.snapshot(),characterProvider().registeredCharacters(),
                             sessionId,sessionName,admission?.generation ?: 1L)) }
+                0x032e -> {
+                    // Lobby country catalogue (mode 7) only: no other 032e mode is answered before a game starts.
+                    check(lobbyLoggedIn)
+                    val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
+                    val frames=if(sessionDirectory!=null)sessionDirectory.countries(request)
+                        else if(request.sessionId==sessionId && admission?.running!=false)lobbyCountries?.invoke(request) else null
+                    return handshake.stageAll(frames ?: LobbyCountryCatalogue.empty(request),clearHeader=0)
+                }
                 0x2009 -> {
                     check(lobbyLoggedIn)
                     val selected=LobbyMessages.select(body)

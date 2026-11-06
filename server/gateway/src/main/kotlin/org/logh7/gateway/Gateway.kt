@@ -124,6 +124,14 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         fun information(snapshot:org.logh7.engine.WorldSnapshot?,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
             return SessionEndingReport.information(snapshot,registered,sessionId,sessionName,admission?.generation ?: 1L)
         }
+        // Mode 7 lobby catalogue of this world: definitions, colors and counts read once per request.
+        fun lobbyCountries(request:org.logh7.protocol.LobbyCountryMessages.Request):List<ByteArray> {
+            val (catalog,revision)=world?.lobbyCountryDefinitions()
+                ?: org.logh7.engine.CountryCatalogLoader.snapshot()?.let {it.catalog to it.revision}
+                ?: (org.logh7.engine.CountryCatalogLoader.current() to 0L)
+            return LobbyCountryCatalogue.reply(request,LobbyCountryCatalogue.Source(admission?.generation ?: 1L,
+                navigation?.snapshot(),currentCharacters().profiles(),catalog,revision,world?.publishedCountryAppearances().orEmpty()))
+        }
         sessionRegistration=sessionDirectory?.register(GameSessionDirectory.Entry(sessionId,sessionName,sessionAddress,sessionPort,hosts.toSet(),
             generation={admission?.generation ?: 1L},available={started && !closed.get() && admission?.running!=false && !maintenance.closed()},
             information={information(navigation?.snapshot(),currentCharacters().registeredCharacters())},
@@ -139,7 +147,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                         LobbyMessages.ChargedSession(character,info,evaluation)
                     }
                 }
-            }),accounts)
+            },countries={request->if(!started || closed.get())null else lobbyCountries(request)}),accounts)
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById)}}
         tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
         fun settleResult(s:org.logh7.engine.WorldSnapshot) {s.session?.generation?.let {g->
@@ -213,7 +221,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 val generation = admission?.generation
                                 val exchange = GameExchange(if (port == sessionPort) GameExchange.Role.SESSION else GameExchange.Role.LOGIN, accounts, tickets, advertisedAddress, sessionPort, characters = characterStores.get(generation ?: 1), gameSeconds = gameSeconds, admission = admission, expectedGeneration = generation, characterProvider = ::currentCharacters, world = world, navigation = navigation,
                                 stock = stock, administration = administration, communication=communication, fame=characterStores.fame,
-                                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,counters=counters,maintenance=maintenance,
+                                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,counters=counters,maintenance=maintenance,lobbyCountries=::lobbyCountries,
                                 presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
                                     })
