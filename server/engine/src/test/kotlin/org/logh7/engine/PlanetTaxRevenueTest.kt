@@ -31,6 +31,8 @@ class PlanetTaxRevenueTest {
         val warehouseOnly = stock.copy(supplies = 0, food = 0, mineral = 0,
             units = UnitInventory(ships = mapOf(UnitStack(32) to 1)))
         assertEquals(PlanetTaxRevenue.assess(stock, base, policy), PlanetTaxRevenue.assess(warehouseOnly, base, policy))
+        assertEquals(PlanetTaxRevenue.assess(stock, base, policy),
+            PlanetTaxRevenue.assess(stock.copy(owner=Allegiance.Country(CountryId(42))), base, policy))
     }
 
     @Test fun zeroAndFullTaxAndRemittanceRespectEndpointsAndKeepRoundingRemaindersLocal() {

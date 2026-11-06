@@ -40,7 +40,7 @@ internal object PlanetTaxRevenue {
         // Old rows must be initialized by PlanetProduction at their existing watermark first.
         // Falling back to seed population here would silently undo recruitment/starvation.
         val people = checkNotNull(stock.economy) { "Tax requires initialized planet economy" }
-        if (stock.power !in 2..3 || stock.camp != 0 || base.habitability == 0) {
+        if (stock.country == null || stock.camp != 0 || base.habitability == 0) {
             return PlanetTaxRevenueAssessment(0, 0, 0, 0)
         }
         val income = people.adults.toLong() * policy.incomePerAdultPerDay
