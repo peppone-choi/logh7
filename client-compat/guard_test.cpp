@@ -12,6 +12,7 @@
 #include "planet_info_data.h"
 #include "facility_guide_data.h"
 #include "facility_label_data.h"
+#include "lobby_country_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
@@ -732,8 +733,56 @@ static int facilityGuideTest() {
     return 0;
 }
 
+static int lobbyCountryDataTest() {
+    BYTE record[24+10*36]={};
+    auto packet=[&](unsigned kind,unsigned number,const wchar_t* const (&fields)[10]) {
+        memset(record,0,sizeof(record));*reinterpret_cast<unsigned*>(record)=12;
+        *reinterpret_cast<unsigned*>(record+4)=7*512+348;record[8]=7;record[9]=2;record[20]=10;
+        *reinterpret_cast<unsigned*>(record+12)=kind;*reinterpret_cast<unsigned*>(record+16)=number;
+        for(unsigned i=0;i<10;++i) {
+            auto p=record+24+i*36;*reinterpret_cast<unsigned*>(p)=i+1;p[4]=static_cast<BYTE>(i);
+            unsigned n=static_cast<unsigned>(wcslen(fields[i]));if(n){p[6]=static_cast<BYTE>(n+1);memcpy(p+8,fields[i],n*2);}
+        }
+    };
+    const wchar_t* header[]={L"NC1",L"350",L"348",L"2",L"900719925474",L"0993",L"172800",L"1",L"",L"283"};
+    const wchar_t* row[]={L"42",L"새 국가 이름",L"",L"A1B2C3",L"123",L"14",L"2",L"0",L"",L"0"};
+    logh::LobbyCountryDraft draft;
+    if(!draft.begin(12,7,348) || draft.begin(12,128,0) || draft.begin(12,1,351))return 1001;
+    packet(1,0,row);if(draft.accept(record,sizeof(record)))return 1002;
+    packet(0,0,header);if(draft.accept(record,sizeof(record)-1) || draft.accept(record,sizeof(record))!=1)return 1003;
+    packet(1,0,row);record[4]^=1;if(draft.accept(record,sizeof(record)))return 1004;record[4]^=1;
+    auto malformed=*reinterpret_cast<unsigned short*>(record+24+36+8);
+    *reinterpret_cast<unsigned short*>(record+24+36+8)=10;
+    if(draft.accept(record,sizeof(record)))return 1005;
+    *reinterpret_cast<unsigned short*>(record+24+36+8)=malformed;
+    if(draft.accept(record,sizeof(record))!=1 || draft.complete)return 1006;
+    packet(1,1,row);if(draft.accept(record,sizeof(record)))return 1007;
+    row[0]=L"2147483647";row[3]=L"inherit";row[9]=L"3";packet(1,1,row);
+    if(draft.accept(record,sizeof(record))!=2 || !draft.complete || draft.page.total!=350 || draft.page.offset!=348 ||
+        draft.page.revision!=9007199254740993ULL || draft.page.generation!=1 || draft.page.seconds!=172800 ||
+        draft.page.totalBases!=283 || draft.page.rows[0].id!=42 || draft.page.rows[0].rgb!=0xA1B2C3 ||
+        !draft.page.rows[0].hasRgb || draft.page.rows[0].characters!=123 || draft.page.rows[0].bases!=14 ||
+        wcscmp(draft.page.rows[0].name,L"새 국가 이름") || draft.page.rows[1].hasRgb || draft.accept(record,sizeof(record)))return 1008;
+    draft.begin(12,7,350);header[2]=L"350";header[3]=L"0";packet(0,0,header);
+    *reinterpret_cast<unsigned*>(record+4)=7*512+350;
+    if(draft.accept(record,sizeof(record))!=2 || draft.page.count)return 1009;
+    BYTE sessions[4+64*0x14c]={};sessions[1]=64;
+    for(unsigned i=0;i<64;++i) {
+        auto q=sessions+4+i*0x14c;q[0]=static_cast<BYTE>(i+1);q[2]=1;q[3]=2;q[4]='S';
+        *reinterpret_cast<unsigned*>(q+0xa4)=86400+i;
+    }
+    logh::LobbySessionList list;
+    if(!logh::readLobbySessionList(sessions,sizeof(sessions),list) || list.count!=64 ||
+        list.rows[63].id!=64 || list.rows[63].seconds!=86463 || wcscmp(list.rows[63].name,L"S"))return 1010;
+    if(logh::readLobbySessionList(sessions,sizeof(sessions)-1,list))return 1011;
+    sessions[4+0x14c]=1;if(logh::readLobbySessionList(sessions,sizeof(sessions),list))return 1012;
+    sessions[1]=65;if(logh::readLobbySessionList(sessions,sizeof(sessions),list))return 1013;
+    return 0;
+}
+
 static int runGuard(int argc, wchar_t** argv) {
     if(int result=facilityGuideTest())return result;
+    if(int result=lobbyCountryDataTest())return result;
     if(logh::groundMeter(0,1000,70)!=0 || logh::groundMeter(500,1000,70)!=35 ||
         logh::groundMeter(1000,1000,70)!=70 || logh::groundMeter(1001,1000,70)!=70 ||
         logh::groundMeter(~0u,1000,70)!=70 || logh::groundMeter(500,0,70)!=0 ||
