@@ -98,5 +98,34 @@ class Messenger337LabelTests(unittest.TestCase):
         for forbidden in ['ImmSet','SendInput','ActivateKeyboardLayout','SetKeyboardLayout']:
             self.assertNotIn(forbidden,helper)
 
+    def test_cancel_hook_is_on_the_end_branch_and_preserves_the_native_return(self):
+        # END follows START subtraction + decrement; COMPOSITION has its own branch.
+        self.assertEqual(bytes.fromhex('2d0d0100007427480f85c2000000'),self.raw(0x4e7254,14))
+        self.assertEqual(0x5923a0,self.target(0x4e7267))
+        self.assertEqual(bytes.fromhex('83c4045e8ac35b8b4c2408'),self.raw(0x4e726c,11))
+        self.assertEqual(0x4ff7f0,self.target(0x4e72af))
+        self.assertEqual(0x4ffb50,self.target(0x4e72b9))
+        source=(catalog.ROOT/'client-compat/input_editor.h').read_text('utf-8')
+        helper=source.split('static void __cdecl finishImeComposition',1)[1].split('static unsigned imeMessageResume',1)[0]
+        self.assertIn('GCS_RESULTSTR,nullptr,0)==0',helper)
+        self.assertIn('GCS_COMPSTR,nullptr,0)==0',helper)
+        self.assertIn('*reinterpret_cast<BYTE*>(0xc51598)=0',helper)
+        self.assertNotIn('ImmSet',helper)
+        self.assertNotIn('0x2214640',helper)
+
+    def test_chat_getter_narrows_the_native_unicode_submission_on_the_acp_boundary(self):
+        self.assertEqual(0x504ea0,self.target(0x516dc0))
+        self.assertEqual(0x4eacf0,self.target(0x516dcb))
+        self.assertEqual(bytes.fromhex('50'),self.raw(0x516dc5,1))
+        self.assertEqual(bytes.fromhex('52'),self.raw(0x516dca,1))
+        self.assertEqual(bytes.fromhex('83c408'),self.raw(0x516dd0,3))
+        # The source is a direct wide pointer (nullable), not the name pool handle.
+        self.assertEqual(bytes.fromhex('85c0'),self.raw(0x4ead1d,2))
+        source=(catalog.ROOT/'client-compat/input_editor.h').read_text('utf-8')
+        helper=source.split('static void* __cdecl readChatInput',1)[1].split('static const wchar_t* __cdecl decodeImeStatus',1)[0]
+        self.assertIn('const wchar_t* text',helper)
+        self.assertIn('(output,text)',helper)
+        self.assertNotIn('0x4eae30',helper)
+
 
 if __name__=='__main__':unittest.main()

@@ -15,6 +15,9 @@ static void* __cdecl readGeneratedInput(void* output,const void* source) {
     const auto text=reinterpret_cast<const wchar_t*(__cdecl*)(const void*)>(0x4eae30)(source);
     return reinterpret_cast<void*(__thiscall*)(void*,const wchar_t*)>(koreanWideConstructTrampoline+0)(output,text);
 }
+static void* __cdecl readChatInput(void* output,const wchar_t* text) {
+    return reinterpret_cast<void*(__thiscall*)(void*,const wchar_t*)>(koreanWideConstructTrampoline+0)(output,text);
+}
 static const wchar_t* __cdecl decodeImeStatus(const char* text) {
     static thread_local std::wstring converted;
     const auto keyboard=LOWORD(reinterpret_cast<ULONG_PTR>(GetKeyboardLayout(0)));
@@ -48,6 +51,14 @@ static BYTE __fastcall updateImeEvent(void* ime, void*, void* scratch) {
     at<BYTE>(ime,3)=0;
     return result;
 }
+static void __cdecl finishImeComposition(const char* trace) {
+    // Release canceled composition; completed results still suppress Windows character echoes.
+    auto context=*reinterpret_cast<HIMC*>(0x221464c);
+    if (ImmGetCompositionStringA(context,GCS_RESULTSTR,nullptr,0)==0 &&
+        ImmGetCompositionStringA(context,GCS_COMPSTR,nullptr,0)==0)
+        *reinterpret_cast<BYTE*>(0xc51598)=0;
+    reinterpret_cast<void(__cdecl*)(const char*)>(0x5923a0)(trace);
+}
 static unsigned imeMessageResume=0x4e72c6;
 static void __declspec(naked) consumedImeResult() {
     __asm {
@@ -76,6 +87,8 @@ static bool installInputEditor() {
     const BYTE oldArgument[]={0x68,0x34,0x9a,0x77,0};
     const BYTE newArgument[]={0x68,0xa4,0x3e,0x21,0x02};
     const BYTE oldReturn[]={0x5e,0x32,0xc0,0x5b,0x8b,0x4c,0x24,8};
+    const BYTE oldEnd[]={0xe8,0x34,0xb1,0x0a,0};
+    const BYTE oldChat[]={0xe8,0x20,0x3f,0xfd,0xff};
     // Confirmed ANSI CString getters in generated surname/given-name and
     // flagship-name submission. Keep resource text on the CP932 boundary.
     const unsigned nameAddresses[]={0x596af5,0x596b10,0x596b67,0x596bc6,0x5978ef,0x597973};
@@ -88,12 +101,15 @@ static bool installInputEditor() {
         {0xe8,0x86,0x35,0xf5,0xff},{0xe8,0x04,0x35,0xf5,0xff}};
     if (memcmp(reinterpret_cast<void*>(0x4ff9fd),oldResult,sizeof(oldResult)) ||
         memcmp(reinterpret_cast<void*>(0x4ffa18),oldArgument,sizeof(oldArgument)) ||
-        memcmp(reinterpret_cast<void*>(0x4e72be),oldReturn,sizeof(oldReturn))) return false;
+        memcmp(reinterpret_cast<void*>(0x4e72be),oldReturn,sizeof(oldReturn)) ||
+        memcmp(reinterpret_cast<void*>(0x4e7267),oldEnd,sizeof(oldEnd)) ||
+        memcmp(reinterpret_cast<void*>(0x516dcb),oldChat,sizeof(oldChat))) return false;
     for (unsigned i=0;i<8;++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
     for (unsigned i=0;i<6;++i)
-        if (memcmp(reinterpret_cast<void*>(nameAddresses[i]),nameExpected[i],5) ||
-            memcmp(reinterpret_cast<void*>(getterAddresses[i]),getterExpected[i],5)) return false;
+        if (memcmp(reinterpret_cast<void*>(nameAddresses[i]),nameExpected[i],5)) return false;
+    for (unsigned i=0;i<6;++i)
+        if (memcmp(reinterpret_cast<void*>(getterAddresses[i]),getterExpected[i],5)) return false;
     for (unsigned i=0;i<8;++i) {
         BYTE call[5]={0xe8};
         auto function=i==7?reinterpret_cast<BYTE*>(&decodeImeStatus):i==6?reinterpret_cast<BYTE*>(&chatCastLabel):i==3?reinterpret_cast<BYTE*>(&updateImeEvent):
@@ -107,13 +123,25 @@ static bool installInputEditor() {
         *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&decodeInputText)-
             reinterpret_cast<BYTE*>(nameAddresses[i])-5);
         if (!patchBytes(reinterpret_cast<void*>(nameAddresses[i]),nameExpected[i],call,5)) return false;
+    }
+    for (unsigned i=0;i<6;++i) {
+        BYTE call[5]={0xe8};
         *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&readGeneratedInput)-
             reinterpret_cast<BYTE*>(getterAddresses[i])-5);
         if (!patchBytes(reinterpret_cast<void*>(getterAddresses[i]),getterExpected[i],call,5)) return false;
     }
     *reinterpret_cast<LONG*>(resultReturn+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&consumedImeResult)-
         reinterpret_cast<BYTE*>(0x4e72be)-5);
+    BYTE endCall[5]={0xe8};
+    *reinterpret_cast<LONG*>(endCall+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&finishImeComposition)-
+        reinterpret_cast<BYTE*>(0x4e7267)-5);
+    // This getter receives UTF-16 directly, unlike the generated-name pool handles.
+    BYTE chatCall[5]={0xe8};
+    *reinterpret_cast<LONG*>(chatCall+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&readChatInput)-
+        reinterpret_cast<BYTE*>(0x516dcb)-5);
     return patchBytes(reinterpret_cast<void*>(0x4e72be),oldReturn,resultReturn,sizeof(oldReturn)) &&
+        patchBytes(reinterpret_cast<void*>(0x4e7267),oldEnd,endCall,sizeof(endCall)) &&
+        patchBytes(reinterpret_cast<void*>(0x516dcb),oldChat,chatCall,sizeof(chatCall)) &&
         patchBytes(reinterpret_cast<void*>(0x4ff9fd),oldResult,newResult,sizeof(oldResult)) &&
         patchBytes(reinterpret_cast<void*>(0x4ffa18),oldArgument,newArgument,sizeof(oldArgument));
 }
