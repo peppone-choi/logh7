@@ -12,11 +12,30 @@ import kotlin.test.*
 class SocialStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds
-    private val receipt=SpeechReceipt(1,10000,2,1049,10490404,now,60,10,11,70,72,now+86400)
+    private val receipt=SpeechReceipt(1,10000,CountryId(2),1049,10490404,now,60,10,11,70,72,now+86400)
     private val social=SocialState(2,mapOf(10000 to receipt),mapOf(10000 to receipt.nextAt),mapOf(1049 to receipt.nextAt))
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,2000,200,300,PlanetEconomy(1000,600,72,80),treasury=200)),
         strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=1,influence=11,money=789))),
         budget=BudgetState(mapOf(1049 to 75)),social=social)
+    @Test fun speechCountriesAndPendingEducationAndInvitationsSurviveAWorldReopenWithTheOldReceiptGrammar() {
+        for(country in listOf(2,3,42,43)) {
+            val receipt=this.receipt.copy(country=CountryId(country))
+            val value=social.copy(speeches=mapOf(10000 to receipt),
+                academy=AcademyState(lectures=mapOf(10001 to Lecture(10001,1049,10494017,2,now,now+7200))),
+                gatherings=GatheringState(invites=mapOf(10000 to GatheringInvite(10000,10001,13,1049,10493414,now+1440))))
+            val text=SocialStateCodec.encode(value)
+            assertTrue(text.split('|')[3].startsWith("1:10000:$country:1049:"))
+            assertEquals(value,SocialStateCodec.decode(text))
+            assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(text.replace("1:10000:$country:1049:","1:10000:0:1049:"))}
+            val saved=stocks.copy(bases=stocks.bases.mapValues {(_,b)->b.copy(owner=Allegiance.Country(CountryId(country)))},social=value)
+            val player=Navigator(1,10000,CountryId(country),2487,1000,1000,680,shipStyle=ShipStyleId("alliance"))
+            val path=directory.resolve("country-$country")
+            FileWorldStateStore(path).use {it.saveWorld(mapOf("actor" to player),saved)}
+            FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks());assertEquals(player,it.loadNavigation()["actor"])}
+        }
+        val old="2|10000:${now+86400}|1049:${now+86400}|1:10000:2:1049:10490404:$now:60:10:11:70:72:${now+86400}"
+        assertEquals(social,SocialStateCodec.decode(old));assertEquals(old,SocialStateCodec.encode(social))
+    }
     @Test fun format35PreservesBudgetAndSAndExplicitSpeakerAndSquareLimitsWhileLoading34() {
         val path=directory.resolve("stocks.tsv")
         FilePlanetStockStore(path).use {it.save(stocks);assertEquals(stocks,it.load())}

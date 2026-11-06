@@ -1338,7 +1338,8 @@ class GameExchange(
                                 val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
                                 val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                     q.character,currentProfile(identity.account,q.character).country,
-                                    checkNotNull(generation),q.command,0,character.rank,target=q.target,value=q.value),q.phase,q.ticket)
+                                    checkNotNull(generation),q.command,0,character.rank,target=q.target,value=q.value,
+                                    identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())),q.phase,q.ticket)
                                 pendingWorld=administration.social(request).thenApply {result ->
                                     val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                     publication=Publication(updated,player,false)
@@ -1518,7 +1519,7 @@ class GameExchange(
                                             val players=navigation?.snapshot()?.navigators.orEmpty()
                                             val me=checkNotNull(players[identity.account])
                                             val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
-                                                it.characterId>query.target && me.baseId!=0 && it.power==me.power && it.grid==me.grid &&
+                                                it.characterId>query.target && me.baseId!=0 && me.country!=null && it.country==me.country && it.grid==me.grid &&
                                                 it.baseId==me.baseId}.map {it.characterId}.toSet()
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}

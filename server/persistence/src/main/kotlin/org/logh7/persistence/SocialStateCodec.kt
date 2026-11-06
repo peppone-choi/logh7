@@ -7,7 +7,7 @@ internal object SocialStateCodec {
     private fun times(values:Map<Int,Long>)=values.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
     fun encode(s:SocialState):String {
         val base=listOf(s.nextId.toString(),times(s.speakers),times(s.squares),s.speeches.toSortedMap().values.joinToString(";") {r->
-            listOf(r.id,r.character,r.power,r.base,r.spot,r.at,r.politics,r.beforeInfluence,r.influence,r.beforeApproval,r.approval,r.nextAt)
+            listOf(r.id,r.character,r.country.value,r.base,r.spot,r.at,r.politics,r.beforeInfluence,r.influence,r.beforeApproval,r.approval,r.nextAt)
                 .joinToString(":")}.ifEmpty {"-"})
         // Optional fields 5..9 are written up to the last one that differs from its default.
         val optional=listOf((s.academy!=AcademyState()) to {academy(s.academy)},(s.meeting!=MeetingState()) to {meeting(s.meeting)},
@@ -194,7 +194,7 @@ internal object SocialStateCodec {
         val speeches=linkedMapOf<Int,SpeechReceipt>()
         if(f[3]!="-")for(row in f[3].split(';')) {
             val v=row.split(':');require(v.size==12)
-            val r=SpeechReceipt(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toInt(),v[5].toLong(),v[6].toInt(),
+            val r=SpeechReceipt(v[0].toInt(),v[1].toInt(),CountryId(v[2].toInt()),v[3].toInt(),v[4].toInt(),v[5].toLong(),v[6].toInt(),
                 v[7].toInt(),v[8].toInt(),v[9].toInt(),v[10].toInt(),v[11].toLong())
             require(speeches.put(r.character,r)==null)
         }
