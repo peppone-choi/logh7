@@ -81,13 +81,14 @@ object ProposalActions {
             val key=keyOf(mail.recipient) ?: continue
             if(session.participants[key]?.online==true)continue
             val recipient=players.getValue(key)
+            val country=recipient.country?.value?.takeIf {it in 2..3} ?: continue
             val paid=CpPayment.charge(CpBalance(recipient.pcp.toLong(),recipient.mcp.toLong()),costs.getValue(mail.command)-mail.mcp,CpPool.MCP)
             if(paid !is PaymentResult.Paid)continue
             val (answered,refused)=Proposals.reply(settled.social.proposals,mail.id,mail.recipient,Proposals.APPROVE,now)
             if(refused!=null)continue
             val rank=(settled.strategic.people[mail.recipient] ?: StrategicPerson()).ladderRank(20)
             settled=execute(g,mail,settled.copy(social=settled.social.copy(proposals=answered)),
-                if(recipient.power==Power.EMPIRE)2 else 3,rank) ?: continue
+                country,rank) ?: continue
             players[key]=recipient.paidWith(paid.balance)
         }
         return settled
@@ -108,8 +109,10 @@ object ProposalActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
+        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
+        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
         val policy=OrganizationalOfficePolicy(g)
         val proposals=s.social.proposals
@@ -133,7 +136,7 @@ object ProposalActions {
         val recipient=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
             ?: return reject(SocialRejection.LOCATION)
         // CD p.28: not in tactics; the same spot inside a facility, otherwise the same grid.
-        if(recipient.power!=p.power || recipient.cpPaused || recipient.grid!=p.grid ||
+        if(recipient.country!=p.country || recipient.cpPaused || recipient.grid!=p.grid ||
             p.spotId!=0 && (recipient.baseId!=p.baseId || recipient.spotId!=p.spotId || recipient.spotOwner!=p.spotOwner))
             return reject(SocialRejection.LOCATION)
         if(policy.held(s,i.target).none {it.card==i.argument})return reject(SocialRejection.CARD)

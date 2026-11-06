@@ -127,7 +127,7 @@ class StrategyActionsTest {
     }
     @Test fun wrongConnectionCardFactionRankAuthorityAndCpCannotChangeTheWorld() {
         val s=stocks();val p=player();val q=request(48)
-        for(r in listOf(q.copy(connection="old"),q.copy(card=195),q.copy(power=Power.ALLIANCE),
+        for(r in listOf(q.copy(connection="old"),q.copy(card=195),q.copy(country=CountryId(3)),
             q.copy(rank=1),q.copy(outfit=201))) {
             val result=StrategyActions.evaluate(galaxy,r,session(),p,s)
             assertNotNull(result.rejection);assertFalse(result.changed);assertEquals(s,result.stocks);assertEquals(p,result.player)

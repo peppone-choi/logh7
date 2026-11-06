@@ -54,12 +54,15 @@ internal object StrategicOperations {
     }
     private fun sole(r:StrategyActionRequest,stocks:PlanetStocks)=r.navigators.values.filter {p->
         val rank=stocks.strategic.people[p.characterId]?.rank ?: r.identities.singleOrNull {it.id==p.characterId}?.rank
-        p.generation==r.generation && p.power==r.power && rank!=null && rank in 2..20 && p.hull?.hp?.let {it>0}==true &&
+        p.generation==r.generation && p.country==r.country && rank!=null && rank in 2..20 && p.hull?.hp?.let {it>0}==true &&
             stocks.outfits.values.none {p.characterId in it.members()}
     }
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
-        val power=if(r.power==Power.EMPIRE)2 else 3
+        val country=r.country ?: return reject(StrategyActionRejection.IDENTITY)
+        val power=country.value
+        // shortcut: saved operation/office systems still belong to the original two countries.
+        if(power !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val role=OrganizationOffices.of(r.card) ?: return reject(StrategyActionRejection.CARD)
         if(role.power!=power || role.camp!=0 || OrganizationalOfficePolicy(galaxy).holders(stocks,r.card).none {it.character==r.characterId})

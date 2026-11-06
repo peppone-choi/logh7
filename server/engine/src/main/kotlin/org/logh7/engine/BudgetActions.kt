@@ -39,8 +39,10 @@ object BudgetActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation ||
             member==null || !member.online || member.connection!=i.connection)return reject(BudgetRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(BudgetRejection.IDENTITY)
+        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
+        if(i.country.value !in 2..3)return reject(BudgetRejection.AUTHORITY)
         if(i.command !in setOf(16,18) || r.phase !in 0..3 || r.base !in 0..65535 || r.rate !in 0..100 || r.quote<0 ||
             (r.phase in 0..1 && r.quote!=0) || (r.phase in 2..3 && r.quote==0) ||
             (r.phase==0 && r.rate!=0) || (r.phase!=0 && r.base==0))return reject(BudgetRejection.COMMAND)

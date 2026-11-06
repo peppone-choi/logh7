@@ -133,7 +133,7 @@ class BudgetActionsTest {
             offices=listOf(OfficeHolding(136,1177,10000))))
         val p=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),baseId=1177,grid=2015)
         val aSession=SessionSimulation(rules).also {it.join("actor",Power.ALLIANCE,false,"c")}.exportState()
-        val r=request(base=1177,rate=100).let {it.copy(identity=it.identity.copy(power=Power.ALLIANCE,card=136))}
+        val r=request(base=1177,rate=100).let {it.copy(identity=it.identity.copy(country=CountryId(3),card=136))}
         val quote=BudgetActions.evaluate(galaxy,r,aSession,p,s);assertNull(quote.rejection)
         val done=BudgetActions.evaluate(galaxy,r.copy(phase=2,quote=quote.view!!.quote!!.id),aSession,p,assertNotNull(quote.stocks))
         assertEquals(0L,done.stocks?.nationalTreasuries?.get(CountryId(3)));assertEquals(1200L,done.stocks?.bases?.get(1177)?.treasury)

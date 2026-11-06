@@ -112,7 +112,7 @@ class FlagshipMarketActionsTest {
         val playerA=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),grid=2015,baseId=1177,spotId=spot,hull=FlagshipHull(89,now))
         val stocksA=PlanetStocks(1,0,mapOf(1177 to PlanetStock(1177,3,0,100,200,300)),
             strategic=StrategicState(people=mapOf(10000 to StrategicPerson(evaluation=1000))))
-        val result=StrategyActions.evaluate(galaxyA,request().copy(power=Power.ALLIANCE),sessionA,playerA,stocksA)
+        val result=StrategyActions.evaluate(galaxyA,request().copy(country=CountryId(3)),sessionA,playerA,stocksA)
         assertNull(result.rejection);assertEquals(93,result.player?.hull?.kind)
         assertEquals(950L,result.stocks?.strategic?.people?.get(10000)?.evaluation)
     }

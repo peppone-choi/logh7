@@ -48,11 +48,17 @@ data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val s
             transports=list(transports))
     }
 }
-data class StrategyActionRequest(val account:String,val connection:String,val characterId:Int,val power:Power,
+data class StrategyActionRequest(val account:String,val connection:String,val characterId:Int,val country:CountryId?,
     val generation:Long,val command:Int,val card:Int,val rank:Int,val outfit:Int=0,
     val politics:Int=50,val administration:Int=50,val target:Int=0,val base:Int=0,val value:Int=0,
     val amount:Long=0,val identities:List<StrategicIdentity> = emptyList(),val argument:Int=0,
-    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0)
+    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,command:Int,card:Int,rank:Int,outfit:Int=0,
+        politics:Int=50,administration:Int=50,target:Int=0,base:Int=0,value:Int=0,amount:Long=0,
+        identities:List<StrategicIdentity> = emptyList(),argument:Int=0,navigators:Map<String,Navigator> = emptyMap(),requestToken:Int=0):
+        this(account,connection,characterId,power.country,generation,command,card,rank,outfit,politics,administration,target,base,value,
+            amount,identities,argument,navigators,requestToken)
+}
 data class StrategicIdentity(val id:Int,val country:CountryId?,val rank:Int,val origin:Int,val abilities:List<Int>,
     /** Age at registration; AbilityAging adds elapsed game years. 0 = unknown (never aged). */
     val age:Int=0) {
@@ -68,12 +74,13 @@ data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,v
 internal object StrategyActions {
     val supported=setOf(46,47,48,49,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
         CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported+TransportActions.supported
-    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):StrategyActionResult {
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection)return reject(StrategyActionRejection.SESSION)
-        if(p==null || p.generation!=r.generation || p.characterId!=r.characterId || p.country!=r.power.country || member.country!=r.power.country)
+        if(p==null || r.country==null || p.generation!=r.generation || p.characterId!=r.characterId || p.country!=r.country || member.country!=r.country)
             return reject(StrategyActionRejection.IDENTITY)
         if(BattleDeath.deceased(stocks,r.characterId))return reject(StrategyActionRejection.IDENTITY)
         // U-25: a detainee cannot run strategy commands until released.
@@ -82,11 +89,13 @@ internal object StrategyActions {
         if(r.command in CivicActions.supported)return CivicActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks)
-        if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks)
-        val power=if(r.power==Power.EMPIRE)2 else 3
-        if(r.card!=if(r.command==84)0 else if(power==2)59 else 195)return reject(StrategyActionRejection.CARD)
+        val country=r.country
+        val definition=countries.countries[country.value] ?: return reject(StrategyActionRejection.IDENTITY)
+        if(r.card!=if(r.command==84)0 else when(definition.nativePower) {2->59;3->195;else->return reject(StrategyActionRejection.CARD)})
+            return reject(StrategyActionRejection.CARD)
         if(p.cpPaused || p.navigationPending ||
             stocks.strategic.suppressions.any {it.character==r.characterId} ||
             stocks.civic.active.any {it.character==r.characterId || r.outfit>0 && it.outfit==r.outfit})return reject(StrategyActionRejection.BUSY)
@@ -100,7 +109,7 @@ internal object StrategyActions {
             46,47,48,49,50,51,53 -> {
                 if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
-                if(o.commanderId!=r.characterId || o.power!=power)return reject(StrategyActionRejection.AUTHORITY)
+                if(o.commanderId!=r.characterId || o.country!=country)return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.grid!=p.grid || position.baseId!=p.baseId)return reject(StrategyActionRejection.LOCATION)
                 if(r.command in setOf(46,47) && o.activeShips?.values.orEmpty().none {it.boats>0} ||
@@ -151,13 +160,15 @@ internal object StrategyActions {
                     }
                     53 -> {
                         val base=stocks.bases[p.baseId] ?: return reject(StrategyActionRejection.LOCATION)
-                        if(base.power!=power || base.camp!=0 || o.activeGround?.values.orEmpty().none {it.base==base.baseId})
+                        if(!base.belongsTo(country) || base.camp!=0 || o.activeGround?.values.orEmpty().none {it.base==base.baseId})
                             return reject(StrategyActionRejection.TROOPS)
+                        // shortcut: suppression checkpoints support the two original countries until their saved order format is migrated.
+                        if(country.value !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
                         if(base.economy?.peace==100)return reject(StrategyActionRejection.MAXIMUM)
                         if(now>0xffffffffL-86400)return reject(StrategyActionRejection.BUSY)
                         readyAt=now+86400
                         next=stocks.copy(strategic=stocks.strategic.copy(suppressions=stocks.strategic.suppressions+
-                            SuppressionOrder(r.characterId,o.id,base.baseId,power,readyAt)))
+                            SuppressionOrder(r.characterId,o.id,base.baseId,country.value,readyAt)))
                     }
                 }
             }
@@ -169,7 +180,7 @@ internal object StrategyActions {
                 // U-28: an empire politician is also a soldier (CD manual p.37) and keeps the retired rank's ladder.
                 next=clearOffices(stocks,r.characterId).let {cleared ->cleared.copy(strategic=cleared.strategic.copy(
                     people=cleared.strategic.people+(r.characterId to person.copy(rank=if(r.command==85)10 else 1,
-                        militaryRank=if(r.command==84 && power==2)rank else 0,
+                        militaryRank=if(r.command==84 && countries.families.getValue(definition.family).ranks=="empire")rank else 0,
                         retiredUntil=if(r.command==84)now+30*86400 else person.retiredUntil))))}
                 if(r.command==85) {
                     val ship=Flagships.forType(p.shipStyle.nativePower,0)
@@ -212,7 +223,7 @@ internal object StrategyActions {
             val base=bases[order.base] ?: continue
             val troops=stocks.outfits[order.outfit]
             // A lost office/army/base cannot continue policing after the reservation matures.
-            if(base.power!=order.power || base.camp!=0 || troops==null || troops.commanderId!=order.character ||
+            if(!base.belongsTo(CountryId(order.power)) || base.camp!=0 || troops==null || troops.country!=CountryId(order.power) || troops.commanderId!=order.character ||
                 troops.activeGround?.values.orEmpty().none {it.base==base.baseId})continue
             val people=base.economy ?: continue
             bases[base.baseId]=base.copy(economy=people.copy(peace=minOf(100,people.peace+5),approval=maxOf(0,people.approval-2)))

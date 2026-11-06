@@ -1274,7 +1274,7 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         require(reply.sender.id==character.id.toInt()) {"Proposal reply owner mismatch"}
                         val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                            character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            character.id.toInt(),currentProfile(identity.account,character.id.toInt()).country,
                             checkNotNull(generation),org.logh7.engine.ProposalActions.REPLY,0,character.rank,target=reply.refer,value=reply.value))
                         pendingWorld=administration.social(request).thenApply {result ->
                             val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
@@ -1324,7 +1324,7 @@ class GameExchange(
                                 val q=org.logh7.protocol.GatheringMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
                                 val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    q.character,currentProfile(identity.account,q.character).country,
                                     checkNotNull(generation),q.command,0,character.rank,target=q.target,value=q.value),q.phase,q.ticket)
                                 pendingWorld=administration.social(request).thenApply {result ->
                                     val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
@@ -1351,7 +1351,7 @@ class GameExchange(
                                 val q=org.logh7.protocol.MeetingMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
                                 val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    q.character,currentProfile(identity.account,q.character).country,
                                     checkNotNull(generation),org.logh7.engine.MeetingActions.MEETING,0,character.rank,target=q.target),q.phase,q.ticket)
                                 pendingWorld=administration.social(request).thenApply {result ->
                                     val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
@@ -1372,7 +1372,7 @@ class GameExchange(
                                     influence=character.influence,evaluation=character.evaluation,money=character.money,
                                     abilities=character.abilities,decorations=character.decorations)
                                 val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    q.character,currentProfile(identity.account,q.character).country,
                                     checkNotNull(generation),q.command,q.card,character.rank,argument=q.argument),q.phase,q.ticket,profile)
                                 pendingWorld=administration.social(request).thenApply {result ->
                                     val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
@@ -1394,7 +1394,7 @@ class GameExchange(
                                     influence=character.influence,evaluation=character.evaluation,money=character.money,
                                     abilities=character.abilities,decorations=character.decorations)
                                 val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    q.character,currentProfile(identity.account,q.character).country,
                                     checkNotNull(generation),14,0,character.rank,politics=character.abilities[1],administration=character.abilities[2]),
                                     q.phase,q.ticket,profile)
                                 pendingWorld=administration.social(request).thenApply {result ->
@@ -1416,7 +1416,7 @@ class GameExchange(
                                 val q=org.logh7.protocol.BudgetMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account));require(q.character==character.id.toInt())
                                 val request=org.logh7.engine.BudgetRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                    q.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    q.character,currentProfile(identity.account,q.character).country,
                                     checkNotNull(generation),q.command,q.card,character.rank,
                                     politics=character.abilities[1],administration=character.abilities[2]),q.phase,q.base,q.rate,q.quote)
                                 pendingWorld=administration.budget(request).thenApply {result ->
@@ -1438,8 +1438,7 @@ class GameExchange(
                                 val character=checkNotNull(currentCharacter(identity.account))
                                 require(q.character==character.id.toInt())
                                 val request=org.logh7.engine.OutfitFormationRequest(org.logh7.engine.StrategyActionRequest(
-                                    identity.account,connection,q.character,
-                                    if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    identity.account,connection,q.character,currentProfile(identity.account,q.character).country,
                                     checkNotNull(generation),q.command,q.card,character.rank,
                                     politics=character.abilities[1],administration=character.abilities[2]),
                                     org.logh7.engine.FormationPhase.entries[q.phase],q.base,
@@ -1719,7 +1718,7 @@ class GameExchange(
                                     query.command in org.logh7.engine.ProductionActions.commands || query.command in org.logh7.engine.OrbitalStrikeActions.commands ||
                                     query.command in org.logh7.engine.SuccessionActions.commands) {
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                        query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                        query.character,currentProfile(identity.account,query.character).country,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
                                         base=query.base,amount=query.amount.toLong(),identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())))
                                     pendingWorld=administration.social(request).thenApply {result ->
@@ -1771,7 +1770,7 @@ class GameExchange(
                                         navigation?.snapshot()?.let {s->proposalPairs(checkNotNull(s.planetStocks),checkNotNull(s.navigators[identity.account]))}
                                             ?.firstOrNull {it.first==query.target} ?: Triple(query.target,0,0)
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                        query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                        query.character,currentProfile(identity.account,query.character).country,
                                         checkNotNull(generation),query.command,pair.second,character.rank,target=query.target,value=query.value,
                                         argument=pair.third,base=query.base,amount=query.amount.toLong()))
                                     pendingWorld=administration.social(request).thenApply {result ->
@@ -1789,7 +1788,7 @@ class GameExchange(
                                     return null
                                 }
                                 pendingWorld=administration.strategyAction(org.logh7.engine.StrategyActionRequest(identity.account,connection,
-                                    query.character,if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                                    query.character,currentProfile(identity.account,query.character).country,
                                     checkNotNull(generation),query.command,query.card,character.rank,query.outfit,
                                     character.abilities[1],character.abilities[2],query.target,query.base,query.value,
                                     identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()),amount=query.amount.toLong(),argument=query.argument,

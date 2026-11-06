@@ -31,6 +31,23 @@ class OutfitFormationTest {
     private fun create(s:PlanetStocks=stocks(),p:Navigator=player,selected:Map<Int,Int> = mapOf(code to 3),
         supplies:Int=0,r:OutfitFormationRequest=request())=OutfitFormationPolicy.create(galaxy,r,p,s,selected,supplies)
 
+    @Test fun aFormationLeaseExpiresOnCountryChangeAndCannotBeUsedByAnotherCharacter() {
+        val service=OutfitFormationService {0L};val before=stocks()
+        val begun=service.evaluate(galaxy,request(),session,player,before)
+        assertNull(begun.rejection);assertTrue(service.blocksBase(session,1049))
+        val select=request(FormationPhase.SET_UNIT).copy(target=begun.lease,unit=code,amount=1)
+        val stranger=select.copy(identity=select.identity.copy(characterId=10001))
+        assertEquals(StrategyActionRejection.IDENTITY,
+            service.evaluate(galaxy,stranger,session,player.copy(characterId=10001),before).rejection)
+        val changed=SessionSimulation(SessionRules.load()).also {it.join("actor",CountryId(42),false,"c")}.exportState()
+        assertFalse(service.blocksBase(changed,1049))
+        assertEquals(StrategyActionRejection.TARGET,service.evaluate(galaxy,select,session,player,before).rejection)
+        val foreign=request().let {it.copy(identity=it.identity.copy(country=CountryId(42)))}
+        val denied=service.evaluate(galaxy,foreign,changed,player.copy(country=CountryId(42)),before)
+        assertEquals(StrategyActionRejection.CARD,denied.rejection)
+        assertEquals(before,denied.stocks);assertFalse(service.blocksBase(changed,1049))
+    }
+
     @Test fun theFormationLeaseUsesCountryModelsWhileKeepingTheCaptainsOwnStyleAndOldStock() {
         val before=stocks();val base=before.bases.getValue(1049)
         val model=UnitStack(139);val sailors=UnitStack(7)
@@ -175,7 +192,7 @@ class OutfitFormationTest {
         val s=PlanetStocks(1,0,mapOf(1177 to PlanetStock(1177,3,0,100,200,300)),
             strategic=StrategicState(offices=listOf(OfficeHolding(164,1177,10000))))
         val p=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),grid=2015,baseId=1177)
-        val q=request(card=164).let {it.copy(identity=it.identity.copy(power=Power.ALLIANCE),base=1177)}
+        val q=request(card=164).let {it.copy(identity=it.identity.copy(country=CountryId(3)),base=1177)}
         for(kind in setOf(OutfitKind.FLEET,OutfitKind.TRANSPORT,OutfitKind.PATROL))
             assertNull(OutfitFormationPolicy.authority(a,q.copy(kind=kind),p,s))
         assertEquals(StrategyActionRejection.CARD,OutfitFormationPolicy.authority(a,q.copy(kind=OutfitKind.GROUND),p,s))
