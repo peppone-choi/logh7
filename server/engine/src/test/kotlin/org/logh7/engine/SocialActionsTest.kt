@@ -91,7 +91,7 @@ class SocialActionsTest {
         assertEquals(3,galaxy.facilities.getValue(1050).single {it.kind==2}.spots.single().kind)
         assertNull(act(p=player.copy(baseId=1050,spotId=square(1050))).rejection)
         val aSession=SessionSimulation(rules).also {it.join("actor",Power.ALLIANCE,false,"c")}.exportState()
-        val q=request().let {it.copy(identity=it.identity.copy(power=Power.ALLIANCE))}
+        val q=request().let {it.copy(identity=it.identity.copy(country=CountryId(3)))}
         val result=act(q,p=player.copy(country=Power.ALLIANCE.country,shipStyle=ShipStyleId.fromLegacy(Power.ALLIANCE),grid=2015,baseId=1177,spotId=square(1177)),clock=aSession)
         assertNull(result.rejection);assertEquals(72,result.stocks?.bases?.get(1177)?.economy?.approval)
         assertEquals(70,result.stocks?.bases?.get(1049)?.economy?.approval)

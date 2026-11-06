@@ -40,8 +40,10 @@ object GoalActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
+        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
+        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         val own=if(p.power==Power.EMPIRE)2 else 3
         val held=OrganizationalOfficePolicy(g).held(s,i.characterId).map {it.card}.toSet()

@@ -99,8 +99,10 @@ object SuccessionActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.power.country || member.country!=i.power.country)
+        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
+        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
+        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(p.power!=Power.EMPIRE)return reject(SocialRejection.CARD)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         val policy=OrganizationalOfficePolicy(g);val state=s.social.succession

@@ -10,7 +10,10 @@ internal object PersonnelActions {
     val supported=setOf(0,1,2,3,4,8,9)
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
-        val power=if(r.power==Power.EMPIRE)2 else 3
+        val country=r.country ?: return reject(StrategyActionRejection.IDENTITY)
+        val power=country.value
+        // shortcut: saved operation/office systems still belong to the original two countries.
+        if(power !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
         if(r.identities.size>4096 || r.identities.distinctBy {it.id}.size!=r.identities.size)return reject(StrategyActionRejection.IDENTITY)
         val identity=r.identities.singleOrNull {it.id==r.target} ?: return reject(StrategyActionRejection.IDENTITY)
         if(identity.country!=p.country || identity.id==r.characterId)return reject(StrategyActionRejection.IDENTITY)
@@ -46,13 +49,13 @@ internal object PersonnelActions {
                         progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
                         progress.decorations.maxOrNull() ?: -1)
                 }
-                val top=LadderRules.topIds(r.power,entries)
+                val top=LadderRules.topIds(if(power==2)Power.EMPIRE else Power.ALLIANCE,entries)
                 if((r.target.toString() in top)!=(r.command==0))return reject(StrategyActionRejection.RANK)
                 val limited=when(changedRank){2->LimitedRank.MARSHAL;3->LimitedRank.SENIOR_ADMIRAL;4->LimitedRank.ADMIRAL;
                     5->LimitedRank.VICE_ADMIRAL;6->LimitedRank.REAR_ADMIRAL;7->LimitedRank.COMMODORE;else->null}
                 if(limited!=null) {
                     val count=r.identities.count {it.country==p.country && (stocks.strategic.people[it.id] ?: StrategicPerson()).ladderRank(it.rank)==changedRank}
-                    val capacity=RankRules.capacity(r.power,limited) ?: return reject(StrategyActionRejection.RANK)
+                    val capacity=RankRules.capacity(if(power==2)Power.EMPIRE else Power.ALLIANCE,limited) ?: return reject(StrategyActionRejection.RANK)
                     if(count>=capacity)return reject(StrategyActionRejection.MAXIMUM)
                 }
                 next=StrategyActions.clearOffices(stocks,r.target).let {cleared ->cleared.copy(strategic=cleared.strategic.copy(

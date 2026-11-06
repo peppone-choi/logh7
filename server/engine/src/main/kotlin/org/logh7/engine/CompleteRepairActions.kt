@@ -11,30 +11,32 @@ internal object CompleteRepairActions {
     private fun busy(p:Navigator)=p.cpPaused || p.navigationPending
     private val commanders=mapOf(39 to OutfitKind.FLEET,44 to OutfitKind.TRANSPORT,47 to OutfitKind.PATROL,
         50 to OutfitKind.GROUND,175 to OutfitKind.FLEET,180 to OutfitKind.TRANSPORT,183 to OutfitKind.PATROL,186 to OutfitKind.GROUND)
-    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
-        val power=if(p.power==Power.EMPIRE)2 else 3
+        val country=p.country ?: return reject(StrategyActionRejection.IDENTITY)
         val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
         if(rank==1 || rank !in 0..20)return reject(StrategyActionRejection.RANK)
         if(busy(p))return reject(StrategyActionRejection.BUSY)
         val now=s.gameMillis/1000
         if((p.hull?.woundedUntil ?: 0)>now)return reject(StrategyActionRejection.BUSY)
         val base=stocks.bases[p.baseId] ?: return reject(StrategyActionRejection.LOCATION)
-        if(base.power!=power || base.camp!=0 || p.mode !in 1..4)return reject(StrategyActionRejection.LOCATION)
+        if(!base.belongsTo(country) || base.camp!=0 || p.mode !in 1..4)return reject(StrategyActionRejection.LOCATION)
         var after=p
         var next=stocks
         var updates=emptyMap<String,Navigator>()
         if(r.outfit==0) {
-            if(r.card!=if(power==2)59 else 195)return reject(StrategyActionRejection.CARD)
+            if(r.card!=when(countries.countries[country.value]?.nativePower) {2->59;3->195;else->return reject(StrategyActionRejection.CARD)})
+                return reject(StrategyActionRejection.CARD)
             val hull=p.hull ?: return reject(StrategyActionRejection.TROOPS)
             if(hull.hp==100)return StrategyActionResult(p,stocks)
             if(p.supplies==0)return reject(StrategyActionRejection.RESOURCE)
             after=p.copy(hull=hull.copy(hp=100),supplies=0)
         } else {
             val outfit=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
-            if(commanders[r.card]!=outfit.kind || OrganizationOffices.of(r.card)?.power!=power)
+            if(commanders[r.card]!=outfit.kind || OrganizationOffices.of(r.card)?.power!=country.value)
                 return reject(StrategyActionRejection.CARD)
-            if(outfit.power!=power || outfit.commanderId!=r.characterId ||
+            if(outfit.country!=country || outfit.commanderId!=r.characterId ||
                 OrganizationalOfficePolicy(galaxy).holders(stocks,r.card).none {it.character==r.characterId && it.seat==outfit.id})
                 return reject(StrategyActionRejection.AUTHORITY)
             if(outfit.positionIn(galaxy)!=OutfitPosition(p.grid,p.baseId))return reject(StrategyActionRejection.LOCATION)
@@ -43,7 +45,7 @@ internal object CompleteRepairActions {
                 outfit.activeGround?.values.orEmpty().any {it.order!=null})return reject(StrategyActionRejection.BUSY)
             val members=outfit.members()
             val nearby=r.navigators.filterValues {it.generation==r.generation && it.characterId in members &&
-                it.power==p.power && it.grid==p.grid && it.baseId==p.baseId}+(r.account to p)
+                it.country==country && it.grid==p.grid && it.baseId==p.baseId}+(r.account to p)
             if(nearby.values.any(::busy))return reject(StrategyActionRejection.BUSY)
             val damage=ships.values.any {it.boats>0 && it.damaged>0} || nearby.values.any {it.hull?.hp?.let {hp->hp<100}==true}
             if(!damage)return StrategyActionResult(p,stocks)

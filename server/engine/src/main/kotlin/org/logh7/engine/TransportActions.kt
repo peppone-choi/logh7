@@ -42,7 +42,10 @@ object TransportActions {
 
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
-        val power=if(r.power==Power.EMPIRE)2 else 3
+        val country=r.country ?: return reject(StrategyActionRejection.IDENTITY)
+        val power=country.value
+        // shortcut: saved operation/office systems still belong to the original two countries.
+        if(power !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val packages=stocks.strategic.transports
         var next:PlanetStocks

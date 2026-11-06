@@ -486,7 +486,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) {"World storage is unavailable"}
                     val r=command.request;val i=r.identity
                     val session=durableState?.session ?: simulation.exportState()
-                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.country,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     val before=recovered?.player
@@ -522,7 +522,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) {"World storage is unavailable"}
                     val request=command.request
                     val session=durableState?.session ?: simulation.exportState()
-                    val recovered=recoverNavigation(NavigationRequest(request.account,request.characterId,request.power,
+                    val recovered=recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
@@ -540,7 +540,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
                             val previous=checkNotNull(navigation).snapshot(session.generation)
                             require(result.navigators.all {(account,player)->previous[account]?.let {
-                                it.generation==player.generation && it.characterId==player.characterId && it.power==player.power}==true})
+                                it.generation==player.generation && it.characterId==player.characterId && it.country==player.country}==true})
                             val next=previous+result.navigators+(request.account to after)
                             worldStateCommitter.saveWorld(next,prepared)
                             navigation.publishCommitted(previous,next,session.generation)
@@ -867,7 +867,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
-                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.country,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     val accounts=navigation?.snapshot(session.generation).orEmpty().let {s->recovered?.player?.let {s+(i.account to it)} ?: s}
@@ -909,7 +909,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
-                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.power,i.connection,i.generation,
+                    val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.country,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
                     val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
                     var result=BudgetActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,production.defaultRemittanceRate)

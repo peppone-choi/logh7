@@ -81,8 +81,10 @@ object EspionageActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
+        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
+        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(p.cpPaused || p.navigationPending || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(OrganizationalOfficePolicy(g).held(s,i.characterId).none {it.card==i.card} || i.card !in cards)return reject(SocialRejection.CARD)
         if(p.baseId==0)return reject(SocialRejection.LOCATION)

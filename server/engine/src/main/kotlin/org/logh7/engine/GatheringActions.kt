@@ -91,8 +91,10 @@ object GatheringActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || p.generation!=i.generation || p.characterId!=i.characterId || p.power!=i.power || member.power!=i.power)
+        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
+        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
+        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(i.command !in commands || r.phase !in 0..1 || (if(r.phase==0)r.ticket!=0 else r.ticket<=0) || i.target<=0 ||
             i.target==i.characterId || i.value !in 0..2 || i.outfit!=0 || i.base!=0 || i.amount!=0L || i.argument!=0)
             return reject(SocialRejection.COMMAND)
@@ -131,7 +133,7 @@ object GatheringActions {
         when(i.value) {
             0 -> {
                 if(!hostInRoom(p))return reject(SocialRejection.LOCATION,view)
-                if(guest==null || guest.power!=p.power || guest.grid!=p.grid || guest.baseId!=p.baseId || guest.cpPaused)
+        if(guest==null || guest.country!=p.country || guest.grid!=p.grid || guest.baseId!=p.baseId || guest.cpPaused)
                     return reject(SocialRejection.LOCATION,view)
                 if(view.hostWait>0)return reject(SocialRejection.COOLDOWN,view)
                 if(CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),COST,CpPool.MCP) !is PaymentResult.Paid)

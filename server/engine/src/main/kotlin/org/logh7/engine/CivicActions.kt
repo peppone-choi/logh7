@@ -34,7 +34,7 @@ object CivicActions {
     fun army(command:Int)=command in setOf(52,54,56)
     /** 特別警備 guards the faction lobby only; academy rooms are also GUARDED (own-faction entry) but not guard posts. */
     private fun lobby(spot:PlanetSpot)=spot.kind==0 && spot.access==SpotAccess.GUARDED
-    private fun power(p:Navigator)=if(p.power==Power.EMPIRE)2 else 3
+    private fun power(p:Navigator)=p.country?.value ?: 0
     private fun location(g:Galaxy,p:Navigator,base:Int)=p.baseId==base && p.mode in 1..4 &&
         g.bases.singleOrNull {it.id==base}?.grid==p.grid && !p.cpPaused && !p.navigationPending
     private fun card(g:Galaxy,stocks:PlanetStocks,character:Int,power:Int,rank:Int,card:Int,outfit:Int):Boolean {
@@ -79,6 +79,8 @@ object CivicActions {
         if(old!=null && r.requestToken>0 && old.token==r.requestToken && old.connection==r.connection)
             return StrategyActionResult(p,stocks,civic=old)
         val power=power(p);val rank=stocks.strategic.people[p.characterId]?.rank ?: r.rank
+        // shortcut: civic checkpoints use country 2/3 until their saved country IDs are migrated.
+        if(power !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
         if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
         if(r.command==55 && (r.outfit!=0 || r.card!=if(power==2)59 else 195) ||
             !card(g,stocks,r.characterId,power,rank,r.card,r.outfit))return reject(StrategyActionRejection.CARD)

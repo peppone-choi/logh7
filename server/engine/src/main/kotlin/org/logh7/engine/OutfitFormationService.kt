@@ -10,7 +10,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
     private fun prune(s:SessionState) {
         val now=clock()
         drafts.entries.removeIf {(_,d)->d.expires<=now || d.request.identity.generation!=s.generation ||
-            s.participants[d.request.identity.account]?.let {!it.online || it.connection!=d.request.identity.connection}!=false}
+            s.participants[d.request.identity.account]?.let {!it.online || it.connection!=d.request.identity.connection || it.country!=d.request.identity.country}!=false}
     }
     fun blocksBase(s:SessionState,base:Int):Boolean {prune(s);return drafts.values.any {it.request.base==base}}
     fun complete(r:OutfitFormationRequest) {if(r.phase==FormationPhase.COMMIT)drafts.remove(r.identity.account)}
@@ -19,11 +19,12 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
         val i=request.identity
         fun reject(reason:StrategyActionRejection)=OutfitFormationResult(p,stocks,reason,base=request.base)
         if(s.ended!=null || s.generation!=i.generation || stocks.generation!=i.generation ||
-            s.participants[i.account]?.let {it.online && it.connection==i.connection && it.country==i.power.country}!=true)
+            s.participants[i.account]?.let {it.online && it.connection==i.connection && it.country==i.country}!=true)
             return reject(StrategyActionRejection.SESSION)
-        if(p==null || p.characterId!=i.characterId || p.country!=i.power.country || p.generation!=i.generation)return reject(StrategyActionRejection.IDENTITY)
+        if(p==null || i.country==null || p.characterId!=i.characterId || p.country!=i.country || p.generation!=i.generation)return reject(StrategyActionRejection.IDENTITY)
         val r=request.copy(base=request.base.takeIf {it>0} ?: p.baseId)
         val old=drafts[i.account]
+        if(old!=null && old.request.identity.characterId!=i.characterId)return reject(StrategyActionRejection.IDENTITY)
         // A moved character may always cancel its own correctly identified draft.
         if(r.phase==FormationPhase.CANCEL) {
             if(i.command!=25)return reject(StrategyActionRejection.COMMAND)
@@ -34,7 +35,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
         if(i.command==26) {
             if(r.phase !in setOf(FormationPhase.BEGIN,FormationPhase.DELETE))return reject(StrategyActionRejection.COMMAND)
             if(r.phase==FormationPhase.BEGIN) {
-                val rows=stocks.outfits.values.filter {it.country==i.power.country}.filter {
+                val rows=stocks.outfits.values.filter {it.country==i.country}.filter {
                     it.kind==r.kind && it.positionIn(galaxy)==OutfitPosition(p.grid,r.base)}.sortedBy {it.id}
                     .map {FormationStock(it.id,GridForces.units(it).coerceAtMost(65535).toInt())}
                 if(rows.size>200)return reject(StrategyActionRejection.MAXIMUM)
@@ -54,7 +55,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
         }
         if(old==null || old.id!=r.target || old.request.base!=r.base || old.request.kind!=r.kind || old.request.identity.card!=i.card)
             return reject(StrategyActionRejection.TARGET)
-        val style=countries.shipStyle(i.power.country)
+        val style=countries.shipStyle(i.country)
         val available=OutfitFormationPolicy.available(stocks,r.base,style,r.kind)
         var draft=old.copy(expires=Math.addExact(clock(),120_000))
         when(r.phase) {
