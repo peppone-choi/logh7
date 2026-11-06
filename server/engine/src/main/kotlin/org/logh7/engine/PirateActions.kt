@@ -44,17 +44,17 @@ object PirateActions {
     /** Strategic move: every [SPAWN_DAYS] a fleet shifts to an open grid within [MOVE_CELLS], next to trade-route bases first. */
     const val MOVE_CELLS=3
 
-    /** Frontier grids: systems with no base held by the empire or the alliance. */
+    /** Frontier grids: systems with no base held by a country. */
     fun frontier(g:Galaxy,s:PlanetStocks)=g.systems.map {it.grid}.filter {grid->
-        g.bases.none {b->b.grid==grid && s.bases[b.id]?.power in 2..3}}.distinct().sorted()
+        g.bases.none {b->b.grid==grid && s.bases[b.id]?.country!=null}}.distinct().sorted()
 
     /** U-32 strategic movement: fleets not in battle drift to a nearby frontier grid, preferring trade-route ends. */
     fun move(g:Galaxy,s:PlanetStocks,now:Long,engaged:Set<Int>):PlanetStocks {
         var p=s.social.pirates
         val due=p.fleets.values.filter {it.alive && it.grid !in engaged && now-it.since>=SPAWN_DAYS*Justice.DAY}
         if(due.isEmpty())return s
-        // Any passable grid without a base of either side, open space included.
-        val owned=g.bases.filter {s.bases[it.id]?.power in 2..3}.map {it.grid}.toSet()
+        // Any passable grid without a country's base, open space included.
+        val owned=g.bases.filter {s.bases[it.id]?.country!=null}.map {it.grid}.toSet()
         fun open(grid:Int)=grid in 0..4999 && grid !in owned && g.kind(grid)!=GridKind.IMPASSABLE && g.terrain(grid)==GridTerrain.NONE
         val routeGrids=s.social.trade.routes.values.flatMap {r->listOf(r.from,r.to)}.mapNotNull {id->g.bases.singleOrNull {it.id==id}?.grid}.toSet()
         for(f in due.sortedBy {it.id}) {
@@ -77,16 +77,15 @@ object PirateActions {
             if(!engaged)continue
             for(unit in fleet.units.filter {it.boats>0}) {
                 val origin=pose(s,unit.id) ?: continue
-                val candidates=players.values.filter {it.cpPaused && it.grid==fleet.grid && it.baseId==0 && it.hull!=null}.map {it.unitId to it.power} +
+                val candidates=players.values.filter {it.cpPaused && it.grid==fleet.grid && it.baseId==0 && it.hull!=null}.map {it.unitId} +
                     s.outfits.values.filter {it.positionIn(g)==OutfitPosition(fleet.grid)}.flatMap {o->o.activeShips?.values.orEmpty()
-                        .filter {it.boats>0}.map {it.id to if(o.power==2)Power.EMPIRE else Power.ALLIANCE}}
-                val victim=candidates.mapNotNull {(id,power)->
-                    val hostile=if(power==Power.EMPIRE)Power.ALLIANCE else Power.EMPIRE
-                    TacticalCombat.target(id,fleet.grid,hostile,s,g,players)?.let {t->
+                        .filter {it.boats>0}.map {it.id}}
+                val victim=candidates.mapNotNull {id->
+                    TacticalCombat.target(id,fleet.grid,Camp.PIRATES,s,g,players)?.let {t->
                         val at=t.personal?.second?.let {p->p.motion?.pose(now,p.posture,g,s)?.position ?:
-                            TacticalDeployment.initial(p.unitId,p.power,p.grid,players.values,s,g).position} ?:
+                            TacticalDeployment.initial(p.unitId,p.grid,players.values,s,g).position} ?:
                             t.regular?.second?.tactical?.motion?.pose(now,t.regular.second.posture,g,s)?.position ?:
-                            TacticalDeployment.initial(id,power,fleet.grid,players.values,s,g).position
+                            TacticalDeployment.initial(id,fleet.grid,players.values,s,g).position
                         Triple(id,t,at)}}
                     .minByOrNull {(_,_,at)->kotlin.math.hypot((at.x-origin.position.x).toDouble(),(at.y-origin.position.y).toDouble())} ?: continue
                 val (id,target,at)=victim

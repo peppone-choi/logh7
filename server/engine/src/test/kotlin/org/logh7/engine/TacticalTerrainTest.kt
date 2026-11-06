@@ -26,7 +26,7 @@ class TacticalTerrainTest {
         assertTrue(TacticalTerrain.fireBlocked(galaxy,2487,p(-20f,0f),p(20f,0f)))
         assertFalse(TacticalTerrain.fireBlocked(galaxy,2487,p(-20f,15f),p(20f,15f)))
         val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)))
-        assertTrue(TacticalLineOfFire.blocked(1,2487,Power.EMPIRE,p(-20f,0f),p(20f,0f),0,emptyList(),stocks,galaxy))
-        assertFalse(TacticalLineOfFire.blocked(1,2487,Power.EMPIRE,p(-20f,15f),p(20f,15f),0,emptyList(),stocks,galaxy))
+        assertTrue(TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),p(-20f,0f),p(20f,0f),0,emptyList(),stocks,galaxy))
+        assertFalse(TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),p(-20f,15f),p(20f,15f),0,emptyList(),stocks,galaxy))
     }
 }

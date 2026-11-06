@@ -157,17 +157,35 @@ object TacticalDeployment {
         return TacticalPose(TacticalPoint(side * (180f - index / 20 * 4f), (index % 20 - 9.5f) * 10f),
             if (east) (-Math.PI / 2).toFloat() else (Math.PI / 2).toFloat())
     }
-    fun initial(unit: Int, power: Power, grid: Int, players: Collection<Navigator>, stocks: PlanetStocks?, galaxy: Galaxy): TacticalPose {
-        val wirePower = if (power == Power.EMPIRE) 2 else 3
-        fun playerCamp(p: Navigator) = stocks?.let { CoupActions.camp(it, p.characterId) } ?: 0
-        fun outfitCamp(o: OutfitStock) = stocks?.let { CoupActions.outfitCamp(it, o) } ?: 0
-        val camp = players.singleOrNull { it.unitId == unit }?.let(::playerCamp) ?: stocks?.outfits?.values
-            ?.singleOrNull { o -> o.activeShips?.values.orEmpty().any { it.id == unit } }?.let(::outfitCamp) ?: 0
-        val ids = (players.filter { it.power == power && it.grid == grid && it.baseId == 0 && playerCamp(it) == camp }.map { it.unitId } +
-            stocks?.outfits?.values.orEmpty().filter { it.power == wirePower && it.positionIn(galaxy) == OutfitPosition(grid) && outfitCamp(it) == camp }
-                .flatMap { it.activeShips?.values.orEmpty().map { ship -> ship.id } }).distinct().sorted()
-        val index = ids.indexOf(unit)
-        require(index >= 0)
-        return formation(index, power, camp == 1)
+    fun initial(unit: Int, grid: Int, players: Collection<Navigator>, stocks: PlanetStocks?, galaxy: Galaxy,
+        countries:CountryCatalog=CountryCatalogLoader.current()): TacticalPose {
+        val roster=linkedMapOf<Camp,MutableSet<Int>>()
+        val preferred=mutableMapOf<Camp,Power>()
+        fun add(id:Int,camp:Camp,display:Int) {
+            val side=when(display) {2->Power.EMPIRE;3,4->Power.ALLIANCE;else->error("No military display for tactical unit")}
+            roster.getOrPut(camp) {linkedSetOf()}.add(id)
+            preferred[camp]=if(camp.insurgent) {if(side==Power.EMPIRE)Power.ALLIANCE else Power.EMPIRE} else side
+        }
+        for(p in players.filter {it.grid==grid && it.baseId==0}) {
+            val camp=Camp.of(p,stocks?.let {CoupActions.rebel(it,p.characterId)}==true)
+            val display=p.country?.let {countries.nativePower(Allegiance.Country(it))} ?: p.shipStyle.nativePower
+            add(p.unitId,camp,display)
+        }
+        for(o in stocks?.outfits?.values.orEmpty().filter {it.positionIn(galaxy)==OutfitPosition(grid)}) {
+            val camp=Camp(o.country,stocks?.let {CoupActions.outfitCamp(it,o)}==1)
+            val display=countries.nativePower(Allegiance.Country(o.country))
+            o.activeShips?.values.orEmpty().forEach {add(it.id,camp,display)}
+        }
+        for(f in stocks?.social?.pirates?.fleets?.values.orEmpty().filter {it.grid==grid})
+            f.units.forEach {add(it.id,Camp.PIRATES,PirateActions.POWER)}
+        val camp=roster.keys.single {unit in roster.getValue(it)}
+        val index=roster.getValue(camp).sorted().indexOf(unit)
+        // Separate actual hostile camps even when their display templates face the same edge.
+        fun ownerKind(c:Camp)=when(c.owner) {is Camp.Owner.Country->0;is Camp.Owner.Independent->1;Camp.Owner.Pirates->2;Camp.Owner.Fezzan->3}
+        fun ownerId(c:Camp)=when(val owner=c.owner) {is Camp.Owner.Country->owner.id.value;is Camp.Owner.Independent->owner.character;else->0}
+        val edge=preferred.getValue(camp)
+        val sameEdge=roster.keys.filter {preferred.getValue(it)==edge}.sortedWith(compareBy(::ownerKind,::ownerId,{it.insurgent}))
+        val side=if(sameEdge.indexOf(camp)%2==0)edge else if(edge==Power.EMPIRE)Power.ALLIANCE else Power.EMPIRE
+        return formation(index,side)
     }
 }

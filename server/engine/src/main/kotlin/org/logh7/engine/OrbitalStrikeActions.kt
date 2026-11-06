@@ -30,15 +30,13 @@ object OrbitalStrikeActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(SocialRejection.LOCATION)
         if(p.hull?.woundedUntil?.let {it>now}==true || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(p.supplies<SUPPLIES)return reject(SocialRejection.MAXIMUM)
-        val own=if(p.power==Power.EMPIRE)2 else 3
+        val own=i.country
         val camp=CoupActions.camp(s,p.characterId)
-        val at=(p.motion?.pose(now,p.posture,g,s) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players,s,g)).position
-        val base=g.bases.filter {b->b.grid==p.grid && s.bases[b.id]?.let {it.power in 2..3 && (it.power!=own || it.camp!=camp)}==true}
+        val at=(p.motion?.pose(now,p.posture,g,s) ?: TacticalDeployment.initial(p.unitId,p.grid,players,s,g)).position
+        val base=g.bases.filter {b->b.grid==p.grid && s.bases[b.id]?.let {it.country!=null && (it.country!=own || it.camp!=camp)}==true}
             .map {b->b to TacticalBasePosition.at(b,now,s).let {c->kotlin.math.hypot((c.x-at.x).toDouble(),(c.y-at.y).toDouble())-b.diameter}}
             .filter {it.second<=RANGE}.minByOrNull {it.second}?.first ?: return reject(SocialRejection.TARGET)
         val owner=s.bases.getValue(base.id)
@@ -46,23 +44,23 @@ object OrbitalStrikeActions {
         if(base.id in s.groundBattles || GroundBattleOperations.contested(s,base))return reject(SocialRejection.COOLDOWN)
         val centre=TacticalBasePosition.at(base,now,s)
         fun inRange(x:Float,y:Float)=kotlin.math.hypot((centre.x-x).toDouble(),(centre.y-y).toDouble())-base.diameter<=RANGE
-        val escorts=s.outfits.values.filter {it.power==own && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
+        val escorts=s.outfits.values.filter {TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
             o.activeShips?.values.orEmpty().count {u->u.boats>0 && TacticalAuthority.commander(o,u,s)==p.characterId &&
-                (u.tactical?.motion?.pose(now,u.posture,g,s)?.position ?: TacticalDeployment.initial(u.id,p.power,p.grid,players,s,g).position)
+                (u.tactical?.motion?.pose(now,u.posture,g,s)?.position ?: TacticalDeployment.initial(u.id,p.grid,players,s,g).position)
                     .let {inRange(it.x,it.y)}}}
         val attackers=minOf(MAX_ATTACKERS,1+escorts);val damage=DAMAGE*attackers
         var destroyed=0
         // A legacy garrison (quantities only) first gets identities at full strength, as ground battle would need.
         var cursor=s.nextShipId
         val known=s.outfits.mapValues {(_,o)->
-            if(o.power!=owner.power || CoupActions.outfitCamp(s,o)!=owner.camp || o.activeGround!=null || o.kind!=OutfitKind.GROUND ||
+            if(o.country!=owner.country || CoupActions.outfitCamp(s,o)!=owner.camp || o.activeGround!=null || o.kind!=OutfitKind.GROUND ||
                 (o.position?.baseId ?: o.baseId)!=base.id)o
             else GroundUnits.reorganize(o,o.units,o.activeShips,cursor).let {(roster,next)->cursor=next;o.copy(activeGround=roster)}
         }
         val outfits=known.mapValues {(_,o)->
             val ground=o.activeGround
             // Only the planet holder's camp defends; a revolt's other camp may have troops landed there too.
-            if(o.power!=owner.power || CoupActions.outfitCamp(s,o)!=owner.camp || ground==null || ground.values.none {it.base==base.id})return@mapValues o
+            if(o.country!=owner.country || CoupActions.outfitCamp(s,o)!=owner.camp || ground==null || ground.values.none {it.base==base.id})return@mapValues o
             val roster=ActiveGroundUnits(ground.values.mapNotNull {u->
                 if(u.base!=base.id)u else (u.strength-damage).let {left->if(left<=0){destroyed++;null} else u.copy(strength=left)}})
             o.copy(activeGround=roster,units=UnitInventory(o.units.ships,o.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}+roster.quantities(),o.units.work))

@@ -219,20 +219,26 @@ class WorldBootstrap(val galaxy: Galaxy,
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
     }
-    fun outfits(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks): ByteArray = LoginMessages.sessionMessage(0x032b,
+    fun outfits(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks): ByteArray {
+        val countries=countryCatalog
+        return LoginMessages.sessionMessage(0x032b,
         OutfitMessages.information(ids.distinct().mapNotNull(stocks.outfits::get).map {
-            OutfitMessages.Definition(it.id,it.kind.wire,it.power,org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number)
+            OutfitMessages.Definition(it.id,it.kind.wire,countries.nativePower(org.logh7.engine.Allegiance.Country(it.country)),org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number)
         }+ids.distinct().filter {it>org.logh7.engine.PirateActions.OUTFIT_BASE}.mapNotNull {id->
             // U-32a: a pirate fleet is an outfit of power 4 (海賊).
             stocks.social.pirates.fleets[id-org.logh7.engine.PirateActions.OUTFIT_BASE]?.let {f->
                 OutfitMessages.Definition(id,0,org.logh7.engine.PirateActions.POWER,0,f.id%256)}}))
-    fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks): ByteArray =
-        LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
+    }
+    fun gridOutfits(query: OutfitMessages.GridQuery, stocks: org.logh7.engine.PlanetStocks,
+        country:org.logh7.engine.CountryId?=null): ByteArray {
+        val countries=countryCatalog
+        return LoginMessages.sessionMessage(0x032d,OutfitMessages.grid(stocks.outfits.values.filter { outfit ->
             (query.grid == -1 || outfit.positionIn(galaxy).grid == query.grid) &&
-                (query.power == 255 || outfit.power == query.power) &&
+                (if(country!=null)outfit.country==country else query.power == 255 || countries.nativePower(org.logh7.engine.Allegiance.Country(outfit.country)) == query.power) &&
                 (query.camp == 255 || query.camp == org.logh7.engine.CoupActions.outfitCamp(stocks,outfit))
-        }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,it.power,
+        }.sortedBy { it.id }.map { OutfitMessages.Entry(it.id,it.kind.wire,countries.nativePower(org.logh7.engine.Allegiance.Country(it.country)),
             org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number,it.supplies) }))
+    }
     private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?,
         spare: Map<org.logh7.engine.UnitStack,Int> = emptyMap()) = (values.orEmpty().keys+spare.keys).map {it.kind}.distinct().sorted().map { kind ->
             val stacks=values.orEmpty().entries.filter {it.key.kind==kind}
@@ -306,7 +312,7 @@ class WorldBootstrap(val galaxy: Galaxy,
     }
     fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->
-            WorldMessages.BaseInstitutions(base.id, galaxy.facilitiesAt(base.id, stocks).map { facility ->
+            WorldMessages.BaseInstitutions(base.id, galaxy.facilitiesAt(base.id, stocks, countryCatalog).map { facility ->
                 WorldMessages.Institution(facility.kind, facility.id, facility.spots.map {
                     WorldMessages.Spot(it.kind, it.id, it.image)
                 })

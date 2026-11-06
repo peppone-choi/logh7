@@ -7,26 +7,32 @@ import java.nio.ByteBuffer
 import kotlin.test.*
 
 class OccupationPresenceTest {
-    @Test fun ownershipAndLostCardsReachAuthenticatedPeersAndExpelledCharacterEntersTactics() {
+    @Test fun ownershipAndLostCardsReachAuthenticatedPeersAndExpelledCharacterEntersTactics()=occupation(2,3)
+    @Test fun additionalCountriesWithTheSameDisplayCompleteTheOccupationRefresh()=occupation(42,43)
+
+    private fun occupation(winnerCountry:Int,loserCountry:Int) {
+        val catalog=CountryCatalogLoader.load().let {old -> CountryCatalog(old.calendars.values.toList(),
+            old.families.values.toList(),old.countries.values.toList()+listOf(winnerCountry,loserCountry).filter {it !in old.countries}.map {id ->
+                old.countries.getValue(2).copy(id=id,key="country_$id",name="Country $id")})}
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",3)),
             listOf(GalaxyBase(1049,2487,80,0,"Here",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val people=(0..2).map {i->CharacterMessages.Generate(0,10000L+i,if(i==1)3 else 2,if(i==1)89 else 0,
             0,"Pilot","Name",30,1,1,0,List(8){50},0,0,0,20,0,0,"Ship",0)}
-        val winner=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true)
-        val loser=Navigator(1,10001,Power.ALLIANCE,2487,700,500,300,baseId=1049,mode=4,spotId=10490001,returnBase=1049)
-        val far=Navigator(1,10002,Power.EMPIRE,2488,1000,1000,1000)
+        val winner=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true).copy(country=CountryId(winnerCountry))
+        val loser=Navigator(1,10001,Power.ALLIANCE,2487,700,500,300,baseId=1049,mode=4,spotId=10490001,returnBase=1049).copy(country=CountryId(loserCountry))
+        val far=Navigator(1,10002,Power.EMPIRE,2488,1000,1000,1000).copy(country=CountryId(winnerCountry))
         val expelled=loser.copy(baseId=0,mode=5,spotId=0,returnBase=0,cpPaused=true,
             posture=TacticalPosture(2487,TacticalShipMode.ANCHORED,1049))
-        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,1000,1000,1000)))
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,Allegiance.Country(CountryId(winnerCountry)),0,1000,1000,1000)))
         val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,250,0,0,emptyMap(),1,1,null),
             navigators=mapOf("winner" to winner,"loser" to expelled,"far" to far),planetStocks=stocks)
         val packets=List(3){mutableListOf<List<ByteArray>>()};val presence=GamePresence()
         listOf(winner,loser,far).forEachIndexed {i,p->presence.update(GamePresence.Member("c$i",people[i],p,packets[i]::add,
             if(i==1)listOf(BootstrapMessages.OfficeCard(190,1049)) else emptyList()))}
         packets.forEach {it.clear()}
-        val event=BaseOccupation(1,2487,1049,Allegiance.Country(CountryId(3)),CountryId(2),250,emptyMap(),mapOf("loser" to expelled),
+        val event=BaseOccupation(1,2487,1049,Allegiance.Country(CountryId(loserCountry)),CountryId(winnerCountry),250,emptyMap(),mapOf("loser" to expelled),
             (0..2).associate {10000+it to "c$it"})
-        fun deliver(e:BaseOccupation=event,s:WorldSnapshot=snapshot)=presence.occupation(e,s,WorldBootstrap(galaxy),
+        fun deliver(e:BaseOccupation=event,s:WorldSnapshot=snapshot)=presence.occupation(e,s,WorldBootstrap(galaxy,catalog),
             {id->people.singleOrNull {it.id==id.toLong()}},{_,_,_->emptyList()})
         fun messages(i:Int,opcode:Int)=packets[i].flatten().filter {ByteBuffer.wrap(it).getShort(4).toInt()==opcode}
         deliver()
@@ -40,7 +46,7 @@ class OccupationPresenceTest {
             assertEquals(1,messages(i,0x0321).size)
         }
         val preserved=BootstrapMessages.OfficeCard(39,1)
-        val initialized=TacticalBootstrap(snapshot,galaxy,winner){id->people.singleOrNull {it.id==id.toLong()}}
+        val initialized=TacticalBootstrap(snapshot,galaxy,winner,catalog){id->people.singleOrNull {it.id==id.toLong()}}
             .initialize {c,_->if(c.power==2)listOf(preserved) else emptyList()}
         assertContentEquals(BootstrapMessages.character(people[0],winner.pcp,winner.mcp,
             winner.spotId,winner.spotOwner,winner.returnBase,listOf(preserved)),initialized.first())

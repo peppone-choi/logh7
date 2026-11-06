@@ -5,7 +5,10 @@ import org.logh7.protocol.*
 
 /** Native tactical initialization from actual unit identities; formation placement is provisional. Author: Peppone Choi. */
 internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val galaxy: Galaxy,private val viewer: Navigator,
+    private val countries:CountryCatalog,
     baseCharacterById: (Int)->CharacterMessages.Generate?) {
+    constructor(snapshot:WorldSnapshot,galaxy:Galaxy,viewer:Navigator,baseCharacterById:(Int)->CharacterMessages.Generate?):
+        this(snapshot,galaxy,viewer,CountryCatalogLoader.current(),baseCharacterById)
     private val characterById:(Int)->CharacterMessages.Generate? = {id->baseCharacterById(id)?.let {WorldCharacters.view(it,snapshot)}}
     private val people=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==viewer.grid && it.baseId==0}
         .sortedBy {it.characterId}
@@ -15,7 +18,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val state=snapshot.planetStocks!!.tacticalCommands
         val mission=state.missions[p.characterId]
         val chief=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==p.grid &&
-            it.power==p.power && (it.cpPaused || it.baseId>0)}.maxWithOrNull(compareBy<Navigator> {
+            Camp.of(it,CoupActions.rebel(snapshot.planetStocks!!,it.characterId))==Camp.of(p,CoupActions.rebel(snapshot.planetStocks!!,p.characterId)) &&
+                (it.cpPaused || it.baseId>0)}.maxWithOrNull(compareBy<Navigator> {
             -(characterById(it.characterId)?.rank ?: 20)}.thenBy {TacticalPersonnel.merit(checkNotNull(snapshot.planetStocks),it.characterId)}.thenByDescending {it.characterId})
         val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}
         val energy=p.energy ?: TacticalEnergy.ZERO
@@ -39,29 +43,26 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             cannonAngle=cannon?.command?.direction?.let {(((it/(2*Math.PI)*65536).toInt()%65536)+65536)%65536} ?: 0,
             stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}
     val units: List<TacticsMessages.Unit> = run {
-        data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val power:Int,val supplies:Int,val cruise:Float,
-            val destroyed:Int=0,val posture:TacticalPosture?=null,val camp:Int=0)
+        data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val supplies:Int,val cruise:Float,
+            val destroyed:Int=0,val posture:TacticalPosture?=null)
         val stocks=checkNotNull(snapshot.planetStocks)
         val sources=people.mapNotNull {p->characterById(p.characterId)?.let {c->
             val fleet=stocks.outfits.values.singleOrNull {p.characterId in it.members() && it.positionIn(galaxy)==OutfitPosition(p.grid)}
-            Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,c.power,p.supplies,p.cruise.toFloat(),
-                posture=p.posture?.takeIf {it.grid==viewer.grid},camp=org.logh7.engine.CoupActions.camp(stocks,p.characterId))
+            Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,p.supplies,p.cruise.toFloat(),
+                posture=p.posture?.takeIf {it.grid==viewer.grid})
         }} + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {fleet->
             val supplies=OutfitSupplies.distribution(fleet)
             checkNotNull(fleet.activeShips).values.map {ship->
-            Source(ship.id,ship.stack.kind,fleet.id,TacticalAuthority.commander(fleet,ship,stocks),fleet.power,supplies.getValue(ship.id),0f,
+            Source(ship.id,ship.stack.kind,fleet.id,TacticalAuthority.commander(fleet,ship,stocks),supplies.getValue(ship.id),0f,
                     UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats,
-                    ship.posture?.takeIf {it.grid==viewer.grid},org.logh7.engine.CoupActions.outfitCamp(stocks,fleet))
+                    ship.posture?.takeIf {it.grid==viewer.grid})
             }
         } + stocks.social.pirates.fleets.values.filter {it.grid==viewer.grid}.flatMap {f->f.units.map {u->
             Source(u.id,org.logh7.engine.PirateActions.kind(),org.logh7.engine.PirateActions.OUTFIT_BASE+f.id,0,
-                org.logh7.engine.PirateActions.POWER,0,0f,org.logh7.engine.PirateActions.UNIT_BOATS-u.boats)}}
-        val indices=mutableMapOf<Pair<Int,Int>,Int>()
+                0,0f,org.logh7.engine.PirateActions.UNIT_BOATS-u.boats)}}
         sources.sortedBy {it.id}.map {u->
-            // Same grouping as TacticalDeployment.initial: power and camp (U-10 rebels deploy apart).
-            val index=indices[u.power to u.camp] ?: 0;indices[u.power to u.camp]=index+1
-            val initial=TacticalDeployment.formation(index,if(u.power==2)Power.EMPIRE else Power.ALLIANCE,u.camp==1)
-            val pose=(if(u.power==org.logh7.engine.PirateActions.POWER)org.logh7.engine.PirateActions.pose(stocks,u.id) else null) ?: people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
+            val initial by lazy {TacticalDeployment.initial(u.id,viewer.grid,people,stocks,galaxy,countries)}
+            val pose=org.logh7.engine.PirateActions.pose(stocks,u.id) ?: people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
                 ?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks) ?: stocks.outfits[u.outfit]?.activeShips?.values
                 ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks)
             val berth=u.posture?.takeIf {it.mode.requiresBase}?.let {state->
@@ -146,8 +147,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             }} }
     private fun emergencySupplies():List<ByteArray> {
         val stocks=checkNotNull(snapshot.planetStocks)
-        val power=if(viewer.power==Power.EMPIRE)2 else 3
-        return bases.filter {stocks.tacticalCommands.emergencySupplies[it.id]==power}.map {
+        val country=viewer.country ?: return emptyList()
+        return bases.filter {stocks.tacticalCommands.emergencySupplies[it.id]==country.value}.map {
             org.logh7.protocol.TacticalBaseMessages.emergency(it.id,0,stocks.bases.getValue(it.id).supplies,0)}
     }
     fun initialize(offices:(CharacterMessages.Generate,Navigator)->List<BootstrapMessages.OfficeCard> = {_,_->emptyList()}): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->

@@ -34,15 +34,16 @@ class GamePresence {
     }
     /** Money is private to the actual finance office; public 031f has no treasury/rate field. */
     @Synchronized fun budget(event:org.logh7.engine.BudgetChange,world:WorldBootstrap) {
-        val s=event.stocks;val offices=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
+        val s=event.stocks;val offices=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy,world.lobbyCountryDefinitions().first)
         for(viewer in members.values.filter {it.player.generation==s.generation}) {
-            val base=s.bases[viewer.player.baseId] ?: continue;val power=viewer.character.power
-            if(base.power!=power || base.camp!=0)continue
-            val card=if(power==2)8 else 136;val role=org.logh7.engine.OrganizationOffices.all.getValue(card)
+            val base=s.bases[viewer.player.baseId] ?: continue;val country=viewer.player.country ?: continue
+            if(!base.belongsTo(country) || base.camp!=0)continue
+            val card=listOf(8,136).firstOrNull {offices.role(it,country)!=null} ?: continue
+            val role=checkNotNull(offices.role(card,country))
             if((s.strategic.people[viewer.character.id.toInt()]?.rank ?: viewer.character.rank) !in role.ranks ||
-                offices.holders(s,card).none {it.character==viewer.character.id.toInt()})continue
+                offices.holders(s,card,country).none {it.character==viewer.character.id.toInt()})continue
             send(viewer,org.logh7.protocol.BudgetMessages.update(viewer.character.id.toInt(),card,
-                org.logh7.protocol.BudgetMessages.View(base.baseId,s.nationalTreasuries[org.logh7.engine.CountryId(power)] ?: 0,base.treasury,
+                org.logh7.protocol.BudgetMessages.View(base.baseId,s.nationalTreasuries[country] ?: 0,base.treasury,
                     org.logh7.engine.BudgetActions.rate(s,base.baseId,event.defaultRate))))
         }
     }
@@ -136,7 +137,7 @@ class GamePresence {
                 packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,0,5,event.seconds)
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,player.cpPaused)
             } else if(player.grid==event.grid && previous.player.cpPaused) {
-                val tactical=TacticalBootstrap(snapshot,world.galaxy,player,characterById)
+                val tactical=TacticalBootstrap(snapshot,world.galaxy,player,world.lobbyCountryDefinitions().first,characterById)
                 val display=world.lobbyCountryDefinitions().first.nativePower(org.logh7.engine.Allegiance.Country(event.country))
                 packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,display,0)
                 // Imported definitions and states retain real zero-boat identities; no fake weapon hit.
@@ -150,7 +151,7 @@ class GamePresence {
             }
             if(previous.player.cpPaused && !player.cpPaused && !expelled)
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,false)
-            GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
+            GridForceReport.message(snapshot,world.galaxy,player,event.seconds,world.lobbyCountryDefinitions().first)?.let {packets+=it}
             send(member,packets+updated.refresh)
         }
     }
@@ -282,8 +283,8 @@ class GamePresence {
             if(!event.cancelled && event.order.command.opcode in setOf(0x422,0x41c)) {
                 val stocks=checkNotNull(snapshot.planetStocks)
                 val base=event.order.command.base
-                val power=if(current.power==org.logh7.engine.Power.EMPIRE)2 else 3
-                if(stocks.tacticalCommands.emergencySupplies[base]==power) {
+                val country=current.country
+                if(country!=null && stocks.tacticalCommands.emergencySupplies[base]==country.value) {
                     val targets=if(event.order.command.opcode==0x422)listOf(0) else event.order.command.units
                     for(id in targets) {
                         val balance=if(id==0)0 else snapshot.navigators.values.singleOrNull {it.unitId==id}?.supplies ?:
@@ -454,7 +455,7 @@ class GamePresence {
     }
     private fun visible(viewer: Member, other: Member) = viewer.connection != other.connection &&
         viewer.player.generation == other.player.generation && viewer.player.grid == other.player.grid &&
-        (viewer.player.power == other.player.power ||
+        (viewer.player.country!=null && viewer.player.country == other.player.country ||
             (viewer.player.baseId != 0 && viewer.player.baseId == other.player.baseId && viewer.player.spotId != 0 &&
                 viewer.player.spotId == other.player.spotId && viewer.player.spotOwner == other.player.spotOwner))
     private fun peers(viewer: Member) = members.values.filter { visible(viewer, it) }.sortedBy { it.character.id }
@@ -486,12 +487,12 @@ class GamePresence {
     /** U-06: same-side channel members anywhere in the session; the sender must belong to the channel. */
     private fun channelChat(sender:Member,channel:ChatChannel,text:String,seconds:Long):ByteArray {
         fun cards(member:Member)=member.offices.map {it.kind}
-        val allowed=channel.admits(cards(sender),sender.outfit)
+        val allowed=sender.player.country!=null && channel.admits(cards(sender),sender.outfit)
         val line=("[${channel.label}] "+(if(!allowed)"이 채널을 쓸 수 있는 직무·소속이 아닙니다." else text)).take(65)
         val packet=ChatMessages.spot(ChatMessages.Spot(sender.character.id.toInt(),line),seconds)
         if(allowed && text.isNotBlank())members.values.filter {
             it.connection!=sender.connection && it.player.generation==sender.player.generation &&
-                it.character.power==sender.character.power && channel.admits(cards(it),it.outfit) &&
+                it.player.country==sender.player.country && channel.admits(cards(it),it.outfit) &&
                 (channel!=ChatChannel.OWN_OUTFIT || it.outfit==sender.outfit)
         }.forEach {send(it,listOf(packet))}
         return packet
@@ -506,8 +507,8 @@ class GamePresence {
             other.connection != connection && other.player.generation == sender.player.generation &&
                 other.player.grid == sender.player.grid && inTactics(other) == inTactics(sender) && when (message.cast) {
                     0 -> true
-                    1 -> other.player.power == sender.player.power
-                    2 -> sender.outfit > 0 && other.outfit == sender.outfit && other.player.power == sender.player.power
+                    1 -> sender.player.country!=null && other.player.country == sender.player.country
+                    2 -> sender.player.country!=null && sender.outfit > 0 && other.outfit == sender.outfit && other.player.country == sender.player.country
                     else -> false
                 }
         }.forEach { send(it, listOf(packet)) }
@@ -555,7 +556,8 @@ class GamePresence {
     @Synchronized fun update(member: Member, seconds: Long = 0): Update {
         val previous = members[member.connection]
         if (previous != null && previous.player.generation == member.player.generation &&
-            previous.player.power == member.player.power && previous.player.grid == member.player.grid &&
+            previous.player.characterId == member.player.characterId && previous.player.country == member.player.country &&
+            previous.player.grid == member.player.grid &&
             members.values.filter { it.connection != member.connection }.all { visible(previous, it) == visible(member, it) }) {
             members[member.connection] = member
             val before = character(previous)
@@ -624,10 +626,10 @@ class GamePresence {
     /** Existing native directory refresh; no guessed original create/delete notification. */
     @Synchronized fun refreshOutfits(world:WorldBootstrap,stocks:org.logh7.engine.PlanetStocks,grid:Int,except:String) {
         for(viewer in members.values.filter {it.connection!=except && it.player.generation==stocks.generation && it.player.grid==grid}) {
-            val power=viewer.character.power
-            val ids=stocks.outfits.values.filter {it.power==power && it.positionIn(world.galaxy).grid==grid}.map {it.id}
+            val country=viewer.player.country ?: continue
+            val ids=stocks.outfits.values.filter {it.country==country && it.positionIn(world.galaxy).grid==grid}.map {it.id}
             send(viewer,ids.chunked(100).map {world.outfits(it,stocks)}+
-                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,power,0),stocks)+refresh(peers(viewer),peers(viewer)))
+                world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(grid,viewer.character.power,0),stocks,country)+refresh(peers(viewer),peers(viewer)))
         }
     }
     /** Native 032b only fills the detail slot; 0b0a's 004c2a80(1) merges the last 032b into the

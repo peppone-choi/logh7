@@ -30,21 +30,20 @@ data class TacticalMovement(val generation:Long,val unit:Int,val grid:Int,val se
  */
 internal object NpcTactics {
     private data class Contact(val id:Int,val pose:TacticalPose)
-    private fun power(outfit:OutfitStock)=if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE
     private fun audience(session:SessionState,grid:Int,players:Map<String,Navigator>)=players.mapNotNull { (a,p)->
         val member=session.participants[a]
-        if(p.grid!=grid || p.baseId!=0 || !p.cpPaused || member?.online!=true || member.power!=p.power)null
+        if(p.grid!=grid || p.baseId!=0 || !p.cpPaused || member?.online!=true || member.country!=p.country)null
         else member.connection?.let {p.characterId to it}
     }.toMap()
     private fun initial(unit:ActiveShipUnit,outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,
         stocks:PlanetStocks,galaxy:Galaxy):TacticalPose=unit.tactical?.takeIf {it.motion.grid==grid}?.motion?.pose(now,unit.posture,galaxy)
-        ?: TacticalDeployment.initial(unit.id,power(outfit),grid,players.values,stocks,galaxy)
+        ?: TacticalDeployment.initial(unit.id,grid,players.values,stocks,galaxy)
 
     private fun contacts(outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,
         galaxy:Galaxy):List<Contact> = players.values.filter {it.grid==grid && it.baseId==0 && it.cpPaused &&
-        it.power!=power(outfit) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy) ?:
-            TacticalDeployment.initial(p.unitId,p.power,grid,players.values,stocks,galaxy))} +
-        stocks.outfits.values.filter {it.power!=outfit.power && it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
+        TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy) ?:
+            TacticalDeployment.initial(p.unitId,grid,players.values,stocks,galaxy))} +
+        stocks.outfits.values.filter {TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}}
 
     private fun replace(stocks:PlanetStocks,outfit:OutfitStock,unit:ActiveShipUnit):PlanetStocks {
@@ -156,11 +155,11 @@ internal object NpcTactics {
                         OutfitSupplies.distribution(outfit).getValue(id)-cost<returnJumps*unit.boats)continue
                     val victim=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.firstOrNull {
                         TacticalArmaments.effectiveness(mount,pose,it.pose.position)>0 &&
-                            !TacticalLineOfFire.blocked(id,position.grid,power(outfit),pose.position,it.pose.position,now,players.values,stocks,galaxy)} ?: continue
+                            !TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),pose.position,it.pose.position,now,players.values,stocks,galaxy)} ?: continue
                     val effect=TacticalArmaments.effectiveness(mount,pose,victim.pose.position)
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
                         weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,pose,
-                        checkNotNull(TacticalCombat.target(victim.id,position.grid,power(outfit),stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit))))
+                        checkNotNull(TacticalCombat.target(victim.id,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)))
                     stocks=resolved.first;impacts+=resolved.second;forceCache=null
                     outfit=stocks.outfits.getValue(outfitId)
                     firing=firing.copy(nextFireAt=now+5*scale,sequence=firing.sequence+1)

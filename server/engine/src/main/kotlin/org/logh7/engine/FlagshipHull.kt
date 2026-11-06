@@ -24,12 +24,13 @@ internal object FlagshipRecovery {
     /** Manual: return planet, injury, destroyer replacement (REVIEW05). Fallback and 24G-hour delay are design. */
     fun defeated(player:Navigator,seconds:Long,galaxy:Galaxy,stocks:PlanetStocks,
         players:Collection<Navigator> = emptyList()):Navigator {
-        val power=if(player.power==Power.EMPIRE)2 else 3
+        val country=player.country
+        val start=country?.let {galaxy.countryStarts[it]}
         val owned=galaxy.bases.filter { base ->
             val stock=stocks.bases[base.id]
             val initial=galaxy.conditions.getValue(base.id)
-            initial.habitability==1 && (stock?.let {it.belongsTo(player.power.country) && it.camp==0}
-                ?: (initial.power==power && initial.camp==0))
+            country!=null && initial.habitability==1 && (stock?.let {it.belongsTo(country) && it.camp==0}
+                ?: (initial.power==country.value && initial.camp==0))
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
         val busy=GridForces.collect(galaxy,stocks.generation,
@@ -37,13 +38,13 @@ internal object FlagshipRecovery {
             .filterValues {TacticalContact.contested(it)}.keys
         val bases=owned.filter {it.grid !in busy}.ifEmpty {owned}
         val home=bases.singleOrNull {it.id==player.returnBase}
-            ?: bases.singleOrNull {it.grid==galaxy.starts.getValue(player.power) &&
-                it.name==if(player.power==Power.EMPIRE)"オーディン" else "ハイネセン"}
-            ?: bases.filter {it.grid==galaxy.starts.getValue(player.power)}.minByOrNull {it.id}
+            ?: stocks.strategic.capitals[country]?.let {capital->bases.singleOrNull {it.id==capital}}
+            ?: bases.singleOrNull {it.grid==start && Capital.of(it)?.power==country?.value}
+            ?: bases.filter {it.grid==start}.minByOrNull {it.id}
             ?: bases.minByOrNull {it.id}
         val until=minOf(0xffffffffL,seconds+86400)
         val kind=Flagships.forType(player.shipStyle.nativePower,3).kind
-        return player.copy(grid=home?.grid ?: galaxy.starts.getValue(player.power),baseId=home?.id ?: 0,
+        return player.copy(grid=home?.grid ?: start ?: player.grid,baseId=home?.id ?: 0,
             mode=if(home==null)5 else 4,spotId=0,spotOwner=0,cpPaused=false,cpRecoveryAt=seconds,
             motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,energy=TacticalEnergy.ZERO,
             fuelReadyAt=null,strategy=null,dockTarget=null,warpTarget=null,supplies=0,

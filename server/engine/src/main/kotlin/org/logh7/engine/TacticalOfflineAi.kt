@@ -21,11 +21,11 @@ internal object TacticalOfflineAi {
             stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(aiNextAt=stocks.tacticalCommands.aiNextAt+(p.characterId to now+5*scale)))
             if(p.retreat!=null || p.fire?.pending!=null || p.posture?.let {it.mode.requiresBase || it.order!=null}==true ||
                 stocks.tacticalCommands.orders.any {p.unitId in it.command.units})continue
-            val pose=p.motion?.pose(now,p.posture,g,stocks) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players.values,stocks,g)
+            val pose=p.motion?.pose(now,p.posture,g,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,stocks,g)
             val mission=stocks.tacticalCommands.missions[p.characterId]?.takeUnless {it.completed}
             val kind=if(stocks.tacticalCommands.confused(p.unitId))5 else mission?.mission ?: 0
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)).distinct()
-            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,p.power,stocks,g,players,CoupActions.camp(stocks,p.characterId))?.let {
+            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)?.let {
                 id to TacticalFleetAttack.pose(it,now,players,stocks,g)}}
             val enemy=enemies.singleOrNull {kind in 3..4 && it.first==mission?.target}
                 ?: if(kind==0)enemies.minWithOrNull(compareBy<Pair<Int,TacticalPose>> {
@@ -55,7 +55,7 @@ internal object TacticalOfflineAi {
             var commanded=false
             // Every regular ship remains subject to ownership, CRC, confusion and pending-job guards.
             for((outfitId,original) in stocks.outfits.toSortedMap()) {
-                if(original.power!=(if(p.power==Power.EMPIRE)2 else 3) || original.positionIn(g)!=OutfitPosition(p.grid))continue
+                if(original.country!=p.country || original.positionIn(g)!=OutfitPosition(p.grid))continue
                 val commandable=original.activeShips?.values.orEmpty().filter {unit->
                     TacticalAuthority.commander(original,unit,stocks)==p.characterId && unit.boats>unit.damaged &&
                         !stocks.tacticalCommands.confused(unit.id) && unit.support==null && unit.shot==null &&
@@ -64,7 +64,7 @@ internal object TacticalOfflineAi {
                         original.activeGround?.values.orEmpty().none {it.order?.carrier==unit.id}
                 }.filter {unit->
                     val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
-                        ?: TacticalDeployment.initial(unit.id,p.power,p.grid,players.values,stocks,g)
+                        ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
                     distance(pose.position,at.position)<=(p.commandRange?.radius(now) ?: 0f)
                 }.map {it.id}.toSet()
                 if(occupied!=null) {
@@ -74,7 +74,7 @@ internal object TacticalOfflineAi {
                 val updated=original.activeShips?.values?.map {unit ->
                     if(unit.id !in commandable || unit.posture?.mode?.requiresBase==true)return@map unit
                     val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
-                        ?: TacticalDeployment.initial(unit.id,p.power,p.grid,players.values,stocks,g)
+                        ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
                     val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
                     val velocity=(spec.number("最高速度（km/1G秒）:最高速度（km/1G秒）")/20000f).coerceIn(.1f,1f)
                     val lateral=((unit.id%5)-2)*1.5f
@@ -111,7 +111,7 @@ internal object TacticalOfflineAi {
         val point=TacticalBasePosition.at(base,now,stocks)
         val reach=maxOf(1.0,base.diameter.toDouble(),if(base.kind==0)5.5 else 0.5)
         var units=ships.values;var troops=ground.values;var changed=false
-        var box=stocks.outfits.values.filter {it.power==outfit.power}.sumOf {o->o.activeGround?.values.orEmpty()
+        var box=stocks.outfits.values.filter {it.country==outfit.country}.sumOf {o->o.activeGround?.values.orEmpty()
             .count {it.base==base.id || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==base.id}==true}}
         for(unit in ships.values) {
             val aboard=troops.filter {it.carrier==unit.id && it.order==null && GroundBattleRules.admitsCrewType(base,
@@ -128,7 +128,7 @@ internal object TacticalOfflineAi {
                 continue
             }
             val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
-                ?: TacticalDeployment.initial(unit.id,p.power,p.grid,players,stocks,g)
+                ?: TacticalDeployment.initial(unit.id,p.grid,players,stocks,g)
             if(hypot((at.position.x-point.x).toDouble(),(at.position.y-point.y).toDouble())>reach)continue
             val current=posture ?: TacticalPosture(p.grid)
             val anchor=current.copy(order=TacticalPostureOrder(p.characterId,TacticalShipMode.ANCHORED,base.id,now,now+10*scale))

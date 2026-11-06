@@ -9,6 +9,16 @@ import kotlin.test.*
 
 class TacticalCommandStateStoreTest {
     @TempDir lateinit var directory:Path
+    @Test fun emergencySupplyRetainsAnActualCountryIdAcrossWorldReload() {
+        val command=TacticalCommandState(emergencySupplies=mapOf(1000 to 42))
+        assertEquals(command,TacticalCommandStateCodec.decode(TacticalCommandStateCodec.encode(command)))
+        val stock=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,Allegiance.Country(CountryId(42)),0,100,0,0)),
+            tacticalCommands=command)
+        val path=directory.resolve("country-supply")
+        FilePlanetStockStore(path).use {it.save(stock)}
+        FilePlanetStockStore(path).use {assertEquals(stock,it.load())}
+        assertFailsWith<IllegalArgumentException>{TacticalCommandState(emergencySupplies=mapOf(1000 to 0))}
+    }
     private fun state():TacticalCommandState {
         val motion=TacticalMotion(2488,100,TacticalPose(TacticalPoint(1f,2f),0f),.5f,0f,listOf(TacticalPoint(3f,4f)))
         return TacticalCommandState(listOf(TacticalQueuedCommand(10000,2488,100,105,

@@ -58,7 +58,7 @@ class TacticalPostureOperationsTest {
         assertEquals(1000,player.baseId);assertEquals(4,player.mode);assertFalse(player.cpPaused)
         assertTrue(out.all {!it.cancelled});assertEquals(3,out.size)
         assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture!!.mode==TacticalShipMode.STATIONED})
-        assertNull(TacticalCombat.target(1,2487,Power.ALLIANCE,s.stocks,galaxy,s.players))
+        assertNull(TacticalCombat.target(1,2487,Camp(Power.ALLIANCE,false),s.stocks,galaxy,s.players))
     }
     @Test fun selectionOwnershipBaseCampAndProximityAreCheckedBeforeAnySave() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)

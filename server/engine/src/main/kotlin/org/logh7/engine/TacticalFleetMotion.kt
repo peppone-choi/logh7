@@ -13,7 +13,7 @@ internal object TacticalFleetMotion {
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(player.hull?.woundedUntil?.let {it>session.gameMillis/1000}==true)return reject(NavigationRejection.WOUNDED)
-        if(request.captainCard!=if(player.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
+        if(!navigation.captainCard(request,player))return reject(NavigationRejection.CARD)
         val command=checkNotNull(request.tacticalMove)
         if(player.unitId in command.units && (player.hull==null ||
             Flagships.find(player.hull.kind)?.power!=player.shipStyle.nativePower))return reject(NavigationRejection.UNIT)
@@ -26,14 +26,14 @@ internal object TacticalFleetMotion {
         if(rotation==null && now>0xffffffffL-5*clockScale)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
         val own=player.motion?.takeIf {it.grid==player.grid}?.pose(now,player.posture,galaxy,stocks) ?:
-            TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
+            TacticalDeployment.initial(player.unitId,player.grid,players.values,stocks,galaxy)
         val regular=command.units.filter {it!=player.unitId}
         val ships=regular.map {id ->
             if(id !in 1..999999)return reject(NavigationRejection.UNIT)
             val pair=stocks.outfits.values.flatMap {o->o.activeShips?.values.orEmpty().filter {it.id==id}.map {o to it}}
                 .singleOrNull() ?: return reject(NavigationRejection.UNIT)
             val (o,u)=pair
-            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
+            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.country!=player.country ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
             if(u.boats==0 || u.support!=null)return reject(NavigationRejection.BUSY)
             pair
@@ -41,7 +41,7 @@ internal object TacticalFleetMotion {
         val poses=command.units.associateWith {id->if(id==player.unitId)own else {
             val unit=ships.single {it.second.id==id}.second
             (unit.tactical?.motion?.takeIf {it.grid==player.grid}?.pose(now,unit.posture,galaxy,stocks) ?:
-                TacticalDeployment.initial(id,player.power,player.grid,players.values,stocks,galaxy)).also {pose ->
+                TacticalDeployment.initial(id,player.grid,players.values,stocks,galaxy)).also {pose ->
                     if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
                         checkNotNull(player.commandRange).radius(now))return reject(NavigationRejection.RANGE)
                 }

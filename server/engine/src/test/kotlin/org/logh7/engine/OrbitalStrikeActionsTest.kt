@@ -25,6 +25,30 @@ class OrbitalStrikeActionsTest {
     private fun act(p:Navigator,s:PlanetStocks=stocks())=SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(
         "a","a",10000,Power.EMPIRE,1,OrbitalStrikeActions.STRIKE,0,1)),session,p,s,listOf(p))
 
+    @Test fun additionalCountryBombardmentUsesActualDefendersAndOnlyItsOwnEscorts() {
+        val p=player(10f).copy(country=CountryId(42))
+        val initial=stocks()
+        val at=assertNotNull(p.motion)
+        val fleets=listOf(42,43).mapIndexed {index,country->
+            val ships=ActiveShipUnits(listOf(ActiveShipUnit(3+index,UnitStack(32),
+                tactical=NpcTacticalState(at,now,now))))
+            index+2 to OutfitStock(index+2,CountryId(country),OutfitKind.FLEET,1000,102+index,10000,
+                UnitInventory(ships.quantities()),activeShips=ships,position=OutfitPosition(2487),shipStyle=ShipStyleId("empire"))
+        }.toMap()
+        val s=initial.copy(bases=initial.bases.mapValues {(_,b)->b.copy(owner=Allegiance.Country(CountryId(43)))},
+            outfits=initial.outfits.mapValues {(_,o)->o.copy(country=CountryId(43))}+fleets,
+            warehouses=initial.warehouses.mapValues {(_,w)->w.copy(country=CountryId(43))}+
+                fleets.values.associate {o->o.warehouseId to OutfitWarehouse(o.warehouseId,o.country,OutfitKind.FLEET,1000,o.id,shipStyle=o.shipStyle)},nextShipId=5)
+        val countrySession=session.copy(participants=session.participants.mapValues {(_,m)->m.copy(country=CountryId(42))})
+        val request=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,OrbitalStrikeActions.STRIKE,0,1)
+            .copy(country=CountryId(42)))
+        val result=SocialActions.evaluate(galaxy,request,countrySession,p,s,listOf(p))
+        assertNull(result.rejection);assertEquals(2,result.outcome)
+        assertTrue(assertNotNull(result.stocks).outfits.getValue(1).activeGround!!.values.all {it.strength==700})
+        val own=s.copy(bases=s.bases.mapValues {(_,b)->b.copy(owner=Allegiance.Country(CountryId(42)))})
+        assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,request,countrySession,p,own,listOf(p)).rejection)
+    }
+
     @Test fun aFlagshipInRangeBombardsTheEnemyGarrisonAndOrder() {
         val r=act(player(10f),stocks(strength=100))
         assertNull(r.rejection,"${r.rejection}");assertEquals(1,r.outcome);assertEquals(1000,r.found);assertEquals(1,r.report)
