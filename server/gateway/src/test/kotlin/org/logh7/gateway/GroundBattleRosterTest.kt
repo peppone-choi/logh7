@@ -48,7 +48,8 @@ class GroundBattleRosterTest {
     }
     @Test fun theRosterCarriesOnlyAlliedExistingCommandersWithoutChangingAnyAppointment() {
         val s=stocks.copy(outfits=stocks.outfits.mapValues {(id,o)->o.copy(commanderId=10000+id)})
-        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,s,2487) {id->
+        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,s,2487,
+            characterCountryById={if(it==10001)CountryId(2) else CountryId(3)}) {id->
             org.logh7.protocol.CharacterMessages.Generate(1,id.toLong(),2,0,0,"지휘관","",20,1,1,0,List(8){50},0,0,0,20,1,0,"Ship",0)
         }
         val b=ByteBuffer.wrap(packets[1]);b.position(7)

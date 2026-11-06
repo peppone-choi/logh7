@@ -1012,11 +1012,19 @@ class GameExchange(
                             return null
                         }
                         pendingWorld = stocks().thenApply { stored ->
-                            if(party?.mode==2)world.outfitGround(party,character.power,checkNotNull(stored))
-                            else if(party?.mode==3)world.outfitBattle(party,character.power,checkNotNull(stored),
-                                navigation?.snapshot()?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid,::currentCharacterById)
-                            else listOf(if(party!=null)world.outfitParty(party,checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(stored),character.id.toInt(),::currentCharacterById)
-                                else world.outfitUnit(checkNotNull(unit).id,character.power,checkNotNull(stored),unit.base))
+                            // Ground, battle and unit views act for the profile's actual country, as outfitParty does.
+                            val country=checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value
+                            if(party?.mode==2)world.outfitGround(party,country,checkNotNull(stored))
+                            else if(party?.mode==3) {
+                                val snapshot=navigation?.snapshot()
+                                val countries=WorldCharacters.profiles(characters.profiles(),snapshot).values
+                                    .associate {it.character.id.toInt() to it.country}
+                                world.outfitBattle(party,country,checkNotNull(stored),
+                                    snapshot?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid,
+                                    characterCountryById={countries[it]},characterById=::currentCharacterById)
+                            }
+                            else listOf(if(party!=null)world.outfitParty(party,country,checkNotNull(stored),character.id.toInt(),::currentCharacterById)
+                                else world.outfitUnit(checkNotNull(unit).id,country,checkNotNull(stored),unit.base))
                         }
                         return null
                     }

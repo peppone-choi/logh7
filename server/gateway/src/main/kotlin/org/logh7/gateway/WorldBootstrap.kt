@@ -164,12 +164,15 @@ class WorldBootstrap(val galaxy: Galaxy,
     }
     /** Explicit revival query mode 2: original 0331 rows, at most 70 ground identities after the cursor.
      * No command or CP mutation; actual saved carriers, remote bases and unresolved legacy locations survive. */
-    fun outfitGround(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks):List<ByteArray> {
+    fun outfitGround(query:OutfitPartyMessages.Query,countryId:Int,stocks:org.logh7.engine.PlanetStocks):List<ByteArray> {
         require(query.mode==2 && query.base in 0..999999)
+        // Command access by the actual country; the wire header carries its display code only.
+        val country=org.logh7.engine.CountryId(countryId)
+        val power=countryCatalog.nativePower(org.logh7.engine.Allegiance.Country(country))
         val outfit=stocks.outfits[query.outfit] ?: return listOf(LoginMessages.sessionMessage(0x032f,
             OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0)),
             LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(emptyList())))
-        require(outfit.power==power) {"Ground location access denied"}
+        require(outfit.country==country) {"Ground location access denied"}
         val position=outfit.positionIn(galaxy)
         val rows=outfit.activeGround?.values.orEmpty().filter {it.id>query.base}.sortedBy {it.id}.take(70).map {u->
             val grid=if(u.base>0)galaxy.bases.single {it.id==u.base}.grid else position.grid
@@ -184,20 +187,29 @@ class WorldBootstrap(val galaxy: Galaxy,
     /** Reconstructed ground battle window (design-ground-battle-window.md), query mode 3: both sides' landed troops on
      * one base as 0331 rows. Kind 1000+k already names the faction; damaged carries strength (0..1000) and supplies the
      * troop's ordered target. Only a viewer in tactics on that grid may read it. */
-    fun outfitBattle(query:OutfitPartyMessages.Query,power:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?,
+    fun outfitBattle(query:OutfitPartyMessages.Query,countryId:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?,
+        characterCountryById:(Int)->org.logh7.engine.CountryId? = {null},
         characterById:(Int)->org.logh7.protocol.CharacterMessages.Generate? = {null}):List<ByteArray> {
         require(query.mode==3 && query.outfit==0)
+        val country=org.logh7.engine.CountryId(countryId)
+        val countries=countryCatalog
+        val power=countries.nativePower(org.logh7.engine.Allegiance.Country(country))
+        val registered=countries.countries.keys
         val base=galaxy.bases.singleOrNull {it.id==query.base}
         val fighting=base?.let {org.logh7.engine.GroundBattleView.fighting(stocks,it)}.orEmpty()
-        val rows=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.power in 2..3}.flatMap {o->
+        // Public strength: every registered country's troops on this base (kind 1000+k keeps the model's own
+        // faction). Private command (commander) only for the viewer's actual country. Records of a country that is
+        // not in the catalogue are left out rather than shown as the empire or the alliance.
+        val rows=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.country.value in registered}.flatMap {o->
             // Only troops that may fight here (p.51: no 装甲兵 on special planets/fortresses).
             o.activeGround?.values.orEmpty().filter {it.base==base.id && org.logh7.engine.GroundBattleRules.admitsCrewType(base,
                 UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}.map {u->
+                val commander=if(o.country==country)org.logh7.engine.GroundCommandAuthority.commander(o,u,stocks,galaxy) else 0
                 OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
                     // destroyed=1 marks a reserve beyond the side's 30 fighting units (window display only).
                     supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
                     morale=stocks.tacticalCommands.morale[u.id] ?: 100,
-                    commander=if(o.power==power)org.logh7.engine.GroundCommandAuthority.commander(o,u,stocks,galaxy) else 0,
+                    commander=commander.takeIf {it>0 && characterCountryById(it)==country} ?: 0,
                     mode=if(u.origin>0)9 else 4)}
         }.sortedBy {it.id}.take(70)
         val commanders=rows.map {it.commander}.filter {it>0}.distinct().sorted().take(10).mapNotNull {id->
@@ -206,11 +218,13 @@ class WorldBootstrap(val galaxy: Galaxy,
         return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0,commanders)),
             LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
     }
-    fun outfitUnit(id: Int, power: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
+    fun outfitUnit(id: Int, countryId: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {
+        val country = org.logh7.engine.CountryId(countryId)
+        require(country.value in countryCatalog.countries) { "Unregistered country" }
         val outfit = stocks.outfits.values.singleOrNull { owner -> owner.activeShips?.values?.any { it.id == id } == true }
         val units = if (outfit == null) emptyList() else {
             val position = outfit.positionIn(galaxy)
-            require(outfit.power == power && (base == 0 || base == position.baseId)) { "Outfit unit access denied" }
+            require(outfit.country == country && (base == 0 || base == position.baseId)) { "Outfit unit access denied" }
             val unit = outfit.activeShips!!.values.single { it.id == id }
             listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,position.baseId,
                 org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id),unit.unavailable,
