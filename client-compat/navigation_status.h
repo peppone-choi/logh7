@@ -105,12 +105,14 @@ static void drawWarpStatus(BYTE* world, BYTE* own) {
     if (remaining) _snwprintf_s(time, _countof(time), _TRUNCATE,
         L"남은 게임 시간: %02llu:%02llu:%02llu", remaining / 3600, remaining / 60 % 60, remaining % 60);
     else wcscpy_s(time, L"워프 실행 확인 중");
-    int width = at<int>(display, 0x2a604), height = at<int>(display, 0x2a608);
-    if (width < 743 || width > 4096 || height < 600 || height > 4096) return;
+    HudFrame frame; // Client-space panel anchor, mapped to the text render target like the native panel.
+    if (!hudFrame(frame)) return;
+    const int x = hudRenderX(frame, frame.width - 205);
+    auto y = [&](int fromBottom) { return hudRenderY(frame, frame.height - fromBottom); };
     reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
     auto draw = reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, width - 205, height - 112, 0xffffdf70, 6);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, width - 205, height - 96, 0xffffdf70, 6);
+    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, x, y(112), 0xffffdf70, 6);
+    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, x, y(96), 0xffffdf70, 6);
 }
 static unsigned unreadPersonalMail(BYTE* world, unsigned owner);
 // "새 편지 N통" above the HUD mailbox button while the personal inbox holds unread rows (mail_input.h).
@@ -119,13 +121,15 @@ static void drawMailNotice(BYTE* world, BYTE* own) {
     unsigned unread = unreadPersonalMail(world, at<unsigned>(own, 0x24));
     auto display = *reinterpret_cast<BYTE**>(0x7c1b4c);
     if (!unread || !display || !at<unsigned>(display, 0x2a418)) return;
-    int width = at<int>(display, 0x2a604), height = at<int>(display, 0x2a608);
-    if (width < 743 || width > 4096 || height < 600 || height > 4096) return;
+    HudFrame frame; // Client-space panel anchor, mapped to the text render target like the native panel.
+    if (!hudFrame(frame)) return;
+    const int x = hudRenderX(frame, frame.width - 205);
+    auto y = [&](int fromBottom) { return hudRenderY(frame, frame.height - fromBottom); };
     wchar_t text[32];
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"새 편지 %u통", unread);
     reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
     reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0)(
-        at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), text, width - 205, height - 80, 0xffffdf70, 6);
+        at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), text, x, y(80), 0xffffdf70, 6);
 }
 static void drawDockingStatus() {
     auto world = *reinterpret_cast<BYTE**>(0x7ccffc);
@@ -158,13 +162,15 @@ static void drawDockingStatus() {
         L"남은 게임 시간: %02llu:%02llu:%02llu",
         remaining / 3600, remaining / 60 % 60, remaining % 60);
     else wcscpy_s(time, L"도착 확인 중");
-    int width = at<int>(display, 0x2a604), height = at<int>(display, 0x2a608);
-    if (width < 743 || width > 4096 || height < 600 || height > 4096) return;
+    HudFrame frame; // Client-space panel anchor, mapped to the text render target like the native panel.
+    if (!hudFrame(frame)) return;
+    const int x = hudRenderX(frame, frame.width - 205);
+    auto y = [&](int fromBottom) { return hudRenderY(frame, frame.height - fromBottom); };
     // Use the same UTF-16 glyph queue as native HUD text, below the location line.
     reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
     auto draw = reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, width - 205, height - 112, 0xffffdf70, 6);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, width - 205, height - 96, 0xffffdf70, 6);
+    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, x, y(112), 0xffffdf70, 6);
+    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, x, y(96), 0xffffdf70, 6);
 }
 static bool installNavigationStatus() {
     const unsigned calls[] = {0x4bcbcc, 0x4bcfad, 0x4bcc1d, 0x4bcf79,0x58f0c6};
