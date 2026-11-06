@@ -4,6 +4,9 @@
   const abilities = ['leadership', 'politics', 'administration', 'intelligence', 'command', 'mobility', 'attack', 'defense'];
   const labels = ['통솔', '정치', '운영', '정보', '지휘', '기동', '공격', '방어'];
   const factions = {empire: '제국', alliance: '동맹', other: '기타'};
+  // Two-pass review (2026-11-06): independent face candidates, manual/canon ranks and the user's memo.
+  const reviewStates = {confirmed: '확인됨', conflict: '충돌', undecided: '미정'};
+  const confidences = {high: '높음', medium: '보통'};
   const blankNameParts = () => ({surname: null, given_name: null, prefix: '', order: 'unknown', status: 'pending', source: '', note: ''});
   function migrateNameParts(doc) {
     const result = structuredClone(doc);
@@ -66,6 +69,17 @@
         check(m && Number.isInteger(m.face_id) && m.face_id === c.face_id && m.edition === 'OVA' && m.confidence === 'high', '얼굴이 바뀌었거나 OVA 대조 형식이 잘못됐습니다.');
         check(['source', 'image_url', 'image_label', 'edition_caption', 'features'].every(k => typeof m[k] === 'string' && m[k].length <= 2000) && m.source.startsWith('https://namu.wiki/w/') && m.image_url.startsWith('https://i.namu.wiki/i/') && m.edition_caption === 'OVA' && m.features.trim(), 'OVA 대조 이미지와 판본·특징 근거를 확인하세요.');
       }
+      if (Object.hasOwn(c, 'review')) {
+        const r = c.review;
+        check(r && Object.hasOwn(reviewStates, r.status) && typeof r.memo === 'string' && r.memo.length <= 4000, '검토 상태와 메모(4000자 이내)를 확인하세요.');
+        for (const pass of ['pass1', 'pass2']) {
+          const p = r[pass];
+          check(p === undefined || p === null || p && (p.face_id === null || Number.isInteger(p.face_id)) && (p.confidence === null || Object.hasOwn(confidences, p.confidence)) &&
+            ['features', 'reference', 'notes'].every(k => p[k] === undefined || typeof p[k] === 'string' && p[k].length <= 2000), '대조 후보 형식을 확인하세요.');
+        }
+        check(['rank_manual', 'rank_canon'].every(k => r[k] === undefined || typeof r[k] === 'string' && r[k].length <= 200), '계급 후보를 확인하세요.');
+        check(r.reasons === undefined || Array.isArray(r.reasons) && r.reasons.length <= 10 && r.reasons.every(x => typeof x === 'string' && x.length <= 300), '판정 이유를 확인하세요.');
+      }
       check(c.abilities && Object.keys(c.abilities).sort().join() === [...abilities].sort().join(), '능력 8종이 필요합니다.');
       check(abilities.every(k => c.abilities[k] === null || Number.isInteger(c.abilities[k]) && c.abilities[k] >= 0 && c.abilities[k] <= 65535), '능력은 빈 값 또는 0..65535 정수여야 합니다.');
       for (const [key, populated] of [['face_evidence', c.face_id !== null], ['abilities_evidence', abilities.some(k => c.abilities[k] !== null)]]) {
@@ -99,11 +113,12 @@
     box.append(label, input); $('stats').append(box);
   });
   function list() {
-    const query = $('search').value.toLocaleLowerCase(), faction = $('faction-filter').value, origin = $('roster-filter').value, ref = $('reference-filter').value, match = $('match-filter').value;
+    const query = $('search').value.toLocaleLowerCase(), faction = $('faction-filter').value, origin = $('roster-filter').value, ref = $('reference-filter').value, match = $('match-filter').value, review = $('review-filter').value;
     $('people').replaceChildren();
     const rows = catalogue.characters.filter(c => (!faction || faction === c.faction) && (!origin || (origin === 'manual' ? !!c.manual_holder : !c.manual_holder)) &&
       (!ref || (ref === 'yes' ? !!referenceFor(c)?.images.length : !referenceFor(c)?.images.length)) &&
       (!match || (match === 'ova' ? !!c.face_comparison : c.face_id === null)) &&
+      (!review || (review === 'memo' ? !!c.review?.memo.trim() : c.review?.status === review)) &&
       `${c.name} ${c.manual_holder} ${c.name_parts?.surname ?? ''} ${c.name_parts?.given_name ?? ''} ${(c.name_parts?.aliases ?? []).join(' ')} ${c.posts.map(p => p.post + p.unit).join(' ')}`.toLocaleLowerCase().includes(query));
     $('count').textContent = `${rows.length}명`;
     for (const c of rows) {
@@ -113,7 +128,7 @@
       if (p) button.append(picture(p));
       else if (reference) { const img = document.createElement('img'); img.src = reference.path; img.alt = `${c.name} 위키 참고`; img.loading = 'lazy'; button.append(img); }
       else button.append(text('span', '?', 'emptyface'));
-      const body = document.createElement('span'); body.append(text('span', c.name || '(이름 없음)'), text('small', `${factions[c.faction]} · ${c.manual_holder ? '초기 담당자' : '추가 후보'} · ${c.face_id === null ? '얼굴 미지정' : 'ID ' + c.face_id}${c.face_comparison ? ' · OVA 대조' : ''}${c.name_translation?.status === 'pending' ? ' · 표기 확인 대기' : ''}`));
+      const body = document.createElement('span'); body.append(text('span', c.name || '(이름 없음)'), text('small', `${factions[c.faction]} · ${c.manual_holder ? '초기 담당자' : '추가 후보'} · ${c.face_id === null ? '얼굴 미지정' : 'ID ' + c.face_id}${c.face_comparison ? ' · OVA 대조' : ''}${c.name_translation?.status === 'pending' ? ' · 표기 확인 대기' : ''}${c.review ? ' · ' + reviewStates[c.review.status] : ''}${c.review?.memo.trim() ? ' · 메모' : ''}`));
       button.append(body); button.onclick = () => choose(c.key); $('people').append(button);
     }
     status();
@@ -145,6 +160,39 @@
       button.append(img); button.title = `${item.label}\n${reference.page}\n${item.image_url}`;
       button.onclick = () => select(item, button); $('references').append(button);
       if (preferred === item) select(item, button);
+    }
+  }
+  function reviewPanel(c) {
+    const r = c.review; $('review').hidden = !r; $('review-candidates').replaceChildren(); $('review-ranks').replaceChildren();
+    $('review-memo').value = r?.memo ?? '';
+    if (!r) return;
+    $('review-status').textContent = reviewStates[r.status];
+    const lines = (r.reasons ?? []).map(x => '판정 이유: ' + x), shown = new Set();
+    for (const [pass, label] of [['pass1', '1차'], ['pass2', '2차']]) {
+      const p = r[pass];
+      if (!p) continue;
+      lines.push(`${label}: ${p.face_id === null ? '얼굴 못 찾음' : 'ID ' + p.face_id + ' · 확신 ' + (confidences[p.confidence] ?? '-')} — ${p.features ?? ''}${p.notes ? ' / ' + p.notes : ''}`);
+      const candidate = face(p.face_id);
+      if (!candidate || shown.has(p.face_id)) continue;
+      shown.add(p.face_id);
+      const button = text('button', '', `reference${currentFace === p.face_id ? ' active' : ''}`); button.type = 'button';
+      button.append(picture(candidate), text('span', `${label} · ${p.face_id}`));
+      button.title = '이 후보를 얼굴로 고르기';
+      button.onclick = () => {
+        const owner = catalogue.characters.find(o => o.face_id === p.face_id && o.key !== selected);
+        if (owner) { message(`이미 ${owner.name}에게 배정된 얼굴입니다. 그 인물의 얼굴을 먼저 해제하세요.`); return; }
+        currentFace = p.face_id; $('face-status').value = 'guess';
+        $('face-source').value = `${label} 대조 후보 채택 (확신 ${confidences[p.confidence] ?? '-'}): ${p.reference ?? ''}`.slice(0, 2000);
+        formDirty = true; message(); preview(); gallery(); reviewPanel(person()); status();
+      };
+      $('review-candidates').append(button);
+    }
+    $('review-detail').textContent = lines.join('\n');
+    for (const [key, label] of [['rank_manual', '매뉴얼'], ['rank_canon', '원작']]) {
+      if (!r[key]) continue;
+      const button = text('button', `${label}: ${r[key]}`); button.type = 'button';
+      button.onclick = () => { $('rank').value = r[key]; formDirty = true; status(); };
+      $('review-ranks').append(button);
     }
   }
   function namePartsPreview() {
@@ -184,7 +232,7 @@
     for (const k of abilities) $(k).value = c.abilities[k] ?? '';
     for (const k of ['face', 'abilities']) { $(k + '-status').value = c[k + '_evidence'].status; $(k + '-source').value = c[k + '_evidence'].source; }
     $('holder').textContent = c.manual_holder ? `매뉴얼: ${c.manual_holder}` : c.wiki ? '추가 인물 후보 · VII 등장·초기 배치 미확인' : '직접 추가한 인물';
-    referenceImages(c);
+    referenceImages(c); reviewPanel(c);
     const translation = c.name_translation;
     $('name-note').textContent = translation ? `초기 한글 표기: ${translation.korean} · ${translation.status === 'pending' ? '확인 대기 / ' + translation.note : '용어집·나무위키 기준'} · 출처: ${translation.source}` : '';
     $('posts').textContent = c.posts.map(p => `${p.department} / ${p.unit} ${p.post} · ${p.source}`).join('\n');
@@ -201,6 +249,9 @@
     if (next.face_comparison?.face_id !== currentFace) delete next.face_comparison;
     for (const k of abilities) next.abilities[k] = $(k).value === '' ? null : Number($(k).value);
     for (const k of ['face', 'abilities']) next[k + '_evidence'] = {status: $(k + '-status').value, source: $(k + '-source').value};
+    const memo = $('review-memo').value;
+    if (next.review) next.review = {...next.review, memo};
+    else if (memo.trim()) next.review = {status: 'undecided', memo};
     const revised = {...catalogue, characters: catalogue.characters.map(c => c.key === selected ? next : c)};
     try { validate(revised, portraits); catalogue = revised; dirty = true; formDirty = false; message(); list(); gallery(); return true; }
     catch (error) { message(error.message); return false; }
@@ -220,14 +271,14 @@
     gallery(); status();
   };
   $('clear-face').onclick = () => { currentFace = null; $('face-status').value = 'unknown'; $('face-source').value = ''; formDirty = true; preview(); gallery(); status(); };
-  $('search').oninput = list; $('faction-filter').onchange = list; $('roster-filter').onchange = list; $('reference-filter').onchange = list; $('match-filter').onchange = list; $('face-filter').onchange = gallery;
+  $('search').oninput = list; $('faction-filter').onchange = list; $('roster-filter').onchange = list; $('reference-filter').onchange = list; $('match-filter').onchange = list; $('review-filter').onchange = list; $('face-filter').onchange = gallery;
   $('add').onclick = () => {
     if (!apply()) return;
     let i = 1; while (catalogue.characters.some(c => c.key === `custom-${i}`)) i++;
     selected = `custom-${i}`;
     catalogue.characters.push({key: selected, faction: $('faction-filter').value || 'empire', name: '새 인물', manual_holder: '', posts: [], face_id: null,
       face_evidence: {status: 'unknown', source: ''}, abilities: Object.fromEntries(abilities.map(k => [k, null])), abilities_evidence: {status: 'unknown', source: ''}, rank: '', location: '', ai_profile: '', notes: ''});
-    dirty = true; $('search').value = ''; $('roster-filter').value = ''; $('reference-filter').value = ''; $('match-filter').value = ''; show();
+    dirty = true; $('search').value = ''; $('roster-filter').value = ''; $('reference-filter').value = ''; $('match-filter').value = ''; $('review-filter').value = ''; show();
   };
   $('delete').onclick = () => {
     if (!person() || !window.confirm(`${person().name} 인물을 이 편집 초안에서 삭제할까요?`)) return;

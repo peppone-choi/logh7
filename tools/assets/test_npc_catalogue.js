@@ -52,4 +52,12 @@ for (const invalid of ['not a list', ['\u0000'], ['A'.repeat(201)], ['\u{1f600}'
   assert.throws(() => validate(bad, faces));
 }
 n.surname = '폰 로엔그람'; assert.throws(()=>validate(migrated,faces));
-console.log('NPC JSON validation passed: null/zero, provenance, ranges, duplicate faces, factions.');
+const reviewed = structuredClone(doc);
+reviewed.characters[0].review = {status: 'conflict', memo: '이 얼굴 아님', pass1: {face_id: 1, confidence: 'high', features: '금발', reference: 'a.png'},
+  pass2: {face_id: null, confidence: null, features: '', notes: '못 찾음'}, rank_manual: '중장', rank_canon: '중장'};
+validate(reviewed, faces);
+for (const [path, value] of [['status', 'done'], ['memo', 'A'.repeat(4001)], ['memo', null], ['pass1', {face_id: 1.5, confidence: 'high'}], ['pass2', {face_id: 1, confidence: 'certain'}], ['rank_canon', 'A'.repeat(201)], ['reasons', 'not a list'], ['reasons', ['A'.repeat(301)]]]) {
+  const bad = structuredClone(reviewed); bad.characters[0].review[path] = value;
+  assert.throws(() => validate(bad, faces));
+}
+console.log('NPC JSON validation passed: null/zero, provenance, ranges, duplicate faces, factions, two-pass review.');
