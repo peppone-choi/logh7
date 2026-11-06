@@ -68,6 +68,9 @@ class InitialOutfitDeployment(private val galaxy: Galaxy, private val policy: In
         val warehouses = linkedMapOf<Int,OutfitWarehouse>()
         for (placement in placements) {
             val p = placement.power; val kind = placement.kind
+            // Manual country deployments do not move into a custom country's or an occupied base.
+            val base=stocks.bases[placement.base]
+            if(galaxy.initialOwners.getValue(placement.base).country!=CountryId(p) || base?.country!=CountryId(p) || base.camp!=0)continue
             val id = (p-2)*132 + when (kind) {
                 OutfitKind.FLEET -> placement.number
                 OutfitKind.PATROL -> 12 + placement.number

@@ -6,6 +6,24 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class BaseCountryOwnershipTest {
+    @Test fun aNewCountrySeedCannotBypassTheWorldFenceBeforeAnyRecoveryOrSave() = runBlocking {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487},
+            initialOwners=mapOf(1000 to Allegiance.Country(CountryId(42))))
+        var reads=0;var writes=0;var closed=0
+        val durability=object:SessionDurability {
+            override fun load():DurableWorldState {reads++;error("Must not recover")}
+            override fun commit(action:SessionAction,transition:SessionTransition) {writes++}
+            override fun close(){closed++}
+        }
+        val stocks=object:PlanetStockStore {
+            override fun load():PlanetStocks? {reads++;return null}
+            override fun save(stocks:PlanetStocks) {writes++}
+            override fun close(){closed++}
+        }
+        assertFailsWith<IllegalStateException> {WorldEngine(this,ticking=false,galaxy=galaxy,durability=durability,stockStore=stocks)}
+        assertEquals(0,reads);assertEquals(0,writes);assertEquals(2,closed)
+    }
     @Test fun startupUsesTheCheckedSnapshotInsteadOfLoadingADifferentOwnerAfterRecovery() = runBlocking {
         val rules=SessionRules.load()
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),

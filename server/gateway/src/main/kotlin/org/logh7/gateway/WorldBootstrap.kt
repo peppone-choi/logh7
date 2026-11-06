@@ -304,7 +304,7 @@ class WorldBootstrap(val galaxy: Galaxy,
         return LoginMessages.sessionMessage(0x031f,WorldMessages.conditions(ids.mapNotNull { galaxy.conditions[it] }.map {
             val stored = stocks?.let { state -> checkNotNull(state.bases[it.baseId]) }
             val people = stored?.economy
-            WorldMessages.Condition(it.baseId, it.grid, stored?.let {s->countryCatalog.nativePower(s.owner)} ?: it.power, stored?.camp ?: it.camp,
+            WorldMessages.Condition(it.baseId, it.grid, countryCatalog.nativePower(stored?.owner ?: galaxy.initialOwners.getValue(it.baseId)), stored?.camp ?: it.camp,
                 people?.population ?: it.population, people?.adults ?: it.adultPopulation,
                 stored?.taxRate ?: it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
                 stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)

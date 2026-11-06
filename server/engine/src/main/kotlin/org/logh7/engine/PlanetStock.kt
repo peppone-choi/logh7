@@ -120,7 +120,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
         val reached = (seconds - startSeconds) / 86400
         val initial = ActiveShips.initialize(deployment.initialize(previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
-            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, base.power, base.camp, base.supplies, base.food, 100_000) })))
+            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, galaxy.initialOwners.getValue(base.baseId), base.camp, base.supplies, base.food, 100_000) })))
         // Upgrade old rows at their existing watermark; never replay already-produced days.
         val initialized = if (initial.bases.values.all { it.economy != null }) initial else initial.copy(bases = initial.bases.mapValues { (id, stock) ->
             if (stock.economy != null) stock else galaxy.conditions.getValue(id).let { base ->
@@ -190,7 +190,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         // A throne vacated by death or removal is filled at the next settlement (SuccessionActions).
         if(monthly.social.succession.anyVacant())supplier?.invoke()?.let {monthly=SuccessionActions.accede(galaxy,monthly,it,seconds)}
         val players=civicPlayers(generation)
-        val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players,eliminated=eliminated),supplier?.invoke().orEmpty(),g=galaxy),seconds,players)
+        val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players,eliminated=eliminated),supplier?.invoke().orEmpty(),g=galaxy),seconds,players,eliminated=eliminated)
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.

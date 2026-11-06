@@ -217,6 +217,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val initialWorld = try {
         // Check before session recovery can write: new owners need the remaining authority migration.
+        galaxy?.initialOwners?.values?.forEach {it.legacyPower()}
         val stocks=stockStore?.load()?.also {stocks->
             stocks.bases.values.forEach {it.owner.legacyPower()}
             stocks.outfits.values.forEach {it.country.legacyPower();it.shipStyle.legacyPower()}

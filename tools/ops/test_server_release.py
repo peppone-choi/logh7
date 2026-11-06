@@ -239,11 +239,32 @@ class ServerReleaseTest(unittest.TestCase):
         world.write_text("systems=1\n", encoding="utf-8")
         with self.assertRaises(SystemExit):
             self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
-        world.write_text("schema=3\n", encoding="utf-8")
+        world.write_text("schema=4\n", encoding="utf-8")
         with self.assertRaises(SystemExit) as unknown:
             self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
-        self.assertIn("unknown world schema 3", str(unknown.exception))
+        self.assertIn("unknown world schema 4", str(unknown.exception))
         self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+
+    def test_initial_owner_world_requires_schema_three_reader_and_preserves_current_on_refusal(self):
+        import zipfile
+        reader = "org/logh7/engine/Galaxy$Companion.class"
+        def constant(text):
+            encoded = text.encode("utf-8")
+            return b"\x01" + len(encoded).to_bytes(2, "big") + encoded
+        with zipfile.ZipFile(self.build / "lib" / "engine.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe" + constant("Country starts require world schema 2"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old-world")
+        with zipfile.ZipFile(self.build / "lib" / "engine.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe" + constant("Country starts require world schema 2")
+                         + constant("Initial owners require world schema 3"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new-world")
+        world = Path(self.temp.name) / "world.properties"
+        world.write_text("schema=3\nbase.0.owner=C:42\n", encoding="utf-8")
+        self.tool("activate", "new-world", "--releases", str(self.releases), "--world-definition", str(world))
+        with self.assertRaises(SystemExit) as refused:
+            self.tool("activate", "old-world", "--releases", str(self.releases), "--world-definition", str(world))
+        self.assertIn("world schema 3", str(refused.exception))
+        self.assertEqual("new-world", (self.releases / "CURRENT").read_text().strip())
 
     def test_country_mail_blocks_an_old_reader_across_all_saved_generations(self):
         import zipfile

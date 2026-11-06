@@ -13,11 +13,13 @@ data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int,
 /** Confirmed manual placements plus explicitly labelled local defaults, loaded outside the repository. */
 class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, starts: Map<Power, Int>,
     val defaultCell: Int = 1, terrain: List<String>? = null,
-    countryStarts:Map<CountryId,Int> = emptyMap()) {
+    countryStarts:Map<CountryId,Int> = emptyMap(),initialOwners:Map<Int,Allegiance> = emptyMap()) {
     /** Keep existing two-country consumers consistent when their own starts are explicitly edited. */
     val starts:Map<Power,Int> = starts.mapValues {(power,grid)->countryStarts[power.country] ?: grid}
     /** Per-world spawn locations; an additional country never inherits another country's start. */
     val countryStarts:Map<CountryId,Int> = this.starts.mapKeys {it.key.country}+countryStarts
+    /** Historical owners stay independent of current occupation and the original system display code. */
+    val initialOwners:Map<Int,Allegiance>
     val width = 100
     val height = 50
     val cells: List<Int>
@@ -40,6 +42,9 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
             it.angle.isFinite() && it.diameter.isFinite() && it.diameter > 0 && (!it.mobile || it.kind == 1) })
         require(starts.keys == Power.entries.toSet() && starts.values.all { it in locations })
         require(this.countryStarts.size<=350 && this.countryStarts.values.all {it in locations})
+        require(initialOwners.keys.all {id->bases.any {it.id==id}}) {"Initial owner references an unknown base"}
+        this.initialOwners=java.util.Collections.unmodifiableMap(bases.associate {base->base.id to
+            (initialOwners[base.id] ?: Allegiance.fromLegacy(systems.single {it.grid==base.grid}.power))})
         val map = terrain?.let(::terrainCells)
         if (map != null) require(systems.all { map[it.grid] == SPACE_CELL }) { "A star system lies outside the navigable terrain" }
         cells = MutableList(5000) { map?.get(it) ?: defaultCell }.also { values -> systems.forEach { values[it.grid] = it.kind } }.toList()
@@ -50,17 +55,17 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
         else GridTerrain.NONE
     /** Room identities and backgrounds follow the saved owner after conquest. */
     fun facilitiesAt(baseId: Int, stocks: PlanetStocks? = null,countries:CountryCatalog=CountryCatalogLoader.current()): List<PlanetFacility> {
-        val original = facilities.getValue(baseId)
-        val power = stocks?.let {countries.nativePower(checkNotNull(it.bases[baseId]).owner)} ?: return original
-        val country=(stocks.bases.getValue(baseId).owner as? Allegiance.Country)?.id
-        val capitals=stocks.strategic.capitals
+        val owner=stocks?.let {checkNotNull(it.bases[baseId]).owner} ?: initialOwners.getValue(baseId)
+        val power=countries.nativePower(owner)
+        val country=owner.country
+        val capitals=stocks?.strategic?.capitals.orEmpty()
         // Explicit capitals choose institutional types by office rules, images by the display code.
         val capitalSystem=when {
             country!=null && capitals[country]==baseId -> OrganizationOffices.system(country,countries) ?: 0
             country in capitals || baseId in capitals.values || country?.value !in setOf(2,3) -> 0
             else -> null
         }
-        return Places.forBase(bases.single {it.id==baseId},power,baseId in stocks.strategic.fiefs,capitalSystem)
+        return Places.forBase(bases.single {it.id==baseId},power,baseId in stocks?.strategic?.fiefs.orEmpty(),capitalSystem)
     }
     fun kind(grid: Int): GridKind = when {
         grid !in cells.indices -> GridKind.IMPASSABLE
@@ -96,7 +101,7 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
             require(Files.size(path) <= 1_000_000) { "World seed too large" }
             val p = Properties().also { Files.newBufferedReader(path).use(it::load) }
             val schema=p.getProperty("schema")
-            require(schema in setOf("1","2") && p.getProperty("unmapped.cells") == "local-space-default")
+            require(schema in setOf("1","2","3") && p.getProperty("unmapped.cells") == "local-space-default")
             fun int(key: String) = requireNotNull(p.getProperty(key)) { "Missing world key $key" }.toInt()
             val systems = List(int("systems").also { require(it in 1..86) }) { i ->
                 val prefix = "system.$i."
@@ -118,9 +123,25 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
                 val id=CountryId(value.toInt().also {require(it.toString()==value) {"Invalid country start ID"}})
                 id to int(key)
             }
-            require(countryStarts.isEmpty() || schema=="2") {"Country starts require world schema 2"}
+            require(countryStarts.isEmpty() || schema in setOf("2","3")) {"Country starts require world schema 2"}
+            val owners=p.stringPropertyNames().filter {it.startsWith("base.") && it.endsWith(".owner")}.associate {key->
+                val index=key.removePrefix("base.").removeSuffix(".owner")
+                val i=index.toInt().also {require(it.toString()==index && it in bases.indices) {"Invalid initial owner base index"}}
+                val text=p.getProperty(key)
+                val owner=when(text) {
+                    "U"->Allegiance.Unspecified;"N"->Allegiance.Neutral;"P"->Allegiance.Pirates
+                    else->{
+                        require(text.startsWith("C:")) {"Invalid initial base owner"}
+                        val id=CountryId(text.removePrefix("C:").toInt())
+                        require(text=="C:${id.value}") {"Non-canonical initial base owner"}
+                        Allegiance.Country(id)
+                    }
+                }
+                bases[i].id to owner
+            }
+            require(owners.isEmpty() || schema=="3") {"Initial owners require world schema 3"}
             return Galaxy(systems, bases, mapOf(Power.EMPIRE to int("start.empire"), Power.ALLIANCE to int("start.alliance")),
-                terrain = terrain,countryStarts=countryStarts)
+                terrain = terrain,countryStarts=countryStarts,initialOwners=owners)
         }
     }
 }
