@@ -17,6 +17,15 @@ import org.logh7.protocol.LoginMessages
 internal object LobbyCountryCatalogue {
     /** Countries the native creation and lottery screens can start today. */
     private val SELECTABLE=setOf(2,3)
+    private fun eligibility(id:Int)=if(id in SELECTABLE)LobbyCountryMessages.CREATE or LobbyCountryMessages.LOTTERY else 0
+
+    fun selection(id:Int,catalog:CountryCatalog):CharacterCreation.CountrySelection? {
+        if(eligibility(id)==0)return null
+        val country=catalog.countries[id] ?: return null
+        val style=catalog.shipStyle(CountryId(id))
+        if(country.nativePower !in 2..3 || style.value !in setOf("empire","alliance"))return null
+        return CharacterCreation.CountrySelection(CountryId(id),country.nativePower,style)
+    }
 
     class Source(val generation:Long,val snapshot:WorldSnapshot?,
         val profiles:Map<String,CharacterProfile>,val catalog:CountryCatalog,val revision:Long,
@@ -34,7 +43,7 @@ internal object LobbyCountryCatalogue {
             LobbyCountryMessages.Row(country.id,country.name,colors[country.id]?.colors?.primary,
                 members[CountryId(country.id)] ?: 0,bases[CountryId(country.id)] ?: 0,country.nativePower,country.nativeCamp,
                 // The family key is withheld until its asset reference is confirmed (no arbitrary truncation).
-                "",if(country.id in SELECTABLE)LobbyCountryMessages.CREATE or LobbyCountryMessages.LOTTERY else 0)
+                "",eligibility(country.id))
         }
         val header=LobbyCountryMessages.Header(countries.size,request.offset,rows.size,source.revision,
             snapshot?.session?.gameSeconds ?: 0,source.generation,totalBases)

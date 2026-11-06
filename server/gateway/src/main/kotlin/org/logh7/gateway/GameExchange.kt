@@ -77,6 +77,12 @@ class GameExchange(
     private var lobbyLoggedIn = false
     private var gameLoggedIn = false
     private var gameStarted = false
+    private var countrySelection:CharacterCreation.CountrySelection?=null
+    private var countrySelectionMode=0
+    private fun selectedCountry():CharacterCreation.CountrySelection?=countrySelection?.also {selection->
+        val catalog=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
+        require(catalog.countries[selection.country.value]?.nativePower==selection.nativePower) {"Selected country changed"}
+    }
     private val generation = expectedGeneration
     private var joining = false
     private var joinRequested = false
@@ -992,6 +998,30 @@ class GameExchange(
                         return null
                     }
                     0x032e, 0x0330 -> {
+                        if(opcode==0x032e && body.size==11 && org.logh7.protocol.CountrySelectionMessages.matches(body[10].toInt() and 255)) {
+                            check(gameLoggedIn && !gameStarted && !joining)
+                            val request=org.logh7.protocol.CountrySelectionMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
+                            var accepted=false
+                            var selected:CharacterCreation.CountrySelection?=null
+                            if(request.sessionId==sessionId) {
+                                if(request.query.mode==org.logh7.protocol.CountrySelectionMessages.CANCEL) {
+                                    characters.cancelCreation(identity.account,connection)
+                                    countrySelection=null;countrySelectionMode=0;accepted=true
+                                } else if(characters.character(identity.account)==null) {
+                                    val catalog=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
+                                    selected=LobbyCountryCatalogue.selection(request.countryId,catalog)
+                                    val entries=characters.entries(identity.account)
+                                    if(selected!=null && (entries.isEmpty() || request.query.mode==org.logh7.protocol.CountrySelectionMessages.LOTTERY &&
+                                            selected==characters.applicationSelection(identity.account))) {
+                                        characters.cancelCreation(identity.account,connection)
+                                        countrySelection=selected;countrySelectionMode=request.query.mode;accepted=true
+                                    } else selected=null
+                                }
+                            }
+                            // Declining a replacement keeps the preceding reservation until explicit cancel/disconnect.
+                            return handshake.stageAll(listOf(LoginMessages.sessionMessage(0x032f,
+                                org.logh7.protocol.CountrySelectionMessages.reply(request,accepted,selected?.nativePower ?: 0,selected?.shipStyle?.value ?: ""))),clearHeader=0)
+                        }
                         if(opcode==0x032e && body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.LobbyCountryMessages.MODE) {
                             // Before creation/lottery a game connection may read only its own world's catalogue.
                             val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
@@ -1340,8 +1370,12 @@ class GameExchange(
                         // This local world has no mail yet; finish the client's periodic inbox query.
                         LoginMessages.sessionMessage(0x0f09, byteArrayOf(0))
                     }
-                    0x0200 -> { check(!gameLoggedIn); gameLoggedIn = true; LobbyMessages.gameLoginOk() }
-                    0x1008 -> { check(gameLoggedIn); characters.accept(identity.account, CharacterMessages.generate(body)) }
+                    0x0200 -> { check(!gameLoggedIn); gameLoggedIn = true
+                        countrySelection=characters.applicationSelection(identity.account)
+                        if(countrySelection!=null)countrySelectionMode=org.logh7.protocol.CountrySelectionMessages.LOTTERY
+                        LobbyMessages.gameLoginOk() }
+                    0x1008 -> { check(gameLoggedIn && !gameStarted && countrySelectionMode!=org.logh7.protocol.CountrySelectionMessages.LOTTERY)
+                        characters.accept(identity.account, CharacterMessages.generate(body),selectedCountry(),connection) }
                     0x1000 -> { check(gameLoggedIn && !gameStarted && body.size == 2); OriginalCharacterMessages.account(characters.fame(identity.account), characters.entries(identity.account)) }
                     0x1200 -> {
                         if(gameStarted) {
@@ -2048,15 +2082,16 @@ class GameExchange(
                         if(traceOpcodes && !OriginalCharacterMessages.catalogueRequest(body))System.err.println("trace ${identity.account} 1200 body ${java.util.HexFormat.of().formatHex(body)}")
                         check(gameLoggedIn && OriginalCharacterMessages.catalogueRequest(body))
                         val messages = listOf(LoginMessages.sessionMessage(0x1200, body.copyOfRange(2, body.size)),
-                            OriginalCharacterMessages.catalogue(characters.candidates(identity.account)), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
+                            OriginalCharacterMessages.catalogue(characters.candidates(identity.account,selectedCountry())), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
                         return handshake.stageAll(messages, clearHeader = 0)
                     }
                     0x1004 -> {
                         check(gameLoggedIn && !gameStarted)
                         val id = OriginalCharacterMessages.entryId(body)
-                        characters.entryState(identity.account, id)
+                        characters.entryState(identity.account, id,selectedCountry())
                     }
-                    0x1006 -> { check(gameLoggedIn && !gameStarted); characters.apply(identity.account, OriginalCharacterMessages.application(body)) }
+                    0x1006 -> { check(gameLoggedIn && !gameStarted && countrySelectionMode!=org.logh7.protocol.CountrySelectionMessages.CREATE)
+                        characters.apply(identity.account, OriginalCharacterMessages.application(body),selectedCountry()) }
                     0x0205 -> {
                         check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
                         val character = checkNotNull(currentCharacter(identity.account))
@@ -2206,6 +2241,8 @@ class GameExchange(
     }
     fun close() {
         if (state == State.CLOSED) return
+        if(ticket?.purpose==SessionTickets.Purpose.GAME)characters.cancelCreation(checkNotNull(ticket).account,connection)
+        countrySelection=null;countrySelectionMode=0
         handshake.close(); state = State.CLOSED
         presence?.remove(connection)
         communication?.disconnected(connection)

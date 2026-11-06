@@ -818,6 +818,25 @@ static int lobbyCountryDataTest() {
     if(logh::readLobbySessionList(sessions,sizeof(sessions)-1,list))return 1011;
     sessions[4+0x14c]=1;if(logh::readLobbySessionList(sessions,sizeof(sessions),list))return 1012;
     sessions[1]=65;if(logh::readLobbySessionList(sessions,sizeof(sessions),list))return 1013;
+    logh::LobbyCountrySelection choice;
+    if(!choice.begin(65535,0x7fffffff,8,32767) || choice.queryBase()!=0x7fffffff ||
+        choice.begin(0,42,8,1) || choice.begin(1,42,8,0) || choice.begin(1,0,8,1) || choice.begin(1,42,10,1))return 1015;
+    const wchar_t* ack[]={L"NS1",L"1",L"3",L"empire",L"",L"",L"",L"",L"",L""};
+    auto selectionPacket=[&]() {
+        packet(0,0,ack);*reinterpret_cast<unsigned*>(record)=0x7fffffff;
+        *reinterpret_cast<unsigned*>(record+4)=0x7fffffff;record[8]=8;
+    };
+    selectionPacket();record[4]^=1;if(choice.accept(record,sizeof(record)))return 1016;record[4]^=1;
+    record[8]=9;if(choice.accept(record,sizeof(record)))return 1017;record[8]=8;
+    if(choice.accept(record,sizeof(record)-1) || !choice.accept(record,sizeof(record)) || !choice.complete ||
+        !choice.accepted || choice.power!=3 || choice.accept(record,sizeof(record)))return 1018;
+    choice.begin(65535,0x7fffffff,8,32767);ack[2]=L"42";selectionPacket();
+    if(choice.accept(record,sizeof(record)))return 1019;
+    ack[1]=L"0";ack[2]=L"0";ack[3]=L"";selectionPacket();
+    if(!choice.accept(record,sizeof(record)) || choice.accepted || choice.power)return 1020;
+    choice.begin(1,0,10,1);ack[1]=L"1";packet(0,0,ack);
+    *reinterpret_cast<unsigned*>(record)=0;*reinterpret_cast<unsigned*>(record+4)=65537;record[8]=10;
+    if(!choice.accept(record,sizeof(record)) || !choice.accepted || choice.power)return 1021;
     return 0;
 }
 

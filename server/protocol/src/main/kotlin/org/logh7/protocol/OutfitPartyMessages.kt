@@ -8,6 +8,11 @@ import java.nio.ByteBuffer
 object OutfitPartyMessages {
     data class Query(val outfit: Int, val base: Int, val mode: Int)
     data class UnitQuery(val id: Int, val base: Int)
+    private fun maximumBase(mode:Int)=when {
+        mode==2 -> 999999
+        CountrySelectionMessages.matches(mode) -> Int.MAX_VALUE
+        else -> 65535
+    }
     data class Member(val id: Int, val kind: Int, val rank: Int, val name: String)
     data class Ships(val kind: Int, val boats: Int, val ids: List<Int>)
     data class Troops(val kind: Int, val grade: Int, val quantity: Int)
@@ -28,7 +33,7 @@ object OutfitPartyMessages {
             // The native editor sends the character's own outfit field, which is 0 away from the
             // flagship dock (e.g. a commander in a lobby); it is answered as an empty roster.
             // Mode 3 is the reconstructed ground battle window: base is the battle base, outfit 0.
-            require(it.outfit >= 0 && it.base in 0..(if(it.mode==2)999999 else 65535) && (it.mode!=3 || it.outfit==0 && it.base>0))
+            require(it.outfit >= 0 && it.base in 0..maximumBase(it.mode) && (it.mode!=3 || it.outfit==0 && it.base>0))
         }
     }
     fun unitQuery(bytes: ByteArray): UnitQuery {
@@ -42,7 +47,7 @@ object OutfitPartyMessages {
     }
     fun party(query: Query, power: Int, kind: Int, number: Int, ships: List<Ships>, troops: List<Troops>,
         supplies: Int, maximumSupplies: Int, members: List<Member> = emptyList()): ByteArray = body {
-        require(query.outfit >= 0 && query.base in 0..(if(query.mode==2)999999 else 65535) && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
+        require(query.outfit >= 0 && query.base in 0..maximumBase(query.mode) && query.mode in 0..255 && power in 2..3 && kind in 0..3 && number in 0..255)
         require(ships.size <= 60 && troops.size <= 24 && supplies in 0..maximumSupplies)
         val ids = ships.flatMap { it.ids }
         require(ids.distinct().size == ids.size && ids.all { it > 0 })

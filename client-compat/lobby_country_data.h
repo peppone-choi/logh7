@@ -33,14 +33,36 @@ inline bool lobbyCountryRevision(const wchar_t* first,const wchar_t* second,std:
     wchar_t joined[20]={};wcscpy_s(joined,first);wcscat_s(joined,second);
     return lobbyCountryNumber(joined,0x7fffffffffffffffULL,value);
 }
-inline bool lobbyCountryFields(const unsigned char* p,std::size_t size,wchar_t (&fields)[10][13]) {
-    if(!p || size<24+10*36 || p[8]!=7 || p[9]!=2 || p[20]!=10)return false;
+inline bool lobbyCountryFields(const unsigned char* p,std::size_t size,wchar_t (&fields)[10][13],unsigned mode=7) {
+    if(!p || size<24+10*36 || p[8]!=mode || p[9]!=2 || p[20]!=10)return false;
     for(unsigned i=0;i<10;++i) {
         const auto member=p+24+i*36;
         if(paintWord(member)!=i+1 || member[4]!=i || member[5] || !countryMetadataText(member,fields[i]))return false;
     }
     return true;
 }
+struct LobbyCountrySelection {
+    unsigned session=0,country=0,mode=0,nonce=0,power=0;
+    bool pending=false,complete=false,accepted=false;
+    bool begin(unsigned target,unsigned id,unsigned purpose,unsigned token) {
+        if(!target || target>65535 || purpose<8 || purpose>10 || !token || token>32767 ||
+            (purpose==10 ? id!=0 : !id || id>0x7fffffff))return false;
+        *this={};session=target;country=id;mode=purpose;nonce=token;pending=true;return true;
+    }
+    unsigned queryBase() const {return nonce*65536+session;}
+    bool accept(const unsigned char* p,std::size_t size) {
+        if(!pending || !p || size<24+10*36 || paintWord(p)!=country || paintWord(p+4)!=queryBase() ||
+            paintWord(p+12) || paintWord(p+16))return false;
+        wchar_t fields[10][13]={};if(!lobbyCountryFields(p,size,fields,mode) || std::wcscmp(fields[0],L"NS1"))return false;
+        for(unsigned i=4;i<10;++i)if(fields[i][0])return false;
+        std::uint64_t ok=0,display=0;
+        if(!lobbyCountryNumber(fields[1],1,ok) || !lobbyCountryNumber(fields[2],3,display))return false;
+        if(ok && mode!=10) {
+            if((display!=2 && display!=3) || (std::wcscmp(fields[3],L"empire") && std::wcscmp(fields[3],L"alliance")))return false;
+        } else if(display || fields[3][0])return false;
+        accepted=ok!=0;power=static_cast<unsigned>(display);pending=false;complete=true;return true;
+    }
+};
 struct LobbyCountryDraft {
     LobbyCountryPage page={};unsigned nonce=0,received=0;bool header=false,complete=false;
     bool begin(unsigned session,unsigned token,unsigned offset) {
