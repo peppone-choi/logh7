@@ -57,7 +57,7 @@ internal object TacticalPostureOperations {
             request.tacticalAttack?.units ?: request.tacticalSupport?.let {listOf(it.unit)} ?: return null
         val p=navigation.snapshot(session.generation)[request.account] ?: return null
         val member=session.participants[request.account] ?: return null
-        if(p.characterId!=request.characterId || p.power!=request.power || request.generation!=session.generation ||
+        if(p.characterId!=request.characterId || p.country!=request.country || member.country!=request.country || request.generation!=session.generation ||
             !member.online || member.connection!=request.connection)return null
         val states=ids.mapNotNull {if(it==p.unitId)p.posture else ship(it,stocks)?.unit?.posture}.filter {it.grid==p.grid}
         val rejection=if(states.any {it.order!=null})NavigationRejection.BUSY else

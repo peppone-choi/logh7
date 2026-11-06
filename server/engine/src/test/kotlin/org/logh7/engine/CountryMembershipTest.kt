@@ -67,7 +67,8 @@ class CountryMembershipTest {
                 override fun commit(action: SessionAction, transition: SessionTransition) { commits++ }
                 override fun close() { closed = true }
             }
-            assertFailsWith<IllegalStateException> { WorldEngine(this, rules, ticking = false, durability = store) }
+            val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),emptyList(),Power.entries.associateWith {2487})
+            assertFailsWith<IllegalStateException> { WorldEngine(this, rules, ticking = false, durability = store,galaxy=galaxy) }
             assertEquals(0, commits)
             assertTrue(closed)
         }

@@ -9,9 +9,13 @@ data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val ses
 sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
-    data class Join(val account: String, val power: Power, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null,
+    data class Join(val account: String, val country: CountryId?, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null,
         /** The character store's current profile; seeds the strategic record when CP experience first raises an ability. */
-        val profile: StrategicPerson? = null) : WorldCommand
+        val profile: StrategicPerson? = null) : WorldCommand {
+        constructor(account:String,power:Power,original:Boolean,result:CompletableDeferred<Admission>,
+            connection:String?=null,generation:Long?=null,profile:StrategicPerson?=null):
+            this(account,power.country,original,result,connection,generation,profile)
+    }
     data class Disconnect(val account: String, val connection: String? = null) : WorldCommand
     data class Exclude(val account: String) : WorldCommand
     data class OpenBattle(val id: String) : WorldCommand
@@ -236,7 +240,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         try {
             val restored = store.load()
             // Fail before recovery writes: unmigrated ownership must never alias another country's appearance.
-            restored.session.participants.values.forEach { it.country.legacyPower() }
+            if(galaxy!=null)restored.session.participants.values.forEach { it.country.legacyPower() }
             if (restored.session.participants.values.any { it.online || it.connection != null }) {
                 val recovered = transitionSession(rules, restored, SessionAction.RecoverConnections)
                 store.commit(SessionAction.RecoverConnections, recovered)
@@ -296,7 +300,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             // arriving in contact resets the recovery clock, which would forfeit the CP earned before arrival.
             val abilities=profiles[account]?.abilities?.takeIf {it.size>2}
             if(abilities==null && player.warpTarget!=null)continue
-            val result=recoverNavigation(NavigationRequest(account,player.characterId,player.power,member.connection.orEmpty(),
+            val result=recoverNavigation(NavigationRequest(account,player.characterId,player.country,member.connection.orEmpty(),
                 session.generation,politics=abilities?.get(1) ?: 50,administration=abilities?.get(2) ?: 50,
                 offlineSettle=true,offlineAbilities=abilities!=null),session) ?: continue
             val arrived=navigation.snapshot(session.generation)[account] ?: continue
@@ -1127,7 +1131,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 }
                 is WorldCommand.Join -> {
                     admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION
-                        else simulation.join(command.account, command.power, command.original, command.connection)
+                        else simulation.join(command.account, command.country, command.original, command.connection)
                     if (admission == Admission.ACCEPTED) command.profile?.let { profiles[command.account] = it }
                     emptyList()
                 }

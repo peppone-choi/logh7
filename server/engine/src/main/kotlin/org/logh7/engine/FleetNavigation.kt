@@ -30,14 +30,14 @@ internal object FleetNavigation {
             return if(request.offlineDirection!=null)personal() else navigation.apply(request, session, stocks)
         val outfit = before?.let { player -> stocks.outfits.values.singleOrNull {
             it.commanderId == player.characterId && it.kind != OutfitKind.GROUND &&
-                it.power == (if (player.power == Power.EMPIRE) 2 else 3) &&
+                player.country!=null && it.country == player.country &&
                 it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
         } }
         if (before == null || outfit == null) return personal()
         fun deferred(reason:NavigationRejection)=if(request.offlineDirection!=null)
             commitPersonal(NavigationResult(before,before)) else NavigationResult(null,before,reason)
         val followers = players.filter { (account, player) ->
-            account != request.account && player.power == before.power && player.characterId in outfit.members() &&
+            account != request.account && player.country == before.country && player.characterId in outfit.members() &&
                 player.grid == before.grid && player.baseId == before.baseId && player.mode in 4..5 &&
                 stocks.outfits.values.count { player.characterId in it.members() } == 1 &&
                 (player.spotId == 0 || player.spotOwner == 0 && galaxy.facilities[player.baseId].orEmpty().any { facility ->
