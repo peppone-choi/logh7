@@ -1005,10 +1005,12 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
-                        if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,character.power)),clearHeader=0)
-                        if(party?.mode==5)return handshake.stageAll(listOf(world.countryMetadata(party,character.power)),clearHeader=0)
+                        // Display queries echo the viewer's actual country as its display code; no membership, no reply.
+                        val viewerCountry by lazy {checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value}
+                        if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry)),clearHeader=0)
+                        if(party?.mode==5)return handshake.stageAll(listOf(world.countryMetadata(party,viewerCountry)),clearHeader=0)
                         if(party?.mode==6) {
-                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,character.power,checkNotNull(it)))}
+                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it)))}
                             return null
                         }
                         pendingWorld = stocks().thenApply { stored ->
@@ -1145,8 +1147,10 @@ class GameExchange(
                     0x034e -> {
                         check(gameStarted && world != null && stock != null)
                         val card = org.logh7.protocol.CardCharacterMessages.query(body)
-                        pendingWorld = stocks().thenApply { stored -> listOf(world.cardCharacters(card,
-                            checkNotNull(stored),::currentCharacterById)) }
+                        pendingWorld = stocks().thenApply { stored ->
+                            // Each holder's actual country (current profile), not the display code.
+                            val countryOf=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).associate {it.id to it.country}
+                            listOf(world.cardCharacters(card,checkNotNull(stored),{countryOf[it]},::currentCharacterById)) }
                         return null
                     }
                     0x0326 -> {

@@ -29,13 +29,17 @@ class WorldBootstrap(val galaxy: Galaxy,
         return (configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog) to (if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0)
     }
     internal fun publishedCountryAppearances():List<org.logh7.engine.CountryAppearance> = countryAppearances
-    fun countryColors(query:OutfitPartyMessages.Query,viewerPower:Int):ByteArray {
+    /** The viewer's actual country; the reply header carries only its display code (no membership, no reply). */
+    private fun viewerDisplay(countryId:Int)=countryCatalog.nativePower(org.logh7.engine.Allegiance.Country(org.logh7.engine.CountryId(countryId)))
+    fun countryColors(query:OutfitPartyMessages.Query,countryId:Int):ByteArray {
+        val viewerPower=viewerDisplay(countryId)
         val appearance=countryAppearances.firstOrNull {it.countryId==query.outfit}
         val colors=appearance?.colors ?: org.logh7.engine.CountryColors()
         val fields=listOf(colors.primary,colors.secondary,colors.map,colors.fleet).map {org.logh7.engine.CountryColors.hex(it).removePrefix("#")}
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryColorMessages.reply(query,viewerPower,fields,appearance?.revision ?: 0))
     }
-    fun countryMetadata(query:OutfitPartyMessages.Query,viewerPower:Int):ByteArray {
+    fun countryMetadata(query:OutfitPartyMessages.Query,countryId:Int):ByteArray {
+        val viewerPower=viewerDisplay(countryId)
         val snapshot=org.logh7.engine.CountryCatalogLoader.snapshot()
         val catalog=configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog
         val country=catalog.countries[query.outfit];val calendar=catalog.calendar(query.outfit)
@@ -92,7 +96,8 @@ class WorldBootstrap(val galaxy: Galaxy,
         if(ids.isEmpty())listOf("직접 연결된 직무 명령 없음. 개인·부대 명령은 해당 직무 카드에서 확인하세요.")
         else ids.map(FacilityCommandNames::name)
     }
-    fun facilityGuide(query:OutfitPartyMessages.Query,viewerPower:Int,stocks:org.logh7.engine.PlanetStocks):ByteArray {
+    fun facilityGuide(query:OutfitPartyMessages.Query,countryId:Int,stocks:org.logh7.engine.PlanetStocks):ByteArray {
+        val viewerPower=viewerDisplay(countryId)
         val base=query.outfit/100
         val snapshot=facilityDefinitions()
         if(base !in stocks.bases || galaxy.facilitiesAt(base,stocks,countryCatalog).none {it.id==query.outfit})
@@ -105,23 +110,44 @@ class WorldBootstrap(val galaxy: Galaxy,
     }
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices get()=org.logh7.engine.LogisticsOfficePolicy(galaxy,countryCatalog)
-    /** Stored base offices, never inferred from the viewer or a stationed outfit. */
+    /** Stored base offices, never inferred from the viewer or a stationed outfit. The public holder lookup
+     * (034e/034f, e.g. a planet's governor on its detail page) carries only the card, so it lists the holders
+     * of every registered country whose office family uses that card; each holding keeps its own target seat.
+     * A country missing from the catalogue contributes nothing. [countryOf] gives a holder's actual country
+     * (current profile), which must be the holding country; the record keeps the card family's code. */
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
+        characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray =
+        // Compatibility for callers with original-country records only; additional countries need explicit identity.
+        cardCharacters(card,stocks,{id->characterById(id)?.power?.takeIf {it in 2..3}?.let {org.logh7.engine.CountryId(it)}},characterById)
+    fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
+        countryOf: (Int) -> org.logh7.engine.CountryId?,
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
         val role=org.logh7.engine.OrganizationOffices.of(card)
         require(role!=null || org.logh7.protocol.OfficeCardKinds.isPeerage(card) || org.logh7.protocol.OfficeCardKinds.isFief(card))
-        val power=role?.power ?: 2
-        val policy=org.logh7.engine.OrganizationalOfficePolicy(galaxy)
-        val holdings=if(role!=null)policy.holders(stocks,card).map {holding ->holding.character to
-            BootstrapMessages.OfficeCard(card,policy.target(role,holding.seat,stocks))} else if(card in 60..65)
-            stocks.strategic.people.filterValues {it.peerage?.ordinal==card-60}.keys.map {it to BootstrapMessages.OfficeCard(card,0)}
-        else if(card==66)stocks.strategic.fiefs.map {(base,owner)->owner to BootstrapMessages.OfficeCard(66,base)} else emptyList()
+        val countries=countryCatalog
+        val policy=org.logh7.engine.OrganizationalOfficePolicy(galaxy,countries)
+        val holdings:List<Triple<Int,BootstrapMessages.OfficeCard,org.logh7.engine.CountryId?>> = if(role!=null)
+            countries.countries.keys.sorted().map {org.logh7.engine.CountryId(it)}.flatMap {country ->
+                val actual=policy.role(card,country) ?: return@flatMap emptyList()
+                policy.holders(stocks,card,country).map {holding ->Triple(holding.character,
+                    BootstrapMessages.OfficeCard(card,policy.target(actual,holding.seat,stocks)),country)}
+            } else if(card in 60..65)
+            stocks.strategic.people.filterValues {it.peerage?.ordinal==card-60}.keys.map {Triple(it,BootstrapMessages.OfficeCard(card,0),null)}
+        else if(card==66)stocks.strategic.fiefs.map {(base,owner)->Triple(owner,BootstrapMessages.OfficeCard(66,base),null)} else emptyList()
         val appointed=holdings.groupBy({it.first},{it.second}).toSortedMap()
+        val holderCountries=holdings.groupBy({it.first},{it.third}).mapValues {(_,c)->c.distinct()}
         if(appointed.size>64) return org.logh7.protocol.CardCharacterMessages.response(card,emptyList(),failed=true)
         require(appointed.values.all { it.size<=14 }) { "Office cards exceed CD capacity" }
         val records=appointed.map { (id,offices) ->
             val character=checkNotNull(characterById(id)) { "Appointed character is missing" }
-            require(character.power==power) { "Character faction differs from appointment" }
+            val country=holderCountries.getValue(id).single()
+            if(country==null) require(character.power==2) { "Character faction differs from appointment" } // empire peerage/fief
+            else {
+                // The record's office cards carry the card family's code (empire 2 / alliance 3), so the wire
+                // still needs that code; the current actual country must be the holding country itself.
+                require(character.power==checkNotNull(role).power) { "Character faction differs from appointment" }
+                require(countryOf(id)==country) { "Character country differs from appointment" }
+            }
             BootstrapMessages.character(character,0,0,offices=offices.sortedBy { it.target })
         }
         return org.logh7.protocol.CardCharacterMessages.response(card,records)
