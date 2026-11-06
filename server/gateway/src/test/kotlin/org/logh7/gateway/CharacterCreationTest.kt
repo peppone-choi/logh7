@@ -12,7 +12,7 @@ class CharacterCreationTest {
     private val request = CharacterMessages.Generate(0, 0, 2, 0, 0, "Alpha", "Pilot", 0, 0, 0, 0,
         List(8) { 0 }, 0, 0, 0, 0, 0, 0, "", 0)
     private fun decoded(bytes: ByteArray) = CharacterMessages.generate(bytes.copyOfRange(4, bytes.size))
-    @Test fun newCharactersDefaultToTheirFactionsStandardBattleship() {
+    @Test fun newCharactersStartAsEnsignsWithTheirFactionsStandardBattleship() {
         val service = CharacterCreation(random = object : java.util.Random() {
             override fun nextInt(bound: Int): Int = error("Fixed grant must not roll")
         })
@@ -20,7 +20,8 @@ class CharacterCreationTest {
             val reserved = decoded(service.accept("pilot$power", request.copy(power = power,
                 origin = if (power == 2) 0 else 3, surname = "Pilot$power")))
             val prepared = decoded(service.accept("pilot$power", reserved.copy(category = 1,
-                age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001)))
+                age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001, rank = 2)))
+            assertEquals(13, prepared.rank) // The request cannot choose a higher starting rank.
             assertEquals(0, prepared.shipType)
             assertEquals(if (power == 2) 0 else 89, prepared.shipKind)
         }
@@ -48,6 +49,7 @@ class CharacterCreationTest {
                     origin = if (power == 2) 0 else 3, surname = "Pilot$index")))
                 val prepared = decoded(service.accept(account, reserved.copy(category = 1,
                     age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001)))
+                assertEquals(13, prepared.rank)
                 val repeated = decoded(service.accept(account, prepared))
                 assertEquals(prepared.shipKind, repeated.shipKind)
                 assertEquals(index + 1, draws)
@@ -65,7 +67,7 @@ class CharacterCreationTest {
         for (power in 2..3) {
             val file = directory.resolve("legacy-ships-$power.properties")
             val legacy = request.copy(category = 4, id = 10000, power = power, age = 18, birthMonth = 1, birthDay = 1,
-                face = 1_000_001, shipType = 3, shipKind = 0, shipName = "Legacy", check = 1)
+                face = 1_000_001, shipType = 3, shipKind = 0, shipName = "Legacy", rank = 20, check = 1)
             fun encode(value: CharacterMessages.Generate) = java.util.HexFormat.of()
                 .formatHex(CharacterMessages.generateReply(value).drop(4).toByteArray())
             java.nio.file.Files.writeString(file, "pilot=${encode(legacy)}\noriginal=original:${encode(legacy.copy(id = 1234))}\n")
@@ -74,6 +76,8 @@ class CharacterCreationTest {
             assertEquals(if (power == 2) 3 else 93, migrated.character("pilot")!!.shipKind)
             assertEquals(3, migrated.character("pilot")!!.shipType)
             assertEquals(0, migrated.character("original")!!.shipKind)
+            assertEquals(20, migrated.character("pilot")!!.rank)
+            assertEquals(20, migrated.character("original")!!.rank)
             assertEquals(migrated.character("pilot"), CharacterCreation(file).character("pilot"))
             assertContentEquals(originalBytes, java.nio.file.Files.readAllBytes(file))
         }
