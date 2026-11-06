@@ -1,9 +1,9 @@
 name: client-compat
 on:
   push:
-    paths: ['client-compat/**', 'config/countries/**', 'l10n/**', 'tools/l10n/country_catalog.py', 'tools/l10n/test_country_catalog.py', 'tools/l10n/test_command_labels.py', 'tools/l10n/editor*', 'tools/l10n/test_editor.js', '.github/workflows/client-compat.yml']
+    paths: ['client-compat/**', 'config/countries/**', 'l10n/**', 'tools/l10n/country_catalog.py', 'tools/l10n/test_country_catalog.py', 'tools/l10n/test_command_labels.py', 'tools/l10n/editor*', 'tools/l10n/test_editor.js', 'tools/client/run-background.py', 'tools/client/qa_login_relay.py', 'tools/client/test_qa_login_relay.py', '.github/workflows/client-compat.yml']
   pull_request:
-    paths: ['client-compat/**', 'config/countries/**', 'l10n/**', 'tools/l10n/country_catalog.py', 'tools/l10n/test_country_catalog.py', 'tools/l10n/test_command_labels.py', 'tools/l10n/editor*', 'tools/l10n/test_editor.js', '.github/workflows/client-compat.yml']
+    paths: ['client-compat/**', 'config/countries/**', 'l10n/**', 'tools/l10n/country_catalog.py', 'tools/l10n/test_country_catalog.py', 'tools/l10n/test_command_labels.py', 'tools/l10n/editor*', 'tools/l10n/test_editor.js', 'tools/client/run-background.py', 'tools/client/qa_login_relay.py', 'tools/client/test_qa_login_relay.py', '.github/workflows/client-compat.yml']
 permissions:
   contents: read
 jobs:
@@ -17,6 +17,7 @@ jobs:
       - run: python -B -m unittest discover -s tools/l10n -p test_country_catalog.py -v
       - run: python -B -m unittest discover -s tools/l10n -p test_command_labels.py -v
       - run: node --test tools/l10n/test_editor.js
+      - run: python -B -m unittest discover -s tools/client -p test_qa_login_relay.py -v
       - name: Build x86 proxy and check rejection outside the supported client
         shell: pwsh
         run: ./client-compat/build.ps1 -OutDir "$pwd/work/compat-build"
