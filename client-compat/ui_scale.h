@@ -1,5 +1,7 @@
 // Whole-screen UI scale for the game screen (user decision 2026-11-07, option B). Author: Peppone Choi.
 #pragma once
+#include <imm.h>
+#pragma comment(lib, "imm32.lib")
 
 // The native game HUD is consistent only when render size == stored client size (ratio 1):
 // sprites follow the ratio but text, portraits and native panels use fixed render positions.
@@ -7,7 +9,8 @@
 // stretches it to the view (the path the 4:3 lobby already uses). The stored client rect and
 // ratio are kept at the render size, and every client-coordinate exchange between the game and
 // the view window is converted here: mouse messages, ScreenToClient/ClientToScreen, and the
-// placement of native child windows (edit/IME controls).
+// placement of native child windows (edit/IME controls), and the IME composition window
+// position (004ff660 passes {CFS_POINT, render x, y} to ImmSetCompositionWindow).
 // LOGH7_UI_SCALE: unset or "auto" = view height / 1080 when the view is taller than 1080;
 // a number (1 .. 4) fixes it; "1" turns scaling off.
 struct UiScale { bool active = false; float x = 1, y = 1; };
@@ -116,15 +119,58 @@ static HWND WINAPI scaledCreateWindowExA(DWORD exStyle, LPCSTR className, LPCSTR
     return realCreateWindowExA(exStyle, className, name, style, x, y, width, height, parent, menu, instance, parameter);
 }
 
-// Redirect the EXE's own USER32 imports; other modules and this DLL keep the real functions.
+// The composition form carries client coordinates of the context's window. Scale a copy only for
+// the forms that carry a position (CFS_POINT / CFS_FORCE_POSITION, plus rcArea for CFS_RECT);
+// CFS_DEFAULT and unknown styles pass unchanged.
+static COMPOSITIONFORM uiScaleCompositionForm(const COMPOSITIONFORM& form, float x, float y) {
+    COMPOSITIONFORM scaled = form;
+    auto point = [&](LONG value, float scale) { return static_cast<LONG>(value * scale + (value >= 0 ? 0.5f : -0.5f)); };
+    if (form.dwStyle & (CFS_POINT | CFS_FORCE_POSITION | CFS_RECT)) {
+        scaled.ptCurrentPos.x = point(form.ptCurrentPos.x, x);
+        scaled.ptCurrentPos.y = point(form.ptCurrentPos.y, y);
+    }
+    if (form.dwStyle & CFS_RECT) {
+        scaled.rcArea.left = point(form.rcArea.left, x); scaled.rcArea.top = point(form.rcArea.top, y);
+        scaled.rcArea.right = point(form.rcArea.right, x); scaled.rcArea.bottom = point(form.rcArea.bottom, y);
+    }
+    return scaled;
+}
+// The context belongs to the view (or the cursor window 00500b70 uses) when ImmGetContext of
+// that window returns the same handle.
+static bool uiScaledContext(HIMC context) {
+    if (!uiScale.active || !context) return false;
+    auto app = *reinterpret_cast<BYTE**>(0x7c1b4c);
+    HWND windows[] = {lobbyViewWindow(), app ? at<HWND>(app, 0x2a5ec) : nullptr};
+    for (HWND window : windows) {
+        if (!window) continue;
+        HIMC own = ImmGetContext(window);
+        if (own) ImmReleaseContext(window, own);
+        if (own == context) return true;
+    }
+    return false;
+}
+static decltype(&ImmSetCompositionWindow) realImmSetCompositionWindow = nullptr;
+static BOOL WINAPI scaledImmSetCompositionWindow(HIMC context, LPCOMPOSITIONFORM form) {
+    if (form && uiScaledContext(context)) {
+        COMPOSITIONFORM scaled = uiScaleCompositionForm(*form, uiScale.x, uiScale.y);
+        return realImmSetCompositionWindow(context, &scaled);
+    }
+    return realImmSetCompositionWindow(context, form);
+}
+
+// Redirect the EXE's own imports; other modules and this DLL keep the real functions.
+static bool patchImport(const char* module, const char* name, void* replacement, void** original);
 static bool patchUser32Import(const char* name, void* replacement, void** original) {
+    return patchImport("USER32.dll", name, replacement, original);
+}
+static bool patchImport(const char* module, const char* name, void* replacement, void** original) {
     auto base = reinterpret_cast<BYTE*>(0x400000);
     auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
     auto nt = reinterpret_cast<IMAGE_NT_HEADERS32*>(base + dos->e_lfanew);
     const auto& directory = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
     if (!directory.VirtualAddress) return false;
     for (auto entry = reinterpret_cast<IMAGE_IMPORT_DESCRIPTOR*>(base + directory.VirtualAddress); entry->Name; ++entry) {
-        if (_stricmp(reinterpret_cast<const char*>(base + entry->Name), "USER32.dll") || !entry->OriginalFirstThunk) continue;
+        if (_stricmp(reinterpret_cast<const char*>(base + entry->Name), module) || !entry->OriginalFirstThunk) continue;
         auto names = reinterpret_cast<IMAGE_THUNK_DATA32*>(base + entry->OriginalFirstThunk);
         auto slots = reinterpret_cast<IMAGE_THUNK_DATA32*>(base + entry->FirstThunk);
         for (; names->u1.AddressOfData; ++names, ++slots) {
@@ -147,5 +193,7 @@ static bool installUiScale() {
         patchUser32Import("MoveWindow", reinterpret_cast<void*>(&scaledMoveWindow), reinterpret_cast<void**>(&realMoveWindow)) &&
         patchUser32Import("SetWindowPos", reinterpret_cast<void*>(&scaledSetWindowPos), reinterpret_cast<void**>(&realSetWindowPos)) &&
         patchUser32Import("DeferWindowPos", reinterpret_cast<void*>(&scaledDeferWindowPos), reinterpret_cast<void**>(&realDeferWindowPos)) &&
-        patchUser32Import("CreateWindowExA", reinterpret_cast<void*>(&scaledCreateWindowExA), reinterpret_cast<void**>(&realCreateWindowExA));
+        patchUser32Import("CreateWindowExA", reinterpret_cast<void*>(&scaledCreateWindowExA), reinterpret_cast<void**>(&realCreateWindowExA)) &&
+        patchImport("IMM32.dll", "ImmSetCompositionWindow", reinterpret_cast<void*>(&scaledImmSetCompositionWindow),
+            reinterpret_cast<void**>(&realImmSetCompositionWindow));
 }
