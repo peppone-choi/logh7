@@ -14,8 +14,6 @@ internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
     fun countries(stocks:PlanetStocks)=stocks.outfits.values.map {it.country}.distinct().sortedBy {it.value}
 
-    // shortcut: occupation still calls with legacy 2/3; remove this overload with occupation authority migration.
-    fun participants(stocks:PlanetStocks,base:GalaxyBase,power:Int)=participants(stocks,base,CountryId(power))
     fun participants(stocks:PlanetStocks,base:GalaxyBase,country:CountryId):List<ActiveGroundUnit> =
         stocks.outfits.values.filter {it.country==country}.flatMap {it.activeGround?.values.orEmpty()}
             .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}

@@ -71,7 +71,7 @@ class GroundBattleOperationsTest {
     }
     @Test fun thirtyParticipantsReservePromotionAndBoardedOrUnknownUnitsCannotAttack() {
         val original=stocks(31,1);val initial=advance(original,0)
-        assertEquals((1..30).toList(),GroundBattleOperations.participants(initial,base,2).map {it.id})
+        assertEquals((1..30).toList(),GroundBattleOperations.participants(initial,base,CountryId(2)).map {it.id})
         val first=advance(initial,5)
         assertEquals(1000,first.outfits.getValue(1).activeGround!!.values.single {it.id==31}.strength)
         assertTrue(first.outfits.getValue(2).activeGround!!.values.isEmpty())
@@ -79,7 +79,7 @@ class GroundBattleOperationsTest {
         val unknown=original.copy(outfits=original.outfits+(1 to o.copy(activeGround=ActiveGroundUnits(o.activeGround!!.values.map {it.copy(base=0)}))))
         assertSame(unknown,advance(unknown,0))
         val fortress=base.copy(kind=1)
-        assertTrue(GroundBattleOperations.participants(stocks(empireKind=2),fortress,2).isEmpty())
+        assertTrue(GroundBattleOperations.participants(stocks(empireKind=2),fortress,CountryId(2)).isEmpty())
     }
     @Test fun reserveCannotHideDamageInTheFirstThirtyDefenseBarAndInvalidStateIsRejected() {
         val original=stocks(31,1);val o=original.outfits.getValue(1)
@@ -115,7 +115,7 @@ class GroundBattleOperationsTest {
             if(it.id==1)it.copy(strength=1) else it
         }))))
         val started=advance(wounded,0);val fought=advance(started,5)
-        assertEquals((2..31).toList(),GroundBattleOperations.participants(fought,base,2).map {it.id})
+        assertEquals((2..31).toList(),GroundBattleOperations.participants(fought,base,CountryId(2)).map {it.id})
         assertEquals(1000,fought.outfits.getValue(1).activeGround!!.values.single {it.id==31}.strength)
         assertTrue(fought.outfits.getValue(1).activeGround!!.values.filter {it.id!=31}.all {it.strength==800})
         val ended=session.copy(gameMillis=(now+500)*1000,ended=SessionEnd(EndReason.TIME_LIMIT,Power.entries.toSet(),now))
