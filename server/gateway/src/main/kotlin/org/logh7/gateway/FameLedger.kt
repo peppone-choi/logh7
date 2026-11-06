@@ -5,7 +5,6 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.util.Properties
 import org.logh7.engine.*
-import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.SessionEndingMessages
 
 /** U-27 fame (W p.34; amounts are the user-approved 2026-10-31 proposal, evidence:guess).
@@ -30,8 +29,8 @@ class FameLedger private constructor(private val storage:Storage,private val wor
         }
         /** Rank 2 (marshal) 1000 .. rank 20 (private) 50, linear; politicians (1) take the private value. */
         fun reward(rank:Int):Long=if(rank !in 2..20)50 else 1000L-Math.round((rank-2)*950.0/18)
-        fun winners(result:SessionResult):Set<Power> =
-            result.powers.filterValues {it.grade in setOf(SessionGrade.DECISIVE,SessionGrade.LIMITED,SessionGrade.LOCAL)}.keys
+        fun winners(result:SessionResult):Set<CountryId> =
+            result.countries.filterValues {it.grade in setOf(SessionGrade.DECISIVE,SessionGrade.LIMITED,SessionGrade.LOCAL)}.keys
     }
     /** Views share one transaction lock and account totals; receipts belong to a durable world identity. */
     fun forWorld(identity:String):FameLedger {
@@ -45,12 +44,12 @@ class FameLedger private constructor(private val storage:Storage,private val wor
         override val entries get()=fame().entries
         override fun get(key:String):Int?=storage.read {it.getProperty(key)?.toInt()}
     }
-    private fun points(snapshot:WorldSnapshot,c:CharacterMessages.Generate):Pair<Long,Long> {
+    private fun points(snapshot:WorldSnapshot,profile:CharacterProfile):Pair<Long,Long> {
+        val c=profile.character
         val person=checkNotNull(snapshot.planetStocks).strategic.people[c.id.toInt()]
         val rank=person?.rank ?: c.rank
         val dead=(person?.deceasedAt ?: 0)>0
-        val power=if(c.power==2)Power.EMPIRE else Power.ALLIANCE
-        val bonus=if(!dead && power in winners(checkNotNull(snapshot.result)) || dead && rank in 2..7)reward(rank) else 0
+        val bonus=if(!dead && profile.country in winners(checkNotNull(snapshot.result)) || dead && rank in 2..7)reward(rank) else 0
         val before=person?.evaluation ?: 0
         return before to Math.addExact(before,bonus)
     }
@@ -67,8 +66,8 @@ class FameLedger private constructor(private val storage:Storage,private val wor
             if(world==null && p.stringPropertyNames().any {it.startsWith(prefix) && (it.removePrefix(prefix).toLongOrNull() ?: 0)>generation})return null
             if(world!=null && p.getProperty("@legacy-latest/$world")!=generation.toString())return null
             if(snapshot.result==null || snapshot.planetStocks==null)return null
-            val c=characters.character(account) ?: return null
-            val (before,after)=points(snapshot,c)
+            val profile=WorldCharacters.profiles(characters.profiles(),snapshot)[account] ?: return null
+            val (before,after)=points(snapshot,profile)
             val finalFame=p.getProperty(if(world==null)account else "@legacy-total/$world/$account","0").toLong();val gained=after/POINTS_PER_FAME
             check(finalFame>=gained) {"Fame ledger is inconsistent with the settled result"}
             listOf(before,after,finalFame-gained,finalFame)
@@ -81,12 +80,12 @@ class FameLedger private constructor(private val storage:Storage,private val wor
         if(snapshot.result==null || snapshot.planetStocks==null)return emptyMap()
         val generation=snapshot.session?.generation ?: return emptyMap()
         // Character menus read live fame while holding their own lock; never take that lock inside the bank lock.
-        val profiles=characters.registeredCharacters().mapNotNull {c->characters.accountByCharacter(c.id.toInt())?.let {it to c}}
+        val profiles=WorldCharacters.profiles(characters.profiles(),snapshot)
         return storage.read {properties->
         if(properties.getProperty(key("settled",generation))!=null)return@read emptyMap()
         val added=linkedMapOf<String,Int>()
-        for((account,c) in profiles) {
-            val (before,after)=points(snapshot,c);val gained=Math.toIntExact(after/POINTS_PER_FAME)
+        for((account,profile) in profiles) {
+            val (before,after)=points(snapshot,profile);val gained=Math.toIntExact(after/POINTS_PER_FAME)
             val previousFame=properties.getProperty(account,"0").toInt()
             val finalFame=Math.addExact(previousFame,gained)
             if(gained>0) {

@@ -40,7 +40,8 @@ internal object SessionEndingReport {
             SessionEndingMessages.PowerResult(power,0,registered.count {it.power==power}.toLong(),
                 (report.statistics.planets+report.statistics.fortresses).toLong(),
                 SessionEndingMessages.PowerEnding("",0,grade,flag(report.populationDominance),flag(report.fleetDominance),
-                    flag(result.conditions.noCoup(side)),flag(if(side==Power.ALLIANCE)true else result.conditions.imperialLeaderAtEnemyCapital),
+                    flag(result.conditions.noCoup(side)),flag(when(report.leaderRequired) {
+                        false->true;true->result.conditions.leader(side.country);null->null}),
                     statistics(report.statistics)))
         }
         val status=when(result.end.reason){EndReason.CAPITAL_CAPTURED->3;EndReason.SYSTEMS_REDUCED->4;EndReason.TIME_LIMIT->5}
