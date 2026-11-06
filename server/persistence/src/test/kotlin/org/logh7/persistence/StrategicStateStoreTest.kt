@@ -94,6 +94,19 @@ class StrategicStateStoreTest {
         FilePlanetStockStore(path).use {it.save(value)}
         FilePlanetStockStore(path).use {assertEquals(value,it.load())}
     }
+    @Test fun actualCountryPersonnelTitlesFiefsAndShipStyleSurviveAWorldReopen() {
+        val country=CountryId(42)
+        val player=Navigator(1,10001,country,2487,1000,1000,1000,shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(93,0))
+        val value=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,Allegiance.Country(country),0,100,200,300),
+            1050 to PlanetStock(1050,Allegiance.Country(country),0,100,200,300)),strategic=StrategicState(
+                people=mapOf(10001 to StrategicPerson(rank=6,merit=100,peerage=Peerage.BARON,decorations=setOf(0))),
+                fiefs=mapOf(1050 to 10001),capitals=mapOf(country to 1049)))
+        val path=directory.resolve("country-personnel")
+        FileWorldStateStore(path).use {it.saveWorld(mapOf("target" to player),value)}
+        FileWorldStateStore(path).use {
+            assertEquals(value,it.loadStocks());assertEquals(mapOf("target" to player),it.loadNavigation())
+        }
+    }
     @Test fun transportPackagesAreAnOptionalSixthSection() {
         assertEquals(5,StrategicStateCodec.encode(state).split('|').size)
         val packed=state.copy(transports=listOf(TransportPackage(1,CountryId(2),1049,1050,1000,UnitInventory(mapOf(UnitStack(32,1) to 2),mapOf(UnitStack(3) to 1))),

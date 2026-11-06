@@ -162,6 +162,7 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         return future
     }
     override fun offices(characterId: Int, power: Int, generation: Long): List<org.logh7.protocol.BootstrapMessages.OfficeCard> {
+        if(power<=0)return emptyList()
         val stocks = engine.snapshot().planetStocks ?: return emptyList()
         if (stocks.generation != generation) return emptyList()
         val policy=OrganizationalOfficePolicy(galaxy)
@@ -169,7 +170,8 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
             org.logh7.protocol.BootstrapMessages.OfficeCard(holding.card,policy.target(checkNotNull(policy.role(holding.card,holding.country)),holding.seat,stocks))
         }+stocks.strategic.people[characterId]?.peerage?.let {title->
             listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(60+title.ordinal,0))}.orEmpty()+
-            stocks.strategic.fiefs.filterValues {it==characterId}.keys.map {org.logh7.protocol.BootstrapMessages.OfficeCard(66,it)})
+            org.logh7.engine.FundActions.governed(galaxy,stocks,characterId,org.logh7.engine.CountryId(power),card=66)
+                .map {org.logh7.protocol.BootstrapMessages.OfficeCard(66,it)})
             .distinct().sortedWith(compareBy({it.kind},{it.target}))
         // W p.27: 16 cards with the two basic ones (個人·艦長), so 14 offices. Appointments, peerages and fiefs refuse a
         // 15th card; automatic grants (coup, succession, election) are not refused, so show the first 14 rather than fail.

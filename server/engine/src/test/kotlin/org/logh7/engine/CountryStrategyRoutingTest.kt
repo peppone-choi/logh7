@@ -79,9 +79,16 @@ class CountryStrategyRoutingTest {
 
     @Test fun originalNationOfficesCannotBeBorrowedByAnAdditionalCountry() {
         val before=stock();val pilot=player()
-        for(command in PersonnelActions.supported+StrategicOperations.supported) {
+        for(command in StrategicOperations.supported) {
             val result=StrategyActions.evaluate(galaxy,request(command,17),session(),pilot,before,catalog())
             assertEquals(StrategyActionRejection.AUTHORITY,result.rejection,"command $command")
+            assertEquals(pilot,result.player);assertEquals(before,result.stocks)
+        }
+        for(command in PersonnelActions.supported) {
+            val r=request(command,17).copy(target=10001,identities=listOf(
+                StrategicIdentity(10000,country,2,0,List(8){50}),StrategicIdentity(10001,country,6,0,List(8){50})))
+            val result=StrategyActions.evaluate(galaxy,r,session(),pilot,before,catalog())
+            assertEquals(StrategyActionRejection.AUTHORITY,result.rejection,"command $command requires an actual held personnel office")
             assertEquals(pilot,result.player);assertEquals(before,result.stocks)
         }
         for(command in CivicActions.supported+TransportActions.supported) {
