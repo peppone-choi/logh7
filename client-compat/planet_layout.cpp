@@ -148,6 +148,7 @@ static void updateCharacterInformation(void* manager);
 static bool updateSessionEnding(void* manager);
 static void receivedSessionEnding(void* world,const BYTE* record);
 #include "hud_frame.h"
+#include "lobby_pillarbox.h"
 #include "country_colors.h"
 #include "country_icon.h"
 #include "lobby_country_transport.h"
@@ -684,6 +685,7 @@ static void install() {
     if (!installFortressCommandMenu()) { status = -3; return; }
     if (!installTacticalDeparture()) { status = -3; return; }
     if (!installDisplayNames()) { status = -3; return; }
+    if (!installLobbyPillarbox()) { status = -3; return; }
     if (!installMailInput()) { status = -3; return; }
     if (!installMailLabels()) { status = -3; return; }
     if (!installKoreanDialogs() || !installKoreanLiteralText() || !installLobbyEmptyNotice() || !installKoreanLegacyHud() || !installNameCardLabels() ||
