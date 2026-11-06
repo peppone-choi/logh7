@@ -13,7 +13,7 @@ internal object StrategicStateCodec {
             .plus(if(p.airTactics>0 || p.deceasedAt>0 || p.militaryRank>0)listOf(p.airTactics) else emptyList())
             .plus(if(p.deceasedAt>0 || p.militaryRank>0)listOf(p.deceasedAt) else emptyList())
             .plus(if(p.militaryRank>0)listOf(p.militaryRank) else emptyList()).joinToString(":")}.ifEmpty {"-"},
-        state.suppressions.joinToString(";") {"${it.character}:${it.outfit}:${it.base}:${it.power}:${it.readyAt}"}.ifEmpty {"-"},
+        state.suppressions.joinToString(";") {"${it.character}:${it.outfit}:${it.base}:${it.country.value}:${it.readyAt}"}.ifEmpty {"-"},
         state.offices.joinToString(";") {"${it.card}:${it.seat}:${it.character}"+
             if(countryOffices)":${it.country.value}" else ""}.ifEmpty {"-"},
         state.fiefs.toSortedMap().entries.joinToString(";") {"${it.key}:${it.value}"}.ifEmpty {"-"},
@@ -27,7 +27,7 @@ internal object StrategicStateCodec {
     .plus(if(countryOffices)listOf(state.capitals.entries.sortedBy {it.key.value}.joinToString(";") {"${it.key.value}:${it.value}"}.ifEmpty {"-"}) else emptyList())
     .joinToString("|").also {require(it.length<=2_000_000) {"Strategic state is too large"}}
     }
-    fun decode(text:String,countryOffices:Boolean=false):StrategicState {
+    fun decode(text:String,countryOffices:Boolean=false,countrySuppression:Boolean=false):StrategicState {
         require(text.length<=2_000_000)
         val sections=text.split('|');require(if(countryOffices)sections.size==7 else sections.size==5 || sections.size==6 && sections[5].isNotEmpty())
         val people=linkedMapOf<Int,StrategicPerson>()
@@ -41,7 +41,8 @@ internal object StrategicStateCodec {
         }
         val orders=if(sections[1]=="-")emptyList() else sections[1].split(';').map {row->
             val f=row.split(':');require(f.size==5)
-            SuppressionOrder(f[0].toInt(),f[1].toInt(),f[2].toInt(),f[3].toInt(),f[4].toLong())
+            val country=f[3].toInt();require(countrySuppression || country in 2..3)
+            SuppressionOrder(f[0].toInt(),f[1].toInt(),f[2].toInt(),CountryId(country),f[4].toLong())
         }
         val offices=if(sections[2]=="-")emptyList() else sections[2].split(';').map {row->
             val f=row.split(':');require(f.size==if(countryOffices)4 else 3)

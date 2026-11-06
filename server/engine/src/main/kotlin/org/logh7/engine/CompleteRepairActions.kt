@@ -14,7 +14,8 @@ internal object CompleteRepairActions {
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
-        val country=p.country ?: return reject(StrategyActionRejection.IDENTITY)
+        val country=p.country?.takeIf {it.value in countries.countries} ?: return reject(StrategyActionRejection.IDENTITY)
+        if(country in s.eliminated)return reject(StrategyActionRejection.SESSION)
         val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
         if(rank==1 || rank !in 0..20)return reject(StrategyActionRejection.RANK)
         if(busy(p))return reject(StrategyActionRejection.BUSY)
@@ -34,10 +35,11 @@ internal object CompleteRepairActions {
             after=p.copy(hull=hull.copy(hp=100),supplies=0)
         } else {
             val outfit=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
-            if(commanders[r.card]!=outfit.kind || OrganizationOffices.of(r.card)?.power!=country.value)
+            val policy=OrganizationalOfficePolicy(galaxy,countries)
+            if(commanders[r.card]!=outfit.kind || policy.role(r.card,country)==null)
                 return reject(StrategyActionRejection.CARD)
             if(outfit.country!=country || outfit.commanderId!=r.characterId ||
-                OrganizationalOfficePolicy(galaxy).holders(stocks,r.card).none {it.character==r.characterId && it.seat==outfit.id})
+                policy.holders(stocks,r.card,country).none {it.character==r.characterId && it.seat==outfit.id})
                 return reject(StrategyActionRejection.AUTHORITY)
             if(outfit.positionIn(galaxy)!=OutfitPosition(p.grid,p.baseId))return reject(StrategyActionRejection.LOCATION)
             val ships=outfit.activeShips ?: return reject(StrategyActionRejection.TROOPS)

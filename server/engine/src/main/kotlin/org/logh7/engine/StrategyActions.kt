@@ -19,8 +19,8 @@ data class StrategicPerson(val rank:Int?=null,val groundTactics:Int=0,val retire
         merit in 0..0xffffffffL && influence in 0..100 && evaluation in 0..0xffffffffL && money in 0..0xffffffffL &&
         (abilities==null || abilities.size==8 && abilities.all {it in 0..255}) && decorations.size<=128 && decorations.all {it in 0..127})}
 }
-data class SuppressionOrder(val character:Int,val outfit:Int,val base:Int,val power:Int,val readyAt:Long) {
-    init {require(character>0 && outfit>0 && base in 1..65535 && power in 2..3 && readyAt in 0..0xffffffffL)}
+data class SuppressionOrder(val character:Int,val outfit:Int,val base:Int,val country:CountryId,val readyAt:Long) {
+    init {require(character>0 && outfit>0 && base in 1..65535 && readyAt in 0..0xffffffffL)}
 }
 data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val suppressions:List<SuppressionOrder> = emptyList(),
     val offices:List<OfficeHolding> = emptyList(),val fiefs:Map<Int,Int> = emptyMap(),
@@ -87,6 +87,7 @@ internal object StrategyActions {
             !member.online || member.connection!=r.connection)return reject(StrategyActionRejection.SESSION)
         if(p==null || r.country==null || p.generation!=r.generation || p.characterId!=r.characterId || p.country!=r.country || member.country!=r.country)
             return reject(StrategyActionRejection.IDENTITY)
+        if(r.country in s.eliminated)return reject(StrategyActionRejection.SESSION)
         if(BattleDeath.deceased(stocks,r.characterId))return reject(StrategyActionRejection.IDENTITY)
         // U-25: a detainee cannot run strategy commands until released.
         if(stocks.social.justice.detained(r.characterId))return reject(StrategyActionRejection.BUSY)
@@ -167,13 +168,11 @@ internal object StrategyActions {
                         val base=stocks.bases[p.baseId] ?: return reject(StrategyActionRejection.LOCATION)
                         if(!base.belongsTo(country) || base.camp!=0 || o.activeGround?.values.orEmpty().none {it.base==base.baseId})
                             return reject(StrategyActionRejection.TROOPS)
-                        // shortcut: suppression checkpoints support the two original countries until their saved order format is migrated.
-                        if(country.value !in 2..3)return reject(StrategyActionRejection.AUTHORITY)
                         if(base.economy?.peace==100)return reject(StrategyActionRejection.MAXIMUM)
                         if(now>0xffffffffL-86400)return reject(StrategyActionRejection.BUSY)
                         readyAt=now+86400
                         next=stocks.copy(strategic=stocks.strategic.copy(suppressions=stocks.strategic.suppressions+
-                            SuppressionOrder(r.characterId,o.id,base.baseId,country.value,readyAt)))
+                            SuppressionOrder(r.characterId,o.id,base.baseId,country,readyAt)))
                     }
                 }
             }
@@ -215,20 +214,24 @@ internal object StrategyActions {
             logisticsOfficers=stocks.logisticsOfficers-character,
             strategic=stocks.strategic.copy(offices=stocks.strategic.offices.filter {it.character!=character}))
     }
-    fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null,navigators:Collection<Navigator>?=null):PlanetStocks {
+    fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null,navigators:Collection<Navigator>?=null,
+        countries:CountryCatalog=CountryCatalogLoader.current(),eliminated:Set<CountryId> = emptySet()):PlanetStocks {
         val market=FlagshipMarketActions.settle(stocks,seconds)
         val original=if(galaxy==null)market else BlackHoleTides.settle(galaxy,StrategicOperations.settle(galaxy,market,seconds,navigators),seconds)
-        return settleSuppression(original,seconds)
+        return settleSuppression(original,seconds,navigators,countries,eliminated)
     }
-    private fun settleSuppression(stocks:PlanetStocks,seconds:Long):PlanetStocks {
+    private fun settleSuppression(stocks:PlanetStocks,seconds:Long,navigators:Collection<Navigator>?,countries:CountryCatalog,
+        eliminated:Set<CountryId>):PlanetStocks {
         val due=stocks.strategic.suppressions.filter {it.readyAt<=seconds}
         if(due.isEmpty())return stocks
         val bases=stocks.bases.toMutableMap()
         for(order in due) {
+            if(order.country.value !in countries.countries || order.country in eliminated)continue
             val base=bases[order.base] ?: continue
             val troops=stocks.outfits[order.outfit]
+            if(navigators!=null && navigators.singleOrNull {it.characterId==order.character && it.generation==stocks.generation}?.country!=order.country)continue
             // A lost office/army/base cannot continue policing after the reservation matures.
-            if(!base.belongsTo(CountryId(order.power)) || base.camp!=0 || troops==null || troops.country!=CountryId(order.power) || troops.commanderId!=order.character ||
+            if(!base.belongsTo(order.country) || base.camp!=0 || troops==null || troops.country!=order.country || troops.commanderId!=order.character ||
                 troops.activeGround?.values.orEmpty().none {it.base==base.baseId})continue
             val people=base.economy ?: continue
             bases[base.baseId]=base.copy(economy=people.copy(peace=minOf(100,people.peace+5),approval=maxOf(0,people.approval-2)))

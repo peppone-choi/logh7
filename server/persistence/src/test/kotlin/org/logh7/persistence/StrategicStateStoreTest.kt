@@ -13,7 +13,7 @@ class StrategicStateStoreTest {
     @TempDir lateinit var directory:Path
     private val navigator=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000)
     private val state=StrategicState(mapOf(10000 to StrategicPerson(1,2,3_000_000,Peerage.BARON,100,25,30,40,List(8){55},setOf(0,127))),
-        listOf(SuppressionOrder(10001,200,1049,2,4_000_000)),listOf(OfficeHolding(6,1049,10000),OfficeHolding(4,1049,10001)),
+        listOf(SuppressionOrder(10001,200,1049,CountryId(2),4_000_000)),listOf(OfficeHolding(6,1049,10000),OfficeHolding(4,1049,10001)),
         mapOf(1049 to 10000),listOf(StrategicOperation(1,10001,24,CountryId(2),2487,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,
             3_000_000,defended=setOf(1049))))
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)),strategic=state)

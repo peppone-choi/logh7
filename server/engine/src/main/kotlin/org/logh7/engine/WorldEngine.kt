@@ -273,7 +273,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val galaxy=galaxy ?: return navigation.apply(request,session)
         val production=production ?: return navigation.apply(request,session)
         val result=FleetNavigation.apply(request,session,galaxy,navigation,production,
-            production.settle(session.generation,session.gameMillis/1000),worldStateCommitter) {
+            production.settle(session),worldStateCommitter) {
             logistics.blocksMovement(session,it)
         }
         // A deferred fleet arrival leaves the authenticated actor's pending work in place.
@@ -470,7 +470,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         command.result.complete(AdminBaseEditResult(AdminEditOutcome.UNAVAILABLE));continue
                     }
                     val session=durableState?.session ?: simulation.exportState()
-                    val inventory=production.settle(session.generation,session.gameMillis/1000)
+                    val inventory=production.settle(session)
                     var result=AdminWorldEditing.evaluate(inventory,command.request)
                     if(result.outcome==AdminEditOutcome.CHANGED) {
                         val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
@@ -493,7 +493,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session=durableState?.session ?: simulation.exportState()
                     val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.country,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
-                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    val inventory=checkNotNull(production).settle(session)
                     val before=recovered?.player
                     val base=r.base.takeIf {it>0} ?: before?.baseId ?: 0
                     val scope=inventory.outfits.values.filter {it.baseId==base}.map {it.id}.toSet()+
@@ -529,7 +529,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session=durableState?.session ?: simulation.exportState()
                     val recovered=recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
-                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    val inventory=checkNotNull(production).settle(session)
                     var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
                         navigators=checkNotNull(navigation).snapshot(session.generation)),session,recovered?.player,inventory)
                     val civicReadOrCancel=request.command in CivicActions.supported && request.value!=0
@@ -569,7 +569,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production).settle(session)
                     val before = recovered?.player
                     val result = run assignment@{
                         fun reject(reason: LogisticsRejection) = StockAssignmentResult(before, inventory, reason)
@@ -625,7 +625,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production).settle(session)
                     var result = GroundTransfer.evaluate(request, session, recovered?.player, inventory)
                     if (result.rejection == null && logistics.blocksSupply(session, inventory, setOf(request.outfit)))
                         result = GroundTransferResult(recovered?.player, inventory, LogisticsRejection.BUSY)
@@ -658,7 +658,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production).settle(session)
                     var result = Supplement.evaluate(request, session, recovered?.player, inventory)
                     if (result.rejection == null && logistics.blocksSupply(session, inventory, setOf(request.outfit)))
                         result = SupplementResult(recovered?.player, inventory, LogisticsRejection.BUSY)
@@ -691,7 +691,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production).settle(session)
                     var result = CompletenessSupply.evaluate(request, session, recovered?.player, inventory)
                     if (result.rejection == null && logistics.blocksSupply(session, inventory, setOf(request.from, request.to)))
                         result = CompletenessSupplyResult(recovered?.player, inventory, LogisticsRejection.BUSY)
@@ -724,7 +724,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production).settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production).settle(session)
                     val before = recovered?.player
                     val result = run native@{
                         fun reject(reason: LogisticsRejection) = ReorganizationResult(before, inventory, reason)
@@ -785,7 +785,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session)
                     var result = GarrisonAppointment.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
                     if (result.changed) {
                         if (worldStateCommitter == null) result = GarrisonAppointmentResult(recovered?.player, inventory, AppointmentRejection.STORAGE)
@@ -816,7 +816,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session)
                     var result = OfficeDismissal.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
                     if (result.changed) {
                         if (worldStateCommitter == null) result = OfficeDismissalResult(recovered?.player, inventory, DismissalRejection.STORAGE)
@@ -847,7 +847,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session=durableState?.session ?: simulation.exportState()
                     val recovered=recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
-                    val inventory=checkNotNull(production) { "World production is disabled" }.settle(session.generation,session.gameMillis/1000)
+                    val inventory=checkNotNull(production) { "World production is disabled" }.settle(session)
                     var result=OfficeResignation.evaluate(checkNotNull(galaxy),request,session,recovered?.player,inventory)
                     if(result.changed) {
                         if(worldStateCommitter==null) result=OfficeResignationResult(recovered?.player,inventory,ResignationRejection.STORAGE)
@@ -874,7 +874,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
                     val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.country,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
-                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    val inventory=checkNotNull(production).settle(session)
                     val accounts=navigation?.snapshot(session.generation).orEmpty().let {s->recovered?.player?.let {s+(i.account to it)} ?: s}
                     var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,
                         navigation?.snapshot(session.generation)?.values.orEmpty(),accounts)
@@ -919,7 +919,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
                     val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.country,i.connection,i.generation,
                         politics=i.politics,administration=i.administration),session)
-                    val inventory=checkNotNull(production).settle(session.generation,session.gameMillis/1000)
+                    val inventory=checkNotNull(production).settle(session)
                     var result=BudgetActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,production.defaultRemittanceRate)
                     if(result.changed) {
                         if(worldStateCommitter==null)result=BudgetResult(recovered?.player,inventory,BudgetRejection.STORAGE)
@@ -946,7 +946,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
-                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
+                    val inventory = checkNotNull(production) { "World production is disabled" }.settle(session)
                     var result = PlanetTax.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
                     if (result.changed) {
                         if (worldStateCommitter == null) result = TaxResult(recovered?.player, inventory, TaxRejection.STORAGE)
@@ -995,7 +995,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val session = durableState?.session ?: simulation.exportState()
                     require(session.generation == command.generation) { "Inventory query belongs to a stale session" }
-                    val result = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
+                    val result = checkNotNull(production) { "World production is disabled" }.settle(session)
                     state = published.get().copy(planetStocks = result)
                     publish(state)
                     command.result.complete(result)
@@ -1009,7 +1009,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     check(!storageFailed) { "World storage is unavailable" }
                     var session = durableState?.session ?: simulation.exportState()
-                    val ownership = production?.settle(session.generation, session.gameMillis / 1000)
+                    val ownership = production?.settle(session)
                     settleCombat(session,published.get()) {reconcileTerritory()}
                     session=durableState?.session ?: simulation.exportState()
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
@@ -1055,7 +1055,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         } else NavigationResult(null, rejection = NavigationRejection.DISABLED)
                     // Revalidate local duties immediately after committed movement, including spot
                     // departures. A failed invalidation blocks later commands; restart sees the saved departure.
-                    production?.settle(session.generation,session.gameMillis/1000)
+                    production?.settle(session)
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks = production?.snapshot(session.generation))
                     publish(state)
