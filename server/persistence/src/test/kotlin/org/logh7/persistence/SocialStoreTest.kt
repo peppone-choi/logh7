@@ -161,11 +161,28 @@ class SocialStoreTest {
         FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks());assertEquals(player,it.loadNavigation()["actor"])}
     }
     @Test fun coupPlotsAndLoyaltyRoundTripAsAnOptionalTenthField() {
-        val coup=CoupState(mapOf(10000 to Plot(10000,2,100,setOf(10003),listOf(10002,10001),500,setOf(1049))),mapOf(7 to 20))
+        val coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),100,setOf(10003),listOf(10002,10001),500,setOf(1049))),mapOf(7 to 20))
         val state=SocialState(coup=coup)
         val encoded=SocialStateCodec.encode(state)
         assertEquals(10,encoded.split('|').size);assertEquals(state,SocialStateCodec.decode(encoded))
         assertEquals(listOf(10002,10001),SocialStateCodec.decode(encoded).coup.plots.getValue(10000).members,"joining order")
+    }
+    @Test fun coupCountriesAndCapitalTimersPersistWithoutChangingLegacyRows() {
+        val old=SocialState(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),100,revolt=200,
+            bases=setOf(1049),capitalSince=300))))
+        val legacy=SocialStateCodec.encode(old)
+        assertEquals(8,legacy.split('|')[9].substringBefore('/').split(':').size)
+        assertEquals(legacy,SocialStateCodec.encode(SocialStateCodec.decode(legacy)))
+        val actual=old.copy(coup=CoupState(mapOf(10000 to old.coup.plots.getValue(10000).copy(country=CountryId(42),capitalBase=1049),
+            10001 to Plot(10001,CountryId(43),100))))
+        val text=SocialStateCodec.encode(actual)
+        assertEquals(actual,SocialStateCodec.decode(text))
+        assertFailsWith<IllegalArgumentException> {SocialStateCodec.decode(text.replace("10000:42:","10000:0:"))}
+        assertFailsWith<IllegalArgumentException> {SocialStateCodec.decode(text.replace(":300:1049",":300:0"))}
+        val saved=stocks.copy(social=actual)
+        val path=directory.resolve("coup-countries")
+        FileWorldStateStore(path).use {it.saveWorld(emptyMap(),saved)}
+        FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks())}
     }
     @Test fun fundBoxesRoundTripAsAnOptionalEleventhField() {
         val state=SocialState(funds=FundState(mapOf(2 to (100L to 5L),42 to (100L to 50L),43 to (7L to 8L)),mapOf(10001 to 300L)))

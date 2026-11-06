@@ -34,7 +34,7 @@ object SuccessionActions {
         fun add(character:Int,kind:SuccessionNotice.Kind) {out+=SuccessionNotice(new.generation,character,kind,seconds)}
         val was=old.social.succession;val now=new.social.succession
         if(now.emperor>0 && now.at!=was.at)add(now.emperor,SuccessionNotice.Kind.ACCESSION)
-        if(was.rival>0 && now.rival==0 && CoupActions.rebel(new,was.rival) && !CoupActions.rebel(old,was.rival))
+        if(was.rival>0 && now.rival==0 && CoupActions.rebel(new,was.rival,CountryId(2)) && !CoupActions.rebel(old,was.rival,CountryId(2)))
             add(was.rival,SuccessionNotice.Kind.CONTEST)
         fun chairmen(s:PlanetStocks)=s.strategic.offices.filter {it.country==CountryId(3) && it.card==PoliticianLadder.CHAIRMAN_CARD}.map {it.character}.toSet()
         val (yes,no)=old.social.funds.confidence[3] ?: (0L to 0L)
@@ -54,7 +54,7 @@ object SuccessionActions {
     /** Line of succession (see the class comment). */
     fun order(s:PlanetStocks,identities:List<StrategicIdentity>):List<Int> {
         val people=s.strategic.people;val heir=s.social.succession.heir
-        return identities.filter {it.country==Power.EMPIRE.country && alive(s,it.id) && !CoupActions.rebel(s,it.id)}
+        return identities.filter {it.country==Power.EMPIRE.country && alive(s,it.id) && !CoupActions.rebel(s,it.id,it.country)}
             .sortedWith(compareBy<StrategicIdentity> {if(it.id==heir)0 else 1}
                 .thenBy {people[it.id]?.peerage?.ordinal ?: Peerage.entries.size}
                 .thenByDescending {people[it.id]?.influence ?: 0}
@@ -66,7 +66,7 @@ object SuccessionActions {
         return capital.id.takeIf {OrganizationalOfficePolicy(g).active(s,role,it)}
     }
     fun throneVacant(g:Galaxy,s:PlanetStocks)=throne(g,s)!=null && OrganizationalOfficePolicy(g).holders(s,EMPEROR).isEmpty() &&
-        !s.social.coup.revolting(2)
+        !s.social.coup.revolting(CountryId(2))
     /** Crowns the first in line on a vacant throne and records the runner-up who may refuse. */
     fun accede(g:Galaxy,s:PlanetStocks,identities:List<StrategicIdentity>,now:Long):PlanetStocks {
         val cleared=if(s.social.succession.vacant)s.copy(social=s.social.copy(succession=s.social.succession.copy(vacant=false))) else s
@@ -110,14 +110,14 @@ object SuccessionActions {
             DESIGNATE -> {
                 if(i.card!=EMPEROR || policy.holders(s,EMPEROR).none {it.character==i.characterId})return reject(SocialRejection.CARD)
                 val target=i.identities.singleOrNull {it.id==i.target}
-                if(target==null || target.country!=Power.EMPIRE.country || target.id==i.characterId || !alive(s,target.id) || CoupActions.rebel(s,target.id))
+                if(target==null || target.country!=Power.EMPIRE.country || target.id==i.characterId || !alive(s,target.id) || CoupActions.rebel(s,target.id,target.country))
                     return reject(SocialRejection.TARGET)
             }
             CONTEST -> {
                 if(i.card!=0)return reject(SocialRejection.CARD)
                 if(state.rival!=i.characterId || now-state.at>CONTEST_DAYS*Justice.DAY ||
                     policy.holders(s,EMPEROR).none {it.character==state.emperor})return reject(SocialRejection.STALE)
-                if(s.social.coup.plotOf(i.characterId)!=null || s.social.coup.revolting(2))return reject(SocialRejection.BUSY)
+                if(s.social.coup.plotOf(i.characterId)!=null || s.social.coup.revolting(CountryId(2)))return reject(SocialRejection.BUSY)
             }
             else -> return reject(SocialRejection.COMMAND)
         }

@@ -329,7 +329,7 @@ class TacticalCombatTest {
         val state=state()
         // U-10: the pilot leads a revolt holding base 1000; the victim stays in the alliance's regular camp.
         state.stocks=state.stocks.copy(bases=state.stocks.bases+(1000 to PlanetStock(1000,3,1,100,100,100)),
-            social=state.stocks.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,3,0,revolt=1,bases=setOf(1000))))))
+            social=state.stocks.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(3),0,revolt=1,bases=setOf(1000))))))
         val victimPoint=TacticalPoint(180f,-95f)
         val victim=state.players.getValue("pilot").copy(characterId=10001,returnBase=1000,energy=TacticalEnergy.ZERO,charge=null,
             hull=FlagshipHull(89,now),motion=TacticalMotion(2488,now,TacticalPose(victimPoint,Math.PI.toFloat()),0f,Math.PI.toFloat(),listOf(victimPoint)))

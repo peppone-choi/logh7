@@ -18,7 +18,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val state=snapshot.planetStocks!!.tacticalCommands
         val mission=state.missions[p.characterId]
         val chief=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==p.grid &&
-            Camp.of(it,CoupActions.rebel(snapshot.planetStocks!!,it.characterId))==Camp.of(p,CoupActions.rebel(snapshot.planetStocks!!,p.characterId)) &&
+            Camp.of(it,CoupActions.rebel(snapshot.planetStocks!!,it.characterId,it.country))==Camp.of(p,CoupActions.rebel(snapshot.planetStocks!!,p.characterId,p.country)) &&
                 (it.cpPaused || it.baseId>0)}.maxWithOrNull(compareBy<Navigator> {
             -(characterById(it.characterId)?.rank ?: 20)}.thenBy {TacticalPersonnel.merit(checkNotNull(snapshot.planetStocks),it.characterId)}.thenByDescending {it.characterId})
         val spec=UnitSpecifications.ships.single {it.kind==(p.hull?.kind ?: c.shipKind)}

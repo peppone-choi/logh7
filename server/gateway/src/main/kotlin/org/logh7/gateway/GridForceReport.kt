@@ -10,7 +10,7 @@ internal object GridForceReport {
         countries:CountryCatalog=CountryCatalogLoader.current()): ByteArray? {
         if (snapshot.session?.generation != viewer.generation) return null
         val stocks=snapshot.planetStocks?.takeIf {it.generation==viewer.generation}
-        val camp=Camp.of(viewer,stocks?.let {CoupActions.rebel(it,viewer.characterId)}==true)
+        val camp=Camp.of(viewer,stocks?.let {CoupActions.rebel(it,viewer.characterId,viewer.country)}==true)
         val power=viewer.country?.let {countries.nativePower(Allegiance.Country(it))} ?: viewer.shipStyle.nativePower
         val units = sortedMapOf<Int, Long>()
         // One native search has 225 cells: use a 15x15 neighbourhood until the
@@ -20,7 +20,7 @@ internal object GridForceReport {
                 units[grid] = (units[grid] ?: 0L) + count
         }
         snapshot.navigators.values.filter {it.generation==viewer.generation &&
-            Camp.of(it,stocks?.let {s->CoupActions.rebel(s,it.characterId)}==true)==camp}
+            Camp.of(it,stocks?.let {s->CoupActions.rebel(s,it.characterId,it.country)}==true)==camp}
             .forEach {add(it.grid,1)}
         stocks?.outfits?.values
             ?.filter {TacticalAuthority.camp(it,stocks)==camp}?.forEach {outfit ->

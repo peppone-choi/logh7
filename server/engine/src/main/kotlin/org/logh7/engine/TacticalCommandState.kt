@@ -85,7 +85,7 @@ data class TacticalCommandResult(val generation:Long,val order:TacticalQueuedCom
 /** Tactical reassignment changes per-unit command, never the strategic personnel appointment. */
 object TacticalAuthority {
     fun commander(outfit:OutfitStock,unit:ActiveShipUnit,stocks:PlanetStocks)=stocks.tacticalCommands.authority[unit.id] ?: outfit.commanderId
-    fun camp(player:Navigator,stocks:PlanetStocks)=Camp.of(player,CoupActions.rebel(stocks,player.characterId))
+    fun camp(player:Navigator,stocks:PlanetStocks)=Camp.of(player,CoupActions.rebel(stocks,player.characterId,player.country))
     fun camp(outfit:OutfitStock,stocks:PlanetStocks)=Camp(outfit.country,CoupActions.outfitCamp(stocks,outfit)==1)
     fun camp(base:PlanetStock):Camp?=base.country?.let {Camp(it,base.camp==1)}
     /** Native captain-card variant; this display code never determines who owns a unit. */

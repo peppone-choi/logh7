@@ -1580,7 +1580,7 @@ class GameExchange(
                                             val snapshot=navigation?.snapshot();val players=snapshot?.navigators.orEmpty()
                                             val me=checkNotNull(players[identity.account]);val coup=snapshot?.planetStocks?.social?.coup
                                             val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
-                                                it.characterId>query.target && me.baseId!=0 && it.power==me.power && it.baseId==me.baseId &&
+                                                it.characterId>query.target && me.baseId!=0 && me.country!=null && it.country==me.country && it.baseId==me.baseId &&
                                                 it.spotId==me.spotId && coup?.plotOf(it.characterId)==null}.map {it.characterId}.toSet()
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
                                                 characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
