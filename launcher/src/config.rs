@@ -13,6 +13,8 @@ pub struct Config {
     pub session: u16,
     pub credential: String,
     pub login_ui: bool,
+    /// 화면 크기(GraphicConfig.txt). 없으면 클라이언트 설정을 그대로 둔다.
+    pub resolution: Option<(u32, u32)>,
 }
 
 impl Config {
@@ -35,6 +37,7 @@ impl Config {
                 "session",
                 "credential",
                 "login_ui",
+                "resolution",
             ]
             .contains(&key)
             {
@@ -88,7 +91,13 @@ impl Config {
             "false" => false,
             _ => return Err("login_ui는 true 또는 false입니다".into()),
         };
+        let resolution = values
+            .get("resolution")
+            .filter(|v| !v.is_empty())
+            .map(|v| crate::graphic_config::parse_resolution(v))
+            .transpose()?;
         Ok(Self {
+            resolution,
             client_root: directory.join(required("client_root")?),
             host,
             port,
