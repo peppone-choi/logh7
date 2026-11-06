@@ -32,10 +32,10 @@ object FortressArmor {
     }
     private fun stationed(base:GalaxyBase,galaxy:Galaxy,outfit:OutfitStock,unit:ActiveShipUnit)=unit.posture?.let {
         it.grid==base.grid && it.base==base.id && it.mode==TacticalShipMode.STATIONED} ?: (outfit.positionIn(galaxy)==OutfitPosition(base.grid,base.id))
-    /** The holder's side during a revolt (PR #214 review): same power and the base's camp, as orbital ground defense uses. */
-    private fun holds(stocks:PlanetStocks,owner:PlanetStock,outfit:OutfitStock)=outfit.power==owner.power && CoupActions.outfitCamp(stocks,outfit)==owner.camp
+    /** Only the actual holder's country and revolt camp defend this fortress. */
+    private fun holds(stocks:PlanetStocks,owner:PlanetStock,outfit:OutfitStock)=outfit.country==owner.country && CoupActions.outfitCamp(stocks,outfit)==owner.camp
     private fun holds(stocks:PlanetStocks,owner:PlanetStock,player:Navigator)=
-        (if(player.power==Power.EMPIRE)2 else 3)==owner.power && CoupActions.camp(stocks,player.characterId)==owner.camp
+        owner.country!=null && player.country==owner.country && CoupActions.camp(stocks,player.characterId)==owner.camp
     fun pending(stocks:PlanetStocks,galaxy:Galaxy,players:Collection<Navigator>)=galaxy.bases.any {base->
         val owner=stocks.bases[base.id]
         owner!=null && breached(stocks,base.id) && (stocks.outfits.values.any {o->holds(stocks,owner,o) &&

@@ -57,10 +57,10 @@ class CoupActionsTest {
         val hull=FlagshipHull(Flagships.forType(2,0).kind,0)
         val players=mapOf("a" to a.copy(baseId=0,mode=5,spotId=0,cpPaused=true,hull=hull),"b" to b.copy(baseId=0,mode=5,spotId=0,cpPaused=true,hull=hull))
         assertEquals(1,CoupActions.camp(s,10000));assertEquals(0,CoupActions.camp(s,10001))
-        assertNotNull(TacticalCombat.target(a.unitId,2487,Power.EMPIRE,s,galaxy,players,camp=0),"regulars may shoot the rebel")
-        assertNotNull(TacticalCombat.target(b.unitId,2487,Power.EMPIRE,s,galaxy,players,camp=1),"the rebel may shoot regulars")
-        assertNull(TacticalCombat.target(b.unitId,2487,Power.EMPIRE,s,galaxy,players,camp=0),"regulars stay friends")
-        assertNull(TacticalCombat.target(a.unitId,2487,Power.EMPIRE,stocks(),galaxy,players),"no revolt, no enemy")
+        assertNotNull(TacticalCombat.target(a.unitId,2487,Camp(Power.EMPIRE,false),s,galaxy,players),"regulars may shoot the rebel")
+        assertNotNull(TacticalCombat.target(b.unitId,2487,Camp(Power.EMPIRE,true),s,galaxy,players),"the rebel may shoot regulars")
+        assertNull(TacticalCombat.target(b.unitId,2487,Camp(Power.EMPIRE,false),s,galaxy,players),"regulars stay friends")
+        assertNull(TacticalCombat.target(a.unitId,2487,Camp(Power.EMPIRE,false),stocks(),galaxy,players),"no revolt, no enemy")
     }
     @Test fun aRebelFlagshipCountsAsItsSidesRebelCampInTheGrid() {
         val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
@@ -85,10 +85,10 @@ class CoupActionsTest {
     @Test fun rebelsDeployOnTheOtherEdgeFacingTheirRegularCamp() {
         val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
         val players=listOf(a.copy(baseId=0,mode=5,spotId=0),b.copy(baseId=0,mode=5,spotId=0))
-        val rebel=TacticalDeployment.initial(a.unitId,Power.EMPIRE,2487,players,s,galaxy)
-        val regular=TacticalDeployment.initial(b.unitId,Power.EMPIRE,2487,players,s,galaxy)
+        val rebel=TacticalDeployment.initial(a.unitId,2487,players,s,galaxy)
+        val regular=TacticalDeployment.initial(b.unitId,2487,players,s,galaxy)
         assertTrue(rebel.position.x<0 && regular.position.x>0,"opposite edges: $rebel $regular")
         assertEquals(regular.position.y,rebel.position.y,"each camp starts its own column")
-        assertTrue(TacticalDeployment.initial(a.unitId,Power.EMPIRE,2487,players,stocks(),galaxy).position.x>0,"no revolt, one camp")
+        assertTrue(TacticalDeployment.initial(a.unitId,2487,players,stocks(),galaxy).position.x>0,"no revolt, one camp")
     }
 }

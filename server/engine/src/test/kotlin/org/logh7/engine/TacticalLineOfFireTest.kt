@@ -16,15 +16,15 @@ class TacticalLineOfFireTest {
             mapOf(10 to OutfitWarehouse(10,power,OutfitKind.PATROL,1000)),nextShipId=3)
     }
     @Test fun friendlyHullBlocksAConventionalShotAndEnemyHullDoesNot() {
-        assertTrue(TacticalLineOfFire.blocked(1,2487,Power.EMPIRE,TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(2),galaxy))
-        assertFalse(TacticalLineOfFire.blocked(1,2487,Power.EMPIRE,TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(3),galaxy))
-        assertFalse(TacticalLineOfFire.blocked(2,2487,Power.EMPIRE,TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(2),galaxy))
+        assertTrue(TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(2),galaxy))
+        assertFalse(TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(3),galaxy))
+        assertFalse(TacticalLineOfFire.blocked(2,2487,Camp(Power.EMPIRE,false),TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(2),galaxy))
     }
     @Test fun mobileFortressUsesItsSavedPositionForBlocking() {
         val before=state(3);val point=TacticalPoint(0f,3f)
         val motion=TacticalMotion(2487,100,TacticalPose(point,0f),0f,0f,listOf(point))
         val moved=before.copy(tacticalCommands=TacticalCommandState(fortresses=mapOf(1000 to TacticalFortressMotion(2487,motion))))
-        assertFalse(TacticalLineOfFire.blocked(1,2487,Power.EMPIRE,TacticalPoint(0f,0f),TacticalPoint(0f,5f),100,emptyList(),before,galaxy))
-        assertTrue(TacticalLineOfFire.blocked(1,2487,Power.EMPIRE,TacticalPoint(0f,0f),TacticalPoint(0f,5f),100,emptyList(),moved,galaxy))
+        assertFalse(TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),TacticalPoint(0f,0f),TacticalPoint(0f,5f),100,emptyList(),before,galaxy))
+        assertTrue(TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),TacticalPoint(0f,0f),TacticalPoint(0f,5f),100,emptyList(),moved,galaxy))
     }
 }

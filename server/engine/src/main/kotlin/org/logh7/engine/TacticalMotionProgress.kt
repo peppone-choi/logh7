@@ -6,7 +6,7 @@ internal object TacticalMotionProgress {
         events:MutableList<TacticalMovement>):PlanetStocks {
         val now=session.gameMillis/1000
         fun audience(grid:Int)=players.mapNotNull {(account,p)->session.participants[account]?.takeIf {
-            it.online && it.power==p.power && p.grid==grid && p.baseId==0 && p.cpPaused
+            it.online && it.country==p.country && p.grid==grid && p.baseId==0 && p.cpPaused
         }?.connection?.let {p.characterId to it}}.toMap()
         fun progress(unit:Int,character:Int,motion:TacticalMotion,driftLimit:Float=BlackHoleTides.DRIFT_VELOCITY):TacticalMotion {
             val completed=motion.completedWaypoints(now)
@@ -27,7 +27,7 @@ internal object TacticalMotionProgress {
             if(!player.cpPaused || player.baseId!=0 || player.hull==null)continue
             val motion=player.motion?.takeIf {it.grid==player.grid} ?: if(BlackHoleTides.edge(galaxy,player.grid)==null)continue else {
                 // A flagship that has not moved yet still drifts from its deployment pose.
-                val pose=TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,original,galaxy)
+                val pose=TacticalDeployment.initial(player.unitId,player.grid,players.values,original,galaxy)
                 TacticalMotion(player.grid,now,pose,0f,pose.direction,listOf(pose.position))
             }
             // Navigator allows a parallel motion only within half its engine output.

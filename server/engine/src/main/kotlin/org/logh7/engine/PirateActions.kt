@@ -77,16 +77,15 @@ object PirateActions {
             if(!engaged)continue
             for(unit in fleet.units.filter {it.boats>0}) {
                 val origin=pose(s,unit.id) ?: continue
-                val candidates=players.values.filter {it.cpPaused && it.grid==fleet.grid && it.baseId==0 && it.hull!=null}.map {it.unitId to it.power} +
+                val candidates=players.values.filter {it.cpPaused && it.grid==fleet.grid && it.baseId==0 && it.hull!=null}.map {it.unitId} +
                     s.outfits.values.filter {it.positionIn(g)==OutfitPosition(fleet.grid)}.flatMap {o->o.activeShips?.values.orEmpty()
-                        .filter {it.boats>0}.map {it.id to if(o.power==2)Power.EMPIRE else Power.ALLIANCE}}
-                val victim=candidates.mapNotNull {(id,power)->
-                    val hostile=if(power==Power.EMPIRE)Power.ALLIANCE else Power.EMPIRE
-                    TacticalCombat.target(id,fleet.grid,hostile,s,g,players)?.let {t->
+                        .filter {it.boats>0}.map {it.id}}
+                val victim=candidates.mapNotNull {id->
+                    TacticalCombat.target(id,fleet.grid,Camp.PIRATES,s,g,players)?.let {t->
                         val at=t.personal?.second?.let {p->p.motion?.pose(now,p.posture,g,s)?.position ?:
-                            TacticalDeployment.initial(p.unitId,p.power,p.grid,players.values,s,g).position} ?:
+                            TacticalDeployment.initial(p.unitId,p.grid,players.values,s,g).position} ?:
                             t.regular?.second?.tactical?.motion?.pose(now,t.regular.second.posture,g,s)?.position ?:
-                            TacticalDeployment.initial(id,power,fleet.grid,players.values,s,g).position
+                            TacticalDeployment.initial(id,fleet.grid,players.values,s,g).position
                         Triple(id,t,at)}}
                     .minByOrNull {(_,_,at)->kotlin.math.hypot((at.x-origin.position.x).toDouble(),(at.y-origin.position.y).toDouble())} ?: continue
                 val (id,target,at)=victim

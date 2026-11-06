@@ -221,7 +221,7 @@ class TacticalSupportTest {
         val own=s.stocks.outfits.getValue(1)
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(supplies=13000,activeShips=ActiveShipUnits(
             own.activeShips!!.values.map {if(it.id==2)it.copy(damaged=0,supplies=3000) else it}))))
-        val victim=checkNotNull(TacticalCombat.target(2,2488,Power.ALLIANCE,s.stocks,galaxy,s.players))
+        val victim=checkNotNull(TacticalCombat.target(2,2488,Camp(Power.ALLIANCE,false),s.stocks,galaxy,s.players))
         val hit=TacticalCombat.strike(session,galaxy,s.players.toMutableMap(),s.stocks,99,2488,1,now,2,TacticalWeapon.BEAM,
             TacticalWeaponMount(0,63,68,0),100,TacticalPose(TacticalPoint(0f,2f),0f),victim)
         s.stocks=hit.first

@@ -1023,8 +1023,12 @@ class GameExchange(
                         check(gameStarted && world != null && stock != null)
                         val ids = if (opcode == 0x032a) org.logh7.protocol.OutfitMessages.query(body) else null
                         val query = if (opcode == 0x032c) org.logh7.protocol.OutfitMessages.gridQuery(body) else null
-                        pendingWorld = stocks().thenApply { stored -> listOf(if (ids != null) world.outfits(ids,checkNotNull(stored))
-                            else world.gridOutfits(checkNotNull(query),checkNotNull(stored))) }
+                        pendingWorld = stocks().thenApply { stored ->
+                            val character=checkNotNull(currentCharacter(identity.account))
+                            val country=currentProfile(identity.account,character.id.toInt()).country?.takeIf {character.power==query?.power}
+                            listOf(if (ids != null) world.outfits(ids,checkNotNull(stored))
+                                else world.gridOutfits(checkNotNull(query),checkNotNull(stored),country))
+                        }
                         return null
                     }
                     0x0322 -> {
@@ -1483,7 +1487,7 @@ class GameExchange(
                                         (if(result.changed)inventory.outfits.values.filter {it.power==character.power &&
                                                 it.positionIn(world.galaxy).grid==player.grid}.map {it.id}.sorted().chunked(100)
                                                 .map {world.outfits(it,inventory)}.ifEmpty {listOf(world.outfits(listOf(result.outfit),inventory))}+
-                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory),
+                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory,player.country),
                                             world.warehouse(result.base,inventory))+presence?.outfitListRefresh(connection).orEmpty() else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
                                 }
@@ -1831,7 +1835,7 @@ class GameExchange(
                                         (if(query.command==96 && query.argument>=4 && result.changed)result.stocks?.let {inventory ->
                                             inventory.outfits.values.filter {it.power==character.power && it.positionIn(world.galaxy).grid==player.grid}
                                                 .map {it.id}.sorted().chunked(100).map {world.outfits(it,inventory)}+
-                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory))+
+                                            listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory,player.country))+
                                             presence?.outfitListRefresh(connection).orEmpty()}.orEmpty() else emptyList())+
                                         // U-15: refresh the warehouse a transport command changed.
                                         (if(query.command in org.logh7.engine.TransportActions.supported && result.changed)result.stocks?.let {inventory ->

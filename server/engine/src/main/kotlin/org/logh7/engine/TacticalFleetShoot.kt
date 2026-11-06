@@ -21,7 +21,7 @@ internal object TacticalFleetShoot {
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
-        if(request.captainCard!=if(player.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
+        if(!navigation.captainCard(request,player))return reject(NavigationRejection.CARD)
         val command=checkNotNull(request.tacticalShoot)
         if(command.units.isEmpty() || command.units.size>32 || command.units.distinct().size!=command.units.size)
             return reject(NavigationRejection.UNIT)
@@ -30,24 +30,24 @@ internal object TacticalFleetShoot {
         val now=session.gameMillis/1000
         if(now>0xffffffffL-5*scale)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
-        val victim=TacticalCombat.target(command.target,player.grid,player.power,stocks,galaxy,players,CoupActions.camp(stocks,player.characterId))
+        val victim=TacticalCombat.target(command.target,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)
             ?: return reject(NavigationRejection.TARGET)
-        val own=player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.power,player.grid,players.values,stocks,galaxy)
+        val own=player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.grid,players.values,stocks,galaxy)
         val ships=command.units.filter {it!=player.unitId}.map {id ->
             if(id !in 1..999999)return reject(NavigationRejection.UNIT)
             val(o,u)=stocks.outfits.values.flatMap {o->o.activeShips?.values.orEmpty().filter {it.id==id}.map {o to it}}
                 .singleOrNull() ?: return reject(NavigationRejection.UNIT)
-            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.power!=(if(player.power==Power.EMPIRE)2 else 3) ||
+            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.country!=player.country ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
             if(u.boats<=u.damaged || u.shot!=null || u.support!=null)return reject(NavigationRejection.BUSY)
             if(u.tactical?.sequence==Long.MAX_VALUE)return reject(NavigationRejection.CLOCK)
             val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy,stocks) ?:
-                TacticalDeployment.initial(id,player.power,player.grid,players.values,stocks,galaxy)
+                TacticalDeployment.initial(id,player.grid,players.values,stocks,galaxy)
             val mount=TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},weapon)
             if(mount.power==0)return reject(NavigationRejection.WEAPON)
             if(!TacticalReload.canFire(u,weapon,now+5*scale,scale) || !(u.reload?.ready(weapon,now) ?: true))return reject(NavigationRejection.ENERGY)
             if(OutfitSupplies.distribution(o).getValue(id)<cost(u,mount,weapon))return reject(NavigationRejection.SUPPLY)
-            if(TacticalLineOfFire.blocked(id,player.grid,player.power,pose.position,
+            if(TacticalLineOfFire.blocked(id,player.grid,TacticalAuthority.camp(player,stocks),pose.position,
                 TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position,now,players.values,stocks,galaxy))return reject(NavigationRejection.RANGE)
             if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
                 checkNotNull(player.commandRange).radius(now) || TacticalArmaments.effectiveness(mount,pose,
@@ -87,8 +87,7 @@ internal object TacticalFleetShoot {
             val shot=unit.shot ?: continue
             val state=checkNotNull(unit.tactical)
             val position=outfit.positionIn(galaxy)
-            val power=if(outfit.power==2)Power.EMPIRE else Power.ALLIANCE
-            val commander=players.values.singleOrNull {it.characterId==shot.commander && it.power==power}
+            val commander=players.values.singleOrNull {it.characterId==shot.commander && it.country==outfit.country}
             if(TacticalAuthority.commander(outfit,unit,stocks)!=shot.commander || position.baseId!=0 || state.motion.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null || commander==null ||
                 commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {
@@ -97,13 +96,13 @@ internal object TacticalFleetShoot {
             if(now<shot.firesAt)continue
             // Clear even a missed/cancelled shot; retries cannot turn a one-shot command into auto fire.
             stocks=replace(stocks,outfit,unit.copy(shot=null))
-            val victim=TacticalCombat.target(shot.target,position.grid,power,stocks,galaxy,players,CoupActions.outfitCamp(stocks,outfit)) ?: continue
+            val victim=TacticalCombat.target(shot.target,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players) ?: continue
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val mount=GuardCombat.mount(TacticalArmaments.mount(spec,shot.weapon),shot.weapon,outfit,unit.id)
             val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
             val effect=TacticalArmaments.effectiveness(mount,origin,TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position)
             val cost=cost(unit,mount,shot.weapon)
-            if(effect==0 || stocks.tacticalCommands.confused(id) || TacticalLineOfFire.blocked(id,position.grid,power,origin.position,
+            if(effect==0 || stocks.tacticalCommands.confused(id) || TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),origin.position,
                 TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position,now,players.values,stocks,galaxy) || mount.power==0 || !TacticalReload.canFire(unit,shot.weapon,now,scale) || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
             val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,shot.target,shot.weapon,
                 mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,origin,victim)

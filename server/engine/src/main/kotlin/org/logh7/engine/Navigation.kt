@@ -313,8 +313,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (before.retreat != null) return reject(NavigationRejection.BUSY)
             if (before.energy?.values?.get(1) != TacticalEnergy.WARP_MAX) return reject(NavigationRejection.ENERGY)
-            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, nativeSide(before,countries), before.grid,
-                snapshot(session.generation).values + before, stocks, galaxy)
+            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.grid,
+                snapshot(session.generation).values + before, stocks, galaxy,countries)
             if (!RetreatRules.outside(pose)) return reject(NavigationRejection.INSIDE_RADAR)
             val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose)
                 ?: return reject(NavigationRejection.GRID)
@@ -331,8 +331,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
-            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, nativeSide(before,countries), before.grid,
-                snapshot(session.generation).values + before, stocks, galaxy)
+            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.grid,
+                snapshot(session.generation).values + before, stocks, galaxy,countries)
             // Retain an authoritative stationary pose; null would restore the initial deployment on reconnect.
             val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)),
                 attack = null, fire = before.fire?.copy(pending = null),posture=before.posture?.copy(order=null))
@@ -354,8 +354,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val velocity = minOf(move.velocity, maximum)
             if (now > 0xffffffffL - 5*clockScale) return reject(NavigationRejection.CLOCK)
             val origin = before.motion?.takeIf { it.grid == before.grid }?.pose(now,before.posture,galaxy) ?:
-                TacticalDeployment.initial(before.unitId, nativeSide(before,countries), before.grid,
-                    snapshot(session.generation).values + before, stocks, galaxy)
+                TacticalDeployment.initial(before.unitId, before.grid,
+                    snapshot(session.generation).values + before, stocks, galaxy,countries)
             if (TacticalTerrain.pathBlocked(galaxy, before.grid, origin.position, move.waypoints)) return reject(NavigationRejection.RANGE)
             val after = before.copy(motion = TacticalMotion(before.grid, now, origin,
                 velocity*(if(move.parallel)0.5f else 1f),if(move.parallel)origin.direction else move.direction, move.waypoints,move.parallel,
@@ -472,11 +472,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
     private fun ownBase(country:CountryId?,owner:Allegiance,camp:Int)=country!=null && owner==Allegiance.Country(country) && camp==0
-    private fun nativeSide(player:Navigator,countries:CountryCatalog):Power=when(countries.countries[player.country?.value]?.nativePower) {
-        2->Power.EMPIRE;3->Power.ALLIANCE;else->error("No native military display for country")
-    }
-    private fun captainCard(request:NavigationRequest,player:Navigator,countries:CountryCatalog):Boolean {
-        val card=when(countries.countries[player.country?.value]?.nativePower) {2->59;3->195;else->return false}
+    internal fun captainCard(request:NavigationRequest,player:Navigator,
+        countries:CountryCatalog=configuredCountries ?: CountryCatalogLoader.current()):Boolean {
+        val card=TacticalAuthority.captainCard(player,countries) ?: return false
         return request.captainCard==card
     }
     private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =

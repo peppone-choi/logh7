@@ -13,19 +13,19 @@ internal object TacticalFleetRetreat {
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
-        if(r.captainCard!=if(p.power==Power.EMPIRE)59 else 195)return reject(NavigationRejection.CARD)
+        if(!n.captainCard(r,p))return reject(NavigationRejection.CARD)
         val now=session.gameMillis/1000;val units=checkNotNull(r.tacticalRetreat)
         if(now>0xffffffffL-155*scale)return reject(NavigationRejection.CLOCK)
         val players=n.snapshot(session.generation)
-        val own=p.motion?.pose(now,p.posture,g,s) ?: TacticalDeployment.initial(p.unitId,p.power,p.grid,players.values,s,g)
+        val own=p.motion?.pose(now,p.posture,g,s) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,s,g)
         val regular=units.filter {it!=p.unitId}.map {id->
             val pair=s.outfits.values.mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id}?.let {o to it}}.singleOrNull()
                 ?: return reject(NavigationRejection.UNIT)
             val(o,u)=pair
-            if(TacticalAuthority.commander(o,u,s)!=p.characterId || o.power!=(if(p.power==Power.EMPIRE)2 else 3) ||
+            if(TacticalAuthority.commander(o,u,s)!=p.characterId || o.country!=p.country ||
                 o.positionIn(g)!=OutfitPosition(p.grid))return reject(NavigationRejection.CARD)
             if(u.boats==0 || u.support!=null || u.posture?.order!=null || u.tactical?.retreat!=null)return reject(NavigationRejection.BUSY)
-            val at=u.tactical?.motion?.pose(now,u.posture,g,s) ?: TacticalDeployment.initial(id,p.power,p.grid,players.values,s,g)
+            val at=u.tactical?.motion?.pose(now,u.posture,g,s) ?: TacticalDeployment.initial(id,p.grid,players.values,s,g)
             if(hypot((at.position.x-own.position.x).toDouble(),(at.position.y-own.position.y).toDouble())>(p.commandRange?.radius(now) ?: 0f))
                 return reject(NavigationRejection.RANGE)
             if(!RetreatRules.outside(at))return reject(NavigationRejection.INSIDE_RADAR)
@@ -60,7 +60,7 @@ internal object TacticalFleetRetreat {
                 if(u.motionCommander==0 || retreat.membershipChecked || now<retreat.startsAt)return@map u
                 val commander=players.values.singleOrNull {it.characterId==u.motionCommander && it.grid==grid && it.baseId==0 && it.cpPaused}
                 val from=commander?.let {it.motion?.pose(retreat.startsAt,it.posture,g,stocks) ?:
-                    TacticalDeployment.initial(it.unitId,it.power,grid,players.values,stocks,g)}
+                    TacticalDeployment.initial(it.unitId,grid,players.values,stocks,g)}
                 val at=state.motion.pose(retreat.startsAt,u.posture,g,stocks)
                 val admitted=from!=null && hypot((from.position.x-at.position.x).toDouble(),(from.position.y-at.position.y).toDouble())<=TacticalCommandRange.MAXIMUM
                 u.copy(tactical=state.copy(retreat=if(admitted)retreat.copy(membershipChecked=true) else null))
