@@ -1,5 +1,6 @@
 // HD texture pack loader. Author: Peppone Choi (peppone-choi)
-// When <install>\hd\ exists, the two main texture loads in 0x5e2887 read hd\<data-relative path>.png instead.
+// When <install>\hd\ exists, the two main texture loads in 0x5e2887 read hd\<data-relative path>.<fnv1a32 of the
+// original file>.png instead (logh_hd::hdFileName), so each original version gets only its own HD texture.
 // HD textures report their original size from GetLevelDesc so every UV that the client derives from it
 // (sprites: 0x4d2030) stays in original pixel space. Nothing changes when the folder is absent.
 #pragma once
@@ -84,14 +85,21 @@ static bool hdHookVtable(void* texture) {
     return true;
 }
 
-static bool hdFileSize(const char* path,unsigned* width,unsigned* height) {
+// Image size from the file header; with hash set, the whole file is read and hashed (originals only).
+static bool hdFileSize(const char* path,unsigned* width,unsigned* height,unsigned* hash=nullptr) {
     HANDLE file=CreateFileA(path,GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(file==INVALID_HANDLE_VALUE)return false;
-    const DWORD capacity=256*1024; // JPEG frame headers can follow large metadata
+    LARGE_INTEGER size{};
+    DWORD capacity=256*1024; // JPEG frame headers can follow large metadata
+    if(hash) {
+        if(!GetFileSizeEx(file,&size) || size.QuadPart<=0 || size.QuadPart>64*1024*1024){CloseHandle(file);return false;}
+        capacity=static_cast<DWORD>(size.QuadPart);
+    }
     auto buffer=static_cast<unsigned char*>(HeapAlloc(GetProcessHeap(),0,capacity));
     DWORD read=0;
-    const bool ok=buffer && ReadFile(file,buffer,capacity,&read,nullptr) &&
+    bool ok=buffer && ReadFile(file,buffer,capacity,&read,nullptr) && (!hash || read==capacity) &&
         logh_hd::imageSize(buffer,read,logh_hd::fileName(path),width,height);
+    if(ok && hash)*hash=logh_hd::fnv1a32(buffer,read);
     if(buffer)HeapFree(GetProcessHeap(),0,buffer);
     CloseHandle(file);
     return ok;
@@ -114,11 +122,13 @@ static HRESULT __cdecl hdLoad(void* device,const char* path,void** texture,unsig
     // P8 (0x29) keeps a palette; a resource with an alpha companion (+0x108) is merged by locking.
     if(hdEnabled && resource && texture && path && format!=0x29 && !resource[0x108]) {
         const char* source=reinterpret_cast<const char*>(resource+8);
-        char relative[MAX_PATH],hdPath[MAX_PATH];
-        unsigned ow=0,oh=0,hw=0,hh=0;
+        char relative[MAX_PATH],name[MAX_PATH],hdPath[MAX_PATH];
+        unsigned ow=0,oh=0,hw=0,hh=0,hash=0;
+        // The HD name holds the original's hash, so a changed original (e.g. the update) keeps its own texture.
         if(strnlen_s(source,0x100)<0x100 && logh_hd::relativeDataPath(source,relative,sizeof(relative)) &&
-            !logh_hd::skipped(relative) && !strcpy_s(hdPath,hdRoot) && !strcat_s(hdPath,relative) && !strcat_s(hdPath,".png") &&
-            hdFileSize(hdPath,&hw,&hh) && hdFileSize(path,&ow,&oh)) {
+            !logh_hd::skipped(relative) && hdFileSize(path,&ow,&oh,&hash) &&
+            logh_hd::hdFileName(relative,hash,name,sizeof(name)) && !strcpy_s(hdPath,hdRoot) && !strcat_s(hdPath,name) &&
+            hdFileSize(hdPath,&hw,&hh)) {
             if(const unsigned scale=logh_hd::scaleFor(ow,oh,hw,hh)) {
                 void* created=nullptr;
                 const HRESULT result=hdOriginalLoad(device,hdPath,&created,0x15,mips,palette); // A8R8G8B8

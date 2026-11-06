@@ -80,6 +80,11 @@ static int checkHdTextureRules() {
         logh_hd::scaleFor(64,80,64,80) || logh_hd::scaleFor(10,10,100,100) || logh_hd::scaleFor(0,1,2,2) ||
         logh_hd::scaleFor(64,80,256,160))return 910;
     if(logh_hd::reportedSize(512,4)!=128 || logh_hd::reportedSize(2,4)!=1 || logh_hd::reportedSize(64,0)!=64)return 911;
+    const unsigned char a[]={'a'};
+    if(logh_hd::fnv1a32(nullptr,0)!=0x811c9dc5u || logh_hd::fnv1a32(a,1)!=0xe40c292cu)return 912;
+    char name[24];
+    if(!logh_hd::hdFileName("x\\a.tga",0x0123abcdu,name,sizeof(name)) || strcmp(name,"x\\a.tga.0123abcd.png"))return 913;
+    if(!logh_hd::hdFileName("ab",1,name,16) || strcmp(name,"ab.00000001.png") || logh_hd::hdFileName("abc",1,name,16))return 914;
     return 0;
 }
 static bool legacyKoreanGlyphTest() {

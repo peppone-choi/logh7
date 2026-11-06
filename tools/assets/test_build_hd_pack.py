@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from build_hd_pack import build, read_rules, skipped
+from build_hd_pack import build, fnv1a32, read_rules, skipped
 
 
 def tga(path, w, h):
@@ -37,10 +37,14 @@ class RulesTest(unittest.TestCase):
 
 
 class BuildTest(unittest.TestCase):
+    def test_fnv_matches_dll_vectors(self):
+        self.assertEqual(fnv1a32(b''), 0x811c9dc5)
+        self.assertEqual(fnv1a32(b'a'), 0xe40c292c)
+
     def test_pack_layout_and_checks(self):
         with tempfile.TemporaryDirectory() as d:
             d = Path(d)
-            src, up, out = d / 'data', d / 'up', d / 'out'
+            src, upd, up, up2, out = d / 'data', d / 'upd', d / 'up', d / 'up2', d / 'out'
             tga(src / 'image/a.tga', 4, 4)
             tga(src / 'image/b_col_p.tga', 4, 4)
             tga(src / 'image/wrong.tga', 4, 4)
@@ -57,12 +61,24 @@ class BuildTest(unittest.TestCase):
             png(up / 'hi/x2/model/images/Hi/s.bmp.tga.png', 16, 16)
             png(up / 'hi/x4/model/images/Hi/s.bmp.tga.png', 32, 32)
             png(up / 'midlo/x2/model/images/Mid/only.tga.png', 4, 4)
-            entries, rejected = build(src, up, out, 2, read_rules())
-            got = {e['rel']: e['size'] for e in entries}
-            self.assertEqual(got, {'image/a.tga': [8, 8], 'model/images/Hi/s.bmp.tga': [16, 16],
-                                   'model/images/Mid/s.bmp.tga': [8, 8], 'model/images/Mid/only.tga': [4, 4]})
-            self.assertTrue((out / 'hd/image/a.tga.png').exists())
-            self.assertTrue((out / 'hd/model/images/Mid/s.bmp.tga.png').exists())
+            # 업데이트판: Hi s 가 바뀌어(크기 16) 같은 경로에 다른 파일이 생긴다. Mid only 는 그대로(중복 생략).
+            tga(upd / 'model/images/Hi/s.bmp.tga', 16, 16)
+            tga(upd / 'model/images/Mid/only.tga', 2, 2)
+            (up2 / 'hi').mkdir(parents=True)
+            (up2 / 'hi/manifest.json').write_text(json.dumps({'items': [{'rel': 'model/images/Hi/s.bmp.tga'}]}), encoding='utf-8')
+            png(up2 / 'hi/x2/model/images/Hi/s.bmp.tga.png', 32, 32)
+            entries, rejected = build([(src, up), (upd, up2)], out, 2, read_rules())
+
+            def name(root, rel):
+                return f"{rel}.{fnv1a32((root / rel).read_bytes()):08x}.png"
+            got = sorted((e['file'], tuple(e['size'])) for e in entries)
+            self.assertEqual(got, sorted([(name(src, 'image/a.tga'), (8, 8)),
+                                          (name(src, 'model/images/Hi/s.bmp.tga'), (16, 16)),
+                                          (name(src, 'model/images/Mid/s.bmp.tga'), (8, 8)),
+                                          (name(src, 'model/images/Mid/only.tga'), (4, 4)),
+                                          (name(upd, 'model/images/Hi/s.bmp.tga'), (32, 32))]))
+            for f, _ in got:
+                self.assertTrue((out / 'hd' / f).exists(), f)
             reasons = {r['rel']: r['reason'] for r in rejected}
             self.assertEqual(reasons['image/b_col_p.tga'], 'skip rule')
             self.assertTrue(reasons['image/wrong.tga'].startswith('size'))

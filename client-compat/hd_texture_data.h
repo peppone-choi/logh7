@@ -102,4 +102,23 @@ static unsigned scaleFor(unsigned ow,unsigned oh,unsigned hw,unsigned hh) {
 // The size reported to the game: the created HD level divided by the pack scale.
 static unsigned reportedSize(unsigned actual,unsigned k){return k? (actual/k? actual/k:1) : actual;}
 
+// FNV-1a 32-bit over the original file bytes. The HD file name carries it so a pack made from the
+// base install never replaces a texture the 2004-05-14 update changed under the same path.
+static unsigned fnv1a32(const unsigned char* d,size_t n) {
+    unsigned h=2166136261u;
+    for(size_t i=0;i<n;++i){h^=d[i];h*=16777619u;}
+    return h;
+}
+
+// "image\icon\a.tga" + 0x1234abcd -> "image\icon\a.tga.1234abcd.png" (lower-case hex).
+static bool hdFileName(const char* relative,unsigned hash,char* out,size_t capacity) {
+    const size_t n=strlen(relative);
+    if(n+14>capacity)return false; // ".xxxxxxxx.png" plus the terminator
+    memcpy(out,relative,n);
+    out[n]='.';
+    for(int i=0;i<8;++i)out[n+1+i]="0123456789abcdef"[(hash>>(28-4*i))&15];
+    memcpy(out+n+9,".png",5);
+    return true;
+}
+
 } // namespace logh_hd
