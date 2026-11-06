@@ -197,16 +197,31 @@ def restore(args: argparse.Namespace) -> None:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(source), target)
         print(f"replaced state moved to {saved}")
+    restored = 0
     for entry in manifest["files"]:
+        if entry["group"] == DEFINITIONS:
+            continue
         target = roots[entry["group"]] / entry["name"]
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(archive / entry["group"] / entry["name"], target)
         if sha256(target) != entry["sha256"]:
             raise SystemExit(f"restore copy mismatch: {target}")
-    print(f"restored {len(manifest['files'])} files from {archive}")
+        restored += 1
+    print(f"restored {restored} files from {archive}")
+    definitions_hint(manifest, archive)
 
 
 OWNER = "LOGH7-WORLD-OWNER-1"
+# A live backup with LOGH7_DEFINITIONS_JDBC_URL also holds the definitions DB as one psql script. The file
+# tools restore only files; the database is restored separately, into a DB with the same V1..Vn schema.
+DEFINITIONS = "definitions"
+
+
+def definitions_hint(manifest: dict, folder: Path) -> None:
+    for entry in manifest["files"]:
+        if entry["group"] == DEFINITIONS:
+            script = (folder / DEFINITIONS / entry["name"]).resolve()
+            print(f"definitions DB not restored here; with the server stopped run: psql -v ON_ERROR_STOP=1 -1 -f {script}")
 
 
 def restore_to(args: argparse.Namespace) -> None:
@@ -225,6 +240,8 @@ def restore_to(args: argparse.Namespace) -> None:
     roots = {"characters": root / "characters", "world": root / "world", "session": root / "session"}
     if "accounts" in manifest:
         roots["accounts"] = root / "accounts"
+    if any(entry["group"] == DEFINITIONS for entry in manifest["files"]):
+        roots[DEFINITIONS] = root / DEFINITIONS
     for path in roots.values():
         path.mkdir(parents=True, exist_ok=True)
     world = roots["world"].resolve()
@@ -253,6 +270,7 @@ def restore_to(args: argparse.Namespace) -> None:
     print(f"LOGH7_SESSION_STORE_DIR={roots['session'].resolve()}")
     if "accounts" in manifest:
         print(f"LOGH7_ACCOUNTS_FILE={(roots['accounts'] / manifest['accounts']).resolve()}")
+    definitions_hint(manifest, root)
 
 
 def main(argv: list[str] | None = None) -> None:
