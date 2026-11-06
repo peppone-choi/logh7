@@ -30,7 +30,7 @@ object GridForces {
                     outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
             } == true
             // U-10: a revolt's rebels count as their side's rebel camp (manual p.31).
-            add(it.grid, Force(Camp.of(it, stocks?.let { s -> CoupActions.rebel(s, player.characterId) } == true), 1, nonSolo = grouped, ship = true))
+            add(it.grid, Force(Camp.of(it, stocks?.let { s -> CoupActions.rebel(s, player.characterId,player.country) } == true), 1, nonSolo = grouped, ship = true))
         }
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)

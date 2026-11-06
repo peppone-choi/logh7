@@ -27,7 +27,7 @@ class CoupActionsTest {
         assertEquals(SocialRejection.RANK,act(CoupActions.INTENT,stocks(rank=8)).rejection)
         val started=act(CoupActions.INTENT,stocks())
         assertNull(started.rejection);assertEquals(360,started.player?.pcp)
-        val s=assertNotNull(started.stocks);assertEquals(2,s.social.coup.plots.getValue(10000).power)
+        val s=assertNotNull(started.stocks);assertEquals(CountryId(2),s.social.coup.plots.getValue(10000).country)
         assertEquals(SocialRejection.BUSY,act(CoupActions.INTENT,s).rejection)
         assertEquals(SocialRejection.STALE,act(CoupActions.REVOLT,stocks()).rejection,"no plot yet")
         val asked=act(CoupActions.CONSPIRACY,s,target=10001)
@@ -35,7 +35,7 @@ class CoupActionsTest {
         if(asked.outcome==1)assertTrue(10001 in assertNotNull(asked.stocks).social.coup.plots.getValue(10000).consenting)
     }
     @Test fun aRevoltTurnsTheBaseRebelGivesTheLeaderCardsAndEndsWhenTheLeaderIsDetained() {
-        val plotted=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,setOf(10001))))))}
+        val plotted=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,setOf(10001))))))}
         val joined=assertNotNull(act(CoupActions.JOIN,plotted,"b").stocks)
         assertEquals(listOf(10001),joined.social.coup.plots.getValue(10000).members)
         val revolt=act(CoupActions.REVOLT,joined)
@@ -46,30 +46,30 @@ class CoupActionsTest {
         assertTrue(68 in held && 58 !in held,"盟主 replaces the regular card: $held")
         assertEquals(CoupActions.alias(58),held.single {it!=68})
         assertEquals(setOf(69),policy.held(s,10001).map {it.card}.toSet(),"副盟主")
-        assertTrue(s.social.coup.revolting(2))
+        assertTrue(s.social.coup.revolting(CountryId(2)))
         val caught=s.copy(social=s.social.copy(justice=JusticeState(detentions=mapOf(10000 to Detention(10000,2,0,86400)))))
         val ended=CoupActions.settle(galaxy,caught,100)
         assertEquals(0,ended.bases.getValue(1049).camp);assertTrue(ended.social.coup.plots.isEmpty())
         assertTrue(policy.held(ended,10000).isEmpty())
     }
     @Test fun rebelsAndTheRegularCampOfTheSameSideAreEnemiesInTactics() {
-        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
+        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,revolt=5)))))}
         val hull=FlagshipHull(Flagships.forType(2,0).kind,0)
         val players=mapOf("a" to a.copy(baseId=0,mode=5,spotId=0,cpPaused=true,hull=hull),"b" to b.copy(baseId=0,mode=5,spotId=0,cpPaused=true,hull=hull))
-        assertEquals(1,CoupActions.camp(s,10000));assertEquals(0,CoupActions.camp(s,10001))
+        assertEquals(1,CoupActions.camp(s,10000,CountryId(2)));assertEquals(0,CoupActions.camp(s,10001,CountryId(2)))
         assertNotNull(TacticalCombat.target(a.unitId,2487,Camp(Power.EMPIRE,false),s,galaxy,players),"regulars may shoot the rebel")
         assertNotNull(TacticalCombat.target(b.unitId,2487,Camp(Power.EMPIRE,true),s,galaxy,players),"the rebel may shoot regulars")
         assertNull(TacticalCombat.target(b.unitId,2487,Camp(Power.EMPIRE,false),s,galaxy,players),"regulars stay friends")
         assertNull(TacticalCombat.target(a.unitId,2487,Camp(Power.EMPIRE,false),stocks(),galaxy,players),"no revolt, no enemy")
     }
     @Test fun aRebelFlagshipCountsAsItsSidesRebelCampInTheGrid() {
-        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
+        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,revolt=5)))))}
         val camps=GridForces.collect(galaxy,1,listOf(a,b),s).getValue(2487).map {it.camp}.toSet()
         assertTrue(Camp(Power.EMPIRE,true) in camps && Camp(Power.EMPIRE,false) in camps,"$camps")
         assertFalse(GridForces.collect(galaxy,1,listOf(a,b),stocks()).getValue(2487).any {it.camp.insurgent})
     }
     @Test fun holdingTheCapitalForSevenDaysMakesTheLeaderHeadOfState() {
-        val plotted=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,setOf(10001))))))}
+        val plotted=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,setOf(10001))))))}
         val revolted=assertNotNull(act(CoupActions.REVOLT,assertNotNull(act(CoupActions.JOIN,plotted,"b").stocks)).stocks)
         val withEmperor=policy.set(revolted.copy(bases=revolted.bases+(1049 to revolted.bases.getValue(1049).copy(camp=0))),
             OfficeHolding(1,1049,10009)).let {it.copy(bases=it.bases+(1049 to it.bases.getValue(1049).copy(camp=1)))}
@@ -83,7 +83,7 @@ class CoupActionsTest {
         assertTrue(policy.holders(won,1).none {it.character==10009},"the old emperor loses the seat")
     }
     @Test fun rebelsDeployOnTheOtherEdgeFacingTheirRegularCamp() {
-        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,2,0,revolt=5)))))}
+        val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,revolt=5)))))}
         val players=listOf(a.copy(baseId=0,mode=5,spotId=0),b.copy(baseId=0,mode=5,spotId=0))
         val rebel=TacticalDeployment.initial(a.unitId,2487,players,s,galaxy)
         val regular=TacticalDeployment.initial(b.unitId,2487,players,s,galaxy)

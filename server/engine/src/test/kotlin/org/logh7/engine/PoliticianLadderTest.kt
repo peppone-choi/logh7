@@ -78,7 +78,7 @@ class PoliticianLadderTest {
     @Test fun aRevoltKeepsTheThroneForTheCoupsOutcome() {
         // CD p.38: succession applies to a vacancy other than by coup.
         val people=mapOf(4 to StrategicPerson(merit=90))
-        val revolt=CoupState(mapOf(9 to Plot(9,2,0,revolt=1)))
+        val revolt=CoupState(mapOf(9 to Plot(9,CountryId(2),0,revolt=1)))
         val s=stocks.copy(strategic=StrategicState(people=people),social=stocks.social.copy(coup=revolt))
         val result=PoliticianLadder.monthly(galaxy,s,listOf(id(4,2),id(9,2)),1)
         assertTrue(OrganizationalOfficePolicy(galaxy).holders(result,1).isEmpty())

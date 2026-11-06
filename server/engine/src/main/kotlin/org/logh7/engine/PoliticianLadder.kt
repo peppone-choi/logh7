@@ -47,7 +47,7 @@ object PoliticianLadder {
         val policy=OrganizationalOfficePolicy(galaxy)
         val capital=galaxy.bases.singleOrNull {Capital.of(it)==Capital.ALLIANCE} ?: return false
         val role=OrganizationOffices.of(CHAIRMAN_CARD) ?: return false
-        return policy.active(stocks,role,capital.id) && policy.holders(stocks,CHAIRMAN_CARD).isEmpty() && !stocks.social.coup.revolting(3)
+        return policy.active(stocks,role,capital.id) && policy.holders(stocks,CHAIRMAN_CARD).isEmpty() && !stocks.social.coup.revolting(CountryId(3))
     }
     /** 議長選出: fills a vacant chairman seat from the alliance politicians (see the class comment). */
     fun election(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>):PlanetStocks {

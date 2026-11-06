@@ -274,7 +274,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         fun enterableFrom(player: Navigator, units: Int, solo: Boolean): (Int) -> Boolean {
             val forces = GridForces.collect(galaxy, session.generation, snapshot(session.generation).values, stocks)
             return { grid -> GridEntryRules.evaluate(GridForces.state(galaxy, grid, forces),
-                GridEntry(Camp.of(player, stocks?.let { CoupActions.rebel(it, player.characterId) } == true), units, solo)) == GridEntryVerdict.ALLOWED }
+                GridEntry(Camp.of(player, stocks?.let { CoupActions.rebel(it, player.characterId,player.country) } == true), units, solo)) == GridEntryVerdict.ALLOWED }
         }
         fun warpCruise(origin: Int, target: Int) = Math.toIntExact((WarpCourse.cruiseCost(origin, target).toLong() *
             policy.cruiseCost + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)

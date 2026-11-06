@@ -122,15 +122,17 @@ internal object SocialStateCodec {
     private fun ids(values:Collection<Int>)=values.joinToString(",").ifEmpty {"-"}
     private fun ids(text:String)=if(text=="-")emptyList() else text.split(',').map {it.toInt()}
     private fun coup(c:CoupState)=c.plots.toSortedMap().values.joinToString(";") {p->
-        (listOf(p.leader,p.power,p.since,p.revolt,ids(p.consenting.sorted()),ids(p.members),ids(p.bases.sorted()))+
-            (if(p.capitalSince>0)listOf(p.capitalSince) else emptyList())).joinToString(":")}
+        (listOf(p.leader,p.country.value,p.since,p.revolt,ids(p.consenting.sorted()),ids(p.members),ids(p.bases.sorted()))+
+            (if(p.capitalSince>0)listOf(p.capitalSince) else emptyList())+
+            (if(p.capitalBase>0)listOf(p.capitalBase) else emptyList())).joinToString(":")}
         .ifEmpty {"-"}+"/"+c.loyalty.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
     private fun coup(text:String):CoupState {
         val (plots,loyalty)=text.split('/').also {require(it.size==2)}
         return CoupState(if(plots=="-")emptyMap() else plots.split(';').associate {row->
-            val v=row.split(':');require(v.size in 7..8)
-            v[0].toInt() to Plot(v[0].toInt(),v[1].toInt(),v[2].toLong(),ids(v[4]).toSet(),ids(v[5]),v[3].toLong(),ids(v[6]).toSet(),
-                if(v.size==8)v[7].toLong().also {require(it>0)} else 0)},
+            val v=row.split(':');require(v.size in 7..9)
+            v[0].toInt() to Plot(v[0].toInt(),CountryId(v[1].toInt()),v[2].toLong(),ids(v[4]).toSet(),ids(v[5]),v[3].toLong(),ids(v[6]).toSet(),
+                if(v.size>=8)v[7].toLong().also {require(it>0)} else 0,
+                if(v.size==9)v[8].toInt().also {require(it>0)} else 0)},
             if(loyalty=="-")emptyMap() else loyalty.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toInt()}})
     }
     /** Optional eleventh field (資金投入, 2026-11-01): confidence "power:for:against,.." then '/' and support "candidate:total,..". */

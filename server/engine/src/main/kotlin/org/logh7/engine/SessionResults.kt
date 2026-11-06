@@ -113,14 +113,14 @@ object SessionResults {
         val session=checkNotNull(snapshot.session);val end=checkNotNull(session.ended)
         val stocks=checkNotNull(snapshot.planetStocks)
         val withCoup=if(given.coupSides!=null)given else given.copy(coupSides=Power.entries.filter {
-            stocks.social.coup.revolting(it.country.value)}.toSet())
+            stocks.social.coup.revolting(it.country)}.toSet())
         val legacyConditions=if(withCoup.imperialLeaderAtEnemyCapital!=null)withCoup else
             withCoup.copy(imperialLeaderAtEnemyCapital=imperialLeaderAtEnemyCapital(stocks,snapshot.navigators.values,galaxy=galaxy,catalog=catalog))
         val statistics=statistics(galaxy,snapshot)
         val ids=statistics.countries.keys+session.countries+end.affectedCountries+end.remainingCountries.orEmpty()+
             if(session.countries.isEmpty() && end.remainingCountries==null)Power.entries.map {it.country}.toSet() else emptySet()
         val facts=ids.associateWith {country->given.countries[country] ?: CountryVictoryConditions(
-            legacyConditions.noCoup(country),legacyConditions.leader(country) ?: if(OrganizationOffices.system(country,catalog)==2)
+            legacyConditions.noCoup(country) ?: !stocks.social.coup.revolting(country),legacyConditions.leader(country) ?: if(OrganizationOffices.system(country,catalog)==2)
                 imperialLeaderAtEnemyCapital(stocks,snapshot.navigators.values,country,galaxy,catalog) else null)}
         return assessCountries(end,statistics.total,ids.associateWith {statistics.countries[it] ?: SessionStatistics()},
             legacyConditions.copy(countries=facts),catalog)

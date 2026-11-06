@@ -47,7 +47,7 @@ class FortressArmorTest {
         val home=GalaxyBase(1004,2490,60,0,"Home",0,28f,86400,0,0f,2f)
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",3),GalaxySystem(4,2490,4,"Home",3)),listOf(fixed,home),Power.entries.associateWith {2487})
         fun ships(id:Int)=ActiveShipUnits(listOf(ActiveShipUnit(id,UnitStack(64),posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1002))))
-        val coup=CoupState(mapOf(10001 to Plot(10001,3,0,revolt=5)),loyalty=mapOf(2 to 60))
+        val coup=CoupState(mapOf(10001 to Plot(10001,CountryId(3),0,revolt=5)),loyalty=mapOf(2 to 60))
         val start=PlanetStocks(1,0,mapOf(1002 to PlanetStock(1002,3,1,0,0,0),1004 to PlanetStock(1004,3,0,0,0,0)),
             mapOf(2 to OutfitStock(2,3,OutfitKind.FLEET,1002,102,10001,units=UnitInventory(ships(2).quantities()),activeShips=ships(2)),
                 3 to OutfitStock(3,3,OutfitKind.FLEET,1002,103,10003,units=UnitInventory(ships(3).quantities()),activeShips=ships(3))),

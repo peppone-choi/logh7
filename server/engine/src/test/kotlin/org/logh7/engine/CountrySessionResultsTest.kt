@@ -82,14 +82,19 @@ class CountrySessionResultsTest {
         assertEquals(false,SessionResults.imperialLeaderAtEnemyCapital(dead,listOf(player()),a,galaxy,catalog))
     }
 
-    @Test fun worldResultKeepsEliminatedRowsAndDoesNotInventCoupFactsForAnUnmigratedCountry() {
+    @Test fun worldResultKeepsEliminatedRowsAndReadsCoupFactsByActualCountry() {
         val session=SessionSimulation(SessionRules.load()).snapshot().copy(ended=end,countries=setOf(a,b,c))
         val result=SessionResults.fromWorld(galaxy,WorldSnapshot(0,0,session,navigators=mapOf("offline" to player()),planetStocks=stocks()),catalog=catalog)
         assertEquals(setOf(a,b,c),result.countries.keys)
         assertEquals(SessionStatistics(),result.countries.getValue(b).statistics)
         assertEquals(30,result.total.population)
-        assertNull(result.conditions.noCoup(a))
+        assertEquals(true,result.conditions.noCoup(a))
         assertEquals(true,result.conditions.leader(a))
-        assertEquals(SessionGrade.UNRESOLVED,result.countries.getValue(a).grade)
+        assertEquals(SessionGrade.DECISIVE,result.countries.getValue(a).grade)
+        val rebel=stocks().copy(social=stocks().social.copy(coup=CoupState(mapOf(10002 to Plot(10002,b,0,revolt=1)))))
+        val other=SessionResults.fromWorld(galaxy,WorldSnapshot(0,0,session,planetStocks=rebel),catalog=catalog)
+        assertEquals(true,other.conditions.noCoup(a))
+        assertEquals(false,other.conditions.noCoup(b))
+        assertEquals(true,other.conditions.noCoup(c))
     }
 }

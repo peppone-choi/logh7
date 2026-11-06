@@ -18,6 +18,7 @@ class SocialActionsWireTest {
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
     private val square=galaxy.facilities.getValue(1049).single {it.kind==2}.spots.single().id
     private inner class State:WorldStateCommitter {
+        var failSave=false
         var players=(0..1).associate {i->"load-%03d".format(i) to Navigator(1,10000+i,Power.EMPIRE,2487,1000,1000,1000,
             baseId=1049,mode=1,spotId=square,cpRecoveryAt=now)}
         var stocks=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1049)2 else 3,0,
@@ -26,7 +27,10 @@ class SocialActionsWireTest {
                 abilities=listOf(50,60,50,50,50,50,50,50),money=789)}))
         val navigation=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
-        override fun saveWorld(navigation:Map<String,Navigator>,inventory:PlanetStocks?){players=navigation;stocks=checkNotNull(inventory)}
+        override fun saveWorld(navigation:Map<String,Navigator>,inventory:PlanetStocks?){
+            if(failSave)throw java.io.IOException("test save failure")
+            players=navigation;stocks=checkNotNull(inventory)
+        }
     }
     private fun request(phase:Int=0,ticket:Int=0,character:Int=10000,token:Int=37)=ByteBuffer.allocate(31)
         .putShort(0x1200).putInt(character).putShort(0x7f10).putShort(14).putShort(0).putShort(0).putInt(ticket)
@@ -44,6 +48,50 @@ class SocialActionsWireTest {
         val surname=b.get().toInt() and 255;b.position(b.position()+surname*2+14)
         val ship=b.get().toInt() and 255;b.position(b.position()+ship*2+28)
         return b.get().toInt() and 255
+    }
+    @Test fun encryptedCoupEnvelopeKeepsCountryCostsAndRollbackAcrossRestart() {
+        val state=State()
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(
+            people=mapOf(10000 to StrategicPerson(rank=5)),offices=listOf(OfficeHolding(58,1049,10000))))
+        fun perform(client:SyntheticClient,command:Int,status:Int=0) {
+            client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+                .putShort(command.toShort()).putShort(0).putShort(0).putInt(0).put(0).putInt(0).putShort(0).putInt(0).putShort(0).array())
+            assertEquals(status,ByteBuffer.wrap(next(client,0x1200)).getShort(16).toInt())
+            next(client,0x1201);next(client,0x0356)
+        }
+        LoadFixture(directory.resolve("coup-first"),2,LoadMetrics(),galaxy,ticking=false,
+            navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),true,false).client
+            actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            perform(actor,CoupActions.INTENT)
+            assertEquals(360,state.players.getValue("load-000").pcp)
+            assertEquals(CountryId(2),state.stocks.social.coup.plots.getValue(10000).country)
+            perform(actor,CoupActions.REVOLT,SocialRejection.CP.ordinal+1)
+            assertEquals(0,state.stocks.social.coup.plots.getValue(10000).revolt)
+        }
+        // Top up only the saved QA fixture before a new actor restores it.
+        state.players=state.players.mapValues {(_,p)->p.copy(pcp=1000,pcpUsed=0)}
+        LoadFixture(directory.resolve("coup-restart"),2,LoadMetrics(),galaxy,ticking=false,
+            navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),true,false).client
+            actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            state.failSave=true
+            assertFailsWith<java.io.IOException> {perform(actor,CoupActions.REVOLT)}
+            assertEquals(1000,state.players.getValue("load-000").pcp)
+            assertEquals(0,state.stocks.bases.getValue(1049).camp)
+            assertEquals(EngineHealth.STORAGE_FAILED,server.engine.health())
+            assertEquals(0,server.engine.snapshot().planetStocks!!.bases.getValue(1049).camp)
+        }
+        state.failSave=false
+        LoadFixture(directory.resolve("coup-after-failure"),2,LoadMetrics(),galaxy,ticking=false,
+            navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),true,false).client
+            actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            perform(actor,CoupActions.REVOLT)
+            assertEquals(360,state.players.getValue("load-000").pcp)
+            assertEquals(1,state.stocks.bases.getValue(1049).camp)
+            assertTrue(OfficeHolding(68,1049,10000) in state.stocks.strategic.offices)
+        }
     }
     @Test fun originalEnvelopeCommitsARealSpeechPublishesEffectsAndRestoresItsReceiptWithoutAnotherCharge() {
         val state=State();var ticket=0

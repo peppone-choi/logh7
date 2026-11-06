@@ -167,7 +167,7 @@ object TacticalDeployment {
             preferred[camp]=if(camp.insurgent) {if(side==Power.EMPIRE)Power.ALLIANCE else Power.EMPIRE} else side
         }
         for(p in players.filter {it.grid==grid && it.baseId==0}) {
-            val camp=Camp.of(p,stocks?.let {CoupActions.rebel(it,p.characterId)}==true)
+            val camp=Camp.of(p,stocks?.let {CoupActions.rebel(it,p.characterId,p.country)}==true)
             val display=p.country?.let {countries.nativePower(Allegiance.Country(it))} ?: p.shipStyle.nativePower
             add(p.unitId,camp,display)
         }

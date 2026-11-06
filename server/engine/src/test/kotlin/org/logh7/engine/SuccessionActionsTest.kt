@@ -52,7 +52,7 @@ class SuccessionActionsTest {
         val r=act(SuccessionActions.CONTEST,0,0,crowned,rival)
         assertNull(r.rejection,"${r.rejection}")
         val s=assertNotNull(r.stocks)
-        assertTrue(CoupActions.rebel(s,21));assertEquals(1,s.bases.getValue(1049).camp,"the claimant's base rises")
+        assertTrue(CoupActions.rebel(s,21,CountryId(2)));assertEquals(1,s.bases.getValue(1049).camp,"the claimant's base rises")
         assertEquals(0,s.social.succession.rival)
         assertEquals(SocialRejection.STALE,act(SuccessionActions.CONTEST,0,0,s,rival).rejection,"once")
         assertEquals(listOf(SuccessionNotice(1,21,SuccessionNotice.Kind.CONTEST,9)),SuccessionActions.notices(crowned,s,9))

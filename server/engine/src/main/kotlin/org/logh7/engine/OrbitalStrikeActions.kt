@@ -34,7 +34,7 @@ object OrbitalStrikeActions {
         if(p.hull?.woundedUntil?.let {it>now}==true || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(p.supplies<SUPPLIES)return reject(SocialRejection.MAXIMUM)
         val own=i.country
-        val camp=CoupActions.camp(s,p.characterId)
+        val camp=CoupActions.camp(s,p.characterId,p.country)
         val at=(p.motion?.pose(now,p.posture,g,s) ?: TacticalDeployment.initial(p.unitId,p.grid,players,s,g)).position
         val base=g.bases.filter {b->b.grid==p.grid && s.bases[b.id]?.let {it.country!=null && (it.country!=own || it.camp!=camp)}==true}
             .map {b->b to TacticalBasePosition.at(b,now,s).let {c->kotlin.math.hypot((c.x-at.x).toDouble(),(c.y-at.y).toDouble())-b.diameter}}
