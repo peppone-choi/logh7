@@ -1,6 +1,8 @@
 // Lobby at its native 1024x768 render, shown 4:3 in the configured screen size. Author: Peppone Choi.
 #pragma once
 #include <commctrl.h>
+#include <stdio.h>
+#include <stdlib.h>
 #pragma comment(lib, "comctl32.lib")
 
 // 0051a370 switches the lobby to a fixed 1024x768 with 00401760 (window + render size)
@@ -15,9 +17,64 @@ static LobbyBox lobbyBox;
 
 static HWND lobbyFrameWindow() { auto frame = *reinterpret_cast<BYTE**>(0x7c1b50); return frame ? at<HWND>(frame, 0x1c) : nullptr; }
 static HWND lobbyViewWindow() { auto view = *reinterpret_cast<BYTE**>(0x7c1b4c); return view ? at<HWND>(view, 0x1c) : nullptr; }
+// Optional trace for native checks: LOGH7_LOBBY_BOX_LOG names a file to append to.
+static void lobbyBoxTrace(const char* step) {
+    char path[MAX_PATH];
+    DWORD length = GetEnvironmentVariableA("LOGH7_LOBBY_BOX_LOG", path, MAX_PATH);
+    if (!length || length >= MAX_PATH) return;
+    HANDLE file = CreateFileA(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, 0, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return;
+    RECT frameWindow{}, frameClient{}, viewWindow{}, viewClient{};
+    HWND frame = lobbyFrameWindow(), view = lobbyViewWindow();
+    if (frame) { GetWindowRect(frame, &frameWindow); GetClientRect(frame, &frameClient); }
+    if (view) { GetWindowRect(view, &viewWindow); GetClientRect(view, &viewClient); }
+    auto app = *reinterpret_cast<BYTE**>(0x7c1b4c);
+    char line[512];
+    int size = _snprintf_s(line, _TRUNCATE,
+        "%s active=%d box=%dx%d screen=%dx%d memory=%dx%d render=%dx%d frame=[%ld,%ld,%ld,%ld]/%ldx%ld view=[%ld,%ld,%ld,%ld]/%ldx%ld style=%08lx\r\n",
+        step, lobbyBox.active ? 1 : 0, lobbyBox.width, lobbyBox.height, lobbyBox.screenWidth, lobbyBox.screenHeight,
+        *reinterpret_cast<int*>(0xc6ebb0 + 5 * 4), *reinterpret_cast<int*>(0xc6ebb0 + 6 * 4),
+        app ? at<int>(app, 0x2a3d8) : 0, app ? at<int>(app, 0x2a3dc) : 0,
+        frameWindow.left, frameWindow.top, frameWindow.right, frameWindow.bottom, frameClient.right, frameClient.bottom,
+        viewWindow.left, viewWindow.top, viewWindow.right, viewWindow.bottom, viewClient.right, viewClient.bottom,
+        frame ? static_cast<unsigned long>(GetWindowLongA(frame, GWL_STYLE)) : 0ul);
+    DWORD written = 0;
+    if (size > 0) WriteFile(file, line, static_cast<DWORD>(size), &written, nullptr);
+    CloseHandle(file);
+}
+// ScreenWidth/ScreenHeight from the client root's GraphicConfig.txt (the EXE reads
+// "%s/../GraphicConfig.txt"). Read the file itself: whether the native settings array at 0xc6ebb0
+// is filled before the lobby is unverified, and a native lobby check boxed the view in 3144x1084.
 static bool configuredScreen(int& width, int& height) {
-    width = *reinterpret_cast<int*>(0xc6ebb0 + 5 * 4);
-    height = *reinterpret_cast<int*>(0xc6ebb0 + 6 * 4);
+    static int cachedWidth = -1, cachedHeight = -1;
+    if (cachedWidth < 0) {
+        cachedWidth = cachedHeight = 0;
+        char path[MAX_PATH];
+        DWORD length = GetModuleFileNameA(nullptr, path, MAX_PATH);
+        char* slash = length && length < MAX_PATH ? strrchr(path, '\\') : nullptr;
+        if (slash && strcpy_s(slash + 1, MAX_PATH - (slash + 1 - path), "..\\GraphicConfig.txt") == 0) {
+            HANDLE file = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+            if (file != INVALID_HANDLE_VALUE) {
+                char text[4096] = {};
+                DWORD read = 0;
+                ReadFile(file, text, sizeof(text) - 1, &read, nullptr);
+                CloseHandle(file);
+                text[read] = 0;
+                auto value = [&](const char* key) -> int {
+                    for (char* line = text; line && *line;) {
+                        char* next = strchr(line, '\n');
+                        size_t keyLength = strlen(key);
+                        if (!strncmp(line, key, keyLength) && (line[keyLength] == '\r' || line[keyLength] == '\n'))
+                            return next ? atoi(next + 1) : 0;
+                        line = next ? next + 1 : nullptr;
+                    }
+                    return 0;
+                };
+                cachedWidth = value("ScreenWidth"); cachedHeight = value("ScreenHeight");
+            }
+        }
+    }
+    width = cachedWidth; height = cachedHeight;
     return width >= 800 && width <= 7680 && height >= 600 && height <= 4320; // launcher range
 }
 static void nativeScreenSize(void* app, int width, int height) {
@@ -66,13 +123,14 @@ static LRESULT CALLBACK lobbyFrameProc(HWND window, UINT message, WPARAM wParam,
     }
     LRESULT result = DefSubclassProc(window, message, wParam, lParam);
     // The MFC frame refills its view on WM_SIZE (restore, display change); centre it again.
-    if ((message == WM_SIZE && wParam != SIZE_MINIMIZED) || message == WM_DISPLAYCHANGE) layoutLobbyBox();
+    if ((message == WM_SIZE && wParam != SIZE_MINIMIZED) || message == WM_DISPLAYCHANGE) { layoutLobbyBox(); lobbyBoxTrace(message == WM_SIZE ? "frame-size" : "frame-display"); }
     return result;
 }
 // Replaces the two fixed lobby calls 00401760(1024, 768).
 static void __fastcall lobbyScreenSize(void* app, void*, int width, int height) {
     int screenWidth = 0, screenHeight = 0;
     HWND frame = lobbyFrameWindow(), view = lobbyViewWindow();
+    lobbyBoxTrace("lobby-enter");
     leaveLobbyBox();
     if (!configuredScreen(screenWidth, screenHeight) || (screenWidth == width && screenHeight == height) ||
         !frame || !view || at<HWND>(app, 0x2a40c) != view) { // the D3D device window must be the view
@@ -80,15 +138,19 @@ static void __fastcall lobbyScreenSize(void* app, void*, int width, int height) 
         return;
     }
     nativeScreenSize(app, screenWidth, screenHeight);
+    lobbyBoxTrace("lobby-native");
     reinterpret_cast<void(__thiscall*)(void*, int, int)>(0x401830)(app, width, height); // render size + Reset
     if (!lobbyBox.subclassed) lobbyBox.subclassed = SetWindowSubclass(frame, lobbyFrameProc, 0x4c4f4248, 0) != FALSE;
     lobbyBox = {true, lobbyBox.subclassed, screenWidth, screenHeight, width, height};
     layoutLobbyBox();
+    lobbyBoxTrace("lobby-boxed");
 }
 // Replaces the login and game calls of 00401760: the frame is refilled before the native resize.
 static void __fastcall gameScreenSize(void* app, void*, int width, int height) {
+    lobbyBoxTrace("game-enter");
     leaveLobbyBox();
     nativeScreenSize(app, width, height);
+    lobbyBoxTrace("game-native");
 }
 // Replaces the two lobby calls 004e7570(1, frame, 1024, 768), which read the render size for
 // ChangeDisplaySettings. Keep the configured display mode while the lobby is boxed.
@@ -103,6 +165,7 @@ static void __cdecl lobbyScreenMode(int mode, void* frame, int width, int height
     screenMode(mode, frame, lobbyBox.screenWidth, lobbyBox.screenHeight);
     renderWidth = savedWidth; renderHeight = savedHeight;
     layoutLobbyBox();
+    lobbyBoxTrace("lobby-mode");
 }
 struct LobbyBoxCall { unsigned address; BYTE expected[5]; void* function; };
 static bool installLobbyPillarbox() {
