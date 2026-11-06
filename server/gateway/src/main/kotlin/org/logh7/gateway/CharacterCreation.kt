@@ -191,7 +191,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                         checkNotNull(Flagships.find(kinds[if (kinds.size == 1) 0 else random.nextInt(kinds.size)]))
                     }
                         else checkNotNull(Flagships.find(previous.shipKind))
-                    message.copy(abilities = List(8) { 50 }, bonus = 10, special = 0, title = 0, rank = 20,
+                    // User policy (2026-11-06): generated captains start as ensigns; original candidates keep their own data.
+                    message.copy(abilities = List(8) { 50 }, bonus = 10, special = 0, title = 0, rank = 13,
                         shipType = ship.type, shipKind = ship.kind, shipName = "", check = 1)
                 }
                 2 -> {

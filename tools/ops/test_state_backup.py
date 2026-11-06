@@ -125,6 +125,37 @@ class StateBackupTest(unittest.TestCase):
         replaced = next(self.archive.parent.glob("backup.replaced-*"))
         self.assertEqual("qa1=newer\n", (replaced / "accounts" / "accounts.properties").read_text())
 
+    def test_a_live_backup_with_the_definitions_db_restores_files_and_points_at_the_script(self):
+        import io
+        import json
+        from contextlib import redirect_stdout
+        self.take()
+        # A live backup with LOGH7_DEFINITIONS_JDBC_URL adds definitions/definitions.sql to the manifest.
+        script = self.archive / "definitions" / "definitions.sql"
+        script.parent.mkdir()
+        script.write_text("-- LOGH7-DEFINITIONS-BACKUP-1\n")
+        manifest = json.loads((self.archive / "manifest.json").read_text(encoding="utf-8"))
+        manifest["files"].append({"group": "definitions", "name": "definitions.sql", "size": script.stat().st_size,
+                                  "sha256": state_backup.sha256(script)})
+        (self.archive / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        self.run_tool("verify", str(self.archive))
+        (self.world / "slot-1" / "stocks.tsv").write_text("changed\n")
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.run_tool("restore", str(self.archive), "--force")
+        self.assertEqual("stocks\n", (self.world / "slot-1" / "stocks.tsv").read_text())
+        self.assertIn("restored 5 files", out.getvalue())
+        self.assertIn(f"psql -v ON_ERROR_STOP=1 -1 -f {script.resolve()}", out.getvalue())
+        clean = self.archive.parent / "clean-definitions"
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.run_tool("restore-to", str(self.archive), "--to", str(clean))
+        self.assertEqual(script.read_bytes(), (clean / "definitions" / "definitions.sql").read_bytes())
+        self.assertIn(str((clean / "definitions" / "definitions.sql").resolve()), out.getvalue())
+        script.write_text("tampered\n")
+        with self.assertRaises(SystemExit):
+            self.run_tool("verify", str(self.archive))
+
     def test_running_server_is_refused(self):
         original = state_backup.server_running
         state_backup.server_running = lambda url: True

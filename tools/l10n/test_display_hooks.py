@@ -45,6 +45,23 @@ class DisplayHookTests(unittest.TestCase):
         self.assertNotIn(0x58f3e1,addresses)
         self.assertEqual(self.data,self.original.read_bytes())
 
+    def test_facility_labels_only_wrap_the_two_original_kind_name_calls(self):
+        header=(catalog.ROOT/'client-compat/facility_labels.h').read_text('utf-8')
+        values=re.search(r'const unsigned calls\[\]=\{([^}]+)\}',header)[1]
+        calls=[int(value,16) for value in values.split(',')]
+        block=re.search(r'const BYTE expected\[\]\[5\]=\{(.*?)\};',header,re.S)[1]
+        rows=re.findall(r'\{([^}]+)\}',block)
+        self.assertEqual([0x591590,0x58f21d],calls)
+        for address,row in zip(calls,rows):
+            expected=bytes(int(value,16) for value in row.split(','))
+            self.assertEqual(expected,self.raw(address,5))
+            self.assertEqual(0x4c8d10,address+5+struct.unpack_from('<i',expected,1)[0])
+        self.assertEqual(2,len(rows))
+        # Menu EDI and HUD EAX point to the decoded institution: kind +0, stable ID +4.
+        self.assertEqual(bytes.fromhex('8b4f0433d2668b17'),self.raw(0x591581,8))
+        self.assertEqual(bytes.fromhex('8b4424343bc7742533c9668b08'),self.raw(0x58f20a,13))
+        self.assertEqual(self.data,self.original.read_bytes())
+
     def test_dynamic_ship_spec_assignment_has_a_bounded_display_only_bridge(self):
         header=(catalog.ROOT/'client-compat/display_hooks.h').read_text('utf-8')
         block=re.search(r'displayShipSpecCalls\[\]=\{(.*?)\n\};',header,re.S).group(1)
@@ -172,6 +189,21 @@ class DisplayHookTests(unittest.TestCase):
         self.assertEqual('동진영',document['entries']['786420'])
         with self.assertRaisesRegex(ValueError,'hash'):
             static_resources.collect_wide(self.original,dict(document,source_sha256='0'*64),catalog.validate)
+
+    def test_lobby_country_bridge_matches_native_decoder_widgets_and_cdecl_calls(self):
+        # 2006 decoder table entry and the five-int widget rectangle/initialized flag.
+        self.assertEqual(struct.pack('<I',0x444900),self.raw(0x66cd78,4))
+        self.assertEqual(bytes.fromhex('8b4424048a480884c97415568b74240c578d7820b905000000f3a5'),
+                         self.raw(0x502940,27))
+        # Type-2 lookup has 150 slots, a -1 placeholder, and root map +0xec8.
+        self.assertEqual(bytes.fromhex('8b4424043d960000008b5130'),self.raw(0x507ba0,12))
+        self.assertEqual(bytes.fromhex('8b8481c80e000085c07d098d8264b32800'),self.raw(0x507bc2,17))
+        self.assertEqual(bytes.fromhex('8b4424048b0d2c5e210283c040894104c3'),self.raw(0x595ec0,17))
+        # Native close hides the root AND disables input; visibility alone leaves an invisible input layer.
+        self.assertEqual(bytes.fromhex('568bf16a00c6461401e872c5ffff6a008bcee879bbffff'),self.raw(0x506920,23))
+        # Lottery refresh takes a caller-cleaned argument, not a thiscall/stack-pop bridge.
+        self.assertEqual(bytes.fromhex('6a01e89ef9ffff83c404'),self.raw(0x59864b,10))
+        self.assertEqual(self.data,self.original.read_bytes())
 
     def test_lobby_wide_suffix_pushes_stay_within_original_fixed_arrays(self):
         header=(catalog.ROOT/'client-compat/literal_text.h').read_text('utf-8')

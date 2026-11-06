@@ -66,6 +66,8 @@ class GameExchange(
     private val counters:GatewayCounters?=null,
     /** While closed, new logins are refused (maintenance); existing sessions are untouched. */
     private val maintenance:MaintenanceGate?=null,
+    /** This world's lobby country catalogue (mode 7); null answers an empty catalogue. */
+    private val lobbyCountries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>)?=null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -892,7 +894,7 @@ class GameExchange(
                             } else org.logh7.protocol.LogisticsMessages.assignmentResponse(query,gameSeconds(),player.pcp,player.mcp,false)
                             listOf(reply,characterMessage(character,player,true)) +
                                 (if (accepted) listOf(world.warehouse(query.base,result.stocks),
-                                    world.outfitWarehouse(query.base,query.outfit,character.id.toInt(),character.power,checkNotNull(result.stocks)))
+                                    world.outfitWarehouse(query.base,query.outfit,character.id.toInt(),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(result.stocks)))
                                 else emptyList()) + result.recovery?.let { completedWork(it.copy(player=player),character) }.orEmpty()
                         }
                         return null
@@ -916,9 +918,9 @@ class GameExchange(
                                 if (accepted) stored.outfits.getValue(query.to).supplies else 0,
                                 units(query.from), units(query.to), accepted), characterMessage(character, player, true)) +
                                 (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(query.from, 0, 0),
-                                    character.power, stored, characterById = ::currentCharacterById),
+                                    checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, stored, characterById = ::currentCharacterById),
                                     world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(query.to, 0, 0),
-                                        character.power, stored, characterById = ::currentCharacterById)) else emptyList()) +
+                                        checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, stored, characterById = ::currentCharacterById)) else emptyList()) +
                                 result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
                         }
                         return null
@@ -951,8 +953,8 @@ class GameExchange(
                                 outfit?.let {org.logh7.engine.OutfitSupplies.capacity(it.units)} ?: 0))+
                                 (if(query.mode==1)listOf(characterMessage(character,player,true)) else emptyList())+
                                 (if(accepted && query.mode==1)listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
-                                    query.outfit,query.base,0),character.power,stored,characterById=::currentCharacterById),
-                                    world.outfitWarehouse(query.base,query.outfit,character.id.toInt(),character.power,stored)) else emptyList())+
+                                    query.outfit,query.base,0),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,stored,characterById=::currentCharacterById),
+                                    world.outfitWarehouse(query.base,query.outfit,character.id.toInt(),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,stored)) else emptyList())+
                                 result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
                         }
                         return null
@@ -985,24 +987,34 @@ class GameExchange(
                             listOf(org.logh7.protocol.LogisticsMessages.reorganizationResponse(query, gameSeconds(),
                                 player.pcp, player.mcp, supplies, accepted), characterMessage(character, player, true)) +
                                 (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
-                                    query.outfit, query.base, 0), character.power, checkNotNull(result.stocks), characterById=::currentCharacterById),
-                                    world.outfitWarehouse(query.base, query.outfit, character.id.toInt(), character.power, checkNotNull(result.stocks)))
+                                    query.outfit, query.base, 0), checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, checkNotNull(result.stocks), characterById=::currentCharacterById),
+                                    world.outfitWarehouse(query.base, query.outfit, character.id.toInt(), checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, checkNotNull(result.stocks)))
                                 else emptyList()) + result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
                         }
                         return null
                     }
                     0x032e, 0x0330 -> {
+                        if(opcode==0x032e && body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.LobbyCountryMessages.MODE) {
+                            // Before creation/lottery a game connection may read only its own world's catalogue.
+                            val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
+                            val frames=if(request.sessionId==sessionId)lobbyCountries?.invoke(request) else null
+                            return handshake.stageAll(frames ?: LobbyCountryCatalogue.empty(request),clearHeader=0)
+                        }
                         check(gameStarted && world != null && stock != null)
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
                         if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,character.power)),clearHeader=0)
                         if(party?.mode==5)return handshake.stageAll(listOf(world.countryMetadata(party,character.power)),clearHeader=0)
+                        if(party?.mode==6) {
+                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,character.power,checkNotNull(it)))}
+                            return null
+                        }
                         pendingWorld = stocks().thenApply { stored ->
                             if(party?.mode==2)world.outfitGround(party,character.power,checkNotNull(stored))
                             else if(party?.mode==3)world.outfitBattle(party,character.power,checkNotNull(stored),
                                 navigation?.snapshot()?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid,::currentCharacterById)
-                            else listOf(if(party!=null)world.outfitParty(party,character.power,checkNotNull(stored),character.id.toInt(),::currentCharacterById)
+                            else listOf(if(party!=null)world.outfitParty(party,checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(stored),character.id.toInt(),::currentCharacterById)
                                 else world.outfitUnit(checkNotNull(unit).id,character.power,checkNotNull(stored),unit.base))
                         }
                         return null
@@ -1133,7 +1145,7 @@ class GameExchange(
                         } else {
                             val character = checkNotNull(currentCharacter(identity.account))
                             pendingWorld = stocks().thenApply { listOf(if (outfit == 0) world.warehouse(base, it) else
-                                world.outfitWarehouse(base,outfit,character.id.toInt(),character.power,checkNotNull(it))) }
+                                world.outfitWarehouse(base,outfit,character.id.toInt(),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(it))) }
                             return null
                         }
                     }
@@ -1175,7 +1187,7 @@ class GameExchange(
                             listOf(org.logh7.protocol.GroundTransferMessages.reply(command,gameSeconds(),player.pcp,player.mcp,accepted,reason),
                                 characterMessage(character,player,true))+
                                 (if(accepted && outfit!=null)listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
-                                    outfit.id,0,0),character.power,stored,characterById=::currentCharacterById)) else emptyList())+
+                                    outfit.id,0,0),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,stored,characterById=::currentCharacterById)) else emptyList())+
                                 result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
                         }
                         return null
@@ -1814,7 +1826,7 @@ class GameExchange(
                                                 listOf(world.warehouse(civic.base,result.stocks)) else emptyList())+
                                             (if(civicOutfit!=null)
                                                 listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(civicOutfit.id,0,0),
-                                                    character.power,checkNotNull(result.stocks),character.id.toInt(),::currentCharacterById)) else emptyList()) else emptyList())+
+                                                    checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(result.stocks),character.id.toInt(),::currentCharacterById)) else emptyList()) else emptyList())+
                                         // U-13: guard purchase/disband changes this grid's outfits; refresh like outfit formation.
                                         (if(query.command==96 && query.argument>=4 && result.changed)result.stocks?.let {inventory ->
                                             inventory.outfits.values.filter {it.power==character.power && it.positionIn(world.galaxy).grid==player.grid}
@@ -1872,18 +1884,20 @@ class GameExchange(
                                 require(query.character==character.id.toInt())
                                 pendingWorld=stocks().thenApply { stored ->
                                     val inventory=checkNotNull(stored)
-                                    val office=inventory.logisticsOfficers[character.id.toInt()]
-                                    val allowed=inventory.outfits.values.filter { outfit ->
+                                    val country=currentProfile(identity.account,character.id.toInt()).country
+                                    val offices=org.logh7.engine.LogisticsOfficePolicy(world.galaxy)
+                                    val allowed=inventory.outfits.values.filter {outfit ->
                                         val base=inventory.bases[outfit.baseId]
-                                        office?.permits(character.power,outfit.kind)==true && outfit.power==character.power &&
-                                            base?.power==character.power && base.camp==0
+                                        country!=null && outfit.country==country && base?.belongsTo(country)==true && base.camp==0 &&
+                                            offices.permits(inventory,character.id.toInt(),country,outfit.kind,
+                                                if(query.search==32)null else query.card)
                                     }
                                     if(query.search==32) {
                                         val bases=allowed.map { it.baseId }.distinct().sorted()
                                             .map { id -> world.baseWire(world.galaxy.bases.single { it.id==id }) }
                                         org.logh7.protocol.LogisticsDirectoryMessages.bases(query,bases)
                                     } else {
-                                        val outfits=allowed.filter { it.baseId==query.base && office?.card==query.card }.sortedBy { it.id }
+                                        val outfits=allowed.filter { it.baseId==query.base }.sortedBy { it.id }
                                             .map { org.logh7.protocol.LogisticsDirectoryMessages.Outfit(it.id,it.kind.wire,it.number,
                                                 world.baseWire(world.galaxy.bases.single { base -> base.id==it.baseId })) }
                                         org.logh7.protocol.LogisticsDirectoryMessages.outfits(query,outfits)
@@ -2080,7 +2094,18 @@ class GameExchange(
                             admission?.generation ?: 1L))
                 }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2)
-                    sessionDirectory?.let {LobbyMessages.sessions(it.sessions())} ?: LobbyMessages.sessions(admission?.running != false) }
+                    sessionDirectory?.let {LobbyMessages.sessions(it.sessions())} ?: LobbyMessages.sessions(
+                        admission?.running != false,
+                        SessionEndingReport.information(navigation?.snapshot(),characterProvider().registeredCharacters(),
+                            sessionId,sessionName,admission?.generation ?: 1L)) }
+                0x032e -> {
+                    // Lobby country catalogue (mode 7) only: no other 032e mode is answered before a game starts.
+                    check(lobbyLoggedIn)
+                    val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
+                    val frames=if(sessionDirectory!=null)sessionDirectory.countries(request)
+                        else if(request.sessionId==sessionId && admission?.running!=false)lobbyCountries?.invoke(request) else null
+                    return handshake.stageAll(frames ?: LobbyCountryCatalogue.empty(request),clearHeader=0)
+                }
                 0x2009 -> {
                     check(lobbyLoggedIn)
                     val selected=LobbyMessages.select(body)

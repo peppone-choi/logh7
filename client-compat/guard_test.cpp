@@ -10,6 +10,9 @@
 #include "creation_menu_data.h"
 #include "lobby_empty_data.h"
 #include "planet_info_data.h"
+#include "facility_guide_data.h"
+#include "facility_label_data.h"
+#include "lobby_country_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
@@ -711,7 +714,116 @@ static bool runtimeKoreanGlyphTest() {
     size_t none=0;
     return !logh::koreanGlyphIndex(0x3042,none) && !logh::koreanGlyphIndex(0xae41,none,false);
 }
+static int facilityGuideTest() {
+    std::string label;
+    if(!logh::facilityLabel(104901,0,L"오딘 민정청",label))return 620;
+    std::wstring shown(label.begin(),label.end());
+    if(!logh::restoreDisplayNames(shown) || shown!=L"오딘 민정청")return 621;
+    if(!logh::facilityLabel(104901,0,std::wstring(24,L'가').c_str(),label))return 622;
+    shown.assign(label.begin(),label.end());
+    if(!logh::restoreDisplayNames(shown) || shown!=std::wstring(11,L'가')+L"…")return 623;
+    const auto saved=label;
+    if(logh::facilityLabel(104902,0,L"시설",label) || logh::facilityLabel(104901,39,L"시설",label) ||
+        logh::facilityLabel(0,0,L"시설",label) || logh::facilityLabel(104901,0,std::wstring(25,L'가').c_str(),label) ||
+        logh::facilityLabel(104901,0,L"줄\n바꿈",label) || label!=saved)return 624;
+    logh::FacilityNameCache names;logh::FacilityGuide value;value.id=101;value.revision=2;wcscpy_s(value.name,L"첫 시설");
+    if(!names.publish(value,1))return 625;
+    value.revision=1;if(names.publish(value,2) || names.find(101)->revision!=2)return 626;
+    for(unsigned i=2;i<=351;++i){value.id=i*100+1;if(!names.publish(value,i))return 627;}
+    if(names.count!=350 || names.find(101) || !names.find(201) || !names.find(35101))return 628;
+    value.id=201;names.publish(value,400);value.id=35201;names.publish(value,401);
+    if(!names.find(201) || names.find(301) || !names.find(35201))return 629;
+    BYTE record[24+10*36]={};
+    auto make=[&](unsigned page,const std::wstring& text,const wchar_t* revision=L"17") {
+        memset(record,0,sizeof(record));unsigned id=105038,token=9*16+page;
+        memcpy(record,&id,4);memcpy(record+4,&token,4);record[8]=6;record[20]=10;
+        for(unsigned i=0;i<10;++i) {
+            auto row=record+24+i*36;unsigned number=i+1;memcpy(row,&number,4);row[4]=static_cast<BYTE>(i);
+            std::wstring part=i==0 ? revision : i==1 ? L"" : text.substr((i-2)*12<text.size() ? (i-2)*12 : text.size(),12);
+            row[6]=static_cast<BYTE>(part.empty() ? 0 : part.size()+1);
+            if(!part.empty())memcpy(row+8,part.c_str(),(part.size()+1)*2);
+        }
+    };
+    logh::FacilityGuideDraft draft;draft.begin(105038,9);
+    make(0,L"새 시설");if(draft.accept(record,sizeof(record))!=1)return 610;
+    make(1,L"첫 용도",L"18");if(draft.accept(record,sizeof(record))!=-1 || draft.next!=1)return 611;
+    make(0,L"stale");if(draft.accept(record,sizeof(record)) || draft.next!=1)return 612;
+    const std::wstring purpose(200,L'용'),usage(200,L'조'),commands(192,L'명');
+    for(unsigned page=1;page<9;++page) {
+        const auto& full=page<=3 ? purpose : page<=6 ? usage : commands;
+        unsigned offset=(page<=3 ? page-1 : page<=6 ? page-4 : page-7)*96;
+        make(page,full.substr(offset,96));
+        if(draft.accept(record,sizeof(record))!=(page==8 ? 2 : 1))return 613;
+    }
+    if(wcscmp(draft.value.name,L"새 시설") || draft.value.purpose!=purpose || draft.value.usage!=usage || draft.value.commands!=commands)return 614;
+    std::wstring wrapped;
+    for(unsigned line=0;line<8;++line){wchar_t text[97];logh::facilityGuideLine(draft.value.purpose,line,text);wrapped+=text;}
+    if(wrapped!=purpose)return 615;
+    std::wstring spaced;
+    while(spaced.size()<200)spaced+=std::wstring(18,L'용')+L" ";
+    spaced.resize(200);wrapped.clear();
+    for(unsigned line=0;line<8;++line){wchar_t text[97];logh::facilityGuideLine(spaced.c_str(),line,text);wrapped+=text;}
+    if(wrapped!=spaced)return 619;
+    draft.begin(105038,9);make(0,std::wstring(25,L'가'));if(draft.accept(record,sizeof(record)))return 616;
+    make(0,L"잘못된 이름");record[24+2*36+8]=0;record[24+2*36+9]=0xd8;
+    if(draft.accept(record,sizeof(record)) || draft.next)return 617;
+    make(0,L"이름");if(draft.accept(record,sizeof(record)-1) || draft.next)return 618;
+    return 0;
+}
+
+static int lobbyCountryDataTest() {
+    BYTE record[24+10*36]={};
+    auto packet=[&](unsigned kind,unsigned number,const wchar_t* const (&fields)[10]) {
+        memset(record,0,sizeof(record));*reinterpret_cast<unsigned*>(record)=12;
+        *reinterpret_cast<unsigned*>(record+4)=7*512+348;record[8]=7;record[9]=2;record[20]=10;
+        *reinterpret_cast<unsigned*>(record+12)=kind;*reinterpret_cast<unsigned*>(record+16)=number;
+        for(unsigned i=0;i<10;++i) {
+            auto p=record+24+i*36;*reinterpret_cast<unsigned*>(p)=i+1;p[4]=static_cast<BYTE>(i);
+            unsigned n=static_cast<unsigned>(wcslen(fields[i]));if(n){p[6]=static_cast<BYTE>(n+1);memcpy(p+8,fields[i],n*2);}
+        }
+    };
+    const wchar_t* header[]={L"NC1",L"350",L"348",L"2",L"900719925474",L"0993",L"172800",L"1",L"",L"283"};
+    const wchar_t* row[]={L"42",L"새 국가 이름",L"",L"A1B2C3",L"123",L"14",L"2",L"0",L"",L"0"};
+    logh::LobbyCountryDraft draft;
+    if(!draft.begin(12,7,348) || draft.begin(12,128,0) || draft.begin(12,1,351))return 1001;
+    packet(1,0,row);if(draft.accept(record,sizeof(record)))return 1002;
+    packet(0,0,header);if(draft.accept(record,sizeof(record)-1) || draft.accept(record,sizeof(record))!=1)return 1003;
+    packet(1,0,row);record[4]^=1;if(draft.accept(record,sizeof(record)))return 1004;record[4]^=1;
+    auto malformed=*reinterpret_cast<unsigned short*>(record+24+36+8);
+    *reinterpret_cast<unsigned short*>(record+24+36+8)=10;
+    if(draft.accept(record,sizeof(record)))return 1005;
+    *reinterpret_cast<unsigned short*>(record+24+36+8)=malformed;
+    if(draft.accept(record,sizeof(record))!=1 || draft.complete)return 1006;
+    packet(1,1,row);if(draft.accept(record,sizeof(record)))return 1007;
+    row[0]=L"2147483647";row[3]=L"inherit";row[9]=L"3";packet(1,1,row);
+    if(draft.accept(record,sizeof(record))!=2 || !draft.complete || draft.page.total!=350 || draft.page.offset!=348 ||
+        draft.page.revision!=9007199254740993ULL || draft.page.generation!=1 || draft.page.seconds!=172800 ||
+        draft.page.totalBases!=283 || draft.page.rows[0].id!=42 || draft.page.rows[0].rgb!=0xA1B2C3 ||
+        !draft.page.rows[0].hasRgb || draft.page.rows[0].characters!=123 || draft.page.rows[0].bases!=14 ||
+        wcscmp(draft.page.rows[0].name,L"새 국가 이름") || draft.page.rows[1].hasRgb || draft.accept(record,sizeof(record)))return 1008;
+    draft.begin(12,7,350);header[2]=L"350";header[3]=L"0";packet(0,0,header);
+    *reinterpret_cast<unsigned*>(record+4)=7*512+350;
+    if(draft.accept(record,sizeof(record))!=2 || draft.page.count)return 1009;
+    draft.begin(12,7,350);header[1]=L"0";header[4]=L"0";header[5]=L"";header[6]=L"0";header[7]=L"0";header[9]=L"0";
+    packet(0,0,header);*reinterpret_cast<unsigned*>(record+4)=7*512+350;
+    if(draft.accept(record,sizeof(record))!=2 || draft.page.generation || draft.page.total)return 1014;
+    BYTE sessions[4+64*0x14c]={};sessions[1]=64;
+    for(unsigned i=0;i<64;++i) {
+        auto q=sessions+4+i*0x14c;q[0]=static_cast<BYTE>(i+1);q[2]=1;q[3]=2;q[4]='S';
+        *reinterpret_cast<unsigned*>(q+0xa4)=86400+i;
+    }
+    logh::LobbySessionList list;
+    if(!logh::readLobbySessionList(sessions,sizeof(sessions),list) || list.count!=64 ||
+        list.rows[63].id!=64 || list.rows[63].seconds!=86463 || wcscmp(list.rows[63].name,L"S"))return 1010;
+    if(logh::readLobbySessionList(sessions,sizeof(sessions)-1,list))return 1011;
+    sessions[4+0x14c]=1;if(logh::readLobbySessionList(sessions,sizeof(sessions),list))return 1012;
+    sessions[1]=65;if(logh::readLobbySessionList(sessions,sizeof(sessions),list))return 1013;
+    return 0;
+}
+
 static int runGuard(int argc, wchar_t** argv) {
+    if(int result=facilityGuideTest())return result;
+    if(int result=lobbyCountryDataTest())return result;
     if(logh::groundMeter(0,1000,70)!=0 || logh::groundMeter(500,1000,70)!=35 ||
         logh::groundMeter(1000,1000,70)!=70 || logh::groundMeter(1001,1000,70)!=70 ||
         logh::groundMeter(~0u,1000,70)!=70 || logh::groundMeter(500,0,70)!=0 ||

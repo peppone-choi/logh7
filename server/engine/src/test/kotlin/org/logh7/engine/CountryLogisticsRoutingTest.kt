@@ -33,7 +33,7 @@ class CountryLogisticsRoutingTest {
 
     @Test fun additionalCountryReorganizationMovesItsOwnModelsAndCrewWithoutUsingTheDisplayFaction() {
         for(style in listOf(ShipStyleId("empire"),ShipStyleId("alliance"))) {
-            val initial=stock(style);val production=production(initial);val logistics=OutfitLogistics({0})
+            val initial=stock(style);val production=production(initial);val logistics=OutfitLogistics({0},galaxy)
             val prepared=logistics.apply(request(),session(),player(),production)
             assertNull(prepared.rejection)
             val ship=initial.outfits.getValue(1).units.ships.keys.single()
@@ -78,7 +78,7 @@ class CountryLogisticsRoutingTest {
     }
 
     @Test fun anotherCountryWithTheSameModelsAndUnaffiliatedMembershipCannotBorrowAuthority() {
-        val initial=stock();val production=production(initial);val baseline=production.settle(1,session().gameMillis/1000);val logistics=OutfitLogistics({0})
+        val initial=stock();val production=production(initial);val baseline=production.settle(1,session().gameMillis/1000);val logistics=OutfitLogistics({0},galaxy)
         for(id in listOf(CountryId(2),CountryId(43),null)) {
             val state=session(id);val pilot=player(id)
             assertEquals(LogisticsRejection.ACCESS,logistics.apply(request(id),state,pilot,production).rejection)
@@ -92,7 +92,7 @@ class CountryLogisticsRoutingTest {
     }
 
     @Test fun pendingReservationsExpireOnCountryChangeAndCannotBeReusedByAnotherCharacter() {
-        val production=production(stock());val logistics=OutfitLogistics({0});val prepared=logistics.apply(request(),session(),player(),production)
+        val production=production(stock());val logistics=OutfitLogistics({0},galaxy);val prepared=logistics.apply(request(),session(),player(),production)
         val reservation=assertNotNull(prepared.reservation)
         assertTrue(logistics.blocksMovement(session(),1))
         val commit=request().copy(phase=LogisticsPhase.COMMIT,reservation=reservation)

@@ -12,7 +12,7 @@ class BaseRemainderTransactionTest {
     @TempDir lateinit var directory:Path
     private val rules=SessionRules.load()
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
-        listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)),mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))
+        listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))
     private val stack=UnitStack(32,2)
     private val pilot=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,
         cpRecoveryAt=rules.startSeconds)

@@ -52,7 +52,7 @@ class OutfitWarehouseWireTest {
         assertFails { world.outfitWarehouse(1049,1,10000,3,stocks) }
         assertFails { world.outfitWarehouse(1048,1,10000,2,stocks) }
         assertFails { world.outfitWarehouse(1049,2,40000,2,stocks) }
-        assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,1,40000,2,stocks)).getShort(4).toInt())
+        assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,1,40000,2,stocks.copy(strategic=StrategicState(capitals=mapOf(CountryId(2) to 1049))))).getShort(4).toInt())
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,3,20000,2,stocks)).getShort(4).toInt())
     }
     @Test fun encryptedFacilityQueryUsesSavedOwnerDespiteDifferentSeed() = runBlocking<Unit> {

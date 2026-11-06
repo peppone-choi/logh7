@@ -18,7 +18,9 @@ import kotlin.io.path.name
  */
 class LiveStateBackup(characters: Path, world: Path, session: Path, private val root: Path, private val keep: Int,
     /** LOGH7_ACCOUNTS_FILE: operator edits (added accounts, password changes) are state too; atomically replaced. */
-    accounts: Path? = null) {
+    accounts: Path? = null,
+    /** LOGH7_DEFINITIONS_JDBC_URL: the definitions DB is written into the same backup ([DefinitionsBackup]). */
+    private val definitions: (() -> java.sql.Connection)? = null) {
     private val characters = characters.toAbsolutePath().normalize()
     private val world = world.toAbsolutePath().normalize()
     private val session = session.toAbsolutePath().normalize()
@@ -49,6 +51,17 @@ class LiveStateBackup(characters: Path, world: Path, session: Path, private val 
         require(!Files.exists(target)) { "backup target already exists: $target" }
         val partial = root.resolve("state-$stamp.partial")
         if (Files.exists(partial)) partial.toFile().deleteRecursively()
+        try {
+            copyFiles(partial)
+        } catch (failure: Exception) {
+            partial.toFile().deleteRecursively()
+            throw failure
+        }
+        val created = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")) + ".%09d".format(now.nano)
+        return Pending(partial, target, created)
+    }
+
+    private fun copyFiles(partial: Path) {
         for ((group, entries) in files()) for ((source, name) in entries) {
             val copy = partial.resolve(group).resolve(name)
             Files.createDirectories(copy.parent)
@@ -60,15 +73,22 @@ class LiveStateBackup(characters: Path, world: Path, session: Path, private val 
                 catch (failure: java.io.IOException) { if (++attempt >= 5) throw failure; Thread.sleep(20) }
             }
         }
-        val created = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")) + ".%09d".format(now.nano)
-        return Pending(partial, target, created)
     }
 
     /** Hashes the copy, writes the manifest, renames it final and prunes older live backups. */
     fun finish(pending: Pending): Path {
+        // The definitions DB is read here, after the world actor resumed, so a slow or stopped database never
+        // pauses the game; it lands in the same backup right after the world copy. Any failure discards the
+        // whole backup: nothing half-made is published.
+        try {
+            definitions?.let { DefinitionsBackup.write(it, pending.partial.resolve("definitions").resolve(DefinitionsBackup.FILE)) }
+        } catch (failure: Exception) {
+            pending.partial.toFile().deleteRecursively()
+            throw failure
+        }
         fun json(text: String) = "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
         val rows = mutableListOf<String>()
-        for (group in listOf("characters", "world", "session", "accounts")) {
+        for (group in listOf("characters", "world", "session", "accounts", "definitions")) {
             val base = pending.partial.resolve(group)
             if (!Files.isDirectory(base)) continue
             Files.walk(base).use { paths -> paths.filter { Files.isRegularFile(it) }.toList() }

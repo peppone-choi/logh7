@@ -97,13 +97,20 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         if(countryDefinitions!=null)try {countryDefinitions.load()} catch(_:Exception) {
             error("Country definitions DB must be available and valid before starting this runtime")
         }
+        // Facility names/purposes (V4). The game reads facilities.current(); without a DB, or when the DB lacks V4
+        // or is down, it keeps the built-in or last published definitions. Unlike countries this never blocks start.
+        val facilityStore=definitionsConnect?.let {org.logh7.persistence.PostgresFacilityDefinitions(it)}
+        val facilities=org.logh7.engine.PublishedFacilityDefinitions()
+        if(facilityStore!=null)try {facilities.publish(facilityStore.load())} catch(_:Exception) {
+            System.err.println("Facility definitions unavailable; using the built-in facility definitions")
+        }
         val rules = environment["LOGH7_SESSION_RULES"]?.let { path -> java.nio.file.Files.newInputStream(Path.of(path)).use { SessionRules.load(it) } } ?: SessionRules.load()
         val characterFile = environment["LOGH7_CHARACTERS_FILE"]?.let { Path.of(it) }
         val generationFile = environment["LOGH7_SESSION_GENERATION_FILE"]?.let { Path.of(it) }
             ?: characterFile?.resolveSibling("${characterFile.fileName}.session-generation")
         val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
         val sessionDirectory = environment["LOGH7_SESSION_STORE_DIR"]?.let { Path.of(it) }
-        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it))) }
+        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it)),facilityDefinitions=facilities::current) }
         val directorySync = when (environment["LOGH7_SESSION_DIRECTORY_SYNC"]) {
             null, "required" -> org.logh7.persistence.DirectorySync.REQUIRED
             "files-only" -> org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY
@@ -184,7 +191,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 Path.of(requireNotNull(environment["LOGH7_WORLD_STATE_DIR"]) { "Live backups need LOGH7_WORLD_STATE_DIR" }),
                 requireNotNull(sessionDirectory) { "Live backups need LOGH7_SESSION_STORE_DIR" }, Path.of(dir),
                 keep = environment["LOGH7_BACKUP_KEEP"]?.toInt() ?: 48,
-                accounts = environment["LOGH7_ACCOUNTS_FILE"]?.let { Path.of(it) }),
+                accounts = environment["LOGH7_ACCOUNTS_FILE"]?.let { Path.of(it) }, definitions = definitionsConnect),
                 environment["LOGH7_BACKUP_EXPORT_DIR"]?.let { Path.of(it) })
         }
         backups?.schedule(scope, environment["LOGH7_BACKUP_INTERVAL_MINUTES"]?.toLong() ?: 0)
@@ -201,6 +208,15 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 catch(_:java.sql.SQLException) {if(!failed)System.err.println("Country definitions DB unavailable; retaining the last valid definitions");failed=true}
                 catch(_:IllegalArgumentException) {if(!failed)System.err.println("Country definitions invalid; retaining the last valid definitions");failed=true}
                 delay(5000)
+            }
+        }
+        if(facilityStore!=null)scope.launch(Dispatchers.IO) {
+            var failed=false
+            while(isActive) {
+                delay(5000)
+                try {facilities.publish(facilityStore.load());failed=false}
+                catch(_:java.sql.SQLException) {if(!failed)System.err.println("Facility definitions DB unavailable; retaining the last facility definitions");failed=true}
+                catch(_:IllegalArgumentException) {if(!failed)System.err.println("Facility definitions invalid; retaining the last facility definitions");failed=true}
             }
         }
         val countryColors=definitionsConnect?.let {connect->
@@ -231,6 +247,8 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             countryColors=countryColors,
             countryDefinitions=countryDefinitions,
+            facilityDefinitions=facilityStore,publishedFacilities=facilities,
+            facilityCommands=world?.facilityCommands ?: org.logh7.engine.FacilityCommandCatalog.UNCONNECTED,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
             actorTimings=actorTimings,

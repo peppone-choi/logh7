@@ -166,7 +166,7 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         if (stocks.generation != generation) return emptyList()
         val policy=OrganizationalOfficePolicy(galaxy)
         val cards=(policy.held(stocks,characterId).filter {it.country.value==power}.map {holding ->
-            org.logh7.protocol.BootstrapMessages.OfficeCard(holding.card,policy.target(checkNotNull(policy.role(holding.card,holding.country)),holding.seat))
+            org.logh7.protocol.BootstrapMessages.OfficeCard(holding.card,policy.target(checkNotNull(policy.role(holding.card,holding.country)),holding.seat,stocks))
         }+stocks.strategic.people[characterId]?.peerage?.let {title->
             listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(60+title.ordinal,0))}.orEmpty()+
             stocks.strategic.fiefs.filterValues {it==characterId}.keys.map {org.logh7.protocol.BootstrapMessages.OfficeCard(66,it)})

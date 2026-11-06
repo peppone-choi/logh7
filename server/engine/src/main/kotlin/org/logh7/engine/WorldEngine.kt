@@ -259,7 +259,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
     private var elapsed = initialElapsed
-    private val logistics = OutfitLogistics(monotonicMillis)
+    private val logistics = OutfitLogistics(monotonicMillis,galaxy)
     private val formations=OutfitFormationService(clock=monotonicMillis)
     private fun recoverNavigation(request:NavigationRequest,session:SessionState):NavigationResult? {
         val navigation=navigation ?: return null
