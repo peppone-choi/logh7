@@ -14,7 +14,9 @@ class GameCommunication(private val presence:GamePresence,private val generation
     /** 命令/提案 rows of the world state (design-proposals-orders.md). */
     private val proposals:(Long)->ProposalState?={null},
     /** Current rank (promotion, accession) over the character file's creation rank; null keeps the file's. */
-    private val rank:(Int)->Int?={null}):AutoCloseable {
+    private val rank:(Int)->Int?={null},
+    /** Current actual membership; MailIdentity.power is the original client's display code. */
+    private val country:(Long,Int)->CountryId?={epoch,id->directory(epoch,id)?.let {CountryId(it.power)}}):AutoCloseable {
     private var current:Triple<Long,CommunicationStore,Communication>?=null
     private var messenger:Pair<Long,GameMessenger>?=null
     private data class Offer(val from:String,val to:String,val expires:Long)
@@ -78,12 +80,12 @@ class GameCommunication(private val presence:GamePresence,private val generation
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
     private fun paired(mail:ProposalMail)=when(mail.command) {
         ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
-            org.logh7.protocol.ResignationMessages.Query(mail.recipient,mail.card),0,0,mail.mcp,true)
+            org.logh7.protocol.ResignationMessages.Query(mail.recipient,mail.card),0,0,(ProposalActions.costs.getValue(mail.command)/2).toInt(),true)
         ProposalActions.DISMISSAL -> org.logh7.protocol.DismissalMessages.response(
-            org.logh7.protocol.DismissalMessages.Query(mail.recipient,mail.target,mail.targetCard),0,0,mail.mcp,true)
+            org.logh7.protocol.DismissalMessages.Query(mail.recipient,mail.target,mail.targetCard),0,0,(ProposalActions.costs.getValue(mail.command)/2).toInt(),true)
         // Appointment: changed=false keeps target 0 so 004c5580 appends no card; +0x14 still names the card.
         ProposalActions.APPOINTMENT -> org.logh7.protocol.AppointmentMessages.response(
-            org.logh7.protocol.AppointmentMessages.Query(mail.recipient,mail.target,mail.targetCard,0,0),0,0,mail.mcp,true,false)
+            org.logh7.protocol.AppointmentMessages.Query(mail.recipient,mail.target,mail.targetCard,0,0),0,0,(ProposalActions.costs.getValue(mail.command)/2).toInt(),true,false)
         else -> error("Unsupported proposal command")
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
@@ -91,11 +93,13 @@ class GameCommunication(private val presence:GamePresence,private val generation
         // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
         if(post<=0 || org.logh7.engine.OrganizationOffices.of(post)==null)return emptyList()
         val state=proposals(expected) ?: return emptyList()
+        val membership=country(expected,owner.character) ?: return emptyList()
         fun ranked(p:MailIdentity)=rank(p.character)?.let {p.copy(rank=it)} ?: p
         fun who(id:Int,card:Int)=directory(expected,id)?.let {peer(ranked(it),card)} ?: Wire.Peer(id,extra=listOf(0,0,card))
         val self=peer(ranked(owner),post)
         val rows=mutableListOf<ByteArray>()
         for(mail in state.mails.sortedBy {it.id}) {
+            if(mail.originCountry!=membership)continue
             val type=if(mail.order)1 else 0
             if(received && mail.pending && mail.recipient==owner.character && mail.card==post)
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),self,mail.createdAt,

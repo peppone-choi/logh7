@@ -134,14 +134,15 @@ class GameExchange(
     /** 命令/提案 pairs (CD p.28): same side; same spot inside a facility, else the same grid; not in tactics.
      * Each target is paired with my card and theirs of the same institution; the emperor card pairs with any office. */
     private fun proposalPairs(inventory:org.logh7.engine.PlanetStocks,me:org.logh7.engine.Navigator):List<Triple<Int,Int,Int>> {
+        val country=me.country ?: return emptyList()
         val policy=org.logh7.engine.OrganizationalOfficePolicy(checkNotNull(world).galaxy)
-        fun institution(card:Int)=org.logh7.engine.OrganizationOffices.of(card)?.institution
-        val mine=policy.held(inventory,me.characterId).map {it.card}.filter {institution(it)!=null}.distinct()
+        fun institution(card:Int)=policy.role(card,country)?.institution
+        val mine=policy.held(inventory,me.characterId).filter {it.country==country}.map {it.card}.filter {institution(it)!=null}.distinct()
         val players=navigation?.snapshot()?.navigators.orEmpty().values.filter {it.generation==me.generation &&
-            it.characterId!=me.characterId && it.power==me.power && !it.cpPaused && it.grid==me.grid &&
+            it.characterId!=me.characterId && it.country==country && !it.cpPaused && it.grid==me.grid &&
             (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
         return players.sortedBy {it.characterId}.mapNotNull {other ->
-            val theirs=policy.held(inventory,other.characterId).map {it.card}.filter {institution(it)!=null}.distinct()
+            val theirs=policy.held(inventory,other.characterId).filter {it.country==country}.map {it.card}.filter {institution(it)!=null}.distinct()
             mine.firstNotNullOfOrNull {card->theirs.firstOrNull {card==1 || institution(it)==institution(card)}?.let {Triple(other.characterId,card,it)}}
         }
     }
@@ -1644,12 +1645,16 @@ class GameExchange(
                                         }
                                         if(query.command==org.logh7.engine.ProposalActions.OPEN) {
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            val recipientCountry=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
+                                                .singleOrNull {it.id==query.base}?.country
+                                            val sameCountry=me.country!=null && recipientCountry==me.country
                                             if(query.value==org.logh7.engine.ProposalActions.DISMISSAL) {
                                                 // Seats the chosen recipient may dismiss; row id = person*512+card, name = surname.
                                                 val recipient=currentCharacterById(query.base)
-                                                val seats=if(recipient==null)emptyList() else org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
-                                                    .available(inventory,query.base,recipient.power,
-                                                        (inventory.strategic.people[query.base] ?: org.logh7.engine.StrategicPerson()).ladderRank(recipient.rank)).filter {it.target*512+it.card>query.target}.take(200)
+                                                val seats=if(recipient==null || !sameCountry)emptyList() else org.logh7.engine.OfficeDismissalPolicy(world.galaxy)
+                                                    .available(inventory,query.base,checkNotNull(me.country).value,
+                                                        org.logh7.engine.ProposalActions.rank(inventory,query.base,checkNotNull(me.country),recipient.rank))
+                                                    .filter {it.target*512+it.card>query.target}.take(200)
                                                 return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,seats.mapNotNull {seat->
                                                     currentCharacterById(seat.target)?.let {org.logh7.protocol.StrategyActionMessages.Selection(seat.target*512+seat.card,it.surname,
                                                         minOf(20,it.rank))}})
@@ -1657,10 +1662,9 @@ class GameExchange(
                                             if(query.value==org.logh7.engine.ProposalActions.APPOINTMENT) {
                                                 // Vacancies the chosen recipient may fill with this sender; row id = seat*512+card, name = seat base.
                                                 val recipient=currentCharacterById(query.base)
-                                                val people=inventory.strategic.people
-                                                val rows=if(recipient==null)emptyList() else org.logh7.engine.ProposalActions.vacancies(world.galaxy,inventory,
-                                                    query.base,recipient.power,(people[query.base] ?: org.logh7.engine.StrategicPerson()).ladderRank(recipient.rank),
-                                                    me.characterId,(people[me.characterId] ?: org.logh7.engine.StrategicPerson()).ladderRank(character.rank))
+                                                val rows=if(recipient==null || !sameCountry)emptyList() else org.logh7.engine.ProposalActions.vacancies(world.galaxy,inventory,
+                                                    query.base,checkNotNull(me.country).value,org.logh7.engine.ProposalActions.rank(inventory,query.base,checkNotNull(me.country),recipient.rank),
+                                                    me.characterId,org.logh7.engine.ProposalActions.rank(inventory,me.characterId,checkNotNull(me.country),character.rank))
                                                     .filter {it.second*512+it.first>query.target}.take(200)
                                                 return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {(card,seat)->
                                                     val baseId=inventory.outfits[seat]?.baseId ?: seat
@@ -1943,20 +1947,23 @@ class GameExchange(
                                     29 -> {
                                         val players=navigation?.snapshot()?.navigators.orEmpty()
                                         val me=checkNotNull(players[identity.account])
+                                        val country=me.country
                                         val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
-                                            it.power==me.power && !it.cpPaused && it.grid==me.grid &&
+                                            country!=null && it.country==country && !it.cpPaused && it.grid==me.grid &&
                                             (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
                                             .map {it.characterId}.toSet()
-                                        fun cards(id:Int,power:Int)=administration!!.offices(id,power,checkNotNull(generation)).map {it.kind}
-                                        fun institution(card:Int)=org.logh7.engine.OrganizationOffices.of(card)?.institution
+                                        fun cards(id:Int)=country?.let {administration!!.offices(id,it.value,checkNotNull(generation)).map {it.kind}}.orEmpty()
+                                        fun institution(card:Int)=country?.let {org.logh7.engine.OrganizationOffices.of(card,it)?.institution}
                                         val people=characters.registeredCharacters().filter {it.id.toInt() in here}.map {currentCharacterById(it.id.toInt()) ?: it}
-                                            .sortedBy {it.id}.map {it to cards(it.id.toInt(),it.power)}
-                                        val own=cards(character.id.toInt(),character.power).filter {institution(it)!=null}.distinct()
+                                            .sortedBy {it.id}.map {it to cards(it.id.toInt())}
+                                        val own=cards(character.id.toInt()).filter {institution(it)!=null}.distinct()
                                         org.logh7.protocol.AppointmentDirectoryMessages.orderSuggest(query,own.take(10).map {card ->
                                             val group=institution(card)
                                             org.logh7.protocol.AppointmentDirectoryMessages.OrderSuggest(card,people.filter {(_,held)->
                                                 card==1 || held.any {institution(it)==group}}.take(10).map {(target,held)->
-                                                val proposal=card!=1 && target.rank in 1..20 && character.rank in 1..20 && target.rank<character.rank
+                                                val targetRank=org.logh7.engine.ProposalActions.rank(inventory,target.id.toInt(),checkNotNull(country),target.rank)
+                                                val actorRank=org.logh7.engine.ProposalActions.rank(inventory,character.id.toInt(),checkNotNull(country),character.rank)
+                                                val proposal=card!=1 && targetRank in 1..20 && actorRank in 1..20 && targetRank<actorRank
                                                 (if(proposal)1 else 0) to org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
                                                     listOf(0,if(target.power==2)59 else 195)+held)})
                                         }.filter {it.targets.isNotEmpty()})
