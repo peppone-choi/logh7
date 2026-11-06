@@ -11,6 +11,39 @@ import kotlin.test.*
 
 /** 암호화 연설·공개 지지/인물 갱신·상대 재실행 제한·서버 재시작. 작성: Peppone Choi. */
 class SocialActionsWireTest {
+    @Test fun encryptedRouteDirectoryAndTariffKeepOriginAndCostsAcrossRestartAndFailedSave() {
+        val state=State();val path=directory.resolve("trade")
+        val tradeGalaxy=Galaxy(galaxy.systems+GalaxySystem(5,2490,4,"Near",2),
+            galaxy.bases+GalaxyBase(1050,2490,80,0,"Near",0,20f,86400,0,0f,2f),galaxy.starts)
+        state.stocks=state.stocks.copy(bases=state.stocks.bases+(1050 to PlanetStock(1050,2,0,0,0,0,
+            PlanetEconomy(2000,1000,70,80))),strategic=state.stocks.strategic.copy(offices=listOf(OfficeHolding(8,1049,10000))))
+        fun query(command:Int,preview:Boolean=false,target:Int=0,value:Int=0)=ByteBuffer.allocate(31).putShort(0x1200)
+            .putInt(10000).putShort(0x7f00).putShort(command.toShort()).putShort(if(command==TradeActions.TARIFF)8 else 0)
+            .putShort(value.toShort()).putInt(target).put(if(preview)1 else 0).putInt(0).putShort(0).putInt(0).putShort(0).array()
+        LoadFixture(path,1,LoadMetrics(),tradeGalaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),true,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            actor.send(query(TradeActions.ROUTE,true));next(actor,0x1200)
+            val rows=ByteBuffer.wrap(next(actor,0x1202));assertEquals(1,rows.get(6).toInt());assertEquals(1050,rows.getInt(7));next(actor,0x1201)
+            actor.send(query(TradeActions.TARIFF,value=20));assertEquals(0,ByteBuffer.wrap(next(actor,0x1200)).getShort(16).toInt());next(actor,0x1201)
+            actor.send(query(TradeActions.ROUTE,target=1050));assertEquals(0,ByteBuffer.wrap(next(actor,0x1200)).getShort(16).toInt());next(actor,0x1201)
+            assertEquals(CountryId(2),state.stocks.social.trade.routes.getValue(10000).country)
+            assertEquals(840,state.players.getValue("load-000").pcp);assertEquals(680,state.players.getValue("load-000").mcp)
+        }
+        LoadFixture(path,1,LoadMetrics(),tradeGalaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),false,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            assertEquals(20,state.stocks.social.trade.tariff(2));assertEquals(CountryId(2),state.stocks.social.trade.routes.getValue(10000).country)
+            state.failSave=true
+            assertFailsWith<java.io.IOException> {actor.send(query(TradeActions.TARIFF,value=30));next(actor,0x1200)}
+            assertEquals(EngineHealth.STORAGE_FAILED,server.engine.health())
+            assertEquals(20,state.stocks.social.trade.tariff(2));assertEquals(680,state.players.getValue("load-000").mcp)
+        }
+        state.failSave=false
+        LoadFixture(path,1,LoadMetrics(),tradeGalaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),false,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            assertEquals(20,state.stocks.social.trade.tariff(2));assertEquals(CountryId(2),state.stocks.social.trade.routes.getValue(10000).country)
+            assertEquals(840,state.players.getValue("load-000").pcp);assertEquals(680,state.players.getValue("load-000").mcp)
+        }
+    }
     @Test fun encryptedHeirDirectoryNominationAndFailedSecondPaymentRestoreAcrossRestart() {
         val state=State();val path=directory.resolve("heir")
         state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(

@@ -7,11 +7,13 @@ import org.logh7.engine.strategy.*
  * (ns-update 2004-10); 関税率変更 17 and 外交 20 keep the manual's MCP 320 (p.73), 航路貿易 39 and 船団貿易 40 have
  * names only. Every rule and value here is evidence:guess. Author: Peppone Choi.
  */
-data class TradeRoute(val character:Int,val from:Int,val to:Int,val until:Long,val paidThrough:Long) {
+data class TradeRoute(val character:Int,val from:Int,val to:Int,val until:Long,val paidThrough:Long,
+    /** Null only for an old five-column route; bind to a legacy country before its next payment. */
+    val country:CountryId?=null) {
     init {require(character>0 && from in 1..65535 && to in 1..65535 && from!=to && paidThrough in 0..until && until<=0xffffffffL)}
 }
 data class TradeState(val routes:Map<Int,TradeRoute> = emptyMap(),
-    /** power -> tariff percent (default [TradeActions.DEFAULT_TARIFF]). */
+    /** Actual country ID -> tariff percent (default [TradeActions.DEFAULT_TARIFF]). */
     val tariffs:Map<Int,Int> = emptyMap(),
     /** transport outfit -> next convoy allowed at. */
     val convoys:Map<Int,Long> = emptyMap(),
@@ -23,13 +25,14 @@ data class TradeState(val routes:Map<Int,TradeRoute> = emptyMap(),
     val violations:Map<Int,Long> = emptyMap(),
     /** power that violated -> subsidies already paid to its enemy (up to [TradeActions.SUBSIDIES]). */
     val subsidies:Map<Int,Int> = emptyMap()) {
-    init {require(routes.size<=4096 && routes.all {(k,v)->k==v.character} && tariffs.all {(k,v)->k in 2..3 && v in 0..TradeActions.MAX_TARIFF} &&
+    init {require(routes.size<=4096 && routes.all {(k,v)->k==v.character} && tariffs.size<=4096 && tariffs.all {(k,v)->k>0 && v in 0..TradeActions.MAX_TARIFF} &&
         convoys.size<=1024 && convoys.all {(k,v)->k>0 && v in 0..0xffffffffL} &&
         listOf(pacts,passages,violations).all {m->m.all {(k,v)->k in 2..3 && v in 0..0xffffffffL}} &&
         subsidies.all {(k,v)->k in violations && v in 1..TradeActions.SUBSIDIES})}
     /** The enemy of a violator reads its secrets for [TradeActions.LEAK_DAYS] days (CD p.39 "information leak"). */
     fun leaking(power:Int,now:Long)=violations[power]?.let {now<it+TradeActions.LEAK_DAYS*Justice.DAY}==true
     fun tariff(power:Int)=tariffs[power] ?: TradeActions.DEFAULT_TARIFF
+    val countryFormat get()=routes.values.any {it.country!=null} || tariffs.keys.any {it !in 2..3}
     fun detached()=copy(routes=java.util.Collections.unmodifiableMap(LinkedHashMap(routes)),tariffs=java.util.Collections.unmodifiableMap(LinkedHashMap(tariffs)),
         convoys=java.util.Collections.unmodifiableMap(LinkedHashMap(convoys)),pacts=java.util.Collections.unmodifiableMap(LinkedHashMap(pacts)),
         passages=java.util.Collections.unmodifiableMap(LinkedHashMap(passages)),violations=java.util.Collections.unmodifiableMap(LinkedHashMap(violations)),
@@ -78,11 +81,16 @@ object TradeActions {
         return if(raided)base/2 else base
     }
     fun roll(actor:Int,kind:Int,seconds:Long)=java.util.Random(seconds*1_000_003L+actor*131L+kind*17L+97).nextInt(100)
-    fun routeTargets(g:Galaxy,s:PlanetStocks,p:Navigator,own:Int)=g.bases.filter {b->b.id!=p.baseId &&
-        s.bases[b.id]?.let {it.power==own && it.camp==0}==true &&
+    fun routeTargets(g:Galaxy,s:PlanetStocks,p:Navigator,catalog:CountryCatalog=CountryCatalogLoader.current()):List<Int> {
+        val own=p.country?.takeIf {it.value in catalog.countries} ?: return emptyList()
+        if(p.generation!=s.generation || s.bases[p.baseId]?.let {it.country==own && it.camp==0}!=true)return emptyList()
+        return g.bases.filter {b->b.id!=p.baseId &&
+        s.bases[b.id]?.let {it.country==own && it.camp==0}==true &&
         g.bases.singleOrNull {it.id==p.baseId}?.let {here->EspionageActions.cells(here.grid,b.grid)<=ROUTE_CELLS}==true}.map {it.id}
+    }
 
-    fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks):SocialResult {
+    fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
+        catalog:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         val member=session.participants[i.account]
@@ -90,11 +98,14 @@ object TradeActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
+        if(i.country.value !in catalog.countries)return reject(SocialRejection.CARD)
+        if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
+        if(i.command !in commands)return reject(SocialRejection.COMMAND)
+        // shortcut: convoy/diplomacy still need explicit foreign targets and the multi-country Fezzan subsidy rule.
+        if(i.command in setOf(CONVOY,DIPLOMACY) && i.country.value !in 2..3)return reject(SocialRejection.CARD)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
-        val own=if(p.power==Power.EMPIRE)2 else 3
-        val held=OrganizationalOfficePolicy(g).held(s,i.characterId).map {it.card}.toSet()
+        val own=i.country.value
+        val held=OrganizationalOfficePolicy(g,catalog).held(s,i.characterId).filter {it.country==i.country}.map {it.card}.toSet()
         val cards=when(i.command) {TARIFF->tariffCards;DIPLOMACY->diplomacyCards;CONVOY->convoyCards;else->setOf(0)}
         if(i.card !in cards || i.card!=0 && i.card !in held)return reject(SocialRejection.CARD)
         val t=s.social.trade
@@ -103,8 +114,8 @@ object TradeActions {
         when(i.command) {
             ROUTE -> {
                 if(p.baseId==0 || p.mode !in 1..4)return reject(SocialRejection.LOCATION)
-                if(s.bases[p.baseId]?.let {it.power==own && it.camp==0}!=true)return reject(SocialRejection.LOCATION)
-                if(i.target !in routeTargets(g,s,p,own))return reject(SocialRejection.TARGET)
+                if(s.bases[p.baseId]?.let {it.country==i.country && it.camp==0}!=true)return reject(SocialRejection.LOCATION)
+                if(i.target !in routeTargets(g,s,p,catalog))return reject(SocialRejection.TARGET)
                 if(t.routes[i.characterId]?.let {it.until>now}==true)return reject(SocialRejection.BUSY)
             }
             CONVOY -> {
@@ -133,7 +144,7 @@ object TradeActions {
         fun trade(next:TradeState,st:PlanetStocks=s)=st.copy(social=st.social.copy(trade=next))
         when(i.command) {
             ROUTE -> {
-                val route=TradeRoute(i.characterId,p.baseId,i.target,now+ROUTE_DAYS*Justice.DAY,now)
+                val route=TradeRoute(i.characterId,p.baseId,i.target,now+ROUTE_DAYS*Justice.DAY,now,i.country)
                 return SocialResult(payer,trade(t.copy(routes=t.routes+(i.characterId to route))),changed=true,outcome=1,
                     found=minOf(routeProfit(s,route),0x7fffffffL).toInt())
             }
@@ -199,22 +210,24 @@ object TradeActions {
         return if(t==s.social.trade)s else s.copy(nationalTreasuries=treasuries,social=s.social.copy(trade=t))
     }
     /** Pays each route for its whole elapsed days; a route ends when it expires or either base leaves the owner's regular camp. */
-    fun settle(g:Galaxy,start:PlanetStocks,now:Long):PlanetStocks {
+    fun settle(g:Galaxy,start:PlanetStocks,now:Long,catalog:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
         val s=neutrality(g,start,now)
         val t=s.social.trade
         if(t.routes.isEmpty() && t.convoys.isEmpty() && t.pacts.isEmpty() && t.passages.isEmpty())return s
         var bases=s.bases;val routes=LinkedHashMap<Int,TradeRoute>()
         for(r in t.routes.values.sortedBy {it.character}) {
-            val power=bases[r.from]?.power
-            val alive=power in 2..3 && listOf(r.from,r.to).all {bases[it]?.let {b->b.power==power && b.camp==0}==true}
+            // Old records have no origin; their first settlement can only bind a current legacy country, never an added one.
+            val country=r.country ?: bases[r.from]?.country?.takeIf {it.value in 2..3}
+            val alive=country!=null && country.value in catalog.countries &&
+                listOf(r.from,r.to).all {bases[it]?.let {b->b.country==country && b.camp==0}==true}
             val end=minOf(now,r.until)
-            val days=if(alive)(end-r.paidThrough)/Justice.DAY else 0
+            val days=if(alive && end>r.paidThrough)(end-r.paidThrough)/Justice.DAY else 0
             if(days>0) {
                 val profit=routeProfit(s,r,g)*days
                 for(b in listOf(r.from,r.to))bases=bases+(b to bases.getValue(b).let {it.copy(treasury=Math.addExact(it.treasury,profit))})
             }
             val paid=r.paidThrough+days*Justice.DAY
-            if(alive && paid<r.until)routes[r.character]=r.copy(paidThrough=paid)
+            if(alive && paid<r.until)routes[r.character]=r.copy(paidThrough=paid,country=country)
         }
         val next=t.copy(routes=routes,convoys=t.convoys.filterValues {it>now},pacts=t.pacts.filterValues {it>now},passages=t.passages.filterValues {it>now})
         return if(next==t && bases==s.bases)s else s.copy(bases=bases,social=s.social.copy(trade=next))

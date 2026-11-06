@@ -158,19 +158,23 @@ internal object SocialStateCodec {
             e.split(':').also {require(it.size==4)}.let {v->v[0].toInt() to NationalGoal(v[1].toInt(),v[2].toInt(),v[3].toLong())}},
             if(focus=="-")emptyMap() else focus.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toInt()}})
     }
-    /** Optional thirteenth field (trade, 2026-11-02): routes "character:from:to:until:paidThrough,.." / tariffs / convoys /
+    /** Optional thirteenth field: routes "character:from:to:until:paidThrough[:country],.." / tariffs / convoys /
      * pacts / passages, each "key:value,.." ("-" when empty). */
     private fun pairs(m:Map<Int,Long>)=m.toSortedMap().entries.joinToString(",") {"${it.key}:${it.value}"}.ifEmpty {"-"}
     private fun pairs(text:String)=if(text=="-")emptyMap() else text.split(',').associate {e->e.split(':').let {(k,v)->k.toInt() to v.toLong()}}
-    private fun trade(t:TradeState)=listOf(t.routes.toSortedMap().values.joinToString(",") {listOf(it.character,it.from,it.to,it.until,it.paidThrough)
+    private fun trade(t:TradeState)=listOf(t.routes.toSortedMap().values.joinToString(",") {(listOf(it.character,it.from,it.to,it.until,it.paidThrough)+
+        (it.country?.let {country->listOf(country.value)} ?: emptyList()))
         .joinToString(":")}.ifEmpty {"-"},pairs(t.tariffs.mapValues {it.value.toLong()}),pairs(t.convoys),pairs(t.pacts),pairs(t.passages))
         .plus(if(t.violations.isEmpty())emptyList() else listOf(pairs(t.violations),pairs(t.subsidies.mapValues {it.value.toLong()}))).joinToString("/")
     private fun trade(text:String):TradeState {
         val v=text.split('/');require(v.size==5 || v.size==7 && v[5]!="-")
-        return TradeState(if(v[0]=="-")emptyMap() else v[0].split(',').associate {e->e.split(':').also {require(it.size==5)}.let {x->
-            x[0].toInt() to TradeRoute(x[0].toInt(),x[1].toInt(),x[2].toInt(),x[3].toLong(),x[4].toLong())}},
+        val state=TradeState(if(v[0]=="-")emptyMap() else v[0].split(',').associate {e->e.split(':').also {require(it.size in 5..6)}.let {x->
+            x[0].toInt() to TradeRoute(x[0].toInt(),x[1].toInt(),x[2].toInt(),x[3].toLong(),x[4].toLong(),
+                if(x.size==6)CountryId(x[5].toInt()) else null)}},
             pairs(v[1]).mapValues {it.value.toInt()},pairs(v[2]),pairs(v[3]),pairs(v[4]),
             if(v.size==7)pairs(v[5]) else emptyMap(),if(v.size==7)pairs(v[6]).mapValues {it.value.toInt()} else emptyMap())
+        require(trade(state)==text) {"Non-canonical trade state"}
+        return state
     }
     /** Optional fourteenth field (pirates, 2026-11-02): "nextId/nextSpawnAt/fleet;fleet" with fleet
      * "id:grid:since:unit=boats,..". */

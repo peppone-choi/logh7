@@ -73,7 +73,7 @@ object SocialActions {
         if(r.identity.command in CoupActions.commands)return CoupActions.evaluate(g,r,session,p,s,accounts,countries)
         if(r.identity.command==FundActions.FUNDS)return FundActions.evaluate(g,r,session,p,s)
         if(r.identity.command in GoalActions.commands)return GoalActions.evaluate(g,r,session,p,s)
-        if(r.identity.command in TradeActions.commands)return TradeActions.evaluate(g,r,session,p,s)
+        if(r.identity.command in TradeActions.commands)return TradeActions.evaluate(g,r,session,p,s,countries)
         if(r.identity.command in ProductionActions.commands)return ProductionActions.evaluate(g,r,session,p,s)
         if(r.identity.command in SuccessionActions.commands)return SuccessionActions.evaluate(g,r,session,p,s,countries)
         if(r.identity.command in OrbitalStrikeActions.commands)return OrbitalStrikeActions.evaluate(g,r,session,p,s,navigators)
