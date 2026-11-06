@@ -173,9 +173,20 @@ def unreadable_headers(classes: dict[str, bytes], world: Path | None, characters
 
 def unreadable(root: Path, characters: Path | None, world: Path | None = None) -> list[str]:
     """Record formats in the saved state that the release at ``root`` has no reader for."""
-    missing = unreadable_headers(release_classes(root), world, characters)
+    classes = release_classes(root)
+    missing = unreadable_headers(classes, world, characters)
     if characters is None:
         return missing
+    # Mail format 4 stores actual country IDs (0 is unattached), not native display codes.
+    # Every saved generation is addressable, so an older reader must not be activated over it.
+    reader = classes.get("org/logh7/persistence/FileCommunicationStore.class", b"")
+    for mail in characters.parent.glob(f"{characters.name}.mail.session-*"):
+        if not mail.is_file() or not mail.name.rsplit("-", 1)[1].isdigit():
+            continue
+        with mail.open("rb") as stream:
+            header = stream.read(4)
+        if header == bytes.fromhex("4c374d34") and b"\x03" + header not in reader:
+            missing.append(f"mail country format 4 in {mail.name}")
     # Generation 1 uses the file itself; later session generations use `<file>.session-<n>`
     # (CharacterStores.path). Every generation on disk may be loaded, so check them all.
     stores = [characters] + [p for p in characters.parent.glob(f"{characters.name}.session-*")
@@ -187,7 +198,6 @@ def unreadable(root: Path, characters: Path | None, world: Path | None = None) -
         for line in store.read_text(encoding="latin-1").splitlines():
             if line and not line.startswith(("#", "!")) and "=" in line:
                 values.append(line.split("=", 1)[1].replace("\\", ""))
-    classes = release_classes(root)
     return missing + [name for name, prefix, reader in RECORD_FORMATS
                       if reader not in classes and any(value.startswith(prefix) for value in values)]
 

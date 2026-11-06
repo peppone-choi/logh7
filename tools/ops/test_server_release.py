@@ -177,5 +177,26 @@ class ServerReleaseTest(unittest.TestCase):
         self.assertIn("unknown world schema 3", str(unknown.exception))
         self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
 
+    def test_country_mail_blocks_an_old_reader_across_all_saved_generations(self):
+        import zipfile
+        reader = "org/logh7/persistence/FileCommunicationStore.class"
+        characters = Path(self.temp.name) / "characters.properties"
+        characters.write_text("", encoding="utf-8")
+        mail = characters.with_name(characters.name + ".mail.session-7")
+        mail.write_bytes(bytes.fromhex("4c374d34") + b"fixture")
+        with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe\x03" + bytes.fromhex("4c374d33"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old-mail")
+        with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe\x03" + bytes.fromhex("4c374d34"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new-mail")
+        self.tool("activate", "new-mail", "--releases", str(self.releases), "--characters", str(characters))
+        with self.assertRaises(SystemExit) as refused:
+            self.tool("activate", "old-mail", "--releases", str(self.releases), "--characters", str(characters))
+        self.assertIn("mail country format 4", str(refused.exception))
+        self.assertEqual("new-mail", (self.releases / "CURRENT").read_text().strip())
+        mail.write_bytes(bytes.fromhex("4c374d33") + b"old fixture")
+        self.tool("activate", "old-mail", "--releases", str(self.releases), "--characters", str(characters))
+
 if __name__ == "__main__":
     unittest.main()

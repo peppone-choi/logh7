@@ -1309,7 +1309,7 @@ class GameExchange(
                         }
                         check(gameStarted && communication!=null)
                         if(opcode !in listOf(0x0f04,0x0f06))check(worldInitialized)
-                        val owner=checkNotNull(communicationIdentity(characters,checkNotNull(currentCharacter(identity.account)).id.toInt()))
+                        val owner=checkNotNull(communicationIdentity(characters,checkNotNull(currentCharacter(identity.account)).id.toInt(),navigation?.snapshot()))
                         require(owner.account==identity.account)
                         pendingWorld=communication.submit(connection,owner,checkNotNull(generation),body,gameSeconds())
                         return null
@@ -1318,7 +1318,7 @@ class GameExchange(
                         check(gameStarted)
                         if(communication!=null) {
                             check(worldInitialized)
-                            val owner=checkNotNull(communicationIdentity(characters,checkNotNull(currentCharacter(identity.account)).id.toInt()))
+                            val owner=checkNotNull(communicationIdentity(characters,checkNotNull(currentCharacter(identity.account)).id.toInt(),navigation?.snapshot()))
                             require(owner.account==identity.account)
                             pendingWorld=communication.submit(connection,owner,checkNotNull(generation),body,gameSeconds())
                             return null
@@ -1762,12 +1762,12 @@ class GameExchange(
                                             // U-25 defection: the registered character and its mail identity follow the committed
                                             // world and session; this connection then ends so the client reconnects on the new side.
                                             check(characters.defect(identity.account,character.id,destination,player.shipStyle))
-                                            communicationIdentity(characters,character.id.toInt())?.let {communication?.defect(it,checkNotNull(generation))?.join()}
+                                            communicationIdentity(characters,character.id.toInt(),navigation?.snapshot())?.let {communication?.defect(it,checkNotNull(generation))?.join()}
                                             defectedLogout=true
                                         }
                                         if(query.command==org.logh7.engine.CoupActions.CONSPIRACY && result.outcome==3 && result.found>0) {
                                             // 謀議 refused: the target learns who asked (user decision 2026-11-01).
-                                            val from=communicationIdentity(characters,character.id.toInt());val to=communicationIdentity(characters,result.found)
+                                            val from=communicationIdentity(characters,character.id.toInt(),navigation?.snapshot());val to=communicationIdentity(characters,result.found,navigation?.snapshot())
                                             if(from!=null && to!=null)communication?.notice(from,to,"모의 제안",
                                                 "${from.name}이(가) 쿠데타 참가를 제안했습니다. 거절했습니다.",checkNotNull(generation),gameSeconds())
                                         }
@@ -2075,7 +2075,7 @@ class GameExchange(
                                     tactical?.initialize(::offices).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player) + tactical?.resume().orEmpty()
                             } }.let {initialized ->
-                                val owner=if(opcode==0x0f00)communicationIdentity(characters,character.id.toInt()) else null
+                                val owner=if(opcode==0x0f00)communicationIdentity(characters,character.id.toInt(),navigation?.snapshot()) else null
                                 if(communication==null || owner==null)initialized
                                 else initialized.thenCompose {messages ->
                                     communication.unreadInbox(owner,checkNotNull(generation)).thenApply {messages+it}}

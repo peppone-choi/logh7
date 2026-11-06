@@ -14,9 +14,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
     /** 命令/提案 rows of the world state (design-proposals-orders.md). */
     private val proposals:(Long)->ProposalState?={null},
     /** Current rank (promotion, accession) over the character file's creation rank; null keeps the file's. */
-    private val rank:(Int)->Int?={null},
-    /** Current actual membership; MailIdentity.power is the original client's display code. */
-    private val country:(Long,Int)->CountryId?={epoch,id->directory(epoch,id)?.let {CountryId(it.power)}}):AutoCloseable {
+    private val rank:(Int)->Int?={null}):AutoCloseable {
     private var current:Triple<Long,CommunicationStore,Communication>?=null
     private var messenger:Pair<Long,GameMessenger>?=null
     private data class Offer(val from:String,val to:String,val expires:Long)
@@ -29,12 +27,16 @@ class GameCommunication(private val presence:GamePresence,private val generation
      * and the compatibility DLL marks the HUD from this list (user decision 2026-11-01). */
     fun unreadInbox(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.supplyAsync({
         runCatching {
+            require(directory(expected,owner.character)==owner)
             val engine=engine(expected)
+            engine.synchronize(owner)
             if(engine.list(owner,true).none {!it.read})emptyList() else inbox(engine,owner,true)
         }.getOrDefault(emptyList())
     },executor)
     /** U-25 defection: record the new side and clear the address book, on the mail executor. */
-    fun defect(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.runAsync({engine(expected).defect(owner)},executor)
+    fun defect(owner:MailIdentity,expected:Long)=java.util.concurrent.CompletableFuture.runAsync({
+        require(directory(expected,owner.character)==owner);engine(expected).synchronize(owner)
+    },executor)
     /** A server-written notice from [sender] to [recipient] (U-10 謀議 refusal), on the mail executor. */
     fun notice(sender:MailIdentity,recipient:MailIdentity,subject:String,body:String,expected:Long,seconds:Long)=
         java.util.concurrent.CompletableFuture.runAsync({runCatching {engine(expected).send(sender,recipient,subject,body,seconds,
@@ -60,11 +62,11 @@ class GameCommunication(private val presence:GamePresence,private val generation
     private fun item(p:StoredMail)=Wire.Item(p.id,-1,p.read,peer(p.sender,p.senderPost),peer(p.recipient,p.recipientPost),p.seconds,p.subject,p.body)
     /** The card number of an office address; a proposal row's address carries an unset value instead (36173 observed). */
     private fun post(p:Wire.Peer)=p.extra[2].takeIf {it in 0..260} ?: -1
-    private fun holds(member:GamePresence.Member,post:Int)=post==0 || member.offices.any {it.kind==post}
+    private fun holds(member:GamePresence.Member,post:Int)=post==0 || member.player.country!=null && member.offices.any {it.kind==post}
     private fun member(connection:String,owner:MailIdentity,expected:Long):GamePresence.Member {
         require(expected==generation() && directory(expected,owner.character)==owner)
         return checkNotNull(presence.communicationMember(connection)).also {
-            require(it.player.generation==expected && it.character.id.toInt()==owner.character && it.character.power==owner.power)
+            require(it.player.generation==expected && it.character.id.toInt()==owner.character && it.player.country==owner.country)
         }
     }
     private fun books(engine:Communication,owner:MailIdentity)=Wire.addresses(engine.addressBook(owner).map(::peer))
@@ -93,7 +95,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
         if(post<=0 || org.logh7.engine.OrganizationOffices.of(post)==null)return emptyList()
         val state=proposals(expected) ?: return emptyList()
-        val membership=country(expected,owner.character) ?: return emptyList()
+        val membership=owner.country ?: return emptyList()
         fun ranked(p:MailIdentity)=rank(p.character)?.let {p.copy(rank=it)} ?: p
         fun who(id:Int,card:Int)=directory(expected,id)?.let {peer(ranked(it),card)} ?: Wire.Peer(id,extra=listOf(0,0,card))
         val self=peer(ranked(owner),post)
@@ -118,6 +120,19 @@ class GameCommunication(private val presence:GamePresence,private val generation
     }
     private fun publish(expected:Long,owner:MailIdentity,messages:List<ByteArray>,except:String) {
         presence.communicationSend(expected,owner.character,messages,except)
+    }
+    private fun deliver(expected:Long,engine:Communication,mail:StoredMail,except:String) {
+        if(mail.recipientPost==0) {
+            publish(expected,mail.recipient,inbox(engine,mail.recipient,true),except)
+            return
+        }
+        // The address may still name a former holder. Refresh only this country's current holders.
+        for(member in presence.communicationMembers(expected)) {
+            val owner=directory(expected,member.character.id.toInt()) ?: continue
+            if(owner.country==null || owner.country!=mail.recipient.country || member.player.country!=owner.country || !holds(member,mail.recipientPost))continue
+            engine.synchronize(owner)
+            publish(expected,owner,inbox(engine,owner,true,post=mail.recipientPost),except)
+        }
     }
     private fun rejection(opcode:Int,reason:MailRejection):List<ByteArray> {
         // Authentication/generation failures stay exceptional. These are normal
@@ -148,7 +163,8 @@ class GameCommunication(private val presence:GamePresence,private val generation
         val opcode=ByteBuffer.wrap(body).short.toInt() and 65535
         if(opcode==0x0f04) {
             require(body.size==2 && expected==generation() && directory(expected,owner.character)==owner)
-            return listOf(books(engine(expected),owner))
+            val engine=engine(expected);engine.synchronize(owner)
+            return listOf(books(engine,owner))
         }
         if(opcode in listOf(0x0f06,0x0f0d,0x0f0e,0x0f0f)) {
             require(expected==generation() && directory(expected,owner.character)==owner)
@@ -159,6 +175,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         }
         val actor=member(connection,owner,expected)
         val engine=engine(expected)
+        engine.synchronize(owner)
         fun own(p:Wire.Peer) {require(p.id==owner.character && holds(actor,post(p))) {"Mail owner mismatch"}}
         return when(opcode) {
             0x0f08 -> {
@@ -177,6 +194,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 require(command.first.personal && command.second.personal)
                 val first=checkNotNull(directory(expected,command.first.id))
                 val second=checkNotNull(directory(expected,command.second.id))
+                engine.synchronize(first);engine.synchronize(second)
                 require(first.character!=second.character)
                 offers.entries.removeIf {it.value.expires<=now() || it.key.first!=expected}
                 val key=Triple(expected,first.character,second.character)
@@ -209,6 +227,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 val command=Wire.item(body);own(command.sender)
                 val senderPost=post(command.sender);val recipientPost=post(command.recipient)
                 val recipient=directory(expected,command.recipient.id)
+                recipient?.let(engine::synchronize)
                 // Compatibility DLL puts a random 63-bit nonce in the existing
                 // request ID/ref words. Legacy ID=0 requests keep per-call keys.
                 // Account + character + generation bind the untrusted nonce.
@@ -220,7 +239,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 if(result.changed) {
                     // CD opening queries both folders, so the last query is
                     // not the visible tab. Delivery always changes the inbox.
-                    publish(expected,saved.recipient,inbox(engine,saved.recipient,true,post=saved.recipientPost),connection)
+                    deliver(expected,engine,saved,connection)
                 }
                 // Echo the nonce's low word only in the command ACK. Stored
                 // inbox/outbox rows keep the ordinary reference=-1 value.
@@ -251,11 +270,11 @@ class GameCommunication(private val presence:GamePresence,private val generation
     }
 }
 
-internal fun communicationIdentity(characters:CharacterCreation,id:Int):MailIdentity? {
-    val character=characters.characterById(id) ?: return null
-    val account=characters.accountByCharacter(id) ?: return null
+internal fun communicationIdentity(characters:CharacterCreation,id:Int,snapshot:WorldSnapshot?=null):MailIdentity? {
+    val entry=WorldCharacters.profiles(characters.profiles(),snapshot).entries.singleOrNull {it.value.character.id==id.toLong()} ?: return null
+    val account=entry.key;val profile=entry.value;val character=characters.characterById(id) ?: return null
     val name=(character.surname+" "+character.givenName).trim().take(12)
-    return MailIdentity(account,id,character.power,name,character.origin,character.rank,
+    return MailIdentity(account,id,profile.country,name,character.origin,character.rank,
         face=character.face,ageSeconds=Math.multiplyExact(character.age,CharacterMessages.AGE_SECONDS_PER_YEAR))
 }
 

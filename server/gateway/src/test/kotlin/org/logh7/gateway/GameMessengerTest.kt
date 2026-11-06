@@ -8,9 +8,9 @@ import org.logh7.protocol.MessengerMessages as Wire
 import kotlin.test.*
 
 class GameMessengerTest {
-    private val a=MailIdentity("alpha",10000,2,"송신 한글",face=1000001,ageSeconds=30*31_536_000)
-    private val b=MailIdentity("beta",10001,3,"수신 한글",face=1000002,ageSeconds=35*31_536_000)
-    private val c=MailIdentity("gamma",10002,2,"세번째")
+    private val a=MailIdentity("alpha",10000,CountryId(2),"송신 한글",face=1000001,ageSeconds=30*31_536_000)
+    private val b=MailIdentity("beta",10001,CountryId(3),"수신 한글",face=1000002,ageSeconds=35*31_536_000)
+    private val c=MailIdentity("gamma",10002,CountryId(2),"세번째")
     private fun peer(p:MailIdentity)=p.communicationPeer()
     private fun body(packet:ByteArray)=packet.copyOfRange(4,packet.size)
     private class Fixture {
@@ -19,10 +19,10 @@ class GameMessengerTest {
         val people=mutableMapOf<Int,MailIdentity>()
         fun add(p:MailIdentity,connection:String=p.account) {
             people[p.character]=p
-            val character=CharacterMessages.Generate(4,p.character.toLong(),p.power,0,0,p.name,"Pilot",30,1,1,1000001,
+            val character=CharacterMessages.Generate(4,p.character.toLong(),checkNotNull(p.country).value,0,0,p.name,"Pilot",30,1,1,1000001,
                 List(8){50},0,0,0,20,0,0,"Ship",1)
             presence.update(GamePresence.Member(connection,character,
-                Navigator(7,p.character,if(p.power==2)Power.EMPIRE else Power.ALLIANCE,2487,1000,1000,1000),
+                Navigator(7,p.character,if(checkNotNull(p.country).value==2)Power.EMPIRE else Power.ALLIANCE,2487,1000,1000,1000),
                 {received.getOrPut(p.character){mutableListOf()}.addAll(it)}))
         }
         fun service()=GameCommunication(presence,{7},{_,id->people[id]},{false},{object:CommunicationStore {
