@@ -20,7 +20,7 @@ class TaxTransactionTest {
         store.saveWorld(mapOf("pilot" to capitalPilot),capitalStocks)
         val engine=WorldEngine(this,rules,ticking=false,galaxy=capitalGalaxy,navigationStore=store.navigationStore,
             stockStore=store.stockStore,worldStateCommitter=store)
-        val request=query.copy(power=Power.ALLIANCE,base=1177,card=192)
+        val request=query.copy(country=Power.ALLIANCE.country,base=1177,card=192)
         try {
             val joined=CompletableDeferred<Admission>()
             engine.submit(WorldCommand.Join("pilot",Power.ALLIANCE,false,joined,"c",1))

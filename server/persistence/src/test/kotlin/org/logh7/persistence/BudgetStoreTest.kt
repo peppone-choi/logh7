@@ -11,8 +11,20 @@ import kotlin.test.*
 /** 저장34·33 호환과 금고/견적/CP의 동시 저장. 작성: Peppone Choi. */
 class BudgetStoreTest {
     @TempDir lateinit var directory:Path
+    @Test fun additionalCountryQuoteKeepsItsIdentityAndCompletedReceiptAcrossReload() {
+        val country=CountryId(42)
+        val q=quote.copy(country=country,card=136,phase=BudgetPhase.COMPLETED)
+        val state=budget.copy(quotes=mapOf(q.character to q))
+        assertEquals(state,BudgetStateCodec.decode(BudgetStateCodec.encode(state)))
+        val value=stocks.copy(bases=stocks.bases.mapValues {(_,b)->b.copy(owner=Allegiance.Country(country))},
+            nationalTreasuries=mapOf(country to Long.MAX_VALUE),budget=state,civic=CivicState())
+        val path=directory.resolve("country-budget")
+        FilePlanetStockStore(path).use {it.save(value)}
+        FilePlanetStockStore(path).use {assertEquals(value,it.load())}
+        assertFailsWith<IllegalArgumentException>{BudgetStateCodec.decode(BudgetStateCodec.encode(state).replace(":136:42:",":136:0:"))}
+    }
     private val now=SessionRules.load().startSeconds
-    private val quote=BudgetQuote(7,10000,18,8,2,1049,33,50,Long.MAX_VALUE,200,
+    private val quote=BudgetQuote(7,10000,18,8,CountryId(2),1049,33,50,Long.MAX_VALUE,200,
         BudgetActions.percentage(Long.MAX_VALUE,33),now,now+86400)
     private val budget=BudgetState(mapOf(1049 to 75),8,mapOf(10000 to quote))
     private val civic=CivicState(mapOf(10001 to CivicOrder(10001,55,59,2,5,1049,0,10490001,now,now+86400,CivicPhase.GUARDING)))

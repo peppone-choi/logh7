@@ -857,7 +857,7 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         require(query.character == character.id.toInt())
                         pendingWorld = administration.tax(org.logh7.engine.TaxRequest(identity.account, connection, query.character,
-                            if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
+                            currentProfile(identity.account,query.character).country,
                             checkNotNull(generation), query.base, query.rate, query.card, query.mode,
                             character.abilities[1], character.abilities[2])).thenApply { result ->
                             val player = checkNotNull(result.player) { "Tax command lost its authenticated character" }

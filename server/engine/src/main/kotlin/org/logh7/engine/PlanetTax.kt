@@ -2,9 +2,12 @@ package org.logh7.engine
 
 import org.logh7.engine.strategy.*
 
-data class TaxRequest(val account: String, val connection: String, val characterId: Int, val power: Power,
+data class TaxRequest(val account: String, val connection: String, val characterId: Int, val country: CountryId?,
     val generation: Long, val base: Int, val rate: Int, val card: Int, val mode: Int = 0,
     val politics: Int = 50, val administration: Int = 50) {
+    constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,base:Int,rate:Int,card:Int,
+        mode:Int=0,politics:Int=50,administration:Int=50):this(account,connection,characterId,power.country,generation,
+            base,rate,card,mode,politics,administration)
     init { require(characterId > 0 && generation > 0 && base in 1..65535 && rate in 0..100 && card in 0..65535 &&
         mode in 0..255 && politics in 0..65535 && administration in 0..65535) }
 }
@@ -19,18 +22,22 @@ internal object PlanetTax {
         require(stock.baseId == base.baseId)
         return stock.taxRate ?: base.tax
     }
-    fun evaluate(galaxy: Galaxy, request: TaxRequest, session: SessionState, player: Navigator?, stocks: PlanetStocks): TaxResult {
+    fun evaluate(galaxy: Galaxy, request: TaxRequest, session: SessionState, player: Navigator?, stocks: PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()): TaxResult {
         fun reject(reason: TaxRejection) = TaxResult(player, stocks, reason)
         val participant = session.participants[request.account] ?: return reject(TaxRejection.SESSION)
         if (session.ended != null || session.generation != request.generation || stocks.generation != request.generation ||
             !participant.online || participant.connection != request.connection) return reject(TaxRejection.SESSION)
         if (player == null || player.generation != request.generation || player.characterId != request.characterId ||
-            player.power != request.power || participant.power != request.power) return reject(TaxRejection.IDENTITY)
+            player.country != request.country || participant.country != request.country) return reject(TaxRejection.IDENTITY)
         if (request.mode != 0) return reject(TaxRejection.MODE)
-        val power = if (request.power == Power.EMPIRE) 2 else 3
-        if (request.card !in if (power == 2) setOf(54) else setOf(190,192)) return reject(TaxRejection.CARD)
+        val country=request.country ?: return reject(TaxRejection.CARD)
+        val offices=OrganizationalOfficePolicy(galaxy,countries)
+        val role=offices.role(request.card,country) ?: return reject(TaxRejection.CARD)
+        if(role.card !in setOf(54,190,192) || role.camp!=0)return reject(TaxRejection.CARD)
         val base = stocks.bases[request.base] ?: return reject(TaxRejection.BASE)
-        if (base.power != power || base.camp != 0 || BaseOfficePolicy(galaxy).holders(base)[request.card] != request.characterId)
+        if (!base.belongsTo(country) || base.camp != 0 || offices.holders(stocks,request.card,country)
+            .none {it.seat==base.baseId && it.character==request.characterId})
             return reject(TaxRejection.ACCESS)
         val seed = galaxy.conditions[base.baseId] ?: return reject(TaxRejection.BASE)
         if (seed.habitability == 0) return reject(TaxRejection.BASE)

@@ -938,7 +938,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) { "World storage is unavailable" }
                     val request = command.request
                     val session = durableState?.session ?: simulation.exportState()
-                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.power,
+                    val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production) { "World production is disabled" }.settle(session.generation, session.gameMillis / 1000)
                     var result = PlanetTax.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
