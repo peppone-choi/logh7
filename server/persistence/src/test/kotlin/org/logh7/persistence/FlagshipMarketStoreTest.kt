@@ -19,6 +19,25 @@ class FlagshipMarketStoreTest {
         tacticalCommands=TacticalCommandState(morale=mapOf(1 to 75)),flagshipMarket=market)
     private val giver=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,hull=FlagshipHull(0,now))
     private val receiver=giver.copy(characterId=10001,hull=FlagshipHull(2,now))
+    @Test fun addedCountryCapitalMixedHullOfferAndGuardCargoRecoverTogether() {
+        val country=CountryId(42);val style=ShipStyleId("alliance");val option=GuardShips.options[13];val unit=UnitStack(option.baseKind)
+        val guard=OutfitStock(1,country,OutfitKind.PATROL,1050,1,10000,units=UnitInventory(ships=mapOf(unit to 1)),number=201,
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(101,unit))),guard=mapOf(101 to option.index),shipStyle=style)
+        val pending=stocks.copy(bases=mapOf(1050 to PlanetStock(1050,Allegiance.Country(country),0,100,200,300)),
+            outfits=mapOf(1 to guard),warehouses=mapOf(1 to OutfitWarehouse(1,country,OutfitKind.PATROL,1050,shipStyle=style)),nextShipId=102,
+            strategic=stocks.strategic.copy(capitals=mapOf(country to 1050)),
+            flagshipMarket=FlagshipMarketState(listOf(offer.copy(base=1050,spot=10504622,giverKind=89))))
+        val players=mapOf("giver" to giver.copy(country=country,shipStyle=style,baseId=1050,mode=4,spotId=10504622,
+            hull=FlagshipHull(89,now),pcp=920),"receiver" to receiver.copy(country=country,baseId=1050,mode=4,spotId=10504622))
+        val root=directory.resolve("country-world")
+        FileWorldStateStore(root).use {it.saveWorld(players,pending)}
+        FileWorldStateStore(root).use {
+            assertEquals(players,it.loadNavigation());assertEquals(pending,it.loadStocks())
+            val recovered=it.loadStocks()!!
+            assertEquals(country,recovered.outfits.getValue(1).country);assertEquals(style,recovered.outfits.getValue(1).shipStyle)
+            assertEquals(1050,recovered.strategic.capitals[country]);assertEquals(89,recovered.flagshipMarket.offers.single().giverKind)
+        }
+    }
     @Test fun format31KeepsSAndCAndStrictMRecordsAndOlderFormatsRemainReadable() {
         val path=directory.resolve("stocks.tsv")
         FilePlanetStockStore(path).use {it.save(stocks)}

@@ -27,13 +27,13 @@ object FlagshipMarketCatalog {
         return listOf(Triple(3,50L,20),Triple(2,200L,10),Triple(0,500L,7),Triple(4,150L,10)).mapIndexed {i,(type,price,rank)->
             FlagshipPurchaseOption(i,Flagships.forType(power,type).kind,price,rank)}
     }
-    fun atYard(galaxy:Galaxy,stocks:PlanetStocks,p:Navigator):Boolean {
-        val power=p.country?.value?.takeIf {it in 2..3} ?: return false
-        val base=galaxy.bases.singleOrNull {it.id==p.baseId && Capital.of(it)?.power==power} ?: return false
-        if(stocks.bases[base.id]?.let {it.belongsTo(CountryId(power)) && it.camp==0}!=true || p.mode !in 1..4 || p.spotOwner!=0)return false
+    fun atYard(galaxy:Galaxy,stocks:PlanetStocks,p:Navigator,countries:CountryCatalog=CountryCatalogLoader.current()):Boolean {
+        val country=p.country?.takeIf {it.value in countries.countries} ?: return false
+        if(p.generation!=stocks.generation || p.mode !in 1..4 || p.spotOwner!=0 || galaxy.bases.none {it.id==p.baseId} ||
+            OrganizationalOfficePolicy(galaxy,countries).capital(stocks,country)!=p.baseId)return false
         // Native constmsg73/74: flagship yard23, reception21. The CD already has the
         // place even though its later purchase-command factory is absent.
-        return galaxy.facilitiesAt(base.id,stocks).any {f->f.kind==23 && f.spots.any {it.kind==21 && it.id==p.spotId}}
+        return galaxy.facilitiesAt(p.baseId,stocks,countries).any {f->f.kind==23 && f.spots.any {it.kind==21 && it.id==p.spotId}}
     }
 }
 internal object FlagshipMarketActions {
@@ -43,9 +43,12 @@ internal object FlagshipMarketActions {
         val remaining=stocks.flagshipMarket.offers.filter {it.expiresAt>now}
         return if(remaining.size==stocks.flagshipMarket.offers.size)stocks else stocks.copy(flagshipMarket=FlagshipMarketState(remaining))
     }
-    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks):StrategyActionResult {
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         if(r.card!=0 || r.outfit!=0)return reject(StrategyActionRejection.CARD)
+        val country=p.country?.takeIf {it.value in countries.countries} ?: return reject(StrategyActionRejection.IDENTITY)
+        if(country in s.eliminated)return reject(StrategyActionRejection.SESSION)
         val now=s.gameMillis/1000
         val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
         val live=stocks.flagshipMarket.offers.filter {it.expiresAt>now}
@@ -54,7 +57,7 @@ internal object FlagshipMarketActions {
         var updates=emptyMap<String,Navigator>()
         var cost=0L
         if(r.argument !in 0..5)return reject(StrategyActionRejection.COMMAND)
-        if(r.argument>=4)return GuardUnitActions.evaluate(galaxy,r,s,p,stocks)
+        if(r.argument>=4)return GuardUnitActions.evaluate(galaxy,r,s,p,stocks,countries)
         // Cancellation remains available after moving, injury or loss of the capital.
         if(r.argument==3) {
             val remaining=live.filter {it.giver!=r.characterId && it.receiver!=r.characterId}
@@ -63,7 +66,7 @@ internal object FlagshipMarketActions {
         }
         if(rank!=0 && rank !in 2..20)return reject(StrategyActionRejection.RANK)
         if(busy(p,now))return reject(StrategyActionRejection.BUSY)
-        if(!FlagshipMarketCatalog.atYard(galaxy,stocks,p))return reject(StrategyActionRejection.LOCATION)
+        if(!FlagshipMarketCatalog.atYard(galaxy,stocks,p,countries))return reject(StrategyActionRejection.LOCATION)
         val hull=p.hull ?: return reject(StrategyActionRejection.TROOPS)
         if(r.argument==0) {
             if(r.target!=0)return reject(StrategyActionRejection.COMMAND)
@@ -83,7 +86,7 @@ internal object FlagshipMarketActions {
             val target=r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}
                 ?: return reject(StrategyActionRejection.TARGET)
             val other=target.value
-            if(other.country!=p.country || !FlagshipMarketCatalog.atYard(galaxy,stocks,other) ||
+            if(other.country!=country || !FlagshipMarketCatalog.atYard(galaxy,stocks,other,countries) ||
                 other.baseId!=p.baseId || other.spotId!=p.spotId || other.spotOwner!=p.spotOwner)
                 return reject(StrategyActionRejection.LOCATION)
             if(busy(other,now))return reject(StrategyActionRejection.BUSY)
@@ -133,7 +136,8 @@ internal object GuardUnitActions {
         catalog:CountryCatalog=countries):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val now=s.gameMillis/1000
-        val country=p.country ?: return reject(StrategyActionRejection.IDENTITY)
+        val country=p.country?.takeIf {it.value in catalog.countries} ?: return reject(StrategyActionRejection.IDENTITY)
+        if(country in s.eliminated)return reject(StrategyActionRejection.SESSION)
         if(p.cpPaused || p.navigationPending || (p.hull?.woundedUntil ?: 0)>now)return reject(StrategyActionRejection.BUSY)
         val own=guardOf(stocks,r.characterId)
         if(own!=null && own.country!=country)return reject(StrategyActionRejection.AUTHORITY)
@@ -147,7 +151,7 @@ internal object GuardUnitActions {
             val choice=GuardShips.option(r.value)?.takeIf {it.power==style.nativePower && r.target==0} ?: return reject(StrategyActionRejection.COMMAND)
             val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
             if(rank !in 2..choice.maximumRank && rank!=0)return reject(StrategyActionRejection.RANK)
-            if(!FlagshipMarketCatalog.atYard(galaxy,stocks,p))return reject(StrategyActionRejection.LOCATION)
+            if(!FlagshipMarketCatalog.atYard(galaxy,stocks,p,catalog))return reject(StrategyActionRejection.LOCATION)
             // update03: only characters outside fleets, patrols and ground forces may form a guard unit.
             if(stocks.outfits.values.any {it.guard==null && r.characterId in it.members()})return reject(StrategyActionRejection.AUTHORITY)
             if((own?.guard?.size ?: 0)>=GuardShips.MAXIMUM_UNITS)return reject(StrategyActionRejection.MAXIMUM)
