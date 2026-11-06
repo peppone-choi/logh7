@@ -217,8 +217,25 @@ def staging_dir(out):
     return Path(tempfile.mkdtemp(prefix='.upscale-', dir=out))
 
 
-def downscale(image, size, binary):
-    """4배 결과를 축소한다. 원본 알파가 0/255뿐이면 축소 뒤에도 다시 이진화해 색키 가장자리를 지킨다."""
+def fit_source(up_rgb, source, k):
+    """UI 아틀라스용: 알파는 원본을 그대로 k배 복제하고, 색은 원본 1픽셀에 해당하는 k×k 블록 평균이 원본 색과
+    같아지도록 보정한다. 부품 사이 1px 투명 줄이 업스케일로 흐려져 9분할 창이 줄무늬로 보이던 문제(2026-11-06 실기)를 막는다.
+    상세는 블록 안에서만 남고, 원래 크기로 줄여 그리면 원본과 같다."""
+    src = np.asarray(source.convert('RGBA'), dtype=np.float32)
+    h, w = src.shape[:2]
+    rgb = np.asarray(up_rgb.convert('RGB'), dtype=np.float32)
+    for _ in range(8):  # 0~255 자르기로 남는 차이를 남은 픽셀에 나눠 준다
+        mean = rgb.reshape(h, k, w, k, 3).mean((1, 3))
+        rgb = np.clip(rgb + np.repeat(np.repeat(src[:, :, :3] - mean, k, 0), k, 1), 0, 255)
+    alpha = np.repeat(np.repeat(src[:, :, 3], k, 0), k, 1)
+    return Image.fromarray(np.dstack([rgb, alpha]).round().astype(np.uint8), 'RGBA')
+
+
+def downscale(image, size, binary, box=False):
+    """4배 결과를 축소한다. 원본 알파가 0/255뿐이면 축소 뒤에도 다시 이진화해 색키 가장자리를 지킨다.
+    box: fit_source 결과를 블록 평균 그대로 줄인다(원본 대응이 유지된다)."""
+    if box:
+        return image.resize(size, Image.Resampling.BOX)
     small = image.resize(size, Image.Resampling.LANCZOS)
     if binary and small.mode == 'RGBA':
         small.putalpha(small.getchannel('A').point(lambda v: 255 if v >= 128 else 0))
@@ -238,6 +255,10 @@ def main(argv=None):
                     help='auto: 가장자리가 이어지는 불투명 텍스처(행성·타일 노이즈)를 감싸 붙여 업스케일해 이음매를 보존')
     ap.add_argument('--detail', type=float, default=0.0,
                     help='원본 질감 복원 강도(0=끔). 작은 아이콘은 realesrgan-x4plus와 0.9 권장')
+    ap.add_argument('--fit', choices=('none', 'source'), default='none',
+                    help='source: UI 아틀라스. 알파는 원본 복제, 색은 원본 픽셀 블록 평균에 맞춘다(fit_source)')
+    ap.add_argument('--reuse', action='store_true',
+                    help='모델을 다시 돌리지 않고 out/x4 의 기존 결과 색을 읽어 알파·보정만 다시 한다')
     args = ap.parse_args(argv)
     src, out = Path(args.src), writable(args.out)
     if args.list:
@@ -250,6 +271,28 @@ def main(argv=None):
         items = [(str(p.relative_to(src)).replace('\\', '/'), args.model)
                  for p in sorted(src.rglob('*')) if p.suffix.lower() in IMAGE_EXT]
     manifest, groups = [], {}
+    previous = {}
+    if args.reuse and (out / 'manifest.json').exists():
+        previous = {m['rel']: m for m in json.loads((out / 'manifest.json').read_text(encoding='utf-8'))['items']}
+
+    def finish(up, rel, size, alpha, binary, source, meta):
+        big = (size[0] * 4, size[1] * 4)
+        if args.fit == 'source':
+            up = fit_source(up, source, 4)
+            meta['fit'] = 'source'
+        elif alpha is not None:
+            a = alpha.resize(big, Image.Resampling.LANCZOS)
+            if binary:
+                a = a.point(lambda v: 255 if v >= 128 else 0)
+            up.putalpha(a)
+        else:
+            up.putalpha(255)
+        small = downscale(up, (size[0] * 2, size[1] * 2), binary, box=args.fit == 'source')
+        for scale, image in (('x4', up), ('x2', small)):
+            target = out / scale / (rel + '.png')
+            target.parent.mkdir(parents=True, exist_ok=True)
+            image.save(target, optimize=False)
+
     stage = staging_dir(out)
     try:
         skipped = []
@@ -271,8 +314,18 @@ def main(argv=None):
             binary = bool(np.isin(np.asarray(alpha), (0, 255)).all())
             meta = dict(rel=rel, model=model, sha256=hashlib.sha256(data).hexdigest(),
                         size=list(image.size), alpha=[lo, hi], binary_alpha=binary, wrap=list(wrap))
+            if args.reuse:
+                old = previous.get(rel, {})
+                if old.get('sha256') not in (None, meta['sha256']):
+                    raise ValueError(f'{rel}: source changed since the reused upscale')
+                meta = {**old, **meta, 'model': old.get('model', model)}
+                manifest.append(meta)
+                with Image.open(out / 'x4' / (rel + '.png')) as reused:
+                    up = reused.convert('RGB')
+                finish(up, rel, image.size, alpha if lo < 255 else None, binary, image, meta)
+                continue
             manifest.append(meta)
-            groups.setdefault(model, []).append((key, rel, image.size, alpha if lo < 255 else None, binary, pad, wrap, meta))
+            groups.setdefault(model, []).append((key, rel, image.size, alpha if lo < 255 else None, binary, pad, wrap, meta, image))
         timing = {}
         for model, entries in groups.items():
             (stage / model / 'out').mkdir(exist_ok=True)
@@ -282,7 +335,7 @@ def main(argv=None):
                                 '-n', model, '-s', '4', '-t', args.tile, '-f', 'png'],
                                check=True, cwd=TOOL.parent, capture_output=True)
             timing[model] = round(time.perf_counter() - start, 2)
-            for key, rel, size, alpha, binary, pad, wrap, meta in entries:
+            for key, rel, size, alpha, binary, pad, wrap, meta, source in entries:
                 staged = Image.open(stage / model / 'in' / key).convert('RGB')
                 padded = (staged.width * 4, staged.height * 4)
                 if model == 'lanczos':
@@ -314,19 +367,7 @@ def main(argv=None):
                             break
                 if args.detail:
                     up = restore_detail(up, staged, args.detail)
-                up = crop_pad(up, pad * 4, *wrap)
-                big = (size[0] * 4, size[1] * 4)
-                if alpha is not None:
-                    a = alpha.resize(big, Image.Resampling.LANCZOS)
-                    if binary:
-                        a = a.point(lambda v: 255 if v >= 128 else 0)
-                    up.putalpha(a)
-                else:
-                    up.putalpha(255)
-                for scale, image in (('x4', up), ('x2', downscale(up, (size[0] * 2, size[1] * 2), binary))):
-                    target = out / scale / (rel + '.png')
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    image.save(target, optimize=False)
+                finish(crop_pad(up, pad * 4, *wrap), rel, size, alpha, binary, source, meta)
         pixels = sum(m['size'][0] * m['size'][1] for m in manifest)
         (out / 'manifest.json').write_text(json.dumps(dict(
             tool=str(TOOL), items=manifest, skipped=skipped, model_seconds=timing, source_pixels=pixels),

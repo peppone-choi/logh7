@@ -187,7 +187,6 @@ Python 30개는 통과했으며 `test_display_hooks.py`가 원본 CALL 목적지
 
 2026-10-29 통합 확인(작성: Peppone Choi): 메인 통합본에서 Python 33개와 새 x86 DLL `/W4 /WX`·guard 실행을 통과했다(`combined280-compat.log`). 이탈 통지의 누락 객체 보호와 기존 한국어 이름/부대 UI도 함께 빌드했다. 실제 새 오류창·경고·제목판 이미지 사용은 미확인이므로 전체 한글화 완료 체크는 유지하지 않는다.
 
-
 세션·생성·추첨 국가 선택(2026-11-06, Peppone Choi): `lobby_country_data.h`는 mode7 완성 페이지와
 원본 2006 목록을 검사하고, `lobby_country_transport.h`는 수신 신원/nonce를 맞춘다.
 `lobby_country_window.h`는 선택한 세션의 이름·대표색·거점·등록 인원을 여섯 행으로 표시한다.
@@ -195,3 +194,7 @@ Python 30개는 통과했으며 `test_display_hooks.py`가 원본 CALL 목적지
 기본 문장 타일의 원본 RGB가 대표색과 섞이지 않도록 이 창이 사용하는 GUI 전용 텍스처도 회색 명암으로 처리한다.
 업로드 자산·새 국가 가입·국가별 출신/얼굴 분기는 남는다.
 [실제 실행과 프로토콜](../docs/protocol/session-login.md#세-화면의-공통-국가-목록-2026-11-06).
+
+## HD 텍스처 묶음 (2026-11-06)
+
+설치 폴더에 `hd\`(exe 폴더의 형제, `data\` 옆)가 있으면 본 텍스처 로드(`0x5e29eb`·`0x5e2a1f`)가 `hd\<data 기준 상대 경로>.<원본 FNV-1a 32 8자리>.png`를 대신 읽는다(원본 판마다 다른 파일이라 업데이트판에 기본판 HD가 붙지 않는다). 원본의 정확히 N배(2~8)인 파일만 쓰고, HD 텍스처는 `GetLevelDesc`가 원래 크기를 보고해 2D UV가 원래 픽셀 공간에 남는다. 폴더가 없으면 아무것도 바꾸지 않는다. 묶음은 `tools/assets/build_hd_pack.py`로 만들고, 처음 4000건은 `hd\hd-textures.log`에 남는다. 근거와 제외 규칙은 [리마스터 계획 2.1절](../docs/client/remaster-plan.md)에 있다. 실기 확인 전이다.

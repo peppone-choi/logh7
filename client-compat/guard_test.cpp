@@ -52,6 +52,44 @@
 #include "system_affiliation_data.h"
 #include "environment_shader_data.h"
 #include "tactical_fortress_menu_data.h"
+#include "hd_texture_data.h"
+// HD texture pack rules: data-relative path, skipped files, header sizes and the reported size (codes 901+).
+static int checkHdTextureRules() {
+    char rel[MAX_PATH];
+    if(!logh_hd::relativeDataPath("/../data/image/icon/system_icon_parts.tga",rel,sizeof(rel)) ||
+        strcmp(rel,"image\\icon\\system_icon_parts.tga"))return 901;
+    if(!logh_hd::relativeDataPath("C:\\G\\exe/../data/model/images/Hi/a.bmp",rel,sizeof(rel)) ||
+        strcmp(rel,"model\\images\\Hi\\a.bmp"))return 902;
+    if(logh_hd::relativeDataPath("/../metadata/a.tga",rel,sizeof(rel)) || logh_hd::relativeDataPath("/x/a.tga",rel,sizeof(rel)) ||
+        logh_hd::relativeDataPath("/data/../a.tga",rel,sizeof(rel)) || logh_hd::relativeDataPath("/data/",rel,sizeof(rel)) ||
+        logh_hd::relativeDataPath("/data/abcdef",rel,4))return 903;
+    if(!logh_hd::skipped("image\\a_col_p.tga") || !logh_hd::skipped("model\\images\\Hi\\b_NORMALMAP.bmp") ||
+        !logh_hd::skipped("image\\icon\\ICON_COUNTRY32.TGA") || !logh_hd::skipped("x\\c_alpha_s.bmp") ||
+        logh_hd::skipped("image\\a_alpha_x.bmp") || logh_hd::skipped("image\\icon_country32.tga.bak") ||
+        logh_hd::skipped("_col_p\\plain.tga"))return 904;
+    unsigned w=0,h=0;
+    const unsigned char png[24]={0x89,'P','N','G','\r','\n',0x1a,'\n',0,0,0,13,'I','H','D','R',0,0,1,0,0,0,1,64};
+    if(!logh_hd::imageSize(png,sizeof(png),"a.png",&w,&h) || w!=256 || h!=320)return 905;
+    unsigned char tga[18]={};tga[12]=64;tga[14]=80;
+    if(!logh_hd::imageSize(tga,sizeof(tga),"a.TGA",&w,&h) || w!=64 || h!=80 ||
+        logh_hd::imageSize(tga,sizeof(tga),"a.raw",&w,&h))return 906;
+    unsigned char bmp[26]={'B','M'};bmp[18]=32;bmp[22]=0xf0;bmp[23]=0xff;bmp[24]=0xff;bmp[25]=0xff; // height -16
+    if(!logh_hd::imageSize(bmp,sizeof(bmp),"a.bmp",&w,&h) || w!=32 || h!=16)return 907;
+    const unsigned char jpg[]={0xff,0xd8,0xff,0xe0,0,4,0,0,0xff,0xc0,0,11,8,1,0x2c,2,0x58,1,1,0x11,0,0,0};
+    if(!logh_hd::imageSize(jpg,sizeof(jpg),"a.jpg",&w,&h) || w!=600 || h!=300)return 908;
+    unsigned char dds[20]={'D','D','S',' '};dds[12]=128;dds[16]=64;
+    if(!logh_hd::imageSize(dds,sizeof(dds),"a.dds",&w,&h) || w!=64 || h!=128)return 909;
+    if(logh_hd::scaleFor(64,80,256,320)!=4 || logh_hd::scaleFor(300,10,600,20)!=2 || logh_hd::scaleFor(64,80,256,321) ||
+        logh_hd::scaleFor(64,80,64,80) || logh_hd::scaleFor(10,10,100,100) || logh_hd::scaleFor(0,1,2,2) ||
+        logh_hd::scaleFor(64,80,256,160))return 910;
+    if(logh_hd::reportedSize(512,4)!=128 || logh_hd::reportedSize(2,4)!=1 || logh_hd::reportedSize(64,0)!=64)return 911;
+    const unsigned char a[]={'a'};
+    if(logh_hd::fnv1a32(nullptr,0)!=0x811c9dc5u || logh_hd::fnv1a32(a,1)!=0xe40c292cu)return 912;
+    char name[24];
+    if(!logh_hd::hdFileName("x\\a.tga",0x0123abcdu,name,sizeof(name)) || strcmp(name,"x\\a.tga.0123abcd.png"))return 913;
+    if(!logh_hd::hdFileName("ab",1,name,16) || strcmp(name,"ab.00000001.png") || logh_hd::hdFileName("abc",1,name,16))return 914;
+    return 0;
+}
 static bool legacyKoreanGlyphTest() {
     wchar_t value=0;
     if (logh::legacyKoreanGlyph('A',value) || logh::legacyKoreanGlyph(0x82a0,value) ||
@@ -1490,6 +1528,7 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::neutralCountryPixels(iconPixels,7,2,2) || logh::neutralCountryPixels(iconPixels,4097,2,2) ||
         logh::neutralCountryPixels(iconPixels,12,129,2) || logh::neutralCountryPixels(iconPixels,12,2,129) ||
         logh::neutralCountryPixels(iconPixels,12,0,2) || memcmp(unchanged,iconPixels,sizeof(iconPixels)))return 300;
+    if(const int hd=checkHdTextureRules())return hd;
     return 0;
 }
 
