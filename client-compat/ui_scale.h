@@ -23,12 +23,20 @@ static float uiScaleSetting(int viewHeight) {
     return viewHeight > 1080 ? viewHeight / 1080.0f : 1;
 }
 // Render size for a game-screen view; returns false when no scaling applies.
+// The render keeps at least 800x600 (the client's smallest screen size), which also satisfies the
+// HUD overlay helpers (hudFrame: 743x600), so a large fixed scale is reduced instead of failing.
 static bool uiScaleRender(int viewWidth, int viewHeight, int& width, int& height) {
-    const float scale = uiScaleSetting(viewHeight);
+    float scale = uiScaleSetting(viewHeight);
+    if (viewWidth > 0 && viewHeight > 0) {
+        if (scale > viewWidth / 800.0f) scale = viewWidth / 800.0f;
+        if (scale > viewHeight / 600.0f) scale = viewHeight / 600.0f;
+    }
     if (scale <= 1.001f) return false;
-    width = static_cast<int>(viewWidth / scale + 0.5f);
-    height = static_cast<int>(viewHeight / scale + 0.5f);
-    return width >= 640 && height >= 480;
+    const int scaledWidth = static_cast<int>(viewWidth / scale + 0.5f), scaledHeight = static_cast<int>(viewHeight / scale + 0.5f);
+    if (scaledWidth < 800 || scaledHeight < 600) return false; // width/height keep the view size
+    width = scaledWidth;
+    height = scaledHeight;
+    return true;
 }
 // After 004ea460 stored the view client: keep the render size and ratio 1, remember the scale.
 static void uiScaleApply(void* app, int viewWidth, int viewHeight, bool scaled) {
