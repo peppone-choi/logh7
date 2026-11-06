@@ -12,13 +12,23 @@ import kotlin.test.*
 class CivicStoreTest {
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds
-    private val wait=CivicOrder(10000,52,59,2,5,1049,200,0,now,now+86400,CivicPhase.WAITING,setOf(1,2),token=37,connection="first-connection")
-    private val guard=CivicOrder(10001,55,59,2,5,1049,0,10490001,now,now+86400,CivicPhase.GUARDING,token=38,connection="second")
+    private val wait=CivicOrder(10000,52,59,CountryId(2),5,1049,200,0,now,now+86400,CivicPhase.WAITING,setOf(1,2),token=37,connection="first-connection")
+    private val guard=CivicOrder(10001,55,59,CountryId(2),5,1049,0,10490001,now,now+86400,CivicPhase.GUARDING,token=38,connection="second")
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,1000,200,300)),
         strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=5,evaluation=1000))),
         tacticalCommands=TacticalCommandState(morale=mapOf(1 to 75)),
         flagshipMarket=FlagshipMarketState(listOf(FlagshipExchangeOffer(10000,10001,0,2,1049,10494622,now+86400))),
         outfitSequence=OutfitSequence(201,301),civic=CivicState(mapOf(10000 to wait,10001 to guard)))
+    @Test fun actualCountryDutyReceiptsKeepTheirIdentityAfterReopening() {
+        val duty=wait.copy(country=CountryId(42))
+        val value=stocks.copy(civic=CivicState(mapOf(10000 to duty,10001 to guard.copy(country=CountryId(43)))))
+        val encoded=CivicStateCodec.encode(value.civic)
+        assertEquals(value.civic,CivicStateCodec.decode(encoded))
+        assertFailsWith<IllegalArgumentException>{CivicStateCodec.decode(encoded.replace("10000:52:59:42:","10000:52:59:0:"))}
+        val path=directory.resolve("country-duties.tsv")
+        FilePlanetStockStore(path).use {it.save(value)}
+        FilePlanetStockStore(path).use {assertEquals(value,it.load())}
+    }
     @Test fun format33RoundTripsS_C_M_FAndBothKindsOfDutiesAndStillLoads32() {
         val path=directory.resolve("stocks.tsv")
         FilePlanetStockStore(path).use {it.save(stocks);assertEquals(stocks,it.load())}
