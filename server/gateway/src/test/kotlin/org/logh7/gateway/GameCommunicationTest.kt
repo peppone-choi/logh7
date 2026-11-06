@@ -9,8 +9,40 @@ import kotlin.test.*
 
 /** 실제 프로토콜 코덱/서비스 경계 검사. 원본 UI 실행·송신 실기와 구분한다. 작성: Peppone Choi. */
 class GameCommunicationTest {
-    private val a=MailIdentity("alpha",10000,2,"송신 한글",face=1000001,ageSeconds=30*31_536_000)
-    private val b=MailIdentity("beta",10001,3,"수신 日本",face=1000002,ageSeconds=35*31_536_000)
+    @Test fun sameNativeDisplayAndOfficeNumberDoNotShareCountriesMailAndStalePresenceCannotReadIt() {
+        val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
+        var owner=a.copy(country=CountryId(42));val foreign=b.copy(country=CountryId(43))
+        val successor=a.copy(account="next",character=10002,country=CountryId(42))
+        val updates=mutableMapOf<Int,MutableList<List<ByteArray>>>()
+        fun officer(person:MailIdentity,connection:String)=member(person,connection,updates.getOrPut(person.character){mutableListOf()}).copy(
+            offices=listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(25,1049)))
+        hub.update(officer(owner,"first"));hub.update(officer(foreign,"second"));hub.update(officer(successor,"third"))
+        val ids=mutableMapOf(owner.character to owner,foreign.character to foreign,successor.character to successor)
+        val store=Store()
+        GameCommunication(hub,{7},{_,id->ids[id]},{false},{store}).use {service->
+            val office=peer(owner).copy(extra=listOf(owner.face,owner.ageSeconds,25))
+            service.handle("second",foreign,7,body(Wire.item(Wire.Item(0,-1,false,peer(foreign),office,0,"국가42 직무","기록"),0x0f10)),1)
+            fun rows(person:MailIdentity,connection:String)=service.handle(connection,person,7,
+                body(Wire.begin(Wire.Query(peer(person).copy(extra=listOf(person.face,person.ageSeconds,25)),true,true))),2)
+            assertEquals(1,rows(successor,"third").count {opcode(it)==0x0f0a})
+            assertTrue(rows(foreign,"second").none {opcode(it)==0x0f0a})
+            val id=store.state!!.messages.single().id
+            val change=Wire.Change(peer(foreign).copy(extra=listOf(foreign.face,foreign.ageSeconds,25)),true,id)
+            assertEquals(0x0500,opcode(service.handle("second",foreign,7,body(Wire.change(change,0x0f12)),3).single()))
+            hub.update(member(owner,"first",received));received.clear();updates.values.forEach {it.clear()}
+            service.handle("second",foreign,7,body(Wire.item(Wire.Item(0,-1,false,peer(foreign),office,0,"인계 후","기록"),0x0f10)),4)
+            assertTrue(received.isEmpty(),"a former holder must not receive an unsolicited office archive")
+            assertTrue(updates.getValue(foreign.character).isEmpty(),"the same card in another country gets no office refresh")
+            assertEquals(2,updates.getValue(successor.character).flatten().count {opcode(it)==0x0f0a})
+            val stale=owner;owner=owner.copy(country=CountryId(43));ids[owner.character]=owner
+            assertFails {rows(stale,"first")};assertFails {rows(owner,"first")}
+            hub.update(officer(owner,"first"));assertTrue(rows(owner,"first").none {opcode(it)==0x0f0a})
+            assertEquals(2,rows(successor,"third").count {opcode(it)==0x0f0a})
+            assertTrue(store.state!!.messages.all {it.recipient.country==CountryId(42)})
+        }
+    }
+    private val a=MailIdentity("alpha",10000,CountryId(2),"송신 한글",face=1000001,ageSeconds=30*31_536_000)
+    private val b=MailIdentity("beta",10001,CountryId(3),"수신 日本",face=1000002,ageSeconds=35*31_536_000)
     private fun peer(p:MailIdentity)=p.communicationPeer()
     private fun body(packet:ByteArray)=packet.copyOfRange(4,packet.size)
     private fun opcode(packet:ByteArray)=ByteBuffer.wrap(packet).getShort(4).toInt() and 65535
@@ -20,21 +52,19 @@ class GameCommunicationTest {
         override fun save(state:CommunicationState) {this.state=state}
     }
     private fun member(owner:MailIdentity,connection:String,received:MutableList<List<ByteArray>>) = GamePresence.Member(
-        connection,CharacterMessages.Generate(4,owner.character.toLong(),owner.power,0,0,owner.name,"Pilot",30,1,1,1000001,
+        connection,CharacterMessages.Generate(4,owner.character.toLong(),if(owner.country==CountryId(3))3 else 2,0,0,owner.name,"Pilot",30,1,1,1000001,
             List(8){50},0,0,0,20,0,0,"Ship",1),
-        Navigator(7,owner.character,if(owner.power==2)Power.EMPIRE else Power.ALLIANCE,2487,1000,1000,1000,
-            baseId=1049,mode=4,spotId=10490001),received::add)
+        Navigator(7,owner.character,owner.country,2487,1000,1000,1000,
+            baseId=1049,mode=4,spotId=10490001,shipStyle=ShipStyleId(if(owner.country==CountryId(3))"alliance" else "empire")),received::add)
     @Test fun proposalOfficeRowsUseCurrentActualMembershipAndKeepNominalCostWhenTheSenderPaidPcp() {
         val hub=GamePresence();val messages=mutableListOf<List<ByteArray>>()
-        val owner=a;val sender=b.copy(power=2)
+        var owner=a.copy(country=CountryId(42));val sender=b.copy(country=CountryId(42))
         val post=19
         hub.update(member(owner,"first",messages).let {it.copy(player=it.player.copy(country=CountryId(42)),
             offices=listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(post,1049)))})
-        val identities=mapOf(owner.character to owner,sender.character to sender)
         val mail=ProposalMail(1,sender.character,owner.character,17,post,ProposalActions.RESIGNATION,true,100,86500,pcp=80,country=CountryId(42))
         val state=ProposalState(listOf(mail,mail.copy(id=2,country=CountryId(43)),mail.copy(id=3,country=null)))
-        var country:CountryId?=CountryId(42)
-        GameCommunication(hub,{7},{_,id->identities[id]},{false},{Store()},proposals={state},country={_,_->country}).use {service->
+        GameCommunication(hub,{7},{_,id->listOf(owner,sender).singleOrNull {it.character==id}},{false},{Store()},proposals={state}).use {service->
             val query=Wire.Query(peer(owner).copy(extra=listOf(0,0,post)),true,true)
             fun rows()=service.handle("first",owner,7,body(Wire.begin(query)),200)
             val received=rows();assertEquals(1,received.count {opcode(it)==0x0f13})
@@ -42,8 +72,11 @@ class GameCommunicationTest {
             assertEquals(1,row.getInt(6));assertEquals(80,row.getInt(packet.size-8));assertEquals(0,row.getInt(packet.size-4))
             val paired=ByteBuffer.wrap(received.single {opcode(it)==0x0709})
             assertEquals(40,paired.getInt(18),"the recipient still owes half of the 80 MCP command")
-            country=CountryId(43);val foreign=rows();assertEquals(2,ByteBuffer.wrap(foreign.single {opcode(it)==0x0f13}).getInt(6))
-            country=null;assertTrue(rows().none {opcode(it)==0x0f13})
+            owner=owner.copy(country=CountryId(43))
+            hub.update(member(owner,"first",messages).copy(offices=listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(post,1049))))
+            val foreign=rows();assertEquals(2,ByteBuffer.wrap(foreign.single {opcode(it)==0x0f13}).getInt(6))
+            owner=owner.copy(country=null);hub.update(member(owner,"first",messages))
+            assertTrue(rows().none {opcode(it)==0x0f13})
         }
     }
     @Test fun consentThenKoreanMailOfflineDeliveryReadDeleteAndReconnectUseRealCodecs() {

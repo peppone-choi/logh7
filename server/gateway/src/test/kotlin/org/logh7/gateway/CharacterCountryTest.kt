@@ -11,6 +11,17 @@ import org.logh7.protocol.CharacterMessages
 import kotlin.test.*
 
 class CharacterCountryTest {
+    @Test fun mailDirectoryUsesActualMembershipInsteadOfNativeDisplayAndKeepsUnattachedPlayersUnattached() {
+        val characters=CharacterCreation(dir.resolve("mail-characters.properties"))
+        assertTrue(characters.carry("pilot",CharacterProfile(character().copy(shipKind=2),CountryId(42),ShipStyleId("empire"))))
+        val player=Navigator(7,10000,CountryId(43),2487,1000,1000,1000,shipStyle=ShipStyleId("empire"))
+        assertEquals(CountryId(42),communicationIdentity(characters,10000)!!.country)
+        assertEquals(CountryId(43),communicationIdentity(characters,10000,world(player))!!.country)
+        assertNull(communicationIdentity(characters,10000,world(player.copy(country=null)))!!.country)
+        assertEquals(CountryId(42),communicationIdentity(characters,10000,world(player).copy(navigators=mapOf("other" to player)))!!.country)
+        assertNull(communicationIdentity(characters,10001,world(player)))
+        assertEquals(CountryId(42),characters.profiles().getValue("pilot").country)
+    }
     @TempDir lateinit var dir:Path
     private fun character(id:Long=10000)=CharacterMessages.Generate(4,id,2,0,0,"Pilot$id","Test",30,1,1,1000001,
         List(8){50},0,0,0,9,2,90,"Ship$id",1)

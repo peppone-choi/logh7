@@ -168,13 +168,12 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         }
         identitySubscription=stock?.provideIdentities {WorldCharacters.identities(currentCharacters().profiles(),navigation?.snapshot())}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
-            {generation,id->communicationIdentity(characterStores.get(generation),id)},
+            {generation,id->communicationIdentity(characterStores.get(generation),id,
+                navigation?.snapshot()?.takeIf {it.session?.generation==generation})},
             {account->navigation?.snapshot()?.navigators?.get(account)?.cpPaused==true},
             {generation->communicationStore(characterFile,generation)},
             proposals={_->navigation?.snapshot()?.planetStocks?.social?.proposals},
-            rank={id->navigation?.snapshot()?.planetStocks?.strategic?.people?.get(id)?.rank},
-            country={epoch,id->WorldCharacters.identities(characterStores.get(epoch).profiles(),navigation?.snapshot())
-                .singleOrNull {it.id==id}?.country})}
+            rank={id->navigation?.snapshot()?.planetStocks?.strategic?.people?.get(id)?.rank})}
         strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
             navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
         }}

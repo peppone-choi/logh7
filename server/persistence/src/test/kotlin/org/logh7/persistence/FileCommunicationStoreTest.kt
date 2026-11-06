@@ -10,14 +10,38 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileCommunicationStoreTest {
+    @Test fun actualCountriesAndUnaffiliatedMailUseAnExplicitFormatAndSurviveRestart() {
+        val file=directory.resolve("countries")
+        val sender=a.copy(country=CountryId(42));val recipient=b.copy(country=CountryId(43))
+        val unattached=MailIdentity("none",10002,null,"무소속")
+        FileCommunicationStore(file).use {store->
+            val service=Communication(7,store)
+            assertTrue(service.exchange(sender,unattached))
+            assertTrue(service.send(sender,recipient,"직무","국가43",0,"office",senderPost=25,recipientPost=25).changed)
+            assertTrue(service.send(sender,unattached,"개인","무소속",1,"personal").changed)
+        }
+        assertEquals(0x4c374d34,java.io.DataInputStream(Files.newInputStream(file)).use {it.readInt()})
+        FileCommunicationStore(file).use {store->
+            val service=Communication(7,store)
+            assertEquals(listOf(unattached),service.addressBook(sender))
+            assertEquals(CountryId(43),service.list(recipient,true,25).single().recipient.country)
+            assertEquals("개인",service.list(unattached,true).single().subject)
+            assertTrue(service.list(sender,true,25).isEmpty())
+            service.change(recipient,service.list(recipient,true,25).single().id,true,false,25)
+        }
+        FileCommunicationStore(file).use {assertTrue(Communication(7,it).list(recipient,true,25).single().read)}
+        val bytes=Files.readAllBytes(file)
+        java.nio.ByteBuffer.wrap(bytes).putInt(0,0x4c374d33);Files.write(file,bytes)
+        FileCommunicationStore(file).use {assertFails("legacy display codes may not be reinterpreted as extra countries") {it.load()}}
+    }
     @TempDir lateinit var directory:Path
-    private val a=MailIdentity("alpha",10000,2,"송신 한글",face=1000001,ageSeconds=30*31_536_000)
-    private val b=MailIdentity("beta",10001,3,"수신 日本",face=1000002,ageSeconds=35*31_536_000)
+    private val a=MailIdentity("alpha",10000,CountryId(2),"송신 한글",face=1000001,ageSeconds=30*31_536_000)
+    private val b=MailIdentity("beta",10001,CountryId(3),"수신 日本",face=1000002,ageSeconds=35*31_536_000)
     @Test fun oldMailboxLoadsWithoutInventingAPortraitAndCanBeSavedInNewFormat() {
         val file=directory.resolve("legacy")
         DataOutputStream(Files.newOutputStream(file)).use {out->
             fun identity(p:MailIdentity) {
-                out.writeUTF(p.account);out.writeInt(p.character);out.writeInt(p.power);out.writeUTF(p.name)
+                out.writeUTF(p.account);out.writeInt(p.character);out.writeInt(checkNotNull(p.country).value);out.writeUTF(p.name)
                 out.writeShort(p.origin);out.writeShort(p.rank);out.writeUTF(p.title)
             }
             out.writeInt(0x4c374d31);out.writeLong(7);out.writeInt(2)

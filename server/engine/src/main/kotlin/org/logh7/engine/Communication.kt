@@ -1,10 +1,10 @@
 package org.logh7.engine
 
 /** 개인 주소와 직무(카드) 주소. 직무 편지함은 직책에 귀속한다(사용자 결정 2026-11-01). 망명·건의 편지는 별도 연결 대상. 작성: Peppone Choi. */
-data class MailIdentity(val account:String,val character:Int,val power:Int,val name:String,
+data class MailIdentity(val account:String,val character:Int,val country:CountryId?,val name:String,
     val origin:Int=0,val rank:Int=0,val title:String="",val face:Int=-1,val ageSeconds:Int=0) {
     init {
-        require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")) && character in 1..0x7fefffff && power in 2..3)
+        require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")) && character in 1..0x7fefffff)
         require(name.isNotBlank() && name.length<=12 && title.length<=15 && origin in 0..65535 && rank in 0..65535)
         require((name+title).none {it.isSurrogate() || it.isISOControl()})
         require(face>=-1 && ageSeconds>=0)
@@ -50,10 +50,17 @@ class Communication(private val generation:Long,private val store:CommunicationS
     private val currentGeneration:()->Long = {generation}) {
     private var state=store.load()?.also {require(it.generation==generation)} ?: CommunicationState(generation)
     private fun active()=generation==currentGeneration()
-    private fun owned(owner:MailIdentity)=(state.owners[owner.character]?.let {it.account==owner.account && it.power==owner.power} ?: true) &&
+    private fun owned(owner:MailIdentity)=(state.owners[owner.character]?.let {it.account==owner.account && it.country==owner.country} ?: true) &&
         state.owners.values.none {it.account==owner.account && it.character!=owner.character}
     private fun remember(vararg identities:MailIdentity)=state.owners+identities.associateBy {it.character}
     private fun commit(next:CommunicationState) { check(active());store.save(next);state=next }
+    /** Recover a committed world membership after a crash before its mail observer. Gateway supplies the current directory identity. */
+    @Synchronized fun synchronize(owner:MailIdentity) {
+        require(active())
+        val known=state.owners[owner.character] ?: return
+        require(known.account==owner.account)
+        if(known.country!=owner.country)defect(owner)
+    }
     @Synchronized fun addressBook(owner:MailIdentity):List<MailIdentity> {
         require(active() && owned(owner))
         return state.addresses[owner.character].orEmpty().sorted().map {state.owners.getValue(it)}
@@ -74,6 +81,7 @@ class Communication(private val generation:Long,private val store:CommunicationS
         val known=state.owners[owner.character]
         if(known==null && owner.character !in state.addresses)return
         require(known==null || known.account==owner.account)
+        if(known==owner && owner.character !in state.addresses)return
         commit(state.copy(owners=if(known==null)state.owners else state.owners+(owner.character to owner),
             addresses=state.addresses-owner.character))
     }
@@ -88,17 +96,20 @@ class Communication(private val generation:Long,private val store:CommunicationS
         return state.messages.filter {mailbox(it,owner,inbox,post)}.sortedByDescending {it.id}
     }
     private fun mailbox(mail:StoredMail,owner:MailIdentity,inbox:Boolean,post:Int)=if(inbox)
-        !mail.inboxDeleted && mail.recipientPost==post && (if(post==0)mail.recipient.character==owner.character else mail.recipient.power==owner.power)
-        else !mail.sentDeleted && mail.senderPost==post && (if(post==0)mail.sender.character==owner.character else mail.sender.power==owner.power)
+        !mail.inboxDeleted && mail.recipientPost==post && (if(post==0)mail.recipient.character==owner.character else owner.country!=null && mail.recipient.country==owner.country)
+        else !mail.sentDeleted && mail.senderPost==post && (if(post==0)mail.sender.character==owner.character else owner.country!=null && mail.sender.country==owner.country)
     @Synchronized fun send(sender:MailIdentity,recipient:MailIdentity?,subject:String,body:String,
         seconds:Long,operation:String,recipientInTactics:Boolean=false,senderPost:Int=0,recipientPost:Int=0):MailResult {
         fun reject(reason:MailRejection)=MailResult(rejection=reason)
         if(!active())return reject(MailRejection.STALE)
         if(!owned(sender))return reject(MailRejection.IDENTITY)
         if(recipient==null || !owned(recipient))return reject(MailRejection.UNKNOWN_RECIPIENT)
+        if(senderPost !in 0..260 || senderPost!=0 && sender.country==null)return reject(MailRejection.NOT_OWNER)
+        if(recipientPost !in 0..260 || recipientPost!=0 && recipient.country==null)return reject(MailRejection.UNKNOWN_RECIPIENT)
         if(!validMailText(subject,127) || !validMailText(body,511))return reject(MailRejection.TEXT)
         state.messages.singleOrNull {it.operation==operation}?.let {previous->
             return if(previous.sender.account==sender.account && previous.sender.character==sender.character &&
+                previous.sender.country==sender.country && previous.recipient.country==recipient.country &&
                 previous.recipient.character==recipient.character && previous.subject==subject && previous.body==body &&
                 previous.senderPost==senderPost && previous.recipientPost==recipientPost)
                 MailResult(previous) else reject(MailRejection.OPERATION_CONFLICT)
@@ -120,7 +131,7 @@ class Communication(private val generation:Long,private val store:CommunicationS
         // A personal mailbox belongs to the character; an office mailbox to whoever holds that post now.
         val side=if(inbox)previous.recipient else previous.sender
         val held=(if(inbox)previous.recipientPost else previous.senderPost)==post &&
-            (if(post==0)side.character==owner.character && side.account==owner.account else side.power==owner.power)
+            (if(post==0)side.character==owner.character && side.account==owner.account else owner.country!=null && side.country==owner.country)
         if(!held)return MailResult(rejection=MailRejection.NOT_OWNER)
         val next=if(delete)if(inbox)previous.copy(inboxDeleted=true) else previous.copy(sentDeleted=true)
             else if(inbox && !previous.inboxDeleted)previous.copy(read=true) else previous

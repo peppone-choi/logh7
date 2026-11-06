@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.MailMessages as Mail
 import kotlin.test.*
 
 /** 암호화 연설·공개 지지/인물 갱신·상대 재실행 제한·서버 재시작. 작성: Peppone Choi. */
@@ -95,10 +96,26 @@ class SocialActionsWireTest {
     }
     @Test fun encryptedDefectionCommitsNavigationSessionAndCharacterMembershipAcrossRestart() {
         val state=State();val path=directory.resolve("defection")
+        fun inbox(client:SyntheticClient):List<Mail.Item> {
+            val query=Mail.begin(Mail.Query(Mail.Peer(10000),true,true))
+            client.send(query.copyOfRange(4,query.size))
+            next(client,0x0f08)
+            val rows=mutableListOf<Mail.Item>()
+            repeat(200) {
+                val packet=client.receive();val opcode=ByteBuffer.wrap(packet).getShort(4).toInt() and 65535
+                if(opcode==0x0f09)return rows
+                if(opcode==0x0f0a)rows+=Mail.item(packet.copyOfRange(4,packet.size),0x0f0a)
+            }
+            error("Missing mailbox end")
+        }
         LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
             stockStore=state.inventory,worldStateCommitter=state).use {server->
             val actor=server.join(server.account(0),true,false).client
             actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            val friend=server.join(server.account(1),true,false).client
+            friend.send(SyntheticClient.opcode(0x0f00));next(friend,0x0f01)
+            val mail=Mail.item(Mail.Item(0,-1,false,Mail.Peer(10001),Mail.Peer(10000),0,"망명 전 편지","보존할 본문"),0x0f10)
+            friend.send(mail.copyOfRange(4,mail.size));next(friend,0x0f10)
             actor.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
                 .putShort(Justice.DEFECT.toShort()).putShort(0).putShort(0).putInt(0)
                 .put(0).putInt(0).putShort(0).putInt(0).putShort(0).array())
@@ -112,6 +129,7 @@ class SocialActionsWireTest {
             val rejoined=server.join(server.account(0),false,false).client
             rejoined.send(SyntheticClient.opcode(0x0f00));next(rejoined,0x0f01)
             assertEquals(CountryId(3),server.engine.snapshot().navigators.getValue("load-000").country)
+            assertEquals("보존할 본문",inbox(rejoined).single().text)
         }
         LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
             stockStore=state.inventory,worldStateCommitter=state).use {server->
@@ -119,6 +137,7 @@ class SocialActionsWireTest {
             actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
             assertEquals(CountryId(3),server.engine.snapshot().navigators.getValue("load-000").country)
             assertEquals(680,state.players.getValue("load-000").pcp)
+            assertEquals("보존할 본문",inbox(actor).single().text)
         }
     }
     @Test fun originalEnvelopeCommitsARealSpeechPublishesEffectsAndRestoresItsReceiptWithoutAnotherCharge() {

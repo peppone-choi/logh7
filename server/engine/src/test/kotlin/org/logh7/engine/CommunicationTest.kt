@@ -4,8 +4,52 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class CommunicationTest {
-    private val a=MailIdentity("alpha",10000,2,"한글 Alpha")
-    private val b=MailIdentity("beta",10001,3,"日本 Beta")
+    @Test fun officeMailBelongsToTheActualCountryAndSurvivesItsHoldersDefection() {
+        val store=Store();val service=Communication(7,store)
+        val holder=a.copy(country=CountryId(42));val outsider=b.copy(country=CountryId(43))
+        val next=holder.copy(account="next",character=10002)
+        val saved=service.send(outsider,holder,"국가42 직무","기록",0,"office",recipientPost=25).mail!!
+        assertEquals(listOf(saved),service.list(next,true,25))
+        assertTrue(service.list(outsider,true,25).isEmpty())
+        assertEquals(MailRejection.NOT_OWNER,service.change(outsider,saved.id,true,true,25).rejection)
+        assertTrue(service.exchange(holder,outsider))
+        val personal=service.send(outsider,holder,"개인","보존",1,"personal").mail!!
+        val moved=holder.copy(country=CountryId(43));service.defect(moved)
+        assertTrue(service.addressBook(moved).isEmpty())
+        assertEquals(listOf(personal),service.list(moved,true))
+        assertTrue(service.list(moved,true,25).isEmpty())
+        assertEquals(MailRejection.NOT_OWNER,service.change(moved,saved.id,true,true,25).rejection)
+        assertEquals(listOf(saved),Communication(7,store).list(next,true,25))
+        assertEquals(MailRejection.OPERATION_CONFLICT,
+            service.send(outsider,moved,"개인","보존",2,"personal").rejection)
+    }
+    @Test fun unaffiliatedPersonalMailWorksWithoutGivingAnyoneAnUnaffiliatedOffice() {
+        val store=Store();val service=Communication(7,store)
+        val first=a.copy(country=null);val second=b.copy(country=null)
+        assertTrue(service.exchange(first,second))
+        assertTrue(service.send(first,second,"개인","본문",0,"one").changed)
+        val before=store.state
+        assertEquals(MailRejection.NOT_OWNER,service.send(first,second,"직무","본문",0,"two",senderPost=25).rejection)
+        assertEquals(MailRejection.UNKNOWN_RECIPIENT,service.send(first,second,"직무","본문",0,"three",recipientPost=25).rejection)
+        assertTrue(service.list(second,true,25).isEmpty());assertEquals(before,store.state)
+        store.fail=true
+        assertFails {service.defect(first.copy(country=CountryId(42)))}
+        assertEquals(1,service.list(second,true).size);assertEquals(listOf(second),service.addressBook(first))
+    }
+    @Test fun committedMembershipRecoveryIsAtomicAndRepeatedRecoveryKeepsNewAddresses() {
+        val store=Store();var service=Communication(7,store)
+        service.exchange(a,b);service.send(b,a,"개인","보존",0,"personal")
+        val moved=a.copy(country=CountryId(42));store.fail=true
+        assertFails {service.synchronize(moved)}
+        assertEquals(listOf(b),service.addressBook(a))
+        store.fail=false;service=Communication(7,store);service.synchronize(moved)
+        assertTrue(service.addressBook(moved).isEmpty());assertEquals(1,service.list(moved,true).size)
+        assertTrue(service.exchange(moved,b));val saves=store.saves
+        service.synchronize(moved);assertEquals(saves,store.saves);assertEquals(listOf(b),service.addressBook(moved))
+        assertFails {service.synchronize(moved.copy(account="intruder"))}
+    }
+    private val a=MailIdentity("alpha",10000,CountryId(2),"한글 Alpha")
+    private val b=MailIdentity("beta",10001,CountryId(3),"日本 Beta")
     private class Store:CommunicationStore {
         var state:CommunicationState?=null;var fail=false;var saves=0
         override fun load()=state
