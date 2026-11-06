@@ -11,6 +11,7 @@
 #include "lobby_empty_data.h"
 #include "planet_info_data.h"
 #include "facility_guide_data.h"
+#include "facility_label_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
@@ -675,6 +676,24 @@ static bool runtimeKoreanGlyphTest() {
     return !logh::koreanGlyphIndex(0x3042,none) && !logh::koreanGlyphIndex(0xae41,none,false);
 }
 static int facilityGuideTest() {
+    std::string label;
+    if(!logh::facilityLabel(104901,0,L"오딘 민정청",label))return 620;
+    std::wstring shown(label.begin(),label.end());
+    if(!logh::restoreDisplayNames(shown) || shown!=L"오딘 민정청")return 621;
+    if(!logh::facilityLabel(104901,0,std::wstring(24,L'가').c_str(),label))return 622;
+    shown.assign(label.begin(),label.end());
+    if(!logh::restoreDisplayNames(shown) || shown!=std::wstring(11,L'가')+L"…")return 623;
+    const auto saved=label;
+    if(logh::facilityLabel(104902,0,L"시설",label) || logh::facilityLabel(104901,39,L"시설",label) ||
+        logh::facilityLabel(0,0,L"시설",label) || logh::facilityLabel(104901,0,std::wstring(25,L'가').c_str(),label) ||
+        logh::facilityLabel(104901,0,L"줄\n바꿈",label) || label!=saved)return 624;
+    logh::FacilityNameCache names;logh::FacilityGuide value;value.id=101;value.revision=2;wcscpy_s(value.name,L"첫 시설");
+    if(!names.publish(value,1))return 625;
+    value.revision=1;if(names.publish(value,2) || names.find(101)->revision!=2)return 626;
+    for(unsigned i=2;i<=351;++i){value.id=i*100+1;if(!names.publish(value,i))return 627;}
+    if(names.count!=350 || names.find(101) || !names.find(201) || !names.find(35101))return 628;
+    value.id=201;names.publish(value,400);value.id=35201;names.publish(value,401);
+    if(!names.find(201) || names.find(301) || !names.find(35201))return 629;
     BYTE record[24+10*36]={};
     auto make=[&](unsigned page,const std::wstring& text,const wchar_t* revision=L"17") {
         memset(record,0,sizeof(record));unsigned id=105038,token=9*16+page;
