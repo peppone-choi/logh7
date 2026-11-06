@@ -998,6 +998,10 @@ class GameExchange(
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
                         if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,character.power)),clearHeader=0)
                         if(party?.mode==5)return handshake.stageAll(listOf(world.countryMetadata(party,character.power)),clearHeader=0)
+                        if(party?.mode==6) {
+                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,character.power,checkNotNull(it)))}
+                            return null
+                        }
                         pendingWorld = stocks().thenApply { stored ->
                             if(party?.mode==2)world.outfitGround(party,character.power,checkNotNull(stored))
                             else if(party?.mode==3)world.outfitBattle(party,character.power,checkNotNull(stored),

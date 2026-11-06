@@ -10,6 +10,7 @@
 #include "creation_menu_data.h"
 #include "lobby_empty_data.h"
 #include "planet_info_data.h"
+#include "facility_guide_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
 #include "input_text.h"
@@ -673,7 +674,47 @@ static bool runtimeKoreanGlyphTest() {
     size_t none=0;
     return !logh::koreanGlyphIndex(0x3042,none) && !logh::koreanGlyphIndex(0xae41,none,false);
 }
+static int facilityGuideTest() {
+    BYTE record[24+10*36]={};
+    auto make=[&](unsigned page,const std::wstring& text,const wchar_t* revision=L"17") {
+        memset(record,0,sizeof(record));unsigned id=105038,token=9*16+page;
+        memcpy(record,&id,4);memcpy(record+4,&token,4);record[8]=6;record[20]=10;
+        for(unsigned i=0;i<10;++i) {
+            auto row=record+24+i*36;unsigned number=i+1;memcpy(row,&number,4);row[4]=static_cast<BYTE>(i);
+            std::wstring part=i==0 ? revision : i==1 ? L"" : text.substr((i-2)*12<text.size() ? (i-2)*12 : text.size(),12);
+            row[6]=static_cast<BYTE>(part.empty() ? 0 : part.size()+1);
+            if(!part.empty())memcpy(row+8,part.c_str(),(part.size()+1)*2);
+        }
+    };
+    logh::FacilityGuideDraft draft;draft.begin(105038,9);
+    make(0,L"새 시설");if(draft.accept(record,sizeof(record))!=1)return 610;
+    make(1,L"첫 용도",L"18");if(draft.accept(record,sizeof(record))!=-1 || draft.next!=1)return 611;
+    make(0,L"stale");if(draft.accept(record,sizeof(record)) || draft.next!=1)return 612;
+    const std::wstring purpose(200,L'용'),usage(200,L'조'),commands(192,L'명');
+    for(unsigned page=1;page<9;++page) {
+        const auto& full=page<=3 ? purpose : page<=6 ? usage : commands;
+        unsigned offset=(page<=3 ? page-1 : page<=6 ? page-4 : page-7)*96;
+        make(page,full.substr(offset,96));
+        if(draft.accept(record,sizeof(record))!=(page==8 ? 2 : 1))return 613;
+    }
+    if(wcscmp(draft.value.name,L"새 시설") || draft.value.purpose!=purpose || draft.value.usage!=usage || draft.value.commands!=commands)return 614;
+    std::wstring wrapped;
+    for(unsigned line=0;line<8;++line){wchar_t text[97];logh::facilityGuideLine(draft.value.purpose,line,text);wrapped+=text;}
+    if(wrapped!=purpose)return 615;
+    std::wstring spaced;
+    while(spaced.size()<200)spaced+=std::wstring(18,L'용')+L" ";
+    spaced.resize(200);wrapped.clear();
+    for(unsigned line=0;line<8;++line){wchar_t text[97];logh::facilityGuideLine(spaced.c_str(),line,text);wrapped+=text;}
+    if(wrapped!=spaced)return 619;
+    draft.begin(105038,9);make(0,std::wstring(25,L'가'));if(draft.accept(record,sizeof(record)))return 616;
+    make(0,L"잘못된 이름");record[24+2*36+8]=0;record[24+2*36+9]=0xd8;
+    if(draft.accept(record,sizeof(record)) || draft.next)return 617;
+    make(0,L"이름");if(draft.accept(record,sizeof(record)-1) || draft.next)return 618;
+    return 0;
+}
+
 static int runGuard(int argc, wchar_t** argv) {
+    if(int result=facilityGuideTest())return result;
     if(logh::groundMeter(0,1000,70)!=0 || logh::groundMeter(500,1000,70)!=35 ||
         logh::groundMeter(1000,1000,70)!=70 || logh::groundMeter(1001,1000,70)!=70 ||
         logh::groundMeter(~0u,1000,70)!=70 || logh::groundMeter(500,0,70)!=0 ||

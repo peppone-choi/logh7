@@ -180,6 +180,8 @@ static bool createPlanetWindow(void* manager,bool directory=true) {
     for (int row=0;row<8;++row) planetControl(72+row,392,234+row*26,176,24,L"",true);
     for (int col = 0; col < 4; ++col) planetControl(80 + col, 352 + col * 110, 206, 105, 24, L"", false);
     planetControl(84, 392, 448, 428, 23, L"", false);
+    const wchar_t* guideTabs[]={L"용도",L"이용 조건",L"지원 명령",L"시설 목록"};
+    for(int i=0;i<4;++i)planetControl(85+i,392+i*108,206,100,24,guideTabs[i],true);
     for (unsigned i = 0; i < _countof(planetIcons); ++i) {
         unsigned art[20] = {};
         for (unsigned state = 0; state < 4; ++state) {
@@ -249,10 +251,31 @@ static void planetPlaceName(unsigned kind, bool spot, wchar_t (&name)[64]) {
     }
     if (!name[0]) wcscpy_s(name,L"이름 미확인");
 }
+static void renderFacilityGuide() {
+    logh::FacilityGuide guide;bool loading=false,failed=false;unsigned sequence=0;
+    bool ready=facilityGuideView(facilityGuideSelected,guide,loading,failed,sequence);
+    for(int i=0;i<4;++i) {
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(85+i),1);
+        planetEnabled(85+i,true);planetSelected(85+i,i<3 && unsigned(i)==facilityGuideTab);
+        planetCell(80+i,L"");planetEnabled(80+i,false);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(80+i),0);
+    }
+    planetCell(1,ready ? guide.name : failed ? L"시설 안내 응답 미확인" : L"시설 안내 조회 중");
+    const wchar_t* body=ready ? (facilityGuideTab==0 ? guide.purpose : facilityGuideTab==1 ? guide.usage : guide.commands) :
+        failed ? L"서버 응답을 확인하지 못했습니다. 새로고침하거나 잠시 후 다시 선택하세요." : L"서버에서 시설 정보를 불러오고 있습니다.";
+    if(ready && !body[0])body=L"등록된 안내가 없습니다. 운영 도구에서 설명을 등록할 수 있습니다.";
+    for(unsigned row=0;row<8;++row) {
+        wchar_t line[97];logh::facilityGuideLine(body,row,line);
+        for(unsigned col=0;col<4;++col)planetCell(40+row*4+col,col ? L"" : line);
+        planetRect(40+row*4,392,234+row*26,424,24);
+    }
+    planetCell(84,loading && ready ? L"최신 안내 확인 중 · 이용 권한은 직무·소속에 따름" : L"안내 조회 · 명령 실행과 입장 권한은 별도로 확인");
+}
 static void renderPlanetPlaces() {
     auto& info=planetInformation;
-    const int x[]={392,606},width[]={208,208};
-    const wchar_t* headers[]={L"시설",L"스폿"};
+    if(facilityGuideSelected){renderFacilityGuide();return;}
+    const int x[]={392,574},width[]={176,240};
+    const wchar_t* headers[]={L"시설 (선택해 안내)",L"스폿"};
     for (int col=0;col<4;++col) {
         planetCell(80+col,col<2?headers[col]:L"");
         if (col<2) planetRect(80+col,x[col],206,width[col],24);
@@ -274,11 +297,16 @@ static void renderPlanetPlaces() {
     if (!info.places.count) planetCell(40,L"등록된 시설이 없습니다.");
     for (unsigned row=0;row<planetWindowRows && info.page*planetWindowRows+row<info.places.count;++row) {
         const auto& entry=info.places.rows[info.page*planetWindowRows+row];
-        wchar_t name[64];planetPlaceName(entry.institutionKind,false,name);planetCell(40+row*4,name);
+        wchar_t name[64];
+        if(!facilityGuideName(entry.institution,name))planetPlaceName(entry.institutionKind,false,name);
+        if(wcslen(name)>12){name[11]=L'…';name[12]=0;}
+        planetCell(72+row,name);planetRect(72+row,x[0],234+row*26,width[0],24);
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(40+row*4),0);
+        planetEnabled(40+row*4,false);
         if (entry.spot) planetPlaceName(entry.spotKind,true,name);else wcscpy_s(name,L"등록된 스폿 없음");
         planetCell(41+row*4,name);
     }
-    planetCell(84,L"장소 조회 · 이동은 기항 후 장소 메뉴에서 선택");
+    planetCell(84,L"시설 이름을 선택해 용도·이용 조건·지원 명령 확인");
 }
 static void planetOffice(unsigned row,const wchar_t* label,const logh::PlanetOfficeHolder& holder,bool ready) {
     auto& info=planetInformation;
@@ -382,6 +410,16 @@ static void renderPlanetWindow() {
     bool stock = planetWindowTab == 2;
     bool units = planetWindowTab == 4;
     bool places = planetWindowTab == 3;
+    for(int i=85;i<=88;++i) {
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(i),0);
+        planetEnabled(i,false);
+    }
+    for(unsigned row=0;row<8;++row) {
+        bool facility=places && !facilityGuideSelected && info.placesReady && info.page*8+row<info.places.count;
+        bool button=units || facility;
+        reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(72+row),button ? 1 : 0);
+        planetEnabled(72+row,button);
+    }
     const int xs[] = {392, units ? 574 : 578, units ? 654 : 640, units ? 734 : 724};
     const int widths[] = {units ? 176 : 180, units ? 74 : 58, units ? 74 : 78, units ? 84 : 80};
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col) {

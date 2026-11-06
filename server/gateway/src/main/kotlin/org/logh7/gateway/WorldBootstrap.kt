@@ -13,7 +13,8 @@ import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy,
-    private val configuredCountryCatalog:org.logh7.engine.CountryCatalog?=null) {
+    private val configuredCountryCatalog:org.logh7.engine.CountryCatalog?=null,
+    private val facilityDefinitions:()->org.logh7.engine.FacilityDefinitionSnapshot={org.logh7.engine.FacilityDefinitionDefaults.snapshot()}) {
     private val countryCatalog get()=configuredCountryCatalog ?: org.logh7.engine.CountryCatalogLoader.current()
     @Volatile private var countryAppearances:List<org.logh7.engine.CountryAppearance> = emptyList()
     @Synchronized fun publishCountryAppearances(values:List<org.logh7.engine.CountryAppearance>) {
@@ -73,6 +74,29 @@ class WorldBootstrap(val galaxy: Galaxy,
             // 封土 cards host 狩猟 and the lord's 統治目標.
             if(card in setOf(66,130))listOf(11,21)+org.logh7.engine.ProductionActions.commands.sorted() else emptyList())
     })
+    /** Organization-linked commands; personal commands and entry permission remain separate. */
+    val facilityCommands=org.logh7.engine.FacilityCommandCatalog {kind ->
+        val ids=org.logh7.engine.OrganizationOffices.all.values.filter {role ->
+            // Base-office cards target a base ID; their physical office is the administration or defense facility.
+            val physical=if(role.scope in setOf(org.logh7.engine.OfficeScope.PLANET,org.logh7.engine.OfficeScope.CAPITAL,
+                org.logh7.engine.OfficeScope.FORTRESS))if(role.canonical in setOf(54,190,192))0 else 1 else role.facility
+            physical==kind
+        }
+            .flatMap {officeCards.getValue(it.card).commands}.distinct().sorted()
+        if(ids.isEmpty())listOf("직접 연결된 직무 명령 없음. 개인·부대 명령은 해당 직무 카드에서 확인하세요.")
+        else ids.map(FacilityCommandNames::name)
+    }
+    fun facilityGuide(query:OutfitPartyMessages.Query,viewerPower:Int,stocks:org.logh7.engine.PlanetStocks):ByteArray {
+        val base=query.outfit/100
+        val snapshot=facilityDefinitions()
+        if(base !in stocks.bases || galaxy.facilitiesAt(base,stocks,countryCatalog).none {it.id==query.outfit})
+            return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.FacilityGuideMessages.reply(query,viewerPower,snapshot.revision,
+                "시설 정보 없음","시설 구성이 변경되었습니다. 시설 목록을 새로고침해 주세요.","",""))
+        val commands=facilityCommands.commands(org.logh7.engine.FacilityDefinitionSnapshot.kindOf(query.outfit)).joinToString(" · ")
+        require(commands.length<=192) {"Facility command guide exceeds the native page capacity"}
+        return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.FacilityGuideMessages.reply(query,viewerPower,snapshot.revision,
+            snapshot.displayName(query.outfit),snapshot.purpose(query.outfit),snapshot.usage(query.outfit),commands))
+    }
     private val baseOffices=BaseOfficeCards(galaxy)
     private val logisticsOffices get()=org.logh7.engine.LogisticsOfficePolicy(galaxy,countryCatalog)
     /** Stored base offices, never inferred from the viewer or a stationed outfit. */

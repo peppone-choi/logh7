@@ -150,6 +150,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "country_colors.h"
 #include "country_icon.h"
 #include "system_affiliation.h"
+#include "facility_guide.h"
 #include "planet_info.h"
 #include "ground_battle_panel.h"
 #include "outfit_list_columns.h"

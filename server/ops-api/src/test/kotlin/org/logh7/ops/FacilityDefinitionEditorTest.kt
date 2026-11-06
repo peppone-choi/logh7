@@ -53,6 +53,7 @@ class FacilityDefinitionEditorTest {
             assertEquals(400,request(kind(name="가".repeat(25))).statusCode())
             assertEquals(200,request(edit).statusCode())
             assertEquals("신궁전",published.current().name(FacilityDefinitionSnapshot.facilityId(1049,22)),"a saved edit is published to the game")
+            assertTrue(request(query="?kind=22").body().contains("22 · 신궁전</option>"),"the selector shows the edited facility name")
             assertEquals(409,request(edit).statusCode());assertEquals("unchanged",request(kind()).body())
             assertTrue(request(query="?kind=22").body().contains("황제의 궁전 &lt;b&gt;"),"descriptions are escaped")
             val palace=FacilityDefinitionSnapshot.facilityId(1049,22)

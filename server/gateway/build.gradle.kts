@@ -13,7 +13,7 @@ tasks.test {
 
 tasks.processResources {
     from(rootProject.projectDir.resolve("../l10n")) {
-        include("ui-terms.ko.tsv", "world-names.ko.tsv")
+        include("ui-terms.ko.tsv", "world-names.ko.tsv", "command-labels.ko.tsv")
         into("l10n")
     }
 }
