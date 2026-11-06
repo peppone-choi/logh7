@@ -77,6 +77,22 @@ class CharacterCountryTest {
         assertEquals(profile,CharacterCreation(dir.resolve("before.properties")).profiles().getValue("pilot"))
     }
 
+    @Test fun actualCountryDefectionKeepsTheCommittedStyleAndSavesAtomically() {
+        val seed=CountryCatalogLoader.load()
+        val catalog=CountryCatalog(seed.calendars.values.toList(),seed.families.values.toList(),seed.countries.values.toList()+
+            seed.countries.getValue(2).copy(id=42,key="a",name="A",shipStyleOverride="empire"))
+        val file=dir.resolve("defected.properties")
+        val store=CharacterCreation(file)
+        assertTrue(store.carry("pilot",CharacterProfile(character(),CountryId(2),ShipStyleId("empire"))))
+        assertTrue(store.defect("pilot",10000,CountryId(42),ShipStyleId("alliance"),catalog))
+        val moved=CharacterCreation(file).profiles().getValue("pilot")
+        assertEquals(CountryId(42),moved.country);assertEquals(ShipStyleId("alliance"),moved.shipStyle)
+        assertEquals(2,moved.character.power);assertEquals(character().face,moved.character.face)
+        assertFalse(store.defect("pilot",10000,CountryId(42),catalog=catalog))
+        Files.move(file,dir.resolve("defected-before.properties"));Files.createDirectory(file)
+        assertFails {store.defect("pilot",10000,CountryId(3),catalog=catalog)}
+        assertEquals(moved,store.profiles().getValue("pilot"))
+    }
     @Test fun invalidVersionedMembershipIsRejectedInsteadOfFallingBackToItsDisplayCountry() {
         val valid=CharacterProfile(character(),CountryId(42),ShipStyleId("alliance")).encoded()
         for(value in listOf(valid.replace(":42:",":0:"),valid.replace(":42:",":042:"),valid.replace(":42:",":+42:"),

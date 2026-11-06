@@ -18,12 +18,12 @@ object JusticeActions {
         s.strategic.people[id]?.rank ?: ids.singleOrNull {it.id==id}?.rank ?: 20
     private fun intelligence(s:PlanetStocks,ids:List<StrategicIdentity>,id:Int)=
         s.strategic.people[id]?.abilities?.getOrNull(3) ?: ids.singleOrNull {it.id==id}?.abilities?.getOrNull(3) ?: 50
-    private fun powerOf(p:Navigator)=if(p.power==Power.EMPIRE)2 else 3
 
-    /** Moves a person into its side's holding room, strips its offices and records the detention. */
-    fun detain(g:Galaxy,s:PlanetStocks,players:MutableMap<String,Navigator>,target:Int,power:Int,now:Long):PlanetStocks? {
-        val (capital,cell)=Justice.cell(g,power) ?: return null
-        val key=players.entries.singleOrNull {it.value.characterId==target}?.key ?: return null
+    /** Moves a person into the custodian country's holding room, strips offices and records the detention. */
+    fun detain(g:Galaxy,s:PlanetStocks,players:MutableMap<String,Navigator>,target:Int,country:CountryId,now:Long,
+        catalog:CountryCatalog=countries):PlanetStocks? {
+        val (capital,cell)=Justice.cell(g,s,country,catalog) ?: return null
+        val key=players.entries.singleOrNull {it.value.characterId==target && it.value.generation==s.generation}?.key ?: return null
         val n=players.getValue(key)
         if(n.cpPaused)return null
         players[key]=n.copy(grid=capital.grid,baseId=capital.id,mode=4,spotId=cell,spotOwner=0,
@@ -32,14 +32,16 @@ object JusticeActions {
         val justice=cleared.social.justice
         return cleared.copy(social=cleared.social.copy(justice=justice.copy(permits=justice.permits-target,
             rights=justice.rights.filterValues {it.target!=target && it.holder!=target},
-            detentions=justice.detentions+(target to Detention(target,power,now,now+Justice.DETENTION_DAYS*Justice.DAY)))))
+            infiltrations=justice.infiltrations-target,disguises=justice.disguises-target,
+            detentions=justice.detentions+(target to Detention(target,country,now,now+Justice.DETENTION_DAYS*Justice.DAY,base=capital.id)))))
     }
     /** Releases a detainee to its capital's central square (no other effect). */
     private fun release(g:Galaxy,s:PlanetStocks,players:MutableMap<String,Navigator>,d:Detention):PlanetStocks {
-        val key=players.entries.singleOrNull {it.value.characterId==d.character}?.key
-        val capital=Justice.cell(g,d.power)?.first
-        if(key!=null && capital!=null)players[key]=players.getValue(key).let {
-            if(it.spotId==Math.addExact(Math.multiplyExact(capital.id,10_000),19))it.copy(spotId=0,spotOwner=0) else it}
+        val key=players.entries.singleOrNull {it.value.characterId==d.character && it.value.generation==s.generation}?.key
+        val base=d.base.takeIf {it>0} ?: g.bases.singleOrNull {Capital.of(it)?.power==d.country.value}?.id
+        if(key!=null && base!=null)players[key]=players.getValue(key).let {
+            if(it.baseId==base && it.spotId==Math.addExact(Math.multiplyExact(base,10_000),19) && it.spotOwner==0)
+                it.copy(spotId=0,spotOwner=0) else it}
         val j=s.social.justice
         return s.copy(social=s.social.copy(justice=j.copy(detentions=j.detentions-d.character)))
     }
@@ -76,15 +78,23 @@ object JusticeActions {
         return next
     }
     /** 亡命 (design §3.5): PCP 320, to the other side's capital holding room; offices, outfits and the flagship stay
-     * behind; the destination's judges decide (Detention.power = destination). */
-    private fun defect(g:Galaxy,i:StrategyActionRequest,session:SessionState,p:Navigator,s:PlanetStocks,power:Int,now:Long,catalog:CountryCatalog):SocialResult {
+     * behind; the destination's judges decide (Detention.country = destination). */
+    private fun defect(g:Galaxy,i:StrategyActionRequest,session:SessionState,p:Navigator,s:PlanetStocks,country:CountryId,now:Long,catalog:CountryCatalog):SocialResult {
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         if(i.card!=0 || i.target!=0 || i.base!=0)return reject(SocialRejection.COMMAND)
         // 0 = the other side (the compatibility window does not know its own side).
-        val destination=if(i.value==0)(if(power==2)3 else 2) else i.value
-        if(destination !in 2..3 || destination==power)return reject(SocialRejection.TARGET)
+        val roster=session.countries+s.bases.values.mapNotNull {it.country}
+        val destination=when {
+            i.value>0->CountryId(i.value)
+            i.value==0 && country.value in 2..3 && roster.all {it.value in 2..3}->CountryId(if(country.value==2)3 else 2)
+            else->return reject(SocialRejection.TARGET)
+        }
+        if(destination==country || destination.value !in catalog.countries || destination in session.eliminated)
+            return reject(SocialRejection.TARGET)
         if(session.participants[i.account]==null)return reject(SocialRejection.SESSION)
-        val (capital,cell)=Justice.cell(g,destination) ?: return reject(SocialRejection.LOCATION)
+        val (capital,cell)=Justice.cell(g,s,destination,catalog) ?: return reject(SocialRejection.LOCATION)
+        val style=catalog.shipStyle(destination)
+        if(style.value !in setOf("empire","alliance"))return reject(SocialRejection.TARGET)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),320L,CpPool.PCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         val id=i.characterId
@@ -96,9 +106,10 @@ object JusticeActions {
         val j=cleared.social.justice
         val next=cleared.copy(social=cleared.social.copy(justice=j.copy(permits=j.permits-id,
             rights=j.rights.filterValues {it.holder!=id && it.target!=id},watches=j.watches.filterValues {it.watcher!=id && it.target!=id},
-            detentions=j.detentions+(id to Detention(id,destination,now,now+Justice.DETENTION_DAYS*Justice.DAY)))))
-        val moved=p.paidWith(paid.balance).copy(country=CountryId(destination),
-            shipStyle=catalog.shipStyle(CountryId(destination)),grid=capital.grid,
+            infiltrations=j.infiltrations-id,disguises=j.disguises-id,
+            detentions=j.detentions+(id to Detention(id,destination,now,now+Justice.DETENTION_DAYS*Justice.DAY,base=capital.id)))))
+        val moved=p.paidWith(paid.balance).copy(country=destination,
+            shipStyle=style,grid=capital.grid,
             baseId=capital.id,mode=4,spotId=cell,spotOwner=0,hull=null,strategy=null,dockTarget=null,fuelReadyAt=null,warpTarget=null,returnBase=0)
         return SocialResult(moved,next,changed=true,defected=destination)
     }
@@ -111,21 +122,26 @@ object JusticeActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        // shortcut: this command's rules/checkpoints support country 2/3 until their country IDs are migrated.
-        if(i.country.value !in 2..3)return reject(SocialRejection.CARD)
+        val own=i.country
+        if(own.value !in catalog.countries)return reject(SocialRejection.CARD)
+        if(own in session.eliminated)return reject(SocialRejection.SESSION)
         if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
         val j=s.social.justice
         if(j.detained(i.characterId))return reject(SocialRejection.BUSY)
-        val power=powerOf(p);val ids=i.identities
-        if(i.command==Justice.DEFECT)return defect(g,i,session,p,s,power,now,catalog)
+        val ids=i.identities
+        if(i.command==Justice.DEFECT)return defect(g,i,session,p,s,own,now,catalog)
         val cost=Justice.costs[i.command] ?: return reject(SocialRejection.COMMAND)
-        val holds=i.card!=0 && OrganizationalOfficePolicy(g).held(s,i.characterId).any {it.card==i.card} && Justice.power(i.card)==power
+        val holds=i.card!=0 && OrganizationalOfficePolicy(g,catalog).held(s,i.characterId).any {it.card==i.card && it.country==own}
         if(i.card!=0 && !holds)return reject(SocialRejection.CARD)
         if(i.target<=0 || i.target==i.characterId)return reject(SocialRejection.TARGET)
         val targetNav=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
         val targetIdentity=ids.singleOrNull {it.id==i.target}
         if(targetNav==null && targetIdentity==null)return reject(SocialRejection.TARGET)
         val targetCountry=if(targetNav!=null)targetNav.country else targetIdentity?.country
+        fun countryOf(id:Int):CountryId? {
+            val located=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==id}
+            return if(located!=null)located.country else ids.singleOrNull {it.id==id}?.country
+        }
         val targetRank=rank(s,ids,i.target)
         fun pay(next:PlanetStocks,player:Navigator=p,players:Map<String,Navigator> = emptyMap()):SocialResult {
             val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),cost,CpPool.MCP)
@@ -137,26 +153,29 @@ object JusticeActions {
                 if(!holds || !Justice.arrests(i.card,targetRank) || targetCountry!=p.country)return reject(SocialRejection.TARGET)
                 if(i.value !in 1..7 || j.detained(i.target))return reject(SocialRejection.COMMAND)
                 return pay(s.copy(social=s.social.copy(justice=j.copy(permits=j.permits+(i.target to
-                    ArrestPermit(i.target,i.characterId,power,i.value,now+Justice.PERMIT_DAYS*Justice.DAY))))))
+                    ArrestPermit(i.target,i.characterId,own,i.value,now+Justice.PERMIT_DAYS*Justice.DAY))))))
             }
             Justice.EXECUTION -> {
-                val listed=j.permits[i.base]?.takeIf {it.power==power && it.until>now} ?: return reject(SocialRejection.STALE)
-                if(!holds || !Justice.arrests(i.card,rank(s,ids,listed.target)) || targetCountry!=p.country || i.target==listed.target)
+                val listed=j.permits[i.base]?.takeIf {it.country==own && it.until>now} ?: return reject(SocialRejection.STALE)
+                if(!holds || !Justice.arrests(i.card,rank(s,ids,listed.target)) || targetCountry!=own ||
+                    countryOf(listed.target)!=own || i.target==listed.target)
                     return reject(SocialRejection.TARGET)
                 val rights=if(i.value==1)j.rights.filterValues {!(it.holder==i.target && it.target==listed.target)}
-                    else if(i.value==0)j.rights+(i.target to ArrestRight(i.target,listed.target,i.characterId,now+Justice.RIGHT_DAYS*Justice.DAY))
+                    else if(i.value==0)j.rights+(i.target to ArrestRight(i.target,listed.target,i.characterId,now+Justice.RIGHT_DAYS*Justice.DAY,own))
                     else return reject(SocialRejection.COMMAND)
                 return pay(s.copy(social=s.social.copy(justice=j.copy(rights=rights))))
             }
             Justice.ARREST -> {
-                val listed=j.permits[i.target]?.takeIf {it.power==power && it.until>now} ?: return reject(SocialRejection.STALE)
-                val right=j.rights[i.characterId]?.takeIf {it.target==i.target && it.until>now}
+                j.permits[i.target]?.takeIf {it.country==own && it.until>now} ?: return reject(SocialRejection.STALE)
+                if(targetCountry!=own)return reject(SocialRejection.TARGET)
+                val right=j.rights[i.characterId]?.takeIf {it.target==i.target && it.until>now &&
+                    (it.country==own || it.country==null && own.value in 2..3)}
                 if(!(holds && Justice.arrests(i.card,targetRank)) && right==null)return reject(SocialRejection.CARD)
                 val t=targetNav ?: return reject(SocialRejection.LOCATION)
                 if(t.cpPaused || j.detained(i.target))return reject(SocialRejection.LOCATION)
                 // Same spot, or the same grid aboard the same outfit (W p.73-74).
                 val sameSpot=p.spotId!=0 && t.baseId==p.baseId && t.spotId==p.spotId && t.spotOwner==p.spotOwner
-                val sameOutfit=t.grid==p.grid && s.outfits.values.any {i.characterId in it.members() && i.target in it.members()}
+                val sameOutfit=t.grid==p.grid && s.outfits.values.any {it.country==own && i.characterId in it.members() && i.target in it.members()}
                 if(!sameSpot && !sameOutfit)return reject(SocialRejection.LOCATION)
                 val threshold=Justice.arrestThreshold(intelligence(s,ids,i.characterId),intelligence(s,ids,i.target))
                 val dice=roll(i.characterId,i.target,now)
@@ -164,7 +183,7 @@ object JusticeActions {
                 val spent=if(right!=null && outcome!=Outcome.EVADED)j.rights-i.characterId else j.rights
                 var next=s.copy(social=s.social.copy(justice=j.copy(rights=spent)))
                 val players=LinkedHashMap(accounts)
-                if(outcome==Outcome.ARRESTED)next=detain(g,next,players,i.target,power,now) ?: return reject(SocialRejection.LOCATION)
+                if(outcome==Outcome.ARRESTED)next=detain(g,next,players,i.target,own,now,catalog) ?: return reject(SocialRejection.LOCATION)
                 val changed=players.filter {(k,v)->accounts[k]!=v}
                 return pay(next,p,changed).let {if(it.rejection==null)it.copy(outcome=outcome.ordinal) else it}
             }
@@ -196,14 +215,15 @@ object JusticeActions {
                 val t=targetNav ?: return reject(SocialRejection.LOCATION)
                 val current=j.watches[i.characterId]
                 // While the watch lasts, asking again reports the target's current place without cost.
-                if(current?.target==i.target)return SocialResult(p,s,outcome=1,found=if(t.baseId==0)0 else maxOf(t.spotId,1))
+                if(current?.target==i.target && (current.country==own || current.country==null && own.value in 2..3))
+                    return SocialResult(p,s,outcome=1,found=if(t.baseId==0)0 else maxOf(t.spotId,1))
                 val sameSpot=p.spotId!=0 && t.baseId==p.baseId && t.spotId==p.spotId && t.spotOwner==p.spotOwner && !t.cpPaused
                 if(!sameSpot)return reject(SocialRejection.LOCATION)
                 return pay(s.copy(social=s.social.copy(justice=j.copy(watches=j.watches+(i.characterId to
-                    Watch(i.characterId,i.target,now,now+Justice.DAY)))))).let {if(it.rejection==null)it.copy(outcome=1,found=maxOf(t.spotId,1)) else it}
+                    Watch(i.characterId,i.target,now,now+Justice.DAY,own)))))).let {if(it.rejection==null)it.copy(outcome=1,found=maxOf(t.spotId,1)) else it}
             }
             Justice.JUDGMENT -> {
-                val d=j.detentions[i.target]?.takeIf {it.power==power && !it.severe} ?: return reject(SocialRejection.STALE)
+                val d=j.detentions[i.target]?.takeIf {it.country==own && !it.severe} ?: return reject(SocialRejection.STALE)
                 if(!holds || !Justice.judges(i.card,targetRank))return reject(SocialRejection.TARGET)
                 val players=LinkedHashMap(accounts)
                 val next=when(i.value) {

@@ -113,8 +113,13 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         val tickets = sessionDirectory?.tickets ?: SessionTickets()
         val presence = if (world != null && navigation != null) GamePresence() else null
         livePresence = presence
-        presence?.disguise ={ id -> navigation?.snapshot()?.planetStocks?.social?.justice?.disguises?.get(id)?.let {
-            org.logh7.engine.EspionageActions.aliases[it.alias] to it.power } }
+        presence?.disguise ={ id -> navigation?.snapshot()?.let {snapshot->
+            val stocks=snapshot.planetStocks
+            val player=snapshot.navigators.values.singleOrNull {it.characterId==id && it.generation==snapshot.session?.generation}
+            if(stocks==null || player==null)null else org.logh7.engine.EspionageActions.disguise(stocks,player)
+        }?.let {
+            org.logh7.engine.EspionageActions.aliases[it.alias] to org.logh7.engine.CountryCatalogLoader.current()
+                .nativePower(org.logh7.engine.Allegiance.Country(it.country)) } }
         tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
         movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}

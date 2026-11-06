@@ -5,19 +5,21 @@ package org.logh7.engine
  * 処断 19, 逮捕許可 69, 執行命令 70, 逮捕命令 71. Durations and the arrest odds are evidence:guess.
  * Author: Peppone Choi.
  */
-data class ArrestPermit(val target:Int,val issuer:Int,val power:Int,val charge:Int,val until:Long) {
-    init {require(target>0 && issuer>0 && power in 2..3 && charge in 1..7 && until in 0..0xffffffffL)}
+data class ArrestPermit(val target:Int,val issuer:Int,val country:CountryId,val charge:Int,val until:Long) {
+    init {require(target>0 && issuer>0 && charge in 1..7 && until in 0..0xffffffffL)}
 }
 /** A one-shot right to arrest [target], given to [holder] by an authority holder. */
-data class ArrestRight(val holder:Int,val target:Int,val issuer:Int,val until:Long) {
+data class ArrestRight(val holder:Int,val target:Int,val issuer:Int,val until:Long,val country:CountryId?=null) {
     init {require(holder>0 && target>0 && issuer>0 && holder!=target && until in 0..0xffffffffL)}
 }
 /** [releaseAt]: 14 days after arrest the detainee is judged 寛容 automatically; 厳罰 sets a fixed release. */
-data class Detention(val character:Int,val power:Int,val since:Long,val releaseAt:Long,val severe:Boolean=false) {
-    init {require(character>0 && power in 2..3 && since in 0..releaseAt && releaseAt<=0xffffffffL)}
+data class Detention(val character:Int,val country:CountryId,val since:Long,val releaseAt:Long,val severe:Boolean=false,
+    /** Holding base, retained when its country's capital moves; 0 in legacy rows. */
+    val base:Int=0) {
+    init {require(character>0 && since in 0..releaseAt && releaseAt<=0xffffffffL && base in 0..65535)}
 }
 /** A watch (U-25) lasts until the target notices it; [checkAt] is the next daily detection roll. */
-data class Watch(val watcher:Int,val target:Int,val since:Long,val checkAt:Long) {
+data class Watch(val watcher:Int,val target:Int,val since:Long,val checkAt:Long,val country:CountryId?=null) {
     init {require(watcher>0 && target>0 && watcher!=target && since in 0..checkAt && checkAt<=0xffffffffL)}
 }
 data class JusticeState(val permits:Map<Int,ArrestPermit> = emptyMap(),val rights:Map<Int,ArrestRight> = emptyMap(),
@@ -86,12 +88,14 @@ object Justice {
         160 -> rank in 9..20     // 人事部長: commanders (中佐) and below
         else -> false
     }
-    fun power(card:Int)=OrganizationOffices.of(card)?.power
-
-    /** The holding room (facility 0, room 18) of [power]'s capital: spot base*10000+19. */
-    fun cell(galaxy:Galaxy,power:Int):Pair<GalaxyBase,Int>? {
-        val capital=galaxy.bases.singleOrNull {Capital.of(it)?.power==power} ?: return null
-        return capital to Math.addExact(Math.multiplyExact(capital.id,10_000),19)
+    /** The holding room (facility 0, room 18) of the actual country's currently owned capital. */
+    fun cell(galaxy:Galaxy,stocks:PlanetStocks,country:CountryId,
+        countries:CountryCatalog=CountryCatalogLoader.current()):Pair<GalaxyBase,Int>? {
+        val seat=OrganizationalOfficePolicy(galaxy,countries).capital(stocks,country) ?: return null
+        val capital=galaxy.bases.singleOrNull {it.id==seat} ?: return null
+        val spot=Math.addExact(Math.multiplyExact(seat,10_000),19)
+        if(galaxy.facilitiesAt(seat,stocks,countries).none {it.kind==0 && it.spots.any {room->room.id==spot}})return null
+        return capital to spot
     }
     /** 0..99 roll below this succeeds; the next 20 evade (approved design §3.2, intelligence = ability 3). */
     fun arrestThreshold(actorIntelligence:Int,targetIntelligence:Int)=(50+(actorIntelligence-targetIntelligence)/2).coerceIn(20,80)

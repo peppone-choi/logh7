@@ -20,34 +20,39 @@ internal object SocialStateCodec {
      * rights "holder:target:issuer:until" / detentions "character:power:since:releaseAt:severe". */
     private fun justice(j:JusticeState):String {
         val parts=listOf(
-            j.permits.toSortedMap().values.joinToString(",") {listOf(it.target,it.issuer,it.power,it.charge,it.until).joinToString(":")}.ifEmpty {"-"},
-            j.rights.toSortedMap().values.joinToString(",") {listOf(it.holder,it.target,it.issuer,it.until).joinToString(":")}.ifEmpty {"-"},
-            j.detentions.toSortedMap().values.joinToString(",") {listOf(it.character,it.power,it.since,it.releaseAt,if(it.severe)1 else 0).joinToString(":")}.ifEmpty {"-"},
+            j.permits.toSortedMap().values.joinToString(",") {listOf(it.target,it.issuer,it.country.value,it.charge,it.until).joinToString(":")}.ifEmpty {"-"},
+            j.rights.toSortedMap().values.joinToString(",") {(listOf(it.holder,it.target,it.issuer,it.until)+listOfNotNull(it.country?.value)).joinToString(":")}.ifEmpty {"-"},
+            j.detentions.toSortedMap().values.joinToString(",") {(listOf(it.character,it.country.value,it.since,it.releaseAt,if(it.severe)1 else 0)+
+                if(it.base>0)listOf(it.base) else emptyList()).joinToString(":")}.ifEmpty {"-"},
             // Optional parts 4..7: watches, infiltrations, bombs, disabled bases (written up to the last non-empty one).
-            j.watches.toSortedMap().values.joinToString(",") {listOf(it.watcher,it.target,it.since,it.checkAt).joinToString(":")}.ifEmpty {"-"},
-            j.infiltrations.toSortedMap().values.joinToString(",") {listOf(it.character,it.base,it.spot,it.until).joinToString(":")}.ifEmpty {"-"},
+            j.watches.toSortedMap().values.joinToString(",") {(listOf(it.watcher,it.target,it.since,it.checkAt)+listOfNotNull(it.country?.value)).joinToString(":")}.ifEmpty {"-"},
+            j.infiltrations.toSortedMap().values.joinToString(",") {(listOf(it.character,it.base,it.spot,it.until)+
+                it.country?.let {country->listOf(country.value,it.targetCountry?.value ?: 0)}.orEmpty()).joinToString(":")}.ifEmpty {"-"},
             j.bombs.toSortedMap().values.joinToString(",") {listOf(it.character,it.base,it.spot,it.explodesAt).joinToString(":")}.ifEmpty {"-"},
             times(j.disabled),
-            j.disguises.toSortedMap().values.joinToString(",") {listOf(it.character,it.alias,it.power,it.since,it.checkAt).joinToString(":")}.ifEmpty {"-"})
+            j.disguises.toSortedMap().values.joinToString(",") {(listOf(it.character,it.alias,it.country.value,it.since,it.checkAt)+listOfNotNull(it.originCountry?.value)).joinToString(":")}.ifEmpty {"-"})
         val last=maxOf(2,parts.indexOfLast {it!="-"})
         return parts.take(last+1).joinToString("/")
     }
     private fun justice(text:String):JusticeState {
         val f=text.split('/');require(f.size in 3..8)
         val permits=linkedMapOf<Int,ArrestPermit>();for(v in rows(f[0])) {require(v.size==5)
-            val x=ArrestPermit(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toLong());require(permits.put(x.target,x)==null)}
-        val rights=linkedMapOf<Int,ArrestRight>();for(v in rows(f[1])) {require(v.size==4)
-            val x=ArrestRight(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(rights.put(x.holder,x)==null)}
-        val detentions=linkedMapOf<Int,Detention>();for(v in rows(f[2])) {require(v.size==5 && v[4] in setOf("0","1"))
-            val x=Detention(v[0].toInt(),v[1].toInt(),v[2].toLong(),v[3].toLong(),v[4]=="1");require(detentions.put(x.character,x)==null)}
-        val watches=linkedMapOf<Int,Watch>();if(f.size==4)for(v in rows(f[3])) {require(v.size==4)
-            val x=Watch(v[0].toInt(),v[1].toInt(),v[2].toLong(),v[3].toLong());require(watches.put(x.watcher,x)==null)}
-        val infiltrations=linkedMapOf<Int,Infiltration>();if(f.size>=5)for(v in rows(f[4])) {require(v.size==4)
-            val x=Infiltration(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(infiltrations.put(x.character,x)==null)}
+            val x=ArrestPermit(v[0].toInt(),v[1].toInt(),CountryId(v[2].toInt()),v[3].toInt(),v[4].toLong());require(permits.put(x.target,x)==null)}
+        val rights=linkedMapOf<Int,ArrestRight>();for(v in rows(f[1])) {require(v.size in 4..5)
+            val x=ArrestRight(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong(),if(v.size==5)CountryId(v[4].toInt()) else null);require(rights.put(x.holder,x)==null)}
+        val detentions=linkedMapOf<Int,Detention>();for(v in rows(f[2])) {require(v.size in 5..6 && v[4] in setOf("0","1"))
+            val x=Detention(v[0].toInt(),CountryId(v[1].toInt()),v[2].toLong(),v[3].toLong(),v[4]=="1",
+                if(v.size==6)v[5].toInt().also {require(it>0)} else 0);require(detentions.put(x.character,x)==null)}
+        val watches=linkedMapOf<Int,Watch>();if(f.size>=4)for(v in rows(f[3])) {require(v.size in 4..5)
+            val x=Watch(v[0].toInt(),v[1].toInt(),v[2].toLong(),v[3].toLong(),if(v.size==5)CountryId(v[4].toInt()) else null);require(watches.put(x.watcher,x)==null)}
+        val infiltrations=linkedMapOf<Int,Infiltration>();if(f.size>=5)for(v in rows(f[4])) {require(v.size==4 || v.size==6)
+            val x=Infiltration(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong(),if(v.size==6)CountryId(v[4].toInt()) else null,
+                if(v.size==6)v[5].toInt().takeUnless {it==0}?.let(::CountryId) else null);require(infiltrations.put(x.character,x)==null)}
         val bombs=linkedMapOf<Int,Bomb>();if(f.size>=6)for(v in rows(f[5])) {require(v.size==4)
             val x=Bomb(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(bombs.put(x.character,x)==null)}
-        val disguises=linkedMapOf<Int,Disguise>();if(f.size==8)for(v in rows(f[7])) {require(v.size==5)
-            val x=Disguise(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong(),v[4].toLong());require(disguises.put(x.character,x)==null)}
+        val disguises=linkedMapOf<Int,Disguise>();if(f.size==8)for(v in rows(f[7])) {require(v.size in 5..6)
+            val x=Disguise(v[0].toInt(),v[1].toInt(),CountryId(v[2].toInt()),v[3].toLong(),v[4].toLong(),
+                if(v.size==6)CountryId(v[5].toInt()) else null);require(disguises.put(x.character,x)==null)}
         return JusticeState(permits,rights,detentions,watches,infiltrations,bombs,if(f.size>=7)times(f[6]) else emptyMap(),disguises)
     }
     /** Optional eighth field (命令/提案, 2026-11-01): mails "id:sender:recipient:senderCard:card:command:order:created:expires:reply:pcp:mcp"
@@ -117,7 +122,7 @@ internal object SocialStateCodec {
             val f=row.split(':');require(f.size==2 && out.put(f[0].toInt(),f[1].toLong())==null)
         };return out
     }
-    /** Optional tenth field (U-10 クーデター, 2026-11-01): plots "leader:power:since:revolt:consenting,..:members,..:bases,.."
+    /** Optional tenth field (U-10 クーデター, 2026-11-01): plots "leader:country:since:revolt:consenting,..:members,..:bases,.."
      * joined by ';' (empty lists "-"), then '/' and outfit loyalty "outfit:value,..". */
     private fun ids(values:Collection<Int>)=values.joinToString(",").ifEmpty {"-"}
     private fun ids(text:String)=if(text=="-")emptyList() else text.split(',').map {it.toInt()}

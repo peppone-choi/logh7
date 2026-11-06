@@ -878,6 +878,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val accounts=navigation?.snapshot(session.generation).orEmpty().let {s->recovered?.player?.let {s+(i.account to it)} ?: s}
                     var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,
                         navigation?.snapshot(session.generation)?.values.orEmpty(),accounts)
+                    // Keep the startup membership fence on live defection too, until the remaining world APIs migrate.
+                    if(result.defected?.value?.let {it !in 2..3}==true)
+                        result=SocialResult(recovered?.player,inventory,SocialRejection.CARD)
                     if(result.changed) {
                         if(worldStateCommitter==null)result=SocialResult(recovered?.player,inventory,SocialRejection.STORAGE)
                         else {
@@ -892,8 +895,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             production.publishCommitted(inventory,prepared)
                             result=result.copy(stocks=prepared)
                             // U-25 defection: the session record follows the committed world (user decision 2026-11-01).
-                            if(result.defected!=0) {
-                                val action=SessionAction.Defect(i.account,if(result.defected==2)Power.EMPIRE else Power.ALLIANCE)
+                            if(result.defected!=null) {
+                                val action=SessionAction.Defect(i.account,result.defected)
                                 if(durability!=null) {
                                     val next=transitionSession(rules,checkNotNull(durableState),action)
                                     check(!next.rejected) {"Defection was rejected by the session"}

@@ -1590,10 +1590,10 @@ class GameExchange(
                                             // U-17: bases within 10 grid cells, of another side (侵入) or this side (帰還).
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                             val here=world.galaxy.bases.singleOrNull {it.id==me.baseId}
-                                            val own=character.power
+                                            val own=me.country
                                             val rows=if(here==null)emptyList() else world.galaxy.bases.filter {b->b.id!=here.id && b.id>query.target &&
                                                 org.logh7.engine.EspionageActions.cells(here.grid,b.grid)<=org.logh7.engine.EspionageActions.RANGE_CELLS &&
-                                                inventory.bases[b.id]?.power?.let {if(query.command==org.logh7.engine.EspionageActions.INTRUDE)it in 2..3 && it!=own else it==own}==true}
+                                                inventory.bases[b.id]?.country?.let {if(query.command==org.logh7.engine.EspionageActions.INTRUDE)own!=null && it!=own else it==own}==true}
                                                 .sortedBy {it.id}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows.map {
                                                 org.logh7.protocol.StrategyActionMessages.Selection(it.id,it.name.take(12))})
@@ -1611,22 +1611,29 @@ class GameExchange(
                                             // U-25 directories: 69 same-side people in the card's scope, 70 value 0 the arrest list /
                                             // value 1 same-side grantees, 71 listed people this character may arrest, 19 detainees in scope.
                                             val justice=inventory.social.justice;val now=gameSeconds()
+                                            val snapshot=navigation?.snapshot()
+                                            val own=currentProfile(identity.account,character.id.toInt()).country
+                                                ?: return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,emptyList())
+                                            val memberships=WorldCharacters.identities(characters.profiles(),snapshot).associate {it.id to it.country}
                                             val people=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
-                                                .filter {(it.power==character.power || query.command in setOf(68,73,74)) && it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
+                                                .filter {(if(query.command==org.logh7.engine.Justice.JUDGMENT)justice.detentions[it.id.toInt()]?.country==own
+                                                    else memberships[it.id.toInt()]==own || query.command in setOf(68,73,74)) &&
+                                                    it.id.toInt()!=character.id.toInt() && it.id.toInt()>query.target}
                                             fun rankOf(id:Int,fallback:Int)=inventory.strategic.people[id]?.rank ?: fallback
                                             val rows=when(query.command) {
                                                 org.logh7.engine.Justice.PERMIT -> people.filter {org.logh7.engine.Justice.arrests(query.card,rankOf(it.id.toInt(),it.rank)) &&
                                                     !justice.detained(it.id.toInt())}
-                                                org.logh7.engine.Justice.EXECUTION -> if(query.value==0)people.filter {justice.permits[it.id.toInt()]?.let {p->p.until>now}==true}
+                                                org.logh7.engine.Justice.EXECUTION -> if(query.value==0)people.filter {justice.permits[it.id.toInt()]?.let {p->p.country==own && p.until>now}==true}
                                                     else people.filter {!justice.detained(it.id.toInt()) && it.id.toInt()!=query.base}
-                                                org.logh7.engine.Justice.ARREST -> people.filter {p->justice.permits[p.id.toInt()]?.let {it.until>now}==true &&
-                                                    (justice.rights[character.id.toInt()]?.target==p.id.toInt() ||
+                                                org.logh7.engine.Justice.ARREST -> people.filter {p->justice.permits[p.id.toInt()]?.let {it.country==own && it.until>now}==true &&
+                                                    (justice.rights[character.id.toInt()]?.let {it.target==p.id.toInt() && it.until>now &&
+                                                        (it.country==own || it.country==null && own.value in 2..3)}==true ||
                                                         org.logh7.engine.Justice.arrests(query.card,rankOf(p.id.toInt(),p.rank)))}
                                                 org.logh7.engine.Justice.SEARCH -> people
                                                 org.logh7.engine.Justice.WATCH -> {
                                                     // The current watch target first (asking again reports its place), then the same spot.
                                                     val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
-                                                    val watched=justice.watches[character.id.toInt()]?.target
+                                                    val watched=justice.watches[character.id.toInt()]?.takeIf {it.country==own || it.country==null && own.value in 2..3}?.target
                                                     val here=navigation?.snapshot()?.navigators.orEmpty().values.filter {me.spotId!=0 && it.baseId==me.baseId &&
                                                         it.spotId==me.spotId && it.spotOwner==me.spotOwner}.map {it.characterId}.toSet()
                                                     people.filter {it.id.toInt()==watched || it.id.toInt() in here}
@@ -1634,7 +1641,7 @@ class GameExchange(
                                                 org.logh7.engine.Justice.RAID -> {
                                                     val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                                     val here=navigation?.snapshot()?.navigators.orEmpty().values.filter {me.spotId!=0 && it.baseId==me.baseId &&
-                                                        it.spotId==me.spotId && it.spotOwner==me.spotOwner && it.power!=me.power}.map {it.characterId}.toSet()
+                                                        it.spotId==me.spotId && it.spotOwner==me.spotOwner && it.country!=own}.map {it.characterId}.toSet()
                                                     people.filter {it.id.toInt() in here}
                                                 }
                                                 else -> people.filter {p->justice.detentions[p.id.toInt()]?.let {!it.severe}==true &&
@@ -1750,10 +1757,11 @@ class GameExchange(
                                         base=query.base,amount=query.amount.toLong(),identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())))
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player)
-                                        if(result.defected!=0) {
+                                        val destination=result.defected
+                                        if(destination!=null) {
                                             // U-25 defection: the registered character and its mail identity follow the committed
                                             // world and session; this connection then ends so the client reconnects on the new side.
-                                            check(characters.defect(identity.account,character.id,result.defected))
+                                            check(characters.defect(identity.account,character.id,destination,player.shipStyle))
                                             communicationIdentity(characters,character.id.toInt())?.let {communication?.defect(it,checkNotNull(generation))?.join()}
                                             defectedLogout=true
                                         }

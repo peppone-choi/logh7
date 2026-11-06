@@ -72,10 +72,17 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     /** U-25 defection (user decision 2026-11-01): the one sanctioned change of a registered character's side. */
     @Synchronized fun defect(account: String, id: Long, power: Int): Boolean {
         require(power in 2..3)
-        val current = registered[account]?.takeIf { it.character.id == id && it.country != CountryId(power) } ?: return false
+        return defect(account,id,CountryId(power))
+    }
+    @Synchronized fun defect(account:String,id:Long,country:CountryId,committedStyle:ShipStyleId?=null,
+        catalog:org.logh7.engine.CountryCatalog=CountryCatalogLoader.current()):Boolean {
+        val current = registered[account]?.takeIf { it.character.id == id && it.country != country } ?: return false
+        val definition=catalog.countries[country.value] ?: return false
+        val style=committedStyle ?: configuredStyles?.get(country.value) ?: catalog.shipStyle(country)
+        if(definition.nativePower !in 2..3 || style.value !in setOf("empire","alliance"))return false
         val data=current.character
-        val next = registered + (account to profile(data.copy(power = power,
-            shipKind = Flagships.forType(styles.getValue(power).nativePower, data.shipType).kind)))
+        val next = registered + (account to CharacterProfile(data.copy(power=definition.nativePower,
+            shipKind=Flagships.forType(style.nativePower,data.shipType).kind),country,style))
         save(next); registered[account] = next.getValue(account); return true
     }
     /** U-27 carry-over source: generated characters as stored (originals never carry over, W p.11). */
