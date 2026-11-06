@@ -88,11 +88,14 @@ class CountryStrategyRoutingTest {
         assertEquals(BudgetRejection.AUTHORITY,budget.rejection);assertEquals(before,budget.stocks)
         val commands=GatheringActions.commands+Justice.commands+EspionageActions.commands+CoupActions.commands+
             GoalActions.commands+TradeActions.commands+ProductionActions.commands+SuccessionActions.commands+
-            ProposalActions.commands+AcademyActions.commands+setOf(FundActions.FUNDS,OrbitalStrikeActions.commands.first(),14)
+            ProposalActions.commands+AcademyActions.commands+setOf(FundActions.FUNDS,14)
         for(command in commands) {
             val result=SocialActions.evaluate(galaxy,SocialRequest(request(command,0)),session(),pilot,before)
             assertEquals(SocialRejection.CARD,result.rejection,"command $command")
             assertEquals(pilot,result.player);assertEquals(before,result.stocks)
         }
+        val orbital=SocialActions.evaluate(galaxy,SocialRequest(request(OrbitalStrikeActions.STRIKE,0)),session(),pilot,before)
+        assertEquals(SocialRejection.LOCATION,orbital.rejection,"country bombardment still requires a tactical flagship")
+        assertEquals(pilot,orbital.player);assertEquals(before,orbital.stocks)
     }
 }
