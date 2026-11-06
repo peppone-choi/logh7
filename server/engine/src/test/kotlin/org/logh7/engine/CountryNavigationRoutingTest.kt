@@ -38,6 +38,20 @@ class CountryNavigationRoutingTest {
             assertEquals(NavigationRejection.IDENTITY,nav.apply(request(id),session(),stocks).rejection)
         assertEquals(0,store.saves);assertEquals(pilot,store.saved.getValue("pilot"))
     }
+    @Test fun aForeignOperationDoesNotKeepTheWarpDiscountAfterAMembershipChange() {
+        val state=session();val now=state.gameMillis/1000
+        val plan=StrategicOperation(1,10001,26,CountryId(42),2490,StrategicForce.SOLO,StrategicPurpose.SWEEP,1,now,
+            StrategicPlanState.ISSUED,now,characters=setOf(pilot.characterId),issuer=10002)
+        fun warp(country:CountryId):Navigator {
+            val s=stocks.copy(strategic=StrategicState(operations=listOf(plan.copy(country=country))))
+            val result=navigation(Store(mapOf("pilot" to pilot))).apply(request().copy(destination=2489,
+                unitId=pilot.unitId,captainCard=59),state,s)
+            assertNull(result.rejection)
+            return assertNotNull(result.player)
+        }
+        assertEquals(960,warp(CountryId(42)).mcp)
+        assertEquals(920,warp(CountryId(43)).mcp)
+    }
     @Test fun aCountryCaptainCanWarpAndSettleFuelWithoutChangingCountryOrShipStyle() {
         val store=Store(mapOf("pilot" to pilot));val nav=navigation(store);val initial=session()
         val warp=assertNotNull(nav.apply(request().copy(destination=2488,unitId=pilot.unitId,captainCard=59),initial,stocks).player)

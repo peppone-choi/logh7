@@ -479,7 +479,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =
         stocks?.strategic?.operations.orEmpty().any { operation -> operation.live &&
-            operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
+            operation.country==player.country && operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
             abs(operation.grid % 100 - destination % 100) <= 1 && abs(operation.grid / 100 - destination / 100) <= 1 }
     /** Runs on clock advances as well as requests, including while the captain is offline. */
     fun settleRetreats(session: SessionState, stocks: PlanetStocks?) {

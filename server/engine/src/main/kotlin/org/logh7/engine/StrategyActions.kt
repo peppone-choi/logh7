@@ -93,7 +93,7 @@ internal object StrategyActions {
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.command in CivicActions.supported)return CivicActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks)
-        if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks)
         if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks,countries)
@@ -215,9 +215,9 @@ internal object StrategyActions {
             logisticsOfficers=stocks.logisticsOfficers-character,
             strategic=stocks.strategic.copy(offices=stocks.strategic.offices.filter {it.character!=character}))
     }
-    fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null):PlanetStocks {
+    fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null,navigators:Collection<Navigator>?=null):PlanetStocks {
         val market=FlagshipMarketActions.settle(stocks,seconds)
-        val original=if(galaxy==null)market else BlackHoleTides.settle(galaxy,StrategicOperations.settle(galaxy,market,seconds),seconds)
+        val original=if(galaxy==null)market else BlackHoleTides.settle(galaxy,StrategicOperations.settle(galaxy,market,seconds,navigators),seconds)
         return settleSuppression(original,seconds)
     }
     private fun settleSuppression(stocks:PlanetStocks,seconds:Long):PlanetStocks {
