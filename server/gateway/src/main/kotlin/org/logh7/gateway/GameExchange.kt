@@ -1550,6 +1550,16 @@ class GameExchange(
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it>query.target}.sorted().take(200)
                                                 .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")})
                                         }
+                                        if(query.command==org.logh7.engine.TradeActions.CONVOY ||
+                                            query.command==org.logh7.engine.TradeActions.DIPLOMACY && query.value==org.logh7.engine.TradeActions.INTELLIGENCE) {
+                                            val snapshot=navigation?.snapshot()
+                                            val country=currentProfile(identity.account,query.character).country
+                                            val catalog=org.logh7.engine.CountryCatalogLoader.current()
+                                            val ids=country?.let {org.logh7.engine.TradeActions.foreignTargets(world.galaxy,inventory,it,catalog,
+                                                snapshot?.session?.eliminated?.keys.orEmpty())}.orEmpty()
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it.value>query.target}.take(200)
+                                                .map {org.logh7.protocol.StrategyActionMessages.Selection(it.value,catalog.countries.getValue(it.value).name.take(12))})
+                                        }
                                         if(query.command in org.logh7.engine.GoalActions.commands) {
                                             // 国家目標: enemy-held bases; 統治目標: the planets this character governs.
                                             val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)

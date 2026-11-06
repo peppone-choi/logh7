@@ -69,7 +69,7 @@ internal object TacticalCombat {
     /** Coup, trade, pirate and production timers (2026-11-02). They run even when the combat fast path has nothing to do. */
     private fun economy(galaxy:Galaxy,session:SessionState,players:Map<String,Navigator>,start:PlanetStocks):PlanetStocks {
         val now=session.gameMillis/1000
-        var s=CoupActions.settle(galaxy,start,now);s=TradeActions.settle(galaxy,s,now);s=PirateActions.settle(galaxy,s,now)
+        var s=CoupActions.settle(galaxy,start,now);s=TradeActions.settle(galaxy,s,now,eliminated=session.eliminated.keys);s=PirateActions.settle(galaxy,s,now)
         s=ProductionActions.settle(s,now)
         return PirateActions.move(galaxy,s,now,players.values.filter {it.cpPaused}.map {it.grid}.toSet())
     }

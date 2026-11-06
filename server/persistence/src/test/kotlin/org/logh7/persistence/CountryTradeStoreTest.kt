@@ -54,4 +54,18 @@ class CountryTradeStoreTest {
         mutable.clear();tariffs.clear();assertEquals(route,detached.routes[10000]);assertEquals(20,detached.tariffs[42])
         assertFails {(detached.routes as MutableMap).clear()};assertFails {(detached.tariffs as MutableMap).clear()}
     }
+
+    @Test fun additionalCountryPactsPassagesViolationsAndPaymentCountsRequire46AndResumeWithoutReplay() {
+        val trade=legacy.copy(pacts=mapOf(42 to 1000),passages=mapOf(43 to 2000),violations=mapOf(44 to 3000),subsidies=mapOf(44 to 7))
+        val s=stock(trade);val file=directory.resolve("diplomacy.tsv")
+        FilePlanetStockStore(file).use {it.save(s)}
+        val bytes=Files.readString(file);assertTrue(bytes.startsWith("LOGH7-STOCK-46"))
+        FilePlanetStockStore(file).use {assertEquals(s,it.load());assertEquals(7,it.load()!!.social.trade.subsidies[44])}
+        Files.writeString(file,bytes.replaceFirst("LOGH7-STOCK-46","LOGH7-STOCK-45"))
+        FilePlanetStockStore(file).use {assertFails {it.load()}}
+        val mutable=linkedMapOf(42 to 1000L)
+        val detached=TradeState(pacts=mutable,passages=mutable,violations=mutable,subsidies=mapOf(42 to 1)).detached()
+        mutable.clear();assertEquals(1000L,detached.pacts[42]);assertEquals(1000L,detached.passages[42]);assertEquals(1000L,detached.violations[42])
+        for(m in listOf(detached.pacts,detached.passages,detached.violations))assertFails {(m as MutableMap).clear()}
+    }
 }

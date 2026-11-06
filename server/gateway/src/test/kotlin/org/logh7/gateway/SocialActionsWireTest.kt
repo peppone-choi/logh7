@@ -11,6 +11,38 @@ import kotlin.test.*
 
 /** 암호화 연설·공개 지지/인물 갱신·상대 재실행 제한·서버 재시작. 작성: Peppone Choi. */
 class SocialActionsWireTest {
+    @Test fun encryptedConvoyAndIntelligenceDirectoriesSendSelectedCountriesAndPersistPayments() {
+        val state=State();val path=directory.resolve("fezzan")
+        val map=Galaxy(galaxy.systems+GalaxySystem(5,2300,4,"Fezzan",1),galaxy.bases+
+            GalaxyBase(1210,2300,80,0,TradeActions.FEZZAN_NAME,0,20f,86400,0,0f,2f),galaxy.starts)
+        state.stocks=state.stocks.copy(bases=state.stocks.bases+(1210 to PlanetStock(1210,1,0,0,0,0))+
+            (1177 to state.stocks.bases.getValue(1177).copy(treasury=7_770_000)),
+            outfits=mapOf(7 to OutfitStock(7,2,OutfitKind.TRANSPORT,1049,11,commanderId=10000,supplies=1000,position=OutfitPosition(2487,1049))),
+            warehouses=mapOf(11 to OutfitWarehouse(11,2,OutfitKind.TRANSPORT,1049,7)),
+            nationalTreasuries=mapOf(CountryId(2) to 200_000_000L,CountryId(3) to 0L),
+            strategic=state.stocks.strategic.copy(offices=listOf(OfficeHolding(5,1049,10000),OfficeHolding(44,7,10000))),
+            social=SocialState(trade=TradeState(violations=mapOf(3 to now),subsidies=mapOf(3 to 12))))
+        fun query(command:Int,preview:Boolean=false)=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+            .putShort(command.toShort()).putShort(if(command==TradeActions.CONVOY)44 else 5)
+            .putShort(if(command==TradeActions.DIPLOMACY)2 else 0).putInt(if(preview)0 else 3).put(if(preview)1 else 0)
+            .putInt(0).putShort(if(command==TradeActions.CONVOY && !preview)1000 else 0).putInt(0).putShort(0).array()
+        LoadFixture(path,1,LoadMetrics(),map,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),true,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            for(command in listOf(TradeActions.CONVOY,TradeActions.DIPLOMACY)) {
+                actor.send(query(command,true));next(actor,0x1200)
+                val rows=ByteBuffer.wrap(next(actor,0x1202));assertEquals(1,rows.get(6).toInt());assertEquals(3,rows.getInt(7));next(actor,0x1201)
+                actor.send(query(command));assertEquals(0,ByteBuffer.wrap(next(actor,0x1200)).getShort(16).toInt());next(actor,0x1201)
+            }
+            assertEquals(0,state.stocks.outfits.getValue(7).supplies)
+            assertEquals(200_001_350L,state.stocks.nationalTreasuries[CountryId(2)],"leaking target intelligence is free")
+            assertEquals(150L,state.stocks.nationalTreasuries[CountryId(3)]);assertEquals(360,state.players.getValue("load-000").mcp)
+        }
+        LoadFixture(path,1,LoadMetrics(),map,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
+            val actor=server.join(server.account(0),false,false).client;actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            assertEquals(200_001_350L,state.stocks.nationalTreasuries[CountryId(2)]);assertEquals(150L,state.stocks.nationalTreasuries[CountryId(3)])
+            assertEquals(360,state.players.getValue("load-000").mcp);assertEquals(12,state.stocks.social.trade.subsidies[3])
+        }
+    }
     @Test fun encryptedRouteDirectoryAndTariffKeepOriginAndCostsAcrossRestartAndFailedSave() {
         val state=State();val path=directory.resolve("trade")
         val tradeGalaxy=Galaxy(galaxy.systems+GalaxySystem(5,2490,4,"Near",2),

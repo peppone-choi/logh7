@@ -139,7 +139,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(command==15 || command==21)sendGoalAction(true);
     if(command==35 || command==36)sendProductionAction(true);
     if(command==233)sendSuccessionAction(true);
-    if(command==39) {tradeReport[0]=0;sendTradeAction(true);} else if(tradeCommand(command)) {tradeReport[0]=0;tradeValue=command==17 ? 10 : 0;}
+    if(tradeCommand(command)) {tradeReport[0]=0;tradeValue=command==17 ? 10 : 0;tradeCursor=0;if(tradeHasTargets(command))sendTradeAction(true);}
     else if(coupCommand(command))coupReport[0]=0;
     return 1;
 }
@@ -381,7 +381,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
     if(readOutfitFormationPeople(record))return result;
     if(strategyDirectory.receiving) {
         strategyDirectory.receiving=false;auto& state=taxWindow;
-        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand) || proposalCommand(state.strategyCommand) || justiceCommand(state.strategyCommand) || state.strategyCommand==75 || state.strategyCommand==80 || state.strategyCommand==81 || state.strategyCommand==89 || state.strategyCommand==95 || goalCommand(state.strategyCommand) || state.strategyCommand==39 || state.strategyCommand==35 || state.strategyCommand==36 || state.strategyCommand==233)) {
+        if(state.visible && state.strategyActive && (personnelStrategy(state.strategyCommand) || state.strategyCommand==24 || state.strategyCommand==96 || meetingCommand(state.strategyCommand) || gatheringCommand(state.strategyCommand) || transportCommand(state.strategyCommand) || proposalCommand(state.strategyCommand) || justiceCommand(state.strategyCommand) || state.strategyCommand==75 || state.strategyCommand==80 || state.strategyCommand==81 || state.strategyCommand==89 || state.strategyCommand==95 || goalCommand(state.strategyCommand) || tradeHasTargets(state.strategyCommand) || state.strategyCommand==35 || state.strategyCommand==36 || state.strategyCommand==233)) {
             unsigned count=at<BYTE>(record,0);if(count>200)return result;
             strategyDirectory.count=count;
             for(unsigned i=0;i<count;++i) {
