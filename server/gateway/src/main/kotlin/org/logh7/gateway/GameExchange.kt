@@ -796,17 +796,9 @@ class GameExchange(
                     }
                     0x0707 -> {
                         check(gameStarted && administration!=null && world!=null)
-                        val received=org.logh7.protocol.AppointmentMessages.query(body)
-                        // Native capital institution 17 skips the base picker and sends zero.
-                        val query=if(received.base==0 && received.outfit==0) received.copy(base=checkNotNull(
-                            org.logh7.engine.CapitalAppointmentPolicy.rule(received.card)?.let {
-                                org.logh7.engine.CapitalAppointmentPolicy(world.galaxy).base(it)?.id
-                            } ?: org.logh7.engine.NationalOffice.of(received.card)?.let {role ->
-                                world.galaxy.bases.singleOrNull {org.logh7.engine.Capital.of(it)==role.capital}?.id
-                            } ?: org.logh7.engine.OrganizationOffices.of(received.card)?.takeIf {
-                                it.scope in setOf(org.logh7.engine.OfficeScope.NATIONAL,org.logh7.engine.OfficeScope.CAPITAL)
-                            }?.let {role ->world.galaxy.bases.singleOrNull {org.logh7.engine.Capital.of(it)?.power==role.power}?.id
-                            }) { "Capital appointment has no matching world base" }) else received
+                        // Native institution 17 sends base zero. Let the engine resolve the actor country's
+                        // current capital in the same transaction that checks authority and saves the appointment.
+                        val query=org.logh7.protocol.AppointmentMessages.query(body)
                         val character=checkNotNull(currentCharacter(identity.account))
                         require(query.character==character.id.toInt())
                         val target=currentCharacterById(query.target)
@@ -821,8 +813,10 @@ class GameExchange(
                                 presence?.refreshOffices(target.id.toInt(),targetPlayer.generation,offices(target,targetPlayer),gameSeconds(),
                                     administration.stationedOutfit(targetPlayer))
                             }
-                            val resolved=if(query.outfit>0 && result.rejection==null) query.copy(
-                                base=checkNotNull(result.stocks).outfits.getValue(query.outfit).baseId) else query
+                            val resolved=if(result.rejection!=null)query else if(query.outfit>0)query.copy(
+                                base=checkNotNull(result.stocks).outfits.getValue(query.outfit).baseId)
+                            else if(query.base==0)query.copy(base=checkNotNull(org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
+                                .capital(checkNotNull(result.stocks),checkNotNull(player.country)))) else query
                             listOf(org.logh7.protocol.AppointmentMessages.response(resolved,gameSeconds(),player.pcp,player.mcp,
                                 result.rejection==null,result.changed),characterMessage(character,player,true)) +
                                 result.recovery?.let { completedWork(it.copy(player=player),character) }.orEmpty()
@@ -1005,10 +999,12 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
-                        if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,character.power)),clearHeader=0)
-                        if(party?.mode==5)return handshake.stageAll(listOf(world.countryMetadata(party,character.power)),clearHeader=0)
+                        // Display queries echo the viewer's actual country as its display code; no membership, no reply.
+                        val viewerCountry by lazy {checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value}
+                        if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry)),clearHeader=0)
+                        if(party?.mode==5)return handshake.stageAll(listOf(world.countryMetadata(party,viewerCountry)),clearHeader=0)
                         if(party?.mode==6) {
-                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,character.power,checkNotNull(it)))}
+                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it)))}
                             return null
                         }
                         pendingWorld = stocks().thenApply { stored ->
@@ -1145,8 +1141,10 @@ class GameExchange(
                     0x034e -> {
                         check(gameStarted && world != null && stock != null)
                         val card = org.logh7.protocol.CardCharacterMessages.query(body)
-                        pendingWorld = stocks().thenApply { stored -> listOf(world.cardCharacters(card,
-                            checkNotNull(stored),::currentCharacterById)) }
+                        pendingWorld = stocks().thenApply { stored ->
+                            // Each holder's actual country (current profile), not the display code.
+                            val countryOf=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).associate {it.id to it.country}
+                            listOf(world.cardCharacters(card,checkNotNull(stored),{countryOf[it]},::currentCharacterById)) }
                         return null
                     }
                     0x0326 -> {
@@ -1897,13 +1895,9 @@ class GameExchange(
                                 require(query.character==character.id.toInt())
                                 pendingWorld=stocks().thenApply {stored ->
                                     val inventory=checkNotNull(stored)
-                                    val source=inventory.outfits.values.singleOrNull {it.commanderId==character.id.toInt() && it.power==character.power}
-                                    val owner=source?.let {inventory.bases.getValue(it.baseId)}
-                                    val units=if(source==null || owner?.power!=character.power || owner.camp!=0) emptyList() else
-                                        checkNotNull(source.activeShips).values.filter {it.stack.kind==query.kind}.sortedBy {it.id}.map {
-                                            org.logh7.protocol.SupplementDirectoryMessages.Unit(it.id,it.stack.kind,
-                                                org.logh7.engine.UnitSpecifications.ships.single {spec->spec.kind==it.stack.kind}.number-it.boats)
-                                        }.filter {it.destroyed>0}
+                                    val scope=SupplyDirectoryScope(world.galaxy,currentProfile(identity.account,character.id.toInt()).country,
+                                        world.lobbyCountryDefinitions().first)
+                                    val units=scope.supplement(inventory,character.id.toInt(),query.kind)
                                     org.logh7.protocol.SupplementDirectoryMessages.response(query,units)
                                 }
                                 return null
@@ -1914,13 +1908,10 @@ class GameExchange(
                                 require(query.character==character.id.toInt())
                                 pendingWorld=stocks().thenApply { stored ->
                                     val inventory=checkNotNull(stored)
-                                    val source=inventory.outfits.values.singleOrNull { it.commanderId==character.id.toInt() &&
-                                        it.kind==org.logh7.engine.OutfitKind.TRANSPORT && it.power==character.power &&
-                                        world.galaxy.bases.single { base->base.id==it.baseId }.grid==query.grid }
-                                    val base=source?.let { inventory.bases.getValue(it.baseId) }
-                                    val allowed=if(source==null || base?.power!=character.power || base.camp!=0) emptyList() else
-                                        inventory.outfits.values.filter { it.id!=source.id && it.baseId==source.baseId && it.power==character.power }
-                                            .sortedBy { it.id }.map { outfit -> org.logh7.protocol.SupplyDirectoryMessages.Outfit(outfit.id,
+                                    val scope=SupplyDirectoryScope(world.galaxy,currentProfile(identity.account,character.id.toInt()).country,
+                                        world.lobbyCountryDefinitions().first)
+                                    val allowed=scope.supply(inventory,character.id.toInt(),query.grid)
+                                            .map { outfit -> org.logh7.protocol.SupplyDirectoryMessages.Outfit(outfit.id,
                                                 outfit.kind.wire,outfit.number,outfit.supplies,org.logh7.engine.OutfitSupplies.visibleCapacity(outfit),
                                                 world.baseWire(world.galaxy.bases.single { it.id==outfit.baseId })) }
                                     org.logh7.protocol.SupplyDirectoryMessages.response(query,allowed)

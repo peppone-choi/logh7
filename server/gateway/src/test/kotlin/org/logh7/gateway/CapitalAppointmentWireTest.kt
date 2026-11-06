@@ -76,6 +76,8 @@ class CapitalAppointmentWireTest {
                     .putInt(10001).putInt(card).putShort(0).putInt(0).putInt(0).putInt(if(attempt==0)0 else base).array()
                 actor.send(request);val ack=ByteBuffer.wrap(next(actor,0x0707))
                 assertEquals(0,ack.int);assertEquals(840,ack.getInt(18));assertEquals(if(attempt==0)10001 else 0,ack.getInt(22))
+                assertEquals(base,ack.getInt(40),"base-zero requests echo the capital selected by the server")
+                if(attempt==0)assertEquals(base,ack.getInt(32),"new office card carries the approved capital seat")
                 next(actor,0x0356)
                 if(attempt==0) {
                     val updated=next(target,0x0356)
