@@ -92,7 +92,7 @@ internal object StrategyActions {
         if(stocks.social.justice.detained(r.characterId))return reject(StrategyActionRejection.BUSY)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.command in CivicActions.supported)return CivicActions.evaluate(galaxy,r,s,p,stocks,countries)
-        if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks)

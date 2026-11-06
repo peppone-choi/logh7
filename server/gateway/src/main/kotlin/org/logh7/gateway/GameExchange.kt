@@ -1484,7 +1484,7 @@ class GameExchange(
                                     org.logh7.protocol.OutfitFormationMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,
                                         result.changed,if(result.changed)result.outfit else result.lease,result.base,result.supplies,result.crew,rows)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
-                                        (if(result.changed)inventory.outfits.values.filter {it.power==character.power &&
+                                        (if(result.changed)inventory.outfits.values.filter {it.country==player.country &&
                                                 it.positionIn(world.galaxy).grid==player.grid}.map {it.id}.sorted().chunked(100)
                                                 .map {world.outfits(it,inventory)}.ifEmpty {listOf(world.outfits(listOf(result.outfit),inventory))}+
                                             listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory,player.country),
@@ -1723,11 +1723,13 @@ class GameExchange(
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows
                                                 .filter {it.id>query.target}.sortedBy {it.id}.take(200))
                                         }
+                                        val peers=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
+                                            .filter {country!=null && it.country==country}.map {it.id}.toSet()
                                         val candidates=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
-                                            .filter {it.power==character.power && it.id>query.target && it.id!=character.id}.sortedBy {it.id}.take(200)
+                                            .filter {it.id.toInt() in peers && it.id>query.target && it.id!=character.id}.sortedBy {it.id}.take(200)
                                         org.logh7.protocol.StrategyActionMessages.candidates(query,candidates.map {target ->
                                             org.logh7.protocol.AppointmentDirectoryMessages.Person(target,
-                                                listOf(0,if(target.power==2)59 else 195)+administration.offices(target.id.toInt(),target.power,
+                                                listOf(0,if(target.power==2)59 else 195)+administration.offices(target.id.toInt(),checkNotNull(country).value,
                                                     checkNotNull(generation)).map {it.kind})})
                                     }
                                     return null
@@ -1842,7 +1844,7 @@ class GameExchange(
                                                     checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(result.stocks),character.id.toInt(),::currentCharacterById)) else emptyList()) else emptyList())+
                                         // U-13: guard purchase/disband changes this grid's outfits; refresh like outfit formation.
                                         (if(query.command==96 && query.argument>=4 && result.changed)result.stocks?.let {inventory ->
-                                            inventory.outfits.values.filter {it.power==character.power && it.positionIn(world.galaxy).grid==player.grid}
+                                            inventory.outfits.values.filter {it.country==player.country && it.positionIn(world.galaxy).grid==player.grid}
                                                 .map {it.id}.sorted().chunked(100).map {world.outfits(it,inventory)}+
                                             listOf(world.gridOutfits(org.logh7.protocol.OutfitMessages.GridQuery(player.grid,character.power,0),inventory,player.country))+
                                             presence?.outfitListRefresh(connection).orEmpty()}.orEmpty() else emptyList())+
