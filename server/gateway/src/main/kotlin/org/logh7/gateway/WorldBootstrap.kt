@@ -74,7 +74,7 @@ class WorldBootstrap(val galaxy: Galaxy,
             if(card in setOf(66,130))listOf(11,21)+org.logh7.engine.ProductionActions.commands.sorted() else emptyList())
     })
     private val baseOffices=BaseOfficeCards(galaxy)
-    private val logisticsOffices=org.logh7.engine.LogisticsOfficePolicy(galaxy)
+    private val logisticsOffices get()=org.logh7.engine.LogisticsOfficePolicy(galaxy,countryCatalog)
     /** Stored base offices, never inferred from the viewer or a stationed outfit. */
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
         characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
@@ -83,7 +83,7 @@ class WorldBootstrap(val galaxy: Galaxy,
         val power=role?.power ?: 2
         val policy=org.logh7.engine.OrganizationalOfficePolicy(galaxy)
         val holdings=if(role!=null)policy.holders(stocks,card).map {holding ->holding.character to
-            BootstrapMessages.OfficeCard(card,policy.target(role,holding.seat))} else if(card in 60..65)
+            BootstrapMessages.OfficeCard(card,policy.target(role,holding.seat,stocks))} else if(card in 60..65)
             stocks.strategic.people.filterValues {it.peerage?.ordinal==card-60}.keys.map {it to BootstrapMessages.OfficeCard(card,0)}
         else if(card==66)stocks.strategic.fiefs.map {(base,owner)->owner to BootstrapMessages.OfficeCard(66,base)} else emptyList()
         val appointed=holdings.groupBy({it.first},{it.second}).toSortedMap()
@@ -96,17 +96,19 @@ class WorldBootstrap(val galaxy: Galaxy,
         }
         return org.logh7.protocol.CardCharacterMessages.response(card,records)
     }
-    fun outfitParty(query: OutfitPartyMessages.Query, power: Int, stocks: org.logh7.engine.PlanetStocks,
+    fun outfitParty(query: OutfitPartyMessages.Query, countryId:Int, stocks: org.logh7.engine.PlanetStocks,
         editor: Int = 0, characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate? = { null }): ByteArray {
         require(query.mode in 0..1) { "Unsupported outfit roster query mode" }
+        val country=org.logh7.engine.CountryId(countryId)
+        val display=countryCatalog.nativePower(org.logh7.engine.Allegiance.Country(country))
         val outfit = stocks.outfits[query.outfit] ?: return LoginMessages.sessionMessage(0x032f,
-            OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0))
+            OutfitPartyMessages.party(query,display,0,0,emptyList(),emptyList(),0,0))
         val position = outfit.positionIn(galaxy)
-        require(outfit.power == power && (query.base == 0 || query.base == position.baseId)) { "Outfit identity mismatch" }
+        require(outfit.country == country && (query.base == 0 || query.base == if(query.mode==1)outfit.baseId else position.baseId)) { "Outfit identity mismatch" }
         val owner=stocks.bases.getValue(outfit.baseId)
-        val allocator=editor>0 && stocks.logisticsOfficers[editor]?.permits(power,outfit.kind)==true &&
-            owner.power==power && owner.camp==0
-        require(query.mode == 0 || owner.power == power && owner.camp == 0 && editor > 0 &&
+        val allocator=editor>0 && logisticsOffices.permits(stocks,editor,country,outfit.kind) &&
+            owner.belongsTo(country) && owner.camp==0
+        require(query.mode == 0 || owner.belongsTo(country) && owner.camp == 0 && editor > 0 &&
             // The native allocation editor (00585150) sends the selected depot base, not 0.
             (outfit.commanderId == editor && query.base == outfit.baseId && position.baseId == outfit.baseId ||
                 allocator && (query.base == 0 || query.base == outfit.baseId))) {
@@ -114,7 +116,7 @@ class WorldBootstrap(val galaxy: Galaxy,
         }
         val members = outfit.members().map {id ->
             val commander = checkNotNull(characterById(id)) { "Outfit member is missing" }
-            require(commander.id == id.toLong() && commander.power == outfit.power) { "Outfit member identity mismatch" }
+            require(commander.id == id.toLong() && commander.power == display) { "Outfit member identity mismatch" }
             // Same kind (0), rank and display surname as the current 0323 character record.
             OutfitPartyMessages.Member(id,0,commander.rank,commander.surname)
         }
@@ -127,7 +129,7 @@ class WorldBootstrap(val galaxy: Galaxy,
         val troops = outfit.units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { OutfitPartyMessages.Troops(1000+it.key.kind,it.key.level,it.value) }
         val maximum = org.logh7.engine.OutfitSupplies.visibleCapacity(outfit)
-        return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=if(query.mode==1)outfit.baseId else position.baseId),power,
+        return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=if(query.mode==1)outfit.baseId else position.baseId),display,
             outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum,members))
     }
     /** Explicit revival query mode 2: original 0331 rows, at most 70 ground identities after the cursor.
@@ -216,15 +218,16 @@ class WorldBootstrap(val galaxy: Galaxy,
         warehouseShips(units.ships,spare.values).map { LogisticsMessages.ShipStock(it.kind,it.units,it.boats) },
         units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { LogisticsMessages.TroopStock(1000+it.key.kind,it.key.level,it.value) })
-    fun outfitWarehouse(base: Int, outfitId: Int, character: Int, power: Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
+    fun outfitWarehouse(base: Int, outfitId: Int, character: Int, countryId:Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
         val outfit = stocks.outfits[outfitId] ?: return LoginMessages.sessionMessage(0x0327,
             WorldMessages.warehouse(base,0,0,0,outfit=outfitId))
-        require(outfit.baseId == base && outfit.power == power) { "Outfit warehouse identity mismatch" }
+        val country=org.logh7.engine.CountryId(countryId)
+        require(outfit.baseId == base && outfit.country == country) { "Outfit warehouse identity mismatch" }
         val owner = stocks.bases.getValue(base)
-        require(owner.power == power && owner.camp == 0) { "Outfit warehouse base access denied" }
+        require(owner.belongsTo(country) && owner.camp == 0) { "Outfit warehouse base access denied" }
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         val commandsSharedWarehouse = stocks.outfits.values.any { it.warehouseId == warehouse.id && it.commanderId == character }
-        require(character > 0 && (commandsSharedWarehouse || stocks.logisticsOfficers[character]?.permits(power,outfit.kind) == true)) {
+        require(character > 0 && (commandsSharedWarehouse || logisticsOffices.permits(stocks,character,country,outfit.kind))) {
             "Outfit warehouse access denied"
         }
         fun entries(values: Map<org.logh7.engine.UnitStack,Int>) = values.entries

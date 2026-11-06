@@ -22,7 +22,7 @@ class LogisticsCountryAuthorityTest {
         val ground=GroundTransfer.evaluate(GroundTransferRequest("pilot","c",10000,Power.EMPIRE,1,2,GroundTransferAction.LOAD),state,player,stocks)
         val supplement=Supplement.evaluate(SupplementRequest("pilot","c",10000,Power.EMPIRE,1,1000,2,0,0,emptyMap()),state,player,stocks)
         val production=PlanetProduction(galaxy,null,rules.startSeconds,PlanetProductionPolicy(),restored=stocks)
-        val logistics=OutfitLogistics({0}).apply(LogisticsRequest("pilot","c",10000,Power.EMPIRE,1,2,
+        val logistics=OutfitLogistics({0},galaxy).apply(LogisticsRequest("pilot","c",10000,Power.EMPIRE,1,2,
             LogisticsMode.REORGANIZATION,LogisticsPhase.PREPARE),state,player,production)
         assertEquals(expected,listOf(supply.rejection,ground.rejection,supplement.rejection,logistics.rejection))
         assertEquals(player,supply.player);assertEquals(player,ground.player);assertEquals(player,supplement.player)

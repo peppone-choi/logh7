@@ -52,7 +52,15 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
     fun facilitiesAt(baseId: Int, stocks: PlanetStocks? = null,countries:CountryCatalog=CountryCatalogLoader.current()): List<PlanetFacility> {
         val original = facilities.getValue(baseId)
         val power = stocks?.let {countries.nativePower(checkNotNull(it.bases[baseId]).owner)} ?: return original
-        return Places.forBase(bases.single { it.id == baseId }, power, baseId in stocks.strategic.fiefs)
+        val country=(stocks.bases.getValue(baseId).owner as? Allegiance.Country)?.id
+        val capitals=stocks.strategic.capitals
+        // Explicit capitals choose institutional types by office rules, images by the display code.
+        val capitalSystem=when {
+            country!=null && capitals[country]==baseId -> OrganizationOffices.system(country,countries) ?: 0
+            country in capitals || baseId in capitals.values || country?.value !in setOf(2,3) -> 0
+            else -> null
+        }
+        return Places.forBase(bases.single {it.id==baseId},power,baseId in stocks.strategic.fiefs,capitalSystem)
     }
     fun kind(grid: Int): GridKind = when {
         grid !in cells.indices -> GridKind.IMPASSABLE

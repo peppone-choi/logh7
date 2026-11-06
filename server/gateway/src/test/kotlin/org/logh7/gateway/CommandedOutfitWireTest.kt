@@ -13,7 +13,7 @@ import kotlin.test.*
 class CommandedOutfitWireTest {
     @TempDir lateinit var directory: Path
     private val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
-        listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)),
+        listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))
     private fun stocks() = PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,1000,2000,3000)),
         mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1049,101,10000,number=1)),

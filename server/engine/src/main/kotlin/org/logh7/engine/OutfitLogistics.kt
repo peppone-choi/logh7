@@ -17,7 +17,9 @@ data class LogisticsResult(val stocks: PlanetStocks? = null, val rejection: Logi
     val reservation: Long? = null)
 
 /** World-actor-owned reservations. Only COMMIT changes durable stock. Author: Peppone Choi. */
-internal class OutfitLogistics(private val clock: () -> Long, private val leaseMillis: Long = 120_000) {
+internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null,
+    private val leaseMillis:Long=120_000,countries:CountryCatalog?=null) {
+    private val offices=galaxy?.let {LogisticsOfficePolicy(it,countries)}
     private data class Reservation(val id: Long, val request: LogisticsRequest, val warehouse: Int, val base: Int, val expires: Long)
     private val reservations = mutableListOf<Reservation>()
     private var sequence = 0L
@@ -64,8 +66,7 @@ internal class OutfitLogistics(private val clock: () -> Long, private val leaseM
         if (outfit.country != country || base.country != country || base.camp != 0) return reject(LogisticsRejection.ACCESS)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         if (request.mode == LogisticsMode.ALLOCATION) {
-            val office = stocks.logisticsOfficers[request.characterId]
-            val allowed = office?.permits(country.value, outfit.kind) == true
+            val allowed=offices?.permits(stocks,request.characterId,country,outfit.kind)==true
             if (!allowed) return reject(LogisticsRejection.ACCESS)
         } else {
             if (outfit.commanderId != request.characterId) return reject(LogisticsRejection.ACCESS)

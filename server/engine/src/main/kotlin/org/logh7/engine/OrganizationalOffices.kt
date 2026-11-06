@@ -69,7 +69,7 @@ object OrganizationOffices {
     }
     fun of(card:Int)=all[card]
     /** Select a rule system by its configured key, never by the country's display code. */
-    private fun system(country:CountryId,countries:CountryCatalog):Int? {
+    internal fun system(country:CountryId,countries:CountryCatalog):Int? {
         val definition=countries.countries[country.value] ?: return null
         return when(countries.families.getValue(definition.family).offices) {"empire"->2;"alliance"->3;else->null}
     }
@@ -113,8 +113,8 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
             if(country==CountryId(role.power))NationalOffice.of(card)?.let {office ->stocks.nationalOffices[office]?.let {character ->
                 capital(stocks,country)?.let {add(OfficeHolding(card,it,character,country))}}}
             if(country==CountryId(role.power))LogisticsOffice.of(card)?.let {office ->
-                val base=galaxy.bases.singleOrNull {Capital.of(it)==office.capital}
-                if(base!=null)stocks.logisticsOfficers.filterValues {it==office}.keys.forEach {add(OfficeHolding(card,base.id,it))}
+                val base=capital(stocks,country)
+                if(base!=null)stocks.logisticsOfficers.filterValues {it==office}.keys.forEach {add(OfficeHolding(card,base,it,country))}
             }
             val fleet=FleetOffice.of(card)
             if(fleet!=null)stocks.outfits.values.filter {it.country==country && it.kind==OutfitKind.FLEET}.forEach {o->
@@ -146,8 +146,8 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
             val seats=if(role.scope==OfficeScope.OUTFIT)stocks.outfits.keys else stocks.bases.keys
             role.card to seats.filter {seat->authorized(stocks,role,seat,character,rank) && holders(stocks,role.card,role.country).count {it.seat==seat}<role.seats}
         }.filterValues {it.isNotEmpty()}
-    fun target(role:OrganizationalOffice,seat:Int):Int = if(role.scope==OfficeScope.NATIONAL && role.facility>=0)
-        galaxy.facilities[seat]?.singleOrNull {it.kind==role.facility}?.id ?: seat else seat
+    fun target(role:OrganizationalOffice,seat:Int,stocks:PlanetStocks?=null):Int = if(role.scope==OfficeScope.NATIONAL && role.facility>=0)
+        galaxy.facilitiesAt(seat,stocks,countries).singleOrNull {it.kind==role.facility}?.id ?: seat else seat
     fun set(stocks:PlanetStocks,holding:OfficeHolding,remove:Boolean=false):PlanetStocks {
         if(!remove)return store(stocks,holding,false)
         // A seat may sit in its concrete field or in the general seat list; removal clears both.
