@@ -17,7 +17,7 @@ internal object StrategicStateCodec {
         state.offices.joinToString(";") {"${it.card}:${it.seat}:${it.character}"+
             if(countryOffices)":${it.country.value}" else ""}.ifEmpty {"-"},
         state.fiefs.toSortedMap().entries.joinToString(";") {"${it.key}:${it.value}"}.ifEmpty {"-"},
-        state.operations.joinToString(";") {p->listOf(p.id,p.planner,p.card,p.power,p.grid,p.force.ordinal,
+        state.operations.joinToString(";") {p->listOf(p.id,p.planner,p.card,p.country.value,p.grid,p.force.ordinal,
             p.purpose.ordinal,p.units,p.activatesAt,p.state.ordinal,p.issuedAt ?: "-",
             p.outfits.sorted().joinToString(",").ifEmpty {"-"},p.characters.sorted().joinToString(",").ifEmpty {"-"},
             p.defended.sorted().joinToString(",").ifEmpty {"-"},p.outcome?.ordinal ?: "-",p.issuer).joinToString(":")}.ifEmpty {"-"}
@@ -55,7 +55,7 @@ internal object StrategicStateCodec {
         fun ids(value:String)=if(value=="-")emptySet() else value.split(',').map(String::toInt).toSet()
         val operations=if(sections[4]=="-")emptyList() else sections[4].split(';').map {row->
             val f=row.split(':');require(f.size==16)
-            StrategicOperation(f[0].toInt(),f[1].toInt(),f[2].toInt(),f[3].toInt(),f[4].toInt(),
+            StrategicOperation(f[0].toInt(),f[1].toInt(),f[2].toInt(),CountryId(f[3].toInt()),f[4].toInt(),
                 StrategicForce.entries[f[5].toInt()],StrategicPurpose.entries[f[6].toInt()],f[7].toInt(),f[8].toLong(),
                 StrategicPlanState.entries[f[9].toInt()],f[10].takeUnless {it=="-"}?.toLong(),ids(f[11]),ids(f[12]),ids(f[13]),
                 f[14].takeUnless {it=="-"}?.toInt()?.let {OperationOutcome.entries[it]},f[15].toInt())

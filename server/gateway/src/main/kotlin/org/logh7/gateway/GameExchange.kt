@@ -1710,11 +1710,13 @@ class GameExchange(
                                             val force=when(query.card) {
                                                 28,169->0;29,170->1;30,171->2;else->error("Not an operation issuing office")
                                             }
+                                            val solo=navigation?.snapshot()?.navigators.orEmpty().values.filter {
+                                                it.generation==generation && it.country==country && it.hull?.hp?.let {hp->hp>0}==true &&
+                                                    inventory.outfits.values.none {o->it.characterId in o.members()}}.map {it.characterId}.toSet()
                                             val rows=if(force==2)characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
-                                                .filter {it.power==character.power && it.rank in 2..20 &&
-                                                    inventory.outfits.values.none {o->it.id.toInt() in o.members()}}
+                                                .filter {it.id.toInt() in solo && it.rank in 2..20}
                                                 .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
-                                            else inventory.outfits.values.filter {it.power==character.power &&
+                                            else inventory.outfits.values.filter {it.country==country &&
                                                 (if(force==0)it.kind==org.logh7.engine.OutfitKind.FLEET else it.kind in setOf(
                                                     org.logh7.engine.OutfitKind.TRANSPORT,org.logh7.engine.OutfitKind.PATROL))}
                                                 .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id,"부대 ${it.id}")}

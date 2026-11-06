@@ -188,7 +188,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         }
         // A throne vacated by death or removal is filled at the next settlement (SuccessionActions).
         if(monthly.social.succession.vacant)supplier?.invoke()?.let {monthly=SuccessionActions.accede(galaxy,monthly,it,seconds)}
-        val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy)),seconds,civicPlayers(generation))
+        val players=civicPlayers(generation)
+        val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players)),seconds,players)
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.

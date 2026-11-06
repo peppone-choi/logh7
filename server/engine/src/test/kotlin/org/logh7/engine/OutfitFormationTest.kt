@@ -158,6 +158,19 @@ class OutfitFormationTest {
         assertTrue(OutfitFormationPolicy.kinds(150).isEmpty());assertTrue(OutfitFormationPolicy.kinds(147).isEmpty())
         assertEquals(setOf(OutfitKind.GROUND),OutfitFormationPolicy.kinds(152))
     }
+    @Test fun anOldForeignOperationDoesNotKeepABlockOnTheCurrentCountrysOutfit() {
+        val formed=create(selected=mapOf(code to 1));val current=assertNotNull(formed.stocks)
+        val now=session.gameMillis/1000
+        val plan=StrategicOperation(1,10000,24,CountryId(2),2487,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,now,
+            StrategicPlanState.ISSUED,now,outfits=setOf(formed.outfit),issuer=10000)
+        val q=request(FormationPhase.DELETE,command=26).copy(target=formed.outfit)
+        fun dissolve(country:CountryId)=OutfitFormationPolicy.dissolve(galaxy,q,assertNotNull(formed.player),
+            current.copy(strategic=current.strategic.copy(operations=listOf(plan.copy(country=country)))))
+        assertEquals(StrategyActionRejection.BUSY,dissolve(CountryId(2)).rejection)
+        val released=dissolve(CountryId(43))
+        assertNull(released.rejection);assertFalse(assertNotNull(released.stocks).outfits.containsKey(formed.outfit))
+        assertEquals(CountryId(43),released.stocks?.strategic?.operations?.single()?.country)
+    }
     @Test fun dissolutionReturnsOnlySurvivorsAndBothDepotsClearsOfficesAndNeverReusesTheDeletedId() {
         val formed=create(selected=mapOf(code to 3));val first=assertNotNull(formed.stocks)
         val outfit=first.outfits.getValue(formed.outfit)
