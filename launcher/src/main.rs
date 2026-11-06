@@ -136,6 +136,7 @@ fn run() -> Result<i32, String> {
     }
     let mut child = Command::new(&exe)
         .args(config.arguments())
+        .env("LOGH7_UI_SCALE", &config.ui_scale)
         .current_dir(exe.parent().unwrap())
         .spawn()
         .map_err(|_| "게임 프로세스를 실행하지 못했습니다")?;
