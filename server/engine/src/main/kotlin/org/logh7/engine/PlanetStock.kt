@@ -113,7 +113,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
      * boundary instead of crossing it with nobody to process (startup catch-up runs before the gateway). */
     @Volatile var identities:(()->List<StrategicIdentity>)? = {emptyList()}
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
-    fun settle(generation: Long, seconds: Long): PlanetStocks {
+    fun settle(session:SessionState)=settle(session.generation,session.gameMillis/1000,session.eliminated.keys)
+    fun settle(generation: Long, seconds: Long,eliminated:Set<CountryId> = emptySet()): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
         val previous = current
         require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
@@ -189,7 +190,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         // A throne vacated by death or removal is filled at the next settlement (SuccessionActions).
         if(monthly.social.succession.anyVacant())supplier?.invoke()?.let {monthly=SuccessionActions.accede(galaxy,monthly,it,seconds)}
         val players=civicPlayers(generation)
-        val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players),supplier?.invoke().orEmpty(),g=galaxy),seconds,players)
+        val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players,eliminated=eliminated),supplier?.invoke().orEmpty(),g=galaxy),seconds,players)
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
         store?.save(next) // Publish only after durable replacement.
