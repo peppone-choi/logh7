@@ -149,6 +149,7 @@ static bool updateSessionEnding(void* manager);
 static void receivedSessionEnding(void* world,const BYTE* record);
 #include "country_colors.h"
 #include "country_icon.h"
+#include "lobby_country_transport.h"
 #include "system_affiliation.h"
 #include "facility_guide.h"
 #include "planet_info.h"
@@ -166,6 +167,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "unit_info_window.h"
 #include "strategy_actions.h"
 #include "session_ending.h"
+#include "lobby_country_window.h"
 #include "appointment_information.h"
 #include "supply_selector.h"
 #include "unicode_text.h"
@@ -603,7 +605,7 @@ static void install() {
     const BYTE oldCardGroup = 101, newCardGroup = 96;
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
-    if (!installSessionEnding()) { status = -3; return; }
+    if (!installSessionEnding() || !installLobbyCountryTransport()) { status = -3; return; }
     if (!installCreationMenus() || !installGameAdmission()) { status = -3; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }

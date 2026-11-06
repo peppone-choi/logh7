@@ -128,6 +128,7 @@ static unsigned __fastcall lobbyEndingFrame(void* controller,void*) {
             }
         }
     }
+    if(!sessionEnding.active && updateLobbyCountryWindow(controller))return 0;
     return reinterpret_cast<unsigned(__thiscall*)(void*)>(0x51a370)(controller);
 }
 // After a validated ending, the old session's socket closes on generation change.

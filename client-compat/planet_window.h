@@ -19,11 +19,11 @@ static void renderPlanetDirectory();
 // 00503a70 has 150 sprite slots; exceeding it corrupts the native GUI array.
 static_assert(9 + 8 + 1 + 1 < 150, "Planet decoration slot budget");
 
-static void planetButtonArt(void* widget, int width, int height) {
+static void planetButtonArt(void* widget, int width, int height,void* root=planetWindowRoot) {
     // 00502fe0 binds a native sliced background to the control itself.
     // It follows native hover/press/disabled state, unlike detached sprites.
     const int sourceX[] = {459, 467, 659};
-    const int sizesX[] = {8, width - 16, 8}, sizesY[] = {height / 2, height - height / 2};
+    const int sizesX[] = {8, width-16>192 ? 192 : width-16, 8}, sizesY[] = {height / 2, height - height / 2};
     for (int state = 0; state < 4; ++state) {
         unsigned sprites[30] = {};
         // 00506960: state 0 idle, 1 pressed, 2 disabled, 3 pointer-over.
@@ -35,7 +35,7 @@ static void planetButtonArt(void* widget, int width, int height) {
             part[3] = sizesX[col]; part[4] = sizesY[row];
         }
         reinterpret_cast<void(__thiscall*)(void*, void*, const void*, int, int, int)>(0x502fe0)
-            (planetWindowRoot, widget, sprites, 3, 2, state);
+            (root, widget, sprites, 3, 2, state);
     }
 }
 

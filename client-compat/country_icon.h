@@ -5,25 +5,18 @@
 // Direct3D 8 ABI, not Direct3D 9: the surface description includes Size.
 struct CountrySurfaceDesc8 {unsigned format,type,usage,pool,size,multisample,width,height;};
 struct CountryLockedRect8 {int pitch;BYTE* bits;};
-static void* neutralCountryTexture=nullptr;
-static ULONGLONG neutralCountryAt=0;
-static bool neutralizeCountryIcons() {
-    auto sprites=reinterpret_cast<BYTE**>(0x9d12b8);
-    if(!sprites[4])return false;
-    auto resource=at<BYTE*>(sprites[4],0);
+static struct {void* texture;ULONGLONG until;} neutralCountryCache[8]={};
+static unsigned neutralCountryCursor=0;
+static bool neutralizeCountryResource(BYTE* resource) {
     if(!resource)return false;
     // Restrict this transform to the verified atlas and its four military tiles.
     const char* path=reinterpret_cast<const char*>(resource+8);
     if(strnlen_s(path,512)==512)return false;
     const char* name=path;for(auto p=path;*p;++p)if(*p=='/' || *p=='\\')name=p+1;
     if(_stricmp(name,"icon_country32.tga"))return false;
-    for(unsigned i=4;i<=7;++i)if(!sprites[i] || at<BYTE*>(sprites[i],0)!=resource ||
-        at<int>(sprites[i],4)!=128 || at<int>(sprites[i],8)!=128 ||
-        at<int>(sprites[i],12)!=static_cast<int>((i/2-2)*32) || at<int>(sprites[i],16)!=static_cast<int>((i%2)*32) ||
-        at<int>(sprites[i],20)!=32 || at<int>(sprites[i],24)!=32)return false;
     auto texture=at<void*>(resource,0x220);if(!texture)return false;
     const auto now=GetTickCount64();
-    if(texture==neutralCountryTexture && now<neutralCountryAt)return true;
+    for(const auto& cached:neutralCountryCache)if(cached.texture==texture && now<cached.until)return true;
     auto methods=*reinterpret_cast<void***>(texture);
     if(reinterpret_cast<unsigned(WINAPI*)(void*)>(methods[13])(texture)!=1)return false;
     CountrySurfaceDesc8 desc={};
@@ -36,7 +29,17 @@ static bool neutralizeCountryIcons() {
     const HRESULT unlocked=reinterpret_cast<HRESULT(WINAPI*)(void*,unsigned)>(methods[17])(texture,0);
     if(!changed || FAILED(unlocked))return false;
     // Recheck periodically: a renderer reset may restore pixels using the same COM wrapper.
-    neutralCountryTexture=texture;neutralCountryAt=now+1000;return true;
+    auto& cached=neutralCountryCache[neutralCountryCursor++%8];cached.texture=texture;cached.until=now+1000;return true;
+}
+static bool neutralizeCountryIcons() {
+    auto sprites=reinterpret_cast<BYTE**>(0x9d12b8);
+    if(!sprites[4])return false;
+    auto resource=at<BYTE*>(sprites[4],0);
+    for(unsigned i=4;i<=7;++i)if(!sprites[i] || at<BYTE*>(sprites[i],0)!=resource ||
+        at<int>(sprites[i],4)!=128 || at<int>(sprites[i],8)!=128 ||
+        at<int>(sprites[i],12)!=static_cast<int>((i/2-2)*32) || at<int>(sprites[i],16)!=static_cast<int>((i%2)*32) ||
+        at<int>(sprites[i],20)!=32 || at<int>(sprites[i],24)!=32)return false;
+    return neutralizeCountryResource(resource);
 }
 static BYTE countrySpriteTrampoline[10];
 using CountrySpriteQueue=int(__thiscall*)(void*,const float*,float,float,float,float,void*,int,unsigned,int,int);
