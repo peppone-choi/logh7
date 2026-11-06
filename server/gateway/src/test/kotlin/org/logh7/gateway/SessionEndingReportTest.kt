@@ -68,4 +68,25 @@ class SessionEndingReportTest {
         val at=BootstrapMessages.character(actor,840,920).size
         assertContentEquals(SessionEndingMessages.evaluation(evaluation),packet.copyOfRange(at,at+17))
     }
+
+    @Test fun resultFlagsFollowTheConfiguredOfficeRulesInsteadOfTheNativeDisplayCode() {
+        val (world,old)=report()
+        val seed=CountryCatalogLoader.load()
+        val catalog=CountryCatalog(seed.calendars.values.toList(),seed.families.values.toList(),seed.countries.values.map {
+            if(it.id==2)it.copy(family=seed.countries.getValue(3).family) else it})
+        val result=SessionResults.assessCountries(old.end,old.total,old.countries.mapValues {it.value.statistics},
+            VictoryConditions(countries=mapOf(CountryId(2) to CountryVictoryConditions(true,false))),catalog)
+        assertEquals(SessionGrade.DECISIVE,result.countries.getValue(CountryId(2)).grade)
+        val native=SessionEndingReport.session(world.copy(result=result),listOf(actor))
+        assertEquals(1,native.powers.single {it.power==2}.ending!!.empirePlace)
+    }
+
+    @Test fun additionalCountryResultsCannotBeSilentlyProjectedIntoTwoNativeRows() {
+        val a=CountryId(42); val b=CountryId(43)
+        val end=SessionEnd(EndReason.CAPITAL_CAPTURED,emptySet(),123,setOf(b),setOf(a))
+        val result=SessionResults.assessCountries(end,SessionStatistics(population=2),mapOf(
+            a to SessionStatistics(population=1),b to SessionStatistics(population=1)))
+        val world=WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),result=result)
+        assertFailsWith<IllegalArgumentException> {SessionEndingReport.session(world,listOf(actor))}
+    }
 }
