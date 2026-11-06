@@ -1710,8 +1710,9 @@ class GameExchange(
                                                     org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,option.label,option.maximumRank)})
                                             val eligible=if(query.argument==2)inventory.flagshipMarket.offers.filter {
                                                 it.receiver==character.id.toInt() && it.expiresAt>gameSeconds()}.map {it.giver}.toSet() else null
-                                            val candidates=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}.filter {
-                                                it.power==character.power && it.id!=character.id && it.id>query.target && (it.rank==0 || it.rank in 2..20) &&
+                                            val candidates=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).values
+                                                .filter {country!=null && it.country==country}.map {currentCharacterById(it.character.id.toInt()) ?: it.character}.filter {
+                                                it.id!=character.id && it.id>query.target && (it.rank==0 || it.rank in 2..20) &&
                                                     (eligible==null || it.id.toInt() in eligible)}.sortedBy {it.id}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,candidates.map {
                                                 org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})

@@ -95,7 +95,7 @@ internal object StrategyActions {
         if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in StrategicOperations.supported)return StrategicOperations.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks,countries)
-        if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks)
+        if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks,countries)
         val country=r.country
         val definition=countries.countries[country.value] ?: return reject(StrategyActionRejection.IDENTITY)

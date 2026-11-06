@@ -1,11 +1,14 @@
 package org.logh7.gateway
 
 import java.nio.ByteBuffer
+import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.CharacterMessages
 import kotlin.test.*
 
 /** 암호화 요청→수리/구매/합의 교환→양측 알림과 재접속. 작성: Peppone Choi. 실행은 리드 담당. */
@@ -38,6 +41,42 @@ class FlagshipMarketWireTest {
     private fun action(client:SyntheticClient,body:ByteArray) {
         client.send(body);assertEquals(0,ByteBuffer.wrap(next(client,0x1200)).getShort(16).toInt())
         next(client,0x1201);next(client,0x0356)
+    }
+    @Test fun exchangeDirectoryUsesActualMembershipCurrentRankAndPagingAcrossSharedDisplayCodes() {
+        val path=directory.resolve("directory");Files.createDirectories(path)
+        val characters=CharacterCreation(path.resolve("characters.properties"))
+        for((account,id,country) in listOf(Triple("load-000",10000,2),Triple("load-001",10001,2),
+            Triple("foreign",10002,43),Triple("different_display",10003,42))) {
+            val data=CharacterMessages.Generate(4,id.toLong(),if(id==10003)3 else 2,0,0,"Pilot$id","Test",30,1,1,1000001,
+                List(8){50},0,0,0,20,0,0,"Ship",1)
+            assertTrue(characters.carry(account,CharacterProfile(data,CountryId(country),ShipStyleId("empire"))))
+        }
+        val state=State();val directoryOnly=AtomicBoolean(false)
+        LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,
+            worldStateCommitter=state,navigationDecorator={delegate->object:GameNavigation by delegate {
+                // This tests the directory projection; full runtime admission of country 42 is still fenced.
+                override fun snapshot()=delegate.snapshot()?.let {snapshot->if(!directoryOnly.get())snapshot else snapshot.copy(
+                    navigators=snapshot.navigators.mapValues {(_,p)->p.copy(country=CountryId(42))})}
+            }}).use {fixture->
+            val client=fixture.join(fixture.account(0),false,false).client
+            client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            directoryOnly.set(true)
+            fun directory(offset:Int):List<Pair<Int,Int>> {
+                client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(96).putShort(0)
+                    .putShort(0).putInt(offset).put(1).putInt(1).putShort(0).putInt(0).putShort(0).array())
+                next(client,0x1200);val bytes=ByteBuffer.wrap(next(client,0x1202));next(client,0x1201)
+                bytes.position(6)
+                val rows=List(bytes.get().toInt() and 255) {
+                    val id=bytes.int;val length=bytes.get().toInt() and 255;bytes.position(bytes.position()+length*2)
+                    val rank=bytes.short.toInt();bytes.position(bytes.position()+13);id to rank
+                }
+                assertEquals(bytes.limit(),bytes.position());return rows
+            }
+            assertEquals(listOf(10001 to 5,10003 to 20),directory(0))
+            assertEquals(listOf(10003 to 20),directory(10001))
+            assertTrue(directory(10003).isEmpty())
+            assertTrue(state.stocks.flagshipMarket.offers.isEmpty());assertEquals(1000,state.players.getValue("load-000").pcp)
+        }
     }
     @Test fun repairedAndPurchasedHullsThenConsentExchangeReachBothOwnersAndSurviveRestart() {
         val state=State()
