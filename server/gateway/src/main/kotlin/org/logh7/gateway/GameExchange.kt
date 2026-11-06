@@ -1546,7 +1546,7 @@ class GameExchange(
                                             // 航路貿易: own regular bases within 10 cells of the requester's base.
                                             val snapshot=navigation?.snapshot();val stocks=checkNotNull(snapshot?.planetStocks)
                                             val me=checkNotNull(snapshot?.navigators?.get(identity.account))
-                                            val ids=org.logh7.engine.TradeActions.routeTargets(world.galaxy,stocks,me,character.power)
+                                            val ids=org.logh7.engine.TradeActions.routeTargets(world.galaxy,stocks,me)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it>query.target}.sorted().take(200)
                                                 .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")})
                                         }
