@@ -10,6 +10,17 @@ class PirateActionsTest {
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))
     private val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,1,1,1),1050 to PlanetStock(1050,0,0,1,1,1,PlanetEconomy(1000,500,50,40))))
 
+    @Test fun additionalCountriesAreNotMistakenForPirateFrontierOrMovementDestinations() {
+        val s=stocks.copy(bases=stocks.bases+(1050 to stocks.bases.getValue(1050).copy(owner=Allegiance.Country(CountryId(42)))))
+        assertTrue(PirateActions.frontier(galaxy,s).isEmpty())
+        val ready=PirateActions.settle(galaxy,s,100)
+        assertTrue(PirateActions.settle(galaxy,ready,100+7*86400).social.pirates.fleets.isEmpty())
+        val roaming=s.copy(social=s.social.copy(pirates=PirateState(mapOf(1 to
+            PirateFleet(1,2489,0,listOf(PirateUnit(900_001,300)))),2)))
+        val moved=PirateActions.move(galaxy,roaming,14*86400L,emptySet()).social.pirates.fleets.values.single()
+        assertTrue(moved.grid !in setOf(2487,2490))
+    }
+
     @Test fun fleetsAppearOnFrontierGridsEverySevenDaysUpToOnePerGrid() {
         assertEquals(listOf(2490),PirateActions.frontier(galaxy,stocks))
         val armed=PirateActions.settle(galaxy,stocks,100)

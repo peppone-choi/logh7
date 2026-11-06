@@ -44,17 +44,17 @@ object PirateActions {
     /** Strategic move: every [SPAWN_DAYS] a fleet shifts to an open grid within [MOVE_CELLS], next to trade-route bases first. */
     const val MOVE_CELLS=3
 
-    /** Frontier grids: systems with no base held by the empire or the alliance. */
+    /** Frontier grids: systems with no base held by a country. */
     fun frontier(g:Galaxy,s:PlanetStocks)=g.systems.map {it.grid}.filter {grid->
-        g.bases.none {b->b.grid==grid && s.bases[b.id]?.power in 2..3}}.distinct().sorted()
+        g.bases.none {b->b.grid==grid && s.bases[b.id]?.country!=null}}.distinct().sorted()
 
     /** U-32 strategic movement: fleets not in battle drift to a nearby frontier grid, preferring trade-route ends. */
     fun move(g:Galaxy,s:PlanetStocks,now:Long,engaged:Set<Int>):PlanetStocks {
         var p=s.social.pirates
         val due=p.fleets.values.filter {it.alive && it.grid !in engaged && now-it.since>=SPAWN_DAYS*Justice.DAY}
         if(due.isEmpty())return s
-        // Any passable grid without a base of either side, open space included.
-        val owned=g.bases.filter {s.bases[it.id]?.power in 2..3}.map {it.grid}.toSet()
+        // Any passable grid without a country's base, open space included.
+        val owned=g.bases.filter {s.bases[it.id]?.country!=null}.map {it.grid}.toSet()
         fun open(grid:Int)=grid in 0..4999 && grid !in owned && g.kind(grid)!=GridKind.IMPASSABLE && g.terrain(grid)==GridTerrain.NONE
         val routeGrids=s.social.trade.routes.values.flatMap {r->listOf(r.from,r.to)}.mapNotNull {id->g.bases.singleOrNull {it.id==id}?.grid}.toSet()
         for(f in due.sortedBy {it.id}) {
