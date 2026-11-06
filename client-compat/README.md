@@ -197,4 +197,4 @@ Python 30개는 통과했으며 `test_display_hooks.py`가 원본 CALL 목적지
 
 ## HD 텍스처 묶음 (2026-11-06)
 
-설치 폴더에 `hd\`(exe 폴더의 형제, `data\` 옆)가 있으면 본 텍스처 로드(`0x5e29eb`·`0x5e2a1f`)가 `hd\<data 기준 상대 경로>.<원본 FNV-1a 32 8자리>.png`를 대신 읽는다(원본 판마다 다른 파일이라 업데이트판에 기본판 HD가 붙지 않는다). 원본의 정확히 N배(2~8)인 파일만 쓰고, HD 텍스처는 `GetLevelDesc`가 원래 크기를 보고해 2D UV가 원래 픽셀 공간에 남는다. 폴더가 없으면 아무것도 바꾸지 않는다. 묶음은 `tools/assets/build_hd_pack.py`로 만들고, 처음 4000건은 `hd\hd-textures.log`에 남는다. 근거와 제외 규칙은 [리마스터 계획 2.1절](../docs/client/remaster-plan.md)에 있다. 실기 확인 전이다.
+설치 폴더에 `hd\`(exe 폴더의 형제, `data\` 옆)가 있으면 본 텍스처 로드(`0x5e29eb`·`0x5e2a1f`)가 `hd\<data 기준 상대 경로>.<원본 FNV-1a 32 8자리>.png`를 대신 읽는다(원본 판마다 다른 파일이라 업데이트판에 기본판 HD가 붙지 않는다). 얼굴 TCF의 메모리 로드는 `hd\mem\tcf.<원본 바이트 FNV-1a 32>.png`로 연결한다. 원본의 정확히 N배(2~8)인 파일만 쓰고, HD 텍스처는 `GetLevelDesc`가 원래 크기를 보고해 2D UV가 원래 픽셀 공간에 남는다. 폴더가 없으면 아무것도 바꾸지 않는다. 묶음은 `tools/assets/build_hd_pack.py`로 만들고, 처음 4000건은 `hd\hd-textures.log`에 남는다. 1024×768 로비·생성 얼굴·전략·전술 일부를 기본/HD로 대조했다. 메모리 증가·팔레트 선체 제외·미확인 범위는 [리마스터 계획 2.1절](../docs/client/remaster-plan.md)에 있다.
