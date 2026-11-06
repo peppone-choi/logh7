@@ -620,7 +620,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                             13 -> move.owner == before.characterId
                             // Own mansion rooms (U-18): the ballroom in a capital, the forest on one's own fief.
                             // The CD knows these rooms only with owner 0; entry itself checks the right (U-18).
-                            14 -> move.owner == 0 && before.country!=null && Capital.of(galaxy.bases.single { it.id == before.baseId })?.power?.let(::CountryId)==before.country
+                            // The country's current capital (moved capitals included), still owned by it and
+                            // not rebel-held; a country missing from the catalogue has none.
+                            14 -> move.owner == 0 && before.country?.let { country -> country.value in countries.countries &&
+                                (if (stocks != null) OrganizationalOfficePolicy(galaxy, countries).capital(stocks, country)
+                                else galaxy.bases.singleOrNull { Capital.of(it)?.power == country.value }?.id) == before.baseId } == true
                             15 -> move.owner == 0 && stocks?.strategic?.fiefs?.get(before.baseId) == before.characterId
                             else -> false
                         }
