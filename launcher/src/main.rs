@@ -1,6 +1,7 @@
 mod audio;
 mod config;
 mod download;
+mod graphic_config;
 mod patch;
 mod signature;
 use config::Config;
@@ -116,6 +117,14 @@ fn run() -> Result<i32, String> {
         return Ok(0);
     }
     let exe = config.executable()?;
+    if let Some((width, height)) = config.resolution {
+        // --check only reports; a real launch writes the client's own screen-size setting.
+        if check {
+            println!("화면 크기 설정: {width}×{height} (실행할 때 GraphicConfig.txt에 씁니다)");
+        } else if graphic_config::apply(&config.client_root, width, height)? {
+            println!("화면 크기를 {width}×{height}로 설정했습니다");
+        }
+    }
     audio::check()?;
     println!(
         "접속 대상: {}:{} · 활성 오디오 출력 확인",
