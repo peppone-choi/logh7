@@ -26,6 +26,8 @@ sealed interface SessionAction {
     data class OpenBattle(val id: String) : SessionAction
     data class CloseBattle(val id: String) : SessionAction
     data class Territory(val systems: Map<Power, Int>, val capitals: Set<Power>) : SessionAction
+    data class CountryTerritory(val systems: Map<CountryId, Int>, val capitals: Map<CountryId, CountryId?>,
+        val reductionEligible: Set<CountryId> = emptySet()) : SessionAction
     data object Restart : SessionAction
     data object RecoverConnections : SessionAction
     /** U-25 亡命: the participant's sanctioned faction change. */
@@ -70,7 +72,10 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
         is SessionAction.OpenBattle -> { simulation.openBattle(action.id); emptyList() }
         is SessionAction.CloseBattle -> { simulation.closeBattle(action.id); emptyList() }
         is SessionAction.Territory -> simulation.updateTerritory(action.systems, action.capitals).also {
-            if (it.isNotEmpty()) restartAt = Math.addExact(elapsed, rules.restartDelayRealMillis)
+            if (it.any { event -> event is WorldEvent.Ended }) restartAt = Math.addExact(elapsed, rules.restartDelayRealMillis)
+        }
+        is SessionAction.CountryTerritory -> simulation.updateCountryTerritory(action.systems, action.capitals, action.reductionEligible).also {
+            if (it.any { event -> event is WorldEvent.Ended }) restartAt = Math.addExact(elapsed, rules.restartDelayRealMillis)
         }
         SessionAction.Restart -> restart()
         SessionAction.RecoverConnections -> { before.session.participants.keys.forEach { simulation.disconnect(it) }; emptyList() }

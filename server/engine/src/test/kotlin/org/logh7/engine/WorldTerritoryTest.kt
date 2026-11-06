@@ -19,21 +19,21 @@ class WorldTerritoryTest {
 
     @Test fun capitalOwnerIsTheDefeatedPowerAndCapitalTakesPrecedenceOverTerritoryReduction() {
         val territory=WorldTerritory(galaxy);assertNull(territory.ending(stocks()))
-        assertEquals(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),territory.controlled(stocks()))
+        assertEquals(mapOf(CountryId(2) to 4,CountryId(3) to 4),territory.controlled(stocks()))
         val action=territory.ending(capture(stocks(),1004))!!
-        assertEquals(setOf(Power.ALLIANCE),action.capitals)
-        val end=SessionSimulation(rules).updateTerritory(action.systems,action.capitals).single() as WorldEvent.Ended
+        assertEquals(mapOf(CountryId(3) to CountryId(2)),action.capitals)
+        val end=SessionSimulation(rules).updateCountryTerritory(action.systems,action.capitals,action.reductionEligible).filterIsInstance<WorldEvent.Ended>().single()
         assertEquals(EndReason.CAPITAL_CAPTURED,end.end.reason)
         assertEquals(setOf(Power.ALLIANCE),end.end.affected)
     }
     @Test fun reducedRegularSystemsUseCurrentOwnershipWithoutCountingFleetsOrNeutralAndInsurgentBases() {
         val territory=WorldTerritory(galaxy)
         val result=territory.ending(capture(stocks(),1005))!!
-        assertTrue(result.capitals.isEmpty());assertEquals(3,result.systems[Power.ALLIANCE])
+        assertTrue(result.capitals.isEmpty());assertEquals(3,result.systems[CountryId(3)])
         for((power,camp) in listOf(0 to 0,3 to 1)) {
             val original=stocks();val changed=original.copy(bases=original.bases+
                 (1005 to original.bases.getValue(1005).copy(owner=Allegiance.fromLegacy(power),camp=camp)))
-            assertEquals(3,territory.controlled(changed)[Power.ALLIANCE])
+            assertEquals(3,territory.controlled(changed)[CountryId(3)])
         }
     }
     @Test fun mixedSystemIsControlledByNeitherSideUntilEveryBaseBelongsToTheSameRegularCamp() {
@@ -41,10 +41,10 @@ class WorldTerritoryTest {
         val world=Galaxy(galaxy.systems,galaxy.bases+extra,galaxy.starts)
         val original=stocks().copy(bases=stocks().bases+(2000 to PlanetStock(2000,2,0,100,100,100)))
         val territory=WorldTerritory(world)
-        assertEquals(3,territory.controlled(original)[Power.ALLIANCE])
-        assertEquals(4,territory.controlled(original)[Power.EMPIRE])
+        assertEquals(3,territory.controlled(original)[CountryId(3)])
+        assertEquals(4,territory.controlled(original)[CountryId(2)])
         val unified=capture(original,1007)
-        assertEquals(5,territory.controlled(unified)[Power.EMPIRE])
+        assertEquals(5,territory.controlled(unified)[CountryId(2)])
     }
     @Test fun smallLocalScenarioDoesNotEndForItsInitialSizeButStillRecognizesCapitalCapture() {
         val small=Galaxy(galaxy.systems.filter {it.grid in galaxy.starts.values},
@@ -52,7 +52,7 @@ class WorldTerritoryTest {
         val original=stocks().copy(bases=stocks().bases.filterKeys {it in setOf(1000,1004)})
         val territory=WorldTerritory(small)
         assertNull(territory.ending(original))
-        assertEquals(setOf(Power.ALLIANCE),territory.ending(capture(original,1004))!!.capitals)
+        assertEquals(mapOf(CountryId(3) to CountryId(2)),territory.ending(capture(original,1004))!!.capitals)
     }
     private class SessionStore(val rules:SessionRules):SessionDurability {
         var value=DurableWorldState(SessionSimulation(rules).exportState())
@@ -60,10 +60,48 @@ class WorldTerritoryTest {
         val actions=mutableListOf<SessionAction>()
         override fun load()=value
         override fun commit(action:SessionAction,transition:SessionTransition) {
-            if(failTerritory && action is SessionAction.Territory)throw IOException("end journal unavailable")
+            if(failTerritory && action is SessionAction.CountryTerritory)throw IOException("end journal unavailable")
             value=transition.state;actions+=action
         }
         override fun close() {}
+    }
+
+    @Test fun configuredCapitalAndActualCountryRemainIndependentOfNamesAndNativeAppearance() {
+        val third=CountryId(42)
+        val bases=listOf(galaxy.bases[0],galaxy.bases[4],galaxy.bases[1],galaxy.bases[5]).map {it.copy(name="Renamed")}
+        val small=Galaxy(galaxy.systems.filter {system->bases.any {it.grid==system.grid}},bases,galaxy.starts,
+            countryStarts=mapOf(third to bases[2].grid))
+        val originals=stocks().bases.filterKeys {id->bases.any {it.id==id}}
+        val initial=PlanetStocks(1,0,originals+(bases[2].id to originals.getValue(bases[2].id).copy(owner=Allegiance.Country(third))),
+            strategic=StrategicState(capitals=mapOf(CountryId(2) to bases[0].id,CountryId(3) to bases[1].id,third to bases[2].id)))
+        val territory=WorldTerritory(small)
+        val registration=assertNotNull(territory.ending(initial))
+        assertTrue(registration.capitals.isEmpty())
+        assertEquals(1,registration.systems[third])
+        val session=SessionSimulation(rules)
+        session.updateCountryTerritory(registration.systems,registration.capitals,registration.reductionEligible)
+        val captured=initial.copy(bases=initial.bases+(bases[2].id to initial.bases.getValue(bases[2].id).copy(owner=Allegiance.Country(CountryId(2)))))
+        val action=assertNotNull(territory.ending(captured,session.snapshot().countries,session.snapshot().eliminated.keys))
+        assertEquals(mapOf(third to CountryId(2)),action.capitals)
+        assertEquals(0,action.systems[third])
+        session.updateCountryTerritory(action.systems,action.capitals,action.reductionEligible)
+        assertNull(session.snapshot().ended)
+        assertNull(territory.ending(captured,session.snapshot().countries,session.snapshot().eliminated.keys))
+    }
+
+    @Test fun movedCapitalOverridesTheSeedCapitalAndCoupOrNeutralOwnersDoNotInventACaptor() {
+        val bases=listOf(galaxy.bases[0],galaxy.bases[1],galaxy.bases[4])
+        val small=Galaxy(galaxy.systems.filter {system->bases.any {it.grid==system.grid}},bases,galaxy.starts)
+        val original=PlanetStocks(1,0,stocks().bases.filterKeys {id->bases.any {it.id==id}},
+            strategic=StrategicState(capitals=mapOf(CountryId(2) to 1001,CountryId(3) to 1004)))
+        val territory=WorldTerritory(small)
+        val oldLost=original.copy(bases=original.bases+(1000 to original.bases.getValue(1000).copy(owner=Allegiance.Country(CountryId(3)))))
+        assertNull(territory.ending(oldLost))
+        for((owner,camp) in listOf(Allegiance.Neutral to 0,Allegiance.Country(CountryId(3)) to 1)) {
+            assertNull(territory.ending(oldLost.copy(bases=oldLost.bases+(1001 to oldLost.bases.getValue(1001).copy(owner=owner,camp=camp)))))
+        }
+        val lost=oldLost.copy(bases=oldLost.bases+(1001 to oldLost.bases.getValue(1001).copy(owner=Allegiance.Country(CountryId(3)))))
+        assertEquals(mapOf(CountryId(2) to CountryId(3)),territory.ending(lost)!!.capitals)
     }
     private class StockStore(var value:PlanetStocks):PlanetStockStore {
         override fun load()=value
@@ -78,7 +116,7 @@ class WorldTerritoryTest {
         assertEquals(Admission.ENDED,joined.await())
         assertEquals(EndReason.CAPITAL_CAPTURED,engine.snapshot().session!!.ended!!.reason)
         engine.submit(WorldCommand.AdvanceTo(1000));engine.drainAndClose()
-        assertEquals(1,store.actions.filterIsInstance<SessionAction.Territory>().size)
+        assertEquals(1,store.actions.filterIsInstance<SessionAction.CountryTerritory>().size)
         assertEquals(1,events.filterIsInstance<WorldEvent.Ended>().size)
         assertTrue(engine.snapshot().navigators.isEmpty())
     }
@@ -97,7 +135,7 @@ class WorldTerritoryTest {
         engine.submit(WorldCommand.Join("late",Power.EMPIRE,false,retry,"new",1))
         assertEquals(Admission.ENDED,retry.await());engine.drainAndClose()
         assertEquals(setOf(Power.ALLIANCE),store.value.session.ended!!.affected)
-        assertEquals(1,store.actions.filterIsInstance<SessionAction.Territory>().size)
+        assertEquals(1,store.actions.filterIsInstance<SessionAction.CountryTerritory>().size)
         assertEquals(1,events.filterIsInstance<WorldEvent.Ended>().size)
     }
     @Test fun liveOccupationEndsOnTheSameActorPassWithoutOverwritingThePublishedResult()=runBlocking {
@@ -126,7 +164,7 @@ class WorldTerritoryTest {
         assertEquals(SessionGrade.LIMITED,report.powers.getValue(Power.EMPIRE).grade)
         assertEquals(SessionGrade.DEFEAT,report.powers.getValue(Power.ALLIANCE).grade)
         assertTrue(store.actions[0] is SessionAction.Advance)
-        assertTrue(store.actions[1] is SessionAction.Territory)
+        assertTrue(store.actions[1] is SessionAction.CountryTerritory)
     }
     @Test fun inMemorySessionUsesTheSameTerritoryRuleAndRestartDelay()=runBlocking {
         val engine=WorldEngine(this,rules,ticking=false,galaxy=galaxy,stockStore=StockStore(capture(stocks(),1005)))
