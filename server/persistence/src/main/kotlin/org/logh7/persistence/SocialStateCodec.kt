@@ -194,10 +194,23 @@ internal object SocialStateCodec {
             if(v.size==4)v[3].split(',').map {it.toInt()}.toSet() else emptySet())
     }
     /** Optional sixteenth field (2026-11-02): succession "heir:vacant:emperor:rival:at". */
-    private fun succession(s:SuccessionState)=listOf(s.heir,if(s.vacant)1 else 0,s.emperor,s.rival,s.at).joinToString(":")
+    private fun succession(s:SuccessionState):String {
+        fun row(r:ThroneState)=listOf(r.heir,if(r.vacant)1 else 0,r.emperor,r.rival,r.at).joinToString(":")
+        return row(s.of(CountryId(2)))+(if(s.countries.isEmpty())"" else "~"+s.countries.entries.sortedBy {it.key.value}
+            .joinToString(";") {"${it.key.value}:${row(it.value)}"})
+    }
     private fun succession(text:String):SuccessionState {
-        val v=text.split(':');require(v.size==5 && v[1] in setOf("0","1"))
-        return SuccessionState(v[0].toInt(),v[1]=="1",v[2].toInt(),v[3].toInt(),v[4].toLong())
+        fun row(text:String):ThroneState {
+            val v=text.split(':');require(v.size==5 && v[1] in setOf("0","1"))
+            return ThroneState(v[0].toInt(),v[1]=="1",v[2].toInt(),v[3].toInt(),v[4].toLong())
+        }
+        val parts=text.split('~');require(parts.size in 1..2)
+        val legacy=row(parts[0]);val states=linkedMapOf<CountryId,ThroneState>()
+        if(parts.size==2)for(entry in parts[1].split(';')) {
+            val id=CountryId(entry.substringBefore(':').toInt())
+            require(states.put(id,row(entry.substringAfter(':')))==null)
+        }
+        return SuccessionState(legacy.heir,legacy.vacant,legacy.emperor,legacy.rival,legacy.at,states)
     }
     fun decode(text:String):SocialState {
         require(text.length<=1_000_000);val f=text.split('|');require(f.size in 4..16)

@@ -172,9 +172,10 @@ object CoupActions {
     }
 
     /** 継承拒否 (SuccessionActions): the runner-up rises at once as 盟主 of a one-person revolt holding [stations]. */
-    internal fun contest(g:Galaxy,s:PlanetStocks,leader:Int,stations:Set<Int>,now:Long):PlanetStocks {
+    internal fun contest(g:Galaxy,s:PlanetStocks,leader:Int,stations:Set<Int>,now:Long,country:CountryId=CountryId(2),
+        catalog:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
         val c=s.social.coup
-        return turnOver(g,coup(s,c.copy(plots=c.plots+(leader to Plot(leader,CountryId(2),now,revolt=maxOf(now,1L))))),listOf(leader),leader,stations,deputy=true)
+        return turnOver(g,coup(s,c.copy(plots=c.plots+(leader to Plot(leader,country,now,revolt=maxOf(now,1L))))),listOf(leader),leader,stations,deputy=true,countries=catalog)
     }
 
     /** Outfits the character serves in through an outfit card. */
@@ -228,7 +229,7 @@ object CoupActions {
             val previousCapital=plot.capitalBase.takeIf {it>0} ?: legacyCapital(g,plot.country)
             val since=if(!held)0L else if(plot.capitalSince==0L || previousCapital!=seat)now else plot.capitalSince
             if(held && now-since>=CAPITAL_DAYS*Justice.DAY && !s.social.justice.detained(plot.leader)) {
-                current=succeed(g,current,plot,checkNotNull(seat),countries);continue
+                current=succeed(g,current,plot,checkNotNull(seat),countries,now);continue
             }
             val capitalBase=if(since>0)checkNotNull(seat) else 0
             if(since!=plot.capitalSince || capitalBase!=plot.capitalBase)current=current.copy(social=current.social.copy(coup=current.social.coup.copy(
@@ -236,7 +237,7 @@ object CoupActions {
         }
         return suppress(current,countries)
     }
-    private fun succeed(g:Galaxy,s:PlanetStocks,plot:Plot,capital:Int,countries:CountryCatalog):PlanetStocks {
+    private fun succeed(g:Galaxy,s:PlanetStocks,plot:Plot,capital:Int,countries:CountryCatalog,now:Long):PlanetStocks {
         val system=OrganizationOffices.system(plot.country,countries) ?: return s
         val policy=OrganizationalOfficePolicy(g,countries);val rebels=plot.rebels.toSet()
         val aliases=s.strategic.offices.filter {it.country==plot.country && it.character in rebels && policy.role(it.card,plot.country)?.camp==1}
@@ -252,6 +253,8 @@ object CoupActions {
         val head=headCard(system)
         for(old in policy.holders(next,head,plot.country))next=policy.set(next,old,remove=true)
         next=policy.set(next,OfficeHolding(head,capital,plot.leader,plot.country))
+        if(system==2)next=next.copy(social=next.social.copy(succession=next.social.succession.with(plot.country,
+            ThroneState(emperor=plot.leader,at=maxOf(now,1L)))))
         return next.copy(social=next.social.copy(coup=next.social.coup.copy(plots=next.social.coup.plots-plot.leader)))
     }
     private fun suppress(s:PlanetStocks,countries:CountryCatalog):PlanetStocks {

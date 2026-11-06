@@ -18,15 +18,16 @@ object PoliticianLadder {
     const val CONVERTED_RANK=10
     const val EMPEROR_CARD=1
     const val CHAIRMAN_CARD=132
-    fun monthly(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>,month:Long):PlanetStocks {
+    fun monthly(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>,month:Long,catalog:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
         var people=stocks.strategic.people
         for(identity in identities.sortedBy {it.id}) {
-            // These restored political ladders belong to the original two countries. A new country
-            // sharing their portraits or ships does not inherit their government rules.
-            if(identity.country!=Power.EMPIRE.country && identity.country!=Power.ALLIANCE.country)continue
+            val country=identity.country ?: continue
+            val definition=catalog.countries[country.value] ?: continue
+            val ranks=catalog.families.getValue(definition.family).ranks
+            if(ranks !in setOf("empire","alliance") || OrganizationOffices.system(country,catalog)==null)continue
             val person=people[identity.id] ?: StrategicPerson()
-            if((person.rank ?: identity.rank)!=POLITICIAN || person.merit!=0L)continue
-            people=people+(identity.id to if(identity.country==Power.ALLIANCE.country)person.copy(rank=CONVERTED_RANK,militaryRank=0) else {
+            if((person.rank ?: identity.rank)!=POLITICIAN || person.merit!=0L || person.deceasedAt!=0L)continue
+            people=people+(identity.id to if(ranks=="alliance")person.copy(rank=CONVERTED_RANK,militaryRank=0) else {
                 val abilities=(person.abilities ?: identity.abilities).toMutableList()
                 val index=java.util.Random(month*1_000_003L+identity.id).nextInt(abilities.size)
                 abilities[index]=maxOf(0,abilities[index]-1)
@@ -34,31 +35,41 @@ object PoliticianLadder {
             })
         }
         var next=stocks.copy(strategic=stocks.strategic.copy(people=people))
-        val policy=OrganizationalOfficePolicy(galaxy)
-        val funds=next.social.funds
-        val (yes,no)=funds.confidence[3] ?: (0L to 0L)
-        if(no>yes)policy.holders(next,CHAIRMAN_CARD).forEach {next=policy.set(next,it,remove=true)}
-        if(3 in funds.confidence)next=next.copy(social=next.social.copy(funds=funds.copy(confidence=funds.confidence-3)))
+        val policy=OrganizationalOfficePolicy(galaxy,catalog)
+        for(id in catalog.countries.keys.sorted()) {
+            val country=CountryId(id)
+            if(OrganizationOffices.system(country,catalog)!=3)continue
+            val funds=next.social.funds
+            val (yes,no)=funds.confidence[id] ?: (0L to 0L)
+            if(no>yes)policy.holders(next,CHAIRMAN_CARD,country).forEach {next=policy.set(next,it,remove=true)}
+            if(id in funds.confidence)next=next.copy(social=next.social.copy(funds=funds.copy(confidence=funds.confidence-id)))
+        }
         // Imperial succession (SuccessionActions, user decision 2026-11-02) replaces the politician-ladder heir.
-        next=SuccessionActions.accede(galaxy,next,identities,month*PERIOD_DAYS*Justice.DAY)
-        return election(galaxy,next,identities)
+        next=SuccessionActions.accede(galaxy,next,identities,month*PERIOD_DAYS*Justice.DAY,catalog)
+        return election(galaxy,next,identities,catalog)
     }
-    fun chairmanVacant(galaxy:Galaxy,stocks:PlanetStocks):Boolean {
-        val policy=OrganizationalOfficePolicy(galaxy)
-        val capital=galaxy.bases.singleOrNull {Capital.of(it)==Capital.ALLIANCE} ?: return false
-        val role=OrganizationOffices.of(CHAIRMAN_CARD) ?: return false
-        return policy.active(stocks,role,capital.id) && policy.holders(stocks,CHAIRMAN_CARD).isEmpty() && !stocks.social.coup.revolting(CountryId(3))
+    fun chairmanVacant(galaxy:Galaxy,stocks:PlanetStocks,country:CountryId=CountryId(3),catalog:CountryCatalog=CountryCatalogLoader.current()):Boolean {
+        val policy=OrganizationalOfficePolicy(galaxy,catalog)
+        val capital=policy.capital(stocks,country) ?: return false
+        val role=policy.role(CHAIRMAN_CARD,country) ?: return false
+        return policy.active(stocks,role,capital) && policy.holders(stocks,CHAIRMAN_CARD,country).isEmpty() && !stocks.social.coup.revolting(country)
     }
     /** 議長選出: fills a vacant chairman seat from the alliance politicians (see the class comment). */
-    fun election(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>):PlanetStocks {
-        if(!chairmanVacant(galaxy,stocks))return stocks
-        val people=stocks.strategic.people;val support=stocks.social.funds.support
-        val candidates=identities.filter {it.country==Power.ALLIANCE.country && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L}
-        val winner=candidates.sortedWith(compareByDescending<StrategicIdentity> {support[it.id] ?: 0L}
-            .thenByDescending {people[it.id]?.merit ?: 0L}.thenBy {it.id}).firstOrNull() ?: return stocks
-        val capital=galaxy.bases.single {Capital.of(it)==Capital.ALLIANCE}
-        val elected=OrganizationalOfficePolicy(galaxy).set(stocks,OfficeHolding(CHAIRMAN_CARD,capital.id,winner.id))
-        val ids=candidates.map {it.id}.toSet()
-        return elected.copy(social=elected.social.copy(funds=elected.social.funds.copy(support=support.filterKeys {it !in ids})))
+    fun election(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>,catalog:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
+        var next=stocks
+        for(id in catalog.countries.keys.sorted()) {
+            val country=CountryId(id)
+            if(!chairmanVacant(galaxy,next,country,catalog))continue
+            val people=next.strategic.people;val support=next.social.funds.support
+            val candidates=identities.filter {it.country==country && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L && !CoupActions.rebel(next,it.id,country)}
+            val winner=candidates.sortedWith(compareByDescending<StrategicIdentity> {support[it.id] ?: 0L}
+                .thenByDescending {people[it.id]?.merit ?: 0L}.thenBy {it.id}).firstOrNull() ?: continue
+            val policy=OrganizationalOfficePolicy(galaxy,catalog)
+            val capital=checkNotNull(policy.capital(next,country))
+            val elected=policy.set(next,OfficeHolding(CHAIRMAN_CARD,capital,winner.id,country))
+            val ids=candidates.map {it.id}.toSet()
+            next=elected.copy(social=elected.social.copy(funds=elected.social.funds.copy(support=support.filterKeys {it !in ids})))
+        }
+        return next
     }
 }

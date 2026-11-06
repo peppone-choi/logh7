@@ -1529,7 +1529,9 @@ class GameExchange(
                                         if(query.command==org.logh7.engine.SuccessionActions.DESIGNATE) {
                                             // 後継指名: living empire characters other than the emperor, in the current line of succession.
                                             val ids=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
-                                            val line=org.logh7.engine.SuccessionActions.order(inventory,ids).filter {it!=character.id.toInt() && it>query.target}
+                                            val country=currentProfile(identity.account,character.id.toInt()).country
+                                            val line=country?.let {org.logh7.engine.SuccessionActions.order(inventory,ids,it)}.orEmpty()
+                                                .filter {it!=character.id.toInt() && it>query.target}
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,line.take(200).mapNotNull {id->
                                                 currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname.take(12))}})
                                         }

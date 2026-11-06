@@ -40,7 +40,7 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
     fun detached()=copy(speeches=java.util.Collections.unmodifiableMap(LinkedHashMap(speeches)),
         speakers=java.util.Collections.unmodifiableMap(LinkedHashMap(speakers)),squares=java.util.Collections.unmodifiableMap(LinkedHashMap(squares)),
         academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached(),proposals=proposals.detached(),
-        justice=justice.detached(),coup=coup.detached(),funds=funds.detached(),goals=goals.detached(),trade=trade.detached(),pirates=pirates.detached(),production=production.detached(),succession=succession)
+        justice=justice.detached(),coup=coup.detached(),funds=funds.detached(),goals=goals.detached(),trade=trade.detached(),pirates=pirates.detached(),production=production.detached(),succession=succession.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
 enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE, TARGET }
@@ -75,7 +75,7 @@ object SocialActions {
         if(r.identity.command in GoalActions.commands)return GoalActions.evaluate(g,r,session,p,s)
         if(r.identity.command in TradeActions.commands)return TradeActions.evaluate(g,r,session,p,s)
         if(r.identity.command in ProductionActions.commands)return ProductionActions.evaluate(g,r,session,p,s)
-        if(r.identity.command in SuccessionActions.commands)return SuccessionActions.evaluate(g,r,session,p,s)
+        if(r.identity.command in SuccessionActions.commands)return SuccessionActions.evaluate(g,r,session,p,s,countries)
         if(r.identity.command in OrbitalStrikeActions.commands)return OrbitalStrikeActions.evaluate(g,r,session,p,s,navigators)
         // A detainee (U-25) cannot run social commands.
         if(p!=null && s.social.justice.detained(p.characterId))return SocialResult(p,s,SocialRejection.BUSY)
