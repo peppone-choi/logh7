@@ -308,9 +308,14 @@ internal object TacticalCombat {
         val postures=mutableListOf<TacticalPostureResult>()
         inventory=TacticalPostureOperations.advance(session,galaxy,players,inventory,postures)
         val ground=mutableListOf<TacticalGroundResult>()
+        val beforeGround=inventory
         inventory=TacticalGroundOperations.advance(session,galaxy,players,inventory,ground)
+        val withdrawals=ground.filter {!it.cancelled && it.order.action==TacticalGroundAction.WITHDRAW}
+            .map {it.order.base}.toSet().filterTo(mutableSetOf()) {id->
+                GroundBattleOperations.contested(beforeGround,galaxy.bases.single {it.id==id})
+            }
         val groundBattles=mutableListOf<GroundBattleResult>()
-        inventory=GroundBattleOperations.advance(session,galaxy,players,inventory,scale,groundBattles)
+        inventory=GroundBattleOperations.advance(session,galaxy,players,inventory,scale,groundBattles,withdrawals)
         val occupations=mutableListOf<BaseOccupation>()
         val fortressSunk=mutableListOf<Navigator>()
         inventory=FortressArmor.advance(session,galaxy,players,inventory,fortressSunk)

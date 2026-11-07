@@ -65,6 +65,13 @@ class GroundPresenceTest {
         assertEquals(ChatMessages.Spot(10000,"[지상전] 하이네센 · 시험국 승리"),ChatMessages.spot(notice.copyOfRange(4,notice.size)))
         assertNull(hub.takeGroundResult("connection0",returned))
         packets.forEach {it.clear()}
+        hub.groundBattle(conclusion.copy(damaged=emptyList(),destroyed=emptyList(),
+            conclusion=GroundBattleConclusion(CountryId(42),withdrawal=true)),snapshot,galaxy){null}
+        for(i in 0..1) {
+            val packet=packets[i].flatten().single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d}
+            assertEquals(ChatMessages.Spot(10000+i,"[지상전] 하이네센 · 철수로 종료"),ChatMessages.spot(packet.copyOfRange(4,packet.size)))
+        }
+        packets.forEach {it.clear()}
         hub.groundBattle(GroundBattleResult(1,2487,1049,250,listOf(3),emptyList(),mapOf(10000 to "old-connection")),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
         assertTrue(packets.all {it.isEmpty()})
         hub.support(TacticalSupportResult(1,2487,TacticalSupportAction.SUPPLY,1,1010000,100,200,0,
