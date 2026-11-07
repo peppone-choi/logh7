@@ -57,7 +57,8 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     /** 亡命: the actual destination whose session record, character and navigation switch together. */
     val defected:CountryId?=null,
     /** 情報工作 report: approval*256+peace of the infiltrated base. */
-    val report:Int=0,val tradeQuote:TradeActions.Quote?=null,val tradeReportCountry:CountryId?=null)
+    val report:Int=0,val tradeQuote:TradeActions.Quote?=null,val tradeReportCountry:CountryId?=null,
+    val productionQuote:ProductionActions.Quote?=null)
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,
@@ -74,7 +75,7 @@ object SocialActions {
         if(r.identity.command==FundActions.FUNDS)return FundActions.evaluate(g,r,session,p,s)
         if(r.identity.command in GoalActions.commands)return GoalActions.evaluate(g,r,session,p,s)
         if(r.identity.command in TradeActions.commands)return TradeActions.evaluate(g,r,session,p,s,countries)
-        if(r.identity.command in ProductionActions.commands)return ProductionActions.evaluate(g,r,session,p,s)
+        if(r.identity.command in ProductionActions.commands)return ProductionActions.evaluate(g,r,session,p,s,catalog=countries)
         if(r.identity.command in SuccessionActions.commands)return SuccessionActions.evaluate(g,r,session,p,s,countries)
         if(r.identity.command in OrbitalStrikeActions.commands)return OrbitalStrikeActions.evaluate(g,r,session,p,s,navigators)
         // A detainee (U-25) cannot run social commands.

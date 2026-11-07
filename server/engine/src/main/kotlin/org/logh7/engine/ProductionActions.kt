@@ -40,6 +40,9 @@ object ProductionActions {
     const val SHIPYARD=10
     const val BUILD_PRICE=100_000_000L
     const val BUILD_DAYS=30L
+    const val QUOTE_PHASE=1
+    data class Quote(val base:Int,val mcp:Int,val hours:Int=0,val treasury:Long=0,val mineral:Long=0,
+        val supplies:Long=0,val food:Int=0,val adults:Int=0)
 
     /** Whether the base's shipyard produces at [seconds]: an original or opened built one, not paused. */
     fun shipyard(g:Galaxy,s:PlanetStocks,base:Int,seconds:Long):Boolean {
@@ -65,7 +68,8 @@ object ProductionActions {
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
         policy:UnitProductionPolicy=UnitProductionPolicy(),catalog:CountryCatalog=countries):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
-        fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
+        var quote:Quote?=null
+        fun reject(reason:SocialRejection)=SocialResult(p,s,reason,productionQuote=quote.takeIf {r.phase==QUOTE_PHASE})
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
@@ -80,53 +84,63 @@ object ProductionActions {
             return reject(SocialRejection.CARD)
         val base=p.baseId
         if(base==0 || base !in FundActions.governed(g,s,i.characterId,i.country,catalog,card=i.card))return reject(SocialRejection.LOCATION)
+        if(i.base!=0 && i.base!=base)return reject(SocialRejection.QUOTE_CHANGED)
         val stock=s.bases.getValue(base);val prod=s.social.production
-        val unit=if(i.command==SHIP || i.command==RECRUIT)kinds(i.country,i.command==SHIP,catalog).singleOrNull {it.kind==i.value} else null
+        val unit=if(i.command==SHIP || i.command==RECRUIT)
+            kinds(i.country,i.command==SHIP,catalog).singleOrNull {it.kind==i.value} ?: return reject(SocialRejection.TARGET) else null
+        val cost=when(i.command) {
+            BUILD -> Quote(base,80,hours=(BUILD_DAYS*24).toInt(),treasury=BUILD_PRICE)
+            SHIP -> checkNotNull(unit).let {Quote(base,80,hours=it.hours,
+                mineral=it.hours.toLong()*policy.mineralPerShipHour,supplies=it.hours.toLong()*policy.suppliesPerShipHour)}
+            RECRUIT -> Quote(base,160,supplies=policy.suppliesPerTroop.toLong(),food=policy.foodPerTroop,adults=policy.peoplePerUnit)
+            else -> Quote(base,80)
+        }
+        quote=cost
         when(i.command) {
             BUILD -> {
                 if(hasShipyard(g,s,base))return reject(SocialRejection.TARGET)
-                if(stock.treasury<BUILD_PRICE)return reject(SocialRejection.MAXIMUM)
+                if(stock.treasury<cost.treasury)return reject(SocialRejection.MAXIMUM)
             }
             PAUSE -> if(!hasShipyard(g,s,base) || base in prod.paused)return reject(SocialRejection.TARGET)
             RESUME -> if(base !in prod.paused)return reject(SocialRejection.TARGET)
             DESTROY -> if(!hasShipyard(g,s,base))return reject(SocialRejection.TARGET)
             SHIP -> {
-                if(unit==null || !shipyard(g,s,base,now))return reject(SocialRejection.TARGET)
+                if(!shipyard(g,s,base,now))return reject(SocialRejection.TARGET)
                 if(base in prod.orders)return reject(SocialRejection.BUSY)
-                if(stock.mineral<unit.hours.toLong()*policy.mineralPerShipHour || stock.supplies<unit.hours.toLong()*policy.suppliesPerShipHour)
+                if(stock.mineral<cost.mineral || stock.supplies<cost.supplies)
                     return reject(SocialRejection.MAXIMUM)
             }
             RECRUIT -> {
                 val e=stock.economy
-                if(unit==null || e==null)return reject(SocialRejection.TARGET)
-                if(e.adults<policy.peoplePerUnit || stock.food<policy.foodPerTroop || stock.supplies<policy.suppliesPerTroop)
+                if(e==null)return reject(SocialRejection.TARGET)
+                if(e.adults<cost.adults || stock.food<cost.food || stock.supplies<cost.supplies)
                     return reject(SocialRejection.MAXIMUM)
-                val held=stock.units.troops[UnitStack(unit.kind)] ?: 0
+                val held=stock.units.troops[UnitStack(checkNotNull(unit).kind)] ?: 0
                 if(held>=65535 || held==0 && stock.units.troops.size>=24)return reject(SocialRejection.MAXIMUM)
             }
         }
-        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==RECRUIT)160L else 80L,CpPool.MCP)
+        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost.mcp.toLong(),CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
+        if(r.phase==QUOTE_PHASE)return SocialResult(p,s,productionQuote=cost)
         val payer=p.paidWith(paid.balance)
         fun with(next:ProductionState,st:PlanetStocks=s)=st.copy(social=st.social.copy(production=next))
         val next=when(i.command) {
-            BUILD -> with(prod.copy(built=prod.built+(base to now+BUILD_DAYS*Justice.DAY)),
-                s.copy(bases=s.bases+(base to stock.copy(treasury=stock.treasury-BUILD_PRICE))))
+            BUILD -> with(prod.copy(built=prod.built+(base to now+cost.hours*3600L)),
+                s.copy(bases=s.bases+(base to stock.copy(treasury=stock.treasury-cost.treasury))))
             PAUSE -> with(prod.copy(paused=prod.paused+base))
             RESUME -> with(prod.copy(paused=prod.paused-base))
             DESTROY -> with(prod.copy(built=prod.built-base,paused=prod.paused-base,orders=prod.orders-base,
                 destroyed=if(base in prod.built)prod.destroyed else prod.destroyed+base))
             SHIP -> {
                 val u=checkNotNull(unit)
-                with(prod.copy(orders=prod.orders+(base to ShipOrder(u.kind,now+u.hours*3600L))),
-                    s.copy(bases=s.bases+(base to stock.copy(mineral=stock.mineral-u.hours*policy.mineralPerShipHour,
-                        supplies=stock.supplies-u.hours*policy.suppliesPerShipHour))))
+                with(prod.copy(orders=prod.orders+(base to ShipOrder(u.kind,now+cost.hours*3600L))),
+                    s.copy(bases=s.bases+(base to stock.copy(mineral=stock.mineral-cost.mineral.toInt(),supplies=stock.supplies-cost.supplies.toInt()))))
             }
             else -> {
                 val u=checkNotNull(unit);val e=checkNotNull(stock.economy);val key=UnitStack(u.kind)
                 val troops=stock.units.troops+(key to (stock.units.troops[key] ?: 0)+1)
-                s.copy(bases=s.bases+(base to stock.copy(food=stock.food-policy.foodPerTroop,supplies=stock.supplies-policy.suppliesPerTroop,
-                    economy=e.copy(population=e.population-policy.peoplePerUnit,adults=e.adults-policy.peoplePerUnit),
+                s.copy(bases=s.bases+(base to stock.copy(food=stock.food-cost.food,supplies=stock.supplies-cost.supplies.toInt(),
+                    economy=e.copy(population=e.population-cost.adults,adults=e.adults-cost.adults),
                     units=UnitInventory(stock.units.ships,troops,stock.units.work))))
             }
         }

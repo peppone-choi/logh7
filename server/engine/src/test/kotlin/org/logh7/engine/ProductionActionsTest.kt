@@ -72,6 +72,35 @@ class ProductionActionsTest {
         assertSame(full,ProductionActions.settle(full,now+1),"no out-of-range stack; the order waits")
         assertEquals(SocialRejection.MAXIMUM,act(ProductionActions.RECRUIT,full,troop.kind).rejection)
     }
+    @Test fun quotesShareTheCommittedCostsAndNeverSpendOrOrder() {
+        val policy=UnitProductionPolicy(peoplePerUnit=888,foodPerTroop=110,suppliesPerTroop=21,mineralPerShipHour=12)
+        val player=a.copy(mcp=0)
+        fun run(command:Int,phase:Int,kind:Int=0,site:Int=0,s:PlanetStocks=stocks)=ProductionActions.evaluate(galaxy,
+            SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,command,66,1,value=kind,base=site),phase),
+            session,player,s,policy)
+        val ship=ProductionActions.kinds(2,true).first()
+        val view=run(35,ProductionActions.QUOTE_PHASE,ship.kind)
+        val quote=assertNotNull(view.productionQuote)
+        assertEquals(ship.hours,quote.hours)
+        assertEquals(ship.hours*12L,quote.mineral)
+        assertFalse(view.changed);assertSame(stocks,view.stocks);assertEquals(player,view.player)
+        assertEquals(SocialRejection.QUOTE_CHANGED,run(35,0,ship.kind,1000).rejection)
+        val order=run(35,0,ship.kind,quote.base)
+        assertEquals(840,order.player?.pcp)
+        val stock=assertNotNull(order.stocks).bases.getValue(1049)
+        assertEquals(100_000L-quote.mineral,stock.mineral.toLong())
+        assertEquals(100_000L-quote.supplies,stock.supplies.toLong())
+        val build=run(31,ProductionActions.QUOTE_PHASE)
+        assertEquals(SocialRejection.TARGET,build.rejection)
+        assertEquals(100_000_000L,build.productionQuote?.treasury)
+        assertEquals(720,build.productionQuote?.hours)
+        val troop=ProductionActions.kinds(2,false).first()
+        val recruit=assertNotNull(run(36,ProductionActions.QUOTE_PHASE,troop.kind).productionQuote)
+        assertEquals(listOf(160,888,110),listOf(recruit.mcp,recruit.adults,recruit.food))
+        val done=run(36,0,troop.kind,recruit.base)
+        assertEquals(680,done.player?.pcp)
+        assertEquals(299_112,done.stocks?.bases?.get(1049)?.economy?.adults)
+    }
     @Test fun orderListNamesAreKorean() {
         assertEquals("전함Ⅰ",ProductionActions.koreanName("戦艦Ⅰ"));assertEquals("경장육전병",ProductionActions.koreanName("軽装陸戦兵"))
         assertTrue(ProductionActions.kinds(2,true).all {ProductionActions.koreanName(it.name).none {c->c in '぀'..'ヿ'}})

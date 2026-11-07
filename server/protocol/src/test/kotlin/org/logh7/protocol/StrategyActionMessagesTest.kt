@@ -5,6 +5,24 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class StrategyActionMessagesTest {
+    @Test fun productionQuoteAndBoundCommitReuseTheNativeEnvelope() {
+        fun query(preview:Boolean,argument:Int,base:Int)=StrategyActionMessages.query(ByteBuffer.allocate(31)
+            .putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(31).putShort(66).putShort(0)
+            .putInt(0).put(if(preview)1 else 0).putInt(argument).putShort(0).putInt(base).putShort(37).array())
+        assertFailsWith<IllegalArgumentException> {query(true,0,0)}
+        assertEquals(1049,query(false,0,1049).base)
+        assertEquals(0,query(false,0,0).base)
+        val q=query(true,-1,0)
+        assertTrue(q.isProductionQuote)
+        val packets=StrategyActionMessages.productionQuote(q,0,1049,80,720,100_000_000,0,0,0,0,
+            StrategyCurrencyLabel("제국마르크","")).map(ByteBuffer::wrap)
+        assertEquals(listOf(16,17,18,21,20),packets.dropLast(1).map {it.get(22).toInt()})
+        val result=packets[4]
+        assertEquals(100_000_000,result.getInt(23));assertEquals(720,result.getShort(27).toInt())
+        assertEquals(1049,result.getShort(31).toInt());assertEquals(80,result.getShort(29).toInt())
+        assertEquals(37,result.getShort(33).toInt())
+        assertEquals(0x1201,packets.last().getShort(4).toInt())
+    }
     @Test fun privateFundsPreviewAndReceiptKeepTheFullUnsignedBalance() {
         fun query(preview: Boolean) = StrategyActionMessages.query(ByteBuffer.allocate(31)
             .putShort(0x1200).putInt(10000).putShort(StrategyActionMessages.SEARCH.toShort()).putShort(95)

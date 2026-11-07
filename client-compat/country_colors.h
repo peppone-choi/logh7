@@ -28,7 +28,7 @@ static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
     ULONGLONG sentAt,pollAt,identityAt,basesAt;
-    bool fuelSupported;
+    bool identityReceived,fuelSupported,productionQuotesSupported;
     ULONGLONG fuelAt;
     FuelProgress fuel;
     unsigned imageCountry;std::uint64_t imageRevision;
@@ -57,7 +57,9 @@ static bool receiveCountryPaint(const BYTE* record) {
     if(inbox.pending && inbox.mode==11 && logh::readCountryIdentity(record,24+10*36,inbox.character,inbox.nonce,identity) && identity.power==inbox.power) {
         publishCountryMetadata(identity.country);publishOwnCountryIdentity(inbox.world,identity);
         inbox.ownCountry=identity.country.id;inbox.ownRegistered=identity.registered;inbox.pending=0;inbox.pollAt=0;
+        inbox.identityReceived=true;
         inbox.fuelSupported=logh::paintWord(record+ownCountryExtensionOffset)==1;
+        inbox.productionQuotesSupported=logh::paintWord(record+ownCountryExtensionOffset+4)==1;
     }
     if(inbox.pending && inbox.mode==fuelStatusMode && readFuelProgress(record,inbox.character,inbox.nonce,inbox.fuel)) {
         inbox.pending=0;
@@ -140,6 +142,14 @@ static FuelProgress currentFuelProgress(void* world,unsigned character) {
     const auto fuel=inbox.world==world && inbox.character==character && inbox.fuelSupported ? inbox.fuel : FuelProgress{};
     ReleaseSRWLockShared(&countryPaintLock);
     return fuel;
+}
+static int productionQuoteCapability(void* world,unsigned character) {
+    AcquireSRWLockShared(&countryPaintLock);
+    const auto& inbox=countryPaintInbox;
+    const int supported=inbox.world==world && inbox.character==character && inbox.identityReceived ?
+        static_cast<int>(inbox.productionQuotesSupported) : -1;
+    ReleaseSRWLockShared(&countryPaintLock);
+    return supported;
 }
 static void refreshFuelProgress(void* world,unsigned character,bool completed=false) {
     AcquireSRWLockExclusive(&countryPaintLock);

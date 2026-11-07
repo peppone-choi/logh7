@@ -13,8 +13,8 @@ object CountryIdentityMessages {
         val digits=revision.toString()
         val fields=listOf("NI1",country.toString(),name.take(12),name.drop(12),calendar,yearOffset.toString(),
             digits.take(12),digits.drop(12),nativePower.toString(),if(registered)"1" else "0")
-        // Mode 11 has no cargo. Its first cargo word advertises the private fuel query.
-        return OutfitPartyMessages.party(query,2,0,0,emptyList(),emptyList(),1,1,
+        // Mode 11 has no cargo. The cargo words advertise fuel status and production quotes.
+        return OutfitPartyMessages.party(query,2,0,0,emptyList(),emptyList(),1,2,
             fields.mapIndexed {index,value->OutfitPartyMessages.Member(index+1,index,0,value)})
     }
 }

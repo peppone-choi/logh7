@@ -21,7 +21,7 @@ class CountryIdentityTest {
         val names=(0 until 10).map {b.int;b.get();b.get();val n=b.get().toInt() and 255
             if(n==0)"" else String(CharArray(n){b.char}).removeSuffix("\u0000")}
         assertEquals(0,b.get().toInt());assertEquals(0,b.get().toInt())
-        assertEquals(1,b.int);assertEquals(0,b.int)
+        assertEquals(1,b.int);assertEquals(1,b.int)
         return names
     }
     @Test fun actualMembershipSelectsItsCalendarIndependentlyOfTheDisplayCodeOrShipStyle() {
