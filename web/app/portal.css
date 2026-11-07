@@ -101,6 +101,8 @@ input[aria-invalid="true"] { border-color: var(--error); }
 .next-steps ol { margin: .5rem 0 0; padding-inline-start: 1.35em; }
 .next-steps li { overflow-wrap: anywhere; word-break: keep-all; }
 .next-steps li + li { margin-block-start: .35rem; }
+.login-settings { margin-block-start: .5rem; color: var(--ink); }
+.login-settings dd + dt { margin-block-start: .4rem; }
 
 .sr-only {
   position: absolute;

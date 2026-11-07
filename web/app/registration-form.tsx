@@ -20,7 +20,7 @@ const errors = {
 type ErrorCode = keyof typeof errors;
 type Result = { kind: "idle" | "pending" } | { kind: "error"; code: ErrorCode } | { kind: "success"; account: string };
 
-export default function RegistrationForm() {
+export default function RegistrationForm({ loginPort }: { loginPort: number | null }) {
   const [result, setResult] = useState<Result>({ kind: "idle" });
   const [showPassword, setShowPassword] = useState(false);
   const accountInput = useRef<HTMLInputElement>(null);
@@ -82,7 +82,17 @@ export default function RegistrationForm() {
         <div className="next-steps">
           <h3>게임에 로그인하기</h3>
           <ol>
-            <li>LOGH7 런처에서 가입한 서버의 주소와 로그인 포트를 확인하세요.</li>
+            <li>
+              {loginPort === null
+                ? "LOGH7 런처에서 가입한 서버의 주소와 로그인 포트를 확인하세요."
+                : <>
+                  LOGH7 런처에 아래 값을 입력하세요.
+                  <dl className="login-settings">
+                    <dt>서버 주소</dt><dd>127.0.0.1</dd>
+                    <dt>로그인 포트</dt><dd>{loginPort}</dd>
+                  </dl>
+                </>}
+            </li>
             <li>게임을 실행해 위 아이디와 방금 만든 비밀번호를 입력하세요.</li>
           </ol>
         </div>
