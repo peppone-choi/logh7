@@ -6,11 +6,28 @@ static const char* __cdecl nativeFacilityLabel(unsigned kind,unsigned id) {
     if(facilityGuideName(id,name) && logh::facilityLabel(id,kind,name,stored))return stored.c_str();
     return reinterpret_cast<const char*(__thiscall*)(void*,unsigned)>(0x4c8d10)(reinterpret_cast<void*>(0x7cd048),kind);
 }
+static const char* __cdecl nativeFacilityMenuLabel(unsigned kind,unsigned id) {
+    const char* label=nativeFacilityLabel(kind,id);
+    auto world=*reinterpret_cast<void**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(!label || !own || !own[0] || !id || id/100!=at<unsigned>(own,0x358))return label;
+    const BYTE* current=nullptr;const BYTE* spot=nullptr;
+    reinterpret_cast<void(__thiscall*)(void*,const BYTE**,const BYTE**,void*)>(0x4c9170)
+        (reinterpret_cast<void*>(0x7cd048),&current,&spot,own);
+    if(!current && at<unsigned>(own,0x40)!=0)return label;
+    const bool sameFacility=current && id==at<unsigned>(const_cast<BYTE*>(current),4);
+    // Match Navigation.movePlace and CpPayment's full other-pool substitution.
+    std::string fare;
+    if(!logh::storeDisplayName(sameFacility ? L" · PCP 5 / 대체 MCP 10" : L" · PCP 10 / 대체 MCP 20",fare))return label;
+    static thread_local std::string withFare;
+    withFare.assign(label);withFare+=fare;
+    return withFare.c_str();
+}
 static void __declspec(naked) facilityMenuLabel() {
     __asm {
         push dword ptr [edi+4]
         push dword ptr [esp+8]
-        call nativeFacilityLabel
+        call nativeFacilityMenuLabel
         add esp, 8
         ret 4
     }
