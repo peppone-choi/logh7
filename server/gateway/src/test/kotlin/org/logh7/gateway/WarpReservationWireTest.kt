@@ -8,6 +8,7 @@ import org.logh7.gateway.load.*
 import org.logh7.persistence.FileWorldStateStore
 import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.NavigationMessages
+import org.logh7.protocol.PlaceMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -26,8 +27,11 @@ class WarpReservationWireTest {
         client.send(request.copyOfRange(4, request.size))
     }
 
-    @Test fun firstWarpGuideArrivesAfterGridBootstrapAndStopsAfterFirstMove() = runBlocking<Unit> {
-        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false).use { fixture ->
+    @Test fun navigationGuideFollowsWarpAndDockWithoutRepeatingAStage() = runBlocking<Unit> {
+        val destination = GalaxySystem(5, 2488, 4, "Neighbour", 2)
+        val base = GalaxyBase(1049, 2488, 60, 0, "Port", 0, 20f, 86400, 0, 0f, 2f)
+        val world = Galaxy(galaxy.systems + destination, listOf(base), galaxy.starts)
+        LoadFixture(directory, 1, LoadMetrics(), world, ticking = false).use { fixture ->
             val account = fixture.account(0)
             val client = fixture.join(account, true, false).client
             fun guideUntil(client: SyntheticClient, end: Int): List<String> {
@@ -56,13 +60,27 @@ class WarpReservationWireTest {
 
             warp(client, 2488); until(client, 0x0b07)
             assertEquals(1L, fixture.engine.snapshot().navigators.getValue(account).moves)
+            clock(client); until(client, 0x0301)
+            clock(client); assertEquals(listOf("아군 성계에서 함장→기항"), guideUntil(client, 0x0301))
+            clock(client); assertEquals(emptyList(), guideUntil(client, 0x0301))
+
+            val dock = PlaceMessages.docked(PlaceMessages.Dock(10000, 59, 1049, 4), 0, 0, 0)
+            client.send(dock.copyOfRange(4, dock.size)); until(client, 0x0325)
+            clock(client); until(client, 0x0301)
+            clock(client); assertEquals(emptyList(), guideUntil(client, 0x0301))
+            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24))
+            assertEquals(emptyList(), guideUntil(client, 0x0b0b))
+            clock(client); until(client, 0x0301)
+            clock(client); assertEquals(listOf("직무카드→개인→원거리 이동"), guideUntil(client, 0x0301))
+            clock(client); assertEquals(emptyList(), guideUntil(client, 0x0301))
+
             client.close()
             fixture.awaitState(online = 0, connections = 0, participants = 1)
             val rejoined = fixture.join(account, false, false).client
             rejoined.send(SyntheticClient.opcode(0x0f00)); until(rejoined, 0x0f01)
             rejoined.send(SyntheticClient.opcode(0x0f02)); until(rejoined, 0x0f03)
             clock(rejoined); until(rejoined, 0x0301)
-            clock(rejoined); assertEquals(emptyList(), guideUntil(rejoined, 0x0301))
+            clock(rejoined); assertEquals(listOf("직무카드→개인→원거리 이동"), guideUntil(rejoined, 0x0301))
         }
     }
 
