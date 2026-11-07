@@ -152,6 +152,7 @@ static void resetCountryEndings();
 #include "lobby_pillarbox.h"
 #include "country_colors.h"
 #include "country_icon.h"
+#include "country_uploaded_sprite.h"
 #include "tactical_country_icon.h"
 #include "fleet_country_color.h"
 #include "lobby_country_transport.h"

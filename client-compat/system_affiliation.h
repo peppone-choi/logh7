@@ -66,6 +66,7 @@ static void drawSystemAffiliationIcons(void* map) {
         unsigned country=0,affiliation=systemGridAffiliation(world,grid,&country);
         affiliation=logh::systemEmblemAffiliation(affiliation,runtimeCountryEmblem(country));
         if (affiliation>9 || !sprites[affiliation]) continue; // no invented mixed/unknown glyph
+        const auto uploaded=country && (affiliation==4 || affiliation==6) ? uploadedCountryTexture(country,true) : nullptr;
         float position[3],screen[3];
         // Verified cdecl helpers: identical origin/projection to the original name.
         reinterpret_cast<void(__cdecl*)(float*,int,int)>(0x4d3500)(position,grid%100,grid/100);
@@ -81,7 +82,7 @@ static void drawSystemAffiliationIcons(void* map) {
         if (x<0 || x>width-16 || y<0 || y>height-192) continue;
         unsigned color=(static_cast<unsigned>((alpha>1 ? 1 : alpha)*255)<<24)|0xffffff;
         unsigned rgb=0xffffff;
-        if(neutral && affiliation>=4 && affiliation<=7) {
+        if((neutral || uploaded) && affiliation>=4 && affiliation<=7) {
             auto nativeRgb=reinterpret_cast<const BYTE*>(0x771f68)+affiliation*3;
             rgb=(nativeRgb[0]<<16)|(nativeRgb[1]<<8)|nativeRgb[2];
             if((affiliation==4 || affiliation==6) && country)rgb=countryPaintRgb(country,2,rgb);
@@ -90,7 +91,7 @@ static void drawSystemAffiliationIcons(void* map) {
         float scale[]={1,1,1};
         // Queue in the existing HUD/sprite phase, before this frame's native flush.
         originalCountrySpriteQueue
-            (reinterpret_cast<void*>(0x9d29a0),scale,x,y,16,16,sprites[affiliation],0,color,0,0);
+            (reinterpret_cast<void*>(0x9d29a0),scale,x,y,16,16,uploaded ? uploaded->sprite : sprites[affiliation],0,color,0,0);
     }
 }
 static unsigned systemNameOriginal=0x4ce350;

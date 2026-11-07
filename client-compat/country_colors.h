@@ -10,6 +10,8 @@ static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
     ULONGLONG sentAt,pollAt,identityAt,basesAt;
+    unsigned imageCountry;std::uint64_t imageRevision;
+    logh::CountryImageDraft image;
     logh::BaseAffiliationDraft bases;
     logh::CountryPaint rows[350];
 } countryPaintInbox={};
@@ -24,7 +26,7 @@ static unsigned countryPaintRgb(unsigned country,unsigned field,unsigned fallbac
     ReleaseSRWLockShared(&countryPaintLock);return result;
 }
 static bool receiveCountryPaint(const BYTE* record) {
-    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12 && record[8]!=16)return false;
+    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12 && record[8]!=16 && record[8]!=17)return false;
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;logh::CountryPaint paint;
     if(inbox.pending && inbox.mode==12 && inbox.bases.accept(record,24+10*36)==2) {
@@ -44,6 +46,10 @@ static bool receiveCountryPaint(const BYTE* record) {
     if(inbox.pending && (inbox.mode==5 || inbox.mode==16) && inbox.mode==record[8] &&
         logh::readCountryMetadata(record,24+10*36,inbox.pending,inbox.nonce,metadata)) {
         publishCountryMetadata(metadata);inbox.pending=0;
+        if(inbox.mode==16 && countryImagesNeeded(metadata.id,metadata.revision)) {inbox.imageCountry=metadata.id;inbox.imageRevision=metadata.revision;}
+    }
+    if(inbox.pending && inbox.mode==17 && inbox.image.accept(record,24+10*36)==2) {
+        publishCountryImages(inbox.image.value);inbox.pending=0;inbox.imageCountry=0;
     }
     ReleaseSRWLockExclusive(&countryPaintLock);return true;
 }
@@ -63,9 +69,10 @@ static void pollCountryPaint(void* world) {
         const unsigned nonce=inbox.nonce;inbox={};inbox.world=world;inbox.session=session;inbox.character=character;inbox.power=power;inbox.nonce=nonce;
         resetCountryMetadata();resetBaseAffiliations();
     }
-    if(inbox.pending && now-inbox.sentAt>=5000)inbox.pending=0;
+    if(inbox.pending && now-inbox.sentAt>=5000) {if(inbox.mode==17)inbox.imageCountry=0;inbox.pending=0;}
     if(!inbox.pending && now>=inbox.pollAt) {
-        if(now>=inbox.identityAt) {inbox.pending=character;inbox.mode=11;inbox.identityAt=now+5000;}
+        if(inbox.imageCountry) {inbox.pending=inbox.imageCountry;inbox.mode=17;}
+        else if(now>=inbox.identityAt) {inbox.pending=character;inbox.mode=11;inbox.identityAt=now+5000;}
         else if(now>=inbox.basesAt) {inbox.pending=1;inbox.mode=12;inbox.basesAt=now+5000;}
         else if(inbox.ownRegistered) {
             unsigned ids[353]={inbox.ownCountry},count=1;
@@ -92,6 +99,7 @@ static void pollCountryPaint(void* world) {
             inbox.nonce=(inbox.nonce%65535)+1;inbox.sentAt=now;inbox.pollAt=now+1000;
             query[0]=inbox.pending;query[1]=inbox.nonce;query[2]=inbox.mode;
             if(inbox.mode==12) {query[0]=0;inbox.bases.begin(inbox.nonce);}
+            if(inbox.mode==17)inbox.image.begin(inbox.pending,inbox.nonce,inbox.imageRevision);
         }
     }
     ReleaseSRWLockExclusive(&countryPaintLock);
