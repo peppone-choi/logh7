@@ -22,4 +22,14 @@ class TacticalStopMessagesTest {
         assertFailsWith<IllegalArgumentException> { TacticalStopMessages.Stop(1, emptyList()) }
         assertEquals(1, ByteBuffer.wrap(TacticalStopMessages.reply(stop, 123, false)).int)
     }
+
+    @Test fun cancelledSupportMarksOnlyItsOwnShipAndKeepsOrdinaryStopWaitAtZero() {
+        val cancelled = TacticalStopMessages.supportCancelled(10000, 1802, 123)
+        val packet = ByteBuffer.wrap(cancelled)
+        assertEquals(0, packet.getInt(0))
+        assertEquals(-1, packet.getInt(10))
+        val stop = TacticalStopMessages.Stop(10000, listOf(1802))
+        assertEquals(stop, TacticalStopMessages.stop(cancelled.copyOfRange(4, cancelled.size)))
+        assertEquals(0, ByteBuffer.wrap(TacticalStopMessages.reply(stop, 123, false)).getInt(10))
+    }
 }

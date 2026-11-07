@@ -9,6 +9,20 @@ static BYTE* supportUnit(void* world,unsigned id) {
     }
     return nullptr;
 }
+static void receivedTacticalSupportStop(void* world,const BYTE* record) {
+    // The native 040a handler only caches the reply. The server marks a support
+    // cancellation with wait 0xffffffff and one ship, without scheduling a stop.
+    if(!record || record[0x0c]!=1 || record[0x90]!=0)return;
+    unsigned wait,id;
+    memcpy(&wait,record+4,sizeof(wait));
+    if(wait!=0xffffffffu)return;
+    memcpy(&id,record+0x10,sizeof(id));
+    auto unit=supportUnit(world,id);
+    if(!unit || (unit[0x5c4]!=1 && unit[0x5c4]!=2))return;
+    unit[0x5c4]=0;
+    at<unsigned>(unit,0x5c8)=0;
+    unit[0x5cc]=0;
+}
 static void __fastcall receivedTacticalRepair(void* world,void*,void* message) {
     auto source=supportUnit(world,at<unsigned>(message,0));
     unsigned previous=source ? at<unsigned>(source,0x8d4) : 0;

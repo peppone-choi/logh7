@@ -399,37 +399,17 @@ class GamePresence {
     }
     @Synchronized fun support(event:org.logh7.engine.TacticalSupportResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
-        val now=snapshot.session?.gameSeconds ?: 0
-        val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.reply(
-            org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),now)
+        val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.supportCancelled(
+            event.character,event.unit,snapshot.session?.gameSeconds ?: 0)
             else if(event.action==org.logh7.engine.TacticalSupportAction.REPAIR)
             org.logh7.protocol.TacticalSupportMessages.repaired(event.unit,event.target,event.supplies,event.damaged)
             else org.logh7.protocol.TacticalSupportMessages.supplied(event.unit,event.target,event.supplies,event.targetSupplies)
-        // The native stop clears both support and movement. Replay a still-active route from the committed state.
-        val resume=if(event.cancelled && snapshot.session?.generation==event.generation) {
-            val source=snapshot.planetStocks?.outfits?.values.orEmpty().asSequence()
-                .filter {it.positionIn(galaxy)==org.logh7.engine.OutfitPosition(event.grid)}
-                .flatMap {it.activeShips?.values.orEmpty().asSequence()}
-                .firstOrNull {it.id==event.unit && it.boats>0 && it.posture?.mode?.requiresBase!=true}
-            val motion=source?.tactical?.motion
-            when {
-                motion==null || motion.grid!=event.grid || motion.completedWaypoints(now)==motion.waypoints.size -> emptyList()
-                motion.rotation!=null && source.motionCommander>0 ->
-                    TacticalMotionMessages.formation(mapOf(event.unit to motion),now,source.motionCommander)
-                motion.velocity>0f -> listOf(TacticalMotionMessages.npc(event.unit,motion,now,source.motionCommander))
-                else -> emptyList()
-            }
-        } else emptyList()
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
-                if(event.cancelled) {
-                    send(viewer,listOf(packet)+resume)
-                    return@forEach
-                }
                 // 0325 replaces the complete native definition cache, including unrelated combatants.
                 val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
-                send(viewer,listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)))
+                send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)))
             }
     }
     @Synchronized fun strategicMovement(event:org.logh7.engine.NpcStrategicMovement,

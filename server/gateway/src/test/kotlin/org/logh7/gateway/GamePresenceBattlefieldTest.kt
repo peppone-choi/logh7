@@ -3,7 +3,6 @@ package org.logh7.gateway
 import org.junit.jupiter.api.Test
 import org.logh7.engine.*
 import org.logh7.protocol.CharacterMessages
-import org.logh7.protocol.TacticalMoveMessages
 import java.nio.ByteBuffer
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -59,31 +58,6 @@ class GamePresenceBattlefieldTest {
             1, 2, 100, 200, 0, recipients, character = 10000)
         verifyBattlefield(listOf(0x042e, 0x0325)) { it.support(result, snapshot, galaxy) { null } }
         verifyBattlefield(listOf(0x040a)) { it.support(result.copy(cancelled = true), snapshot, galaxy) { null } }
-    }
-
-    @Test fun cancelledSupportResumesTheSourcesCommittedMovement() {
-        val motion = TacticalMotion(2487, 100, TacticalPose(TacticalPoint(0f, 0f), 0f),
-            0.1f, 0f, listOf(TacticalPoint(0f, 10f)))
-        val unit = ActiveShipUnit(1, UnitStack(32), tactical = NpcTacticalState(motion, 100, 100), motionCommander = 10000)
-        val ships = ActiveShipUnits(listOf(unit))
-        val outfit = OutfitStock(1, 2, OutfitKind.TRANSPORT, 1000, 1, commanderId = 10000,
-            units = UnitInventory(ships.quantities()), activeShips = ships, position = OutfitPosition(2487))
-        val committed = snapshot.copy(session = SessionSnapshot(1, 115, 0, 0, emptyMap(), 1, 1, null),
-            planetStocks = PlanetStocks(1, 0, mapOf(1000 to PlanetStock(1000, 2, 0, 0, 0, 0)),
-                outfits = mapOf(1 to outfit), warehouses = mapOf(1 to OutfitWarehouse(1, 2, OutfitKind.TRANSPORT, 1000, 1)), nextShipId = 2))
-        val result = TacticalSupportResult(1, 2487, TacticalSupportAction.SUPPLY,
-            1, 2, 100, 0, 0, recipients, cancelled = true, character = 10000)
-        val hub = GamePresence()
-        val received = mutableListOf<ByteArray>()
-        hub.update(GamePresence.Member("viewer", character, player, received::addAll))
-
-        hub.support(result, committed, galaxy) { null }
-
-        assertEquals(listOf(0x040a, 0x0400), received.map(::opcode))
-        val move = TacticalMoveMessages.move(received.last().drop(4).toByteArray())
-        assertEquals(TacticalMoveMessages.Unit(1, 0f, TacticalMoveMessages.Point(0f, 1f, 0f)), move.units.single())
-        assertEquals(motion.velocity, move.velocity)
-        assertEquals(TacticalMoveMessages.Point(0f, 10f, 0f), move.waypoints.single())
     }
 
     @Test fun defeatExitSurvivesTheStrategicMovementPublicationOfItsCommittedReturn() {
