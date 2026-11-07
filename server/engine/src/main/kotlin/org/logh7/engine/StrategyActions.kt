@@ -55,12 +55,13 @@ data class StrategyActionRequest(val account:String,val connection:String,val ch
     val generation:Long,val command:Int,val card:Int,val rank:Int,val outfit:Int=0,
     val politics:Int=50,val administration:Int=50,val target:Int=0,val base:Int=0,val value:Int=0,
     val amount:Long=0,val identities:List<StrategicIdentity> = emptyList(),val argument:Int=0,
-    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0) {
+    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0,val repairPreview:Boolean=false) {
     constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,command:Int,card:Int,rank:Int,outfit:Int=0,
         politics:Int=50,administration:Int=50,target:Int=0,base:Int=0,value:Int=0,amount:Long=0,
-        identities:List<StrategicIdentity> = emptyList(),argument:Int=0,navigators:Map<String,Navigator> = emptyMap(),requestToken:Int=0):
+        identities:List<StrategicIdentity> = emptyList(),argument:Int=0,navigators:Map<String,Navigator> = emptyMap(),requestToken:Int=0,
+        repairPreview:Boolean=false):
         this(account,connection,characterId,power.country,generation,command,card,rank,outfit,politics,administration,target,base,value,
-            amount,identities,argument,navigators,requestToken)
+            amount,identities,argument,navigators,requestToken,repairPreview)
 }
 data class StrategicIdentity(val id:Int,val country:CountryId?,val rank:Int,val origin:Int,val abilities:List<Int>,
     /** Age at registration; AbilityAging adds elapsed game years. 0 = unknown (never aged). */
@@ -69,12 +70,13 @@ data class StrategicIdentity(val id:Int,val country:CountryId?,val rank:Int,val 
         this(id,when(power) {2,3->CountryId(power);else->throw IllegalArgumentException("Invalid legacy character country")},rank,origin,abilities,age)
     init {require(id>0 && rank in 0..20 && abilities.size==8 && abilities.all {it in 0..255})}
 }
-enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET,CREW }
+enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET,CREW,QUOTE_CHANGED }
+data class CompleteRepairQuote(val supplies:Int,val damagedShips:Int,val damagedFlagships:Int,val cp:CpPool?=null)
 data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:StrategyActionRejection?=null,
     val changed:Boolean=false,val recovery:NavigationResult?=null,val readyAt:Long=0,
     val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null,
     /** Warehouse whose cargo changed; it can differ from the officer's current base. */
-    val warehouseBase:Int=0)
+    val warehouseBase:Int=0,val repairQuote:CompleteRepairQuote?=null)
 
 internal object StrategyActions {
     val supported=setOf(46,47,48,49,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+

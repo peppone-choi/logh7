@@ -1817,7 +1817,7 @@ class GameExchange(
                                     }
                                     return null
                                 }
-                                if(query.preview) {
+                                if(query.preview && !query.isRepairQuote) {
                                     pendingWorld=stocks().thenApply {stored ->
                                         val inventory=checkNotNull(stored)
                                         val policy=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
@@ -2167,7 +2167,19 @@ class GameExchange(
                                     checkNotNull(generation),query.command,query.card,character.rank,query.outfit,
                                     character.abilities[1],character.abilities[2],query.target,query.base,query.value,
                                     identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()),amount=query.amount.toLong(),argument=query.argument,
-                                    requestToken=java.nio.ByteBuffer.wrap(query.raw).getShort(27).toInt() and 65535)).thenApply {result ->
+                                    requestToken=java.nio.ByteBuffer.wrap(query.raw).getShort(27).toInt() and 65535,
+                                    repairPreview=query.isRepairQuote)).thenApply {result ->
+                                    if(query.isRepairQuote) {
+                                        val quote=result.repairQuote
+                                        val payment=when(quote?.cp) {
+                                            org.logh7.engine.strategy.CpPool.MCP -> 1
+                                            org.logh7.engine.strategy.CpPool.PCP -> 2
+                                            null -> 0
+                                        }
+                                        return@thenApply org.logh7.protocol.StrategyActionMessages.repairQuote(query,
+                                            result.rejection?.let {it.ordinal+1} ?: 0,quote?.supplies ?: 0,
+                                            quote?.damagedShips ?: 0,quote?.damagedFlagships ?: 0,payment)
+                                    }
                                     val player=checkNotNull(result.player)
                                     val updated=checkNotNull(currentCharacter(identity.account))
                                     publication=Publication(updated,player,false)

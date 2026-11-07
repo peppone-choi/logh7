@@ -4,6 +4,7 @@ package org.logh7.protocol
  * The response echoes both; country id is a text field, never a native power byte. Author: Peppone Choi. */
 object CountryIdentityMessages {
     const val MODE=11
+    const val REPAIR_QUOTE=1
     fun reply(query:OutfitPartyMessages.Query,country:Int,nativePower:Int,name:String,calendar:String,
         yearOffset:Int,revision:Long,registered:Boolean):ByteArray {
         require(query.mode==MODE && query.outfit>0 && query.base in 1..65535)
@@ -13,8 +14,9 @@ object CountryIdentityMessages {
         val digits=revision.toString()
         val fields=listOf("NI1",country.toString(),name.take(12),name.drop(12),calendar,yearOffset.toString(),
             digits.take(12),digits.drop(12),nativePower.toString(),if(registered)"1" else "0")
-        // Mode 11 has no cargo. The cargo words advertise fuel status and production quotes.
+        // Mode 11 has no camp or cargo. Keep the existing fuel and production words for older DLLs.
         return OutfitPartyMessages.party(query,2,0,0,emptyList(),emptyList(),1,2,
             fields.mapIndexed {index,value->OutfitPartyMessages.Member(index+1,index,0,value)})
+            .also {it[10]=REPAIR_QUOTE.toByte()}
     }
 }

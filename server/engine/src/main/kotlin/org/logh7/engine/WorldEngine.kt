@@ -543,14 +543,16 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) {"World storage is unavailable"}
                     val request=command.request
                     val session=durableState?.session ?: simulation.exportState()
-                    val recovered=recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
+                    val recovered=if(request.repairPreview)null else recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
                     val inventory=checkNotNull(production).settle(session)
+                    val players=checkNotNull(navigation).snapshot(session.generation)
+                    val player=if(request.repairPreview)players[request.account] else recovered?.player
                     var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
-                        navigators=checkNotNull(navigation).snapshot(session.generation)),session,recovered?.player,inventory)
+                        navigators=players),session,player,inventory)
                     val civicReadOrCancel=request.command in CivicActions.supported && request.value!=0
                     if(!civicReadOrCancel && result.rejection==null && request.outfit>0 && logistics.blocksSupply(session,inventory,setOf(request.outfit)))
-                        result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.BUSY)
+                        result=StrategyActionResult(player,inventory,StrategyActionRejection.BUSY)
                     if(result.rejection==null && request.command==24 && request.card !in setOf(30,171) &&
                         logistics.blocksSupply(session,inventory,setOf(request.base)))
                         result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.BUSY)
