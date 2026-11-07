@@ -41,7 +41,7 @@ data class TradeState(val routes:Map<Int,TradeRoute> = emptyMap(),
 }
 
 object TradeActions {
-    data class ConvoyQuote(val net:Int,val tariff:Int)
+    data class Quote(val amount:Int,val tariff:Int=0)
     const val QUOTE_PHASE=1
     const val TARIFF=17
     const val DIPLOMACY=20
@@ -68,6 +68,7 @@ object TradeActions {
     const val COMMERCE=0
     const val PASSAGE=1
     const val INTELLIGENCE=2
+    fun quotes(command:Int,value:Int)=command==CONVOY || command==ROUTE || command==DIPLOMACY && value==INTELLIGENCE
 
     const val RAID_CELLS=1
     const val FEZZAN_NAME="フェザーン"
@@ -125,12 +126,20 @@ object TradeActions {
         var outfit:OutfitStock?=null
         var convoyDuty=0L
         var convoyNet=0L
+        var route:TradeRoute?=null
+        var routeIncome=0
+        var intelligencePrice:Long?=null
         when(i.command) {
             ROUTE -> {
                 if(p.baseId==0 || p.mode !in 1..4)return reject(SocialRejection.LOCATION)
                 if(s.bases[p.baseId]?.let {it.country==i.country && it.camp==0}!=true)return reject(SocialRejection.LOCATION)
                 if(i.target !in routeTargets(g,s,p,catalog))return reject(SocialRejection.TARGET)
                 if(t.routes[i.characterId]?.let {it.until>now}==true)return reject(SocialRejection.BUSY)
+                route=TradeRoute(i.characterId,p.baseId,i.target,now+ROUTE_DAYS*Justice.DAY,now,i.country)
+                routeIncome=routeProfit(s,route,g).toInt()
+                if(r.phase==QUOTE_PHASE)return SocialResult(p,s,tradeQuote=Quote(routeIncome))
+                // A quote of zero is valid; the wire encodes the amount plus one.
+                if(i.argument>0 && i.argument-1!=routeIncome)return reject(SocialRejection.QUOTE_CHANGED)
             }
             CONVOY -> {
                 if(s.bases[p.baseId]?.let {it.country==i.country && it.camp==0}!=true)return reject(SocialRejection.LOCATION)
@@ -146,7 +155,7 @@ object TradeActions {
                 val tariff=t.tariff(checkNotNull(counterparty).value)
                 convoyDuty=gross*tariff/100
                 convoyNet=gross-convoyDuty
-                if(r.phase==QUOTE_PHASE)return SocialResult(p,s,convoyQuote=ConvoyQuote(convoyNet.toInt(),tariff))
+                if(r.phase==QUOTE_PHASE)return SocialResult(p,s,tradeQuote=Quote(convoyNet.toInt(),tariff))
                 if(i.argument>0 && i.argument.toLong()!=convoyNet)return reject(SocialRejection.QUOTE_CHANGED)
             }
             TARIFF -> if(i.value !in 0..MAX_TARIFF)return reject(SocialRejection.TARGET)
@@ -156,7 +165,12 @@ object TradeActions {
                 if(fezzan(g,s)==null)return reject(SocialRejection.TARGET)
                 // U-07: Fezzan withdraws its investment from a violator; no new commerce pact.
                 if(i.value==COMMERCE && own in t.violations)return reject(SocialRejection.STALE)
-                if(i.value==INTELLIGENCE && !t.leaking(checkNotNull(counterparty).value,now) && (s.nationalTreasuries[i.country] ?: 0)<INTEL_PRICE)return reject(SocialRejection.MAXIMUM)
+                if(i.value==INTELLIGENCE) {
+                    intelligencePrice=if(t.leaking(checkNotNull(counterparty).value,now))0L else INTEL_PRICE
+                    if(r.phase==QUOTE_PHASE)return SocialResult(p,s,tradeQuote=Quote(intelligencePrice.toInt()))
+                    if(i.argument>0 && i.argument-1L!=intelligencePrice)return reject(SocialRejection.QUOTE_CHANGED)
+                    if((s.nationalTreasuries[i.country] ?: 0)<intelligencePrice)return reject(SocialRejection.MAXIMUM)
+                }
             }
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==ROUTE)160L else 320L,
@@ -165,11 +179,8 @@ object TradeActions {
         val payer=p.paidWith(paid.balance)
         fun trade(next:TradeState,st:PlanetStocks=s)=st.copy(social=st.social.copy(trade=next))
         when(i.command) {
-            ROUTE -> {
-                val route=TradeRoute(i.characterId,p.baseId,i.target,now+ROUTE_DAYS*Justice.DAY,now,i.country)
-                return SocialResult(payer,trade(t.copy(routes=t.routes+(i.characterId to route))),changed=true,outcome=1,
-                    found=minOf(routeProfit(s,route),0x7fffffffL).toInt())
-            }
+            ROUTE -> return SocialResult(payer,trade(t.copy(routes=t.routes+(i.characterId to checkNotNull(route)))),
+                changed=true,outcome=1,found=routeIncome)
             CONVOY -> {
                 val o=checkNotNull(outfit)
                 // The other side's tariff takes its cut into the other side's treasury (trade through Fezzan).
@@ -184,8 +195,7 @@ object TradeActions {
             DIPLOMACY -> {
                 val politics=s.strategic.people[i.characterId]?.abilities?.getOrNull(1)
                     ?: i.identities.singleOrNull {it.id==i.characterId}?.abilities?.getOrNull(1) ?: 50
-                val leak=i.value==INTELLIGENCE && t.leaking(checkNotNull(counterparty).value,now)
-                if(!leak && roll(i.characterId,i.value,now)>=(50+(politics-50)/2).coerceIn(20,80))
+                if(intelligencePrice!=0L && roll(i.characterId,i.value,now)>=(50+(politics-50)/2).coerceIn(20,80))
                     return SocialResult(payer,s,changed=true,outcome=3)
                 val until=now+PACT_DAYS*Justice.DAY
                 return when(i.value) {
@@ -194,10 +204,12 @@ object TradeActions {
                     else -> {
                         val capital=checkNotNull(OrganizationalOfficePolicy(g,catalog).capital(s,checkNotNull(counterparty))).let {s.bases.getValue(it)}
                         // A leaking enemy's secrets come free (U-07).
-                        val next=if(leak)s else s.copy(nationalTreasuries=s.nationalTreasuries+(CountryId(own) to (s.nationalTreasuries[CountryId(own)] ?: 0)-INTEL_PRICE))
+                        val price=checkNotNull(intelligencePrice)
+                        val next=if(price==0L)s else s.copy(nationalTreasuries=s.nationalTreasuries+
+                            (i.country to ((s.nationalTreasuries[i.country] ?: 0)-price)))
                         // The treasury travels in units of 10,000 marks: whole-capital treasuries overflow 32 bits.
                         SocialResult(payer,next,changed=true,outcome=1,found=minOf(capital.treasury/10_000,0x7fffffffL).toInt(),
-                            report=(capital.economy?.approval ?: 0)*256+(capital.economy?.peace ?: 0))
+                            report=(capital.economy?.approval ?: 0)*256+(capital.economy?.peace ?: 0),tradeReportCountry=counterparty)
                     }
                 }
             }

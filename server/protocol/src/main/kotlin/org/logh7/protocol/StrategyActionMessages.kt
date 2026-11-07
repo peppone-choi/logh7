@@ -10,7 +10,10 @@ import java.nio.ByteBuffer
 object StrategyActionMessages {
     const val SEARCH=0x7f00
     data class Query(val character:Int,val command:Int,val card:Int,val outfit:Int,val raw:ByteArray,
-        val target:Int=0,val base:Int=0,val value:Int=0,val preview:Boolean=false,val amount:Int=0,val argument:Int=0)
+        val target:Int=0,val base:Int=0,val value:Int=0,val preview:Boolean=false,val amount:Int=0,val argument:Int=0) {
+        val hasTradeQuote get()=command==40 || command==39 || command==20 && value==2
+        val isTradeQuote get()=preview && hasTradeQuote && (if(command==40)amount>0 else argument==-1)
+    }
     fun matches(message:ByteArray)=message.size>=8 && ByteBuffer.wrap(message).let {
         it.getShort(0).toInt()==0x1200 && (it.getShort(6).toInt() and 65535)==SEARCH }
     fun query(message:ByteArray):Query {
@@ -43,8 +46,9 @@ object StrategyActionMessages {
         // 国家目標 15: target = an enemy base; 統治目標 21: target = a governed planet, value = focus 1..3. Previews list them.
         val goal=command in setOf(15,21)
         // Trade: 17 value = tariff %, 20 value = negotiation 0..2, 39 target = destination base (previews list them),
-        // 40 amount = supplies, target = foreign country, argument = quoted net (0 for old clients).
-        // A preview with a nonzero amount requests a quote instead of listing countries.
+        // 40: amount >0 on a preview requests a quote, and commit argument is quoted net.
+        // 39 and 20/value2: preview argument -1 quotes the selected target, commit argument is amount + 1.
+        // All three retain argument 0 for old clients and directory previews.
         val trade=command in setOf(17,20,39,40)
         // U-08 production at the requester's base: 35/36 value = unit kind (previews list kinds), 31..34 confirm only.
         val production=command in 31..36
@@ -92,10 +96,11 @@ object StrategyActionMessages {
         else if(strike)require(!preview && card==0 && base==0 && argument==0 && amount==0 && target==0 && value==0)
         else if(production)require(card in 1..260 && base==0 && argument==0 && amount==0 && target==0 &&
             (if(preview)command in setOf(35,36) && value==0 else value==0 || command in setOf(35,36) && value in 0..199))
-        else if(trade)require(base==0 && (command==40 || argument==0) && when(command) {
-            17 -> !preview && card in 1..260 && value in 0..50 && target==0 && amount==0
-            20 -> card in 1..260 && amount==0 && (if(preview)value==2 else value in 0..2) && (value==2 || target==0)
-            39 -> card==0 && value==0 && amount==0 && (preview || target>0)
+        else if(trade)require(base==0 && when(command) {
+            17 -> !preview && card in 1..260 && value in 0..50 && target==0 && amount==0 && argument==0
+            20 -> card in 1..260 && amount==0 && (if(preview)value==2 else value in 0..2) &&
+                (if(value==2)tradeQuoteArgument(preview,target,argument) else target==0 && argument==0)
+            39 -> card==0 && value==0 && amount==0 && (preview || target>0) && tradeQuoteArgument(preview,target,argument)
             else -> card in 1..260 && value==0 && (if(preview)argument==0 && (amount==0 || target>0)
                 else amount>0 && (argument==0 || argument>0 && target>0))})
         else if(goal)require(card in 1..260 && base==0 && argument==0 && amount==0 &&
@@ -117,11 +122,14 @@ object StrategyActionMessages {
         return Query(character,command,card,if(command==65)argument else if(listed)0 else target,message.copyOfRange(2,message.size),
             if(listed)target else 0,base,value,preview,amount,argument)
     }
+    private fun tradeQuoteArgument(preview:Boolean,target:Int,argument:Int)=argument==0 ||
+        target>0 && (if(preview)argument==-1 else argument>0)
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
     data class CivicStatus(val phase:Int,val outfit:Int,val base:Int,val readyAt:Long,val effect:Int)
     fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null,outcome:Int=0,found:Int=0,report:Int=0,
-        fundBalance:Long?=null):List<ByteArray> {
+        fundBalance:Long?=null,tradeReportCurrency:StrategyCurrencyLabel?=null):List<ByteArray> {
         require(status in 0..65535 && outcome in 0..3 && found>=0)
+        require(tradeReportCurrency==null || q.command==20 && q.value==2 && !q.preview && q.argument>0 && status==0 && outcome==1)
         val payload=q.raw.copyOf();ByteBuffer.wrap(payload).putShort(10,status.toShort())
         // 逮捕命令 result (U-25) in the argument word: 1 arrested, 2 evaded, 3 failed.
         if(outcome>0)ByteBuffer.wrap(payload).putInt(17,outcome)
@@ -142,21 +150,22 @@ object StrategyActionMessages {
             buffer.putInt(12,civic.outfit);buffer.putInt(17,civic.readyAt.toInt());buffer.putShort(21,civic.effect.toShort())
             buffer.putInt(23,civic.base)
         }
-        return listOf(LoginMessages.sessionMessage(0x1200,payload),LoginMessages.sessionMessage(0x1201,byteArrayOf()))
+        return tradeReportCurrency?.records(q.raw).orEmpty() +
+            listOf(LoginMessages.sessionMessage(0x1200,payload),LoginMessages.sessionMessage(0x1201,byteArrayOf()))
     }
     fun candidates(q:Query,characters:List<AppointmentDirectoryMessages.Person>):List<ByteArray> {
         require(q.preview)
         return AppointmentDirectoryMessages.people(AppointmentDirectoryMessages.Query(q.character,SEARCH,q.command,q.card,q.base,q.raw),characters)
     }
     data class Selection(val id:Int,val name:String,val rank:Int=0)
-    private fun convoyRecord(q:Query,flag:Int,status:Int=0,net:Int=0,tariff:Int=0):ByteArray {
+    private fun tradeRecord(q:Query,flag:Int,status:Int=0,amount:Int=0,tariff:Int=0):ByteArray {
         val payload=q.raw.copyOf()
-        ByteBuffer.wrap(payload).putShort(10,status.toShort()).put(16,flag.toByte()).putShort(21,tariff.toShort()).putInt(23,net)
+        ByteBuffer.wrap(payload).putShort(10,status.toShort()).put(16,flag.toByte()).putShort(21,tariff.toShort()).putInt(23,amount)
         return LoginMessages.sessionMessage(0x1200,payload)
     }
-    fun convoyQuote(q:Query,status:Int,net:Int,tariff:Int,currency:StrategyCurrencyLabel?):List<ByteArray> {
-        require(q.command==40 && q.preview && q.amount>0)
-        return currency?.records(q.raw).orEmpty() + convoyRecord(q,20,status,net,tariff) +
+    fun tradeQuote(q:Query,status:Int,amount:Int,tariff:Int,currency:StrategyCurrencyLabel?):List<ByteArray> {
+        require(q.isTradeQuote)
+        return currency?.records(q.raw).orEmpty() + tradeRecord(q,20,status,amount,tariff) +
             LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
@@ -178,7 +187,7 @@ object StrategyActionMessages {
         }
         require(currency==null || fundBalance!=null)
         // Old clients finish the pending preview at 1202 and safely ignore the following optional labels.
-        val extras=if(q.command==40)listOf(convoyRecord(q,19)) else currency?.records(q.raw).orEmpty()
+        val extras=if(q.hasTradeQuote)listOf(tradeRecord(q,19)) else currency?.records(q.raw).orEmpty()
         return listOf(LoginMessages.sessionMessage(0x1200,header),LoginMessages.sessionMessage(0x1202,bytes.toByteArray())) +
             extras + LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }

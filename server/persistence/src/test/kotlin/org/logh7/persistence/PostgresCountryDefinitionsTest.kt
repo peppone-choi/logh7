@@ -122,6 +122,28 @@ class PostgresCountryDefinitionsTest {
         assertEquals("제국마르크", store.load().currency(CountryId(2))?.name)
     }
 
+    @Test fun allianceDinarMigrationChangesOnlyTheUneditedDefault() = fixture { connect ->
+        val migration = checkNotNull(javaClass.getResourceAsStream("/db/migration/V8__alliance_dinar.sql"))
+            .bufferedReader().use { it.readText() }
+        connect().use { db -> db.createStatement().use { statement ->
+            statement.execute("INSERT INTO nation_currency VALUES ('native_funds','원본 자금','',0)")
+            statement.execute("UPDATE nation_family SET currency_key='native_funds' WHERE family_key='alliance'")
+            statement.execute("UPDATE nation_country SET currency_override='fixture' WHERE country_id=3")
+            statement.execute(migration)
+            statement.execute(migration)
+        } }
+        val store = PostgresCountryDefinitions(connect)
+        val first = store.load()
+        assertEquals(1L, first.revision)
+        assertEquals("디나르", first.currencies.getValue("alliance_dinar").name)
+        assertEquals("alliance_dinar", first.familyCurrencies["alliance"])
+        assertEquals("fixture", first.currency(CountryId(3))?.key)
+        assertEquals("fixture", first.currency(CountryId(2))?.key)
+        assertEquals(CountryDefinitionOutcome.CHANGED, store.save(1,
+            CountryDefinitionEdit.Country(first.catalog.countries.getValue(3).copy(currencyOverride = null))))
+        assertEquals("디나르", store.load().currency(CountryId(3))?.name)
+    }
+
     @Test fun creationPresetCanBeOverriddenWithoutChangingTheOfficeOrShipStyle()=fixture {connect->
         val store=PostgresCountryDefinitions(connect)
         val before=store.load().catalog.families.getValue("new_empire")
