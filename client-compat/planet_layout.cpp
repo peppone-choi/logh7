@@ -151,6 +151,7 @@ static void receivedSessionEnding(void* world,const BYTE* record);
 #include "lobby_pillarbox.h"
 #include "country_colors.h"
 #include "country_icon.h"
+#include "fleet_country_color.h"
 #include "lobby_country_transport.h"
 #include "system_affiliation.h"
 #include "facility_guide.h"
@@ -575,7 +576,7 @@ static void install() {
     if (!verifiedClient()) { status = -1; return; }
     if (!installEnvironmentShader()) { status = -3; return; }
     if (!verifyTacticalNotices()) { status = -2; return; }
-    if (!installSystemAffiliation() || !installCountryIcon()) { status = -2; return; }
+    if (!installSystemAffiliation() || !installCountryIcon() || !installFleetCountryColor()) { status = -2; return; }
     BYTE* target = reinterpret_cast<BYTE*>(0x4d68d0);
     const BYTE expected[] = {0x83,0xec,0x58,0x53,0x56};
     if (memcmp(target, expected, sizeof(expected))) { status = -2; return; }

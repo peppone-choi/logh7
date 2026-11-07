@@ -249,6 +249,7 @@ static bool openDirectoryPlanet(unsigned row) {
 
 static int __cdecl planetInfoMenu(void* gui) {
     pollCountryPaint(*reinterpret_cast<void**>(0x7ccffc));
+    pollOutfitAffiliations(*reinterpret_cast<void**>(0x7ccffc));
     if(updateSessionEnding(gui))return -1;
     updateCharacterInformation(gui);
     updateOutfitInformation(gui);

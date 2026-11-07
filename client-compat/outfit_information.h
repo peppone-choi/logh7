@@ -9,8 +9,8 @@ static void receivedMailOutcome(void* world,unsigned opcode,const BYTE* record);
 
 static struct OutfitInformation {
     void* manager; void* root; void* world; void* pages[4]; void* lists[4];
-    unsigned character, grid, id, power, kind, number, token, expectedBase;
-    bool selected, loaded, warehouseRequested, warehouseLoaded, timeoutShown;
+    unsigned character, grid, id, power, kind, number, token, expectedBase, countrySeen;
+    bool selected, loaded, warehouseRequested, warehouseLoaded, timeoutShown, partyRequested;
     ULONGLONG sentAt, groundSentAt, groundAcceptAfter;
     unsigned groundArmed, groundPending;
     unsigned groundToken, groundPage, groundCursors[14286];
@@ -90,6 +90,7 @@ static bool outfitWarehouseAccess() {
 }
 static bool requestOutfit(bool warehouse) {
     auto& state=outfitInformation;
+    if(!runtimeFriendlyOutfit(state.world,state.id))return false;
     unsigned base=warehouse ? logh::infoWord(state.party,4) : 0;
     if(warehouse && !base)return false;
     AcquireSRWLockExclusive(&outfitReplyLock);
@@ -327,15 +328,16 @@ static void renderOutfitInformation() {
     _snwprintf_s(title,_countof(title),_TRUNCATE,L"제%u%ls · 부대 정보",state.number,kinds[state.kind]);
     outfitText(state.root,2,title);
     _snwprintf_s(summary,_countof(summary),_TRUNCATE,L"%ls · 제%u%ls",
-        runtimeCountryAffiliation(state.power,0,54).c_str(),state.number,kinds[state.kind]);
+        runtimeOutfitAffiliation(state.world,state.id,54).c_str(),state.number,kinds[state.kind]);
     outfitText(state.root,20,summary);
     outfitClear(0,L"부대 현황",L"값",L"설명");
     outfitClear(1,L"함종",L"함선 유닛",L"척수");
     outfitClear(2,L"병종",L"숙련도",L"병력 유닛");
     outfitClear(3,L"창고 품목",L"유닛",L"척수 / 숙련도");
     if (!state.loaded) {
-        auto own=at<void*>(state.world,8);
-        const wchar_t* message=own && at<BYTE>(own,0x28)!=state.power ? L"다른 세력의 상세 편성은 조회할 수 없습니다." :
+        logh::BaseAffiliation::Owner owner;
+        const bool known=runtimeOutfitOwner(state.world,state.id,owner);
+        const wchar_t* message=known && !runtimeFriendlyOutfit(state.world,state.id) ? L"다른 국가의 상세 편성은 조회할 수 없습니다." :
             GetTickCount64()-state.sentAt >= 5000 ? L"응답을 받지 못했습니다. 창을 다시 열어 조회해 주세요." : L"서버에서 편성을 조회하고 있습니다.";
         outfitText(state.root,21,message);return;
     }
@@ -471,7 +473,8 @@ static bool selectOutfitIdentity(unsigned id,unsigned kind,unsigned power,unsign
     memset(state.party,0,sizeof(state.party));memset(state.warehouse,0,sizeof(state.warehouse));
     if (++outfitToken==0) ++outfitToken;state.token=outfitToken;state.sentAt=GetTickCount64();
     AcquireSRWLockExclusive(&outfitReplyLock);outfitInbox.token=state.token;ReleaseSRWLockExclusive(&outfitReplyLock);
-    if (at<BYTE>(at<void*>(state.world,8),0x28)==state.power) requestOutfit(false);
+    state.partyRequested=runtimeFriendlyOutfit(state.world,id) && requestOutfit(false);
+    state.countrySeen=countryNameSequence.load();
     renderOutfitInformation();return true;
 }
 static int __cdecl selectOutfitInformation(void* manager,int kind) {
@@ -544,6 +547,7 @@ static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     auto p=static_cast<const BYTE*>(record);unsigned id=logh::infoWord(p,0),token=0;
     if(!result && receiveLobbyCountries(p))return result;
     if(!result && receiveCountryPaint(p))return result;
+    if(!result && receiveOutfitAffiliations(p))return result;
     if(!result && receiveFacilityGuide(p))return result;
     if(!result && groundPanelMarked(p))return result;
     if(!result && p[8]==2) {
@@ -588,16 +592,31 @@ static void updateOutfitInformation(void* manager) {
     if (!state.selected) return;
     if (at<void*>(manager,4+13*4)!=state.root || !at<BYTE>(state.root,4)) {state.selected=false;return;}
     bool changed=false;
+    const unsigned sequence=countryNameSequence.load();
+    if(state.countrySeen!=sequence) {
+        state.countrySeen=sequence;changed=true;
+        if(!runtimeFriendlyOutfit(world,state.id)) {
+            state.loaded=state.warehouseLoaded=state.warehouseRequested=state.partyRequested=false;
+            invalidateOutfitGround(true);
+        }
+    }
+    if(!state.partyRequested && runtimeFriendlyOutfit(world,state.id))state.partyRequested=requestOutfit(false);
+    const bool friendly=runtimeFriendlyOutfit(world,state.id);
     AcquireSRWLockExclusive(&outfitReplyLock);
     if (outfitInbox.partyToken==state.token) {
-        changed=!state.loaded || !logh::sameOutfitParty(state.party,outfitInbox.party);
-        memcpy(state.party,outfitInbox.party,sizeof(state.party));outfitInbox.partyToken=0;
-        state.loaded=logh::matchingOutfitParty(state.party,state.id,state.power,state.kind,state.expectedBase);
+        if(friendly) {
+            changed=changed || !state.loaded || !logh::sameOutfitParty(state.party,outfitInbox.party);
+            memcpy(state.party,outfitInbox.party,sizeof(state.party));
+            state.loaded=logh::matchingOutfitParty(state.party,state.id,state.power,state.kind,state.expectedBase);
+        }
+        outfitInbox.partyToken=0;
     }
     if (outfitInbox.warehouseToken==state.token) {
-        changed=changed || !state.warehouseLoaded || memcmp(state.warehouse,outfitInbox.warehouse,sizeof(state.warehouse));
-        memcpy(state.warehouse,outfitInbox.warehouse,sizeof(state.warehouse));outfitInbox.warehouseToken=0;
-        state.warehouseLoaded=true;
+        if(friendly) {
+            changed=changed || !state.warehouseLoaded || memcmp(state.warehouse,outfitInbox.warehouse,sizeof(state.warehouse));
+            memcpy(state.warehouse,outfitInbox.warehouse,sizeof(state.warehouse));state.warehouseLoaded=true;
+        }
+        outfitInbox.warehouseToken=0;
     }
     ReleaseSRWLockExclusive(&outfitReplyLock);
     if (state.loaded && logh::infoWord(state.party,4) && !state.warehouseRequested && outfitWarehouseAccess()) state.warehouseRequested=requestOutfit(true);

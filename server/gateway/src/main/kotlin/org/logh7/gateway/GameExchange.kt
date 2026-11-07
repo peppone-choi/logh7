@@ -1032,6 +1032,16 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
+                        if(party?.mode==org.logh7.protocol.OutfitAffiliationMessages.MODE) {
+                            check(worldInitialized && navigation!=null)
+                            require(party.outfit in 1..65535 && party.base>=0) {"Visible outfit affiliation page only"}
+                            pendingWorld=stocks().thenApply {stored->
+                                val player=checkNotNull(navigation.snapshot()?.navigators?.get(identity.account))
+                                require(player.generation==generation) {"Stale outfit affiliation viewer"}
+                                world.outfitAffiliations(party,checkNotNull(stored),player)
+                            }
+                            return null
+                        }
                         if(party?.mode==org.logh7.protocol.BaseAffiliationMessages.MODE) {
                             check(worldInitialized)
                             require(party.outfit==0 && party.base in 1..65535) {"Public base ownership snapshot only"}

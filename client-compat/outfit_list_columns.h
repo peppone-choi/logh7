@@ -7,7 +7,7 @@
 static SRWLOCK outfitColumnLock=SRWLOCK_INIT;
 static struct OutfitListColumns {
     void* manager; void* world; void* root; void* list;
-    unsigned ids[100], rows[100], count, next, pending, ready[100], boats[100];
+    unsigned ids[100], rows[100], count, pending, ready[100], boats[100], countrySeen;
     bool active;
     ULONGLONG sentAt;
 } outfitColumns={};
@@ -19,7 +19,7 @@ static int __cdecl buildOutfitListColumns(void* manager,int category,void* selec
     int result=reinterpret_cast<int(__cdecl*)(void*,int,void*)>(0x54bf40)(manager,category,selection);
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto own=world ? at<BYTE*>(world,8) : nullptr;
     AcquireSRWLockExclusive(&outfitColumnLock);
-    auto& s=outfitColumns;s.active=false;s.count=s.next=s.pending=0;
+    auto& s=outfitColumns;s.active=false;s.count=s.pending=0;
     ReleaseSRWLockExclusive(&outfitColumnLock);
     if (category!=4 || !(result&0xff) || !world || !own || !own[0]) return result;
     auto root=reinterpret_cast<void*(__thiscall*)(void*,int)>(0x50cf40)(manager,12);
@@ -34,23 +34,23 @@ static int __cdecl buildOutfitListColumns(void* manager,int category,void* selec
         auto record=world+0x811fc+i*32;
         if (!record[0]) continue;
         ++row;
-        unsigned id=logh::infoWord(record,4),kind=record[8],power=record[9];
+        unsigned id=logh::infoWord(record,4),kind=record[8];
         wchar_t name[32];
         logh::catalogueText(kind<4 ? reinterpret_cast<const char*(__thiscall*)(void*,int,int)>(0x522010)
             (reinterpret_cast<void*>(0x2217400),83,kind) : nullptr,name);
         outfitColumnCell(row,2,name[0] ? name : L"—");
-        // The server answers 032e only for the viewer's own faction; others stay unknown.
-        if (id && power==own[0x28] && s.count<100) {s.ids[s.count]=id;s.rows[s.count]=row;s.ready[s.count]=0;++s.count;}
-        else outfitColumnCell(row,3,L"—");
+        outfitColumnCell(row,0,runtimeOutfitAffiliation(world,id,16).c_str());
+        outfitColumnCell(row,3,L"—");
+        if (id && s.count<100) {s.ids[s.count]=id;s.rows[s.count]=row;s.ready[s.count]=0;++s.count;}
     }
-    AcquireSRWLockExclusive(&outfitColumnLock);s.active=s.count!=0;ReleaseSRWLockExclusive(&outfitColumnLock);
+    AcquireSRWLockExclusive(&outfitColumnLock);s.active=s.count!=0;s.countrySeen=countryNameSequence.load();ReleaseSRWLockExclusive(&outfitColumnLock);
     return result;
 }
 static void outfitListParty(const BYTE* p) {
     AcquireSRWLockExclusive(&outfitColumnLock);
     auto& s=outfitColumns;
     unsigned id=logh::infoWord(p,0);
-    if (s.active && s.pending==id) {
+    if (s.active && s.pending==id && runtimeFriendlyOutfit(s.world,id)) {
         unsigned boats=0;
         for (unsigned i=0;i<p[0x180];++i) boats+=logh::infoShort(p+0x184+i*0x120,4);
         for (unsigned i=0;i<s.count;++i) if (s.ids[i]==id) {s.boats[i]=boats;s.ready[i]=1;}
@@ -65,11 +65,25 @@ static void updateOutfitListColumns(void* manager) {
     if (s.active && (manager!=s.manager || *reinterpret_cast<void**>(0x7ccffc)!=s.world ||
         *reinterpret_cast<int*>(0x788bb0)!=4 || !at<BYTE>(s.root,4))) s.active=false;
     if (s.active) {
+        const unsigned sequence=countryNameSequence.load();
+        if(sequence!=s.countrySeen) {
+            s.countrySeen=sequence;
+            for(unsigned i=0;i<s.count;++i) {
+                outfitColumnCell(s.rows[i],0,runtimeOutfitAffiliation(s.world,s.ids[i],16).c_str());
+                if(!runtimeFriendlyOutfit(s.world,s.ids[i])) {
+                    s.ready[i]=0;outfitColumnCell(s.rows[i],3,L"—");
+                    if(s.pending==s.ids[i])s.pending=0;
+                }
+            }
+        }
         for (unsigned i=0;i<s.count && !write;++i) if (s.ready[i]==1) {s.ready[i]=2;row=s.rows[i];boats=s.boats[i];write=true;}
-        if (s.pending && GetTickCount64()-s.sentAt>=5000) s.pending=0;
-        if (!s.pending && s.next<s.count) {
-            s.pending=s.ids[s.next++];s.sentAt=GetTickCount64();world=s.world;
-            selector=0x10;query[0]=s.pending; // base 0, mode 0: friendly public party (032e).
+        if (s.pending && GetTickCount64()-s.sentAt>=5000) {
+            for(unsigned i=0;i<s.count;++i)if(s.ids[i]==s.pending)s.ready[i]=3;
+            s.pending=0;
+        }
+        if(!s.pending)for(unsigned i=0;i<s.count;++i)if(!s.ready[i] && runtimeFriendlyOutfit(s.world,s.ids[i])) {
+            s.pending=s.ids[i];s.ready[i]=4;s.sentAt=GetTickCount64();world=s.world;
+            selector=0x10;query[0]=s.pending;break; // base 0, mode 0: actual friendly membership only.
         }
     }
     ReleaseSRWLockExclusive(&outfitColumnLock);
