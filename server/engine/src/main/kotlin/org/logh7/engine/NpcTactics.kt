@@ -97,7 +97,7 @@ internal object NpcTactics {
             val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
             if(live.isEmpty())continue
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy)
-            val returnJumps=if(policy.strategic)NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
+            val returnJumps=if(policy.strategic && enemies.isNotEmpty())NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
             val cargo=OutfitSupplies.distribution(outfit)
             val retreat=live.mapNotNull {it.tactical?.takeIf {s->s.motion.grid==position.grid}?.retreat}.minByOrNull {it.acceptedAt}
             val critical=live.sumOf {it.boats.toLong()}*4 <= outfit.activeShips!!.values.sumOf {

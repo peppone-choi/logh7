@@ -98,6 +98,45 @@ class NpcStrategyTest {
         assertEquals(2700,blockedRoute.outfits.getValue(1).supplies)
         assertTrue(events.isEmpty())
     }
+    @Test fun fleetReservesFuelForEveryJumpAroundAStormAndDocks() {
+        val blocked=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,terrain=List(50) {y->
+            CharArray(100) {x->if(x==89 && y in 22..26)'~' else '.'}.concatToString()
+        })
+        val initial=stocks()
+        val fleet=OutfitSupplies.withBalances(initial.outfits.getValue(1).copy(position=OutfitPosition(2490)),mapOf(1 to 1800))
+        var world=initial.copy(outfits=mapOf(1 to fleet))
+        val observers=mutableMapOf<String,Navigator>()
+        val events=mutableListOf<NpcStrategicMovement>()
+        val forces=GridForces.collect(blocked,world.generation,observers.values,world)
+        assertEquals(6,NpcStrategy.returnDistance(blocked,forces,fleet,world))
+        var now=0L
+        repeat(6) {
+            world=NpcStrategy.advance(simulation.copy(gameMillis=now*1000),blocked,observers,world,events)
+            assertNotNull(world.outfits.getValue(1).strategy?.destination)
+            now+=3600
+            world=NpcStrategy.advance(simulation.copy(gameMillis=now*1000),blocked,observers,world,events)
+            now+=21600
+        }
+        assertEquals(6,events.size)
+        assertEquals(2390,events.first().destination)
+        assertEquals(OutfitPosition(2487,1000),world.outfits.getValue(1).position)
+        assertEquals(3000,world.outfits.getValue(1).supplies)
+        assertEquals(97000,world.bases.getValue(1000).supplies)
+    }
+
+    @Test fun isolatedNearerDepotDoesNotPreventReturnToReachableDepot() {
+        val alternate=galaxy.bases.single().copy(id=1001,grid=2494,name="Alternate")
+        val split=Galaxy(galaxy.systems+GalaxySystem(5,2494,4,"Alternate",2),galaxy.bases+alternate,galaxy.starts,
+            terrain=List(50) {CharArray(100) {x->if(x==89)'#' else '.'}.concatToString()})
+        val initial=stocks()
+        val fleet=OutfitSupplies.withBalances(initial.outfits.getValue(1).copy(position=OutfitPosition(2490)),mapOf(1 to 1200))
+        val world=initial.copy(bases=initial.bases+(1001 to initial.bases.getValue(1000).copy(baseId=1001)),outfits=mapOf(1 to fleet))
+        val forces=GridForces.collect(split,world.generation,emptyList(),world)
+        assertEquals(4,NpcStrategy.returnDistance(split,forces,fleet,world))
+        val reserved=NpcStrategy.advance(simulation,split,mutableMapOf(),world,mutableListOf())
+        assertEquals(2391,reserved.outfits.getValue(1).strategy?.destination)
+    }
+
     @Test fun strandedFleetCanDockAndReloadWithoutAnotherJumpAndCannotUseAnOccupiedDepot() {
         val events=mutableListOf<NpcStrategicMovement>()
         val stranded=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2487))})}
