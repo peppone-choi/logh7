@@ -45,6 +45,21 @@ class LobbyCountryCatalogueTest {
         generation,snapshot,profiles,catalog,1234567890123456789,
         listOf(CountryAppearance(2,"x","empire",CountryColors(primary=0x12ab34),7),CountryAppearance(42,"y","empire",CountryColors(),2)))
 
+    @Test fun elapsedTimeUsesTheSessionStartAcrossRecovery() {
+        val rules = SessionRules.load().copy(speed = 1, baseYear = 795, start = GameDate(799, 1, 1), end = GameDate(801, 1, 1))
+        val simulation = SessionSimulation(rules, generation = 3)
+        fun listedSeconds(session: SessionSnapshot): String {
+            val world = WorldSnapshot(0, 0, session)
+            return decode(LobbyCountryCatalogue.reply(request(), source(world, emptyMap())).first()).fields[6]
+        }
+        assertEquals("0", listedSeconds(simulation.snapshot()))
+        assertEquals(1440L * 86_400, simulation.snapshot().gameSeconds)
+        simulation.advance(86_400_000)
+        val restored = SessionSimulation.restore(rules, simulation.exportState()).snapshot()
+        assertEquals("86400", listedSeconds(restored))
+        assertEquals(1441L * 86_400, restored.gameSeconds)
+    }
+
     @Test fun pagesListEveryDefinitionWithActualCountryCountsAndOnlyNativeCountriesSelectable() {
         val profiles=mapOf(
             "a" to CharacterProfile(character(10001),CountryId(2),ShipStyleId("empire")),
