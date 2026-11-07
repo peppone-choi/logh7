@@ -14,6 +14,7 @@ object StrategyActionMessages {
         val hasTradeQuote get()=command==40 || command==39 || command==20 && value==2
         val isTradeQuote get()=preview && hasTradeQuote && (if(command==40)amount>0 else argument==-1)
         val isProductionQuote get()=preview && command in 31..36 && argument==-1
+        val spendsEvaluation get()=command==96 && (argument==0 || argument==4)
     }
     fun matches(message:ByteArray)=message.size>=8 && ByteBuffer.wrap(message).let {
         it.getShort(0).toInt()==0x1200 && (it.getShort(6).toInt() and 65535)==SEARCH }
@@ -130,7 +131,7 @@ object StrategyActionMessages {
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
     data class CivicStatus(val phase:Int,val outfit:Int,val base:Int,val readyAt:Long,val effect:Int)
     fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null,outcome:Int=0,found:Int=0,report:Int=0,
-        fundBalance:Long?=null,tradeReportCurrency:StrategyCurrencyLabel?=null):List<ByteArray> {
+        fundBalance:Long?=null,tradeReportCurrency:StrategyCurrencyLabel?=null,evaluationBalance:Long?=null):List<ByteArray> {
         require(status in 0..65535 && outcome in 0..3 && found>=0)
         require(tradeReportCurrency==null || q.command==20 && q.value==2 && !q.preview && q.argument>0 && status==0 && outcome==1)
         val payload=q.raw.copyOf();ByteBuffer.wrap(payload).putShort(10,status.toShort())
@@ -144,6 +145,10 @@ object StrategyActionMessages {
         }
         // 情報工作 report (approval*256+peace) in the amount word.
         if(report>0)ByteBuffer.wrap(payload).putShort(21,report.toShort())
+        if(evaluationBalance!=null) {
+            require(!q.preview && status==0 && changed==true && report==0 && found==0)
+            writeEvaluationBalance(q,payload,evaluationBalance)
+        }
         if(!q.preview && changed!=null)payload[16]=(if(changed)2 else 3).toByte()
         if(civic!=null && status==0) {
             require(q.command in setOf(52,54,55,56) && civic.phase in -1..5 && civic.outfit>=0 && civic.base in 0..65535 &&
@@ -197,7 +202,8 @@ object StrategyActionMessages {
             LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
-    fun selections(q:Query,rows:List<Selection>,fundBalance:Long?=null,currency:StrategyCurrencyLabel?=null):List<ByteArray> {
+    fun selections(q:Query,rows:List<Selection>,fundBalance:Long?=null,currency:StrategyCurrencyLabel?=null,
+        evaluationBalance:Long?=null):List<ByteArray> {
         require(q.preview && q.command in setOf(10,11,12,13,15,20,21,39,40,35,36,233,19,24,29,65,68,69,70,71,73,74,75,80,81,87,89,95,96,98) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
@@ -209,7 +215,10 @@ object StrategyActionMessages {
                 out.writeInt(0);out.writeInt(0)
             }
         }
-        val header=if(fundBalance==null)q.raw else q.raw.copyOf().also {
+        val header=if(evaluationBalance!=null)q.raw.copyOf().also {
+            require(fundBalance==null)
+            writeEvaluationBalance(q,it,evaluationBalance)
+        } else if(fundBalance==null)q.raw else q.raw.copyOf().also {
             require(q.command==95 && fundBalance in 0..0xffffffffL)
             ByteBuffer.wrap(it).putInt(17,1).putInt(23,fundBalance.toInt())
         }
@@ -218,5 +227,10 @@ object StrategyActionMessages {
         val extras=if(q.hasTradeQuote)listOf(tradeRecord(q,19)) else currency?.records(q.raw).orEmpty()
         return listOf(LoginMessages.sessionMessage(0x1200,header),LoginMessages.sessionMessage(0x1202,bytes.toByteArray())) +
             extras + LoginMessages.sessionMessage(0x1201,byteArrayOf())
+    }
+    /** Market replies reuse the empty amount word as a marker, leaving the argument (market mode) intact. */
+    private fun writeEvaluationBalance(q:Query,payload:ByteArray,balance:Long) {
+        require(q.spendsEvaluation && balance in 0..0xffffffffL)
+        ByteBuffer.wrap(payload).putShort(21,1).putInt(23,balance.toInt())
     }
 }

@@ -31,16 +31,26 @@ class FlagshipMarketWireTest {
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
         override fun saveWorld(navigation:Map<String,Navigator>,inventory:PlanetStocks?){players=navigation;stocks=checkNotNull(inventory)}
     }
-    private fun request(character:Int,command:Int,mode:Int=0,target:Int=0,value:Int=0)=ByteBuffer.allocate(31)
+    private fun request(character:Int,command:Int,mode:Int=0,target:Int=0,value:Int=0,preview:Boolean=false)=ByteBuffer.allocate(31)
         .putShort(0x1200).putInt(character).putShort(0x7f00).putShort(command.toShort()).putShort((if(command==61)59 else 0).toShort())
-        .putShort(value.toShort()).putInt(target).put(0).putInt(mode).putShort(0).putInt(0).putShort(0).array()
+        .putShort(value.toShort()).putInt(target).put(if(preview)1 else 0).putInt(mode).putShort(0).putInt(0).putShort(0).array()
     private fun next(client:SyntheticClient,opcode:Int):ByteArray {
         repeat(200){val packet=client.receive();if(ByteBuffer.wrap(packet).getShort(4).toInt()==opcode)return packet}
         error("Missing response $opcode")
     }
-    private fun action(client:SyntheticClient,body:ByteArray) {
-        client.send(body);assertEquals(0,ByteBuffer.wrap(next(client,0x1200)).getShort(16).toInt())
+    private fun action(client:SyntheticClient,body:ByteArray):ByteBuffer {
+        client.send(body);val result=ByteBuffer.wrap(next(client,0x1200))
+        assertEquals(0,result.getShort(16).toInt())
         next(client,0x1201);next(client,0x0356)
+        return result
+    }
+    private fun purchasePreview(client:SyntheticClient,character:Int,mode:Int=0):ByteBuffer {
+        client.send(request(character,96,mode=mode,preview=true))
+        val header=ByteBuffer.wrap(next(client,0x1200))
+        next(client,0x1202);next(client,0x1201)
+        assertEquals(mode,header.getInt(23))
+        assertEquals(1,header.getShort(27).toInt())
+        return header
     }
     @Test fun exchangeDirectoryUsesActualMembershipCurrentRankAndPagingAcrossSharedDisplayCodes() {
         val path=directory.resolve("directory");Files.createDirectories(path)
@@ -88,9 +98,15 @@ class FlagshipMarketWireTest {
             receiver.send(SyntheticClient.opcode(0x0f00));next(receiver,0x0f01)
             action(giver,request(10000,61));assertEquals(100,state.players.getValue("load-000").hull?.hp)
             assertEquals(0,state.players.getValue("load-000").supplies);assertEquals(840,state.players.getValue("load-000").mcp)
-            action(giver,request(10000,96));assertEquals(3,state.players.getValue("load-000").hull?.kind)
+            assertEquals(1000,purchasePreview(giver,10000).getInt(29))
+            assertEquals(0,purchasePreview(receiver,10001,mode=4).getInt(29))
+            assertEquals(1000L,state.stocks.strategic.people.getValue(10000).evaluation)
+            val receipt=action(giver,request(10000,96))
+            assertEquals(1,receipt.getShort(27).toInt());assertEquals(950,receipt.getInt(29))
+            assertEquals(3,state.players.getValue("load-000").hull?.kind)
             assertEquals(950L,state.stocks.strategic.people.getValue(10000).evaluation)
-            action(giver,request(10000,96,1,10001));assertEquals(1,state.stocks.flagshipMarket.offers.size)
+            assertEquals(0,action(giver,request(10000,96,1,10001)).getShort(27).toInt())
+            assertEquals(1,state.stocks.flagshipMarket.offers.size)
             action(receiver,request(10001,96,2,10000))
             assertEquals(2,state.players.getValue("load-000").hull?.kind);assertEquals(3,state.players.getValue("load-001").hull?.kind)
             assertEquals(89,state.players.getValue("load-000").hull?.hp);assertEquals(27,state.players.getValue("load-001").supplies)
