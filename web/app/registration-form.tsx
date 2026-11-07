@@ -3,12 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-const errors = {
+const serverErrors = {
   invalid_account: { field: "account", message: "영문, 숫자, 마침표(.), 밑줄(_), 하이픈(-)으로 1~30자를 입력해 주세요." },
   duplicate: { field: "account", message: "이미 사용 중인 아이디입니다. 다른 아이디를 입력해 주세요." },
   invalid_password: { field: "password", message: "공백 없이 영문, 숫자, 기호로 1~10자를 입력해 주세요." },
   too_large: { field: null, message: "입력이 너무 깁니다. 아이디와 비밀번호의 길이를 확인해 주세요." },
-  unavailable: { field: null, message: "가입 결과를 확인하지 못했습니다. 잠시 후 다시 시도하세요. 이미 사용 중인 아이디라고 나오면 방금 만든 비밀번호로 게임에 로그인해 보세요." },
+  unavailable: { field: null, message: "가입 결과를 확인하지 못했습니다. 잠시 후 같은 아이디와 비밀번호로 다시 시도하세요." },
+} as const;
+const errors = {
+  ...serverErrors,
+  duplicate_after_retry: {
+    field: "account",
+    message: "이 아이디는 이미 등록되어 있습니다. 처음 가입할 때 입력한 비밀번호로 게임에 로그인해 보세요. 로그인할 수 없다면 다른 아이디를 입력하세요.",
+  },
 } as const;
 type ErrorCode = keyof typeof errors;
 type Result = { kind: "idle" | "pending" } | { kind: "error"; code: ErrorCode } | { kind: "success"; account: string };
@@ -19,6 +26,7 @@ export default function RegistrationForm() {
   const accountInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
   const successTitle = useRef<HTMLHeadingElement>(null);
+  const unconfirmedAccounts = useRef(new Set<string>());
   const error = result.kind === "error" ? errors[result.code] : null;
   const pending = result.kind === "pending";
 
@@ -47,8 +55,16 @@ export default function RegistrationForm() {
         setResult({ kind: "success", account });
         return;
       }
-      setResult({ kind: "error", code: Object.hasOwn(errors, code) ? code as ErrorCode : "unavailable" });
+      if (code === "duplicate" && unconfirmedAccounts.current.has(account)) {
+        setResult({ kind: "error", code: "duplicate_after_retry" });
+      } else if (Object.hasOwn(serverErrors, code) && code !== "unavailable") {
+        setResult({ kind: "error", code: code as keyof typeof serverErrors });
+      } else {
+        unconfirmedAccounts.current.add(account);
+        setResult({ kind: "error", code: "unavailable" });
+      }
     } catch {
+      unconfirmedAccounts.current.add(account);
       setResult({ kind: "error", code: "unavailable" });
     }
   }
@@ -81,16 +97,21 @@ export default function RegistrationForm() {
         <p className="hint form-note">아이디와 비밀번호를 모두 입력하세요.</p>
       </div>
       <div className="field">
-        <label htmlFor="account">게임 아이디</label>
+        <div>
+          <label htmlFor="account">게임 아이디</label>
+          <p id="account-hint" className="hint">1~30자 · 영문, 숫자, 마침표(.), 밑줄(_), 하이픈(-)</p>
+        </div>
         <input id="account" name="account" ref={accountInput} required readOnly={pending}
           autoComplete="username" autoCapitalize="none" spellCheck={false} onChange={() => clearFieldError("account")}
           aria-invalid={error?.field === "account" || undefined}
           aria-describedby={error?.field === "account" ? "account-error account-hint" : "account-hint"} />
         {error?.field === "account" && <p id="account-error" className="error" role="alert">{error.message}</p>}
-        <p id="account-hint" className="hint">1~30자 · 영문, 숫자, 마침표(.), 밑줄(_), 하이픈(-)</p>
       </div>
       <div className="field">
-        <label htmlFor="password">게임 비밀번호</label>
+        <div>
+          <label htmlFor="password">게임 비밀번호</label>
+          <p id="password-hint" className="hint">1~10자 · 공백 없이 영문, 숫자, 기호</p>
+        </div>
         <div className="password-row">
           <input id="password" name="password" ref={passwordInput} type={showPassword ? "text" : "password"}
             required readOnly={pending} autoComplete="new-password" autoCapitalize="none" spellCheck={false}
@@ -100,15 +121,14 @@ export default function RegistrationForm() {
             onClick={() => setShowPassword(visible => !visible)}>비밀번호 표시</button>
         </div>
         {error?.field === "password" && <p id="password-error" className="error" role="alert">{error.message}</p>}
-        <p id="password-hint" className="hint">1~10자 · 공백 없이 영문, 숫자, 기호</p>
       </div>
       <div className="submission">
         <p className="error" role="alert">{error?.field === null ? error.message : ""}</p>
+        <p className="hint submission-status" role="status">{pending ? "계정을 만드는 중입니다." : ""}</p>
         <button type="submit" className="submit" aria-disabled={pending || undefined}>
-          {pending ? "계정 만드는 중…" : "계정 만들기"}
+          계정 만들기
         </button>
       </div>
-      <p className="sr-only" role="status">{pending ? "계정을 만드는 중입니다." : ""}</p>
       <noscript><p className="error">가입하려면 브라우저에서 자바스크립트를 켜고 새로고침해 주세요.</p></noscript>
     </form>
   );

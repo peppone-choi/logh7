@@ -8,7 +8,6 @@ export default function Page() {
         <p className="series">은하영웅전설 VII</p>
         <h1 id="page-title">게임 계정 만들기</h1>
         <p className="lede">여기서 만든 아이디와 비밀번호로 게임에 로그인할 수 있습니다.</p>
-        <a className="portal-link" href="/password">기존 게임 비밀번호 변경</a>
         <svg className="orbits" viewBox="0 0 380 168" aria-hidden="true" fill="none">
           <path d="M0 84h380M190 0v168" stroke="currentColor" strokeOpacity=".2" strokeDasharray="2 5"/>
           <ellipse cx="190" cy="84" rx="146" ry="46" transform="rotate(-14 190 84)" stroke="currentColor" strokeOpacity=".6"/>
@@ -22,6 +21,9 @@ export default function Page() {
       </section>
       <section className="panel" aria-label="플레이어 가입">
         <RegistrationForm />
+        <div className="registration-footer">
+          <a className="portal-link" href="/password">기존 게임 비밀번호 변경</a>
+        </div>
       </section>
     </main>
   );
