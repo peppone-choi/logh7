@@ -174,6 +174,7 @@ static void __cdecl sessionEndingFrame(void* gui) {
 // The native charged-character picker disables rows when session status is not 1/2.
 // Ended rows open this read-only local view, never request a playable server ticket.
 static unsigned __fastcall lobbyEndingFrame(void* controller,void*) {
+    recoverLobbySelection(controller);
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto gui=at<void*>(controller,12);
     if(sessionEnding.active && sessionEnding.lobby) {
         if(at<unsigned>(controller,4)==0x2a && updateSessionEnding(gui))return 0;

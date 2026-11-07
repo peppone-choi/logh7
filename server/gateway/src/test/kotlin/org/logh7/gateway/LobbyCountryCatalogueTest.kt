@@ -136,7 +136,8 @@ class LobbyCountryCatalogueTest {
     @Test fun finishedWorldResultsRouteBySessionAndAuthenticatedAccountWithoutIssuingATicket() {
         val directory=GameSessionDirectory();val accounts=mapOf("fixture" to "fixture")
         val asked=mutableListOf<Pair<Int,String>>()
-        fun entry(id:Int)=GameSessionDirectory.Entry(id,"World$id","127.0.0.1",48000+id,setOf("127.0.0.1"),{1},{false},
+        fun entry(id:Int)=GameSessionDirectory.Entry(id,"World$id","127.0.0.1",48000+id,setOf("127.0.0.1"),{1},
+            {org.logh7.protocol.LobbyMessages.SelectionFailure.UNAVAILABLE},
             {error("result lookup must not ask for a playable session")},{null},endings={request,account->
                 asked+=id to account
                 org.logh7.protocol.CountryEndingMessages.empty(request).map {org.logh7.protocol.LoginMessages.sessionMessage(0x032f,it)}
@@ -144,7 +145,7 @@ class LobbyCountryCatalogueTest {
         directory.register(entry(1),accounts).use {directory.register(entry(2),accounts).use {
             fun ending(id:Int)=org.logh7.protocol.CountryEndingMessages.Request(OutfitPartyMessages.Query(id,512,14))
             assertNotNull(directory.endings(ending(2),"fixture"));assertEquals(listOf(2 to "fixture"),asked)
-            assertNull(directory.target(2,"127.0.0.1"))
+            assertIs<GameSessionDirectory.Refused>(directory.select(2,"127.0.0.1"))
             assertNull(directory.endings(ending(9),"fixture"));assertEquals(1,asked.size)
         }}
     }
@@ -152,7 +153,8 @@ class LobbyCountryCatalogueTest {
     @Test fun theDirectoryAsksOnlyTheSelectedAvailableWorld() {
         val directory=GameSessionDirectory();val accounts=mapOf("fixture" to "fixture")
         var asked=mutableListOf<Int>();var open=true
-        fun entry(id:Int,available:()->Boolean)=GameSessionDirectory.Entry(id,"World$id","127.0.0.1",48000+id,setOf("127.0.0.1"),{1},available,
+        fun entry(id:Int,available:()->Boolean)=GameSessionDirectory.Entry(id,"World$id","127.0.0.1",48000+id,setOf("127.0.0.1"),{1},
+            {if(available())null else org.logh7.protocol.LobbyMessages.SelectionFailure.UNAVAILABLE},
             {org.logh7.protocol.SessionEndingMessages.Session(id,1,"World$id","",0,
                 listOf(2,3).map {org.logh7.protocol.SessionEndingMessages.PowerResult(it,0,0,0,null)},null)},{null},
             countries={request->asked+=id;LobbyCountryCatalogue.empty(request)})

@@ -175,7 +175,13 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                 world?.publishedCountryAppearances().orEmpty(),viewer,world?.galaxy)
         }
         sessionRegistration=sessionDirectory?.register(GameSessionDirectory.Entry(sessionId,sessionName,sessionAddress,sessionPort,hosts.toSet(),
-            generation={admission?.generation ?: 1L},available={started && !closed.get() && admission?.running!=false && !maintenance.closed()},
+            generation={admission?.generation ?: 1L},unavailableReason={
+                when {
+                    !started || closed.get() || admission?.running==false -> LobbyMessages.SelectionFailure.UNAVAILABLE
+                    maintenance.closed() -> LobbyMessages.SelectionFailure.MAINTENANCE
+                    else -> null
+                }
+            },
             information={information(navigation?.snapshot(),currentCharacters().registeredCharacters())},
             character={account->
                 val snapshot=navigation?.snapshot();val characters=currentCharacters()

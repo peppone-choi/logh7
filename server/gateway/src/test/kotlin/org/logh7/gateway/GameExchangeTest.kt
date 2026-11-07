@@ -134,7 +134,7 @@ class GameExchangeTest {
         gate.setClosed(true)
         val reply = assertNotNull(lobby.accept(0x30, encrypted(hex("20090001"), 3)))
         val body = Envelope.decode(LegacyBlowfish(b).decrypt(reply.copyOfRange(8, reply.size)), 2).second
-        assertContentEquals(LobbyMessages.selectionFailed(), body)
+        assertContentEquals(LobbyMessages.selectionFailed(LobbyMessages.SelectionFailure.MAINTENANCE), body)
         gate.setClosed(false)
         val opened = assertNotNull(lobby.accept(0x30, encrypted(hex("20090001"), 4)))
         val selection = Envelope.decode(LegacyBlowfish(b).decrypt(opened.copyOfRange(8, opened.size)), 3).second
@@ -171,7 +171,7 @@ class GameExchangeTest {
         assertTrue(list.toList().windowed(24).any { it.toByteArray().contentEquals("LOGH7 Local\u0000".toByteArray(Charsets.UTF_16BE)) })
         assertContentEquals(list, request(hex("200502"), 5))
         assertContentEquals(list, request(hex("200500"), 6))
-        assertContentEquals(hex("00000000200b0100"), request(hex("20090002"), 7))
+        assertContentEquals(LobbyMessages.selectionFailed(LobbyMessages.SelectionFailure.UNAVAILABLE), request(hex("20090002"), 7))
         val selected = request(hex("20090001"), 8)
         assertContentEquals(hex("00000000200a0100007fbb1f"), selected.copyOfRange(0, 12))
         val gameToken = ByteBuffer.wrap(selected, 12, 4).int
