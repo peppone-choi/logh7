@@ -7,15 +7,29 @@
 ## 사용
 
 1. 게임 설치본의 `exe/`와 `data/`를 같은 루트 아래 둔다.
-2. `launcher.ini.example`을 런처 옆 `launcher.ini`로 복사하고 `client_root`, `host`, `port`, `account`를 지정한다. 파일은 UTF-8이며 경로의 공백은 그대로 쓴다. 상대 경로는 설정 파일 위치 기준이다.
-3. 런처를 실행한다. 기본 인자는 `<host> <port> <account> <session> <credential>`이다. `login_ui=true`이면 앞의 세 인자만 전달하고 게임의 로그인 UI에서 인증 문자열을 입력한다. 현재 서버의 로컬 시험 계정은 별도로 등록해야 한다.
+2. 터미널에서 `logh7-launcher.exe --setup`을 실행한다. 로그인 서버의 IPv4 주소·포트, 게임 설치 폴더, 운영자가 발급한 게임 계정을 입력한다. 런처와 게임이 같은 폴더에 있으면 게임 설치 폴더는 Enter로 선택한다. 패치를 이미 설치했다면 설정 파일 없이 런처를 처음 실행할 때도 이 질문이 뜨고, 저장 뒤 게임이 시작된다.
+3. 아래 절의 서명 확인 명령으로 배포 패치를 내려받아 적용한 뒤 런처를 실행한다. 새 설정은 게임 로그인 창을 열고 비밀번호는 거기서 입력한다. 나중에 로그인 서버를 바꿀 때는 `--setup`을 다시 실행한다. Enter는 기존 주소나 포트를 유지하며, 유효하지 않은 값은 저장하지 않는다.
 
 ```powershell
 .\logh7-launcher.exe --config E:\Games\LOGH7\launcher.ini --check
+.\logh7-launcher.exe --config E:\Games\LOGH7\launcher.ini --setup
 .\logh7-launcher.exe --config E:\Games\LOGH7\launcher.ini
 ```
 
 `--check`는 설정·게임 경로·오디오만 점검한다. 설정을 생략하면 런처 실행 파일 옆 `launcher.ini`를 읽는다. `--help`, `--version`도 지원한다. 인증 문자열은 런처 출력에 쓰지 않는다. 계정과 인증 문자열은 원본 인자 경로에서 확인한 짧은 ASCII 범위를 사용한다. 서버 주소는 IPv4, 포트와 세션 ID는 1~65535이다.
+
+기존 `launcher.ini`는 계속 읽는다. 수동 편집 시 UTF-8을 사용하며 상대 경로는 파일 위치 기준이다.
+`login_ui=true`이면 게임에는 주소·포트·계정 인자만 전달한다. 기존 자동 로그인 설정에서는
+`session`과 `credential`을 포함한다. 로그인 포트는 런처 설정, 세션 포트는 서버의 입장 응답,
+패치 URL은 `--download-patch`에서 각각 받는다.
+
+2026-11-07 로컬 확인(`work/launcher-connection-20261107`) — 배포용 빌드가 새 설정을 만들고
+50911에서 50910으로 포트를 변경했다. 65536 입력은 거부했고 저장된 파일은 그대로였다.
+운영자 계정 폼에서 새 게임 계정을 발급한 뒤 별도 HTTP 포트 50912의 서명 패치 24개를
+원본 설치본의 새 사본에 내려받아 적용했다. 제품 런처가 저장한 50910으로 접속한 게임을
+시작했고, 서버가 안내한 50903 세션으로 넘어가 은하제국 소위를 등록하고 1920×1080 전략에
+진입했다. 50910은 로컬 시험 릴레이이며 로그인 서버는 50900에서 실행했다. 다른 PC와 외부망은
+별도 시험 범위다. 단위 검사 22개와 릴리스 빌드가 통과했다.
 
 기본 오디오 출력이 없거나 비활성이면 원인을 표시하고 게임을 실행하지 않는다. 점검은 [GetDefaultAudioEndpoint](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint)와 [GetState](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdevice-getstate)를 사용하며 볼륨·음소거·장치를 바꾸지 않는다. 이 점검은 실제 게임 오디오 초기화 성공을 보장하지 않으므로 실행 관찰과 구분한다.
 

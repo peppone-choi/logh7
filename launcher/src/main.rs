@@ -3,10 +3,12 @@ mod config;
 mod download;
 mod graphic_config;
 mod patch;
+mod setup;
 mod signature;
 use config::Config;
 use std::{
     env, fs,
+    io::{self, IsTerminal},
     path::PathBuf,
     process::{Command, ExitCode},
 };
@@ -16,6 +18,7 @@ fn run() -> Result<i32, String> {
         .map_err(|_| "런처 경로를 찾지 못했습니다")?
         .with_file_name("launcher.ini");
     let mut check = false;
+    let mut configure = false;
     let mut apply_patch: Option<PathBuf> = None;
     let mut revert_patch = false;
     let mut args = env::args_os().skip(1);
@@ -25,6 +28,7 @@ fn run() -> Result<i32, String> {
                 path = PathBuf::from(args.next().ok_or("--config 뒤에 파일 경로를 지정하세요")?)
             }
             Some("--check") => check = true,
+            Some("--setup") => configure = true,
             Some("--apply-patch") => {
                 apply_patch = Some(PathBuf::from(
                     args.next()
@@ -87,7 +91,7 @@ fn run() -> Result<i32, String> {
             }
             Some("--help") => {
                 println!(
-                    "logh7-launcher [--config launcher.ini] [--check | --apply-patch DIR | --revert-patch | --download-patch URL DIR [--expect-manifest SHA256] [--trust-key P256]]\n설정·오디오 출력 점검 후 원본 클라이언트를 실행합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
+                    "logh7-launcher [--config launcher.ini] [--setup | --check | --apply-patch DIR | --revert-patch | --download-patch URL DIR [--expect-manifest SHA256] [--trust-key P256]]\n--setup은 서버 주소와 포트를 설정 파일에 저장합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
                 );
                 return Ok(0);
             }
@@ -98,9 +102,19 @@ fn run() -> Result<i32, String> {
             _ => return Err("지원하지 않는 옵션입니다. --help를 확인하세요".into()),
         }
     }
+    if configure && (check || apply_patch.is_some() || revert_patch) {
+        return Err("--setup은 --check·패치 명령과 따로 실행하세요".into());
+    }
+    let launch = !check && apply_patch.is_none() && !revert_patch;
+    if configure || (launch && !path.try_exists().unwrap_or(true) && io::stdin().is_terminal()) {
+        setup::configure(&path, &mut io::stdin().lock(), &mut io::stdout().lock())?;
+        if configure {
+            return Ok(0);
+        }
+    }
     let path = path
         .canonicalize()
-        .map_err(|_| "설정 파일을 찾지 못했습니다. launcher.ini 또는 --config 경로를 확인하세요")?;
+        .map_err(|_| "설정 파일을 열 수 없습니다. 최초 설정은 --setup으로 시작하세요")?;
     let text = fs::read_to_string(&path).map_err(|_| "설정 파일을 UTF-8로 읽지 못했습니다")?;
     let config = Config::parse(
         &text,
