@@ -325,6 +325,7 @@ static void __cdecl requestFuel() {
     record.card = static_cast<unsigned short>(card);
     // Internal selector is one greater than the switch case: 0x52 -> 0x0b02.
     reinterpret_cast<unsigned(__thiscall*)(void*, char, unsigned, const void*)>(0x4b78a0)(world, 0, 0x52, &record);
+    refreshFuelProgress(world,record.character);
 }
 
 static void __fastcall suppliedFuel(void* world, void*, void* message) {
@@ -335,6 +336,9 @@ static void __fastcall suppliedFuel(void* world, void*, void* message) {
             for (unsigned i = 0; i < count; ++i) {
                 unsigned id = at<unsigned>(message, 16 + i * 8);
                 unsigned cruise = at<unsigned>(message, 20 + i * 8);
+                auto own=at<BYTE*>(world,8);
+                if(own && at<BYTE>(own,0) && at<unsigned>(own,0x48)==id)
+                    refreshFuelProgress(world,at<unsigned>(own,0x24),true);
                 for (int slot = 0; slot < 600; ++slot) {
                     BYTE* character = static_cast<BYTE*>(world) + 12 + slot * 0x370;
                     if (at<BYTE>(character, 0) && at<unsigned>(character, 0x48) == id &&

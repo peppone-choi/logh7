@@ -111,7 +111,8 @@ static void invalidateOutfitGround(bool reset=false) {
 // editor caches, including when a delayed page arrives after the view is closed.
 static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcode,void* record) {
     matchLobbySelectionRefusal(world,opcode,record);
-    if((opcode&65535)==0x032f && (at<BYTE>(record,8)==4 || at<BYTE>(record,8)==6 || at<BYTE>(record,8)==7))return;
+    if((opcode&65535)==0x032f && (at<BYTE>(record,8)==4 || at<BYTE>(record,8)==6 ||
+        at<BYTE>(record,8)==7 || at<BYTE>(record,8)==fuelStatusMode))return;
     groundOrderReplied(opcode,static_cast<const BYTE*>(record));
     if(groundPanelConsumes(opcode,static_cast<const BYTE*>(record)))return;
     bool consume=(opcode&65535)==0x032f && at<BYTE>(record,8)==2;
