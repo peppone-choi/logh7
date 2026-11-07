@@ -35,12 +35,21 @@ class OccupationPresenceTest {
         fun deliver(e:BaseOccupation=event,s:WorldSnapshot=snapshot)=presence.occupation(e,s,WorldBootstrap(galaxy,catalog),
             {id->people.singleOrNull {it.id==id.toLong()}},{_,_,_->emptyList()})
         fun messages(i:Int,opcode:Int)=packets[i].flatten().filter {ByteBuffer.wrap(it).getShort(4).toInt()==opcode}
+        fun notice(packet:ByteArray)=ChatMessages.spot(packet.copyOfRange(4,packet.size)).text
+        val winnerName=catalog.countries.getValue(winnerCountry).name.take(10)
+        val occupationLine="[점령] Here · $winnerName"
         deliver()
         assertContentEquals(TacticalGroundMessages.occupationFinished(1049,2,0),messages(0,0x0442).single())
         assertTrue(messages(1,0x0442).isEmpty());assertTrue(messages(2,0x0442).isEmpty())
         assertContentEquals(TacticsMessages.notify(2487,true),messages(1,0x0f1f).single())
         assertContentEquals(PlaceMessages.dockNotification(10001,0,5,250),messages(1,0x0b0b).single())
         assertTrue(messages(1,0x0356).isNotEmpty())
+        assertEquals(occupationLine,notice(messages(0,0x0f1d).single()))
+        assertTrue(messages(1,0x0f1d).isEmpty());assertTrue(messages(2,0x0f1d).isEmpty())
+        assertNull(presence.takeGroundResult("c1",expelled))
+        presence.groundResultGridReady("c1",expelled)
+        assertEquals(occupationLine,notice(checkNotNull(presence.takeGroundResult("c1",expelled))))
+        assertNull(presence.takeGroundResult("c1",expelled))
         for(i in 0..2) {
             assertEquals(2,messages(i,0x031f).single()[11].toInt())
             assertEquals(1,messages(i,0x0321).size)
@@ -53,7 +62,15 @@ class OccupationPresenceTest {
         packets.forEach {it.clear()};deliver(event.copy(recipients=mapOf(10000 to "obsolete")))
         assertTrue(packets.all {it.isEmpty()})
         // The occupation update refreshes presence first, so it must deliver the final tactical exit itself.
-        deliver(s=snapshot.copy(navigators=snapshot.navigators+("winner" to winner.copy(cpPaused=false))))
+        val returning=winner.copy(cpPaused=false)
+        val returnedSnapshot=snapshot.copy(navigators=snapshot.navigators+("winner" to returning))
+        presence.groundBattle(GroundBattleResult(1,2487,1049,250,listOf(1),listOf(1),mapOf(10000 to "c0"),
+            GroundBattleConclusion(CountryId(winnerCountry))),returnedSnapshot,galaxy){null}
+        deliver(s=returnedSnapshot)
         assertContentEquals(TacticsMessages.notify(2487,false),messages(0,0x0f1f).single())
+        assertTrue(messages(0,0x0f1d).isEmpty())
+        presence.groundResultGridReady("c0",returning)
+        assertEquals(occupationLine,notice(checkNotNull(presence.takeGroundResult("c0",returning))))
+        assertNull(presence.takeGroundResult("c0",returning),"occupation replaces the queued result for this base")
     }
 }

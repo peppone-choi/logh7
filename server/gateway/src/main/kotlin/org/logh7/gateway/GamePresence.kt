@@ -121,6 +121,11 @@ class GamePresence {
         val stocks=snapshot.planetStocks ?: return
         if(stocks.generation!=event.generation)return
         val countries=world.lobbyCountryDefinitions().first
+        val occupationLine=if(stocks.bases[event.base]?.country==event.country) {
+            val base=groundNoticeBase(world.galaxy,event.base)
+            val nation=groundNoticeCountry(countries.countries[event.country.value]?.name,event.country)
+            "[점령] $base · $nation"
+        } else null
         // Office cards belong to the actual country of the current snapshot, never the display byte (2/3 shared by
         // added countries); no membership or a removed country holds no national office.
         fun cards(player:Navigator)=player.country?.takeIf {it.value in countries.countries}
@@ -147,8 +152,8 @@ class GamePresence {
                 packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,0,5,event.seconds)
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,player.cpPaused)
             } else if(player.grid==event.grid && previous.player.cpPaused) {
-                val tactical=TacticalBootstrap(snapshot,world.galaxy,player,world.lobbyCountryDefinitions().first,characterById)
-                val display=world.lobbyCountryDefinitions().first.nativePower(org.logh7.engine.Allegiance.Country(event.country))
+                val tactical=TacticalBootstrap(snapshot,world.galaxy,player,countries,characterById)
+                val display=countries.nativePower(org.logh7.engine.Allegiance.Country(event.country))
                 packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,display,0)
                 // Imported definitions and states retain real zero-boat identities; no fake weapon hit.
                 packets+=event.expelled.values.mapNotNull {p->characterById(p.characterId)?.let {c->
@@ -161,23 +166,44 @@ class GamePresence {
             }
             if(previous.player.cpPaused && !player.cpPaused && !expelled)
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,false)
-            GridForceReport.message(snapshot,world.galaxy,player,event.seconds,world.lobbyCountryDefinitions().first)?.let {packets+=it}
+            GridForceReport.message(snapshot,world.galaxy,player,event.seconds,countries)?.let {packets+=it}
+            if(occupationLine!=null && player.grid==event.grid) {
+                val notice=ChatMessages.spot(ChatMessages.Spot(player.characterId,occupationLine),event.seconds.coerceIn(0,0xffffffffL))
+                if(expelled || previous.player.cpPaused!=player.cpPaused)
+                    queueGroundResult(member,event.base,notice)
+                else packets+=notice
+            }
             send(member,packets+updated.refresh)
         }
     }
-    private data class GroundResultNotice(val generation:Long,val grid:Int,val packet:ByteArray,var gridReady:Boolean=false)
+    private fun groundNoticeBase(galaxy:org.logh7.engine.Galaxy,base:Int)=KoreanDisplayNames.base(galaxy.bases.single {it.id==base}.name)
+        .filterNot {it.isSurrogate() || it.isISOControl()}.take(10).ifBlank {"거점 $base"}
+
+    private fun groundNoticeCountry(name:String?,country:org.logh7.engine.CountryId)=name?.filterNot {it.isSurrogate() || it.isISOControl()}
+        ?.take(10)?.takeIf {it.isNotBlank()} ?: "국가 ${country.value}"
+
+    private data class GroundResultNotice(val generation:Long,val grid:Int,val tactical:Boolean,val base:Int,val packet:ByteArray,
+        var gridReady:Boolean=false)
     private val groundResultNotices=mutableMapOf<String,ArrayDeque<GroundResultNotice>>()
 
+    private fun queueGroundResult(member:Member,base:Int,packet:ByteArray) {
+        val player=member.player
+        val notices=groundResultNotices.getOrPut(member.connection){ArrayDeque()}
+        // The captured base is the final result of this same fight, so it replaces a queued victory line.
+        notices.removeAll {it.generation==player.generation && it.grid==player.grid && it.base==base}
+        notices.addLast(GroundResultNotice(player.generation,player.grid,player.cpPaused,base,packet))
+    }
+
     @Synchronized fun groundResultGridReady(connection:String,player:Navigator) {
-        if(!player.cpPaused)groundResultNotices[connection]?.forEach {
-            if(it.generation==player.generation && it.grid==player.grid)it.gridReady=true
+        groundResultNotices[connection]?.forEach {
+            if(it.generation==player.generation && it.grid==player.grid && it.tactical==player.cpPaused)it.gridReady=true
         }
     }
 
     @Synchronized fun takeGroundResult(connection:String,player:Navigator):ByteArray? {
         val notices=groundResultNotices[connection] ?: return null
         // A reconnect or a new battle must not display an old result.
-        notices.removeAll {it.generation!=player.generation || it.grid!=player.grid || player.cpPaused}
+        notices.removeAll {it.generation!=player.generation || it.grid!=player.grid || it.tactical!=player.cpPaused}
         val next=notices.firstOrNull()?.takeIf {it.gridReady}?.let {notices.removeFirst()}
         if(notices.isEmpty())groundResultNotices.remove(connection)
         return next?.packet
@@ -194,21 +220,19 @@ class GamePresence {
                 org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
                 org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,event.base,base.stamina))
             event.conclusion?.let {result->
-                val name=KoreanDisplayNames.base(galaxy.bases.single {it.id==event.base}.name).filterNot {it.isSurrogate() || it.isISOControl()}
-                    .take(10).ifBlank {"거점 ${event.base}"}
+                val name=groundNoticeBase(galaxy,event.base)
                 val winner=result.survivingCountry
                 val outcome=when {
                     result.withdrawal->"철수로 종료"
                     winner==null->"생존 병력 없음"
                     winner==viewer.player.country->"아군 승리"
-                    else->(countryName(winner)?.filterNot {it.isSurrogate() || it.isISOControl()}?.take(10)
-                        ?.takeIf {it.isNotBlank()} ?: "국가 ${winner.value}")+" 승리"
+                    else->groundNoticeCountry(countryName(winner),winner)+" 승리"
                 }
                 val line="[지상전] $name · $outcome"
                 val notice=ChatMessages.spot(ChatMessages.Spot(viewer.character.id.toInt(),line),event.seconds.coerceIn(0,0xffffffffL))
                 val current=snapshot.navigators.values.singleOrNull {it.characterId==viewer.player.characterId && it.generation==event.generation}
                 if(current?.cpPaused==false && current.grid==event.grid) {
-                    groundResultNotices.getOrPut(viewer.connection){ArrayDeque()}.addLast(GroundResultNotice(event.generation,event.grid,notice))
+                    queueGroundResult(viewer.copy(player=current),event.base,notice)
                 } else packets+=notice
             }
             send(viewer,packets)
