@@ -15,7 +15,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; background: var(--page); color: var(--ink); line-height: 1.55; }
 h1, h2, p, dl, dd { margin: 0; }
-h1, h2 { line-height: 1.22; text-wrap: balance; }
+h1, h2 { line-height: 1.22; text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; }
 p { overflow-wrap: anywhere; word-break: keep-all; }
 
 .portal {
@@ -54,10 +54,11 @@ h1 { font-size: clamp(2rem, 4.5vw, 3.3rem); }
   border-radius: 1rem;
 }
 
-form, .success { display: grid; gap: 1.35rem; }
+form, .success { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.35rem; }
 h2 { font-size: 1.45rem; }
-.field { display: grid; gap: .45rem; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr); gap: .45rem; }
 label { font-weight: 650; }
+label, button, .portal-link { word-break: keep-all; overflow-wrap: anywhere; }
 input, button { font: inherit; min-block-size: 3rem; border: 1px solid var(--border); border-radius: .5rem; }
 input { inline-size: 100%; min-inline-size: 0; padding: .6rem .8rem; color: var(--ink); background: var(--input); }
 button { padding: .55rem .7rem; cursor: pointer; font-weight: 650; }
@@ -114,7 +115,8 @@ input[aria-invalid="true"] { border-color: var(--error); }
 }
 
 @media (max-width: 46rem) {
-  .portal { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 1.6rem; padding-block: 1.5rem 2rem; }
+  .portal { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 1.6rem; padding: 1.5rem clamp(16px, 5vw, 24px) 2rem; }
+  .panel { padding: clamp(20px, 4vw, 32px); }
   .brand { margin-block-end: 1.25rem; }
   .lede { margin-block-start: .65rem; }
   .orbits { display: none; }
