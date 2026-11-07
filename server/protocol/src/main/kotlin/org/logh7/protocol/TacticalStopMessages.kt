@@ -24,10 +24,17 @@ object TacticalStopMessages {
         require(baseCount <= 32 && input.remaining() == baseCount * 4)
         return Stop(character, units, List(baseCount) { input.int })
     }
-    fun reply(stop: Stop, seconds: Long, accepted: Boolean = true): ByteArray {
+    fun reply(stop: Stop, seconds: Long, accepted: Boolean = true): ByteArray = encode(stop, seconds, 0, accepted)
+
+    // The CD only caches this reply. Reserve an impossible stop wait for the compatibility
+    // client so an ordinary stop reply, including a rejection, cannot clear support.
+    fun supportCancelled(character: Int, unit: Int, seconds: Long): ByteArray =
+        encode(Stop(character, listOf(unit)), seconds, -1, true)
+
+    private fun encode(stop: Stop, seconds: Long, wait: Int, accepted: Boolean): ByteArray {
         require(seconds in 0..0xffffffffL)
         val out = ByteBuffer.allocate(14 + 4 * (stop.units.size + stop.bases.size))
-            .putInt(seconds.toInt()).putInt(0).putInt(stop.character).put(stop.units.size.toByte())
+            .putInt(seconds.toInt()).putInt(wait).putInt(stop.character).put(stop.units.size.toByte())
         stop.units.forEach(out::putInt)
         out.put(stop.bases.size.toByte()); stop.bases.forEach(out::putInt)
         return LoginMessages.sessionMessage(0x040a, out.array()).also {

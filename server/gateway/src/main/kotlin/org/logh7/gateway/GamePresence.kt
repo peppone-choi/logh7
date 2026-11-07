@@ -399,8 +399,8 @@ class GamePresence {
     }
     @Synchronized fun support(event:org.logh7.engine.TacticalSupportResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
-        val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.reply(
-            org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),snapshot.session?.gameSeconds ?: 0)
+        val packet=if(event.cancelled)org.logh7.protocol.TacticalStopMessages.supportCancelled(
+            event.character,event.unit,snapshot.session?.gameSeconds ?: 0)
             else if(event.action==org.logh7.engine.TacticalSupportAction.REPAIR)
             org.logh7.protocol.TacticalSupportMessages.repaired(event.unit,event.target,event.supplies,event.damaged)
             else org.logh7.protocol.TacticalSupportMessages.supplied(event.unit,event.target,event.supplies,event.targetSupplies)
