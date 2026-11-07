@@ -1,5 +1,6 @@
 package org.logh7.engine
 
+import java.util.PriorityQueue
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -32,30 +33,66 @@ internal object NpcStrategy {
         if(count !in 1..300)return false
         return GridEntryRules.evaluate(GridForces.state(galaxy,target,forces),GridEntry(Camp(outfit.country,false),count.toInt(),false))==GridEntryVerdict.ALLOWED
     }
-    private fun step(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,origin:Int,goal:Int,preferred:Int?=null):Int? {
-        val x=origin%100;val y=origin/100
-        val camp=Camp(outfit.country,false);val strength=GridForces.mobileUnits(outfit)
+    private fun neighbors(grid:Int):List<Int> {
+        val x=grid%100;val y=grid/100
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
             if(dx==0 && dy==0 || x+dx !in 0..99 || y+dy !in 0..49)null else (y+dy)*100+x+dx
-        }}.filter {distance(it,goal)<distance(origin,goal) && hostile(forces,it,camp)<=strength*2 && allowed(galaxy,forces,outfit,it)}
+        }}
+    }
+    private fun step(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,origin:Int,goal:Int,preferred:Int?=null):Int? {
+        val camp=Camp(outfit.country,false);val strength=GridForces.mobileUnits(outfit)
+        return neighbors(origin).filter {distance(it,goal)<distance(origin,goal) && hostile(forces,it,camp)<=strength*2 && allowed(galaxy,forces,outfit,it)}
             .minWithOrNull(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {distance(it,goal)}.thenBy {it})
     }
     /** Hostile mobile units on [grid] against [camp]. */
     private fun hostile(forces:Map<Int,List<GridForces.Force>>,grid:Int,camp:Camp)=
         forces[grid].orEmpty().filter {it.camp!=camp}.sumOf {it.units}
-    private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):GalaxyBase? {
+    private data class DepotRoute(val base:GalaxyBase,val next:Int,val jumps:Int)
+    private data class RouteVisit(val grid:Int,val first:Int,val jumps:Int,val estimatedTotal:Int)
+
+    private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):DepotRoute? {
         val origin=outfit.positionIn(galaxy).grid
-        return galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
+        val depots=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
             !TacticalContact.contested(forces[b.grid].orEmpty())}
-            .minWithOrNull(compareBy<GalaxyBase> {distance(origin,it.grid)}.thenBy {it.grid}.thenBy {it.id})
+            .sortedByDescending {it.id}.associateBy {it.grid}
+        if(depots.isEmpty())return null
+        depots[origin]?.let {return DepotRoute(it,origin,0)}
+        val strength=GridForces.mobileUnits(outfit)
+        if(strength !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong())return null
+        val camp=Camp(outfit.country,false)
+        val entry=GridEntry(camp,strength.toInt(),false)
+        fun remaining(grid:Int)=depots.keys.minOf {distance(grid,it)}
+
+        // Every jump costs one, so straight-line grid distance is a lower bound even around blocked cells.
+        val queue=PriorityQueue(compareBy<RouteVisit> {it.estimatedTotal}.thenByDescending {it.jumps}.thenBy {it.grid})
+        val best=mutableMapOf(origin to 0)
+        val blocked=mutableSetOf<Int>()
+        queue.add(RouteVisit(origin,origin,0,remaining(origin)))
+        while(queue.isNotEmpty()) {
+            val current=queue.remove()
+            if(best[current.grid]!=current.jumps)continue
+            depots[current.grid]?.let {return DepotRoute(it,current.first,current.jumps)}
+            val jumps=current.jumps+1
+            for(grid in neighbors(current.grid)) {
+                if(jumps>=(best[grid] ?: Int.MAX_VALUE) || grid in blocked)continue
+                if(hostile(forces,grid,camp)>strength*2 ||
+                    GridEntryRules.evaluate(GridForces.state(galaxy,grid,forces),entry)!=GridEntryVerdict.ALLOWED) {
+                    blocked.add(grid)
+                    continue
+                }
+                best[grid]=jumps
+                val first=if(current.jumps==0)grid else current.first
+                queue.add(RouteVisit(grid,first,jumps,jumps+remaining(grid)))
+            }
+        }
+        return null
     }
-    /** Reserve real cargo for every remaining jump to the nearest currently safe depot. */
+    /** Reserve real cargo for every remaining jump to a reachable safe depot. */
     fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? =
-        if(!eligible(outfit) || outfit.positionIn(galaxy).baseId!=0)null else
-            home(galaxy,forces,outfit,stocks)?.let {distance(outfit.positionIn(galaxy).grid,it.grid)}
+        if(!eligible(outfit) || outfit.positionIn(galaxy).baseId!=0)null else home(galaxy,forces,outfit,stocks)?.jumps
     /**
      * Next adjacent grid: towards the nearest enemy it can take on (at most twice its own mobile units), or, when
-     * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards the nearest own depot
+     * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards a reachable own depot
      * (`evidence:guess`, 2026-11-04 replacement policy).
      */
     private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,preferred:Int?=null):OutfitPosition? {
@@ -70,7 +107,7 @@ internal object NpcStrategy {
         val continuing=if(origin in candidates)listOf(origin) else if(preferred==null)candidates else
             candidates.filter {distance(preferred,it)<distance(origin,it)}.ifEmpty {candidates}
         val goal=continuing.minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it})
-        val home=home(galaxy,forces,outfit,stocks)
+        val home=if(position.baseId==0)home(galaxy,forces,outfit,stocks) else null
         // Turn back before the next ammunition payment could consume the return trip.
         val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit)
@@ -79,13 +116,12 @@ internal object NpcStrategy {
             val shot=TacticalWeapon.entries.maxOf {weapon->
                 val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
                 if(mount.power==0)0 else TacticalFleetShoot.cost(unit,mount,weapon)}
-            val required=maxOf(unit.boats*2,(home?.let {distance(origin,it.grid)*unit.boats+shot} ?: 0))
+            val required=maxOf(unit.boats*2,(home?.let {it.jumps*unit.boats+shot} ?: 0))
             balances.getValue(unit.id)<required
         }
         if(goal!=null && beatable(origin) && !short)return if(goal==origin)null else step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition)
         if(home==null)return null
-        if(home.grid==origin)return if(position.baseId!=0)null else OutfitPosition(origin,home.id)
-        return step(galaxy,forces,outfit,origin,home.grid,preferred)?.let {OutfitPosition(it,if(it==home.grid)home.id else 0)}
+        return OutfitPosition(home.next,if(home.next==home.base.grid)home.base.id else 0)
     }
     private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy,departing:Boolean=true):Pair<PlanetStocks,OutfitStock>? {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
