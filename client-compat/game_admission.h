@@ -8,7 +8,8 @@ static BYTE* admissionOwnCharacter() {
 }
 static void CALLBACK pollGameAdmission(HWND window,UINT,UINT_PTR timer,DWORD) {
     auto own=admissionOwnCharacter();
-    if(!InterlockedExchange(&gameAdmissionPending,0)) {
+    const auto rejection=static_cast<logh::GameAdmissionRejection>(InterlockedExchange(&gameAdmissionPending,0));
+    if(rejection==logh::GameAdmissionRejection::None) {
         if(own && own[0])KillTimer(window,timer);
         return;
     }
@@ -16,8 +17,10 @@ static void CALLBACK pollGameAdmission(HWND window,UINT,UINT_PTR timer,DWORD) {
     if(!window)window=GetActiveWindow();
     DWORD owner=0;if(window)GetWindowThreadProcessId(window,&owner);
     if(owner!=GetCurrentProcessId())window=nullptr;
-    MessageBoxW(window,L"현재 세션에 참가할 수 없습니다.\n기존 접속과 세션 상태를 확인한 뒤 다시 접속하세요.\n확인을 누르면 게임을 닫습니다.",
-        L"게임 참가 거절",MB_OK|MB_ICONERROR);
+    const auto message=rejection==logh::GameAdmissionRejection::AlreadyOnline
+        ? L"이 계정은 이미 이 세션에 접속 중입니다.\n기존 게임을 종료한 뒤 다시 접속하세요.\n확인을 누르면 이 게임 창을 닫습니다."
+        : L"현재 세션에 참가할 수 없습니다.\n기존 접속과 세션 상태를 확인한 뒤 다시 접속하세요.\n확인을 누르면 게임을 닫습니다.";
+    MessageBoxW(window,message,L"게임 참가 거절",MB_OK|MB_ICONERROR);
     if(window)PostMessageW(window,WM_CLOSE,0,0);
     else PostQuitMessage(0);
 }
@@ -25,8 +28,12 @@ static unsigned __stdcall decodedGameAdmission(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x44eae0)(record,reader);
     resetFacilityGuideConnection();
     auto own=admissionOwnCharacter();
-    if(!result && record && logh::gameAdmissionRejected(0x0202,!own || !own[0]))
-        InterlockedExchange(&gameAdmissionPending,1);
+    if(!result && record) {
+        // The original SSLoginNG decoder writes the error byte at the start of its record.
+        const auto rejection=logh::gameAdmissionRejection(0x0202,!own || !own[0],at<BYTE>(record,0));
+        if(rejection!=logh::GameAdmissionRejection::None)
+            InterlockedExchange(&gameAdmissionPending,static_cast<LONG>(rejection));
+    }
     return result;
 }
 static bool installGameAdmission() {

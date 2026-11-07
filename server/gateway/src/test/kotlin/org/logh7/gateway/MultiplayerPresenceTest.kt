@@ -217,7 +217,8 @@ class MultiplayerPresenceTest {
             assertEquals(10001, ByteBuffer.wrap(readThrough(first, 0x0b0a)[1]).getInt(6))
             assertEquals(2488, fixture.engine.snapshot().navigators.getValue(fixture.account(1)).grid)
 
-            val duplicate = fixture.join(fixture.account(1), create = false, initialize = false)
+            val duplicate = fixture.join(fixture.account(1), create = false, initialize = false,
+                rejection = LoginMessages.SessionRejection.ALREADY_ONLINE)
             assertFalse(duplicate.accepted)
             fixture.awaitState(online = 2, connections = 2, participants = 2)
             fixture.clock(first); fixture.clock(restored) // Independent cipher sequences still accept requests.

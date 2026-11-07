@@ -1637,9 +1637,13 @@ static int runGuard(int argc, wchar_t** argv) {
         !logh::definitionShipCounts(1,1,0,normal,alive) || normal!=0 || alive!=1 ||
         logh::definitionShipCounts(300,10,20,normal,alive) || logh::definitionShipCounts(300,301,0,normal,alive) ||
         logh::definitionShipCounts(0,0,0,normal,alive) || logh::definitionShipCounts(301,0,0,normal,alive))return 80;
-    if(logh::gameAdmissionRejected(0x0206,true) || logh::gameAdmissionRejected(0x0201,true) ||
-        logh::gameAdmissionRejected(0x0202,false) || !logh::gameAdmissionRejected(0x0202,true) ||
-        !logh::gameAdmissionRejected(0x10000202,true))return 81;
+    using AdmissionRejection=logh::GameAdmissionRejection;
+    if(logh::gameAdmissionRejection(0x0206,true,2)!=AdmissionRejection::None ||
+        logh::gameAdmissionRejection(0x0201,true,2)!=AdmissionRejection::None ||
+        logh::gameAdmissionRejection(0x0202,false,2)!=AdmissionRejection::None ||
+        logh::gameAdmissionRejection(0x0202,true,1)!=AdmissionRejection::Generic ||
+        logh::gameAdmissionRejection(0x0202,true,255)!=AdmissionRejection::Generic ||
+        logh::gameAdmissionRejection(0x10000202,true,2)!=AdmissionRejection::AlreadyOnline)return 81;
     unsigned char creation[sizeof(logh::creationMenuDisabled)];
     memcpy(creation,logh::creationMenuDisabled,sizeof(creation));
     if(logh::creationMenuState(creation,sizeof(creation))!=logh::CreationMenuState::Disabled)return 82;

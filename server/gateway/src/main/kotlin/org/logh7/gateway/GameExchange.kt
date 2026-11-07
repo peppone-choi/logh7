@@ -449,7 +449,14 @@ class GameExchange(
         joining = false
         gameStarted = result == Admission.ACCEPTED
         if (!gameStarted) state = State.REJECTED
-        val reply = if (gameStarted) LoginMessages.sessionMessage(0x0206, byteArrayOf(0)) else LoginMessages.sessionRejection()
+        val reply = when (result) {
+            Admission.ACCEPTED -> LoginMessages.sessionMessage(0x0206, byteArrayOf(0))
+            Admission.ALREADY_ONLINE -> {
+                counters?.duplicateAdmissionRejected?.incrementAndGet()
+                LoginMessages.sessionRejection(LoginMessages.SessionRejection.ALREADY_ONLINE)
+            }
+            else -> LoginMessages.sessionRejection()
+        }
         return handshake.stageAll(listOf(reply), clearHeader = 0)
     }
     private fun acceptCore(type: Int, data: ByteArray): OutboundBatch? {
