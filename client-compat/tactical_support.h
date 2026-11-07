@@ -23,6 +23,14 @@ static void receivedTacticalSupportStop(void* world,const BYTE* record) {
     at<unsigned>(unit,0x5c8)=0;
     unit[0x5cc]=0;
 }
+static void __fastcall receivedTacticalRepairReply(void* world,void*,void* record,BYTE resume) {
+    if(at<unsigned>(record,4)!=0xffffffffu)
+        reinterpret_cast<void(__thiscall*)(void*,void*,BYTE)>(0x4c13a0)(world,record,resume);
+}
+static void __fastcall receivedTacticalSupplyReply(void* world,void*,void* record,BYTE resume) {
+    if(at<unsigned>(record,4)!=0xffffffffu)
+        reinterpret_cast<void(__thiscall*)(void*,void*,BYTE)>(0x4c14a0)(world,record,resume);
+}
 static void __fastcall receivedTacticalRepair(void* world,void*,void* message) {
     auto source=supportUnit(world,at<unsigned>(message,0));
     unsigned previous=source ? at<unsigned>(source,0x8d4) : 0;
@@ -94,6 +102,12 @@ static unsigned __fastcall pickTacticalSupportTarget(void* renderer,void*,int x,
     return pick(renderer,x,y,mask,overrideMask);
 }
 static bool installTacticalSupport() {
+    // Keep the native packet dispatcher and queue cleanup around a rejected reply.
+    BYTE repairReply[5],supplyReply[5],repairReplyExpected[5],supplyReplyExpected[5];
+    tacticalNoticeCall(0x4bb958,repairReplyExpected,reinterpret_cast<void*>(0x4c13a0));
+    tacticalNoticeCall(0x4bb98e,supplyReplyExpected,reinterpret_cast<void*>(0x4c14a0));
+    tacticalNoticeCall(0x4bb958,repairReply,reinterpret_cast<void*>(&receivedTacticalRepairReply));
+    tacticalNoticeCall(0x4bb98e,supplyReply,reinterpret_cast<void*>(&receivedTacticalSupplyReply));
     auto repair=reinterpret_cast<BYTE*>(0x4bc4fd),supply=reinterpret_cast<BYTE*>(0x4bc53a);
     const BYTE repairExpected[]={0xe8,0x9e,0x50,0,0},supplyExpected[]={0xe8,0x41,0x51,0,0};
     if (memcmp(repair,repairExpected,5) || memcmp(supply,supplyExpected,5)) return false;
@@ -115,5 +129,7 @@ static bool installTacticalSupport() {
     *reinterpret_cast<LONG*>(pickerCall+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&pickTacticalSupportTarget)-targetPicker-5);
     return patchBytes(repair,repairExpected,a,5) && patchBytes(supply,supplyExpected,b,5) &&
         patchBytes(initial,initialExpected,c,5) && patchBytes(joined,joinedExpected,d,5) &&
-        patchBytes(supplyMask,maskExpected,maskReplacement,5) && patchBytes(targetPicker,pickerExpected,pickerCall,5);
+        patchBytes(supplyMask,maskExpected,maskReplacement,5) && patchBytes(targetPicker,pickerExpected,pickerCall,5) &&
+        patchBytes(reinterpret_cast<void*>(0x4bb958),repairReplyExpected,repairReply,5) &&
+        patchBytes(reinterpret_cast<void*>(0x4bb98e),supplyReplyExpected,supplyReply,5);
 }

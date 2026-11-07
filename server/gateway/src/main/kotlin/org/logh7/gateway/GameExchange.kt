@@ -657,9 +657,18 @@ class GameExchange(
                             val player=checkNotNull(result.player ?: result.previous)
                             publication=Publication(character,player,false)
                             val now=gameSeconds()
+                            val refusal=if(result.player==null) {
+                                val label=if(opcode==0x0413)"수리" else "보급"
+                                val reason=when(result.rejection) {
+                                    NavigationRejection.SUPPLY -> "지원함의 군수물자가 부족합니다."
+                                    NavigationRejection.BUSY -> "지원함이 이미 작업 중입니다."
+                                    else -> "지원함의 지휘 범위와 대상의 상태·거리를 확인하세요."
+                                }
+                                listOf(ChatMessages.invalidCommand(opcode,"[$label] $reason"))
+                            } else emptyList()
                             listOf(org.logh7.protocol.TacticalSupportMessages.reply(support,now,
                                 result.supportReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null)) +
-                                commandCorps(identity.account)
+                                refusal + commandCorps(identity.account)
                         }
                         return null
                     }

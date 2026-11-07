@@ -22,6 +22,7 @@ class TacticalSupportMessagesTest {
             assertEquals(command, TacticalSupportMessages.command(reply.copyOfRange(4, reply.size)))
             val denied = TacticalSupportMessages.reply(command, 777600, 0, accepted = false)
             assertEquals(1, ByteBuffer.wrap(denied).int)
+            assertEquals(-1, ByteBuffer.wrap(denied).getInt(10))
             assertContentEquals(reply.copyOfRange(14, reply.size), denied.copyOfRange(14, denied.size))
         }
     }
