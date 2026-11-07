@@ -8,7 +8,7 @@ package org.logh7.protocol
  * character exists. Author: Peppone Choi.
  *
  * Query: outfit = target session id (1..65535), base = nonce*512+offset (nonce 1..127, offset 0..350).
- * Header (kind 0, number 0): NC1, total, offset, rowCount, revision[0..12), revision[12..), gameSeconds,
+ * Header (kind 0, number 0): NC1, total, offset, rowCount, revision[0..12), revision[12..), elapsed game seconds,
  * generation[0..12), generation[12..), total regular bases of all defined countries (the session-wide denominator;
  * the client reads the session name from its 2006 list).
  * Row (kind 1, number = index in page): countryId, name[0..12), name[12..24), primary RGB or inherit,

@@ -48,7 +48,7 @@ internal object LobbyCountryCatalogue {
                     LobbyCountryMessages.CREATE or LobbyCountryMessages.LOTTERY else 0)
         }
         val header=LobbyCountryMessages.Header(countries.size,request.offset,rows.size,source.revision,
-            snapshot?.session?.gameSeconds ?: 0,source.generation,totalBases)
+            snapshot?.session?.elapsedGameSeconds ?: 0,source.generation,totalBases)
         return LobbyCountryMessages.reply(request,header,rows).map {LoginMessages.sessionMessage(0x032f,it)}
     }
 
