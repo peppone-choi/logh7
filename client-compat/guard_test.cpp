@@ -1643,6 +1643,7 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::gameAdmissionRejection(0x0202,false,2)!=AdmissionRejection::None ||
         logh::gameAdmissionRejection(0x0202,true,1)!=AdmissionRejection::Generic ||
         logh::gameAdmissionRejection(0x0202,true,255)!=AdmissionRejection::Generic ||
+        logh::gameAdmissionRejection(0x0202,true,3)!=AdmissionRejection::Maintenance ||
         logh::gameAdmissionRejection(0x10000202,true,2)!=AdmissionRejection::AlreadyOnline)return 81;
     unsigned char creation[sizeof(logh::creationMenuDisabled)];
     memcpy(creation,logh::creationMenuDisabled,sizeof(creation));

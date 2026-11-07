@@ -2236,7 +2236,7 @@ class GameExchange(
                         // A game connection can authenticate before maintenance and request entry afterwards.
                         if (maintenance?.refuses() == true) {
                             state = State.REJECTED
-                            return handshake.stageAll(listOf(LoginMessages.sessionRejection()), clearHeader = 0)
+                            return handshake.stageAll(listOf(LoginMessages.sessionRejection(LoginMessages.SessionRejection.MAINTENANCE)), clearHeader = 0)
                         }
                         val character = checkNotNull(currentCharacter(identity.account))
                         val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)

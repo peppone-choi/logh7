@@ -117,7 +117,7 @@ class GameExchangeTest {
         gate.setClosed(true)
         val reply = assertNotNull(game.accept(0x30, encrypted(hex("0205"), 3)))
         val body = Envelope.decode(LegacyBlowfish(b).decrypt(reply.copyOfRange(8, reply.size)), 2).second
-        assertContentEquals(LoginMessages.sessionRejection(), body)
+        assertContentEquals(hex("00000000020203010000"), body)
         assertEquals(GameExchange.State.REJECTED, game.state)
         assertNull(game.takePendingJoin())
         assertEquals(1, gate.refused.get())
