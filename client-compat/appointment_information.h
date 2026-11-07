@@ -147,7 +147,11 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
     if (const BYTE* supplied=selectedSupplyOutfit()) {
         auto name=supplyOutfitName(supplied);
         if (name.empty()) return;
-        body=name+L"에 군수물자를 보급합니다."+body.substr(newline);
+        const auto room=logh::infoWord(supplied,4);
+        wchar_t details[180];
+        if(room) swprintf_s(details,L"에 군수물자를 즉시 보급합니다.\n적재 여유 %u · 보유 물자 안에서 이전\nMCP 160 · 부족 시 PCP 320\n이전할 물자가 없으면 비용 없음\n실행하시겠습니까?",room);
+        else wcscpy_s(details,L"의 적재 여유가 없습니다.\n이전량 0 · 비용 없음");
+        body=name+details;
     } else if (command && at<unsigned>(command,0x28)==7) {
         auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
         auto own=world ? at<BYTE*>(world,8) : nullptr;

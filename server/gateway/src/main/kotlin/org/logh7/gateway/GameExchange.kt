@@ -8,6 +8,7 @@ import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.engine.NavigationRejection
+import org.logh7.engine.LogisticsRejection
 import org.logh7.engine.positionIn
 import java.nio.file.Files
 import java.nio.file.Path
@@ -1091,17 +1092,31 @@ class GameExchange(
                             publication = Publication(character, player, false)
                             val accepted = result.rejection == null
                             val stored = checkNotNull(result.stocks)
+                            val reply = if (accepted) query.copy(from = result.source) else query
                             fun units(id: Int) = if (!accepted) emptyList() else
                                 org.logh7.engine.OutfitSupplies.distribution(stored.outfits.getValue(id)).map { (unit, amount) ->
                                     org.logh7.protocol.CompletenessSupplyMessages.UnitSupply(unit, amount) }
-                            listOf(org.logh7.protocol.CompletenessSupplyMessages.response(query, gameSeconds(), player.pcp, player.mcp,
+                            val notice = when (result.rejection) {
+                                LogisticsRejection.CP -> "MCP 160 / PCP 320 필요"
+                                LogisticsRejection.LOCATION -> "같은 아군 거점에 정박 필요"
+                                LogisticsRejection.BUSY -> "이동·물자 편집 중"
+                                LogisticsRejection.STOCK -> "부대 편성·적재 상태 확인"
+                                LogisticsRejection.STORAGE -> "저장 실패 · 다시 시도"
+                                null -> result.payment?.let {
+                                    "${result.transferred} 이전 · ${it.chargedPool} -${it.spent}"
+                                } ?: if (stored.outfits.getValue(reply.from).supplies == 0)
+                                    "보급원 물자 없음 · 비용 0" else "대상 적재 여유 0 · 비용 0"
+                                else -> "대상·수송 지휘권 확인"
+                            }
+                            listOf(org.logh7.protocol.CompletenessSupplyMessages.response(reply, gameSeconds(), player.pcp, player.mcp,
                                 if (accepted) stored.outfits.getValue(query.to).supplies else 0,
-                                units(query.from), units(query.to), accepted), characterMessage(character, player, true)) +
-                                (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(query.from, 0, 0),
+                                units(reply.from), units(query.to), accepted), characterMessage(character, player, true)) +
+                                (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(reply.from, 0, 0),
                                     checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, stored, characterById = ::currentCharacterById),
                                     world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(query.to, 0, 0),
                                         checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, stored, characterById = ::currentCharacterById)) else emptyList()) +
-                                result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
+                                result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty() +
+                                ChatMessages.spot(ChatMessages.Spot(player.characterId, "[보급] $notice"), gameSeconds())
                         }
                         return null
                     }
@@ -2249,7 +2264,7 @@ class GameExchange(
                                     val allowed=scope.supply(inventory,character.id.toInt(),query.grid)
                                             .map { outfit -> org.logh7.protocol.SupplyDirectoryMessages.Outfit(outfit.id,
                                                 outfit.kind.wire,outfit.number,outfit.supplies,org.logh7.engine.OutfitSupplies.visibleCapacity(outfit),
-                                                world.baseWire(world.galaxy.bases.single { it.id==outfit.baseId })) }
+                                                world.baseWire(world.galaxy.bases.single { it.id==(outfit.position?.baseId ?: outfit.baseId) })) }
                                     org.logh7.protocol.SupplyDirectoryMessages.response(query,allowed)
                                 }
                                 return null

@@ -711,7 +711,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production).settle(session)
                     var result = CompletenessSupply.evaluate(request, session, recovered?.player, inventory)
-                    if (result.rejection == null && logistics.blocksSupply(session, inventory, setOf(request.from, request.to)))
+                    if (result.rejection == null && logistics.blocksSupply(session, inventory, setOf(result.source, request.to)))
                         result = CompletenessSupplyResult(recovered?.player, inventory, LogisticsRejection.BUSY)
                     if (result.changed) {
                         if (worldStateCommitter == null) result = CompletenessSupplyResult(recovered?.player, inventory, LogisticsRejection.STORAGE)

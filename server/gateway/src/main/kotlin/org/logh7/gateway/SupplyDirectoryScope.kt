@@ -21,8 +21,11 @@ internal class SupplyDirectoryScope(private val galaxy:Galaxy,country:CountryId?
 
     fun supply(stocks:PlanetStocks,actor:Int,grid:Int):List<OutfitStock> {
         val source=stocks.outfits.values.singleOrNull {it.commanderId==actor && it.kind==OutfitKind.TRANSPORT &&
-            country!=null && it.country==country && galaxy.bases.single {base->base.id==it.baseId}.grid==grid}
-            ?.takeIf {home(stocks,it)} ?: return emptyList()
-        return stocks.outfits.values.filter {it.id!=source.id && it.baseId==source.baseId && it.country==country}.sortedBy {it.id}
+            country!=null && it.country==country && it.positionIn(galaxy).let { position ->
+                position.grid==grid && stocks.bases[position.baseId]?.let {it.country==country && it.camp==0}==true
+            }} ?: return emptyList()
+        val port=source.positionIn(galaxy).baseId
+        return stocks.outfits.values.filter {it.id!=source.id && it.country==country &&
+            (it.position?.baseId ?: it.baseId)==port}.sortedBy {it.id}
     }
 }
