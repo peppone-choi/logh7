@@ -1,6 +1,13 @@
+import { connection } from "next/server";
 import RegistrationForm from "./registration-form";
 
-export default function Page() {
+export default async function Page() {
+  await connection();
+  const port = process.env.LOGH7_GAME_PORT ?? "";
+  const loginPort = /^\d{1,5}$/.test(port) && Number(port) >= 1 && Number(port) <= 65535
+    ? Number(port)
+    : null;
+
   return (
     <main className="portal">
       <section className="intro" aria-labelledby="page-title">
@@ -20,7 +27,7 @@ export default function Page() {
         </svg>
       </section>
       <section className="panel" aria-label="플레이어 가입">
-        <RegistrationForm />
+        <RegistrationForm loginPort={loginPort} />
         <div className="registration-footer">
           <a className="portal-link" href="/password">기존 게임 비밀번호 변경</a>
         </div>
