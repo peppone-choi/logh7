@@ -9,7 +9,12 @@ static struct ProductionQuote {
     unsigned base,mcp,hours,treasury,mineral,supplies,food,adults;
     wchar_t currency[13],symbol[5];
 } productionQuote;
-static void sendProductionAction(bool preview,bool quote=false) {
+static struct {
+    bool received,rowReceived,refreshAfterCommit;
+    unsigned yard,buildingUntil,ship,shipReadyAt,stock;
+    ULONGLONG refreshAt;
+} productionProgress;
+static void sendProductionAction(bool preview,bool quote=false,bool silent=false) {
     auto& state=taxWindow;unsigned command=state.strategyCommand;
     BYTE record[36]={};at<unsigned>(record,0)=state.character;
     at<unsigned short>(record,4)=0x7f00;at<unsigned short>(record,6)=static_cast<unsigned short>(command);
@@ -17,17 +22,29 @@ static void sendProductionAction(bool preview,bool quote=false) {
     if((!preview || quote) && (command==35 || command==36) && state.strategyTarget>0)
         at<unsigned short>(record,10)=static_cast<unsigned short>(state.strategyTarget-1);
     at<BYTE>(record,16)=preview ? 1 : 0;
-    if(preview) {productionQuote={};productionQuote.requested=quote;}
+    if(preview) {
+        const auto base=productionQuote.base;
+        productionQuote={};productionQuote.requested=quote;
+        if(silent)productionQuote.base=base;
+        productionProgress.rowReceived=false;
+    }
     if(quote)at<int>(record,20)=-1;
     if(!preview)at<unsigned>(record,28)=productionQuote.base;
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
-    state.pending=true;state.sentAt=GetTickCount64();state.message=quote ? L"비용을 조회하고 있습니다." :
+    state.pending=true;state.sentAt=GetTickCount64();
+    if(!silent)state.message=quote ? L"비용을 조회하고 있습니다." :
         preview ? L"목록을 조회하고 있습니다." : L"서버에 요청했습니다.";
     strategyDirectory.receiving=false;
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
 static const wchar_t* productionRejection(unsigned reply,unsigned command) {
+    if(productionProgress.received) {
+        if(reply==13 && productionProgress.buildingUntil && (command==31 || command==35))
+            return L"조병창 건설이 진행 중입니다.";
+        if(reply==13 && command==35 && productionProgress.yard==2)return L"조병창이 휴지 중입니다.";
+        if(reply==7 && command==35 && productionProgress.ship)return L"기존 주문이 입고될 때까지 새 주문을 할 수 없습니다.";
+    }
     if(reply==13) {
         static const wchar_t* unavailable[]={
             L"이미 조병창이 있습니다.", L"조병창이 없거나 이미 휴지 상태입니다.", L"휴지 중인 조병창이 없습니다.",
@@ -53,6 +70,15 @@ static bool readProductionAction(void* record) {
     if(flag>=16 && flag<=21) {
         if(productionQuote.requested) {
             if(flag<=18)readStrategyCurrency(record,flag,productionQuote.currency,productionQuote.symbol);
+            else if(flag==19) {
+                productionProgress.rowReceived=true;
+                productionProgress.buildingUntil=at<unsigned>(record,12);
+                productionProgress.shipReadyAt=at<unsigned>(record,20);
+                productionProgress.ship=at<unsigned short>(record,24);
+                const auto packed=at<unsigned>(record,28);
+                productionProgress.yard=packed>>24;
+                productionProgress.stock=packed&0xffffff;
+            }
             else if(flag==21) {
                 productionQuote.mineral=at<unsigned>(record,12);
                 productionQuote.supplies=at<unsigned>(record,20);
@@ -65,17 +91,53 @@ static bool readProductionAction(void* record) {
                 productionQuote.mcp=at<unsigned short>(record,30);
                 productionQuote.available=!reply && productionQuote.base;
                 state.pending=false;
+                productionProgress.received=productionProgress.rowReceived && productionQuote.base;
+                productionProgress.refreshAfterCommit=false;
+                productionProgress.refreshAt=GetTickCount64()+3000;
                 state.message=reply ? productionRejection(reply,command) : L"비용을 확인한 뒤 실행하세요.";
             }
         }
         memset(static_cast<BYTE*>(record)+4,0,32);return true;
     }
     state.pending=false;productionQuote.available=false;
+    if(!reply && command!=36 && productionProgress.received) {
+        productionProgress.refreshAfterCommit=true;
+        productionProgress.refreshAt=GetTickCount64()+1500;
+    }
     state.message=reply ? productionRejection(reply,command) :
         command==31 ? L"조병창 건설을 시작했습니다." : command==32 ? L"조병창을 휴지했습니다." :
         command==33 ? L"조병창을 재가동했습니다." : command==34 ? L"조병창을 파기했습니다." :
         command==35 ? L"함정 1유닛을 주문했습니다. 완성품은 거점 창고로 들어갑니다." : L"육전병 1유닛을 모병했습니다.";
     memset(static_cast<BYTE*>(record)+4,0,32);return true;
+}
+static void productionSiteLabel(const wchar_t* selected,wchar_t (&label)[160]) {
+    if(!productionQuote.base)return;
+    wchar_t base[32]={};pickerName(productionQuote.base,base);
+    if(!productionProgress.received) {
+        swprintf_s(label,L"대상 거점: %ls",base);
+        return;
+    }
+    const auto clock=*reinterpret_cast<BYTE**>(0x7cd028);
+    const unsigned now=clock ? at<unsigned>(clock,0x10) : 0;
+    const bool ship=taxWindow.strategyCommand==35 && productionProgress.ship;
+    const unsigned deadline=ship ? productionProgress.shipReadyAt : productionProgress.buildingUntil;
+    if(ship || deadline) {
+        wchar_t title[72];
+        if(ship) {
+            wchar_t name[64];outfitItemName(true,productionProgress.ship-1,name);
+            swprintf_s(title,L"%ls %ls",name,deadline<=now ? L"입고 대기" : L"건조 중");
+        } else wcscpy_s(title,deadline<=now ? L"조병창 가동 확인 중" : L"조병창 건설 중");
+        const unsigned remaining=now && deadline>now ? deadline-now : 0;
+        if(remaining>=86400)swprintf_s(label,L"%ls · %ls · %u일 %02u:%02u:%02u",base,title,
+            remaining/86400,remaining/3600%24,remaining/60%60,remaining%60);
+        else if(remaining)swprintf_s(label,L"%ls · %ls · %02u:%02u:%02u",base,title,remaining/3600,remaining/60%60,remaining%60);
+        else swprintf_s(label,L"%ls · %ls",base,title);
+    } else if(selected && taxWindow.strategyCommand==35)
+        swprintf_s(label,L"%ls · %ls 창고 %u유닛",base,selected,productionProgress.stock);
+    else if(taxWindow.strategyCommand!=36) {
+        const wchar_t* yardStatus=productionProgress.yard==3 ? L"가동 중" : productionProgress.yard==2 ? L"휴지 중" : L"없음";
+        swprintf_s(label,L"%ls · 조병창 %ls",base,yardStatus);
+    } else swprintf_s(label,L"대상 거점: %ls",base);
 }
 static bool updateProductionAction() {
     auto& state=taxWindow;unsigned command=state.strategyCommand;
@@ -91,6 +153,9 @@ static bool updateProductionAction() {
     taxText(1,label);
     const bool readyTarget=!listed || row;
     if(support==1 && readyTarget && !state.pending && !productionQuote.requested)sendProductionAction(true,true);
+    else if(support==1 && command!=36 && !state.pending && productionProgress.received &&
+        (productionProgress.refreshAfterCommit || productionProgress.buildingUntil || (command==35 && productionProgress.ship)) &&
+        GetTickCount64()>=productionProgress.refreshAt)sendProductionAction(true,true,true);
     const unsigned mcp=productionQuote.mcp ? productionQuote.mcp : command==36 ? 160 : 80;
     swprintf_s(label,L"MCP %u 또는 PCP %u",mcp,mcp*2);taxText(3,label);
     label[0]=0;
@@ -112,10 +177,7 @@ static bool updateProductionAction() {
     else if(command==36)wcscpy_s(label,L"실행 즉시 모병");
     taxText(4,label);
     label[0]=0;
-    if(productionQuote.base) {
-        wchar_t base[32]={};pickerName(productionQuote.base,base);
-        swprintf_s(label,L"대상 거점: %ls",base);
-    }
+    productionSiteLabel(row ? row->name : nullptr,label);
     taxText(5,label);
     taxText(6,support<0 && !state.pending ? L"서버의 비용 조회 지원 여부를 확인하고 있습니다." : state.message);
     taxText(10,L"-");taxText(11,L"이전");taxText(12,L"다음");taxText(13,listed ? L"목록 갱신" : L"비용 갱신");taxText(14,L"실행");taxText(15,L"닫기");

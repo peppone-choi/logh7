@@ -142,6 +142,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             val order=(capitals.values.sorted()+bases.keys.sorted()).distinct()
             val countryDefinitions=CountryCatalogLoader.current()
             repeat(Math.toIntExact(days - initialized.producedDays)) {day->
+                val dayEnd=Math.addExact(startSeconds,Math.multiplyExact(initialized.producedDays+day+1,86400L))
                 for(id in order) {
                     val previousDay=bases.getValue(id)
                     var next=previousDay
@@ -162,15 +163,14 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         bases[source.baseId]=source.copy(food=source.food-amount)
                     }
                     bases[id] = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), next,
-                        ProductionActions.shipyard(galaxy,initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L)),countryDefinitions))
+                        ProductionActions.shipyard(galaxy,initialized,id,dayEnd),countryDefinitions))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                         .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }
                 // The day's income first, then that day's upkeep on the ships a settlement at the day's end would
                 // leave after black-hole losses (PR #261 review). Only a preview: the losses themselves stay with
                 // the single later BlackHoleTides settlement, which keeps its per-settlement backlog cap.
-                if(policy.fleetUpkeepPerShip>0)FleetUpkeep.pay(BlackHoleTides.settle(galaxy,initialized,
-                    Math.addExact(startSeconds,Math.multiplyExact(initialized.producedDays+day+1,86400L))),
+                if(policy.fleetUpkeepPerShip>0)FleetUpkeep.pay(BlackHoleTides.settle(galaxy,initialized,dayEnd),
                     national,policy.fleetUpkeepPerShip)
             }
             initialized.copy(producedDays=days,bases=bases,nationalTreasuries=national).let {produced ->

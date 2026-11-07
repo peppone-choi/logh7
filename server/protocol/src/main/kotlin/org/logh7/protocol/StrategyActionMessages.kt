@@ -171,8 +171,12 @@ object StrategyActionMessages {
         return currency?.records(q.raw).orEmpty() + tradeRecord(q,20,status,amount,tariff) +
             LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }
+    data class ProductionProgress(val yard:Int,val buildingUntil:Long,val kind:Int?,val shipReadyAt:Long,val stock:Int) {
+        init {require(yard in 0..3 && buildingUntil in 0..0xffffffffL && shipReadyAt in 0..0xffffffffL &&
+            (kind==null && shipReadyAt==0L || kind!=null && kind in 0..199) && stock in 0..0xffffff)}
+    }
     fun productionQuote(q:Query,status:Int,base:Int,mcp:Int,hours:Int,treasury:Long,mineral:Long,supplies:Long,
-        food:Int,adults:Int,currency:StrategyCurrencyLabel?):List<ByteArray> {
+        food:Int,adults:Int,currency:StrategyCurrencyLabel?,progress:ProductionProgress?=null):List<ByteArray> {
         require(q.isProductionQuote && base in 0..65535 && mcp in 0..65535 && hours in 0..65535 &&
             listOf(treasury,mineral,supplies).all {it in 0..0xffffffffL} && food>=0 && adults>=0)
         fun row(flag:Int,target:Int,argument:Int,amount:Int,site:Int,result:Int=0):ByteArray {
@@ -181,7 +185,10 @@ object StrategyActionMessages {
                 .putInt(17,argument).putShort(21,amount.toShort()).putInt(23,site)
             return LoginMessages.sessionMessage(0x1200,payload)
         }
-        return currency?.records(q.raw).orEmpty() + row(21,mineral.toInt(),supplies.toInt(),0,food) +
+        // Older production windows already ignore flag 19, then finish the quote on flag 20.
+        val progressRow=progress?.let {row(19,it.buildingUntil.toInt(),it.shipReadyAt.toInt(),
+            (it.kind ?: -1)+1,(it.yard shl 24) or it.stock)}
+        return currency?.records(q.raw).orEmpty() + listOfNotNull(progressRow) + row(21,mineral.toInt(),supplies.toInt(),0,food) +
             row(20,adults,treasury.toInt(),hours,(mcp shl 16) or base,status) +
             LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }

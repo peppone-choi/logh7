@@ -41,8 +41,10 @@ object ProductionActions {
     const val BUILD_PRICE=100_000_000L
     const val BUILD_DAYS=30L
     const val QUOTE_PHASE=1
+    enum class Yard { MISSING, BUILDING, PAUSED, ACTIVE }
+    data class Progress(val yard:Yard,val buildingUntil:Long,val order:ShipOrder?,val stock:Int)
     data class Quote(val base:Int,val mcp:Int,val hours:Int=0,val treasury:Long=0,val mineral:Long=0,
-        val supplies:Long=0,val food:Int=0,val adults:Int=0)
+        val supplies:Long=0,val food:Int=0,val adults:Int=0,val progress:Progress?=null)
 
     /** Whether the base's shipyard produces at [seconds]: an original or opened built one, not paused. */
     fun shipyard(g:Galaxy,s:PlanetStocks,base:Int,seconds:Long):Boolean {
@@ -95,7 +97,17 @@ object ProductionActions {
             RECRUIT -> Quote(base,160,supplies=policy.suppliesPerTroop.toLong(),food=policy.foodPerTroop,adults=policy.peoplePerUnit)
             else -> Quote(base,80)
         }
-        quote=cost
+        if(r.phase==QUOTE_PHASE) {
+            val buildingUntil=prod.built[base]?.takeIf {it>now} ?: 0
+            val yard=when {
+                buildingUntil>0 -> Yard.BUILDING
+                base in prod.paused -> Yard.PAUSED
+                hasShipyard(g,s,base) -> Yard.ACTIVE
+                else -> Yard.MISSING
+            }
+            val count=if(i.command==SHIP)stock.units.ships.entries.sumOf {(stack,quantity)->if(stack.kind==i.value)quantity else 0} else 0
+            quote=cost.copy(progress=Progress(yard,buildingUntil,prod.orders[base],count))
+        }
         when(i.command) {
             BUILD -> {
                 if(hasShipyard(g,s,base))return reject(SocialRejection.TARGET)
@@ -121,7 +133,7 @@ object ProductionActions {
         }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost.mcp.toLong(),CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
-        if(r.phase==QUOTE_PHASE)return SocialResult(p,s,productionQuote=cost)
+        if(r.phase==QUOTE_PHASE)return SocialResult(p,s,productionQuote=quote)
         val payer=p.paidWith(paid.balance)
         fun with(next:ProductionState,st:PlanetStocks=s)=st.copy(social=st.social.copy(production=next))
         val next=when(i.command) {

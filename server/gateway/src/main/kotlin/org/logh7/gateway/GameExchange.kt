@@ -1811,7 +1811,9 @@ class GameExchange(
                                         org.logh7.protocol.StrategyActionMessages.productionQuote(query,result.rejection?.let {it.ordinal+1} ?: 0,
                                             quote?.base ?: 0,quote?.mcp ?: 0,quote?.hours ?: 0,quote?.treasury ?: 0,
                                             quote?.mineral ?: 0,quote?.supplies ?: 0,quote?.food ?: 0,quote?.adults ?: 0,
-                                            quote?.takeIf {it.treasury>0}?.let {currencyLabel(country)})
+                                            quote?.takeIf {it.treasury>0}?.let {currencyLabel(country)},
+                                            quote?.progress?.let {org.logh7.protocol.StrategyActionMessages.ProductionProgress(it.yard.ordinal,
+                                                it.buildingUntil,it.order?.kind,it.order?.readyAt ?: 0,it.stock)})
                                     }
                                     return null
                                 }
